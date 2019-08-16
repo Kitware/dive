@@ -4,11 +4,13 @@ import Controls from "@/components/Controls";
 import AnnotationLayer from "@/components/AnnotationLayer";
 
 export default {
+  name: "Home",
   components: {
     VideoAnnotator,
     Controls,
     AnnotationLayer
   },
+  data: () => ({ selectedAnnotation: null }),
   computed: {
     annotationData() {
       var lastX = 0;
@@ -28,6 +30,22 @@ export default {
           }
         };
       });
+    },
+    annotationFeatureStyle() {
+      var selectedAnnotation = this.selectedAnnotation;
+      return {
+        strokeColor: (a, b, data) => {
+          return data === selectedAnnotation ? "red" : "lime";
+        }
+      };
+    }
+  },
+  // created() {
+  //   console.log(this);
+  // },
+  methods: {
+    selectAnnotation(data, e) {
+      this.selectedAnnotation = data;
     }
   }
 };
@@ -41,7 +59,11 @@ export default {
       <template slot="control">
         <Controls />
       </template>
-      <AnnotationLayer :data="annotationData" />
+      <AnnotationLayer
+        :data="annotationData"
+        :featureStyle="annotationFeatureStyle"
+        @annotation-click="selectAnnotation"
+      />
     </VideoAnnotator>
   </v-layout>
 </template>
