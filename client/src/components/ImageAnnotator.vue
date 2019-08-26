@@ -3,10 +3,10 @@ import Vue from "vue";
 import geo from "geojs";
 
 export default {
-  name: "VideoAnnotator",
+  name: "ImageAnnotator",
   props: {
-    videoUrl: {
-      type: String,
+    imageUrls: {
+      type: Array,
       required: true
     },
     frameRate: {
@@ -35,30 +35,21 @@ export default {
       maxFrame: 0
     };
   },
-  computed: {
-    isLastFrame() {
-      return this.playing;
-    }
-  },
+  computed: {},
   created() {
     this.provided.$on("play", this.play);
     this.provided.$on("pause", this.pause);
     this.provided.$on("seek", this.seek);
-    var video = document.createElement("video");
-    this.video = video;
-    video.preload = "auto";
-    video.src = this.videoUrl;
-    video.onloadedmetadata = () => {
-      video.onloadedmetadata = null;
-      this.width = video.videoWidth;
-      this.height = video.videoHeight;
-      this.maxFrame = this.frameRate * video.duration;
+    this.maxFrame = this.imageUrls.length - 1;
+    this.imgs = new Array(this.imageUrls.length);
+    this.cacheImage();
+    var img = this.imgs[0];
+    img.onload = () => {
+      img.onload = null;
+      this.width = img.naturalWidth;
+      this.height = img.naturalHeight;
       this.init();
     };
-    video.addEventListener("pause", this.videoPaused);
-    // setTimeout(() => {
-    //   this.play();
-    // }, 2000);
   },
   methods: {
     init() {
@@ -75,15 +66,15 @@ export default {
         max: this.viewer.zoomRange().max + 3
       });
       this.quadFeatureLayer = this.viewer.createLayer("feature", {
-        features: ["quad.video"]
+        features: ["quad"]
       });
-      this.quadFeatureLayer
+      this.quadFeature = this.quadFeatureLayer
         .createFeature("quad")
         .data([
           {
             ul: { x: 0, y: 0 },
             lr: { x: this.width, y: this.height },
-            video: this.video
+            image: this.imgs[this.frame]
           }
         ])
         .draw();
@@ -91,7 +82,6 @@ export default {
     },
     async play() {
       try {
-        await this.video.play();
         this.playing = true;
         this.syncWithVideo();
       } catch (ex) {
@@ -99,19 +89,20 @@ export default {
       }
     },
     async seek(frame) {
-      this.video.currentTime = frame / this.frameRate;
-      this.frame = Math.round(this.video.currentTime * this.frameRate);
+      this.frame = frame;
+      this.cacheImage();
+      this.quadFeature
+        .data([
+          {
+            ul: { x: 0, y: 0 },
+            lr: { x: this.width, y: this.height },
+            image: this.imgs[frame]
+          }
+        ])
+        .draw();
     },
     pause() {
-      this.video.pause();
       this.playing = false;
-    },
-    videoPaused() {
-      if (this.video.currentTime === this.video.duration) {
-        // console.log("video ended");
-        this.frame = 0;
-        this.pause();
-      }
     },
     onResize() {
       if (!this.viewer) {
@@ -125,21 +116,31 @@ export default {
     },
     syncWithVideo() {
       if (this.playing) {
-        // console.log("syncWithVideo");
-        this.frame = Math.round(this.video.currentTime * this.frameRate);
-        // console.log("syncWithVideo after", this.frame);
-        // if (this._frame !== frame) {
-        //   if (frame > this._maxFrame) {
-        //     this.stop();
-        //     frame = this._maxFrame;
-        //   }
-        //   this._frame = frame;
-        // }
-        this.viewer.scheduleAnimationFrame(this.syncWithVideo);
+        this.frame++;
+        if (this.frame > this.maxFrame) {
+          this.pause();
+          this.frame = this.maxFrame;
+          return;
+        }
+        this.seek(this.frame);
+        setTimeout(this.syncWithVideo, 1000 / this.frameRate);
       }
     },
     rendered() {
       // console.log("rendered an");
+    },
+    cacheImage() {
+      var frame = this.frame;
+      var max = Math.min(frame + 10, this.maxFrame);
+      var imgs = this.imgs;
+      for (let i = frame; i <= max; i++) {
+        if (!imgs[i]) {
+          var img = new Image();
+          img.crossOrigin = "Anonymous";
+          img.src = this.imageUrls[i];
+          imgs[i] = img;
+        }
+      }
     }
   }
 };

@@ -1,12 +1,15 @@
 <script>
 import VideoAnnotator from "@/components/VideoAnnotator";
+import ImageAnnotator from "@/components/ImageAnnotator";
 import Controls from "@/components/Controls";
 import AnnotationLayer from "@/components/AnnotationLayer";
+import images from './images';
 
 export default {
   name: "Home",
   components: {
     VideoAnnotator,
+    ImageAnnotator,
     Controls,
     AnnotationLayer
   },
@@ -38,6 +41,11 @@ export default {
           return data === selectedAnnotation ? "red" : "lime";
         }
       };
+    },
+    imageUrls() {
+      return images.map(name => {
+        return "/images1/" + name;
+      });
     }
   },
   // created() {
@@ -53,8 +61,9 @@ export default {
 
 <template>
   <v-layout fill-height>
-    <VideoAnnotator
-      :videoMeta="{ url: '//localhost:8083/video.mp4', frameRate: 12 }"
+    <ImageAnnotator
+      :image-urls="imageUrls"
+      :frame-rate="12"
     >
       <template slot="control">
         <Controls />
@@ -64,6 +73,6 @@ export default {
         :featureStyle="annotationFeatureStyle"
         @annotation-click="selectAnnotation"
       />
-    </VideoAnnotator>
+    </ImageAnnotator>
   </v-layout>
 </template>
