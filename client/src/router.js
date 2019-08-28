@@ -1,24 +1,39 @@
 import Vue from "vue";
 import Router from "vue-router";
+
+import girder from "./girder";
+import Viewer from "./views/Viewer.vue";
 import Home from "./views/Home.vue";
+import Login from "./views/Login.vue";
 
 Vue.use(Router);
 
 export default new Router({
   routes: [
     {
-      path: "/",
-      name: "home",
-      component: Home
+      path: "/login",
+      name: "login",
+      component: Login
     },
     {
-      path: "/about",
-      name: "about",
-      // route level code-splitting
-      // this generates a separate chunk (about.[hash].js) for this route
-      // which is lazy-loaded when the route is visited.
-      component: () =>
-        import(/* webpackChunkName: "about" */ "./views/About.vue")
+      path: "/",
+      name: "home",
+      component: Home,
+      beforeEnter
+    },
+    {
+      path: "/viewer/:datasetId?",
+      name: "viewer",
+      component: Viewer,
+      beforeEnter
     }
   ]
 });
+
+function beforeEnter(to, from, next) {
+  if (!girder.girderRest.user) {
+    next("/login");
+  } else {
+    next();
+  }
+}
