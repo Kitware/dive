@@ -1,0 +1,55 @@
+## Use this to start the girder/ girder-worker ecosystem
+version: '3'
+services:
+  ## === === === === prebuilt services === === === === ===
+  rabbit:
+    image: rabbitmq:management
+
+  mongo:
+    image: mongo:latest
+    volumes:
+      - mongo_db:/data/db
+
+## === === === === Girder === === === === ===
+  girder:
+    build:
+      context: .
+      dockerfile: docker/girder.Dockerfile
+    depends_on:
+      - mongo
+    ports:
+      - "8081:8080"
+    volumes:
+      - girder_assetstore:/home/assetstore
+      - ./server:/home/viame_girder
+    environment:
+      - GIRDER_WORKER_BROKER=amqp://guest:guest@rabbit/
+      - GIRDER_WORKER_BACKEND=amqp://guest:guest@rabbit/
+      - BROKER_URL=amqp://guest:guest@rabbit/
+      - CELERY_BROKER_URL=amqp://guest:guest@rabbit/
+      - BROKER_CONNECTION_TIMEOUT=2
+      - CELERY_BROKER_CONNECTION_TIMEOUT=2
+      - GIRDER_INNER_PORT=${GIRDER_INNER_PORT}
+
+## === === === === Girder Worker === === === === ===
+
+  girder_worker:
+    build:
+      context: .
+      dockerfile: docker/girder_worker.Dockerfile
+    volumes:
+      - ./server:/home/viame_girder
+    depends_on:
+      - rabbit
+      - girder
+    environment:
+      - GIRDER_WORKER_BROKER=amqp://guest:guest@rabbit/
+      - GIRDER_WORKER_BACKEND=amqp://guest:guest@rabbit/
+      - BROKER_URL=amqp://guest:guest@rabbit/
+      - CELERY_BROKER_URL=amqp://guest:guest@rabbit/
+      - BROKER_CONNECTION_TIMEOUT=2
+      - CELERY_BROKER_CONNECTION_TIMEOUT=2
+
+volumes:
+  mongo_db:
+  girder_assetstore:
