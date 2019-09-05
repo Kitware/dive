@@ -7,7 +7,8 @@ requirements = [
     'girder==3.0.3',
     'girder_jobs==3.0.3',
     'girder_worker',
-    'girder_worker_utils'
+    'girder_worker_utils',
+    'pysnooper'
 ]
 
 setup(
