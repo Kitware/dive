@@ -19,7 +19,8 @@ RUN apt-get update -y &&\
     libssl-dev \
     liblapack-dev \
     python3-dev \
-    zlib1g-dev
+    zlib1g-dev \
+    ffmpeg
 
 RUN git clone https://github.com/Kitware/VIAME.git /home/VIAME &&\ 
     cd /home/VIAME && git submodule update --init --recursive

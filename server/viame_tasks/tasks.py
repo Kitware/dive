@@ -22,10 +22,43 @@ def run_pipeline(self, path, pipeline):
         '-s input:video_filename={}'.format(os.path.join(path, file_name)),
         '-s detector_writer:file_name={}'.format(output_path)
     ]
-    print(" ".join(command))
     process = Popen(" ".join(command), stderr=PIPE, stdout=PIPE, shell=True)
     stdout, stderr = process.communicate()
     output = str(stdout) + "\n" + str(stderr)
     self.job_manager.write(output)
     return output_path
+
+
+@app.task(bind=True)
+def convert_video(self, path, itemId, token):
+    self.girder_client.token = token
+    with tempfile.NamedTemporaryFile(suffix='.mp4', delete=True) as temp:
+        output_path = temp.name
+
+    file_name = os.path.join(path, os.listdir(path)[0])
+    process = Popen(
+        [
+            'ffmpeg',
+            '-i',
+            '{}'.format(file_name),
+            '-c:v',
+            'libx264',
+            '-preset',
+            'slow',
+            '-crf',
+            '26',
+            '-c:a',
+            'copy',
+            output_path
+        ],
+        stderr=PIPE,
+        stdout=PIPE
+    )
+    stdout, stderr = process.communicate()
+    output = str(stdout) + "\n" + str(stderr)
+    self.job_manager.write(output)
+    videos = self.girder_client.resourceLookup("/user/admin/Public/Videos")
+    _file = self.girder_client.uploadFileToFolder(videos['_id'], output_path)
+    self.girder_client.addMetadataToItem(_file['itemId'], {'itemId': itemId})
+    os.remove(output_path)
 

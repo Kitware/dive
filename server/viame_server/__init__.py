@@ -1,4 +1,5 @@
 import datetime
+
 from girder import events, plugin
 from girder.api import access
 from girder.api.describe import Description, autoDescribeRoute
@@ -7,8 +8,9 @@ from girder.models.user import User
 from girder.models.folder import Folder
 from girder.utility import server
 
+
 from .client_webroot import ClientWebroot
-from viame_tasks.tasks import run_pipeline
+from viame_tasks.tasks import run_pipeline, convert_video
 from .transforms import GirderItemId, GirderUploadToFolder
 
 
@@ -28,14 +30,19 @@ class Viame(Resource):
         user = self.getCurrentUser()
         public = Folder().findOne({'parentId': user['_id'], 'name': 'Public'})
         results = Folder().createFolder(public, 'Results', reuseExisting=True)
+        videos = Folder().createFolder(public, 'Videos', reuseExisting=True)
         metadata = {'itemId': itemId, 'pipeline': pipeline}
-        return run_pipeline.delay(
+        upload_token = self.getCurrentToken()
+        convert_video.delay(
+            GirderItemId(itemId),
+            itemId,
+            str(upload_token["_id"]),
+            girder_job_title=("Converting {} to a web friendly format".format(itemId))
+        )
+        run_pipeline.delay(
             GirderItemId(itemId),
             pipeline,
-            girder_job_title=("Running detections on {}".format(itemId)),
-            girder_result_hooks=[
-                GirderUploadToFolder(str(results['_id']), metadata, delete_file=True)
-            ]
+            girder_job_title=("Runnin {} on {}".format(pipeline, itemId))
         )
 
 
