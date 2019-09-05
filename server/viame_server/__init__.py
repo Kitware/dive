@@ -12,15 +12,16 @@ from girder.utility import server
 from .client_webroot import ClientWebroot
 from viame_tasks.tasks import run_pipeline, convert_video
 from .transforms import GirderItemId, GirderUploadToFolder
+from .viame_detection import ViameDetection
 
 
 class Viame(Resource):
     def __init__(self):
         super(Viame, self).__init__()
         self.resourceName = 'viame'
-        self.route("GET", ("pipeline", ), self.run_pipeline_task)
+        self.route("POST", ("pipeline", ), self.run_pipeline_task)
 
-    @access.public
+    @access.user
     @autoDescribeRoute(
         Description("Run viame pipeline")
         .param("itemId", "Item ID for a video")
@@ -49,6 +50,7 @@ class Viame(Resource):
 class GirderPlugin(plugin.GirderPlugin):
     def load(self, info):
         info['apiRoot'].viame = Viame()
+        info['apiRoot'].viame_detection = ViameDetection()
         # Relocate Girder
         info['serverRoot'], info['serverRoot'].girder = (ClientWebroot(),
                                                          info['serverRoot'])
