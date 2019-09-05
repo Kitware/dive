@@ -5,7 +5,10 @@ from setuptools import setup, find_packages
 
 requirements = [
     'girder==3.0.3',
-    'girder_jobs==3.0.3'
+    'girder_jobs==3.0.3',
+    'girder_worker',
+    'girder_worker_utils',
+    'pysnooper'
 ]
 
 setup(
@@ -33,6 +36,10 @@ setup(
     entry_points={
         'girder.plugin': [
             'viame_server = viame_server:GirderPlugin'
-        ]
+        ],
+        "girder_worker_plugins": [
+            "viame_tasks = viame_tasks:ViamePlugin"
+        ],
+
     }
 )
