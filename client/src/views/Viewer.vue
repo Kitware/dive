@@ -30,6 +30,7 @@ export default {
       } else if (this.dataset.meta.viame.type === "image-sequence") {
         return ImageAnnotator;
       }
+      return null;
     },
     videoUrl() {
       if (!this.files) {
@@ -52,7 +53,7 @@ export default {
       return this.dataset.meta.viame.fps;
     },
     annotationData() {
-      if(!this.detections){
+      if (!this.detections) {
         return null;
       }
       return this.detections.map(detection => {
@@ -78,7 +79,7 @@ export default {
       var selectedAnnotation = this.selectedAnnotation;
       return {
         strokeColor: (a, b, data) => {
-          return data === selectedAnnotation ? "red" : "lime";
+          return data.record === selectedAnnotation ? "red" : "lime";
         }
       };
     }

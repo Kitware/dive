@@ -5,8 +5,6 @@
 </template>
 
 <script>
-import vuetifyConfig from "@girder/components/src/utils/vuetifyConfig.js";
-
 export default {
   name: "App",
   components: {},

@@ -22,20 +22,36 @@ export default {
       required: false
     }
   },
-  // computed:{
-  //   opacity(){
-  //     var frame = this.annotator.frame;
-  //     return function(){
-
-  //     }
-  //   }
-  // },
+  computed: {
+    frameMap() {
+      var map = new Map();
+      this.data.forEach(record => {
+        let arr = map.get(record.frame);
+        if (!map.has(record.frame)) {
+          arr = [];
+          map.set(record.frame, arr);
+        }
+        var coords = record.polygon.coordinates[0];
+        arr.push({
+          record,
+          geometry: {
+            outer: [
+              { x: coords[0][0], y: coords[0][1] },
+              { x: coords[1][0], y: coords[1][1] },
+              { x: coords[2][0], y: coords[2][1] },
+              { x: coords[3][0], y: coords[3][1] }
+            ]
+          }
+        });
+      });
+      return map;
+    }
+  },
   watch: {
     "annotator.frame": {
       sync: true,
       handler() {
-        this.detectionFeature.modified();
-        this.detectionFeature.draw();
+        this.frameChanged();
       }
     },
     featureStyle() {
@@ -49,33 +65,20 @@ export default {
     this.featureLayer = viewer.createLayer("feature", {
       features: ["point", "line", "polygon"]
     });
-    this.detectionFeature = this.featureLayer
+    this.polygonFeature = this.featureLayer
       .createFeature("polygon", { selectionAPI: true })
       .geoOn(geo.event.feature.mouseclick, e => {
-        if (this.annotator.frame === e.data.frame) {
-          if (e.mouse.buttonsDown.left) {
-            this.$emit("annotation-click", e.data, e);
-          } else if (e.mouse.buttonsDown.right) {
-            this.$emit("annotation-left-click", e.data, e);
-          }
+        if (e.mouse.buttonsDown.left) {
+          this.$emit("annotation-click", e.data.record, e);
+        } else if (e.mouse.buttonsDown.right) {
+          this.$emit("annotation-left-click", e.data.record, e);
         }
       });
-    this.detectionFeature.geoOn(
+    this.polygonFeature.geoOn(
       geo.event.feature.mouseclick_order,
-      this.detectionFeature.mouseOverOrderClosestBorder
+      this.polygonFeature.mouseOverOrderClosestBorder
     );
-
-    this.detectionFeature.data(this.data).polygon(item => {
-      var coords = item.polygon.coordinates[0];
-      return {
-        outer: [
-          { x: coords[0][0], y: coords[0][1] },
-          { x: coords[1][0], y: coords[1][1] },
-          { x: coords[2][0], y: coords[2][1] },
-          { x: coords[3][0], y: coords[3][1] }
-        ]
-      };
-    });
+    this.frameChanged();
     this.updateStyle();
   },
   beforeDestroy() {
@@ -83,20 +86,9 @@ export default {
   },
   methods: {
     updateStyle() {
-      var annotator = this.annotator;
-      var stroke = d => {
-        return d.frame === annotator.frame;
-      };
-      if (this.featureStyle.stroke) {
-        var externalStroke = this.featureStyle.stroke;
-        var internalStroke = stroke;
-        stroke = function(d) {
-          return internalStroke(d) && externalStroke.apply(this, arguments);
-        };
-      }
       var style = {
-        ...{ stroke },
         ...{
+          stroke: true,
           uniformPolygon: true,
           strokeColor: "lime",
           strokeWidth: 1,
@@ -104,7 +96,16 @@ export default {
         },
         ...this.featureStyle
       };
-      this.detectionFeature.style(style).draw();
+      this.polygonFeature.style(style).draw();
+    },
+    frameChanged() {
+      var frame = this.annotator.frame;
+      var data = this.frameMap.get(frame);
+      data = data ? data : [];
+      this.polygonFeature
+        .data(data)
+        .polygon(data => data.geometry)
+        .draw();
     }
   },
   render() {
