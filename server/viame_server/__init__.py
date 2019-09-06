@@ -20,6 +20,7 @@ class Viame(Resource):
         super(Viame, self).__init__()
         self.resourceName = 'viame'
         self.route("POST", ("pipeline", ), self.run_pipeline_task)
+        self.route("POST", ("conversion", ), self.run_conversion_task)
 
     @access.user
     @autoDescribeRoute(
@@ -31,16 +32,7 @@ class Viame(Resource):
         user = self.getCurrentUser()
         public = Folder().findOne({'parentId': user['_id'], 'name': 'Public'})
         results = Folder().createFolder(public, 'Results', reuseExisting=True)
-        videos = Folder().createFolder(public, 'Videos', reuseExisting=True)
         metadata = {'itemId': itemId, 'pipeline': pipeline}
-        upload_token = self.getCurrentToken()
-        convert_video.delay(
-            GirderItemId(itemId),
-            itemId,
-            str(upload_token["_id"]),
-            videos['_id'],
-            girder_job_title=("Converting {} to a web friendly format".format(itemId))
-        )
         run_pipeline.delay(
             GirderItemId(itemId),
             pipeline,
@@ -48,6 +40,24 @@ class Viame(Resource):
             girder_result_hooks=[
                 GirderUploadToFolder(str(results['_id']), metadata, delete_file=True)
             ]
+        )
+
+    @access.user
+    @autoDescribeRoute(
+        Description("Convert video to a web friendly format")
+        .param("itemId", "Item ID for a video")
+    )
+    def run_conversion_task(self, itemId):
+        user = self.getCurrentUser()
+        public = Folder().findOne({'parentId': user['_id'], 'name': 'Public'})
+        videos = Folder().createFolder(public, 'Videos', reuseExisting=True)
+        upload_token = self.getCurrentToken()
+        convert_video.delay(
+            GirderItemId(itemId),
+            itemId,
+            str(upload_token["_id"]),
+            videos['_id'],
+            girder_job_title=("Converting {} to a web friendly format".format(itemId))
         )
 
 
