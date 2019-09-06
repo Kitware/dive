@@ -17,7 +17,8 @@ export default {
   data: () => ({
     dataset: null,
     files: null,
-    selectedAnnotation: null
+    selectedAnnotation: null,
+    detections: null
   }),
   computed: {
     annotatorType() {
@@ -51,19 +52,23 @@ export default {
       return this.dataset.meta.viame.fps;
     },
     annotationData() {
-      var lastX = 0;
-      var lastY = 0;
-      return Array.from(Array(2000).keys()).map(i => {
-        var x = lastX + (Math.random() > 0.5 ? 2 : -1);
-        var y = lastY + (Math.random() > 0.5 ? 2 : -1);
-        lastX = x;
-        lastY = y;
+      if(!this.detections){
+        return null;
+      }
+      return this.detections.map(detection => {
+        var bounds = detection.bounds;
         return {
-          frame: i,
+          frame: detection.frame,
           polygon: {
             type: "Polygon",
             coordinates: [
-              [[x, y], [20 + x, y], [20 + x, 20 + y], [x, 20 + y], [x, y]]
+              [
+                [bounds[0], bounds[2]],
+                [bounds[1], bounds[2]],
+                [bounds[1], bounds[3]],
+                [bounds[0], bounds[3]],
+                [bounds[0], bounds[2]]
+              ]
             ]
           }
         };
@@ -80,16 +85,13 @@ export default {
   },
   async created() {
     var datasetId = this.$route.params.datasetId;
-    var { dataset, files } = await this.getDataset(datasetId);
-    if (!dataset) {
+    await this.loadDataset(datasetId);
+    if (!this.dataset) {
       this.$router.replace("/viewer");
-    } else {
-      this.dataset = dataset;
-      this.files = files;
     }
   },
   methods: {
-    async getDataset(datasetId) {
+    async loadDataset(datasetId) {
       var { data: dataset } = await this.girderRest.get(`item/${datasetId}`);
       if (!dataset || !dataset.meta || !dataset.meta.viame) {
         return null;
@@ -100,10 +102,12 @@ export default {
       if (!files.length) {
         return;
       }
-      return {
-        dataset,
-        files
-      };
+      var { data: detections } = await this.girderRest.get("viame_detection", {
+        params: { itemId: dataset._id }
+      });
+      this.dataset = dataset;
+      this.files = files;
+      this.detections = Object.freeze(detections);
     },
     selectAnnotation(data, e) {
       this.selectedAnnotation = data;
@@ -124,6 +128,7 @@ export default {
         <Controls />
       </template>
       <AnnotationLayer
+        v-if="annotationData"
         :data="annotationData"
         :featureStyle="annotationFeatureStyle"
         @annotation-click="selectAnnotation"

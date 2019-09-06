@@ -32,7 +32,7 @@ class ViameDetection(Resource):
         for row in reader:
             detections.append({
                 'id': row[0],
-                'frame': row[2],
-                'bounds': [row[3], row[5], row[4], row[6]]
+                'frame': int(row[2]),
+                'bounds': [float(row[3]), float(row[5]), float(row[4]), float(row[6])]
             })
         return detections
