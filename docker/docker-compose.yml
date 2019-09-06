@@ -13,7 +13,7 @@ services:
 ## === === === === Girder === === === === ===
   girder:
     build:
-      context: .
+      context: ../
       dockerfile: docker/girder.Dockerfile
     depends_on:
       - mongo
@@ -35,7 +35,7 @@ services:
 
   girder_worker:
     build:
-      context: .
+      context: ../
       dockerfile: docker/girder_worker.Dockerfile
     volumes:
       - ./server:/home/viame_girder

@@ -43,7 +43,10 @@ class Viame(Resource):
         run_pipeline.delay(
             GirderItemId(itemId),
             pipeline,
-            girder_job_title=("Runnin {} on {}".format(pipeline, itemId))
+            girder_job_title=("Runnin {} on {}".format(pipeline, itemId)),
+            girder_result_hooks=[
+                GirderUploadToFolder(str(results['_id']), metadata, delete_file=True)
+            ]
         )
 
 
