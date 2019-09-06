@@ -40,7 +40,22 @@ def convert_video(self, path, itemId, token, videosId):
         [
             'ffmpeg',
             '-i',
-            '{}'.format(file_name),
+            file_name
+        ],
+        stderr=PIPE,
+        stdout=PIPE
+    )
+    stdout, stderr = process.communicate()
+    output = str(stdout) + "\n" + str(stderr)
+    fps_string = [i for i in output.split(',') if 'fps' in i][0]
+    fps_value = [int(s) for s in fps_string.split() if s.isdigit()][0]
+    self.girder_client.addMetadataToItem(itemId, {'fps': fps_value})
+
+    process = Popen(
+        [
+            'ffmpeg',
+            '-i',
+            file_name,
             '-c:v',
             'libx264',
             '-preset',
