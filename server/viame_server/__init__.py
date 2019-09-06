@@ -38,6 +38,7 @@ class Viame(Resource):
             GirderItemId(itemId),
             itemId,
             str(upload_token["_id"]),
+            videos['_id'],
             girder_job_title=("Converting {} to a web friendly format".format(itemId))
         )
         run_pipeline.delay(
