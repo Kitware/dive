@@ -1,19 +1,76 @@
 <script>
 import NavigationTitle from "@/components/NavigationTitle";
+import {all} from "@girder/components/src/components/Job/status";
 
 export default {
   name: "GenericNavigationBar",
   components: {
     NavigationTitle
   },
-  inject: ["girderRest"]
+  inject: ["girderRest","notificationBus"],
+  data: () => ({
+    runningJobIds: []
+  }),
+  async created() {
+    let jobStatus = all();
+    let { data: runningJobs } = await this.girderRest.get("/job", {
+      params: {
+        statuses: `[${jobStatus.RUNNING.value}]`
+      }
+    });
+    this.runningJobIds = runningJobs.map(job => job._id);
+
+    this.notificationBus.$on("message:job_status", ({ data: job }) => {
+      let jobId = job._id;
+      switch (job.status) {
+        case jobStatus.RUNNING.value:
+          if (this.runningJobIds.indexOf(jobId) === -1) {
+            this.runningJobIds.push(jobId);
+          }
+          break;
+        case jobStatus.SUCCESS.value:
+        case jobStatus.ERROR.value:
+          if (this.runningJobIds.indexOf(jobId) !== -1) {
+            this.runningJobIds.splice(this.runningJobIds.indexOf(jobId), 1);
+          }
+          break;
+      }
+    });
+  },
+  methods: {}
 };
 </script>
 
 <template>
-  <v-app-bar app>
+  <v-app-bar app dense>
     <NavigationTitle>VIAME</NavigationTitle>
+    <v-tabs>
+      <v-tab to="/">Data</v-tab>
+      <v-tab to="/jobs">
+        <v-badge :value="runningJobIds.length">
+          <template slot="badge">
+            <v-icon dark class="rotate">mdi-autorenew</v-icon>
+          </template>
+          <span>Jobs</span>
+        </v-badge>
+      </v-tab>
+    </v-tabs>
     <v-spacer></v-spacer>
     <v-btn text @click="girderRest.logout()">Logout</v-btn>
   </v-app-bar>
 </template>
+
+<style lang="scss">
+.rotate {
+  animation: rotation 1.5s infinite linear;
+}
+
+@keyframes rotation {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(359deg);
+  }
+}
+</style>

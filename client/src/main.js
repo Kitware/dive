@@ -1,5 +1,6 @@
 import Vue from "vue";
 import Girder, { RestClient, vuetify } from "@girder/components/src";
+import NotificationBus from "@girder/components/src/utils/notifications";
 import snackbarService from "vue-utilities/snackbar-service";
 import promptService from "vue-utilities/prompt-service";
 
@@ -17,13 +18,15 @@ Vue.use(promptService);
 
 var girderRest = new RestClient({ apiRoot: API_URL });
 girder.girderRest = girderRest;
+const notificationBus = new NotificationBus(girderRest);
+notificationBus.connect();
 
 girderRest.fetchUser().then(() => {
   new Vue({
     router,
     store,
     vuetify,
-    provide: { girderRest },
+    provide: { girderRest, notificationBus },
     render: h => h(App)
   })
     .$mount("#app")

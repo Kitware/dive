@@ -58,6 +58,11 @@ export default {
         headers: { "X-HTTP-Method-Override": "DELETE" }
       });
       this.$refs.fileManager.$refs.girderBrowser.refresh();
+    },
+    dragover() {
+      if (this.shouldShowUpload) {
+        this.uploaderDialog = true;
+      }
     }
   }
 };
@@ -76,7 +81,7 @@ export default {
             :location.sync="location_"
             @selection-changed="selected = $event"
             @rowclick="rowClicked"
-            @dragover.native="uploaderDialog = true"
+            @dragover.native="dragover"
           >
             <template #headerwidget>
               <v-btn

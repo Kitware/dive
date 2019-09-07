@@ -19,7 +19,6 @@ export default {
       return this.location && this.location._modelType === "folder";
     }
   },
-
   methods: {
     onFileChange(files) {
       if (files.length >= 1) {
@@ -51,10 +50,9 @@ export default {
           var { data: item } = await this.girderRest.post(
             "/item",
             `metadata=${JSON.stringify({
-              viame: {
-                fps,
-                type: files.length > 1 ? "image-sequence" : "video"
-              }
+              viame: true,
+              fps,
+              type: files.length > 1 ? "image-sequence" : "video"
             })}`,
             {
               params: {
@@ -69,7 +67,25 @@ export default {
                 $rest: this.girderRest,
                 parent: item
               });
-              await uploader.start();
+              var result = await uploader.start();
+              // The logic for trigging transcoding below probably should belong to another place
+              if (
+                files.length === 1 &&
+                ["avi", "mp4", "mov"].includes(result.exts[0])
+              ) {
+                this.girderRest.post(
+                  `/viame/conversion?itemId=${result.itemId}`
+                );
+                this.$snackbar({
+                  text: "Transcoding started",
+                  timeout: 6000,
+                  immediate: true,
+                  button: "View",
+                  callback: () => {
+                    this.$router.push("/jobs");
+                  }
+                });
+              }
             })
           );
           this.remove(pendingUpload);
