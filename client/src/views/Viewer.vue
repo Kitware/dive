@@ -82,7 +82,8 @@ export default {
         return null;
       }
       var { data: files } = await this.girderRest.get(
-        `item/${this.dataset._id}/files`
+        `item/${this.dataset._id}/files`,
+        { params: { limit: 100000 } }
       );
       return files;
     },

@@ -11,6 +11,9 @@ export default {
   props: {
     location: {
       type: Object
+    },
+    uploading: {
+      type: Boolean
     }
   },
   data: () => ({
@@ -52,6 +55,7 @@ export default {
         return;
       }
       var uploaded = [];
+      this.$emit("update:uploading", true);
       await Promise.all(
         this.pendingUploads.map(async pendingUpload => {
           var { name, files, fps } = pendingUpload;
@@ -71,19 +75,26 @@ export default {
               }
             }
           );
-          var results = await Promise.all(
-            files.map(async file => {
-              var uploader = new Upload(file, {
-                $rest: this.girderRest,
-                parent: item
-              });
-              return await uploader.start();
-            })
-          );
-          uploaded.push({ results, pipeline:pendingUpload.pipeline });
+          var pending = files;
+          var results = [];
+          while (pending.length) {
+            results = results.concat(
+              await Promise.all(
+                pending.splice(0, 500).map(async file => {
+                  var uploader = new Upload(file, {
+                    $rest: this.girderRest,
+                    parent: item
+                  });
+                  return await uploader.start();
+                })
+              )
+            );
+          }
+          uploaded.push({ results, pipeline: pendingUpload.pipeline });
           this.remove(pendingUpload);
         })
       );
+      this.$emit("update:uploading", false);
       this.$emit("uploaded", uploaded);
     }
   }
@@ -119,6 +130,7 @@ export default {
                   required
                   label="Name"
                   hide-details
+                  :disabled="pendingUpload.uploading"
                 ></v-text-field>
               </v-col>
               <v-col :cols="2" v-if="pendingUpload.files.length > 1">
@@ -131,10 +143,16 @@ export default {
                   required
                   label="FPS"
                   hide-details
+                  :disabled="pendingUpload.uploading"
                 ></v-text-field>
               </v-col>
               <v-col :cols="4">
-                <v-select v-model="pendingUpload.pipeline" :items="pipelineItems" label="Run pipeline" />
+                <v-select
+                  v-model="pendingUpload.pipeline"
+                  :items="pipelineItems"
+                  label="Run pipeline"
+                  :disabled="pendingUpload.uploading"
+                />
               </v-col>
             </v-row>
             <v-list-item-subtitle v-if="pendingUpload.files.length > 1">
@@ -142,7 +160,12 @@ export default {
             </v-list-item-subtitle>
           </v-list-item-content>
           <v-list-item-action>
-            <v-btn icon small @click="remove(pendingUpload)">
+            <v-btn
+              icon
+              small
+              @click="remove(pendingUpload)"
+              :disabled="pendingUpload.uploading"
+            >
               <v-icon>mdi-close</v-icon>
             </v-btn>
           </v-list-item-action>

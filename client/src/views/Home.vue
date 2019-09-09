@@ -11,7 +11,7 @@ export default {
   name: "Home",
   components: { FileManager, Upload, NavigationBar },
   inject: ["girderRest"],
-  data: () => ({ uploaderDialog: false, selected: [] }),
+  data: () => ({ uploaderDialog: false, selected: [], uploading: false }),
   computed: {
     ...mapState(["location"]),
     pipelines: () => pipelines,
@@ -130,7 +130,7 @@ export default {
 
       var runPipelines = uploads.filter(({ pipeline }) => pipeline);
       runPipelines.forEach(({ results, pipeline }) =>
-        this.runPipeline(results[0].itemId, pipelines)
+        this.runPipeline(results[0].itemId, pipeline)
       );
       if (runPipelines.length) {
         this.$snackbar({
@@ -227,6 +227,7 @@ export default {
                 v-if="shouldShowUpload && !selected.length"
                 v-model="uploaderDialog"
                 max-width="800px"
+                :persistent="uploading"
               >
                 <template #activator="{on}">
                   <v-btn v-on="on" class="ma-0" text small>
@@ -237,6 +238,7 @@ export default {
                 <Upload
                   :location="location_"
                   @uploaded="uploaded"
+                  :uploading.sync="uploading"
                 />
               </v-dialog>
             </template>
