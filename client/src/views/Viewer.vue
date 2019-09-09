@@ -16,30 +16,22 @@ export default {
   },
   data: () => ({
     dataset: null,
-    files: null,
-    selectedAnnotation: null,
-    detections: null
+    selectedAnnotation: null
   }),
   computed: {
     annotatorType() {
       if (!this.dataset) {
         return null;
       }
-      if (this.dataset.meta.viame.type === "video") {
+      if (this.dataset.meta.type === "video") {
         return VideoAnnotator;
-      } else if (this.dataset.meta.viame.type === "image-sequence") {
+      } else if (this.dataset.meta.type === "image-sequence") {
         return ImageAnnotator;
       }
       return null;
     },
-    videoUrl() {
-      if (!this.files) {
-        return null;
-      }
-      return `${API_URL}/file/${this.files[0]._id}/download`;
-    },
     imageUrls() {
-      if (!this.files) {
+      if (!this.files || this.dataset.meta.type !== "image-sequence") {
         return null;
       }
       return this.files.map(file => {
@@ -50,7 +42,7 @@ export default {
       if (!this.dataset) {
         return null;
       }
-      return this.dataset.meta.viame.fps;
+      return this.dataset.meta.fps;
     },
     annotationData() {
       if (!this.detections) {
@@ -84,6 +76,49 @@ export default {
       };
     }
   },
+  asyncComputed: {
+    async files() {
+      if (!this.dataset) {
+        return null;
+      }
+      var { data: files } = await this.girderRest.get(
+        `item/${this.dataset._id}/files`
+      );
+      return files;
+    },
+    async detections() {
+      if (!this.dataset) {
+        return null;
+      }
+      var { data: detections } = await this.girderRest.get("viame_detection", {
+        params: { itemId: this.dataset._id }
+      });
+      return Object.freeze(detections);
+    },
+    async videoUrl() {
+      if (!this.dataset || this.dataset.meta.type !== "video") {
+        return null;
+      }
+      var { data: clipMeta } = await this.girderRest.get(
+        "viame_detection/clip_meta",
+        {
+          params: {
+            itemId: this.dataset._id
+          }
+        }
+      );
+      if (!clipMeta.video) {
+        return null;
+      }
+      var { data: files } = await this.girderRest.get(
+        `item/${clipMeta.video._id}/files`
+      );
+      if (!files[0]) {
+        return null;
+      }
+      return `${API_URL}/file/${files[0]._id}/download`;
+    }
+  },
   async created() {
     var datasetId = this.$route.params.datasetId;
     await this.loadDataset(datasetId);
@@ -97,20 +132,9 @@ export default {
       if (!dataset || !dataset.meta || !dataset.meta.viame) {
         return null;
       }
-      var { data: files } = await this.girderRest.get(
-        `item/${dataset._id}/files`
-      );
-      if (!files.length) {
-        return;
-      }
-      var { data: detections } = await this.girderRest.get("viame_detection", {
-        params: { itemId: dataset._id }
-      });
       this.dataset = dataset;
-      this.files = files;
-      this.detections = Object.freeze(detections);
     },
-    selectAnnotation(data, e) {
+    selectAnnotation(data) {
       this.selectedAnnotation = data;
     }
   }
@@ -120,6 +144,7 @@ export default {
 <template>
   <v-layout fill-height>
     <component
+      v-if="imageUrls || videoUrl"
       :is="annotatorType"
       :image-urls="imageUrls"
       :video-url="videoUrl"

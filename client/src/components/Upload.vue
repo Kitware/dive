@@ -116,7 +116,7 @@ export default {
         <v-list-item v-for="(pendingUpload, i) of pendingUploads" :key="i">
           <v-list-item-content>
             <v-row>
-              <v-col :cols="9">
+              <v-col>
                 <v-text-field
                   class="upload-name"
                   v-model="pendingUpload.name"
@@ -128,7 +128,7 @@ export default {
                   hide-details
                 ></v-text-field>
               </v-col>
-              <v-col :cols="3">
+              <v-col :cols="3" v-if="pendingUpload.files.length > 1">
                 <v-text-field
                   v-model="pendingUpload.fps"
                   type="number"

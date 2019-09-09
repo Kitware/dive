@@ -25,7 +25,7 @@ export default {
 
 <template>
   <v-container>
-    <v-dialog :value="userDialog" persistent lazy max-width="500px">
+    <v-dialog :value="userDialog" persistent max-width="500px">
       <GirderAuth :register="true" />
     </v-dialog>
   </v-container>

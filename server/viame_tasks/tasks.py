@@ -49,7 +49,7 @@ def convert_video(self, path, itemId, token, videosId):
     output = str(stdout) + "\n" + str(stderr)
     fps_string = [i for i in output.split(',') if 'fps' in i][0]
     fps_value = [int(s) for s in fps_string.split() if s.isdigit()][0]
-    self.girder_client.addMetadataToItem(itemId, {'viame': {'fps': fps_value}})
+    self.girder_client.addMetadataToItem(itemId, {'fps': fps_value})
 
     process = Popen(
         [
@@ -73,6 +73,6 @@ def convert_video(self, path, itemId, token, videosId):
     output = str(stdout) + "\n" + str(stderr)
     self.job_manager.write(output)
     _file = self.girder_client.uploadFileToFolder(videosId, output_path)
-    self.girder_client.addMetadataToItem(_file['itemId'], {'itemId': itemId})
+    self.girder_client.addMetadataToItem(_file['itemId'], {'itemId': itemId, 'codec':'h264'})
     os.remove(output_path)
 

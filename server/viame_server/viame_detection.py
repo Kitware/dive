@@ -12,6 +12,7 @@ class ViameDetection(Resource):
         super(ViameDetection, self).__init__()
         self.resourceName = 'viame_detection'
         self.route("GET", (), self.get_detection_result)
+        self.route("GET", ('clip_meta',), self.get_clip_meta)
 
     @access.user
     @autoDescribeRoute(
@@ -36,3 +37,23 @@ class ViameDetection(Resource):
                 'bounds': [float(row[3]), float(row[5]), float(row[4]), float(row[6])]
             })
         return detections
+
+    @access.user
+    @autoDescribeRoute(
+        Description("")
+        .param("itemId", "Item ID for a video")
+        .param("pipeline", "Pipeline to run against the video", default="detector_simple_hough.pipe")
+    )
+    def get_clip_meta(self, itemId, pipeline):
+        detection = list(Item().find({
+            "meta.itemId": itemId,
+            "meta.pipeline": pipeline
+        }).sort([("created", -1)]))[0]
+        video = Item().findOne({
+            "meta.itemId": itemId,
+            "meta.codec": 'h264'
+        })
+        return {
+            'detection': detection,
+            'video': video
+        }

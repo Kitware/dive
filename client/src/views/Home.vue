@@ -23,15 +23,55 @@ export default {
     },
     shouldShowUpload() {
       return this.location && getLocationType(this.location) === "folder";
+    },
+    pipelines() {
+      return ["detector_simple_hough"];
+    },
+    selectedEligibleClips() {
+      return this.selected.filter(
+        model => model._modelType === "item" && model.meta && model.meta.viame
+      );
+    }
+  },
+  created() {
+    if (!this.location) {
+      this.setLocation(this.girderRest.user);
     }
   },
   methods: {
     ...mapMutations(["setLocation"]),
-    rowClicked(item) {
+    async rowClicked(item) {
       if (!item.meta || !item.meta.viame) {
         return;
       }
-      this.$router.push(`viewer/${item._id}`);
+      var { data: clipMeta } = await this.girderRest.get(
+        "viame_detection/clip_meta",
+        {
+          params: {
+            itemId: item._id
+          }
+        }
+      );
+      if (
+        clipMeta.detection &&
+        (item.meta.type === "image-sequence" || clipMeta.video)
+      ) {
+        this.$router.push(`viewer/${item._id}`);
+      } else {
+        if (item.meta.type === "video") {
+          this.$snackbar({
+            text: "Missing detection result and/or being transcoded",
+            timeout: 6000,
+            immediate: true
+          });
+        } else if (item.meta.type === "image-sequence") {
+          this.$snackbar({
+            text: "Missing detection result",
+            timeout: 6000,
+            immediate: true
+          });
+        }
+      }
     },
     async deleteSelection() {
       var result = await this.$prompt({
@@ -63,6 +103,27 @@ export default {
       if (this.shouldShowUpload) {
         this.uploaderDialog = true;
       }
+    },
+    async runPipeline(pipeline) {
+      var clips = this.selectedEligibleClips;
+      await Promise.all(
+        this.selectedEligibleClips.map(item => {
+          return this.girderRest.post(
+            `/viame/pipeline?itemId=${item._id}&pipeline=${pipeline}.pipe`
+          );
+        })
+      );
+      this.$snackbar({
+        text: `Started pipeline on ${clips.length} clip${
+          clips.length ? "s" : ""
+        }`,
+        timeout: 6000,
+        immediate: true,
+        button: "View",
+        callback: () => {
+          this.$router.push("/jobs");
+        }
+      });
     }
   }
 };
@@ -76,7 +137,7 @@ export default {
         <v-col :cols="12">
           <FileManager
             ref="fileManager"
-            new-folder-enabled
+            :new-folder-enabled="!selected.length"
             selectable
             :location.sync="location_"
             @selection-changed="selected = $event"
@@ -84,12 +145,33 @@ export default {
             @dragover.native="dragover"
           >
             <template #headerwidget>
+              <v-menu offset-y>
+                <template v-slot:activator="{ on }">
+                  <v-btn
+                    v-on="on"
+                    text
+                    small
+                    :disabled="selectedEligibleClips.length < 1"
+                  >
+                    <v-icon left color="accent">mdi-pipe</v-icon>
+                    Run pipeline
+                  </v-btn>
+                </template>
+                <v-list>
+                  <v-list-item
+                    v-for="pipeline in pipelines"
+                    :key="pipeline"
+                    @click="runPipeline(pipeline)"
+                  >
+                    <v-list-item-title>{{ pipeline }}</v-list-item-title>
+                  </v-list-item>
+                </v-list>
+              </v-menu>
               <v-btn
                 class="ma-0"
                 v-if="selected.length"
                 text
                 small
-                color="secondary darken-2"
                 @click="deleteSelection"
               >
                 <v-icon left color="accent" class="mdi-24px mr-1"
@@ -98,19 +180,12 @@ export default {
                 Delete
               </v-btn>
               <v-dialog
-                v-if="shouldShowUpload"
+                v-if="shouldShowUpload && !selected.length"
                 v-model="uploaderDialog"
-                full-width
                 max-width="600px"
               >
                 <template #activator="{on}">
-                  <v-btn
-                    v-on="on"
-                    class="ma-0"
-                    text
-                    small
-                    color="secondary darken-2"
-                  >
+                  <v-btn v-on="on" class="ma-0" text small>
                     <v-icon left color="accent">mdi-file-upload</v-icon>
                     Upload
                   </v-btn>

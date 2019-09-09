@@ -10,7 +10,7 @@ export default {
 </script>
 
 <template>
-  <v-toolbar-title class="my-title">
+  <v-toolbar-title class="my-title mx-3">
     <v-tooltip open-delay="1000" bottom>
       <template #activator="{ on }">
         <span v-on="on">VIAME</span>
@@ -23,6 +23,5 @@ export default {
 <style lang="scss" scoped>
 .my-title {
   overflow: unset;
-  margin-left: 30px;
 }
 </style>

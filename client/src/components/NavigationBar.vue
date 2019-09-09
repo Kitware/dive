@@ -1,13 +1,13 @@
 <script>
 import NavigationTitle from "@/components/NavigationTitle";
-import {all} from "@girder/components/src/components/Job/status";
+import { all } from "@girder/components/src/components/Job/status";
 
 export default {
   name: "GenericNavigationBar",
   components: {
     NavigationTitle
   },
-  inject: ["girderRest","notificationBus"],
+  inject: ["girderRest", "notificationBus"],
   data: () => ({
     runningJobIds: []
   }),
@@ -42,16 +42,17 @@ export default {
 </script>
 
 <template>
-  <v-app-bar app dense>
+  <v-app-bar app>
     <NavigationTitle>VIAME</NavigationTitle>
-    <v-tabs>
-      <v-tab to="/">Data</v-tab>
+    <v-tabs icons-and-text>
+      <v-tab to="/">Data<v-icon>mdi-database</v-icon></v-tab>
       <v-tab to="/jobs">
-        <v-badge :value="runningJobIds.length">
+        Jobs
+        <v-badge :value="runningJobIds.length" class="my-badge">
           <template slot="badge">
             <v-icon dark class="rotate">mdi-autorenew</v-icon>
           </template>
-          <span>Jobs</span>
+          <v-icon>mdi-format-list-checks</v-icon>
         </v-badge>
       </v-tab>
     </v-tabs>
@@ -72,5 +73,9 @@ export default {
   to {
     transform: rotate(359deg);
   }
+}
+
+.my-badge .v-badge__badge {
+  top: -8px;
 }
 </style>

@@ -32,8 +32,4 @@ export default {
 .text-xs-center {
   text-align: center !important;
 }
-
-.v-application a {
-  color: inherit !important;
-}
 </style>
