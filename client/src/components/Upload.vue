@@ -2,6 +2,8 @@
 import Dropzone from "@girder/components/src/components/Presentation/Dropzone.vue";
 import { Upload } from "@girder/components/src/utils";
 
+import pipelines from "@/pipelines";
+
 export default {
   name: "Upload",
   components: { Dropzone },
@@ -17,6 +19,12 @@ export default {
   computed: {
     uploadEnabled() {
       return this.location && this.location._modelType === "folder";
+    },
+    pipelineItems() {
+      return [
+        { text: "None", value: null },
+        ...pipelines.map(pipeline => ({ text: pipeline, value: pipeline }))
+      ];
     }
   },
   methods: {
@@ -27,6 +35,7 @@ export default {
           name,
           files,
           fps: null,
+          pipeline: null,
           uploading: false
         });
       }
@@ -42,6 +51,7 @@ export default {
       if (!this.$refs.form.validate()) {
         return;
       }
+      var uploaded = [];
       await Promise.all(
         this.pendingUploads.map(async pendingUpload => {
           var { name, files, fps } = pendingUpload;
@@ -61,37 +71,20 @@ export default {
               }
             }
           );
-          await Promise.all(
+          var results = await Promise.all(
             files.map(async file => {
               var uploader = new Upload(file, {
                 $rest: this.girderRest,
                 parent: item
               });
-              var result = await uploader.start();
-              // The logic for trigging transcoding below probably should belong to another place
-              if (
-                files.length === 1 &&
-                ["avi", "mp4", "mov"].includes(result.exts[0])
-              ) {
-                this.girderRest.post(
-                  `/viame/conversion?itemId=${result.itemId}`
-                );
-                this.$snackbar({
-                  text: "Transcoding started",
-                  timeout: 6000,
-                  immediate: true,
-                  button: "View",
-                  callback: () => {
-                    this.$router.push("/jobs");
-                  }
-                });
-              }
+              return await uploader.start();
             })
           );
+          uploaded.push({ results, pipeline:pendingUpload.pipeline });
           this.remove(pendingUpload);
         })
       );
-      this.$emit("uploaded");
+      this.$emit("uploaded", uploaded);
     }
   }
 };
@@ -128,7 +121,7 @@ export default {
                   hide-details
                 ></v-text-field>
               </v-col>
-              <v-col :cols="3" v-if="pendingUpload.files.length > 1">
+              <v-col :cols="2" v-if="pendingUpload.files.length > 1">
                 <v-text-field
                   v-model="pendingUpload.fps"
                   type="number"
@@ -139,6 +132,9 @@ export default {
                   label="FPS"
                   hide-details
                 ></v-text-field>
+              </v-col>
+              <v-col :cols="4">
+                <v-select v-model="pendingUpload.pipeline" :items="pipelineItems" label="Run pipeline" />
               </v-col>
             </v-row>
             <v-list-item-subtitle v-if="pendingUpload.files.length > 1">
@@ -172,7 +168,7 @@ export default {
 
 <style lang="scss" scoped>
 .upload {
-  height: 100%;
+  min-height: 350px;
   display: flex;
   flex-direction: column;
 
@@ -189,6 +185,7 @@ export default {
 
   .dropzone-container {
     flex: 1;
+    height: 1px;
   }
 }
 </style>

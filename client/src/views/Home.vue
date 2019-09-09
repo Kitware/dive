@@ -5,6 +5,7 @@ import { getLocationType } from "@girder/components/src/utils";
 
 import Upload from "@/components/Upload";
 import NavigationBar from "@/components/NavigationBar";
+import pipelines from "@/pipelines";
 
 export default {
   name: "Home",
@@ -13,6 +14,7 @@ export default {
   data: () => ({ uploaderDialog: false, selected: [] }),
   computed: {
     ...mapState(["location"]),
+    pipelines: () => pipelines,
     location_: {
       get() {
         return this.location;
@@ -23,9 +25,6 @@ export default {
     },
     shouldShowUpload() {
       return this.location && getLocationType(this.location) === "folder";
-    },
-    pipelines() {
-      return ["detector_simple_hough"];
     },
     selectedEligibleClips() {
       return this.selected.filter(
@@ -104,14 +103,59 @@ export default {
         this.uploaderDialog = true;
       }
     },
-    async runPipeline(pipeline) {
+    uploaded(uploads) {
+      this.$refs.fileManager.$refs.girderBrowser.refresh();
+      this.uploaderDialog = false;
+      var transcodes = uploads.filter(({ results }) => {
+        return (
+          results.length === 1 &&
+          ["avi", "mp4", "mov"].includes(results[0].exts[0])
+        );
+      });
+      transcodes.forEach(({ results }) => {
+        this.girderRest.post(`/viame/conversion?itemId=${results[0].itemId}`);
+      });
+      if (transcodes.length) {
+        this.$snackbar({
+          text: `Transcoding started on ${transcodes.length} clip${
+            transcodes.length > 1 ? "s" : ""
+          }`,
+          timeout: 4500,
+          button: "View",
+          callback: () => {
+            this.$router.push("/jobs");
+          }
+        });
+      }
+
+      var runPipelines = uploads.filter(({ pipeline }) => pipeline);
+      runPipelines.forEach(({ results, pipeline }) =>
+        this.runPipeline(results[0].itemId, pipelines)
+      );
+      if (runPipelines.length) {
+        this.$snackbar({
+          text: `Started pipeline on ${runPipelines.length} clip${
+            runPipelines.length > 1 ? "s" : ""
+          }`,
+          timeout: 4500,
+          button: "View",
+          callback: () => {
+            this.$router.push("/jobs");
+          }
+        });
+      }
+    },
+    async runPipeline(itemId, pipeline) {
+      return this.girderRest.post(
+        `/viame/pipeline?itemId=${itemId}&pipeline=${pipeline}`
+      );
+    },
+    async runPipelineOnSelectedItem(pipeline) {
       var clips = this.selectedEligibleClips;
       await Promise.all(
-        this.selectedEligibleClips.map(item => {
-          return this.girderRest.post(
-            `/viame/pipeline?itemId=${item._id}&pipeline=${pipeline}.pipe`
-          );
-        })
+        this.selectedEligibleClips.map(item =>
+          this.runPipeline(item._id, pipeline)
+        )
       );
       this.$snackbar({
         text: `Started pipeline on ${clips.length} clip${
@@ -161,7 +205,7 @@ export default {
                   <v-list-item
                     v-for="pipeline in pipelines"
                     :key="pipeline"
-                    @click="runPipeline(pipeline)"
+                    @click="runPipelineOnSelectedItem(pipeline)"
                   >
                     <v-list-item-title>{{ pipeline }}</v-list-item-title>
                   </v-list-item>
@@ -182,7 +226,7 @@ export default {
               <v-dialog
                 v-if="shouldShowUpload && !selected.length"
                 v-model="uploaderDialog"
-                max-width="600px"
+                max-width="800px"
               >
                 <template #activator="{on}">
                   <v-btn v-on="on" class="ma-0" text small>
@@ -192,10 +236,7 @@ export default {
                 </template>
                 <Upload
                   :location="location_"
-                  @uploaded="
-                    $refs.fileManager.$refs.girderBrowser.refresh();
-                    uploaderDialog = false;
-                  "
+                  @uploaded="uploaded"
                 />
               </v-dialog>
             </template>

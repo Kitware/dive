@@ -45,10 +45,13 @@ class ViameDetection(Resource):
         .param("pipeline", "Pipeline to run against the video", default="detector_simple_hough.pipe")
     )
     def get_clip_meta(self, itemId, pipeline):
-        detection = list(Item().find({
+        detections = list(Item().find({
             "meta.itemId": itemId,
             "meta.pipeline": pipeline
-        }).sort([("created", -1)]))[0]
+        }).sort([("created", -1)]))
+        detection = None
+        if len(detections):
+            detection = detections[0]
         video = Item().findOne({
             "meta.itemId": itemId,
             "meta.codec": 'h264'
