@@ -6,20 +6,31 @@ import { getLocationType } from "@girder/components/src/utils";
 import Upload from "@/components/Upload";
 import NavigationBar from "@/components/NavigationBar";
 import pipelines from "@/pipelines";
+import { getPathFromLocation, getLocationFromRoute } from "@/utils";
 
 export default {
   name: "Home",
   components: { FileManager, Upload, NavigationBar },
   inject: ["girderRest"],
-  data: () => ({ uploaderDialog: false, selected: [], uploading: false }),
+  data: () => ({
+    location_: null,
+    uploaderDialog: false,
+    selected: [],
+    uploading: false
+  }),
   computed: {
     ...mapState(["location"]),
     pipelines: () => pipelines,
-    location_: {
+    location: {
       get() {
-        return this.location;
+        return this.location_;
       },
       set(value) {
+        this.location_ = value;
+        var newPath = getPathFromLocation(value);
+        if (this.$route.path !== newPath) {
+          this.$router.push(newPath);
+        }
         this.setLocation(value);
       }
     },
@@ -33,9 +44,12 @@ export default {
     }
   },
   created() {
-    if (!this.location) {
-      this.setLocation(this.girderRest.user);
-    }
+    this.location_ = getLocationFromRoute(this.$route);
+    this.setLocation(this.location_);
+  },
+  beforeRouteUpdate(to, from, next) {
+    this.location_ = getLocationFromRoute(to);
+    next();
   },
   methods: {
     ...mapMutations(["setLocation"]),
@@ -55,7 +69,7 @@ export default {
         clipMeta.detection &&
         (item.meta.type === "image-sequence" || clipMeta.video)
       ) {
-        this.$router.push(`viewer/${item._id}`);
+        this.$router.push(`/viewer/${item._id}`);
       } else {
         if (item.meta.type === "video") {
           this.$snackbar({
@@ -183,7 +197,7 @@ export default {
             ref="fileManager"
             :new-folder-enabled="!selected.length"
             selectable
-            :location.sync="location_"
+            :location.sync="location"
             @selection-changed="selected = $event"
             @rowclick="rowClicked"
             @dragover.native="dragover"
@@ -236,7 +250,7 @@ export default {
                   </v-btn>
                 </template>
                 <Upload
-                  :location="location_"
+                  :location="location"
                   @uploaded="uploaded"
                   :uploading.sync="uploading"
                 />

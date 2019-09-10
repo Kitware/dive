@@ -17,12 +17,6 @@ export default new Router({
       component: Login
     },
     {
-      path: "/",
-      name: "home",
-      component: Home,
-      beforeEnter
-    },
-    {
       path: "/jobs",
       name: "jobs",
       component: Jobs,
@@ -32,6 +26,12 @@ export default new Router({
       path: "/viewer/:datasetId?",
       name: "viewer",
       component: Viewer,
+      beforeEnter
+    },
+    {
+      path: "/:_modelType?/:_id?",
+      name: "home",
+      component: Home,
       beforeEnter
     }
   ]

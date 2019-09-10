@@ -1,6 +1,9 @@
 <script>
+import { mapState } from "vuex";
 import NavigationTitle from "@/components/NavigationTitle";
 import { all } from "@girder/components/src/components/Job/status";
+
+import { getPathFromLocation } from "@/utils";
 
 export default {
   name: "GenericNavigationBar",
@@ -11,6 +14,9 @@ export default {
   data: () => ({
     runningJobIds: []
   }),
+  computed: {
+    ...mapState(["location"])
+  },
   async created() {
     let jobStatus = all();
     let { data: runningJobs } = await this.girderRest.get("/job", {
@@ -37,7 +43,7 @@ export default {
       }
     });
   },
-  methods: {}
+  methods: { getPathFromLocation }
 };
 </script>
 
@@ -45,7 +51,9 @@ export default {
   <v-app-bar app>
     <NavigationTitle>VIAME</NavigationTitle>
     <v-tabs icons-and-text>
-      <v-tab to="/">Data<v-icon>mdi-database</v-icon></v-tab>
+      <v-tab :to="getPathFromLocation(location)"
+        >Data<v-icon>mdi-database</v-icon></v-tab
+      >
       <v-tab to="/jobs">
         Jobs
         <v-badge :value="runningJobIds.length" class="my-badge">
