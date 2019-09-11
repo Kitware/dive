@@ -35,7 +35,7 @@ export default {
 
 <template>
   <div>
-    <v-toolbar height="80px">
+    <v-toolbar height="80px" flat>
       <v-container fluid class="pa-0">
         <v-row>
           <v-slider

@@ -1,9 +1,10 @@
 <script>
+import { API_URL } from "@/constants";
 import VideoAnnotator from "@/components/VideoAnnotator";
 import ImageAnnotator from "@/components/ImageAnnotator";
 import Controls from "@/components/Controls";
 import AnnotationLayer from "@/components/AnnotationLayer";
-import { API_URL } from "@/constants";
+import TimelineWrapper from "@/components/TimelineWrapper";
 
 export default {
   name: "Viewer",
@@ -12,7 +13,8 @@ export default {
     VideoAnnotator,
     ImageAnnotator,
     Controls,
-    AnnotationLayer
+    AnnotationLayer,
+    TimelineWrapper
   },
   data: () => ({
     dataset: null,
@@ -143,7 +145,7 @@ export default {
 </script>
 
 <template>
-  <v-layout fill-height>
+  <v-layout>
     <component
       v-if="imageUrls || videoUrl"
       :is="annotatorType"
@@ -153,6 +155,7 @@ export default {
     >
       <template slot="control">
         <Controls />
+        <TimelineWrapper />
       </template>
       <AnnotationLayer
         v-if="annotationData"
