@@ -5,6 +5,7 @@ import ImageAnnotator from "@/components/ImageAnnotator";
 import Controls from "@/components/Controls";
 import AnnotationLayer from "@/components/AnnotationLayer";
 import TimelineWrapper from "@/components/TimelineWrapper";
+import Timeline from "@/components/timeline/Timeline";
 
 export default {
   name: "Viewer",
@@ -14,7 +15,8 @@ export default {
     ImageAnnotator,
     Controls,
     AnnotationLayer,
-    TimelineWrapper
+    TimelineWrapper,
+    Timeline
   },
   data: () => ({
     dataset: null,
@@ -155,7 +157,11 @@ export default {
     >
       <template slot="control">
         <Controls />
-        <TimelineWrapper />
+        <TimelineWrapper>
+          <template #default="{maxFrame, frame, seek}">
+            <Timeline :maxFrame="maxFrame" :frame="frame" :seek="seek" />
+          </template>
+        </TimelineWrapper>
       </template>
       <AnnotationLayer
         v-if="annotationData"

@@ -1,11 +1,7 @@
 <script>
-import Timeline from "@/components/timeline/Timeline";
 
 export default {
   name: "TimelineWrapper",
-  components: {
-    Timeline
-  },
   inject: ["annotator"],
   methods: {
     seek(frame) {
@@ -16,5 +12,7 @@ export default {
 </script>
 
 <template>
-  <Timeline :maxFrame="annotator.maxFrame" :frame="annotator.frame" @seek="seek" />
+  <div>
+    <slot :maxFrame="annotator.maxFrame" :frame="annotator.frame" :seek="seek" />
+  </div>
 </template>

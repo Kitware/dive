@@ -13,6 +13,9 @@ export default {
     frame: {
       type: Number,
       default: 0
+    },
+    seek: {
+      type: Function
     }
   },
   data() {
@@ -126,18 +129,18 @@ export default {
       this.axis.scale(this.scale);
       this.updateAxis();
     },
-    seek(e) {
+    emitSeek(e) {
       var frame = Math.round(
         ((e.clientX - this.$refs.workarea.offsetLeft) /
           this.$refs.workarea.clientWidth) *
           (this.endFrame - this.startFrame) +
           this.startFrame
       );
-      this.$emit("seek", frame);
+      this.seek(frame);
     },
     workareaMouseup(e) {
       if (this.dragging) {
-        this.seek(e);
+        this.emitSeek(e);
       }
       this.dragging = false;
     },
@@ -147,7 +150,7 @@ export default {
     },
     workareaMousemove(e) {
       if (this.dragging) {
-        this.seek(e);
+        this.emitSeek(e);
       }
       e.preventDefault();
     },
