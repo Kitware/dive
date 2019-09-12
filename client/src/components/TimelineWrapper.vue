@@ -1,5 +1,4 @@
 <script>
-
 export default {
   name: "TimelineWrapper",
   inject: ["annotator"],
@@ -13,6 +12,10 @@ export default {
 
 <template>
   <div>
-    <slot :maxFrame="annotator.maxFrame" :frame="annotator.frame" :seek="seek" />
+    <slot
+      :maxFrame="annotator.maxFrame"
+      :frame="annotator.frame"
+      :seek="seek"
+    />
   </div>
 </template>

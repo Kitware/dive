@@ -6,6 +6,7 @@ import Controls from "@/components/Controls";
 import AnnotationLayer from "@/components/AnnotationLayer";
 import TimelineWrapper from "@/components/TimelineWrapper";
 import Timeline from "@/components/timeline/Timeline";
+import LineChart from "@/components/timeline/LineChart";
 
 export default {
   name: "Viewer",
@@ -15,8 +16,9 @@ export default {
     ImageAnnotator,
     Controls,
     AnnotationLayer,
+    Timeline,
     TimelineWrapper,
-    Timeline
+    LineChart
   },
   data: () => ({
     dataset: null,
@@ -78,6 +80,14 @@ export default {
           return data.record === selectedAnnotation ? "red" : "lime";
         }
       };
+    },
+    lineChartData() {
+      var cache = new Map();
+      this.detections.forEach(detection => {
+        var frame = detection.frame;
+        cache.set(frame, cache.get(frame) + 1 || 1);
+      });
+      return [Array.from(cache.entries()).sort((a, b) => a[0] - b[0])];
     }
   },
   asyncComputed: {
@@ -159,7 +169,16 @@ export default {
         <Controls />
         <TimelineWrapper>
           <template #default="{maxFrame, frame, seek}">
-            <Timeline :maxFrame="maxFrame" :frame="frame" :seek="seek" />
+            <Timeline :maxFrame="maxFrame" :frame="frame" :seek="seek">
+              <template #child="{startFrame, endFrame, maxFrame}">
+                <LineChart
+                  :startFrame="startFrame"
+                  :endFrame="endFrame"
+                  :maxFrame="maxFrame"
+                  :data="lineChartData"
+                />
+              </template>
+            </Timeline>
           </template>
         </TimelineWrapper>
       </template>

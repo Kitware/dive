@@ -1,14 +1,12 @@
 <script>
 import * as d3 from "d3";
-import { scaleLinear } from "d3-scale";
-import { axisTop } from "d3-axis";
 
 export default {
   name: "Timeline",
   props: {
     maxFrame: {
       type: Number,
-      default: 100
+      default: 0
     },
     frame: {
       type: Number,
@@ -20,9 +18,11 @@ export default {
   },
   data() {
     return {
+      init: this.maxFrame ? true : false,
       mounted: false,
       startFrame: 0,
-      endFrame: this.maxFrame
+      endFrame: this.maxFrame,
+      timelineScale: null
     };
   },
   computed: {
@@ -49,6 +49,7 @@ export default {
   watch: {
     maxFrame(value) {
       this.endFrame = value;
+      this.init = true;
       this.update();
     },
     startFrame() {
@@ -71,11 +72,13 @@ export default {
   mounted() {
     var width = this.$refs.workarea.clientWidth;
     var height = this.$refs.workarea.clientHeight;
-    var scale = scaleLinear()
+    var scale = d3
+      .scaleLinear()
       .domain([0, this.maxFrame])
       .range([0, width]);
-    this.scale = scale;
-    var axis = axisTop()
+    this.timelineScale = scale;
+    var axis = d3
+      .axisTop()
       .scale(scale)
       .tickSize(height - 30)
       .tickSizeOuter(0);
@@ -87,13 +90,13 @@ export default {
       .attr("width", width)
       .attr("height", height)
       .append("g")
-      .attr("transform", `translate(0,${height - 15})`);
+      .attr("transform", `translate(0,${height - 17})`);
     this.updateAxis();
     this.mounted = true;
   },
   methods: {
     onwheel(e) {
-      var extend = e.deltaY * 5;
+      var extend = e.deltaY * 4;
       var ratio =
         extend < 0
           ? (e.clientX - this.$el.offsetLeft) / this.$el.clientWidth
@@ -102,7 +105,7 @@ export default {
       var endFrame = this.endFrame + extend * (1 - ratio);
       startFrame = Math.max(0, startFrame);
       endFrame = Math.min(this.maxFrame, endFrame);
-      if (startFrame >= endFrame - 300) {
+      if (startFrame >= endFrame - 100) {
         return;
       }
       this.startFrame = startFrame;
@@ -125,8 +128,8 @@ export default {
         );
     },
     update() {
-      this.scale.domain([this.startFrame, this.endFrame]);
-      this.axis.scale(this.scale);
+      this.timelineScale.domain([this.startFrame, this.endFrame]);
+      this.axis.scale(this.timelineScale);
       this.updateAxis();
     },
     emitSeek(e) {
@@ -167,7 +170,6 @@ export default {
         return;
       }
       if (!e.which) {
-        console.log("which", e.which);
         this.minimapDragging = false;
         return;
       }
@@ -187,8 +189,8 @@ export default {
     containerMouseup() {
       this.minimapDragging = false;
     },
-    render() {
-      console.log("render");
+    rendered() {
+      // console.log("timeline rendered");
     }
   }
 };
@@ -209,6 +211,14 @@ export default {
       @mousemove="workareaMousemove"
     >
       <div class="hand" ref="hand"></div>
+      <div class="child" v-if="init && mounted">
+        <slot
+          name="child"
+          :startFrame="startFrame"
+          :endFrame="endFrame"
+          :maxFrame="maxFrame"
+        />
+      </div>
     </div>
     <div class="minimap" ref="minimap">
       <div
@@ -216,7 +226,7 @@ export default {
         :style="minimapFillStyle"
         @mousedown="minimapFillMousedown"
       >
-        {{ render() }}
+        {{ rendered() }}
       </div>
     </div>
   </div>
@@ -239,10 +249,18 @@ export default {
       height: 100%;
       border-left: 1px solid #299be3;
     }
+
+    .child {
+      position: absolute;
+      top: 0;
+      bottom: 17px;
+      left: 0;
+      right: 0;
+    }
   }
 
   .minimap {
-    height: 8px;
+    height: 10px;
 
     .fill {
       position: relative;
