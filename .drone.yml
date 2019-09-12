@@ -1,0 +1,69 @@
+---
+kind: pipeline
+name: "Build and push images"
+
+platform:
+  os: linux
+  arch: amd64
+
+steps:
+  - name: "Build, tag, and push base images"
+    image: kitware/dind
+    commands:
+      - "export BRANCH=$(echo ${\
+         DRONE_SOURCE_BRANCH} | tr / - | sed 's/master/latest/g')"
+      - "echo \"Building and tagging branch: $BRANCH\""
+      - "docker login -u kwcvrobot -p $GITLAB_PASSWORD \
+          ${IMAGE_REGISTRY}"
+      - "docker-compose -f docker/docker-compose.yml build base_girder_worker"
+      - "docker-compose -f docker/docker-compose.yml push  base_girder_worker"
+    environment:
+      GITLAB_PASSWORD:
+        from_secret: kwcvbot_password
+      IMAGE_REGISTRY: gitlab.kitware.com:4567/opengeoscience/viameweb
+    volumes:
+      - name: docker
+        path: /var/run/docker.sock
+      - name: ssh
+        path: /root/.ssh
+  # =======================================================================
+  - name: "BTP app images"
+    image: kitware/dind
+    commands:
+      - "export BRANCH=$(echo ${\
+         DRONE_SOURCE_BRANCH} | tr / - | sed 's/master/latest/g')"
+      - "echo \"Building and tagging branch: $BRANCH\""
+      - "docker login -u kwcvrobot -p $GITLAB_PASSWORD \
+          ${IMAGE_REGISTRY}"
+      - "docker-compose -f docker/docker-compose.yml build girder girder_worker"
+      - "docker-compose -f docker/docker-compose.yml push  girder girder_worker"
+    environment:
+      GITLAB_PASSWORD:
+        from_secret: kwcvbot_password
+      IMAGE_REGISTRY: gitlab.kitware.com:4567/opengeoscience/viameweb
+    volumes:
+      - name: docker
+        path: /var/run/docker.sock
+      - name: ssh
+        path: /root/.ssh
+  # =======================================================================
+
+volumes:
+  - name: docker
+    host:
+      path: /var/run/docker.sock
+  - name: ssh
+    host:
+      path: /home/kwcvrobot/.ssh
+
+trigger:
+  branch:
+  - stage
+  - latest
+  - master
+  - rapid
+  event:
+  - push
+  - pull_request
+  - tag
+
