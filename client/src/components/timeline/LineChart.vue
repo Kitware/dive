@@ -1,4 +1,5 @@
 <script>
+import { throttle } from "lodash";
 import * as d3 from "d3";
 
 export default {
@@ -18,7 +19,12 @@ export default {
     },
     data: {
       type: Array,
-      required: true
+      required: true,
+      validator(data) {
+        return !data.find(datum => {
+          return !Array.isArray(datum.values);
+        });
+      }
     }
   },
   computed: {
@@ -27,7 +33,7 @@ export default {
         var lastFrame = 0;
         var lastPoint = [0, 0];
         var output = [];
-        datum.forEach(point => {
+        datum.values.forEach(point => {
           var frame = point[0];
           if (point[1] !== lastPoint[1] || frame !== lastFrame + 1) {
             if (lastPoint[0] !== lastFrame) {
@@ -50,7 +56,7 @@ export default {
             output.push([this.maxFrame, 0]);
           }
         }
-        return output;
+        return { ...datum, values: output };
       });
     }
   },
@@ -62,6 +68,9 @@ export default {
       this.update();
     }
   },
+  created() {
+    this.update = throttle(this.update, 30);
+  },
   mounted() {
     var width = this.$el.clientWidth;
     var height = this.$el.clientHeight;
@@ -70,43 +79,62 @@ export default {
       .domain([this.startFrame, this.endFrame])
       .range([0, width]);
     this.x = x;
-    var max = d3.max(this.lineData, datum => d3.max(datum, d => d[1]));
+    var max = d3.max(this.lineData, datum => d3.max(datum.values, d => d[1]));
     var y = d3
       .scaleLinear()
-      .domain([0, max + max * 0.2])
+      .domain([0, Math.max(max + max * 0.2, 2)])
       .range([height, 0]);
 
     var line = d3
       .line()
       .curve(d3.curveStep)
-      .x(d => {
-        return x(d[0]);
-      })
-      .y(d => {
-        return y(d[1]);
-      });
+      .x(d => x(d[0]))
+      .y(d => y(d[1]));
     this.line = line;
 
-    var g = d3
+    var svg = d3
       .select(this.$el)
       .append("svg")
-      .attr("class", "line-chart")
       .style("display", "block")
       .attr("width", width)
       .attr("height", height)
       .append("g")
       .attr("transform", `translate(0,-1)`);
-    var path = g
+    var path = svg
+      .selectAll()
+      .data(this.lineData)
+      .enter()
       .append("path")
       .attr("class", "line")
-      .data(this.lineData)
-      .attr("d", line);
+      .attr("d", d => line(d.values))
+      .style("stroke", d => (d.color ? d.color : "#4c9ac2"))
+      .on("mouseenter", function(d) {
+        var [x, y] = d3.mouse(this);
+        tooltipTimeoutHandle = setTimeout(() => {
+          tooltip
+            .style("left", x + 2 + "px")
+            .style("top", y - 25 + "px")
+            .text(d.name)
+            .style("display", "block");
+        }, 200);
+      })
+      .on("mouseout", function() {
+        clearTimeout(tooltipTimeoutHandle);
+        tooltip.style("display", "none");
+      });
     this.path = path;
     var axis = d3.axisRight(y);
     this.axis = axis;
-    g.append("g")
+    svg
+      .append("g")
       .attr("class", "axis-y")
       .call(axis);
+    var tooltip = d3
+      .select(this.$el)
+      .append("div")
+      .attr("class", "tooltip")
+      .style("display", "none");
+    var tooltipTimeoutHandle = null;
   },
   methods: {
     update() {
@@ -114,7 +142,7 @@ export default {
       this.line.x(d => {
         return this.x(d[0]);
       });
-      this.path.attr("d", this.line);
+      this.path.attr("d", d => this.line(d.values));
     },
     rendered() {
       console.log("linechart rendered");
@@ -124,20 +152,27 @@ export default {
 </script>
 
 <template>
-  <div style="height:100%;">{{ rendered() }}</div>
+  <div class="line-chart" style="height:100%;">{{ rendered() }}</div>
 </template>
 
 <style lang="scss">
 .line-chart {
   .line {
     fill: none;
-    stroke: steelblue;
     stroke-width: 1.5px;
   }
 
   .axis-y g:first-of-type,
   .axis-y g:last-of-type {
     display: none;
+  }
+
+  .tooltip {
+    position: absolute;
+    background: white;
+    border: 1px solid black;
+    padding: 0px 5px;
+    font-size: 14px;
   }
 }
 </style>

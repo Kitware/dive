@@ -82,12 +82,21 @@ export default {
       };
     },
     lineChartData() {
+      if (!this.detections) {
+        return null;
+      }
       var cache = new Map();
       this.detections.forEach(detection => {
         var frame = detection.frame;
         cache.set(frame, cache.get(frame) + 1 || 1);
       });
-      return [Array.from(cache.entries()).sort((a, b) => a[0] - b[0])];
+      return [
+        {
+          values: Array.from(cache.entries()).sort((a, b) => a[0] - b[0]),
+          color: "green",
+          name: "Total"
+        }
+      ];
     }
   },
   asyncComputed: {
@@ -172,6 +181,7 @@ export default {
             <Timeline :maxFrame="maxFrame" :frame="frame" :seek="seek">
               <template #child="{startFrame, endFrame, maxFrame}">
                 <LineChart
+                  v-if="lineChartData"
                   :startFrame="startFrame"
                   :endFrame="endFrame"
                   :maxFrame="maxFrame"

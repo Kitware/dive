@@ -1,4 +1,5 @@
 <script>
+import { throttle } from "lodash";
 import * as d3 from "d3";
 
 export default {
@@ -69,6 +70,9 @@ export default {
       }
     }
   },
+  created() {
+    this.update = throttle(this.update, 30);
+  },
   mounted() {
     var width = this.$refs.workarea.clientWidth;
     var height = this.$refs.workarea.clientHeight;
@@ -96,16 +100,15 @@ export default {
   },
   methods: {
     onwheel(e) {
-      var extend = e.deltaY * 4;
-      var ratio =
-        extend < 0
-          ? (e.clientX - this.$el.offsetLeft) / this.$el.clientWidth
-          : 0.5;
+      var extend =
+        Math.round((this.endFrame - this.startFrame) * 0.2) *
+        Math.sign(e.deltaY);
+      var ratio = (e.clientX - this.$el.offsetLeft) / this.$el.clientWidth;
       var startFrame = this.startFrame - extend * ratio;
       var endFrame = this.endFrame + extend * (1 - ratio);
       startFrame = Math.max(0, startFrame);
       endFrame = Math.min(this.maxFrame, endFrame);
-      if (startFrame >= endFrame - 100) {
+      if (startFrame >= endFrame - 200) {
         return;
       }
       this.startFrame = startFrame;
@@ -234,7 +237,7 @@ export default {
 
 <style lang="scss" scoped>
 .timeline {
-  min-height: 200px;
+  min-height: 175px;
   display: flex;
   flex-direction: column;
 
