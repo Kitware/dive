@@ -4,6 +4,7 @@ import VideoAnnotator from "@/components/VideoAnnotator";
 import ImageAnnotator from "@/components/ImageAnnotator";
 import Controls from "@/components/Controls";
 import AnnotationLayer from "@/components/AnnotationLayer";
+import TextLayer from "@/components/TextLayer";
 import TimelineWrapper from "@/components/TimelineWrapper";
 import Timeline from "@/components/timeline/Timeline";
 import LineChart from "@/components/timeline/LineChart";
@@ -16,13 +17,14 @@ export default {
     ImageAnnotator,
     Controls,
     AnnotationLayer,
+    TextLayer,
     Timeline,
     TimelineWrapper,
     LineChart
   },
   data: () => ({
     dataset: null,
-    selectedAnnotation: null
+    selectedDetection: null
   }),
   computed: {
     annotatorType() {
@@ -57,6 +59,7 @@ export default {
       return this.detections.map(detection => {
         var bounds = detection.bounds;
         return {
+          detection,
           frame: detection.frame,
           polygon: {
             type: "Polygon",
@@ -73,11 +76,42 @@ export default {
         };
       });
     },
-    annotationFeatureStyle() {
-      var selectedAnnotation = this.selectedAnnotation;
+    annotationStyle() {
+      var selectedDetection = this.selectedDetection;
       return {
         strokeColor: (a, b, data) => {
-          return data.record === selectedAnnotation ? "red" : "lime";
+          return data.record.detection === selectedDetection ? "red" : "lime";
+        }
+      };
+    },
+    textData() {
+      if (!this.detections) {
+        return null;
+      }
+      var data = [];
+      this.detections.forEach(detection => {
+        var bounds = detection.bounds;
+        detection.confidencePairs.forEach(([type, confidence], i) => {
+          data.push({
+            detection,
+            frame: detection.frame,
+            text: `${type}: ${confidence.toFixed(2)}`,
+            x: bounds[1],
+            y: bounds[2],
+            offsetY: i * 14
+          });
+        });
+      });
+      return data;
+    },
+    textStyle() {
+      var selectedDetection = this.selectedDetection;
+      return {
+        color: data => {
+          return data.detection === selectedDetection ? "red" : "lime";
+        },
+        offsetY(data) {
+          return data.offsetY;
         }
       };
     },
@@ -159,7 +193,7 @@ export default {
       this.dataset = dataset;
     },
     selectAnnotation(data) {
-      this.selectedAnnotation = data;
+      this.selectedDetection = data.detection;
     }
   }
 };
@@ -195,9 +229,10 @@ export default {
       <AnnotationLayer
         v-if="annotationData"
         :data="annotationData"
-        :featureStyle="annotationFeatureStyle"
+        :annotationStyle="annotationStyle"
         @annotation-click="selectAnnotation"
       />
+      <TextLayer v-if="textData" :data="textData" :textStyle="textStyle" />
     </component>
   </v-layout>
 </template>

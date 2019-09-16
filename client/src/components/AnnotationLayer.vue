@@ -17,7 +17,7 @@ export default {
         return true;
       }
     },
-    featureStyle: {
+    annotationStyle: {
       type: Object,
       required: false
     }
@@ -54,7 +54,7 @@ export default {
         this.frameChanged();
       }
     },
-    featureStyle() {
+    annotationStyle() {
       this.updateStyle();
     }
   },
@@ -94,7 +94,7 @@ export default {
           strokeWidth: 1,
           fill: false
         },
-        ...this.featureStyle
+        ...this.annotationStyle
       };
       this.polygonFeature.style(style).draw();
     },
