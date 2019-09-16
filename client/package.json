@@ -10,6 +10,7 @@
   "dependencies": {
     "@girder/components": "git+https://github.com/girder/girder_web_components.git#matthew_playground",
     "core-js": "^2.6.5",
+    "d3": "^5.12.0",
     "geojs": "^0.19.5",
     "vue": "^2.6.10",
     "vue-router": "^3.0.3",

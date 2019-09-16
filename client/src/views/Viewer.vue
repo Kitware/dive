@@ -1,9 +1,12 @@
 <script>
+import { API_URL } from "@/constants";
 import VideoAnnotator from "@/components/VideoAnnotator";
 import ImageAnnotator from "@/components/ImageAnnotator";
 import Controls from "@/components/Controls";
 import AnnotationLayer from "@/components/AnnotationLayer";
-import { API_URL } from "@/constants";
+import TimelineWrapper from "@/components/TimelineWrapper";
+import Timeline from "@/components/timeline/Timeline";
+import LineChart from "@/components/timeline/LineChart";
 
 export default {
   name: "Viewer",
@@ -12,7 +15,10 @@ export default {
     VideoAnnotator,
     ImageAnnotator,
     Controls,
-    AnnotationLayer
+    AnnotationLayer,
+    Timeline,
+    TimelineWrapper,
+    LineChart
   },
   data: () => ({
     dataset: null,
@@ -74,6 +80,23 @@ export default {
           return data.record === selectedAnnotation ? "red" : "lime";
         }
       };
+    },
+    lineChartData() {
+      if (!this.detections) {
+        return null;
+      }
+      var cache = new Map();
+      this.detections.forEach(detection => {
+        var frame = detection.frame;
+        cache.set(frame, cache.get(frame) + 1 || 1);
+      });
+      return [
+        {
+          values: Array.from(cache.entries()).sort((a, b) => a[0] - b[0]),
+          color: "green",
+          name: "Total"
+        }
+      ];
     }
   },
   asyncComputed: {
@@ -143,7 +166,7 @@ export default {
 </script>
 
 <template>
-  <v-layout fill-height>
+  <v-layout>
     <component
       v-if="imageUrls || videoUrl"
       :is="annotatorType"
@@ -153,6 +176,21 @@ export default {
     >
       <template slot="control">
         <Controls />
+        <TimelineWrapper>
+          <template #default="{maxFrame, frame, seek}">
+            <Timeline :maxFrame="maxFrame" :frame="frame" :seek="seek">
+              <template #child="{startFrame, endFrame, maxFrame}">
+                <LineChart
+                  v-if="lineChartData"
+                  :startFrame="startFrame"
+                  :endFrame="endFrame"
+                  :maxFrame="maxFrame"
+                  :data="lineChartData"
+                />
+              </template>
+            </Timeline>
+          </template>
+        </TimelineWrapper>
       </template>
       <AnnotationLayer
         v-if="annotationData"
