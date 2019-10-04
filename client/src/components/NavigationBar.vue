@@ -1,8 +1,8 @@
 <script>
 import { mapState } from "vuex";
-import NavigationTitle from "@/components/NavigationTitle";
 import { all } from "@girder/components/src/components/Job/status";
 
+import NavigationTitle from "@/components/NavigationTitle";
 import { getPathFromLocation } from "@/utils";
 
 export default {

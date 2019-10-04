@@ -103,7 +103,7 @@ export default {
       var extend =
         Math.round((this.endFrame - this.startFrame) * 0.2) *
         Math.sign(e.deltaY);
-      var ratio = (e.clientX - this.$el.offsetLeft) / this.$el.clientWidth;
+      var ratio = (e.layerX - this.$el.offsetLeft) / this.$el.clientWidth;
       var startFrame = this.startFrame - extend * ratio;
       var endFrame = this.endFrame + extend * (1 - ratio);
       startFrame = Math.max(0, startFrame);
@@ -137,7 +137,7 @@ export default {
     },
     emitSeek(e) {
       var frame = Math.round(
-        ((e.clientX - this.$refs.workarea.offsetLeft) /
+        ((e.layerX - this.$refs.workarea.offsetLeft) /
           this.$refs.workarea.clientWidth) *
           (this.endFrame - this.startFrame) +
           this.startFrame
@@ -244,6 +244,7 @@ export default {
   .work-area {
     flex: 1;
     position: relative;
+    overflow: hidden;
 
     .hand {
       position: absolute;

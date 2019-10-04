@@ -1,4 +1,4 @@
-FROM gitlab.kitware.com:4567/opengeoscience/viameweb/base/girder_worker
+FROM girder/girder_worker:latest-py3
 
 USER root
 

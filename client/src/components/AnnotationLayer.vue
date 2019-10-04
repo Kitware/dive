@@ -56,6 +56,9 @@ export default {
     },
     annotationStyle() {
       this.updateStyle();
+    },
+    frameMap() {
+      this.frameChanged();
     }
   },
   mounted() {

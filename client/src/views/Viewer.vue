@@ -1,18 +1,26 @@
 <script>
+import _ from "lodash";
+import { mapState } from "vuex";
+
 import { API_URL } from "@/constants";
+import NavigationTitle from "@/components/NavigationTitle";
 import VideoAnnotator from "@/components/VideoAnnotator";
 import ImageAnnotator from "@/components/ImageAnnotator";
 import Controls from "@/components/Controls";
 import AnnotationLayer from "@/components/AnnotationLayer";
+import ConfidenceFilter from "@/components/ConfidenceFilter";
+import Tracks from "@/components/Tracks";
 import TextLayer from "@/components/TextLayer";
 import TimelineWrapper from "@/components/TimelineWrapper";
 import Timeline from "@/components/timeline/Timeline";
 import LineChart from "@/components/timeline/LineChart";
+import { getPathFromLocation } from "@/utils";
 
 export default {
   name: "Viewer",
   inject: ["girderRest"],
   components: {
+    NavigationTitle,
     VideoAnnotator,
     ImageAnnotator,
     Controls,
@@ -20,13 +28,18 @@ export default {
     TextLayer,
     Timeline,
     TimelineWrapper,
+    ConfidenceFilter,
+    Tracks,
     LineChart
   },
   data: () => ({
     dataset: null,
-    selectedDetection: null
+    selectedDetection: null,
+    selectedTracks: [],
+    confidence: 0.1
   }),
   computed: {
+    ...mapState(["location"]),
     annotatorType() {
       if (!this.dataset) {
         return null;
@@ -52,11 +65,21 @@ export default {
       }
       return this.dataset.meta.fps;
     },
-    annotationData() {
+    filteredDetections() {
       if (!this.detections) {
         return null;
       }
-      return this.detections.map(detection => {
+      return this.detections.filter(
+        detection =>
+          this.selectedTracks.indexOf(detection.track) !== -1 &&
+          detection.confidencePairs.find(pair => pair[1] > this.confidence)
+      );
+    },
+    annotationData() {
+      if (!this.filteredDetections) {
+        return null;
+      }
+      return this.filteredDetections.map(detection => {
         var bounds = detection.bounds;
         return {
           detection,
@@ -85,22 +108,27 @@ export default {
       };
     },
     textData() {
-      if (!this.detections) {
+      if (!this.filteredDetections) {
         return null;
       }
       var data = [];
-      this.detections.forEach(detection => {
+      this.filteredDetections.forEach(detection => {
         var bounds = detection.bounds;
-        detection.confidencePairs.forEach(([type, confidence], i) => {
-          data.push({
-            detection,
-            frame: detection.frame,
-            text: `${type}: ${confidence.toFixed(2)}`,
-            x: bounds[1],
-            y: bounds[2],
-            offsetY: i * 14
+        if (!detection.confidencePairs) {
+          return;
+        }
+        detection.confidencePairs
+          .filter(pair => pair[1] >= this.confidence)
+          .forEach(([type, confidence], i) => {
+            data.push({
+              detection,
+              frame: detection.frame,
+              text: `${type}: ${confidence.toFixed(2)}`,
+              x: bounds[1],
+              y: bounds[2],
+              offsetY: i * 14
+            });
           });
-        });
       });
       return data;
     },
@@ -116,11 +144,11 @@ export default {
       };
     },
     lineChartData() {
-      if (!this.detections) {
+      if (!this.filteredDetections) {
         return null;
       }
       var cache = new Map();
-      this.detections.forEach(detection => {
+      this.filteredDetections.forEach(detection => {
         var frame = detection.frame;
         cache.set(frame, cache.get(frame) + 1 || 1);
       });
@@ -131,6 +159,15 @@ export default {
           name: "Total"
         }
       ];
+    },
+    tracks() {
+      if (!this.detections) {
+        return [];
+      }
+      var tracks = _.uniqBy(this.detections, detection => detection.track).map(
+        ({ track, confidencePairs }) => ({ track, confidencePairs })
+      );
+      return tracks;
     }
   },
   asyncComputed: {
@@ -177,6 +214,11 @@ export default {
       return `${API_URL}/file/${files[0]._id}/download`;
     }
   },
+  watch: {
+    detections() {
+      this.updateSelectedTracks();
+    }
+  },
   async created() {
     var datasetId = this.$route.params.datasetId;
     await this.loadDataset(datasetId);
@@ -185,6 +227,7 @@ export default {
     }
   },
   methods: {
+    getPathFromLocation,
     async loadDataset(datasetId) {
       var { data: dataset } = await this.girderRest.get(`item/${datasetId}`);
       if (!dataset || !dataset.meta || !dataset.meta.viame) {
@@ -194,45 +237,77 @@ export default {
     },
     selectAnnotation(data) {
       this.selectedDetection = data.detection;
+    },
+    updateSelectedTracks() {
+      if (!this.detections) {
+        return;
+      }
+      this.selectedTracks = _.uniq(
+        this.detections.map(detection => detection.track)
+      );
     }
   }
 };
 </script>
 
 <template>
-  <v-layout>
-    <component
-      v-if="imageUrls || videoUrl"
-      :is="annotatorType"
-      :image-urls="imageUrls"
-      :video-url="videoUrl"
-      :frame-rate="frameRate"
-    >
-      <template slot="control">
-        <Controls />
-        <TimelineWrapper>
-          <template #default="{maxFrame, frame, seek}">
-            <Timeline :maxFrame="maxFrame" :frame="frame" :seek="seek">
-              <template #child="{startFrame, endFrame, maxFrame}">
-                <LineChart
-                  v-if="lineChartData"
-                  :startFrame="startFrame"
-                  :endFrame="endFrame"
-                  :maxFrame="maxFrame"
-                  :data="lineChartData"
-                />
+  <v-content>
+    <v-app-bar app dense height="40">
+      <NavigationTitle />
+      <v-btn text :to="getPathFromLocation(location)">Data</v-btn>
+    </v-app-bar>
+    <v-row no-gutters class="fill-height">
+      <v-card width="300" class="sidebar">
+        <div class="wrapper d-flex flex-column">
+          <ConfidenceFilter :confidence.sync="confidence" />
+          <Tracks :tracks="tracks" :selectedTracks.sync="selectedTracks" />
+        </div>
+      </v-card>
+      <v-col style="position: relative; ">
+        <component
+          v-if="imageUrls || videoUrl"
+          :is="annotatorType"
+          :image-urls="imageUrls"
+          :video-url="videoUrl"
+          :frame-rate="frameRate"
+        >
+          <template slot="control">
+            <Controls />
+            <TimelineWrapper>
+              <template #default="{maxFrame, frame, seek}">
+                <Timeline :maxFrame="maxFrame" :frame="frame" :seek="seek">
+                  <template #child="{startFrame, endFrame, maxFrame}">
+                    <LineChart
+                      v-if="lineChartData"
+                      :startFrame="startFrame"
+                      :endFrame="endFrame"
+                      :maxFrame="maxFrame"
+                      :data="lineChartData"
+                    />
+                  </template>
+                </Timeline>
               </template>
-            </Timeline>
+            </TimelineWrapper>
           </template>
-        </TimelineWrapper>
-      </template>
-      <AnnotationLayer
-        v-if="annotationData"
-        :data="annotationData"
-        :annotationStyle="annotationStyle"
-        @annotation-click="selectAnnotation"
-      />
-      <TextLayer v-if="textData" :data="textData" :textStyle="textStyle" />
-    </component>
-  </v-layout>
+          <AnnotationLayer
+            v-if="annotationData"
+            :data="annotationData"
+            :annotationStyle="annotationStyle"
+            @annotation-click="selectAnnotation"
+          />
+          <TextLayer v-if="textData" :data="textData" :textStyle="textStyle" />
+        </component>
+      </v-col>
+    </v-row>
+  </v-content>
 </template>
+
+<style lang="scss" scoped>
+.wrapper {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  right: 0;
+}
+</style>

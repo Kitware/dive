@@ -34,6 +34,9 @@ export default {
     },
     textStyle() {
       this.updateStyle();
+    },
+    frameMap() {
+      this.frameChanged();
     }
   },
   mounted() {
