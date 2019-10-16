@@ -1,6 +1,11 @@
 <script>
+import VirtualList from "vue-virtual-scroll-list";
+
 export default {
   name: "Tracks",
+  components: {
+    VirtualList
+  },
   props: {
     tracks: {
       type: Array
@@ -26,9 +31,11 @@ export default {
 <template>
   <div class="tracks">
     <v-subheader>Tracks</v-subheader>
+    <virtual-list :size="28" :remain="15">
       <v-checkbox
         class="mt-3 ml-3"
-        v-for="track of tracks" :key="track.track"
+        v-for="track of tracks"
+        :key="track.track"
         v-model="selectedTracks_"
         :value="track.track"
         :title="
@@ -46,6 +53,7 @@ export default {
         dense
         hide-details
       ></v-checkbox>
+    </virtual-list>
   </div>
 </template>
 

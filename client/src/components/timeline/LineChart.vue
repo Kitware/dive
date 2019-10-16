@@ -166,11 +166,13 @@ export default {
 </script>
 
 <template>
-  <div class="line-chart" style="height:100%;">{{ rendered() }}</div>
+  <div class="line-chart">{{ rendered() }}</div>
 </template>
 
 <style lang="scss">
 .line-chart {
+  height: 100%;
+
   .line {
     fill: none;
     stroke-width: 1.5px;

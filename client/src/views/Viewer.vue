@@ -10,10 +10,12 @@ import Controls from "@/components/Controls";
 import AnnotationLayer from "@/components/AnnotationLayer";
 import ConfidenceFilter from "@/components/ConfidenceFilter";
 import Tracks from "@/components/Tracks";
+import TypeList from "@/components/TypeList";
 import TextLayer from "@/components/TextLayer";
 import TimelineWrapper from "@/components/TimelineWrapper";
 import Timeline from "@/components/timeline/Timeline";
 import LineChart from "@/components/timeline/LineChart";
+import EventChart from "@/components/timeline/EventChart";
 import { getPathFromLocation } from "@/utils";
 
 export default {
@@ -30,13 +32,17 @@ export default {
     TimelineWrapper,
     ConfidenceFilter,
     Tracks,
-    LineChart
+    TypeList,
+    LineChart,
+    EventChart
   },
   data: () => ({
     dataset: null,
     selectedDetection: null,
     selectedTracks: [],
-    confidence: 0.1
+    selectedTypes: [],
+    confidence: 0.1,
+    showTrackView: false
   }),
   computed: {
     ...mapState(["location"]),
@@ -69,10 +75,15 @@ export default {
       if (!this.detections) {
         return null;
       }
+      var selectedTracksSet = new Set(this.selectedTracks);
+      var selectedtypesSet = new Set(this.selectedTypes);
+      var confidence = this.confidence;
       return this.detections.filter(
         detection =>
-          this.selectedTracks.indexOf(detection.track) !== -1 &&
-          detection.confidencePairs.find(pair => pair[1] > this.confidence)
+          selectedTracksSet.has(detection.track) &&
+          detection.confidencePairs.find(
+            pair => pair[1] > confidence && selectedtypesSet.has(pair[0])
+          )
       );
     },
     annotationData() {
@@ -160,6 +171,26 @@ export default {
         }
       ];
     },
+    eventChartData() {
+      if (!this.filteredDetections) {
+        return [];
+      }
+      return Object.entries(
+        _.groupBy(this.filteredDetections, detection => detection.track)
+      ).map(([name, detections]) => {
+        var range = [
+          _.minBy(detections, detection => detection.frame).frame,
+          _.maxBy(detections, detection => detection.frame).frame
+        ];
+        return {
+          name: `Track ${name}`,
+          color: ["green", "red", "orange", "blue", "purple"][
+            Math.floor((Math.random() * 10) / 2)
+          ],
+          range
+        };
+      });
+    },
     tracks() {
       if (!this.detections) {
         return [];
@@ -168,6 +199,18 @@ export default {
         ({ track, confidencePairs }) => ({ track, confidencePairs })
       );
       return tracks;
+    },
+    types() {
+      if (!this.tracks) {
+        return [];
+      }
+      var typeSet = new Set();
+      for (var { confidencePairs } of this.tracks) {
+        for (var pair of confidencePairs) {
+          typeSet.add(pair[0]);
+        }
+      }
+      return Array.from(typeSet);
     }
   },
   asyncComputed: {
@@ -216,7 +259,7 @@ export default {
   },
   watch: {
     detections() {
-      this.updateSelectedTracks();
+      this.updateSelectedTracksAndTypes();
     }
   },
   async created() {
@@ -238,13 +281,12 @@ export default {
     selectAnnotation(data) {
       this.selectedDetection = data.detection;
     },
-    updateSelectedTracks() {
-      if (!this.detections) {
+    updateSelectedTracksAndTypes() {
+      if (!this.tracks) {
         return;
       }
-      this.selectedTracks = _.uniq(
-        this.detections.map(detection => detection.track)
-      );
+      this.selectedTracks = this.tracks.map(track => track.track);
+      this.selectedTypes = this.types;
     }
   }
 };
@@ -257,10 +299,15 @@ export default {
       <v-btn text :to="getPathFromLocation(location)">Data</v-btn>
     </v-app-bar>
     <v-row no-gutters class="fill-height">
-      <v-card width="300" class="sidebar">
+      <v-card width="300" style="z-index:1;">
         <div class="wrapper d-flex flex-column">
           <ConfidenceFilter :confidence.sync="confidence" />
           <Tracks :tracks="tracks" :selectedTracks.sync="selectedTracks" />
+          <TypeList
+            class="flex-grow-1"
+            :types="types"
+            :selectedTypes.sync="selectedTypes"
+          />
         </div>
       </v-card>
       <v-col style="position: relative; ">
@@ -278,13 +325,29 @@ export default {
                 <Timeline :maxFrame="maxFrame" :frame="frame" :seek="seek">
                   <template #child="{startFrame, endFrame, maxFrame}">
                     <LineChart
-                      v-if="lineChartData"
+                      v-if="!showTrackView && lineChartData"
                       :startFrame="startFrame"
                       :endFrame="endFrame"
                       :maxFrame="maxFrame"
                       :data="lineChartData"
                     />
+                    <EventChart
+                      v-if="showTrackView && eventChartData"
+                      :startFrame="startFrame"
+                      :endFrame="endFrame"
+                      :maxFrame="maxFrame"
+                      :data="eventChartData"
+                    />
                   </template>
+                  <v-btn
+                    outlined
+                    x-small
+                    class="toggle-timeline-button"
+                    @click="showTrackView = !showTrackView"
+                    tabIndex="-1"
+                  >
+                    {{ showTrackView ? "Detection" : "Track" }}
+                  </v-btn>
                 </Timeline>
               </template>
             </TimelineWrapper>
@@ -309,5 +372,11 @@ export default {
   left: 0;
   bottom: 0;
   right: 0;
+}
+
+.toggle-timeline-button {
+  position: absolute;
+  top: -24px;
+  left: 2px;
 }
 </style>

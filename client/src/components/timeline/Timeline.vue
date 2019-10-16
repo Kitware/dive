@@ -137,7 +137,7 @@ export default {
     },
     emitSeek(e) {
       var frame = Math.round(
-        ((e.layerX - this.$refs.workarea.offsetLeft) /
+        ((e.clientX - this.$refs.workarea.getBoundingClientRect().left) /
           this.$refs.workarea.clientWidth) *
           (this.endFrame - this.startFrame) +
           this.startFrame
@@ -150,9 +150,9 @@ export default {
       }
       this.dragging = false;
     },
-    workareaMousedown(e) {
+    workareaMousedown() {
       this.dragging = true;
-      e.preventDefault();
+      // e.preventDefault();
     },
     workareaMousemove(e) {
       if (this.dragging) {
@@ -232,12 +232,14 @@ export default {
         {{ rendered() }}
       </div>
     </div>
+    <slot />
   </div>
 </template>
 
 <style lang="scss" scoped>
 .timeline {
   min-height: 175px;
+  position: relative;
   display: flex;
   flex-direction: column;
 

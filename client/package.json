@@ -15,6 +15,7 @@
     "vue": "^2.6.10",
     "vue-router": "^3.0.3",
     "vue-utilities": "git+https://github.com/Kitware/vue-utilities.git#vuetify-2",
+    "vue-virtual-scroll-list": "^1.4.2",
     "vuetify": "^2.0.14",
     "vuex": "^3.0.1"
   },
