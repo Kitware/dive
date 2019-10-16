@@ -1,5 +1,9 @@
 <script>
 import VirtualList from "vue-virtual-scroll-list";
+import { VCheckbox } from "vuetify/lib";
+
+// A monkey patch
+VirtualList.options.props.item.type = [Object, Function];
 
 export default {
   name: "Tracks",
@@ -15,7 +19,7 @@ export default {
     }
   },
   data: function() {
-    return { selectedTracks_: this.selectedTracks };
+    return { selectedTracks_: this.selectedTracks, item: VCheckbox };
   },
   watch: {
     selectedTracks(value) {
@@ -24,6 +28,34 @@ export default {
     selectedTracks_(value) {
       this.$emit("update:selectedTracks", value);
     }
+  },
+  methods: {
+    getItemProps(itemIndex) {
+      var track = this.tracks[itemIndex];
+      return {
+        class: "mt-3 ml-3",
+        domProps: {},
+        props: {
+          label: `${track.track}. ${track.confidencePairs
+            .sort((a, b) => b[1] - a[1])
+            .map(pair => pair[0])
+            .join("\n    ")}`,
+          dense: true,
+          hideDetails: true,
+          inputValue: this.selectedTracks_.indexOf(track.track) !== -1
+        },
+        on: {
+          change: checked => {
+            if (checked) {
+              this.selectedTracks_.push(track.track);
+            } else {
+              var index = this.selectedTracks_.indexOf(track.track);
+              this.selectedTracks_.splice(index, 1);
+            }
+          }
+        }
+      };
+    }
   }
 };
 </script>
@@ -31,28 +63,13 @@ export default {
 <template>
   <div class="tracks">
     <v-subheader>Tracks</v-subheader>
-    <virtual-list :size="28" :remain="15">
-      <v-checkbox
-        class="mt-3 ml-3"
-        v-for="track of tracks"
-        :key="track.track"
-        v-model="selectedTracks_"
-        :value="track.track"
-        :title="
-          track.confidencePairs
-            .sort((a, b) => b[1] - a[1])
-            .map(pair => pair[0])
-            .join(', ')
-        "
-        :label="
-          `${track.track}. ${track.confidencePairs
-            .sort((a, b) => b[1] - a[1])
-            .map(pair => pair[0])
-            .join('\n    ')}`
-        "
-        dense
-        hide-details
-      ></v-checkbox>
+    <virtual-list
+      :size="28"
+      :remain="15"
+      :item="item"
+      :itemcount="tracks.length"
+      :itemprops="getItemProps"
+    >
     </virtual-list>
   </div>
 </template>
