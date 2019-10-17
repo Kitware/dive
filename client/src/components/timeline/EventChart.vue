@@ -27,7 +27,14 @@ export default {
       }
     }
   },
-  data: () => ({ x: null, tooltip: null }),
+  data() {
+    return {
+      x: null,
+      tooltip: null,
+      startFrame_: this.startFrame,
+      endFrame_: this.endFrame
+    };
+  },
   computed: {
     barData() {
       var sorted = sortBy(this.data, data => data.range[0]);
@@ -52,11 +59,14 @@ export default {
       if (!this.x) {
         return [];
       }
+      var startFrame_ = this.startFrame_;
+      var endFrame_ = this.endFrame_;
+      var x = this.x;
       var bars = [];
       this.barData
         .filter(barData =>
           intersect(
-            [this.startFrame, this.endFrame],
+            [startFrame_, endFrame_],
             [barData.startPoisiton, barData.endPosition]
           )
         )
@@ -64,13 +74,11 @@ export default {
           barData.events
             .filter(event =>
               intersect(
-                [this.startFrame, this.endFrame],
+                [startFrame_, endFrame_],
                 [event.range[0], event.range[1]]
               )
             )
             .forEach(event => {
-              var x = this.x;
-
               var left = x(event.range[0]);
               bars.push({
                 left: x(event.range[0]),
@@ -90,10 +98,6 @@ export default {
     },
     endFrame() {
       this.update();
-    },
-    lineData() {
-      this.initialize();
-      this.update();
     }
   },
   created() {
@@ -102,20 +106,41 @@ export default {
   },
   mounted() {
     this.initialize();
+    this.update();
   },
   methods: {
     initialize() {
       var width = this.$el.clientWidth;
       var x = d3
         .scaleLinear()
-        .domain([this.startFrame, this.endFrame])
+        .domain([this.startFrame_, this.endFrame_])
         .range([0, width]);
       this.x = x;
     },
     update() {
-      this.x.domain([this.startFrame, this.endFrame]);
+      this.startFrame_ = this.startFrame;
+      this.endFrame_ = this.endFrame;
+      this.x.domain([this.startFrame_, this.endFrame_]);
+      d3.select(this.$el)
+        .select(".bar-container")
+        .remove();
+      d3.select(this.$el)
+        .append("div")
+        .attr("class", "bar-container")
+        .selectAll(".bar")
+        .data(this.bars)
+        .enter()
+        .append("div")
+        .attr("class", "bar")
+        .style("left", bar => bar.left + "px")
+        .style("width", bar => bar.width + "px")
+        .style("top", bar => bar.top + "px")
+        .style("background-color", bar => (bar.color ? bar.color : "#4c9ac2"))
+        .on("mouseenter", this.barMouseenter)
+        .on("mouseout", this.barMouseout);
     },
-    barMouseenter(e, name) {
+    barMouseenter({ name }) {
+      var e = d3.event;
       var left =
         e.clientX - e.target.parentElement.getBoundingClientRect().left;
       var top = e.clientY - e.target.parentElement.getBoundingClientRect().top;
@@ -146,20 +171,8 @@ function intersect(range1, range2) {
 </script>
 
 <template>
-  <div class="event-chart">
-    <div
-      class="bar"
-      v-for="(bar, i) in bars"
-      :key="i"
-      :style="{
-        left: bar.left + 'px',
-        width: bar.width + 'px',
-        top: bar.top + 'px',
-        backgroundColor: bar.color ? bar.color : '#4c9ac2'
-      }"
-      @mousemove="barMouseenter($event, bar.name)"
-      @mouseout="barMouseout"
-    ></div>
+  <div class="event-chart" @mousewheel.prevent>
+    <div class="bar-container"></div>
     <div
       class="tooltip"
       v-if="tooltip"
@@ -190,6 +203,7 @@ function intersect(range1, range2) {
     border: 1px solid black;
     padding: 0px 5px;
     font-size: 14px;
+    z-index:1;
   }
 }
 </style>

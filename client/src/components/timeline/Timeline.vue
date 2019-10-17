@@ -192,9 +192,9 @@ export default {
     containerMouseup() {
       this.minimapDragging = false;
     },
-    rendered() {
+    // rendered() {
       // console.log("timeline rendered");
-    }
+    // }
   }
 };
 </script>
@@ -229,7 +229,7 @@ export default {
         :style="minimapFillStyle"
         @mousedown="minimapFillMousedown"
       >
-        {{ rendered() }}
+        <!-- {{ rendered() }} -->
       </div>
     </div>
     <slot />
