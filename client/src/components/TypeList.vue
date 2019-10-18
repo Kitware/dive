@@ -25,7 +25,7 @@ export default {
 </script>
 
 <template>
-  <div class="tracks">
+  <div class="typelist">
     <v-subheader>Types</v-subheader>
     <v-checkbox
       class="mt-3 ml-3"
@@ -40,15 +40,9 @@ export default {
   </div>
 </template>
 
-<style lang="scss">
-// .tracks {
-//   overflow-y: auto;
-//   padding: 4px 0;
-
-//   .v-input--checkbox {
-//     label {
-//       white-space: pre-wrap;
-//     }
-//   }
-// }
+<style lang="scss" scoped>
+.typelist {
+  overflow-y: auto;
+}
 </style>
+

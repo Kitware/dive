@@ -302,12 +302,12 @@ export default {
       <v-card width="300" style="z-index:1;">
         <div class="wrapper d-flex flex-column">
           <ConfidenceFilter :confidence.sync="confidence" />
-          <Tracks :tracks="tracks" :selectedTracks.sync="selectedTracks" />
           <TypeList
             class="flex-grow-1"
             :types="types"
             :selectedTypes.sync="selectedTypes"
           />
+          <Tracks :tracks="tracks" :selectedTracks.sync="selectedTracks" class="flex-shrink-0" />
         </div>
       </v-card>
       <v-col style="position: relative; ">
