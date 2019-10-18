@@ -45,4 +45,3 @@ export default {
   overflow-y: auto;
 }
 </style>
-

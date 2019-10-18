@@ -307,7 +307,11 @@ export default {
             :types="types"
             :selectedTypes.sync="selectedTypes"
           />
-          <Tracks :tracks="tracks" :selectedTracks.sync="selectedTracks" class="flex-shrink-0" />
+          <Tracks
+            :tracks="tracks"
+            :selectedTracks.sync="selectedTracks"
+            class="flex-shrink-0"
+          />
         </div>
       </v-card>
       <v-col style="position: relative; ">

@@ -1,5 +1,5 @@
 <script>
-import { throttle, sortBy } from "lodash";
+import { throttle, debounce, sortBy } from "lodash";
 import * as d3 from "d3";
 
 export default {
@@ -82,7 +82,7 @@ export default {
               var left = x(event.range[0]);
               bars.push({
                 left: x(event.range[0]),
-                width: x(event.range[1]) - left,
+                width: Math.max(x(event.range[1]) - left, 3),
                 top: i * 15,
                 color: event.color,
                 name: event.name
@@ -98,10 +98,14 @@ export default {
     },
     endFrame() {
       this.update();
+    },
+    data() {
+      this.update();
     }
   },
   created() {
-    this.update = throttle(this.update, 30);
+    this.update = throttle(this.update, 20);
+    this.detectBarHovering = debounce(this.detectBarHovering, 300);
     this.tooltipTimeoutHandle = null;
   },
   mounted() {
@@ -121,41 +125,46 @@ export default {
       this.startFrame_ = this.startFrame;
       this.endFrame_ = this.endFrame;
       this.x.domain([this.startFrame_, this.endFrame_]);
-      d3.select(this.$el)
-        .select(".bar-container")
-        .remove();
-      d3.select(this.$el)
-        .append("div")
-        .attr("class", "bar-container")
-        .selectAll(".bar")
-        .data(this.bars)
-        .enter()
-        .append("div")
-        .attr("class", "bar")
-        .style("left", bar => bar.left + "px")
-        .style("width", bar => bar.width + "px")
-        .style("top", bar => bar.top + "px")
-        .style("background-color", bar => (bar.color ? bar.color : "#4c9ac2"))
-        .on("mouseenter", this.barMouseenter)
-        .on("mouseout", this.barMouseout);
+      var canvas = this.$refs.canvas;
+      var ctx = canvas.getContext("2d");
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      var bars = this.bars;
+      if (!bars.length) {
+        return;
+      }
+      canvas.width = this.$el.clientWidth;
+      canvas.height = bars.slice(-1)[0].top + 10;
+      for (var bar of bars) {
+        ctx.fillStyle = bar.color ? bar.color : "#4c9ac2";
+        ctx.fillRect(bar.left, bar.top, bar.width, 10);
+      }
     },
-    barMouseenter({ name }) {
-      var e = d3.event;
-      var left =
-        e.clientX - e.target.parentElement.getBoundingClientRect().left;
-      var top = e.clientY - e.target.parentElement.getBoundingClientRect().top;
-      clearTimeout(this.tooltipTimeoutHandle);
-      this.tooltipTimeoutHandle = setTimeout(() => {
-        this.tooltip = {
-          left,
-          top,
-          content: name
-        };
-      }, 200);
-    },
-    barMouseout() {
-      clearTimeout(this.tooltipTimeoutHandle);
+    mousemove(e) {
       this.tooltip = null;
+      this.detectBarHovering(e);
+    },
+    mouseout() {
+      this.detectBarHovering.cancel();
+    },
+    detectBarHovering(e) {
+      var { offsetX, offsetY } = e;
+      var remainder = offsetY % 15;
+      if (remainder > 10) {
+        return;
+      }
+      var top = offsetY - (offsetY % 15);
+      var bar = this.bars
+        .filter(bar => bar.top === top)
+        .reverse()
+        .find(bar => bar.left < offsetX && bar.left + bar.width > offsetX);
+      if (!bar) {
+        return;
+      }
+      this.tooltip = {
+        left: offsetX,
+        top: offsetY,
+        content: bar.name
+      };
     }
   }
 };
@@ -172,7 +181,7 @@ function intersect(range1, range2) {
 
 <template>
   <div class="event-chart" @mousewheel.prevent>
-    <div class="bar-container"></div>
+    <canvas ref="canvas" @mousemove="mousemove" @mouseout="mouseout" />
     <div
       class="tooltip"
       v-if="tooltip"
@@ -191,19 +200,13 @@ function intersect(range1, range2) {
   overflow-y: auto;
   overflow-x: hidden;
 
-  .bar {
-    position: absolute;
-    height: 10px;
-    min-width: 3px;
-  }
-
   .tooltip {
     position: absolute;
     background: white;
     border: 1px solid black;
     padding: 0px 5px;
     font-size: 14px;
-    z-index:1;
+    z-index: 1;
   }
 }
 </style>

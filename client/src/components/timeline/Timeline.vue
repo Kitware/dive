@@ -191,9 +191,9 @@ export default {
     },
     containerMouseup() {
       this.minimapDragging = false;
-    },
+    }
     // rendered() {
-      // console.log("timeline rendered");
+    // console.log("timeline rendered");
     // }
   }
 };
