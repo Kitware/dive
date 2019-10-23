@@ -74,7 +74,7 @@ export default {
         if (e.mouse.buttonsDown.left) {
           this.$emit("annotation-click", e.data.record, e);
         } else if (e.mouse.buttonsDown.right) {
-          this.$emit("annotation-left-click", e.data.record, e);
+          this.$emit("annotation-right-click", e.data.record, e);
         }
       });
     this.polygonFeature.geoOn(

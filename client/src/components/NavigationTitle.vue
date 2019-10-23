@@ -10,7 +10,7 @@ export default {
 </script>
 
 <template>
-  <v-toolbar-title class="my-title mr-3">
+  <v-toolbar-title class="my-title mx-5">
     <v-tooltip open-delay="1000" bottom>
       <template #activator="{ on }">
         <span v-on="on">VIAME</span>

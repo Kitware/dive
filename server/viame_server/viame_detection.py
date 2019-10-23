@@ -35,7 +35,7 @@ class ViameDetection(Resource):
             for i in [i for i in range(9, len(row)) if i % 2 != 0]:
                 confidence_pairs.append([row[i], float(row[i+1])])
             detections.append({
-                'track': row[0],
+                'track': int(row[0]),
                 'frame': int(row[2]),
                 'bounds': [float(row[3]), float(row[5]), float(row[4]), float(row[6])],
                 'confidencePairs': confidence_pairs

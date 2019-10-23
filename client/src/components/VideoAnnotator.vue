@@ -1,4 +1,6 @@
 <script>
+import { throttle } from "lodash";
+
 import Vue from "vue";
 import geo from "geojs";
 
@@ -44,6 +46,8 @@ export default {
     this.provided.$on("play", this.play);
     this.provided.$on("pause", this.pause);
     this.provided.$on("seek", this.seek);
+    this.emitFrame();
+    this.emitFrame = throttle(this.emitFrame, 200);
     var video = document.createElement("video");
     this.video = video;
     video.preload = "auto";
@@ -101,6 +105,7 @@ export default {
     async seek(frame) {
       this.video.currentTime = frame / this.frameRate;
       this.frame = Math.round(this.video.currentTime * this.frameRate);
+      this.emitFrame();
     },
     pause() {
       this.video.pause();
@@ -138,6 +143,9 @@ export default {
         this.viewer.scheduleAnimationFrame(this.syncWithVideo);
       }
     },
+    emitFrame() {
+      this.$emit("frame-update", this.frame);
+    },
     rendered() {
       // console.log("rendered an");
     }
@@ -147,7 +155,7 @@ export default {
 
 <template>
   <div class="video-annotator" v-resize="onResize">
-    <div class="video-container" ref="container">{{ rendered() }}</div>
+    <div class="playback-container" ref="container">{{ rendered() }}</div>
     <slot name="control" />
     <slot v-if="ready" />
   </div>
@@ -164,7 +172,7 @@ export default {
   display: flex;
   flex-direction: column;
 
-  .video-container {
+  .playback-container {
     flex: 1;
   }
 }

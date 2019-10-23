@@ -1,4 +1,5 @@
 <script>
+import { throttle } from "lodash";
 import Vue from "vue";
 import geo from "geojs";
 
@@ -35,11 +36,12 @@ export default {
       maxFrame: 0
     };
   },
-  computed: {},
   created() {
     this.provided.$on("play", this.play);
     this.provided.$on("pause", this.pause);
     this.provided.$on("seek", this.seek);
+    this.emitFrame();
+    this.emitFrame = throttle(this.emitFrame, 200);
     this.maxFrame = this.imageUrls.length - 1;
     this.imgs = new Array(this.imageUrls.length);
     this.cacheImage();
@@ -90,6 +92,7 @@ export default {
     },
     async seek(frame) {
       this.frame = frame;
+      this.emitFrame();
       this.cacheImage();
       this.quadFeature
         .data([
@@ -141,6 +144,9 @@ export default {
           imgs[i] = img;
         }
       }
+    },
+    emitFrame() {
+      this.$emit("frame-update", this.frame);
     }
   }
 };
@@ -148,7 +154,7 @@ export default {
 
 <template>
   <div class="video-annotator" v-resize="onResize">
-    <div class="video-container" ref="container">{{ rendered() }}</div>
+    <div class="playback-container" ref="container">{{ rendered() }}</div>
     <slot name="control" />
     <slot v-if="ready" />
   </div>
@@ -165,7 +171,7 @@ export default {
   display: flex;
   flex-direction: column;
 
-  .video-container {
+  .playback-container {
     flex: 1;
   }
 }

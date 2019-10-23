@@ -8,6 +8,7 @@ import VideoAnnotator from "@/components/VideoAnnotator";
 import ImageAnnotator from "@/components/ImageAnnotator";
 import Controls from "@/components/Controls";
 import AnnotationLayer from "@/components/AnnotationLayer";
+import EditAnnotationLayer from "@/components/EditAnnotationLayer";
 import ConfidenceFilter from "@/components/ConfidenceFilter";
 import Tracks from "@/components/Tracks";
 import TypeList from "@/components/TypeList";
@@ -27,6 +28,7 @@ export default {
     ImageAnnotator,
     Controls,
     AnnotationLayer,
+    EditAnnotationLayer,
     TextLayer,
     Timeline,
     TimelineWrapper,
@@ -38,11 +40,14 @@ export default {
   },
   data: () => ({
     dataset: null,
-    selectedDetection: null,
-    selectedTracks: [],
-    selectedTypes: [],
+    detections: null,
+    selectedTrack: null,
+    checkedTracks: [],
+    checkedTypes: [],
     confidence: 0.1,
-    showTrackView: false
+    showTrackView: false,
+    editingTrack: null,
+    frame: null
   }),
   computed: {
     ...mapState(["location"]),
@@ -75,15 +80,16 @@ export default {
       if (!this.detections) {
         return null;
       }
-      var selectedTracksSet = new Set(this.selectedTracks);
-      var selectedtypesSet = new Set(this.selectedTypes);
+      var checkedTracksSet = new Set(this.checkedTracks);
+      var checkedTypesSet = new Set(this.checkedTypes);
       var confidence = this.confidence;
       return this.detections.filter(
         detection =>
-          selectedTracksSet.has(detection.track) &&
-          detection.confidencePairs.find(
-            pair => pair[1] > confidence && selectedtypesSet.has(pair[0])
-          )
+          checkedTracksSet.has(detection.track) &&
+          (detection.confidencePairs.length === 0 ||
+            detection.confidencePairs.find(
+              pair => pair[1] > confidence && checkedTypesSet.has(pair[0])
+            ))
       );
     },
     annotationData() {
@@ -91,30 +97,22 @@ export default {
         return null;
       }
       return this.filteredDetections.map(detection => {
-        var bounds = detection.bounds;
         return {
           detection,
           frame: detection.frame,
-          polygon: {
-            type: "Polygon",
-            coordinates: [
-              [
-                [bounds[0], bounds[2]],
-                [bounds[1], bounds[2]],
-                [bounds[1], bounds[3]],
-                [bounds[0], bounds[3]],
-                [bounds[0], bounds[2]]
-              ]
-            ]
-          }
+          polygon: boundToGeojson(detection.bounds)
         };
       });
     },
     annotationStyle() {
-      var selectedDetection = this.selectedDetection;
+      var selectedTrack = this.selectedTrack;
+      var editingTrack = this.editingTrack;
       return {
         strokeColor: (a, b, data) => {
-          return data.record.detection === selectedDetection ? "red" : "lime";
+          return data.record.detection.track === selectedTrack ? "red" : "lime";
+        },
+        strokeOpacity: (a, b, data) => {
+          return data.record.detection.track === editingTrack ? 0.5 : 1;
         }
       };
     },
@@ -144,10 +142,10 @@ export default {
       return data;
     },
     textStyle() {
-      var selectedDetection = this.selectedDetection;
+      var selectedTrack = this.selectedTrack;
       return {
         color: data => {
-          return data.detection === selectedDetection ? "red" : "lime";
+          return data.detection.track === selectedTrack ? "red" : "lime";
         },
         offsetY(data) {
           return data.offsetY;
@@ -183,6 +181,7 @@ export default {
           _.maxBy(detections, detection => detection.frame).frame
         ];
         return {
+          track: detections[0].track,
           name: `Track ${name}`,
           color: ["green", "red", "orange", "blue", "purple"][
             Math.floor((Math.random() * 10) / 2)
@@ -198,7 +197,7 @@ export default {
       var tracks = _.uniqBy(this.detections, detection => detection.track).map(
         ({ track, confidencePairs }) => ({ track, confidencePairs })
       );
-      return tracks;
+      return _.sortBy(tracks, track => track.track);
     },
     types() {
       if (!this.tracks) {
@@ -211,6 +210,22 @@ export default {
         }
       }
       return Array.from(typeSet);
+    },
+    editingDetection() {
+      if (this.editingTrack == null || this.frame == null) {
+        return null;
+      }
+      return this.detections.find(
+        detection =>
+          detection.track === this.editingTrack &&
+          detection.frame === this.frame
+      );
+    },
+    editingDetectionGeojson() {
+      if (!this.editingDetection) {
+        return null;
+      }
+      return boundToGeojson(this.editingDetection.bounds);
     }
   },
   asyncComputed: {
@@ -223,15 +238,6 @@ export default {
         { params: { limit: 100000 } }
       );
       return files;
-    },
-    async detections() {
-      if (!this.dataset) {
-        return null;
-      }
-      var { data: detections } = await this.girderRest.get("viame_detection", {
-        params: { itemId: this.dataset._id }
-      });
-      return Object.freeze(detections);
     },
     async videoUrl() {
       if (!this.dataset || this.dataset.meta.type !== "video") {
@@ -259,14 +265,16 @@ export default {
   },
   watch: {
     detections() {
-      this.updateSelectedTracksAndTypes();
+      this.updatecheckedTracksAndTypes();
     }
   },
   async created() {
     var datasetId = this.$route.params.datasetId;
-    await this.loadDataset(datasetId);
-    if (!this.dataset) {
-      this.$router.replace("/viewer");
+    try {
+      await this.loadDataset(datasetId);
+      await this.loadDetections();
+    } catch (ex) {
+      this.$router.replace("/");
     }
   },
   methods: {
@@ -278,49 +286,167 @@ export default {
       }
       this.dataset = dataset;
     },
-    selectAnnotation(data) {
-      this.selectedDetection = data.detection;
+    async loadDetections() {
+      var { data: detections } = await this.girderRest.get("viame_detection", {
+        params: { itemId: this.dataset._id }
+      });
+      this.detections = detections.map(detection => {
+        return Object.freeze(detection);
+      });
     },
-    updateSelectedTracksAndTypes() {
+    annotationClick(data) {
+      this.selectTrack(data.detection.track);
+    },
+    clickTrack(track) {
+      this.selectTrack(track.track);
+    },
+    selectTrack(track) {
+      if (this.editingTrack) {
+        this.editingTrack = null;
+        return;
+      }
+      this.selectedTrack = this.selectedTrack === track ? null : track;
+    },
+    updatecheckedTracksAndTypes() {
       if (!this.tracks) {
         return;
       }
-      this.selectedTracks = this.tracks.map(track => track.track);
-      this.selectedTypes = this.types;
+      this.checkedTracks = this.tracks.map(track => track.track);
+      this.checkedTypes = this.types;
+    },
+    gotoTrackFirstFrame(track) {
+      var frame = this.eventChartData.find(d => d.track === track.track)
+        .range[0];
+      this.$refs.playpackComponent.provided.$emit("seek", frame);
+    },
+    async deleteTrack(track) {
+      var result = await this.$prompt({
+        title: "Confirm",
+        text: `Please confirm to delete track ${track.track}`,
+        confirm: true
+      });
+      if (!result) {
+        return;
+      }
+      this.detections
+        .filter(detection => detection.track === track.track)
+        .forEach(detection => {
+          this.detections.splice(this.detections.indexOf(detection), 1);
+        });
+    },
+    annotationRightClick(data) {
+      this.editTrack(data.detection.track);
+    },
+    editTrack(track) {
+      this.editingTrack = track;
+    },
+    addTrack() {
+      this.editingTrack = this.tracks.slice(-1)[0].track + 1;
+    },
+    detectionChanged(feature) {
+      if (!this.editingTrack) {
+        return;
+      }
+      var bounds =
+        feature.type === "Feature"
+          ? geojsonToBound2(feature.geometry)
+          : geojsonToBound(feature);
+      var confidencePairs = [];
+      var trackMeta = this.tracks.find(
+        track => track.track === this.editingTrack
+      );
+      if (trackMeta) {
+        confidencePairs = trackMeta.confidencePairs;
+      }
+      // make a reference before change
+      if (this.editingDetection) {
+        this.detections.splice(
+          this.detections.indexOf(this.editingDetection),
+          1
+        );
+      }
+      this.detections.push(
+        Object.freeze({
+          track: this.editingTrack,
+          confidencePairs,
+          frame: this.frame,
+          bounds
+        })
+      );
     }
   }
 };
+
+function boundToGeojson(bounds) {
+  return {
+    type: "Polygon",
+    coordinates: [
+      [
+        [bounds[0], bounds[2]],
+        [bounds[1], bounds[2]],
+        [bounds[1], bounds[3]],
+        [bounds[0], bounds[3]],
+        [bounds[0], bounds[2]]
+      ]
+    ]
+  };
+}
+
+function geojsonToBound(geojson) {
+  var coords = geojson.coordinates[0];
+  return [coords[0][0], coords[1][0], coords[0][1], coords[2][1]];
+}
+
+function geojsonToBound2(geojson) {
+  var coords = geojson.coordinates[0];
+  return [coords[0][0], coords[2][0], coords[1][1], coords[0][1]];
+}
 </script>
 
 <template>
-  <v-content>
-    <v-app-bar app dense height="40">
+  <v-content class="viewer">
+    <v-app-bar app>
       <NavigationTitle />
-      <v-btn text :to="getPathFromLocation(location)">Data</v-btn>
+      <v-tabs icons-and-text hide-slider>
+        <v-tab :to="getPathFromLocation(location)"
+          >Data<v-icon>mdi-database</v-icon></v-tab
+        >
+      </v-tabs>
+      <ConfidenceFilter :confidence.sync="confidence" />
     </v-app-bar>
     <v-row no-gutters class="fill-height">
       <v-card width="300" style="z-index:1;">
         <div class="wrapper d-flex flex-column">
-          <ConfidenceFilter :confidence.sync="confidence" />
           <TypeList
             class="flex-grow-1"
             :types="types"
-            :selectedTypes.sync="selectedTypes"
+            :checkedTypes.sync="checkedTypes"
           />
+          <v-divider />
           <Tracks
             :tracks="tracks"
-            :selectedTracks.sync="selectedTracks"
+            :checked-tracks.sync="checkedTracks"
+            :selected-track="selectedTrack"
+            :editing-track="editingTrack"
             class="flex-shrink-0"
+            @goto-track-first-frame="gotoTrackFirstFrame"
+            @delete-track="deleteTrack"
+            @edit-track="editTrack($event.track)"
+            @click-track="clickTrack"
+            @add-track="addTrack"
           />
         </div>
       </v-card>
       <v-col style="position: relative; ">
         <component
+          class="playback-component"
+          ref="playpackComponent"
           v-if="imageUrls || videoUrl"
           :is="annotatorType"
           :image-urls="imageUrls"
           :video-url="videoUrl"
           :frame-rate="frameRate"
+          @frame-update="frame = $event"
         >
           <template slot="control">
             <Controls />
@@ -360,7 +486,14 @@ export default {
             v-if="annotationData"
             :data="annotationData"
             :annotationStyle="annotationStyle"
-            @annotation-click="selectAnnotation"
+            @annotation-click="annotationClick"
+            @annotation-right-click="annotationRightClick"
+          />
+          <EditAnnotationLayer
+            v-if="editingTrack !== null"
+            :geojson="editingDetectionGeojson"
+            :feature-style="{ fill: false, strokeColor: 'lime' }"
+            @update:geojson="detectionChanged"
           />
           <TextLayer v-if="textData" :data="textData" :textStyle="textStyle" />
         </component>
@@ -382,5 +515,15 @@ export default {
   position: absolute;
   top: -24px;
   left: 2px;
+}
+
+.confidence-filter {
+  flex-basis: 600px;
+}
+</style>
+
+<style lang="scss">
+.playback-component .playback-container {
+  background: black;
 }
 </style>

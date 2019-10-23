@@ -1,6 +1,6 @@
 <script>
 import VirtualList from "vue-virtual-scroll-list";
-import { VCheckbox } from "vuetify/lib";
+import TrackItem from "./TrackItem";
 
 // A monkey patch
 VirtualList.options.props.item.type = [Object, Function];
@@ -14,44 +14,57 @@ export default {
     tracks: {
       type: Array
     },
-    selectedTracks: {
+    checkedTracks: {
       type: Array
+    },
+    selectedTrack: {
+      type: Number
+    },
+    editingTrack: {
+      type: Number
     }
   },
   data: function() {
-    return { selectedTracks_: this.selectedTracks, item: VCheckbox };
+    return { checkedTracks_: this.checkedTracks, item: TrackItem };
   },
   watch: {
-    selectedTracks(value) {
-      this.selectedTracks_ = value;
+    checkedTracks(value) {
+      this.checkedTracks_ = value;
     },
-    selectedTracks_(value) {
-      this.$emit("update:selectedTracks", value);
+    checkedTracks_(value) {
+      this.$emit("update:checkedTracks", value);
     }
   },
   methods: {
     getItemProps(itemIndex) {
       var track = this.tracks[itemIndex];
       return {
-        class: "mt-3 ml-3",
-        domProps: {},
         props: {
-          label: `${track.track}. ${track.confidencePairs
-            .sort((a, b) => b[1] - a[1])
-            .map(pair => pair[0])
-            .join("\n    ")}`,
-          dense: true,
-          hideDetails: true,
-          inputValue: this.selectedTracks_.indexOf(track.track) !== -1
+          track,
+          inputValue: this.checkedTracks_.indexOf(track.track) !== -1,
+          selectedTrack: this.selectedTrack,
+          editingTrack: this.editingTrack
         },
         on: {
           change: checked => {
             if (checked) {
-              this.selectedTracks_.push(track.track);
+              this.checkedTracks_.push(track.track);
             } else {
-              var index = this.selectedTracks_.indexOf(track.track);
-              this.selectedTracks_.splice(index, 1);
+              var index = this.checkedTracks_.indexOf(track.track);
+              this.checkedTracks_.splice(index, 1);
             }
+          },
+          "goto-first-frame": () => {
+            this.$emit("goto-track-first-frame", track);
+          },
+          delete: () => {
+            this.$emit("delete-track", track);
+          },
+          click: () => {
+            this.$emit("click-track", track);
+          },
+          edit: () => {
+            this.$emit("edit-track", track);
           }
         }
       };
@@ -62,10 +75,14 @@ export default {
 
 <template>
   <div class="tracks">
-    <v-subheader>Tracks</v-subheader>
+    <v-subheader
+      >Tracks<v-spacer /><v-btn icon @click="$emit('add-track')"
+        ><v-icon>mdi-plus</v-icon></v-btn
+      ></v-subheader
+    >
     <virtual-list
-      :size="28"
-      :remain="15"
+      :size="36"
+      :remain="12"
       :item="item"
       :itemcount="tracks.length"
       :itemprops="getItemProps"

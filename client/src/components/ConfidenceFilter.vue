@@ -20,17 +20,14 @@ export default {
 </script>
 
 <template>
-  <div>
-    <v-subheader>ConfidenceFilter</v-subheader>
+  <div class="confidence-filter">
     <v-slider
-      class="mx-3"
       :min="0"
       :max="1"
       :step="0.01"
       :value="confidence"
       @input="updateConfidence"
-      :label="`${confidence.toFixed(2)}`"
-      inverse-label
+      :label="`Confidence Filter: ${confidence.toFixed(2)}`"
       hide-details
     />
   </div>

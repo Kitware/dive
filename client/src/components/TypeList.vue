@@ -6,37 +6,39 @@ export default {
     types: {
       type: Array
     },
-    selectedTypes: {
+    checkedTypes: {
       type: Array
     }
   },
   data: function() {
-    return { selectedTypes_: this.selectedTypes };
+    return { checkedTypes_: this.checkedTypes };
   },
   watch: {
-    selectedTypes(value) {
-      this.selectedTypes_ = value;
+    checkedTypes(value) {
+      this.checkedTypes_ = value;
     },
-    selectedTypes_(value) {
-      this.$emit("update:selectedTypes", value);
+    checkedTypes_(value) {
+      this.$emit("update:checkedTypes", value);
     }
   }
 };
 </script>
 
 <template>
-  <div class="typelist">
+  <div class="typelist d-flex flex-column">
     <v-subheader>Types</v-subheader>
-    <v-checkbox
-      class="mt-3 ml-3"
-      v-for="type of types"
-      :key="type"
-      v-model="selectedTypes_"
-      :value="type"
-      :label="type"
-      dense
-      hide-details
-    ></v-checkbox>
+    <div class="flex-grow-1" style="overflow-y: auto;">
+      <v-checkbox
+        class="mt-3 ml-3"
+        v-for="type of types"
+        :key="type"
+        v-model="checkedTypes_"
+        :value="type"
+        :label="type"
+        dense
+        hide-details
+      ></v-checkbox>
+    </div>
   </div>
 </template>
 
