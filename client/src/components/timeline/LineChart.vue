@@ -115,6 +115,26 @@ export default {
         .attr("height", height)
         .append("g")
         .attr("transform", `translate(0,-1)`);
+
+      var axis = d3.axisRight(y).tickSize(width);
+      this.axis = axis;
+      svg
+        .append("g")
+        .attr("class", "axis-y")
+        .call(axis)
+        .call(g =>
+          g
+            .selectAll(".tick line")
+            .attr("stroke-opacity", 0.5)
+            .attr("stroke-dasharray", "2,2")
+        )
+        .call(g =>
+          g
+            .selectAll(".tick text")
+            .attr("x", 0)
+            .attr("dx", 13)
+        );
+
       var path = svg
         .selectAll()
         .data(this.lineData)
@@ -138,12 +158,7 @@ export default {
           tooltip.style("display", "none");
         });
       this.path = path;
-      var axis = d3.axisRight(y);
-      this.axis = axis;
-      svg
-        .append("g")
-        .attr("class", "axis-y")
-        .call(axis);
+
       var tooltip = d3
         .select(this.$el)
         .append("div")
@@ -178,9 +193,13 @@ export default {
     stroke-width: 1.5px;
   }
 
-  .axis-y g:first-of-type,
-  .axis-y g:last-of-type {
-    display: none;
+  .axis-y {
+    font-size: 12px;
+
+    g:first-of-type,
+    g:last-of-type {
+      display: none;
+    }
   }
 
   .tooltip {

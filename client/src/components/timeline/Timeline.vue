@@ -127,7 +127,7 @@ export default {
           g
             .selectAll(".tick text")
             .attr("y", 0)
-            .attr("dy", 12)
+            .attr("dy", 13)
         );
     },
     update() {
@@ -273,6 +273,14 @@ export default {
       height: 100%;
       background-color: #80c6e8;
     }
+  }
+}
+</style>
+
+<style lang="scss">
+.timeline {
+  .tick {
+    font-size: 12px;
   }
 }
 </style>

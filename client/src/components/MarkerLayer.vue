@@ -1,12 +1,12 @@
 <script>
 export default {
-  name: "TextLayer",
+  name: "MarkerLayer",
   inject: ["annotator"],
   props: {
     data: {
       type: Array
     },
-    textStyle: {
+    markerStyle: {
       type: Object,
       required: false
     }
@@ -32,7 +32,7 @@ export default {
         this.frameChanged();
       }
     },
-    textStyle() {
+    markerStyle() {
       this.updateStyle();
     },
     frameMap() {
@@ -42,12 +42,10 @@ export default {
   mounted() {
     var viewer = this.annotator.viewer;
     this.featureLayer = viewer.createLayer("feature", {
-      features: ["text"]
+      features: ['point']
     });
-    this.textFeature = this.featureLayer
-      .createFeature("text")
-      .text(data => data.text)
-      .position(data => ({ x: data.x, y: data.y }));
+    this.pointFeature = this.featureLayer
+      .createFeature("point")
     this.frameChanged();
     this.updateStyle();
   },
@@ -56,34 +54,12 @@ export default {
       var frame = this.annotator.frame;
       var data = this.frameMap.get(frame);
       data = data ? data : [];
-      this.textFeature
+      this.pointFeature
         .data(data)
         .draw();
     },
     updateStyle() {
-      var offset = {
-        x: 3,
-        y: 0
-      };
-      if (this.textStyle.offsetX || this.textStyle.offsetY) {
-        offset = (a, b, c) => {
-          return {
-            x: this.textStyle.offsetX ? this.textStyle.offsetX(a, b, c) : 3,
-            y: this.textStyle.offsetY ? this.textStyle.offsetY(a, b, c) : 0
-          };
-        };
-      }
-      var style = {
-        ...{
-          fontSize: "14px",
-          textAlign: "left",
-          color: "lime",
-          textBaseline: "top",
-          offset
-        },
-        ...this.textStyle
-      };
-      this.textFeature.style(style).draw();
+      this.pointFeature.style(this.markerStyle).draw();
     }
   },
   render() {

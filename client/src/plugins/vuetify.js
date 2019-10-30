@@ -7,12 +7,10 @@ import "@mdi/font/css/materialdesignicons.css";
 Vue.use(Vuetify);
 
 export default new Vuetify({
-  icons: {
-    iconfont: "mdi"
-  },
-  theme: {
-    themes: {
-      light: vuetifyConfig.theme
+  ...vuetifyConfig,
+  ...{
+    theme: {
+      dark: true
     }
   }
 });

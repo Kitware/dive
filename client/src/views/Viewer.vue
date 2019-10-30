@@ -13,6 +13,7 @@ import ConfidenceFilter from "@/components/ConfidenceFilter";
 import Tracks from "@/components/Tracks";
 import TypeList from "@/components/TypeList";
 import TextLayer from "@/components/TextLayer";
+import MarkerLayer from "@/components/MarkerLayer";
 import TimelineWrapper from "@/components/TimelineWrapper";
 import Timeline from "@/components/timeline/Timeline";
 import LineChart from "@/components/timeline/LineChart";
@@ -30,6 +31,7 @@ export default {
     AnnotationLayer,
     EditAnnotationLayer,
     TextLayer,
+    MarkerLayer,
     Timeline,
     TimelineWrapper,
     ConfidenceFilter,
@@ -47,6 +49,7 @@ export default {
     confidence: 0.1,
     showTrackView: false,
     editingTrack: null,
+    metaEditingTrack: null,
     frame: null
   }),
   computed: {
@@ -150,6 +153,38 @@ export default {
         offsetY(data) {
           return data.offsetY;
         }
+      };
+    },
+    markerData() {
+      if (!this.filteredDetections) {
+        return null;
+      }
+      var data = [];
+      this.filteredDetections.forEach(detection => {
+        Object.entries(detection.features).forEach(([key, value]) => {
+          data.push({
+            detection,
+            frame: detection.frame,
+            feature: key,
+            x: value[0],
+            y: value[1]
+          });
+        });
+      });
+      return data;
+    },
+    markerStyle() {
+      var selectedTrack = this.selectedTrack;
+      return {
+        fillColor: data => {
+          if (data.detection.track === selectedTrack) {
+            return red;
+          }
+          return data.feature === "head" ? "orange" : "blue";
+        },
+        radius: 4,
+
+        stroke: false
       };
     },
     lineChartData() {
@@ -315,6 +350,7 @@ export default {
       this.checkedTypes = this.types;
     },
     gotoTrackFirstFrame(track) {
+      this.selectedTrack = track.track;
       var frame = this.eventChartData.find(d => d.track === track.track)
         .range[0];
       this.$refs.playpackComponent.provided.$emit("seek", frame);
@@ -416,7 +452,7 @@ function geojsonToBound2(geojson) {
     </v-app-bar>
     <v-row no-gutters class="fill-height">
       <v-card width="300" style="z-index:1;">
-        <div class="wrapper d-flex flex-column">
+        <div class="wrapper d-flex flex-column" v-if="!metaEditingTrack">
           <TypeList
             class="flex-grow-1"
             :types="types"
@@ -432,6 +468,7 @@ function geojsonToBound2(geojson) {
             @goto-track-first-frame="gotoTrackFirstFrame"
             @delete-track="deleteTrack"
             @edit-track="editTrack($event.track)"
+            @edit-track-meta="metaEditingTrack=$event.track"
             @click-track="clickTrack"
             @add-track="addTrack"
           />
@@ -496,6 +533,7 @@ function geojsonToBound2(geojson) {
             @update:geojson="detectionChanged"
           />
           <TextLayer v-if="textData" :data="textData" :textStyle="textStyle" />
+          <MarkerLayer v-if="markerData" :data="markerData" :markerStyle="markerStyle" />
         </component>
       </v-col>
     </v-row>

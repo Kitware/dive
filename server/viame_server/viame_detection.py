@@ -1,4 +1,5 @@
 import csv
+import re
 
 from girder.api import access
 from girder.api.describe import Description, autoDescribeRoute
@@ -28,17 +29,29 @@ class ViameDetection(Resource):
         file = Item().childFiles(item)[0]
         rows = b''.join(list(File().download(file, headers=False)())).decode("utf-8").split('\n')
         reader = csv.reader(row for row in rows if (not row.startswith('#') and row))
-        # File().download(file)
         detections = []
         for row in reader:
             confidence_pairs = []
+            features = {}
             for i in [i for i in range(9, len(row)) if i % 2 != 0]:
+                if row[i].startswith('+'):
+                    break
                 confidence_pairs.append([row[i], float(row[i+1])])
+            for j in range(i, len(row)):
+                if 'head' in row[j]:
+                    groups = re.match(r'\+kp head ([0-9]+) ([0-9]+)', row[j])
+                    if groups:
+                        features['head'] = (groups[1], groups[2])
+                elif 'tail' in row[j]:
+                    groups = re.match(r'\+kp tail ([0-9]+) ([0-9]+)', row[j])
+                    if groups:
+                        features['tail'] = (groups[1], groups[2])
             detections.append({
                 'track': int(row[0]),
                 'frame': int(row[2]),
                 'bounds': [float(row[3]), float(row[5]), float(row[4]), float(row[6])],
-                'confidencePairs': confidence_pairs
+                'confidencePairs': confidence_pairs,
+                'features': features
             })
         return detections
 
