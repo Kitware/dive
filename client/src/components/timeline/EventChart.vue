@@ -202,8 +202,8 @@ function intersect(range1, range2) {
 
   .tooltip {
     position: absolute;
-    background: white;
-    border: 1px solid black;
+    background: black;
+    border: 1px solid white;
     padding: 0px 5px;
     font-size: 14px;
     z-index: 1;

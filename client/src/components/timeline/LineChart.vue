@@ -102,7 +102,7 @@ export default {
 
       var line = d3
         .line()
-        .curve(d3.curveStep)
+        .curve(d3.curveStepAfter)
         .x(d => x(d[0]))
         .y(d => y(d[1]));
       this.line = line;
@@ -122,12 +122,6 @@ export default {
         .append("g")
         .attr("class", "axis-y")
         .call(axis)
-        .call(g =>
-          g
-            .selectAll(".tick line")
-            .attr("stroke-opacity", 0.5)
-            .attr("stroke-dasharray", "2,2")
-        )
         .call(g =>
           g
             .selectAll(".tick text")
@@ -204,8 +198,8 @@ export default {
 
   .tooltip {
     position: absolute;
-    background: white;
-    border: 1px solid black;
+    background: black;
+    border: 1px solid white;
     padding: 0px 5px;
     font-size: 14px;
   }

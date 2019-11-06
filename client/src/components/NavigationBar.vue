@@ -50,7 +50,7 @@ export default {
 <template>
   <v-app-bar app>
     <NavigationTitle>VIAME</NavigationTitle>
-    <v-tabs icons-and-text>
+    <v-tabs icons-and-text color="accent">
       <v-tab :to="getPathFromLocation(location)"
         >Data<v-icon>mdi-database</v-icon></v-tab
       >

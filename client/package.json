@@ -8,7 +8,7 @@
     "lint": "vue-cli-service lint"
   },
   "dependencies": {
-    "@girder/components": "git+https://github.com/girder/girder_web_components.git#matthew_playground",
+    "@girder/components": "git+https://github.com/girder/girder_web_components.git",
     "core-js": "^2.6.5",
     "d3": "^5.12.0",
     "geojs": "^0.19.5",
@@ -16,7 +16,7 @@
     "vue-router": "^3.0.3",
     "vue-utilities": "git+https://github.com/Kitware/vue-utilities.git#vuetify-2",
     "vue-virtual-scroll-list": "^1.4.2",
-    "vuetify": "^2.0.14",
+    "vuetify": "^2.1.9",
     "vuex": "^3.0.1"
   },
   "devDependencies": {

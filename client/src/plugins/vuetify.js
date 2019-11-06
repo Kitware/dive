@@ -6,11 +6,7 @@ import "@mdi/font/css/materialdesignicons.css";
 
 Vue.use(Vuetify);
 
-export default new Vuetify({
-  ...vuetifyConfig,
-  ...{
-    theme: {
-      dark: true
-    }
-  }
-});
+vuetifyConfig.theme.dark = true;
+delete vuetifyConfig.theme.themes.dark;
+
+export default new Vuetify(vuetifyConfig);
