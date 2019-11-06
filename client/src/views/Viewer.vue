@@ -1,6 +1,7 @@
 <script>
 import _ from "lodash";
 import { mapState } from "vuex";
+import * as d3 from "d3";
 
 import { API_URL } from "@/constants";
 import NavigationTitle from "@/components/NavigationTitle";
@@ -19,6 +20,10 @@ import Timeline from "@/components/timeline/Timeline";
 import LineChart from "@/components/timeline/LineChart";
 import EventChart from "@/components/timeline/EventChart";
 import { getPathFromLocation } from "@/utils";
+
+var typeColors = ["red", "aqua", "fuchsia", "yellow", "#9900CC", "#0099FF"];
+var typeColorMap = d3.scaleOrdinal();
+typeColorMap.range(typeColors);
 
 export default {
   name: "Viewer",
@@ -50,7 +55,8 @@ export default {
     showTrackView: false,
     editingTrack: null,
     metaEditingTrack: null,
-    frame: null
+    frame: null,
+    pendingSave: false
   }),
   computed: {
     ...mapState(["location"]),
@@ -112,7 +118,10 @@ export default {
       var editingTrack = this.editingTrack;
       return {
         strokeColor: (a, b, data) => {
-          return data.record.detection.track === selectedTrack ? "red" : "lime";
+          if (data.record.detection.track === selectedTrack) {
+            return "lime";
+          }
+          return typeColorMap(data.record.detection.confidencePairs[0][0]);
         },
         strokeOpacity: (a, b, data) => {
           return data.record.detection.track === editingTrack ? 0.5 : 1;
@@ -148,7 +157,10 @@ export default {
       var selectedTrack = this.selectedTrack;
       return {
         color: data => {
-          return data.detection.track === selectedTrack ? "red" : "lime";
+          if (data.detection.track === selectedTrack) {
+            return "lime";
+          }
+          return typeColorMap(data.detection.confidencePairs[0][0]);
         },
         offsetY(data) {
           return data.offsetY;
@@ -178,7 +190,7 @@ export default {
       return {
         fillColor: data => {
           if (data.detection.track === selectedTrack) {
-            return red;
+            return "lime";
           }
           return data.feature === "head" ? "orange" : "blue";
         },
@@ -191,17 +203,30 @@ export default {
       if (!this.filteredDetections) {
         return null;
       }
-      var cache = new Map();
+      var types = new Map();
+      var total = new Map();
       this.filteredDetections.forEach(detection => {
         var frame = detection.frame;
-        cache.set(frame, cache.get(frame) + 1 || 1);
+        total.set(frame, total.get(frame) + 1 || 1);
+        var type = detection.confidencePairs[0][0];
+        var typeCounter = types.get(type);
+        if (!typeCounter) {
+          typeCounter = new Map();
+          types.set(type, typeCounter);
+        }
+        typeCounter.set(frame, typeCounter.get(frame) + 1 || 1);
       });
       return [
         {
-          values: Array.from(cache.entries()).sort((a, b) => a[0] - b[0]),
-          color: "green",
+          values: Array.from(total.entries()).sort((a, b) => a[0] - b[0]),
+          color: "lime",
           name: "Total"
-        }
+        },
+        ...Array.from(types.entries()).map(([type, counter]) => ({
+          values: Array.from(counter.entries()).sort((a, b) => a[0] - b[0]),
+          name: type,
+          color: typeColorMap(type)
+        }))
       ];
     },
     eventChartData() {
@@ -218,9 +243,7 @@ export default {
         return {
           track: detections[0].track,
           name: `Track ${name}`,
-          color: ["green", "red", "orange", "blue", "purple"][
-            Math.floor((Math.random() * 10) / 2)
-          ],
+          color: typeColorMap(detections[0].confidencePairs[0][0]),
           range
         };
       });
@@ -313,6 +336,7 @@ export default {
     }
   },
   methods: {
+    typeColorMap,
     getPathFromLocation,
     async loadDataset(datasetId) {
       var { data: dataset } = await this.girderRest.get(`item/${datasetId}`);
@@ -364,6 +388,7 @@ export default {
       if (!result) {
         return;
       }
+      this.pendingSave = true;
       this.detections
         .filter(detection => detection.track === track.track)
         .forEach(detection => {
@@ -383,6 +408,7 @@ export default {
       if (!this.editingTrack) {
         return;
       }
+      this.pendingSave = true;
       var bounds =
         feature.type === "Feature"
           ? geojsonToBound2(feature.geometry)
@@ -401,13 +427,23 @@ export default {
           1
         );
       }
+
       this.detections.push(
         Object.freeze({
           track: this.editingTrack,
           confidencePairs,
           frame: this.frame,
+          features: {},
+          confidence: 1,
+          fishLength: -1,
           bounds
         })
+      );
+    },
+    save() {
+      this.girderRest.put(
+        `viame_detection?itemId=${this.$route.params.datasetId}`,
+        this.detections
       );
     }
   }
@@ -449,6 +485,7 @@ function geojsonToBound2(geojson) {
         >
       </v-tabs>
       <ConfidenceFilter :confidence.sync="confidence" />
+      <v-btn icon :disabled="!pendingSave" @click="save"><v-icon>mdi-content-save</v-icon></v-btn>
     </v-app-bar>
     <v-row no-gutters class="fill-height">
       <v-card width="300" style="z-index:1;">
@@ -457,6 +494,7 @@ function geojsonToBound2(geojson) {
             class="flex-grow-1"
             :types="types"
             :checkedTypes.sync="checkedTypes"
+            :colorMap="typeColorMap"
           />
           <v-divider />
           <Tracks
@@ -468,7 +506,7 @@ function geojsonToBound2(geojson) {
             @goto-track-first-frame="gotoTrackFirstFrame"
             @delete-track="deleteTrack"
             @edit-track="editTrack($event.track)"
-            @edit-track-meta="metaEditingTrack=$event.track"
+            @edit-track-meta="metaEditingTrack = $event.track"
             @click-track="clickTrack"
             @add-track="addTrack"
           />
@@ -533,7 +571,11 @@ function geojsonToBound2(geojson) {
             @update:geojson="detectionChanged"
           />
           <TextLayer v-if="textData" :data="textData" :textStyle="textStyle" />
-          <MarkerLayer v-if="markerData" :data="markerData" :markerStyle="markerStyle" />
+          <MarkerLayer
+            v-if="markerData"
+            :data="markerData"
+            :markerStyle="markerStyle"
+          />
         </component>
       </v-col>
     </v-row>

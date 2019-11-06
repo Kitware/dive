@@ -42,10 +42,9 @@ export default {
   mounted() {
     var viewer = this.annotator.viewer;
     this.featureLayer = viewer.createLayer("feature", {
-      features: ['point']
+      features: ["point"]
     });
-    this.pointFeature = this.featureLayer
-      .createFeature("point")
+    this.pointFeature = this.featureLayer.createFeature("point");
     this.frameChanged();
     this.updateStyle();
   },
@@ -54,9 +53,7 @@ export default {
       var frame = this.annotator.frame;
       var data = this.frameMap.get(frame);
       data = data ? data : [];
-      this.pointFeature
-        .data(data)
-        .draw();
+      this.pointFeature.data(data).draw();
     },
     updateStyle() {
       this.pointFeature.style(this.markerStyle).draw();

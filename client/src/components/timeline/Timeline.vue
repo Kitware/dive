@@ -115,20 +115,12 @@ export default {
       this.endFrame = endFrame;
     },
     updateAxis() {
-      this.g
-        .call(this.axis)
-        .call(g =>
-          g
-            .selectAll(".tick line")
-            .attr("stroke-opacity", 0.5)
-            .attr("stroke-dasharray", "2,2")
-        )
-        .call(g =>
-          g
-            .selectAll(".tick text")
-            .attr("y", 0)
-            .attr("dy", 13)
-        );
+      this.g.call(this.axis).call(g =>
+        g
+          .selectAll(".tick text")
+          .attr("y", 0)
+          .attr("dy", 13)
+      );
     },
     update() {
       this.timelineScale.domain([this.startFrame, this.endFrame]);
@@ -280,7 +272,10 @@ export default {
 <style lang="scss">
 .timeline {
   .tick {
+    shape-rendering: crispEdges;
     font-size: 12px;
+    stroke-opacity: 0.5;
+    stroke-dasharray: 2, 2;
   }
 }
 </style>
