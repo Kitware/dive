@@ -121,7 +121,11 @@ export default {
           if (data.record.detection.track === selectedTrack) {
             return "lime";
           }
-          return typeColorMap(data.record.detection.confidencePairs[0][0]);
+          if (data.record.detection.confidencePairs.length) {
+            return typeColorMap(data.record.detection.confidencePairs[0][0]);
+          } else {
+            return typeColorMap.range()[0];
+          }
         },
         strokeOpacity: (a, b, data) => {
           return data.record.detection.track === editingTrack ? 0.5 : 1;
@@ -208,6 +212,9 @@ export default {
       this.filteredDetections.forEach(detection => {
         var frame = detection.frame;
         total.set(frame, total.get(frame) + 1 || 1);
+        if (!detection.confidencePairs.length) {
+          return;
+        }
         var type = detection.confidencePairs[0][0];
         var typeCounter = types.get(type);
         if (!typeCounter) {
@@ -235,18 +242,22 @@ export default {
       }
       return Object.entries(
         _.groupBy(this.filteredDetections, detection => detection.track)
-      ).map(([name, detections]) => {
-        var range = [
-          _.minBy(detections, detection => detection.frame).frame,
-          _.maxBy(detections, detection => detection.frame).frame
-        ];
-        return {
-          track: detections[0].track,
-          name: `Track ${name}`,
-          color: typeColorMap(detections[0].confidencePairs[0][0]),
-          range
-        };
-      });
+      )
+        .filter(([name, detections]) => {
+          return detections[0].confidencePairs.length;
+        })
+        .map(([name, detections]) => {
+          var range = [
+            _.minBy(detections, detection => detection.frame).frame,
+            _.maxBy(detections, detection => detection.frame).frame
+          ];
+          return {
+            track: detections[0].track,
+            name: `Track ${name}`,
+            color: typeColorMap(detections[0].confidencePairs[0][0]),
+            range
+          };
+        });
     },
     tracks() {
       if (!this.detections) {
@@ -405,7 +416,7 @@ export default {
       this.editingTrack = this.tracks.slice(-1)[0].track + 1;
     },
     detectionChanged(feature) {
-      if (!this.editingTrack) {
+      if (!this.editingTrack === null) {
         return;
       }
       this.pendingSave = true;
@@ -440,11 +451,12 @@ export default {
         })
       );
     },
-    save() {
-      this.girderRest.put(
+    async save() {
+      await this.girderRest.put(
         `viame_detection?itemId=${this.$route.params.datasetId}`,
         this.detections
       );
+      this.pendingSave = false;
     }
   }
 };

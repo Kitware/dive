@@ -1,10 +1,14 @@
 import csv
+from datetime import datetime
+import io
 import re
 
 from girder.api import access
 from girder.api.describe import Description, autoDescribeRoute
 from girder.api.rest import Resource
 from girder.models.item import Item
+from girder.models.folder import Folder
+from girder.models.upload import Upload
 from girder.models.file import File
 
 
@@ -12,7 +16,8 @@ class ViameDetection(Resource):
     def __init__(self):
         super(ViameDetection, self).__init__()
         self.resourceName = 'viame_detection'
-        self.route("GET", (), self.get_detection_result)
+        self.route("GET", (), self.get_detection)
+        self.route("PUT", (), self.save_detection)
         self.route("GET", ('clip_meta',), self.get_clip_meta)
 
     @access.user
@@ -21,10 +26,11 @@ class ViameDetection(Resource):
         .param("itemId", "Item ID for a video")
         .param("pipeline", "Pipeline to run against the video", default="detector_simple_hough.pipe")
     )
-    def get_detection_result(self, itemId, pipeline):
+    def get_detection(self, itemId, pipeline):
         item = Item().findOne({
             "meta.itemId": itemId,
-            "meta.pipeline": pipeline
+            "meta.pipeline": pipeline,
+            "meta.old": None
         })
         file = Item().childFiles(item)[0]
         rows = b''.join(list(File().download(file, headers=False)())).decode("utf-8").split('\n')
@@ -50,6 +56,8 @@ class ViameDetection(Resource):
                 'track': int(row[0]),
                 'frame': int(row[2]),
                 'bounds': [float(row[3]), float(row[5]), float(row[4]), float(row[6])],
+                'confidence': float(row[7]),
+                'fishLength': float(row[8]),
                 'confidencePairs': confidence_pairs,
                 'features': features
             })
@@ -64,7 +72,8 @@ class ViameDetection(Resource):
     def get_clip_meta(self, itemId, pipeline):
         detections = list(Item().find({
             "meta.itemId": itemId,
-            "meta.pipeline": pipeline
+            "meta.pipeline": pipeline,
+            "meta.old": None
         }).sort([("created", -1)]))
         detection = None
         if len(detections):
@@ -77,3 +86,50 @@ class ViameDetection(Resource):
             'detection': detection,
             'video': video
         }
+
+    @access.user
+    @autoDescribeRoute(
+        Description("")
+        .param("itemId", "Item ID for a video")
+        .param("pipeline", "Pipeline to run against the video", default="detector_simple_hough.pipe")
+        .jsonParam('detections', '', requireArray=True, paramType='body')
+    )
+    def save_detection(self, itemId, pipeline, detections):
+        user = self.getCurrentUser()
+        existingItem = Item().findOne({
+            "meta.itemId": itemId,
+            "meta.pipeline": pipeline,
+            "meta.old": None
+        })
+        if existingItem:
+            timestamp = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+            existingItem['meta'].update({"old": timestamp})
+            Item().setMetadata(existingItem, existingItem['meta'])
+
+        def getRow(d):
+            columns = [d['track'], '', d['frame'], d['bounds'][0], d['bounds'][2],
+                       d['bounds'][1], d['bounds'][3], d['confidence'], d['fishLength']]
+            for [key, confidence] in d['confidencePairs']:
+                columns += [key, confidence]
+            for [key, values] in d['features'].items():
+                columns.append(f'+kp {key} {values[0]} {values[1]}')
+            return columns
+
+        csvFile = io.StringIO()
+        writer = csv.writer(csvFile)
+        for detection in detections:
+            writer.writerow(getRow(detection))
+
+        public = Folder().findOne({'parentId': user['_id'], 'name': 'Public'})
+        results = Folder().createFolder(public, 'Results', reuseExisting=True)
+        newResultItem = Item().createItem(itemId+pipeline, user, results)
+        Item().setMetadata(newResultItem, {
+            "itemId": itemId,
+            "pipeline": pipeline,
+        })
+        theBytes = csvFile.getvalue().encode()
+        byteIO = io.BytesIO(theBytes)
+        Upload().uploadFromFile(byteIO, len(theBytes), 'csv', parentType='item',
+                                parent=newResultItem, user=user)
+
+        return True
