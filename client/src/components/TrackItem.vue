@@ -5,6 +5,9 @@ export default {
     track: {
       type: Object
     },
+    types: {
+      type: Array
+    },
     inputValue: {
       type: Boolean
     },
@@ -14,37 +17,55 @@ export default {
     editingTrack: {
       type: Number
     }
+  },
+  data: () => ({
+    editing: false
+  }),
+  watch: {
+    track() {
+      this.editing = false;
+    }
   }
 };
 </script>
 
 <template>
   <div
-    class="track-item d-flex align-center hover-show-parent"
+    class="track-item d-flex align-center hover-show-parent px-1"
+    :class="{
+      selected: selectedTrack === track.track
+    }"
     @click.self="$emit('click')"
   >
     <v-checkbox
-      class="my-0 mx-3 pt-0"
+      class="my-0 ml-1 pt-0"
       dense
       hide-details
       :input-value="inputValue"
       @change="$emit('change', $event)"
     >
     </v-checkbox>
-    <div
-      style="pointer-events: none;"
-      :class="{
-        selected: selectedTrack === track.track,
-        editing: editingTrack === track.track
-      }"
-    >
-      {{ track.track }}
+    <div>
+      {{ track.track + (editingTrack === track.track ? "*" : "") }}
     </div>
-    <!-- <div>{{`${track.track}. ${track.confidencePairs
-        .sort((a, b) => b[1] - a[1])
-        .map(pair => pair[0])
-        .join('\n')}`}}</div> -->
-    <v-spacer />
+    <div
+      v-if="!editing"
+      @click="editing = true"
+      class="type-display flex-grow-1 flex-shrink-1 ml-2"
+    >
+      {{
+        track.confidencePairs.length ? track.confidencePairs[0][0] : "undefined"
+      }}
+    </div>
+    <v-combobox
+      v-else
+      class="ml-2"
+      :value="track.confidencePairs.length ? track.confidencePairs[0][0] : ''"
+      @change="$emit('type-change', $event)"
+      :items="types"
+      dense
+      hide-details
+    ></v-combobox>
     <v-menu offset-y>
       <template v-slot:activator="{ on }">
         <v-btn class="hover-show-child" icon v-on="on">
@@ -74,15 +95,17 @@ export default {
 
 <style lang="scss" scoped>
 .track-item {
-  height: 36px;
+  height: 45px;
+
+  .type-display {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 }
 
 .selected {
   font-weight: bold;
-}
-
-.editing:after {
-  content: "*";
 }
 
 .hover-show-parent {

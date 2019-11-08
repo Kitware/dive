@@ -7,6 +7,8 @@ import "@mdi/font/css/materialdesignicons.css";
 Vue.use(Vuetify);
 
 vuetifyConfig.theme.dark = true;
-delete vuetifyConfig.theme.themes.dark;
+vuetifyConfig.theme.themes.dark = {
+  secondary: vuetifyConfig.theme.themes.dark.secondary
+};
 
 export default new Vuetify(vuetifyConfig);

@@ -44,7 +44,9 @@ export default {
         >
           <template slot="label">
             <div>
-              <span class="color" :style="{backgroundColor:colorMap(type)}">&nbsp;&nbsp;</span>&nbsp;
+              <span class="color" :style="{ backgroundColor: colorMap(type) }"
+                >&nbsp;&nbsp;</span
+              >&nbsp;
               <span>{{ type }}</span>
             </div>
           </template></v-checkbox

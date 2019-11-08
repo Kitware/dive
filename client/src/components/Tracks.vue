@@ -14,6 +14,9 @@ export default {
     tracks: {
       type: Array
     },
+    types: {
+      type: Array
+    },
     checkedTracks: {
       type: Array
     },
@@ -43,7 +46,8 @@ export default {
           track,
           inputValue: this.checkedTracks_.indexOf(track.track) !== -1,
           selectedTrack: this.selectedTrack,
-          editingTrack: this.editingTrack
+          editingTrack: this.editingTrack,
+          types: this.types
         },
         on: {
           change: checked => {
@@ -53,6 +57,9 @@ export default {
               var index = this.checkedTracks_.indexOf(track.track);
               this.checkedTracks_.splice(index, 1);
             }
+          },
+          "type-change": type => {
+            this.$emit("track-type-change", track, type);
           },
           "goto-first-frame": () => {
             this.$emit("goto-track-first-frame", track);
@@ -84,8 +91,8 @@ export default {
       ></v-subheader
     >
     <virtual-list
-      :size="36"
-      :remain="12"
+      :size="45"
+      :remain="9"
       :item="item"
       :itemcount="tracks.length"
       :itemprops="getItemProps"

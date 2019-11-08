@@ -243,7 +243,7 @@ export default {
       return Object.entries(
         _.groupBy(this.filteredDetections, detection => detection.track)
       )
-        .filter(([name, detections]) => {
+        .filter(([, detections]) => {
           return detections[0].confidencePairs.length;
         })
         .map(([name, detections]) => {
@@ -371,7 +371,7 @@ export default {
       this.selectTrack(track.track);
     },
     selectTrack(track) {
-      if (this.editingTrack) {
+      if (this.editingTrack !== null) {
         this.editingTrack = null;
         return;
       }
@@ -451,6 +451,23 @@ export default {
         })
       );
     },
+    trackTypeChange(track, type) {
+      var detections = this.detections;
+      detections
+        .filter(detection => detection.track === track.track)
+        .forEach(detection => {
+          var index = detections.indexOf(detection);
+          detections.splice(index, 1);
+          detections.push({
+            ...detection,
+            ...{
+              confidence: 1,
+              confidencePairs: [[type, 1]]
+            }
+          });
+        });
+      this.pendingSave = true;
+    },
     async save() {
       await this.girderRest.put(
         `viame_detection?itemId=${this.$route.params.datasetId}`,
@@ -497,7 +514,9 @@ function geojsonToBound2(geojson) {
         >
       </v-tabs>
       <ConfidenceFilter :confidence.sync="confidence" />
-      <v-btn icon :disabled="!pendingSave" @click="save"><v-icon>mdi-content-save</v-icon></v-btn>
+      <v-btn icon :disabled="!pendingSave" @click="save"
+        ><v-icon>mdi-content-save</v-icon></v-btn
+      >
     </v-app-bar>
     <v-row no-gutters class="fill-height">
       <v-card width="300" style="z-index:1;">
@@ -511,6 +530,7 @@ function geojsonToBound2(geojson) {
           <v-divider />
           <Tracks
             :tracks="tracks"
+            :types="types"
             :checked-tracks.sync="checkedTracks"
             :selected-track="selectedTrack"
             :editing-track="editingTrack"
@@ -521,6 +541,7 @@ function geojsonToBound2(geojson) {
             @edit-track-meta="metaEditingTrack = $event.track"
             @click-track="clickTrack"
             @add-track="addTrack"
+            @track-type-change="trackTypeChange"
           />
         </div>
       </v-card>

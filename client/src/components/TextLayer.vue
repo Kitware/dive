@@ -56,9 +56,7 @@ export default {
       var frame = this.annotator.frame;
       var data = this.frameMap.get(frame);
       data = data ? data : [];
-      this.textFeature
-        .data(data)
-        .draw();
+      this.textFeature.data(data).draw();
     },
     updateStyle() {
       var offset = {
