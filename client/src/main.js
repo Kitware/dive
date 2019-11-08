@@ -3,6 +3,7 @@ import Girder, { RestClient } from "@girder/components/src";
 import NotificationBus from "@girder/components/src/utils/notifications";
 import snackbarService from "vue-utilities/snackbar-service";
 import promptService from "vue-utilities/prompt-service";
+import vMousetrap from "vue-utilities/v-mousetrap";
 
 import vuetify from "@/plugins/vuetify.js";
 import { API_URL } from "./constants";
@@ -16,6 +17,7 @@ Vue.config.productionTip = false;
 Vue.use(Girder);
 Vue.use(snackbarService);
 Vue.use(promptService);
+Vue.use(vMousetrap);
 
 var girderRest = new RestClient({ apiRoot: API_URL });
 girder.girderRest = girderRest;

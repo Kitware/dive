@@ -44,6 +44,8 @@ export default {
   },
   created() {
     this.provided.$on("play", this.play);
+    this.provided.$on("prev-frame", this.prevFrame);
+    this.provided.$on("next-frame", this.nextFrame);
     this.provided.$on("pause", this.pause);
     this.provided.$on("seek", this.seek);
     this.emitFrame();
@@ -78,6 +80,18 @@ export default {
         min: this.viewer.zoomRange().origMin,
         max: this.viewer.zoomRange().max + 3
       });
+      var interactorOpts = this.viewer.interactor().options();
+      interactorOpts.keyboard.focusHighlight = false;
+      interactorOpts.keyboard.actions = {};
+      interactorOpts.actions = [
+        interactorOpts.actions[0],
+        interactorOpts.actions[2],
+        interactorOpts.actions[6],
+        interactorOpts.actions[7],
+        interactorOpts.actions[8]
+      ];
+      this.viewer.interactor().options(interactorOpts);
+
       this.quadFeatureLayer = this.viewer.createLayer("feature", {
         features: ["quad.video"]
       });
@@ -104,8 +118,24 @@ export default {
     },
     async seek(frame) {
       this.video.currentTime = frame / this.frameRate;
+      this.video.removeEventListener("seeked", this.pendingUpdate);
+      this.video.addEventListener("seeked", this.pendingUpdate);
+    },
+    pendingUpdate() {
       this.frame = Math.round(this.video.currentTime * this.frameRate);
       this.emitFrame();
+    },
+    prevFrame() {
+      var targetFrame = this.frame - 1;
+      if (targetFrame >= 0) {
+        this.seek(targetFrame);
+      }
+    },
+    nextFrame() {
+      var targetFrame = this.frame + 1;
+      if (targetFrame <= this.maxFrame) {
+        this.seek(targetFrame);
+      }
     },
     pause() {
       this.video.pause();
@@ -130,16 +160,7 @@ export default {
     },
     syncWithVideo() {
       if (this.playing) {
-        // console.log("syncWithVideo");
         this.frame = Math.round(this.video.currentTime * this.frameRate);
-        // console.log("syncWithVideo after", this.frame);
-        // if (this._frame !== frame) {
-        //   if (frame > this._maxFrame) {
-        //     this.stop();
-        //     frame = this._maxFrame;
-        //   }
-        //   this._frame = frame;
-        // }
         this.viewer.scheduleAnimationFrame(this.syncWithVideo);
       }
     },
@@ -174,6 +195,10 @@ export default {
 
   .playback-container {
     flex: 1;
+
+    &.geojs-map:focus {
+      outline: none;
+    }
   }
 }
 </style>

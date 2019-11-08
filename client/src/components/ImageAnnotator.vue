@@ -38,6 +38,8 @@ export default {
   },
   created() {
     this.provided.$on("play", this.play);
+    this.provided.$on("prev-frame", this.prevFrame);
+    this.provided.$on("next-frame", this.nextFrame);
     this.provided.$on("pause", this.pause);
     this.provided.$on("seek", this.seek);
     this.emitFrame();
@@ -67,6 +69,18 @@ export default {
         min: this.viewer.zoomRange().origMin,
         max: this.viewer.zoomRange().max + 3
       });
+      var interactorOpts = this.viewer.interactor().options();
+      interactorOpts.keyboard.focusHighlight = false;
+      interactorOpts.keyboard.actions = {};
+      interactorOpts.actions = [
+        interactorOpts.actions[0],
+        interactorOpts.actions[2],
+        interactorOpts.actions[6],
+        interactorOpts.actions[7],
+        interactorOpts.actions[8]
+      ];
+      this.viewer.interactor().options(interactorOpts);
+
       this.quadFeatureLayer = this.viewer.createLayer("feature", {
         features: ["quad"]
       });
@@ -103,6 +117,18 @@ export default {
           }
         ])
         .draw();
+    },
+    prevFrame() {
+      var targetFrame = this.frame - 1;
+      if (targetFrame >= 0) {
+        this.seek(targetFrame);
+      }
+    },
+    nextFrame() {
+      var targetFrame = this.frame + 1;
+      if (targetFrame <= this.maxFrame) {
+        this.seek(targetFrame);
+      }
     },
     pause() {
       this.playing = false;
@@ -173,6 +199,10 @@ export default {
 
   .playback-container {
     flex: 1;
+
+    &.geojs-map:focus {
+      outline: none;
+    }
   }
 }
 </style>

@@ -152,6 +152,9 @@ export default {
       }
       e.preventDefault();
     },
+    workareaMouseleave() {
+      this.dragging = false;
+    },
     minimapFillMousedown(e) {
       e.preventDefault();
       this.minimapDragging = true;
@@ -204,6 +207,7 @@ export default {
       @mouseup="workareaMouseup"
       @mousedown="workareaMousedown"
       @mousemove="workareaMousemove"
+      @mouseleave="workareaMouseleave"
     >
       <div class="hand" ref="hand"></div>
       <div class="child" v-if="init && mounted">
