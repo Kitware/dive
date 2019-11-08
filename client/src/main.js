@@ -15,8 +15,8 @@ import girder from "./girder";
 Vue.config.productionTip = false;
 
 Vue.use(Girder);
-Vue.use(snackbarService);
-Vue.use(promptService);
+Vue.use(snackbarService(vuetify));
+Vue.use(promptService(vuetify));
 Vue.use(vMousetrap);
 
 var girderRest = new RestClient({ apiRoot: API_URL });
