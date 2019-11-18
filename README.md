@@ -9,8 +9,8 @@ VIAME-Web can either be run as local servers, or online in web services.
 <p align="center">
 <br>
 <nobr>
-<img src="http://www.viametoolkit.org/wp-content/uploads/2019/11/cap.png" alt="Search Example" width="320" height="200" border="1">
+<img src="http://www.viametoolkit.org/wp-content/uploads/2019/11/girder-dark-example.png" alt="Dark Girder" width="320" height="200" border="1">
 &nbsp;&nbsp;&nbsp;&nbsp;
-<img src="http://www.viametoolkit.org/wp-content/uploads/2019/11/viame-web-prelim.png" alt="Detection Example" width="320" height="200" border="1">
+<img src="http://www.viametoolkit.org/wp-content/uploads/2019/11/viame-web-prelim.png" alt="Example Tracks" width="320" height="200" border="1">
 </nobr>
 </p>
