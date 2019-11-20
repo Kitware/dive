@@ -13,6 +13,7 @@ import EditAnnotationLayer from "@/components/EditAnnotationLayer";
 import ConfidenceFilter from "@/components/ConfidenceFilter";
 import Tracks from "@/components/Tracks";
 import TypeList from "@/components/TypeList";
+import AttributesPanel from "@/components/AttributesPanel";
 import TextLayer from "@/components/TextLayer";
 import MarkerLayer from "@/components/MarkerLayer";
 import TimelineWrapper from "@/components/TimelineWrapper";
@@ -42,6 +43,7 @@ export default {
     ConfidenceFilter,
     Tracks,
     TypeList,
+    AttributesPanel,
     LineChart,
     EventChart
   },
@@ -54,7 +56,7 @@ export default {
     confidence: 0.1,
     showTrackView: false,
     editingTrack: null,
-    metaEditingTrack: null,
+    attributeEditing: false,
     frame: null,
     pendingSave: false,
     featurePointing: false,
@@ -575,30 +577,53 @@ function geojsonToBound2(geojson) {
     </v-app-bar>
     <v-row no-gutters class="fill-height">
       <v-card width="300" style="z-index:1;">
-        <div class="wrapper d-flex flex-column" v-if="!metaEditingTrack">
-          <TypeList
-            class="flex-grow-1"
-            :types="types"
-            :checkedTypes.sync="checkedTypes"
-            :colorMap="typeColorMap"
-          />
-          <v-divider />
-          <Tracks
-            :tracks="tracks"
-            :types="types"
-            :checked-tracks.sync="checkedTracks"
-            :selected-track="selectedTrack"
-            :editing-track="editingTrack"
-            class="flex-shrink-0"
-            @goto-track-first-frame="gotoTrackFirstFrame"
-            @delete-track="deleteTrack"
-            @edit-track="editTrack($event.track)"
-            @edit-track-meta="metaEditingTrack = $event.track"
-            @click-track="clickTrack"
-            @add-track="addTrack"
-            @track-type-change="trackTypeChange"
-          />
-        </div>
+        <v-btn
+          icon
+          class="swap-button"
+          @click="attributeEditing = !attributeEditing"
+          v-mousetrap="[
+            {
+              bind: 'a',
+              handler: () => {
+                attributeEditing = !attributeEditing;
+              }
+            }
+          ]"
+          ><v-icon>mdi-swap-horizontal</v-icon></v-btn
+        >
+        <v-slide-x-transition>
+          <div
+            class="wrapper d-flex flex-column"
+            v-if="!attributeEditing"
+            key="type-tracks"
+          >
+            <TypeList
+              class="flex-grow-1"
+              :types="types"
+              :checkedTypes.sync="checkedTypes"
+              :colorMap="typeColorMap"
+            />
+            <v-divider />
+            <Tracks
+              :tracks="tracks"
+              :types="types"
+              :checked-tracks.sync="checkedTracks"
+              :selected-track="selectedTrack"
+              :editing-track="editingTrack"
+              class="flex-shrink-0"
+              @goto-track-first-frame="gotoTrackFirstFrame"
+              @delete-track="deleteTrack"
+              @edit-track="editTrack($event.track)"
+              @edit-track-meta="attributeEditing = $event.track"
+              @click-track="clickTrack"
+              @add-track="addTrack"
+              @track-type-change="trackTypeChange"
+            />
+          </div>
+          <div v-else class="wrapper d-flex" key="attributes">
+            <AttributesPanel :selectedDetection="selectedDetection" />
+          </div>
+        </v-slide-x-transition>
       </v-card>
       <v-col style="position: relative; ">
         <component
@@ -693,6 +718,13 @@ function geojsonToBound2(geojson) {
 
 .confidence-filter {
   flex-basis: 600px;
+}
+
+.swap-button {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  z-index: 1;
 }
 </style>
 

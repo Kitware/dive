@@ -198,7 +198,7 @@ export default {
             :new-folder-enabled="!selected.length"
             selectable
             :location.sync="location"
-            @selection-changed="selected = $event"
+            v-model="selected"
             @rowclick="rowClicked"
             @dragover.native="dragover"
           >
