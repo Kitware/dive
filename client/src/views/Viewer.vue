@@ -56,7 +56,10 @@ export default {
     editingTrack: null,
     metaEditingTrack: null,
     frame: null,
-    pendingSave: false
+    pendingSave: false,
+    featurePointing: false,
+    featurePointIndex: 0,
+    featurePointingGeojson: null
   }),
   computed: {
     ...mapState(["location"]),
@@ -280,6 +283,16 @@ export default {
       }
       return Array.from(typeSet);
     },
+    selectedDetection() {
+      if (this.selectedTrack == null || this.frame == null) {
+        return null;
+      }
+      return this.detections.find(
+        detection =>
+          detection.track === this.selectedTrack &&
+          detection.frame === this.frame
+      );
+    },
     editingDetection() {
       if (this.editingTrack == null || this.frame == null) {
         return null;
@@ -365,7 +378,9 @@ export default {
       });
     },
     annotationClick(data) {
-      this.selectTrack(data.detection.track);
+      if (!this.featurePointing) {
+        this.selectTrack(data.detection.track);
+      }
     },
     clickTrack(track) {
       this.selectTrack(track.track);
@@ -415,6 +430,47 @@ export default {
     addTrack() {
       this.editingTrack = this.tracks.slice(-1)[0].track + 1;
     },
+    toggleFeaturePointing() {
+      if (this.featurePointing) {
+        this.featurePointing = false;
+        this.featurePointIndex = 0;
+      } else if (this.selectedTrack === null) {
+        return;
+      } else {
+        this.featurePointing = true;
+      }
+    },
+    featurePointed(geojson) {
+      this.pendingSave = true;
+      var [x, y] = geojson.geometry.coordinates;
+      var selectedDetection = this.selectedDetection;
+      this.detections.splice(this.detections.indexOf(selectedDetection), 1);
+      this.detections.push(
+        Object.freeze({
+          ...selectedDetection,
+          ...{
+            features: {
+              ...selectedDetection.features,
+              ...{
+                [["head", "tail"][this.featurePointIndex]]: [
+                  x.toFixed(0),
+                  y.toFixed(0)
+                ]
+              }
+            }
+          }
+        })
+      );
+      this.featurePointing = false;
+      this.$nextTick(() => {
+        if (this.featurePointIndex < 1) {
+          this.featurePointIndex++;
+          this.featurePointing = true;
+        } else {
+          this.featurePointIndex = 0;
+        }
+      });
+    },
     detectionChanged(feature) {
       if (!this.editingTrack === null) {
         return;
@@ -431,7 +487,6 @@ export default {
       if (trackMeta) {
         confidencePairs = trackMeta.confidencePairs;
       }
-      // make a reference before change
       if (this.editingDetection) {
         this.detections.splice(
           this.detections.indexOf(this.editingDetection),
@@ -555,6 +610,7 @@ function geojsonToBound2(geojson) {
           :video-url="videoUrl"
           :frame-rate="frameRate"
           @frame-update="frame = $event"
+          v-mousetrap="[{ bind: 'f', handler: toggleFeaturePointing }]"
         >
           <template slot="control">
             <Controls />
@@ -602,6 +658,11 @@ function geojsonToBound2(geojson) {
             :geojson="editingDetectionGeojson"
             :feature-style="{ fill: false, strokeColor: 'lime' }"
             @update:geojson="detectionChanged"
+          />
+          <EditAnnotationLayer
+            v-if="featurePointing"
+            :editing="'point'"
+            @update:geojson="featurePointed"
           />
           <TextLayer v-if="textData" :data="textData" :textStyle="textStyle" />
           <MarkerLayer

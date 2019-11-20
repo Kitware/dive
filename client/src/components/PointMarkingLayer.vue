@@ -1,30 +1,23 @@
 <script>
 import { cloneDeep } from "lodash";
+// import { getType } from '@turf/invariant';
+// import { feature } from '@turf/helpers';
 import geo from "geojs";
 
 export default {
-  name: "EditAnnotationLayer",
+  name: "PointMarkingLayer",
   inject: ["annotator"],
   props: {
     geojson: {
       type: Object,
       default: null,
       validator(value) {
-        return ["Point", "Polygon", "LineString"].includes(value.type);
+        return value.type === "Polygon";
       }
     },
     editing: {
-      type: [String, Boolean],
-      default: true,
-      validator(value) {
-        if (typeof value === "boolean") {
-          return true;
-        }
-        if (typeof value === "string") {
-          return geo.listAnnotations().indexOf(value) !== -1;
-        }
-        return false;
-      }
+      type: Boolean,
+      default: true
     },
     featureStyle: {
       type: Object,
@@ -74,20 +67,8 @@ export default {
         if (!("geometry" in geojson)) {
           geojson = { type: "Feature", geometry: geojson, properties: {} };
         }
-        // check if is rectangle
-        const { coordinates } = geojson.geometry;
-        if (typeof this.editing === "string") {
-          console.log("here");
-          geojson.properties.annotationType = this.editing;
-        } else if (
-          coordinates.length === 1 &&
-          coordinates[0].length === 5 &&
-          coordinates[0][0][0] === coordinates[0][3][0] &&
-          coordinates[0][0][1] === coordinates[0][1][1] &&
-          coordinates[0][2][1] === coordinates[0][3][1]
-        ) {
-          geojson.properties.annotationType = "rectangle";
-        }
+        // Always is rectangle
+        geojson.properties.annotationType = "rectangle";
         this.$geojsLayer.geojson(geojson);
         const annotation = this.$geojsLayer.annotations()[0];
         if (this.featureStyle) {
@@ -100,15 +81,7 @@ export default {
         }
       } else if (this.editing) {
         this.changed = true;
-        if (typeof this.editing !== "string") {
-          throw new Error(
-            `editing props needs to be a string of value ${geo
-              .listAnnotations()
-              .join(", ")} when geojson prop is not set`
-          );
-        } else {
-          this.$geojsLayer.mode(this.editing);
-        }
+        this.$geojsLayer.mode("rectangle");
       }
 
       this.$geojsLayer.geoOn(geo.event.annotation.mode, e => {
