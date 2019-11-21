@@ -48,7 +48,7 @@ export default {
     }
   },
   watch: {
-    "annotator.frame": {
+    "annotator.syncedFrame": {
       sync: true,
       handler() {
         this.frameChanged();
@@ -102,7 +102,7 @@ export default {
       this.polygonFeature.style(style).draw();
     },
     frameChanged() {
-      var frame = this.annotator.frame;
+      var frame = this.annotator.syncedFrame;
       var data = this.frameMap.get(frame);
       data = data ? data : [];
       this.polygonFeature

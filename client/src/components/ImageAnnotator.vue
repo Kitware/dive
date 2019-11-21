@@ -3,6 +3,8 @@ import { throttle } from "lodash";
 import Vue from "vue";
 import geo from "geojs";
 
+// TODO: have a common base class with VideoAnnotator
+
 export default {
   name: "ImageAnnotator",
   props: {
@@ -26,14 +28,16 @@ export default {
         viewer: () => this.viewer,
         playing: () => this.playing,
         frame: () => this.frame,
-        maxFrame: () => this.maxFrame
+        maxFrame: () => this.maxFrame,
+        syncedFrame: () => this.syncedFrame
       }
     });
     return {
       ready: false,
       playing: false,
       frame: 0,
-      maxFrame: 0
+      maxFrame: 0,
+      syncedFrame: 0
     };
   },
   created() {
@@ -106,6 +110,7 @@ export default {
     },
     async seek(frame) {
       this.frame = frame;
+      this.syncedFrame = frame;
       this.emitFrame();
       this.cacheImage();
       this.quadFeature
@@ -146,9 +151,11 @@ export default {
     syncWithVideo() {
       if (this.playing) {
         this.frame++;
+        this.syncedFrame++;
         if (this.frame > this.maxFrame) {
           this.pause();
           this.frame = this.maxFrame;
+          this.syncedFrame = this.maxFrame;
           return;
         }
         this.seek(this.frame);

@@ -27,14 +27,16 @@ export default {
         viewer: () => this.viewer,
         playing: () => this.playing,
         frame: () => this.frame,
-        maxFrame: () => this.maxFrame
+        maxFrame: () => this.maxFrame,
+        syncedFrame: () => this.syncedFrame
       }
     });
     return {
       ready: false,
       playing: false,
       frame: 0,
-      maxFrame: 0
+      maxFrame: 0,
+      syncedFrame: 0
     };
   },
   computed: {
@@ -118,12 +120,13 @@ export default {
     },
     async seek(frame) {
       this.video.currentTime = frame / this.frameRate;
+      this.frame = Math.round(this.video.currentTime * this.frameRate);
+      this.emitFrame();
       this.video.removeEventListener("seeked", this.pendingUpdate);
       this.video.addEventListener("seeked", this.pendingUpdate);
     },
     pendingUpdate() {
-      this.frame = Math.round(this.video.currentTime * this.frameRate);
-      this.emitFrame();
+      this.syncedFrame = Math.round(this.video.currentTime * this.frameRate);
     },
     prevFrame() {
       var targetFrame = this.frame - 1;
@@ -145,6 +148,7 @@ export default {
       if (this.video.currentTime === this.video.duration) {
         // console.log("video ended");
         this.frame = 0;
+        this.syncedFrame = 0;
         this.pause();
       }
     },
@@ -161,6 +165,7 @@ export default {
     syncWithVideo() {
       if (this.playing) {
         this.frame = Math.round(this.video.currentTime * this.frameRate);
+        this.syncedFrame = this.frame;
         this.viewer.scheduleAnimationFrame(this.syncWithVideo);
       }
     },
