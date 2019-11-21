@@ -2,6 +2,7 @@
 import _ from "lodash";
 import { mapState } from "vuex";
 import * as d3 from "d3";
+import colors from "vuetify/lib/util/colors";
 
 import { API_URL } from "@/constants";
 import NavigationTitle from "@/components/NavigationTitle";
@@ -22,7 +23,17 @@ import LineChart from "@/components/timeline/LineChart";
 import EventChart from "@/components/timeline/EventChart";
 import { getPathFromLocation } from "@/utils";
 
-var typeColors = ["red", "aqua", "fuchsia", "yellow", "#9900CC", "#0099FF"];
+var typeColors = [
+  colors.red.accent2,
+  "aqua",
+  "fuchsia",
+  "yellow",
+  colors.purple.lighten2,
+  "#0099FF",
+  colors.amber.accent3,
+  colors.green.accent2,
+  colors.lightBlue.accent2
+];
 var typeColorMap = d3.scaleOrdinal();
 typeColorMap.range(typeColors);
 
