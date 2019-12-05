@@ -9,8 +9,8 @@ Vue.use(Vuetify);
 
 vuetifyConfig.theme.dark = true;
 vuetifyConfig.theme.themes.dark = {
-  accent: colors.blue.lighten3,
-  secondary: vuetifyConfig.theme.themes.dark.secondary
+  ...vuetifyConfig.theme.themes.dark,
+  ...{ accent: colors.blue.lighten3 }
 };
 
 export default new Vuetify(vuetifyConfig);
