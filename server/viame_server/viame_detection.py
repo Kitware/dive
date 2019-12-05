@@ -112,7 +112,7 @@ class ViameDetection(Resource):
             for [key, confidence] in d['confidencePairs']:
                 columns += [key, confidence]
             for [key, values] in d['features'].items():
-                columns.append(f'+kp {key} {values[0]} {values[1]}')
+                columns.append('+kp {} {} {}'.format(key, values[0], values[1]))
             return columns
 
         csvFile = io.StringIO()
