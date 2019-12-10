@@ -33,7 +33,7 @@ export default {
   <div
     class="track-item d-flex align-center hover-show-parent px-1"
     :class="{
-      selected: selectedTrack === track.track
+      selected: selectedTrack === track.trackId
     }"
     @click.self="$emit('click')"
   >
@@ -46,7 +46,7 @@ export default {
     >
     </v-checkbox>
     <div>
-      {{ track.track + (editingTrack === track.track ? "*" : "") }}
+      {{ track.trackId + (editingTrack === track.trackId ? "*" : "") }}
     </div>
     <div
       v-if="!editing"

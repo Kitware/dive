@@ -63,6 +63,7 @@ export default {
           <v-icon>mdi-format-list-checks</v-icon>
         </v-badge>
       </v-tab>
+      <v-tab to="/settings">Settings<v-icon>mdi-settings</v-icon></v-tab>
     </v-tabs>
     <v-spacer></v-spacer>
     <v-btn text @click="girderRest.logout()">Logout</v-btn>

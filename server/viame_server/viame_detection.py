@@ -39,19 +39,29 @@ class ViameDetection(Resource):
         for row in reader:
             confidence_pairs = []
             features = {}
+            attributes = {}
+            track_attributes = {}
             for i in [i for i in range(9, len(row)) if i % 2 != 0]:
-                if row[i].startswith('+'):
+                # Not confidence pair anymore
+                if row[i].startswith('('):
                     break
                 confidence_pairs.append([row[i], float(row[i+1])])
             for j in range(i, len(row)):
-                if 'head' in row[j]:
-                    groups = re.match(r'\+kp head ([0-9]+) ([0-9]+)', row[j])
-                    if groups:
-                        features['head'] = (groups[1], groups[2])
-                elif 'tail' in row[j]:
-                    groups = re.match(r'\+kp tail ([0-9]+) ([0-9]+)', row[j])
-                    if groups:
-                        features['tail'] = (groups[1], groups[2])
+                if row[j].startswith('(kp)'):
+                    if 'head' in row[j]:
+                        groups = re.match(r'\(kp\) head ([0-9]+) ([0-9]+)', row[j])
+                        if groups:
+                            features['head'] = (groups[1], groups[2])
+                    elif 'tail' in row[j]:
+                        groups = re.match(r'\(kp\) tail ([0-9]+) ([0-9]+)', row[j])
+                        if groups:
+                            features['tail'] = (groups[1], groups[2])
+                if row[j].startswith('(atr)'):
+                    groups = re.match(r'\(atr\) (.+) (.+)', row[j])
+                    attributes[groups[1]] = deduceType(groups[2])
+                if row[j].startswith('(trk-atr)'):
+                    groups = re.match(r'\(trk-atr\) (.+) (.+)', row[j])
+                    track_attributes[groups[1]] = deduceType(groups[2])
             detections.append({
                 'track': int(row[0]),
                 'frame': int(row[2]),
@@ -59,7 +69,9 @@ class ViameDetection(Resource):
                 'confidence': float(row[7]),
                 'fishLength': float(row[8]),
                 'confidencePairs': confidence_pairs,
-                'features': features
+                'features': features,
+                'attributes': attributes if attributes else None,
+                'trackAttributes': track_attributes if track_attributes else None
             })
         return detections
 
@@ -106,19 +118,42 @@ class ViameDetection(Resource):
             existingItem['meta'].update({"old": timestamp})
             Item().setMetadata(existingItem, existingItem['meta'])
 
-        def getRow(d):
+        def valueToString(value):
+            if value == True:
+                return 'true'
+            elif value == False:
+                return 'false'
+            return str(value)
+
+        def getRow(d, trackAttributes=None):
             columns = [d['track'], '', d['frame'], d['bounds'][0], d['bounds'][2],
                        d['bounds'][1], d['bounds'][3], d['confidence'], d['fishLength']]
             for [key, confidence] in d['confidencePairs']:
                 columns += [key, confidence]
-            for [key, values] in d['features'].items():
-                columns.append('+kp {} {} {}'.format(key, values[0], values[1]))
+            if d['features']:
+                for [key, values] in d['features'].items():
+                    columns.append('(kp) {} {} {}'.format(key, values[0], values[1]))
+            if d['attributes']:
+                for [key, value] in d['attributes'].items():
+                    columns.append('(atr) {} {}'.format(key, valueToString(value)))
+            if trackAttributes:
+                for [key, value] in trackAttributes.items():
+                    columns.append('(trk-atr) {} {}'.format(key, valueToString(value)))
             return columns
+
+        detections.sort(key=lambda d: d['track'])
 
         csvFile = io.StringIO()
         writer = csv.writer(csvFile)
-        for detection in detections:
-            writer.writerow(getRow(detection))
+        trackAttributes = None
+        length = len(detections)
+        track = detections[0]['track']
+        for i in range(0, len(detections)):
+            trackAttributes = detections[i]['trackAttributes'] if detections[i]['trackAttributes'] else None
+            if i == length-1 or detections[i+1]['track'] != track:
+                writer.writerow(getRow(detections[i], trackAttributes))
+            else:
+                writer.writerow(getRow(detections[i]))
 
         public = Folder().findOne({'parentId': user['_id'], 'name': 'Public'})
         results = Folder().createFolder(public, 'Results', reuseExisting=True)
@@ -133,3 +168,15 @@ class ViameDetection(Resource):
                                 parent=newResultItem, user=user)
 
         return True
+
+
+def deduceType(value):
+    if value == 'true':
+        return True
+    if value == 'false':
+        return False
+    try:
+        number = float(value)
+        return number
+    except ValueError:
+        return value

@@ -23,10 +23,8 @@ export default {
 </script>
 
 <style lang="scss">
-// Vuetify version fixes
-.layout.row {
-  margin-left: 0;
-  margin-right: 0;
+html {
+  overflow-y: auto;
 }
 
 .text-xs-center {

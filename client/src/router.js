@@ -6,6 +6,7 @@ import Viewer from "./views/Viewer.vue";
 import Home from "./views/Home.vue";
 import Jobs from "./views/Jobs.vue";
 import Login from "./views/Login.vue";
+import Settings from "./views/Settings.vue";
 
 Vue.use(Router);
 
@@ -20,6 +21,12 @@ export default new Router({
       path: "/jobs",
       name: "jobs",
       component: Jobs,
+      beforeEnter
+    },
+    {
+      path: "/settings",
+      name: "settings",
+      component: Settings,
       beforeEnter
     },
     {

@@ -44,7 +44,7 @@ export default {
       return {
         props: {
           track,
-          inputValue: this.checkedTracks_.indexOf(track.track) !== -1,
+          inputValue: this.checkedTracks_.indexOf(track.trackId) !== -1,
           selectedTrack: this.selectedTrack,
           editingTrack: this.editingTrack,
           types: this.types
@@ -52,9 +52,9 @@ export default {
         on: {
           change: checked => {
             if (checked) {
-              this.checkedTracks_.push(track.track);
+              this.checkedTracks_.push(track.trackId);
             } else {
-              var index = this.checkedTracks_.indexOf(track.track);
+              var index = this.checkedTracks_.indexOf(track.trackId);
               this.checkedTracks_.splice(index, 1);
             }
           },
