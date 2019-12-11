@@ -22,19 +22,20 @@ class ViameDetection(Resource):
         self.route("GET", (), self.get_detection)
         self.route("PUT", (), self.save_detection)
         self.route("GET", ('clip_meta',), self.get_clip_meta)
+        self.route("PUT", ('prompt',), self.prompt_result_file)
 
     @access.user
     @autoDescribeRoute(
-        Description("Run viame pipeline")
+        Description("Get detections of a clip")
         .modelParam("itemId", description="Item ID for a video", model=Item, paramType='query', required=True, level=AccessType.READ)
-        .param("pipeline", "Pipeline to run against the video", default="detector_simple_hough.pipe")
     )
-    def get_detection(self, item, pipeline):
+    def get_detection(self, item):
         detectionItems = list(Item().findWithPermissions({
             "meta.itemId": str(item['_id']),
-            "meta.pipeline": pipeline,
+            "meta.pipeline": {'$exists': True},
             "meta.old": None
         }, user=self.getCurrentUser()))
+        detectionItems.sort(key=lambda d: d['created'], reverse=True)
         if not len(detectionItems):
             return None
         file = Item().childFiles(detectionItems[0])[0]
@@ -84,12 +85,11 @@ class ViameDetection(Resource):
     @autoDescribeRoute(
         Description("")
         .param("itemId", "Item ID for a video")
-        .param("pipeline", "Pipeline to run against the video", default="detector_simple_hough.pipe")
     )
-    def get_clip_meta(self, itemId, pipeline):
+    def get_clip_meta(self, itemId):
         detections = list(Item().find({
             "meta.itemId": itemId,
-            "meta.pipeline": pipeline,
+            "meta.pipeline": {'$exists': True},
             "meta.old": None
         }).sort([("created", -1)]))
         detection = None
@@ -108,20 +108,22 @@ class ViameDetection(Resource):
     @autoDescribeRoute(
         Description("")
         .modelParam("itemId", description="Item ID for a video", model=Item, paramType='query', required=True, level=AccessType.READ)
-        .param("pipeline", "pipeline", default="detector_simple_hough.pipe")
+        .param("pipeline", "pipeline name", required=False)
         .jsonParam('detections', '', requireArray=True, paramType='body')
     )
     def save_detection(self, item, pipeline, detections):
         user = self.getCurrentUser()
-        existingItem = Item().findOne({
-            "meta.itemId": str(item['_id']),
-            "meta.pipeline": pipeline,
-            "meta.old": None
-        })
-        if existingItem:
-            timestamp = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-            existingItem['meta'].update({"old": timestamp})
-            Item().setMetadata(existingItem, existingItem['meta'])
+
+        # mark existing record as old
+        # existingItem = Item().findOne({
+        #     "meta.itemId": str(item['_id']),
+        #     "meta.pipeline": {'$exists': True},
+        #     "meta.old": None
+        # })
+        # if existingItem:
+        #     timestamp = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+        #     existingItem['meta'].update({"old": timestamp})
+        #     Item().setMetadata(existingItem, existingItem['meta'], allowNull=True)
 
         def valueToString(value):
             if value == True:
@@ -161,16 +163,32 @@ class ViameDetection(Resource):
                 writer.writerow(getRow(detections[i]))
 
         folder = get_or_create_auxiliary_folder(item, user)
-        newResultItem = Item().createItem(item['name']+'_'+pipeline, user, folder)
+        newResultItem = Item().createItem(item['name']+'.csv', user, folder)
         Item().setMetadata(newResultItem, {
             "itemId": str(item['_id']),
             "pipeline": pipeline,
-        })
+        }, allowNull=True)
         theBytes = csvFile.getvalue().encode()
         byteIO = io.BytesIO(theBytes)
-        Upload().uploadFromFile(byteIO, len(theBytes), 'csv', parentType='item',
+        Upload().uploadFromFile(byteIO, len(theBytes), 'result.csv', parentType='item',
                                 parent=newResultItem, user=user)
         return True
+
+    @access.user
+    @autoDescribeRoute(
+        Description("")
+        .modelParam("itemId", description="Item ID for a video", model=Item, paramType='query', required=True, level=AccessType.READ)
+        .modelParam("fileId", description="File ID for a result", model=File, paramType='query', required=True, level=AccessType.READ)
+    )
+    def prompt_result_file(self, item, file):
+        user = self.getCurrentUser()
+        folder = get_or_create_auxiliary_folder(item, user)
+        resultItem = Item().createItem(item['name'], user, folder)
+        Item().setMetadata(resultItem, {
+            "itemId": str(item['_id']),
+            "pipeline": None,
+        }, allowNull=True)
+        File().copyFile(file, user, resultItem)
 
 
 def deduceType(value):

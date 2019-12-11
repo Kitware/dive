@@ -111,6 +111,7 @@ export default {
         headers: { "X-HTTP-Method-Override": "DELETE" }
       });
       this.$refs.fileManager.$refs.girderBrowser.refresh();
+      this.selected = [];
     },
     dragover() {
       if (this.shouldShowUpload) {
@@ -120,6 +121,8 @@ export default {
     uploaded(uploads) {
       this.$refs.fileManager.$refs.girderBrowser.refresh();
       this.uploaderDialog = false;
+
+      // transcode video
       var transcodes = uploads.filter(({ results }) => {
         return (
           results.length === 1 &&
@@ -142,6 +145,7 @@ export default {
         });
       }
 
+      // run pipeline
       var runPipelines = uploads.filter(({ pipeline }) => pipeline);
       runPipelines.forEach(({ results, pipeline }) =>
         this.runPipeline(results[0].itemId, pipeline)
@@ -158,6 +162,17 @@ export default {
           }
         });
       }
+
+      //promote csv files to as its own result item
+      uploads.forEach(({ item, results }) => {
+        console.log(item);
+        var csvFiles = results.filter(result => result.name.endsWith(".csv"));
+        csvFiles.forEach(csvFile => {
+          this.girderRest.put(
+            `/viame_detection/prompt?itemId=${item._id}&fileId=${csvFile._id}`
+          );
+        });
+      });
     },
     async runPipeline(itemId, pipeline) {
       return this.girderRest.post(

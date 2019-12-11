@@ -31,6 +31,17 @@ export default {
     }
   },
   methods: {
+    async dropped(e) {
+      e.preventDefault();
+      let [name, files] = await readFilesFromDrop(e);
+      this.pendingUploads.push({
+        name,
+        files,
+        fps: null,
+        pipeline: null,
+        uploading: false
+      });
+    },
     onFileChange(files) {
       if (files.length >= 1) {
         var name = files.length === 1 ? files[0].name : "";
@@ -90,7 +101,7 @@ export default {
               )
             );
           }
-          uploaded.push({ results, pipeline: pendingUpload.pipeline });
+          uploaded.push({ item, results, pipeline: pendingUpload.pipeline });
           this.remove(pendingUpload);
         })
       );
@@ -99,6 +110,54 @@ export default {
     }
   }
 };
+
+async function readFilesFromDrop(e) {
+  var item = e.dataTransfer.items[0];
+  var firstEntry = item.webkitGetAsEntry();
+  if (!firstEntry.isDirectory) {
+    return [
+      firstEntry.name,
+      Array.from(e.dataTransfer.items)
+        .filter(item => item.webkitGetAsEntry().isFile)
+        .map(item => item.getAsFile())
+    ];
+  } else {
+    let entries = await readDirectoryEntries(firstEntry);
+    return [
+      firstEntry.name,
+      await Promise.all(entries.filter(entry => entry.isFile).map(entryToFile))
+    ];
+  }
+}
+
+async function readDirectoryEntries(entry) {
+  let entries = [];
+  let reader = entry.createReader();
+  let readEntries = await readEntriesPromise(reader);
+  while (readEntries.length > 0) {
+    entries.push(...readEntries);
+    readEntries = await readEntriesPromise(reader);
+  }
+  return entries;
+}
+
+async function readEntriesPromise(directoryReader) {
+  try {
+    return await new Promise((resolve, reject) => {
+      directoryReader.readEntries(resolve, reject);
+    });
+  } catch (err) {
+    console.log(err);
+  }
+}
+
+function entryToFile(entry) {
+  return new Promise((resolve, reject) => {
+    entry.file(file => {
+      resolve(file);
+    });
+  });
+}
 </script>
 
 <template>
@@ -182,7 +241,8 @@ export default {
       <Dropzone
         class="dropzone"
         multiple
-        message="Drag file here or click to select"
+        message="Drag files or directory here"
+        @drop.native="dropped"
         @change="onFileChange"
       />
     </div>
