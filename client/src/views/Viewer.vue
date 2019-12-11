@@ -208,14 +208,11 @@ export default {
       var selectedTrackId = this.selectedTrackId;
       return {
         fillColor: data => {
-          if (data.detection.track === selectedTrackId) {
-            return "lime";
-          }
-          return data.feature === "head" ? "orange" : "blue";
+          return data.feature === "head" ? "yellow" : "blue";
         },
         radius: 4,
-
-        stroke: false
+        stroke: data => data.detection.track === selectedTrackId,
+        strokeColor: "lime"
       };
     },
     lineChartData() {
@@ -459,7 +456,7 @@ export default {
       this.editingTrack = track;
     },
     addTrack() {
-      this.editingTrack = this.tracks.slice(-1)[0].track + 1;
+      this.editingTrack = this.tracks.slice(-1)[0].trackId + 1;
     },
     toggleFeaturePointing() {
       if (this.featurePointing) {
@@ -773,13 +770,14 @@ function geojsonToBound2(geojson) {
           />
           <EditAnnotationLayer
             v-if="editingTrack !== null"
+            editing="rectangle"
             :geojson="editingDetectionGeojson"
             :feature-style="{ fill: false, strokeColor: 'lime' }"
             @update:geojson="detectionChanged"
           />
           <EditAnnotationLayer
             v-if="featurePointing"
-            :editing="'point'"
+            editing="point"
             @update:geojson="featurePointed"
           />
           <TextLayer v-if="textData" :data="textData" :textStyle="textStyle" />
