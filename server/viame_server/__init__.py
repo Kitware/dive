@@ -3,6 +3,7 @@ import datetime
 from girder import events, plugin
 from girder.api import access
 from girder.utility import server
+from girder.models.folder import Folder
 
 
 from .client_webroot import ClientWebroot
@@ -18,3 +19,4 @@ class GirderPlugin(plugin.GirderPlugin):
         info['serverRoot'], info['serverRoot'].girder = (ClientWebroot(),
                                                          info['serverRoot'])
         info['serverRoot'].api = info['serverRoot'].girder.api
+

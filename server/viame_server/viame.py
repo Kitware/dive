@@ -1,12 +1,15 @@
 from girder.api import access
+from girder.constants import AccessType
 from girder.api.describe import Description, autoDescribeRoute
 from girder.api.rest import Resource
-from girder.models.user import User
 from girder.models.folder import Folder
+from girder.models.item import Item
+from girder.models.user import User
 from viame_tasks.tasks import run_pipeline, convert_video
 
 from .transforms import GirderItemId, GirderUploadToFolder
 from .model.attribute import Attribute
+from .utils import get_or_create_auxiliary_folder
 
 
 class Viame(Resource):
@@ -23,18 +26,17 @@ class Viame(Resource):
     @access.user
     @autoDescribeRoute(
         Description("Run viame pipeline")
-        .param("itemId", "Item ID for a video")
+        .modelParam("itemId", description="Item ID for a video", model=Item, paramType='query', required=True, level=AccessType.READ)
         .param("pipeline", "Pipeline to run against the video", default="detector_simple_hough.pipe")
     )
-    def run_pipeline_task(self, itemId, pipeline):
+    def run_pipeline_task(self, item, pipeline):
         user = self.getCurrentUser()
-        public = Folder().findOne({'parentId': user['_id'], 'name': 'Public'})
-        results = Folder().createFolder(public, 'Results', reuseExisting=True)
-        metadata = {'itemId': itemId, 'pipeline': pipeline}
+        results = get_or_create_auxiliary_folder(item, user)
+        metadata = {'itemId': str(item["_id"]), 'pipeline': pipeline}
         run_pipeline.delay(
-            GirderItemId(itemId),
+            GirderItemId(str(item["_id"])),
             pipeline,
-            girder_job_title=("Runnin {} on {}".format(pipeline, itemId)),
+            girder_job_title=("Runnin {} on {}".format(pipeline, str(item["_id"]))),
             girder_result_hooks=[
                 GirderUploadToFolder(str(results['_id']), metadata, delete_file=True)
             ]
@@ -43,19 +45,18 @@ class Viame(Resource):
     @access.user
     @autoDescribeRoute(
         Description("Convert video to a web friendly format")
-        .param("itemId", "Item ID for a video")
+        .modelParam("itemId", description="Item ID for a video", model=Item, paramType='query', required=True, level=AccessType.READ)
     )
-    def run_conversion_task(self, itemId):
+    def run_conversion_task(self, item):
         user = self.getCurrentUser()
-        public = Folder().findOne({'parentId': user['_id'], 'name': 'Public'})
-        videos = Folder().createFolder(public, 'Videos', reuseExisting=True)
+        videos = get_or_create_auxiliary_folder(item, user)
         upload_token = self.getCurrentToken()
         convert_video.delay(
-            GirderItemId(itemId),
-            itemId,
+            GirderItemId(str(item["_id"])),
+            str(item["_id"]),
             str(upload_token["_id"]),
             videos['_id'],
-            girder_job_title=("Converting {} to a web friendly format".format(itemId))
+            girder_job_title=("Converting {} to a web friendly format".format(str(item["_id"])))
         )
 
     @access.user

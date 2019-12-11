@@ -4,12 +4,15 @@ import io
 import re
 
 from girder.api import access
+from girder.constants import AccessType
 from girder.api.describe import Description, autoDescribeRoute
 from girder.api.rest import Resource
 from girder.models.item import Item
 from girder.models.folder import Folder
 from girder.models.upload import Upload
 from girder.models.file import File
+
+from .utils import get_or_create_auxiliary_folder
 
 
 class ViameDetection(Resource):
@@ -23,16 +26,18 @@ class ViameDetection(Resource):
     @access.user
     @autoDescribeRoute(
         Description("Run viame pipeline")
-        .param("itemId", "Item ID for a video")
+        .modelParam("itemId", description="Item ID for a video", model=Item, paramType='query', required=True, level=AccessType.READ)
         .param("pipeline", "Pipeline to run against the video", default="detector_simple_hough.pipe")
     )
-    def get_detection(self, itemId, pipeline):
-        item = Item().findOne({
-            "meta.itemId": itemId,
+    def get_detection(self, item, pipeline):
+        detectionItems = list(Item().findWithPermissions({
+            "meta.itemId": str(item['_id']),
             "meta.pipeline": pipeline,
             "meta.old": None
-        })
-        file = Item().childFiles(item)[0]
+        }, user=self.getCurrentUser()))
+        if not len(detectionItems):
+            return None
+        file = Item().childFiles(detectionItems[0])[0]
         rows = b''.join(list(File().download(file, headers=False)())).decode("utf-8").split('\n')
         reader = csv.reader(row for row in rows if (not row.startswith('#') and row))
         detections = []
@@ -102,14 +107,14 @@ class ViameDetection(Resource):
     @access.user
     @autoDescribeRoute(
         Description("")
-        .param("itemId", "Item ID for a video")
-        .param("pipeline", "Pipeline to run against the video", default="detector_simple_hough.pipe")
+        .modelParam("itemId", description="Item ID for a video", model=Item, paramType='query', required=True, level=AccessType.READ)
+        .param("pipeline", "pipeline", default="detector_simple_hough.pipe")
         .jsonParam('detections', '', requireArray=True, paramType='body')
     )
-    def save_detection(self, itemId, pipeline, detections):
+    def save_detection(self, item, pipeline, detections):
         user = self.getCurrentUser()
         existingItem = Item().findOne({
-            "meta.itemId": itemId,
+            "meta.itemId": str(item['_id']),
             "meta.pipeline": pipeline,
             "meta.old": None
         })
@@ -155,18 +160,16 @@ class ViameDetection(Resource):
             else:
                 writer.writerow(getRow(detections[i]))
 
-        public = Folder().findOne({'parentId': user['_id'], 'name': 'Public'})
-        results = Folder().createFolder(public, 'Results', reuseExisting=True)
-        newResultItem = Item().createItem(itemId+pipeline, user, results)
+        folder = get_or_create_auxiliary_folder(item, user)
+        newResultItem = Item().createItem(item['name']+'_'+pipeline, user, folder)
         Item().setMetadata(newResultItem, {
-            "itemId": itemId,
+            "itemId": str(item['_id']),
             "pipeline": pipeline,
         })
         theBytes = csvFile.getvalue().encode()
         byteIO = io.BytesIO(theBytes)
         Upload().uploadFromFile(byteIO, len(theBytes), 'csv', parentType='item',
                                 parent=newResultItem, user=user)
-
         return True
 
 

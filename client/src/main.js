@@ -6,7 +6,6 @@ import promptService from "vue-utilities/prompt-service";
 import vMousetrap from "vue-utilities/v-mousetrap";
 
 import vuetify from "@/plugins/vuetify.js";
-import { API_URL } from "./constants";
 import App from "./App.vue";
 import router from "./router";
 import store from "./store";
@@ -19,7 +18,7 @@ Vue.use(snackbarService(vuetify));
 Vue.use(promptService(vuetify));
 Vue.use(vMousetrap);
 
-var girderRest = new RestClient({ apiRoot: API_URL });
+var girderRest = new RestClient({ apiRoot: "api/v1" });
 girder.girderRest = girderRest;
 const notificationBus = new NotificationBus(girderRest);
 notificationBus.connect();

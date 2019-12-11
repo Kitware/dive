@@ -4,7 +4,6 @@ import { mapState } from "vuex";
 import * as d3 from "d3";
 import colors from "vuetify/lib/util/colors";
 
-import { API_URL } from "@/constants";
 import NavigationTitle from "@/components/NavigationTitle";
 import VideoAnnotator from "@/components/VideoAnnotator";
 import ImageAnnotator from "@/components/ImageAnnotator";
@@ -92,7 +91,7 @@ export default {
         return null;
       }
       return this.files.map(file => {
-        return `${API_URL}/file/${file._id}/download`;
+        return `api/v1/file/${file._id}/download`;
       });
     },
     frameRate() {
@@ -374,7 +373,7 @@ export default {
       if (!files[0]) {
         return null;
       }
-      return `${API_URL}/file/${files[0]._id}/download`;
+      return `api/v1/file/${files[0]._id}/download`;
     }
   },
   watch: {
@@ -504,7 +503,7 @@ export default {
       });
     },
     detectionChanged(feature) {
-      if (!this.editingTrack === null) {
+      if (this.editingTrack === null) {
         return;
       }
       this.pendingSave = true;
@@ -520,23 +519,35 @@ export default {
         confidencePairs = trackMeta.confidencePairs;
       }
       if (this.editingDetection) {
-        this.detections.splice(
-          this.detections.indexOf(this.editingDetection),
-          1
+        let detectionToChange = this.editingDetection;
+        this.detections.splice(this.detections.indexOf(detectionToChange), 1);
+        this.detections.push(
+          Object.freeze({
+            ...detectionToChange,
+            ...{
+              track: this.editingTrack,
+              confidencePairs,
+              frame: this.frame,
+              features: {},
+              bounds
+            }
+          })
+        );
+      } else {
+        this.detections.push(
+          Object.freeze({
+            track: this.editingTrack,
+            confidencePairs,
+            frame: this.frame,
+            features: {},
+            confidence: 1,
+            fishLength: -1,
+            attributes: null,
+            trackAttributes: null,
+            bounds
+          })
         );
       }
-
-      this.detections.push(
-        Object.freeze({
-          track: this.editingTrack,
-          confidencePairs,
-          frame: this.frame,
-          features: {},
-          confidence: 1,
-          fishLength: -1,
-          bounds
-        })
-      );
     },
     trackTypeChange(track, type) {
       var detections = this.detections;
