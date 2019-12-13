@@ -1,6 +1,6 @@
 #!/bin/bash
 
-sleep 5
+sleep 25
 cd /home/viame_girder && pip install . -U
 python3 /home/provision/girder.py
 girder-worker-config set celery broker amqp://guest:guest@rabbit/
