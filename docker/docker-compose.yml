@@ -12,13 +12,9 @@ services:
 
   ## === === === === Building Base Images === === === === ===
 
-  base_girder_worker:
-    build:
-      context: ../
-      dockerfile: docker/girder_worker.docker
-      args:
-        BASE_IMAGE: "nvidia/cuda:9.1-cudnn7-devel-ubuntu16.04"
-    image: gitlab.kitware.com:4567/opengeoscience/viameweb/base/girder_worker
+  # Not sure if we need this
+  # base_girder_worker:
+  #   image: gitlab.kitware.com:4567/opengeoscience/viameweb/base/girder_worker
 
 ## === === === === Girder === === === === ===
   girder:
@@ -40,15 +36,11 @@ services:
       - BROKER_CONNECTION_TIMEOUT=2
       - CELERY_BROKER_CONNECTION_TIMEOUT=2
       - GIRDER_INNER_PORT=${GIRDER_INNER_PORT}
-    image: gitlab.kitware.com:4567/opengeoscience/viameweb/app/girder
 
 
   ## === === === === Girder Worker === === === === ===
 
   girder_worker:
-    build:
-      context: ../
-      dockerfile: docker/viame_girder_worker.Dockerfile
     volumes:
       - ./server:/home/viame_girder
     depends_on:
