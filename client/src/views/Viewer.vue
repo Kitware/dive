@@ -208,7 +208,7 @@ export default {
       var selectedTrackId = this.selectedTrackId;
       return {
         fillColor: data => {
-          return data.feature === "head" ? "yellow" : "blue";
+          return data.feature === "head" ? "orange" : "blue";
         },
         radius: 4,
         stroke: data => data.detection.track === selectedTrackId,
@@ -499,6 +499,19 @@ export default {
         }
       });
     },
+    deleteFeaturePoints() {
+      this.pendingSave = true;
+      var selectedDetection = this.selectedDetection;
+      this.detections.splice(this.detections.indexOf(selectedDetection), 1);
+      this.detections.push(
+        Object.freeze({
+          ...selectedDetection,
+          ...{
+            features: {}
+          }
+        })
+      );
+    },
     detectionChanged(feature) {
       if (this.editingTrack === null) {
         return;
@@ -667,6 +680,7 @@ function geojsonToBound2(geojson) {
           icon
           class="swap-button"
           @click="attributeEditing = !attributeEditing"
+          title="A key"
           v-mousetrap="[
             {
               bind: 'a',
@@ -725,7 +739,10 @@ function geojsonToBound2(geojson) {
           :video-url="videoUrl"
           :frame-rate="frameRate"
           @frame-update="frame = $event"
-          v-mousetrap="[{ bind: 'f', handler: toggleFeaturePointing }]"
+          v-mousetrap="[
+            { bind: 'f', handler: toggleFeaturePointing },
+            { bind: 'd', handler: toggleFeaturePointing }
+          ]"
         >
           <template slot="control">
             <Controls />
@@ -787,6 +804,23 @@ function geojsonToBound2(geojson) {
             :markerStyle="markerStyle"
           />
         </component>
+        <v-menu offset-y v-if="selectedDetection">
+          <template v-slot:activator="{ on }">
+            <v-btn class="selection-menu-button" icon v-on="on">
+              <v-icon>mdi-dots-horizontal</v-icon>
+            </v-btn>
+          </template>
+          <v-list>
+            <v-list-item @click="toggleFeaturePointing">
+              <v-list-item-title>Add feature points (F key)</v-list-item-title>
+            </v-list-item>
+            <v-list-item @click="deleteFeaturePoints">
+              <v-list-item-title
+                >Delete feature points (D key)</v-list-item-title
+              >
+            </v-list-item>
+          </v-list>
+        </v-menu>
       </v-col>
     </v-row>
   </v-content>
@@ -815,6 +849,13 @@ function geojsonToBound2(geojson) {
   position: absolute;
   top: 5px;
   right: 5px;
+  z-index: 1;
+}
+
+.selection-menu-button {
+  position: absolute;
+  right: 0;
+  top: 0;
   z-index: 1;
 }
 </style>

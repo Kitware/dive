@@ -152,7 +152,7 @@ async function readEntriesPromise(directoryReader) {
 }
 
 function entryToFile(entry) {
-  return new Promise((resolve, reject) => {
+  return new Promise(resolve => {
     entry.file(file => {
       resolve(file);
     });

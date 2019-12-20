@@ -66,7 +66,7 @@ export default {
         </v-row>
         <v-row>
           <v-spacer />
-          <v-btn icon small @click="previousFrame">
+          <v-btn icon small @click="previousFrame" title="Left key">
             <v-icon>mdi-skip-previous</v-icon>
           </v-btn>
           <v-btn
@@ -74,13 +74,20 @@ export default {
             icon
             small
             @click="annotator.$emit('play')"
+            title="Space key"
           >
             <v-icon>mdi-play</v-icon>
           </v-btn>
-          <v-btn icon small v-else @click="annotator.$emit('pause')">
+          <v-btn
+            icon
+            small
+            v-else
+            @click="annotator.$emit('pause')"
+            title="Space key"
+          >
             <v-icon>mdi-pause</v-icon>
           </v-btn>
-          <v-btn icon small @click="nextFrame">
+          <v-btn icon small @click="nextFrame" title="Right key">
             <v-icon>mdi-skip-next</v-icon>
           </v-btn>
           <v-spacer />
