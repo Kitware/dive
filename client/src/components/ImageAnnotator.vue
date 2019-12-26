@@ -50,6 +50,7 @@ export default {
     this.emitFrame = throttle(this.emitFrame, 200);
     this.maxFrame = this.imageUrls.length - 1;
     this.imgs = new Array(this.imageUrls.length);
+    this.pendingImgs = new Set();
     this.cacheImage();
     var img = this.imgs[0];
     img.onload = () => {
@@ -169,12 +170,27 @@ export default {
       var frame = this.frame;
       var max = Math.min(frame + 10, this.maxFrame);
       var imgs = this.imgs;
+      this.pendingImgs.forEach(imageAndFrame => {
+        if (imageAndFrame[1] < frame || imageAndFrame[1] > max) {
+          imgs[imageAndFrame[1]] = null;
+          imageAndFrame[0].src = "";
+          this.pendingImgs.delete(imageAndFrame);
+        }
+      });
       for (let i = frame; i <= max; i++) {
         if (!imgs[i]) {
           var img = new Image();
           img.crossOrigin = "Anonymous";
           img.src = this.imageUrls[i];
           imgs[i] = img;
+          ((img, frame) => {
+            var imageAndFrame = [img, frame];
+            this.pendingImgs.add(imageAndFrame);
+            img.onload = () => {
+              this.pendingImgs.delete(imageAndFrame);
+              img.onload = null;
+            };
+          })(img, i);
         }
       }
     },
