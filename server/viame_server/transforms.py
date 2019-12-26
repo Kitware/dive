@@ -5,7 +5,7 @@ import tempfile
 from girder_worker_utils.transforms.girder_io import GirderClientTransform, GirderClientResultTransform
 
 
-class GirderItemId(GirderClientTransform):
+class GetPathFromItemId(GirderClientTransform):
     """
     This transform downloads a Girder Item to a directory on the local machine
     and passes its local path into the function.
@@ -13,7 +13,7 @@ class GirderItemId(GirderClientTransform):
     :type _id: str
     """
     def __init__(self, _id, **kwargs):
-        super(GirderItemId, self).__init__(**kwargs)
+        super(GetPathFromItemId, self).__init__(**kwargs)
         self.item_id = _id
 
     def _repr_model_(self):
@@ -31,6 +31,31 @@ class GirderItemId(GirderClientTransform):
         shutil.rmtree(os.path.dirname(self.item_path),
                       ignore_errors=True)
 
+class GetPathFromFolderId(GirderClientTransform):
+    """
+    This transform downloads a Girder Item to a directory on the local machine
+    and passes its local path into the function.
+    :param _id: The ID of the item to download.
+    :type _id: str
+    """
+    def __init__(self, _id, **kwargs):
+        super(GetPathFromFolderId, self).__init__(**kwargs)
+        self.folder_id = _id
+
+    def _repr_model_(self):
+        return "{}('{}')".format(self.__class__.__name__, self.folder_id)
+
+    def transform(self):
+        temp_dir = tempfile.mkdtemp()
+        self.folder_path = os.path.join(temp_dir, self.folder_id)
+
+        self.gc.downloadFolderRecursive(self.folder_id, self.folder_path)
+
+        return self.folder_path
+
+    # def cleanup(self):
+    #     shutil.rmtree(os.path.dirname(self.folder_path),
+    #                   ignore_errors=True)
 
 class GirderUploadToFolder(GirderClientResultTransform):
     """
@@ -63,7 +88,7 @@ class GirderUploadToFolder(GirderClientResultTransform):
             elif os.path.isdir(fpath) and not os.path.islink(fpath):
                 folder = self.gc.createFolder(folder_id, f, reuseExisting=True)
                 self._uploadFolder(fpath, folder['_id'])
-                gc.addMetadataToFolder(folder['_id'], self.metadata)
+                self.gc.addMetadataToFolder(folder['_id'], self.metadata)
 
     def transform(self, path):
         self.output_file_path = path

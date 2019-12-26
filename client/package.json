@@ -8,7 +8,7 @@
     "lint": "vue-cli-service lint"
   },
   "dependencies": {
-    "@girder/components": "git+https://github.com/girder/girder_web_components.git#f4ea870020b1b6ef915de6d8a444d4746d8981ae",
+    "@girder/components": "git+https://github.com/girder/girder_web_components.git#415bda55ea66ea6538af324217c06508b7431d40",
     "core-js": "^2.6.5",
     "d3": "^5.12.0",
     "geojs": "^0.19.5",

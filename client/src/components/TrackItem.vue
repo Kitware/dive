@@ -81,9 +81,6 @@ export default {
         <v-list-item @click="$emit('edit')">
           <v-list-item-title>Edit annotation</v-list-item-title>
         </v-list-item>
-        <v-list-item @click="$emit('edit-meta')">
-          <v-list-item-title>Edit meta</v-list-item-title>
-        </v-list-item>
         <v-divider />
         <v-list-item @click="$emit('delete')">
           <v-list-item-title>Delete track</v-list-item-title>

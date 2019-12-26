@@ -12,7 +12,7 @@ from girder.models.folder import Folder
 from girder.models.upload import Upload
 from girder.models.file import File
 
-from .utils import get_or_create_auxiliary_folder
+from .utils import move_existing_result_to_auxiliary_folder
 
 
 class ViameDetection(Resource):
@@ -22,16 +22,15 @@ class ViameDetection(Resource):
         self.route("GET", (), self.get_detection)
         self.route("PUT", (), self.save_detection)
         self.route("GET", ('clip_meta',), self.get_clip_meta)
-        self.route("PUT", ('prompt',), self.prompt_result_file)
 
     @access.user
     @autoDescribeRoute(
         Description("Get detections of a clip")
-        .modelParam("itemId", description="Item ID for a video", model=Item, paramType='query', required=True, level=AccessType.READ)
+        .modelParam("folderId", description="folder id of a clip", model=Folder, paramType='query', required=True, level=AccessType.READ)
     )
-    def get_detection(self, item):
+    def get_detection(self, folder):
         detectionItems = list(Item().findWithPermissions({
-            "meta.itemId": str(item['_id']),
+            "meta.folderId": str(folder['_id']),
             "meta.pipeline": {'$exists': True},
             "meta.old": None
         }, user=self.getCurrentUser()))
@@ -84,19 +83,18 @@ class ViameDetection(Resource):
     @access.user
     @autoDescribeRoute(
         Description("")
-        .param("itemId", "Item ID for a video")
+        .modelParam("folderId", description="folder id of a clip", model=Folder, paramType='query', required=True, level=AccessType.READ)
     )
-    def get_clip_meta(self, itemId):
+    def get_clip_meta(self, folder):
         detections = list(Item().find({
-            "meta.itemId": itemId,
+            "meta.folderId": str(folder['_id']),
             "meta.pipeline": {'$exists': True},
-            "meta.old": None
         }).sort([("created", -1)]))
         detection = None
         if len(detections):
             detection = detections[0]
         video = Item().findOne({
-            "meta.itemId": itemId,
+            "meta.folderId": str(folder['_id']),
             "meta.codec": 'h264'
         })
         return {
@@ -107,23 +105,12 @@ class ViameDetection(Resource):
     @access.user
     @autoDescribeRoute(
         Description("")
-        .modelParam("itemId", description="Item ID for a video", model=Item, paramType='query', required=True, level=AccessType.READ)
+        .modelParam("folderId", description="folder id of a clip", model=Folder, paramType='query', required=True, level=AccessType.READ)
         .param("pipeline", "pipeline name", required=False)
         .jsonParam('detections', '', requireArray=True, paramType='body')
     )
-    def save_detection(self, item, pipeline, detections):
+    def save_detection(self, folder, pipeline, detections):
         user = self.getCurrentUser()
-
-        # mark existing record as old
-        # existingItem = Item().findOne({
-        #     "meta.itemId": str(item['_id']),
-        #     "meta.pipeline": {'$exists': True},
-        #     "meta.old": None
-        # })
-        # if existingItem:
-        #     timestamp = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-        #     existingItem['meta'].update({"old": timestamp})
-        #     Item().setMetadata(existingItem, existingItem['meta'], allowNull=True)
 
         def valueToString(value):
             if value == True:
@@ -162,10 +149,12 @@ class ViameDetection(Resource):
             else:
                 writer.writerow(getRow(detections[i]))
 
-        folder = get_or_create_auxiliary_folder(item, user)
-        newResultItem = Item().createItem(item['name']+'.csv', user, folder)
+        move_existing_result_to_auxiliary_folder(folder, user)
+
+        timestamp = datetime.now().strftime("%m-%d-%Y_%H:%M:%S")
+        newResultItem = Item().createItem('result_'+timestamp+'.csv', user, folder)
         Item().setMetadata(newResultItem, {
-            "itemId": str(item['_id']),
+            "folderId": str(folder['_id']),
             "pipeline": pipeline,
         }, allowNull=True)
         theBytes = csvFile.getvalue().encode()
@@ -173,22 +162,6 @@ class ViameDetection(Resource):
         Upload().uploadFromFile(byteIO, len(theBytes), 'result.csv', parentType='item',
                                 parent=newResultItem, user=user)
         return True
-
-    @access.user
-    @autoDescribeRoute(
-        Description("")
-        .modelParam("itemId", description="Item ID for a video", model=Item, paramType='query', required=True, level=AccessType.READ)
-        .modelParam("fileId", description="File ID for a result", model=File, paramType='query', required=True, level=AccessType.READ)
-    )
-    def prompt_result_file(self, item, file):
-        user = self.getCurrentUser()
-        folder = get_or_create_auxiliary_folder(item, user)
-        resultItem = Item().createItem(item['name'], user, folder)
-        Item().setMetadata(resultItem, {
-            "itemId": str(item['_id']),
-            "pipeline": None,
-        }, allowNull=True)
-        File().copyFile(file, user, resultItem)
 
 
 def deduceType(value):

@@ -72,9 +72,6 @@ export default {
           },
           edit: () => {
             this.$emit("edit-track", track);
-          },
-          "edit-meta": () => {
-            this.$emit("edit-track-meta", track);
           }
         }
       };

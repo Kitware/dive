@@ -77,7 +77,6 @@ export default {
         // check if is rectangle
         const { coordinates } = geojson.geometry;
         if (typeof this.editing === "string") {
-          console.log("here");
           geojson.properties.annotationType = this.editing;
         } else if (
           coordinates.length === 1 &&

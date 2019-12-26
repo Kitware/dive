@@ -87,12 +87,21 @@ export default {
       return null;
     },
     imageUrls() {
-      if (!this.files || this.dataset.meta.type !== "image-sequence") {
+      if (!this.items || this.dataset.meta.type !== "image-sequence") {
         return null;
       }
-      return this.files.map(file => {
-        return `api/v1/file/${file._id}/download`;
-      });
+      return this.items
+        .filter(item => {
+          var name = item.name.toLowerCase();
+          return (
+            name.endsWith("png") ||
+            name.endsWith("jpeg") ||
+            name.endsWith("jpg")
+          );
+        })
+        .map(item => {
+          return `api/v1/item/${item._id}/download`;
+        });
     },
     frameRate() {
       if (!this.dataset) {
@@ -339,15 +348,14 @@ export default {
     }
   },
   asyncComputed: {
-    async files() {
+    async items() {
       if (!this.dataset) {
         return null;
       }
-      var { data: files } = await this.girderRest.get(
-        `item/${this.dataset._id}/files`,
-        { params: { limit: 100000 } }
-      );
-      return files;
+      var { data: items } = await this.girderRest.get(`item/`, {
+        params: { folderId: this.dataset._id, limit: 200000 }
+      });
+      return items;
     },
     async videoUrl() {
       if (!this.dataset || this.dataset.meta.type !== "video") {
@@ -357,7 +365,7 @@ export default {
         "viame_detection/clip_meta",
         {
           params: {
-            itemId: this.dataset._id
+            folderId: this.dataset._id
           }
         }
       );
@@ -391,7 +399,7 @@ export default {
     typeColorMap,
     getPathFromLocation,
     async loadDataset(datasetId) {
-      var { data: dataset } = await this.girderRest.get(`item/${datasetId}`);
+      var { data: dataset } = await this.girderRest.get(`folder/${datasetId}`);
       if (!dataset || !dataset.meta || !dataset.meta.viame) {
         return null;
       }
@@ -399,7 +407,7 @@ export default {
     },
     async loadDetections() {
       var { data: detections } = await this.girderRest.get("viame_detection", {
-        params: { itemId: this.dataset._id }
+        params: { folderId: this.dataset._id }
       });
       this.detections = detections.map(detection => {
         return Object.freeze(detection);
@@ -510,6 +518,16 @@ export default {
             features: {}
           }
         })
+      );
+    },
+    deleteDetection() {
+      if (!this.selectedDetection) {
+        return;
+      }
+      this.pendingSave = true;
+      this.detections.splice(
+        this.detections.indexOf(this.selectedDetection),
+        1
       );
     },
     detectionChanged(feature) {
@@ -626,7 +644,7 @@ export default {
     },
     async save() {
       await this.girderRest.put(
-        `viame_detection?itemId=${this.$route.params.datasetId}`,
+        `viame_detection?folderId=${this.$route.params.datasetId}`,
         this.detections
       );
       this.pendingSave = false;
@@ -664,11 +682,14 @@ function geojsonToBound2(geojson) {
   <v-content class="viewer">
     <v-app-bar app>
       <NavigationTitle />
-      <v-tabs icons-and-text hide-slider>
+      <v-tabs icons-and-text hide-slider style="flex-basis:0; flex-grow:0;">
         <v-tab :to="getPathFromLocation(location)"
           >Data<v-icon>mdi-database</v-icon></v-tab
         >
       </v-tabs>
+      <span class="subtitle-1 text-center" style="flex-grow: 1;">{{
+        dataset ? dataset.name : ""
+      }}</span>
       <ConfidenceFilter :confidence.sync="confidence" />
       <v-btn icon :disabled="!pendingSave" @click="save"
         ><v-icon>mdi-content-save</v-icon></v-btn
@@ -713,8 +734,7 @@ function geojsonToBound2(geojson) {
               class="flex-shrink-0"
               @goto-track-first-frame="gotoTrackFirstFrame"
               @delete-track="deleteTrack"
-              @edit-track="editTrack($event.track)"
-              @edit-track-meta="attributeEditing = $event.track"
+              @edit-track="editTrack($event.trackId)"
               @click-track="clickTrack"
               @add-track="addTrack"
               @track-type-change="trackTypeChange"
@@ -741,7 +761,7 @@ function geojsonToBound2(geojson) {
           @frame-update="frame = $event"
           v-mousetrap="[
             { bind: 'f', handler: toggleFeaturePointing },
-            { bind: 'd', handler: toggleFeaturePointing }
+            { bind: 'd', handler: deleteDetection }
           ]"
         >
           <template slot="control">
@@ -815,9 +835,11 @@ function geojsonToBound2(geojson) {
               <v-list-item-title>Add feature points (F key)</v-list-item-title>
             </v-list-item>
             <v-list-item @click="deleteFeaturePoints">
-              <v-list-item-title
-                >Delete feature points (D key)</v-list-item-title
-              >
+              <v-list-item-title>Delete feature points</v-list-item-title>
+            </v-list-item>
+            <v-divider />
+            <v-list-item @click="deleteDetection">
+              <v-list-item-title>Delete detection (D key)</v-list-item-title>
             </v-list-item>
           </v-list>
         </v-menu>
@@ -842,7 +864,7 @@ function geojsonToBound2(geojson) {
 }
 
 .confidence-filter {
-  flex-basis: 600px;
+  flex-basis: 400px;
 }
 
 .swap-button {

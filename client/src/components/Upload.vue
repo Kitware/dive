@@ -34,25 +34,22 @@ export default {
     async dropped(e) {
       e.preventDefault();
       let [name, files] = await readFilesFromDrop(e);
+      this.addPendingUpload(name, files);
+    },
+    onFileChange(files) {
+      var name = files.length === 1 ? files[0].name : "";
+      this.addPendingUpload(name, files);
+    },
+    addPendingUpload(name, allFiles) {
+      var [type, files] = prepareFiles(allFiles);
       this.pendingUploads.push({
         name,
         files,
+        type,
         fps: null,
         pipeline: null,
         uploading: false
       });
-    },
-    onFileChange(files) {
-      if (files.length >= 1) {
-        var name = files.length === 1 ? files[0].name : "";
-        this.pendingUploads.push({
-          name,
-          files,
-          fps: null,
-          pipeline: null,
-          uploading: false
-        });
-      }
     },
     remove(pendingUpload) {
       var index = this.pendingUploads.indexOf(pendingUpload);
@@ -72,16 +69,16 @@ export default {
           var { name, files, fps } = pendingUpload;
           fps = parseInt(fps);
           pendingUpload.uploading = true;
-          var { data: item } = await this.girderRest.post(
-            "/item",
+          var { data: folder } = await this.girderRest.post(
+            "/folder",
             `metadata=${JSON.stringify({
               viame: true,
               fps,
-              type: files.length > 1 ? "image-sequence" : "video"
+              type: pendingUpload.type
             })}`,
             {
               params: {
-                folderId: this.location._id,
+                parentId: this.location._id,
                 name
               }
             }
@@ -94,14 +91,14 @@ export default {
                 pending.splice(0, 500).map(async file => {
                   var uploader = new Upload(file, {
                     $rest: this.girderRest,
-                    parent: item
+                    parent: folder
                   });
                   return await uploader.start();
                 })
               )
             );
           }
-          uploaded.push({ item, results, pipeline: pendingUpload.pipeline });
+          uploaded.push({ folder, results, pipeline: pendingUpload.pipeline });
           this.remove(pendingUpload);
         })
       );
@@ -158,6 +155,24 @@ function entryToFile(entry) {
     });
   });
 }
+
+function prepareFiles(files) {
+  var videoFilter = file => /\.mp4$|\.avi$|\.mov$/i.test(file.name);
+  var csvFilter = file => /\.csv$/i.test(file.name);
+  var imageFilter = file => /\.jpg$|\.jpeg$|\.png$|\.bmp$/i.test(file.name);
+
+  if (files.find(videoFilter)) {
+    return [
+      "video",
+      files.filter(file => videoFilter(file) || csvFilter(file))
+    ];
+  } else {
+    return [
+      "image-sequence",
+      files.filter(file => imageFilter(file) || csvFilter(file))
+    ];
+  }
+}
 </script>
 
 <template>
@@ -192,7 +207,7 @@ function entryToFile(entry) {
                   :disabled="pendingUpload.uploading"
                 ></v-text-field>
               </v-col>
-              <v-col :cols="2" v-if="pendingUpload.files.length > 1">
+              <v-col :cols="2" v-if="pendingUpload.type === 'image-sequence'">
                 <v-text-field
                   v-model="pendingUpload.fps"
                   type="number"
@@ -214,7 +229,9 @@ function entryToFile(entry) {
                 />
               </v-col>
             </v-row>
-            <v-list-item-subtitle v-if="pendingUpload.files.length > 1">
+            <v-list-item-subtitle
+              v-if="pendingUpload.type === 'image-sequence'"
+            >
               {{ pendingUpload.files.length }} images
             </v-list-item-subtitle>
           </v-list-item-content>

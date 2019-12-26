@@ -7,9 +7,9 @@ from girder.models.item import Item
 from girder.models.user import User
 from viame_tasks.tasks import run_pipeline, convert_video
 
-from .transforms import GirderItemId, GirderUploadToFolder
+from .transforms import GetPathFromItemId, GetPathFromFolderId, GirderUploadToFolder
 from .model.attribute import Attribute
-from .utils import get_or_create_auxiliary_folder
+from .utils import get_or_create_auxiliary_folder, move_existing_result_to_auxiliary_folder
 
 
 class Viame(Resource):
@@ -26,19 +26,19 @@ class Viame(Resource):
     @access.user
     @autoDescribeRoute(
         Description("Run viame pipeline")
-        .modelParam("itemId", description="Item ID for a video", model=Item, paramType='query', required=True, level=AccessType.READ)
+        .modelParam("folderId", description="Folder id of a video clip", model=Folder, paramType='query', required=True, level=AccessType.READ)
         .param("pipeline", "Pipeline to run against the video", default="detector_simple_hough.pipe")
     )
-    def run_pipeline_task(self, item, pipeline):
+    def run_pipeline_task(self, folder, pipeline):
         user = self.getCurrentUser()
-        results = get_or_create_auxiliary_folder(item, user)
-        metadata = {'itemId': str(item["_id"]), 'pipeline': pipeline}
+        move_existing_result_to_auxiliary_folder(folder, user)
+        metadata = {'folderId': str(folder["_id"]), 'pipeline': pipeline}
         run_pipeline.delay(
-            GirderItemId(str(item["_id"])),
+            GetPathFromFolderId(str(folder["_id"])),
             pipeline,
-            girder_job_title=("Runnin {} on {}".format(pipeline, str(item["_id"]))),
+            girder_job_title=("Runnin {} on {}".format(pipeline, str(folder["_id"]))),
             girder_result_hooks=[
-                GirderUploadToFolder(str(results['_id']), metadata, delete_file=True)
+                GirderUploadToFolder(str(folder['_id']), metadata, delete_file=True)
             ]
         )
 
@@ -49,13 +49,14 @@ class Viame(Resource):
     )
     def run_conversion_task(self, item):
         user = self.getCurrentUser()
-        videos = get_or_create_auxiliary_folder(item, user)
+        folder = Folder().findOne({'_id': item['folderId']})
+        auxiliary = get_or_create_auxiliary_folder(folder, user)
         upload_token = self.getCurrentToken()
         convert_video.delay(
-            GirderItemId(str(item["_id"])),
-            str(item["_id"]),
+            GetPathFromItemId(str(item["_id"])),
+            str(item["folderId"]),
             str(upload_token["_id"]),
-            videos['_id'],
+            auxiliary['_id'],
             girder_job_title=("Converting {} to a web friendly format".format(str(item["_id"])))
         )
 

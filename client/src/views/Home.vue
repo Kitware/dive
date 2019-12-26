@@ -43,7 +43,7 @@ export default {
     },
     selectedEligibleClips() {
       return this.selected.filter(
-        model => model._modelType === "item" && model.meta && model.meta.viame
+        model => model._modelType === "folder" && model.meta && model.meta.viame
       );
     }
   },
@@ -57,31 +57,28 @@ export default {
   },
   methods: {
     ...mapMutations(["setLocation"]),
-    async rowClicked(item) {
-      if (!item.meta || !item.meta.viame) {
-        return;
-      }
+    async openClip(folder) {
       var { data: clipMeta } = await this.girderRest.get(
         "viame_detection/clip_meta",
         {
           params: {
-            itemId: item._id
+            folderId: folder._id
           }
         }
       );
       if (
         clipMeta.detection &&
-        (item.meta.type === "image-sequence" || clipMeta.video)
+        (folder.meta.type === "image-sequence" || clipMeta.video)
       ) {
-        this.$router.push(`/viewer/${item._id}`);
+        this.$router.push(`/viewer/${folder._id}`);
       } else {
-        if (item.meta.type === "video") {
+        if (folder.meta.type === "video") {
           this.$snackbar({
             text: "Missing detection result and/or being transcoded",
             timeout: 6000,
             immediate: true
           });
-        } else if (item.meta.type === "image-sequence") {
+        } else if (folder.meta.type === "image-sequence") {
           this.$snackbar({
             text: "Missing detection result",
             timeout: 6000,
@@ -151,13 +148,13 @@ export default {
 
       // transcode video
       var transcodes = uploads.filter(({ results }) => {
-        return (
-          results.length === 1 &&
-          ["avi", "mp4", "mov"].includes(results[0].exts[0])
+        var videos = results.filter(result =>
+          ["avi", "mp4", "mov"].includes(result.exts[0])
         );
-      });
-      transcodes.forEach(({ results }) => {
-        this.girderRest.post(`/viame/conversion?itemId=${results[0].itemId}`);
+        videos.forEach(result => {
+          this.girderRest.post(`/viame/conversion?itemId=${result.itemId}`);
+        });
+        return !!videos;
       });
       if (transcodes.length) {
         this.$snackbar({
@@ -191,19 +188,22 @@ export default {
       }
 
       //promote csv files to as its own result item
-      uploads.forEach(({ item, results }) => {
-        console.log(item);
+      uploads.forEach(({ folder, results }) => {
         var csvFiles = results.filter(result => result.name.endsWith(".csv"));
         csvFiles.forEach(csvFile => {
           this.girderRest.put(
-            `/viame_detection/prompt?itemId=${item._id}&fileId=${csvFile._id}`
+            `/item/${csvFile.itemId}/metadata?allowNull=true`,
+            {
+              folderId: folder["_id"],
+              pipeline: null
+            }
           );
         });
       });
     },
     async runPipeline(itemId, pipeline) {
       return this.girderRest.post(
-        `/viame/pipeline?itemId=${itemId}&pipeline=${pipeline}`
+        `/viame/pipeline?folderId=${itemId}&pipeline=${pipeline}`
       );
     },
     async runPipelineOnSelectedItem(pipeline) {
@@ -241,7 +241,6 @@ export default {
             selectable
             :location.sync="location"
             v-model="selected"
-            @rowclick="rowClicked"
             @dragover.native="dragover"
           >
             <template #headerwidget>
@@ -309,6 +308,17 @@ export default {
                   :uploading.sync="uploading"
                 />
               </v-dialog>
+            </template>
+            <template #row-widget="{item}">
+              <v-btn
+                v-if="item.meta && item.meta.viame"
+                class="ml-2"
+                x-small
+                color="primary"
+                @click.stop="openClip(item)"
+              >
+                Annotate
+              </v-btn>
             </template>
           </FileManager>
         </v-col>
