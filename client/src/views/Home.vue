@@ -35,7 +35,11 @@ export default {
       }
     },
     shouldShowUpload() {
-      return this.location && getLocationType(this.location) === "folder";
+      return (
+        this.location &&
+        getLocationType(this.location) === "folder" &&
+        !this.selected.length
+      );
     },
     selectedEligibleClips() {
       return this.selected.filter(
@@ -112,6 +116,29 @@ export default {
       });
       this.$refs.fileManager.$refs.girderBrowser.refresh();
       this.selected = [];
+    },
+    downloadClip() {
+      postDownload(`api/v1/resource/download`, {
+        resources: JSON.stringify({
+          folder: this.selected.map(dataset => dataset._id)
+        })
+      });
+
+      function postDownload(url, data) {
+        var form = document.createElement("form");
+        form.setAttribute("action", url);
+        form.setAttribute("method", "POST");
+        Object.entries(data).map(([key, value]) => {
+          var input = document.createElement("input");
+          input.setAttribute("type", "text");
+          input.setAttribute("name", key);
+          input.setAttribute("value", value);
+          form.appendChild(input);
+        });
+        document.body.appendChild(form);
+        form.submit();
+        document.body.removeChild(form);
+      }
     },
     dragover() {
       if (this.shouldShowUpload) {
@@ -242,6 +269,18 @@ export default {
               </v-menu>
               <v-btn
                 class="ma-0"
+                v-if="selectedEligibleClips.length === 1"
+                text
+                small
+                @click="downloadClip"
+              >
+                <v-icon left color="accent" class="mdi-24px mr-1"
+                  >mdi-download</v-icon
+                >
+                Download
+              </v-btn>
+              <v-btn
+                class="ma-0"
                 v-if="selected.length"
                 text
                 small
@@ -253,7 +292,7 @@ export default {
                 Delete
               </v-btn>
               <v-dialog
-                v-if="shouldShowUpload && !selected.length"
+                v-if="shouldShowUpload"
                 v-model="uploaderDialog"
                 max-width="800px"
                 :persistent="uploading"
