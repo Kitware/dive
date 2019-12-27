@@ -6,8 +6,8 @@ from setuptools import setup, find_packages
 requirements = [
     'girder==3.0.3',
     'girder_jobs==3.0.3',
-    'girder_worker',
-    'girder_worker_utils',
+    'girder_worker==0.6.0',
+    'girder_worker_utils==0.8.5',
     'pysnooper'
 ]
 
