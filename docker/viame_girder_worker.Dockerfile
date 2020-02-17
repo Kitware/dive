@@ -56,7 +56,7 @@ COPY docker/provision provision
 
 COPY server viame_girder
 
-RUN cd viame_girder && pip install --no-cache-dir .
+RUN cd viame_girder && pip install --no-cache-dir -e .
 
 USER worker
 

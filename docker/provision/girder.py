@@ -3,11 +3,11 @@ import os
 import girder_client
 import requests
 
-ADMIN_USER = 'admin'
-ADMIN_PASS = 'letmein'
+ADMIN_USER = os.getenv("GIRDER_ADMIN_USER", "admin")
+ADMIN_PASS = os.getenv("GIRDER_ADMIN_PASS", "letmein")
 
 
-"""These functions should all be idempotent - should have no effect when 
+"""These functions should all be idempotent - should have no effect when
 fired off multiple times
 """
 def setGirderSetting(key, value, gc):
@@ -52,7 +52,7 @@ def run_girder_init(apiUrl):
     ## Ideally each of these calls should be idempotent
     createInitialUser(apiUrl)
     gc = girder_client.GirderClient(apiUrl=apiUrl)
-    gc.authenticate("admin", "letmein")
+    gc.authenticate(ADMIN_USER, ADMIN_PASS)
     setGirderSetting("worker.api_url", "http://girder:8080/api/v1", gc)
     setGirderSetting("worker.broker", "amqp://guest:guest@rabbit/", gc)
     setGirderSetting("worker.backend", "amqp://guest:guest@rabbit/", gc)
