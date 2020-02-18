@@ -9,6 +9,7 @@ from girder.models.folder import Folder
 from .client_webroot import ClientWebroot
 from .viame import Viame
 from .viame_detection import ViameDetection
+from .utils import check_existing_annotations
 
 
 class GirderPlugin(plugin.GirderPlugin):
@@ -20,3 +21,4 @@ class GirderPlugin(plugin.GirderPlugin):
                                                          info['serverRoot'])
         info['serverRoot'].api = info['serverRoot'].girder.api
 
+        events.bind('filesystem_assetstore_imported', 'check_annotations', check_existing_annotations)
