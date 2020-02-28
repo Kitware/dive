@@ -14,7 +14,7 @@ local servers, or online in web services.
 <img src="http://www.viametoolkit.org/wp-content/uploads/2019/11/viame-web-prelim.png" alt="Example Tracks" width="320" height="200" border="1">
 </nobr>
 </p>
-A sample instance of VIAME-Web is running on a public server at viame.kitware.com
+A sample instance of VIAME-Web is running on a public server at [viame.kitware.com](viame.kitware.com)
 <br>
 <br>
-Additional documentation is forthcoming for users wanting to stand up their own servers.
+Additional documentation will be forthcoming for users wanting to stand up their own servers.
