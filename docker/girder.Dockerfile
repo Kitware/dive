@@ -1,5 +1,7 @@
 FROM girder/girder:latest
 
+ARG databaseURI
+
 WORKDIR /home
 
 RUN pip install --no-cache-dir \
@@ -21,6 +23,5 @@ RUN cd viame_client && npm install && npm run build && \
     mkdir /usr/share/girder/static/viame && \
     cp -r dist/* /usr/share/girder/static/viame/
 
+ENV MONGO_URI ${databaseURI}
 ENTRYPOINT ["/home/provision/girder_entrypoint.sh"]
-
-

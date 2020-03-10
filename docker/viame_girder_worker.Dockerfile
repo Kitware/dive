@@ -22,7 +22,7 @@ RUN apt-get update -y &&\
     zlib1g-dev \
     ffmpeg
 
-RUN git clone https://github.com/Kitware/VIAME.git /home/VIAME &&\ 
+RUN git clone https://github.com/Kitware/VIAME.git /home/VIAME &&\
     cd /home/VIAME && git submodule update --init --recursive
 
 # Need CMake >= 3.11.4 for VIAME,
