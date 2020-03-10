@@ -31,7 +31,7 @@ services:
     volumes:
       - girder_assetstore:/home/assetstore
       - ./server:/home/viame_girder
-      - pipelines:${/home/VIAME/pipelines}:ro
+      - pipelines:/home/VIAME/pipelines:ro
       - type: bind
         source: ${PUBLIC_DATA_PATH}
         target: /data/public
