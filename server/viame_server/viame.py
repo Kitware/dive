@@ -1,6 +1,6 @@
 from girder.api import access
 from girder.constants import AccessType
-from girder.api.describe import Description, autoDescribeRoute
+from girder.api.describe import Description, autoDescribeRoute, describeRoute
 from girder.api.rest import Resource
 from girder.models.folder import Folder
 from girder.models.item import Item
@@ -9,19 +9,30 @@ from viame_tasks.tasks import run_pipeline, convert_video
 
 from .transforms import GetPathFromItemId, GetPathFromFolderId, GirderUploadToFolder
 from .model.attribute import Attribute
-from .utils import get_or_create_auxiliary_folder, move_existing_result_to_auxiliary_folder
+from .utils import (
+    get_or_create_auxiliary_folder,
+    move_existing_result_to_auxiliary_folder,
+)
 
 
 class Viame(Resource):
-    def __init__(self):
+    def __init__(self, pipelines=[]):
         super(Viame, self).__init__()
         self.resourceName = 'viame'
+        self.pipelines = pipelines
+
+        self.route("GET", ("pipelines", ), self.get_pipelines)
         self.route("POST", ("pipeline", ), self.run_pipeline_task)
         self.route("POST", ("conversion", ), self.run_conversion_task)
         self.route("POST", ("attribute", ), self.create_attribute)
         self.route("GET", ("attribute", ), self.get_attributes)
         self.route("PUT", ("attribute", ":id"), self.update_attribute)
         self.route("DELETE", ("attribute", ":id"), self.delete_attribute)
+
+    @access.user
+    @describeRoute(Description("Get available pipelines"))
+    def get_pipelines(self, params):
+        return self.pipelines
 
     @access.user
     @autoDescribeRoute(
