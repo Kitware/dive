@@ -31,6 +31,7 @@ def determine_image_sequence_fps(folder):
     total = current - start
     return round(item_length/total)
 
+
 def get_or_create_auxiliary_folder(folder, user):
     return Folder().createFolder(folder, 'auxiliary', reuseExisting=True, creator=user)
 

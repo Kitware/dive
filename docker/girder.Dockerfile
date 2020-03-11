@@ -22,5 +22,3 @@ RUN cd viame_client && npm install && npm run build && \
     cp -r dist/* /usr/share/girder/static/viame/
 
 ENTRYPOINT ["/home/provision/girder_entrypoint.sh"]
-
-
