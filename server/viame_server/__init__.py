@@ -1,3 +1,4 @@
+import sys
 from pathlib import Path
 from os import getenv
 
@@ -9,13 +10,21 @@ from .viame_detection import ViameDetection
 from .utils import check_existing_annotations
 
 
-pipeline_path = Path(
-    getenv("VIAME_PIPELINES_PATH", "/home/VIAME/pipelines")
-)
+env_pipelines_path = getenv("VIAME_PIPELINES_PATH")
 
 
 def load_pipelines():
+    if env_pipelines_path is None:
+        print(
+            "No pipeline path specified. "
+            "Please set the VIAME_PIPELINES_PATH environment variable.",
+            file=sys.stderr
+        )
+        return []
+
+    pipeline_path = Path(env_pipelines_path)
     if not pipeline_path.exists():
+        print("Specified pipeline path does not exist!", file=sys.stderr)
         return []
 
     return [path.name for path in pipeline_path.glob("./*.pipe")]

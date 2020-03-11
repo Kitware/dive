@@ -23,7 +23,7 @@ services:
     volumes:
       - girder_assetstore:/home/assetstore
       - ./server:/home/viame_girder
-      - pipelines:/home/VIAME/pipelines:ro
+      - pipelines:${VIAME_PIPELINES_PATH:-/home/VIAME/pipelines}:ro
       - type: bind
         source: ${PUBLIC_DATA_PATH}
         target: /data/public
@@ -31,6 +31,7 @@ services:
         volume:
           nocopy: true
     environment:
+      - VIAME_PIPELINES_PATH=${VIAME_PIPELINES_PATH:-/home/VIAME/pipelines}
       - MONGO_URI=mongodb://mongo:27017/girder
       - GIRDER_ADMIN_USER=${GIRDER_ADMIN_USER}
       - GIRDER_ADMIN_PASS=${GIRDER_ADMIN_PASS}
