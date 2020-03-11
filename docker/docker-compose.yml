@@ -19,7 +19,7 @@ services:
       - mongo
       - girder_worker
     ports:
-      - "8081:${GIRDER_INNER_PORT}"
+      - "8081:8080"
     volumes:
       - girder_assetstore:/home/assetstore
       - ./server:/home/viame_girder
