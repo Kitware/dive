@@ -18,7 +18,7 @@ def determine_image_sequence_fps(folder):
 
         try:
             _, two, three, four, _ = name.split(".")
-            seconds = two[:2]*3600 + two[2:4]*60 + two[4:]
+            seconds = two[:2] * 3600 + two[2:4] * 60 + two[4:]
 
             if not start:
                 start = int(seconds)
@@ -29,21 +29,23 @@ def determine_image_sequence_fps(folder):
                 return None
 
     total = current - start
-    return round(item_length/total)
+    return round(item_length / total)
 
 
 def get_or_create_auxiliary_folder(folder, user):
-    return Folder().createFolder(folder, 'auxiliary', reuseExisting=True, creator=user)
+    return Folder().createFolder(folder, "auxiliary", reuseExisting=True, creator=user)
 
 
 def move_existing_result_to_auxiliary_folder(folder, user):
     auxiliary = get_or_create_auxiliary_folder(folder, user)
 
-    existingResultItem = Item().findOne({
-        "folderId": folder['_id'],
-        "meta.folderId": str(folder['_id']),
-        "meta.pipeline": {'$exists': True},
-    })
+    existingResultItem = Item().findOne(
+        {
+            "folderId": folder["_id"],
+            "meta.folderId": str(folder["_id"]),
+            "meta.pipeline": {"$exists": True},
+        }
+    )
     if existingResultItem:
         Item().move(existingResultItem, auxiliary)
 
@@ -52,23 +54,12 @@ def check_existing_annotations(event):
     info = event.info
 
     if "annotations.csv" in info["importPath"]:
-        item = Item().findOne({
-            "_id": info["id"]
-        })
-        item["meta"].update({
-            "folderId": str(item["folderId"]),
-            "pipeline": None
-        })
+        item = Item().findOne({"_id": info["id"]})
+        item["meta"].update({"folderId": str(item["folderId"]), "pipeline": None})
         Item().save(item)
 
-        folder = Folder().findOne({
-            "_id": item["folderId"]
-        })
+        folder = Folder().findOne({"_id": item["folderId"]})
 
         # FPS is hardcoded for now
-        folder["meta"].update({
-            "type": "image-sequence",
-            "viame": True,
-            "fps": 30
-        })
+        folder["meta"].update({"type": "image-sequence", "viame": True, "fps": 30})
         Folder().save(folder)

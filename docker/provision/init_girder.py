@@ -21,7 +21,7 @@ def createInitialUser():
 
 def createAssetstore():
     try:
-        Assetstore().createFilesystemAssetstore('assetstore', '/home/assetstore')
+        Assetstore().createFilesystemAssetstore("assetstore", "/home/assetstore")
     except ValidationException:
         print("Assetstore already exists, skipping...")
 
@@ -31,5 +31,5 @@ def run_girder_init():
     createAssetstore()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     run_girder_init()

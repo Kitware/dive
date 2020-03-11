@@ -8,25 +8,16 @@ from girder.models.model_base import Model
 
 
 class Attribute(Model):
-
     def initialize(self):
-        self.name = 'attribute'
+        self.name = "attribute"
 
     def validate(self, model):
         return model
 
-    def create(self,
-               name,
-               belongs,
-               datatype,
-               values=None):
-        doc = {
-            'name': name,
-            'belongs': belongs,
-            'datatype': datatype
-        }
+    def create(self, name, belongs, datatype, values=None):
+        doc = {"name": name, "belongs": belongs, "datatype": datatype}
 
-        if datatype == 'text' and values:
-            doc['values'] = values
+        if datatype == "text" and values:
+            doc["values"] = values
 
         return self.save(doc)

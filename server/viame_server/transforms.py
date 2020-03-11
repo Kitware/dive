@@ -2,7 +2,10 @@ import os
 import shutil
 import tempfile
 
-from girder_worker_utils.transforms.girder_io import GirderClientTransform, GirderClientResultTransform
+from girder_worker_utils.transforms.girder_io import (
+    GirderClientTransform,
+    GirderClientResultTransform,
+)
 
 
 class GetPathFromItemId(GirderClientTransform):
@@ -12,6 +15,7 @@ class GetPathFromItemId(GirderClientTransform):
     :param _id: The ID of the item to download.
     :type _id: str
     """
+
     def __init__(self, _id, **kwargs):
         super(GetPathFromItemId, self).__init__(**kwargs)
         self.item_id = _id
@@ -28,8 +32,8 @@ class GetPathFromItemId(GirderClientTransform):
         return self.item_path
 
     def cleanup(self):
-        shutil.rmtree(os.path.dirname(self.item_path),
-                      ignore_errors=True)
+        shutil.rmtree(os.path.dirname(self.item_path), ignore_errors=True)
+
 
 class GetPathFromFolderId(GirderClientTransform):
     """
@@ -38,6 +42,7 @@ class GetPathFromFolderId(GirderClientTransform):
     :param _id: The ID of the item to download.
     :type _id: str
     """
+
     def __init__(self, _id, **kwargs):
         super(GetPathFromFolderId, self).__init__(**kwargs)
         self.folder_id = _id
@@ -57,6 +62,7 @@ class GetPathFromFolderId(GirderClientTransform):
     #     shutil.rmtree(os.path.dirname(self.folder_path),
     #                   ignore_errors=True)
 
+
 class GirderUploadToFolder(GirderClientResultTransform):
     """
     This is a result hook transform that uploads a file or directory recursively
@@ -68,7 +74,10 @@ class GirderUploadToFolder(GirderClientResultTransform):
     :param upload_kwargs: Additional kwargs to pass to the upload method.
     :type upload_kwargs: dict
     """
-    def __init__(self, _id, metadata=None, delete_file=False, upload_kwargs=None, **kwargs):
+
+    def __init__(
+        self, _id, metadata=None, delete_file=False, upload_kwargs=None, **kwargs
+    ):
         super(GirderUploadToFolder, self).__init__(**kwargs)
         self.folder_id = _id
         self.metadata = metadata
@@ -82,21 +91,25 @@ class GirderUploadToFolder(GirderClientResultTransform):
         for f in os.listdir(path):
             fpath = os.path.join(path, f)
             if os.path.isfile(fpath):
-                _file = self.gc.uploadFileToFolder(folder_id, fpath, **self.upload_kwargs)
-                self.gc.addMetadataToItem(_file['itemId'], self.metadata)
+                _file = self.gc.uploadFileToFolder(
+                    folder_id, fpath, **self.upload_kwargs
+                )
+                self.gc.addMetadataToItem(_file["itemId"], self.metadata)
 
             elif os.path.isdir(fpath) and not os.path.islink(fpath):
                 folder = self.gc.createFolder(folder_id, f, reuseExisting=True)
-                self._uploadFolder(fpath, folder['_id'])
-                self.gc.addMetadataToFolder(folder['_id'], self.metadata)
+                self._uploadFolder(fpath, folder["_id"])
+                self.gc.addMetadataToFolder(folder["_id"], self.metadata)
 
     def transform(self, path):
         self.output_file_path = path
         if os.path.isdir(path):
             self._uploadFolder(path, self.folder_id)
         else:
-            _file = self.gc.uploadFileToFolder(self.folder_id, path, **self.upload_kwargs)
-            self.gc.addMetadataToItem(_file['itemId'], self.metadata)
+            _file = self.gc.uploadFileToFolder(
+                self.folder_id, path, **self.upload_kwargs
+            )
+            self.gc.addMetadataToItem(_file["itemId"], self.metadata)
         return self.folder_id
 
     def cleanup(self):

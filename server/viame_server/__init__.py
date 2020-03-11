@@ -18,7 +18,7 @@ def load_pipelines():
         print(
             "No pipeline path specified. "
             "Please set the VIAME_PIPELINES_PATH environment variable.",
-            file=sys.stderr
+            file=sys.stderr,
         )
         return []
 
