@@ -21,8 +21,6 @@ services:
     build:
       context: ../
       dockerfile: docker/girder.Dockerfile
-      args:
-        - databaseURI=mongodb://mongo:27017/girder
     depends_on:
       - mongo
       - girder_worker
@@ -46,6 +44,7 @@ services:
       - BROKER_CONNECTION_TIMEOUT=2
       - CELERY_BROKER_CONNECTION_TIMEOUT=2
       - GIRDER_INNER_PORT=${GIRDER_INNER_PORT}
+      - MONGO_URI=mongodb://mongo:27017/girder
 
   ## === === === === Girder Worker === === === === ===
 
