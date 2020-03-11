@@ -60,4 +60,4 @@ RUN cd viame_girder && pip install --no-cache-dir -e .
 
 USER worker
 
-ENTRYPOINT ["/home/provision/girder_worker_entrypoint.sh"]
+CMD girder-worker -l info
