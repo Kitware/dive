@@ -16,16 +16,14 @@ def createInitialUser():
             ADMIN_USER, ADMIN_PASS, ADMIN_USER, ADMIN_USER, "admin@admin.com"
         )
     except ValidationException:
-        # Already Exists
-        pass
+        print("Admin user already exists, skipping...")
 
 
 def createAssetstore():
     try:
         Assetstore().createFilesystemAssetstore('assetstore', '/home/assetstore')
     except ValidationException:
-        # Already Exists
-        pass
+        print("Assetstore already exists, skipping...")
 
 
 def run_girder_init():
