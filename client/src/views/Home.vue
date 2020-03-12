@@ -5,7 +5,6 @@ import { getLocationType } from "@girder/components/src/utils";
 
 import Upload from "@/components/Upload";
 import NavigationBar from "@/components/NavigationBar";
-import pipelines from "@/pipelines";
 import { getPathFromLocation, getLocationFromRoute } from "@/utils";
 
 export default {
@@ -19,8 +18,7 @@ export default {
     uploading: false
   }),
   computed: {
-    ...mapState(["location"]),
-    pipelines: () => pipelines,
+    ...mapState(["location", "pipelines"]),
     location: {
       get() {
         return this.location_;
@@ -50,13 +48,18 @@ export default {
   created() {
     this.location_ = getLocationFromRoute(this.$route);
     this.setLocation(this.location_);
+    this.fetchPipelines();
   },
   beforeRouteUpdate(to, from, next) {
     this.location_ = getLocationFromRoute(to);
     next();
   },
   methods: {
-    ...mapMutations(["setLocation"]),
+    ...mapMutations(["setLocation", "setPipelines"]),
+    async fetchPipelines() {
+      const { data } = await this.girderRest.get("viame/pipelines");
+      this.setPipelines(data);
+    },
     async openClip(folder) {
       var { data: clipMeta } = await this.girderRest.get(
         "viame_detection/clip_meta",
@@ -250,7 +253,9 @@ export default {
                     v-on="on"
                     text
                     small
-                    :disabled="selectedEligibleClips.length < 1"
+                    :disabled="
+                      selectedEligibleClips.length < 1 || !pipelines.length
+                    "
                   >
                     <v-icon left color="accent">mdi-pipe</v-icon>
                     Run pipeline
