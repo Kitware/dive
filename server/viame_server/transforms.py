@@ -19,7 +19,6 @@ class GetPathFromItemId(GirderClientTransform):
     def __init__(self, _id, **kwargs):
         super(GetPathFromItemId, self).__init__(**kwargs)
         self.item_id = _id
-        print('foo')
 
     def _repr_model_(self):
         return "{}('{}')".format(self.__class__.__name__, self.item_id)
