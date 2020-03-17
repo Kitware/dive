@@ -16,7 +16,7 @@ env_pipelines_path = getenv("VIAME_PIPELINES_PATH")
 def load_pipelines():
     if env_pipelines_path is None:
         print(
-            "No pipeline path specified. "
+            "No pipeline path specified. ",
             "Please set the VIAME_PIPELINES_PATH environment variable.",
             file=sys.stderr,
         )

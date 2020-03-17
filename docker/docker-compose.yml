@@ -1,16 +1,15 @@
 ## Use this to start the girder/ girder-worker ecosystem
 version: "3.2"
 services:
-  ## === === === === prebuilt services === === === === ===
+
   rabbit:
     image: rabbitmq:management
 
   mongo:
     image: mongo:latest
     volumes:
-      - mongo_db:/data/db
+      - ./data/mongo:/data/db
 
-  ## === === === === Girder === === === === ===
   girder:
     build:
       context: ../
@@ -19,9 +18,9 @@ services:
       - mongo
       - girder_worker
     ports:
-      - "8081:8080"
+      - "8010:8080"
     volumes:
-      - girder_assetstore:/home/assetstore
+      - ./data/assetstore:/home/assetstore
       - ./server:/home/viame_girder
       - pipelines:${VIAME_PIPELINES_PATH:-/home/VIAME/pipelines}:ro
       - type: bind
@@ -32,11 +31,10 @@ services:
           nocopy: true
     environment:
       - VIAME_PIPELINES_PATH=${VIAME_PIPELINES_PATH:-/home/VIAME/pipelines}
-      - MONGO_URI=mongodb://mongo:27017/girder
+      - GIRDER_MONGO_URI=mongodb://mongo:27017/girder
       - GIRDER_ADMIN_USER=${GIRDER_ADMIN_USER}
       - GIRDER_ADMIN_PASS=${GIRDER_ADMIN_PASS}
 
-  ## === === === === Girder Worker === === === === ===
   girder_worker:
     volumes:
       - ./server:/home/viame_girder
@@ -56,6 +54,4 @@ services:
       dockerfile: docker/viame_girder_worker.Dockerfile
 
 volumes:
-  mongo_db:
-  girder_assetstore:
   pipelines:

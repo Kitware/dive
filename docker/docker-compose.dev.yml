@@ -1,0 +1,21 @@
+
+version: "3.2"
+services:
+
+  girder:
+    volumes:
+      - ../docker/provision:/home/provision
+      - ../server:/home/viame_girder
+      - ./data/assetstore:/home/assetstore
+      - pipelines:${VIAME_PIPELINES_PATH:-/home/VIAME/pipelines}:ro
+      - type: bind
+        source: ${PUBLIC_DATA_PATH}
+        target: /data/public
+        read_only: true
+        volume:
+          nocopy: true
+    entrypoint: /home/provision/girder_entrypoint_dev.sh
+
+  mc:
+    image: mongo
+    command: ["mongo", "mongodb://mongo:27017/girder"]
