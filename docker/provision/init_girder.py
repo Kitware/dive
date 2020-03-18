@@ -4,7 +4,8 @@ from girder.models.user import User
 from girder.models.assetstore import Assetstore
 from girder.exceptions import ValidationException
 
-cherrypy.config["database"]["uri"] = os.getenv("MONGO_URI")
+cherrypy.config["database"]["uri"] = os.getenv("GIRDER_MONGO_URI")
+
 
 ADMIN_USER = os.getenv("GIRDER_ADMIN_USER", "admin")
 ADMIN_PASS = os.getenv("GIRDER_ADMIN_PASS", "letmein")
@@ -13,7 +14,7 @@ ADMIN_PASS = os.getenv("GIRDER_ADMIN_PASS", "letmein")
 def createInitialUser():
     try:
         User().createUser(
-            ADMIN_USER, ADMIN_PASS, ADMIN_USER, ADMIN_USER, "admin@admin.com"
+            ADMIN_USER, ADMIN_PASS, ADMIN_USER, ADMIN_USER, "admin@admin.com", admin=True, public=True,
         )
     except ValidationException:
         print("Admin user already exists, skipping...")
