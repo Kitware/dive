@@ -6,7 +6,7 @@ import vuetifyConfig from "@girder/components/src/utils/vuetifyConfig.js";
 import "@mdi/font/css/materialdesignicons.css";
 
 Vue.use(Vuetify);
-
+vuetifyConfig.theme.options.customProperties = true;
 vuetifyConfig.theme.dark = true;
 vuetifyConfig.theme.themes.dark = {
   ...vuetifyConfig.theme.themes.dark,

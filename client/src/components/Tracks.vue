@@ -38,6 +38,11 @@ export default {
       this.$emit("update:checkedTracks", value);
     }
   },
+  computed: {
+    selectedOffset() {
+      return this.tracks.map(item => item.trackId).indexOf(this.selectedTrack);
+    }
+  },
   methods: {
     getItemProps(itemIndex) {
       var track = this.tracks[itemIndex];
@@ -90,6 +95,7 @@ export default {
     <virtual-list
       :size="45"
       :remain="9"
+      :start="selectedOffset"
       :item="item"
       :itemcount="tracks.length"
       :itemprops="getItemProps"
