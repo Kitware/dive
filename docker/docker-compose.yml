@@ -8,7 +8,7 @@ services:
   mongo:
     image: mongo:latest
     volumes:
-      - ./data/mongo:/data/db
+      - mongo_db:/data/db
 
   girder:
     build:
@@ -20,8 +20,7 @@ services:
     ports:
       - "8010:8080"
     volumes:
-      - ./data/assetstore:/home/assetstore
-      - ./server:/home/viame_girder
+      - girder_assetstore:/home/assetstore
       - pipelines:${VIAME_PIPELINES_PATH:-/home/VIAME/pipelines}:ro
       - type: bind
         source: ${PUBLIC_DATA_PATH}
@@ -55,3 +54,5 @@ services:
 
 volumes:
   pipelines:
+  mongo_db:
+  girder_assetstore:
