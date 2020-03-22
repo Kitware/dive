@@ -9,9 +9,9 @@ Additional documentation will be available in the future for users.
 <p align="center">
 <br>
 <nobr>
-<img src="http://www.viametoolkit.org/wp-content/uploads/2019/11/viame-web-prelim.png" alt="Example Tracks" width="410" height="250" border="1">
+<img src="http://www.viametoolkit.org/wp-content/uploads/2019/11/viame-web-prelim.png" alt="Example Tracks" width="405" height="250" border="1">
 &nbsp;&nbsp;&nbsp;
-<img src="http://www.viametoolkit.org/wp-content/uploads/2019/11/girder-dark-example.png" alt="Dark Girder" width="390" height="250" border="1">
+<img src="http://www.viametoolkit.org/wp-content/uploads/2019/11/girder-dark-example.png" alt="Dark Girder" width="400" height="250" border="1">
 </nobr>
 </p>
 
