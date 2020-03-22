@@ -4,20 +4,20 @@
 VIAME Web is a web interface for performing data management, video annotation, and running the algorithms stored within
 the VIAME (https://github.com/VIAME/VIAME) repository. When compiled, docker instances for VIAME-Web can be run either as
 local servers or online in web services. A sample instance of VIAME-Web is running on a public server at https://viame.kitware.com.
-additional documentation will be available in the future for users wanting to stand up their own servers.
+Additional documentation will be available in the future for users.
 <br>
 <br>
 <p align="center">
 <br>
 <nobr>
-<img src="http://www.viametoolkit.org/wp-content/uploads/2019/11/girder-dark-example.png" alt="Dark Girder" width="320" height="200" border="1">
-&nbsp;&nbsp;&nbsp;&nbsp;
-<img src="http://www.viametoolkit.org/wp-content/uploads/2019/11/viame-web-prelim.png" alt="Example Tracks" width="320" height="200" border="1">
+<img src="http://www.viametoolkit.org/wp-content/uploads/2019/11/girder-dark-example.png" alt="Dark Girder" width="400" height="250" border="1">
+&nbsp;&nbsp;&nbsp;
+<img src="http://www.viametoolkit.org/wp-content/uploads/2019/11/viame-web-prelim.png" alt="Example Tracks" width="400" height="250" border="1">
 </nobr>
 </p>
 <br>
 
-## Architecture
+## Code Architecture
 
 VIAME-Web uses [girder](https://girder.readthedocs.io/en/stable/) for data management and has a typical girder + girder worker +
 docker architecture. Command-line executables for VIAME and FFmpeg are built inside the worker docker image. See docker scripts 
@@ -29,7 +29,7 @@ The client application is a standard [@vue/cli](https://cli.vuejs.org/) applicat
 
 ### Server
 
-The Rest API server is a typical Girder3 plugin. Generally, it needs a running MongoDB instance, Python3, and a python environment,
+The Rest API server is a Girder3 plugin. Generally, it needs a running MongoDB instance, Python3, and a python environment,
 Run `pip install` on the against the server directory. Then `girder build`, `girder serve` to start the girder server. Refer to
 [Girder3 documentation](https://girder.readthedocs.io/en/stable/) and the included docker scripts for details.
 
@@ -52,11 +52,12 @@ VIAME server will be running at http://localhost:8010/
 
 ### Input
 
-VIAME-Web takes two different kinds of optional input clips, either a video file (e.g. .mpg) or and image sequences. Both kinds can
-be accompanied with a CSV file for annotation data. An example clip is available here:
+VIAME-Web takes two different kinds of input data, either a video file (e.g. .mpg) or an image sequence. Both types can
+be optionally accompanied with a CSV file containing video annotations. An example input sequence is available at 
 https://viame.kitware.com/girder#collection/5e4c256ca0fc86aa03120c34/.
 
 ### Output
 
-The system saves to CSV file directly when the save button is pressed
-
+When running an algorithmic pipelines or performing manual video annotation (and saving the annotations with the save
+button) output CSV files are produced containing output detections. Simultaneously a detection plot of results
+is shown underneath each video sequence.
