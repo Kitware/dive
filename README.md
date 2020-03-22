@@ -6,20 +6,18 @@ the VIAME (https://github.com/VIAME/VIAME) repository. When compiled, docker ins
 local servers or online in web services. A sample instance of VIAME-Web is running on a public server at https://viame.kitware.com.
 Additional documentation will be available in the future for users.
 <br>
-<br>
 <p align="center">
 <br>
 <nobr>
-<img src="http://www.viametoolkit.org/wp-content/uploads/2019/11/girder-dark-example.png" alt="Dark Girder" width="400" height="250" border="1">
+<img src="http://www.viametoolkit.org/wp-content/uploads/2019/11/viame-web-prelim.png" alt="Example Tracks" width="410" height="250" border="1">
 &nbsp;&nbsp;&nbsp;
-<img src="http://www.viametoolkit.org/wp-content/uploads/2019/11/viame-web-prelim.png" alt="Example Tracks" width="400" height="250" border="1">
+<img src="http://www.viametoolkit.org/wp-content/uploads/2019/11/girder-dark-example.png" alt="Dark Girder" width="390" height="250" border="1">
 </nobr>
 </p>
-<br>
 
 ## Code Architecture
 
-VIAME-Web uses [girder](https://girder.readthedocs.io/en/stable/) for data management and has a typical girder + girder worker +
+VIAME-Web uses [Girder](https://girder.readthedocs.io/en/stable/) for data management and has a typical girder + girder worker +
 docker architecture. Command-line executables for VIAME and FFmpeg are built inside the worker docker image. See docker scripts 
 for additional details.
 
