@@ -51,8 +51,8 @@ VIAME server will be running at http://localhost:8010/
 ### Input
 
 VIAME-Web takes two different kinds of input data, either a video file (e.g. .mpg) or an image sequence. Both types can
-be optionally accompanied with a CSV file containing video annotations. An example input sequence is available at 
-https://viame.kitware.com/girder#collection/5e4c256ca0fc86aa03120c34/.
+be optionally accompanied with a CSV file containing video annotations. Example input sequences are available at 
+https://viame.kitware.com/girder#collections.
 
 ### Output
 
