@@ -1,4 +1,5 @@
 import sys
+import re
 from pathlib import Path
 from os import getenv
 
@@ -27,7 +28,13 @@ def load_pipelines():
         print("Specified pipeline path does not exist!", file=sys.stderr)
         return []
 
-    return [path.name for path in pipeline_path.glob("./*.pipe")]
+    allowed = r"^detector_.+|tracker_.+"
+    disallowed = r".*local.*|detector_svm_models.pipe|tracker_svm_models.pipe"
+    return [
+        path.name
+        for path in pipeline_path.glob("./*.pipe")
+        if re.match(allowed, path.name) and not re.match(disallowed, path.name)
+    ]
 
 
 class GirderPlugin(plugin.GirderPlugin):
