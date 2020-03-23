@@ -1,6 +1,8 @@
 import Vue from "vue";
 import Vuex from "vuex";
 
+import girderRest from "@/girder";
+
 Vue.use(Vuex);
 
 export default new Vuex.Store({
@@ -16,5 +18,10 @@ export default new Vuex.Store({
       state.pipelines = pipelines;
     }
   },
-  actions: {}
+  actions: {
+    async fetchPipelines({ commit }) {
+      const { data } = await girderRest.get("viame/pipelines");
+      commit("setPipelines", data);
+    }
+  }
 });

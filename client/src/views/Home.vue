@@ -1,5 +1,5 @@
 <script>
-import { mapState, mapMutations } from "vuex";
+import { mapState, mapMutations, mapActions } from "vuex";
 import { FileManager } from "@girder/components/src/components/Snippet";
 import { getLocationType } from "@girder/components/src/utils";
 
@@ -56,10 +56,7 @@ export default {
   },
   methods: {
     ...mapMutations(["setLocation", "setPipelines"]),
-    async fetchPipelines() {
-      const { data } = await this.girderRest.get("viame/pipelines");
-      this.setPipelines(data);
-    },
+    ...mapActions(["fetchPipelines"]),
     async openClip(folder) {
       var { data: clipMeta } = await this.girderRest.get(
         "viame_detection/clip_meta",

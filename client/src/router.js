@@ -1,7 +1,7 @@
 import Vue from "vue";
 import Router from "vue-router";
 
-import girder from "./girder";
+import girderRest from "./girder";
 import Viewer from "./views/Viewer.vue";
 import Home from "./views/Home.vue";
 import Jobs from "./views/Jobs.vue";
@@ -45,7 +45,7 @@ export default new Router({
 });
 
 function beforeEnter(to, from, next) {
-  if (!girder.girderRest.user) {
+  if (!girderRest.user) {
     next("/login");
   } else {
     next();
