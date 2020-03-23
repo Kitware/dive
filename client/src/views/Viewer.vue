@@ -83,11 +83,14 @@ export default {
         return VideoAnnotator;
       } else if (this.dataset.meta.type === "image-sequence") {
         return ImageAnnotator;
+      } else {
+        // Temporary until the above case is more clear
+        return ImageAnnotator;
       }
-      return null;
     },
     imageUrls() {
-      if (!this.items || this.dataset.meta.type !== "image-sequence") {
+      // if (!this.items || this.dataset.meta.type !== "image-sequence") {
+      if (!this.items) {
         return null;
       }
       return this.items
@@ -400,18 +403,16 @@ export default {
     getPathFromLocation,
     async loadDataset(datasetId) {
       var { data: dataset } = await this.girderRest.get(`folder/${datasetId}`);
-      if (!dataset || !dataset.meta || !dataset.meta.viame) {
-        return null;
-      }
-      this.dataset = dataset;
+      this.dataset = dataset || null;
     },
     async loadDetections() {
       var { data: detections } = await this.girderRest.get("viame_detection", {
         params: { folderId: this.dataset._id }
       });
-      this.detections = detections.map(detection => {
-        return Object.freeze(detection);
-      });
+
+      this.detections = detections
+        ? detections.map(detection => Object.freeze(detection))
+        : [];
     },
     annotationClick(data) {
       if (!this.featurePointing) {
@@ -464,7 +465,9 @@ export default {
       this.editingTrack = track;
     },
     addTrack() {
-      this.editingTrack = this.tracks.slice(-1)[0].trackId + 1;
+      this.editingTrack = this.tracks.length
+        ? this.tracks.slice(-1)[0].trackId + 1
+        : 1;
     },
     toggleFeaturePointing() {
       if (this.featurePointing) {

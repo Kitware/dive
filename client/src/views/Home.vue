@@ -60,35 +60,12 @@ export default {
   methods: {
     ...mapMutations(["setLocation", "setPipelines"]),
     ...mapActions(["fetchPipelines"]),
+    isAnnotationFolder(item) {
+      // Will be updated to check for other info
+      return item._modelType === "folder";
+    },
     async openClip(folder) {
-      var { data: clipMeta } = await this.girderRest.get(
-        "viame_detection/clip_meta",
-        {
-          params: {
-            folderId: folder._id
-          }
-        }
-      );
-      if (
-        clipMeta.detection &&
-        (folder.meta.type === "image-sequence" || clipMeta.video)
-      ) {
-        this.$router.push(`/viewer/${folder._id}`);
-      } else {
-        if (folder.meta.type === "video") {
-          this.$snackbar({
-            text: "Missing detection result and/or being transcoded",
-            timeout: 6000,
-            immediate: true
-          });
-        } else if (folder.meta.type === "image-sequence") {
-          this.$snackbar({
-            text: "Missing detection result",
-            timeout: 6000,
-            immediate: true
-          });
-        }
-      }
+      this.$router.push(`/viewer/${folder._id}`);
     },
     async deleteSelection() {
       var result = await this.$prompt({
@@ -309,7 +286,7 @@ export default {
             </template>
             <template #row-widget="{item}">
               <v-btn
-                v-if="item.meta && item.meta.viame"
+                v-if="isAnnotationFolder(item)"
                 class="ml-2"
                 x-small
                 color="primary"
