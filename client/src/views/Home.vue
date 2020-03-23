@@ -1,11 +1,10 @@
 <script>
-import { mapState, mapMutations } from "vuex";
+import { mapState, mapMutations, mapActions } from "vuex";
 import { FileManager } from "@girder/components/src/components/Snippet";
 import { getLocationType } from "@girder/components/src/utils";
 
 import Upload from "@/components/Upload";
 import NavigationBar from "@/components/NavigationBar";
-import pipelines from "@/pipelines";
 import { getPathFromLocation, getLocationFromRoute } from "@/utils";
 
 export default {
@@ -19,8 +18,7 @@ export default {
     uploading: false
   }),
   computed: {
-    ...mapState(["location"]),
-    pipelines: () => pipelines,
+    ...mapState(["location", "pipelines"]),
     location: {
       get() {
         return this.location_;
@@ -45,18 +43,23 @@ export default {
       return this.selected.filter(
         model => model._modelType === "folder" && model.meta && model.meta.viame
       );
+    },
+    pipelinesRunnable() {
+      return this.selectedEligibleClips.length < 1 || !this.pipelines.length;
     }
   },
   created() {
     this.location_ = getLocationFromRoute(this.$route);
     this.setLocation(this.location_);
+    this.fetchPipelines();
   },
   beforeRouteUpdate(to, from, next) {
     this.location_ = getLocationFromRoute(to);
     next();
   },
   methods: {
-    ...mapMutations(["setLocation"]),
+    ...mapMutations(["setLocation", "setPipelines"]),
+    ...mapActions(["fetchPipelines"]),
     async openClip(folder) {
       var { data: clipMeta } = await this.girderRest.get(
         "viame_detection/clip_meta",
@@ -246,12 +249,7 @@ export default {
             <template #headerwidget>
               <v-menu offset-y>
                 <template v-slot:activator="{ on }">
-                  <v-btn
-                    v-on="on"
-                    text
-                    small
-                    :disabled="selectedEligibleClips.length < 1"
-                  >
+                  <v-btn v-on="on" text small :disabled="pipelinesRunnable">
                     <v-icon left color="accent">mdi-pipe</v-icon>
                     Run pipeline
                   </v-btn>

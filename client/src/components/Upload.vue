@@ -1,8 +1,7 @@
 <script>
+import { mapState } from "vuex";
 import Dropzone from "@girder/components/src/components/Presentation/Dropzone.vue";
 import { Upload } from "@girder/components/src/utils";
-
-import pipelines from "@/pipelines";
 
 export default {
   name: "Upload",
@@ -26,9 +25,10 @@ export default {
     pipelineItems() {
       return [
         { text: "None", value: null },
-        ...pipelines.map(pipeline => ({ text: pipeline, value: pipeline }))
+        ...this.pipelines.map(pipeline => ({ text: pipeline, value: pipeline }))
       ];
-    }
+    },
+    ...mapState(["pipelines"])
   },
   methods: {
     async dropped(e) {
