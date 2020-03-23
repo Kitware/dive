@@ -43,6 +43,9 @@ export default {
       return this.selected.filter(
         model => model._modelType === "folder" && model.meta && model.meta.viame
       );
+    },
+    pipelinesRunnable() {
+      return this.selectedEligibleClips.length < 1 || !this.pipelines.length;
     }
   },
   created() {
@@ -246,14 +249,7 @@ export default {
             <template #headerwidget>
               <v-menu offset-y>
                 <template v-slot:activator="{ on }">
-                  <v-btn
-                    v-on="on"
-                    text
-                    small
-                    :disabled="
-                      selectedEligibleClips.length < 1 || !pipelines.length
-                    "
-                  >
+                  <v-btn v-on="on" text small :disabled="pipelinesRunnable">
                     <v-icon left color="accent">mdi-pipe</v-icon>
                     Run pipeline
                   </v-btn>
