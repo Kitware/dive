@@ -18,7 +18,8 @@ export default {
   },
   data: () => ({
     pendingUploads: [],
-    defaultFPS: "10" //requires string for the input item
+    defaultFPS: "10", // requires string for the input item
+    createFolder: true
   }),
   computed: {
     uploadEnabled() {
@@ -106,6 +107,7 @@ export default {
       while (this.pendingUploads.length > 0) {
         await this.uploadPending(this.pendingUploads[0], uploaded);
       }
+      this.createFolder = true;
       this.$emit("update:uploading", false);
       console.log(uploaded);
       this.$emit("uploaded", uploaded);
@@ -280,14 +282,6 @@ function prepareFiles(files) {
                   :disabled="pendingUpload.uploading"
                 ></v-text-field>
               </v-col>
-              <v-col :cols="4">
-                <v-select
-                  v-model="pendingUpload.pipeline"
-                  :items="pipelineItems"
-                  label="Run pipeline"
-                  :disabled="pendingUpload.uploading"
-                />
-              </v-col>
             </v-row>
             <v-list-item-subtitle>
               {{ computeUploadProgress(pendingUpload) }}
@@ -325,6 +319,9 @@ function prepareFiles(files) {
             absolute
             bottom
           ></v-progress-linear>
+        </v-list-item>
+        <v-list-item>
+          <v-switch label="Create Folder" v-model="createFolder" />
         </v-list-item>
       </v-list>
     </v-form>
