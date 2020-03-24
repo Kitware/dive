@@ -152,9 +152,9 @@ class ViameDetection(Resource):
         user = self.getCurrentUser()
 
         def valueToString(value):
-            if value == True:
+            if value is True:
                 return "true"
-            elif value == False:
+            elif value is False:
                 return "false"
             return str(value)
 
@@ -207,7 +207,7 @@ class ViameDetection(Resource):
         newResultItem = Item().createItem("result_" + timestamp + ".csv", user, folder)
         Item().setMetadata(
             newResultItem,
-            {"folderId": str(folder["_id"]), "pipeline": pipeline,},
+            {"folderId": str(folder["_id"]), "pipeline": pipeline},
             allowNull=True,
         )
         theBytes = csvFile.getvalue().encode()
