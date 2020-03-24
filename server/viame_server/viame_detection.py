@@ -57,16 +57,18 @@ class ViameDetection(Resource):
         reader = csv.reader(row for row in rows if (not row.startswith("#") and row))
         detections = []
         for row in reader:
-            confidence_pairs = []
             features = {}
             attributes = {}
             track_attributes = {}
-            for i in [i for i in range(9, len(row)) if i % 2 != 0]:
-                # Not confidence pair anymore
-                if row[i].startswith("("):
-                    break
-                confidence_pairs.append([row[i], float(row[i + 1])])
-            for j in range(i, len(row)):
+
+            confidence_pairs = [
+                [row[i], float(row[i + 1])]
+                for i in range(9, len(row), 2)
+                if not row[i].startswith("(")
+            ]
+            start = len(row) - 1 if len(row) % 2 == 0 else len(row) - 2
+
+            for j in range(start, len(row)):
                 if row[j].startswith("(kp)"):
                     if "head" in row[j]:
                         groups = re.match(r"\(kp\) head ([0-9]+) ([0-9]+)", row[j])
