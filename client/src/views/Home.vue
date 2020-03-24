@@ -62,7 +62,7 @@ export default {
     ...mapActions(["fetchPipelines"]),
     isAnnotationFolder(item) {
       // Will be updated to check for other info
-      return item._modelType === "folder";
+      return item._modelType === "folder" && item.meta.annotate;
     },
     async openClip(folder) {
       this.$router.push(`/viewer/${folder._id}`);
