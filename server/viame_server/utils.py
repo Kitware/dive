@@ -48,18 +48,3 @@ def move_existing_result_to_auxiliary_folder(folder, user):
     )
     if existingResultItem:
         Item().move(existingResultItem, auxiliary)
-
-
-def check_existing_annotations(event):
-    info = event.info
-
-    if "annotations.csv" in info["importPath"]:
-        item = Item().findOne({"_id": info["id"]})
-        item["meta"].update({"folderId": str(item["folderId"]), "pipeline": None})
-        Item().save(item)
-
-        folder = Folder().findOne({"_id": item["folderId"]})
-
-        # FPS is hardcoded for now
-        folder["meta"].update({"type": "image-sequence", "viame": True, "fps": 30})
-        Folder().save(folder)
