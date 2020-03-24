@@ -1,6 +1,6 @@
 ## Development
 
-Install https://github.com/subdavis/ldc
+Install https://github.com/Kitware/ldc
 
 ```bash
 # copy .env.example and make any changes
