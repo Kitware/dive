@@ -406,13 +406,24 @@ export default {
       this.dataset = dataset || null;
     },
     async loadDetections() {
-      var { data: detections } = await this.girderRest.get("viame_detection", {
-        params: { folderId: this.dataset._id }
-      });
+      let detections = [];
+      try {
+        const { data } = await this.girderRest.get("viame_detection", {
+          params: { folderId: this.dataset._id }
+        });
 
-      this.detections = detections
-        ? detections.map(detection => Object.freeze(detection))
-        : [];
+        detections = data
+          ? data.map(detection => Object.freeze(detection))
+          : [];
+      } catch {
+        detections = [];
+        this.$snackbar({
+          text: "Error while loading existing detections",
+          timeout: 4500
+        });
+      } finally {
+        this.detections = detections;
+      }
     },
     annotationClick(data) {
       if (!this.featurePointing) {
