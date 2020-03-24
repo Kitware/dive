@@ -269,7 +269,10 @@ function prepareFiles(files) {
                   :disabled="pendingUpload.uploading"
                 ></v-text-field>
               </v-col>
-              <v-col :cols="2" v-if="pendingUpload.type === 'image-sequence'">
+              <v-col
+                :cols="2"
+                v-if="pendingUpload.type === 'image-sequence' && createFolder"
+              >
                 <v-text-field
                   v-model="pendingUpload.fps"
                   type="number"
