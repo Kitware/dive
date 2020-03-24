@@ -2,17 +2,16 @@
 import { mapState } from "vuex";
 import Dropzone from "@girder/components/src/components/Presentation/Dropzone.vue";
 import { Upload } from "@girder/components/src/utils";
+import { fileUploader } from "@girder/components/src/utils/mixins";
 
 export default {
   name: "Upload",
   components: { Dropzone },
+  mixins: [fileUploader],
   inject: ["girderRest"],
   props: {
     location: {
       type: Object
-    },
-    uploading: {
-      type: Boolean
     }
   },
   data: () => ({
@@ -83,6 +82,8 @@ export default {
               }
             }
           );
+          await this.start(folder);
+          /*
           var pending = files;
           var results = [];
           while (pending.length) {
@@ -98,6 +99,7 @@ export default {
               )
             );
           }
+          */
           uploaded.push({ folder, results, pipeline: pendingUpload.pipeline });
           this.remove(pendingUpload);
         })
@@ -232,7 +234,7 @@ function prepareFiles(files) {
             <v-list-item-subtitle
               v-if="pendingUpload.type === 'image-sequence'"
             >
-              {{ pendingUpload.files.length }} images
+              {{ totalProgress }} images
             </v-list-item-subtitle>
           </v-list-item-content>
           <v-list-item-action>
