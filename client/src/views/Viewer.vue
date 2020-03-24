@@ -93,7 +93,8 @@ export default {
       if (!this.items) {
         return null;
       }
-      return this.items
+
+      const items = this.items
         .filter(item => {
           var name = item.name.toLowerCase();
           return (
@@ -105,6 +106,15 @@ export default {
         .map(item => {
           return `api/v1/item/${item._id}/download`;
         });
+
+      if (!items.length) {
+        this.$snackbar({
+          text: "No images found",
+          timeout: 4500
+        });
+      }
+
+      return items;
     },
     frameRate() {
       if (!this.dataset) {
