@@ -134,7 +134,7 @@ export default {
         videos.forEach(result => {
           this.girderRest.post(`/viame/conversion?itemId=${result.itemId}`);
         });
-        return !!videos;
+        return !!videos.length;
       });
       if (transcodes.length) {
         this.$snackbar({
