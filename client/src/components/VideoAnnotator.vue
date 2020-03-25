@@ -100,7 +100,6 @@ export default {
       };
       interactorOpts.wheelScaleY = 0.2;
       this.viewer.interactor().options(interactorOpts);
-      console.log(this.viewer.interactor());
       this.quadFeatureLayer = this.viewer.createLayer("feature", {
         features: ["quad.video"]
       });
