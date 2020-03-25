@@ -64,9 +64,6 @@ export default {
       this.init();
     };
     video.addEventListener("pause", this.videoPaused);
-    // setTimeout(() => {
-    //   this.play();
-    // }, 2000);
   },
   methods: {
     init() {

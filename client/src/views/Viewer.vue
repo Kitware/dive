@@ -861,15 +861,20 @@ function geojsonToBound2(geojson) {
             </v-btn>
           </template>
           <v-list>
-            <v-list-item @click="toggleFeaturePointing">
-              <v-list-item-title>Add feature points (F key)</v-list-item-title>
+            <v-list-item @click="toggleFeaturePointing('head')">
+              <v-list-item-title>
+                Add feauture points, starting with head (g key)
+              </v-list-item-title>
             </v-list-item>
-            <v-list-item @click="deleteFeaturePoints">
-              <v-list-item-title>Delete feature points</v-list-item-title>
+            <v-list-item @click="toggleFeaturePointing('tail')">
+              <v-list-item-title>
+                Add feature points, starting with tail (t key)
+              </v-list-item-title>
             </v-list-item>
-            <v-divider />
             <v-list-item @click="deleteDetection">
-              <v-list-item-title>Delete detection (D key)</v-list-item-title>
+              <v-list-item-title>
+                Delete both feauture points for current frame (q key)
+              </v-list-item-title>
             </v-list-item>
           </v-list>
         </v-menu>
