@@ -106,7 +106,7 @@ export default {
         this.playing = true;
         this.syncWithVideo();
       } catch (ex) {
-        console.log(ex);
+        console.error(ex);
       }
     },
     async seek(frame) {
@@ -163,9 +163,7 @@ export default {
         setTimeout(this.syncWithVideo, 1000 / this.frameRate);
       }
     },
-    rendered() {
-      // console.log("rendered an");
-    },
+    rendered() {},
     cacheImage() {
       var frame = this.frame;
       var max = Math.min(frame + 10, this.maxFrame);

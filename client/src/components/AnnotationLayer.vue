@@ -62,8 +62,6 @@ export default {
     }
   },
   mounted() {
-    // console.log('mounted');
-    // console.log(this.annotator.viewer);
     var viewer = this.annotator.viewer;
     this.featureLayer = viewer.createLayer("feature", {
       features: ["point", "line", "polygon"]

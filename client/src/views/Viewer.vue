@@ -70,7 +70,7 @@ export default {
     frame: null,
     pendingSave: false,
     featurePointing: false,
-    featurePointIndex: 0,
+    featurePointTarget: "head",
     featurePointingGeojson: null
   }),
   computed: {
@@ -398,6 +398,17 @@ export default {
   methods: {
     typeColorMap,
     getPathFromLocation,
+    /* TODO: DANGER: reaching into refs like this is highly non-standard */
+    seek(frame) {
+      this.$refs.playbackComponent.provided.$emit("seek", frame);
+    },
+    nextFrame() {
+      this.$refs.playbackComponent.provided.$emit("next-frame");
+    },
+    prevFrame() {
+      this.$refs.playbackComponent.provided.$emit("next-frame");
+    },
+    /* END TODO */
     async loadDataset(datasetId) {
       var { data: dataset } = await this.girderRest.get(`folder/${datasetId}`);
       if (!dataset || !dataset.meta || !dataset.meta.viame) {
@@ -439,7 +450,7 @@ export default {
       this.selectedTrackId = track.trackId;
       var frame = this.eventChartData.find(d => d.track === track.trackId)
         .range[0];
-      this.$refs.playpackComponent.provided.$emit("seek", frame);
+      this.seek(frame);
     },
     async deleteTrack(track) {
       var result = await this.$prompt({
@@ -466,46 +477,60 @@ export default {
     addTrack() {
       this.editingTrack = this.tracks.slice(-1)[0].trackId + 1;
     },
-    toggleFeaturePointing() {
+    async toggleFeaturePointing(target) {
+      this.editingTrack = null;
+      await this.$nextTick();
+      this.featurePointingTarget = target;
       if (this.featurePointing) {
         this.featurePointing = false;
-        this.featurePointIndex = 0;
       } else if (this.selectedTrackId === null) {
         return;
       } else {
         this.featurePointing = true;
       }
     },
+    /**
+     * When a feature point is set, update the selected detection.
+     * - if both head and tail are set, we're done.
+     * - if only one is set, automatically prepare to collect the other.
+     * - when both are set, or when right click or escape are hit, disable feature pointing.
+     */
     featurePointed(geojson) {
       this.pendingSave = true;
       var [x, y] = geojson.geometry.coordinates;
       var selectedDetection = this.selectedDetection;
       this.detections.splice(this.detections.indexOf(selectedDetection), 1);
-      this.detections.push(
-        Object.freeze({
-          ...selectedDetection,
-          ...{
-            features: {
-              ...selectedDetection.features,
-              ...{
-                [["head", "tail"][this.featurePointIndex]]: [
-                  x.toFixed(0),
-                  y.toFixed(0)
-                ]
-              }
-            }
+      const newDetection = Object.freeze({
+        ...selectedDetection,
+        ...{
+          features: {
+            ...selectedDetection.features,
+            [this.featurePointingTarget]: [x.toFixed(0), y.toFixed(0)]
           }
-        })
-      );
-      this.featurePointing = false;
-      this.$nextTick(() => {
-        if (this.featurePointIndex < 1) {
-          this.featurePointIndex++;
-          this.featurePointing = true;
-        } else {
-          this.featurePointIndex = 0;
         }
       });
+      this.detections.push(newDetection);
+      /* TODO: DANGER: this is highly non-standard
+       * this and the nextTick() are here to cause
+       * the initialization function inside the EditAnnotationLayer to trip
+       */
+      this.featurePointing = false;
+      this.$nextTick(() => {
+        if (this.featurePointingTarget === "tail") {
+          this.featurePointingTarget = "head";
+        } else {
+          this.featurePointingTarget = "tail";
+        }
+        if (
+          "head" in newDetection.features &&
+          "tail" in newDetection.features
+        ) {
+          this.featurePointing = false;
+        } else {
+          this.featurePointing = true;
+        }
+      });
+      /* END TODO */
     },
     deleteFeaturePoints() {
       this.pendingSave = true;
@@ -752,7 +777,7 @@ function geojsonToBound2(geojson) {
       <v-col style="position: relative; ">
         <component
           class="playback-component"
-          ref="playpackComponent"
+          ref="playbackComponent"
           v-if="imageUrls || videoUrl"
           :is="annotatorType"
           :image-urls="imageUrls"
@@ -760,8 +785,13 @@ function geojsonToBound2(geojson) {
           :frame-rate="frameRate"
           @frame-update="frame = $event"
           v-mousetrap="[
-            { bind: 'f', handler: toggleFeaturePointing },
-            { bind: 'd', handler: deleteDetection }
+            { bind: 'g', handler: () => toggleFeaturePointing('head') },
+            { bind: 'h', handler: () => toggleFeaturePointing('head') },
+            { bind: 't', handler: () => toggleFeaturePointing('tail') },
+            { bind: 'y', handler: () => toggleFeaturePointing('tail') },
+            { bind: 'f', handler: () => $refs.playbackComponent.nextFrame() },
+            { bind: 'd', handler: () => $refs.playbackComponent.prevFrame() },
+            { bind: 'q', handler: deleteDetection }
           ]"
         >
           <template slot="control">
@@ -831,15 +861,20 @@ function geojsonToBound2(geojson) {
             </v-btn>
           </template>
           <v-list>
-            <v-list-item @click="toggleFeaturePointing">
-              <v-list-item-title>Add feature points (F key)</v-list-item-title>
+            <v-list-item @click="toggleFeaturePointing('head')">
+              <v-list-item-title>
+                Add feauture points, starting with head (g key)
+              </v-list-item-title>
             </v-list-item>
-            <v-list-item @click="deleteFeaturePoints">
-              <v-list-item-title>Delete feature points</v-list-item-title>
+            <v-list-item @click="toggleFeaturePointing('tail')">
+              <v-list-item-title>
+                Add feature points, starting with tail (t key)
+              </v-list-item-title>
             </v-list-item>
-            <v-divider />
             <v-list-item @click="deleteDetection">
-              <v-list-item-title>Delete detection (D key)</v-list-item-title>
+              <v-list-item-title>
+                Delete both feauture points for current frame (q key)
+              </v-list-item-title>
             </v-list-item>
           </v-list>
         </v-menu>

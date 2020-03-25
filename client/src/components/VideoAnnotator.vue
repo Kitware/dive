@@ -64,9 +64,6 @@ export default {
       this.init();
     };
     video.addEventListener("pause", this.videoPaused);
-    // setTimeout(() => {
-    //   this.play();
-    // }, 2000);
   },
   methods: {
     init() {
@@ -115,7 +112,7 @@ export default {
         this.playing = true;
         this.syncWithVideo();
       } catch (ex) {
-        console.log(ex);
+        console.error(ex);
       }
     },
     async seek(frame) {
@@ -146,7 +143,6 @@ export default {
     },
     videoPaused() {
       if (this.video.currentTime === this.video.duration) {
-        // console.log("video ended");
         this.frame = 0;
         this.syncedFrame = 0;
         this.pause();
@@ -172,9 +168,7 @@ export default {
     emitFrame() {
       this.$emit("frame-update", this.frame);
     },
-    rendered() {
-      // console.log("rendered an");
-    }
+    rendered() {}
   }
 };
 </script>

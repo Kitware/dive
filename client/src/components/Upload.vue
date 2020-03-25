@@ -144,7 +144,7 @@ async function readEntriesPromise(directoryReader) {
       directoryReader.readEntries(resolve, reject);
     });
   } catch (err) {
-    console.log(err);
+    console.error(err);
   }
 }
 
