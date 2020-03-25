@@ -167,9 +167,7 @@ export default {
       });
       this.path.attr("d", d => this.line(d.values));
     },
-    rendered() {
-      console.log("linechart rendered");
-    }
+    rendered() {}
   }
 };
 </script>

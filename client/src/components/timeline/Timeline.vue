@@ -187,9 +187,6 @@ export default {
     containerMouseup() {
       this.minimapDragging = false;
     }
-    // rendered() {
-    // console.log("timeline rendered");
-    // }
   }
 };
 </script>

@@ -38,9 +38,11 @@ export default {
   },
   watch: {
     geojson() {
+      // reinitialize when annotations change.
       this.reinitialize();
     },
     editing() {
+      // reinitialize when pointer editing mode is toggled
       this.reinitialize();
     }
   },

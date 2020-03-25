@@ -34,7 +34,6 @@ export default {
           value = undefined;
           break;
       }
-      console.log(value);
       this.$emit("change", { name: this.name, value });
     }
   }
