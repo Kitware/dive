@@ -1,7 +1,6 @@
 <script>
 import { mapState } from "vuex";
 import Dropzone from "@girder/components/src/components/Presentation/Dropzone.vue";
-import { Upload } from "@girder/components/src/utils";
 import {
   fileUploader,
   sizeFormatter
@@ -51,7 +50,7 @@ export default {
     addPendingUpload(name, allFiles) {
       var [type, files] = prepareFiles(allFiles);
       let defaultFilename = files[0].name;
-      // mapping needs to be done for the mixin upload tool
+      // mapping needs to be done for the mixin upload functions
       files = files.map(file => ({
         file,
         status: "pending",
@@ -91,6 +90,7 @@ export default {
         await this.uploadPending(this.pendingUploads[0], uploaded);
       }
       this.$emit("update:uploading", false);
+      console.log(uploaded);
       this.$emit("uploaded", uploaded);
     },
     async uploadPending(pendingUpload, uploaded) {
@@ -113,10 +113,10 @@ export default {
       );
 
       // function called after mixins upload finishes
-      const postUpload = result => {
+      const postUpload = data => {
         uploaded.push({
           folder,
-          result,
+          results: data.results,
           pipeline: pendingUpload.pipeline
         });
       };
