@@ -15,7 +15,8 @@ export default {
     }
   },
   data: () => ({
-    pendingUploads: []
+    pendingUploads: [],
+    defaultFPS: "10" //requires string for the input item
   }),
   computed: {
     uploadEnabled() {
@@ -30,22 +31,29 @@ export default {
     ...mapState(["pipelines"])
   },
   methods: {
+    filesNotUploaded(item) {
+      return item.files.filter(
+        item => item.status !== "done" && item.status !== "error"
+      ).length;
+    },
     async dropped(e) {
       e.preventDefault();
       let [name, files] = await readFilesFromDrop(e);
       this.addPendingUpload(name, files);
     },
     onFileChange(files) {
+      console.log(files);
       var name = files.length === 1 ? files[0].name : "";
       this.addPendingUpload(name, files);
     },
     addPendingUpload(name, allFiles) {
       var [type, files] = prepareFiles(allFiles);
+      this.inputFilesChanged(files);
       this.pendingUploads.push({
-        name,
-        files,
+        name: files[0].name.replace(/\..*/, ""),
+        files: this.files,
         type,
-        fps: null,
+        fps: this.defaultFPS,
         pipeline: null,
         uploading: false
       });
@@ -82,26 +90,22 @@ export default {
               }
             }
           );
-          await this.start(folder);
-          /*
-          var pending = files;
+          const postUpload = result => {
+            results.concat(result);
+            uploaded.push({
+              folder,
+              results,
+              pipeline: pendingUpload.pipeline
+            });
+            this.remove(pendingUpload);
+          };
+          this.setFiles(files);
+
           var results = [];
-          while (pending.length) {
-            results = results.concat(
-              await Promise.all(
-                pending.splice(0, 500).map(async file => {
-                  var uploader = new Upload(file, {
-                    $rest: this.girderRest,
-                    parent: folder
-                  });
-                  return await uploader.start();
-                })
-              )
-            );
-          }
-          */
-          uploaded.push({ folder, results, pipeline: pendingUpload.pipeline });
-          this.remove(pendingUpload);
+          await this.start({
+            dest: folder,
+            postUpload: postUpload
+          });
         })
       );
       this.$emit("update:uploading", false);
@@ -234,7 +238,7 @@ function prepareFiles(files) {
             <v-list-item-subtitle
               v-if="pendingUpload.type === 'image-sequence'"
             >
-              {{ totalProgress }} images
+              {{ filesNotUploaded(pendingUpload) }} images
             </v-list-item-subtitle>
           </v-list-item-content>
           <v-list-item-action>
@@ -256,7 +260,7 @@ function prepareFiles(files) {
         </v-list-item>
       </v-list>
     </v-form>
-    <div class="dropzone-container">
+    <div v-if="!this.uploading" class="dropzone-container">
       <Dropzone
         class="dropzone"
         multiple
