@@ -51,6 +51,7 @@ export default {
     addPendingUpload(name, allFiles) {
       var [type, files] = prepareFiles(allFiles);
       let defaultFilename = files[0].name;
+      // mapping needs to be done for the mixin upload tool
       files = files.map(file => ({
         file,
         status: "pending",
@@ -84,49 +85,54 @@ export default {
       }
       var uploaded = [];
       this.$emit("update:uploading", true);
-      await Promise.all(
-        this.pendingUploads.map(async pendingUpload => {
-          var { name, files, fps } = pendingUpload;
-          fps = parseInt(fps);
-          pendingUpload.uploading = true;
-          var { data: folder } = await this.girderRest.post(
-            "/folder",
-            `metadata=${JSON.stringify({
-              viame: true,
-              fps,
-              type: pendingUpload.type
-            })}`,
-            {
-              params: {
-                parentId: this.location._id,
-                name
-              }
-            }
-          );
-          const postUpload = result => {
-            results.concat(result);
-            uploaded.push({
-              folder,
-              results,
-              pipeline: pendingUpload.pipeline
-            });
-            this.remove(pendingUpload);
-          };
-          this.setFiles(files);
 
-          var results = [];
-          await this.start({
-            dest: folder,
-            postUpload: postUpload
-          });
-        })
-      );
+      // This is in a while loop to act like a Queue with it adding new items during upload
+      while (this.pendingUploads.length > 0) {
+        await this.uploadPending(this.pendingUploads[0], uploaded);
+      }
       this.$emit("update:uploading", false);
       this.$emit("uploaded", uploaded);
+    },
+    async uploadPending(pendingUpload, uploaded) {
+      var { name, files, fps } = pendingUpload;
+      fps = parseInt(fps);
+      pendingUpload.uploading = true;
+      var { data: folder } = await this.girderRest.post(
+        "/folder",
+        `metadata=${JSON.stringify({
+          viame: true,
+          fps,
+          type: pendingUpload.type
+        })}`,
+        {
+          params: {
+            parentId: this.location._id,
+            name
+          }
+        }
+      );
+
+      // function called after mixins upload finishes
+      const postUpload = result => {
+        uploaded.push({
+          folder,
+          result,
+          pipeline: pendingUpload.pipeline
+        });
+      };
+
+      // Sets the files used by the upload mixin
+      this.setFiles(files);
+
+      // Upload Mixin function to begin uploading
+      await this.start({
+        dest: folder,
+        postUpload: postUpload
+      });
+      this.remove(pendingUpload);
     }
   }
 };
-
 async function readFilesFromDrop(e) {
   var item = e.dataTransfer.items[0];
   var firstEntry = item.webkitGetAsEntry();
@@ -255,7 +261,7 @@ function prepareFiles(files) {
             </v-list-item-subtitle>
             <v-list-item-subtitle v-if="pendingUpload.type === 'video'">
               {{
-                !uploading
+                !pendingUpload.files[0].upload
                   ? formatSize(pendingUpload.files[0].progress.size)
                   : `${formatSize(totalProgress)} of ${formatSize(totalSize)}`
               }}
