@@ -89,8 +89,14 @@ export default {
         interactorOpts.actions[7],
         interactorOpts.actions[8]
       ];
+      interactorOpts.zoomAnimation = {
+        enabled: false
+      };
+      interactorOpts.momentum = {
+        enabled: false
+      };
+      interactorOpts.wheelScaleY = 0.2;
       this.viewer.interactor().options(interactorOpts);
-
       this.quadFeatureLayer = this.viewer.createLayer("feature", {
         features: ["quad.video"]
       });
