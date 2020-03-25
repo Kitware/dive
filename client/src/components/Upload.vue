@@ -2,12 +2,15 @@
 import { mapState } from "vuex";
 import Dropzone from "@girder/components/src/components/Presentation/Dropzone.vue";
 import { Upload } from "@girder/components/src/utils";
-import { fileUploader } from "@girder/components/src/utils/mixins";
+import {
+  fileUploader,
+  sizeFormatter
+} from "@girder/components/src/utils/mixins";
 
 export default {
   name: "Upload",
   components: { Dropzone },
-  mixins: [fileUploader],
+  mixins: [fileUploader, sizeFormatter],
   inject: ["girderRest"],
   props: {
     location: {
@@ -42,16 +45,26 @@ export default {
       this.addPendingUpload(name, files);
     },
     onFileChange(files) {
-      console.log(files);
       var name = files.length === 1 ? files[0].name : "";
       this.addPendingUpload(name, files);
     },
     addPendingUpload(name, allFiles) {
       var [type, files] = prepareFiles(allFiles);
-      this.inputFilesChanged(files);
+      let defaultFilename = files[0].name;
+      files = files.map(file => ({
+        file,
+        status: "pending",
+        progress: {
+          indeterminate: false,
+          current: 0,
+          size: file.size
+        },
+        upload: null,
+        result: null
+      }));
       this.pendingUploads.push({
-        name: files[0].name.replace(/\..*/, ""),
-        files: this.files,
+        name: defaultFilename.replace(/\..*/, ""),
+        files: files,
         type,
         fps: this.defaultFPS,
         pipeline: null,
@@ -150,7 +163,7 @@ async function readEntriesPromise(directoryReader) {
       directoryReader.readEntries(resolve, reject);
     });
   } catch (err) {
-    console.log(err);
+    console.error(err);
   }
 }
 
@@ -193,7 +206,7 @@ function prepareFiles(files) {
         <v-toolbar-title>Pending upload</v-toolbar-title>
         <v-spacer />
         <v-btn type="submit" text :disabled="!uploadEnabled">
-          Upload
+          Start Upload
         </v-btn>
       </v-toolbar>
       <v-list class="py-0 pending-uploads">
@@ -240,6 +253,13 @@ function prepareFiles(files) {
             >
               {{ filesNotUploaded(pendingUpload) }} images
             </v-list-item-subtitle>
+            <v-list-item-subtitle v-if="pendingUpload.type === 'video'">
+              {{
+                !uploading
+                  ? formatSize(pendingUpload.files[0].progress.size)
+                  : `${formatSize(totalProgress)} of ${formatSize(totalSize)}`
+              }}
+            </v-list-item-subtitle>
           </v-list-item-content>
           <v-list-item-action>
             <v-btn
@@ -260,7 +280,7 @@ function prepareFiles(files) {
         </v-list-item>
       </v-list>
     </v-form>
-    <div v-if="!this.uploading" class="dropzone-container">
+    <div class="dropzone-container">
       <Dropzone
         class="dropzone"
         multiple
