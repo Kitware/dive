@@ -309,7 +309,7 @@ function prepareFiles(files) {
                   </v-btn>
                 </v-alert>
               </div>
-            </v-list-item-subtitle>
+            </v-list-item-subtitle>            
           </v-list-item-content>
           <v-list-item-action>
             <v-btn
