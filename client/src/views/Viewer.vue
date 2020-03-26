@@ -89,7 +89,6 @@ export default {
       }
     },
     imageUrls() {
-      // if (!this.items || this.dataset.meta.type !== "image-sequence") {
       if (!this.items) {
         return null;
       }
