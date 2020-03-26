@@ -33,10 +33,27 @@ export default {
     ...mapState(["pipelines"])
   },
   methods: {
+    // Filter to show how many images are left to upload
     filesNotUploaded(item) {
       return item.files.filter(
         item => item.status !== "done" && item.status !== "error"
       ).length;
+    },
+    // Takes the pending upload and returns the # of images or size of the file
+    computeUploadProgress(pendingUpload) {
+      // formatSize, totalProgress and totalSize are located in the fileUploader and sizeFormatter mixin
+      if (pendingUpload.files.length === 1 && !pendingUpload.uploading) {
+        return this.formatSize(pendingUpload.files[0].progress.size);
+      } else if (pendingUpload.type == "image-sequence") {
+        return `${this.filesNotUploaded(pendingUpload)} images`;
+      } else if (pendingUpload.type == "video" && !pendingUpload.uploading) {
+        return `${this.filesNotUploaded(pendingUpload)} videos`;
+      } else if (pendingUpload.type === "video" && pendingUpload.uploading) {
+        // For videos we display the total progress when uploading because single videos can be large
+        return `${this.formatSize(this.totalProgress)} of ${this.formatSize(
+          this.totalSize
+        )}`;
+      }
     },
     async dropped(e) {
       e.preventDefault();
@@ -97,20 +114,35 @@ export default {
       var { name, files, fps } = pendingUpload;
       fps = parseInt(fps);
       pendingUpload.uploading = true;
-      var { data: folder } = await this.girderRest.post(
-        "/folder",
-        `metadata=${JSON.stringify({
-          viame: true,
-          fps,
-          type: pendingUpload.type
-        })}`,
-        {
-          params: {
-            parentId: this.location._id,
-            name
+      var { data: folder } = await this.girderRest
+        .post(
+          "/folder",
+          `metadata=${JSON.stringify({
+            viame: true,
+            fps,
+            type: pendingUpload.type
+          })}`,
+          {
+            params: {
+              parentId: this.location._id,
+              name
+            }
           }
-        }
-      );
+        )
+        .catch(error => {
+          if (
+            error.response &&
+            error.response.data &&
+            error.response.data.message
+          ) {
+            this.errorMessage = error.response.data.message;
+          } else {
+            this.errorMessage = error;
+          }
+          pendingUpload.uploading = false;
+          // Return empty object for the folder destructuring
+          return { data: null };
+        });
 
       // function called after mixins upload finishes
       const postUpload = data => {
@@ -121,15 +153,18 @@ export default {
         });
       };
 
-      // Sets the files used by the upload mixin
+      // Sets the files used by the fileUploader mixin
       this.setFiles(files);
 
-      // Upload Mixin function to begin uploading
-      await this.start({
-        dest: folder,
-        postUpload: postUpload
-      });
-      this.remove(pendingUpload);
+      // Only call if the folder post() is successful
+      if (pendingUpload.uploading) {
+        // Upload Mixin function to start uploading
+        await this.start({
+          dest: folder,
+          postUpload: postUpload
+        });
+        this.remove(pendingUpload);
+      }
     }
   }
 };
@@ -254,17 +289,24 @@ function prepareFiles(files) {
                 />
               </v-col>
             </v-row>
-            <v-list-item-subtitle
-              v-if="pendingUpload.type === 'image-sequence'"
-            >
-              {{ filesNotUploaded(pendingUpload) }} images
-            </v-list-item-subtitle>
-            <v-list-item-subtitle v-if="pendingUpload.type === 'video'">
-              {{
-                !pendingUpload.files[0].upload
-                  ? formatSize(pendingUpload.files[0].progress.size)
-                  : `${formatSize(totalProgress)} of ${formatSize(totalSize)}`
-              }}
+            <v-list-item-subtitle>
+              {{ computeUploadProgress(pendingUpload) }}
+              <!-- errorMessage is provided by the fileUploader mixin -->
+              <div v-if="errorMessage">
+                <v-alert :value="true" dark="dark" tile="tile" type="error">
+                  {{ errorMessage }}
+                  <v-btn
+                    v-if="!uploading"
+                    class="ml-3"
+                    dark="dark"
+                    small="small"
+                    outlined="outlined"
+                    @click="remove(pendingUpload)"
+                  >
+                    Abort
+                  </v-btn>
+                </v-alert>
+              </div>
             </v-list-item-subtitle>
           </v-list-item-content>
           <v-list-item-action>
