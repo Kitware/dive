@@ -112,11 +112,12 @@ export default {
       this.$emit("uploaded", uploaded);
     },
     async uploadPending(pendingUpload, uploaded) {
-      var { name, files, fps } = pendingUpload;
+      let { name, files, fps } = pendingUpload;
       fps = parseInt(fps);
       pendingUpload.uploading = true;
-      var { data: folder } = await this.girderRest
-        .post(
+      let folder;
+      try {
+        ({ data: folder } = await this.girderRest.post(
           "/folder",
           `metadata=${JSON.stringify({
             viame: true,
@@ -129,27 +130,27 @@ export default {
               name
             }
           }
-        )
-        .catch(error => {
-          if (
-            error.response &&
-            error.response.data &&
-            error.response.data.message
-          ) {
-            this.errorMessage = error.response.data.message;
-          } else {
-            this.errorMessage = error;
-          }
-          pendingUpload.uploading = false;
-          // Return empty object for the folder destructuring
-          return { data: null };
-        });
+        ));
+      } catch (error) {
+        if (
+          error.response &&
+          error.response.data &&
+          error.response.data.message
+        ) {
+          this.errorMessage = error.response.data.message;
+        } else {
+          this.errorMessage = error;
+        }
+        pendingUpload.uploading = false;
+        // Set an empty object for the folder destructuring
+        folder = null;
+      }
 
       // function called after mixins upload finishes
       const postUpload = data => {
         uploaded.push({
           folder,
-          results: data.results,
+          results: data && data.results,
           pipeline: pendingUpload.pipeline
         });
       };
