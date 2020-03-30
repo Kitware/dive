@@ -103,7 +103,7 @@ export default {
 
 .selected {
   font-weight: bold;
-  background-color: var(--v-primary-darken2);
+  background-color: var(--v-accent-darken2);
 }
 
 .hover-show-parent {

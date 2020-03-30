@@ -10,7 +10,8 @@ vuetifyConfig.theme.options.customProperties = true;
 vuetifyConfig.theme.dark = true;
 vuetifyConfig.theme.themes.dark = {
   ...vuetifyConfig.theme.themes.dark,
-  ...{ accent: colors.blue.lighten1, primary: { base: "#004787" } }
+  ...{ accent: colors.blue.lighten1 },
+  ...{ primary: "#004787" }
 };
 
 export default new Vuetify(vuetifyConfig);
