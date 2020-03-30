@@ -18,20 +18,12 @@ export default {
   },
   data: () => ({
     pendingUploads: [],
-    defaultFPS: "10", // requires string for the input item
-    createFolder: true
+    defaultFPS: "10" //requires string for the input item
   }),
   computed: {
     uploadEnabled() {
       return this.location && this.location._modelType === "folder";
-    },
-    pipelineItems() {
-      return [
-        { text: "None", value: null },
-        ...this.pipelines.map(pipeline => ({ text: pipeline, value: pipeline }))
-      ];
-    },
-    ...mapState(["pipelines"])
+    }
   },
   methods: {
     // Filter to show how many images are left to upload
@@ -85,7 +77,6 @@ export default {
         files: files,
         type,
         fps: this.defaultFPS,
-        pipeline: null,
         uploading: false
       });
     },
@@ -107,7 +98,6 @@ export default {
       while (this.pendingUploads.length > 0) {
         await this.uploadPending(this.pendingUploads[0], uploaded);
       }
-      this.createFolder = true;
       this.$emit("update:uploading", false);
       console.log(uploaded);
       this.$emit("uploaded", uploaded);
@@ -150,8 +140,7 @@ export default {
       const postUpload = data => {
         uploaded.push({
           folder,
-          results: data.results,
-          pipeline: pendingUpload.pipeline
+          results: data.results
         });
       };
 
@@ -269,10 +258,7 @@ function prepareFiles(files) {
                   :disabled="pendingUpload.uploading"
                 ></v-text-field>
               </v-col>
-              <v-col
-                :cols="2"
-                v-if="pendingUpload.type === 'image-sequence' && createFolder"
-              >
+              <v-col :cols="2" v-if="pendingUpload.type === 'image-sequence'">
                 <v-text-field
                   v-model="pendingUpload.fps"
                   type="number"
@@ -322,9 +308,6 @@ function prepareFiles(files) {
             absolute
             bottom
           ></v-progress-linear>
-        </v-list-item>
-        <v-list-item>
-          <v-switch label="Create Folder" v-model="createFolder" />
         </v-list-item>
       </v-list>
     </v-form>
