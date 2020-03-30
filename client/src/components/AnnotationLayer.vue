@@ -91,7 +91,7 @@ export default {
         ...{
           stroke: true,
           uniformPolygon: true,
-          strokeColor: "lime",
+          strokeColor: this.$vuetify.theme.themes.dark.accent,
           strokeWidth: 1,
           fill: false
         },
