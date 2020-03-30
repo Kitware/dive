@@ -1,5 +1,4 @@
 <script>
-import { mapState } from "vuex";
 import Dropzone from "@girder/components/src/components/Presentation/Dropzone.vue";
 import {
   fileUploader,
@@ -32,20 +31,22 @@ export default {
         item => item.status !== "done" && item.status !== "error"
       ).length;
     },
-    // Takes the pending upload and returns the # of images or size of the file
+    /**
+     * @param {{ type: string, size: number, files: Array, uploading: boolean }} pendingUpload
+     * @returns {number} # of images or size of file depending on type and state
+     *  size, and list of files to upload.
+     */
     computeUploadProgress(pendingUpload) {
-      // formatSize, totalProgress and totalSize are located in the fileUploader and sizeFormatter mixin
+      const { formatSize, totalProgress, totalSize } = this; // use methods and properties from mixins
       if (pendingUpload.files.length === 1 && !pendingUpload.uploading) {
         return this.formatSize(pendingUpload.files[0].progress.size);
-      } else if (pendingUpload.type == "image-sequence") {
+      } else if (pendingUpload.type === "image-sequence") {
         return `${this.filesNotUploaded(pendingUpload)} images`;
-      } else if (pendingUpload.type == "video" && !pendingUpload.uploading) {
+      } else if (pendingUpload.type === "video" && !pendingUpload.uploading) {
         return `${this.filesNotUploaded(pendingUpload)} videos`;
       } else if (pendingUpload.type === "video" && pendingUpload.uploading) {
         // For videos we display the total progress when uploading because single videos can be large
-        return `${this.formatSize(this.totalProgress)} of ${this.formatSize(
-          this.totalSize
-        )}`;
+        return `${formatSize(totalProgress)} of ${formatSize(totalSize)}`;
       }
     },
     async dropped(e) {
@@ -99,15 +100,15 @@ export default {
         await this.uploadPending(this.pendingUploads[0], uploaded);
       }
       this.$emit("update:uploading", false);
-      console.log(uploaded);
       this.$emit("uploaded", uploaded);
     },
     async uploadPending(pendingUpload, uploaded) {
-      var { name, files, fps } = pendingUpload;
+      let { name, files, fps } = pendingUpload;
       fps = parseInt(fps);
       pendingUpload.uploading = true;
-      var { data: folder } = await this.girderRest
-        .post(
+      let folder;
+      try {
+        ({ data: folder } = await this.girderRest.post(
           "/folder",
           `metadata=${JSON.stringify({
             viame: true,
@@ -120,21 +121,21 @@ export default {
               name
             }
           }
-        )
-        .catch(error => {
-          if (
-            error.response &&
-            error.response.data &&
-            error.response.data.message
-          ) {
-            this.errorMessage = error.response.data.message;
-          } else {
-            this.errorMessage = error;
-          }
-          pendingUpload.uploading = false;
-          // Return empty object for the folder destructuring
-          return { data: null };
-        });
+        ));
+      } catch (error) {
+        if (
+          error.response &&
+          error.response.data &&
+          error.response.data.message
+        ) {
+          this.errorMessage = error.response.data.message;
+        } else {
+          this.errorMessage = error;
+        }
+        pendingUpload.uploading = false;
+        // Set an empty object for the folder destructuring
+        folder = null;
+      }
 
       // function called after mixins upload finishes
       const postUpload = data => {
@@ -152,7 +153,7 @@ export default {
         // Upload Mixin function to start uploading
         await this.start({
           dest: folder,
-          postUpload: postUpload
+          postUpload
         });
         this.remove(pendingUpload);
       }

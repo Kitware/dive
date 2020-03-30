@@ -87,6 +87,13 @@ export default {
         interactorOpts.actions[7],
         interactorOpts.actions[8]
       ];
+      interactorOpts.zoomAnimation = {
+        enabled: false
+      };
+      interactorOpts.momentum = {
+        enabled: false
+      };
+      interactorOpts.wheelScaleY = 0.2;
       this.viewer.interactor().options(interactorOpts);
 
       this.quadFeatureLayer = this.viewer.createLayer("feature", {
@@ -109,7 +116,7 @@ export default {
         this.playing = true;
         this.syncWithVideo();
       } catch (ex) {
-        console.log(ex);
+        console.error(ex);
       }
     },
     async seek(frame) {
@@ -166,9 +173,7 @@ export default {
         setTimeout(this.syncWithVideo, 1000 / this.frameRate);
       }
     },
-    rendered() {
-      // console.log("rendered an");
-    },
+    rendered() {},
     cacheImage() {
       var frame = this.frame;
       var max = Math.min(frame + 10, this.maxFrame);
