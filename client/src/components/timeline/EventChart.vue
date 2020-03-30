@@ -85,6 +85,7 @@ export default {
                 width: Math.max(x(event.range[1]) - left, 3),
                 top: i * 15,
                 color: event.color,
+                selected: event.selected,
                 name: event.name
               });
             });
@@ -135,8 +136,22 @@ export default {
       canvas.width = this.$el.clientWidth;
       canvas.height = bars.slice(-1)[0].top + 10;
       for (var bar of bars) {
+        let padding = 0;
+        console.log(bar);
+        if (bar.selected) {
+          ctx.fillStyle = this.$vuetify.theme.themes.dark.accent;
+
+          ctx.fillRect(bar.left, bar.top, bar.width, 10);
+          padding = 2;
+        }
+
         ctx.fillStyle = bar.color ? bar.color : "#4c9ac2";
-        ctx.fillRect(bar.left, bar.top, bar.width, 10);
+        ctx.fillRect(
+          bar.left + padding,
+          bar.top + padding,
+          bar.width - padding*2,
+          10 - padding*2
+        );
       }
     },
     mousemove(e) {

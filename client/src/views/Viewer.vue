@@ -24,7 +24,6 @@ import { getPathFromLocation } from "@/utils";
 
 var typeColors = [
   colors.red.accent1,
-  colors.pink.accent1,
   colors.yellow.darken3,
   colors.purple.lighten3,
   colors.green.lighten3,
@@ -275,6 +274,7 @@ export default {
             track: detections[0].track,
             name: `Track ${name}`,
             color: typeColorMap(detections[0].confidencePairs[0][0]),
+            selected: detections[0].track === this.selectedTrackId,
             range
           };
         });
