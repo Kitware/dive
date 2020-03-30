@@ -838,7 +838,10 @@ function geojsonToBound2(geojson) {
             v-if="editingTrack !== null"
             editing="rectangle"
             :geojson="editingDetectionGeojson"
-            :feature-style="{ fill: false, strokeColor: this.$vuetify.theme.themes.dark.accent }"
+            :feature-style="{
+              fill: false,
+              strokeColor: this.$vuetify.theme.themes.dark.accent
+            }"
             @update:geojson="detectionChanged"
           />
           <EditAnnotationLayer
