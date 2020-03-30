@@ -40,7 +40,6 @@ export default {
       ).length;
     },
     /**
-     * Takes the pending upload and returns the # of images or size of the file based on the type and state
      * @param {{ type: string, size: number, files: Array, uploading: boolean }} pendingUpload
      * @returns {number} # of images or size of file depending on type and state
      *  size, and list of files to upload.
