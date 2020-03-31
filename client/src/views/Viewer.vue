@@ -93,9 +93,9 @@ export default {
         return null;
       }
 
-      const items = this.items
+      return this.items
         .filter(item => {
-          var name = item.name.toLowerCase();
+          let name = item.name.toLowerCase();
           return (
             name.endsWith("png") ||
             name.endsWith("jpeg") ||
@@ -105,15 +105,6 @@ export default {
         .map(item => {
           return `api/v1/item/${item._id}/download`;
         });
-
-      if (!items.length) {
-        this.$snackbar({
-          text: "No images found",
-          timeout: 4500
-        });
-      }
-
-      return items;
     },
     frameRate() {
       if (!this.dataset) {
@@ -394,6 +385,14 @@ export default {
     }
   },
   watch: {
+    imageUrls(val) {
+      if (!val.length) {
+        this.$snackbar({
+          text: "No images found",
+          timeout: 4500
+        });
+      }
+    },
     detections() {
       this.updatecheckedTracksAndTypes();
     }
