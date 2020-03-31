@@ -83,10 +83,10 @@ export default {
         return VideoAnnotator;
       } else if (this.dataset.meta.type === "image-sequence") {
         return ImageAnnotator;
-      } else {
-        // Temporary until the above case is more clear
-        return ImageAnnotator;
       }
+
+      // TODO: Clarify the above case
+      return ImageAnnotator;
     },
     imageUrls() {
       if (!this.items) {
