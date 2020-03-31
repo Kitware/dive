@@ -137,7 +137,6 @@ export default {
       canvas.height = bars.slice(-1)[0].top + 10;
       for (var bar of bars) {
         let padding = 0;
-        console.log(bar);
         if (bar.selected) {
           ctx.fillStyle = this.$vuetify.theme.themes.dark.accent;
 
