@@ -82,12 +82,16 @@ export default {
         result: null
       }));
       this.pendingUploads.push({
-        name: defaultFilename.replace(/\..*/, ""),
+        name:
+          files.length > 1
+            ? defaultFilename.replace(/\..*/, "")
+            : defaultFilename,
         files: files,
         type,
         fps: this.defaultFPS,
         pipeline: null,
-        uploading: false
+        uploading: false,
+        createFolder: files.length > 1
       });
     },
     remove(pendingUpload) {
@@ -112,38 +116,54 @@ export default {
       this.$emit("uploaded", uploaded);
     },
     async uploadPending(pendingUpload, uploaded) {
-      let { name, files, fps } = pendingUpload;
+      let { name, files, fps, createFolder } = pendingUpload;
       fps = parseInt(fps);
       pendingUpload.uploading = true;
-      let folder;
-      try {
-        ({ data: folder } = await this.girderRest.post(
-          "/folder",
-          `metadata=${JSON.stringify({
-            viame: true,
-            fps,
-            type: pendingUpload.type
-          })}`,
-          {
-            params: {
-              parentId: this.location._id,
-              name
+      let folder = this.location;
+      if (createFolder) {
+        try {
+          ({ data: folder } = await this.girderRest.post(
+            "/folder",
+            `metadata=${JSON.stringify({
+              viame: true,
+              fps,
+              type: pendingUpload.type
+            })}`,
+            {
+              params: {
+                parentId: this.location._id,
+                name
+              }
             }
+          ));
+        } catch (error) {
+          if (
+            error.response &&
+            error.response.data &&
+            error.response.data.message
+          ) {
+            this.errorMessage = error.response.data.message;
+          } else {
+            this.errorMessage = error;
           }
-        ));
-      } catch (error) {
-        if (
-          error.response &&
-          error.response.data &&
-          error.response.data.message
-        ) {
-          this.errorMessage = error.response.data.message;
-        } else {
-          this.errorMessage = error;
+          pendingUpload.uploading = false;
+          // Set an empty object for the folder destructuring
+          folder = null;
         }
-        pendingUpload.uploading = false;
-        // Set an empty object for the folder destructuring
-        folder = null;
+      }
+
+      // If the filename is different from the uploaded file
+      if (
+        files.length === 1 &&
+        !createFolder &&
+        files[0].file.name !== pendingUpload.name
+      ) {
+        /* TODO: Upgrade Girder Web Components upload mixin to add params
+                 this is a hacky way to rename a single file
+        */
+        files[0].file = new File([files[0].file], pendingUpload.name, {
+          type: files[0].file.type
+        });
       }
 
       // function called after mixins upload finishes
@@ -264,12 +284,36 @@ function prepareFiles(files) {
                     val => (val || '').length > 0 || 'This field is required'
                   ]"
                   required
-                  label="Name"
-                  hide-details
-                  :disabled="pendingUpload.uploading"
+                  :label="
+                    (pendingUpload.createFolder ? 'Folder' : 'File') +
+                      ' Name' +
+                      (!pendingUpload.createFolder &&
+                      pendingUpload.files.length > 1
+                        ? 's'
+                        : '')
+                  "
+                  :disabled="
+                    pendingUpload.uploading ||
+                      (!pendingUpload.createFolder &&
+                        pendingUpload.files.length > 1)
+                  "
+                  persistent-hint
+                  :hint="
+                    !pendingUpload.createFolder &&
+                    pendingUpload.files.length > 1
+                      ? 'default filenames are used'
+                      : ''
+                  "
                 ></v-text-field>
               </v-col>
-              <v-col :cols="2" v-if="pendingUpload.type === 'image-sequence'">
+
+              <v-col
+                cols="2"
+                v-if="
+                  pendingUpload.type === 'image-sequence' &&
+                    pendingUpload.createFolder
+                "
+              >
                 <v-text-field
                   v-model="pendingUpload.fps"
                   type="number"
@@ -282,7 +326,7 @@ function prepareFiles(files) {
                   :disabled="pendingUpload.uploading"
                 ></v-text-field>
               </v-col>
-              <v-col :cols="4">
+              <v-col cols="4">
                 <v-select
                   v-model="pendingUpload.pipeline"
                   :items="pipelineItems"
@@ -290,7 +334,23 @@ function prepareFiles(files) {
                   :disabled="pendingUpload.uploading"
                 />
               </v-col>
+              <v-col cols="1">
+                <v-list-item-action>
+                  <v-btn
+                    icon
+                    small
+                    @click="remove(pendingUpload)"
+                    :disabled="pendingUpload.uploading"
+                  >
+                    <v-icon>mdi-close</v-icon>
+                  </v-btn>
+                </v-list-item-action>
+              </v-col>
             </v-row>
+            <v-switch
+              label="Create Folder"
+              v-model="pendingUpload.createFolder"
+            />
             <v-list-item-subtitle>
               {{ computeUploadProgress(pendingUpload) }}
               <!-- errorMessage is provided by the fileUploader mixin -->
@@ -311,16 +371,7 @@ function prepareFiles(files) {
               </div>
             </v-list-item-subtitle>
           </v-list-item-content>
-          <v-list-item-action>
-            <v-btn
-              icon
-              small
-              @click="remove(pendingUpload)"
-              :disabled="pendingUpload.uploading"
-            >
-              <v-icon>mdi-close</v-icon>
-            </v-btn>
-          </v-list-item-action>
+
           <v-progress-linear
             :active="pendingUpload.uploading"
             :indeterminate="true"
