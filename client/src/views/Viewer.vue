@@ -422,6 +422,11 @@ export default {
     /* END TODO */
     async loadDataset(datasetId) {
       var { data: dataset } = await this.girderRest.get(`folder/${datasetId}`);
+
+      if (!dataset) {
+        throw "Could not fetch dataset!";
+      }
+
       this.dataset = dataset || null;
     },
     async loadDetections() {
