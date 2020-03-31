@@ -17,7 +17,7 @@ def check_existing_annotations(event):
         Folder().save(folder)
 
 
-def mark_folder_for_annotation(event):
+def maybe_mark_folder_for_annotation(event):
     info = event.info
 
     if info["parentType"] != "folder":

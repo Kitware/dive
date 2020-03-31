@@ -8,7 +8,7 @@ from girder import events, plugin
 from .client_webroot import ClientWebroot
 from .viame import Viame
 from .viame_detection import ViameDetection
-from .event import check_existing_annotations, mark_folder_for_annotation
+from .event import check_existing_annotations, maybe_mark_folder_for_annotation
 
 
 env_pipelines_path = getenv("VIAME_PIPELINES_PATH")
@@ -53,4 +53,4 @@ class GirderPlugin(plugin.GirderPlugin):
             "check_annotations",
             check_existing_annotations,
         )
-        events.bind("model.upload.finalize", "fileUpload", mark_folder_for_annotation)
+        events.bind("model.upload.finalize", "fileUpload", maybe_mark_folder_for_annotation)
