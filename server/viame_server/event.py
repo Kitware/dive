@@ -2,6 +2,9 @@ from girder.models.folder import Folder
 from girder.models.item import Item
 
 
+validImageFormats = {"png", "jpg", "jpeg"}
+
+
 def check_existing_annotations(event):
     info = event.info
 
@@ -24,6 +27,8 @@ def maybe_mark_folder_for_annotation(event):
         return
 
     parent = Folder().findOne({"_id": info["parentId"]})
-    if "png" in info["mimeType"] and parent["meta"].get("viame"):
+
+    fileType = info["mimeType"].split("/")[-1]
+    if fileType in validImageFormats and parent["meta"].get("viame"):
         parent["meta"]["annotate"] = True
         Folder().save(parent)
