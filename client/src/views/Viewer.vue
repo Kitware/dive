@@ -82,15 +82,18 @@ export default {
       } else if (this.dataset.meta.type === "image-sequence") {
         return ImageAnnotator;
       }
-      return null;
+
+      // TODO: Clarify the above case
+      return ImageAnnotator;
     },
     imageUrls() {
-      if (!this.items || this.dataset.meta.type !== "image-sequence") {
+      if (!this.items) {
         return null;
       }
+
       return this.items
         .filter(item => {
-          var name = item.name.toLowerCase();
+          let name = item.name.toLowerCase();
           return (
             name.endsWith("png") ||
             name.endsWith("jpeg") ||
@@ -381,6 +384,14 @@ export default {
     }
   },
   watch: {
+    imageUrls(val) {
+      if (!val.length) {
+        this.$snackbar({
+          text: "No images found",
+          timeout: 4500
+        });
+      }
+    },
     detections() {
       this.updatecheckedTracksAndTypes();
     }
@@ -410,18 +421,32 @@ export default {
     /* END TODO */
     async loadDataset(datasetId) {
       var { data: dataset } = await this.girderRest.get(`folder/${datasetId}`);
-      if (!dataset || !dataset.meta || !dataset.meta.viame) {
-        return null;
+
+      if (!dataset) {
+        throw new Error("Could not fetch dataset!");
       }
-      this.dataset = dataset;
+
+      this.dataset = dataset || null;
     },
     async loadDetections() {
-      var { data: detections } = await this.girderRest.get("viame_detection", {
-        params: { folderId: this.dataset._id }
-      });
-      this.detections = detections.map(detection => {
-        return Object.freeze(detection);
-      });
+      let detections = [];
+      try {
+        const { data } = await this.girderRest.get("viame_detection", {
+          params: { folderId: this.dataset._id }
+        });
+
+        detections = data
+          ? data.map(detection => Object.freeze(detection))
+          : [];
+      } catch {
+        detections = [];
+        this.$snackbar({
+          text: "Error while loading existing detections",
+          timeout: 4500
+        });
+      } finally {
+        this.detections = detections;
+      }
     },
     annotationClick(data) {
       if (!this.featurePointing) {
@@ -474,7 +499,9 @@ export default {
       this.editingTrack = track;
     },
     addTrack() {
-      this.editingTrack = this.tracks.slice(-1)[0].trackId + 1;
+      this.editingTrack = this.tracks.length
+        ? this.tracks.slice(-1)[0].trackId + 1
+        : 1;
     },
     async toggleFeaturePointing(target) {
       this.editingTrack = null;
