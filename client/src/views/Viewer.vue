@@ -151,6 +151,9 @@ export default {
         },
         strokeOpacity: (a, b, data) => {
           return data.record.detection.track === editingTrack ? 0.5 : 1;
+        },
+        strokeWidth: (a, b, data) => {
+          return data.record.detection.track === selectedTrackId ? 4 : 1;
         }
       };
     },
