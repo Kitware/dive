@@ -52,13 +52,16 @@ export default {
     this.imgs = new Array(this.imageUrls.length);
     this.pendingImgs = new Set();
     this.cacheImage();
-    var img = this.imgs[0];
-    img.onload = () => {
-      img.onload = null;
-      this.width = img.naturalWidth;
-      this.height = img.naturalHeight;
-      this.init();
-    };
+
+    if (this.imgs.length) {
+      const img = this.imgs[0];
+      img.onload = () => {
+        img.onload = null;
+        this.width = img.naturalWidth;
+        this.height = img.naturalHeight;
+        this.init();
+      };
+    }
   },
   methods: {
     init() {

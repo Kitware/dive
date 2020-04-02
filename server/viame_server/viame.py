@@ -4,7 +4,6 @@ from girder.api.describe import Description, autoDescribeRoute, describeRoute
 from girder.api.rest import Resource
 from girder.models.folder import Folder
 from girder.models.item import Item
-from girder.models.user import User
 from viame_tasks.tasks import run_pipeline, convert_video
 
 from .transforms import GetPathFromItemId, GetPathFromFolderId, GirderUploadToFolder

@@ -1,5 +1,4 @@
 <script>
-import { mapState } from "vuex";
 import Dropzone from "@girder/components/src/components/Presentation/Dropzone.vue";
 import {
   fileUploader,
@@ -23,14 +22,7 @@ export default {
   computed: {
     uploadEnabled() {
       return this.location && this.location._modelType === "folder";
-    },
-    pipelineItems() {
-      return [
-        { text: "None", value: null },
-        ...this.pipelines.map(pipeline => ({ text: pipeline, value: pipeline }))
-      ];
-    },
-    ...mapState(["pipelines"])
+    }
   },
   methods: {
     // Filter to show how many images are left to upload
@@ -86,7 +78,6 @@ export default {
         files: files,
         type,
         fps: this.defaultFPS,
-        pipeline: null,
         uploading: false
       });
     },
@@ -150,8 +141,7 @@ export default {
       const postUpload = data => {
         uploaded.push({
           folder,
-          results: data && data.results,
-          pipeline: pendingUpload.pipeline
+          results: data.results
         });
       };
 
@@ -281,14 +271,6 @@ function prepareFiles(files) {
                   hide-details
                   :disabled="pendingUpload.uploading"
                 ></v-text-field>
-              </v-col>
-              <v-col :cols="4">
-                <v-select
-                  v-model="pendingUpload.pipeline"
-                  :items="pipelineItems"
-                  label="Run pipeline"
-                  :disabled="pendingUpload.uploading"
-                />
               </v-col>
             </v-row>
             <v-list-item-subtitle>
