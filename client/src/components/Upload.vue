@@ -152,18 +152,14 @@ export default {
         }
       }
 
-      // If the filename is different from the uploaded file
+      // If a single file's chosen filename is different from the uploaded file
       if (
-        files.length === 1 &&
         !createFolder &&
+        files.length === 1 &&
         files[0].file.name !== pendingUpload.name
       ) {
-        /* TODO: Upgrade Girder Web Components upload mixin to add params
-                 this is a hacky way to rename a single file
-        */
-        files[0].file = new File([files[0].file], pendingUpload.name, {
-          type: files[0].file.type
-        });
+        // Mixin parameters for uploading to overwrite file name
+        files[0].uploadClsParams = { name: pendingUpload.name };
       }
 
       // function called after mixins upload finishes
