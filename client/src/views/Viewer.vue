@@ -424,7 +424,7 @@ export default {
       var { data: dataset } = await this.girderRest.get(`folder/${datasetId}`);
 
       if (!dataset) {
-        throw "Could not fetch dataset!";
+        throw new Error("Could not fetch dataset!");
       }
 
       this.dataset = dataset || null;
