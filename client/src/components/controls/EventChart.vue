@@ -148,8 +148,8 @@ export default {
         ctx.fillRect(
           bar.left + padding,
           bar.top + padding,
-          bar.width - padding*2,
-          10 - padding*2
+          bar.width - padding * 2,
+          10 - padding * 2
         );
       }
     },
