@@ -294,13 +294,7 @@ function prepareFiles(files) {
                 ></v-text-field>
               </v-col>
 
-              <v-col
-                cols="2"
-                v-if="
-                  pendingUpload.type === 'image-sequence' &&
-                    pendingUpload.createFolder
-                "
-              >
+              <v-col cols="2" v-if="pendingUpload.createFolder">
                 <v-text-field
                   v-model="pendingUpload.fps"
                   type="number"
@@ -312,14 +306,6 @@ function prepareFiles(files) {
                   hide-details
                   :disabled="pendingUpload.uploading"
                 ></v-text-field>
-              </v-col>
-              <v-col cols="4">
-                <v-select
-                  v-model="pendingUpload.pipeline"
-                  :items="pipelineItems"
-                  label="Run pipeline"
-                  :disabled="pendingUpload.uploading"
-                />
               </v-col>
               <v-col cols="1">
                 <v-list-item-action>
