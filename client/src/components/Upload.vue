@@ -272,12 +272,7 @@ function prepareFiles(files) {
                   ]"
                   required
                   :label="
-                    (pendingUpload.createFolder ? 'Folder' : 'File') +
-                      ' Name' +
-                      (!pendingUpload.createFolder &&
-                      pendingUpload.files.length > 1
-                        ? 's'
-                        : '')
+                    (pendingUpload.createFolder ? 'Folder' : 'File') + ' Name'
                   "
                   :disabled="
                     pendingUpload.uploading ||
