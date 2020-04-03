@@ -23,15 +23,13 @@ import EventChart from "@/components/timeline/EventChart";
 import { getPathFromLocation } from "@/utils";
 
 var typeColors = [
-  colors.red.accent2,
-  "aqua",
-  "fuchsia",
-  "yellow",
-  colors.purple.lighten2,
-  "#0099FF",
-  colors.amber.accent3,
-  colors.green.accent2,
-  colors.lightBlue.accent2
+  colors.red.accent1,
+  colors.yellow.darken3,
+  colors.purple.lighten3,
+  colors.green.lighten3,
+  colors.yellow.lighten3,
+  colors.purple.darken3,
+  colors.green.darken3
 ];
 var typeColorMap = d3.scaleOrdinal();
 typeColorMap.range(typeColors);
@@ -146,7 +144,7 @@ export default {
       return {
         strokeColor: (a, b, data) => {
           if (data.record.detection.track === selectedTrackId) {
-            return "lime";
+            return this.$vuetify.theme.themes.dark.accent;
           }
           if (data.record.detection.confidencePairs.length) {
             return typeColorMap(data.record.detection.confidencePairs[0][0]);
@@ -156,6 +154,9 @@ export default {
         },
         strokeOpacity: (a, b, data) => {
           return data.record.detection.track === editingTrack ? 0.5 : 1;
+        },
+        strokeWidth: (a, b, data) => {
+          return data.record.detection.track === selectedTrackId ? 4 : 1;
         }
       };
     },
@@ -189,7 +190,7 @@ export default {
       return {
         color: data => {
           if (data.detection.track === selectedTrackId) {
-            return "lime";
+            return this.$vuetify.theme.themes.dark.accent;
           }
           return typeColorMap(data.detection.confidencePairs[0][0]);
         },
@@ -224,7 +225,7 @@ export default {
         },
         radius: 4,
         stroke: data => data.detection.track === selectedTrackId,
-        strokeColor: "lime"
+        strokeColor: this.$vuetify.theme.themes.dark.accent
       };
     },
     lineChartData() {
@@ -279,6 +280,7 @@ export default {
             track: detections[0].track,
             name: `Track ${name}`,
             color: typeColorMap(detections[0].confidencePairs[0][0]),
+            selected: detections[0].track === this.selectedTrackId,
             range
           };
         });
@@ -866,7 +868,10 @@ function geojsonToBound2(geojson) {
             v-if="editingTrack !== null"
             editing="rectangle"
             :geojson="editingDetectionGeojson"
-            :feature-style="{ fill: false, strokeColor: 'lime' }"
+            :feature-style="{
+              fill: false,
+              strokeColor: this.$vuetify.theme.themes.dark.accent
+            }"
             @update:geojson="detectionChanged"
           />
           <EditAnnotationLayer
