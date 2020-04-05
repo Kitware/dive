@@ -49,6 +49,31 @@ export default {
         return `${formatSize(totalProgress)} of ${formatSize(totalSize)}`;
       }
     },
+    /**
+     * Calculates the field properties for each pending upload
+     * @param {('label'|'disabled'|'default')} field - the field property we want the current state for
+     * @param {{createFolder: boolean, files: Array}} pendingUpload
+     */
+    getFilenameInputState(field, pendingUpload) {
+      if (field === "label") {
+        let label = pendingUpload.createFolder ? "Folder" : "File";
+        label += " Name";
+        if (!pendingUpload.createFolder && pendingUpload.files.length > 1) {
+          label += "s";
+        }
+        return label;
+      } else if (field === "disabled") {
+        return (
+          pendingUpload.uploading ||
+          (!pendingUpload.createFolder && pendingUpload.files.length > 1)
+        );
+      } else if (field === "hint") {
+        return !pendingUpload.createFolder && pendingUpload.files.length > 1
+          ? "default filenames are used"
+          : "";
+      }
+      return false;
+    },
     async dropped(e) {
       e.preventDefault();
       let [name, files] = await readFilesFromDrop(e);
@@ -81,7 +106,6 @@ export default {
         files: files,
         type,
         fps: this.defaultFPS,
-        pipeline: null,
         uploading: false,
         createFolder: files.length > 1
       });
@@ -263,6 +287,12 @@ function prepareFiles(files) {
         <v-list-item v-for="(pendingUpload, i) of pendingUploads" :key="i">
           <v-list-item-content>
             <v-row>
+              <v-col cols="auto">
+                <v-checkbox
+                  label="Create Folder"
+                  v-model="pendingUpload.createFolder"
+                />
+              </v-col>
               <v-col>
                 <v-text-field
                   class="upload-name"
@@ -271,21 +301,10 @@ function prepareFiles(files) {
                     val => (val || '').length > 0 || 'This field is required'
                   ]"
                   required
-                  :label="
-                    (pendingUpload.createFolder ? 'Folder' : 'File') + ' Name'
-                  "
-                  :disabled="
-                    pendingUpload.uploading ||
-                      (!pendingUpload.createFolder &&
-                        pendingUpload.files.length > 1)
-                  "
+                  :label="getFilenameInputState('label', pendingUpload)"
+                  :disabled="getFilenameInputState('disabled', pendingUpload)"
                   persistent-hint
-                  :hint="
-                    !pendingUpload.createFolder &&
-                    pendingUpload.files.length > 1
-                      ? 'default filenames are used'
-                      : ''
-                  "
+                  :hint="getFilenameInputState('hint', pendingUpload)"
                 ></v-text-field>
               </v-col>
 
@@ -302,9 +321,11 @@ function prepareFiles(files) {
                   :disabled="pendingUpload.uploading"
                 ></v-text-field>
               </v-col>
+
               <v-col cols="1">
                 <v-list-item-action>
                   <v-btn
+                    class="mt-2"
                     icon
                     small
                     @click="remove(pendingUpload)"
@@ -315,10 +336,6 @@ function prepareFiles(files) {
                 </v-list-item-action>
               </v-col>
             </v-row>
-            <v-switch
-              label="Create Folder"
-              v-model="pendingUpload.createFolder"
-            />
             <v-list-item-subtitle>
               {{ computeUploadProgress(pendingUpload) }}
               <!-- errorMessage is provided by the fileUploader mixin -->
