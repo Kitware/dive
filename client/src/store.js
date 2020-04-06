@@ -1,14 +1,14 @@
-import Vue from "vue";
-import Vuex from "vuex";
+import Vue from 'vue';
+import Vuex from 'vuex';
 
-import girderRest from "@/girder";
+import girderRest from '@/girder';
 
 Vue.use(Vuex);
 
 export default new Vuex.Store({
   state: {
     location: null,
-    pipelines: []
+    pipelines: [],
   },
   mutations: {
     setLocation(state, location) {
@@ -16,12 +16,12 @@ export default new Vuex.Store({
     },
     setPipelines(state, pipelines) {
       state.pipelines = pipelines;
-    }
+    },
   },
   actions: {
     async fetchPipelines({ commit }) {
-      const { data } = await girderRest.get("viame/pipelines");
-      commit("setPipelines", data);
-    }
-  }
+      const { data } = await girderRest.get('viame/pipelines');
+      commit('setPipelines', data);
+    },
+  },
 });

@@ -1,5 +1,5 @@
 function getLocationFromRoute(route) {
-  var { _modelType, _id } = route.params;
+  const { _modelType, _id } = route.params;
   if (_modelType) {
     return { _modelType, _id };
   }
@@ -8,10 +8,10 @@ function getLocationFromRoute(route) {
 
 function getPathFromLocation(location) {
   if (!location) {
-    return "/";
+    return '/';
   }
   return `/${location._modelType || location.type}${
-    location._id ? `/${location._id}` : ""
+    location._id ? `/${location._id}` : ''
   }`;
 }
 

@@ -1,12 +1,12 @@
 <script>
 export default {
-  name: "TimelineWrapper",
-  inject: ["annotator"],
+  name: 'TimelineWrapper',
+  inject: ['annotator'],
   methods: {
     seek(frame) {
-      this.annotator.$emit("seek", frame);
-    }
-  }
+      this.annotator.$emit('seek', frame);
+    },
+  },
 };
 </script>
 

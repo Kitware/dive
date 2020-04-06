@@ -1,42 +1,42 @@
 <script>
 export default {
-  name: "AttributeInput",
+  name: 'AttributeInput',
   props: {
     name: {
       type: String,
-      required: true
+      required: true,
     },
     value: {
-      type: [String, Number, Boolean]
+      type: [String, Number, Boolean],
     },
     datatype: {
       type: String,
-      required: true
+      required: true,
     },
     values: {
       type: Array,
       required: false,
-      default: () => []
-    }
+      default: () => [],
+    },
   },
   computed: {
     values_() {
-      return ["", ...this.values];
-    }
+      return ['', ...this.values];
+    },
   },
   methods: {
     change(value) {
       switch (value) {
-        case "":
+        case '':
           value = undefined;
           break;
         case null:
           value = undefined;
           break;
       }
-      this.$emit("change", { name: this.name, value });
-    }
-  }
+      this.$emit('change', { name: this.name, value });
+    },
+  },
 };
 </script>
 
@@ -45,27 +45,27 @@ export default {
     v-if="datatype === 'text'"
     :label="name"
     :value="value"
-    @change="change"
     :items="values_"
     autocomplete="off"
-  ></v-combobox>
+    @change="change"
+  />
   <v-text-field
     v-else-if="datatype === 'number'"
     :label="name"
     :value="value"
-    @change="change"
     type="number"
     autocomplete="off"
-  ></v-text-field>
+    @change="change"
+  />
   <v-select
     v-else-if="datatype === 'boolean'"
     :label="name"
     :value="value"
-    @change="change"
     :items="[
       { text: '', value: null },
       { text: 'true', value: true },
       { text: 'false', value: false }
     ]"
+    @change="change"
   />
 </template>

@@ -8,6 +8,8 @@
     class="mx-3"
   >
     User Guide
-    <v-icon class="pl-2">mdi-help-circle</v-icon>
+    <v-icon class="pl-2">
+      mdi-help-circle
+    </v-icon>
   </v-btn>
 </template>

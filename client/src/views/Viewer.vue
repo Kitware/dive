@@ -1,48 +1,39 @@
 <script>
-import _ from "lodash";
-import { mapState } from "vuex";
-import * as d3 from "d3";
-import colors from "vuetify/lib/util/colors";
-
-import { getPathFromLocation } from "@/utils";
+import { defineComponent, ref } from '@vue/composition-api';
 
 // Annotators
-import VideoAnnotator from "@/components/annotators/VideoAnnotator";
-import ImageAnnotator from "@/components/annotators/ImageAnnotator";
+import VideoAnnotator from '@/components/annotators/VideoAnnotator.vue';
+import ImageAnnotator from '@/components/annotators/ImageAnnotator.vue';
 // Layers
-import TextLayer from "@/components/layers/TextLayer";
-import MarkerLayer from "@/components/layers/MarkerLayer";
-import AnnotationLayer from "@/components/layers/AnnotationLayer";
-import EditAnnotationLayer from "@/components/layers/EditAnnotationLayer";
+import TextLayer from '@/components/layers/TextLayer.vue';
+import MarkerLayer from '@/components/layers/MarkerLayer.vue';
+import AnnotationLayer from '@/components/layers/AnnotationLayer.vue';
+import EditAnnotationLayer from '@/components/layers/EditAnnotationLayer.vue';
 // Controls
-import Controls from "@/components/controls/Controls";
-import TimelineWrapper from "@/components/controls/TimelineWrapper";
-import Timeline from "@/components/controls/Timeline";
-import LineChart from "@/components/controls/LineChart";
-import EventChart from "@/components/controls/EventChart";
+import Controls from '@/components/controls/Controls.vue';
+import TimelineWrapper from '@/components/controls/TimelineWrapper.vue';
+import Timeline from '@/components/controls/Timeline.vue';
+import LineChart from '@/components/controls/LineChart.vue';
+import EventChart from '@/components/controls/EventChart.vue';
 // Other normal components
-import NavigationTitle from "@/components/NavigationTitle";
-import ConfidenceFilter from "@/components/ConfidenceFilter";
-import Tracks from "@/components/Tracks";
-import TypeList from "@/components/TypeList";
-import AttributesPanel from "@/components/AttributesPanel";
-import UserGuideButton from "@/components/UserGuideButton";
+import NavigationTitle from '@/components/NavigationTitle.vue';
+import ConfidenceFilter from '@/components/ConfidenceFilter.vue';
+import Tracks from '@/components/Tracks.vue';
+import TypeList from '@/components/TypeList.vue';
+import AttributesPanel from '@/components/AttributesPanel.vue';
+import {
+  useAnnotationLayer,
+  useDetections,
+  useFeaturePointing,
+  useGirderDataset,
+  useSave,
+  useSelectionControls,
+  useTextLayer,
+  useTrackFilterControls,
+  useTypeColoring,
+} from '@/use';
 
-var typeColors = [
-  colors.red.accent1,
-  colors.yellow.darken3,
-  colors.purple.lighten3,
-  colors.green.lighten3,
-  colors.yellow.lighten3,
-  colors.purple.darken3,
-  colors.green.darken3
-];
-var typeColorMap = d3.scaleOrdinal();
-typeColorMap.range(typeColors);
-
-export default {
-  name: "Viewer",
-  inject: ["girderRest"],
+export default defineComponent({
   components: {
     NavigationTitle,
     VideoAnnotator,
@@ -60,690 +51,111 @@ export default {
     AttributesPanel,
     LineChart,
     EventChart,
-    UserGuideButton
   },
-  data: () => ({
-    dataset: null,
-    detections: null,
-    selectedTrackId: null,
-    checkedTracks: [],
-    checkedTypes: [],
-    confidence: 0.1,
-    showTrackView: false,
-    editingTrack: null,
-    attributeEditing: false,
-    frame: null,
-    pendingSave: false,
-    featurePointing: false,
-    featurePointTarget: "head",
-    featurePointingGeojson: null
-  }),
-  computed: {
-    ...mapState(["location"]),
-    annotatorType() {
-      if (!this.dataset) {
-        return null;
-      }
-      if (this.dataset.meta.type === "video") {
-        return VideoAnnotator;
-      } else if (this.dataset.meta.type === "image-sequence") {
-        return ImageAnnotator;
-      }
-
-      // TODO: Clarify the above case
-      return ImageAnnotator;
+  props: {
+    datasetId: {
+      type: String,
+      required: true,
     },
-    imageUrls() {
-      if (!this.items) {
-        return null;
-      }
-
-      return this.items
-        .filter(item => {
-          let name = item.name.toLowerCase();
-          return (
-            name.endsWith("png") ||
-            name.endsWith("jpeg") ||
-            name.endsWith("jpg")
-          );
-        })
-        .map(item => {
-          return `api/v1/item/${item._id}/download`;
-        });
-    },
-    frameRate() {
-      if (!this.dataset) {
-        return null;
-      }
-      return this.dataset.meta.fps;
-    },
-    filteredDetections() {
-      if (!this.detections) {
-        return null;
-      }
-      var checkedTracksSet = new Set(this.checkedTracks);
-      var checkedTypesSet = new Set(this.checkedTypes);
-      var confidence = this.confidence;
-      return this.detections.filter(
-        detection =>
-          checkedTracksSet.has(detection.track) &&
-          (detection.confidencePairs.length === 0 ||
-            detection.confidencePairs.find(
-              pair => pair[1] > confidence && checkedTypesSet.has(pair[0])
-            ))
-      );
-    },
-    annotationData() {
-      if (!this.filteredDetections) {
-        return null;
-      }
-      return this.filteredDetections.map(detection => {
-        return {
-          detection,
-          frame: detection.frame,
-          polygon: boundToGeojson(detection.bounds)
-        };
-      });
-    },
-    annotationStyle() {
-      var selectedTrackId = this.selectedTrackId;
-      var editingTrack = this.editingTrack;
-      return {
-        strokeColor: (a, b, data) => {
-          if (data.record.detection.track === selectedTrackId) {
-            return this.$vuetify.theme.themes.dark.accent;
-          }
-          if (data.record.detection.confidencePairs.length) {
-            return typeColorMap(data.record.detection.confidencePairs[0][0]);
-          } else {
-            return typeColorMap.range()[0];
-          }
-        },
-        strokeOpacity: (a, b, data) => {
-          return data.record.detection.track === editingTrack ? 0.5 : 1;
-        },
-        strokeWidth: (a, b, data) => {
-          return data.record.detection.track === selectedTrackId ? 4 : 1;
-        }
-      };
-    },
-    textData() {
-      if (!this.filteredDetections) {
-        return null;
-      }
-      var data = [];
-      this.filteredDetections.forEach(detection => {
-        var bounds = detection.bounds;
-        if (!detection.confidencePairs) {
-          return;
-        }
-        detection.confidencePairs
-          .filter(pair => pair[1] >= this.confidence)
-          .forEach(([type, confidence], i) => {
-            data.push({
-              detection,
-              frame: detection.frame,
-              text: `${type}: ${confidence.toFixed(2)}`,
-              x: bounds[1],
-              y: bounds[2],
-              offsetY: i * 14
-            });
-          });
-      });
-      return data;
-    },
-    textStyle() {
-      var selectedTrackId = this.selectedTrackId;
-      return {
-        color: data => {
-          if (data.detection.track === selectedTrackId) {
-            return this.$vuetify.theme.themes.dark.accent;
-          }
-          return typeColorMap(data.detection.confidencePairs[0][0]);
-        },
-        offsetY(data) {
-          return data.offsetY;
-        }
-      };
-    },
-    markerData() {
-      if (!this.filteredDetections) {
-        return null;
-      }
-      var data = [];
-      this.filteredDetections.forEach(detection => {
-        Object.entries(detection.features).forEach(([key, value]) => {
-          data.push({
-            detection,
-            frame: detection.frame,
-            feature: key,
-            x: value[0],
-            y: value[1]
-          });
-        });
-      });
-      return data;
-    },
-    markerStyle() {
-      var selectedTrackId = this.selectedTrackId;
-      return {
-        fillColor: data => {
-          return data.feature === "head" ? "orange" : "blue";
-        },
-        radius: 4,
-        stroke: data => data.detection.track === selectedTrackId,
-        strokeColor: this.$vuetify.theme.themes.dark.accent
-      };
-    },
-    lineChartData() {
-      if (!this.filteredDetections) {
-        return null;
-      }
-      var types = new Map();
-      var total = new Map();
-      this.filteredDetections.forEach(detection => {
-        var frame = detection.frame;
-        total.set(frame, total.get(frame) + 1 || 1);
-        if (!detection.confidencePairs.length) {
-          return;
-        }
-        var type = detection.confidencePairs[0][0];
-        var typeCounter = types.get(type);
-        if (!typeCounter) {
-          typeCounter = new Map();
-          types.set(type, typeCounter);
-        }
-        typeCounter.set(frame, typeCounter.get(frame) + 1 || 1);
-      });
-      return [
-        {
-          values: Array.from(total.entries()).sort((a, b) => a[0] - b[0]),
-          color: "lime",
-          name: "Total"
-        },
-        ...Array.from(types.entries()).map(([type, counter]) => ({
-          values: Array.from(counter.entries()).sort((a, b) => a[0] - b[0]),
-          name: type,
-          color: typeColorMap(type)
-        }))
-      ];
-    },
-    eventChartData() {
-      if (!this.filteredDetections) {
-        return [];
-      }
-      return Object.entries(
-        _.groupBy(this.filteredDetections, detection => detection.track)
-      )
-        .filter(([, detections]) => {
-          return detections[0].confidencePairs.length;
-        })
-        .map(([name, detections]) => {
-          var range = [
-            _.minBy(detections, detection => detection.frame).frame,
-            _.maxBy(detections, detection => detection.frame).frame
-          ];
-          return {
-            track: detections[0].track,
-            name: `Track ${name}`,
-            color: typeColorMap(detections[0].confidencePairs[0][0]),
-            selected: detections[0].track === this.selectedTrackId,
-            range
-          };
-        });
-    },
-    tracks() {
-      if (!this.detections) {
-        return [];
-      }
-      var tracks = Object.entries(
-        _.groupBy(this.detections, detection => detection.track)
-      ).map(([, detections]) => {
-        let confidencePairs = detections[0].confidencePairs;
-        let detectionWithTrackAttribute = detections.find(
-          detection => detection.trackAttributes
-        );
-
-        return {
-          trackId: detections[0].track,
-          confidencePairs,
-          trackAttributes: detectionWithTrackAttribute
-            ? detectionWithTrackAttribute.trackAttributes
-            : null
-        };
-      });
-      return _.sortBy(tracks, track => track.trackId);
-    },
-    types() {
-      if (!this.tracks) {
-        return [];
-      }
-      var typeSet = new Set();
-      for (var { confidencePairs } of this.tracks) {
-        for (var pair of confidencePairs) {
-          typeSet.add(pair[0]);
-        }
-      }
-      return Array.from(typeSet);
-    },
-    selectedDetection() {
-      if (this.selectedTrackId === null || this.frame === null) {
-        return null;
-      }
-      return this.detections.find(
-        detection =>
-          detection.track === this.selectedTrackId &&
-          detection.frame === this.frame
-      );
-    },
-    selectedTrack() {
-      if (this.selectedTrackId === null) {
-        return null;
-      }
-      return this.tracks.find(track => track.trackId === this.selectedTrackId);
-    },
-    editingDetection() {
-      if (this.editingTrack == null || this.frame == null) {
-        return null;
-      }
-      return this.detections.find(
-        detection =>
-          detection.track === this.editingTrack &&
-          detection.frame === this.frame
-      );
-    },
-    editingDetectionGeojson() {
-      if (!this.editingDetection) {
-        return null;
-      }
-      return boundToGeojson(this.editingDetection.bounds);
-    }
   },
-  asyncComputed: {
-    async items() {
-      if (!this.dataset) {
-        return null;
-      }
-      var { data: items } = await this.girderRest.get(`item/`, {
-        params: { folderId: this.dataset._id, limit: 200000 }
-      });
-      return items;
-    },
-    async videoUrl() {
-      if (!this.dataset || this.dataset.meta.type !== "video") {
-        return null;
-      }
-      var { data: clipMeta } = await this.girderRest.get(
-        "viame_detection/clip_meta",
-        {
-          params: {
-            folderId: this.dataset._id
-          }
-        }
-      );
-      if (!clipMeta.video) {
-        return null;
-      }
-      var { data: files } = await this.girderRest.get(
-        `item/${clipMeta.video._id}/files`
-      );
-      if (!files[0]) {
-        return null;
-      }
-      return `api/v1/file/${files[0]._id}/download`;
-    }
+  setup(props, ctx) {
+    const { datasetId } = props;
+    const frame = ref(null); // the currently displayed frame number
+
+    const { typeColorMap } = useTypeColoring();
+
+    const { save, markChangesPending, pendingSave } = useSave();
+
+    const {
+      // dataset,
+      frameRate,
+      annotatorType,
+      imageUrls,
+      videoUrl,
+      loadDataset,
+    } = useGirderDataset();
+
+    const {
+      detections,
+      loadDetections,
+      setDetection,
+      deleteDetection,
+    } = useDetections({ markChangesPending });
+
+    const {
+      selectedTrackId,
+      selectedDetection,
+      selectTrack,
+      setTrackEditMode,
+      // deleteSelectedDetection
+    } = useSelectionControls({
+      frame,
+      detections,
+      deleteDetection,
+    });
+
+    const {
+      featurePointing,
+      toggleFeaturePointing,
+      // featurePointed,
+      // deleteFeaturePoints
+    } = useFeaturePointing({
+      detections,
+      selectedDetection,
+      selectedTrackId,
+      setDetection,
+    });
+
+    const { filteredDetections } = useTrackFilterControls({ detections });
+
+    const { annotationData, annotationStyle } = useAnnotationLayer({
+      typeColorMap,
+      selectedTrackId,
+      filteredDetections,
+    });
+
+    const { textData, textStyle } = useTextLayer({
+      typeColorMap,
+      selectedTrackId,
+      filteredDetections,
+    });
+
+    // Initialize the view
+    Promise.all([
+      loadDataset(datasetId),
+      loadDetections(datasetId),
+    ]).catch(() => ctx.root.$router.replace('/'));
+
+    return {
+      // data
+      imageUrls,
+      videoUrl,
+      annotatorType,
+      frameRate,
+      frame,
+      // Detection module
+      deleteDetection,
+      // Annotation Layer Module
+      annotationData,
+      annotationStyle,
+      // Text Layer
+      textData,
+      textStyle,
+      // Head Tail Feature Layer Module
+      toggleFeaturePointing,
+      // Other local methods
+      annotationClick: (data) => !featurePointing.value && selectTrack(data.detection.track),
+      annotationRightClick: (data) => setTrackEditMode(data.detection.track),
+    };
   },
-  watch: {
-    imageUrls(val) {
-      if (!val.length) {
-        this.$snackbar({
-          text: "No images found",
-          timeout: 4500
-        });
-      }
-    },
-    detections() {
-      this.updatecheckedTracksAndTypes();
-    }
-  },
-  async created() {
-    var datasetId = this.$route.params.datasetId;
-    try {
-      await this.loadDataset(datasetId);
-      await this.loadDetections();
-    } catch (ex) {
-      this.$router.replace("/");
-    }
-  },
-  methods: {
-    typeColorMap,
-    getPathFromLocation,
-    /* TODO: DANGER: reaching into refs like this is highly non-standard */
-    seek(frame) {
-      this.$refs.playbackComponent.provided.$emit("seek", frame);
-    },
-    nextFrame() {
-      this.$refs.playbackComponent.provided.$emit("next-frame");
-    },
-    prevFrame() {
-      this.$refs.playbackComponent.provided.$emit("next-frame");
-    },
-    /* END TODO */
-    async loadDataset(datasetId) {
-      var { data: dataset } = await this.girderRest.get(`folder/${datasetId}`);
-
-      if (!dataset) {
-        throw new Error("Could not fetch dataset!");
-      }
-
-      this.dataset = dataset || null;
-    },
-    async loadDetections() {
-      let detections = [];
-      try {
-        const { data } = await this.girderRest.get("viame_detection", {
-          params: { folderId: this.dataset._id }
-        });
-
-        detections = data
-          ? data.map(detection => Object.freeze(detection))
-          : [];
-      } catch {
-        detections = [];
-        this.$snackbar({
-          text: "Error while loading existing detections",
-          timeout: 4500
-        });
-      } finally {
-        this.detections = detections;
-      }
-    },
-    annotationClick(data) {
-      if (!this.featurePointing) {
-        this.selectTrack(data.detection.track);
-      }
-    },
-    clickTrack(track) {
-      this.selectTrack(track.trackId);
-    },
-    selectTrack(track) {
-      if (this.editingTrack !== null) {
-        this.editingTrack = null;
-        return;
-      }
-      this.selectedTrackId = this.selectedTrackId === track ? null : track;
-    },
-    updatecheckedTracksAndTypes() {
-      if (!this.tracks) {
-        return;
-      }
-      this.checkedTracks = this.tracks.map(track => track.trackId);
-      this.checkedTypes = this.types;
-    },
-    gotoTrackFirstFrame(track) {
-      this.selectedTrackId = track.trackId;
-      var frame = this.eventChartData.find(d => d.track === track.trackId)
-        .range[0];
-      this.seek(frame);
-    },
-    async deleteTrack(track) {
-      var result = await this.$prompt({
-        title: "Confirm",
-        text: `Please confirm to delete track ${track.trackId}`,
-        confirm: true
-      });
-      if (!result) {
-        return;
-      }
-      this.pendingSave = true;
-      this.detections
-        .filter(detection => detection.track === track.trackId)
-        .forEach(detection => {
-          this.detections.splice(this.detections.indexOf(detection), 1);
-        });
-    },
-    annotationRightClick(data) {
-      this.editTrack(data.detection.track);
-    },
-    editTrack(track) {
-      this.editingTrack = track;
-    },
-    addTrack() {
-      this.editingTrack = this.tracks.length
-        ? this.tracks.slice(-1)[0].trackId + 1
-        : 1;
-    },
-    async toggleFeaturePointing(target) {
-      this.editingTrack = null;
-      await this.$nextTick();
-      this.featurePointingTarget = target;
-      if (this.featurePointing) {
-        this.featurePointing = false;
-      } else if (this.selectedTrackId === null) {
-        return;
-      } else {
-        this.featurePointing = true;
-      }
-    },
-    /**
-     * When a feature point is set, update the selected detection.
-     * - if both head and tail are set, we're done.
-     * - if only one is set, automatically prepare to collect the other.
-     * - when both are set, or when right click or escape are hit, disable feature pointing.
-     */
-    featurePointed(geojson) {
-      this.pendingSave = true;
-      var [x, y] = geojson.geometry.coordinates;
-      var selectedDetection = this.selectedDetection;
-      this.detections.splice(this.detections.indexOf(selectedDetection), 1);
-      const newDetection = Object.freeze({
-        ...selectedDetection,
-        ...{
-          features: {
-            ...selectedDetection.features,
-            [this.featurePointingTarget]: [x.toFixed(0), y.toFixed(0)]
-          }
-        }
-      });
-      this.detections.push(newDetection);
-      /* TODO: DANGER: this is highly non-standard
-       * this and the nextTick() are here to cause
-       * the initialization function inside the EditAnnotationLayer to trip
-       */
-      this.featurePointing = false;
-      this.$nextTick(() => {
-        if (this.featurePointingTarget === "tail") {
-          this.featurePointingTarget = "head";
-        } else {
-          this.featurePointingTarget = "tail";
-        }
-        if (
-          "head" in newDetection.features &&
-          "tail" in newDetection.features
-        ) {
-          this.featurePointing = false;
-        } else {
-          this.featurePointing = true;
-        }
-      });
-      /* END TODO */
-    },
-    deleteFeaturePoints() {
-      this.pendingSave = true;
-      var selectedDetection = this.selectedDetection;
-      this.detections.splice(this.detections.indexOf(selectedDetection), 1);
-      this.detections.push(
-        Object.freeze({
-          ...selectedDetection,
-          ...{
-            features: {}
-          }
-        })
-      );
-    },
-    deleteDetection() {
-      if (!this.selectedDetection) {
-        return;
-      }
-      this.pendingSave = true;
-      this.detections.splice(
-        this.detections.indexOf(this.selectedDetection),
-        1
-      );
-    },
-    detectionChanged(feature) {
-      if (this.editingTrack === null) {
-        return;
-      }
-      this.pendingSave = true;
-      var bounds =
-        feature.type === "Feature"
-          ? geojsonToBound2(feature.geometry)
-          : geojsonToBound(feature);
-      var confidencePairs = [];
-      var trackMeta = this.tracks.find(
-        track => track.trackId === this.editingTrack
-      );
-      if (trackMeta) {
-        confidencePairs = trackMeta.confidencePairs;
-      }
-      if (this.editingDetection) {
-        let detectionToChange = this.editingDetection;
-        this.detections.splice(this.detections.indexOf(detectionToChange), 1);
-        this.detections.push(
-          Object.freeze({
-            ...detectionToChange,
-            ...{
-              track: this.editingTrack,
-              confidencePairs,
-              frame: this.frame,
-              features: {},
-              bounds
-            }
-          })
-        );
-      } else {
-        this.detections.push(
-          Object.freeze({
-            track: this.editingTrack,
-            confidencePairs,
-            frame: this.frame,
-            features: {},
-            confidence: 1,
-            fishLength: -1,
-            attributes: null,
-            trackAttributes: null,
-            bounds
-          })
-        );
-      }
-    },
-    trackTypeChange(track, type) {
-      var detections = this.detections;
-      detections
-        .filter(detection => detection.track === track.trackId)
-        .forEach(detection => {
-          var index = detections.indexOf(detection);
-          detections.splice(index, 1);
-          detections.push({
-            ...detection,
-            ...{
-              confidence: 1,
-              confidencePairs: [[type, 1]]
-            }
-          });
-        });
-      this.pendingSave = true;
-    },
-    attributeChange({ type, name, value }) {
-      if (type === "track") {
-        this.trackAttributeChange_(name, value);
-      } else if (type === "detection") {
-        this.detectionAttributeChange_(name, value);
-      }
-      this.pendingSave = true;
-    },
-    trackAttributeChange_(name, value) {
-      var selectedTrack = this.selectedTrack;
-      var detectionToChange = null;
-      if (selectedTrack.trackAttributes) {
-        detectionToChange = this.detections.find(
-          detection =>
-            detection.track === selectedTrack.trackId &&
-            detection.trackAttributes
-        );
-      } else {
-        detectionToChange = this.detections.find(
-          detection => detection.track === selectedTrack.trackId
-        );
-      }
-      var trackAttributes = {
-        ...detectionToChange.trackAttributes,
-        [name]: value
-      };
-      this.detections.splice(this.detections.indexOf(detectionToChange), 1);
-      this.detections.push(
-        Object.freeze({
-          ...detectionToChange,
-          trackAttributes
-        })
-      );
-    },
-    detectionAttributeChange_(name, value) {
-      var detectionToChange = this.selectedDetection;
-      var attributes = {
-        ...detectionToChange.attributes,
-        [name]: value
-      };
-      this.detections.splice(this.detections.indexOf(detectionToChange), 1);
-      this.detections.push(
-        Object.freeze({
-          ...detectionToChange,
-          attributes
-        })
-      );
-    },
-    async save() {
-      await this.girderRest.put(
-        `viame_detection?folderId=${this.$route.params.datasetId}`,
-        this.detections
-      );
-      this.pendingSave = false;
-    }
-  }
-};
-
-function boundToGeojson(bounds) {
-  return {
-    type: "Polygon",
-    coordinates: [
-      [
-        [bounds[0], bounds[2]],
-        [bounds[1], bounds[2]],
-        [bounds[1], bounds[3]],
-        [bounds[0], bounds[3]],
-        [bounds[0], bounds[2]]
-      ]
-    ]
-  };
-}
-
-function geojsonToBound(geojson) {
-  var coords = geojson.coordinates[0];
-  return [coords[0][0], coords[1][0], coords[0][1], coords[2][1]];
-}
-
-function geojsonToBound2(geojson) {
-  var coords = geojson.coordinates[0];
-  return [coords[0][0], coords[2][0], coords[1][1], coords[0][1]];
-}
+});
 </script>
 
 <template>
   <v-content class="viewer">
     <v-app-bar app>
       <NavigationTitle />
-      <v-tabs icons-and-text hide-slider style="flex-basis:0; flex-grow:0;">
+      <!-- <v-tabs icons-and-text hide-slider style="flex-basis:0; flex-grow:0;">
         <v-tab :to="getPathFromLocation(location)"
           >Data<v-icon>mdi-database</v-icon></v-tab
         >
@@ -755,10 +167,13 @@ function geojsonToBound2(geojson) {
       <ConfidenceFilter :confidence.sync="confidence" />
       <v-btn icon :disabled="!pendingSave" @click="save"
         ><v-icon>mdi-content-save</v-icon></v-btn
-      >
+      > -->
     </v-app-bar>
-    <v-row no-gutters class="fill-height">
-      <v-card width="300" style="z-index:1;">
+    <v-row
+      no-gutters
+      class="fill-height"
+    >
+      <!-- <v-card width="300" style="z-index:1;">
         <v-btn
           icon
           class="swap-button"
@@ -810,17 +225,12 @@ function geojsonToBound2(geojson) {
             />
           </div>
         </v-slide-x-transition>
-      </v-card>
+      </v-card> -->
       <v-col style="position: relative; ">
         <component
-          class="playback-component"
-          ref="playbackComponent"
-          v-if="imageUrls || videoUrl"
           :is="annotatorType"
-          :image-urls="imageUrls"
-          :video-url="videoUrl"
-          :frame-rate="frameRate"
-          @frame-update="frame = $event"
+          v-if="imageUrls.length || videoUrl"
+          ref="playbackComponent"
           v-mousetrap="[
             { bind: 'g', handler: () => toggleFeaturePointing('head') },
             { bind: 'h', handler: () => toggleFeaturePointing('head') },
@@ -830,10 +240,15 @@ function geojsonToBound2(geojson) {
             { bind: 'd', handler: () => $refs.playbackComponent.prevFrame() },
             { bind: 'q', handler: deleteDetection }
           ]"
+          class="playback-component"
+          :image-urls="imageUrls"
+          :video-url="videoUrl"
+          :frame-rate="frameRate"
+          @frame-update="frame = $event"
         >
           <template slot="control">
             <Controls />
-            <TimelineWrapper>
+            <!-- <TimelineWrapper>
               <template #default="{maxFrame, frame, seek}">
                 <Timeline :maxFrame="maxFrame" :frame="frame" :seek="seek">
                   <template #child="{startFrame, endFrame, maxFrame}">
@@ -863,16 +278,17 @@ function geojsonToBound2(geojson) {
                   </v-btn>
                 </Timeline>
               </template>
-            </TimelineWrapper>
+            </TimelineWrapper> -->
           </template>
           <AnnotationLayer
             v-if="annotationData"
             :data="annotationData"
-            :annotationStyle="annotationStyle"
+            :annotation-style="annotationStyle"
             @annotation-click="annotationClick"
             @annotation-right-click="annotationRightClick"
           />
-          <EditAnnotationLayer
+
+          <!-- <EditAnnotationLayer
             v-if="editingTrack !== null"
             editing="rectangle"
             :geojson="editingDetectionGeojson"
@@ -886,15 +302,19 @@ function geojsonToBound2(geojson) {
             v-if="featurePointing"
             editing="point"
             @update:geojson="featurePointed"
+          /> -->
+          <TextLayer
+            v-if="textData"
+            :data="textData"
+            :text-style="textStyle"
           />
-          <TextLayer v-if="textData" :data="textData" :textStyle="textStyle" />
-          <MarkerLayer
+          <!-- <MarkerLayer
             v-if="markerData"
             :data="markerData"
             :markerStyle="markerStyle"
-          />
+          /> -->
         </component>
-        <v-menu offset-y v-if="selectedDetection">
+        <!-- <v-menu offset-y v-if="selectedDetection">
           <template v-slot:activator="{ on }">
             <v-btn class="selection-menu-button" icon v-on="on">
               <v-icon>mdi-dots-horizontal</v-icon>
@@ -917,48 +337,8 @@ function geojsonToBound2(geojson) {
               </v-list-item-title>
             </v-list-item>
           </v-list>
-        </v-menu>
+        </v-menu> -->
       </v-col>
     </v-row>
   </v-content>
 </template>
-
-<style lang="scss" scoped>
-.wrapper {
-  position: absolute;
-  top: 0;
-  left: 0;
-  bottom: 0;
-  right: 0;
-}
-
-.toggle-timeline-button {
-  position: absolute;
-  top: -24px;
-  left: 2px;
-}
-
-.confidence-filter {
-  flex-basis: 400px;
-}
-
-.swap-button {
-  position: absolute;
-  top: 5px;
-  right: 5px;
-  z-index: 1;
-}
-
-.selection-menu-button {
-  position: absolute;
-  right: 0;
-  top: 0;
-  z-index: 1;
-}
-</style>
-
-<style lang="scss">
-.playback-component .playback-container {
-  background: black;
-}
-</style>

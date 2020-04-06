@@ -1,31 +1,31 @@
 <script>
 export default {
-  name: "TrackItem",
+  name: 'TrackItem',
   props: {
     track: {
-      type: Object
+      type: Object,
     },
     types: {
-      type: Array
+      type: Array,
     },
     inputValue: {
-      type: Boolean
+      type: Boolean,
     },
     selectedTrack: {
-      type: Number
+      type: Number,
     },
     editingTrack: {
-      type: Number
-    }
+      type: Number,
+    },
   },
   data: () => ({
-    editing: false
+    editing: false,
   }),
   watch: {
     track() {
       this.editing = false;
-    }
-  }
+    },
+  },
 };
 </script>
 
@@ -44,15 +44,14 @@ export default {
       :input-value="inputValue"
       color="neutral"
       @change="$emit('change', $event)"
-    >
-    </v-checkbox>
+    />
     <div>
       {{ track.trackId + (editingTrack === track.trackId ? "*" : "") }}
     </div>
     <div
       v-if="!editing"
-      @click="editing = true"
       class="type-display flex-grow-1 flex-shrink-1 ml-2"
+      @click="editing = true"
     >
       {{
         track.confidencePairs.length ? track.confidencePairs[0][0] : "undefined"
@@ -62,14 +61,18 @@ export default {
       v-else
       class="ml-2"
       :value="track.confidencePairs.length ? track.confidencePairs[0][0] : ''"
-      @change="$emit('type-change', $event)"
       :items="types"
       dense
       hide-details
-    ></v-combobox>
+      @change="$emit('type-change', $event)"
+    />
     <v-menu offset-y>
       <template v-slot:activator="{ on }">
-        <v-btn class="hover-show-child" icon v-on="on">
+        <v-btn
+          class="hover-show-child"
+          icon
+          v-on="on"
+        >
           <v-icon>
             mdi-dots-horizontal
           </v-icon>

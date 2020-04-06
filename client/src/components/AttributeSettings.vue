@@ -1,26 +1,25 @@
 <script>
 export default {
-  name: "AttributeSettings",
-  inject: ["girderRest"],
+  name: 'AttributeSettings',
+  inject: ['girderRest'],
   data: () => ({
     selectedIndex: undefined,
-    name: "",
-    belongs: "",
-    datatype: "",
+    name: '',
+    belongs: '',
+    datatype: '',
     values: [],
     addNew: false,
-    changed: false
+    changed: false,
   }),
   computed: {
     selectedAttribute() {
       if (
-        this.selectedIndex !== undefined &&
-        this.attributes[this.selectedIndex]
+        this.selectedIndex !== undefined
+        && this.attributes[this.selectedIndex]
       ) {
         return this.attributes[this.selectedIndex];
-      } else {
-        return null;
       }
+      return null;
     },
     disabled() {
       return this.selectedIndex === undefined && this.addNew === false;
@@ -28,21 +27,20 @@ export default {
     textValues: {
       get() {
         if (this.values) {
-          return this.values.join("\n");
-        } else {
-          return "";
+          return this.values.join('\n');
         }
+        return '';
       },
       set(value) {
-        this.values = value.split("\n");
-      }
-    }
+        this.values = value.split('\n');
+      },
+    },
   },
   asyncComputed: {
     async attributes() {
-      var { data } = await this.girderRest.get("/viame/attribute");
+      const { data } = await this.girderRest.get('/viame/attribute');
       return data;
-    }
+    },
   },
   watch: {
     selectedAttribute(attribute) {
@@ -53,9 +51,9 @@ export default {
         this.datatype = attribute.datatype;
         this.values = attribute.values;
       } else {
-        this.name = "";
-        this.belongs = "track";
-        this.datatype = "number";
+        this.name = '';
+        this.belongs = 'track';
+        this.datatype = 'number';
       }
       this.$nextTick(() => {
         this.changed = false;
@@ -72,16 +70,16 @@ export default {
     },
     values() {
       this.changed = true;
-    }
+    },
   },
   created() {
     this.setDefaultValue();
   },
   methods: {
     setDefaultValue() {
-      this.name = "";
-      this.belongs = "track";
-      this.datatype = "number";
+      this.name = '';
+      this.belongs = 'track';
+      this.datatype = 'number';
       this.values = [];
       this.$nextTick(() => {
         this.changed = false;
@@ -97,39 +95,39 @@ export default {
         return;
       }
 
-      var content = {
+      const content = {
         name: this.name,
         belongs: this.belongs,
         datatype: this.datatype,
-        values: this.datatype === "text" ? this.values : []
+        values: this.datatype === 'text' ? this.values : [],
       };
 
       if (this.addNew) {
-        await this.girderRest.post("/viame/attribute", content);
+        await this.girderRest.post('/viame/attribute', content);
       } else {
         await this.girderRest.put(
           `/viame/attribute/${this.selectedAttribute._id}`,
-          content
+          content,
         );
       }
       this.$asyncComputed.attributes.update();
       this.changed = false;
     },
     async deleteAttribute() {
-      var result = await this.$prompt({
-        title: "Confirm",
-        text: "Do you want to delete this attribute?",
-        confirm: true
+      const result = await this.$prompt({
+        title: 'Confirm',
+        text: 'Do you want to delete this attribute?',
+        confirm: true,
       });
       if (!result) {
         return;
       }
       await this.girderRest.delete(
-        `/viame/attribute/${this.selectedAttribute._id}`
+        `/viame/attribute/${this.selectedAttribute._id}`,
       );
       this.$asyncComputed.attributes.update();
-    }
-  }
+    },
+  },
 };
 </script>
 
@@ -141,9 +139,18 @@ export default {
     <v-card-text>
       <v-row>
         <v-col cols="2">
-          <v-list v-if="attributes" dense>
-            <v-list-item-group v-model="selectedIndex" color="primary">
-              <v-list-item v-for="attribute in attributes" :key="attribute._id">
+          <v-list
+            v-if="attributes"
+            dense
+          >
+            <v-list-item-group
+              v-model="selectedIndex"
+              color="primary"
+            >
+              <v-list-item
+                v-for="attribute in attributes"
+                :key="attribute._id"
+              >
                 <v-list-item-content>
                   <v-list-item-title>{{ attribute.name }}</v-list-item-title>
                 </v-list-item-content>
@@ -154,25 +161,31 @@ export default {
         <v-col>
           <v-form ref="form">
             <v-text-field
+              v-model="name"
               style="max-width: 220px;"
               label="Name"
-              v-model="name"
               :rules="[v => !!v || 'Name is required']"
               required
               :disabled="disabled"
-            ></v-text-field>
+            />
             <v-radio-group
-              label="Belongs to"
               v-model="belongs"
+              label="Belongs to"
               :mandatory="true"
               :disabled="disabled"
             >
-              <v-radio label="Track" value="track"></v-radio>
-              <v-radio label="Detection" value="detection"></v-radio>
+              <v-radio
+                label="Track"
+                value="track"
+              />
+              <v-radio
+                label="Detection"
+                value="detection"
+              />
             </v-radio-group>
             <v-select
-              style="max-width: 220px;"
               v-model="datatype"
+              style="max-width: 220px;"
               :items="[
                 { text: 'Boolean', value: 'boolean' },
                 { text: 'Number', value: 'number' },
@@ -180,33 +193,35 @@ export default {
               ]"
               label="Datatype"
               :disabled="disabled"
-            ></v-select>
+            />
             <v-textarea
               v-if="datatype === 'text'"
+              v-model="textValues"
               style="max-width: 250px;"
               label="Predefined values"
-              v-model="textValues"
               hint="Line separated values"
               auto-grow
               row-height="30"
-            ></v-textarea>
+            />
             <v-row>
               <v-col>
                 <v-btn
                   type="submit"
                   color="primary"
-                  @click.prevent="submit"
                   :disabled="disabled || !changed"
-                  >{{ addNew ? "Add" : "Save" }}</v-btn
+                  @click.prevent="submit"
                 >
+                  {{ addNew ? "Add" : "Save" }}
+                </v-btn>
                 <v-btn
                   v-if="!addNew && !disabled"
                   text
                   class="ml-3"
                   color="error"
                   @click.prevent="deleteAttribute"
-                  >Delete</v-btn
                 >
+                  Delete
+                </v-btn>
               </v-col>
             </v-row>
           </v-form>

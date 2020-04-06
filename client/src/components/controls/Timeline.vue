@@ -1,51 +1,51 @@
 <script>
-import { throttle } from "lodash";
-import * as d3 from "d3";
+import { throttle } from 'lodash';
+import * as d3 from 'd3';
 
 export default {
-  name: "Timeline",
+  name: 'Timeline',
   props: {
     maxFrame: {
       type: Number,
-      default: 0
+      default: 0,
     },
     frame: {
       type: Number,
-      default: 0
+      default: 0,
     },
     seek: {
-      type: Function
-    }
+      type: Function,
+    },
   },
   data() {
     return {
-      init: this.maxFrame ? true : false,
+      init: !!this.maxFrame,
       mounted: false,
       startFrame: 0,
       endFrame: this.maxFrame,
-      timelineScale: null
+      timelineScale: null,
     };
   },
   computed: {
     minimapFillStyle() {
       return {
-        left: (this.startFrame / this.maxFrame) * 100 + "%",
-        width: ((this.endFrame - this.startFrame) / this.maxFrame) * 100 + "%"
+        left: `${(this.startFrame / this.maxFrame) * 100}%`,
+        width: `${((this.endFrame - this.startFrame) / this.maxFrame) * 100}%`,
       };
     },
     handLeftPosition() {
       if (
-        !this.mounted ||
-        this.frame < this.startFrame ||
-        this.frame > this.endFrame
+        !this.mounted
+        || this.frame < this.startFrame
+        || this.frame > this.endFrame
       ) {
         return null;
       }
       return Math.round(
-        this.$refs.workarea.clientWidth *
-          ((this.frame - this.startFrame) / (this.endFrame - this.startFrame))
+        this.$refs.workarea.clientWidth
+          * ((this.frame - this.startFrame) / (this.endFrame - this.startFrame)),
       );
-    }
+    },
   },
   watch: {
     maxFrame(value) {
@@ -60,7 +60,7 @@ export default {
       this.update();
     },
     handLeftPosition(value) {
-      this.$refs.hand.style.left = (value ? value : "-10") + "px";
+      this.$refs.hand.style.left = `${value || '-10'}px`;
     },
     frame(frame) {
       if (frame > this.endFrame) {
@@ -68,20 +68,20 @@ export default {
       } else if (frame < this.startFrame) {
         this.startFrame = Math.max(frame - 100, 0);
       }
-    }
+    },
   },
   created() {
     this.update = throttle(this.update, 30);
   },
   mounted() {
-    var width = this.$refs.workarea.clientWidth;
-    var height = this.$refs.workarea.clientHeight;
-    var scale = d3
+    const width = this.$refs.workarea.clientWidth;
+    const height = this.$refs.workarea.clientHeight;
+    const scale = d3
       .scaleLinear()
       .domain([0, this.maxFrame])
       .range([0, width]);
     this.timelineScale = scale;
-    var axis = d3
+    const axis = d3
       .axisTop()
       .scale(scale)
       .tickSize(height - 30)
@@ -89,23 +89,22 @@ export default {
     this.axis = axis;
     this.g = d3
       .select(this.$refs.workarea)
-      .append("svg")
-      .style("display", "block")
-      .attr("width", width)
-      .attr("height", height)
-      .append("g")
-      .attr("transform", `translate(0,${height - 17})`);
+      .append('svg')
+      .style('display', 'block')
+      .attr('width', width)
+      .attr('height', height)
+      .append('g')
+      .attr('transform', `translate(0,${height - 17})`);
     this.updateAxis();
     this.mounted = true;
   },
   methods: {
     onwheel(e) {
-      var extend =
-        Math.round((this.endFrame - this.startFrame) * 0.2) *
-        Math.sign(e.deltaY);
-      var ratio = (e.layerX - this.$el.offsetLeft) / this.$el.clientWidth;
-      var startFrame = this.startFrame - extend * ratio;
-      var endFrame = this.endFrame + extend * (1 - ratio);
+      const extend = Math.round((this.endFrame - this.startFrame) * 0.2)
+        * Math.sign(e.deltaY);
+      const ratio = (e.layerX - this.$el.offsetLeft) / this.$el.clientWidth;
+      let startFrame = this.startFrame - extend * ratio;
+      let endFrame = this.endFrame + extend * (1 - ratio);
       startFrame = Math.max(0, startFrame);
       endFrame = Math.min(this.maxFrame, endFrame);
       if (startFrame >= endFrame - 200) {
@@ -115,12 +114,10 @@ export default {
       this.endFrame = endFrame;
     },
     updateAxis() {
-      this.g.call(this.axis).call(g =>
-        g
-          .selectAll(".tick text")
-          .attr("y", 0)
-          .attr("dy", 13)
-      );
+      this.g.call(this.axis).call((g) => g
+        .selectAll('.tick text')
+        .attr('y', 0)
+        .attr('dy', 13));
     },
     update() {
       this.timelineScale.domain([this.startFrame, this.endFrame]);
@@ -128,11 +125,11 @@ export default {
       this.updateAxis();
     },
     emitSeek(e) {
-      var frame = Math.round(
-        ((e.clientX - this.$refs.workarea.getBoundingClientRect().left) /
-          this.$refs.workarea.clientWidth) *
-          (this.endFrame - this.startFrame) +
-          this.startFrame
+      const frame = Math.round(
+        ((e.clientX - this.$refs.workarea.getBoundingClientRect().left)
+          / this.$refs.workarea.clientWidth)
+          * (this.endFrame - this.startFrame)
+          + this.startFrame,
       );
       this.seek(frame);
     },
@@ -171,13 +168,13 @@ export default {
         this.minimapDragging = false;
         return;
       }
-      var delta = this.minimapDraggingStartClientX - e.clientX;
-      var frameDelta = (delta / this.$refs.minimap.clientWidth) * this.maxFrame;
-      var startFrame = this.minimapDraggingStartFrame - frameDelta;
+      const delta = this.minimapDraggingStartClientX - e.clientX;
+      const frameDelta = (delta / this.$refs.minimap.clientWidth) * this.maxFrame;
+      const startFrame = this.minimapDraggingStartFrame - frameDelta;
       if (startFrame < 0) {
         return;
       }
-      var endFrame = this.minimapDraggingEndFrame - frameDelta;
+      const endFrame = this.minimapDraggingEndFrame - frameDelta;
       if (endFrame > this.maxFrame) {
         return;
       }
@@ -186,8 +183,8 @@ export default {
     },
     containerMouseup() {
       this.minimapDragging = false;
-    }
-  }
+    },
+  },
 };
 </script>
 
@@ -199,15 +196,21 @@ export default {
     @mousemove="containerMousemove"
   >
     <div
-      class="work-area"
       ref="workarea"
+      class="work-area"
       @mouseup="workareaMouseup"
       @mousedown="workareaMousedown"
       @mousemove="workareaMousemove"
       @mouseleave="workareaMouseleave"
     >
-      <div class="hand" ref="hand"></div>
-      <div class="child" v-if="init && mounted">
+      <div
+        ref="hand"
+        class="hand"
+      />
+      <div
+        v-if="init && mounted"
+        class="child"
+      >
         <slot
           name="child"
           :startFrame="startFrame"
@@ -216,7 +219,10 @@ export default {
         />
       </div>
     </div>
-    <div class="minimap" ref="minimap">
+    <div
+      ref="minimap"
+      class="minimap"
+    >
       <div
         class="fill"
         :style="minimapFillStyle"

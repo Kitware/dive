@@ -6,19 +6,19 @@
 
 <script>
 export default {
-  name: "App",
+  name: 'App',
   components: {},
-  inject: ["girderRest"],
+  inject: ['girderRest'],
   data: () => ({
     //
   }),
   watch: {
-    "girderRest.user"(user) {
+    'girderRest.user': (user) => {
       if (!user) {
-        this.$router.push("/login");
+        this.$router.push('/login');
       }
-    }
-  }
+    },
+  },
 };
 </script>
 

@@ -1,59 +1,58 @@
 <script>
-import { throttle } from "lodash";
-import * as d3 from "d3";
+import { throttle } from 'lodash';
+import * as d3 from 'd3';
 
 export default {
-  name: "LineChart",
+  name: 'LineChart',
   props: {
     startFrame: {
       type: Number,
-      required: true
+      required: true,
     },
     endFrame: {
       type: Number,
-      required: true
+      required: true,
     },
     maxFrame: {
       type: Number,
-      required: true
+      required: true,
     },
     data: {
       type: Array,
       required: true,
       validator(data) {
-        return !data.find(datum => {
-          return !Array.isArray(datum.values);
-        });
-      }
-    }
+        return !data.find((datum) => !Array.isArray(datum.values));
+      },
+    },
   },
   computed: {
     lineData() {
-      return this.data.map(datum => {
-        var lastFrame = -1;
+      return this.data.map((datum) => {
+        let lastFrame = -1;
         // var lastPoint = [0, 0];
-        var padZero = [];
-        datum.values.forEach(point => {
-          var frame = point[0];
-          if (frame != lastFrame + 1) {
-            for (var i = lastFrame + 1; i < frame; i++) {
+        const padZero = [];
+        datum.values.forEach((point) => {
+          const frame = point[0];
+          if (frame !== lastFrame + 1) {
+            for (let i = lastFrame + 1; i < frame; i += 1) {
               padZero.push([i, 0]);
             }
           }
           padZero.push(point);
           lastFrame = frame;
         });
-        if (this.maxFrame != lastFrame) {
-          for (var i = lastFrame + 1; i <= this.maxFrame; i++) {
+        if (this.maxFrame !== lastFrame) {
+          for (let i = lastFrame + 1; i <= this.maxFrame; i += 1) {
             padZero.push([i, 0]);
           }
         }
-        var clean = [padZero[0]];
-        var lastValue = padZero[0][1];
-        for (let i = 1; i < padZero.length; i++) {
-          if (padZero[i][1] != lastValue) {
+        const clean = [padZero[0]];
+        let lastValue = padZero[0][1];
+        for (let i = 1; i < padZero.length; i += 1) {
+          if (padZero[i][1] !== lastValue) {
             clean.push(padZero[i - 1]);
             clean.push(padZero[i]);
+            // eslint-disable-next-line prefer-destructuring
             lastValue = padZero[i][1];
           }
         }
@@ -62,7 +61,7 @@ export default {
         }
         return { ...datum, values: clean };
       });
-    }
+    },
   },
   watch: {
     startFrame() {
@@ -74,7 +73,7 @@ export default {
     lineData() {
       this.initialize();
       this.update();
-    }
+    },
   },
   created() {
     this.update = throttle(this.update, 30);
@@ -85,95 +84,92 @@ export default {
   methods: {
     initialize() {
       d3.select(this.$el)
-        .select("svg")
+        .select('svg')
         .remove();
-      var width = this.$el.clientWidth;
-      var height = this.$el.clientHeight;
-      var x = d3
+      let tooltipTimeoutHandle = null;
+      const tooltip = d3
+        .select(this.$el)
+        .append('div')
+        .attr('class', 'tooltip')
+        .style('display', 'none');
+      const width = this.$el.clientWidth;
+      const height = this.$el.clientHeight;
+      const x = d3
         .scaleLinear()
         .domain([this.startFrame, this.endFrame])
         .range([0, width]);
       this.x = x;
-      var max = d3.max(this.lineData, datum => d3.max(datum.values, d => d[1]));
-      var y = d3
+      const max = d3.max(this.lineData, (datum) => d3.max(datum.values, (d) => d[1]));
+      const y = d3
         .scaleLinear()
         .domain([0, Math.max(max + max * 0.2, 2)])
         .range([height, 0]);
 
-      var line = d3
+      const line = d3
         .line()
         .curve(d3.curveStepAfter)
-        .x(d => x(d[0]))
-        .y(d => y(d[1]));
+        .x((d) => x(d[0]))
+        .y((d) => y(d[1]));
       this.line = line;
 
-      var svg = d3
+      const svg = d3
         .select(this.$el)
-        .append("svg")
-        .style("display", "block")
-        .attr("width", width)
-        .attr("height", height)
-        .append("g")
-        .attr("transform", `translate(0,-1)`);
+        .append('svg')
+        .style('display', 'block')
+        .attr('width', width)
+        .attr('height', height)
+        .append('g')
+        .attr('transform', 'translate(0,-1)');
 
-      var axis = d3.axisRight(y).tickSize(width);
+      const axis = d3.axisRight(y).tickSize(width);
       this.axis = axis;
       svg
-        .append("g")
-        .attr("class", "axis-y")
+        .append('g')
+        .attr('class', 'axis-y')
         .call(axis)
-        .call(g =>
-          g
-            .selectAll(".tick text")
-            .attr("x", 0)
-            .attr("dx", 13)
-        );
+        .call((g) => g
+          .selectAll('.tick text')
+          .attr('x', 0)
+          .attr('dx', 13));
 
-      var path = svg
+      const path = svg
         .selectAll()
         .data(this.lineData)
         .enter()
-        .append("path")
-        .attr("class", "line")
-        .attr("d", d => line(d.values))
-        .style("stroke", d => (d.color ? d.color : "#4c9ac2"))
-        .on("mouseenter", function(d) {
-          var [x, y] = d3.mouse(this);
+        .append('path')
+        .attr('class', 'line')
+        .attr('d', (d) => line(d.values))
+        .style('stroke', (d) => (d.color ? d.color : '#4c9ac2'))
+        .on('mouseenter', (d) => {
+          const [_x, _y] = d3.mouse(this);
           tooltipTimeoutHandle = setTimeout(() => {
             tooltip
-              .style("left", x + 2 + "px")
-              .style("top", y - 25 + "px")
+              .style('left', `${_x + 2}px`)
+              .style('top', `${_y - 25}px`)
               .text(d.name)
-              .style("display", "block");
+              .style('display', 'block');
           }, 200);
         })
-        .on("mouseout", function() {
+        .on('mouseout', () => {
           clearTimeout(tooltipTimeoutHandle);
-          tooltip.style("display", "none");
+          tooltip.style('display', 'none');
         });
       this.path = path;
-
-      var tooltip = d3
-        .select(this.$el)
-        .append("div")
-        .attr("class", "tooltip")
-        .style("display", "none");
-      var tooltipTimeoutHandle = null;
     },
     update() {
       this.x.domain([this.startFrame, this.endFrame]);
-      this.line.x(d => {
-        return this.x(d[0]);
-      });
-      this.path.attr("d", d => this.line(d.values));
+      this.line.x((d) => this.x(d[0]));
+      this.path.attr('d', (d) => this.line(d.values));
     },
-    rendered() {}
-  }
+    rendered() {},
+  },
 };
 </script>
 
 <template>
-  <div class="line-chart">{{ rendered() }}</div>
+  <div class="line-chart">
+    {{ rendered() }}
+  </div>
 </template>
 
 <style lang="scss">

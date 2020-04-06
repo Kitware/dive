@@ -1,20 +1,20 @@
 <script>
 export default {
-  name: "MarkerLayer",
-  inject: ["annotator"],
+  name: 'MarkerLayer',
+  inject: ['annotator'],
   props: {
     data: {
-      type: Array
+      type: Array,
     },
     markerStyle: {
       type: Object,
-      required: false
-    }
+      required: false,
+    },
   },
   computed: {
     frameMap() {
-      var map = new Map();
-      this.data.forEach(record => {
+      const map = new Map();
+      this.data.forEach((record) => {
         let arr = map.get(record.frame);
         if (!map.has(record.frame)) {
           arr = [];
@@ -23,43 +23,43 @@ export default {
         arr.push(record);
       });
       return map;
-    }
+    },
   },
   watch: {
-    "annotator.syncedFrame": {
+    'annotator.syncedFrame': {
       sync: true,
       handler() {
         this.frameChanged();
-      }
+      },
     },
     markerStyle() {
       this.updateStyle();
     },
     frameMap() {
       this.frameChanged();
-    }
+    },
   },
   mounted() {
-    this.featureLayer = this.annotator.geoViewer.createLayer("feature", {
-      features: ["point"]
+    this.featureLayer = this.annotator.geoViewer.createLayer('feature', {
+      features: ['point'],
     });
-    this.pointFeature = this.featureLayer.createFeature("point");
+    this.pointFeature = this.featureLayer.createFeature('point');
     this.frameChanged();
     this.updateStyle();
   },
   methods: {
     frameChanged() {
-      var frame = this.annotator.syncedFrame;
-      var data = this.frameMap.get(frame);
-      data = data ? data : [];
+      const frame = this.annotator.syncedFrame;
+      let data = this.frameMap.get(frame);
+      data = data || [];
       this.pointFeature.data(data).draw();
     },
     updateStyle() {
       this.pointFeature.style(this.markerStyle).draw();
-    }
+    },
   },
   render() {
     return null;
-  }
+  },
 };
 </script>
