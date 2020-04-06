@@ -40,8 +40,7 @@ export default {
     }
   },
   mounted() {
-    var viewer = this.annotator.viewer;
-    this.featureLayer = viewer.createLayer("feature", {
+    this.featureLayer = this.annotator.geoViewer.createLayer("feature", {
       features: ["point"]
     });
     this.pointFeature = this.featureLayer.createFeature("point");

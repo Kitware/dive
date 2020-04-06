@@ -33,10 +33,10 @@ export default {
   },
   mounted() {
     // setup geojs layer
-    this.$geojsLayer = this.annotator.viewer.createLayer(/*... */);
+    this.$geojsLayer = this.annotator.geoViewer.createLayer(/*... */);
   },
   beforeDestroy() {
-    this.annotator.viewer.deleteLayer(this.$geojsLayer);
+    this.annotator.geoViewer.deleteLayer(this.$geojsLayer);
     delete this.$geojsLayer;
   },
   methods: {

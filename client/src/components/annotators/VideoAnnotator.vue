@@ -36,8 +36,8 @@ export default {
 
   methods: {
     init() {
-      this.baseInit();
-      this.quadFeatureLayer = this.viewer.createLayer("feature", {
+      this.baseInit(); // Mixin method
+      this.quadFeatureLayer = this.geoViewer.createLayer("feature", {
         features: ["quad.video"]
       });
       this.quadFeatureLayer
@@ -90,13 +90,13 @@ export default {
     },
 
     onResize() {
-      if (!this.viewer) {
+      if (!this.geoViewer) {
         return;
       }
       const size = this.$refs.container.getBoundingClientRect();
-      const mapSize = this.viewer.size();
+      const mapSize = this.geoViewer.size();
       if (size.width !== mapSize.width || size.height !== mapSize.height) {
-        this.viewer.size(size);
+        this.geoViewer.size(size);
       }
     },
 
@@ -104,7 +104,7 @@ export default {
       if (this.playing) {
         this.frame = Math.round(this.video.currentTime * this.frameRate);
         this.syncedFrame = this.frame;
-        this.viewer.scheduleAnimationFrame(this.syncWithVideo);
+        this.geoViewer.scheduleAnimationFrame(this.syncWithVideo);
       }
     }
   }

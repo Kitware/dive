@@ -42,7 +42,7 @@ export default {
   },
   beforeDestroy() {
     this.$geojsLayer.mode(null);
-    this.annotator.viewer.deleteLayer(this.$geojsLayer);
+    this.annotator.geoViewer.deleteLayer(this.$geojsLayer);
     delete this.$geojsLayer;
   },
   methods: {
@@ -56,7 +56,7 @@ export default {
     },
     initialize() {
       if (!this.$geojsLayer) {
-        this.$geojsLayer = this.annotator.viewer.createLayer("annotation", {
+        this.$geojsLayer = this.annotator.geoViewer.createLayer("annotation", {
           clickToEdit: true,
           showLabels: false
         });

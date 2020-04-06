@@ -7,7 +7,7 @@ An annotator maintains an instance of GeoJS.
 The state available on the injected Vue annotator instance.
 
 ```js
-viewer // geojs viewer
+geoViewer // geojs viewer
 playing // boolean
 frame // number
 maxFrame // number

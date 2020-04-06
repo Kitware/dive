@@ -31,8 +31,8 @@ export default {
 
   methods: {
     init() {
-      this.baseInit(); // Mixin
-      this.quadFeatureLayer = this.viewer.createLayer("feature", {
+      this.baseInit(); // Mixin method
+      this.quadFeatureLayer = this.geoViewer.createLayer("feature", {
         features: ["quad"]
       });
       this.quadFeature = this.quadFeatureLayer
@@ -78,13 +78,13 @@ export default {
     },
 
     onResize() {
-      if (!this.viewer) {
+      if (!this.geoViewer) {
         return;
       }
       const size = this.$refs.container.getBoundingClientRect();
-      const mapSize = this.viewer.size();
+      const mapSize = this.geoViewer.size();
       if (size.width !== mapSize.width || size.height !== mapSize.height) {
-        this.viewer.size(size);
+        this.geoViewer.size(size);
       }
     },
     syncWithVideo() {

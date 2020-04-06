@@ -62,8 +62,7 @@ export default {
     }
   },
   mounted() {
-    var viewer = this.annotator.viewer;
-    this.featureLayer = viewer.createLayer("feature", {
+    this.featureLayer = this.annotator.geoViewer.createLayer("feature", {
       features: ["point", "line", "polygon"]
     });
     this.polygonFeature = this.featureLayer
@@ -83,7 +82,7 @@ export default {
     this.updateStyle();
   },
   beforeDestroy() {
-    this.annotator.viewer.removeChild(this.featureLayer);
+    this.annotator.geoViewer.removeChild(this.featureLayer);
   },
   methods: {
     updateStyle() {

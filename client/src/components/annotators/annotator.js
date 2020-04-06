@@ -18,7 +18,7 @@ export default {
   data() {
     this.provided = new Vue({
       computed: {
-        viewer: () => this.viewer,
+        geoViewer: () => this.geoViewer,
         playing: () => this.playing,
         frame: () => this.frame,
         maxFrame: () => this.maxFrame,
@@ -51,12 +51,12 @@ export default {
         this.width,
         this.height
       );
-      this.viewer = geo.map(params.map);
-      this.viewer.zoomRange({
-        min: this.viewer.zoomRange().origMin,
-        max: this.viewer.zoomRange().max + 3
+      this.geoViewer = geo.map(params.map);
+      this.geoViewer.zoomRange({
+        min: this.geoViewer.zoomRange().origMin,
+        max: this.geoViewer.zoomRange().max + 3
       });
-      var interactorOpts = this.viewer.interactor().options();
+      var interactorOpts = this.geoViewer.interactor().options();
       interactorOpts.keyboard.focusHighlight = false;
       interactorOpts.keyboard.actions = {};
       interactorOpts.actions = [
@@ -73,7 +73,7 @@ export default {
         enabled: false
       };
       interactorOpts.wheelScaleY = 0.2;
-      this.viewer.interactor().options(interactorOpts);
+      this.geoViewer.interactor().options(interactorOpts);
     },
     prevFrame() {
       var targetFrame = this.frame - 1;
