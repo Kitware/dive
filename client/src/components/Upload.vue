@@ -49,30 +49,24 @@ export default {
         return `${formatSize(totalProgress)} of ${formatSize(totalSize)}`;
       }
     },
-    /**
-     * Calculates the field properties for each pending upload
-     * @param {('label'|'disabled'|'default')} field - the field property we want the current state for
-     * @param {{createFolder: boolean, files: Array}} pendingUpload
-     */
-    getFilenameInputState(field, pendingUpload) {
-      if (field === "label") {
-        let label = pendingUpload.createFolder ? "Folder" : "File";
-        label += " Name";
-        if (!pendingUpload.createFolder && pendingUpload.files.length > 1) {
-          label += "s";
-        }
-        return label;
-      } else if (field === "disabled") {
-        return (
-          pendingUpload.uploading ||
-          (!pendingUpload.createFolder && pendingUpload.files.length > 1)
-        );
-      } else if (field === "hint") {
-        return !pendingUpload.createFolder && pendingUpload.files.length > 1
-          ? "default filenames are used"
+    getFilenameInputStateLabel(pendingUpload) {
+      const type = pendingUpload.createFolder ? "Folder" : "File";
+      const plural =
+        !pendingUpload.createFolder && pendingUpload.files.length > 1
+          ? "s"
           : "";
-      }
-      return false;
+      return `${type} Name${plural}`;
+    },
+    getFilenameInputStateDisabled(pendingUpload) {
+      return (
+        pendingUpload.uploading ||
+        (!pendingUpload.createFolder && pendingUpload.files.length > 1)
+      );
+    },
+    getFilenameInputStateHint(pendingUpload) {
+      return !pendingUpload.createFolder && pendingUpload.files.length > 1
+        ? "default filenames are used"
+        : "";
     },
     async dropped(e) {
       e.preventDefault();
@@ -301,10 +295,10 @@ function prepareFiles(files) {
                     val => (val || '').length > 0 || 'This field is required'
                   ]"
                   required
-                  :label="getFilenameInputState('label', pendingUpload)"
-                  :disabled="getFilenameInputState('disabled', pendingUpload)"
+                  :label="getFilenameInputStateLabel(pendingUpload)"
+                  :disabled="getFilenameInputStateDisabled(pendingUpload)"
+                  :hint="getFilenameInputStateHint(pendingUpload)"
                   persistent-hint
-                  :hint="getFilenameInputState('hint', pendingUpload)"
                 ></v-text-field>
               </v-col>
 
