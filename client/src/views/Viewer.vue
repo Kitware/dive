@@ -4,23 +4,28 @@ import { mapState } from "vuex";
 import * as d3 from "d3";
 import colors from "vuetify/lib/util/colors";
 
+import { getPathFromLocation } from "@/utils";
+
+// Annotators
+import VideoAnnotator from "@/components/annotators/VideoAnnotator";
+import ImageAnnotator from "@/components/annotators/ImageAnnotator";
+// Layers
+import TextLayer from "@/components/layers/TextLayer";
+import MarkerLayer from "@/components/layers/MarkerLayer";
+import AnnotationLayer from "@/components/layers/AnnotationLayer";
+import EditAnnotationLayer from "@/components/layers/EditAnnotationLayer";
+// Controls
+import Controls from "@/components/controls/Controls";
+import TimelineWrapper from "@/components/controls/TimelineWrapper";
+import Timeline from "@/components/controls/Timeline";
+import LineChart from "@/components/controls/LineChart";
+import EventChart from "@/components/controls/EventChart";
+// Other normal components
 import NavigationTitle from "@/components/NavigationTitle";
-import VideoAnnotator from "@/components/VideoAnnotator";
-import ImageAnnotator from "@/components/ImageAnnotator";
-import Controls from "@/components/Controls";
-import AnnotationLayer from "@/components/AnnotationLayer";
-import EditAnnotationLayer from "@/components/EditAnnotationLayer";
 import ConfidenceFilter from "@/components/ConfidenceFilter";
 import Tracks from "@/components/Tracks";
 import TypeList from "@/components/TypeList";
 import AttributesPanel from "@/components/AttributesPanel";
-import TextLayer from "@/components/TextLayer";
-import MarkerLayer from "@/components/MarkerLayer";
-import TimelineWrapper from "@/components/TimelineWrapper";
-import Timeline from "@/components/timeline/Timeline";
-import LineChart from "@/components/timeline/LineChart";
-import EventChart from "@/components/timeline/EventChart";
-import { getPathFromLocation } from "@/utils";
 
 var typeColors = [
   colors.red.accent1,

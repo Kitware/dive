@@ -1,58 +1,23 @@
 <script>
-import { throttle } from "lodash";
-import Vue from "vue";
-import geo from "geojs";
-
-// TODO: have a common base class with VideoAnnotator
+import annotator from "./annotator";
 
 export default {
   name: "ImageAnnotator",
+
   props: {
     imageUrls: {
       type: Array,
       required: true
-    },
-    frameRate: {
-      type: Number,
-      required: true
     }
   },
-  provide() {
-    return {
-      annotator: this.provided
-    };
-  },
-  data() {
-    this.provided = new Vue({
-      computed: {
-        viewer: () => this.viewer,
-        playing: () => this.playing,
-        frame: () => this.frame,
-        maxFrame: () => this.maxFrame,
-        syncedFrame: () => this.syncedFrame
-      }
-    });
-    return {
-      ready: false,
-      playing: false,
-      frame: 0,
-      maxFrame: 0,
-      syncedFrame: 0
-    };
-  },
+
+  mixins: [annotator],
+
   created() {
-    this.provided.$on("play", this.play);
-    this.provided.$on("prev-frame", this.prevFrame);
-    this.provided.$on("next-frame", this.nextFrame);
-    this.provided.$on("pause", this.pause);
-    this.provided.$on("seek", this.seek);
-    this.emitFrame();
-    this.emitFrame = throttle(this.emitFrame, 200);
     this.maxFrame = this.imageUrls.length - 1;
     this.imgs = new Array(this.imageUrls.length);
     this.pendingImgs = new Set();
     this.cacheImage();
-
     if (this.imgs.length) {
       const img = this.imgs[0];
       img.onload = () => {
@@ -63,40 +28,11 @@ export default {
       };
     }
   },
+
   methods: {
     init() {
-      var params = geo.util.pixelCoordinateParams(
-        this.$refs.container,
-        this.width,
-        this.height,
-        this.width,
-        this.height
-      );
-      this.viewer = geo.map(params.map);
-      this.viewer.zoomRange({
-        min: this.viewer.zoomRange().origMin,
-        max: this.viewer.zoomRange().max + 3
-      });
-      var interactorOpts = this.viewer.interactor().options();
-      interactorOpts.keyboard.focusHighlight = false;
-      interactorOpts.keyboard.actions = {};
-      interactorOpts.actions = [
-        interactorOpts.actions[0],
-        interactorOpts.actions[2],
-        interactorOpts.actions[6],
-        interactorOpts.actions[7],
-        interactorOpts.actions[8]
-      ];
-      interactorOpts.zoomAnimation = {
-        enabled: false
-      };
-      interactorOpts.momentum = {
-        enabled: false
-      };
-      interactorOpts.wheelScaleY = 0.2;
-      this.viewer.interactor().options(interactorOpts);
-
-      this.quadFeatureLayer = this.viewer.createLayer("feature", {
+      this.baseInit(); // Mixin method
+      this.quadFeatureLayer = this.geoViewer.createLayer("feature", {
         features: ["quad"]
       });
       this.quadFeature = this.quadFeatureLayer
@@ -111,14 +47,16 @@ export default {
         .draw();
       this.ready = true;
     },
+
     async play() {
       try {
         this.playing = true;
         this.syncWithVideo();
       } catch (ex) {
-        console.error(ex);
+        console.log(ex);
       }
     },
+
     async seek(frame) {
       this.frame = frame;
       this.syncedFrame = frame;
@@ -134,29 +72,19 @@ export default {
         ])
         .draw();
     },
-    prevFrame() {
-      var targetFrame = this.frame - 1;
-      if (targetFrame >= 0) {
-        this.seek(targetFrame);
-      }
-    },
-    nextFrame() {
-      var targetFrame = this.frame + 1;
-      if (targetFrame <= this.maxFrame) {
-        this.seek(targetFrame);
-      }
-    },
+
     pause() {
       this.playing = false;
     },
+
     onResize() {
-      if (!this.viewer) {
+      if (!this.geoViewer) {
         return;
       }
       const size = this.$refs.container.getBoundingClientRect();
-      const mapSize = this.viewer.size();
+      const mapSize = this.geoViewer.size();
       if (size.width !== mapSize.width || size.height !== mapSize.height) {
-        this.viewer.size(size);
+        this.geoViewer.size(size);
       }
     },
     syncWithVideo() {
@@ -173,7 +101,6 @@ export default {
         setTimeout(this.syncWithVideo, 1000 / this.frameRate);
       }
     },
-    rendered() {},
     cacheImage() {
       var frame = this.frame;
       var max = Math.min(frame + 10, this.maxFrame);
@@ -201,9 +128,6 @@ export default {
           })(img, i);
         }
       }
-    },
-    emitFrame() {
-      this.$emit("frame-update", this.frame);
     }
   }
 };
@@ -211,30 +135,14 @@ export default {
 
 <template>
   <div class="video-annotator" v-resize="onResize">
-    <div class="playback-container" ref="container">{{ rendered() }}</div>
+    <div class="playback-container" ref="container">
+      {{ rendered() }}
+    </div>
     <slot name="control" />
     <slot v-if="ready" />
   </div>
 </template>
 
 <style lang="scss" scoped>
-.video-annotator {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 0;
-  bottom: 0;
-  z-index: 0;
-
-  display: flex;
-  flex-direction: column;
-
-  .playback-container {
-    flex: 1;
-
-    &.geojs-map:focus {
-      outline: none;
-    }
-  }
-}
+@import "./annotator.scss";
 </style>

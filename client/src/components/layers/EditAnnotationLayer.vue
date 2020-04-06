@@ -1,23 +1,30 @@
 <script>
 import { cloneDeep } from "lodash";
-// import { getType } from '@turf/invariant';
-// import { feature } from '@turf/helpers';
 import geo from "geojs";
 
 export default {
-  name: "PointMarkingLayer",
+  name: "EditAnnotationLayer",
   inject: ["annotator"],
   props: {
     geojson: {
       type: Object,
       default: null,
       validator(value) {
-        return value.type === "Polygon";
+        return ["Point", "Polygon", "LineString"].includes(value.type);
       }
     },
     editing: {
-      type: Boolean,
-      default: true
+      type: [String, Boolean],
+      default: true,
+      validator(value) {
+        if (typeof value === "boolean") {
+          return true;
+        }
+        if (typeof value === "string") {
+          return geo.listAnnotations().indexOf(value) !== -1;
+        }
+        return false;
+      }
     },
     featureStyle: {
       type: Object,
@@ -31,9 +38,11 @@ export default {
   },
   watch: {
     geojson() {
+      // reinitialize when annotations change.
       this.reinitialize();
     },
     editing() {
+      // reinitialize when pointer editing mode is toggled
       this.reinitialize();
     }
   },
@@ -42,7 +51,7 @@ export default {
   },
   beforeDestroy() {
     this.$geojsLayer.mode(null);
-    this.annotator.viewer.deleteLayer(this.$geojsLayer);
+    this.annotator.geoViewer.deleteLayer(this.$geojsLayer);
     delete this.$geojsLayer;
   },
   methods: {
@@ -56,7 +65,7 @@ export default {
     },
     initialize() {
       if (!this.$geojsLayer) {
-        this.$geojsLayer = this.annotator.viewer.createLayer("annotation", {
+        this.$geojsLayer = this.annotator.geoViewer.createLayer("annotation", {
           clickToEdit: true,
           showLabels: false
         });
@@ -67,8 +76,19 @@ export default {
         if (!("geometry" in geojson)) {
           geojson = { type: "Feature", geometry: geojson, properties: {} };
         }
-        // Always is rectangle
-        geojson.properties.annotationType = "rectangle";
+        // check if is rectangle
+        const { coordinates } = geojson.geometry;
+        if (typeof this.editing === "string") {
+          geojson.properties.annotationType = this.editing;
+        } else if (
+          coordinates.length === 1 &&
+          coordinates[0].length === 5 &&
+          coordinates[0][0][0] === coordinates[0][3][0] &&
+          coordinates[0][0][1] === coordinates[0][1][1] &&
+          coordinates[0][2][1] === coordinates[0][3][1]
+        ) {
+          geojson.properties.annotationType = "rectangle";
+        }
         this.$geojsLayer.geojson(geojson);
         const annotation = this.$geojsLayer.annotations()[0];
         if (this.featureStyle) {
@@ -81,7 +101,15 @@ export default {
         }
       } else if (this.editing) {
         this.changed = true;
-        this.$geojsLayer.mode("rectangle");
+        if (typeof this.editing !== "string") {
+          throw new Error(
+            `editing props needs to be a string of value ${geo
+              .listAnnotations()
+              .join(", ")} when geojson prop is not set`
+          );
+        } else {
+          this.$geojsLayer.mode(this.editing);
+        }
       }
 
       this.$geojsLayer.geoOn(geo.event.annotation.mode, e => {
