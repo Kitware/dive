@@ -38,7 +38,7 @@ export default {
           :key="type"
           class="my-2 ml-3"
           v-model="checkedTypes_"
-          color="white"
+          color="neutral"
           :value="type"
           dense
           hide-details

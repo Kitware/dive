@@ -17,7 +17,9 @@ const appVuetifyConfig = merge(girderVuetifyConfig, {
     themes: {
       dark: {
         accent: colors.blue.lighten1,
-        primary: colors.blue.base
+        secondary: colors.grey.darken1,
+        primary: colors.blue.darken2,
+        neutral: colors.grey.lighten5
       }
     }
   }

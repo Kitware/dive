@@ -42,7 +42,7 @@ export default {
       dense
       hide-details
       :input-value="inputValue"
-      color="white"
+      color="neutral"
       @change="$emit('change', $event)"
     >
     </v-checkbox>
