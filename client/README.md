@@ -1,5 +1,21 @@
 # VIAMEWeb
 
+## Development
+
+``` bash
+# install dependencies
+npm install
+
+# run development server
+npm run serve
+
+# build for production
+npm run build
+
+# lint
+npm run lint
+```
+
 ## Architecture
 
 This application is built with GeoJS, and is rather unique in its structure.
