@@ -285,6 +285,7 @@ function prepareFiles(files) {
                 <v-checkbox
                   label="Create Folder"
                   v-model="pendingUpload.createFolder"
+                  class="pl-2"
                 />
               </v-col>
               <v-col>
