@@ -749,6 +749,17 @@ function geojsonToBound2(geojson) {
       <span class="subtitle-1 text-center" style="flex-grow: 1;">{{
         dataset ? dataset.name : ""
       }}</span>
+      <v-btn
+        dense
+        depressed
+        href="https://github.com/VIAME/VIAME-Web/wiki/User-Documentation"
+        target="_blank"
+        color="secondary darken-2"
+        class="mx-3"
+      >
+        User Guide
+        <v-icon class="pl-2">mdi-help-circle</v-icon>
+      </v-btn>
       <ConfidenceFilter :confidence.sync="confidence" />
       <v-btn icon :disabled="!pendingSave" @click="save"
         ><v-icon>mdi-content-save</v-icon></v-btn
