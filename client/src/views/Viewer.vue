@@ -26,6 +26,7 @@ import ConfidenceFilter from "@/components/ConfidenceFilter";
 import Tracks from "@/components/Tracks";
 import TypeList from "@/components/TypeList";
 import AttributesPanel from "@/components/AttributesPanel";
+import UserGuideButton from "@/components/UserGuideButton";
 
 var typeColors = [
   colors.red.accent1,
@@ -58,7 +59,8 @@ export default {
     TypeList,
     AttributesPanel,
     LineChart,
-    EventChart
+    EventChart,
+    UserGuideButton
   },
   data: () => ({
     dataset: null,
@@ -749,6 +751,7 @@ function geojsonToBound2(geojson) {
       <span class="subtitle-1 text-center" style="flex-grow: 1;">{{
         dataset ? dataset.name : ""
       }}</span>
+      <user-guide-button />
       <ConfidenceFilter :confidence.sync="confidence" />
       <v-btn icon :disabled="!pendingSave" @click="save"
         ><v-icon>mdi-content-save</v-icon></v-btn

@@ -3,12 +3,14 @@ import { mapState } from "vuex";
 import { all } from "@girder/components/src/components/Job/status";
 
 import NavigationTitle from "@/components/NavigationTitle";
+import UserGuideButton from "@/components/UserGuideButton";
 import { getPathFromLocation } from "@/utils";
 
 export default {
   name: "GenericNavigationBar",
   components: {
-    NavigationTitle
+    NavigationTitle,
+    UserGuideButton
   },
   inject: ["girderRest", "notificationBus"],
   data: () => ({
@@ -66,6 +68,7 @@ export default {
       <v-tab to="/settings">Settings<v-icon>mdi-settings</v-icon></v-tab>
     </v-tabs>
     <v-spacer></v-spacer>
+    <user-guide-button />
     <v-btn text @click="girderRest.logout()">Logout</v-btn>
   </v-app-bar>
 </template>
