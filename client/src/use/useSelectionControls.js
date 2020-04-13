@@ -14,8 +14,8 @@ export default function useSelectionControls({
 }) {
   // the currently selected Track
   const selectedTrackId = ref(null);
-  // Whether or not selectedTrackId is also being edited.
-  const editingTrackId = ref(null);
+  // boolean whether or not selectedTrackId is also being edited.
+  const editingTrack = ref(false);
 
   const selectedTrack = computed(() => {
     if (selectedTrackId.value) {
@@ -41,6 +41,13 @@ export default function useSelectionControls({
     return null;
   });
 
+  const editingTrackId = computed(() => {
+    if (editingTrack.value) {
+      return selectedTrackId;
+    }
+    return null;
+  });
+
   const editingDetection = computed(() => {
     if (editingTrackId.value) {
       return selectedDetection.value;
@@ -61,7 +68,7 @@ export default function useSelectionControls({
 
   function setTrackEditMode(trackid, editing = true) {
     selectTrack(trackid);
-    editingTrackId.value = editing;
+    editingTrack.value = editing;
   }
 
   function deleteSelectedDetection() {

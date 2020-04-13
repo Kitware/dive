@@ -1,6 +1,7 @@
 import useAnnotationLayer from './useAnnotationLayer';
 import useAttributeManager from './useAttributeManager';
 import useDetections from './useDetections';
+import useEditingLayer from './useEditingLayer';
 import useEventChart from './useEventChart';
 import useGirderDataset from './useGirderDataset';
 import useFeaturePointing from './useFeaturePointing';
@@ -16,6 +17,7 @@ export {
   useAnnotationLayer,
   useAttributeManager,
   useDetections,
+  useEditingLayer,
   useEventChart,
   useGirderDataset,
   useFeaturePointing,

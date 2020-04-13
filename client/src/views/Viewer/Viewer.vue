@@ -12,6 +12,7 @@ import {
   useAnnotationLayer,
   useAttributeManager,
   useDetections,
+  useEditingLayer,
   useEventChart,
   useFeaturePointing,
   useLineChart,
@@ -41,6 +42,13 @@ export default defineComponent({
     const frame = ref(null); // the currently displayed frame number
     const showTrackView = ref(false);
     const vuetify = inject('vuetify');
+
+    // TODO: eventually we will have to migrate away from this style
+    // and use the new plugin pattern:
+    // https://vue-composition-api-rfc.netlify.com/#plugin-development
+    const prompt = ctx.root.$prompt;
+    const snackbar = ctx.root.$snackbar;
+
     // external composition functions
     const { typeColorMap } = useTypeColoring();
     const { save, markChangesPending, pendingSave } = useSave();
@@ -75,10 +83,11 @@ export default defineComponent({
       editingDetectionGeojson,
       selectedTrack,
       selectedTrackId,
+      selectedDetectionIndex,
       selectedDetection,
       selectTrack,
       setTrackEditMode,
-      // deleteSelectedDetection
+      deleteSelectedDetection,
     } = useSelectionControls({
       frame,
       detections,
@@ -90,11 +99,11 @@ export default defineComponent({
       featurePointing,
       toggleFeaturePointing,
       featurePointed,
-      // deleteFeaturePoints
+      deleteFeaturePoints,
     } = useFeaturePointing({
-      detections,
-      selectedDetection,
       selectedTrackId,
+      selectedDetectionIndex,
+      selectedDetection,
       setDetection,
     });
 
@@ -120,6 +129,23 @@ export default defineComponent({
       typeColorMap,
       selectedTrackId,
       filteredDetections,
+    });
+
+    const {
+      addTrack,
+      deleteTrack,
+      detectionChanged,
+      trackTypeChanged,
+    } = useEditingLayer({
+      prompt,
+      frame,
+      detections,
+      tracks,
+      editingTrackId,
+      editingDetection,
+      setTrackEditMode,
+      deleteDetection,
+      setDetection,
     });
 
     /**
@@ -201,9 +227,15 @@ export default defineComponent({
       attributeChange,
       // Detection module
       deleteDetection,
+      // Editing layer
+      addTrack,
+      deleteTrack,
+      trackTypeChanged,
+      detectionChanged,
       // Feature Pointing
       featurePointing,
       featurePointed,
+      deleteFeaturePoints,
       // Annotation Layer Module
       annotationData,
       annotationStyle,
@@ -307,10 +339,10 @@ export default defineComponent({
               @goto-track-first-frame="gotoTrackFirstFrame"
               @edit-track="editingTrackId = $event.trackId"
               @click-track="track => selectTrack(track.trackId)"
+              @track-type-change="trackTypeChanged"
+              @add-track="addTrack"
+              @delete-track="deleteTrack"
             />
-            <!-- @track-type-change="trackTypeChange" -->
-            <!-- @add-track="addTrack" -->
-            <!-- @delete-track="deleteTrack" -->
           </div>
           <div
             v-else
@@ -389,8 +421,8 @@ export default defineComponent({
             :annotation-style="annotationStyle"
             @annotation-click="annotationClick"
             @annotation-right-click="annotationRightClick"
+            @update:geojson="detectionChanged"
           />
-          <!-- @update:geojson="detectionChanged" -->
           <EditAnnotationLayer
             v-if="editingTrackId !== null"
             editing="rectangle"
