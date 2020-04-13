@@ -448,3 +448,7 @@ export default defineComponent({
     </v-row>
   </v-content>
 </template>
+
+<style lang="scss" scoped>
+@import './viewer.scss';
+</style>
