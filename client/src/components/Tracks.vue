@@ -1,7 +1,7 @@
 <script>
 import VirtualList from 'vue-virtual-scroll-list';
-import TrackItem from './TrackItem';
-
+import TrackItem from '@/components/TrackItem.vue';
+import { stringNumberNullValidator } from '@/utils';
 // A monkey patch
 VirtualList.options.props.item.type = [Object, Function];
 
@@ -13,18 +13,23 @@ export default {
   props: {
     tracks: {
       type: Array,
+      required: true,
     },
     types: {
       type: Array,
+      required: true,
     },
     checkedTracks: {
       type: Array,
+      required: true,
     },
-    selectedTrack: {
-      type: Number,
+    selectedTrackId: {
+      validator: stringNumberNullValidator,
+      required: true,
     },
-    editingTrack: {
-      type: Number,
+    editingTrackId: {
+      validator: stringNumberNullValidator,
+      required: true,
     },
   },
   data() {
@@ -32,7 +37,7 @@ export default {
   },
   computed: {
     selectedOffset() {
-      return this.tracks.map((item) => item.trackId).indexOf(this.selectedTrack);
+      return this.tracks.map((item) => item.trackId).indexOf(this.selectedTrackId);
     },
   },
   watch: {
@@ -50,8 +55,8 @@ export default {
         props: {
           track,
           inputValue: this.checkedTracks_.indexOf(track.trackId) !== -1,
-          selectedTrack: this.selectedTrack,
-          editingTrack: this.editingTrack,
+          selectedTrackId: this.selectedTrackId,
+          editingTrackId: this.editingTrackId,
           types: this.types,
         },
         on: {

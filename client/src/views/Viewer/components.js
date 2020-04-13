@@ -18,6 +18,7 @@ import ConfidenceFilter from '@/components/ConfidenceFilter.vue';
 import Tracks from '@/components/Tracks.vue';
 import TypeList from '@/components/TypeList.vue';
 import AttributesPanel from '@/components/AttributesPanel.vue';
+import UserGuideButton from '@/components/UserGuideButton.vue';
 
 const ViewerComponents = {
   NavigationTitle,
@@ -36,6 +37,7 @@ const ViewerComponents = {
   AttributesPanel,
   LineChart,
   EventChart,
+  UserGuideButton,
 };
 
 export default ViewerComponents;

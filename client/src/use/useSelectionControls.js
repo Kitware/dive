@@ -72,6 +72,8 @@ export default function useSelectionControls({
 
   return {
     editingTrackId,
+    editingDetection,
+    editingDetectionGeojson,
     selectedTrack,
     selectedTrackId,
     selectedDetectionIndex,

@@ -1,21 +1,28 @@
 <script>
+import { stringNumberNullValidator } from '@/utils';
+
 export default {
   name: 'TrackItem',
   props: {
     track: {
       type: Object,
+      required: true,
     },
     types: {
       type: Array,
+      required: true,
     },
     inputValue: {
       type: Boolean,
+      required: true,
     },
-    selectedTrack: {
-      type: Number,
+    selectedTrackId: {
+      validator: stringNumberNullValidator,
+      required: true,
     },
-    editingTrack: {
-      type: Number,
+    editingTrackId: {
+      validator: stringNumberNullValidator,
+      required: true,
     },
   },
   data: () => ({
@@ -33,7 +40,7 @@ export default {
   <div
     class="track-item d-flex align-center hover-show-parent px-1"
     :class="{
-      selected: selectedTrack === track.trackId
+      selected: selectedTrackId === track.trackId
     }"
     @click.self="$emit('click')"
   >
@@ -46,7 +53,7 @@ export default {
       @change="$emit('change', $event)"
     />
     <div>
-      {{ track.trackId + (editingTrack === track.trackId ? "*" : "") }}
+      {{ track.trackId + (editingTrackId === track.trackId ? "*" : "") }}
     </div>
     <div
       v-if="!editing"

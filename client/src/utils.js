@@ -44,10 +44,15 @@ function boundToGeojson(bounds) {
   };
 }
 
+function stringNumberNullValidator(prop) {
+  return ['string', 'number'].indexOf(typeof prop) || prop === null;
+}
+
 export {
   getLocationFromRoute,
   getPathFromLocation,
   geojsonToBound,
   geojsonToBound2,
   boundToGeojson,
+  stringNumberNullValidator,
 };

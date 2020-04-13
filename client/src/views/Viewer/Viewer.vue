@@ -1,6 +1,13 @@
 <script>
-import { defineComponent, ref } from '@vue/composition-api';
+import { mapState } from 'vuex';
+import {
+  defineComponent,
+  ref,
+  inject,
+  computed,
+} from '@vue/composition-api';
 
+import store from '@/store';
 import {
   useAnnotationLayer,
   useAttributeManager,
@@ -33,7 +40,7 @@ export default defineComponent({
     const playbackComponent = ref(null);
     const frame = ref(null); // the currently displayed frame number
     const showTrackView = ref(false);
-
+    const vuetify = inject('vuetify');
     // external composition functions
     const { typeColorMap } = useTypeColoring();
     const { save, markChangesPending, pendingSave } = useSave();
@@ -54,6 +61,7 @@ export default defineComponent({
     } = useDetections({ markChangesPending });
 
     const {
+      confidence,
       filteredDetections,
       types,
       checkedTracks,
@@ -63,6 +71,8 @@ export default defineComponent({
 
     const {
       editingTrackId,
+      editingDetection,
+      editingDetectionGeojson,
       selectedTrack,
       selectedTrackId,
       selectedDetection,
@@ -79,7 +89,7 @@ export default defineComponent({
     const {
       featurePointing,
       toggleFeaturePointing,
-      // featurePointed,
+      featurePointed,
       // deleteFeaturePoints
     } = useFeaturePointing({
       detections,
@@ -139,7 +149,6 @@ export default defineComponent({
       setTrackEditMode(data.detection.track);
     }
 
-    // Mousetraps
     const swapMousetrap = [
       {
         bind: 'a',
@@ -147,16 +156,24 @@ export default defineComponent({
       },
     ];
 
+    const editingBoxLayerStyle = {
+      fill: false,
+      strokeColor: vuetify.preset.theme.themes.dark.accent,
+    };
+
     // Initialize the view
     Promise.all([
       loadDataset(datasetId),
       loadDetections(datasetId),
     ]).catch(() => ctx.root.$router.replace('/'));
 
+    const location = computed(() => store.state.location);
+
     return {
       frame,
       showTrackView,
       typeColorMap,
+      location,
       // Girder Dataset
       dataset,
       imageUrls,
@@ -165,11 +182,16 @@ export default defineComponent({
       frameRate,
       // Selection Controls
       editingTrackId,
+      editingDetectionGeojson,
       selectedTrack,
       selectedTrackId,
       selectedDetection,
       selectTrack,
+      // Save
+      save,
+      pendingSave,
       // Track Filter Controls
+      confidence,
       tracks,
       types,
       checkedTracks,
@@ -179,6 +201,9 @@ export default defineComponent({
       attributeChange,
       // Detection module
       deleteDetection,
+      // Feature Pointing
+      featurePointing,
+      featurePointed,
       // Annotation Layer Module
       annotationData,
       annotationStyle,
@@ -206,6 +231,7 @@ export default defineComponent({
       // miscellaneous oddities
       playbackComponent,
       swapMousetrap,
+      editingBoxLayerStyle,
     };
   },
 });
@@ -215,19 +241,31 @@ export default defineComponent({
   <v-content class="viewer">
     <v-app-bar app>
       <NavigationTitle />
-      <!-- <v-tabs icons-and-text hide-slider style="flex-basis:0; flex-grow:0;">
-        <v-tab :to="getPathFromLocation(location)"
-          >Data<v-icon>mdi-database</v-icon></v-tab
-        >
+      <v-tabs
+        icons-and-text
+        hide-slider
+        style="flex-basis:0; flex-grow:0;"
+      >
+        <v-tab :to="getPathFromLocation(location)">
+          Data
+          <v-icon>mdi-database</v-icon>
+        </v-tab>
       </v-tabs>
-      <span class="subtitle-1 text-center" style="flex-grow: 1;">{{
-        dataset ? dataset.name : ""
-      }}</span>
+      <span
+        class="subtitle-1 text-center"
+        style="flex-grow: 1;"
+      >
+        {{ dataset ? dataset.name : "" }}
+      </span>
       <user-guide-button />
       <ConfidenceFilter :confidence.sync="confidence" />
-      <v-btn icon :disabled="!pendingSave" @click="save"
-        ><v-icon>mdi-content-save</v-icon></v-btn
-      > -->
+      <v-btn
+        icon
+        :disabled="!pendingSave"
+        @click="save"
+      >
+        <v-icon>mdi-content-save</v-icon>
+      </v-btn>
     </v-app-bar>
     <v-row
       no-gutters
@@ -263,8 +301,8 @@ export default defineComponent({
               :tracks="tracks"
               :types="types"
               :checked-tracks.sync="checkedTracks"
-              :selected-track="selectedTrackId"
-              :editing-track="editingTrackId"
+              :selected-track-id="selectedTrackId"
+              :editing-track-id="editingTrackId"
               class="flex-shrink-0"
               @goto-track-first-frame="gotoTrackFirstFrame"
               @edit-track="editingTrackId = $event.trackId"
@@ -352,36 +390,39 @@ export default defineComponent({
             @annotation-click="annotationClick"
             @annotation-right-click="annotationRightClick"
           />
-
-          <!-- <EditAnnotationLayer
-            v-if="editingTrack !== null"
+          <!-- @update:geojson="detectionChanged" -->
+          <EditAnnotationLayer
+            v-if="editingTrackId !== null"
             editing="rectangle"
             :geojson="editingDetectionGeojson"
-            :feature-style="{
-              fill: false,
-              strokeColor: this.$vuetify.theme.themes.dark.accent
-            }"
-            @update:geojson="detectionChanged"
+            :feature-style="editingBoxLayerStyle"
           />
           <EditAnnotationLayer
             v-if="featurePointing"
             editing="point"
             @update:geojson="featurePointed"
-          /> -->
+          />
           <TextLayer
             v-if="textData"
             :data="textData"
             :text-style="textStyle"
           />
-          <!-- <MarkerLayer
+          <MarkerLayer
             v-if="markerData"
             :data="markerData"
-            :markerStyle="markerStyle"
-          /> -->
+            :marker-style="markerStyle"
+          />
         </component>
-        <!-- <v-menu offset-y v-if="selectedDetection">
+        <v-menu
+          v-if="selectedDetection"
+          offset-y
+        >
           <template v-slot:activator="{ on }">
-            <v-btn class="selection-menu-button" icon v-on="on">
+            <v-btn
+              class="selection-menu-button"
+              icon
+              v-on="on"
+            >
               <v-icon>mdi-dots-horizontal</v-icon>
             </v-btn>
           </template>
@@ -402,7 +443,7 @@ export default defineComponent({
               </v-list-item-title>
             </v-list-item>
           </v-list>
-        </v-menu> -->
+        </v-menu>
       </v-col>
     </v-row>
   </v-content>
