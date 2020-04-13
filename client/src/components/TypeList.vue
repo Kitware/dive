@@ -5,13 +5,15 @@ export default {
   props: {
     types: {
       type: Array,
+      required: true,
     },
     checkedTypes: {
       type: Array,
+      required: true,
     },
     colorMap: {
       type: Function,
-      required: false,
+      required: true,
     },
   },
   data() {

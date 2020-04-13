@@ -2,6 +2,15 @@
 import { throttle, debounce, sortBy } from 'lodash';
 import * as d3 from 'd3';
 
+function intersect(range1, range2) {
+  const min = range1[0] < range2[0] ? range1 : range2;
+  const max = min === range1 ? range2 : range1;
+  if (min[1] < max[0]) {
+    return null;
+  }
+  return [max[0], min[1] < max[1] ? min[1] : max[1]];
+}
+
 export default {
   name: 'EventChart',
   props: {
@@ -130,7 +139,7 @@ export default {
       }
       canvas.width = this.$el.clientWidth;
       canvas.height = bars.slice(-1)[0].top + 10;
-      for (const bar of bars) {
+      bars.forEach((bar) => {
         let padding = 0;
         if (bar.selected) {
           ctx.fillStyle = this.$vuetify.theme.themes.dark.accent;
@@ -146,7 +155,7 @@ export default {
           bar.width - padding * 2,
           10 - padding * 2,
         );
-      }
+      });
     },
     mousemove(e) {
       this.tooltip = null;
@@ -163,9 +172,9 @@ export default {
       }
       const top = offsetY - (offsetY % 15);
       const bar = this.bars
-        .filter((bar) => bar.top === top)
+        .filter((b) => b.top === top)
         .reverse()
-        .find((bar) => bar.left < offsetX && bar.left + bar.width > offsetX);
+        .find((b) => b.left < offsetX && b.left + b.width > offsetX);
       if (!bar) {
         return;
       }
@@ -177,15 +186,6 @@ export default {
     },
   },
 };
-
-function intersect(range1, range2) {
-  const min = range1[0] < range2[0] ? range1 : range2;
-  const max = min == range1 ? range2 : range1;
-  if (min[1] < max[0]) {
-    return null;
-  }
-  return [max[0], min[1] < max[1] ? min[1] : max[1]];
-}
 </script>
 
 <template>

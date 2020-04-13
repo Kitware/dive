@@ -1,19 +1,5 @@
 import { computed, inject } from '@vue/composition-api';
-
-function boundToGeojson(bounds) {
-  return {
-    type: 'Polygon',
-    coordinates: [
-      [
-        [bounds[0], bounds[2]],
-        [bounds[1], bounds[2]],
-        [bounds[1], bounds[3]],
-        [bounds[0], bounds[3]],
-        [bounds[0], bounds[2]],
-      ],
-    ],
-  };
-}
+import { boundToGeojson } from '@/utils';
 
 export default function useAnnotationLayer({
   typeColorMap,

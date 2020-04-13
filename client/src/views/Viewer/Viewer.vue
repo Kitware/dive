@@ -1,30 +1,14 @@
 <script>
 import { defineComponent, ref } from '@vue/composition-api';
 
-// Annotators
-import VideoAnnotator from '@/components/annotators/VideoAnnotator.vue';
-import ImageAnnotator from '@/components/annotators/ImageAnnotator.vue';
-// Layers
-import TextLayer from '@/components/layers/TextLayer.vue';
-import MarkerLayer from '@/components/layers/MarkerLayer.vue';
-import AnnotationLayer from '@/components/layers/AnnotationLayer.vue';
-import EditAnnotationLayer from '@/components/layers/EditAnnotationLayer.vue';
-// Controls
-import Controls from '@/components/controls/Controls.vue';
-import TimelineWrapper from '@/components/controls/TimelineWrapper.vue';
-import Timeline from '@/components/controls/Timeline.vue';
-import LineChart from '@/components/controls/LineChart.vue';
-import EventChart from '@/components/controls/EventChart.vue';
-// Other normal components
-import NavigationTitle from '@/components/NavigationTitle.vue';
-import ConfidenceFilter from '@/components/ConfidenceFilter.vue';
-import Tracks from '@/components/Tracks.vue';
-import TypeList from '@/components/TypeList.vue';
-import AttributesPanel from '@/components/AttributesPanel.vue';
 import {
   useAnnotationLayer,
+  useAttributeManager,
   useDetections,
+  useEventChart,
   useFeaturePointing,
+  useLineChart,
+  useMarkerLayer,
   useGirderDataset,
   useSave,
   useSelectionControls,
@@ -32,26 +16,12 @@ import {
   useTrackFilterControls,
   useTypeColoring,
 } from '@/use';
+import { getPathFromLocation } from '@/utils';
+
+import components from './components';
 
 export default defineComponent({
-  components: {
-    NavigationTitle,
-    VideoAnnotator,
-    ImageAnnotator,
-    Controls,
-    AnnotationLayer,
-    EditAnnotationLayer,
-    TextLayer,
-    MarkerLayer,
-    Timeline,
-    TimelineWrapper,
-    ConfidenceFilter,
-    Tracks,
-    TypeList,
-    AttributesPanel,
-    LineChart,
-    EventChart,
-  },
+  components,
   props: {
     datasetId: {
       type: String,
@@ -60,14 +30,12 @@ export default defineComponent({
   },
   setup(props, ctx) {
     const { datasetId } = props;
+    const playbackComponent = ref(null);
     const frame = ref(null); // the currently displayed frame number
-
     const { typeColorMap } = useTypeColoring();
-
     const { save, markChangesPending, pendingSave } = useSave();
-
     const {
-      // dataset,
+      dataset,
       frameRate,
       annotatorType,
       imageUrls,
@@ -83,6 +51,14 @@ export default defineComponent({
     } = useDetections({ markChangesPending });
 
     const {
+      filteredDetections,
+      types,
+      checkedTypes,
+      tracks,
+    } = useTrackFilterControls({ detections });
+
+    const {
+      selectedTrack,
       selectedTrackId,
       selectedDetection,
       selectTrack,
@@ -91,6 +67,7 @@ export default defineComponent({
     } = useSelectionControls({
       frame,
       detections,
+      tracks,
       deleteDetection,
     });
 
@@ -106,7 +83,17 @@ export default defineComponent({
       setDetection,
     });
 
-    const { filteredDetections } = useTrackFilterControls({ detections });
+    const { attributeEditing, attributeChange } = useAttributeManager({
+      detections,
+      selectedTrack,
+      selectedDetection,
+      markChangesPending,
+      setDetection,
+    });
+
+    const { markerData, markerStyle } = useMarkerLayer({ filteredDetections, selectedTrackId });
+    const { lineChartData } = useLineChart({ filteredDetections, typeColorMap });
+    const { eventChartData } = useEventChart({ filteredDetections, selectedTrackId, typeColorMap });
 
     const { annotationData, annotationStyle } = useAnnotationLayer({
       typeColorMap,
@@ -120,6 +107,41 @@ export default defineComponent({
       filteredDetections,
     });
 
+    /**
+     * Functions below are thin wrappers around other functions for use in the template.
+     */
+    function seek(_frame) {
+      playbackComponent.value.seek(_frame);
+    }
+    function nextFrame() {
+      playbackComponent.value.nextFrame();
+    }
+    function prevFrame() {
+      playbackComponent.value.prevFrame();
+    }
+    function gotoTrackFirstFrame(track) {
+      selectTrack(track.trackId);
+      const _frame = eventChartData.value.find((d) => d.track === track.trackId)
+        .range[0];
+      seek(_frame);
+    }
+    function annotationClick(data) {
+      if (!featurePointing.value) {
+        selectTrack(data.detection.track);
+      }
+    }
+    function annotationRightClick(data) {
+      setTrackEditMode(data.detection.track);
+    }
+
+    // Mousetraps
+    const swapMousetrap = [
+      {
+        bind: 'a',
+        handler: () => { attributeEditing.value = !attributeEditing.value; },
+      },
+    ];
+
     // Initialize the view
     Promise.all([
       loadDataset(datasetId),
@@ -127,12 +149,23 @@ export default defineComponent({
     ]).catch(() => ctx.root.$router.replace('/'));
 
     return {
-      // data
+      frame,
+      typeColorMap,
+      // Girder Dataset
+      dataset,
       imageUrls,
       videoUrl,
       annotatorType,
       frameRate,
-      frame,
+      // Selection Controls
+      selectedTrack,
+      selectedDetection,
+      // Track Filter Controls
+      types,
+      checkedTypes,
+      // Attribute Manager
+      attributeEditing,
+      attributeChange,
       // Detection module
       deleteDetection,
       // Annotation Layer Module
@@ -141,11 +174,27 @@ export default defineComponent({
       // Text Layer
       textData,
       textStyle,
+      // Marker Layer
+      markerData,
+      markerStyle,
+      // Line Chart
+      lineChartData,
+      // Event Chart
+      eventChartData,
       // Head Tail Feature Layer Module
       toggleFeaturePointing,
-      // Other local methods
-      annotationClick: (data) => !featurePointing.value && selectTrack(data.detection.track),
-      annotationRightClick: (data) => setTrackEditMode(data.detection.track),
+      // local wrapper methods
+      gotoTrackFirstFrame,
+      seek,
+      nextFrame,
+      prevFrame,
+      annotationClick,
+      annotationRightClick,
+      // imported helper methods without side-effects
+      getPathFromLocation,
+      // miscellaneous oddities
+      playbackComponent,
+      swapMousetrap,
     };
   },
 });
@@ -173,36 +222,33 @@ export default defineComponent({
       no-gutters
       class="fill-height"
     >
-      <!-- <v-card width="300" style="z-index:1;">
+      <v-card
+        width="300"
+        style="z-index:1;"
+      >
         <v-btn
+          v-mousetrap="swapMousetrap"
           icon
+          title="A key"
           class="swap-button"
           @click="attributeEditing = !attributeEditing"
-          title="A key"
-          v-mousetrap="[
-            {
-              bind: 'a',
-              handler: () => {
-                attributeEditing = !attributeEditing;
-              }
-            }
-          ]"
-          ><v-icon>mdi-swap-horizontal</v-icon></v-btn
         >
+          <v-icon>mdi-swap-horizontal</v-icon>
+        </v-btn>
         <v-slide-x-transition>
           <div
-            class="wrapper d-flex flex-column"
             v-if="!attributeEditing"
             key="type-tracks"
+            class="wrapper d-flex flex-column"
           >
             <TypeList
               class="flex-grow-1"
               :types="types"
-              :checkedTypes.sync="checkedTypes"
-              :colorMap="typeColorMap"
+              :checked-types.sync="checkedTypes"
+              :color-map="typeColorMap"
             />
             <v-divider />
-            <Tracks
+            <!-- <Tracks
               :tracks="tracks"
               :types="types"
               :checked-tracks.sync="checkedTracks"
@@ -212,32 +258,36 @@ export default defineComponent({
               @goto-track-first-frame="gotoTrackFirstFrame"
               @delete-track="deleteTrack"
               @edit-track="editTrack($event.trackId)"
-              @click-track="clickTrack"
+              @click-track="track => selectTrack(track.trackId)"
               @add-track="addTrack"
               @track-type-change="trackTypeChange"
-            />
+            /> -->
           </div>
-          <div v-else class="wrapper d-flex" key="attributes">
+          <div
+            v-else
+            key="attributes"
+            class="wrapper d-flex"
+          >
             <AttributesPanel
-              :selectedDetection="selectedDetection"
-              :selectedTrack="selectedTrack"
+              :selected-detection="selectedDetection"
+              :selected-track="selectedTrack"
               @change="attributeChange"
             />
           </div>
         </v-slide-x-transition>
-      </v-card> -->
+      </v-card>
       <v-col style="position: relative; ">
         <component
           :is="annotatorType"
           v-if="imageUrls.length || videoUrl"
-          ref="playbackComponent"
+          :ref="playbackComponent"
           v-mousetrap="[
             { bind: 'g', handler: () => toggleFeaturePointing('head') },
             { bind: 'h', handler: () => toggleFeaturePointing('head') },
             { bind: 't', handler: () => toggleFeaturePointing('tail') },
             { bind: 'y', handler: () => toggleFeaturePointing('tail') },
-            { bind: 'f', handler: () => $refs.playbackComponent.nextFrame() },
-            { bind: 'd', handler: () => $refs.playbackComponent.prevFrame() },
+            { bind: 'f', handler: () => nextFrame() },
+            { bind: 'd', handler: () => prevFrame() },
             { bind: 'q', handler: deleteDetection }
           ]"
           class="playback-component"

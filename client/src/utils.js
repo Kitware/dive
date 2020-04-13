@@ -6,6 +6,7 @@ function getLocationFromRoute(route) {
   return null;
 }
 
+// TODO: document
 function getPathFromLocation(location) {
   if (!location) {
     return '/';
@@ -15,4 +16,38 @@ function getPathFromLocation(location) {
   }`;
 }
 
-export { getLocationFromRoute, getPathFromLocation };
+// TODO: document
+function geojsonToBound(geojson) {
+  const coords = geojson.coordinates[0];
+  return [coords[0][0], coords[1][0], coords[0][1], coords[2][1]];
+}
+
+// TODO: document
+function geojsonToBound2(geojson) {
+  const coords = geojson.coordinates[0];
+  return [coords[0][0], coords[2][0], coords[1][1], coords[0][1]];
+}
+
+// TODO: document
+function boundToGeojson(bounds) {
+  return {
+    type: 'Polygon',
+    coordinates: [
+      [
+        [bounds[0], bounds[2]],
+        [bounds[1], bounds[2]],
+        [bounds[1], bounds[3]],
+        [bounds[0], bounds[3]],
+        [bounds[0], bounds[2]],
+      ],
+    ],
+  };
+}
+
+export {
+  getLocationFromRoute,
+  getPathFromLocation,
+  geojsonToBound,
+  geojsonToBound2,
+  boundToGeojson,
+};

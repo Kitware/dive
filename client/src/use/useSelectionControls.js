@@ -1,5 +1,5 @@
 import { ref, computed } from '@vue/composition-api';
-
+import { boundToGeojson } from '@/utils';
 /**
  * @param {{
  *   frame: import("@vue/composition-api").Ref<number>,
@@ -9,12 +9,20 @@ import { ref, computed } from '@vue/composition-api';
 export default function useSelectionControls({
   frame,
   detections,
+  tracks,
   deleteDetection,
 }) {
   // the currently selected Track
   const selectedTrackId = ref(null);
   // Whether or not selectedTrackId is also being edited.
   const editingTrack = ref(false);
+
+  const selectedTrack = computed(() => {
+    if (selectedTrackId.value) {
+      return tracks.value.find((t) => t.trackId === selectedTrackId.value);
+    }
+    return null;
+  });
 
   const selectedDetectionIndex = computed(() => {
     if (selectedTrackId.value === null || frame.value === null) {
@@ -29,6 +37,20 @@ export default function useSelectionControls({
   const selectedDetection = computed(() => {
     if (selectedDetectionIndex.value >= 0) {
       return detections.value[selectedDetectionIndex.value];
+    }
+    return null;
+  });
+
+  const editingDetection = computed(() => {
+    if (editingTrack.value) {
+      return selectedDetection.value;
+    }
+    return null;
+  });
+
+  const editingDetectionGeojson = computed(() => {
+    if (editingDetection.value) {
+      return boundToGeojson(editingDetection.value.bounds);
     }
     return null;
   });
@@ -49,6 +71,7 @@ export default function useSelectionControls({
   }
 
   return {
+    selectedTrack,
     selectedTrackId,
     selectedDetectionIndex,
     selectedDetection,

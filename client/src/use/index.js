@@ -1,7 +1,11 @@
 import useAnnotationLayer from './useAnnotationLayer';
+import useAttributeManager from './useAttributeManager';
 import useDetections from './useDetections';
+import useEventChart from './useEventChart';
 import useGirderDataset from './useGirderDataset';
 import useFeaturePointing from './useFeaturePointing';
+import useLineChart from './useLineChart';
+import useMarkerLayer from './useMarkerLayer';
 import useSave from './useSave';
 import useSelectionControls from './useSelectionControls';
 import useTextLayer from './useTextLayer';
@@ -10,9 +14,13 @@ import useTypeColoring from './useTypeColoring';
 
 export {
   useAnnotationLayer,
+  useAttributeManager,
   useDetections,
+  useEventChart,
   useGirderDataset,
   useFeaturePointing,
+  useLineChart,
+  useMarkerLayer,
   useSave,
   useSelectionControls,
   useTextLayer,

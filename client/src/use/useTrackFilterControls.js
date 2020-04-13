@@ -72,6 +72,7 @@ export default function useFilteredTracks({ detections }) {
 
   return {
     confidence,
+    types,
     checkedTracks,
     checkedTypes,
     filteredDetections,
