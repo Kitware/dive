@@ -32,6 +32,9 @@ export default defineComponent({
     const { datasetId } = props;
     const playbackComponent = ref(null);
     const frame = ref(null); // the currently displayed frame number
+    const showTrackView = ref(false);
+
+    // external composition functions
     const { typeColorMap } = useTypeColoring();
     const { save, markChangesPending, pendingSave } = useSave();
     const {
@@ -53,11 +56,13 @@ export default defineComponent({
     const {
       filteredDetections,
       types,
+      checkedTracks,
       checkedTypes,
       tracks,
     } = useTrackFilterControls({ detections });
 
     const {
+      editingTrackId,
       selectedTrack,
       selectedTrackId,
       selectedDetection,
@@ -150,6 +155,7 @@ export default defineComponent({
 
     return {
       frame,
+      showTrackView,
       typeColorMap,
       // Girder Dataset
       dataset,
@@ -158,10 +164,15 @@ export default defineComponent({
       annotatorType,
       frameRate,
       // Selection Controls
+      editingTrackId,
       selectedTrack,
+      selectedTrackId,
       selectedDetection,
+      selectTrack,
       // Track Filter Controls
+      tracks,
       types,
+      checkedTracks,
       checkedTypes,
       // Attribute Manager
       attributeEditing,
@@ -248,20 +259,20 @@ export default defineComponent({
               :color-map="typeColorMap"
             />
             <v-divider />
-            <!-- <Tracks
+            <Tracks
               :tracks="tracks"
               :types="types"
               :checked-tracks.sync="checkedTracks"
               :selected-track="selectedTrackId"
-              :editing-track="editingTrack"
+              :editing-track="editingTrackId"
               class="flex-shrink-0"
               @goto-track-first-frame="gotoTrackFirstFrame"
-              @delete-track="deleteTrack"
-              @edit-track="editTrack($event.trackId)"
+              @edit-track="editingTrackId = $event.trackId"
               @click-track="track => selectTrack(track.trackId)"
-              @add-track="addTrack"
-              @track-type-change="trackTypeChange"
-            /> -->
+            />
+            <!-- @track-type-change="trackTypeChange" -->
+            <!-- @add-track="addTrack" -->
+            <!-- @delete-track="deleteTrack" -->
           </div>
           <div
             v-else
@@ -280,7 +291,7 @@ export default defineComponent({
         <component
           :is="annotatorType"
           v-if="imageUrls.length || videoUrl"
-          :ref="playbackComponent"
+          ref="playbackComponent"
           v-mousetrap="[
             { bind: 'g', handler: () => toggleFeaturePointing('head') },
             { bind: 'h', handler: () => toggleFeaturePointing('head') },
@@ -298,22 +309,26 @@ export default defineComponent({
         >
           <template slot="control">
             <Controls />
-            <!-- <TimelineWrapper>
+            <TimelineWrapper>
               <template #default="{maxFrame, frame, seek}">
-                <Timeline :maxFrame="maxFrame" :frame="frame" :seek="seek">
-                  <template #child="{startFrame, endFrame, maxFrame}">
+                <Timeline
+                  :max-frame="maxFrame"
+                  :frame="frame"
+                  :seek="seek"
+                >
+                  <template #child="{ startFrame, endFrame, maxFrame }">
                     <LineChart
                       v-if="!showTrackView && lineChartData"
-                      :startFrame="startFrame"
-                      :endFrame="endFrame"
-                      :maxFrame="maxFrame"
+                      :start-frame="startFrame"
+                      :end-frame="endFrame"
+                      :max-frame="maxFrame"
                       :data="lineChartData"
                     />
                     <EventChart
                       v-if="showTrackView && eventChartData"
-                      :startFrame="startFrame"
-                      :endFrame="endFrame"
-                      :maxFrame="maxFrame"
+                      :start-frame="startFrame"
+                      :end-frame="endFrame"
+                      :max-frame="maxFrame"
                       :data="eventChartData"
                     />
                   </template>
@@ -321,14 +336,14 @@ export default defineComponent({
                     outlined
                     x-small
                     class="toggle-timeline-button"
+                    tab-index="-1"
                     @click="showTrackView = !showTrackView"
-                    tabIndex="-1"
                   >
                     {{ showTrackView ? "Detection" : "Track" }}
                   </v-btn>
                 </Timeline>
               </template>
-            </TimelineWrapper> -->
+            </TimelineWrapper>
           </template>
           <AnnotationLayer
             v-if="annotationData"

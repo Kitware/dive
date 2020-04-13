@@ -19,7 +19,7 @@ import Tracks from '@/components/Tracks.vue';
 import TypeList from '@/components/TypeList.vue';
 import AttributesPanel from '@/components/AttributesPanel.vue';
 
-export default {
+const ViewerComponents = {
   NavigationTitle,
   VideoAnnotator,
   ImageAnnotator,
@@ -37,3 +37,5 @@ export default {
   LineChart,
   EventChart,
 };
+
+export default ViewerComponents;
