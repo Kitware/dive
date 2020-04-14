@@ -42,22 +42,13 @@ export default {
           v-for="type of types"
           :key="type"
           v-model="checkedTypes_"
-          color="neutral"
+          :color="colorMap(type)"
           class="my-2 ml-3"
+          :label="type"
           :value="type"
           dense
           hide-details
-        >
-          <template slot="label">
-            <div>
-              <span
-                class="color"
-                :style="{ backgroundColor: colorMap(type) }"
-              >&nbsp;&nbsp;</span>&nbsp;
-              <span>{{ type }}</span>
-            </div>
-          </template>
-        </v-checkbox>
+        />
       </div>
     </div>
   </div>
