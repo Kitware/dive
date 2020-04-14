@@ -53,6 +53,7 @@ export default function useEditingLayer({
       confidencePairs = trackMeta.confidencePairs;
     }
     // if there's an existing detection
+
     if (_editingDetection !== null) {
       const index = _detections.indexOf(_editingDetection);
       setDetection(index, {
@@ -63,7 +64,7 @@ export default function useEditingLayer({
         features: {},
         bounds,
       });
-    // else create a new one at the end
+      // else create a new one at the end
     } else {
       setDetection(_detections.length, {
         track: _editingTrackId,

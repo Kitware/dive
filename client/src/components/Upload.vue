@@ -117,17 +117,16 @@ export default {
       }
     },
     getFilenameInputStateLabel(pendingUpload) {
-      const type = pendingUpload.createFolder ? "Folder" : "File";
-      const plural =
-        !pendingUpload.createFolder && pendingUpload.files.length > 1
-          ? "s"
-          : "";
+      const type = pendingUpload.createFolder ? 'Folder' : 'File';
+      const plural = !pendingUpload.createFolder && pendingUpload.files.length > 1
+        ? 's'
+        : '';
       return `${type} Name${plural}`;
     },
     getFilenameInputStateDisabled(pendingUpload) {
       return (
-        pendingUpload.uploading ||
-        (!pendingUpload.createFolder && pendingUpload.files.length > 1)
+        pendingUpload.uploading
+        || (!pendingUpload.createFolder && pendingUpload.files.length > 1)
       );
     },
     getFilenameInputStateHint(pendingUpload) {
@@ -216,9 +215,9 @@ export default {
           ));
         } catch (error) {
           if (
-            error.response &&
-            error.response.data &&
-            error.response.data.message
+            error.response
+            && error.response.data
+            && error.response.data.message
           ) {
             this.errorMessage = error.response.data.message;
           } else {
@@ -232,9 +231,9 @@ export default {
 
       // If a single file's chosen filename is different from the uploaded file
       if (
-        !createFolder &&
-        files.length === 1 &&
-        files[0].file.name !== pendingUpload.name
+        !createFolder
+        && files.length === 1
+        && files[0].file.name !== pendingUpload.name
       ) {
         // Mixin parameters for uploading to overwrite file name
         files[0].uploadClsParams = { name: pendingUpload.name };
@@ -298,8 +297,8 @@ export default {
             <v-row>
               <v-col cols="auto">
                 <v-checkbox
-                  label="Create Folder"
                   v-model="pendingUpload.createFolder"
+                  label="Create Folder"
                   class="pl-2"
                 />
               </v-col>
@@ -317,7 +316,10 @@ export default {
                   persistent-hint
                 />
               </v-col>
-              <v-col cols="2" v-if="pendingUpload.createFolder">
+              <v-col
+                v-if="pendingUpload.createFolder"
+                cols="2"
+              >
                 <v-text-field
                   v-model="pendingUpload.fps"
                   type="number"
@@ -337,8 +339,8 @@ export default {
                     class="mt-2"
                     icon
                     small
-                    @click="remove(pendingUpload)"
                     :disabled="pendingUpload.uploading"
+                    @click="remove(pendingUpload)"
                   >
                     <v-icon>mdi-close</v-icon>
                   </v-btn>

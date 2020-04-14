@@ -43,7 +43,7 @@ export default function useSelectionControls({
 
   const editingTrackId = computed(() => {
     if (editingTrack.value) {
-      return selectedTrackId;
+      return selectedTrackId.value;
     }
     return null;
   });

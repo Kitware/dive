@@ -51,7 +51,7 @@ export default defineComponent({
 
     // external composition functions
     const { typeColorMap } = useTypeColoring();
-    const { save, markChangesPending, pendingSave } = useSave();
+    const { save: saveToGirder, markChangesPending, pendingSave } = useSave();
     const {
       dataset,
       frameRate,
@@ -168,11 +168,14 @@ export default defineComponent({
     }
     function annotationClick(data) {
       if (!featurePointing.value) {
-        selectTrack(data.detection.track);
+        setTrackEditMode(data.detection.track, false);
       }
     }
     function annotationRightClick(data) {
       setTrackEditMode(data.detection.track);
+    }
+    function save(mouseEvent) {
+      saveToGirder(datasetId, detections);
     }
 
     const swapMousetrap = [
@@ -212,7 +215,7 @@ export default defineComponent({
       selectedTrack,
       selectedTrackId,
       selectedDetection,
-      selectTrack,
+      setTrackEditMode,
       // Save
       save,
       pendingSave,
@@ -232,7 +235,8 @@ export default defineComponent({
       deleteTrack,
       trackTypeChanged,
       detectionChanged,
-      // Feature Pointing
+      // Head Tail Feature Layer Module
+      toggleFeaturePointing,
       featurePointing,
       featurePointed,
       deleteFeaturePoints,
@@ -249,8 +253,6 @@ export default defineComponent({
       lineChartData,
       // Event Chart
       eventChartData,
-      // Head Tail Feature Layer Module
-      toggleFeaturePointing,
       // local wrapper methods
       gotoTrackFirstFrame,
       seek,
@@ -272,7 +274,7 @@ export default defineComponent({
 <template>
   <v-content class="viewer">
     <v-app-bar app>
-      <NavigationTitle />
+      <navigation-title />
       <v-tabs
         icons-and-text
         hide-slider
@@ -322,14 +324,14 @@ export default defineComponent({
             key="type-tracks"
             class="wrapper d-flex flex-column"
           >
-            <TypeList
+            <type-list
               class="flex-grow-1"
               :types="types"
               :checked-types.sync="checkedTypes"
               :color-map="typeColorMap"
             />
             <v-divider />
-            <Tracks
+            <tracks
               :tracks="tracks"
               :types="types"
               :checked-tracks.sync="checkedTracks"
@@ -338,7 +340,7 @@ export default defineComponent({
               class="flex-shrink-0"
               @goto-track-first-frame="gotoTrackFirstFrame"
               @edit-track="editingTrackId = $event.trackId"
-              @click-track="track => selectTrack(track.trackId)"
+              @click-track="track => setTrackEditMode(track.trackId, false)"
               @track-type-change="trackTypeChanged"
               @add-track="addTrack"
               @delete-track="deleteTrack"
@@ -379,7 +381,7 @@ export default defineComponent({
         >
           <template slot="control">
             <Controls />
-            <TimelineWrapper>
+            <timeline-wrapper>
               <template #default="{maxFrame, frame, seek}">
                 <Timeline
                   :max-frame="maxFrame"
@@ -387,14 +389,14 @@ export default defineComponent({
                   :seek="seek"
                 >
                   <template #child="{ startFrame, endFrame, maxFrame }">
-                    <LineChart
+                    <line-chart
                       v-if="!showTrackView && lineChartData"
                       :start-frame="startFrame"
                       :end-frame="endFrame"
                       :max-frame="maxFrame"
                       :data="lineChartData"
                     />
-                    <EventChart
+                    <event-chart
                       v-if="showTrackView && eventChartData"
                       :start-frame="startFrame"
                       :end-frame="endFrame"
@@ -413,33 +415,33 @@ export default defineComponent({
                   </v-btn>
                 </Timeline>
               </template>
-            </TimelineWrapper>
+            </timeline-wrapper>
           </template>
-          <AnnotationLayer
+          <annotation-layer
             v-if="annotationData"
             :data="annotationData"
             :annotation-style="annotationStyle"
             @annotation-click="annotationClick"
             @annotation-right-click="annotationRightClick"
-            @update:geojson="detectionChanged"
           />
-          <EditAnnotationLayer
+          <edit-annotation-layer
             v-if="editingTrackId !== null"
             editing="rectangle"
             :geojson="editingDetectionGeojson"
             :feature-style="editingBoxLayerStyle"
+            @update:geojson="detectionChanged"
           />
-          <EditAnnotationLayer
+          <edit-annotation-layer
             v-if="featurePointing"
             editing="point"
             @update:geojson="featurePointed"
           />
-          <TextLayer
+          <text-layer
             v-if="textData"
             :data="textData"
             :text-style="textStyle"
           />
-          <MarkerLayer
+          <marker-layer
             v-if="markerData"
             :data="markerData"
             :marker-style="markerStyle"

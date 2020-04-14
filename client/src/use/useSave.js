@@ -6,7 +6,7 @@ export default function useSave() {
 
   async function save(datasetId, detections) {
     // TODO: refactor to girder client library
-    await girderRest.put(`viame_detection?folderId=${datasetId}`, detections);
+    await girderRest.put(`viame_detection?folderId=${datasetId}`, detections.value);
     pendingSave.value = false;
   }
 
