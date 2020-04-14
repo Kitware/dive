@@ -13,7 +13,7 @@ VIAME-Web is a web interface for performing data management, video annotation, a
 
 ## Documentation
 
-* [User Guide](https://github.com/VIAME/VIAME-Web/wiki/User-Documentation)\
+* [User Guide](https://github.com/VIAME/VIAME-Web/wiki/User-Documentation)
 * [Client Development Docs](client/README.md)
 
 ## Code Architecture
