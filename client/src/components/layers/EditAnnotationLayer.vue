@@ -103,9 +103,9 @@ export default {
         this.changed = true;
         if (typeof this.editing !== 'string') {
           throw new Error(
-            `editing props needs to be a string of value ${geo
-              .listAnnotations()
-              .join(', ')} when geojson prop is not set`,
+            `editing props needs to be a string of value 
+            ${geo.listAnnotations().join(', ')}
+             when geojson prop is not set`,
           );
         } else {
           this.$geojsLayer.mode(this.editing);
