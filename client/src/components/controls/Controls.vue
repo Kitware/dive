@@ -1,17 +1,21 @@
 <script>
 export default {
-  name: "Control",
-  inject: ["annotator"],
-  data: () => ({
-    frame_: 0,
-    dragging: false
-  }),
+  name: 'Control',
+  inject: ['annotator'],
+  data() {
+    return {
+      frame_: 0,
+      dragging: false,
+    };
+  },
   watch: {
-    "annotator.frame"(value) {
-      if (!this.dragging) {
-        this.frame_ = value;
-      }
-    }
+    'annotator.frame': {
+      handler(value) {
+        if (!this.dragging) {
+          this.frame_ = value;
+        }
+      },
+    },
   },
   methods: {
     dragStart() {
@@ -22,24 +26,24 @@ export default {
     },
     input(value) {
       if (this.annotator.frame !== value) {
-        this.annotator.$emit("seek", value);
+        this.annotator.$emit('seek', value);
       }
       this.frame_ = this.annotator.frame;
     },
     togglePlay() {
       if (this.annotator.playing) {
-        this.annotator.$emit("pause");
+        this.annotator.$emit('pause');
       } else {
-        this.annotator.$emit("play");
+        this.annotator.$emit('play');
       }
     },
     previousFrame() {
-      this.annotator.$emit("prev-frame");
+      this.annotator.$emit('prev-frame');
     },
     nextFrame() {
-      this.annotator.$emit("next-frame");
-    }
-  }
+      this.annotator.$emit('next-frame');
+    },
+  },
 };
 </script>
 
@@ -51,8 +55,14 @@ export default {
       { bind: 'space', handler: togglePlay }
     ]"
   >
-    <v-toolbar height="80px" flat>
-      <v-container fluid class="pa-0">
+    <v-toolbar
+      height="80px"
+      flat
+    >
+      <v-container
+        fluid
+        class="pa-0"
+      >
         <v-row>
           <v-slider
             hide-details
@@ -66,28 +76,38 @@ export default {
         </v-row>
         <v-row>
           <v-spacer />
-          <v-btn icon small @click="previousFrame" title="Left key">
+          <v-btn
+            icon
+            small
+            title="Left key"
+            @click="previousFrame"
+          >
             <v-icon>mdi-skip-previous</v-icon>
           </v-btn>
           <v-btn
             v-if="!annotator.playing"
             icon
             small
-            @click="annotator.$emit('play')"
             title="Space key"
+            @click="annotator.$emit('play')"
           >
             <v-icon>mdi-play</v-icon>
           </v-btn>
           <v-btn
+            v-else
             icon
             small
-            v-else
-            @click="annotator.$emit('pause')"
             title="Space key"
+            @click="annotator.$emit('pause')"
           >
             <v-icon>mdi-pause</v-icon>
           </v-btn>
-          <v-btn icon small @click="nextFrame" title="Right key">
+          <v-btn
+            icon
+            small
+            title="Right key"
+            @click="nextFrame"
+          >
             <v-icon>mdi-skip-next</v-icon>
           </v-btn>
           <v-spacer />

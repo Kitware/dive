@@ -1,21 +1,21 @@
 <script>
-import _ from "lodash";
+import { throttle } from 'lodash';
 
 export default {
-  name: "ConfidenceFilter",
+  name: 'ConfidenceFilter',
   props: {
     confidence: {
-      type: Number
-    }
+      type: Number,
+    },
   },
   created() {
-    this.updateConfidence = _.throttle(this.updateConfidence, 100);
+    this.updateConfidence = throttle(this.updateConfidence, 100);
   },
   methods: {
     updateConfidence(value) {
-      this.$emit("update:confidence", value);
-    }
-  }
+      this.$emit('update:confidence', value);
+    },
+  },
 };
 </script>
 
@@ -26,9 +26,9 @@ export default {
       :max="1"
       :step="0.01"
       :value="confidence"
-      @input="updateConfidence"
       :label="`Confidence Filter: ${confidence.toFixed(2)}`"
       hide-details
+      @input="updateConfidence"
     />
   </div>
 </template>

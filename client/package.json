@@ -9,9 +9,12 @@
   },
   "dependencies": {
     "@girder/components": "^2.2.1",
-    "core-js": "^2.6.5",
+    "@mdi/font": "^3.9.97",
+    "@vue/composition-api": "^0.5.0",
+    "core-js": "^3.6.4",
     "d3": "^5.12.0",
     "geojs": "^0.19.5",
+    "lodash": "^4.17.15",
     "vue": "^2.6.10",
     "vue-router": "^3.0.3",
     "vue-utilities": "git+https://github.com/Kitware/vue-utilities.git#5c261826458d73c4e8c8feea1d0037c08e633582",
@@ -20,25 +23,24 @@
     "vuex": "^3.0.1"
   },
   "devDependencies": {
-    "@mdi/font": "^3.9.97",
-    "@vue/cli-plugin-babel": "^3.10.0",
-    "@vue/cli-plugin-eslint": "^3.10.0",
-    "@vue/cli-service": "^3.10.0",
-    "@vue/eslint-config-prettier": "^5.0.0",
+    "@vue/cli-plugin-babel": "~4.3.1",
+    "@vue/cli-plugin-eslint": "~4.3.1",
+    "@vue/cli-service": "~4.3.1",
+    "@vue/eslint-config-airbnb": "^5.0.2",
     "babel-eslint": "^10.0.1",
     "eslint": "^5.16.0",
-    "eslint-plugin-prettier": "^3.1.0",
     "eslint-plugin-vue": "^5.0.0",
+    "git-describe": "^4.0.4",
     "node-sass": "^4.12.0",
-    "prettier": "^1.18.2",
     "pug": "^2.0.4",
     "pug-plain-loader": "^1.0.0",
-    "sass": "^1.18.0",
+    "sass": "^1.26.3",
     "sass-loader": "^7.3.1",
     "stylus": "^0.54.7",
     "stylus-loader": "^3.0.2",
     "vue-cli-plugin-vuetify": "^2.0.5",
     "vue-template-compiler": "^2.6.10",
-    "vuetify-loader": "^1.4.3"
+    "vuetify-loader": "^1.4.3",
+    "webpack": "^4.42.1"
   }
 }

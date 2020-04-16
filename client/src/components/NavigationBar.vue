@@ -1,35 +1,35 @@
 <script>
-import { mapState } from "vuex";
-import { all } from "@girder/components/src/components/Job/status";
+import { mapState } from 'vuex';
+import { all } from '@girder/components/src/components/Job/status';
 
-import NavigationTitle from "@/components/NavigationTitle";
-import UserGuideButton from "@/components/UserGuideButton";
-import { getPathFromLocation } from "@/utils";
+import NavigationTitle from '@/components/NavigationTitle.vue';
+import UserGuideButton from '@/components/UserGuideButton.vue';
+import { getPathFromLocation } from '@/utils';
 
 export default {
-  name: "GenericNavigationBar",
+  name: 'GenericNavigationBar',
   components: {
     NavigationTitle,
-    UserGuideButton
+    UserGuideButton,
   },
-  inject: ["girderRest", "notificationBus"],
+  inject: ['girderRest', 'notificationBus'],
   data: () => ({
-    runningJobIds: []
+    runningJobIds: [],
   }),
   computed: {
-    ...mapState(["location"])
+    ...mapState(['location']),
   },
   async created() {
-    let jobStatus = all();
-    let { data: runningJobs } = await this.girderRest.get("/job", {
+    const jobStatus = all();
+    const { data: runningJobs } = await this.girderRest.get('/job', {
       params: {
-        statuses: `[${jobStatus.RUNNING.value}]`
-      }
+        statuses: `[${jobStatus.RUNNING.value}]`,
+      },
     });
-    this.runningJobIds = runningJobs.map(job => job._id);
+    this.runningJobIds = runningJobs.map((job) => job._id);
 
-    this.notificationBus.$on("message:job_status", ({ data: job }) => {
-      let jobId = job._id;
+    this.notificationBus.$on('message:job_status', ({ data: job }) => {
+      const jobId = job._id;
       switch (job.status) {
         case jobStatus.RUNNING.value:
           if (this.runningJobIds.indexOf(jobId) === -1) {
@@ -37,39 +37,62 @@ export default {
           }
           break;
         case jobStatus.SUCCESS.value:
+          // fall through
         case jobStatus.ERROR.value:
           if (this.runningJobIds.indexOf(jobId) !== -1) {
             this.runningJobIds.splice(this.runningJobIds.indexOf(jobId), 1);
           }
           break;
+        default:
+          break;
       }
     });
   },
-  methods: { getPathFromLocation }
+  methods: { getPathFromLocation },
 };
 </script>
 
 <template>
   <v-app-bar app>
     <NavigationTitle>VIAME</NavigationTitle>
-    <v-tabs icons-and-text color="accent">
-      <v-tab :to="getPathFromLocation(location)"
-        >Data<v-icon>mdi-database</v-icon></v-tab
+    <v-tabs
+      icons-and-text
+      color="accent"
+    >
+      <v-tab
+        :to="getPathFromLocation(location)"
       >
+        Data<v-icon>mdi-database</v-icon>
+      </v-tab>
       <v-tab to="/jobs">
         Jobs
-        <v-badge :value="runningJobIds.length" class="my-badge">
+        <v-badge
+          :value="runningJobIds.length"
+          class="my-badge"
+        >
           <template slot="badge">
-            <v-icon dark class="rotate">mdi-autorenew</v-icon>
+            <v-icon
+              dark
+              class="rotate"
+            >
+              mdi-autorenew
+            </v-icon>
           </template>
           <v-icon>mdi-format-list-checks</v-icon>
         </v-badge>
       </v-tab>
-      <v-tab to="/settings">Settings<v-icon>mdi-settings</v-icon></v-tab>
+      <v-tab to="/settings">
+        Settings<v-icon>mdi-settings</v-icon>
+      </v-tab>
     </v-tabs>
-    <v-spacer></v-spacer>
+    <v-spacer />
     <user-guide-button />
-    <v-btn text @click="girderRest.logout()">Logout</v-btn>
+    <v-btn
+      text
+      @click="girderRest.logout()"
+    >
+      Logout
+    </v-btn>
   </v-app-bar>
 </template>
 

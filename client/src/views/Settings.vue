@@ -1,16 +1,16 @@
 <script>
 // import { mapState, mapMutations } from "vuex";
 
-import NavigationBar from "@/components/NavigationBar";
-import AttributeSettings from "@/components/AttributeSettings";
+import NavigationBar from '@/components/NavigationBar.vue';
+import AttributeSettings from '@/components/AttributeSettings.vue';
 
 export default {
-  name: "Config",
+  name: 'Config',
   components: { NavigationBar, AttributeSettings },
-  inject: ["girderRest"],
+  inject: ['girderRest'],
   data: () => ({}),
   computed: {},
-  methods: {}
+  methods: {},
 };
 </script>
 

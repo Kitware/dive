@@ -1,17 +1,17 @@
 <script>
-import annotator from "./annotator";
+import annotator from './annotator';
 
 export default {
-  name: "ImageAnnotator",
+  name: 'ImageAnnotator',
+
+  mixins: [annotator],
 
   props: {
     imageUrls: {
       type: Array,
-      required: true
-    }
+      required: true,
+    },
   },
-
-  mixins: [annotator],
 
   created() {
     this.maxFrame = this.imageUrls.length - 1;
@@ -32,17 +32,17 @@ export default {
   methods: {
     init() {
       this.baseInit(); // Mixin method
-      this.quadFeatureLayer = this.geoViewer.createLayer("feature", {
-        features: ["quad"]
+      this.quadFeatureLayer = this.geoViewer.createLayer('feature', {
+        features: ['quad'],
       });
       this.quadFeature = this.quadFeatureLayer
-        .createFeature("quad")
+        .createFeature('quad')
         .data([
           {
             ul: { x: 0, y: 0 },
             lr: { x: this.width, y: this.height },
-            image: this.imgs[this.frame]
-          }
+            image: this.imgs[this.frame],
+          },
         ])
         .draw();
       this.ready = true;
@@ -53,7 +53,7 @@ export default {
         this.playing = true;
         this.syncWithVideo();
       } catch (ex) {
-        console.log(ex);
+        console.error(ex);
       }
     },
 
@@ -67,8 +67,8 @@ export default {
           {
             ul: { x: 0, y: 0 },
             lr: { x: this.width, y: this.height },
-            image: this.imgs[frame]
-          }
+            image: this.imgs[frame],
+          },
         ])
         .draw();
     },
@@ -102,24 +102,24 @@ export default {
       }
     },
     cacheImage() {
-      var frame = this.frame;
-      var max = Math.min(frame + 10, this.maxFrame);
-      var imgs = this.imgs;
-      this.pendingImgs.forEach(imageAndFrame => {
+      const { frame } = this;
+      const max = Math.min(frame + 10, this.maxFrame);
+      const { imgs } = this;
+      this.pendingImgs.forEach((imageAndFrame) => {
         if (imageAndFrame[1] < frame || imageAndFrame[1] > max) {
           imgs[imageAndFrame[1]] = null;
-          imageAndFrame[0].src = "";
+          imageAndFrame[0].src = '';
           this.pendingImgs.delete(imageAndFrame);
         }
       });
       for (let i = frame; i <= max; i++) {
         if (!imgs[i]) {
-          var img = new Image();
-          img.crossOrigin = "Anonymous";
+          const img = new Image();
+          img.crossOrigin = 'Anonymous';
           img.src = this.imageUrls[i];
           imgs[i] = img;
           ((img, frame) => {
-            var imageAndFrame = [img, frame];
+            const imageAndFrame = [img, frame];
             this.pendingImgs.add(imageAndFrame);
             img.onload = () => {
               this.pendingImgs.delete(imageAndFrame);
@@ -128,14 +128,20 @@ export default {
           })(img, i);
         }
       }
-    }
-  }
+    },
+  },
 };
 </script>
 
 <template>
-  <div class="video-annotator" v-resize="onResize">
-    <div class="playback-container" ref="container">
+  <div
+    v-resize="onResize"
+    class="video-annotator"
+  >
+    <div
+      ref="container"
+      class="playback-container"
+    >
       {{ rendered() }}
     </div>
     <slot name="control" />

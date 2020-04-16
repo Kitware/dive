@@ -1,32 +1,32 @@
 <script>
-import { cloneDeep } from "lodash";
+import { cloneDeep } from 'lodash';
 // import { getType } from '@turf/invariant';
 // import { feature } from '@turf/helpers';
-import geo from "geojs";
+import geo from 'geojs';
 
 export default {
-  name: "PointMarkingLayer",
-  inject: ["annotator"],
+  name: 'PointMarkingLayer',
+  inject: ['annotator'],
   props: {
     geojson: {
       type: Object,
       default: null,
       validator(value) {
-        return value.type === "Polygon";
-      }
+        return value.type === 'Polygon';
+      },
     },
     editing: {
       type: Boolean,
-      default: true
+      default: true,
     },
     featureStyle: {
       type: Object,
-      required: false
-    }
+      required: false,
+    },
   },
   data() {
     return {
-      changed: false
+      changed: false,
     };
   },
   watch: {
@@ -35,7 +35,7 @@ export default {
     },
     editing() {
       this.reinitialize();
-    }
+    },
   },
   mounted() {
     this.initialize();
@@ -56,19 +56,19 @@ export default {
     },
     initialize() {
       if (!this.$geojsLayer) {
-        this.$geojsLayer = this.annotator.geoViewer.createLayer("annotation", {
+        this.$geojsLayer = this.annotator.geoViewer.createLayer('annotation', {
           clickToEdit: true,
-          showLabels: false
+          showLabels: false,
         });
         // this.listenLayerClick();
       }
       if (this.geojson) {
         let geojson = cloneDeep(this.geojson);
-        if (!("geometry" in geojson)) {
-          geojson = { type: "Feature", geometry: geojson, properties: {} };
+        if (!('geometry' in geojson)) {
+          geojson = { type: 'Feature', geometry: geojson, properties: {} };
         }
         // Always is rectangle
-        geojson.properties.annotationType = "rectangle";
+        geojson.properties.annotationType = 'rectangle';
         this.$geojsLayer.geojson(geojson);
         const annotation = this.$geojsLayer.annotations()[0];
         if (this.featureStyle) {
@@ -76,25 +76,25 @@ export default {
         }
         annotation.editHandleStyle({ handles: { rotate: false } });
         if (this.editing) {
-          this.$geojsLayer.mode("edit", annotation);
+          this.$geojsLayer.mode('edit', annotation);
           this.$geojsLayer.draw();
         }
       } else if (this.editing) {
         this.changed = true;
-        this.$geojsLayer.mode("rectangle");
+        this.$geojsLayer.mode('rectangle');
       }
 
-      this.$geojsLayer.geoOn(geo.event.annotation.mode, e => {
-        this.$emit("update:editing", e.mode === "edit" ? true : e.mode);
+      this.$geojsLayer.geoOn(geo.event.annotation.mode, (e) => {
+        this.$emit('update:editing', e.mode === 'edit' ? true : e.mode);
       });
 
-      this.$geojsLayer.geoOn(geo.event.annotation.state, e => {
+      this.$geojsLayer.geoOn(geo.event.annotation.state, (e) => {
         if (this.changed) {
           this.changed = false;
           const newGeojson = e.annotation.geojson();
           let geojson = cloneDeep(this.geojson);
           if (geojson) {
-            if ("geometry" in geojson) {
+            if ('geometry' in geojson) {
               geojson.geometry.coordinates = newGeojson.geometry.coordinates;
             } else {
               geojson.coordinates = newGeojson.geometry.coordinates;
@@ -104,30 +104,30 @@ export default {
               ...newGeojson,
               ...{
                 properties: {
-                  annotationType: newGeojson.properties.annotationType
-                }
-              }
+                  annotationType: newGeojson.properties.annotationType,
+                },
+              },
             };
           }
-          this.$emit("update:geojson", geojson);
+          this.$emit('update:geojson', geojson);
         }
       });
 
-      this.$geojsLayer.geoOn(geo.event.annotation.edit_action, e => {
+      this.$geojsLayer.geoOn(geo.event.annotation.edit_action, (e) => {
         if (e.action === geo.event.actionmove) {
-          if (this.$listeners["being-edited-geojson"]) {
-            this.$emit("being-edited-geojson", e.annotation.geojson().geometry);
+          if (this.$listeners['being-edited-geojson']) {
+            this.$emit('being-edited-geojson', e.annotation.geojson().geometry);
           }
         }
         if (e.action === geo.event.actionup) {
-          this.$emit("being-edited-geojson", null);
+          this.$emit('being-edited-geojson', null);
           this.changed = true;
         }
       });
-    }
+    },
   },
   render() {
     return null;
-  }
+  },
 };
 </script>

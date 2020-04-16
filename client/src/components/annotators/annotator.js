@@ -1,18 +1,18 @@
-import geo from "geojs";
-import Vue from "vue";
+import geo from 'geojs';
+import Vue from 'vue';
 
-import { throttle } from "lodash";
+import { throttle } from 'lodash';
 
 export default {
   props: {
     frameRate: {
       type: Number,
-      required: true
-    }
+      required: true,
+    },
   },
   provide() {
     return {
-      annotator: this.provided
+      annotator: this.provided,
     };
   },
   data() {
@@ -22,41 +22,41 @@ export default {
         playing: () => this.playing,
         frame: () => this.frame,
         maxFrame: () => this.maxFrame,
-        syncedFrame: () => this.syncedFrame
-      }
+        syncedFrame: () => this.syncedFrame,
+      },
     });
     return {
       ready: false,
       playing: false,
       frame: 0,
       maxFrame: 0,
-      syncedFrame: 0
+      syncedFrame: 0,
     };
   },
   created() {
-    this.provided.$on("prev-frame", this.prevFrame);
-    this.provided.$on("next-frame", this.nextFrame);
-    this.provided.$on("play", this.play);
-    this.provided.$on("pause", this.pause);
-    this.provided.$on("seek", this.seek);
+    this.provided.$on('prev-frame', this.prevFrame);
+    this.provided.$on('next-frame', this.nextFrame);
+    this.provided.$on('play', this.play);
+    this.provided.$on('pause', this.pause);
+    this.provided.$on('seek', this.seek);
     this.emitFrame();
     this.emitFrame = throttle(this.emitFrame, 200);
   },
   methods: {
     baseInit() {
-      var params = geo.util.pixelCoordinateParams(
+      const params = geo.util.pixelCoordinateParams(
         this.$refs.container,
         this.width,
         this.height,
         this.width,
-        this.height
+        this.height,
       );
       this.geoViewer = geo.map(params.map);
       this.geoViewer.zoomRange({
         min: this.geoViewer.zoomRange().origMin,
-        max: this.geoViewer.zoomRange().max + 3
+        max: this.geoViewer.zoomRange().max + 3,
       });
-      var interactorOpts = this.geoViewer.interactor().options();
+      const interactorOpts = this.geoViewer.interactor().options();
       interactorOpts.keyboard.focusHighlight = false;
       interactorOpts.keyboard.actions = {};
       interactorOpts.actions = [
@@ -64,32 +64,32 @@ export default {
         interactorOpts.actions[2],
         interactorOpts.actions[6],
         interactorOpts.actions[7],
-        interactorOpts.actions[8]
+        interactorOpts.actions[8],
       ];
       interactorOpts.zoomAnimation = {
-        enabled: false
+        enabled: false,
       };
       interactorOpts.momentum = {
-        enabled: false
+        enabled: false,
       };
       interactorOpts.wheelScaleY = 0.2;
       this.geoViewer.interactor().options(interactorOpts);
     },
     prevFrame() {
-      var targetFrame = this.frame - 1;
+      const targetFrame = this.frame - 1;
       if (targetFrame >= 0) {
         this.seek(targetFrame);
       }
     },
     nextFrame() {
-      var targetFrame = this.frame + 1;
+      const targetFrame = this.frame + 1;
       if (targetFrame <= this.maxFrame) {
         this.seek(targetFrame);
       }
     },
     emitFrame() {
-      this.$emit("frame-update", this.frame);
+      this.$emit('frame-update', this.frame);
     },
-    rendered() {}
-  }
+    rendered() {},
+  },
 };

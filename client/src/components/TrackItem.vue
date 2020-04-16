@@ -1,31 +1,38 @@
 <script>
+import { stringNumberNullValidator } from '@/utils';
+
 export default {
-  name: "TrackItem",
+  name: 'TrackItem',
   props: {
     track: {
-      type: Object
+      type: Object,
+      required: true,
     },
     types: {
-      type: Array
+      type: Array,
+      required: true,
     },
     inputValue: {
-      type: Boolean
+      type: Boolean,
+      required: true,
     },
-    selectedTrack: {
-      type: Number
+    selectedTrackId: {
+      validator: stringNumberNullValidator,
+      required: true,
     },
-    editingTrack: {
-      type: Number
-    }
+    editingTrackId: {
+      validator: stringNumberNullValidator,
+      required: true,
+    },
   },
   data: () => ({
-    editing: false
+    editing: false,
   }),
   watch: {
     track() {
       this.editing = false;
-    }
-  }
+    },
+  },
 };
 </script>
 
@@ -33,7 +40,7 @@ export default {
   <div
     class="track-item d-flex align-center hover-show-parent px-1"
     :class="{
-      selected: selectedTrack === track.trackId
+      selected: selectedTrackId === track.trackId
     }"
     @click.self="$emit('click')"
   >
@@ -44,15 +51,14 @@ export default {
       :input-value="inputValue"
       color="neutral"
       @change="$emit('change', $event)"
-    >
-    </v-checkbox>
+    />
     <div>
-      {{ track.trackId + (editingTrack === track.trackId ? "*" : "") }}
+      {{ track.trackId + (editingTrackId === track.trackId ? "*" : "") }}
     </div>
     <div
       v-if="!editing"
-      @click="editing = true"
       class="type-display flex-grow-1 flex-shrink-1 ml-2"
+      @click="editing = true"
     >
       {{
         track.confidencePairs.length ? track.confidencePairs[0][0] : "undefined"
@@ -62,14 +68,18 @@ export default {
       v-else
       class="ml-2"
       :value="track.confidencePairs.length ? track.confidencePairs[0][0] : ''"
-      @change="$emit('type-change', $event)"
       :items="types"
       dense
       hide-details
-    ></v-combobox>
+      @change="$emit('type-change', $event)"
+    />
     <v-menu offset-y>
       <template v-slot:activator="{ on }">
-        <v-btn class="hover-show-child" icon v-on="on">
+        <v-btn
+          class="hover-show-child"
+          icon
+          v-on="on"
+        >
           <v-icon>
             mdi-dots-horizontal
           </v-icon>
