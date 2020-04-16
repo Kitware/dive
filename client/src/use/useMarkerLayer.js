@@ -6,7 +6,7 @@ export default function useMarkerLayer({ filteredDetections, selectedTrackId }) 
 
   const markerData = computed(() => {
     if (filteredDetections.value.length === 0) {
-      return null;
+      return [];
     }
     const data = [];
     filteredDetections.value.forEach((detection) => {

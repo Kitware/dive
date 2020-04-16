@@ -4,7 +4,7 @@ export default function useLineChart({ filteredDetections, typeColorMap }) {
   const lineChartData = computed(() => {
     const _filteredDetections = filteredDetections.value;
     if (_filteredDetections.length === 0) {
-      return null;
+      return [];
     }
     const types = new Map();
     const total = new Map();

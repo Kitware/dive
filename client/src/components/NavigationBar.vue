@@ -37,6 +37,7 @@ export default {
           }
           break;
         case jobStatus.SUCCESS.value:
+          // fall through
         case jobStatus.ERROR.value:
           if (this.runningJobIds.indexOf(jobId) !== -1) {
             this.runningJobIds.splice(this.runningJobIds.indexOf(jobId), 1);

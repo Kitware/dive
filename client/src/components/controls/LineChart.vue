@@ -122,7 +122,6 @@ export default {
         .attr('transform', 'translate(0,-1)');
 
       const axis = d3.axisRight(y).tickSize(width);
-      this.axis = axis;
       svg
         .append('g')
         .attr('class', 'axis-y')
@@ -140,7 +139,8 @@ export default {
         .attr('class', 'line')
         .attr('d', (d) => line(d.values))
         .style('stroke', (d) => (d.color ? d.color : '#4c9ac2'))
-        .on('mouseenter', (d) => {
+        // Non-Arrow function to preserve the 'this' context for d3.mouse(this)
+        .on('mouseenter', function mouseEnterHandler(d) {
           const [_x, _y] = d3.mouse(this);
           tooltipTimeoutHandle = setTimeout(() => {
             tooltip

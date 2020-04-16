@@ -4,7 +4,7 @@ import { groupBy, minBy, maxBy } from 'lodash';
 
 export default function useEventChart({ filteredDetections, selectedTrackId, typeColorMap }) {
   const eventChartData = computed(() => {
-    if (!filteredDetections.value.length === 0) {
+    if (filteredDetections.value.length === 0) {
       return [];
     }
     return Object.entries(

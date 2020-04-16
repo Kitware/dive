@@ -371,7 +371,7 @@ export default defineComponent({
             { bind: 'y', handler: () => toggleFeaturePointing('tail') },
             { bind: 'f', handler: () => nextFrame() },
             { bind: 'd', handler: () => prevFrame() },
-            { bind: 'q', handler: deleteDetection }
+            { bind: 'q', handler: deleteFeaturePoints }
           ]"
           class="playback-component"
           :image-urls="imageUrls"
@@ -390,7 +390,7 @@ export default defineComponent({
                 >
                   <template #child="{ startFrame, endFrame, maxFrame }">
                     <line-chart
-                      v-if="!showTrackView && lineChartData"
+                      v-if="!showTrackView && lineChartData.length > 0"
                       :start-frame="startFrame"
                       :end-frame="endFrame"
                       :max-frame="maxFrame"
@@ -437,12 +437,12 @@ export default defineComponent({
             @update:geojson="featurePointed"
           />
           <text-layer
-            v-if="textData"
+            v-if="textData.length > 0"
             :data="textData"
             :text-style="textStyle"
           />
           <marker-layer
-            v-if="markerData"
+            v-if="markerData.length > 0"
             :data="markerData"
             :marker-style="markerStyle"
           />
@@ -463,7 +463,7 @@ export default defineComponent({
           <v-list>
             <v-list-item @click="toggleFeaturePointing('head')">
               <v-list-item-title>
-                Add feauture points, starting with head (g key)
+                Add feature points, starting with head (g key)
               </v-list-item-title>
             </v-list-item>
             <v-list-item @click="toggleFeaturePointing('tail')">
@@ -471,9 +471,9 @@ export default defineComponent({
                 Add feature points, starting with tail (t key)
               </v-list-item-title>
             </v-list-item>
-            <v-list-item @click="deleteDetection">
+            <v-list-item @click="deleteFeaturePoints">
               <v-list-item-title>
-                Delete both feauture points for current frame (q key)
+                Delete both feature points for current frame (q key)
               </v-list-item-title>
             </v-list-item>
           </v-list>

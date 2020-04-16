@@ -9,8 +9,8 @@ export default function useTextLayer({
   const vuetify = inject('vuetify');
 
   const textData = computed(() => {
-    if (!filteredDetections.value.length) {
-      return null;
+    if (filteredDetections.value.length === 0) {
+      return [];
     }
     const data = [];
     filteredDetections.value.forEach((detection) => {
