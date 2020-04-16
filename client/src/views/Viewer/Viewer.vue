@@ -390,7 +390,7 @@ export default defineComponent({
                 >
                   <template #child="{ startFrame, endFrame, maxFrame }">
                     <line-chart
-                      v-if="!showTrackView && lineChartData"
+                      v-if="!showTrackView && lineChartData.length > 0"
                       :start-frame="startFrame"
                       :end-frame="endFrame"
                       :max-frame="maxFrame"
@@ -437,12 +437,12 @@ export default defineComponent({
             @update:geojson="featurePointed"
           />
           <text-layer
-            v-if="textData"
+            v-if="textData.length > 0"
             :data="textData"
             :text-style="textStyle"
           />
           <marker-layer
-            v-if="markerData"
+            v-if="markerData.length > 0"
             :data="markerData"
             :marker-style="markerStyle"
           />
