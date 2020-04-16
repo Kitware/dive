@@ -8,7 +8,7 @@ export default function useFilteredTracks({ detections }) {
 
   const filteredDetections = computed(() => {
     if (!detections.value.length) {
-      return null;
+      return [];
     }
     const checkedTracksSet = new Set(checkedTracks.value);
     const checkedTypesSet = new Set(checkedTypes.value);

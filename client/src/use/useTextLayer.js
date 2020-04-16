@@ -10,7 +10,7 @@ export default function useTextLayer({
 
   const textData = computed(() => {
     if (filteredDetections.value.length === 0) {
-      return null;
+      return [];
     }
     const data = [];
     filteredDetections.value.forEach((detection) => {
