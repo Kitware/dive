@@ -3,6 +3,7 @@ from girder.models.item import Item
 
 
 validImageFormats = {"png", "jpg", "jpeg"}
+validVideoFormats = {"avi", "mp4", "mov"}
 
 
 def check_existing_annotations(event):
@@ -29,6 +30,8 @@ def maybe_mark_folder_for_annotation(event):
     parent = Folder().findOne({"_id": info["parentId"]})
 
     fileType = info["mimeType"].split("/")[-1]
-    if fileType in validImageFormats and parent["meta"].get("viame"):
+    validFileType = fileType in validImageFormats or fileType in validVideoFormats
+
+    if validFileType and parent["meta"].get("viame"):
         parent["meta"]["annotate"] = True
         Folder().save(parent)
