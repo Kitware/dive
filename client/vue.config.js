@@ -1,5 +1,9 @@
 const webpack = require('webpack');
 const packagejson = require('./package.json');
+const { gitDescribe, gitDescribeSync } = require('git-describe');
+
+process.env.VUE_APP_GIT_HASH = gitDescribeSync().hash;
+process.env.VUE_APP_VERSION = packagejson.version;
 
 module.exports = {
   devServer: {
@@ -14,13 +18,4 @@ module.exports = {
   chainWebpack: (config) => {
     config.resolve.symlinks(false);
   },
-  configureWebpack: () => ({
-    plugins: [
-      new webpack.DefinePlugin({
-        'process.env': {
-          VERSION: JSON.stringify(packagejson).version,
-        },
-      }),
-    ],
-  }),
 };
