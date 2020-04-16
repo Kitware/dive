@@ -117,27 +117,29 @@ export default {
       });
 
       this.$geojsLayer.geoOn(geo.event.annotation.state, (e) => {
-        if (this.changed) {
-          this.changed = false;
-          const newGeojson = e.annotation.geojson();
-          let geojson = cloneDeep(this.geojson);
-          if (geojson) {
-            if ('geometry' in geojson) {
-              geojson.geometry.coordinates = newGeojson.geometry.coordinates;
+        if (this.$geojsLayer === e.annotation.layer()) {
+          if (this.changed) {
+            this.changed = false;
+            const newGeojson = e.annotation.geojson();
+            let geojson = cloneDeep(this.geojson);
+            if (geojson) {
+              if ('geometry' in geojson) {
+                geojson.geometry.coordinates = newGeojson.geometry.coordinates;
+              } else {
+                geojson.coordinates = newGeojson.geometry.coordinates;
+              }
             } else {
-              geojson.coordinates = newGeojson.geometry.coordinates;
-            }
-          } else {
-            geojson = {
-              ...newGeojson,
-              ...{
-                properties: {
-                  annotationType: newGeojson.properties.annotationType,
+              geojson = {
+                ...newGeojson,
+                ...{
+                  properties: {
+                    annotationType: newGeojson.properties.annotationType,
+                  },
                 },
-              },
-            };
+              };
+            }
+            this.$emit('update:geojson', geojson);
           }
-          this.$emit('update:geojson', geojson);
         }
       });
 

@@ -85,7 +85,6 @@ export default defineComponent({
       selectedTrackId,
       selectedDetectionIndex,
       selectedDetection,
-      selectTrack,
       setTrackEditMode,
       deleteSelectedDetection,
     } = useSelectionControls({
@@ -160,9 +159,9 @@ export default defineComponent({
     function prevFrame() {
       playbackComponent.value.prevFrame();
     }
-    function gotoTrackFirstFrame(track) {
-      selectTrack(track.trackId);
-      const _frame = eventChartData.value.find((d) => d.track === track.trackId)
+    function gotoTrackFirstFrame({ trackId }) {
+      setTrackEditMode(trackId, false);
+      const _frame = eventChartData.value.find((d) => d.track === trackId)
         .range[0];
       seek(_frame);
     }
@@ -173,6 +172,10 @@ export default defineComponent({
     }
     function annotationRightClick(data) {
       setTrackEditMode(data.detection.track);
+    }
+    function editTrack({ trackId }) {
+      gotoTrackFirstFrame({ trackId });
+      setTrackEditMode(trackId, true);
     }
     function save(mouseEvent) {
       saveToGirder(datasetId, detections);
@@ -255,6 +258,7 @@ export default defineComponent({
       eventChartData,
       // local wrapper methods
       gotoTrackFirstFrame,
+      editTrack,
       seek,
       nextFrame,
       prevFrame,
@@ -339,8 +343,8 @@ export default defineComponent({
               :editing-track-id="editingTrackId"
               class="flex-shrink-0"
               @goto-track-first-frame="gotoTrackFirstFrame"
-              @edit-track="editingTrackId = $event.trackId"
-              @click-track="track => setTrackEditMode(track.trackId, false)"
+              @edit-track="editTrack"
+              @click-track="editTrack"
               @track-type-change="trackTypeChanged"
               @add-track="addTrack"
               @delete-track="deleteTrack"
@@ -425,7 +429,7 @@ export default defineComponent({
             @annotation-right-click="annotationRightClick"
           />
           <edit-annotation-layer
-            v-if="editingTrackId !== null && !featurePointing"
+            v-if="editingTrackId !== null"
             editing="rectangle"
             :geojson="editingDetectionGeojson"
             :feature-style="editingBoxLayerStyle"
