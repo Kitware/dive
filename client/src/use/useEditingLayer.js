@@ -93,8 +93,8 @@ export default function useEditingLayer({
   }
 
   function addTrack() {
-    const newId = this.tracks.length
-      ? this.tracks.slice(-1)[0].trackId + 1
+    const newId = tracks.value.length
+      ? tracks.value.slice(-1)[0].trackId + 1
       : 1;
     setTrackEditMode(newId, true);
   }
