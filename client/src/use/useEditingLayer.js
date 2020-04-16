@@ -14,6 +14,9 @@ export default function useEditingLayer({
   setDetection,
 }) {
   async function deleteTrack({ trackId }) {
+    if (typeof trackId !== 'string') {
+      throw new Error('Must provide object with key `trackId` to deleteTrack()');
+    }
     const _detections = detections.value;
     const result = await prompt({
       title: 'Confirm',
