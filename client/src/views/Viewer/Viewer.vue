@@ -425,7 +425,7 @@ export default defineComponent({
             @annotation-right-click="annotationRightClick"
           />
           <edit-annotation-layer
-            v-if="editingTrackId !== null"
+            v-if="editingTrackId !== null && !featurePointing"
             editing="rectangle"
             :geojson="editingDetectionGeojson"
             :feature-style="editingBoxLayerStyle"

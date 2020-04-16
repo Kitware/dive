@@ -61,7 +61,7 @@ export default function useEditingLayer({
         track: _editingTrackId,
         confidencePairs,
         frame: _frame,
-        features: {},
+        features: _editingDetection.features || {},
         bounds,
       });
       // else create a new one at the end
