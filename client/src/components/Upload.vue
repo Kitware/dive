@@ -38,6 +38,7 @@ async function readEntriesPromise(directoryReader) {
     });
   } catch (err) {
     console.error(err);
+    return [];
   }
 }
 
@@ -60,8 +61,8 @@ async function readFilesFromDrop(e) {
     return [
       firstEntry.name,
       Array.from(e.dataTransfer.items)
-        .filter((item) => item.webkitGetAsEntry().isFile)
-        .map((item) => item.getAsFile()),
+        .filter(({ webkitGetAsEntry }) => webkitGetAsEntry().isFile)
+        .map(({ getAsFile }) => getAsFile()),
     ];
   }
   const entries = await readDirectoryEntries(firstEntry);
@@ -95,7 +96,7 @@ export default {
     // Filter to show how many images are left to upload
     filesNotUploaded(item) {
       return item.files.filter(
-        (item) => item.status !== 'done' && item.status !== 'error',
+        (file) => file.status !== 'done' && file.status !== 'error',
       ).length;
     },
     /**
@@ -104,7 +105,8 @@ export default {
      *  size, and list of files to upload.
      */
     computeUploadProgress(pendingUpload) {
-      const { formatSize, totalProgress, totalSize } = this; // use methods and properties from mixins
+      // use methods and properties from mixins
+      const { formatSize, totalProgress, totalSize } = this;
       if (pendingUpload.files.length === 1 && !pendingUpload.uploading) {
         return this.formatSize(pendingUpload.files[0].progress.size);
       } if (pendingUpload.type === 'image-sequence') {
@@ -112,9 +114,11 @@ export default {
       } if (pendingUpload.type === 'video' && !pendingUpload.uploading) {
         return `${this.filesNotUploaded(pendingUpload)} videos`;
       } if (pendingUpload.type === 'video' && pendingUpload.uploading) {
-        // For videos we display the total progress when uploading because single videos can be large
+        // For videos we display the total progress when uploading because
+        // single videos can be large
         return `${formatSize(totalProgress)} of ${formatSize(totalSize)}`;
       }
+      throw new Error(`could not determine adequate formatting for ${pendingUpload}`);
     },
     getFilenameInputStateLabel(pendingUpload) {
       const type = pendingUpload.createFolder ? 'Folder' : 'File';
@@ -144,10 +148,10 @@ export default {
       this.addPendingUpload(name, files);
     },
     addPendingUpload(name, allFiles) {
-      let [type, files] = prepareFiles(allFiles);
+      const [type, files] = prepareFiles(allFiles);
       const defaultFilename = files[0].name;
       // mapping needs to be done for the mixin upload functions
-      files = files.map((file) => ({
+      const internalFiles = files.map((file) => ({
         file,
         status: 'pending',
         progress: {
@@ -159,12 +163,12 @@ export default {
         result: null,
       }));
       this.pendingUploads.push({
-        createFolder: files.length > 1,
+        createFolder: internalFiles.length > 1,
         name:
-          files.length > 1
+          internalFiles.length > 1
             ? defaultFilename.replace(/\..*/, '')
             : defaultFilename,
-        files,
+        files: internalFiles,
         type,
         fps: this.defaultFPS,
         uploading: false,
@@ -195,6 +199,7 @@ export default {
     async uploadPending(pendingUpload, uploaded) {
       const { name, files, createFolder } = pendingUpload;
       const fps = parseInt(pendingUpload.fps, 10);
+      // eslint-disable-next-line no-param-reassign
       pendingUpload.uploading = true;
       let folder = this.location;
       if (createFolder) {
@@ -223,6 +228,7 @@ export default {
           } else {
             this.errorMessage = error;
           }
+          // eslint-disable-next-line no-param-reassign
           pendingUpload.uploading = false;
           // Set an empty object for the folder destructuring
           folder = null;

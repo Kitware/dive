@@ -1,6 +1,5 @@
-const webpack = require('webpack');
+const { gitDescribeSync } = require('git-describe');
 const packagejson = require('./package.json');
-const { gitDescribe, gitDescribeSync } = require('git-describe');
 
 process.env.VUE_APP_GIT_HASH = gitDescribeSync().hash;
 process.env.VUE_APP_VERSION = packagejson.version;

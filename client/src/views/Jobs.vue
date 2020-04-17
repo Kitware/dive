@@ -1,16 +1,10 @@
 <script>
-// import { mapState, mapMutations } from "vuex";
-
-import NavigationBar from '@/components/NavigationBar';
-import JobList from '@girder/components/src/components/Job/JobList';
+import NavigationBar from '@/components/NavigationBar.vue';
+import JobList from '@girder/components/src/components/Job/JobList.vue';
 
 export default {
   name: 'Jobs',
   components: { NavigationBar, JobList },
-  // inject: ["girderRest"],
-  data: () => ({}),
-  computed: {},
-  methods: {},
 };
 </script>
 

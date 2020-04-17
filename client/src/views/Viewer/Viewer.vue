@@ -1,5 +1,4 @@
 <script>
-import { mapState } from 'vuex';
 import {
   defineComponent,
   ref,
@@ -8,6 +7,7 @@ import {
 } from '@vue/composition-api';
 
 import store from '@/store';
+
 import {
   useAnnotationLayer,
   useAttributeManager,
@@ -47,7 +47,6 @@ export default defineComponent({
     // and use the new plugin pattern:
     // https://vue-composition-api-rfc.netlify.com/#plugin-development
     const prompt = ctx.root.$prompt;
-    const snackbar = ctx.root.$snackbar;
 
     // external composition functions
     const { typeColorMap } = useTypeColoring();
@@ -86,7 +85,6 @@ export default defineComponent({
       selectedDetectionIndex,
       selectedDetection,
       setTrackEditMode,
-      deleteSelectedDetection,
     } = useSelectionControls({
       frame,
       detections,
@@ -177,7 +175,7 @@ export default defineComponent({
       gotoTrackFirstFrame({ trackId });
       setTrackEditMode(trackId, true);
     }
-    function save(mouseEvent) {
+    function save() {
       saveToGirder(datasetId, detections);
     }
 
@@ -386,25 +384,25 @@ export default defineComponent({
           <template slot="control">
             <Controls />
             <timeline-wrapper>
-              <template #default="{maxFrame, frame, seek}">
+              <template #default="{ maxFrame, frame, seek }">
                 <Timeline
                   :max-frame="maxFrame"
                   :frame="frame"
-                  :seek="seek"
+                  @seek="seek"
                 >
-                  <template #child="{ startFrame, endFrame, maxFrame }">
+                  <template #child="{ startFrame, endFrame, maxFrame: childMaxFrame }">
                     <line-chart
                       v-if="!showTrackView && lineChartData.length > 0"
                       :start-frame="startFrame"
                       :end-frame="endFrame"
-                      :max-frame="maxFrame"
+                      :max-frame="childMaxFrame"
                       :data="lineChartData"
                     />
                     <event-chart
                       v-if="showTrackView && eventChartData"
                       :start-frame="startFrame"
                       :end-frame="endFrame"
-                      :max-frame="maxFrame"
+                      :max-frame="childMaxFrame"
                       :data="eventChartData"
                     />
                   </template>

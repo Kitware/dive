@@ -1,5 +1,5 @@
 <script>
-import AttributeInput from '@/components/AttributeInput';
+import AttributeInput from '@/components/AttributeInput.vue';
 
 export default {
   name: 'AttributesPanel',
@@ -10,9 +10,11 @@ export default {
   props: {
     selectedDetection: {
       type: Object,
+      default: null,
     },
     selectedTrack: {
       type: Object,
+      default: null,
     },
   },
   computed: {

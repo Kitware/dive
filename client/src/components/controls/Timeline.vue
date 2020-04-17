@@ -13,9 +13,6 @@ export default {
       type: Number,
       default: 0,
     },
-    seek: {
-      type: Function,
-    },
   },
   data() {
     return {
@@ -131,7 +128,7 @@ export default {
           * (this.endFrame - this.startFrame)
           + this.startFrame,
       );
-      this.seek(frame);
+      this.$emit('seek', frame);
     },
     workareaMouseup(e) {
       if (this.dragging) {

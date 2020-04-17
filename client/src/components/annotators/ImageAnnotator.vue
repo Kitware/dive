@@ -89,8 +89,8 @@ export default {
     },
     syncWithVideo() {
       if (this.playing) {
-        this.frame++;
-        this.syncedFrame++;
+        this.frame += 1;
+        this.syncedFrame += 1;
         if (this.frame > this.maxFrame) {
           this.pause();
           this.frame = this.maxFrame;
@@ -108,24 +108,23 @@ export default {
       this.pendingImgs.forEach((imageAndFrame) => {
         if (imageAndFrame[1] < frame || imageAndFrame[1] > max) {
           imgs[imageAndFrame[1]] = null;
+          // eslint-disable-next-line no-param-reassign
           imageAndFrame[0].src = '';
           this.pendingImgs.delete(imageAndFrame);
         }
       });
-      for (let i = frame; i <= max; i++) {
+      for (let i = frame; i <= max; i += 1) {
         if (!imgs[i]) {
           const img = new Image();
           img.crossOrigin = 'Anonymous';
           img.src = this.imageUrls[i];
           imgs[i] = img;
-          ((img, frame) => {
-            const imageAndFrame = [img, frame];
-            this.pendingImgs.add(imageAndFrame);
-            img.onload = () => {
-              this.pendingImgs.delete(imageAndFrame);
-              img.onload = null;
-            };
-          })(img, i);
+          const imageAndFrame = [img, frame];
+          this.pendingImgs.add(imageAndFrame);
+          img.onload = () => {
+            this.pendingImgs.delete(imageAndFrame);
+            img.onload = null;
+          };
         }
       }
     },

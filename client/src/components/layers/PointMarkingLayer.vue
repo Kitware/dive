@@ -21,7 +21,7 @@ export default {
     },
     featureStyle: {
       type: Object,
-      required: false,
+      default: () => {},
     },
   },
   data() {

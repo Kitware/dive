@@ -8,6 +8,7 @@ export default {
     },
     value: {
       type: [String, Number, Boolean],
+      required: true,
     },
     datatype: {
       type: String,
@@ -26,15 +27,16 @@ export default {
   },
   methods: {
     change(value) {
+      let newval;
       switch (value) {
         case '':
-          value = undefined;
-          break;
         case null:
-          value = undefined;
+          newval = undefined;
           break;
+        default:
+          newval = value;
       }
-      this.$emit('change', { name: this.name, value });
+      this.$emit('change', { name: this.name, value: newval });
     },
   },
 };

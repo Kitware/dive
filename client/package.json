@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "serve": "vue-cli-service serve",
+    "serve": "rimraf -rf ./node_modules/.cache/vue-loader && vue-cli-service serve",
     "build": "vue-cli-service build",
     "lint": "vue-cli-service lint"
   },
@@ -27,20 +27,48 @@
     "@vue/cli-plugin-eslint": "~4.3.1",
     "@vue/cli-service": "~4.3.1",
     "@vue/eslint-config-airbnb": "^5.0.2",
-    "babel-eslint": "^10.0.1",
-    "eslint": "^5.16.0",
-    "eslint-plugin-vue": "^5.0.0",
+    "babel-eslint": "^10.1.0",
+    "babel-register": "^6.26.0",
+    "eslint": "^6.7.2",
+    "eslint-plugin-vue": "^6.2.2",
     "git-describe": "^4.0.4",
     "node-sass": "^4.12.0",
     "pug": "^2.0.4",
     "pug-plain-loader": "^1.0.0",
     "sass": "^1.26.3",
-    "sass-loader": "^7.3.1",
+    "sass-loader": "^8.0.2",
     "stylus": "^0.54.7",
     "stylus-loader": "^3.0.2",
     "vue-cli-plugin-vuetify": "^2.0.5",
     "vue-template-compiler": "^2.6.10",
     "vuetify-loader": "^1.4.3",
     "webpack": "^4.42.1"
+  },
+  "eslintConfig": {
+    "root": true,
+    "env": {
+      "node": true
+    },
+    "extends": [
+      "plugin:vue/essential",
+      "eslint:recommended",
+      "plugin:vue/recommended",
+      "@vue/airbnb"
+    ],
+    "rules": {
+      "no-underscore-dangle": 0,
+      "no-console": [
+        "error",
+        {
+          "allow": [
+            "warn",
+            "error"
+          ]
+        }
+      ]
+    },
+    "parserOptions": {
+      "parser": "babel-eslint"
+    }
   }
 }

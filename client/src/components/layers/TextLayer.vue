@@ -5,10 +5,11 @@ export default {
   props: {
     data: {
       type: Array,
+      required: true,
     },
     textStyle: {
       type: Object,
-      required: false,
+      default: () => {},
     },
   },
   computed: {

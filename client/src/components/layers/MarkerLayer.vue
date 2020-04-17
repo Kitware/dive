@@ -5,10 +5,11 @@ export default {
   props: {
     data: {
       type: Array,
+      required: true,
     },
     markerStyle: {
       type: Object,
-      required: false,
+      default: () => {},
     },
   },
   computed: {

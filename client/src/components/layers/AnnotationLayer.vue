@@ -6,20 +6,13 @@ export default {
   inject: ['annotator'],
   props: {
     data: {
+      // Array<{{ frame: number, polygon: Object }}>
       type: Array,
-      validator(data) {
-        if (!Array.isArray(data)) {
-          return false;
-        }
-        if (data.find((item) => !Number.isInteger(item.frame) || !item.polygon)) {
-          return false;
-        }
-        return true;
-      },
+      required: true,
     },
     annotationStyle: {
       type: Object,
-      required: false,
+      default: () => {},
     },
   },
   computed: {
