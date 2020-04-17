@@ -166,6 +166,11 @@ export default defineComponent({
       persistAnnotations();
       playbackComponent.value.prevFrame();
     }
+    function handlePlayingStateChanged(newval) {
+      if (newval) {
+        persistAnnotations();
+      }
+    }
     function gotoTrackFirstFrame({ trackId }) {
       setTrackEditMode(trackId, false);
       const _frame = eventChartData.value.find((d) => d.track === trackId)
@@ -274,10 +279,11 @@ export default defineComponent({
       // imported helper methods without side-effects
       getPathFromLocation,
       // miscellaneous oddities
-      playbackComponent,
       annotationRectEditor,
-      swapMousetrap,
       editingBoxLayerStyle,
+      handlePlayingStateChanged,
+      playbackComponent,
+      swapMousetrap,
     };
   },
 });
@@ -399,6 +405,7 @@ export default defineComponent({
           :video-url="videoUrl"
           :frame-rate="frameRate"
           @frame-update="frame = $event"
+          @playing-state-changed="handlePlayingStateChanged"
         >
           <template slot="control">
             <Controls />
@@ -446,7 +453,7 @@ export default defineComponent({
             @annotation-right-click="annotationRightClick"
           />
           <edit-annotation-layer
-            v-if="editingTrackId !== null"
+            v-if="editingTrackId !== null && !playbackComponent.playing"
             ref="annotationRectEditor"
             editing="rectangle"
             :geojson="editingDetectionGeojson"

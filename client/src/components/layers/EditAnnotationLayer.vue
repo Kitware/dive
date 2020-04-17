@@ -57,7 +57,9 @@ export default {
   methods: {
     persist() {
       this.$geojsLayer.annotations().forEach((a) => {
-        a.state('done');
+        if (a.state() === 'edit') {
+          a.state('done');
+        }
       });
     },
     reinitialize() {
