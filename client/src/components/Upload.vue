@@ -61,8 +61,8 @@ async function readFilesFromDrop(e) {
     return [
       firstEntry.name,
       Array.from(e.dataTransfer.items)
-        .filter(({ webkitGetAsEntry }) => webkitGetAsEntry().isFile)
-        .map(({ getAsFile }) => getAsFile()),
+        .filter((_item) => _item.webkitGetAsEntry().isFile)
+        .map((_item) => _item.getAsFile()),
     ];
   }
   const entries = await readDirectoryEntries(firstEntry);
