@@ -1,6 +1,9 @@
 <img src="http://www.viametoolkit.org/wp-content/uploads/2016/08/viami_logo.png" alt="VIAME Logo" width="200" height="78">
 <br>
-VIAME-Web is a web interface for performing data management, video annotation, and running the algorithms stored within the VIAME (https://github.com/VIAME/VIAME) repository. When compiled, docker instances for VIAME-Web can be run either as local servers or online in web services. A sample instance of VIAME-Web is running on a public server at https://viame.kitware.com. Additional documentation will be available in the future for users.
+VIAME-Web is a web interface for performing data management, video annotation, and running a portion of the algorithms stored
+within the VIAME (https://github.com/VIAME/VIAME) repository. When compiled, docker instances for VIAME-Web can be run either
+as local servers or online in web services. A sample instance of VIAME-Web is running on a public server at https://viame.kitware.com.
+Additional documentation will be available in the future for users.
 <br>
 <p align="center">
 <br>
