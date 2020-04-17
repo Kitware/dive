@@ -4,17 +4,19 @@
 
 ``` bash
 # install dependencies
-npm install
+yarn
 
 # run development server
-npm run serve
+yarn serve
 
 # build for production
-npm run build
+yarn build
 
 # lint
-npm run lint
+yarn lint
 ```
+
+See [this issue](https://github.com/vuejs/vue-cli/issues/3065) for details on why our `yarn serve` command is weird.
 
 ## Architecture
 

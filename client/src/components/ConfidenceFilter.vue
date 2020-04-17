@@ -6,6 +6,7 @@ export default {
   props: {
     confidence: {
       type: Number,
+      required: true,
     },
   },
   created() {
