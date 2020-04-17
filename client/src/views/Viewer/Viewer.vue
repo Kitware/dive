@@ -39,6 +39,7 @@ export default defineComponent({
   setup(props, ctx) {
     const { datasetId } = props;
     const playbackComponent = ref(null);
+    const annotationRectEditor = ref(null);
     const frame = ref(null); // the currently displayed frame number
     const showTrackView = ref(false);
     const vuetify = inject('vuetify');
@@ -50,7 +51,7 @@ export default defineComponent({
 
     // external composition functions
     const { typeColorMap } = useTypeColoring();
-    const { save: saveToGirder, markChangesPending, pendingSave } = useSave();
+    const { save: saveToGirder, markChangesPending, pendingSaveCount } = useSave();
     const {
       dataset,
       frameRate,
@@ -148,13 +149,21 @@ export default defineComponent({
     /**
      * Functions below are thin wrappers around other functions for use in the template.
      */
+    function persistAnnotations() {
+      // If there are on-screen annotations, persist them
+      if (annotationRectEditor.value) {
+        annotationRectEditor.value.persist();
+      }
+    }
     function seek(_frame) {
       playbackComponent.value.seek(_frame);
     }
     function nextFrame() {
+      persistAnnotations();
       playbackComponent.value.nextFrame();
     }
     function prevFrame() {
+      persistAnnotations();
       playbackComponent.value.prevFrame();
     }
     function gotoTrackFirstFrame({ trackId }) {
@@ -219,7 +228,7 @@ export default defineComponent({
       setTrackEditMode,
       // Save
       save,
-      pendingSave,
+      pendingSaveCount,
       // Track Filter Controls
       confidence,
       tracks,
@@ -266,6 +275,7 @@ export default defineComponent({
       getPathFromLocation,
       // miscellaneous oddities
       playbackComponent,
+      annotationRectEditor,
       swapMousetrap,
       editingBoxLayerStyle,
     };
@@ -295,13 +305,22 @@ export default defineComponent({
       </span>
       <user-guide-button />
       <ConfidenceFilter :confidence.sync="confidence" />
-      <v-btn
-        icon
-        :disabled="!pendingSave"
-        @click="save"
+      <v-badge
+        overlap
+        bottom
+        :content="pendingSaveCount"
+        :value="pendingSaveCount > 0"
+        offset-x="14"
+        offset-y="18"
       >
-        <v-icon>mdi-content-save</v-icon>
-      </v-btn>
+        <v-btn
+          icon
+          :disabled="pendingSaveCount === 0"
+          @click="save"
+        >
+          <v-icon>mdi-content-save</v-icon>
+        </v-btn>
+      </v-badge>
     </v-app-bar>
     <v-row
       no-gutters
@@ -428,6 +447,7 @@ export default defineComponent({
           />
           <edit-annotation-layer
             v-if="editingTrackId !== null"
+            ref="annotationRectEditor"
             editing="rectangle"
             :geojson="editingDetectionGeojson"
             :feature-style="editingBoxLayerStyle"
