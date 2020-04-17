@@ -170,8 +170,7 @@ export default {
           this.girderRest.put(
             `/item/${csvFile.itemId}/metadata?allowNull=true`,
             {
-              folderId: folder._id,
-              pipeline: null,
+              detection: folder._id,
             },
           );
         });

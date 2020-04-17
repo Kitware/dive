@@ -53,4 +53,6 @@ class GirderPlugin(plugin.GirderPlugin):
             "check_annotations",
             check_existing_annotations,
         )
-        events.bind("model.upload.finalize", "fileUpload", maybe_mark_folder_for_annotation)
+        events.bind(
+            "model.upload.finalize", "fileUpload", maybe_mark_folder_for_annotation
+        )

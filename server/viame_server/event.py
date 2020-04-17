@@ -1,9 +1,7 @@
 from girder.models.folder import Folder
 from girder.models.item import Item
 
-
-validImageFormats = {"png", "jpg", "jpeg"}
-validVideoFormats = {"avi", "mp4", "mov"}
+from .utils import validImageFormats, validVideoFormats
 
 
 def check_existing_annotations(event):
