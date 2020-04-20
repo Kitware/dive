@@ -5,6 +5,8 @@ import {
   sizeFormatter,
 } from '@girder/components/src/utils/mixins';
 
+const videoFileTypes = ['.mp4', '.avi', '.mov'];
+const imageFileTypes = ['.jpg', '.jpeg', '.png', '.bmp'];
 
 function prepareFiles(files) {
   const videoFilter = (file) => /\.mp4$|\.avi$|\.mov$/i.test(file.name);
@@ -86,6 +88,15 @@ export default {
   data: () => ({
     pendingUploads: [],
     defaultFPS: '10', // requires string for the input item
+    uploadOpts: [{
+      name: 'Folder', value: 'folder', description: 'Upload all items to a single folder',
+    },
+    {
+      name: 'Current', value: 'current', description: 'Upload all items to current folder',
+    },
+    {
+      name: 'SubFolders', value: 'subfolder', description: 'Upload each item to its own folder',
+    }],
   }),
   computed: {
     uploadEnabled() {
@@ -121,8 +132,8 @@ export default {
       throw new Error(`could not determine adequate formatting for ${pendingUpload}`);
     },
     getFilenameInputStateLabel(pendingUpload) {
-      const type = pendingUpload.createFolder ? 'Folder' : 'File';
-      const plural = !pendingUpload.createFolder && pendingUpload.files.length > 1
+      const type = pendingUpload.uploadLocation !== 'current' ? 'Folder' : 'File';
+      const plural = pendingUpload.files.length > 1 && pendingUpload.uploadLocation !== 'folder'
         ? 's'
         : '';
       return `${type} Name${plural}`;
@@ -130,11 +141,12 @@ export default {
     getFilenameInputStateDisabled(pendingUpload) {
       return (
         pendingUpload.uploading
-        || (!pendingUpload.createFolder && pendingUpload.files.length > 1)
+        || pendingUpload.uploadLocation === 'subfolder'
+        || (pendingUpload.uploadLocation === 'current' && pendingUpload.files.length > 1)
       );
     },
     getFilenameInputStateHint(pendingUpload) {
-      return !pendingUpload.createFolder && pendingUpload.files.length > 1
+      return ((pendingUpload.uploadLocation === 'current' && pendingUpload.files.length > 1) || pendingUpload.uploadLocation === 'subfolder')
         ? 'default filenames are used'
         : '';
     },
@@ -162,8 +174,34 @@ export default {
         upload: null,
         result: null,
       }));
+      // decide on the default uploadLocation based on content uploaded
+      let uploadLocation = internalFiles.length === 1 ? 'current' : 'folder';
+
+      const videoregex = new RegExp(videoFileTypes.join('$|'), 'i');
+      const imageregex = new RegExp(imageFileTypes.join('$|'), 'i');
+      let imageFiles = 0;
+      let videoFiles = 0;
+      for (let i = 0; i < internalFiles.length; i += 1) {
+        if (imageregex.test(internalFiles[i].file.name)) {
+          imageFiles += 1;
+        }
+        if (videoregex.test(internalFiles[i].file.name)) {
+          videoFiles += 1;
+        }
+      }
+
+      if (imageFiles > 0 && videoFileTypes > 0) {
+        uploadLocation = 'folder';
+      } else if (imageFiles > 0 && internalFiles.length > 1) {
+        uploadLocation = 'folder';
+      } else if (imageFiles > 0) {
+        uploadLocation = 'current';
+      } else if (videoFiles > 0) {
+        uploadLocation = 'subfolder';
+      }
+
       this.pendingUploads.push({
-        createFolder: internalFiles.length > 1,
+        uploadLocation,
         name:
           internalFiles.length > 1
             ? defaultFilename.replace(/\..*/, '')
@@ -197,12 +235,12 @@ export default {
       this.$emit('uploaded', uploaded);
     },
     async uploadPending(pendingUpload, uploaded) {
-      const { name, files, createFolder } = pendingUpload;
+      const { name, files, uploadLocation } = pendingUpload;
       const fps = parseInt(pendingUpload.fps, 10);
       // eslint-disable-next-line no-param-reassign
       pendingUpload.uploading = true;
       let folder = this.location;
-      if (createFolder) {
+      if (uploadLocation === 'folder') {
         try {
           ({ data: folder } = await this.girderRest.post(
             '/folder',
@@ -237,7 +275,7 @@ export default {
 
       // If a single file's chosen filename is different from the uploaded file
       if (
-        !createFolder
+        uploadLocation === 'current'
         && files.length === 1
         && files[0].file.name !== pendingUpload.name
       ) {
@@ -301,12 +339,40 @@ export default {
         >
           <v-list-item-content>
             <v-row>
-              <v-col cols="auto">
+              <v-col cols="3">
+                <v-select
+                  v-model="pendingUpload.uploadLocation"
+                  :items="uploadOpts"
+                  item-text="name"
+                  item-value="value"
+                  label="Upload Location"
+                  class="pl-2"
+                >
+                  <template #item="{item}">
+                    {{ item.name }}
+                    <v-tooltip
+                      right
+                      color="primary"
+                    >
+                      <template v-slot:activator="{ on }">
+                        <v-icon
+                          class="pl-2"
+                          v-on="on"
+                        >
+                          mdi-help-circle
+                        </v-icon>
+                      </template>
+                      <span>{{ item.description }}</span>
+                    </v-tooltip>
+                  </template>
+                </v-select>
+                <!--
                 <v-checkbox
                   v-model="pendingUpload.createFolder"
                   label="Create Folder"
                   class="pl-2"
                 />
+                -->
               </v-col>
               <v-col>
                 <v-text-field
@@ -323,7 +389,7 @@ export default {
                 />
               </v-col>
               <v-col
-                v-if="pendingUpload.createFolder"
+                v-if="pendingUpload.uploadLocation"
                 cols="2"
               >
                 <v-text-field
