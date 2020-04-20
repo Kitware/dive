@@ -5,13 +5,16 @@ import {
   sizeFormatter,
 } from '@girder/components/src/utils/mixins';
 
+// Supported File Types
 const videoFileTypes = ['.mp4', '.avi', '.mov'];
 const imageFileTypes = ['.jpg', '.jpeg', '.png', '.bmp'];
-
+// Utility for commonly used regular expressions
+const videoFilesRegEx = new RegExp(videoFileTypes.join('$|'), 'i');
+const imageFilesRegEx = new RegExp(imageFileTypes.join('$|'), 'i');
 function prepareFiles(files) {
-  const videoFilter = (file) => /\.mp4$|\.avi$|\.mov$/i.test(file.name);
+  const videoFilter = (file) => videoFilesRegEx.test(file.name);
   const csvFilter = (file) => /\.csv$/i.test(file.name);
-  const imageFilter = (file) => /\.jpg$|\.jpeg$|\.png$|\.bmp$/i.test(file.name);
+  const imageFilter = (file) => imageFilesRegEx.test(file.name);
 
   if (files.find(videoFilter)) {
     return [
@@ -177,20 +180,18 @@ export default {
       // decide on the default uploadLocation based on content uploaded
       let uploadLocation = internalFiles.length === 1 ? 'current' : 'folder';
 
-      const videoregex = new RegExp(videoFileTypes.join('$|'), 'i');
-      const imageregex = new RegExp(imageFileTypes.join('$|'), 'i');
       let imageFiles = 0;
       let videoFiles = 0;
       for (let i = 0; i < internalFiles.length; i += 1) {
-        if (imageregex.test(internalFiles[i].file.name)) {
+        if (imageFilesRegEx.test(internalFiles[i].file.name)) {
           imageFiles += 1;
         }
-        if (videoregex.test(internalFiles[i].file.name)) {
+        if (videoFilesRegEx.test(internalFiles[i].file.name)) {
           videoFiles += 1;
         }
       }
 
-      if (imageFiles > 0 && videoFileTypes > 0) {
+      if (imageFiles > 0 && videoFiles > 0) {
         uploadLocation = 'folder';
       } else if (imageFiles > 0 && internalFiles.length > 1) {
         uploadLocation = 'folder';
@@ -239,15 +240,41 @@ export default {
       const fps = parseInt(pendingUpload.fps, 10);
       // eslint-disable-next-line no-param-reassign
       pendingUpload.uploading = true;
+
       let folder = this.location;
-      if (uploadLocation === 'folder') {
+      if (pendingUpload.uploadLocation !== 'subfolder') {
+        folder = await this.createUploadFolder(name, uploadLocation, fps, pendingUpload.type);
+        if (folder) {
+          await this.uploadFiles(pendingUpload.name, folder, files, uploadLocation, uploaded);
+          this.remove(pendingUpload);
+        }
+      } else if (pendingUpload.uploadLocation === 'subfolder') {
+        while (files.length > 0) {
+          // take the file name and convert it to a folder name;
+          const subfile = files.splice(0, 1);
+          const subname = subfile[0].file.name.replace(/\..*/, '');
+          // Only video subfolders should be used typically
+          const subtype = videoFilesRegEx.test(subfile[0].file.name) ? 'video' : 'unknown';
+          // eslint-disable-next-line no-await-in-loop
+          folder = await (this.createUploadFolder(subname, uploadLocation, fps, subtype));
+          if (folder) {
+            // eslint-disable-next-line no-await-in-loop
+            await this.uploadFiles(subname, folder, subfile, uploadLocation, uploaded);
+          }
+        }
+        this.remove(pendingUpload);
+      }
+    },
+    async createUploadFolder(name, uploadLocation, fps, type) {
+      let folder = this.location;
+      if (uploadLocation !== 'current') {
         try {
           ({ data: folder } = await this.girderRest.post(
             '/folder',
             `metadata=${JSON.stringify({
               viame: true,
               fps,
-              type: pendingUpload.type,
+              type,
             })}`,
             {
               params: {
@@ -266,23 +293,23 @@ export default {
           } else {
             this.errorMessage = error;
           }
-          // eslint-disable-next-line no-param-reassign
-          pendingUpload.uploading = false;
           // Set an empty object for the folder destructuring
           folder = null;
         }
       }
-
-      // If a single file's chosen filename is different from the uploaded file
+      return folder;
+    },
+    async uploadFiles(name, folder, files, uploadLocation, uploaded) {
+    // If a single file's chosen filename is different from the uploaded file
       if (
         uploadLocation === 'current'
         && files.length === 1
-        && files[0].file.name !== pendingUpload.name
+        && files[0].file.name !== name
       ) {
-        // Mixin parameters for uploading to overwrite file name
-        files[0].uploadClsParams = { name: pendingUpload.name };
+      // Mixin parameters for uploading to overwrite file name
+      // eslint-disable-next-line no-param-reassign
+        files[0].uploadClsParams = { name };
       }
-
       // function called after mixins upload finishes
       const postUpload = (data) => {
         uploaded.push({
@@ -294,15 +321,11 @@ export default {
       // Sets the files used by the fileUploader mixin
       this.setFiles(files);
 
-      // Only call if the folder post() is successful
-      if (pendingUpload.uploading) {
-        // Upload Mixin function to start uploading
-        await this.start({
-          dest: folder,
-          postUpload,
-        });
-        this.remove(pendingUpload);
-      }
+      // Upload Mixin function to start uploading
+      await this.start({
+        dest: folder,
+        postUpload,
+      });
     },
   },
 };
@@ -366,13 +389,6 @@ export default {
                     </v-tooltip>
                   </template>
                 </v-select>
-                <!--
-                <v-checkbox
-                  v-model="pendingUpload.createFolder"
-                  label="Create Folder"
-                  class="pl-2"
-                />
-                -->
               </v-col>
               <v-col>
                 <v-text-field
