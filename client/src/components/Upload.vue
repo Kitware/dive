@@ -405,7 +405,7 @@ export default {
                 />
               </v-col>
               <v-col
-                v-if="pendingUpload.uploadLocation"
+                v-if="pendingUpload.uploadLocation === 'folder'"
                 cols="2"
               >
                 <v-text-field
