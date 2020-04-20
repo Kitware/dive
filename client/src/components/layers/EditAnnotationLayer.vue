@@ -55,6 +55,13 @@ export default {
     delete this.$geojsLayer;
   },
   methods: {
+    persist() {
+      this.$geojsLayer.annotations().forEach((a) => {
+        if (a.state() === 'edit') {
+          a.state('done');
+        }
+      });
+    },
     reinitialize() {
       this.$geojsLayer.geoOff(geo.event.annotation.mode);
       this.$geojsLayer.geoOff(geo.event.annotation.state);
