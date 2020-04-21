@@ -15,13 +15,13 @@ export default {
           name: 'Interactions',
           data: [
             {
-              name: 'Select Track', icon: ['mouse'], actions: ['Left Click Mouse'], description: 'Left click a rectangle to select a track',
+              name: 'Select Track', icon: 'mouse', actions: ['Left Click Mouse'], description: 'Left click a rectangle to select a track',
             },
             {
-              name: 'Zoom In/Out', icon: ['mouse'], actions: ['Scrollwheel Up/Down'], description: 'use scrollwheel to zoom in and out',
+              name: 'Zoom In/Out', icon: 'mouse', actions: ['Scrollwheel Up/Down'], description: 'use scrollwheel to zoom in and out',
             },
             {
-              name: 'Zoom Area', icon: ['mouse'], actions: ['Shift + Mouse Movement'], description: 'Zoom into a specific area',
+              name: 'Zoom Area', icon: 'mouse', actions: ['Shift + Mouse Movement'], description: 'Zoom into a specific area',
             },
 
 
@@ -31,13 +31,13 @@ export default {
           name: 'Editing',
           data: [
             {
-              name: 'Edit Track', icon: ['mouse'], actions: ['Right Click Mouse'], description: 'Right click a track to enter Edit Mode',
+              name: 'Edit Track', icon: 'mouse', actions: ['Right Click Mouse'], description: 'Right click a track to enter Edit Mode',
             },
             {
-              name: 'Add Head/Tail', icon: ['keyboard'], actions: ['H or G Key - Head', 'T or Y Key - Tail'], description: 'While a track is selected add head/tail annotations',
+              name: 'Add Head/Tail', icon: 'keyboard', actions: ['H or G Key - Head', 'T or Y Key - Tail'], description: 'While a track is selected add head/tail annotations',
             },
             {
-              name: 'Delete Head/Tail', icon: ['keyboard'], actions: ['Q Key'], description: 'While a track is selected add head/tail annotations',
+              name: 'Delete Head/Tail', icon: 'keyboard', actions: ['Q Key'], description: 'While a track is selected add head/tail annotations',
             },
           ],
         },
@@ -45,10 +45,10 @@ export default {
           name: 'Playback',
           data: [
             {
-              name: 'Play', icon: ['keyboard'], actions: ['Spacebar'], description: 'Spacebar will pause and start tracks',
+              name: 'Play', icon: 'keyboard', actions: ['Spacebar'], description: 'Spacebar will pause and start tracks',
             },
             {
-              name: 'Frame Forward / Back', icon: ['keyboard'], actions: ['F Key - frame forward', 'D Key - frame back'], description: 'use scrollwheel to zoom in and out',
+              name: 'Frame Forward / Back', icon: 'keyboard', actions: ['F Key - frame forward', 'D Key - frame back'], description: 'use scrollwheel to zoom in and out',
             },
           ],
         },
@@ -74,7 +74,7 @@ export default {
           {{ item.name }}
         </v-col>
         <v-col cols="1">
-          <v-icon>mdi-{{ item.icon[0] }}</v-icon>
+          <v-icon>mdi-{{ item.icon }}</v-icon>
         </v-col>
         <v-col col="8">
           <div
