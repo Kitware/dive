@@ -50,7 +50,7 @@ services:
     # image: gitlab.kitware.com:4567/opengeoscience/viameweb/app/girder_worker
     build:
       context: ../
-      dockerfile: docker/viame_girder_worker.Dockerfile
+      dockerfile: docker/viame_girder_worker_gpu.Dockerfile
 
 volumes:
   pipelines:
