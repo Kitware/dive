@@ -9,7 +9,7 @@ def check_existing_annotations(event):
 
     if "annotations.csv" in info["importPath"]:
         item = Item().findOne({"_id": info["id"]})
-        item["meta"].update({"folderId": str(item["folderId"]), "pipeline": None})
+        item["meta"].update({"detection": str(item["folderId"])})
         Item().save(item)
 
         folder = Folder().findOne({"_id": item["folderId"]})
