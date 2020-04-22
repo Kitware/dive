@@ -91,15 +91,7 @@ export default {
   data: () => ({
     pendingUploads: [],
     defaultFPS: '10', // requires string for the input item
-    uploadOpts: [{
-      name: 'Folder', value: 'folder', description: 'Upload all items to a single folder',
-    },
-    {
-      name: 'Current', value: 'current', description: 'Upload all items to current folder',
-    },
-    {
-      name: 'SubFolders', value: 'subfolder', description: 'Upload each item to its own folder',
-    }],
+    subfolderDialog: false, // used to warn user about creating sub folders
   }),
   computed: {
     uploadEnabled() {
@@ -107,6 +99,11 @@ export default {
     },
   },
   methods: {
+    subfolderWarning(event) {
+      if (event) {
+        this.subfolderDialog = true;
+      }
+    },
     // Filter to show how many images are left to upload
     filesNotUploaded(item) {
       return item.files.filter(
@@ -135,23 +132,16 @@ export default {
       throw new Error(`could not determine adequate formatting for ${pendingUpload}`);
     },
     getFilenameInputStateLabel(pendingUpload) {
-      const type = pendingUpload.uploadLocation !== 'current' ? 'Folder' : 'File';
-      const plural = pendingUpload.files.length > 1 && pendingUpload.uploadLocation !== 'folder'
+      const plural = pendingUpload.createSubFolders
         ? 's'
         : '';
-      return `${type} Name${plural}`;
+      return `Folder Name${plural}`;
     },
     getFilenameInputStateDisabled(pendingUpload) {
-      return (
-        pendingUpload.uploading
-        || pendingUpload.uploadLocation === 'subfolder'
-        || (pendingUpload.uploadLocation === 'current' && pendingUpload.files.length > 1)
-      );
+      return (pendingUpload.uploading || pendingUpload.createSubFolders);
     },
     getFilenameInputStateHint(pendingUpload) {
-      return ((pendingUpload.uploadLocation === 'current' && pendingUpload.files.length > 1) || pendingUpload.uploadLocation === 'subfolder')
-        ? 'default filenames are used'
-        : '';
+      return (pendingUpload.createSubFolders ? 'default folder names are used' : '');
     },
     async dropped(e) {
       e.preventDefault();
@@ -177,8 +167,8 @@ export default {
         upload: null,
         result: null,
       }));
-      // decide on the default uploadLocation based on content uploaded
-      let uploadLocation = internalFiles.length === 1 ? 'current' : 'folder';
+      // decide on the default createSubfoleders based on content uploaded
+      let createSubFolders = false;
 
       let imageFiles = 0;
       let videoFiles = 0;
@@ -192,17 +182,15 @@ export default {
       }
 
       if (imageFiles > 0 && videoFiles > 0) {
-        uploadLocation = 'folder';
-      } else if (imageFiles > 0 && internalFiles.length > 1) {
-        uploadLocation = 'folder';
+        createSubFolders = false;
       } else if (imageFiles > 0) {
-        uploadLocation = 'current';
+        createSubFolders = false;
       } else if (videoFiles > 0) {
-        uploadLocation = 'subfolder';
+        createSubFolders = true;
       }
 
       this.pendingUploads.push({
-        uploadLocation,
+        createSubFolders,
         name:
           internalFiles.length > 1
             ? defaultFilename.replace(/\..*/, '')
@@ -236,19 +224,19 @@ export default {
       this.$emit('uploaded', uploaded);
     },
     async uploadPending(pendingUpload, uploaded) {
-      const { name, files, uploadLocation } = pendingUpload;
+      const { name, files, createSubFolders } = pendingUpload;
       const fps = parseInt(pendingUpload.fps, 10);
       // eslint-disable-next-line no-param-reassign
       pendingUpload.uploading = true;
 
       let folder = this.location;
-      if (pendingUpload.uploadLocation !== 'subfolder') {
-        folder = await this.createUploadFolder(name, uploadLocation, fps, pendingUpload.type);
+      if (!pendingUpload.createSubFolders) {
+        folder = await this.createUploadFolder(name, createSubFolders, fps, pendingUpload.type);
         if (folder) {
-          await this.uploadFiles(pendingUpload.name, folder, files, uploadLocation, uploaded);
+          await this.uploadFiles(pendingUpload.name, folder, files, createSubFolders, uploaded);
           this.remove(pendingUpload);
         }
-      } else if (pendingUpload.uploadLocation === 'subfolder') {
+      } else {
         while (files.length > 0) {
           // take the file name and convert it to a folder name;
           const subfile = files.splice(0, 1);
@@ -256,60 +244,49 @@ export default {
           // Only video subfolders should be used typically
           const subtype = videoFilesRegEx.test(subfile[0].file.name) ? 'video' : 'unknown';
           // eslint-disable-next-line no-await-in-loop
-          folder = await (this.createUploadFolder(subname, uploadLocation, fps, subtype));
+          folder = await (this.createUploadFolder(subname, createSubFolders, fps, subtype));
           if (folder) {
             // eslint-disable-next-line no-await-in-loop
-            await this.uploadFiles(subname, folder, subfile, uploadLocation, uploaded);
+            await this.uploadFiles(subname, folder, subfile, createSubFolders, uploaded);
           }
         }
         this.remove(pendingUpload);
       }
     },
-    async createUploadFolder(name, uploadLocation, fps, type) {
+    async createUploadFolder(name, createSubFolders, fps, type) {
       let folder = this.location;
-      if (uploadLocation !== 'current') {
-        try {
-          ({ data: folder } = await this.girderRest.post(
-            '/folder',
-            `metadata=${JSON.stringify({
-              viame: true,
-              fps,
-              type,
-            })}`,
-            {
-              params: {
-                parentId: this.location._id,
-                name,
-              },
+      try {
+        ({ data: folder } = await this.girderRest.post(
+          '/folder',
+          `metadata=${JSON.stringify({
+            viame: true,
+            fps,
+            type,
+          })}`,
+          {
+            params: {
+              parentId: this.location._id,
+              name,
             },
-          ));
-        } catch (error) {
-          if (
-            error.response
+          },
+        ));
+      } catch (error) {
+        if (
+          error.response
             && error.response.data
             && error.response.data.message
-          ) {
-            this.errorMessage = error.response.data.message;
-          } else {
-            this.errorMessage = error;
-          }
-          // Set an empty object for the folder destructuring
-          folder = null;
+        ) {
+          this.errorMessage = error.response.data.message;
+        } else {
+          this.errorMessage = error;
         }
+        // Set an empty object for the folder destructuring
+        folder = null;
       }
+
       return folder;
     },
-    async uploadFiles(name, folder, files, uploadLocation, uploaded) {
-    // If a single file's chosen filename is different from the uploaded file
-      if (
-        uploadLocation === 'current'
-        && files.length === 1
-        && files[0].file.name !== name
-      ) {
-      // Mixin parameters for uploading to overwrite file name
-      // eslint-disable-next-line no-param-reassign
-        files[0].uploadClsParams = { name };
-      }
+    async uploadFiles(name, folder, files, createSubFolders, uploaded) {
       // function called after mixins upload finishes
       const postUpload = (data) => {
         uploaded.push({
@@ -362,33 +339,13 @@ export default {
         >
           <v-list-item-content>
             <v-row>
-              <v-col cols="3">
-                <v-select
-                  v-model="pendingUpload.uploadLocation"
-                  :items="uploadOpts"
-                  item-text="name"
-                  item-value="value"
-                  label="Upload Location"
+              <v-col cols="auto">
+                <v-checkbox
+                  v-model="pendingUpload.createSubFolders"
+                  label="Create Subfolders"
                   class="pl-2"
-                >
-                  <template #item="{item}">
-                    {{ item.name }}
-                    <v-tooltip
-                      right
-                      color="primary"
-                    >
-                      <template v-slot:activator="{ on }">
-                        <v-icon
-                          class="pl-2"
-                          v-on="on"
-                        >
-                          mdi-help-circle
-                        </v-icon>
-                      </template>
-                      <span>{{ item.description }}</span>
-                    </v-tooltip>
-                  </template>
-                </v-select>
+                  @change="subfolderWarning($event)"
+                />
               </v-col>
               <v-col>
                 <v-text-field
@@ -405,7 +362,7 @@ export default {
                 />
               </v-col>
               <v-col
-                v-if="pendingUpload.uploadLocation === 'folder'"
+                v-if="!pendingUpload.createSubFolders"
                 cols="2"
               >
                 <v-text-field
@@ -478,6 +435,43 @@ export default {
         @change="onFileChange"
       />
     </div>
+    <v-dialog
+      v-model="subfolderDialog"
+      max-width="400"
+    >
+      <v-card>
+        <v-card-title
+          class="headline"
+        >
+          Subfolder Warning
+        </v-card-title>
+        <v-card-text>
+          <v-alert
+            border="bottom"
+            colored-border
+            type="warning"
+            elevation="2"
+            prominent
+          >
+            This will create subfolders for each uploaded item.  It should only be used
+            when uploading multiple videos
+          </v-alert>
+        </v-card-text>
+
+        <v-card-actions>
+          <v-spacer />
+
+
+          <v-btn
+            color="success darken-1"
+            text
+            @click="subfolderDialog = false"
+          >
+            Okay
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </div>
 </template>
 
