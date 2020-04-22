@@ -61,26 +61,24 @@ export default {
         </v-card-title>
         <v-card-text>
           <user-guide-dialog />
-          <v-card-text>
-            <v-divider />
-            <v-card-actions>
-              <v-spacer />
-              <v-btn
-                dense
-                depressed
-                :href="userGuideLink"
-                target="_blank"
-                color="secondary darken-2"
-                class="mx-3"
-              >
-                User Guide
-                <v-icon class="pl-2">
-                  mdi-help-circle
-                </v-icon>
-              </v-btn>
-              <v-spacer />
-            </v-card-actions>
-          </v-card-text>
+          <v-divider />
+          <v-card-actions>
+            <v-spacer />
+            <v-btn
+              dense
+              depressed
+              :href="userGuideLink"
+              target="_blank"
+              color="secondary darken-2"
+              class="mx-3"
+            >
+              User Guide
+              <v-icon class="pl-2">
+                mdi-help-circle
+              </v-icon>
+            </v-btn>
+            <v-spacer />
+          </v-card-actions>
         </v-card-text>
       </v-card>
     </v-dialog>
