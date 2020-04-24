@@ -15,6 +15,7 @@ module.exports = {
   },
   publicPath: process.env.VUE_APP_STATIC_PATH,
   chainWebpack: (config) => {
+    config.output.strictModuleExceptionHandling(true);
     config.resolve.symlinks(false);
   },
 };
