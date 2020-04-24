@@ -16,16 +16,32 @@ function prepareFiles(files) {
   const csvFilter = (file) => /\.csv$/i.test(file.name);
   const imageFilter = (file) => imageFilesRegEx.test(file.name);
 
-  if (files.find(videoFilter)) {
-    return [
-      'video',
-      files.filter((file) => videoFilter(file) || csvFilter(file)),
-    ];
+  const videoFiles = files.filter(videoFilter);
+  const imageFiles = files.filter(imageFilter);
+  const csvFiles = files.filter(csvFilter);
+
+  if (videoFiles.length > 0 && imageFiles.length > 0) {
+    throw new Error('Do not upload images and videos in the same batch.');
+  } else if (csvFiles.length > 1) {
+    throw new Error('Can only upload a single CSV Annotation per import');
+  } else if (videoFiles.length > 1 && csvFiles.length > 0) {
+    throw new Error('Annotation upload is not supported when multiple videos are uploaded');
+  } else if (videoFiles.length === 0 && imageFiles.length === 0 && csvFiles.length > 0) {
+    throw new Error('Cannot upload annotations without media');
+  } else if (videoFiles.length) {
+    return {
+      type: 'video',
+      media: videoFiles,
+      csv: csvFiles,
+    };
+  } else if (imageFiles.length) {
+    return {
+      type: 'image-sequence',
+      media: imageFiles,
+      csv: csvFiles,
+    };
   }
-  return [
-    'image-sequence',
-    files.filter((file) => imageFilter(file) || csvFilter(file)),
-  ];
+  throw new Error('No supported data types found.  Please choose video or image frames.');
 }
 
 function entryToFile(entry) {
@@ -89,9 +105,9 @@ export default {
     },
   },
   data: () => ({
+    preUploadErrorMessage: null,
     pendingUploads: [],
     defaultFPS: '10', // requires string for the input item
-    subfolderDialog: false, // used to warn user about creating sub folders
   }),
   computed: {
     uploadEnabled() {
@@ -99,11 +115,6 @@ export default {
     },
   },
   methods: {
-    subfolderWarning(event) {
-      if (event) {
-        this.subfolderDialog = true;
-      }
-    },
     // Filter to show how many images are left to upload
     filesNotUploaded(item) {
       return item.files.filter(
@@ -141,19 +152,33 @@ export default {
       return (pendingUpload.uploading || pendingUpload.createSubFolders);
     },
     getFilenameInputStateHint(pendingUpload) {
-      return (pendingUpload.createSubFolders ? 'default folder names are used' : '');
+      return (pendingUpload.createSubFolders ? 'default folder names are used when "Create Subfolders" is selected' : '');
     },
     async dropped(e) {
       e.preventDefault();
       const [name, files] = await readFilesFromDrop(e);
-      this.addPendingUpload(name, files);
+      if (files.length === 0) return;
+      this.preUploadErrorMessage = null;
+      try {
+        this.addPendingUpload(name, files);
+      } catch (err) {
+        this.preUploadErrorMessage = err;
+      }
     },
     onFileChange(files) {
+      if (files.length === 0) return;
       const name = files.length === 1 ? files[0].name : '';
-      this.addPendingUpload(name, files);
+      this.preUploadErrorMessage = null;
+      try {
+        this.addPendingUpload(name, files);
+      } catch (err) {
+        this.preUploadErrorMessage = err;
+      }
     },
     addPendingUpload(name, allFiles) {
-      const [type, files] = prepareFiles(allFiles);
+      const { type, media, csv } = prepareFiles(allFiles);
+
+      const files = media.concat(csv);
       const defaultFilename = files[0].name;
       // mapping needs to be done for the mixin upload functions
       const internalFiles = files.map((file) => ({
@@ -169,26 +194,9 @@ export default {
       }));
       // decide on the default createSubfoleders based on content uploaded
       let createSubFolders = false;
-
-      let imageFiles = 0;
-      let videoFiles = 0;
-      for (let i = 0; i < internalFiles.length; i += 1) {
-        if (imageFilesRegEx.test(internalFiles[i].file.name)) {
-          imageFiles += 1;
-        }
-        if (videoFilesRegEx.test(internalFiles[i].file.name)) {
-          videoFiles += 1;
-        }
-      }
-
-      if (imageFiles > 0 && videoFiles > 0) {
-        createSubFolders = false;
-      } else if (imageFiles > 0) {
-        createSubFolders = false;
-      } else if (videoFiles > 0) {
+      if (type === 'video' && media.length > 1) {
         createSubFolders = true;
       }
-
       this.pendingUploads.push({
         createSubFolders,
         name:
@@ -200,6 +208,14 @@ export default {
         fps: this.defaultFPS,
         uploading: false,
       });
+    },
+    abort(pendingUpload) {
+      if (this.errorMessage) {
+        this.remove(pendingUpload);
+        this.errorMessage = null;
+      } else {
+        this.preUploadErrorMessage = null;
+      }
     },
     remove(pendingUpload) {
       const index = this.pendingUploads.indexOf(pendingUpload);
@@ -215,13 +231,22 @@ export default {
       const uploaded = [];
       this.$emit('update:uploading', true);
 
+      let success = true;
       // This is in a while loop to act like a Queue with it adding new items during upload
       while (this.pendingUploads.length > 0) {
-        // eslint-disable-next-line no-await-in-loop
-        await this.uploadPending(this.pendingUploads[0], uploaded);
+        try {
+          // eslint-disable-next-line no-await-in-loop
+          await this.uploadPending(this.pendingUploads[0], uploaded);
+        } catch (err) {
+          success = false;
+          console.error(err);
+          break;
+        }
       }
       this.$emit('update:uploading', false);
-      this.$emit('uploaded', uploaded);
+      if (success) {
+        this.$emit('uploaded', uploaded);
+      }
     },
     async uploadPending(pendingUpload, uploaded) {
       const { name, files, createSubFolders } = pendingUpload;
@@ -280,8 +305,7 @@ export default {
         } else {
           this.errorMessage = error;
         }
-        // Set an empty object for the folder destructuring
-        folder = null;
+        throw error;
       }
 
       return folder;
@@ -341,10 +365,12 @@ export default {
             <v-row>
               <v-col cols="auto">
                 <v-checkbox
-                  v-model="pendingUpload.createSubFolders"
+                  :input-value="pendingUpload.createSubFolders"
                   label="Create Subfolders"
+                  disabled
+                  hint="Enabled when many videos are being uploaded"
+                  persistent-hint
                   class="pl-2"
-                  @change="subfolderWarning($event)"
                 />
               </v-col>
               <v-col>
@@ -394,27 +420,6 @@ export default {
             </v-row>
             <v-list-item-subtitle>
               {{ computeUploadProgress(pendingUpload) }}
-              <!-- errorMessage is provided by the fileUploader mixin -->
-              <div v-if="errorMessage">
-                <v-alert
-                  :value="true"
-                  dark="dark"
-                  tile="tile"
-                  type="error"
-                >
-                  {{ errorMessage }}
-                  <v-btn
-                    v-if="!uploading"
-                    class="ml-3"
-                    dark="dark"
-                    small="small"
-                    outlined="outlined"
-                    @click="remove(pendingUpload)"
-                  >
-                    Abort
-                  </v-btn>
-                </v-alert>
-              </div>
             </v-list-item-subtitle>
           </v-list-item-content>
           <v-progress-linear
@@ -426,6 +431,28 @@ export default {
         </v-list-item>
       </v-list>
     </v-form>
+    <!-- errorMessage is provided by the fileUploader mixin -->
+    <div v-if="errorMessage || preUploadErrorMessage">
+      <v-alert
+        :value="true"
+        dark="dark"
+        tile="tile"
+        type="error"
+        class="mb-0"
+      >
+        {{ errorMessage || preUploadErrorMessage }}
+        <v-btn
+          v-if="preUploadErrorMessage || pendingUploads[0].uploading"
+          class="ml-3"
+          dark="dark"
+          small="small"
+          outlined="outlined"
+          @click="abort(pendingUploads[0])"
+        >
+          Abort
+        </v-btn>
+      </v-alert>
+    </div>
     <div class="dropzone-container">
       <Dropzone
         class="dropzone"
@@ -435,43 +462,6 @@ export default {
         @change="onFileChange"
       />
     </div>
-    <v-dialog
-      v-model="subfolderDialog"
-      max-width="400"
-    >
-      <v-card>
-        <v-card-title
-          class="headline"
-        >
-          Subfolder Warning
-        </v-card-title>
-        <v-card-text>
-          <v-alert
-            border="bottom"
-            colored-border
-            type="warning"
-            elevation="2"
-            prominent
-          >
-            This will create subfolders for each uploaded item.  It should only be used
-            when uploading multiple videos
-          </v-alert>
-        </v-card-text>
-
-        <v-card-actions>
-          <v-spacer />
-
-
-          <v-btn
-            color="success darken-1"
-            text
-            @click="subfolderDialog = false"
-          >
-            Okay
-          </v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
   </div>
 </template>
 

@@ -49,6 +49,13 @@ export default {
       return this.selectedEligibleClips.length < 1 || !this.pipelines.length;
     },
   },
+  watch: {
+    uploading(newval) {
+      if (!newval) {
+        this.$refs.fileManager.$refs.girderBrowser.refresh();
+      }
+    },
+  },
   created() {
     this.location_ = getLocationFromRoute(this.$route);
     this.setLocation(this.location_);
@@ -120,7 +127,6 @@ export default {
       }
     },
     uploaded(uploads) {
-      this.$refs.fileManager.$refs.girderBrowser.refresh();
       this.uploaderDialog = false;
 
       // transcode video
