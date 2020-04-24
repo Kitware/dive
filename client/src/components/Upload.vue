@@ -26,6 +26,8 @@ function prepareFiles(files) {
     throw new Error('Can only upload a single CSV Annotation per import');
   } else if (videoFiles.length > 1 && csvFiles.length > 0) {
     throw new Error('Annotation upload is not supported when multiple videos are uploaded');
+  } else if (videoFiles.length === 0 && imageFiles.length === 0 && csvFiles.length > 0) {
+    throw new Error('Cannot upload annotations without media');
   } else if (videoFiles.length) {
     return {
       type: 'video',
@@ -427,29 +429,30 @@ export default {
             bottom
           />
         </v-list-item>
-        <!-- errorMessage is provided by the fileUploader mixin -->
-        <div v-if="errorMessage || preUploadErrorMessage">
-          <v-alert
-            :value="true"
-            dark="dark"
-            tile="tile"
-            type="error"
-          >
-            {{ errorMessage || preUploadErrorMessage }}
-            <v-btn
-              v-if="preUploadErrorMessage || pendingUploads[0].uploading"
-              class="ml-3"
-              dark="dark"
-              small="small"
-              outlined="outlined"
-              @click="abort(pendingUploads[0])"
-            >
-              Abort
-            </v-btn>
-          </v-alert>
-        </div>
       </v-list>
     </v-form>
+    <!-- errorMessage is provided by the fileUploader mixin -->
+    <div v-if="errorMessage || preUploadErrorMessage">
+      <v-alert
+        :value="true"
+        dark="dark"
+        tile="tile"
+        type="error"
+        class="mb-0"
+      >
+        {{ errorMessage || preUploadErrorMessage }}
+        <v-btn
+          v-if="preUploadErrorMessage || pendingUploads[0].uploading"
+          class="ml-3"
+          dark="dark"
+          small="small"
+          outlined="outlined"
+          @click="abort(pendingUploads[0])"
+        >
+          Abort
+        </v-btn>
+      </v-alert>
+    </div>
     <div class="dropzone-container">
       <Dropzone
         class="dropzone"
