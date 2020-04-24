@@ -5,22 +5,43 @@ import {
   sizeFormatter,
 } from '@girder/components/src/utils/mixins';
 
-
+// Supported File Types
+const videoFileTypes = ['.mp4', '.avi', '.mov'];
+const imageFileTypes = ['.jpg', '.jpeg', '.png', '.bmp'];
+// Utility for commonly used regular expressions
+const videoFilesRegEx = new RegExp(videoFileTypes.join('$|'), 'i');
+const imageFilesRegEx = new RegExp(imageFileTypes.join('$|'), 'i');
 function prepareFiles(files) {
-  const videoFilter = (file) => /\.mp4$|\.avi$|\.mov$/i.test(file.name);
+  const videoFilter = (file) => videoFilesRegEx.test(file.name);
   const csvFilter = (file) => /\.csv$/i.test(file.name);
-  const imageFilter = (file) => /\.jpg$|\.jpeg$|\.png$|\.bmp$/i.test(file.name);
+  const imageFilter = (file) => imageFilesRegEx.test(file.name);
 
-  if (files.find(videoFilter)) {
-    return [
-      'video',
-      files.filter((file) => videoFilter(file) || csvFilter(file)),
-    ];
+  const videoFiles = files.filter(videoFilter);
+  const imageFiles = files.filter(imageFilter);
+  const csvFiles = files.filter(csvFilter);
+
+  if (videoFiles.length > 0 && imageFiles.length > 0) {
+    throw new Error('Do not upload images and videos in the same batch.');
+  } else if (csvFiles.length > 1) {
+    throw new Error('Can only upload a single CSV Annotation per import');
+  } else if (videoFiles.length > 1 && csvFiles.length > 0) {
+    throw new Error('Annotation upload is not supported when multiple videos are uploaded');
+  } else if (videoFiles.length === 0 && imageFiles.length === 0 && csvFiles.length > 0) {
+    throw new Error('Cannot upload annotations without media');
+  } else if (videoFiles.length) {
+    return {
+      type: 'video',
+      media: videoFiles,
+      csv: csvFiles,
+    };
+  } else if (imageFiles.length) {
+    return {
+      type: 'image-sequence',
+      media: imageFiles,
+      csv: csvFiles,
+    };
   }
-  return [
-    'image-sequence',
-    files.filter((file) => imageFilter(file) || csvFilter(file)),
-  ];
+  throw new Error('No supported data types found.  Please choose video or image frames.');
 }
 
 function entryToFile(entry) {
@@ -84,6 +105,7 @@ export default {
     },
   },
   data: () => ({
+    preUploadErrorMessage: null,
     pendingUploads: [],
     defaultFPS: '10', // requires string for the input item
   }),
@@ -121,34 +143,42 @@ export default {
       throw new Error(`could not determine adequate formatting for ${pendingUpload}`);
     },
     getFilenameInputStateLabel(pendingUpload) {
-      const type = pendingUpload.createFolder ? 'Folder' : 'File';
-      const plural = !pendingUpload.createFolder && pendingUpload.files.length > 1
+      const plural = pendingUpload.createSubFolders
         ? 's'
         : '';
-      return `${type} Name${plural}`;
+      return `Folder Name${plural}`;
     },
     getFilenameInputStateDisabled(pendingUpload) {
-      return (
-        pendingUpload.uploading
-        || (!pendingUpload.createFolder && pendingUpload.files.length > 1)
-      );
+      return (pendingUpload.uploading || pendingUpload.createSubFolders);
     },
     getFilenameInputStateHint(pendingUpload) {
-      return !pendingUpload.createFolder && pendingUpload.files.length > 1
-        ? 'default filenames are used'
-        : '';
+      return (pendingUpload.createSubFolders ? 'default folder names are used when "Create Subfolders" is selected' : '');
     },
     async dropped(e) {
       e.preventDefault();
       const [name, files] = await readFilesFromDrop(e);
-      this.addPendingUpload(name, files);
+      if (files.length === 0) return;
+      this.preUploadErrorMessage = null;
+      try {
+        this.addPendingUpload(name, files);
+      } catch (err) {
+        this.preUploadErrorMessage = err;
+      }
     },
     onFileChange(files) {
+      if (files.length === 0) return;
       const name = files.length === 1 ? files[0].name : '';
-      this.addPendingUpload(name, files);
+      this.preUploadErrorMessage = null;
+      try {
+        this.addPendingUpload(name, files);
+      } catch (err) {
+        this.preUploadErrorMessage = err;
+      }
     },
     addPendingUpload(name, allFiles) {
-      const [type, files] = prepareFiles(allFiles);
+      const { type, media, csv } = prepareFiles(allFiles);
+
+      const files = media.concat(csv);
       const defaultFilename = files[0].name;
       // mapping needs to be done for the mixin upload functions
       const internalFiles = files.map((file) => ({
@@ -162,8 +192,13 @@ export default {
         upload: null,
         result: null,
       }));
+      // decide on the default createSubfoleders based on content uploaded
+      let createSubFolders = false;
+      if (type === 'video' && media.length > 1) {
+        createSubFolders = true;
+      }
       this.pendingUploads.push({
-        createFolder: internalFiles.length > 1,
+        createSubFolders,
         name:
           internalFiles.length > 1
             ? defaultFilename.replace(/\..*/, '')
@@ -173,6 +208,14 @@ export default {
         fps: this.defaultFPS,
         uploading: false,
       });
+    },
+    abort(pendingUpload) {
+      if (this.errorMessage) {
+        this.remove(pendingUpload);
+        this.errorMessage = null;
+      } else {
+        this.preUploadErrorMessage = null;
+      }
     },
     remove(pendingUpload) {
       const index = this.pendingUploads.indexOf(pendingUpload);
@@ -188,63 +231,86 @@ export default {
       const uploaded = [];
       this.$emit('update:uploading', true);
 
+      let success = true;
       // This is in a while loop to act like a Queue with it adding new items during upload
       while (this.pendingUploads.length > 0) {
-        // eslint-disable-next-line no-await-in-loop
-        await this.uploadPending(this.pendingUploads[0], uploaded);
+        try {
+          // eslint-disable-next-line no-await-in-loop
+          await this.uploadPending(this.pendingUploads[0], uploaded);
+        } catch (err) {
+          success = false;
+          console.error(err);
+          break;
+        }
       }
       this.$emit('update:uploading', false);
-      this.$emit('uploaded', uploaded);
+      if (success) {
+        this.$emit('uploaded', uploaded);
+      }
     },
     async uploadPending(pendingUpload, uploaded) {
-      const { name, files, createFolder } = pendingUpload;
+      const { name, files, createSubFolders } = pendingUpload;
       const fps = parseInt(pendingUpload.fps, 10);
       // eslint-disable-next-line no-param-reassign
       pendingUpload.uploading = true;
+
       let folder = this.location;
-      if (createFolder) {
-        try {
-          ({ data: folder } = await this.girderRest.post(
-            '/folder',
-            `metadata=${JSON.stringify({
-              viame: true,
-              fps,
-              type: pendingUpload.type,
-            })}`,
-            {
-              params: {
-                parentId: this.location._id,
-                name,
-              },
+      if (!pendingUpload.createSubFolders) {
+        folder = await this.createUploadFolder(name, createSubFolders, fps, pendingUpload.type);
+        if (folder) {
+          await this.uploadFiles(pendingUpload.name, folder, files, createSubFolders, uploaded);
+          this.remove(pendingUpload);
+        }
+      } else {
+        while (files.length > 0) {
+          // take the file name and convert it to a folder name;
+          const subfile = files.splice(0, 1);
+          const subname = subfile[0].file.name.replace(/\..*/, '');
+          // Only video subfolders should be used typically
+          const subtype = videoFilesRegEx.test(subfile[0].file.name) ? 'video' : 'unknown';
+          // eslint-disable-next-line no-await-in-loop
+          folder = await (this.createUploadFolder(subname, createSubFolders, fps, subtype));
+          if (folder) {
+            // eslint-disable-next-line no-await-in-loop
+            await this.uploadFiles(subname, folder, subfile, createSubFolders, uploaded);
+          }
+        }
+        this.remove(pendingUpload);
+      }
+    },
+    async createUploadFolder(name, createSubFolders, fps, type) {
+      let folder = this.location;
+      try {
+        ({ data: folder } = await this.girderRest.post(
+          '/folder',
+          `metadata=${JSON.stringify({
+            viame: true,
+            fps,
+            type,
+          })}`,
+          {
+            params: {
+              parentId: this.location._id,
+              name,
             },
-          ));
-        } catch (error) {
-          if (
-            error.response
+          },
+        ));
+      } catch (error) {
+        if (
+          error.response
             && error.response.data
             && error.response.data.message
-          ) {
-            this.errorMessage = error.response.data.message;
-          } else {
-            this.errorMessage = error;
-          }
-          // eslint-disable-next-line no-param-reassign
-          pendingUpload.uploading = false;
-          // Set an empty object for the folder destructuring
-          folder = null;
+        ) {
+          this.errorMessage = error.response.data.message;
+        } else {
+          this.errorMessage = error;
         }
+        throw error;
       }
 
-      // If a single file's chosen filename is different from the uploaded file
-      if (
-        !createFolder
-        && files.length === 1
-        && files[0].file.name !== pendingUpload.name
-      ) {
-        // Mixin parameters for uploading to overwrite file name
-        files[0].uploadClsParams = { name: pendingUpload.name };
-      }
-
+      return folder;
+    },
+    async uploadFiles(name, folder, files, createSubFolders, uploaded) {
       // function called after mixins upload finishes
       const postUpload = (data) => {
         uploaded.push({
@@ -256,15 +322,11 @@ export default {
       // Sets the files used by the fileUploader mixin
       this.setFiles(files);
 
-      // Only call if the folder post() is successful
-      if (pendingUpload.uploading) {
-        // Upload Mixin function to start uploading
-        await this.start({
-          dest: folder,
-          postUpload,
-        });
-        this.remove(pendingUpload);
-      }
+      // Upload Mixin function to start uploading
+      await this.start({
+        dest: folder,
+        postUpload,
+      });
     },
   },
 };
@@ -303,8 +365,11 @@ export default {
             <v-row>
               <v-col cols="auto">
                 <v-checkbox
-                  v-model="pendingUpload.createFolder"
-                  label="Create Folder"
+                  :input-value="pendingUpload.createSubFolders"
+                  label="Create Subfolders"
+                  disabled
+                  hint="Enabled when many videos are being uploaded"
+                  persistent-hint
                   class="pl-2"
                 />
               </v-col>
@@ -323,7 +388,7 @@ export default {
                 />
               </v-col>
               <v-col
-                v-if="pendingUpload.createFolder"
+                v-if="!pendingUpload.createSubFolders"
                 cols="2"
               >
                 <v-text-field
@@ -355,27 +420,6 @@ export default {
             </v-row>
             <v-list-item-subtitle>
               {{ computeUploadProgress(pendingUpload) }}
-              <!-- errorMessage is provided by the fileUploader mixin -->
-              <div v-if="errorMessage">
-                <v-alert
-                  :value="true"
-                  dark="dark"
-                  tile="tile"
-                  type="error"
-                >
-                  {{ errorMessage }}
-                  <v-btn
-                    v-if="!uploading"
-                    class="ml-3"
-                    dark="dark"
-                    small="small"
-                    outlined="outlined"
-                    @click="remove(pendingUpload)"
-                  >
-                    Abort
-                  </v-btn>
-                </v-alert>
-              </div>
             </v-list-item-subtitle>
           </v-list-item-content>
           <v-progress-linear
@@ -387,6 +431,28 @@ export default {
         </v-list-item>
       </v-list>
     </v-form>
+    <!-- errorMessage is provided by the fileUploader mixin -->
+    <div v-if="errorMessage || preUploadErrorMessage">
+      <v-alert
+        :value="true"
+        dark="dark"
+        tile="tile"
+        type="error"
+        class="mb-0"
+      >
+        {{ errorMessage || preUploadErrorMessage }}
+        <v-btn
+          v-if="preUploadErrorMessage || pendingUploads[0].uploading"
+          class="ml-3"
+          dark="dark"
+          small="small"
+          outlined="outlined"
+          @click="abort(pendingUploads[0])"
+        >
+          Abort
+        </v-btn>
+      </v-alert>
+    </div>
     <div class="dropzone-container">
       <Dropzone
         class="dropzone"
