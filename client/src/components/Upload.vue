@@ -106,7 +106,6 @@ export default {
     preUploadErrorMessage: null,
     pendingUploads: [],
     defaultFPS: '10', // requires string for the input item
-    subfolderDialog: false, // used to warn user about creating sub folders
   }),
   computed: {
     uploadEnabled() {
@@ -114,11 +113,6 @@ export default {
     },
   },
   methods: {
-    subfolderWarning(event) {
-      if (event) {
-        this.subfolderDialog = true;
-      }
-    },
     // Filter to show how many images are left to upload
     filesNotUploaded(item) {
       return item.files.filter(
@@ -375,7 +369,6 @@ export default {
                   hint="Enabled when many videos are being uploaded"
                   persistent-hint
                   class="pl-2"
-                  @change="subfolderWarning($event)"
                 />
               </v-col>
               <v-col>
@@ -466,41 +459,6 @@ export default {
         @change="onFileChange"
       />
     </div>
-    <v-dialog
-      v-model="subfolderDialog"
-      max-width="400"
-    >
-      <v-card>
-        <v-card-title
-          class="headline"
-        >
-          Subfolder Warning
-        </v-card-title>
-        <v-card-text>
-          <v-alert
-            border="bottom"
-            colored-border
-            type="warning"
-            elevation="2"
-            prominent
-          >
-            This will create subfolders for each uploaded item.  It should only be used
-            when uploading multiple videos
-          </v-alert>
-        </v-card-text>
-
-        <v-card-actions>
-          <v-spacer />
-          <v-btn
-            color="success darken-1"
-            text
-            @click="subfolderDialog = false"
-          >
-            Okay
-          </v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
   </div>
 </template>
 
