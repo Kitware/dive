@@ -18,7 +18,17 @@ export default {
     };
   },
   created() {
-    this.playCache = 1; // seconds to cache
+    this.playCache = 1; // seconds required to remain playing (should be less that cache seconds)
+    this.cacheSeconds = 3; // seconds to cache
+    this.frontBackRatio = 0.90; // 90% forward frames, 10% backward frames when caching
+    // playCache needs to be less than the adjusted cache seconds to work properly
+    if (this.playCache > this.cacheSeconds * this.frontBackRatio) {
+      const difference = (this.playCache - (this.cacheSeconds * this.frontBackRatio));
+      this.cacheSeconds = Math.ceil(this.cacheSeconds + difference);
+    }
+    if (this.frontBackRatio > 1 || this.frontBackRatio < 0) {
+      this.frontBackRatio = 1.0;
+    }
     this.maxFrame = this.imageUrls.length - 1;
     this.imgs = new Array(this.imageUrls.length);
     this.pendingImgs = new Set();
@@ -116,40 +126,38 @@ export default {
     async cacheImage() {
       const { frame } = this;
       const { imgs } = this;
-      // First thing we do is wait for the current frame to load
-
-      const cacheSeconds = 3;
-      const cachedFrames = cacheSeconds * this.frameRate;
-      const frontBackRatio = 1.00; // 75% forward frames, 25% backward frames
-      const min = Math.max(0, frame - cachedFrames * (1 - frontBackRatio));
-      const max = Math.min(frame + frontBackRatio * cachedFrames, this.maxFrame);
+      const cachedFrames = this.cacheSeconds * this.frameRate;
+      const min = Math.floor(Math.max(0, frame - cachedFrames * (1 - this.frontBackRatio)));
+      const max = Math.ceil(Math.min(frame + this.frontBackRatio * cachedFrames, this.maxFrame));
       const frameDiff = Math.abs(this.frame - this.lastFrame);
+      const prevFrame = (this.frame < this.lastFrame);
       this.pendingImgs.forEach((imageAndFrame) => {
-        if (imageAndFrame[1] < min || imageAndFrame[1] > max || frameDiff > 2) {
+        // the current loading cache nees to be wiped out if we seek forward, backwards or
+        // if we are out of the current range of the cache
+        if (imageAndFrame[1] < min || imageAndFrame[1] > max || frameDiff > 2 || prevFrame) {
           imgs[imageAndFrame[1]] = null;
-          // eslint-disable-next-line no-console
-          console.log(`${imageAndFrame[1]} -CACHE CLEAR min:${min} max:${max}`);
           // eslint-disable-next-line no-param-reassign
           imageAndFrame[0].src = '';
           this.pendingImgs.delete(imageAndFrame);
         }
       });
-      if (!this.playing && frame > 0) {
-        // eslint-disable-next-line no-console
-        console.log('awaiting load frame');
-        const result = await this.loadFrame(frame);
-        // eslint-disable-next-line no-console
-        console.log(result);
+      // if not playing we want the seeked to frame immediately loaded for UX
+      if (!this.playing && !imgs[frame] && frame > 0) {
+        await this.loadFrame(frame);
       }
-
-      this.cacheNewRange(frame, max);
+      // Cache a new range based on the parameters
+      this.cacheNewRange(min, max);
     },
+    /**
+     * Wraps loading of a single frame in a promise
+     * @param {int} frame number to be loaded
+     * @returns {Promise} resolves when the image from the frame is loaded
+     */
     loadFrame(frame) {
       return new Promise((resolve) => {
         const img = new Image();
         img.crossOrigin = 'Anonymous';
         img.src = this.imageUrls[frame];
-        // eslint-disable-next-line no-param-reassign
         this.imgs[frame] = img;
         img.onload = () => {
           img.onload = null;
@@ -158,15 +166,20 @@ export default {
         };
       });
     },
-    cacheNewRange(frame, max) {
-      for (let i = frame; i <= max; i += 1) {
+    /**
+     * Caches a new range of frames to load
+     * @param {int} min - lower bound frame number for caching
+     * @param {int} max - upper bound frame number for caching
+     */
+    cacheNewRange(min, max) {
+      for (let i = min; i <= max; i += 1) {
         if (!this.imgs[i]) {
           const img = new Image();
           img.crossOrigin = 'Anonymous';
           img.src = this.imageUrls[i];
           // eslint-disable-next-line no-param-reassign
           this.imgs[i] = img;
-          const imageAndFrame = [img, frame];
+          const imageAndFrame = [img, i];
           this.pendingImgs.add(imageAndFrame);
           img.onload = () => {
             this.pendingImgs.delete(imageAndFrame);
@@ -193,18 +206,10 @@ export default {
       const max = Math.min(frame + seconds * this.frameRate, this.maxFrame);
       // Lets work our way in from both sides for faster checking
       for (let i = frame; i <= frame + (max - frame) / 2; i += 1) {
-        // eslint-disable-next-line no-console
-        console.log(`frame${frame} max${max}`);
-        if (!(this.imgs[i].cached && this.imgs[max - i].cached)) {
-          // eslint-disable-next-line no-console
-          console.log(`frame[${i}] is: ${this.imgs[i].cached} frame[${max - i}] is: ${this.imgs[max - i].cached}`);
+        if (!(this.imgs[i].cached && this.imgs[max - (i - frame)].cached)) {
           return false;
         }
       }
-      // eslint-disable-next-line no-console
-      console.log(`frame[${frame + 1}] is: ${this.imgs[frame + 1].complete}`);
-      // eslint-disable-next-line no-console
-      console.log(`Checked ${frame} - ${max}`);
       return true;
     },
   },
