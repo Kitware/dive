@@ -41,7 +41,7 @@ function prepareFiles(files) {
       csv: csvFiles,
     };
   }
-  throw new Error('Function should not be called on empty array');
+  throw new Error('No supported data types found.  Please choose video or image frames.');
 }
 
 function entryToFile(entry) {
