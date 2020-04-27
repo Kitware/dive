@@ -18,9 +18,11 @@ export default {
     };
   },
   created() {
-    this.playCache = 1; // seconds required to remain playing (should be less that cache seconds)
-    this.cacheSeconds = 3; // seconds to cache
+    // Below are configuration settings we can set until we decide on good numbers to utilize.
+    this.playCache = 1; // seconds required to be fully cached before playback
+    this.cacheSeconds = 3; // seconds to cache from the current frame
     this.frontBackRatio = 0.90; // 90% forward frames, 10% backward frames when caching
+
     // playCache needs to be less than the adjusted cache seconds to work properly
     if (this.playCache > this.cacheSeconds * this.frontBackRatio) {
       const difference = (this.playCache - (this.cacheSeconds * this.frontBackRatio));
@@ -32,13 +34,14 @@ export default {
     this.maxFrame = this.imageUrls.length - 1;
     this.imgs = new Array(this.imageUrls.length);
     this.pendingImgs = new Set();
-    this.cacheImage();
+    this.cacheImages();
     if (this.imgs.length) {
       const img = this.imgs[0];
       img.onload = () => {
         img.onload = null;
         this.width = img.naturalWidth;
         this.height = img.naturalHeight;
+        img.cached = true;
         this.init();
       };
     }
@@ -77,7 +80,7 @@ export default {
       this.frame = frame;
       this.syncedFrame = frame;
       this.emitFrame();
-      this.cacheImage();
+      this.cacheImages();
       this.quadFeature
         .data([
           {
@@ -104,6 +107,11 @@ export default {
         this.geoViewer.size(size);
       }
     },
+    /**
+     * Handles playback of the image sequence
+     * Image playback is based on framerate but will pause and wait for images to load
+     * if the currently accessed image is not loaded during playback.
+     */
     syncWithVideo() {
       if (this.playing) {
         this.frame += 1;
@@ -114,8 +122,9 @@ export default {
           this.syncedFrame = this.maxFrame;
           return;
         }
+        // Prevents advancing the frame while playing if the current image is not loaded
         if (!this.imgs[this.frame].cached || this.loadingVideo) {
-          this.frame -= 1;
+          this.frame -= 1; // returns to a loaded image
           this.loadingVideo = true;
           return;
         }
@@ -123,7 +132,11 @@ export default {
         setTimeout(this.syncWithVideo, 1000 / this.frameRate);
       }
     },
-    async cacheImage() {
+    /**
+     * Begins loading a set of images around the current frame.  If the image is not playing
+     * it will give priority tothe currently loaded frame
+     */
+    async cacheImages() {
       const { frame } = this;
       const { imgs } = this;
       const cachedFrames = this.cacheSeconds * this.frameRate;
@@ -132,24 +145,25 @@ export default {
       const frameDiff = Math.abs(this.frame - this.lastFrame);
       const prevFrame = (this.frame < this.lastFrame);
       this.pendingImgs.forEach((imageAndFrame) => {
-        // the current loading cache nees to be wiped out if we seek forward, backwards or
+        // the current loading cache needs to be wiped out if we seek forward, backwards or
         // if we are out of the current range of the cache
-        if (imageAndFrame[1] < min || imageAndFrame[1] > max || frameDiff > 2 || prevFrame) {
+        if (imageAndFrame[1] < min || imageAndFrame[1] > max || frameDiff > 1 || prevFrame) {
           imgs[imageAndFrame[1]] = null;
           // eslint-disable-next-line no-param-reassign
           imageAndFrame[0].src = '';
           this.pendingImgs.delete(imageAndFrame);
         }
       });
-      // if not playing we want the seeked to frame immediately loaded for UX
+      // if not playing we want the seeked to frame immediately and prevent caching until loaded
       if (!this.playing && !imgs[frame] && frame > 0) {
         await this.loadFrame(frame);
       }
-      // Cache a new range based on the parameters
+      // Cache a new range of images based on current frame
       this.cacheNewRange(min, max);
     },
     /**
-     * Wraps loading of a single frame in a promise
+     * Wraps loading of a single frame in a promise, used to gurantee frame loads
+     * before execution of caching.
      * @param {int} frame number to be loaded
      * @returns {Promise} resolves when the image from the frame is loaded
      */
@@ -167,39 +181,53 @@ export default {
       });
     },
     /**
-     * Caches a new range of frames to load
+     * Caches a new range of frames to load in a forward->back pattern from the current frame
+     * This allows for easily seeking backwards after seeking initially
      * @param {int} min - lower bound frame number for caching
      * @param {int} max - upper bound frame number for caching
      */
     cacheNewRange(min, max) {
-      for (let i = min; i <= max; i += 1) {
-        if (!this.imgs[i]) {
-          const img = new Image();
-          img.crossOrigin = 'Anonymous';
-          img.src = this.imageUrls[i];
-          // eslint-disable-next-line no-param-reassign
-          this.imgs[i] = img;
-          const imageAndFrame = [img, i];
-          this.pendingImgs.add(imageAndFrame);
-          img.onload = () => {
-            this.pendingImgs.delete(imageAndFrame);
-            img.onload = null;
-            img.cached = true;
-            // If we are trying to play and waiting for loaded frames we check the cache again
-            if (this.playing && this.loadingVideo) {
-              if (this.checkCached(this.playCache)) {
-                this.loadingVideo = false;
-                this.syncWithVideo();
-              }
-            }
-          };
+      for (let i = this.frame; i <= max; i += 1) {
+        this.cacheFrame(i);
+        const minusFrame = this.frame - (i - this.frame);
+        if (minusFrame >= min) {
+          this.cacheFrame(minusFrame);
         }
+      }
+    },
+    /**
+     * Adds a single frame to the pendingImgs array for loading and assigns it to the master
+     * imgs list. Once the image is loaded it is removed from the pendingImgs
+     * @param {int} i - the image to cache if it isn't already assigned
+     */
+    cacheFrame(i) {
+      if (!this.imgs[i]) {
+        const img = new Image();
+        img.crossOrigin = 'Anonymous';
+        img.src = this.imageUrls[i];
+        // eslint-disable-next-line no-param-reassign
+        this.imgs[i] = img;
+        const imageAndFrame = [img, i];
+        this.pendingImgs.add(imageAndFrame);
+        img.onload = () => {
+          this.pendingImgs.delete(imageAndFrame);
+          img.onload = null;
+          img.cached = true;
+          // If we are trying to play and waiting for loaded frames we check the cache again
+          if (this.playing && this.loadingVideo) {
+            if (this.checkCached(this.playCache)) {
+              this.loadingVideo = false;
+              this.syncWithVideo();
+            }
+          }
+        };
       }
     },
     /**
      * Checks to see if there is enough cached images to play for X seconds
      * @param {int} seconds - the number of seconds to look for the cache
-     * @returns {boolean}
+     * @returns {boolean} - true if the cache is valid for the next X seconds,
+     * otherwise false.
      */
     checkCached(seconds) {
       const { frame } = this;
