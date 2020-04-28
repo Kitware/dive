@@ -309,7 +309,9 @@ export default defineComponent({
       >
         {{ dataset ? dataset.name : "" }}
       </span>
-      <user-guide-button />
+      <user-guide-button
+        annotating="true"
+      />
       <ConfidenceFilter :confidence.sync="confidence" />
       <v-badge
         overlap
