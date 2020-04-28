@@ -71,7 +71,7 @@ export default {
   },
   created() {
     this.update = throttle(this.update, 30);
-    // Only resize when finished moving the window
+    // Only resize when finished dragging the window
     let timer;
     window.addEventListener('resize', () => {
       clearTimeout(timer);
@@ -83,9 +83,9 @@ export default {
   },
   methods: {
     initialize() {
-      const width = this.$refs.workarea.clientWidth;
-      const height = this.$refs.workarea.clientHeight;
-      // clientWidget and clientHeight are properties used to resize child elements
+      const width = this.$refs.workarea.clientWidth || 0;
+      const height = this.$refs.workarea.clientHeight || 0;
+      // clientWidth and clientHeight are properties used to resize child elements
       this.clientWidth = width;
       this.clientHeight = height;
       const scale = d3
