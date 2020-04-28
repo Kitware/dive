@@ -38,7 +38,7 @@ export default {
     <v-dialog
       v-else
       v-model="dialog"
-      width="600"
+      width="400"
     >
       <template #activator="{on}">
         <v-btn

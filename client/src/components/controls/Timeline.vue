@@ -72,11 +72,10 @@ export default {
   created() {
     this.update = throttle(this.update, 30);
     // Only resize when finished dragging the window
-    let timer;
-    window.addEventListener('resize', () => {
-      clearTimeout(timer);
-      timer = setTimeout(this.resize, 200);
-    });
+    window.addEventListener('resize', this.resizeHandler);
+  },
+  beforeDestroy() {
+    window.removeEventListener('resize', this.resizeHandler);
   },
   mounted() {
     this.initialize();
@@ -115,8 +114,9 @@ export default {
       this.updateAxis();
       this.mounted = true;
     },
-    resize() {
-      this.initialize();
+    resizeHandler() {
+      clearTimeout(this.resizeTimer);
+      this.resizeTimer = setTimeout(this.initialize, 200);
     },
     onwheel(e) {
       const extend = Math.round((this.endFrame - this.startFrame) * 0.2)
