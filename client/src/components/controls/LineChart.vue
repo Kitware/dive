@@ -17,6 +17,14 @@ export default {
       type: Number,
       required: true,
     },
+    clientWidth: {
+      type: Number,
+      required: true,
+    },
+    clientHeight: {
+      type: Number,
+      required: true,
+    },
     data: {
       type: Array,
       required: true,
@@ -70,6 +78,14 @@ export default {
     endFrame() {
       this.update();
     },
+    clientWidth() {
+      this.initialize();
+      this.update();
+    },
+    clientHeight() {
+      this.initialize();
+      this.update();
+    },
     lineData() {
       this.initialize();
       this.update();
@@ -92,8 +108,8 @@ export default {
         .append('div')
         .attr('class', 'tooltip')
         .style('display', 'none');
-      const width = this.$el.clientWidth;
-      const height = this.$el.clientHeight;
+      const width = this.clientWidth;
+      const height = this.clientHeight;
       const x = d3
         .scaleLinear()
         .domain([this.startFrame, this.endFrame])
