@@ -4,6 +4,7 @@ import {
 
 const ImageSequenceType = 'image-sequence';
 const VideoType = 'video';
+const defaultFrameRate = 30;
 
 export default function useGirderDataset() {
   const girderRest = inject('girderRest');
@@ -12,7 +13,7 @@ export default function useGirderDataset() {
   const imageUrls = ref([]);
   const videoUrl = ref(null);
 
-  const frameRate = computed(() => dataset.value && dataset.value.meta.fps);
+  const frameRate = computed(() => (dataset.value && dataset.value.meta.fps) || defaultFrameRate);
 
   const annotatorType = computed(() => {
     if (!dataset.value) {

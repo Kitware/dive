@@ -1,8 +1,7 @@
 from girder.models.folder import Folder
 from girder.models.item import Item
 
-
-validImageFormats = {"png", "jpg", "jpeg"}
+from .utils import validImageFormats, validVideoFormats
 
 
 def check_existing_annotations(event):
@@ -10,7 +9,7 @@ def check_existing_annotations(event):
 
     if "annotations.csv" in info["importPath"]:
         item = Item().findOne({"_id": info["id"]})
-        item["meta"].update({"folderId": str(item["folderId"]), "pipeline": None})
+        item["meta"].update({"detection": str(item["folderId"])})
         Item().save(item)
 
         folder = Folder().findOne({"_id": item["folderId"]})
@@ -29,6 +28,8 @@ def maybe_mark_folder_for_annotation(event):
     parent = Folder().findOne({"_id": info["parentId"]})
 
     fileType = info["mimeType"].split("/")[-1]
-    if fileType in validImageFormats and parent["meta"].get("viame"):
+    validFileType = fileType in validImageFormats or fileType in validVideoFormats
+
+    if validFileType and parent["meta"].get("viame"):
         parent["meta"]["annotate"] = True
         Folder().save(parent)

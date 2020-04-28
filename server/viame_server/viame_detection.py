@@ -12,7 +12,7 @@ from girder.models.folder import Folder
 from girder.models.upload import Upload
 from girder.models.file import File
 
-from .utils import move_existing_result_to_auxiliary_folder
+from .utils import move_existing_result_to_auxiliary_folder, validVideoFormats
 
 
 class ViameDetection(Resource):
@@ -37,12 +37,7 @@ class ViameDetection(Resource):
     def get_detection(self, folder):
         detectionItems = list(
             Item().findWithPermissions(
-                {
-                    "meta.folderId": str(folder["_id"]),
-                    "meta.pipeline": {"$exists": True},
-                    "meta.old": None,
-                },
-                user=self.getCurrentUser(),
+                {"meta.detection": str(folder["_id"])}, user=self.getCurrentUser(),
             )
         )
         detectionItems.sort(key=lambda d: d["created"], reverse=True)
@@ -117,21 +112,27 @@ class ViameDetection(Resource):
     )
     def get_clip_meta(self, folder):
         detections = list(
-            Item()
-            .find(
-                {
-                    "meta.folderId": str(folder["_id"]),
-                    "meta.pipeline": {"$exists": True},
-                }
-            )
-            .sort([("created", -1)])
+            Item().find({"meta.detection": str(folder["_id"])}).sort([("created", -1)])
         )
-        detection = None
-        if len(detections):
-            detection = detections[0]
-        video = Item().findOne(
-            {"meta.folderId": str(folder["_id"]), "meta.codec": "h264"}
-        )
+        detection = detections[0] if len(detections) else None
+
+        # TODO: Instead of doing this lengthy operation, we should
+        # set <videoItem>["meta"]["video"] = folder["_id"] on upload,
+        # so it can be easily queried with Item().find({"video": folder["_id"]})
+
+        video = None
+        items = Item().find({"folderId": folder["_id"]})
+        for item in items:
+            files = Item().childFiles(item)
+            for file in files:
+                commonFormats = list(set(file["exts"]) & validVideoFormats)
+                if commonFormats:
+                    video = item
+                    break
+
+            if video:
+                break
+
         return {"detection": detection, "video": video}
 
     @access.user
@@ -145,10 +146,9 @@ class ViameDetection(Resource):
             required=True,
             level=AccessType.READ,
         )
-        .param("pipeline", "pipeline name", required=False)
         .jsonParam("detections", "", requireArray=True, paramType="body")
     )
-    def save_detection(self, folder, pipeline, detections):
+    def save_detection(self, folder, detections):
         user = self.getCurrentUser()
 
         def valueToString(value):
@@ -206,9 +206,7 @@ class ViameDetection(Resource):
         timestamp = datetime.now().strftime("%m-%d-%Y_%H:%M:%S")
         newResultItem = Item().createItem("result_" + timestamp + ".csv", user, folder)
         Item().setMetadata(
-            newResultItem,
-            {"folderId": str(folder["_id"]), "pipeline": pipeline},
-            allowNull=True,
+            newResultItem, {"detection": str(folder["_id"])}, allowNull=True,
         )
         theBytes = csvFile.getvalue().encode()
         byteIO = io.BytesIO(theBytes)
