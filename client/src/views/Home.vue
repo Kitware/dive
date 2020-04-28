@@ -10,7 +10,7 @@ import { getPathFromLocation, getLocationFromRoute } from '@/utils';
 export default {
   name: 'Home',
   components: { FileManager, Upload, NavigationBar },
-  inject: ['girderRest'],
+  inject: ['girderRest', 'notificationBus'],
   data: () => ({
     location_: null,
     uploaderDialog: false,
@@ -60,6 +60,10 @@ export default {
     this.location_ = getLocationFromRoute(this.$route);
     this.setLocation(this.location_);
     this.fetchPipelines();
+    this.notificationBus.$on('message:job_status', this.handleNotification);
+  },
+  beforeDestroy() {
+    this.notificationBus.$off('message:job_status', this.handleNotification);
   },
   beforeRouteUpdate(to, from, next) {
     this.location_ = getLocationFromRoute(to);
@@ -68,6 +72,9 @@ export default {
   methods: {
     ...mapMutations(['setLocation', 'setPipelines']),
     ...mapActions(['fetchPipelines']),
+    handleNotification() {
+      this.$refs.fileManager.$refs.girderBrowser.refresh();
+    },
     isAnnotationFolder(item) {
       // TODO: update to check for other info
       return item._modelType === 'folder' && item.meta.annotate;
@@ -131,7 +138,7 @@ export default {
 
       // transcode video
       const transcodes = uploads.filter(({ results }) => {
-        const videos = results.filter((result) => ['avi', 'mp4', 'mov'].includes(result.exts[0]));
+        const videos = results.filter((result) => ['avi', 'mp4', 'mov', 'mpg'].includes(result.exts[0]));
         videos.forEach((result) => {
           this.girderRest.post(`/viame/conversion?itemId=${result.itemId}`);
         });

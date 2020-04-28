@@ -1,3 +1,4 @@
+import json
 import os
 import re
 import tempfile
@@ -8,70 +9,110 @@ from girder_worker.utils import JobStatus
 
 # TODO: Need to test with runnable viameweb
 @app.task(bind=True)
-def run_pipeline(self, path, pipeline):
-    with tempfile.NamedTemporaryFile(suffix=".csv", delete=True) as temp:
-        output_path = temp.name
+def run_pipeline(self, path, pipeline, input_type):
 
-    file_names = [
-        file_name
-        for file_name in os.listdir(path)
-        if not (
-            file_name.endswith("csv")
-            or file_name.endswith("CSV")
-            or os.path.isdir(os.path.join(path, file_name))
-        )
-    ]
-    print(file_names)
+    # Delete is false because the file needs to exist for kwiver to write to
+    # The girder upload transform will take care of removing it
+    with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as temp:
+        detector_output_path = temp.name
+    with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as temp:
+        track_output_path = temp.name
 
-    if len(file_names) == 1:
-        file_name = file_names[0]
+    # get a list of the input media
+    # TODO: better filtering that only allows files of valid types
+    directory_files = os.listdir(path)
+    filtered_directory_files = []
+    for file_name in directory_files:
+        full_file_path = os.path.join(path, file_name)
+        is_directory = os.path.isdir(full_file_path)
+        if (not is_directory) and \
+           (not os.path.splitext(file_name)[1].lower() == '.csv'):
+            filtered_directory_files.append(file_name)
+
+    if len(filtered_directory_files) == 0:
+        raise ValueError('No media files found in {}'.format(path))
+
+    if input_type == 'video':
+        file_name = filtered_directory_files[0]
         command = [
-            "cd /home/VIAME/build/install/ &&",
+            "cd /opt/noaa/viame &&",
             ". ./setup_viame.sh &&",
-            "pipeline_runner",
+            "kwiver",
+            "runner",
             "-s input:video_reader:type=vidl_ffmpeg",
-            "-p /home/VIAME/configs/pipelines/{}".format(pipeline),
+            "-p /opt/noaa/viame/configs/pipelines/{}".format(pipeline),
             "-s input:video_filename={}".format(os.path.join(path, file_name)),
-            "-s detector_writer:file_name={}".format(output_path),
+            "-s detector_writer:file_name={}".format(detector_output_path),
+            "-s track_writer:file_name={}".format(track_output_path),
         ]
-    else:
+    elif input_type == 'image-sequence':
         with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as temp2:
             temp2.writelines(
                 (
                     (os.path.join(path, file_name) + "\n").encode()
-                    for file_name in file_names
+                    for file_name in sorted(filtered_directory_files)
                 )
             )
             image_list_file = temp2.name
         command = [
-            "cd /home/VIAME/build/install/ &&",
+            "cd /opt/noaa/viame &&",
             ". ./setup_viame.sh &&",
-            "pipeline_runner",
-            "-p /home/VIAME/configs/pipelines/{}".format(pipeline),
+            "kwiver",
+            "runner",
+            "-p /opt/noaa/viame/configs/pipelines/{}".format(pipeline),
             "-s input:video_filename={}".format(image_list_file),
-            "-s detector_writer:file_name={}".format(output_path),
+            "-s detector_writer:file_name={}".format(detector_output_path),
+            "-s track_writer:file_name={}".format(track_output_path),
         ]
+    else:
+        raise ValueError('Unknown input type: {}'.format(input_type))
 
-    process = Popen(" ".join(command), stderr=PIPE, stdout=PIPE, shell=True)
+    cmd = " ".join(command)
+    print('Running command:', cmd)
+    process = Popen(cmd, stderr=PIPE, stdout=PIPE, shell=True, executable='/bin/bash')
     stdout, stderr = process.communicate()
-    output = str(stdout) + "\n" + str(stderr)
-    self.job_manager.write(output)
-    return output_path
+    if process.returncode > 0:
+        raise RuntimeError('Pipeline exited with nonzero status code {}: {}'.format(process.returncode, str(stderr)))
+    else:
+        self.job_manager.write(str(stdout) + "\n" + str(stderr))
+
+    # Figure out which of track_output_path, detector_output_path to return
+    # Some pipelines don't produce track output, so fallback to returning detector path
+    # Both files WILL exist, but if a file hasn't been written to, it will be 0 bytes
+    if os.path.getsize(track_output_path) > 0:
+        os.remove(detector_output_path)
+        return track_output_path
+    else:
+        os.remove(track_output_path)
+        return detector_output_path
 
 
 @app.task(bind=True)
 def convert_video(self, path, folderId, token, auxiliaryFolderId):
     self.girder_client.token = token
+
+    # Delete is true, so the tempfile is deleted when the block closes.
+    # We are only using this to get a name, and recreating it below.
     with tempfile.NamedTemporaryFile(suffix=".mp4", delete=True) as temp:
         output_path = temp.name
 
+    # Extract metadata
     file_name = os.path.join(path, os.listdir(path)[0])
-    process = Popen(["ffmpeg", "-i", file_name], stderr=PIPE, stdout=PIPE)
-    stdout, stderr = process.communicate()
-    output = str(stdout) + "\n" + str(stderr)
-    fps_string = [i for i in output.split(",") if "fps" in i][0]
-    fps_value = [int(s) for s in fps_string.split() if s.isdigit()][0]
-    self.girder_client.addMetadataToFolder(folderId, {"fps": fps_value})
+    command = [
+        "ffprobe",
+        "-print_format", "json",
+        "-v", "quiet",
+        "-show_format",
+        "-show_streams",
+        file_name,
+    ]
+    process = Popen(command, stderr=PIPE, stdout=PIPE)
+    stdout = process.communicate()[0]
+    jsoninfo = json.loads(stdout.decode('utf-8'))
+    videostream = list(filter(lambda x: x["codec_type"] == "video", jsoninfo["streams"]))
+    if len(videostream) != 1:
+        raise Exception('Expected 1 video stream, found {}'.format(len(videostream)))
+    self.girder_client.addMetadataToFolder(folderId, videostream[0])
 
     process = Popen(
         [
@@ -94,7 +135,7 @@ def convert_video(self, path, folderId, token, auxiliaryFolderId):
     stdout, stderr = process.communicate()
     output = str(stdout) + "\n" + str(stderr)
     self.job_manager.write(output)
-    _file = self.girder_client.uploadFileToFolder(auxiliaryFolderId, output_path)
+    _file = self.girder_client.uploadFileToFolder(folderId, output_path)
     self.girder_client.addMetadataToItem(
         _file["itemId"], {"folderId": folderId, "codec": "h264"}
     )

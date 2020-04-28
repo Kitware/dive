@@ -3,8 +3,8 @@ from girder.models.folder import Folder
 
 
 validImageFormats = {"png", "jpg", "jpeg"}
-validVideoFormats = {"avi", "mp4", "mov"}
-
+validVideoFormats = {"avi", "mp4", "mov", "mpg"}
+webValidVideoFormats = {"mp4"}
 
 # Ad hoc way to guess the FPS of an Image Sequence based on file names
 # Currently not being used, can only be used once you know that all items
@@ -44,7 +44,7 @@ def move_existing_result_to_auxiliary_folder(folder, user):
     auxiliary = get_or_create_auxiliary_folder(folder, user)
 
     existingResultItem = Item().findOne(
-        {"meta.detection": folder["_id"], "folderId": folder["_id"]}
+        {"meta.detection": str(folder["_id"]), "folderId": folder["_id"]}
     )
     if existingResultItem:
         Item().move(existingResultItem, auxiliary)

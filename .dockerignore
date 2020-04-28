@@ -3,3 +3,5 @@ venv/
 **/dist
 **/build
 docker/girder_data
+*.Dockerfile
+docker-compose.*
