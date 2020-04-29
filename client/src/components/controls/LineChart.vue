@@ -70,6 +70,13 @@ export default {
         return { ...datum, values: clean };
       });
     },
+    /**
+     * Useful way to compute properties together for a single watcher so if either change
+     * In the future this can be done easily with compositionAPI
+     */
+    clientDimensions() {
+      return { width: this.clientWidth, height: this.clientHeight };
+    },
   },
   watch: {
     startFrame() {
@@ -78,11 +85,7 @@ export default {
     endFrame() {
       this.update();
     },
-    clientWidth() {
-      this.initialize();
-      this.update();
-    },
-    clientHeight() {
+    clientDimensions() {
       this.initialize();
       this.update();
     },

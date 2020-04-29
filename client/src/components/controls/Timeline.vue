@@ -115,13 +115,14 @@ export default {
       this.mounted = true;
     },
     resizeHandler() {
+      // Debounces resize to prevent it from be calling continuously.
       clearTimeout(this.resizeTimer);
       this.resizeTimer = setTimeout(this.initialize, 200);
     },
     onwheel(e) {
       const extend = Math.round((this.endFrame - this.startFrame) * 0.2)
         * Math.sign(e.deltaY);
-      const ratio = (e.layerX - this.$el.offsetLeft) / this.$el.clientWidth;
+      const ratio = (e.layerX - this.$el.offsetLeft) / this.clientWidth;
       let startFrame = this.startFrame - extend * ratio;
       let endFrame = this.endFrame + extend * (1 - ratio);
       startFrame = Math.max(0, startFrame);

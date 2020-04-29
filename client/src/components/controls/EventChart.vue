@@ -145,7 +145,7 @@ export default {
       if (!bars.length) {
         return;
       }
-      canvas.width = this.$el.clientWidth;
+      canvas.width = this.clientWidth;
       canvas.height = bars.slice(-1)[0].top + 10;
       bars.forEach((bar) => {
         let padding = 0;
