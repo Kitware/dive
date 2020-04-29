@@ -20,7 +20,7 @@ export default {
   created() {
     // Below are configuration settings we can set until we decide on good numbers to utilize.
     this.playCache = 1; // seconds required to be fully cached before playback
-    this.cacheSeconds = 3; // seconds to cache from the current frame
+    this.cacheSeconds = 6; // seconds to cache from the current frame
     this.frontBackRatio = 0.90; // 90% forward frames, 10% backward frames when caching
 
     // playCache needs to be less than the adjusted cache seconds to work properly
