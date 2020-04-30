@@ -23,14 +23,6 @@ export default {
     this.cacheSeconds = 6; // seconds to cache from the current frame
     this.frontBackRatio = 0.90; // 90% forward frames, 10% backward frames when caching
 
-    // playCache needs to be less than the adjusted cache seconds to work properly
-    if (this.playCache > this.cacheSeconds * this.frontBackRatio) {
-      const difference = (this.playCache - (this.cacheSeconds * this.frontBackRatio));
-      this.cacheSeconds = Math.ceil(this.cacheSeconds + difference);
-    }
-    if (this.frontBackRatio > 1 || this.frontBackRatio < 0) {
-      this.frontBackRatio = 1.0;
-    }
     this.maxFrame = this.imageUrls.length - 1;
     this.imgs = new Array(this.imageUrls.length);
     this.pendingImgs = new Set();
@@ -183,8 +175,8 @@ export default {
     /**
      * Caches a new range of frames to load in a forward->back pattern from the current frame
      * This allows for easily seeking backwards after seeking initially
-     * @param {int} min - lower bound frame number for caching
-     * @param {int} max - upper bound frame number for caching
+     * @param {int} min lower bound frame number for caching
+     * @param {int} max upper bound frame number for caching
      */
     cacheNewRange(min, max) {
       for (let i = this.frame; i <= max; i += 1) {
@@ -198,7 +190,7 @@ export default {
     /**
      * Adds a single frame to the pendingImgs array for loading and assigns it to the master
      * imgs list. Once the image is loaded it is removed from the pendingImgs
-     * @param {int} i - the image to cache if it isn't already assigned
+     * @param {int} i the image to cache if it isn't already assigned
      */
     cacheFrame(i) {
       if (!this.imgs[i]) {
@@ -225,8 +217,8 @@ export default {
     },
     /**
      * Checks to see if there is enough cached images to play for X seconds
-     * @param {int} seconds - the number of seconds to look for the cache
-     * @returns {boolean} - true if the cache is valid for the next X seconds,
+     * @param {int} seconds the number of seconds to look for the cache
+     * @returns {boolean} true if the cache is valid for the next X seconds,
      * otherwise false.
      */
     checkCached(seconds) {
