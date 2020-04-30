@@ -35,8 +35,7 @@ export default {
   computed: {
     /**
      * Sets styling for the selected track
-     * Sets the background accent color to have a slight
-     * opacity so it isn't overwhelming
+     * Sets the accent color to have a slight opacity so it isn't overwhelming
      */
     style() {
       if (this.selectedTrackId === this.track.trackId) {
@@ -46,10 +45,6 @@ export default {
         };
       }
       return {};
-    },
-
-    comboValue() {
-      return this.track.confidencePairs.length ? this.track.confidencePairs[0][0] : '';
     },
   },
   watch: {
@@ -97,7 +92,7 @@ export default {
       dense
       hide-details
       :input-value="inputValue"
-      :color="colorMap(comboValue)"
+      :color="colorMap(track.confidencePairs[0][0])"
       @change="$emit('change', $event)"
     />
     <div
