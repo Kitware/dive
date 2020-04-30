@@ -66,6 +66,23 @@ export default function useSelectionControls({
     selectedTrackId.value = trackid;
   }
 
+  function selectNextTrack() {
+    let index = tracks.value.findIndex((track) => track.trackId === selectedTrackId.value);
+    if (index < tracks.value.length - 1) {
+      index += 1;
+    }
+    selectedTrackId.value = tracks.value[index].trackId;
+  }
+
+  function selectPreviousTrack() {
+    let index = tracks.value.findIndex((track) => track.trackId === selectedTrackId.value);
+    if (index < 0) {
+      index = 0;
+    } else if (index > 0) {
+      index -= 1;
+    }
+    selectedTrackId.value = tracks.value[index].trackId;
+  }
   function setTrackEditMode(trackid, editing = true) {
     selectTrack(trackid);
     editingTrack.value = editing;
@@ -86,6 +103,8 @@ export default function useSelectionControls({
     selectedDetectionIndex,
     selectedDetection,
     selectTrack,
+    selectNextTrack,
+    selectPreviousTrack,
     setTrackEditMode,
     deleteSelectedDetection,
   };

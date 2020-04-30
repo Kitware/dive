@@ -24,10 +24,29 @@ export default {
       validator: stringNumberNullValidator,
       required: true,
     },
+    colorMap: {
+      type: Function,
+      required: true,
+    },
   },
   data: () => ({
     editing: false,
   }),
+  computed: {
+    /**
+     * Sets styling for the selected track
+     * Sets the accent color to have a slight opacity so it isn't overwhelming
+     */
+    style() {
+      if (this.selectedTrackId === this.track.trackId) {
+        return {
+          'font-weight': 'bold',
+          'background-color': `${this.$vuetify.theme.themes.dark.accent}aa`,
+        };
+      }
+      return {};
+    },
+  },
   watch: {
     track() {
       this.editing = false;
@@ -39,20 +58,21 @@ export default {
 <template>
   <div
     class="track-item d-flex align-center hover-show-parent px-1"
-    :class="{
-      selected: selectedTrackId === track.trackId
-    }"
-    @click.self="$emit('click')"
+
+    :style="style"
   >
     <v-checkbox
       class="my-0 ml-1 pt-0"
       dense
       hide-details
       :input-value="inputValue"
-      color="neutral"
+      :color="colorMap(track.confidencePairs[0][0])"
       @change="$emit('change', $event)"
     />
-    <div>
+    <div
+      class="trackNumber"
+      @click.self="$emit('click')"
+    >
       {{ track.trackId + (editingTrackId === track.trackId ? "*" : "") }}
     </div>
     <div
@@ -104,7 +124,12 @@ export default {
 <style lang="scss" scoped>
 .track-item {
   height: 45px;
-
+  .trackNumber{
+    &:hover {
+      cursor: pointer;
+      font-weight: bolder;
+    }
+}
   .type-display {
     overflow: hidden;
     text-overflow: ellipsis;
