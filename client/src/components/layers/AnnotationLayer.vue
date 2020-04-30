@@ -67,6 +67,27 @@ export default {
           this.$emit('annotation-right-click', e.data.record, e);
         }
       });
+    this.polygonFeature.geoOn(geo.event.feature.mousemove, (e) => {
+      const calcVel = Math.abs(e.mouse.velocity.x) + Math.abs(e.mouse.velocity.y);
+      const interactorOpts = this.annotator.geoViewer.interactor().options();
+      const { cancelOnMove } = interactorOpts.click;
+      if (cancelOnMove && calcVel < 1) {
+        interactorOpts.click.cancelOnMove = false;
+      } else if (!cancelOnMove) {
+        interactorOpts.click.cancelOnMove = true;
+      }
+      if (cancelOnMove !== interactorOpts.click.cancelOnMove) {
+        this.annotator.geoViewer.interactor().options(interactorOpts);
+      }
+    });
+    this.polygonFeature.geoOn(geo.event.feature.mouseoff, () => {
+      const interactorOpts = this.annotator.geoViewer.interactor().options();
+      const { cancelOnMove } = interactorOpts.click;
+      interactorOpts.click.cancelOnMove = true;
+      if (cancelOnMove !== interactorOpts.click.cancelOnMove) {
+        this.annotator.geoViewer.interactor().options(interactorOpts);
+      }
+    });
     this.polygonFeature.geoOn(
       geo.event.feature.mouseclick_order,
       this.polygonFeature.mouseOverOrderClosestBorder,
