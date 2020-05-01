@@ -35,7 +35,8 @@ export default {
   computed: {
     /**
      * Sets styling for the selected track
-     * Sets the accent color to have a slight opacity so it isn't overwhelming
+     * Sets the background accent color to have a slight
+     * opacity so it isn't overwhelming
      */
     style() {
       if (this.selectedTrackId === this.track.trackId) {
@@ -59,7 +60,6 @@ export default {
     editing(val) {
       if (val) {
         this.$nextTick(() => {
-          this.$refs.trackTypeBox.focus();
           this.$refs.trackTypeBox.activateMenu();
         });
       }
@@ -69,12 +69,6 @@ export default {
     focusType() {
       if (this.selectedTrackId === this.track.trackId) {
         this.editing = true;
-      }
-    },
-    handleChange(newval) {
-      this.editing = false;
-      if (newval !== this.comboValue) {
-        this.$emit('type-change', newval);
       }
     },
   },
@@ -92,7 +86,7 @@ export default {
       dense
       hide-details
       :input-value="inputValue"
-      :color="colorMap(track.confidencePairs[0][0])"
+      :color="colorMap(track.confidencePairs.length ? track.confidencePairs[0][0] : '')"
       @change="$emit('change', $event)"
     />
     <div
@@ -114,6 +108,7 @@ export default {
     <v-combobox
       v-else
       ref="trackTypeBox"
+      :autofocus="true"
       class="ml-2"
       :value="comboValue"
       :items="types"

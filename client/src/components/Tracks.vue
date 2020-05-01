@@ -45,11 +45,7 @@ export default {
   },
   computed: {
     /**
-     * Computes the offset for displaying the item on the screen
-     * When selecting from track list or elswehere we want to try
-     * to center the item in the list.
-     * When iterating through using the keyboard we keep it at the bottom once they
-     * get above the list size
+     * Computes the offset for the virtual scroll list and highlighting
      */
     selectedOffset() {
       let offset = this.tracks.map((item) => item.trackId).indexOf(this.selectedTrackId);
