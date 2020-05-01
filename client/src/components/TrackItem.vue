@@ -35,7 +35,8 @@ export default {
   computed: {
     /**
      * Sets styling for the selected track
-     * Sets the accent color to have a slight opacity so it isn't overwhelming
+     * Sets the background accent color to have a slight
+     * opacity so it isn't overwhelming
      */
     style() {
       if (this.selectedTrackId === this.track.trackId) {
@@ -50,6 +51,25 @@ export default {
   watch: {
     track() {
       this.editing = false;
+    },
+    /**
+     * When editing is enabled through Keyboard Shortcut this will provide focus
+     * and open the menu so the use can choose an item with the keyboard
+     * nextTick is used because the ref isn't rendered until editing is true
+     */
+    editing(val) {
+      if (val) {
+        this.$nextTick(() => {
+          this.$refs.trackTypeBox.activateMenu();
+        });
+      }
+    },
+  },
+  methods: {
+    focusType() {
+      if (this.selectedTrackId === this.track.trackId) {
+        this.editing = true;
+      }
     },
   },
 };
@@ -66,7 +86,7 @@ export default {
       dense
       hide-details
       :input-value="inputValue"
-      :color="colorMap(track.confidencePairs[0][0])"
+      :color="colorMap(track.confidencePairs.length ? track.confidencePairs[0][0] : '')"
       @change="$emit('change', $event)"
     />
     <div
@@ -77,6 +97,9 @@ export default {
     </div>
     <div
       v-if="!editing"
+      v-mousetrap="[
+        { bind: 'shift+enter', handler: focusType },
+      ]"
       class="type-display flex-grow-1 flex-shrink-1 ml-2"
       @click="editing = true"
     >
@@ -86,6 +109,8 @@ export default {
     </div>
     <v-combobox
       v-else
+      ref="trackTypeBox"
+      :autofocus="true"
       class="ml-2"
       :value="track.confidencePairs.length ? track.confidencePairs[0][0] : ''"
       :items="types"
