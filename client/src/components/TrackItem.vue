@@ -60,6 +60,7 @@ export default {
     editing(val) {
       if (val) {
         this.$nextTick(() => {
+          this.$refs.trackTypeBox.focus();
           this.$refs.trackTypeBox.activateMenu();
         });
       }
@@ -108,7 +109,6 @@ export default {
     <v-combobox
       v-else
       ref="trackTypeBox"
-      :autofocus="true"
       class="ml-2"
       :value="comboValue"
       :items="types"
