@@ -7,10 +7,16 @@ from subprocess import Popen, PIPE
 from girder_worker.app import app
 from girder_worker.utils import JobStatus
 
+class Config:
+    def __init__(self):
+        self.pipeline_base_path = os.environ.get('PIPELINE_BASE_PATH', '/opt/noaa/viame/configs/pipelines/')
+        self.viame_install_path = os.environ.get('VIAME_INSTALL_PATH', '/opt/noaa/viame')
+
 # TODO: Need to test with runnable viameweb
 @app.task(bind=True)
-def run_pipeline(self, path, pipeline, input_type):
+def run_pipeline(self, input_path, pipeline, input_type):
 
+    conf = Config()
     # Delete is false because the file needs to exist for kwiver to write to
     # The girder upload transform will take care of removing it
     with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as temp:
@@ -20,49 +26,49 @@ def run_pipeline(self, path, pipeline, input_type):
 
     # get a list of the input media
     # TODO: better filtering that only allows files of valid types
-    directory_files = os.listdir(path)
+    directory_files = os.listdir(input_path)
     filtered_directory_files = []
     for file_name in directory_files:
-        full_file_path = os.path.join(path, file_name)
+        full_file_path = os.path.join(input_path, file_name)
         is_directory = os.path.isdir(full_file_path)
         if (not is_directory) and \
            (not os.path.splitext(file_name)[1].lower() == '.csv'):
             filtered_directory_files.append(file_name)
 
     if len(filtered_directory_files) == 0:
-        raise ValueError('No media files found in {}'.format(path))
+        raise ValueError('No media files found in {}'.format(input_path))
+
+    pipeline_path = os.path.join(conf.pipeline_base_path, pipeline)
 
     if input_type == 'video':
-        file_name = filtered_directory_files[0]
+        input_file = os.path.join(input_path, filtered_directory_files[0])
         command = [
-            "cd /opt/noaa/viame &&",
+            f"cd {conf.viame_install_path} &&",
             ". ./setup_viame.sh &&",
-            "kwiver",
-            "runner",
+            "kwiver runner",
             "-s input:video_reader:type=vidl_ffmpeg",
-            "-p /opt/noaa/viame/configs/pipelines/{}".format(pipeline),
-            "-s input:video_filename={}".format(os.path.join(path, file_name)),
-            "-s detector_writer:file_name={}".format(detector_output_path),
-            "-s track_writer:file_name={}".format(track_output_path),
+            f"-p {pipeline_path}",
+            f"-s input:video_filename={input_file}",
+            f"-s detector_writer:file_name={detector_output_path}",
+            f"-s track_writer:file_name={track_output_path}",
         ]
     elif input_type == 'image-sequence':
         with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as temp2:
             temp2.writelines(
                 (
-                    (os.path.join(path, file_name) + "\n").encode()
+                    (os.path.join(input_path, file_name) + "\n").encode()
                     for file_name in sorted(filtered_directory_files)
                 )
             )
             image_list_file = temp2.name
         command = [
-            "cd /opt/noaa/viame &&",
+            f"cd {conf.viame_install_path} &&",
             ". ./setup_viame.sh &&",
-            "kwiver",
-            "runner",
-            "-p /opt/noaa/viame/configs/pipelines/{}".format(pipeline),
-            "-s input:video_filename={}".format(image_list_file),
-            "-s detector_writer:file_name={}".format(detector_output_path),
-            "-s track_writer:file_name={}".format(track_output_path),
+            "kwiver runner",
+            f"-p {pipeline_path}",
+            f"-s input:video_filename={image_list_file}",
+            f"-s detector_writer:file_name={detector_output_path}",
+            f"-s track_writer:file_name={track_output_path}",
         ]
     else:
         raise ValueError('Unknown input type: {}'.format(input_type))
