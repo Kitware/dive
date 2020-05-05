@@ -1,11 +1,10 @@
 import json
 import os
-import re
 import tempfile
-from subprocess import Popen, PIPE
+from subprocess import Popen, PIPE, DEVNULL
+from pathlib import Path
 
 from girder_worker.app import app
-from girder_worker.utils import JobStatus
 
 class Config:
     def __init__(self):
@@ -150,3 +149,50 @@ def convert_video(self, path, folderId, token, auxiliaryFolderId):
         _file["itemId"], {"folderId": folderId, "codec": "h264"}
     )
     os.remove(output_path)
+
+
+@app.task(bind=True)
+def convert_images(self, folderId, token):
+    """
+    Ensures that all images in a folder are in a web friendly format (png or jpeg).
+
+    If conversions succeeds for an image, it will replace the image with an image
+    of the same name, but in a web friendly extension.
+
+    Returns the number of images successfully converted.
+    """
+    gc = self.girder_client
+    gc.token = token
+
+    items = gc.listItem(folderId)
+    skip_item = (
+        lambda item: item["name"].endswith(".png")
+        or item["name"].endswith(".jpeg")
+        or item["name"].endswith(".jpg")
+    )
+    valid_items = [item for item in items if not skip_item(item)]
+
+    count = 0
+    with tempfile.TemporaryDirectory() as temp:
+        dest_dir = Path(temp)
+
+        for item in valid_items:
+            # Assumes 1 file per item
+            gc.downloadItem(item["_id"], dest_dir, item["name"])
+
+            item_path = dest_dir / item["name"]
+            new_item_path = dest_dir / ".".join([*item["name"].split(".")[:-1], "png"])
+
+            process = Popen(
+                ["ffmpeg", "-i", item_path, new_item_path],
+                stderr=DEVNULL,
+                stdout=DEVNULL,
+            )
+
+            returncode = process.wait()
+            if returncode == 0:
+                gc.delete(f"item/{item['_id']}")
+                gc.uploadFileToFolder(folderId, new_item_path)
+                count += 1
+
+    return count
