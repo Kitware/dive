@@ -9,7 +9,7 @@ from girder_worker.utils import JobStatus
 
 class Config:
     def __init__(self):
-        self.pipeline_base_path = os.environ.get('PIPELINE_BASE_PATH', '/opt/noaa/viame/configs/pipelines/')
+        self.pipeline_base_path = os.environ.get('VIAME_PIPELINES_PATH', '/opt/noaa/viame/configs/pipelines/')
         self.viame_install_path = os.environ.get('VIAME_INSTALL_PATH', '/opt/noaa/viame')
 
 # TODO: Need to test with runnable viameweb

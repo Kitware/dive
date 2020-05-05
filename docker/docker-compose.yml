@@ -21,7 +21,8 @@ services:
       - "8010:8080"
     volumes:
       - girder_assetstore:/home/assetstore
-      - pipelines:${VIAME_PIPELINES_PATH:-/home/VIAME/pipelines}:ro
+      # Mount pipeline directory from girder_worker
+      - pipelines:${VIAME_PIPELINES_PATH}:ro
       - type: bind
         source: ${PUBLIC_DATA_PATH}
         target: /data/public
@@ -29,7 +30,7 @@ services:
         volume:
           nocopy: true
     environment:
-      - VIAME_PIPELINES_PATH=${VIAME_PIPELINES_PATH:-/home/VIAME/pipelines}
+      - VIAME_PIPELINES_PATH=${VIAME_PIPELINES_PATH}
       - GIRDER_MONGO_URI=mongodb://mongo:27017/girder
       - GIRDER_ADMIN_USER=${GIRDER_ADMIN_USER}
       - GIRDER_ADMIN_PASS=${GIRDER_ADMIN_PASS}
@@ -42,10 +43,12 @@ services:
       context: ../
       dockerfile: docker/girder_worker.Dockerfile
     volumes:
-      - pipelines:/home/VIAME/build/install/configs/pipelines
+      # Exposes pipeline directory to girder so it can see what pipelines are available.
+      - pipelines:${VIAME_PIPELINES_PATH}:ro
     depends_on:
       - rabbit
     environment:
+      - VIAME_PIPELINES_PATH=${VIAME_PIPELINES_PATH}
       - CELERY_BROKER_URL=amqp://guest:guest@rabbit/
       - BROKER_CONNECTION_TIMEOUT=2
 
