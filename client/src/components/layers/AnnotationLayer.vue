@@ -67,6 +67,9 @@ export default {
           this.$emit('annotation-right-click', e.data.record, e);
         }
       });
+    /* cancelOnMove = true will prevent clicks from registering if the user moves the cursor at all
+     this can make it hard to click on items
+     This will change the value based on being inside an annotation and amount of mouse movement */
     this.polygonFeature.geoOn(geo.event.feature.mousemove, (e) => {
       const calcVel = Math.abs(e.mouse.velocity.x) + Math.abs(e.mouse.velocity.y);
       const interactorOpts = this.annotator.geoViewer.interactor().options();
@@ -76,10 +79,12 @@ export default {
       } else if (!cancelOnMove) {
         interactorOpts.click.cancelOnMove = true;
       }
+      // Only change the cancelOnMove if it is different
       if (cancelOnMove !== interactorOpts.click.cancelOnMove) {
         this.annotator.geoViewer.interactor().options(interactorOpts);
       }
     });
+    // If the user is not over any annotation we can set cancelOnMove=true
     this.polygonFeature.geoOn(geo.event.feature.mouseoff, () => {
       const interactorOpts = this.annotator.geoViewer.interactor().options();
       const { cancelOnMove } = interactorOpts.click;
