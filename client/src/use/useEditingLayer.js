@@ -13,8 +13,12 @@ export default function useEditingLayer({
   deleteDetection,
   setDetection,
 }) {
-  async function deleteTrack({ trackId }) {
-    if (typeof trackId !== 'string') {
+  async function deleteTrack(track) {
+    if (!track) {
+      return;
+    }
+    const { trackId } = track;
+    if (typeof trackId !== 'number') {
       throw new Error('Must provide object with key `trackId` to deleteTrack()');
     }
     const _detections = detections.value;

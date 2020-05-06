@@ -86,6 +86,8 @@ export default defineComponent({
       selectedDetectionIndex,
       selectedDetection,
       setTrackEditMode,
+      selectNextTrack,
+      selectPreviousTrack,
     } = useSelectionControls({
       frame,
       detections,
@@ -231,6 +233,8 @@ export default defineComponent({
       selectedTrackId,
       selectedDetection,
       setTrackEditMode,
+      selectNextTrack,
+      selectPreviousTrack,
       // Save
       save,
       pendingSaveCount,
@@ -364,13 +368,16 @@ export default defineComponent({
               :checked-tracks.sync="checkedTracks"
               :selected-track-id="selectedTrackId"
               :editing-track-id="editingTrackId"
+              :color-map="typeColorMap"
               class="flex-shrink-0"
               @goto-track-first-frame="gotoTrackFirstFrame"
               @edit-track="editTrack"
-              @click-track="editTrack"
+              @click-track="setTrackEditMode($event, false)"
               @track-type-change="trackTypeChanged"
               @add-track="addTrack"
               @delete-track="deleteTrack"
+              @select-track-up="selectPreviousTrack"
+              @select-track-down="selectNextTrack"
             />
           </div>
           <div

@@ -24,13 +24,63 @@ export default {
       validator: stringNumberNullValidator,
       required: true,
     },
+    colorMap: {
+      type: Function,
+      required: true,
+    },
   },
   data: () => ({
     editing: false,
   }),
+  computed: {
+    /**
+     * Sets styling for the selected track
+     * Sets the background accent color to have a slight
+     * opacity so it isn't overwhelming
+     */
+    style() {
+      if (this.selectedTrackId === this.track.trackId) {
+        return {
+          'font-weight': 'bold',
+          'background-color': `${this.$vuetify.theme.themes.dark.accent}aa`,
+        };
+      }
+      return {};
+    },
+
+    comboValue() {
+      return this.track.confidencePairs.length ? this.track.confidencePairs[0][0] : '';
+    },
+  },
   watch: {
     track() {
       this.editing = false;
+    },
+    /**
+     * When editing is enabled through Keyboard Shortcut this will provide focus
+     * and open the menu so the use can choose an item with the keyboard
+     * nextTick is used because the ref isn't rendered until editing is true
+     */
+    editing(val) {
+      if (val) {
+        this.$nextTick(() => {
+          this.$refs.trackTypeBox.focus();
+          this.$refs.trackTypeBox.activateMenu();
+        });
+      }
+    },
+  },
+  methods: {
+    focusType() {
+      if (this.selectedTrackId === this.track.trackId) {
+        this.editing = true;
+      }
+    },
+    handleChange(newval) {
+      this.editing = false;
+      if (newval !== this.comboValue) {
+        this.$emit('type-change', newval);
+      }
     },
   },
 };
@@ -39,39 +89,42 @@ export default {
 <template>
   <div
     class="track-item d-flex align-center hover-show-parent px-1"
-    :class="{
-      selected: selectedTrackId === track.trackId
-    }"
-    @click.self="$emit('click')"
+
+    :style="style"
   >
     <v-checkbox
       class="my-0 ml-1 pt-0"
       dense
       hide-details
       :input-value="inputValue"
-      color="neutral"
+      :color="colorMap(comboValue)"
       @change="$emit('change', $event)"
     />
-    <div>
+    <div
+      class="trackNumber"
+      @click.self="$emit('click')"
+    >
       {{ track.trackId + (editingTrackId === track.trackId ? "*" : "") }}
     </div>
     <div
       v-if="!editing"
+      v-mousetrap="[
+        { bind: 'shift+enter', handler: focusType },
+      ]"
       class="type-display flex-grow-1 flex-shrink-1 ml-2"
       @click="editing = true"
     >
-      {{
-        track.confidencePairs.length ? track.confidencePairs[0][0] : "undefined"
-      }}
+      {{ comboValue || 'undefined' }}
     </div>
     <v-combobox
       v-else
+      ref="trackTypeBox"
       class="ml-2"
-      :value="track.confidencePairs.length ? track.confidencePairs[0][0] : ''"
+      :value="comboValue"
       :items="types"
       dense
       hide-details
-      @change="$emit('type-change', $event)"
+      @input="handleChange"
     />
     <v-menu offset-y>
       <template v-slot:activator="{ on }">
@@ -104,7 +157,12 @@ export default {
 <style lang="scss" scoped>
 .track-item {
   height: 45px;
-
+  .trackNumber{
+    &:hover {
+      cursor: pointer;
+      font-weight: bolder;
+    }
+}
   .type-display {
     overflow: hidden;
     text-overflow: ellipsis;

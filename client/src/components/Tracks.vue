@@ -31,13 +31,30 @@ export default {
       validator: stringNumberNullValidator,
       required: true,
     },
+    colorMap: {
+      type: Function,
+      required: true,
+    },
   },
   data() {
-    return { checkedTracks_: this.checkedTracks, item: TrackItem };
+    return {
+      checkedTracks_: this.checkedTracks,
+      item: TrackItem,
+      visibleItems: 9,
+    };
   },
   computed: {
+    /**
+     * Computes the offset for the virtual scroll list and highlighting
+     */
     selectedOffset() {
-      return this.tracks.map((item) => item.trackId).indexOf(this.selectedTrackId);
+      let offset = this.tracks.map((item) => item.trackId).indexOf(this.selectedTrackId);
+      if (offset === -1) {
+        offset = this.tracks.length - 1;
+      } else {
+        offset -= Math.floor(this.visibleItems / 2);
+      }
+      return offset;
     },
   },
   watch: {
@@ -49,6 +66,9 @@ export default {
     },
   },
   methods: {
+    getSelectedTrack() {
+      return this.tracks.find((track) => track.trackId === this.selectedTrackId);
+    },
     getItemProps(itemIndex) {
       const track = this.tracks[itemIndex];
       return {
@@ -57,6 +77,7 @@ export default {
           inputValue: this.checkedTracks_.indexOf(track.trackId) !== -1,
           selectedTrackId: this.selectedTrackId,
           editingTrackId: this.editingTrackId,
+          colorMap: this.colorMap,
           types: this.types,
         },
         on: {
@@ -78,7 +99,8 @@ export default {
             this.$emit('delete-track', track);
           },
           click: () => {
-            this.$emit('click-track', track);
+            this.$emit('click-track', track.trackId);
+            this.$emit('goto-track-first-frame', track);
           },
           edit: () => {
             this.$emit('edit-track', track);
@@ -101,6 +123,12 @@ export default {
       </v-btn>
     </v-subheader>
     <virtual-list
+      v-mousetrap="[
+        { bind: 'del', handler: () => $emit('delete-track', getSelectedTrack()) },
+        { bind: 'up', handler: () => $emit('select-track-up') },
+        { bind: 'down', handler: () => $emit('select-track-down') },
+        { bind: 'enter', handler: () => $emit('goto-track-first-frame', getSelectedTrack()) }
+      ]"
       :size="45"
       :remain="9"
       :start="selectedOffset"
