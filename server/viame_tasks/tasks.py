@@ -1,7 +1,7 @@
 import json
 import os
 import tempfile
-from subprocess import Popen, PIPE, DEVNULL
+from subprocess import Popen, PIPE
 from pathlib import Path
 
 from girder_worker.app import app
@@ -183,13 +183,19 @@ def convert_images(self, folderId):
             new_item_path = dest_dir / ".".join([*item["name"].split(".")[:-1], "png"])
 
             process = Popen(
-                ["ffmpeg", "-i", item_path, new_item_path],
-                stderr=DEVNULL,
-                stdout=DEVNULL,
+                ["ffmpeg", "-i", item_path, new_item_path], stdout=PIPE, stderr=PIPE
             )
+            stdout, stderr = process.communicate()
 
-            returncode = process.wait()
-            if returncode == 0:
+            output = ""
+            if len(stdout):
+                output = f"{stdout.decode()}\n"
+            if len(stderr):
+                output = f"{output}{stderr.decode()}\n"
+
+            self.job_manager.write(output)
+
+            if process.returncode == 0:
                 gc.delete(f"item/{item['_id']}")
                 gc.uploadFileToFolder(folderId, new_item_path)
                 count += 1
