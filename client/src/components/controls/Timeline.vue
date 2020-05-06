@@ -21,6 +21,8 @@ export default {
       startFrame: 0,
       endFrame: this.maxFrame,
       timelineScale: null,
+      clientWidth: 0,
+      clientHeight: 0,
     };
   },
   computed: {
@@ -69,37 +71,58 @@ export default {
   },
   created() {
     this.update = throttle(this.update, 30);
+    // Only resize when finished dragging the window
+    window.addEventListener('resize', this.resizeHandler);
+  },
+  beforeDestroy() {
+    window.removeEventListener('resize', this.resizeHandler);
   },
   mounted() {
-    const width = this.$refs.workarea.clientWidth;
-    const height = this.$refs.workarea.clientHeight;
-    const scale = d3
-      .scaleLinear()
-      .domain([0, this.maxFrame])
-      .range([0, width]);
-    this.timelineScale = scale;
-    const axis = d3
-      .axisTop()
-      .scale(scale)
-      .tickSize(height - 30)
-      .tickSizeOuter(0);
-    this.axis = axis;
-    this.g = d3
-      .select(this.$refs.workarea)
-      .append('svg')
-      .style('display', 'block')
-      .attr('width', width)
-      .attr('height', height)
-      .append('g')
-      .attr('transform', `translate(0,${height - 17})`);
-    this.updateAxis();
-    this.mounted = true;
+    this.initialize();
   },
   methods: {
+    initialize() {
+      const width = this.$refs.workarea.clientWidth || 0;
+      const height = this.$refs.workarea.clientHeight || 0;
+      // clientWidth and clientHeight are properties used to resize child elements
+      this.clientWidth = width;
+      this.clientHeight = height;
+      const scale = d3
+        .scaleLinear()
+        .domain([0, this.maxFrame])
+        .range([0, width]);
+      this.timelineScale = scale;
+      const axis = d3
+        .axisTop()
+        .scale(scale)
+        .tickSize(height - 30)
+        .tickSizeOuter(0);
+      this.axis = axis;
+      if (!this.svg) {
+        this.svg = d3
+          .select(this.$refs.workarea)
+          .append('svg');
+      }
+      this.svg.style('display', 'block')
+        .attr('width', width)
+        .attr('height', height);
+      if (!this.g) {
+        this.g = this.svg.append('g')
+          .attr('transform', `translate(0,${height - 17})`);
+      }
+
+      this.updateAxis();
+      this.mounted = true;
+    },
+    resizeHandler() {
+      // Debounces resize to prevent it from be calling continuously.
+      clearTimeout(this.resizeTimer);
+      this.resizeTimer = setTimeout(this.initialize, 200);
+    },
     onwheel(e) {
       const extend = Math.round((this.endFrame - this.startFrame) * 0.2)
         * Math.sign(e.deltaY);
-      const ratio = (e.layerX - this.$el.offsetLeft) / this.$el.clientWidth;
+      const ratio = (e.layerX - this.$el.offsetLeft) / this.clientWidth;
       let startFrame = this.startFrame - extend * ratio;
       let endFrame = this.endFrame + extend * (1 - ratio);
       startFrame = Math.max(0, startFrame);
@@ -213,6 +236,8 @@ export default {
           :startFrame="startFrame"
           :endFrame="endFrame"
           :maxFrame="maxFrame"
+          :clientWidth="clientWidth"
+          :clientHeight="clientHeight"
         />
       </div>
     </div>

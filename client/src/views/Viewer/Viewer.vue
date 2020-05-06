@@ -416,13 +416,18 @@ export default defineComponent({
                   :frame="frame"
                   @seek="seek"
                 >
-                  <template #child="{ startFrame, endFrame, maxFrame: childMaxFrame }">
+                  <template
+                    #child="{ startFrame, endFrame, maxFrame: childMaxFrame,
+                              clientWidth, clientHeight}"
+                  >
                     <line-chart
                       v-if="!showTrackView && lineChartData.length > 0"
                       :start-frame="startFrame"
                       :end-frame="endFrame"
                       :max-frame="childMaxFrame"
                       :data="lineChartData"
+                      :client-width="clientWidth"
+                      :client-height="clientHeight"
                     />
                     <event-chart
                       v-if="showTrackView && eventChartData"
@@ -430,6 +435,7 @@ export default defineComponent({
                       :end-frame="endFrame"
                       :max-frame="childMaxFrame"
                       :data="eventChartData"
+                      :client-width="clientWidth"
                     />
                   </template>
                   <v-btn

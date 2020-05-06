@@ -17,6 +17,14 @@ export default {
       type: Number,
       required: true,
     },
+    clientWidth: {
+      type: Number,
+      required: true,
+    },
+    clientHeight: {
+      type: Number,
+      required: true,
+    },
     data: {
       type: Array,
       required: true,
@@ -62,12 +70,23 @@ export default {
         return { ...datum, values: clean };
       });
     },
+    /**
+     * Useful way to compute properties together for a single watcher so if either change
+     * In the future this can be done easily with compositionAPI
+     */
+    clientDimensions() {
+      return { width: this.clientWidth, height: this.clientHeight };
+    },
   },
   watch: {
     startFrame() {
       this.update();
     },
     endFrame() {
+      this.update();
+    },
+    clientDimensions() {
+      this.initialize();
       this.update();
     },
     lineData() {
@@ -92,8 +111,8 @@ export default {
         .append('div')
         .attr('class', 'tooltip')
         .style('display', 'none');
-      const width = this.$el.clientWidth;
-      const height = this.$el.clientHeight;
+      const width = this.clientWidth;
+      const height = this.clientHeight;
       const x = d3
         .scaleLinear()
         .domain([this.startFrame, this.endFrame])

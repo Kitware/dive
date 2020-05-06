@@ -73,10 +73,10 @@ export default {
         <v-col cols="3">
           {{ item.name }}
         </v-col>
-        <v-col cols="1">
+        <v-col cols="2">
           <v-icon>{{ item.icon }}</v-icon>
         </v-col>
-        <v-col col="8">
+        <v-col col="7">
           <div
             v-for="action in item.actions"
             :key="action"

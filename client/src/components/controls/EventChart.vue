@@ -26,6 +26,10 @@ export default {
       type: Number,
       required: true,
     },
+    clientWidth: {
+      type: Number,
+      required: true,
+    },
     data: {
       type: Array,
       required: true,
@@ -104,6 +108,10 @@ export default {
     endFrame() {
       this.update();
     },
+    clientWidth() {
+      this.initialize();
+      this.update();
+    },
     data() {
       this.update();
     },
@@ -119,7 +127,7 @@ export default {
   },
   methods: {
     initialize() {
-      const width = this.$el.clientWidth;
+      const width = this.clientWidth;
       const x = d3
         .scaleLinear()
         .domain([this.startFrame_, this.endFrame_])
@@ -137,7 +145,7 @@ export default {
       if (!bars.length) {
         return;
       }
-      canvas.width = this.$el.clientWidth;
+      canvas.width = this.clientWidth;
       canvas.height = bars.slice(-1)[0].top + 10;
       bars.forEach((bar) => {
         let padding = 0;
