@@ -58,9 +58,9 @@ class GetPathFromFolderId(GirderClientTransform):
 
         return self.folder_path
 
-    # def cleanup(self):
-    #     shutil.rmtree(os.path.dirname(self.folder_path),
-    #                   ignore_errors=True)
+    def cleanup(self):
+        shutil.rmtree(os.path.dirname(self.folder_path),
+                      ignore_errors=True)
 
 
 class GirderUploadToFolder(GirderClientResultTransform):

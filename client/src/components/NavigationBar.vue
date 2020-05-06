@@ -27,8 +27,15 @@ export default {
       },
     });
     this.runningJobIds = runningJobs.map((job) => job._id);
-
-    this.notificationBus.$on('message:job_status', ({ data: job }) => {
+    this.notificationBus.$on('message:job_status', this.handleNotification);
+  },
+  beforeDestroy() {
+    this.notificationBus.$off('message:job_status', this.handleNotification);
+  },
+  methods: {
+    getPathFromLocation,
+    handleNotification({ data: job }) {
+      const jobStatus = all();
       const jobId = job._id;
       switch (job.status) {
         case jobStatus.RUNNING.value:
@@ -46,9 +53,8 @@ export default {
         default:
           break;
       }
-    });
+    },
   },
-  methods: { getPathFromLocation },
 };
 </script>
 
@@ -68,7 +74,10 @@ export default {
         Jobs
         <v-badge
           :value="runningJobIds.length"
-          class="my-badge"
+          overlap
+          bottom
+          offset-x="-6"
+          offset-y="16"
         >
           <template slot="badge">
             <v-icon
@@ -108,9 +117,5 @@ export default {
   to {
     transform: rotate(359deg);
   }
-}
-
-.my-badge .v-badge__badge {
-  top: -8px;
 }
 </style>
