@@ -107,7 +107,7 @@ class Viame(Resource):
         upload_token = self.getCurrentToken()
         convert_images.delay(
             folder["_id"],
-            str(upload_token["_id"]),
+            girder_client_token=str(upload_token["_id"]),
             girder_job_title=f"Converting {folder['_id']} to a web friendly format",
         )
 

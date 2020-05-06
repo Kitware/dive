@@ -152,7 +152,7 @@ def convert_video(self, path, folderId, token, auxiliaryFolderId):
 
 
 @app.task(bind=True)
-def convert_images(self, folderId, token):
+def convert_images(self, folderId):
     """
     Ensures that all images in a folder are in a web friendly format (png or jpeg).
 
@@ -162,7 +162,6 @@ def convert_images(self, folderId, token):
     Returns the number of images successfully converted.
     """
     gc = self.girder_client
-    gc.token = token
 
     items = gc.listItem(folderId)
     skip_item = (
