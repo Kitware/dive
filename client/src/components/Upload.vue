@@ -11,9 +11,10 @@ const webFriendlyImageFileTypes = ['.jpg', '.jpeg', '.png'];
 const imageFileTypes = [...webFriendlyImageFileTypes, '.bmp', '.sgi', '.tif', '.tiff', '.pgm'];
 
 // Utility for commonly used regular expressions
-const videoFilesRegEx = new RegExp(videoFileTypes.join('$|'), 'i');
-const imageFilesRegEx = new RegExp(imageFileTypes.join('$|'), 'i');
-const webFriendlyImageRegEx = new RegExp(webFriendlyImageFileTypes.join('$|'), 'i');
+const videoFilesRegEx = new RegExp(`${videoFileTypes.join('$|')}$`, 'i');
+const imageFilesRegEx = new RegExp(`${imageFileTypes.join('$|')}$`, 'i');
+const webFriendlyImageRegEx = new RegExp(`${webFriendlyImageFileTypes.join('$|')}$`, 'i');
+
 function prepareFiles(files) {
   const videoFilter = (file) => videoFilesRegEx.test(file.name);
   const csvFilter = (file) => /\.csv$/i.test(file.name);
