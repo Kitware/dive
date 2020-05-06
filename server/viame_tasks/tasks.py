@@ -169,13 +169,13 @@ def convert_images(self, folderId):
         or item["name"].endswith(".jpeg")
         or item["name"].endswith(".jpg")
     )
-    valid_items = [item for item in items if not skip_item(item)]
+    items_to_convert = [item for item in items if not skip_item(item)]
 
     count = 0
     with tempfile.TemporaryDirectory() as temp:
         dest_dir = Path(temp)
 
-        for item in valid_items:
+        for item in items_to_convert:
             # Assumes 1 file per item
             gc.downloadItem(item["_id"], dest_dir, item["name"])
 
