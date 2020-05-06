@@ -47,6 +47,10 @@ export default {
       }
       return {};
     },
+
+    comboValue() {
+      return this.track.confidencePairs.length ? this.track.confidencePairs[0][0] : '';
+    },
   },
   watch: {
     track() {
@@ -72,6 +76,12 @@ export default {
         this.editing = true;
       }
     },
+    handleChange(newval) {
+      this.editing = false;
+      if (newval !== this.comboValue) {
+        this.$emit('type-change', newval);
+      }
+    },
   },
 };
 </script>
@@ -87,7 +97,7 @@ export default {
       dense
       hide-details
       :input-value="inputValue"
-      :color="colorMap(track.confidencePairs.length ? track.confidencePairs[0][0] : '')"
+      :color="colorMap(comboValue)"
       @change="$emit('change', $event)"
     />
     <div
@@ -104,19 +114,17 @@ export default {
       class="type-display flex-grow-1 flex-shrink-1 ml-2"
       @click="editing = true"
     >
-      {{
-        track.confidencePairs.length ? track.confidencePairs[0][0] : "undefined"
-      }}
+      {{ comboValue || 'undefined' }}
     </div>
     <v-combobox
       v-else
       ref="trackTypeBox"
       class="ml-2"
-      :value="track.confidencePairs.length ? track.confidencePairs[0][0] : ''"
+      :value="comboValue"
       :items="types"
       dense
       hide-details
-      @change="$emit('type-change', $event)"
+      @input="handleChange"
     />
     <v-menu offset-y>
       <template v-slot:activator="{ on }">
