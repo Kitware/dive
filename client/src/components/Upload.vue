@@ -388,7 +388,7 @@ export default {
                 />
               </v-col>
               <v-col
-                v-if="!pendingUpload.createSubFolders"
+                v-if="pendingUpload.type === 'image-sequence'"
                 cols="2"
               >
                 <v-text-field

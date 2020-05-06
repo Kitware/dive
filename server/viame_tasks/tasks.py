@@ -118,7 +118,11 @@ def convert_video(self, path, folderId, token, auxiliaryFolderId):
     videostream = list(filter(lambda x: x["codec_type"] == "video", jsoninfo["streams"]))
     if len(videostream) != 1:
         raise Exception('Expected 1 video stream, found {}'.format(len(videostream)))
-    self.girder_client.addMetadataToFolder(folderId, videostream[0])
+
+    self.girder_client.addMetadataToFolder(folderId, {
+        "fps": 5,  # TODO: current time system doesn't allow for non-int framerates
+        "ffprobe_info": videostream[0],
+    })
 
     process = Popen(
         [
