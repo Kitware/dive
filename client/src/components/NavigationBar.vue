@@ -28,12 +28,17 @@ export default {
     });
     this.runningJobIds = runningJobs.map((job) => job._id);
     this.notificationBus.$on('message:job_status', this.handleNotification);
+    this.girderRest.$on('logout', this.onLogout);
   },
   beforeDestroy() {
+    this.girderRest.$off('logout', this.onLogout);
     this.notificationBus.$off('message:job_status', this.handleNotification);
   },
   methods: {
     getPathFromLocation,
+    onLogout() {
+      this.$router.push({ name: 'login' });
+    },
     handleNotification({ data: job }) {
       const jobStatus = all();
       const jobId = job._id;

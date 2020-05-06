@@ -54,6 +54,12 @@ VIAME server will be running at http://localhost:8010/
 
 > **Note:** In order to build images yourself, the `.git` folder must exist, so you must `git clone` from source control.  A release archive zip can be used too, but only to run pre-built images from a container registry.
 
+You can run the data viewer without needing GPU support as well
+
+``` bash
+docker-compose -f docker/docker-compose.yml up girder
+```
+
 ## Example Data
 
 ### Input
