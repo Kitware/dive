@@ -41,25 +41,20 @@ export default {
       checkedTracks_: this.checkedTracks,
       item: TrackItem,
       visibleItems: 9,
+      selectedOffset: 0,
     };
   },
-  computed: {
-    /**
-     * Computes the offset for the virtual scroll list and highlighting
-     */
-    selectedOffset() {
-      let offset = this.tracks.map((item) => item.trackId).indexOf(this.selectedTrackId);
-      if (offset === -1) {
-        offset = this.tracks.length - 1;
-      } else {
-        offset -= Math.floor(this.visibleItems / 2);
-      }
-      return offset;
-    },
-  },
   watch: {
+    selectedTrackId() {
+      this.calculateOffset();
+    },
     checkedTracks(value) {
       this.checkedTracks_ = value;
+      /* This is done because after creating a new track checkedTracks are edited.
+         A new track is selected and created before detection, so just watching
+         selectedTrackId won't cover all cases.
+      */
+      this.calculateOffset();
     },
     checkedTracks_(value) {
       this.$emit('update:checkedTracks', value);
@@ -68,6 +63,15 @@ export default {
   methods: {
     getSelectedTrack() {
       return this.tracks.find((track) => track.trackId === this.selectedTrackId);
+    },
+    calculateOffset() {
+      let offset = this.tracks.map((item) => item.trackId).indexOf(this.selectedTrackId);
+      if (offset === -1) {
+        offset = this.tracks.length - 1;
+      } else {
+        offset -= Math.floor(this.visibleItems / 2);
+      }
+      this.selectedOffset = offset;
     },
     getItemProps(itemIndex) {
       const track = this.tracks[itemIndex];
