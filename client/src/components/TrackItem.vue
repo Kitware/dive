@@ -47,6 +47,10 @@ export default {
       }
       return {};
     },
+
+    comboValue() {
+      return this.track.confidencePairs.length ? this.track.confidencePairs[0][0] : '';
+    },
   },
   watch: {
     track() {
@@ -72,6 +76,12 @@ export default {
         this.editing = true;
       }
     },
+    handleChange(newval) {
+      this.editing = false;
+      if (newval !== this.comboValue) {
+        this.$emit('type-change', newval);
+      }
+    },
   },
 };
 </script>
@@ -87,7 +97,7 @@ export default {
       dense
       hide-details
       :input-value="inputValue"
-      :color="colorMap(track.confidencePairs.length ? track.confidencePairs[0][0] : '')"
+      :color="colorMap(comboValue)"
       @change="$emit('change', $event)"
     />
     <div
