@@ -196,8 +196,8 @@ def convert_images(self, folderId):
             self.job_manager.write(output)
 
             if process.returncode == 0:
-                gc.delete(f"item/{item['_id']}")
                 gc.uploadFileToFolder(folderId, new_item_path)
+                gc.delete(f"item/{item['_id']}")
                 count += 1
 
     return count
