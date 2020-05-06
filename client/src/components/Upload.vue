@@ -6,7 +6,7 @@ import {
 } from '@girder/components/src/utils/mixins';
 
 // Supported File Types
-const videoFileTypes = ['.mp4', '.avi', '.mov'];
+const videoFileTypes = ['.mp4', '.avi', '.mov', '.mpg'];
 const imageFileTypes = ['.jpg', '.jpeg', '.png', '.bmp'];
 // Utility for commonly used regular expressions
 const videoFilesRegEx = new RegExp(videoFileTypes.join('$|'), 'i');
@@ -388,7 +388,7 @@ export default {
                 />
               </v-col>
               <v-col
-                v-if="!pendingUpload.createSubFolders"
+                v-if="pendingUpload.type === 'image-sequence'"
                 cols="2"
               >
                 <v-text-field

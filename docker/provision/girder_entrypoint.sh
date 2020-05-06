@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 python3 /home/provision/init_girder.py
-girder serve --host 0.0.0.0
+exec /tini -v -- girder serve --host 0.0.0.0

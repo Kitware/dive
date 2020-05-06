@@ -9,32 +9,24 @@ COPY client/ /app/
 RUN yarn build
 
 
-FROM python:3.7-slim as runtime
-EXPOSE 8080
-# Set environment to support Unicode: http://click.pocoo.org/5/python3/#python-3-surrogate-handling
-ENV LC_ALL=C.UTF-8
-ENV LANG=C.UTF-8
-WORKDIR /girder
-COPY --from=girder/girder:latest /girder/ /girder/
-# avoid psutil GCC dependency by using unofficial large_image wheel
-RUN apt-get update \
-  && apt-get install -qy git \
-  && pip install \
-    --no-cache-dir \
-    --find-links https://girder.github.io/large_image_wheels \
-    --upgrade-strategy eager . \
-  && apt-get remove --purge -qy git \
-  && apt-get clean \
-  && rm -rf /var/lib/apt/lists/* \
-  && rm -rf /girder/.git
-COPY --from=girder/girder:latest /usr/share/girder/static/ /usr/local/share/girder/static/
+FROM girder/girder as runtime
 
-WORKDIR /home
-# modify this based on where you are running docker-compose from
-COPY docker/provision provision
-COPY server viame_girder
-RUN cd viame_girder && pip install --no-cache-dir .
-# Bring in the client from girder
-COPY --from=builder /app/dist/ /usr/local/share/girder/static/viame/
+COPY --from=builder /app/dist/ /usr/share/girder/static/viame/
 
-ENTRYPOINT ["/home/provision/girder_entrypoint.sh"]
+# install tini init system
+ENV TINI_VERSION v0.19.0
+ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini /tini
+RUN chmod +x /tini
+
+WORKDIR /home/viame_girder
+
+COPY docker/provision /home/provision
+COPY server/setup.py /home/viame_girder/
+RUN pip install --no-cache-dir .
+
+COPY server/ /home/viame_girder/
+RUN pip install --no-deps .
+
+RUN girder build
+
+ENTRYPOINT [ "/home/provision/girder_entrypoint.sh" ]

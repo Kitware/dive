@@ -1,9 +1,12 @@
+import os
 import sys
 import re
 from pathlib import Path
 from os import getenv
 
 from girder import events, plugin
+from girder.models.setting import Setting
+from girder_worker.girder_plugin import WorkerPlugin
 
 from .client_webroot import ClientWebroot
 from .viame import Viame
@@ -39,6 +42,7 @@ def load_pipelines():
 
 class GirderPlugin(plugin.GirderPlugin):
     def load(self, info):
+        
         info["apiRoot"].viame = Viame(pipelines=load_pipelines())
         info["apiRoot"].viame_detection = ViameDetection()
         # Relocate Girder
@@ -56,3 +60,10 @@ class GirderPlugin(plugin.GirderPlugin):
         events.bind(
             "model.upload.finalize", "fileUpload", maybe_mark_folder_for_annotation
         )
+
+        # Create dependency on worker
+        plugin.getPlugin('worker').load(info)
+        Setting().set('worker.api_url', os.environ.get('WORKER_API_URL', 'http://girder:8080/api/v1'))
+        Setting().set('worker.broker', os.environ.get('WORKER_BROKER', 'amqp://guest:guest@rabbit/'))
+        Setting().set('worker.backend', os.environ.get('WORKER_BACKEND', 'amqp://guest:guest@rabbit/'))
+

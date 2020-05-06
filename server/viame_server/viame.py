@@ -53,13 +53,15 @@ class Viame(Resource):
     def run_pipeline_task(self, folder, pipeline):
         user = self.getCurrentUser()
         move_existing_result_to_auxiliary_folder(folder, user)
-        metadata = {"folderId": str(folder["_id"]), "pipeline": pipeline}
-        run_pipeline.delay(
+        input_type = folder["meta"]["type"]
+        result_metadata = { "detection": str(folder["_id"]), "pipeline": pipeline }
+        return run_pipeline.delay(
             GetPathFromFolderId(str(folder["_id"])),
             pipeline,
-            girder_job_title=("Runnin {} on {}".format(pipeline, str(folder["_id"]))),
+            input_type,
+            girder_job_title=("Running {} on {}".format(pipeline, str(folder["name"]))),
             girder_result_hooks=[
-                GirderUploadToFolder(str(folder["_id"]), metadata, delete_file=True)
+                GirderUploadToFolder(str(folder["_id"]), result_metadata, delete_file=True)
             ],
         )
 

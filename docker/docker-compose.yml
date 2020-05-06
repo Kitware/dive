@@ -1,5 +1,5 @@
 ## Use this to start the girder/ girder-worker ecosystem
-version: "3.2"
+version: "2.4"
 services:
 
   rabbit:
@@ -21,7 +21,8 @@ services:
       - "8010:8080"
     volumes:
       - girder_assetstore:/home/assetstore
-      - pipelines:${VIAME_PIPELINES_PATH:-/home/VIAME/pipelines}:ro
+      # Mount pipeline directory from girder_worker
+      - pipelines:${VIAME_PIPELINES_PATH}:ro
       - type: bind
         source: ${PUBLIC_DATA_PATH}
         target: /data/public
@@ -29,28 +30,27 @@ services:
         volume:
           nocopy: true
     environment:
-      - VIAME_PIPELINES_PATH=${VIAME_PIPELINES_PATH:-/home/VIAME/pipelines}
+      - VIAME_PIPELINES_PATH=${VIAME_PIPELINES_PATH}
       - GIRDER_MONGO_URI=mongodb://mongo:27017/girder
       - GIRDER_ADMIN_USER=${GIRDER_ADMIN_USER}
       - GIRDER_ADMIN_PASS=${GIRDER_ADMIN_PASS}
+      - CELERY_BROKER_URL=amqp://guest:guest@rabbit/
+      - BROKER_CONNECTION_TIMEOUT=2
 
   girder_worker:
+    runtime: 'nvidia'
+    build:
+      context: ../
+      dockerfile: docker/girder_worker.Dockerfile
     volumes:
-      - ./server:/home/viame_girder
-      - pipelines:/home/VIAME/build/install/configs/pipelines
+      # Exposes pipeline directory to girder so it can see what pipelines are available.
+      - pipelines:${VIAME_PIPELINES_PATH}:ro
     depends_on:
       - rabbit
     environment:
-      - GIRDER_WORKER_BROKER=amqp://guest:guest@rabbit/
-      - GIRDER_WORKER_BACKEND=amqp://guest:guest@rabbit/
-      - GIRDER_WORKER_PLUGINS_ENABLED=girder_io
+      - VIAME_PIPELINES_PATH=${VIAME_PIPELINES_PATH}
       - CELERY_BROKER_URL=amqp://guest:guest@rabbit/
-
-    # Swap this and the build step if you need to change things locally
-    # image: gitlab.kitware.com:4567/opengeoscience/viameweb/app/girder_worker
-    build:
-      context: ../
-      dockerfile: docker/viame_girder_worker.Dockerfile
+      - BROKER_CONNECTION_TIMEOUT=2
 
 volumes:
   pipelines:
