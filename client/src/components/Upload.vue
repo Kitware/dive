@@ -7,10 +7,13 @@ import {
 
 // Supported File Types
 const videoFileTypes = ['.mp4', '.avi', '.mov', '.mpg'];
-const imageFileTypes = ['.jpg', '.jpeg', '.png', '.bmp'];
+const webFriendlyImageFileTypes = ['.jpg', '.jpeg', '.png'];
+const imageFileTypes = [...webFriendlyImageFileTypes, '.bmp', '.sgi', '.tif', '.tiff', '.pgm'];
+
 // Utility for commonly used regular expressions
 const videoFilesRegEx = new RegExp(videoFileTypes.join('$|'), 'i');
 const imageFilesRegEx = new RegExp(imageFileTypes.join('$|'), 'i');
+const webFriendlyImageRegEx = new RegExp(webFriendlyImageFileTypes.join('$|'), 'i');
 function prepareFiles(files) {
   const videoFilter = (file) => videoFilesRegEx.test(file.name);
   const csvFilter = (file) => /\.csv$/i.test(file.name);
@@ -317,6 +320,15 @@ export default {
           folder,
           results: data.results,
         });
+
+        // Make sure that we don't run the conversion task for no reason
+        const filtered = files.filter(({ file: { name: fileName } }) => (
+          !webFriendlyImageRegEx.test(fileName)
+        ));
+
+        if (filtered.length) {
+          this.girderRest.post('/viame/image_conversion', null, { params: { folder: folder._id } });
+        }
       };
 
       // Sets the files used by the fileUploader mixin

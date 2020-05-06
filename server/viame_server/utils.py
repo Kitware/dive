@@ -2,9 +2,10 @@ from girder.models.item import Item
 from girder.models.folder import Folder
 
 
-validImageFormats = {"png", "jpg", "jpeg"}
+validImageFormats = {"png", "jpg", "jpeg", "tif", "tiff", "sgi", ".bmp", ".pgm"}
 validVideoFormats = {"avi", "mp4", "mov", "mpg"}
 webValidVideoFormats = {"mp4"}
+
 
 # Ad hoc way to guess the FPS of an Image Sequence based on file names
 # Currently not being used, can only be used once you know that all items
