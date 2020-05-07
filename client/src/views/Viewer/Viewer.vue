@@ -472,6 +472,7 @@ export default defineComponent({
             :geojson="editingDetectionGeojson"
             :feature-style="editingBoxLayerStyle"
             @update:geojson="detectionChanged"
+            @update:editing="setTrackEditMode(editingTrackId, false)"
           />
           <edit-annotation-layer
             v-if="featurePointing"

@@ -106,7 +106,7 @@ export default {
           this.$geojsLayer.mode('edit', annotation);
           this.$geojsLayer.draw();
         }
-      } else if (this.editing) {
+      } else if (!this.editing) {
         this.changed = true;
         if (typeof this.editing !== 'string') {
           throw new Error(
@@ -146,6 +146,8 @@ export default {
               };
             }
             this.$emit('update:geojson', geojson);
+          } else {
+            this.$emit('update:editing', false);
           }
         }
       });
