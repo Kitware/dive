@@ -1,13 +1,18 @@
 from girder.api import access
-from girder.constants import AccessType
 from girder.api.describe import Description, autoDescribeRoute, describeRoute
 from girder.api.rest import Resource
+from girder.constants import AccessType
 from girder.models.folder import Folder
 from girder.models.item import Item
-from viame_tasks.tasks import run_pipeline, convert_video
 
-from .transforms import GetPathFromItemId, GetPathFromFolderId, GirderUploadToFolder
+from viame_tasks.tasks import convert_video, run_pipeline
+
 from .model.attribute import Attribute
+from .transforms import (
+    GetPathFromFolderId,
+    GetPathFromItemId,
+    GirderUploadToFolder,
+)
 from .utils import (
     get_or_create_auxiliary_folder,
     move_existing_result_to_auxiliary_folder,
@@ -54,14 +59,21 @@ class Viame(Resource):
         user = self.getCurrentUser()
         move_existing_result_to_auxiliary_folder(folder, user)
         input_type = folder["meta"]["type"]
-        result_metadata = { "detection": str(folder["_id"]), "pipeline": pipeline }
+        result_metadata = {
+            "detection": str(folder["_id"]),
+            "pipeline": pipeline,
+        }
         return run_pipeline.delay(
             GetPathFromFolderId(str(folder["_id"])),
             pipeline,
             input_type,
-            girder_job_title=("Running {} on {}".format(pipeline, str(folder["name"]))),
+            girder_job_title=(
+                "Running {} on {}".format(pipeline, str(folder["name"]))
+            ),
             girder_result_hooks=[
-                GirderUploadToFolder(str(folder["_id"]), result_metadata, delete_file=True)
+                GirderUploadToFolder(
+                    str(folder["_id"]), result_metadata, delete_file=True
+                )
             ],
         )
 
@@ -87,13 +99,17 @@ class Viame(Resource):
             str(upload_token["_id"]),
             auxiliary["_id"],
             girder_job_title=(
-                "Converting {} to a web friendly format".format(str(item["_id"]))
+                "Converting {} to a web friendly format".format(
+                    str(item["_id"])
+                )
             ),
         )
 
     @access.user
     @autoDescribeRoute(
-        Description("").jsonParam("data", "", requireObject=True, paramType="body")
+        Description("").jsonParam(
+            "data", "", requireObject=True, paramType="body"
+        )
     )
     def create_attribute(self, data, params):
         attribute = Attribute().create(
@@ -119,6 +135,8 @@ class Viame(Resource):
         return Attribute().save(attribute)
 
     @access.user
-    @autoDescribeRoute(Description("").modelParam("id", model=Attribute, required=True))
+    @autoDescribeRoute(
+        Description("").modelParam("id", model=Attribute, required=True)
+    )
     def delete_attribute(self, attribute, params):
         return Attribute().remove(attribute)

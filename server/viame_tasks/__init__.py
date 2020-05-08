@@ -1,4 +1,5 @@
 import logging
+
 from girder_worker import GirderWorkerPluginABC
 
 logging.basicConfig(format="%(levelname)s:%(message)s", level=logging.INFO)

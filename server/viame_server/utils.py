@@ -1,6 +1,5 @@
-from girder.models.item import Item
 from girder.models.folder import Folder
-
+from girder.models.item import Item
 
 validImageFormats = {"png", "jpg", "jpeg"}
 validVideoFormats = {"avi", "mp4", "mov", "mpg"}
@@ -37,7 +36,9 @@ def determine_image_sequence_fps(folder):
 
 
 def get_or_create_auxiliary_folder(folder, user):
-    return Folder().createFolder(folder, "auxiliary", reuseExisting=True, creator=user)
+    return Folder().createFolder(
+        folder, "auxiliary", reuseExisting=True, creator=user
+    )
 
 
 def move_existing_result_to_auxiliary_folder(folder, user):

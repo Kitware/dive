@@ -2,15 +2,21 @@ import json
 import os
 import re
 import tempfile
-from subprocess import Popen, PIPE
+from subprocess import PIPE, Popen
 
 from girder_worker.app import app
 from girder_worker.utils import JobStatus
 
+
 class Config:
     def __init__(self):
-        self.pipeline_base_path = os.environ.get('VIAME_PIPELINES_PATH', '/opt/noaa/viame/configs/pipelines/')
-        self.viame_install_path = os.environ.get('VIAME_INSTALL_PATH', '/opt/noaa/viame')
+        self.pipeline_base_path = os.environ.get(
+            'VIAME_PIPELINES_PATH', '/opt/noaa/viame/configs/pipelines/'
+        )
+        self.viame_install_path = os.environ.get(
+            'VIAME_INSTALL_PATH', '/opt/noaa/viame'
+        )
+
 
 # TODO: Need to test with runnable viameweb
 @app.task(bind=True)
@@ -31,8 +37,9 @@ def run_pipeline(self, input_path, pipeline, input_type):
     for file_name in directory_files:
         full_file_path = os.path.join(input_path, file_name)
         is_directory = os.path.isdir(full_file_path)
-        if (not is_directory) and \
-           (not os.path.splitext(file_name)[1].lower() == '.csv'):
+        if (not is_directory) and (
+            not os.path.splitext(file_name)[1].lower() == '.csv'
+        ):
             filtered_directory_files.append(file_name)
 
     if len(filtered_directory_files) == 0:
@@ -75,10 +82,16 @@ def run_pipeline(self, input_path, pipeline, input_type):
 
     cmd = " ".join(command)
     print('Running command:', cmd)
-    process = Popen(cmd, stderr=PIPE, stdout=PIPE, shell=True, executable='/bin/bash')
+    process = Popen(
+        cmd, stderr=PIPE, stdout=PIPE, shell=True, executable='/bin/bash'
+    )
     stdout, stderr = process.communicate()
     if process.returncode > 0:
-        raise RuntimeError('Pipeline exited with nonzero status code {}: {}'.format(process.returncode, str(stderr)))
+        raise RuntimeError(
+            'Pipeline exited with nonzero status code {}: {}'.format(
+                process.returncode, str(stderr)
+            )
+        )
     else:
         self.job_manager.write(str(stdout) + "\n" + str(stderr))
 
@@ -106,8 +119,10 @@ def convert_video(self, path, folderId, token, auxiliaryFolderId):
     file_name = os.path.join(path, os.listdir(path)[0])
     command = [
         "ffprobe",
-        "-print_format", "json",
-        "-v", "quiet",
+        "-print_format",
+        "json",
+        "-v",
+        "quiet",
         "-show_format",
         "-show_streams",
         file_name,
@@ -115,14 +130,21 @@ def convert_video(self, path, folderId, token, auxiliaryFolderId):
     process = Popen(command, stderr=PIPE, stdout=PIPE)
     stdout = process.communicate()[0]
     jsoninfo = json.loads(stdout.decode('utf-8'))
-    videostream = list(filter(lambda x: x["codec_type"] == "video", jsoninfo["streams"]))
+    videostream = list(
+        filter(lambda x: x["codec_type"] == "video", jsoninfo["streams"])
+    )
     if len(videostream) != 1:
-        raise Exception('Expected 1 video stream, found {}'.format(len(videostream)))
+        raise Exception(
+            'Expected 1 video stream, found {}'.format(len(videostream))
+        )
 
-    self.girder_client.addMetadataToFolder(folderId, {
-        "fps": 5,  # TODO: current time system doesn't allow for non-int framerates
-        "ffprobe_info": videostream[0],
-    })
+    self.girder_client.addMetadataToFolder(
+        folderId,
+        {
+            "fps": 5,  # TODO: current time system doesn't allow for non-int framerates
+            "ffprobe_info": videostream[0],
+        },
+    )
 
     process = Popen(
         [
