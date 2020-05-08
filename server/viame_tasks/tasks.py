@@ -1,11 +1,10 @@
 import json
 import os
-import re
 import tempfile
-from subprocess import PIPE, Popen
+from subprocess import Popen, PIPE
+from pathlib import Path
 
 from girder_worker.app import app
-from girder_worker.utils import JobStatus
 
 
 class Config:
@@ -172,3 +171,55 @@ def convert_video(self, path, folderId, token, auxiliaryFolderId):
         _file["itemId"], {"folderId": folderId, "codec": "h264"}
     )
     os.remove(output_path)
+
+
+@app.task(bind=True)
+def convert_images(self, folderId):
+    """
+    Ensures that all images in a folder are in a web friendly format (png or jpeg).
+
+    If conversions succeeds for an image, it will replace the image with an image
+    of the same name, but in a web friendly extension.
+
+    Returns the number of images successfully converted.
+    """
+    gc = self.girder_client
+
+    items = gc.listItem(folderId)
+    skip_item = (
+        lambda item: item["name"].endswith(".png")
+        or item["name"].endswith(".jpeg")
+        or item["name"].endswith(".jpg")
+    )
+    items_to_convert = [item for item in items if not skip_item(item)]
+
+    count = 0
+    with tempfile.TemporaryDirectory() as temp:
+        dest_dir = Path(temp)
+
+        for item in items_to_convert:
+            # Assumes 1 file per item
+            gc.downloadItem(item["_id"], dest_dir, item["name"])
+
+            item_path = dest_dir / item["name"]
+            new_item_path = dest_dir / ".".join([*item["name"].split(".")[:-1], "png"])
+
+            process = Popen(
+                ["ffmpeg", "-i", item_path, new_item_path], stdout=PIPE, stderr=PIPE
+            )
+            stdout, stderr = process.communicate()
+
+            output = ""
+            if len(stdout):
+                output = f"{stdout.decode()}\n"
+            if len(stderr):
+                output = f"{output}{stderr.decode()}\n"
+
+            self.job_manager.write(output)
+
+            if process.returncode == 0:
+                gc.uploadFileToFolder(folderId, new_item_path)
+                gc.delete(f"item/{item['_id']}")
+                count += 1
+
+    return count

@@ -4,6 +4,7 @@ from girder.api.rest import Resource
 from girder.constants import AccessType
 from girder.models.folder import Folder
 from girder.models.item import Item
+from viame_tasks.tasks import run_pipeline, convert_video, convert_images
 
 from viame_tasks.tasks import convert_video, run_pipeline
 
@@ -28,6 +29,7 @@ class Viame(Resource):
         self.route("GET", ("pipelines",), self.get_pipelines)
         self.route("POST", ("pipeline",), self.run_pipeline_task)
         self.route("POST", ("conversion",), self.run_conversion_task)
+        self.route("POST", ("image_conversion",), self.convert_folder_images)
         self.route("POST", ("attribute",), self.create_attribute)
         self.route("GET", ("attribute",), self.get_attributes)
         self.route("PUT", ("attribute", ":id"), self.update_attribute)
@@ -107,9 +109,26 @@ class Viame(Resource):
 
     @access.user
     @autoDescribeRoute(
-        Description("").jsonParam(
-            "data", "", requireObject=True, paramType="body"
+        Description("Convert a folder of images into a web friendly format").modelParam(
+            "folder",
+            description="Folder containing the images to convert",
+            model=Folder,
+            paramType="query",
+            required=True,
+            level=AccessType.WRITE,
         )
+    )
+    def convert_folder_images(self, folder):
+        upload_token = self.getCurrentToken()
+        convert_images.delay(
+            folder["_id"],
+            girder_client_token=str(upload_token["_id"]),
+            girder_job_title=f"Converting {folder['_id']} to a web friendly format",
+        )
+
+    @access.user
+    @autoDescribeRoute(
+        Description("").jsonParam("data", "", requireObject=True, paramType="body")
     )
     def create_attribute(self, data, params):
         attribute = Attribute().create(
