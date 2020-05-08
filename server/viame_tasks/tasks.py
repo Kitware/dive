@@ -1,8 +1,8 @@
 import json
 import os
 import tempfile
-from subprocess import Popen, PIPE
 from pathlib import Path
+from subprocess import PIPE, Popen
 
 from girder_worker.app import app
 
@@ -202,10 +202,14 @@ def convert_images(self, folderId):
             gc.downloadItem(item["_id"], dest_dir, item["name"])
 
             item_path = dest_dir / item["name"]
-            new_item_path = dest_dir / ".".join([*item["name"].split(".")[:-1], "png"])
+            new_item_path = dest_dir / ".".join(
+                [*item["name"].split(".")[:-1], "png"]
+            )
 
             process = Popen(
-                ["ffmpeg", "-i", item_path, new_item_path], stdout=PIPE, stderr=PIPE
+                ["ffmpeg", "-i", item_path, new_item_path],
+                stdout=PIPE,
+                stderr=PIPE,
             )
             stdout, stderr = process.communicate()
 

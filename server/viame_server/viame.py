@@ -4,9 +4,8 @@ from girder.api.rest import Resource
 from girder.constants import AccessType
 from girder.models.folder import Folder
 from girder.models.item import Item
-from viame_tasks.tasks import run_pipeline, convert_video, convert_images
 
-from viame_tasks.tasks import convert_video, run_pipeline
+from viame_tasks.tasks import convert_images, convert_video, run_pipeline
 
 from .model.attribute import Attribute
 from .transforms import (
@@ -109,7 +108,9 @@ class Viame(Resource):
 
     @access.user
     @autoDescribeRoute(
-        Description("Convert a folder of images into a web friendly format").modelParam(
+        Description(
+            "Convert a folder of images into a web friendly format"
+        ).modelParam(
             "folder",
             description="Folder containing the images to convert",
             model=Folder,
@@ -128,7 +129,9 @@ class Viame(Resource):
 
     @access.user
     @autoDescribeRoute(
-        Description("").jsonParam("data", "", requireObject=True, paramType="body")
+        Description("").jsonParam(
+            "data", "", requireObject=True, paramType="body"
+        )
     )
     def create_attribute(self, data, params):
         attribute = Attribute().create(
