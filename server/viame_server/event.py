@@ -15,9 +15,7 @@ def check_existing_annotations(event):
         folder = Folder().findOne({"_id": item["folderId"]})
 
         # FPS is hardcoded for now
-        folder["meta"].update(
-            {"type": "image-sequence", "viame": True, "fps": 30}
-        )
+        folder["meta"].update({"type": "image-sequence", "viame": True, "fps": 30})
         Folder().save(folder)
 
 
@@ -30,9 +28,7 @@ def maybe_mark_folder_for_annotation(event):
     parent = Folder().findOne({"_id": info["parentId"]})
 
     fileType = info["mimeType"].split("/")[-1]
-    validFileType = (
-        fileType in validImageFormats or fileType in validVideoFormats
-    )
+    validFileType = fileType in validImageFormats or fileType in validVideoFormats
 
     if validFileType and parent["meta"].get("viame"):
         parent["meta"]["annotate"] = True

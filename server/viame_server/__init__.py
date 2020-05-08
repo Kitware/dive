@@ -57,9 +57,7 @@ class GirderPlugin(plugin.GirderPlugin):
             check_existing_annotations,
         )
         events.bind(
-            "model.upload.finalize",
-            "fileUpload",
-            maybe_mark_folder_for_annotation,
+            "model.upload.finalize", "fileUpload", maybe_mark_folder_for_annotation,
         )
 
         # Create dependency on worker

@@ -68,9 +68,7 @@ class Viame(Resource):
             GetPathFromFolderId(str(folder["_id"])),
             pipeline,
             input_type,
-            girder_job_title=(
-                "Running {} on {}".format(pipeline, str(folder["name"]))
-            ),
+            girder_job_title=("Running {} on {}".format(pipeline, str(folder["name"]))),
             girder_result_hooks=[
                 GirderUploadToFolder(
                     str(folder["_id"]), result_metadata, delete_file=True
@@ -100,17 +98,13 @@ class Viame(Resource):
             str(upload_token["_id"]),
             auxiliary["_id"],
             girder_job_title=(
-                "Converting {} to a web friendly format".format(
-                    str(item["_id"])
-                )
+                "Converting {} to a web friendly format".format(str(item["_id"]))
             ),
         )
 
     @access.user
     @autoDescribeRoute(
-        Description(
-            "Convert a folder of images into a web friendly format"
-        ).modelParam(
+        Description("Convert a folder of images into a web friendly format").modelParam(
             "folder",
             description="Folder containing the images to convert",
             model=Folder,
@@ -129,9 +123,7 @@ class Viame(Resource):
 
     @access.user
     @autoDescribeRoute(
-        Description("").jsonParam(
-            "data", "", requireObject=True, paramType="body"
-        )
+        Description("").jsonParam("data", "", requireObject=True, paramType="body")
     )
     def create_attribute(self, data, params):
         attribute = Attribute().create(
@@ -157,8 +149,6 @@ class Viame(Resource):
         return Attribute().save(attribute)
 
     @access.user
-    @autoDescribeRoute(
-        Description("").modelParam("id", model=Attribute, required=True)
-    )
+    @autoDescribeRoute(Description("").modelParam("id", model=Attribute, required=True))
     def delete_attribute(self, attribute, params):
         return Attribute().remove(attribute)

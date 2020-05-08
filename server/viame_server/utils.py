@@ -39,9 +39,7 @@ def determine_image_sequence_fps(folder):
 
 
 def get_or_create_auxiliary_folder(folder, user):
-    return Folder().createFolder(
-        folder, "auxiliary", reuseExisting=True, creator=user
-    )
+    return Folder().createFolder(folder, "auxiliary", reuseExisting=True, creator=user)
 
 
 def move_existing_result_to_auxiliary_folder(folder, user):

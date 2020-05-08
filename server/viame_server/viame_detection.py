@@ -42,8 +42,7 @@ class ViameDetection(Resource):
     def get_detection(self, folder):
         detectionItems = list(
             Item().findWithPermissions(
-                {"meta.detection": str(folder["_id"])},
-                user=self.getCurrentUser(),
+                {"meta.detection": str(folder["_id"])}, user=self.getCurrentUser(),
             )
         )
         detectionItems.sort(key=lambda d: d["created"], reverse=True)
@@ -65,9 +64,7 @@ class ViameDetection(Resource):
     )
     def get_clip_meta(self, folder):
         detections = list(
-            Item()
-            .find({"meta.detection": str(folder["_id"])})
-            .sort([("created", -1)])
+            Item().find({"meta.detection": str(folder["_id"])}).sort([("created", -1)])
         )
         detection = detections[0] if len(detections) else None
 
@@ -129,19 +126,13 @@ class ViameDetection(Resource):
                 columns += [key, confidence]
             if d["features"]:
                 for [key, values] in d["features"].items():
-                    columns.append(
-                        "(kp) {} {} {}".format(key, values[0], values[1])
-                    )
+                    columns.append("(kp) {} {} {}".format(key, values[0], values[1]))
             if d["attributes"]:
                 for [key, value] in d["attributes"].items():
-                    columns.append(
-                        "(atr) {} {}".format(key, valueToString(value))
-                    )
+                    columns.append("(atr) {} {}".format(key, valueToString(value)))
             if trackAttributes:
                 for [key, value] in trackAttributes.items():
-                    columns.append(
-                        "(trk-atr) {} {}".format(key, valueToString(value))
-                    )
+                    columns.append("(trk-atr) {} {}".format(key, valueToString(value)))
             return columns
 
         detections.sort(key=lambda d: d["track"])
@@ -165,9 +156,7 @@ class ViameDetection(Resource):
         move_existing_result_to_auxiliary_folder(folder, user)
 
         timestamp = datetime.now().strftime("%m-%d-%Y_%H:%M:%S")
-        newResultItem = Item().createItem(
-            "result_" + timestamp + ".csv", user, folder
-        )
+        newResultItem = Item().createItem("result_" + timestamp + ".csv", user, folder)
         Item().setMetadata(
             newResultItem, {"detection": str(folder["_id"])}, allowNull=True,
         )

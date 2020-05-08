@@ -75,12 +75,7 @@ class GirderUploadToFolder(GirderClientResultTransform):
     """
 
     def __init__(
-        self,
-        _id,
-        metadata=None,
-        delete_file=False,
-        upload_kwargs=None,
-        **kwargs,
+        self, _id, metadata=None, delete_file=False, upload_kwargs=None, **kwargs,
     ):
         super(GirderUploadToFolder, self).__init__(**kwargs)
         self.folder_id = _id

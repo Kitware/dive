@@ -14,9 +14,7 @@ class ClientWebroot(WebrootBase):
         }
 
     def GET(self, **params):
-        file = open(
-            os.path.join(constants.STATIC_ROOT_DIR, "viame", "index.html"), "r"
-        )
+        file = open(os.path.join(constants.STATIC_ROOT_DIR, "viame", "index.html"), "r")
         return file.read()
 
     def DELETE(self, **params):

@@ -81,9 +81,7 @@ def run_pipeline(self, input_path, pipeline, input_type):
 
     cmd = " ".join(command)
     print('Running command:', cmd)
-    process = Popen(
-        cmd, stderr=PIPE, stdout=PIPE, shell=True, executable='/bin/bash'
-    )
+    process = Popen(cmd, stderr=PIPE, stdout=PIPE, shell=True, executable='/bin/bash')
     stdout, stderr = process.communicate()
     if process.returncode > 0:
         raise RuntimeError(
@@ -133,9 +131,7 @@ def convert_video(self, path, folderId, token, auxiliaryFolderId):
         filter(lambda x: x["codec_type"] == "video", jsoninfo["streams"])
     )
     if len(videostream) != 1:
-        raise Exception(
-            'Expected 1 video stream, found {}'.format(len(videostream))
-        )
+        raise Exception('Expected 1 video stream, found {}'.format(len(videostream)))
 
     self.girder_client.addMetadataToFolder(
         folderId,
@@ -202,14 +198,10 @@ def convert_images(self, folderId):
             gc.downloadItem(item["_id"], dest_dir, item["name"])
 
             item_path = dest_dir / item["name"]
-            new_item_path = dest_dir / ".".join(
-                [*item["name"].split(".")[:-1], "png"]
-            )
+            new_item_path = dest_dir / ".".join([*item["name"].split(".")[:-1], "png"])
 
             process = Popen(
-                ["ffmpeg", "-i", item_path, new_item_path],
-                stdout=PIPE,
-                stderr=PIPE,
+                ["ffmpeg", "-i", item_path, new_item_path], stdout=PIPE, stderr=PIPE,
             )
             stdout, stderr = process.communicate()
 

@@ -25,9 +25,7 @@ def parse(file):
         .decode("utf-8")
         .split("\n")
     )
-    reader = csv.reader(
-        row for row in rows if (not row.startswith("#") and row)
-    )
+    reader = csv.reader(row for row in rows if (not row.startswith("#") and row))
     detections = []
     for row in reader:
         features = {}
@@ -61,20 +59,13 @@ def parse(file):
             {
                 "track": int(row[0]),
                 "frame": int(row[2]),
-                "bounds": [
-                    float(row[3]),
-                    float(row[5]),
-                    float(row[4]),
-                    float(row[6]),
-                ],
+                "bounds": [float(row[3]), float(row[5]), float(row[4]), float(row[6]),],
                 "confidence": float(row[7]),
                 "fishLength": float(row[8]),
                 "confidencePairs": [],
                 "features": {},
                 "attributes": attributes if attributes else None,
-                "trackAttributes": track_attributes
-                if track_attributes
-                else None,
+                "trackAttributes": track_attributes if track_attributes else None,
             }
         )
     return detections
