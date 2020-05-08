@@ -106,7 +106,7 @@ export default {
           this.$geojsLayer.mode('edit', annotation);
           this.$geojsLayer.draw();
         }
-      } else if (!this.editing) {
+      } else if (this.editing) {
         this.changed = true;
         if (typeof this.editing !== 'string') {
           throw new Error(
@@ -118,11 +118,6 @@ export default {
           this.$geojsLayer.mode(this.editing);
         }
       }
-
-      this.$geojsLayer.geoOn(geo.event.annotation.mode, (e) => {
-        this.$emit('update:editing', e.mode === 'edit' ? true : e.mode);
-      });
-
       this.$geojsLayer.geoOn(geo.event.annotation.state, (e) => {
         if (this.$geojsLayer === e.annotation.layer()) {
           if (this.changed) {

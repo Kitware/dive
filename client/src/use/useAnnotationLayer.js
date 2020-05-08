@@ -4,6 +4,7 @@ import { boundToGeojson } from '@/utils';
 export default function useAnnotationLayer({
   typeColorMap,
   selectedTrackId,
+  editingTrackId,
   filteredDetections,
 }) {
   // TODO: what's the proper way to consume vuetify in a composition function?
@@ -13,8 +14,16 @@ export default function useAnnotationLayer({
     // consume the values of reactive properties above the function
     // in order to trigger recompute
     const _selectedTrackId = selectedTrackId.value;
+    const _editingTrackId = editingTrackId.value;
     return {
       strokeColor: (a, b, data) => {
+        if (_editingTrackId !== null) {
+          if (_editingTrackId !== data.record.detection.track) {
+            return '#777777'; // white color for editing
+          }
+
+          return vuetify.preset.theme.themes.dark.accent;
+        }
         if (data.record.detection.track === _selectedTrackId) {
           return vuetify.preset.theme.themes.dark.accent;
         }
@@ -23,7 +32,17 @@ export default function useAnnotationLayer({
         }
         return typeColorMap.range()[0];
       },
-      strokeOpacity: (a, b, data) => (data.record.detection.track === _selectedTrackId ? 0.5 : 1),
+      strokeOpacity: (a, b, data) => {
+        if (_editingTrackId !== null) {
+          if (_editingTrackId !== data.record.detection.track) {
+            return '0.7';
+          }
+
+          return 1.0;
+        }
+
+        return (data.record.detection.track === _selectedTrackId ? 1 : 0.5);
+      },
       strokeWidth: (a, b, data) => (data.record.detection.track === _selectedTrackId ? 4 : 1),
     };
   });

@@ -122,12 +122,14 @@ export default defineComponent({
     const { annotationData, annotationStyle } = useAnnotationLayer({
       typeColorMap,
       selectedTrackId,
+      editingTrackId,
       filteredDetections,
     });
 
     const { textData, textStyle } = useTextLayer({
       typeColorMap,
       selectedTrackId,
+      editingTrackId,
       filteredDetections,
     });
 
@@ -462,6 +464,7 @@ export default defineComponent({
             v-if="annotationData"
             :data="annotationData"
             :annotation-style="annotationStyle"
+            :editing="editingTrackId !== null"
             @annotation-click="annotationClick"
             @annotation-right-click="annotationRightClick"
           />
