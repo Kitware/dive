@@ -1,6 +1,5 @@
-from girder.models.item import Item
 from girder.models.folder import Folder
-
+from girder.models.item import Item
 
 webValidVideoFormats = {"mp4"}
 webValidImageFormats = {"png", "jpg", "jpeg"}

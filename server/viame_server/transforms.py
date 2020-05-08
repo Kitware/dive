@@ -3,8 +3,8 @@ import shutil
 import tempfile
 
 from girder_worker_utils.transforms.girder_io import (
-    GirderClientTransform,
     GirderClientResultTransform,
+    GirderClientTransform,
 )
 
 
@@ -59,8 +59,7 @@ class GetPathFromFolderId(GirderClientTransform):
         return self.folder_path
 
     def cleanup(self):
-        shutil.rmtree(os.path.dirname(self.folder_path),
-                      ignore_errors=True)
+        shutil.rmtree(os.path.dirname(self.folder_path), ignore_errors=True)
 
 
 class GirderUploadToFolder(GirderClientResultTransform):
@@ -76,7 +75,7 @@ class GirderUploadToFolder(GirderClientResultTransform):
     """
 
     def __init__(
-        self, _id, metadata=None, delete_file=False, upload_kwargs=None, **kwargs
+        self, _id, metadata=None, delete_file=False, upload_kwargs=None, **kwargs,
     ):
         super(GirderUploadToFolder, self).__init__(**kwargs)
         self.folder_id = _id

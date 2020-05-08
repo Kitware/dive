@@ -1,18 +1,17 @@
 import os
-import sys
 import re
-from pathlib import Path
+import sys
 from os import getenv
+from pathlib import Path
 
 from girder import events, plugin
 from girder.models.setting import Setting
 from girder_worker.girder_plugin import WorkerPlugin
 
 from .client_webroot import ClientWebroot
+from .event import check_existing_annotations, maybe_mark_folder_for_annotation
 from .viame import Viame
 from .viame_detection import ViameDetection
-from .event import check_existing_annotations, maybe_mark_folder_for_annotation
-
 
 env_pipelines_path = getenv("VIAME_PIPELINES_PATH")
 
@@ -42,7 +41,7 @@ def load_pipelines():
 
 class GirderPlugin(plugin.GirderPlugin):
     def load(self, info):
-        
+
         info["apiRoot"].viame = Viame(pipelines=load_pipelines())
         info["apiRoot"].viame_detection = ViameDetection()
         # Relocate Girder
@@ -58,12 +57,20 @@ class GirderPlugin(plugin.GirderPlugin):
             check_existing_annotations,
         )
         events.bind(
-            "model.upload.finalize", "fileUpload", maybe_mark_folder_for_annotation
+            "model.upload.finalize", "fileUpload", maybe_mark_folder_for_annotation,
         )
 
         # Create dependency on worker
         plugin.getPlugin('worker').load(info)
-        Setting().set('worker.api_url', os.environ.get('WORKER_API_URL', 'http://girder:8080/api/v1'))
-        Setting().set('worker.broker', os.environ.get('WORKER_BROKER', 'amqp://guest:guest@rabbit/'))
-        Setting().set('worker.backend', os.environ.get('WORKER_BACKEND', 'amqp://guest:guest@rabbit/'))
-
+        Setting().set(
+            'worker.api_url',
+            os.environ.get('WORKER_API_URL', 'http://girder:8080/api/v1'),
+        )
+        Setting().set(
+            'worker.broker',
+            os.environ.get('WORKER_BROKER', 'amqp://guest:guest@rabbit/'),
+        )
+        Setting().set(
+            'worker.backend',
+            os.environ.get('WORKER_BACKEND', 'amqp://guest:guest@rabbit/'),
+        )

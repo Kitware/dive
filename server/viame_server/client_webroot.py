@@ -1,6 +1,7 @@
 import os
-from girder.utility.webroot import WebrootBase
+
 from girder import constants
+from girder.utility.webroot import WebrootBase
 
 
 class ClientWebroot(WebrootBase):
