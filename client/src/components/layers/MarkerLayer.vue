@@ -48,6 +48,10 @@ export default {
     this.frameChanged();
     this.updateStyle();
   },
+  beforeDestroy() {
+    this.pointFeature.data([]).draw();
+    this.annotator.geoViewer.removeChild(this.featureLayer);
+  },
   methods: {
     frameChanged() {
       const frame = this.annotator.syncedFrame;
