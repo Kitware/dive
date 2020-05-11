@@ -41,7 +41,7 @@ export default function useTextLayer({
       color: (data) => {
         if (_editingTrackId !== null) {
           if (_editingTrackId !== data.detection.track) {
-            return '#777777'; // white color for editing
+            return '#777777'; // color for other detections when editing
           }
           return vuetify.preset.theme.themes.dark.accent;
         }

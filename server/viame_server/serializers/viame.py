@@ -62,8 +62,8 @@ def parse(file):
                 "bounds": [float(row[3]), float(row[5]), float(row[4]), float(row[6]),],
                 "confidence": float(row[7]),
                 "fishLength": float(row[8]),
-                "confidencePairs": [],
-                "features": {},
+                "confidencePairs": confidence_pairs,
+                "features": features,
                 "attributes": attributes if attributes else None,
                 "trackAttributes": track_attributes if track_attributes else None,
             }

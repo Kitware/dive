@@ -194,6 +194,10 @@ export default defineComponent({
       setTrackEditMode(trackId, true);
     }
     function save() {
+      // If editing the track, disable editing mode before save
+      if (editingTrackId.value) {
+        setTrackEditMode(selectedTrackId.value, false);
+      }
       saveToGirder(datasetId, detections);
     }
 
@@ -475,7 +479,7 @@ export default defineComponent({
             :geojson="editingDetectionGeojson"
             :feature-style="editingBoxLayerStyle"
             @update:geojson="detectionChanged"
-            @update:editing="setTrackEditMode(editingTrackId, false)"
+            @update:editing="setTrackEditMode(selectedTrackId, false)"
           />
           <edit-annotation-layer
             v-if="featurePointing"

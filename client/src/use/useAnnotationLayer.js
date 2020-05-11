@@ -19,7 +19,7 @@ export default function useAnnotationLayer({
       strokeColor: (a, b, data) => {
         if (_editingTrackId !== null) {
           if (_editingTrackId !== data.record.detection.track) {
-            return '#777777'; // white color for editing
+            return '#777777'; // color for other objects when editing a detection
           }
 
           return vuetify.preset.theme.themes.dark.accent;
