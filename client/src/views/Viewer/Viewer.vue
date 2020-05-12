@@ -195,7 +195,7 @@ export default defineComponent({
     }
     function save() {
       // If editing the track, disable editing mode before save
-      if (editingTrackId.value) {
+      if (editingDetection) {
         setTrackEditMode(selectedTrackId.value, false);
       }
       saveToGirder(datasetId, detections);

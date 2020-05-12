@@ -18,7 +18,7 @@ export default function useSelectionControls({
   const editingTrack = ref(false);
 
   const selectedTrack = computed(() => {
-    if (selectedTrackId.value) {
+    if (selectedTrackId.value !== null) {
       return tracks.value.find((t) => t.trackId === selectedTrackId.value);
     }
     return null;
@@ -49,7 +49,7 @@ export default function useSelectionControls({
   });
 
   const editingDetection = computed(() => {
-    if (editingTrackId.value) {
+    if (editingTrackId.value !== null) {
       return selectedDetection.value;
     }
     return null;
