@@ -20,7 +20,6 @@ class Config:
 # TODO: Need to test with runnable viameweb
 @app.task(bind=True)
 def run_pipeline(self, input_path, pipeline, input_type):
-
     conf = Config()
     # Delete is false because the file needs to exist for kwiver to write to
     # The girder upload transform will take care of removing it
@@ -133,14 +132,6 @@ def convert_video(self, path, folderId, token, auxiliaryFolderId):
     if len(videostream) != 1:
         raise Exception('Expected 1 video stream, found {}'.format(len(videostream)))
 
-    self.girder_client.addMetadataToFolder(
-        folderId,
-        {
-            "fps": 5,  # TODO: current time system doesn't allow for non-int framerates
-            "ffprobe_info": videostream[0],
-        },
-    )
-
     process = Popen(
         [
             "ffmpeg",
@@ -162,9 +153,17 @@ def convert_video(self, path, folderId, token, auxiliaryFolderId):
     stdout, stderr = process.communicate()
     output = str(stdout) + "\n" + str(stderr)
     self.job_manager.write(output)
-    _file = self.girder_client.uploadFileToFolder(folderId, output_path)
+    new_file = self.girder_client.uploadFileToFolder(folderId, output_path)
     self.girder_client.addMetadataToItem(
-        _file["itemId"], {"folderId": folderId, "codec": "h264"}
+        new_file['itemId'], {"folderId": folderId, "codec": "h264",},
+    )
+    self.girder_client.addMetadataToFolder(
+        folderId,
+        {
+            "fps": 5,  # TODO: current time system doesn't allow for non-int framerates
+            "annotate": True,  # mark the parent folder as able to annotate.
+            "ffprobe_info": videostream[0],
+        },
     )
     os.remove(output_path)
 

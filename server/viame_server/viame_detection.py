@@ -7,6 +7,7 @@ from girder.api import access
 from girder.api.describe import Description, autoDescribeRoute
 from girder.api.rest import Resource
 from girder.constants import AccessType
+from girder.exceptions import RestException
 from girder.models.file import File
 from girder.models.folder import Folder
 from girder.models.item import Item
@@ -16,7 +17,6 @@ from viame_server.serializers import viame
 from viame_server.utils import (
     move_existing_result_to_auxiliary_folder,
     validVideoFormats,
-    webValidVideoFormats,
 )
 
 
@@ -68,24 +68,19 @@ class ViameDetection(Resource):
         )
         detection = detections[0] if len(detections) else None
 
-        # TODO: Instead of doing this lengthy operation, we should
-        # set <videoItem>["meta"]["video"] = folder["_id"] on upload,
-        # so it can be easily queried with Item().find({"video": folder["_id"]})
+        videoUrl = None
+        # Find a video tagged with an h264 codec left by the transcoder
+        video = Item().findOne({'folderId': folder['_id'], 'meta.codec': 'h264',})
+        if video:
+            videoUrl = (
+                f'/api/v1/item/{str(video["_id"])}/download?contentDisposition=inline'
+            )
 
-        video = None
-        items = Item().find({"folderId": folder["_id"]})
-        for item in items:
-            files = Item().childFiles(item)
-            for file in files:
-                commonFormats = list(set(file["exts"]) & webValidVideoFormats)
-                if commonFormats:
-                    video = item
-                    break
-
-            if video:
-                break
-
-        return {"detection": detection, "video": video}
+        return {
+            'detection': detection,
+            'video': video,
+            'videoUrl': videoUrl,
+        }
 
     @access.user
     @autoDescribeRoute(

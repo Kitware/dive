@@ -1,10 +1,17 @@
 from girder.models.folder import Folder
 from girder.models.item import Item
 
-from .utils import validImageFormats, validVideoFormats
+from .utils import itemIsWebsafeVideo, validImageFormats
+
+ImageSequenceType = "image-sequence"
+VideoType = "video"
 
 
 def check_existing_annotations(event):
+    """
+    function for appending the appropriate metadata
+    to no-copy import data
+    """
     info = event.info
 
     if "annotations.csv" in info["importPath"]:
@@ -15,11 +22,15 @@ def check_existing_annotations(event):
         folder = Folder().findOne({"_id": item["folderId"]})
 
         # FPS is hardcoded for now
-        folder["meta"].update({"type": "image-sequence", "viame": True, "fps": 30})
+        folder["meta"].update({"type": ImageSequenceType, "fps": 30})
         Folder().save(folder)
 
 
 def maybe_mark_folder_for_annotation(event):
+    """
+    event handler for attaching appropriate metadata
+    to user-uploaded data
+    """
     info = event.info
 
     if info["parentType"] != "folder":
@@ -27,9 +38,11 @@ def maybe_mark_folder_for_annotation(event):
 
     parent = Folder().findOne({"_id": info["parentId"]})
 
-    fileType = info["mimeType"].split("/")[-1]
-    validFileType = fileType in validImageFormats or fileType in validVideoFormats
+    # We can only mark images as able to annotate
+    # Videos must be marked by the annotation pipeline.
+    if parent["meta"].get("type") == ImageSequenceType:
+        fileType = info["mimeType"].split("/")[-1]
 
-    if validFileType and parent["meta"].get("viame"):
-        parent["meta"]["annotate"] = True
-        Folder().save(parent)
+        if fileType in validImageFormats:
+            parent["meta"]["annotate"] = True
+            Folder().save(parent)
