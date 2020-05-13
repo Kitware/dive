@@ -1,10 +1,12 @@
 from girder.models.folder import Folder
 from girder.models.item import Item
 
-from .utils import itemIsWebsafeVideo, validImageFormats
-
-ImageSequenceType = "image-sequence"
-VideoType = "video"
+from viame_server.utils import (
+    itemIsWebsafeVideo,
+    validImageFormats,
+    ImageSequenceType,
+    VideoType,
+)
 
 
 def check_existing_annotations(event):

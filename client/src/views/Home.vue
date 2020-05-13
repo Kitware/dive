@@ -3,14 +3,24 @@ import { mapState, mapMutations, mapActions } from 'vuex';
 import { FileManager } from '@girder/components/src/components/Snippet';
 import { getLocationType } from '@girder/components/src/utils';
 
+import Export from '@/components/Export.vue';
 import Upload from '@/components/Upload.vue';
 import NavigationBar from '@/components/NavigationBar.vue';
+import { videoFileTypes } from '@/constants';
 import { getPathFromLocation, getLocationFromRoute } from '@/utils';
+import {
+  runConversion, runPipeline, deleteResources, setMetadataForItem,
+} from '@/common/api';
 
 export default {
   name: 'Home',
-  components: { FileManager, Upload, NavigationBar },
-  inject: ['girderRest', 'notificationBus'],
+  components: {
+    Export,
+    FileManager,
+    Upload,
+    NavigationBar,
+  },
+  inject: ['notificationBus'],
   data: () => ({
     location_: null,
     uploaderDialog: false,
@@ -42,11 +52,27 @@ export default {
     },
     selectedEligibleClips() {
       return this.selected.filter(
-        (model) => model._modelType === 'folder' && model.meta && model.meta.viame,
+        (model) => model._modelType === 'folder' && model.meta && model.meta.annotate,
       );
     },
     pipelinesRunnable() {
       return this.selectedEligibleClips.length < 1 || !this.pipelines.length;
+    },
+    exportTarget() {
+      let { selected } = this;
+      if (selected.length === 1) {
+        [selected] = selected;
+        if (selected._modelType !== 'folder') {
+          return null;
+        }
+        return {
+          title: selected.name,
+          folderId: selected._id,
+          folderType: selected.meta && selected.meta.type,
+          isViameFolder: selected.meta && selected.meta.annotate,
+        };
+      }
+      return null;
     },
   },
   watch: {
@@ -88,45 +114,9 @@ export default {
       if (!result) {
         return;
       }
-      const formData = new FormData();
-      formData.set(
-        'resources',
-        JSON.stringify({
-          folder: this.selected
-            .filter((resource) => resource._modelType === 'folder')
-            .map((resource) => resource._id),
-          item: this.selected
-            .filter((resource) => resource._modelType === 'item')
-            .map((resource) => resource._id),
-        }),
-      );
-      await this.girderRest.post('resource', formData, {
-        headers: { 'X-HTTP-Method-Override': 'DELETE' },
-      });
+      await deleteResources(this.selected);
       this.$refs.fileManager.$refs.girderBrowser.refresh();
       this.selected = [];
-    },
-    downloadClip() {
-      function postDownload(url, data) {
-        const form = document.createElement('form');
-        form.setAttribute('action', url);
-        form.setAttribute('method', 'POST');
-        Object.entries(data).forEach(([key, value]) => {
-          const input = document.createElement('input');
-          input.setAttribute('type', 'text');
-          input.setAttribute('name', key);
-          input.setAttribute('value', value);
-          form.appendChild(input);
-        });
-        document.body.appendChild(form);
-        form.submit();
-        document.body.removeChild(form);
-      }
-      postDownload('api/v1/resource/download', {
-        resources: JSON.stringify({
-          folder: this.selected.map((dataset) => dataset._id),
-        }),
-      });
     },
     dragover() {
       if (this.shouldShowUpload) {
@@ -138,10 +128,8 @@ export default {
 
       // transcode video
       const transcodes = uploads.filter(({ results }) => {
-        const videos = results.filter((result) => ['avi', 'mp4', 'mov', 'mpg'].includes(result.exts[0]));
-        videos.forEach((result) => {
-          this.girderRest.post(`/viame/conversion?itemId=${result.itemId}`);
-        });
+        const videos = results.filter((result) => videoFileTypes.includes(result.exts[0]));
+        videos.forEach(({ itemId }) => runConversion(itemId));
         return !!videos.length;
       });
       if (transcodes.length) {
@@ -159,7 +147,7 @@ export default {
 
       // run pipeline
       const runPipelines = uploads.filter(({ pipeline }) => pipeline);
-      runPipelines.forEach(({ results, pipeline }) => this.runPipeline(
+      runPipelines.forEach(({ results, pipeline }) => runPipeline(
         results[0].itemId,
         pipeline,
       ));
@@ -179,21 +167,15 @@ export default {
       // promote csv files to as its own result item
       uploads.forEach(({ folder, results }) => {
         const csvFiles = results.filter((result) => result.name.endsWith('.csv'));
-        csvFiles.forEach((csvFile) => {
-          this.girderRest.put(
-            `/item/${csvFile.itemId}/metadata?allowNull=true`,
-            {
-              detection: folder._id,
-            },
-          );
-        });
+        csvFiles.forEach((csvFile) => setMetadataForItem(
+          csvFile.itemId,
+          {
+            detection: folder._id,
+          },
+        ));
       });
     },
-    async runPipeline(itemId, pipeline) {
-      return this.girderRest.post(
-        `/viame/pipeline?folderId=${itemId}&pipeline=${pipeline}`,
-      );
-    },
+
     async runPipelineOnSelectedItem(pipeline) {
       const clips = this.selectedEligibleClips;
       await Promise.all(
@@ -260,22 +242,10 @@ export default {
                   </v-list-item>
                 </v-list>
               </v-menu>
-              <v-btn
-                v-if="selectedEligibleClips.length === 1"
-                class="ma-0"
-                text
-                small
-                @click="downloadClip"
-              >
-                <v-icon
-                  left
-                  color="accent"
-                  class="mdi-24px mr-1"
-                >
-                  mdi-download
-                </v-icon>
-                Download
-              </v-btn>
+              <export
+                v-if="exportTarget"
+                v-bind="exportTarget"
+              />
               <v-btn
                 v-if="selected.length"
                 class="ma-0"

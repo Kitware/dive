@@ -1,11 +1,33 @@
+import cherrypy
+import urllib
+from girder.api.rest import setContentDisposition, setRawResponse, setResponseHeader
 from girder.models.folder import Folder
 from girder.models.item import Item
 
-webValidImageFormats = {"png", "jpg", "jpeg"}
+ImageSequenceType = "image-sequence"
+VideoType = "video"
 
+webValidImageFormats = {"png", "jpg", "jpeg"}
 validImageFormats = {*webValidImageFormats, "tif", "tiff", "sgi", "bmp", "pgm"}
 validVideoFormats = {"mp4", "avi", "mov", "mpg"}
 
+ImageMimeTypes = {
+    "image/png",
+    "image/jpeg",
+    "image/tiff",
+    "image/bmp",
+    "image/x-portable-anymap",
+    "image/x-portable-bitmap",
+    "image/x-portable-graymap",
+    "image/x-rgb",
+}
+
+VideoMimeTypes = {
+    "video/mpeg",
+    "video/mp4",
+    "video/quicktime",
+    "video/x-msvideo",
+}
 
 # Ad hoc way to guess the FPS of an Image Sequence based on file names
 # Currently not being used, can only be used once you know that all items
@@ -53,3 +75,18 @@ def move_existing_result_to_auxiliary_folder(folder, user):
 
 def itemIsWebsafeVideo(item: Item) -> bool:
     return item.get("meta", {}).get("codec") == "h264"
+
+
+def redirect(dest, content_type='application/json', params=None):
+    result = '\n'.join([
+        '<html>', '<head><title>301 Moved Permanently</title></head>',
+        '<body>', '<center><h1>301 Moved Permanently</h1></center>',
+        '</body>', '</html>',
+    ])
+    if params is not None:
+        dest = dest + '?' + urllib.parse.urlencode(params)
+    setResponseHeader('Location', dest)
+    setResponseHeader('Content-Type', content_type)
+    setRawResponse()
+    cherrypy.response.status = 302
+    return result.encode('utf8')
