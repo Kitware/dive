@@ -73,6 +73,17 @@ export default {
       }
       this.selectedOffset = offset;
     },
+    /**
+     * For up/down we prevent the window from scrolling and use the calculated offset instead
+     */
+    scrollPreventDefault(e, direction) {
+      if (direction === 'up') {
+        this.$emit('select-track-up');
+      } else if (direction === 'down') {
+        this.$emit('select-track-down');
+      }
+      e.preventDefault();
+    },
     getItemProps(itemIndex) {
       const track = this.tracks[itemIndex];
       return {
@@ -129,8 +140,8 @@ export default {
     <virtual-list
       v-mousetrap="[
         { bind: 'del', handler: () => $emit('delete-track', getSelectedTrack()) },
-        { bind: 'up', handler: () => $emit('select-track-up') },
-        { bind: 'down', handler: () => $emit('select-track-down') },
+        { bind: 'up', handler: (el, event) => scrollPreventDefault(event, 'up') },
+        { bind: 'down', handler: (el, event) => scrollPreventDefault(event, 'down') },
         { bind: 'enter', handler: () => $emit('goto-track-first-frame', getSelectedTrack()) }
       ]"
       :size="45"

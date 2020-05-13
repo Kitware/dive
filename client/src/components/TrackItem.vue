@@ -89,7 +89,6 @@ export default {
 <template>
   <div
     class="track-item d-flex align-center hover-show-parent px-1"
-
     :style="style"
   >
     <v-checkbox
