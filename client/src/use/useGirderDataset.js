@@ -42,7 +42,7 @@ export default function useGirderDataset() {
       );
       if (!clipMeta.videoUrl) {
         // TODO: better error handling
-        throw new Error('Expected clip_meta.video, but was empty.');
+        throw new Error('Expected clipMeta.videoUrl, but was empty.');
       }
       videoUrl.value = clipMeta.videoUrl;
     } else if (_dataset.meta.type === ImageSequenceType) {
