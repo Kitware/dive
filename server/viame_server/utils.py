@@ -1,11 +1,10 @@
 from girder.models.folder import Folder
 from girder.models.item import Item
 
-webValidVideoFormats = {"mp4"}
 webValidImageFormats = {"png", "jpg", "jpeg"}
 
 validImageFormats = {*webValidImageFormats, "tif", "tiff", "sgi", "bmp", "pgm"}
-validVideoFormats = {*webValidVideoFormats, "avi", "mov", "mpg"}
+validVideoFormats = {"mp4", "avi", "mov", "mpg"}
 
 
 # Ad hoc way to guess the FPS of an Image Sequence based on file names
@@ -50,3 +49,7 @@ def move_existing_result_to_auxiliary_folder(folder, user):
     )
     if existingResultItem:
         Item().move(existingResultItem, auxiliary)
+
+
+def itemIsWebsafeVideo(item: Item) -> bool:
+    return item.get("meta", {}).get("codec") == "h264"
