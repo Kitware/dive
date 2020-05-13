@@ -64,10 +64,15 @@ export default {
     getSelectedTrack() {
       return this.tracks.find((track) => track.trackId === this.selectedTrackId);
     },
+    /**
+     * Used to calculate the scroll position of the virtual scroll list for the currently
+     * selected item.  It will center the item if it can on the scroll list.
+     * Called when either selectedTrackId updates or checkedTracks updates
+     */
     calculateOffset() {
       let offset = this.tracks.map((item) => item.trackId).indexOf(this.selectedTrackId);
       if (offset === -1) {
-        offset = this.tracks.length - 1;
+        offset = 0;
       } else {
         offset -= Math.floor(this.visibleItems / 2);
       }
@@ -75,14 +80,19 @@ export default {
     },
     /**
      * For up/down we prevent the window from scrolling and use the calculated offset instead
+     * @param {HTMLElement} element element which is the caller for the mouse event
+     * @param {KeyboardEvent} keyEvent Event used to prevent default keyboard scrolling behavior
+     * @param {('up' | 'down')} direction  determine if the user is moving up or down in the list
      */
-    scrollPreventDefault(e, direction) {
-      if (direction === 'up') {
-        this.$emit('select-track-up');
-      } else if (direction === 'down') {
-        this.$emit('select-track-down');
+    scrollPreventDefault(element, keyEvent, direction) {
+      if (element === this.$refs.virtualList.$el) {
+        if (direction === 'up') {
+          this.$emit('select-track-up');
+        } else if (direction === 'down') {
+          this.$emit('select-track-down');
+        }
+        keyEvent.preventDefault();
       }
-      e.preventDefault();
     },
     getItemProps(itemIndex) {
       const track = this.tracks[itemIndex];
@@ -138,10 +148,11 @@ export default {
       </v-btn>
     </v-subheader>
     <virtual-list
+      ref="virtualList"
       v-mousetrap="[
         { bind: 'del', handler: () => $emit('delete-track', getSelectedTrack()) },
-        { bind: 'up', handler: (el, event) => scrollPreventDefault(event, 'up') },
-        { bind: 'down', handler: (el, event) => scrollPreventDefault(event, 'down') },
+        { bind: 'up', handler: (el, event) => scrollPreventDefault(el, event, 'up') },
+        { bind: 'down', handler: (el, event) => scrollPreventDefault(el, event, 'down') },
         { bind: 'enter', handler: () => $emit('goto-track-first-frame', getSelectedTrack()) }
       ]"
       :size="45"
