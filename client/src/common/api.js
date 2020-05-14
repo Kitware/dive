@@ -8,7 +8,7 @@ function deleteResources(resources) {
       folder: resources
         .filter((resource) => resource._modelType === 'folder')
         .map((resource) => resource._id),
-      item: this.selected
+      item: resources
         .filter((resource) => resource._modelType === 'item')
         .map((resource) => resource._id),
     }),
