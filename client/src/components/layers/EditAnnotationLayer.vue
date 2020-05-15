@@ -56,11 +56,13 @@ export default {
   },
   methods: {
     persist() {
+      /*
       this.$geojsLayer.annotations().forEach((a) => {
         if (a.state() === 'edit') {
           a.state('done');
         }
       });
+      */
     },
     reinitialize() {
       this.$geojsLayer.geoOff(geo.event.annotation.mode);
@@ -141,7 +143,7 @@ export default {
               };
             }
             this.$emit('update:geojson', geojson);
-          } else {
+          } else if (e.annotation.state() === 'done') {
             this.$emit('update:editing', false);
           }
         }

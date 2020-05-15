@@ -75,7 +75,7 @@ export default function useEditingLayer({
     } else {
       setDetection(_detections.length, {
         track: _editingTrackId,
-        confidencePairs: [['undefined', 1]],
+        confidencePairs,
         frame: _frame,
         features: {},
         confidence: 1,
