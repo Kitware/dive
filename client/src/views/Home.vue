@@ -167,24 +167,6 @@ export default {
         ));
       });
     },
-
-    async runPipelineOnSelectedItem(pipeline) {
-      const clips = this.selectedEligibleClips;
-      await Promise.all(
-        this.selectedEligibleClips.map((item) => this.runPipeline(item._id, pipeline)),
-      );
-      this.$snackbar({
-        text: `Started pipeline on ${clips.length} clip${
-          clips.length ? 's' : ''
-        }`,
-        timeout: 6000,
-        immediate: true,
-        button: 'View',
-        callback: () => {
-          this.$router.push('/jobs');
-        },
-      });
-    },
   },
 };
 </script>
@@ -207,33 +189,6 @@ export default {
             @dragover.native="dragover"
           >
             <template #headerwidget>
-              <v-menu offset-y>
-                <template v-slot:activator="{ on }">
-                  <v-btn
-                    text
-                    small
-                    :disabled="pipelinesRunnable"
-                    v-on="on"
-                  >
-                    <v-icon
-                      left
-                      color="accent"
-                    >
-                      mdi-pipe
-                    </v-icon>
-                    Run pipeline
-                  </v-btn>
-                </template>
-                <v-list>
-                  <v-list-item
-                    v-for="pipeline in pipelines"
-                    :key="pipeline"
-                    @click="runPipelineOnSelectedItem(pipeline)"
-                  >
-                    <v-list-item-title>{{ pipeline }}</v-list-item-title>
-                  </v-list-item>
-                </v-list>
-              </v-menu>
               <export
                 v-if="exportTarget"
                 v-bind="exportTarget"
