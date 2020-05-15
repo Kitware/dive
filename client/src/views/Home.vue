@@ -137,7 +137,7 @@ export default {
         const imageTranscodes = results
           .filter(({ name }) => !webFriendlyImageRegEx.test(name) && imageFilesRegEx.test(name));
 
-        if (imageTranscodes) {
+        if (imageTranscodes.length > 0) {
           runImageConversion(folder._id);
         }
         return videoTranscodes.concat(...imageTranscodes).length > 0;
