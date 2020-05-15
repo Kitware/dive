@@ -6,11 +6,14 @@ import { getLocationType } from '@girder/components/src/utils';
 import Export from '@/components/Export.vue';
 import Upload from '@/components/Upload.vue';
 import NavigationBar from '@/components/NavigationBar.vue';
-import { videoFileTypes } from '@/constants';
+import { videoFilesRegEx, webFriendlyImageRegEx, imageFilesRegEx } from '@/constants';
 import { getPathFromLocation, getLocationFromRoute } from '@/utils';
 import {
-  runConversion, runPipeline, deleteResources, setMetadataForItem,
-} from '@/common/api';
+  runVideoConversion,
+  deleteResources,
+  setMetadataForItem,
+  runImageConversion,
+} from '@/common/viame.service';
 
 export default {
   name: 'Home',
@@ -126,35 +129,24 @@ export default {
     uploaded(uploads) {
       this.uploaderDialog = false;
 
-      // transcode video
-      const transcodes = uploads.filter(({ results }) => {
-        const videos = results.filter((result) => videoFileTypes.includes(result.exts[0]));
-        videos.forEach(({ itemId }) => runConversion(itemId));
-        return !!videos.length;
+      // Check if any transcoding should be done
+      const transcodes = uploads.filter(({ results, folder }) => {
+        const videoTranscodes = results
+          .filter(({ name }) => videoFilesRegEx.test(name))
+          .map(({ itemId }) => runVideoConversion(itemId));
+        const imageTranscodes = results
+          .filter(({ name }) => !webFriendlyImageRegEx.test(name) && imageFilesRegEx.test(name));
+
+        if (imageTranscodes) {
+          runImageConversion(folder._id);
+        }
+        return videoTranscodes.concat(...imageTranscodes).length > 0;
       });
+
       if (transcodes.length) {
         this.$snackbar({
           text: `Transcoding started on ${transcodes.length} clip${
             transcodes.length > 1 ? 's' : ''
-          }`,
-          timeout: 4500,
-          button: 'View',
-          callback: () => {
-            this.$router.push('/jobs');
-          },
-        });
-      }
-
-      // run pipeline
-      const runPipelines = uploads.filter(({ pipeline }) => pipeline);
-      runPipelines.forEach(({ results, pipeline }) => runPipeline(
-        results[0].itemId,
-        pipeline,
-      ));
-      if (runPipelines.length) {
-        this.$snackbar({
-          text: `Started pipeline on ${runPipelines.length} clip${
-            runPipelines.length > 1 ? 's' : ''
           }`,
           timeout: 4500,
           button: 'View',

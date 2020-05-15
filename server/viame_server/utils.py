@@ -1,5 +1,4 @@
 import cherrypy
-import urllib
 from girder.api.rest import setContentDisposition, setRawResponse, setResponseHeader
 from girder.models.folder import Folder
 from girder.models.item import Item
@@ -75,18 +74,3 @@ def move_existing_result_to_auxiliary_folder(folder, user):
 
 def itemIsWebsafeVideo(item: Item) -> bool:
     return item.get("meta", {}).get("codec") == "h264"
-
-
-def redirect(dest, content_type='application/json', params=None):
-    result = '\n'.join([
-        '<html>', '<head><title>301 Moved Permanently</title></head>',
-        '<body>', '<center><h1>301 Moved Permanently</h1></center>',
-        '</body>', '</html>',
-    ])
-    if params is not None:
-        dest = dest + '?' + urllib.parse.urlencode(params)
-    setResponseHeader('Location', dest)
-    setResponseHeader('Content-Type', content_type)
-    setRawResponse()
-    cherrypy.response.status = 302
-    return result.encode('utf8')

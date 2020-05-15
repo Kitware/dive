@@ -2,6 +2,7 @@ import csv
 import io
 import json
 import re
+import urllib
 from datetime import datetime
 
 from girder.api import access
@@ -22,7 +23,6 @@ from viame_server.utils import (
     ImageSequenceType,
     VideoMimeTypes,
     VideoType,
-    redirect,
 )
 
 
@@ -67,54 +67,39 @@ class ViameDetection(Resource):
             required=True,
             level=AccessType.READ
         )
-        .param(
-            "type",
-            "Types of data to download",
-            default="all",
-            dataType="string",
-            enum=["media", "detections", "all"],
-        )
     )
-    def export_data(self, folder, type):    
-        folderId = str(folder['_id'])
-    
-        if type == "all":
-            return redirect(f'/api/v1/folder/{folderId}/download', 'application/zip')
-        
+    def export_data(self, folder):    
+        folderId = str(folder['_id'])    
+
+        export_all = f'/api/v1/folder/{folderId}/download'
+        export_media = None
+        export_detections = None
+
         clipMeta = self._get_clip_meta(folder)
         detection = clipMeta.get('detection')
-        itemId = None
         if detection:
             itemId = detection.get('_id', None)
-        source_type = folder.get('meta', {}).get('type', None)
+            export_detections = f'/api/v1/item/{itemId}/download'
 
-        if type == "detections":
-            if itemId is None:
-                raise RestException(f'Detections not found in folder {folderId}')
-            return redirect(f'/api/v1/item/{itemId}/download')        
-        
-        elif type == "media":
-            if source_type == VideoType:
-                return redirect(
-                    f'/api/v1/folder/{folderId}/download',
-                    content_type='application/zip',
-                    params={
-                        'mimeFilter': json.dumps(list(VideoMimeTypes)),
-                    },
-                )
-            elif source_type == ImageSequenceType:
-                return redirect(
-                    f'/api/v1/folder/{folderId}/download',
-                    content_type='application/zip',
-                    params={
-                        'mimeFilter': json.dumps(list(ImageMimeTypes)),
-                    },
-                )
-            else:
-                raise RestException((
-                    f'VIAME folder marked improperly, meta.type={source_type}'
-                    f' found for folder {folderId}'
-                ))
+        source_type = folder.get('meta', {}).get('type', None)
+        if source_type == VideoType:
+            params = {
+                'mimeFilter': json.dumps(list(VideoMimeTypes)),
+            }
+            export_media = f'/api/v1/folder/{folderId}/download?{urllib.parse.urlencode(params)}'
+        elif source_type == ImageSequenceType:
+            params = {
+                'mimeFilter': json.dumps(list(ImageMimeTypes)),
+            }
+            print(params)
+            export_media = f'/api/v1/folder/{folderId}/download?{urllib.parse.urlencode(params)}'
+
+        return {
+            'mediaType': source_type,
+            'exportAllUrl': export_all,
+            'exportMediaUrl': export_media,
+            'exportDetectionsUrl': export_detections,
+        }
 
     @access.user
     @autoDescribeRoute(

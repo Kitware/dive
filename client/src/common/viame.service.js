@@ -1,5 +1,21 @@
 import girderRest from '@/girder';
 
+function makeViameFolder({
+  folderId, name, fps, type,
+}) {
+  return girderRest.post(
+    '/folder',
+    `metadata=${JSON.stringify({
+      fps,
+      type,
+      viame: true,
+    })}`,
+    {
+      params: { parentId: folderId, name },
+    },
+  );
+}
+
 function deleteResources(resources) {
   const formData = new FormData();
   formData.set(
@@ -18,12 +34,24 @@ function deleteResources(resources) {
   });
 }
 
-function getExportUrl(id, type) {
-  return `${girderRest.apiRoot}/viame_detection/${id}/export?type=${type}`;
+function runVideoConversion(itemId) {
+  return girderRest.post(
+    '/viame/conversion',
+    null,
+    {
+      params: { itemId },
+    },
+  );
 }
 
-function runConversion(itemId) {
-  return girderRest.post(`/viame/conversion?itemId=${itemId}`);
+function runImageConversion(folder) {
+  return girderRest.post(
+    '/viame/image_conversion',
+    null,
+    {
+      params: { folder },
+    },
+  );
 }
 
 function runPipeline(itemId, pipeline) {
@@ -41,8 +69,9 @@ function setMetadataForItem(itemId, metadata) {
 
 export {
   deleteResources,
-  runConversion,
+  makeViameFolder,
+  runImageConversion,
+  runVideoConversion,
   runPipeline,
-  getExportUrl,
   setMetadataForItem,
 };

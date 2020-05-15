@@ -24,7 +24,11 @@ def check_existing_annotations(event):
         folder = Folder().findOne({"_id": item["folderId"]})
 
         # FPS is hardcoded for now
-        folder["meta"].update({"type": ImageSequenceType, "fps": 30})
+        folder["meta"].update({
+            "type": ImageSequenceType,
+            "fps": 30,
+            "viame": True,
+        })
         Folder().save(folder)
 
 
@@ -42,7 +46,8 @@ def maybe_mark_folder_for_annotation(event):
 
     # We can only mark images as able to annotate
     # Videos must be marked by the annotation pipeline.
-    if parent["meta"].get("type") == ImageSequenceType:
+    meta = parent.get("meta", {})
+    if meta.get("type") == ImageSequenceType and meta.get("viame"):
         fileType = info["mimeType"].split("/")[-1]
 
         if fileType in validImageFormats:

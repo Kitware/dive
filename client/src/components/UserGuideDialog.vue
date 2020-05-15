@@ -90,7 +90,10 @@ export default {
         top
       >
         <template v-slot:activator="{ on }">
-          <v-row class="helpContextRow" v-on="on">
+          <v-row
+            class="helpContextRow"
+            v-on="on"
+          >
             <v-col cols="4">
               {{ item.name }}
             </v-col>

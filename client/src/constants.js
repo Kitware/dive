@@ -1,6 +1,12 @@
 const ImageSequenceType = 'image-sequence';
 const VideoType = 'video';
 
+const MediaTypes = {
+  // friendly media type names
+  [ImageSequenceType]: 'image sequence',
+  [VideoType]: 'video',
+};
+
 // Supported File Types
 const videoFileTypes = ['.mp4', '.avi', '.mov', '.mpg'];
 const webFriendlyImageFileTypes = ['.jpg', '.jpeg', '.png'];
@@ -15,6 +21,7 @@ const webFriendlyImageRegEx = new RegExp(`${webFriendlyImageFileTypes.join('$|')
 export {
   ImageSequenceType,
   VideoType,
+  MediaTypes,
 
   videoFileTypes,
   webFriendlyImageFileTypes,

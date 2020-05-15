@@ -1,9 +1,11 @@
 import {
   ref, computed, inject, watchEffect,
 } from '@vue/composition-api';
+import {
+  ImageSequenceType,
+  VideoType,
+} from '@/constants';
 
-const ImageSequenceType = 'image-sequence';
-const VideoType = 'video';
 const defaultFrameRate = 30;
 
 export default function useGirderDataset() {

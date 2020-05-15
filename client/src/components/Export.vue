@@ -1,32 +1,12 @@
 <script>
-import { getExportUrl } from '@/common/api';
-import {
-  ImageSequenceType,
-  VideoType,
-} from '@/constants';
-
-const MediaTypeMap = {
-  [ImageSequenceType]: 'image sequence',
-  [VideoType]: 'video',
-};
+import { getExportUrls } from '@/common/viameDetection.service';
+import { MediaTypes } from '@/constants';
 
 export default {
   props: {
-    title: {
-      type: String,
-      required: true,
-    },
     folderId: {
       type: String,
       required: true,
-    },
-    folderType: {
-      type: String,
-      default: '',
-    },
-    isViameFolder: {
-      type: Boolean,
-      default: false,
     },
   },
 
@@ -36,11 +16,15 @@ export default {
     };
   },
 
-  methods: { getExportUrl },
+  asyncComputed: {
+    async exportUrls() {
+      return getExportUrls(this.folderId);
+    },
+  },
 
   computed: {
     mediaType() {
-      return MediaTypeMap[this.folderType];
+      return MediaTypes[this.exportUrls.mediaType];
     },
   },
 };
@@ -71,42 +55,28 @@ export default {
       </v-btn>
     </template>
     <template>
-      <v-card>
+      <v-card v-if="menuOpen && exportUrls">
         <v-card-title>
           Export options
         </v-card-title>
 
-        <template v-if="isViameFolder">
-          <v-card-text class="pb-0">
-            Zip all {{ mediaType }} files
-          </v-card-text>
-          <v-card-actions>
-            <v-btn
-              depressed
-              block
-              target="_blank"
-              :href="getExportUrl(folderId, 'media')"
-            >
-              {{ mediaType }}
-            </v-btn>
-          </v-card-actions>
-          <v-card-text class="pb-0">
-            Get latest detections csv only
-          </v-card-text>
-          <v-card-actions>
-            <v-spacer />
-            <v-btn
-              depressed
-              block
-              target="_blank"
-              :href="getExportUrl(folderId, 'detections')"
-            >
-              detections
-            </v-btn>
-          </v-card-actions>
-        </template>
         <v-card-text class="pb-0">
-          Zip all media, detections, and edit history
+          Zip all {{ mediaType || 'media' }} files only
+        </v-card-text>
+        <v-card-actions>
+          <v-btn
+            depressed
+            block
+            target="_blank"
+            :disabled="!exportUrls.exportMediaUrl"
+            :href="exportUrls.exportMediaUrl"
+          >
+            {{ mediaType || 'media unavailable' }}
+          </v-btn>
+        </v-card-actions>
+
+        <v-card-text class="pb-0">
+          Get latest detections csv only
         </v-card-text>
         <v-card-actions>
           <v-spacer />
@@ -114,7 +84,25 @@ export default {
             depressed
             block
             target="_blank"
-            :href="getExportUrl(folderId, 'all')"
+            :disabled="!exportUrls.exportDetectionsUrl"
+            :href="exportUrls.exportDetectionsUrl"
+          >
+            <span v-if="exportUrls.exportDetectionsUrl">detections </span>
+            <span v-else>detections unavailable</span>
+          </v-btn>
+        </v-card-actions>
+
+        <v-card-text class="pb-0">
+          Zip all media, detections, and edit history
+          <br> recursively from all sub-folders
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn
+            depressed
+            block
+            target="_blank"
+            :href="exportUrls.exportAllUrl"
           >
             Everything
           </v-btn>
