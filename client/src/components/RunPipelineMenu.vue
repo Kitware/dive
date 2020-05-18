@@ -1,6 +1,6 @@
 <script>
 import { runPipeline } from '@/common/viame.service';
-import { mapActions } from 'vuex';
+import { mapActions, mapState } from 'vuex';
 
 export default {
   props: {
@@ -11,19 +11,14 @@ export default {
   },
 
   computed: {
+    ...mapState(['pipelines']),
     selectedEligibleClips() {
       return this.selected.filter(
         ({ _modelType, meta }) => _modelType === 'folder' && meta && meta.annotate,
       );
     },
     pipelinesNotRunnable() {
-      return this.selectedEligibleClips.length < 1 || !this.pipelines;
-    },
-  },
-
-  asyncComputed: {
-    pipelines() {
-      return this.fetchPipelines();
+      return this.selectedEligibleClips.length < 1 || this.pipelines === null;
     },
   },
 
