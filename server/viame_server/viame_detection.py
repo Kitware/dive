@@ -1,22 +1,28 @@
 import csv
 import io
+import json
 import re
+import urllib
 from datetime import datetime
 
 from girder.api import access
 from girder.api.describe import Description, autoDescribeRoute
 from girder.api.rest import Resource
-from girder.constants import AccessType
+from girder.constants import AccessType, TokenScope
+from girder.exceptions import RestException
 from girder.models.file import File
 from girder.models.folder import Folder
 from girder.models.item import Item
 from girder.models.upload import Upload
+from girder.utility import ziputil
 
 from viame_server.serializers import viame
 from viame_server.utils import (
     move_existing_result_to_auxiliary_folder,
-    validVideoFormats,
-    webValidVideoFormats,
+    ImageMimeTypes,
+    ImageSequenceType,
+    VideoMimeTypes,
+    VideoType,
 )
 
 
@@ -27,6 +33,73 @@ class ViameDetection(Resource):
         self.route("GET", (), self.get_detection)
         self.route("PUT", (), self.save_detection)
         self.route("GET", ("clip_meta",), self.get_clip_meta)
+        self.route("GET", (":id", "export",), self.export_data)
+
+
+    def _get_clip_meta(self, folder):
+        detections = list(
+            Item().find({"meta.detection": str(folder["_id"])}).sort([("created", -1)])
+        )
+        detection = detections[0] if len(detections) else None
+
+        videoUrl = None
+        # Find a video tagged with an h264 codec left by the transcoder
+        video = Item().findOne({'folderId': folder['_id'], 'meta.codec': 'h264',})
+        if video:
+            videoUrl = (
+                f'/api/v1/item/{str(video["_id"])}/download?contentDisposition=inline'
+            )
+
+        return {
+            'folder': folder,
+            'detection': detection,
+            'video': video,
+            'videoUrl': videoUrl,
+        }
+
+    @access.public(scope=TokenScope.DATA_READ, cookie=True)
+    @autoDescribeRoute(
+        Description("Export VIAME data")
+        .modelParam(
+            "id",
+            description="folder id of a clip",
+            model=Folder,
+            required=True,
+            level=AccessType.READ
+        )
+    )
+    def export_data(self, folder):    
+        folderId = str(folder['_id'])    
+
+        export_all = f'/api/v1/folder/{folderId}/download'
+        export_media = None
+        export_detections = None
+
+        clipMeta = self._get_clip_meta(folder)
+        detection = clipMeta.get('detection')
+        if detection:
+            itemId = detection.get('_id', None)
+            export_detections = f'/api/v1/item/{itemId}/download'
+
+        source_type = folder.get('meta', {}).get('type', None)
+        if source_type == VideoType:
+            params = {
+                'mimeFilter': json.dumps(list(VideoMimeTypes)),
+            }
+            export_media = f'/api/v1/folder/{folderId}/download?{urllib.parse.urlencode(params)}'
+        elif source_type == ImageSequenceType:
+            params = {
+                'mimeFilter': json.dumps(list(ImageMimeTypes)),
+            }
+            print(params)
+            export_media = f'/api/v1/folder/{folderId}/download?{urllib.parse.urlencode(params)}'
+
+        return {
+            'mediaType': source_type,
+            'exportAllUrl': export_all,
+            'exportMediaUrl': export_media,
+            'exportDetectionsUrl': export_detections,
+        }
 
     @access.user
     @autoDescribeRoute(
@@ -63,29 +136,7 @@ class ViameDetection(Resource):
         )
     )
     def get_clip_meta(self, folder):
-        detections = list(
-            Item().find({"meta.detection": str(folder["_id"])}).sort([("created", -1)])
-        )
-        detection = detections[0] if len(detections) else None
-
-        # TODO: Instead of doing this lengthy operation, we should
-        # set <videoItem>["meta"]["video"] = folder["_id"] on upload,
-        # so it can be easily queried with Item().find({"video": folder["_id"]})
-
-        video = None
-        items = Item().find({"folderId": folder["_id"]})
-        for item in items:
-            files = Item().childFiles(item)
-            for file in files:
-                commonFormats = list(set(file["exts"]) & webValidVideoFormats)
-                if commonFormats:
-                    video = item
-                    break
-
-            if video:
-                break
-
-        return {"detection": detection, "video": video}
+        return self._get_clip_meta(folder)
 
     @access.user
     @autoDescribeRoute(

@@ -4,16 +4,14 @@ import {
   fileUploader,
   sizeFormatter,
 } from '@girder/components/src/utils/mixins';
-
-// Supported File Types
-const videoFileTypes = ['.mp4', '.avi', '.mov', '.mpg'];
-const webFriendlyImageFileTypes = ['.jpg', '.jpeg', '.png'];
-const imageFileTypes = [...webFriendlyImageFileTypes, '.bmp', '.sgi', '.tif', '.tiff', '.pgm'];
-
-// Utility for commonly used regular expressions
-const videoFilesRegEx = new RegExp(`${videoFileTypes.join('$|')}$`, 'i');
-const imageFilesRegEx = new RegExp(`${imageFileTypes.join('$|')}$`, 'i');
-const webFriendlyImageRegEx = new RegExp(`${webFriendlyImageFileTypes.join('$|')}$`, 'i');
+import {
+  videoFilesRegEx,
+  imageFilesRegEx,
+  ImageSequenceType,
+  VideoType,
+} from '@/constants';
+import { makeViameFolder } from '@/common/viame.service';
+import { getResponseError } from '@/common/utils';
 
 function prepareFiles(files) {
   const videoFilter = (file) => videoFilesRegEx.test(file.name);
@@ -34,13 +32,13 @@ function prepareFiles(files) {
     throw new Error('Cannot upload annotations without media');
   } else if (videoFiles.length) {
     return {
-      type: 'video',
+      type: VideoType,
       media: videoFiles,
       csv: csvFiles,
     };
   } else if (imageFiles.length) {
     return {
-      type: 'image-sequence',
+      type: ImageSequenceType,
       media: imageFiles,
       csv: csvFiles,
     };
@@ -112,6 +110,7 @@ export default {
     preUploadErrorMessage: null,
     pendingUploads: [],
     defaultFPS: '10', // requires string for the input item
+    ImageSequenceType,
   }),
   computed: {
     uploadEnabled() {
@@ -135,11 +134,11 @@ export default {
       const { formatSize, totalProgress, totalSize } = this;
       if (pendingUpload.files.length === 1 && !pendingUpload.uploading) {
         return this.formatSize(pendingUpload.files[0].progress.size);
-      } if (pendingUpload.type === 'image-sequence') {
+      } if (pendingUpload.type === ImageSequenceType) {
         return `${this.filesNotUploaded(pendingUpload)} images`;
-      } if (pendingUpload.type === 'video' && !pendingUpload.uploading) {
+      } if (pendingUpload.type === VideoType && !pendingUpload.uploading) {
         return `${this.filesNotUploaded(pendingUpload)} videos`;
-      } if (pendingUpload.type === 'video' && pendingUpload.uploading) {
+      } if (pendingUpload.type === VideoType && pendingUpload.uploading) {
         // For videos we display the total progress when uploading because
         // single videos can be large
         return `${formatSize(totalProgress)} of ${formatSize(totalSize)}`;
@@ -283,36 +282,18 @@ export default {
       }
     },
     async createUploadFolder(name, createSubFolders, fps, type) {
-      let folder = this.location;
       try {
-        ({ data: folder } = await this.girderRest.post(
-          '/folder',
-          `metadata=${JSON.stringify({
-            viame: true,
-            fps,
-            type,
-          })}`,
-          {
-            params: {
-              parentId: this.location._id,
-              name,
-            },
-          },
-        ));
+        const { data } = await makeViameFolder({
+          folderId: this.location._id,
+          name,
+          type,
+          fps,
+        });
+        return data;
       } catch (error) {
-        if (
-          error.response
-            && error.response.data
-            && error.response.data.message
-        ) {
-          this.errorMessage = error.response.data.message;
-        } else {
-          this.errorMessage = error;
-        }
+        this.errorMessage = getResponseError(error);
         throw error;
       }
-
-      return folder;
     },
     async uploadFiles(name, folder, files, createSubFolders, uploaded) {
       // function called after mixins upload finishes
@@ -321,20 +302,9 @@ export default {
           folder,
           results: data.results,
         });
-
-        // Make sure that we don't run the conversion task for no reason
-        const filtered = files.filter(({ file: { name: fileName } }) => (
-          !webFriendlyImageRegEx.test(fileName)
-        ));
-
-        if (filtered.length) {
-          this.girderRest.post('/viame/image_conversion', null, { params: { folder: folder._id } });
-        }
       };
-
       // Sets the files used by the fileUploader mixin
       this.setFiles(files);
-
       // Upload Mixin function to start uploading
       await this.start({
         dest: folder,
@@ -401,7 +371,7 @@ export default {
                 />
               </v-col>
               <v-col
-                v-if="pendingUpload.type === 'image-sequence'"
+                v-if="pendingUpload.type === ImageSequenceType"
                 cols="2"
               >
                 <v-text-field

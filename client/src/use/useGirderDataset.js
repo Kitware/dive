@@ -1,9 +1,11 @@
 import {
   ref, computed, inject, watchEffect,
 } from '@vue/composition-api';
+import {
+  ImageSequenceType,
+  VideoType,
+} from '@/constants';
 
-const ImageSequenceType = 'image-sequence';
-const VideoType = 'video';
 const defaultFrameRate = 30;
 
 export default function useGirderDataset() {
@@ -40,20 +42,12 @@ export default function useGirderDataset() {
           params: { folderId: _dataset._id },
         },
       );
-      if (!clipMeta.video) {
+      if (!clipMeta.videoUrl) {
         // TODO: better error handling
-        return;
+        throw new Error('Expected clipMeta.videoUrl, but was empty.');
       }
-      const { data: files } = await girderRest.get(
-        `item/${clipMeta.video._id}/files`,
-      );
-      if (files.length < 1) {
-        // TODO: better error handling
-        return;
-      }
-      videoUrl.value = `api/v1/file/${files[0]._id}/download`;
-      return;
-    } if (_dataset.meta.type === ImageSequenceType) {
+      videoUrl.value = clipMeta.videoUrl;
+    } else if (_dataset.meta.type === ImageSequenceType) {
       // Image Sequence type annotator
       const { data: items } = await girderRest.get('item', {
         // TODO: what if there are more than 200K?
@@ -69,9 +63,9 @@ export default function useGirderDataset() {
           );
         })
         .map((item) => `api/v1/item/${item._id}/download`);
-      return;
+    } else {
+      throw new Error(`Unable to load media for dataset type: ${_dataset.meta.type}`);
     }
-    throw new Error(`Unknown dataset type: ${_dataset.meta.type}`);
   });
 
   async function loadDataset(datasetId) {

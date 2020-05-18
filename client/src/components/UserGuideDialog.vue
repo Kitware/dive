@@ -15,7 +15,7 @@ export default {
           name: 'Interactions',
           data: [
             {
-              name: 'Select Track', icon: 'mdi-mouse', actions: ['Left Click Mouse'], description: 'Left click a rectangle to select a track',
+              name: 'Select Detection', icon: 'mdi-mouse', actions: ['Left Click Mouse'], description: 'Left click a rectangle to select a detection/track',
             },
             {
               name: 'Zoom In/Out', icon: 'mdi-mouse', actions: ['Scrollwheel Up/Down'], description: 'use scrollwheel to zoom in and out',
@@ -23,8 +23,23 @@ export default {
             {
               name: 'Zoom Area', icon: 'mdi-mouse', actions: ['Shift + Mouse Movement'], description: 'Zoom into a specific area',
             },
-
-
+            {
+              name: 'Select Track', icon: 'mdi-keyboard', actions: ['Up/Down Arrows'], description: 'Select Track',
+            },
+          ],
+        },
+        {
+          name: 'Selected',
+          data: [
+            {
+              name: 'First Frame', icon: 'mdi-keyboard', actions: ['Enter'], description: 'Go to first frame of selected track',
+            },
+            {
+              name: 'Delete', icon: 'mdi-keyboard', actions: ['Delete'], description: 'Delete selected track',
+            },
+            {
+              name: 'Edit Type', icon: 'mdi-keyboard', actions: ['Shift + Enter'], description: 'Choose/Edit track type',
+            },
           ],
         },
         {
@@ -45,7 +60,7 @@ export default {
           name: 'Playback',
           data: [
             {
-              name: 'Play', icon: 'mdi-keyboard', actions: ['Spacebar'], description: 'Spacebar will pause and start tracks',
+              name: 'Play', icon: 'mdi-keyboard', actions: ['Spacebar'], description: 'Spacebar will pause and start playback',
             },
             {
               name: 'Frame Forward / Back', icon: 'mdi-keyboard', actions: ['F Key - frame forward', 'D Key - frame back'], description: 'use scrollwheel to zoom in and out',
@@ -58,39 +73,57 @@ export default {
 };
 </script>
 <template>
-  <div>
+  <div class="d-flex justify-space-around flex-wrap">
     <v-card
       v-for="category in categories"
       id="helpdialog"
       :key="category.name"
       elevation="12"
-      class="mb-5 pa-2"
+      class="mb-3 pa-3"
+      width="350"
     >
-      <v-row
+      <v-card-title>{{ category.name }}</v-card-title>
+      <v-tooltip
         v-for="item in category.data"
         :key="item.name"
+        color="red"
+        top
       >
-        <v-col cols="3">
-          {{ item.name }}
-        </v-col>
-        <v-col cols="2">
-          <v-icon>{{ item.icon }}</v-icon>
-        </v-col>
-        <v-col col="7">
-          <div
-            v-for="action in item.actions"
-            :key="action"
+        <template v-slot:activator="{ on }">
+          <v-row
+            class="helpContextRow"
+            v-on="on"
           >
-            {{ action }}
-          </div>
-        </v-col>
-      </v-row>
+            <v-col cols="4">
+              {{ item.name }}
+            </v-col>
+            <v-col cols="2">
+              <v-icon>{{ item.icon }}</v-icon>
+            </v-col>
+            <v-col col="6">
+              <div
+                v-for="action in item.actions"
+                :key="action"
+              >
+                {{ action }}
+              </div>
+            </v-col>
+          </v-row>
+        </template>
+        <span> {{ item.description }}</span>
+      </v-tooltip>
     </v-card>
   </div>
 </template>
 <style lang="scss" scoped>
+
 #helpdialog{
   font-family: monospace;
   font-size: 12px;
+  .helpContextRow{
+    &:hover{
+      background-color: var(--v-dropzone-base);
+    }
+  }
 }
 </style>
