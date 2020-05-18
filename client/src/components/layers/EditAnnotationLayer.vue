@@ -39,7 +39,11 @@ export default {
   watch: {
     geojson() {
       // reinitialize when annotations change.
-      this.reinitialize();
+      if (!this.changed) {
+        this.reinitialize();
+      } else {
+        this.changed = false;
+      }
     },
     editing() {
       // reinitialize when pointer editing mode is toggled
@@ -61,6 +65,8 @@ export default {
       this.$geojsLayer.geoOff(geo.event.annotation.edit_action);
       this.$geojsLayer.removeAllAnnotations();
       this.$geojsLayer.mode(null);
+      // eslint-disable-next-line no-console
+      console.log('reinitialize');
       this.initialize();
     },
     initialize() {
@@ -133,6 +139,7 @@ export default {
           this.$emit('being-edited-geojson', null);
           // This will commit the change to the current annotation on mouse up
           this.handleAnnotationChange(e);
+          this.changed = true;
         }
       });
     },
