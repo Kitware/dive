@@ -1,7 +1,7 @@
 import Vue from 'vue';
 import Vuex from 'vuex';
 
-import girderRest from '@/girder';
+import { getPipelineList } from '@/common/viame.service';
 
 Vue.use(Vuex);
 
@@ -19,9 +19,13 @@ export default new Vuex.Store({
     },
   },
   actions: {
-    async fetchPipelines({ commit }) {
-      const { data } = await girderRest.get('viame/pipelines');
-      commit('setPipelines', data);
+    async fetchPipelines({ commit, state }) {
+      if (state.pipelines.length === 0) {
+        const { data } = await getPipelineList();
+        commit('setPipelines', data);
+        return data;
+      }
+      return state.pipelines;
     },
   },
 });

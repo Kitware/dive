@@ -54,6 +54,10 @@ function runImageConversion(folder) {
   );
 }
 
+function getPipelineList() {
+  return girderRest.get('viame/pipelines');
+}
+
 function runPipeline(itemId, pipeline) {
   return girderRest.post(
     `/viame/pipeline?folderId=${itemId}&pipeline=${pipeline}`,
@@ -69,6 +73,7 @@ function setMetadataForItem(itemId, metadata) {
 
 export {
   deleteResources,
+  getPipelineList,
   makeViameFolder,
   runImageConversion,
   runVideoConversion,

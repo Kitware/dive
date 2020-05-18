@@ -1,9 +1,10 @@
 <script>
-import { mapState, mapMutations, mapActions } from 'vuex';
+import { mapState, mapMutations } from 'vuex';
 import { FileManager } from '@girder/components/src/components/Snippet';
 import { getLocationType } from '@girder/components/src/utils';
 
 import Export from '@/components/Export.vue';
+import RunPipelineMenu from '@/components/RunPipelineMenu.vue';
 import Upload from '@/components/Upload.vue';
 import NavigationBar from '@/components/NavigationBar.vue';
 import { videoFilesRegEx, webFriendlyImageRegEx, imageFilesRegEx } from '@/constants';
@@ -22,6 +23,7 @@ export default {
     FileManager,
     Upload,
     NavigationBar,
+    RunPipelineMenu,
   },
   inject: ['notificationBus'],
   data: () => ({
@@ -31,7 +33,7 @@ export default {
     uploading: false,
   }),
   computed: {
-    ...mapState(['location', 'pipelines']),
+    ...mapState(['location']),
 
     location: {
       get() {
@@ -52,14 +54,6 @@ export default {
         && getLocationType(this.location) === 'folder'
         && !this.selected.length
       );
-    },
-    selectedEligibleClips() {
-      return this.selected.filter(
-        (model) => model._modelType === 'folder' && model.meta && model.meta.annotate,
-      );
-    },
-    pipelinesRunnable() {
-      return this.selectedEligibleClips.length < 1 || !this.pipelines.length;
     },
     exportTarget() {
       let { selected } = this;
@@ -88,7 +82,6 @@ export default {
   created() {
     this.location_ = getLocationFromRoute(this.$route);
     this.setLocation(this.location_);
-    this.fetchPipelines();
     this.notificationBus.$on('message:job_status', this.handleNotification);
   },
   beforeDestroy() {
@@ -99,8 +92,7 @@ export default {
     next();
   },
   methods: {
-    ...mapMutations(['setLocation', 'setPipelines']),
-    ...mapActions(['fetchPipelines']),
+    ...mapMutations(['setLocation']),
     handleNotification() {
       this.$refs.fileManager.$refs.girderBrowser.refresh();
     },
@@ -167,24 +159,6 @@ export default {
         ));
       });
     },
-
-    async runPipelineOnSelectedItem(pipeline) {
-      const clips = this.selectedEligibleClips;
-      await Promise.all(
-        this.selectedEligibleClips.map((item) => this.runPipeline(item._id, pipeline)),
-      );
-      this.$snackbar({
-        text: `Started pipeline on ${clips.length} clip${
-          clips.length ? 's' : ''
-        }`,
-        timeout: 6000,
-        immediate: true,
-        button: 'View',
-        callback: () => {
-          this.$router.push('/jobs');
-        },
-      });
-    },
   },
 };
 </script>
@@ -207,33 +181,7 @@ export default {
             @dragover.native="dragover"
           >
             <template #headerwidget>
-              <v-menu offset-y>
-                <template v-slot:activator="{ on }">
-                  <v-btn
-                    text
-                    small
-                    :disabled="pipelinesRunnable"
-                    v-on="on"
-                  >
-                    <v-icon
-                      left
-                      color="accent"
-                    >
-                      mdi-pipe
-                    </v-icon>
-                    Run pipeline
-                  </v-btn>
-                </template>
-                <v-list>
-                  <v-list-item
-                    v-for="pipeline in pipelines"
-                    :key="pipeline"
-                    @click="runPipelineOnSelectedItem(pipeline)"
-                  >
-                    <v-list-item-title>{{ pipeline }}</v-list-item-title>
-                  </v-list-item>
-                </v-list>
-              </v-menu>
+              <run-pipeline-menu :selected="selected" />
               <export
                 v-if="exportTarget"
                 v-bind="exportTarget"
