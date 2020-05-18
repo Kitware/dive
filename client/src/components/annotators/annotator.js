@@ -33,11 +33,6 @@ export default {
       syncedFrame: 0,
     };
   },
-  watch: {
-    playing(newval) {
-      this.$emit('playing-state-changed', newval);
-    },
-  },
   created() {
     this.provided.$on('prev-frame', this.prevFrame);
     this.provided.$on('next-frame', this.nextFrame);

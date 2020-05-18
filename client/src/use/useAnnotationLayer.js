@@ -1,4 +1,4 @@
-import { computed, inject } from '@vue/composition-api';
+import { computed } from '@vue/composition-api';
 import { boundToGeojson } from '@/utils';
 
 export default function useAnnotationLayer({
@@ -6,10 +6,8 @@ export default function useAnnotationLayer({
   selectedTrackId,
   editingTrackId,
   filteredDetections,
+  stateStyling,
 }) {
-  // TODO: what's the proper way to consume vuetify in a composition function?
-  const vuetify = inject('vuetify');
-
   const annotationStyle = computed(() => {
     // consume the values of reactive properties above the function
     // in order to trigger recompute
@@ -19,13 +17,13 @@ export default function useAnnotationLayer({
       strokeColor: (a, b, data) => {
         if (_editingTrackId !== null) {
           if (_editingTrackId !== data.record.detection.track) {
-            return '#777777'; // color for other objects when editing a detection
+            return stateStyling.disabled.color; // color for other objects when editing a detection
           }
 
-          return vuetify.preset.theme.themes.dark.accent;
+          return stateStyling.selected.color;
         }
         if (data.record.detection.track === _selectedTrackId) {
-          return vuetify.preset.theme.themes.dark.accent;
+          return stateStyling.selected.color;
         }
         if (data.record.detection.confidencePairs.length) {
           return typeColorMap(data.record.detection.confidencePairs[0][0]);
@@ -35,15 +33,23 @@ export default function useAnnotationLayer({
       strokeOpacity: (a, b, data) => {
         if (_editingTrackId !== null) {
           if (_editingTrackId !== data.record.detection.track) {
-            return '0.7';
+            return stateStyling.disabled.opacity;
           }
 
-          return 1.0;
+          return stateStyling.selected.opacity;
         }
 
-        return (data.record.detection.track === _selectedTrackId ? 1 : 0.5);
+        if (data.record.detection.track === _selectedTrackId) {
+          return stateStyling.selected.opacity;
+        }
+        return stateStyling.standard.opacity;
       },
-      strokeWidth: (a, b, data) => (data.record.detection.track === _selectedTrackId ? 4 : 1),
+      strokeWidth: (a, b, data) => {
+        if (data.record.detection.track === _selectedTrackId) {
+          return stateStyling.selected.strokeWidth;
+        }
+        return stateStyling.standard.strokeWidth;
+      },
     };
   });
 

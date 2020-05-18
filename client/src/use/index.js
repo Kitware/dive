@@ -11,7 +11,7 @@ import useSave from './useSave';
 import useSelectionControls from './useSelectionControls';
 import useTextLayer from './useTextLayer';
 import useTrackFilterControls from './useTrackFilterControls';
-import useTypeColoring from './useTypeColoring';
+import useStyling from './useStyling';
 
 export {
   useAnnotationLayer,
@@ -27,5 +27,5 @@ export {
   useSelectionControls,
   useTextLayer,
   useTrackFilterControls,
-  useTypeColoring,
+  useStyling,
 };

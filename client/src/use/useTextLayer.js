@@ -1,14 +1,12 @@
-import { computed, inject } from '@vue/composition-api';
+import { computed } from '@vue/composition-api';
 
 export default function useTextLayer({
   filteredDetections,
   selectedTrackId,
   editingTrackId,
   typeColorMap,
+  stateStyling,
 }) {
-  // TODO: what's the proper way to consume vuetify in a composition function?
-  const vuetify = inject('vuetify');
-
   const textData = computed(() => {
     if (filteredDetections.value.length === 0) {
       return [];
@@ -41,12 +39,12 @@ export default function useTextLayer({
       color: (data) => {
         if (_editingTrackId !== null) {
           if (_editingTrackId !== data.detection.track) {
-            return '#777777'; // color for other detections when editing
+            return stateStyling.disabled.color; // color for other detections when editing
           }
-          return vuetify.preset.theme.themes.dark.accent;
+          return stateStyling.selected.color;
         }
         if (data.detection.track === _selectedTrackId) {
-          return vuetify.preset.theme.themes.dark.accent;
+          return stateStyling.selected.color;
         }
         return typeColorMap(data.detection.confidencePairs[0][0]);
       },

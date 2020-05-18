@@ -55,15 +55,6 @@ export default {
     delete this.$geojsLayer;
   },
   methods: {
-    persist() {
-      /*
-      this.$geojsLayer.annotations().forEach((a) => {
-        if (a.state() === 'edit') {
-          a.state('done');
-        }
-      });
-      */
-    },
     reinitialize() {
       this.$geojsLayer.geoOff(geo.event.annotation.mode);
       this.$geojsLayer.geoOff(geo.event.annotation.state);
@@ -122,28 +113,11 @@ export default {
       }
       this.$geojsLayer.geoOn(geo.event.annotation.state, (e) => {
         if (this.$geojsLayer === e.annotation.layer()) {
+          // Handles the adding of a brand new Detection
           if (this.changed) {
-            this.changed = false;
-            const newGeojson = e.annotation.geojson();
-            let geojson = cloneDeep(this.geojson);
-            if (geojson) {
-              if ('geometry' in geojson) {
-                geojson.geometry.coordinates = newGeojson.geometry.coordinates;
-              } else {
-                geojson.coordinates = newGeojson.geometry.coordinates;
-              }
-            } else {
-              geojson = {
-                ...newGeojson,
-                ...{
-                  properties: {
-                    annotationType: newGeojson.properties.annotationType,
-                  },
-                },
-              };
-            }
-            this.$emit('update:geojson', geojson);
+            this.handleAnnotationChange(e);
           } else if (e.annotation.state() === 'done') {
+            // Editing is false if the user clicks on another area or is complete
             this.$emit('update:editing', false);
           }
         }
@@ -157,9 +131,36 @@ export default {
         }
         if (e.action === geo.event.actionup) {
           this.$emit('being-edited-geojson', null);
-          this.changed = true;
+          // This will commit the change to the current annotation on mouse up
+          this.handleAnnotationChange(e);
         }
       });
+    },
+    /**
+   * This is a helper function to commit changes to an annotation/Detection
+   * @param {geo.event} e Annotation event for editing or changing state
+   */
+    handleAnnotationChange(e) {
+      this.changed = false;
+      const newGeojson = e.annotation.geojson();
+      let geojson = cloneDeep(this.geojson);
+      if (geojson) {
+        if ('geometry' in geojson) {
+          geojson.geometry.coordinates = newGeojson.geometry.coordinates;
+        } else {
+          geojson.coordinates = newGeojson.geometry.coordinates;
+        }
+      } else {
+        geojson = {
+          ...newGeojson,
+          ...{
+            properties: {
+              annotationType: newGeojson.properties.annotationType,
+            },
+          },
+        };
+      }
+      this.$emit('update:geojson', geojson);
     },
   },
   render() {

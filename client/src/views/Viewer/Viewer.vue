@@ -22,7 +22,7 @@ import {
   useSelectionControls,
   useTextLayer,
   useTrackFilterControls,
-  useTypeColoring,
+  useStyling,
 } from '@/use';
 import { getPathFromLocation } from '@/utils';
 
@@ -50,7 +50,7 @@ export default defineComponent({
     const prompt = ctx.root.$prompt;
 
     // external composition functions
-    const { typeColorMap } = useTypeColoring();
+    const { typeColorMap, stateStyling } = useStyling();
     const { save: saveToGirder, markChangesPending, pendingSaveCount } = useSave();
     const {
       dataset,
@@ -124,6 +124,7 @@ export default defineComponent({
       selectedTrackId,
       editingTrackId,
       filteredDetections,
+      stateStyling,
     });
 
     const { textData, textStyle } = useTextLayer({
@@ -131,6 +132,7 @@ export default defineComponent({
       selectedTrackId,
       editingTrackId,
       filteredDetections,
+      stateStyling,
     });
 
     const {
@@ -150,30 +152,15 @@ export default defineComponent({
       setDetection,
     });
 
-    /**
-     * Functions below are thin wrappers around other functions for use in the template.
-     */
-    function persistAnnotations() {
-      // If there are on-screen annotations, persist them
-      if (annotationRectEditor.value) {
-        annotationRectEditor.value.persist();
-      }
-    }
+
     function seek(_frame) {
       playbackComponent.value.seek(_frame);
     }
     function nextFrame() {
-      persistAnnotations();
       playbackComponent.value.nextFrame();
     }
     function prevFrame() {
-      persistAnnotations();
       playbackComponent.value.prevFrame();
-    }
-    function handlePlayingStateChanged(newval) {
-      if (newval) {
-        persistAnnotations();
-      }
     }
     function gotoTrackFirstFrame({ trackId }) {
       setTrackEditMode(trackId, false);
@@ -291,7 +278,6 @@ export default defineComponent({
       // miscellaneous oddities
       annotationRectEditor,
       editingBoxLayerStyle,
-      handlePlayingStateChanged,
       playbackComponent,
       swapMousetrap,
     };
@@ -411,14 +397,14 @@ export default defineComponent({
             { bind: 'y', handler: () => toggleFeaturePointing('tail') },
             { bind: 'f', handler: () => nextFrame() },
             { bind: 'd', handler: () => prevFrame() },
-            { bind: 'q', handler: deleteFeaturePoints }
+            { bind: 'q', handler: deleteFeaturePoints },
+            { bind: 'esc', handler: () => setTrackEditMode(null, false)}
           ]"
           class="playback-component"
           :image-urls="imageUrls"
           :video-url="videoUrl"
           :frame-rate="frameRate"
           @frame-update="frame = $event"
-          @playing-state-changed="handlePlayingStateChanged"
         >
           <template slot="control">
             <Controls />
