@@ -14,10 +14,6 @@ export default {
       type: Object,
       default: () => {},
     },
-    editing: {
-      type: Boolean,
-      default: false,
-    },
   },
   computed: {
     frameMap() {
@@ -65,9 +61,9 @@ export default {
     this.polygonFeature = this.featureLayer
       .createFeature('polygon', { selectionAPI: true })
       .geoOn(geo.event.feature.mouseclick, (e) => {
-        if (e.mouse.buttonsDown.left && !this.editing) {
+        if (e.mouse.buttonsDown.left) {
           this.$emit('annotation-click', e.data.record, e);
-        } else if (e.mouse.buttonsDown.right && !this.editing) {
+        } else if (e.mouse.buttonsDown.right) {
           this.$emit('annotation-right-click', e.data.record, e);
         }
       });

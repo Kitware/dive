@@ -454,7 +454,6 @@ export default defineComponent({
             v-if="annotationData"
             :data="annotationData"
             :annotation-style="annotationStyle"
-            :editing="editingTrackId !== null"
             @annotation-click="annotationClick"
             @annotation-right-click="annotationRightClick"
           />

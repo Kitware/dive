@@ -37,12 +37,18 @@ export default {
     };
   },
   watch: {
-    geojson() {
+    geojson(val, oldVal) {
       // reinitialize when annotations change.
       if (!this.changed) {
         this.reinitialize();
       } else {
         this.changed = false;
+        /* If geojson changes without mounting occuring we are seeking or creating new detection
+           and the oldVal is null and a new value is not null.  We should reinitialize and redraw
+        */
+        if (oldVal === null && val !== null) {
+          this.reinitialize();
+        }
       }
     },
     editing() {
@@ -65,8 +71,6 @@ export default {
       this.$geojsLayer.geoOff(geo.event.annotation.edit_action);
       this.$geojsLayer.removeAllAnnotations();
       this.$geojsLayer.mode(null);
-      // eslint-disable-next-line no-console
-      console.log('reinitialize');
       this.initialize();
     },
     initialize() {
@@ -122,9 +126,6 @@ export default {
           // Handles the adding of a brand new Detection
           if (this.changed) {
             this.handleAnnotationChange(e);
-          } else if (e.annotation.state() === 'done') {
-            // Editing is false if the user clicks on another area or is complete
-            this.$emit('update:editing', false);
           }
         }
       });
