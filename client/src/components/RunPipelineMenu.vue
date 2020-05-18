@@ -47,7 +47,7 @@ export default {
         immediate: true,
         button: 'View',
         callback: () => {
-          this.$router.push('/jobs');
+          this.$router.push({ name: 'jobs' });
         },
       });
     },
