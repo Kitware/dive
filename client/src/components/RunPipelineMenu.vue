@@ -1,6 +1,6 @@
 <script>
 import { runPipeline } from '@/common/viame.service';
-import { mapState, mapActions } from 'vuex';
+import { mapActions } from 'vuex';
 
 export default {
   props: {
@@ -11,19 +11,23 @@ export default {
   },
 
   computed: {
-    ...mapState(['pipelines']),
-
     selectedEligibleClips() {
       return this.selected.filter(
         ({ _modelType, meta }) => _modelType === 'folder' && meta && meta.annotate,
       );
     },
-    pipelinesRunnable() {
-      return this.selectedEligibleClips.length < 1 || !this.pipelines.length;
+    pipelinesNotRunnable() {
+      return this.selectedEligibleClips.length < 1 || !this.pipelines;
     },
   },
 
-  mounted() {
+  asyncComputed: {
+    pipelines() {
+      return this.fetchPipelines();
+    },
+  },
+
+  created() {
     this.fetchPipelines();
   },
 
@@ -52,12 +56,15 @@ export default {
 </script>
 
 <template>
-  <v-menu offset-y>
+  <v-menu
+    max-width="300"
+    offset-y
+  >
     <template v-slot:activator="{ on }">
       <v-btn
         text
         small
-        :disabled="pipelinesRunnable"
+        :disabled="pipelinesNotRunnable"
         v-on="on"
       >
         <v-icon
@@ -69,14 +76,61 @@ export default {
         Run pipeline
       </v-btn>
     </template>
-    <v-list>
-      <v-list-item
-        v-for="pipeline in pipelines"
-        :key="pipeline"
-        @click="runPipelineOnSelectedItem(pipeline)"
-      >
-        <v-list-item-title>{{ pipeline }}</v-list-item-title>
-      </v-list-item>
-    </v-list>
+
+    <template>
+      <v-card v-if="pipelines">
+        <v-card-title>
+          VIAME Pipelines
+        </v-card-title>
+
+        <v-card-text class="pb-0">
+          Choose a pipeline type. Check the
+          <a
+            href="https://github.com/VIAME/VIAME-Web/wiki/Pipeline-Documentation"
+            target="_blank"
+          >docs</a>
+          for more information about these options.
+        </v-card-text>
+
+        <v-card-actions>
+          <template
+            v-for="(pipeType) in Object.keys(pipelines)"
+          >
+            <v-menu
+              :key="pipeType"
+              offset-y
+            >
+              <template v-slot:activator="{ on }">
+                <v-btn
+                  depressed
+                  class="mx-2 grow"
+                  v-on="on"
+                >
+                  {{ pipeType }}s
+                  <v-icon
+                    left
+                    color="accent"
+                  >
+                    mdi-menu-down
+                  </v-icon>
+                </v-btn>
+              </template>
+
+              <v-list>
+                <v-list-item
+                  v-for="({ name, pipe }) in pipelines[pipeType].pipes"
+                  :key="pipe"
+                  @click="runPipelineOnSelectedItem(pipe)"
+                >
+                  <v-list-item-title>
+                    {{ name }}
+                  </v-list-item-title>
+                </v-list-item>
+              </v-list>
+            </v-menu>
+          </template>
+        </v-card-actions>
+      </v-card>
+    </template>
   </v-menu>
 </template>

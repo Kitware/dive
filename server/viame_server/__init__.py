@@ -32,11 +32,21 @@ def load_pipelines():
 
     allowed = r"^detector_.+|tracker_.+"
     disallowed = r".*local.*|detector_svm_models.pipe|tracker_svm_models.pipe"
-    return [
+    pipelist = [
         path.name
         for path in pipeline_path.glob("./*.pipe")
         if re.match(allowed, path.name) and not re.match(disallowed, path.name)
     ]
+    pipedict = {
+        'detector': {'pipes': [], 'description': '',},
+        'tracker': {'pipes': [], 'description': '',},
+    }
+    for pipe in pipelist:
+        nameparts = pipe.replace('.pipe', '').split('_')
+        name = ' '.join(nameparts[1:])
+        type = nameparts[0]
+        pipedict[type]['pipes'].append({'name': name, 'type': type, 'pipe': pipe})
+    return pipedict
 
 
 class GirderPlugin(plugin.GirderPlugin):
