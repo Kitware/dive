@@ -18,11 +18,11 @@ from girder.utility import ziputil
 
 from viame_server.serializers import viame
 from viame_server.utils import (
-    move_existing_result_to_auxiliary_folder,
     ImageMimeTypes,
     ImageSequenceType,
     VideoMimeTypes,
     VideoType,
+    move_existing_result_to_auxiliary_folder,
 )
 
 
@@ -34,7 +34,6 @@ class ViameDetection(Resource):
         self.route("PUT", (), self.save_detection)
         self.route("GET", ("clip_meta",), self.get_clip_meta)
         self.route("GET", (":id", "export",), self.export_data)
-
 
     def _get_clip_meta(self, folder):
         detections = list(
@@ -59,17 +58,16 @@ class ViameDetection(Resource):
 
     @access.public(scope=TokenScope.DATA_READ, cookie=True)
     @autoDescribeRoute(
-        Description("Export VIAME data")
-        .modelParam(
+        Description("Export VIAME data").modelParam(
             "id",
             description="folder id of a clip",
             model=Folder,
             required=True,
-            level=AccessType.READ
+            level=AccessType.READ,
         )
     )
-    def export_data(self, folder):    
-        folderId = str(folder['_id'])    
+    def export_data(self, folder):
+        folderId = str(folder['_id'])
 
         export_all = f'/api/v1/folder/{folderId}/download'
         export_media = None
@@ -86,13 +84,17 @@ class ViameDetection(Resource):
             params = {
                 'mimeFilter': json.dumps(list(VideoMimeTypes)),
             }
-            export_media = f'/api/v1/folder/{folderId}/download?{urllib.parse.urlencode(params)}'
+            export_media = (
+                f'/api/v1/folder/{folderId}/download?{urllib.parse.urlencode(params)}'
+            )
         elif source_type == ImageSequenceType:
             params = {
                 'mimeFilter': json.dumps(list(ImageMimeTypes)),
             }
             print(params)
-            export_media = f'/api/v1/folder/{folderId}/download?{urllib.parse.urlencode(params)}'
+            export_media = (
+                f'/api/v1/folder/{folderId}/download?{urllib.parse.urlencode(params)}'
+            )
 
         return {
             'mediaType': source_type,
@@ -103,7 +105,8 @@ class ViameDetection(Resource):
 
     @access.user
     @autoDescribeRoute(
-        Description("Get detections of a clip").modelParam(
+        Description("Get detections of a clip")
+        .modelParam(
             "folderId",
             description="folder id of a clip",
             model=Folder,
@@ -111,8 +114,9 @@ class ViameDetection(Resource):
             required=True,
             level=AccessType.READ,
         )
+        .param("formatting", "Format to fetch", default="",)
     )
-    def get_detection(self, folder):
+    def get_detection(self, folder, formatting):
         detectionItems = list(
             Item().findWithPermissions(
                 {"meta.detection": str(folder["_id"])}, user=self.getCurrentUser(),
@@ -122,7 +126,11 @@ class ViameDetection(Resource):
         if not len(detectionItems):
             return None
         file = Item().childFiles(detectionItems[0])[0]
-        return viame.parse(file)
+        if formatting == "track_json":
+            return viame.parseTracks(file)
+        elif formatting == "detection_json":
+            return viame.parse(file)
+        raise RestException(f"formatting {formatting} is not recognized")
 
     @access.user
     @autoDescribeRoute(
