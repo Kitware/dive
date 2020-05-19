@@ -1,4 +1,4 @@
-/* eslint-disable no-param-reassign */
+/* eslint-disable no-param-reassign,func-names */
 
 import Mousetrap from 'mousetrap';
 import _ from 'lodash';
@@ -11,7 +11,7 @@ function bind(el, value, bindElement) {
   }
   value.forEach(({ bind: _bind, handler, disabled }) => {
     if (!disabled) {
-      mousetrap.bind(_bind, (...args) => {
+      mousetrap.bind(_bind, function (...args) {
         handler.apply(this, [el, ...args]);
       });
     }

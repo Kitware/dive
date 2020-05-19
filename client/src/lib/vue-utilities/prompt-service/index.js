@@ -1,5 +1,5 @@
 /* disabled this rule for Vue.prototype.FOO = */
-/* eslint-disable no-param-reassign */
+/* eslint-disable no-param-reassign,func-names */
 
 import Prompt from './Prompt.vue';
 
@@ -8,7 +8,7 @@ export default function (vuetify) {
     Prompt.vuetify = vuetify;
     const PromptComponent = Vue.extend(Prompt);
     const component = new PromptComponent();
-    Vue.prototype.$promptAttach = () => {
+    Vue.prototype.$promptAttach = function () {
       const div = document.createElement('div');
       this.$el.appendChild(div);
       component.$mount(div);

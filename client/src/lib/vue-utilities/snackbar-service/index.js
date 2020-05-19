@@ -1,5 +1,5 @@
 /* disabled this rule for Vue.prototype.FOO = */
-/* eslint-disable no-param-reassign */
+/* eslint-disable no-param-reassign,func-names */
 
 import Snackbar from './Snackbar.vue';
 
@@ -8,7 +8,7 @@ export default function (vuetify) {
     Snackbar.vuetify = vuetify;
     const SnackbarComponent = Vue.extend(Snackbar);
     const component = new SnackbarComponent();
-    Vue.prototype.$snackbarAttach = (options) => {
+    Vue.prototype.$snackbarAttach = function (options) {
       if (options) {
         component.$data.options = options;
       }
@@ -17,13 +17,13 @@ export default function (vuetify) {
       component.$mount(div);
       return this;
     };
-    Vue.prototype.$snackbar = ({
+    Vue.prototype.$snackbar = function ({
       text,
       button,
       callback,
       timeout,
       immediate,
-    }) => {
+    }) {
       function set() {
         component.$data.text = text;
         component.$data.button = button;
