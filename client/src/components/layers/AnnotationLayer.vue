@@ -67,6 +67,11 @@ export default {
           this.$emit('annotation-right-click', e.data.record, e);
         }
       });
+    this.polygonFeature.geoOn(geo.event.mouseclick, (e) => {
+      if (this.polygonFeature.pointSearch(e.geo).found.length === 0) {
+        this.$emit('deselect-track');
+      }
+    });
     this.polygonFeature.geoOn(
       geo.event.feature.mouseclick_order,
       this.polygonFeature.mouseOverOrderClosestBorder,

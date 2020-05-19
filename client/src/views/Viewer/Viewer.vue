@@ -456,6 +456,7 @@ export default defineComponent({
             :annotation-style="annotationStyle"
             @annotation-click="annotationClick"
             @annotation-right-click="annotationRightClick"
+            @deselect-track="setTrackEditMode(null, false)"
           />
           <edit-annotation-layer
             v-if="editingTrackId !== null && !playbackComponent.playing"
@@ -464,7 +465,6 @@ export default defineComponent({
             :geojson="editingDetectionGeojson"
             :feature-style="editingBoxLayerStyle"
             @update:geojson="detectionChanged"
-            @update:editing="setTrackEditMode(selectedTrackId, $event)"
           />
           <edit-annotation-layer
             v-if="featurePointing"
