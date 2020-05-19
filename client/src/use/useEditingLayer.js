@@ -71,7 +71,7 @@ export default function useEditingLayer({
         features: _editingDetection.features || {},
         bounds,
       });
-      // else create a new one at the end
+      // else create a new one at the end, with a type labeled 'undefined' meant to be changed
     } else {
       setDetection(_detections.length, {
         track: _editingTrackId,

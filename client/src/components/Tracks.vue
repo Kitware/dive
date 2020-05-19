@@ -41,25 +41,20 @@ export default {
       checkedTracks_: this.checkedTracks,
       item: TrackItem,
       visibleItems: 9,
+      selectedOffset: 0,
     };
   },
-  computed: {
-    /**
-     * Computes the offset for the virtual scroll list and highlighting
-     */
-    selectedOffset() {
-      let offset = this.tracks.map((item) => item.trackId).indexOf(this.selectedTrackId);
-      if (offset === -1) {
-        offset = this.tracks.length - 1;
-      } else {
-        offset -= Math.floor(this.visibleItems / 2);
-      }
-      return offset;
-    },
-  },
   watch: {
+    selectedTrackId() {
+      this.calculateOffset();
+    },
     checkedTracks(value) {
       this.checkedTracks_ = value;
+      /* This is done because after creating a new track checkedTracks are edited.
+         A new track is selected and created before detection, so just watching
+         selectedTrackId won't cover all cases.
+      */
+      this.calculateOffset();
     },
     checkedTracks_(value) {
       this.$emit('update:checkedTracks', value);
@@ -68,6 +63,36 @@ export default {
   methods: {
     getSelectedTrack() {
       return this.tracks.find((track) => track.trackId === this.selectedTrackId);
+    },
+    /**
+     * Used to calculate the scroll position of the virtual scroll list for the currently
+     * selected item.  It will center the item if it can on the scroll list.
+     * Called when either selectedTrackId updates or checkedTracks updates
+     */
+    calculateOffset() {
+      let offset = this.tracks.map((item) => item.trackId).indexOf(this.selectedTrackId);
+      if (offset === -1) {
+        offset = 0;
+      } else {
+        offset -= Math.floor(this.visibleItems / 2);
+      }
+      this.selectedOffset = offset;
+    },
+    /**
+     * For up/down we prevent the window from scrolling and use the calculated offset instead
+     * @param {HTMLElement} element element which is the caller for the mouse event
+     * @param {KeyboardEvent} keyEvent Event used to prevent default keyboard scrolling behavior
+     * @param {('up' | 'down')} direction  determine if the user is moving up or down in the list
+     */
+    scrollPreventDefault(element, keyEvent, direction) {
+      if (element === this.$refs.virtualList.$el) {
+        if (direction === 'up') {
+          this.$emit('select-track-up');
+        } else if (direction === 'down') {
+          this.$emit('select-track-down');
+        }
+        keyEvent.preventDefault();
+      }
     },
     getItemProps(itemIndex) {
       const track = this.tracks[itemIndex];
@@ -123,10 +148,11 @@ export default {
       </v-btn>
     </v-subheader>
     <virtual-list
+      ref="virtualList"
       v-mousetrap="[
         { bind: 'del', handler: () => $emit('delete-track', getSelectedTrack()) },
-        { bind: 'up', handler: () => $emit('select-track-up') },
-        { bind: 'down', handler: () => $emit('select-track-down') },
+        { bind: 'up', handler: (el, event) => scrollPreventDefault(el, event, 'up') },
+        { bind: 'down', handler: (el, event) => scrollPreventDefault(el, event, 'down') },
         { bind: 'enter', handler: () => $emit('goto-track-first-frame', getSelectedTrack()) }
       ]"
       :size="45"
