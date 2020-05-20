@@ -1,5 +1,5 @@
 <script>
-import { runPipeline } from '@/common/viame.service';
+import { runPipeline } from '@/lib/api/viame.service';
 import { mapActions, mapState } from 'vuex';
 
 export default {

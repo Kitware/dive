@@ -3,6 +3,7 @@ import { stringNumberNullValidator } from '@/utils';
 
 export default {
   name: 'TrackItem',
+
   props: {
     track: {
       type: Object,
@@ -20,8 +21,8 @@ export default {
       validator: stringNumberNullValidator,
       required: true,
     },
-    editingTrackId: {
-      validator: stringNumberNullValidator,
+    editingTrack: {
+      validator: Object,
       required: true,
     },
     colorMap: {
@@ -29,9 +30,11 @@ export default {
       required: true,
     },
   },
+
   data: () => ({
     editing: false,
   }),
+
   computed: {
     /**
      * Sets styling for the selected track
@@ -39,7 +42,7 @@ export default {
      * opacity so it isn't overwhelming
      */
     style() {
-      if (this.selectedTrackId === this.track.trackId) {
+      if (this.selectedTrackId === this.track.trackId.value) {
         return {
           'font-weight': 'bold',
           'background-color': `${this.$vuetify.theme.themes.dark.accent}aa`,
@@ -49,9 +52,10 @@ export default {
     },
 
     comboValue() {
-      return this.track.confidencePairs.length ? this.track.confidencePairs[0][0] : '';
+      return this.track.confidencePairs.value.length ? this.track.confidencePairs.value[0][0] : '';
     },
   },
+
   watch: {
     track() {
       this.editing = false;
@@ -72,7 +76,7 @@ export default {
   },
   methods: {
     focusType() {
-      if (this.selectedTrackId === this.track.trackId) {
+      if (this.selectedTrackId === this.track.trackId.value) {
         this.editing = true;
       }
     },
@@ -103,7 +107,7 @@ export default {
       class="trackNumber"
       @click.self="$emit('click')"
     >
-      {{ track.trackId + (editingTrackId === track.trackId ? "*" : "") }}
+      {{ track.trackId.value + (editingTrack.value ? "*" : "") }}
     </div>
     <div
       v-if="!editing"
@@ -138,7 +142,7 @@ export default {
         </v-btn>
       </template>
       <v-list>
-        <v-list-item @click="$emit('goto-first-frame')">
+        <v-list-item @click="$emit('click')">
           <v-list-item-title>Go to first frame</v-list-item-title>
         </v-list-item>
         <v-list-item @click="$emit('edit')">

@@ -1,5 +1,5 @@
 <script>
-import { getExportUrls } from '@/common/viameDetection.service';
+import { getExportUrls } from '@/lib/api/viameDetection.service';
 import { MediaTypes } from '@/constants';
 
 export default {

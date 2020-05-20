@@ -10,8 +10,8 @@ import {
   ImageSequenceType,
   VideoType,
 } from '@/constants';
-import { makeViameFolder } from '@/common/viame.service';
-import { getResponseError } from '@/common/utils';
+import { makeViameFolder } from '@/lib/api/viame.service';
+import { getResponseError } from '@/lib/utils';
 
 function prepareFiles(files) {
   const videoFilter = (file) => videoFilesRegEx.test(file.name);
