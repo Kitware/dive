@@ -14,7 +14,7 @@ import {
   deleteResources,
   setMetadataForItem,
   runImageConversion,
-} from '@/common/viame.service';
+} from '@/lib/api/viame.service';
 
 export default {
   name: 'Home',

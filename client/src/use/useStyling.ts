@@ -1,10 +1,13 @@
 import { inject } from '@vue/composition-api';
 import colors from 'vuetify/lib/util/colors';
 import * as d3 from 'd3';
+import { Vuetify } from 'vuetify';
 
 export default function useStyling() {
-  // TODO: what's the proper way to consume vuetify in a composition function?
-  const vuetify = inject('vuetify');
+  const vuetify = <Vuetify> inject('vuetify');
+  if (!vuetify) {
+    throw new Error('Missing vuetify provide/inject');
+  }
   // Annotation State Colors
   const standard = {
     strokeWidth: 1,
@@ -32,6 +35,6 @@ export default function useStyling() {
     colors.purple.darken3,
     colors.green.darken3,
   ];
-  const typeColorMap = d3.scaleOrdinal().range(typeColors);
-  return { stateStyling, typeColorMap };
+  const typeColorMapper = d3.scaleOrdinal().range(typeColors) as (t: string) => string;
+  return { stateStyling, typeColorMapper };
 }

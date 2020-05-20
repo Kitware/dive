@@ -5,12 +5,14 @@
   "scripts": {
     "serve": "rimraf -rf ./node_modules/.cache/vue-loader && vue-cli-service serve",
     "build": "vue-cli-service build",
-    "lint": "vue-cli-service lint"
+    "lint": "vue-cli-service lint",
+    "test": "jest"
   },
   "dependencies": {
     "@girder/components": "^2.2.1",
     "@mdi/font": "^3.9.97",
     "@vue/composition-api": "^0.5.0",
+    "axios": "^0.19.2",
     "core-js": "^3.6.4",
     "d3": "^5.12.0",
     "geojs": "^0.19.5",
@@ -18,13 +20,16 @@
     "mousetrap": "^1.6.5",
     "vue": "^2.6.10",
     "vue-router": "^3.0.3",
-    "vue-utilities": "git+https://github.com/Kitware/vue-utilities.git#5c261826458d73c4e8c8feea1d0037c08e633582",
     "vue-virtual-scroll-list": "1.4.1",
     "vuetify": "^2.2.4",
     "vuex": "^3.0.1"
   },
   "devDependencies": {
+    "@types/axios": "^0.14.0",
+    "@types/d3": "^5.7.2",
+    "@types/jest": "^25.2.3",
     "@types/lodash": "^4.14.151",
+    "@types/node": "^14.0.5",
     "@typescript-eslint/eslint-plugin": "^2.26.0",
     "@typescript-eslint/parser": "^2.26.0",
     "@vue/cli-plugin-babel": "~4.3.1",
@@ -33,11 +38,13 @@
     "@vue/cli-service": "~4.3.1",
     "@vue/eslint-config-airbnb": "^5.0.2",
     "@vue/eslint-config-typescript": "^5.0.2",
+    "@vue/test-utils": "^1.0.3",
     "babel-eslint": "^10.1.0",
     "babel-register": "^6.26.0",
     "eslint": "^6.7.2",
     "eslint-plugin-vue": "^6.2.2",
     "git-describe": "^4.0.4",
+    "jest": "^26.0.1",
     "node-sass": "^4.12.0",
     "pug": "^2.0.4",
     "pug-plain-loader": "^1.0.0",
@@ -45,8 +52,10 @@
     "sass-loader": "^8.0.2",
     "stylus": "^0.54.7",
     "stylus-loader": "^3.0.2",
+    "ts-jest": "^26.0.0",
     "typescript": "~3.8.3",
     "vue-cli-plugin-vuetify": "^2.0.5",
+    "vue-jest": "^3.0.5",
     "vue-template-compiler": "^2.6.10",
     "vuetify-loader": "^1.4.3",
     "webpack": "^4.42.1"
@@ -65,6 +74,7 @@
     ],
     "rules": {
       "no-underscore-dangle": 0,
+      "spaced-comment": "off",
       "no-console": [
         "error",
         {

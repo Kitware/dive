@@ -1,7 +1,7 @@
 import Vue from 'vue';
 import Vuex from 'vuex';
 
-import { getPipelineList } from '@/common/viame.service';
+import { getPipelineList } from '@/lib/api/viame.service';
 
 Vue.use(Vuex);
 
