@@ -7,6 +7,7 @@
     "importHelpers": true,
     "moduleResolution": "node",
     "allowJs": true,
+    "outDir": "./dist",
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "sourceMap": true,
