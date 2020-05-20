@@ -45,7 +45,7 @@ function boundToGeojson(bounds) {
 }
 
 function stringNumberNullValidator(prop) {
-  return ['string', 'number'].indexOf(typeof prop) || prop === null;
+  return ['string', 'number'].indexOf(typeof prop) >= 0 || prop === null;
 }
 
 export {

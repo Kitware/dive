@@ -54,7 +54,7 @@ export default function useAnnotationLayer({
   });
 
   const annotationData = computed(() => filteredDetections.value.map((detection) => ({
-    // TODO: annotationData doesn't actually use this, maybe stick it in a `meta` property.
+    // TODO p1: annotationData doesn't actually use this, maybe stick it in a `meta` property.
     detection,
     frame: detection.frame,
     polygon: boundToGeojson(detection.bounds),

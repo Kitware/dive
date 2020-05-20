@@ -1,7 +1,18 @@
 import girderRest from '@/girder';
 
+interface GirderModel {
+  _id: string;
+  _modelType: 'folder' | 'item' | 'file';
+  name: string;
+}
+
 function makeViameFolder({
   folderId, name, fps, type,
+}: {
+  folderId: string,
+  name: string,
+  fps: number,
+  type: string,
 }) {
   return girderRest.post(
     '/folder',
@@ -16,7 +27,7 @@ function makeViameFolder({
   );
 }
 
-function deleteResources(resources) {
+function deleteResources(resources: Array<GirderModel>) {
   const formData = new FormData();
   formData.set(
     'resources',
@@ -34,7 +45,7 @@ function deleteResources(resources) {
   });
 }
 
-function runVideoConversion(itemId) {
+function runVideoConversion(itemId: string) {
   return girderRest.post(
     '/viame/conversion',
     null,
@@ -44,7 +55,7 @@ function runVideoConversion(itemId) {
   );
 }
 
-function runImageConversion(folder) {
+function runImageConversion(folder: string) {
   return girderRest.post(
     '/viame/image_conversion',
     null,
@@ -58,13 +69,13 @@ function getPipelineList() {
   return girderRest.get('viame/pipelines');
 }
 
-function runPipeline(itemId, pipeline) {
+function runPipeline(itemId: string, pipeline: string) {
   return girderRest.post(
     `/viame/pipeline?folderId=${itemId}&pipeline=${pipeline}`,
   );
 }
 
-function setMetadataForItem(itemId, metadata) {
+function setMetadataForItem(itemId: string, metadata: object) {
   return girderRest.put(
     `/item/${itemId}/metadata?allowNull=true`,
     metadata,

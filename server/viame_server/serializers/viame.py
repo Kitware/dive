@@ -93,7 +93,7 @@ def load_csv_as_tracks(file):
 
     for row in reader:
         features, track_attributes, attributes, confidence_pairs = _parse_row(row)
-        trackid = int(row[0])
+        trackid = str(row[0])
         frame = int(row[2])
         bounds = [
             float(row[3]),
@@ -111,7 +111,7 @@ def load_csv_as_tracks(file):
                 # Last frame with a feature
                 "end": frame,
                 # Unique among tracks in the video
-                "key": trackid,
+                "trackId": trackid,
                 # Array<{{ frame: number, foo: bar, ...}}>
                 "features": [],
                 # Key is an attribute name, val is a float confidence value
@@ -129,13 +129,12 @@ def load_csv_as_tracks(file):
         if attributes:
             features["attributes"] = attributes
         track["features"].append(features)
-        for (key, val) in track_attributes:
+        for (key, val) in track_attributes.items():
             track["attributes"][key] = val
         if frame > track["end"]:
             track["end"] = frame
             # final confidence pair should be taken as the
             # pair that applied to the whole track
-            for (key, val) in confidence_pairs:
-                track["confidencePairs"][key] = val
+            track["confidencePairs"] = confidence_pairs
 
     return tracks
