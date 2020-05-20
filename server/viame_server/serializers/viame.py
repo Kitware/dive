@@ -19,7 +19,13 @@ def _deduceType(value):
         return value
 
 
-def process_row(row, features, attributes, track_attributes):
+def _parse_row(row):
+    """
+    parse a single CSV line into its composite track and detection parts
+    """
+    features = {}
+    attributes = {}
+    track_attributes = {}
     confidence_pairs = [
         [row[i], float(row[i + 1])]
         for i in range(9, len(row), 2)
@@ -43,10 +49,10 @@ def process_row(row, features, attributes, track_attributes):
         if row[j].startswith("(trk-atr)"):
             groups = re.match(r"\(trk-atr\) (.+) (.+)", row[j])
             track_attributes[groups[1]] = _deduceType(groups[2])
-    return confidence_pairs
+    return features, attributes, track_attributes, confidence_pairs
 
 
-def parse(file):
+def load_csv_as_detections(file):
     rows = (
         b"".join(list(File().download(file, headers=False)()))
         .decode("utf-8")
@@ -55,10 +61,7 @@ def parse(file):
     reader = csv.reader(row for row in rows if (not row.startswith("#") and row))
     detections = []
     for row in reader:
-        features = {}
-        track_attributes = {}
-        attributes = {}
-        confidence_pairs = process_row(row, features, attributes, track_attributes)
+        features, track_attributes, attributes, confidence_pairs = _parse_row(row)
         detections.append(
             {
                 "track": int(row[0]),
@@ -75,7 +78,7 @@ def parse(file):
     return detections
 
 
-def parseTracks(file):
+def load_csv_as_tracks(file):
     """
     Convert VIAME web CSV to json tracks.
     Expect detections to be in increasing order (either globally or by track).
@@ -89,10 +92,7 @@ def parseTracks(file):
     tracks = {}
 
     for row in reader:
-        features = {}
-        track_attributes = {}
-        attributes = {}
-        confidence_pairs = process_row(row, features, attributes, track_attributes)
+        features, track_attributes, attributes, confidence_pairs = _parse_row(row)
         trackid = int(row[0])
         frame = int(row[2])
         bounds = [

@@ -114,7 +114,7 @@ class ViameDetection(Resource):
             required=True,
             level=AccessType.READ,
         )
-        .param("formatting", "Format to fetch", default="",)
+        .param("formatting", "Format to fetch", default="track_json",)
     )
     def get_detection(self, folder, formatting):
         detectionItems = list(
@@ -127,9 +127,9 @@ class ViameDetection(Resource):
             return None
         file = Item().childFiles(detectionItems[0])[0]
         if formatting == "track_json":
-            return viame.parseTracks(file)
+            return viame.load_csv_as_tracks(file)
         elif formatting == "detection_json":
-            return viame.parse(file)
+            return viame.load_csv_as_detections(file)
         raise RestException(f"formatting {formatting} is not recognized")
 
     @access.user
