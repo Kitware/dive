@@ -71,8 +71,8 @@ def load_csv_as_detections(file):
                 "fishLength": float(row[8]),
                 "confidencePairs": confidence_pairs,
                 "features": features,
-                "attributes": attributes if attributes else None,
-                "trackAttributes": track_attributes if track_attributes else None,
+                "attributes": attributes or None,
+                "trackAttributes": track_attributes or None,
             }
         )
     return detections
