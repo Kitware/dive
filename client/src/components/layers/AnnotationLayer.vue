@@ -68,6 +68,7 @@ export default {
         }
       });
     this.polygonFeature.geoOn(geo.event.mouseclick, (e) => {
+      // If we aren't clicking on an annotation we can deselect the current track
       if (this.polygonFeature.pointSearch(e.geo).found.length === 0) {
         this.$emit('deselect-track');
       }

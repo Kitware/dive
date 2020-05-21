@@ -86,7 +86,7 @@ export default {
       const height = this.$refs.workarea.clientHeight || 0;
       // clientWidth and clientHeight are properties used to resize child elements
       this.clientWidth = width;
-      // Timeline height needs to be offset so it doesn't overlap the frame number
+      // Timeline height needs to offset so it doesn't overlap the frame number
       this.clientHeight = height - 15;
       const scale = d3
         .scaleLinear()

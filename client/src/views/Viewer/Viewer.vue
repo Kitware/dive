@@ -169,7 +169,7 @@ export default defineComponent({
       seek(_frame);
     }
     /**
-     * Iterates through frames using the keyboard and jumps to the first frame of the track.
+     * Changes frames using the keyboard and jumps to the first frame of the track.
      * @param {('up' | 'down')} direction indicates if the previous or next track should be selected
      */
     function selectTrackFirstFrame(direction) {
