@@ -8,7 +8,7 @@ export default function useStyling() {
   // Annotation State Colors
   const standard = {
     strokeWidth: 1,
-    opacity: 0.5,
+    opacity: 0.75,
   };
   const selected = {
     ...standard,
@@ -18,8 +18,8 @@ export default function useStyling() {
   };
   const disabled = {
     ...standard,
-    color: '#777777',
-    opacity: 0.7,
+    strokeWidth: 0.5,
+    opacity: 0.3,
   };
   // Colors provided for the different Types
   const stateStyling = { standard, selected, disabled };

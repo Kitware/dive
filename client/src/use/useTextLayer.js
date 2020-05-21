@@ -37,13 +37,13 @@ export default function useTextLayer({
     const _editingTrackId = editingTrackId.value;
     return {
       color: (data) => {
-        if (_editingTrackId !== null) {
+        if (_editingTrackId !== null && stateStyling.disabled.color) {
           if (_editingTrackId !== data.detection.track) {
             return stateStyling.disabled.color; // color for other detections when editing
           }
           return stateStyling.selected.color;
         }
-        if (data.detection.track === _selectedTrackId) {
+        if (data.detection.track === _selectedTrackId && stateStyling.selected.color) {
           return stateStyling.selected.color;
         }
         return typeColorMap(data.detection.confidencePairs[0][0]);
