@@ -3,11 +3,49 @@ VIAME Fish format deserializer
 """
 import csv
 import re
+from dataclasses import dataclass, asdict, field
+from typing import List, Dict, Tuple, Optional, Union, Any
 
 from girder.models.file import File
 
 
-def _deduceType(value):
+@dataclass
+class Feature:
+    """Feature represents a single detection in a track."""
+
+    frame: int = None
+    bounds: List[float] = None
+    head: Optional[Tuple[str, str]] = None
+    tail: Optional[Tuple[str, str]] = None
+    fishLength: Optional[float] = None
+    attributes: Optional[Dict[str, Union[bool, float, str]]] = None
+
+
+@dataclass
+class Track:
+    begin: int
+    end: int
+    key: int
+    features: List[Feature] = field(default_factory=lambda: [])
+    confidencePairs: Dict[str, float] = field(default_factory=lambda: {})
+    attributes: Dict[str, Any] = field(default_factory=lambda: {})
+
+
+def row_info(row: List[str]) -> Tuple[int, int, List[float], float]:
+    trackid = int(row[0])
+    frame = int(row[2])
+    bounds = [
+        float(row[3]),
+        float(row[5]),
+        float(row[4]),
+        float(row[6]),
+    ]
+    fish_length = float(row[8])
+
+    return trackid, frame, bounds, fish_length
+
+
+def _deduceType(value: str) -> Union[bool, float, str]:
     if value == "true":
         return True
     if value == "false":
@@ -19,7 +57,7 @@ def _deduceType(value):
         return value
 
 
-def _parse_row(row):
+def _parse_row(row: List[str]) -> Tuple[Dict, Dict, Dict, List]:
     """
     parse a single CSV line into its composite track and detection parts
     """
@@ -49,10 +87,27 @@ def _parse_row(row):
         if row[j].startswith("(trk-atr)"):
             groups = re.match(r"\(trk-atr\) (.+) (.+)", row[j])
             track_attributes[groups[1]] = _deduceType(groups[2])
+
     return features, attributes, track_attributes, confidence_pairs
 
 
-def load_csv_as_detections(file):
+def _parse_row_for_tracks(row: List[str]) -> Tuple[Feature, Any, Any, Any]:
+    head_tail_feature, attributes, track_attributes, confidence_pairs = _parse_row(row)
+    trackid, frame, bounds, fishLength = row_info(row)
+
+    feature = Feature(
+        frame,
+        bounds,
+        attributes=attributes,
+        fishLength=fishLength if fishLength > 0 else None,
+        **head_tail_feature,
+    )
+
+    # Pass the rest of the unchanged info through as well
+    return feature, attributes, track_attributes, confidence_pairs
+
+
+def load_csv_as_detections(file) -> List[Dict]:
     rows = (
         b"".join(list(File().download(file, headers=False)()))
         .decode("utf-8")
@@ -66,7 +121,7 @@ def load_csv_as_detections(file):
             {
                 "track": int(row[0]),
                 "frame": int(row[2]),
-                "bounds": [float(row[3]), float(row[5]), float(row[4]), float(row[6]),],
+                "bounds": [float(row[3]), float(row[5]), float(row[4]), float(row[6])],
                 "confidence": float(row[7]),
                 "fishLength": float(row[8]),
                 "confidencePairs": confidence_pairs,
@@ -92,50 +147,30 @@ def load_csv_as_tracks(file):
     tracks = {}
 
     for row in reader:
-        features, attributes, track_attributes, confidence_pairs = _parse_row(row)
-        trackid = int(row[0])
-        frame = int(row[2])
-        bounds = [
-            float(row[3]),
-            float(row[5]),
-            float(row[4]),
-            float(row[6]),
-        ]
-        fishLength = float(row[8])
+        (
+            feature,
+            attributes,
+            track_attributes,
+            confidence_pairs,
+        ) = _parse_row_for_tracks(row)
+        trackid, frame, _, _ = row_info(row)
 
         if trackid not in tracks:
-            # track is defined as follows...
-            tracks[trackid] = {
-                # First frame with a feature
-                "begin": frame,
-                # Last frame with a feature
-                "end": frame,
-                # Unique among tracks in the video
-                "key": trackid,
-                # Array<{{ frame: number, foo: bar, ...}}>
-                "features": [],
-                # Key is an attribute name, val is a float confidence value
-                "confidencePairs": {},
-                # Key is string, value is freeform
-                "attributes": {},
-            }
-        track = tracks[trackid]
-        track["begin"] = min(frame, track["begin"])
-        features["frame"] = frame
-        features["bounds"] = bounds
-        if fishLength > 0:
-            features["fishLength"] = fishLength
+            tracks[trackid] = Track(frame, frame, trackid)
 
-        if attributes:
-            features["attributes"] = attributes
-        track["features"].append(features)
+        track = tracks[trackid]
+        track.begin = min(frame, track.begin)
+        track.features.append(feature)
+
         for (key, val) in track_attributes:
-            track["attributes"][key] = val
-        if frame > track["end"]:
-            track["end"] = frame
+            track.attributes[key] = val
+
+        if frame > track.end:
+            track.end = frame
+
             # final confidence pair should be taken as the
             # pair that applied to the whole track
             for (key, val) in confidence_pairs:
-                track["confidencePairs"][key] = val
+                track.confidencePairs[key] = val
 
-    return tracks
+    return {trackid: asdict(track) for trackid, track in tracks.items()}
