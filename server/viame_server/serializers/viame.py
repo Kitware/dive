@@ -62,7 +62,6 @@ def load_csv_as_detections(file):
     detections = []
     for row in reader:
         features, attributes, track_attributes, confidence_pairs = _parse_row(row)
-        print(attributes)
         detections.append(
             {
                 "track": int(row[0]),
