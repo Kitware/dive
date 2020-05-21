@@ -48,6 +48,20 @@ export default function useTextLayer({
         }
         return typeColorMap(data.detection.confidencePairs[0][0]);
       },
+      textOpacity: (data) => {
+        if (_editingTrackId !== null) {
+          if (_editingTrackId !== data.detection.track && stateStyling.disabled.opacity) {
+            return stateStyling.disabled.opacity;
+          }
+
+          return stateStyling.selected.opacity;
+        }
+
+        if (data.detection.track === _selectedTrackId) {
+          return stateStyling.selected.opacity;
+        }
+        return stateStyling.standard.opacity;
+      },
       offsetY(data) {
         return data.offsetY;
       },

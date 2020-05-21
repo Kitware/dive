@@ -19,7 +19,7 @@ export default function useStyling() {
   const disabled = {
     ...standard,
     strokeWidth: 0.5,
-    opacity: 0.3,
+    opacity: 0.4,
   };
   // Colors provided for the different Types
   const stateStyling = { standard, selected, disabled };

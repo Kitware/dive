@@ -182,10 +182,10 @@ export default defineComponent({
     }
     function annotationClick(data) {
       if (!featurePointing.value) {
-        if (data && data.detection && data.detection.track) {
+        if (data !== null) {
           setTrackEditMode(data.detection.track, false);
         } else {
-          setTrackEditMode(null, false);
+          setTrackEditMode(data, false);
         }
       }
     }
