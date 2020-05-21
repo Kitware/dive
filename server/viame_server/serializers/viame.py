@@ -61,7 +61,8 @@ def load_csv_as_detections(file):
     reader = csv.reader(row for row in rows if (not row.startswith("#") and row))
     detections = []
     for row in reader:
-        features, track_attributes, attributes, confidence_pairs = _parse_row(row)
+        features, attributes, track_attributes, confidence_pairs = _parse_row(row)
+        print(attributes)
         detections.append(
             {
                 "track": int(row[0]),
@@ -71,7 +72,7 @@ def load_csv_as_detections(file):
                 "fishLength": float(row[8]),
                 "confidencePairs": confidence_pairs,
                 "features": features,
-                "attributes": attributes,
+                "attributes": attributes if attributes else None,
                 "trackAttributes": track_attributes if track_attributes else None,
             }
         )
@@ -92,7 +93,7 @@ def load_csv_as_tracks(file):
     tracks = {}
 
     for row in reader:
-        features, track_attributes, attributes, confidence_pairs = _parse_row(row)
+        features, attributes, track_attributes, confidence_pairs = _parse_row(row)
         trackid = int(row[0])
         frame = int(row[2])
         bounds = [
