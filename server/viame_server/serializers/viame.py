@@ -91,7 +91,7 @@ def _parse_row(row: List[str]) -> Tuple[Dict, Dict, Dict, List]:
     return features, attributes, track_attributes, confidence_pairs
 
 
-def _parse_row_for_tracks(row: List[str]) -> Tuple[Feature, Any, Any, Any]:
+def _parse_row_for_tracks(row: List[str]) -> Tuple[Feature, Dict, Dict, List]:
     head_tail_feature, attributes, track_attributes, confidence_pairs = _parse_row(row)
     trackid, frame, bounds, fishLength = row_info(row)
 
