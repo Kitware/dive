@@ -7,7 +7,10 @@ export default function useDetections({ markChangesPending }) {
 
   async function loadDetections(datasetFolderId) {
     const { data } = await girderRest.get('viame_detection', {
-      params: { folderId: datasetFolderId },
+      params: {
+        folderId: datasetFolderId,
+        formatting: 'detection_json',
+      },
     });
     detections.value = data
       ? data.map((detection) => Object.freeze(detection))
