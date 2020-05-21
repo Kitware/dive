@@ -86,7 +86,8 @@ export default {
       const height = this.$refs.workarea.clientHeight || 0;
       // clientWidth and clientHeight are properties used to resize child elements
       this.clientWidth = width;
-      this.clientHeight = height;
+      // Timeline height needs to be offset so it doesn't overlap the frame number
+      this.clientHeight = height - 15;
       const scale = d3
         .scaleLinear()
         .domain([0, this.maxFrame])
@@ -108,7 +109,7 @@ export default {
         .attr('height', height);
       if (!this.g) {
         this.g = this.svg.append('g')
-          .attr('transform', `translate(0,${height - 17})`);
+          .attr('transform', `translate(0,${height - 15})`);
       }
 
       this.updateAxis();
