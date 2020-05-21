@@ -8,7 +8,7 @@ export default {
     },
     value: {
       type: [String, Number, Boolean],
-      required: true,
+      default: null,
     },
     datatype: {
       type: String,
