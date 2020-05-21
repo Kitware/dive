@@ -8,7 +8,7 @@ Vue.use(Vuex);
 export default new Vuex.Store({
   state: {
     location: null,
-    pipelines: null,
+    pipelines: {},
   },
   mutations: {
     setLocation(state, location) {
@@ -20,15 +20,16 @@ export default new Vuex.Store({
   },
   actions: {
     async fetchPipelines({ commit, state }) {
-      if (state.pipelines === null) {
+      if (Object.keys(state.pipelines).length === 0) {
         const { data } = await getPipelineList();
+        // Sort list of pipelines in each category by name
         Object.keys(data).forEach((key) => {
           const category = data[key];
           if (category.pipes.length > 0) {
             category.pipes.sort((a, b) => {
               if (a.name && b.name) {
-                const aName = a.name.toUpperCase();
-                const bName = b.name.toUpperCase();
+                const aName = a.name.toLowerCase();
+                const bName = b.name.toLowerCase();
                 if (aName > bName) {
                   return 1;
                 }
@@ -40,8 +41,10 @@ export default new Vuex.Store({
             });
           }
         });
-        commit('setPipelines', data);
-        return data;
+        if (data !== null) {
+          commit('setPipelines', data);
+          return data;
+        }
       }
       return state.pipelines;
     },

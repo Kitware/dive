@@ -18,7 +18,7 @@ export default {
       );
     },
     pipelinesNotRunnable() {
-      return this.selectedEligibleClips.length < 1 || this.pipelines === null;
+      return this.selectedEligibleClips.length < 1 || Object.keys(this.pipelines).length === 0;
     },
   },
 
