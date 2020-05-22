@@ -1,5 +1,5 @@
 [Unit]
-Description=Run the Viame deploy every Sunday at midnight
+Description=Run the Viame deploy every Sunday at 2 AM
 
 [Timer]
 OnCalendar=Sun 02:00
