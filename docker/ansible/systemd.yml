@@ -1,0 +1,23 @@
+# Playbook to install the systemd service and timers files
+
+- hosts: localhost
+  become: yes
+  vars:
+    # Required to use docker_compose properly
+    ansible_python_interpreter: /usr/bin/python3
+  tasks:
+    - name: Copy systemd service
+      copy:
+        src: /home/viame/docker/ansible/viame-deploy.service
+        dest: /etc/systemd/system/viame-deploy.service
+
+    - name: Copy systemd timer
+      copy:
+        src: /home/viame/docker/ansible/viame-deploy.timer
+        dest: /etc/systemd/system/viame-deploy.timer
+
+    - name: Reload systemd daemon
+      systemd:
+          name: viame-deploy
+          enabled: yes
+          daemon_reload: yes
