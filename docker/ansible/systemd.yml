@@ -9,7 +9,7 @@
   tasks:
     - name: Copy systemd service
       copy:
-        src: "{{ viame_install_location  }}/docker/ansible/viame-deploy.service"
+        src: "{{ viame_install_location }}/docker/ansible/viame-deploy.service"
         dest: /etc/systemd/system/viame-deploy.service
 
     - name: Copy systemd timer
