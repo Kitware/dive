@@ -5,16 +5,15 @@
   vars:
     # Required to use docker_compose properly
     ansible_python_interpreter: /usr/bin/python3
-    viame_install_location: /home/viame
   tasks:
     - name: Copy systemd service
       copy:
-        src: "{{ viame_install_location }}/docker/ansible/viame-deploy.service"
+        src: /home/viame/docker/ansible/viame-deploy.service
         dest: /etc/systemd/system/viame-deploy.service
 
     - name: Copy systemd timer
       copy:
-        src: "{{ viame_install_location }}/docker/ansible/viame-deploy.timer"
+        src: /home/viame/docker/ansible/viame-deploy.timer
         dest: /etc/systemd/system/viame-deploy.timer
 
     - name: Enable timer
