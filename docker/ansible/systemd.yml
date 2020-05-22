@@ -16,8 +16,9 @@
         src: /home/viame/docker/ansible/viame-deploy.timer
         dest: /etc/systemd/system/viame-deploy.timer
 
-    - name: Reload systemd daemon
+    - name: Enable timer
       systemd:
-          name: viame-deploy
+          name: viame-deploy.timer
+          state: started
           enabled: yes
           daemon_reload: yes

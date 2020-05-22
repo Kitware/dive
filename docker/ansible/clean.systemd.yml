@@ -1,0 +1,25 @@
+# Playbook to install the systemd service and timers files
+
+- hosts: localhost
+  become: yes
+  vars:
+    # Required to use docker_compose properly
+    ansible_python_interpreter: /usr/bin/python3
+  tasks:
+    - name: Disable timer
+      systemd:
+          name: viame-deploy.timer
+          state: stopped
+          enabled: no
+          daemon_reload: yes
+
+    - name: Remove systemd service
+      file:
+        path: /etc/systemd/system/viame-deploy.service
+        state: absent
+
+    - name: Remove systemd timer
+      file:
+        path: /etc/systemd/system/viame-deploy.timer
+        state: absent
+
