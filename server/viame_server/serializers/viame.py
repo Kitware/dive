@@ -25,14 +25,14 @@ class Feature:
 class Track:
     begin: int
     end: int
-    key: int
+    trackId: str
     features: List[Feature] = field(default_factory=lambda: [])
     confidencePairs: Dict[str, float] = field(default_factory=lambda: {})
     attributes: Dict[str, Any] = field(default_factory=lambda: {})
 
 
 def row_info(row: List[str]) -> Tuple[int, int, List[float], float]:
-    trackid = int(row[0])
+    trackId = str(row[0])
     frame = int(row[2])
     bounds = [
         float(row[3]),
@@ -42,7 +42,7 @@ def row_info(row: List[str]) -> Tuple[int, int, List[float], float]:
     ]
     fish_length = float(row[8])
 
-    return trackid, frame, bounds, fish_length
+    return trackId, frame, bounds, fish_length
 
 
 def _deduceType(value: str) -> Union[bool, float, str]:
@@ -93,7 +93,7 @@ def _parse_row(row: List[str]) -> Tuple[Dict, Dict, Dict, List]:
 
 def _parse_row_for_tracks(row: List[str]) -> Tuple[Feature, Dict, Dict, List]:
     head_tail_feature, attributes, track_attributes, confidence_pairs = _parse_row(row)
-    trackid, frame, bounds, fishLength = row_info(row)
+    trackId, frame, bounds, fishLength = row_info(row)
 
     feature = Feature(
         frame,
@@ -153,12 +153,12 @@ def load_csv_as_tracks(file):
             track_attributes,
             confidence_pairs,
         ) = _parse_row_for_tracks(row)
-        trackid, frame, _, _ = row_info(row)
+        trackId, frame, _, _ = row_info(row)
 
-        if trackid not in tracks:
-            tracks[trackid] = Track(frame, frame, trackid)
+        if trackId not in tracks:
+            tracks[trackId] = Track(frame, frame, trackId)
 
-        track = tracks[trackid]
+        track = tracks[trackId]
         track.begin = min(frame, track.begin)
         track.features.append(feature)
 
@@ -173,4 +173,4 @@ def load_csv_as_tracks(file):
             for (key, val) in confidence_pairs:
                 track.confidencePairs[key] = val
 
-    return {trackid: asdict(track) for trackid, track in tracks.items()}
+    return {trackId: asdict(track) for trackId, track in tracks.items()}
