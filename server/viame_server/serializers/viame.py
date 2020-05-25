@@ -160,17 +160,11 @@ def load_csv_as_tracks(file):
 
         track = tracks[trackId]
         track.begin = min(frame, track.begin)
+        track.end = max(track.end, frame)
         track.features.append(feature)
+        track.confidencePairs = confidence_pairs
 
         for (key, val) in track_attributes:
             track.attributes[key] = val
-
-        if frame > track.end:
-            track.end = frame
-
-            # final confidence pair should be taken as the
-            # pair that applied to the whole track
-            for (key, val) in confidence_pairs:
-                track.confidencePairs[key] = val
 
     return {trackId: asdict(track) for trackId, track in tracks.items()}
