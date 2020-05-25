@@ -15,8 +15,8 @@ class Feature:
 
     frame: int = None
     bounds: List[float] = None
-    head: Optional[Tuple[str, str]] = None
-    tail: Optional[Tuple[str, str]] = None
+    head: Optional[Tuple[int, int]] = None
+    tail: Optional[Tuple[int, int]] = None
     fishLength: Optional[float] = None
     attributes: Optional[Dict[str, Union[bool, float, str]]] = None
 
