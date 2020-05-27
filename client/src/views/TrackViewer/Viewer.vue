@@ -26,11 +26,18 @@ import {
 
 import ControlsContainer from './ControlsContainer.vue';
 import Sidebar from './Sidebar.vue';
+import components from './components';
+import ImageAnnotator  from "@/components/annotators/ImageAnnotator.vue"
+import Layers from '@/components/layers/Layers.vue';
+import { getPathFromLocation } from '@/utils';
+import store from '@/store';
 
 export default defineComponent({
   components: {
     ControlsContainer,
     Sidebar,
+    Layers,
+    ...components,
   },
 
   props: {
@@ -68,6 +75,7 @@ export default defineComponent({
     const {
       trackMap,
       sortedTrackIds,
+      intervalTree,
       addTrack,
       removeTrack: tsRemoveTrack,
       splitTracks,
@@ -83,6 +91,7 @@ export default defineComponent({
       enabledTrackIds,
     } = useTrackFilters({ trackMap, sortedTrackIds });
 
+  
     // Initialize the view
     Promise.all([
       loadDataset(datasetId),
@@ -94,6 +103,7 @@ export default defineComponent({
 
     const {
       selectedTrackId,
+      setTrackEditMode,
       editingTrack,
       selectNextTrack,
       removeTrack, // override removeTrack
@@ -104,6 +114,7 @@ export default defineComponent({
 
     const {
       featurePointing,
+      featurePointingTarget,
       toggleFeaturePointing,
       featurePointed,
       deleteFeaturePoints,
@@ -117,7 +128,19 @@ export default defineComponent({
       enabledTrackIds, selectedTrackId, typeColorMapper, trackMap,
     });
 
+    const location = computed(() => store.state.location);
+
+    function handleClick(data:string, edit:boolean = false) {
+      setTrackEditMode(data, edit);
+    } 
+
     return {
+      handleClick,
+      dataset,
+      confidence:confidenceThreshold,
+      location,
+      getPathFromLocation,
+      pendingSaveCount,
       controlsContainerProps: {
         lineChartData,
         eventChartData,
@@ -135,10 +158,28 @@ export default defineComponent({
         addTrack,
         selectNextTrack,
       },
+      layerProps:{
+        trackMap,
+        filteredTrackIds,
+        selectedTrackId,
+        editingTrack,
+        typeColorMapper,
+        stateStyling,
+        intervalTree,
+        featurePointing,
+        featurePointingTarget,   
+      },
+      playbackProps:{
+      imageUrls,
+      videoUrl,
+      annotatorType,
+      frameRate,
+      },
       filteredTrackIds,
       allTypes,
       checkedTrackIds,
       checkedTypes,
+      setTrackEditMode,
     };
 
 
@@ -310,8 +351,71 @@ export default defineComponent({
   <v-content
     class="viewer"
   >
-    <sidebar v-bind="sidebarProps" />
-    <controls-container v-bind="controlsContainerProps" />
+    <v-app-bar app>
+      <navigation-title />
+      <v-tabs
+        icons-and-text
+        hide-slider
+        style="flex-basis:0; flex-grow:0;"
+      >
+        <v-tab :to="getPathFromLocation(location)">
+          Data
+          <v-icon>mdi-database</v-icon>
+        </v-tab>
+      </v-tabs>
+      <span
+        class="subtitle-1 text-center"
+        style="flex-grow: 1;"
+      >
+        {{ dataset ? dataset.name : "" }}
+      </span>
+      <user-guide-button annotating />
+      <ConfidenceFilter :confidence.sync="confidence" />
+      <v-badge
+        overlap
+        bottom
+        :content="pendingSaveCount"
+        :value="pendingSaveCount > 0"
+        offset-x="14"
+        offset-y="18"
+      >
+        <v-btn
+          icon
+          :disabled="pendingSaveCount === 0"
+        >
+          <v-icon>mdi-content-save</v-icon>
+        </v-btn>
+      </v-badge>
+    </v-app-bar>
+    <v-row
+      no-gutters
+      class="fill-height"
+    >
+      <sidebar
+        v-bind="sidebarProps"
+      />
+
+      <v-col style="position: relative; ">
+        <component
+          :is="playbackProps.annotatorType.value"
+          v-if="playbackProps.imageUrls.value.length"
+          ref="playbackComponent"
+          :image-urls="playbackProps.imageUrls.value"
+          :video-url="playbackProps.videoUrl.value"
+          :frame-rate="playbackProps.frameRate.value"
+          class="playback-component"
+          @frame-update="frame = $event"
+        >
+          <template slot="control">
+            <controls-container v-bind="controlsContainerProps" />
+          </template>
+          <layers
+            v-bind="layerProps"
+            @selectTrack="handleClick"
+          />
+        </component>
+      </v-col>
+    </v-row>
     <!--  -->
 
     <!-- <v-app-bar app>

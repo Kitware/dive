@@ -1,18 +1,25 @@
 <script>
 import { cloneDeep } from 'lodash';
 import geo from 'geojs';
+import { boundToGeojson } from '../../utils';
 
 export default {
   name: 'EditAnnotationLayer',
   inject: ['annotator'],
   props: {
-    geojson: {
+    data: {
       type: Object,
       default: null,
-      validator(value) {
-        return ['Point', 'Polygon', 'LineString'].includes(value.type);
-      },
     },
+    stateStyling: {
+      type: Object,
+      default: () => {},
+    },
+    typeColorMap: {
+      type: Function,
+      default: () => {},
+    },
+
     editing: {
       type: [String, Boolean],
       default: true,
@@ -26,10 +33,6 @@ export default {
         return false;
       },
     },
-    featureStyle: {
-      type: Object,
-      default: null,
-    },
   },
   data() {
     return {
@@ -37,7 +40,7 @@ export default {
     };
   },
   watch: {
-    geojson(val, oldVal) {
+    data(val, oldVal) {
       // reinitialize when annotations change.
       if (!this.changed) {
         this.reinitialize();
@@ -57,6 +60,10 @@ export default {
     },
   },
   mounted() {
+    this.featureStyle = {
+      fill: false,
+      strokeColor: this.stateStyling.selected.color,
+    };
     this.initialize();
   },
   beforeDestroy() {
@@ -74,6 +81,11 @@ export default {
       this.initialize();
     },
     initialize() {
+      if (this.data.features && this.data.features.bounds) {
+        this.geojson = boundToGeojson(this.data.features.bounds);
+      } else {
+        this.geojson = null;
+      }
       if (!this.$geojsLayer) {
         this.$geojsLayer = this.annotator.geoViewer.createLayer('annotation', {
           clickToEdit: true,
@@ -171,8 +183,8 @@ export default {
       this.$emit('update:geojson', geojson);
     },
   },
-  render() {
-    return null;
-  },
 };
 </script>
+<template>
+  <div />
+</template>

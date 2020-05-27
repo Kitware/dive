@@ -7,40 +7,23 @@ export default {
       type: Array,
       required: true,
     },
-    textStyle: {
+    stateStyling: {
       type: Object,
       default: () => {},
     },
-  },
-  computed: {
-    frameMap() {
-      const map = new Map();
-      this.data.forEach((record) => {
-        let arr = map.get(record.frame);
-        if (!map.has(record.frame)) {
-          arr = [];
-          map.set(record.frame, arr);
-        }
-        arr.push(record);
-      });
-      return map;
+    typeColorMap: {
+      type: Function,
+      default: () => {},
     },
   },
   watch: {
-    'annotator.syncedFrame': {
-      sync: true,
-      handler() {
-        this.frameChanged();
-      },
-    },
-    textStyle() {
-      this.updateStyle();
-    },
-    frameMap() {
+    data() {
       this.frameChanged();
+      this.updateStyle();
     },
   },
   mounted() {
+    this.textStyle = this.createTextStyle();
     this.featureLayer = this.annotator.geoViewer.createLayer('feature', {
       features: ['text'],
     });
@@ -57,10 +40,7 @@ export default {
   },
   methods: {
     frameChanged() {
-      const frame = this.annotator.syncedFrame;
-      let data = this.frameMap.get(frame);
-      data = data || [];
-      this.textFeature.data(data).draw();
+      this.textFeature.data(this.computeData()).draw();
     },
     updateStyle() {
       let offset = {
@@ -77,7 +57,7 @@ export default {
         ...{
           fontSize: '14px',
           textAlign: 'left',
-          color: 'lime',
+          color: this.stateStyling.standard.color,
           textBaseline: 'top',
           offset,
         },
@@ -85,9 +65,58 @@ export default {
       };
       this.textFeature.style(style).draw();
     },
-  },
-  render() {
-    return null;
+    createTextStyle() {
+      return {
+        color: (data) => {
+          if (data.editing) {
+            if (!data.selected) {
+              if (this.stateStyling.disabled.color !== 'type') {
+                return this.stateStyling.disabled.color;
+              }
+              if (data.confidencePairs && data.confidencePairs.length) {
+                return this.typeColorMap(data.confidencePairs[0][0]);
+              }
+            }
+            return this.stateStyling.selected.color;
+          }
+          if (data.selected) {
+            return this.stateStyling.selected.color;
+          }
+          if (data.confidencePairs && data.confidencePairs.length) {
+            return this.typeColorMap(data.confidencePairs[0][0]);
+          }
+          return this.stateStyling.standard.color;
+        },
+        offsetY(data) {
+          return data.offsetY;
+        },
+      };
+    },
+    computeData() {
+      const arr = [];
+      this.data.forEach((track) => {
+        if (track.confidencePairs && track.features) {
+          const { bounds } = track.features;
+          if (bounds) {
+            track.confidencePairs.forEach(([type, confidence], i) => {
+              arr.push({
+                selected: track.selected,
+                editing: track.editing,
+                confidencePairs: track.confidencePairs,
+                text: `${type}: ${confidence.toFixed(2)}`,
+                x: bounds[1],
+                y: bounds[2],
+                offsetY: i * 14,
+              });
+            });
+          }
+        }
+      });
+      return arr;
+    },
   },
 };
 </script>
+<template>
+  <div />
+</template>

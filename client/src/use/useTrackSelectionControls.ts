@@ -17,6 +17,11 @@ export default function useTrackSelectionControls(
   // boolean whether or not selectedTrackId is also being edited.
   const editingTrack = ref(false);
 
+  function setTrackEditMode(trackId:string, edit:boolean = false) {
+    console.warn(`SETTING TRACK ID ${trackId} with edit:${edit}`);
+    selectedTrackId.value = trackId;
+    editingTrack.value = edit;
+  }
   /* default to index + 1
    * call with -1 to select previous, or pass any other delta
    */
@@ -48,6 +53,7 @@ export default function useTrackSelectionControls(
     selectedTrackId,
     editingTrack,
     selectNextTrack,
+    setTrackEditMode,
     removeTrack: wrapRemoveTrack,
   };
 }
