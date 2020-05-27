@@ -2,7 +2,7 @@ import Vue from 'vue';
 import { reactive, toRefs, Ref } from '@vue/composition-api';
 import Track, { TrackId } from '@/lib/track';
 
-type FeaturePointingTarget = 'head' | 'tail' | null;
+export type FeaturePointingTarget = 'head' | 'tail' | null;
 
 interface GeojsonGeometry {
   geometry: {

@@ -63,8 +63,5 @@ export default {
       this.pointFeature.style(this.markerStyle).draw();
     },
   },
-  render() {
-    return null;
-  },
 };
 </script>

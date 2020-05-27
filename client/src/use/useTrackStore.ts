@@ -103,6 +103,7 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
   return {
     trackMap,
     sortedTrackIds,
+    intervalTree,
     addTrack,
     removeTrack,
     splitTracks,
