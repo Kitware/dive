@@ -93,10 +93,15 @@ export default class Track {
   }
 
   setType(trackType: string) {
-    this.confidencePairs.value.forEach(() => {
-      // TODO p1
-    });
-    return null;
+    const i = this.confidencePairs.value.findIndex(([name, val]) => name === trackType);
+    const deleteCount = i >= 0 ? 1 : 0;
+    this.confidencePairs.value.splice(
+      deleteCount ? i : 0,
+      deleteCount,
+      [trackType, 1],
+    );
+    // sort by confidence value
+    this.confidencePairs.value.sort((a, b) => a[1] - b[1]);
   }
 
   setAttribute(key: string, value: any) {
