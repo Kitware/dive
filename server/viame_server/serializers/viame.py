@@ -2,7 +2,9 @@
 VIAME Fish format deserializer
 """
 import csv
+import json
 import re
+import io
 from dataclasses import dataclass, field
 from typing import List, Dict, Tuple, Optional, Union, Any
 
@@ -42,6 +44,19 @@ def track_to_dict(track: Track):
         omit_empty(feature.__dict__) for feature in track_dict["features"]
     ]
     return track_dict
+
+
+@dataclass
+class FlatDetection:
+    bounds: Tuple[float, float, float, float]  # [x1, x2, y1, y2]
+    confidence: float
+    confidencePairs: List[Tuple[str, float]]
+    features: Dict[str, Any]
+    fishLength: float
+    frame: int
+    track: int
+    attributes: Optional[Dict[str, Any]] = None
+    trackAttributes: Optional[Dict[str, Any]] = None
 
 
 def row_info(row: List[str]) -> Tuple[int, int, List[float], float]:
@@ -113,39 +128,13 @@ def _parse_row_for_tracks(row: List[str]) -> Tuple[Feature, Dict, Dict, List]:
     feature = Feature(
         frame,
         bounds,
-        attributes=attributes,
+        attributes=attributes or None,
         fishLength=fishLength if fishLength > 0 else None,
         **head_tail_feature,
     )
 
     # Pass the rest of the unchanged info through as well
     return feature, attributes, track_attributes, confidence_pairs
-
-
-def load_csv_as_detections(file) -> List[Dict]:
-    rows = (
-        b"".join(list(File().download(file, headers=False)()))
-        .decode("utf-8")
-        .split("\n")
-    )
-    reader = csv.reader(row for row in rows if (not row.startswith("#") and row))
-    detections = []
-    for row in reader:
-        features, attributes, track_attributes, confidence_pairs = _parse_row(row)
-        detections.append(
-            {
-                "track": int(row[0]),
-                "frame": int(row[2]),
-                "bounds": [float(row[3]), float(row[5]), float(row[4]), float(row[6])],
-                "confidence": float(row[7]),
-                "fishLength": float(row[8]),
-                "confidencePairs": confidence_pairs,
-                "features": features,
-                "attributes": attributes or None,
-                "trackAttributes": track_attributes or None,
-            }
-        )
-    return detections
 
 
 def load_csv_as_tracks(file):
@@ -183,3 +172,66 @@ def load_csv_as_tracks(file):
             track.attributes[key] = val
 
     return {trackId: track_to_dict(track) for trackId, track in tracks.items()}
+
+
+def json_row_to_csv(detection, trackAttributes=None):
+    def valueToString(value):
+        if value is True:
+            return "true"
+        elif value is False:
+            return "false"
+        return str(value)
+
+    columns = [
+        detection["track"],
+        "",
+        detection["frame"],
+        detection["bounds"][0],
+        detection["bounds"][2],
+        detection["bounds"][1],
+        detection["bounds"][3],
+        detection["confidence"],
+        detection["fishLength"],
+    ]
+    for [key, confidence] in detection["confidencePairs"]:
+        columns += [key, confidence]
+    if detection["features"]:
+        for [key, values] in detection["features"].items():
+            columns.append("(kp) {} {} {}".format(key, values[0], values[1]))
+    if detection["attributes"]:
+        for [key, value] in detection["attributes"].items():
+            columns.append("(atr) {} {}".format(key, valueToString(value)))
+    if trackAttributes:
+        for [key, value] in trackAttributes.items():
+            columns.append("(trk-atr) {} {}".format(key, valueToString(value)))
+    return columns
+
+
+def export_json_as_csv(file) -> str:
+    """
+    Export detection json to a CSV format.
+
+    file: The detections JSON file
+    """
+
+    detections = json.loads(
+        b"".join(list(File().download(file, headers=False)())).decode()
+    )
+    track = detections[0]["track"]
+    length = len(detections)
+
+    with io.StringIO() as csvFile:
+        writer = csv.writer(csvFile)
+
+        for i in range(0, len(detections)):
+            trackAttributes = (
+                detections[i]["trackAttributes"]
+                if detections[i]["trackAttributes"]
+                else None
+            )
+            if i == length - 1 or detections[i + 1]["track"] != track:
+                writer.writerow(json_row_to_csv(detections[i], trackAttributes))
+            else:
+                writer.writerow(json_row_to_csv(detections[i]))
+
+        return csvFile.getvalue()
