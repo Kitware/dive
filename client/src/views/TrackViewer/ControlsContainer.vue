@@ -37,7 +37,7 @@ export default defineComponent({
   setup() {
     return {
       showTrackView: ref(false),
-      maxFrame: 100,
+      maxFrame: 328,
       frame: 10,
       seek: () => {},
     };
