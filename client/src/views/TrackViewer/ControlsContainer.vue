@@ -25,20 +25,22 @@ export default defineComponent({
 
   props: {
     lineChartData: {
-      type: Object as PropType<Ref<any>>,
+      type: Object as PropType<Ref<unknown>>,
       required: true,
     },
     eventChartData: {
-      type: Object as PropType<Ref<any>>,
+      type: Object as PropType<Ref<unknown>>,
       required: true,
     },
   },
 
   setup() {
     return {
+      // TODO p1 viewer params
       showTrackView: ref(false),
       maxFrame: 328,
       frame: 10,
+      // eslint-disable-next-line @typescript-eslint/no-empty-function
       seek: () => {},
     };
   },

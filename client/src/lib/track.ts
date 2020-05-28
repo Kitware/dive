@@ -1,26 +1,27 @@
 import { ref, Ref } from '@vue/composition-api';
 
-type ConfidencePair = [string, number];
+export type ConfidencePair = [string, number];
+export type TrackId = string;
 
 interface StringKeyObject {
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
-export interface IFeature {
+export interface Feature {
   frame: number;
-  bounds?: Array<Number>;
-  fishLength?: Number;
+  bounds?: Array<number>;
+  fishLength?: number;
   attributes?: object;
   head?: [number, number];
   tail?: [number, number];
 }
 
-export interface ITrack {
-  trackId: string
-  meta: object;
-  attributes: object;
+export interface TrackData {
+  trackId: TrackId;
+  meta: StringKeyObject;
+  attributes: StringKeyObject;
   confidencePairs: Array<ConfidencePair>;
-  features: Array<IFeature>;
+  features: Array<Feature>;
   begin: number;
   end: number;
 }
@@ -33,13 +34,13 @@ interface TrackParams {
   meta?: StringKeyObject;
   begin?: number;
   end?: number;
-  features?: Array<IFeature>;
+  features?: Array<Feature>;
   confidencePairs?: Array<ConfidencePair>;
   attributes?: StringKeyObject;
 }
 
 export default class Track {
-  trackId: Ref<string>;
+  trackId: Ref<TrackId>;
 
   meta: Ref<StringKeyObject>;
 
@@ -47,7 +48,7 @@ export default class Track {
 
   confidencePairs: Ref<Array<ConfidencePair>>;
 
-  features: Array<IFeature>;
+  features: Array<Feature>;
 
   begin: Ref<number>;
 
@@ -57,7 +58,7 @@ export default class Track {
 
   observers: Array<Observer>;
 
-  constructor(trackId: string, {
+  constructor(trackId: TrackId, {
     meta = {},
     begin = Infinity,
     end = 0,
@@ -82,7 +83,7 @@ export default class Track {
     this.observers.forEach((o) => o(this));
   }
 
-  setFeature(feature: IFeature): IFeature {
+  setFeature(feature: Feature): Feature {
     const f = this.features[feature.frame] || {};
     this.features[feature.frame] = {
       ...f,
@@ -93,7 +94,7 @@ export default class Track {
   }
 
   setType(trackType: string) {
-    const i = this.confidencePairs.value.findIndex(([name, val]) => name === trackType);
+    const i = this.confidencePairs.value.findIndex(([name, _val]) => name === trackType);
     const deleteCount = i >= 0 ? 1 : 0;
     this.confidencePairs.value.splice(
       deleteCount ? i : 0,
@@ -104,20 +105,20 @@ export default class Track {
     this.confidencePairs.value.sort((a, b) => a[1] - b[1]);
   }
 
-  setAttribute(key: string, value: any) {
+  setAttribute(key: string, value: unknown) {
     this.attributes.value[key] = value;
     this.notify();
   }
 
   /* TODO p1: feature interpolation given frame */
 
-  getFeature(frame: number): IFeature | null {
+  getFeature(frame: number): Feature | null {
     const maybeFrame = this.features[frame];
     return maybeFrame || null;
   }
 
   /* Serialize back to a regular track object */
-  serialize(): ITrack {
+  serialize(): TrackData {
     return {
       trackId: this.trackId.value,
       meta: this.meta.value,
@@ -129,8 +130,8 @@ export default class Track {
     };
   }
 
-  static fromJSON(json: ITrack): Track {
-    const sparseFeatures: Array<IFeature> = [];
+  static fromJSON(json: TrackData): Track {
+    const sparseFeatures: Array<Feature> = [];
     json.features.forEach((f) => { sparseFeatures[f.frame] = f; });
     const track = new Track(json.trackId, {
       features: sparseFeatures,

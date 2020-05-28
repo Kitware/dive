@@ -1,6 +1,5 @@
 import { computed, Ref } from '@vue/composition-api';
-import Track from '@/lib/track';
-import { TrackId } from '@/use/useTrackStore';
+import Track, { TrackId } from '@/lib/track';
 
 interface UseLineChartParams {
   enabledTrackIds: Readonly<Ref<readonly TrackId[]>>;
@@ -45,13 +44,16 @@ export default function useLineChart({
      * Then iterate each histogram and generate its accumulation at each point.
      */
     enabledTrackIds.value.forEach((trackId) => {
-      const track = trackMap.get(trackId)!;
-      const totalArr = histograms.get('total')!;
+      const track = trackMap.get(trackId);
+      if (track === undefined) {
+        throw new Error(`Accessed missing track ${trackId}`);
+      }
+      const totalArr = histograms.get('total') as number[];
       [totalArr[track.begin.value], totalArr[track.end.value]] = updateHistogram(track, totalArr);
       const confidencePairs = track.confidencePairs.value;
       if (confidencePairs.length) {
         const trackType = confidencePairs[0][0];
-        const typeArr = histograms.get(trackType)!;
+        const typeArr = histograms.get(trackType) as number[];
         [typeArr[track.begin.value], typeArr[track.end.value]] = updateHistogram(track, typeArr);
       }
     });

@@ -1,7 +1,6 @@
 import Vue from 'vue';
 import VueCompositionApi from '@vue/composition-api';
 
-// @ts-ignore missing definitions
 import NotificationBus from '@girder/components/src/utils/notifications';
 import snackbarService from '@/lib/vue-utilities/snackbar-service';
 import promptService from '@/lib/vue-utilities/prompt-service';

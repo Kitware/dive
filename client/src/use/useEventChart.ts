@@ -1,7 +1,6 @@
 
 import { computed, Ref } from '@vue/composition-api';
-import { groupBy, minBy, maxBy } from 'lodash';
-import { TrackId } from '@/use/useTrackStore';
+import { TrackId } from '@/lib/track';
 import Track from '@/lib/track';
 
 interface EventChartParams {
@@ -26,7 +25,10 @@ export default function useEventChart({
     const values = [] as EventChartData[];
     /* use forEach rather than filter().map() to save an interation */
     enabledTrackIds.value.forEach((trackId) => {
-      const track = trackMap.get(trackId)!;
+      const track = trackMap.get(trackId);
+      if (track === undefined) {
+        throw new Error(`Accessed missing track ${trackId}`);
+      }
       const confidencePairs = track.confidencePairs.value;
       if (confidencePairs.length) {
         const trackType = confidencePairs[0][0];
