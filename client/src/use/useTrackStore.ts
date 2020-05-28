@@ -2,7 +2,7 @@ import Vue from 'vue';
 import { ref, Ref, computed } from '@vue/composition-api';
 import { getDetections } from '@/lib/api/viameDetection.service';
 import Track, { ITrack } from '@/lib/track';
-import RangeList from '@/lib/rangelist';
+import IntervalTree from '@flatten-js/interval-tree';
 
 export type TrackId = string;
 
@@ -34,7 +34,9 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
    * RangeList is a TODO for fast lookups
    */
   const trackMap = new Map<TrackId, Track>();
-  const rangelist = new RangeList();
+  const intervalTree = new IntervalTree();
+
+  console.error(intervalTree);
 
   /* Reactive state
    *
@@ -46,21 +48,28 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
 
   function onChange(t: Track): void {
     console.warn(`${t.trackId.value} changed`);
+    // TODO p1 update interval tree
     markChangesPending();
   }
 
   function addTrack(): Track {
-    // TODO
+    // TODO p1
     return new Track('foo', {});
   }
 
-  function removeTrack(trackId: TrackId) {
-    // TODO
-    return null;
+  function removeTrack(trackId: TrackId): void {
+    const track = trackMap.get(trackId);
+    if (trackId === undefined) {
+      throw new Error(`TrackId ${trackId} not found in trackMap`);
+    }
+    const range = [track!.begin.value, track!.end.value];
+    if (!intervalTree.remove(range, trackId)) {
+      throw new Error(`TrackId ${trackId} with range ${range} not found in tree`);
+    }
   }
 
   async function splitTracks() {
-    // TODO
+    // TODO p2
     return null;
   }
 
@@ -72,6 +81,7 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
       track.observers.push(onChange);
       trackMap.set(track.trackId.value, track);
       trackIds.value.push(track.trackId.value);
+      intervalTree.insert([track.begin.value, track.end.value], trackId);
     });
   }
 
