@@ -14,8 +14,8 @@ export default function useFeaturePointing({
   selectedTrackId,
   trackMap,
 }: {
-  selectedTrackId: Ref<string>,
-  trackMap: Map<string, Track>,
+  selectedTrackId: Ref<string>;
+  trackMap: Map<string, Track>;
 }) {
   const data = reactive({
     featurePointing: false,
@@ -41,8 +41,11 @@ export default function useFeaturePointing({
   function featurePointed(frame: number, geojson: GeojsonGeometry) {
     const [x, y] = geojson.geometry.coordinates;
     const track = trackMap.get(selectedTrackId.value);
+    if (track === undefined) {
+      throw new Error(`Accessed missing track ${selectedTrackId.value}`);
+    }
     if (data.featurePointingTarget && selectedTrackId.value) {
-      track!.setFeature({
+      track.setFeature({
         frame,
         [data.featurePointingTarget]: [x.toFixed(0), y.toFixed(0)],
       });
@@ -53,13 +56,16 @@ export default function useFeaturePointing({
      */
     data.featurePointing = false;
     Vue.nextTick(() => {
-      const feature = track!.getFeature(frame);
+      const feature = track.getFeature(frame);
+      if (!feature) {
+        return;
+      }
       if (data.featurePointingTarget === 'tail') {
         data.featurePointingTarget = 'head';
       } else {
         data.featurePointingTarget = 'tail';
       }
-      if ('head' in feature! && 'tail' in feature!) {
+      if ('head' in feature && 'tail' in feature) {
         data.featurePointing = false;
       } else {
         data.featurePointing = true;
@@ -69,7 +75,10 @@ export default function useFeaturePointing({
 
   function deleteFeaturePoints(frame: number) {
     const track = trackMap.get(selectedTrackId.value);
-    track!.setFeature({
+    if (track === undefined) {
+      throw new Error(`Accessed missing track ${selectedTrackId.value}`);
+    }
+    track.setFeature({
       frame,
       head: undefined,
       tail: undefined,

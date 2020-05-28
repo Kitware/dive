@@ -144,15 +144,12 @@ export default {
       this.line.x((d) => this.x(d[0]));
       this.path.attr('d', (d) => this.line(d.values));
     },
-    rendered() {},
   },
 };
 </script>
 
 <template>
-  <div class="line-chart">
-    {{ rendered() }}
-  </div>
+  <div class="line-chart" />
 </template>
 
 <style lang="scss">

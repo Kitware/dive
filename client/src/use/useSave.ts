@@ -1,7 +1,6 @@
 import { ref } from '@vue/composition-api';
-import Track from '@/lib/track';
+import Track, { TrackId } from '@/lib/track';
 import { saveDetections } from '@/lib/api/viameDetection.service';
-import { TrackId } from '@/use/useTrackStore';
 
 export default function useSave() {
   const pendingSaveCount = ref(0);
@@ -11,6 +10,7 @@ export default function useSave() {
       datasetId,
       Array
         .from(trackMap.entries())
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         .map(([_, track]) => track.serialize()),
     );
     pendingSaveCount.value = 0;

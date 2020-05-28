@@ -19,7 +19,7 @@ import { difference } from 'lodash';
 function binarySearch<T>(
   ar: Array<T>,
   el: T,
-  compareFn: (arg1: T, arg2: T) => Number,
+  compareFn: (arg1: T, arg2: T) => number,
 ) {
   let m = 0;
   let n = ar.length - 1;

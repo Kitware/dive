@@ -1,6 +1,4 @@
 <script lang="ts">
-// TODO p2
-// eslint-disable-next-line no-unused-vars
 import { PropType, Ref } from '@vue/composition-api';
 import Vue from 'vue';
 

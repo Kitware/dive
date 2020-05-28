@@ -1,5 +1,4 @@
 declare module '@girder/components/src' {
-  import { PluginFunction } from 'vue/types';
   import { AxiosInstance, AxiosResponse } from 'axios';
   import Vue from 'vue';
 
@@ -7,7 +6,7 @@ declare module '@girder/components/src' {
     name: string;
     _id: string;
     _modelType: 'item' | 'folder' | 'file' | 'user';
-    meta: { [key: string]: any };
+    meta: { [key: string]: unknown };
   }
 
   interface GirderRestClientParams {
@@ -21,9 +20,13 @@ declare module '@girder/components/src' {
 
   class RestClient extends Vue {
     constructor(params: GirderRestClientParams);
+
     fetchUser(): Promise<GirderModel>;
+
     login(username: string, password: string, opt: string | null): Promise<AxiosResponse>;
+
     logout(): void;
+
     register(
       login: string,
       email: string,
@@ -32,23 +35,35 @@ declare module '@girder/components/src' {
       password: string,
       admin: boolean,
     ): Promise<AxiosResponse>;
+
     apiRoot: string;
+
     // below inherited from Axios
     defaults: AxiosInstance['defaults'];
+
     interceptors: AxiosInstance['interceptors'];
+
     getUri: AxiosInstance['getUri'];
+
     request: AxiosInstance['request'];
+
     delete: AxiosInstance['delete'];
+
     put: AxiosInstance['put'];
+
     get: AxiosInstance['get'];
+
     head: AxiosInstance['head'];
+
     options: AxiosInstance['options'];
+
     post: AxiosInstance['post'];
+
     patch: AxiosInstance['patch'];
   }
 
   interface GirderPlugin {
-    install: PluginFunction<void>;
+    install: Vue.PluginFunction<void>;
   }
 
   const plugin: GirderPlugin;

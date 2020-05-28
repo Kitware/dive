@@ -1,10 +1,7 @@
-import Vue from 'vue';
 import { ref, Ref, computed } from '@vue/composition-api';
 import { getDetections } from '@/lib/api/viameDetection.service';
-import Track, { ITrack } from '@/lib/track';
+import Track, { TrackData, TrackId } from '@/lib/track';
 import IntervalTree from '@flatten-js/interval-tree';
-
-export type TrackId = string;
 
 interface UseTrackStoreParams {
   markChangesPending: () => void;
@@ -36,8 +33,6 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
   const trackMap = new Map<TrackId, Track>();
   const intervalTree = new IntervalTree();
 
-  console.error(intervalTree);
-
   /* Reactive state
    *
    * trackIds is a list of ID keys into trackMap.  When a reactive list of tracks
@@ -46,8 +41,7 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
    */
   const trackIds: Ref<Array<TrackId>> = ref([]);
 
-  function onChange(t: Track): void {
-    console.warn(`${t.trackId.value} changed`);
+  function onChange(_t: Track): void {
     // TODO p1 update interval tree
     markChangesPending();
   }
@@ -59,10 +53,10 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
 
   function removeTrack(trackId: TrackId): void {
     const track = trackMap.get(trackId);
-    if (trackId === undefined) {
+    if (track === undefined) {
       throw new Error(`TrackId ${trackId} not found in trackMap`);
     }
-    const range = [track!.begin.value, track!.end.value];
+    const range = [track.begin.value, track.end.value];
     if (!intervalTree.remove(range, trackId)) {
       throw new Error(`TrackId ${trackId} with range ${range} not found in tree`);
     }
@@ -76,11 +70,10 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
   async function loadTracks(datasetFolderId: string) {
     const data = await getDetections(datasetFolderId, 'track_json');
     Object.entries(data).forEach(([trackId, value]) => {
-      const trackData = <ITrack>value;
-      const track = Track.fromJSON(trackData);
+      const track = Track.fromJSON(value as TrackData);
       track.observers.push(onChange);
-      trackMap.set(track.trackId.value, track);
-      trackIds.value.push(track.trackId.value);
+      trackMap.set(trackId, track);
+      trackIds.value.push(trackId);
       intervalTree.insert([track.begin.value, track.end.value], trackId);
     });
   }

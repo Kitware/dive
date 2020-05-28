@@ -1,9 +1,9 @@
-import { ref, Ref, watch } from '@vue/composition-api';
-import { TrackId } from '@/use/useTrackStore';
+import { ref, Ref } from '@vue/composition-api';
+import { TrackId } from '@/lib/track';
 
 interface UseTrackSelectionControlsParams {
-  trackIds: Readonly<Ref<readonly TrackId[]>>,
-  removeTrack: (trackId: string) => void,
+  trackIds: Readonly<Ref<readonly TrackId[]>>;
+  removeTrack: (trackId: string) => void;
 }
 
 /* Maintain references to the selected Track, selected detection,
@@ -20,7 +20,7 @@ export default function useTrackSelectionControls(
   /* default to index + 1
    * call with -1 to select previous, or pass any other delta
    */
-  function selectNextTrack(delta: number = 1) {
+  function selectNextTrack(delta = 1) {
     // if no track is selected, select the first one
     if (selectedTrackId.value === '' && trackIds.value.length > 0) {
       [selectedTrackId.value] = trackIds.value;

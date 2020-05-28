@@ -4,7 +4,7 @@ import * as d3 from 'd3';
 import { Vuetify } from 'vuetify';
 
 export default function useStyling() {
-  const vuetify = <Vuetify> inject('vuetify');
+  const vuetify = inject('vuetify') as Vuetify;
   if (!vuetify) {
     throw new Error('Missing vuetify provide/inject');
   }
