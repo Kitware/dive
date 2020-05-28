@@ -1,15 +1,8 @@
 <script lang="ts">
-// TODO p2
-// Why did I have to eslint disable all these
-// eslint-disable-next-line no-unused-vars
 import Vue, { PropType } from 'vue';
-// eslint-disable-next-line no-unused-vars
 import { Ref } from '@vue/composition-api';
-// TODO p2 write shims or ignore
-// @ts-ignore
 import VirtualList from 'vue-virtual-scroll-list';
 import TrackItem from '@/components/TrackItem.vue';
-// eslint-disable-next-line no-unused-vars
 import Track from '@/lib/track';
 
 export default Vue.extend({
@@ -66,10 +59,6 @@ export default Vue.extend({
   },
 
   methods: {
-    onRender() {
-      console.error('onRENDER TRACKLIST');
-      return true;
-    },
     /**
      * Used to calculate the scroll position of the virtual scroll list for the currently
      * selected item.  It will center the item if it can on the scroll list.
@@ -105,15 +94,15 @@ export default Vue.extend({
     // it also looks like they've removed the ability to intercept events....
     // maybe look at `vue-virtual-scroller` library instead.
     getItemProps(itemIndex: number) {
-      if (itemIndex === 0) {
-        console.error('getItemPrps', itemIndex);
-      }
       // TODO p2
       // By avoiding any `value` access in this function,
       // we could prevent re-render on the entire list
       // and have higher precision to update a single list item
       const trackId = this.filteredTrackIds.value[itemIndex];
-      const track = this.trackMap.get(trackId)!;
+      const track = this.trackMap.get(trackId);
+      if (track === undefined) {
+        throw new Error(`Accessed missing track ${trackId}`);
+      }
       return {
         props: {
           track,
@@ -163,7 +152,6 @@ export default Vue.extend({
       </v-btn>
     </v-subheader>
     <virtual-list
-      v-if="onRender()"
       ref="virtualList"
       v-mousetrap="[
         { bind: 'del', handler: () => $emit('track-remove', selectedTrackId.value) },

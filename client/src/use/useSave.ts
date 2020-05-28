@@ -11,6 +11,7 @@ export default function useSave() {
       datasetId,
       Array
         .from(trackMap.entries())
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         .map(([_, track]) => track.serialize()),
     );
     pendingSaveCount.value = 0;

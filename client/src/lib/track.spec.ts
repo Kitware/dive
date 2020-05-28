@@ -1,13 +1,13 @@
 /// <reference types="jest" />
 import Vue from 'vue';
 import CompositionApi from '@vue/composition-api';
-import Track, { ITrack } from './track';
+import Track, { TrackData } from './track';
 
 Vue.use(CompositionApi);
 
 describe('Track', () => {
   it('should create new instances from JSON', () => {
-    const itrack: ITrack = {
+    const itrack: TrackData = {
       attributes: {},
       begin: 0,
       end: 100,

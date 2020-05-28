@@ -3,19 +3,14 @@ import {
   defineComponent,
   reactive,
   toRefs,
-  // TODO p1: why is this disable necessary?
-  // eslint-disable-next-line no-unused-vars
   PropType,
-  // eslint-disable-next-line no-unused-vars
   Ref,
 } from '@vue/composition-api';
 
 import AttributesPanel from '@/components/AttributesPanel.vue';
 import TypeList from '@/components/TypeList.vue';
 import TrackList from '@/components/TrackList.vue';
-// eslint-disable-next-line no-unused-vars
 import Track from '@/lib/track';
-// eslint-disable-next-line no-unused-vars
 import { TrackId } from '../../use/useTrackStore';
 
 export default defineComponent({
@@ -81,7 +76,7 @@ export default defineComponent({
       }
     }
 
-    function handleTrackChecked({ trackId, value }: { trackId: string, value: boolean }) {
+    function handleTrackChecked({ trackId, value }: { trackId: string; value: boolean }) {
       if (value) {
         props.checkedTrackIds.value.push(trackId);
       } else {
@@ -100,13 +95,7 @@ export default defineComponent({
       return trackId;
     }
 
-    function onRender() {
-      console.error('RENDER SIDEBAR');
-      return true;
-    }
-
     return {
-      onRender,
       swapTabs,
       trackListProps: props,
       typeListProps: props,
@@ -121,7 +110,6 @@ export default defineComponent({
 
 <template>
   <v-card
-    v-if="onRender()"
     :width="width"
     style="z-index:1;"
   >

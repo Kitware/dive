@@ -9,10 +9,10 @@ interface GirderModel {
 function makeViameFolder({
   folderId, name, fps, type,
 }: {
-  folderId: string,
-  name: string,
-  fps: number,
-  type: string,
+  folderId: string;
+  name: string;
+  fps: number;
+  type: string;
 }) {
   return girderRest.post(
     '/folder',

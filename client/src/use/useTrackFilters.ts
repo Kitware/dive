@@ -6,8 +6,8 @@ import { updateSubset } from '@/lib/utils';
 import Track from '@/lib/track';
 
 interface UseTrackFilterParams {
-  trackMap: Map<TrackId, Track>,
-  sortedTrackIds: Readonly<Ref<readonly TrackId[]>>,
+  trackMap: Map<TrackId, Track>;
+  sortedTrackIds: Readonly<Ref<readonly TrackId[]>>;
 }
 
 /* Provide track filtering controls on tracks loaded from useTrackStore. */
@@ -22,7 +22,10 @@ export default function useFilteredTracks({ trackMap, sortedTrackIds }: UseTrack
     const typeSet = new Set<string>();
     sortedTrackIds.value.forEach((trackId) => {
       const track = trackMap.get(trackId);
-      track!.confidencePairs.value.forEach(([name, _]) => {
+      if (track === undefined) {
+        throw new Error(`Accessed missing track ${trackId}`);
+      }
+      track.confidencePairs.value.forEach(([name, _val]) => {
         typeSet.add(name);
       });
     });
@@ -34,11 +37,13 @@ export default function useFilteredTracks({ trackMap, sortedTrackIds }: UseTrack
 
   /* track IDs filtered by type and confidence threshold */
   const filteredTrackIds = computed(() => {
-    console.error('computed filteredTracks');
     const checkedSet = new Set(checkedTypes.value);
     return sortedTrackIds.value.filter((trackId) => {
       const track = trackMap.get(trackId);
-      const confidencePairsAboveThreshold = track!.confidencePairs.value
+      if (track === undefined) {
+        throw new Error(`Accessed missing track ${trackId}`);
+      }
+      const confidencePairsAboveThreshold = track.confidencePairs.value
         .some(([confkey, confval]) => (
           confval >= confidenceThreshold.value && checkedSet.has(confkey)
         ));
@@ -47,7 +52,7 @@ export default function useFilteredTracks({ trackMap, sortedTrackIds }: UseTrack
          * the threshold and part of the checked type set */
         confidencePairsAboveThreshold
         /* include tracks with no confidence pairs */
-        || track!.confidencePairs.value.length === 0
+        || track.confidencePairs.value.length === 0
       );
     });
   });
@@ -63,7 +68,6 @@ export default function useFilteredTracks({ trackMap, sortedTrackIds }: UseTrack
     checkedTrackIds.value = updateSubset(checkedTrackIds.value, newval);
   });
   watch(allTypes, (newval) => {
-    console.error('watchalltypes');
     checkedTypes.value = updateSubset(checkedTypes.value, newval);
   });
 

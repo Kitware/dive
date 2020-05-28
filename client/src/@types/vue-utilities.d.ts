@@ -3,8 +3,8 @@ import Vue from 'vue';
 declare module 'vue/types/vue' {
   interface Vue {
     $promptAttach(): Vue;
-    $prompt(): Promise<any>;
+    $prompt(): Promise<unknown>;
     $snackbarAttach(): Vue;
-    $snackbar(): Promise<any>;
+    $snackbar(): Promise<unknown>;
   }
 }
