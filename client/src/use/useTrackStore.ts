@@ -41,8 +41,12 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
    */
   const trackIds: Ref<Array<TrackId>> = ref([]);
 
-  function onChange(_t: Track): void {
-    // TODO p1 update interval tree
+  function onChange(track: Track, key: string, value: unknown): void {
+    if (key === 'bounds') {
+      const oldInterval = value as [number, number];
+      intervalTree.remove(oldInterval, track.trackId.value);
+      intervalTree.insert([track.begin.value, track.end.value], track.trackId.value);
+    }
     markChangesPending();
   }
 
