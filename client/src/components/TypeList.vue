@@ -23,7 +23,7 @@ export default Vue.extend({
 </script>
 
 <template>
-  <div class="typelist d-flex flex-column">
+  <div class="d-flex flex-column">
     <v-subheader>Types</v-subheader>
     <div
       class="flex-grow-1"
@@ -45,9 +45,3 @@ export default Vue.extend({
     </div>
   </div>
 </template>
-
-<style lang="scss" scoped>
-.typelist {
-  overflow-y: auto;
-}
-</style>

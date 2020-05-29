@@ -51,7 +51,11 @@ export default defineComponent({
       required: true,
     },
     removeTrack: {
-      type: Function as PropType<(t: string) => null>,
+      type: Function as PropType<(t: string) => void>,
+      required: true,
+    },
+    selectNextTrack: {
+      type: Function as PropType<(delta: number) => void>,
       required: true,
     },
     width: {
@@ -75,7 +79,7 @@ export default defineComponent({
       }
     }
 
-    function handleTrackChecked({ trackId, value }: { trackId: string; value: boolean }) {
+    function handleTrackChecked({ trackId, value }: { trackId: TrackId; value: boolean }) {
       if (value) {
         props.checkedTrackIds.value.push(trackId);
       } else {
@@ -143,6 +147,8 @@ export default defineComponent({
           @track-click="handleTrackClick"
           @track-checked="handleTrackChecked"
           @track-edit="handleTrackEdit"
+          @select-track-up="selectNextTrack(-1)"
+          @select-track-down="selectNextTrack(1)"
         />
       </div>
       <div

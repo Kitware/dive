@@ -1,11 +1,11 @@
 
 import { computed, Ref } from '@vue/composition-api';
-import { TrackId } from '@/lib/track';
-import Track from '@/lib/track';
+import Track, { TrackId } from '@/lib/track';
+
 
 interface EventChartParams {
   enabledTrackIds: Readonly<Ref<readonly TrackId[]>>;
-  selectedTrackId: Ref<TrackId>;
+  selectedTrackId: Ref<TrackId | null>;
   trackMap: Map<TrackId, Track>;
   typeColorMapper: (type: string) => string;
 }

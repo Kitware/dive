@@ -133,6 +133,7 @@ export default defineComponent({
         typeColorMapper,
         removeTrack,
         addTrack,
+        selectNextTrack,
       },
       filteredTrackIds,
       allTypes,

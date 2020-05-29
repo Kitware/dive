@@ -17,8 +17,8 @@ export default {
       type: Boolean,
       required: true,
     },
-    selectedTrackId: {
-      validator: stringNumberNullValidator,
+    selected: {
+      type: Boolean,
       required: true,
     },
     editingTrack: {
@@ -42,10 +42,10 @@ export default {
      * opacity so it isn't overwhelming
      */
     style() {
-      if (this.selectedTrackId === this.track.trackId.value) {
+      if (this.selected) {
         return {
           'font-weight': 'bold',
-          'background-color': `${this.$vuetify.theme.themes.dark.accent}aa`,
+          'background-color': `${this.$vuetify.theme.themes.dark.accent}`,
         };
       }
       return {};

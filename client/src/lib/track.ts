@@ -1,7 +1,8 @@
 import { ref, Ref } from '@vue/composition-api';
+import { timeHours } from 'd3';
 
 export type ConfidencePair = [string, number];
-export type TrackId = string;
+export type TrackId = number;
 
 interface StringKeyObject {
   [key: string]: unknown;
@@ -77,6 +78,14 @@ export default class Track {
     this.confidencePairs = ref(confidencePairs);
   }
 
+  private updateBounds(frame: number) {
+    if (frame < this.begin.value) {
+      this.begin.value = frame;
+    } else if (frame > this.end.value) {
+      this.end.value = frame;
+    }
+  }
+
   /* TODO p2: register and unregister methods for observers */
 
   notify() {
@@ -89,6 +98,7 @@ export default class Track {
       ...f,
       ...feature,
     };
+    this.updateBounds(feature.frame);
     this.notify();
     return this.features[feature.frame];
   }
@@ -110,7 +120,7 @@ export default class Track {
     this.notify();
   }
 
-  /* TODO p1: feature interpolation given frame */
+  /* TODO p2: feature interpolation given frame */
 
   getFeature(frame: number): Feature | null {
     const maybeFrame = this.features[frame];

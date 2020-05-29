@@ -25,7 +25,6 @@ girderRest.fetchUser().then(() => {
   new Vue({
     router,
     store,
-    // @ts-ignore: missing definitions because Vue.use(Vuetify) is in a .js file
     vuetify,
     provide: { girderRest, notificationBus, vuetify },
     render: (h) => h(App),
