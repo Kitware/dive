@@ -28,7 +28,7 @@ export interface TrackData {
 }
 
 interface Observer {
-  (track: Track): void;
+  (track: Track, key: string, value: unknown): void;
 }
 
 interface TrackParams {
@@ -80,16 +80,20 @@ export default class Track {
 
   private updateBounds(frame: number) {
     if (frame < this.begin.value) {
+      const oldval = this.begin.value;
       this.begin.value = frame;
+      this.notify('bounds', [oldval, this.end.value]);
     } else if (frame > this.end.value) {
+      const oldval = this.end.value;
       this.end.value = frame;
+      this.notify('bounds', [this.begin.value, oldval]);
     }
   }
 
   /* TODO p2: register and unregister methods for observers */
 
-  notify() {
-    this.observers.forEach((o) => o(this));
+  notify(name: string, payload: unknown | undefined) {
+    this.observers.forEach((o) => o(this, name, payload));
   }
 
   setFeature(feature: Feature): Feature {
@@ -99,7 +103,7 @@ export default class Track {
       ...feature,
     };
     this.updateBounds(feature.frame);
-    this.notify();
+    this.notify('feature', f);
     return this.features[feature.frame];
   }
 
@@ -117,7 +121,7 @@ export default class Track {
 
   setAttribute(key: string, value: unknown) {
     this.attributes.value[key] = value;
-    this.notify();
+    this.notify('attributes', null);
   }
 
   /* TODO p2: feature interpolation given frame */
