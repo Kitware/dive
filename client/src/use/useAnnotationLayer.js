@@ -15,11 +15,9 @@ export default function useAnnotationLayer({
     const _editingTrackId = editingTrackId.value;
     return {
       strokeColor: (a, b, data) => {
-        if (_editingTrackId !== null) {
-          if (_editingTrackId !== data.record.detection.track) {
-            if (stateStyling.disabled.color) {
-              return stateStyling.disabled.color;
-            }
+        if (_editingTrackId !== null && _editingTrackId !== data.record.detection.track) {
+          if (stateStyling.disabled.color) {
+            return stateStyling.disabled.color;
           }
         }
         if (data.record.detection.track === _selectedTrackId && stateStyling.selected.color) {
@@ -28,7 +26,7 @@ export default function useAnnotationLayer({
         if (data.record.detection.confidencePairs.length) {
           return typeColorMap(data.record.detection.confidencePairs[0][0]);
         }
-        return typeColorMap.range()[0];
+        return typeColorMap('');
       },
       strokeOpacity: (a, b, data) => {
         if (_editingTrackId !== null) {
