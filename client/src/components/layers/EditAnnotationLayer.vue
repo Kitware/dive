@@ -81,7 +81,7 @@ export default {
       this.initialize();
     },
     initialize() {
-      if (this.data.features && this.data.features.bounds) {
+      if (this.data && this.data.features && this.data.features.bounds) {
         this.geojson = boundToGeojson(this.data.features.bounds);
       } else {
         this.geojson = null;

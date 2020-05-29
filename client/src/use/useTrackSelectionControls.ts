@@ -17,7 +17,7 @@ export default function useTrackSelectionControls(
   // boolean whether or not selectedTrackId is also being edited.
   const editingTrack = ref(false);
 
-  function setTrackEditMode(trackId:string, edit:boolean = false) {
+  function setTrackEditMode(trackId: string, edit = false) {
     console.warn(`SETTING TRACK ID ${trackId} with edit:${edit}`);
     selectedTrackId.value = trackId;
     editingTrack.value = edit;
