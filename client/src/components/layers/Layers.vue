@@ -81,8 +81,8 @@ export default defineComponent({
   },
 
   setup(props, { emit }) {
-    const annotator = inject('annotator');
-    const frameNumber = computed(() => annotator.frame);
+    const annotator: any = inject('annotator');
+    const frameNumber: Readonly<Ref<number>> = computed(() => annotator.frame as number);
 
 
     // eslint-disable-next-line max-len
@@ -127,7 +127,7 @@ export default defineComponent({
               // this prevents us from having to grab reactivity from elsewhere
               const selected = (props.selectedTrackId.value === track.trackId.value);
               if (props.editingTrack.value && selected && editingTrackData.value) {
-                features = editingTrackData.value.features;
+                features = track.features[frameNumber.value];
               }
               tracks.push({
                 selected,
@@ -167,7 +167,7 @@ export default defineComponent({
      * @param {string} data - trackId for the selected annotation
      * @param {boolean} editing - if the selected track should be edited or not
      */
-    function detectionChanged(data) {
+    function detectionChanged(data: any) {
       // We want the selectedTrackId, for brand new Detections
       const track = props.trackMap.get(props.selectedTrackId.value);
       if (track) {
