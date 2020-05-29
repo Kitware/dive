@@ -12,11 +12,11 @@ export default {
     },
     stateStyling: {
       type: Object,
-      default: () => {},
+      default: () => 'foo',
     },
     typeColorMap: {
       type: Function,
-      default: () => {},
+      default: () => 'foo',
     },
   },
   watch: {

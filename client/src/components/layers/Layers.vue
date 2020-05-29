@@ -1,27 +1,18 @@
 <script lang="ts">
 import {
   defineComponent,
-  // eslint-disable-next-line no-unused-vars
   reactive,
-  // eslint-disable-next-line no-unused-vars
   toRefs,
   computed,
-  // TODO p1: why is this disable necessary?
-  // eslint-disable-next-line no-unused-vars
   PropType,
   inject,
-  // eslint-disable-next-line no-unused-vars
   Ref,
 } from '@vue/composition-api';
 
 //import { boundToGeojson } from '@/utils';
 // eslint-disable-next-line no-unused-vars
-import Track, { IFeature, ConfidencePair } from '@/lib/track';
-// eslint-disable-next-line no-unused-vars
-import { TrackId } from '@/use/useTrackStore';
-// eslint-disable-next-line no-unused-vars
+import Track, { Feature, ConfidencePair, TrackId } from '@/lib/track';
 import { FeaturePointingTarget } from '@/use/useFeaturePointing';
-// eslint-disable-next-line no-unused-vars
 import IntervalTree from '@flatten-js/interval-tree';
 
 import AnnotationLayer from '@/components/layers/AnnotationLayer.vue';
@@ -31,17 +22,16 @@ import MarkerLayer from '@/components/layers/MarkerLayer.vue';
 import { geojsonToBound, geojsonToBound2 } from '../../utils';
 
 interface CoordinateList{
-    x:number,
-    y:number,
+    x: number;
+    y: number;
 }
 
 interface FrameDataTrack {
-    selected: boolean,
-    editing: boolean,
-    trackId: string,
-    features: IFeature,
-    confidencePairs: ConfidencePair[]
-
+  selected: boolean;
+  editing: boolean;
+  trackId: string;
+  features: Feature;
+  confidencePairs: ConfidencePair[];
 }
 
 export default defineComponent({
@@ -97,13 +87,13 @@ export default defineComponent({
       [frameNumber.value, frameNumber.value],
     ));
 
-    function createFrameData(frameIds) {
-      const tracks:FrameDataTrack[] = [];
+    function createFrameData(frameIds: TrackId[]) {
+      const tracks: FrameDataTrack[] = [];
       frameIds.forEach(
         (item) => {
           if (props.filteredTrackIds.value.includes(item)) {
             if (props.trackMap.has(item)) {
-              const track:Track = props.trackMap.get(item)!;
+              const track: Track = props.trackMap.get(item)!;
               tracks.push({
                 selected: (props.selectedTrackId.value === track.trackId.value),
                 editing: props.editingTrack.value,
@@ -136,7 +126,7 @@ export default defineComponent({
       if (!props.editingTrack.value) {
         return null;
       } if (currentFrameIds.value.includes(props.selectedTrackId.value)) {
-        const track:Track = props.trackMap.get(props.selectedTrackId.value)!;
+        const track: Track = props.trackMap.get(props.selectedTrackId.value)!;
         return {
           trackId: props.selectedTrackId.value,
           features: track.features[frameNumber.value],
@@ -152,11 +142,11 @@ export default defineComponent({
      * @param {string} data - trackId for the selected annotation
      * @param {boolean} editing - if the selected track should be edited or not
      */
-    function annotationClicked(data:string, editing:boolean = false) {
+    function annotationClicked(data: string, editing = false) {
       emit('selectTrack', data, editing);
     }
 
-    function detectionChanged(data) {
+    function detectionChanged(data: any) {
       const track = props.trackMap.get(editingTrackData.value!.trackId);
       if (track) {
         const bounds = data.type === 'Feature'

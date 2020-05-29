@@ -9,7 +9,7 @@ export default {
     },
     markerStyle: {
       type: Object,
-      default: () => {},
+      default: () => 'foo',
     },
   },
   computed: {
