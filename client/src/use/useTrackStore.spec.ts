@@ -3,7 +3,7 @@ import useTrackStore from '@/use/useTrackStore';
 
 describe('useTrackStore', () => {
   it('can add and remove tracks', () => {
-    const ts = useTrackStore({ markChangesPending: () => {} });
+    const ts = useTrackStore({ markChangesPending: () => null });
     ts.addTrack();
     ts.addTrack();
     expect(Object.keys(ts.trackMap)).toBe(2);

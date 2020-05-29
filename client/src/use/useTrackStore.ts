@@ -46,20 +46,28 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
     markChangesPending();
   }
 
-  function addTrack(): Track {
-    // TODO p1
-    return new Track('foo', {});
+  function addTrack(frame: number): Track {
+    return new Track(Math.max(...trackIds.value) + 1, {
+      begin: frame,
+      end: frame,
+    });
   }
 
   function removeTrack(trackId: TrackId): void {
     const track = trackMap.get(trackId);
     if (track === undefined) {
-      throw new Error(`TrackId ${trackId} not found in trackMap`);
+      throw new Error(`TrackId ${trackId} not found in trackMap.`);
     }
     const range = [track.begin.value, track.end.value];
     if (!intervalTree.remove(range, trackId)) {
-      throw new Error(`TrackId ${trackId} with range ${range} not found in tree`);
+      throw new Error(`TrackId ${trackId} with range ${range} not found in tree.`);
     }
+    trackMap.delete(trackId);
+    const listIndex = trackIds.value.findIndex((v) => v === trackId);
+    if (listIndex === -1) {
+      throw new Error(`TrackId ${trackId} not found in trackIds.`);
+    }
+    trackIds.value.splice(listIndex, 1);
   }
 
   async function splitTracks() {
@@ -71,10 +79,11 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
     const data = await getDetections(datasetFolderId, 'track_json');
     Object.entries(data).forEach(([trackId, value]) => {
       const track = Track.fromJSON(value as TrackData);
+      const intTrackId = parseInt(trackId, 10);
       track.observers.push(onChange);
-      trackMap.set(trackId, track);
-      trackIds.value.push(trackId);
-      intervalTree.insert([track.begin.value, track.end.value], trackId);
+      trackMap.set(intTrackId, track);
+      trackIds.value.push(intTrackId);
+      intervalTree.insert([track.begin.value, track.end.value], intTrackId);
     });
   }
 

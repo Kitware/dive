@@ -1,27 +1,23 @@
 <script lang="ts">
 import Vue, { PropType } from 'vue';
 import { Ref } from '@vue/composition-api';
-import VirtualList from 'vue-virtual-scroll-list';
 import TrackItem from '@/components/TrackItem.vue';
-import Track from '@/lib/track';
+import Track, { TrackId } from '@/lib/track';
 
 export default Vue.extend({
   name: 'TrackList',
 
-  components: { VirtualList },
+  components: {
+    TrackItem,
+  },
 
-  /*
-   * Note the distinction between refs and non-refs
-   * If this compoent needs reactivity, it must use
-   * the `.value` of a ref
-   */
   props: {
     trackMap: {
-      type: Map as PropType<Map<string, Track>>,
+      type: Map as PropType<Map<TrackId, Track>>,
       required: true,
     },
     filteredTrackIds: {
-      type: Object as PropType<Ref<Array<string>>>,
+      type: Object as PropType<Ref<Array<TrackId>>>,
       required: true,
     },
     allTypes: {
@@ -33,11 +29,11 @@ export default Vue.extend({
       required: true,
     },
     checkedTrackIds: {
-      type: Object as PropType<Ref<Array<string>>>,
+      type: Object as PropType<Ref<Array<TrackId>>>,
       required: true,
     },
     selectedTrackId: {
-      type: Object as PropType<Ref<string>>,
+      type: Object as PropType<Ref<TrackId>>,
       required: true,
     },
     editingTrack: {
@@ -50,90 +46,61 @@ export default Vue.extend({
     },
   },
 
-  data() {
-    return {
-      TrackItem,
-      visibleItems: 9,
-      selectedOffset: 0,
-    };
+  data: () => ({
+    itemHeight: 45, // in pixels
+  }),
+
+  watch: {
+    // eslint-disable-next-line func-names
+    'selectedTrackId.value': function (trackId) {
+      this.scrollToTrack(trackId);
+    },
   },
 
   methods: {
-    /**
-     * Used to calculate the scroll position of the virtual scroll list for the currently
-     * selected item.  It will center the item if it can on the scroll list.
-     * Called when either selectedTrackId updates or checkedTracks updates
-     */
-    // calculateOffset() {
-    //   let offset = this.tracks.map((item) => item.trackId).indexOf(this.selectedTrackId);
-    //   if (offset === -1) {
-    //     offset = 0;
-    //   } else {
-    //     offset -= Math.floor(this.visibleItems / 2);
-    //   }
-    //   this.selectedOffset = offset;
-    // },
-    /**
-     * For up/down we prevent the window from scrolling and use the calculated offset instead
-     * @param {HTMLElement} element element which is the caller for the mouse event
-     * @param {KeyboardEvent} keyEvent Event used to prevent default keyboard scrolling behavior
-     * @param {('up' | 'down')} direction  determine if the user is moving up or down in the list
-     */
-    // scrollPreventDefault(element, keyEvent, direction) {
-    //   if (element === this.$refs.virtualList.$el) {
-    //     if (direction === 'up') {
-    //       this.$emit('select-track-up');
-    //     } else if (direction === 'down') {
-    //       this.$emit('select-track-down');
-    //     }
-    //     keyEvent.preventDefault();
-    //   }
-    // },
-    // TODO p2: our usage of virtual-scroll-list is way out of date, the API
-    // has completely changed. Update how we're using it.
-    // it also looks like they've removed the ability to intercept events....
-    // maybe look at `vue-virtual-scroller` library instead.
-    getItemProps(itemIndex: number) {
-      // TODO p2
-      // By avoiding any `value` access in this function,
-      // we could prevent re-render on the entire list
-      // and have higher precision to update a single list item
-      const trackId = this.filteredTrackIds.value[itemIndex];
+    scrollToTrack(trackId: TrackId) {
+      const virtualList = (this.$refs.virtualList as Vue).$el;
+      const offset = this.filteredTrackIds.value.indexOf(trackId);
+      if (offset === -1) {
+        virtualList.scrollTop = 0;
+      } else {
+        // try to show the selected track as the third track in the list
+        virtualList.scrollTop = (offset * this.itemHeight) - (2 * this.itemHeight);
+      }
+    },
+
+    scrollPreventDefault(element: HTMLElement, keyEvent: KeyboardEvent, direction: 'up' | 'down') {
+      if (element === (this.$refs.virtualList as Vue).$el) {
+        if (direction === 'up') {
+          this.$emit('select-track-up');
+        } else if (direction === 'down') {
+          this.$emit('select-track-down');
+        }
+        keyEvent.preventDefault();
+      }
+    },
+
+    getItemProps(trackId: TrackId) {
       const track = this.trackMap.get(trackId);
       if (track === undefined) {
         throw new Error(`Accessed missing track ${trackId}`);
       }
       return {
-        props: {
-          track,
-          /* InputValue is the value of the checkbox */
-          inputValue: this.checkedTrackIds.value.indexOf(trackId) >= 0,
-          selectedTrackId: this.selectedTrackId.value,
-          editingTrack: this.editingTrack.value,
-          colorMap: this.typeColorMapper,
-          types: this.allTypes.value,
-        },
-        on: {
-          change: (value: boolean) => {
-            this.$emit('track-checked', {
-              trackId: track.trackId.value,
-              value,
-            });
-          },
-          'type-change': (type: string) => {
-            track.setType(type);
-          },
-          delete: () => {
-            this.$emit('track-remove', track.trackId.value);
-          },
-          click: () => {
-            this.$emit('track-click', track.trackId.value);
-          },
-          edit: () => {
-            this.$emit('track-edit', track.trackId.value);
-          },
-        },
+        track,
+        trackId,
+        inputValue: this.checkedTrackIds.value.indexOf(trackId) >= 0,
+        selected: this.selectedTrackId.value === trackId,
+        editingTrack: this.editingTrack.value,
+        colorMap: this.typeColorMapper,
+        types: this.allTypes.value,
       };
+    },
+    setType(trackId: TrackId, newType: string) {
+      const track = this.trackMap.get(trackId);
+      if (track === undefined) {
+        throw new Error(`Accessed missing track ${trackId}`);
+      }
+      track.setType(newType);
     },
   },
 });
@@ -151,28 +118,36 @@ export default Vue.extend({
         <v-icon>mdi-plus</v-icon>
       </v-btn>
     </v-subheader>
-    <virtual-list
+    <v-virtual-scroll
       ref="virtualList"
       v-mousetrap="[
-        { bind: 'del', handler: () => $emit('track-remove', selectedTrackId.value) },
         { bind: 'up', handler: (el, event) => scrollPreventDefault(el, event, 'up') },
         { bind: 'down', handler: (el, event) => scrollPreventDefault(el, event, 'down') },
-        { bind: 'enter', handler: () => $emit('track-click', getSelectedTrack()) }
       ]"
-      :size="45"
-      :remain="9"
-      :start="selectedOffset"
-      :item="TrackItem"
-      :itemcount="filteredTrackIds.value.length"
-      :itemprops="getItemProps"
-    />
+      :items="filteredTrackIds.value"
+      :item-height="itemHeight"
+      :height="300"
+    >
+      <template #default="{ item: trackId }">
+        <track-item
+          v-bind="getItemProps(trackId)"
+          @change="$emit('track-checked', { trackId, value: $event })"
+          @type-change="setType(trackId, $event)"
+          @delete="$emit('track-remove', trackId)"
+          @click="$emit('track-click', trackId)"
+          @edit="$emit('track-edit', trackId)"
+        />
+      </template>
+    </v-virtual-scroll>
   </div>
 </template>
 
 <style lang="scss">
+.strcoller {
+  height: 100%;
+}
 .tracks {
   overflow-y: auto;
-  padding: 4px 0;
 
   .v-input--checkbox {
     label {

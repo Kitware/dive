@@ -13044,11 +13044,6 @@ vue-template-es2015-compiler@^1.6.0, vue-template-es2015-compiler@^1.9.0:
   resolved "https://registry.yarnpkg.com/vue-template-es2015-compiler/-/vue-template-es2015-compiler-1.9.1.tgz#1ee3bc9a16ecbf5118be334bb15f9c46f82f5825"
   integrity sha512-4gDntzrifFnCEvyoO8PqyJDmguXgVPxKiIxrBKjIowvL9l+N66196+72XVYR8BBf1Uv1Fgt3bGevJ+sEmxfZzw==
 
-vue-virtual-scroll-list@1.4.1:
-  version "1.4.1"
-  resolved "https://registry.yarnpkg.com/vue-virtual-scroll-list/-/vue-virtual-scroll-list-1.4.1.tgz#013047a779e415aab683964328839ae76524216a"
-  integrity sha512-yz0yDiEOhJLgl6TXDl+nG8Q7F6So1amy7bxOwswiXZOFO2LrY8g4yr7FX+jdtTJpSY+M2Itsz+qvP6hoFvjJ6Q==
-
 vue@^2.6.10:
   version "2.6.11"
   resolved "https://registry.yarnpkg.com/vue/-/vue-2.6.11.tgz#76594d877d4b12234406e84e35275c6d514125c5"
@@ -13061,10 +13056,10 @@ vuetify-loader@^1.4.3:
   dependencies:
     loader-utils "^1.2.0"
 
-vuetify@^2.2.4:
-  version "2.2.22"
-  resolved "https://registry.yarnpkg.com/vuetify/-/vuetify-2.2.22.tgz#a5bc5814a16472d719acb45d2cb5fb5605d2e12e"
-  integrity sha512-3RFKqLS81xoNdDUldOCpxFhYaqiYVCMpTmovAmyPhidmqC9PaMNuM5aCKkKnOgG/xIN/0SgZg3wJfe0o72RhlQ==
+vuetify@^2.2.4, vuetify@^v2.3.0-beta.7:
+  version "2.3.0-beta.7"
+  resolved "https://registry.yarnpkg.com/vuetify/-/vuetify-2.3.0-beta.7.tgz#b9e956ea5cafe34275959f0914297cb5138fb36e"
+  integrity sha512-Jw/Bi5SOHq/FETJiZ3p4e7h9h+X7HhXJZhFNNMwp3l9F+Wo2AUVph9M/qessw4ch+daAyRBbsSg1dCTx4hi38w==
 
 vuex@^3.0.1:
   version "3.1.3"

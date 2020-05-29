@@ -1,6 +1,6 @@
 import Vue from 'vue';
 import { reactive, toRefs, Ref } from '@vue/composition-api';
-import Track from '@/lib/track';
+import Track, { TrackId } from '@/lib/track';
 
 type FeaturePointingTarget = 'head' | 'tail' | null;
 
@@ -14,8 +14,8 @@ export default function useFeaturePointing({
   selectedTrackId,
   trackMap,
 }: {
-  selectedTrackId: Ref<string>;
-  trackMap: Map<string, Track>;
+  selectedTrackId: Ref<TrackId | null>;
+  trackMap: Map<TrackId, Track>;
 }) {
   const data = reactive({
     featurePointing: false,
@@ -25,7 +25,7 @@ export default function useFeaturePointing({
   async function toggleFeaturePointing(headortail: FeaturePointingTarget) {
     data.featurePointingTarget = headortail;
 
-    if (selectedTrackId.value === '') {
+    if (selectedTrackId.value === null) {
       data.featurePointing = false;
     } else {
       data.featurePointing = !data.featurePointing;
@@ -39,6 +39,9 @@ export default function useFeaturePointing({
    * - when both are set, or when right click or escape are hit, disable feature pointing.
    */
   function featurePointed(frame: number, geojson: GeojsonGeometry) {
+    if (selectedTrackId.value === null) {
+      throw new Error('Cannot set feaure points without selected track');
+    }
     const [x, y] = geojson.geometry.coordinates;
     const track = trackMap.get(selectedTrackId.value);
     if (track === undefined) {
@@ -74,15 +77,17 @@ export default function useFeaturePointing({
   }
 
   function deleteFeaturePoints(frame: number) {
-    const track = trackMap.get(selectedTrackId.value);
-    if (track === undefined) {
-      throw new Error(`Accessed missing track ${selectedTrackId.value}`);
+    if (selectedTrackId.value !== null) {
+      const track = trackMap.get(selectedTrackId.value);
+      if (track === undefined) {
+        throw new Error(`Accessed missing track ${selectedTrackId.value}`);
+      }
+      track.setFeature({
+        frame,
+        head: undefined,
+        tail: undefined,
+      });
     }
-    track.setFeature({
-      frame,
-      head: undefined,
-      tail: undefined,
-    });
   }
 
   return {
