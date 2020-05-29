@@ -7,6 +7,8 @@ import {
   PropType,
   inject,
   Ref,
+  watch,
+  ref,
 } from '@vue/composition-api';
 
 //import { boundToGeojson } from '@/utils';
@@ -83,22 +85,55 @@ export default defineComponent({
     const frameNumber = computed(() => annotator.frame);
 
 
-    const currentFrameIds = computed(() => props.intervalTree.search(
-      [frameNumber.value, frameNumber.value],
-    ));
+    // eslint-disable-next-line max-len
+    const currentFrameIds: Readonly<Ref<readonly string[]>> = computed(() => props.intervalTree.search([frameNumber.value, frameNumber.value]));
 
-    function createFrameData(frameIds: TrackId[]) {
+    // Is a referenced data so it can be set manually during updates to the bounds or features
+    const editingTrackData: Ref<FrameDataTrack | null> = ref(null);
+
+
+    function createEditingTrackData() {
+      if (!props.editingTrack.value) {
+        return null;
+      }
+      const track: Track | undefined = props.trackMap.get(props.selectedTrackId.value);
+      if (track) {
+        return {
+          trackId: props.selectedTrackId.value,
+          features: track.features[frameNumber.value],
+          confidencePairs: track.confidencePairs.value,
+        } as FrameDataTrack;
+      }
+      return null;
+    }
+
+    // Update the editingTrackData value if the selected track, editingTrack or frameNumber changes
+    watch([props.editingTrack, props.selectedTrackId, frameNumber],
+      (editingTrack, selectedTrackId) => {
+        if (editingTrack && selectedTrackId) {
+          editingTrackData.value = createEditingTrackData();
+        }
+      });
+
+    function createFrameData(frameIds: readonly string[]) {
       const tracks: FrameDataTrack[] = [];
       frameIds.forEach(
-        (item) => {
+        (item: string) => {
           if (props.filteredTrackIds.value.includes(item)) {
             if (props.trackMap.has(item)) {
               const track: Track = props.trackMap.get(item)!;
+              let features = track.features[frameNumber.value];
+              // If we are editing we only need the current Frames edited features
+              // this prevents us from having to grab reactivity from elsewhere
+              const selected = (props.selectedTrackId.value === track.trackId.value);
+              if (props.editingTrack.value && selected && editingTrackData.value) {
+                features = editingTrackData.value.features;
+              }
               tracks.push({
-                selected: (props.selectedTrackId.value === track.trackId.value),
+                selected,
                 editing: props.editingTrack.value,
                 trackId: track.trackId.value,
-                features: track.features[frameNumber.value],
+                features,
                 confidencePairs: track.confidencePairs.value,
               });
             }
@@ -116,25 +151,15 @@ export default defineComponent({
 
     // Provides the filtered track data for the currentFrame for all Layers
 
-    const currentFrameDataTracks = computed({
-      get: () => updateFrameDataTracks(),
-      set: (val) => val,
-    });
+    const currentFrameDataTracks = computed(() => updateFrameDataTracks());
 
 
-    const editingTrackData = computed(() => {
-      if (!props.editingTrack.value) {
-        return null;
-      } if (currentFrameIds.value.includes(props.selectedTrackId.value)) {
-        const track: Track = props.trackMap.get(props.selectedTrackId.value)!;
-        return {
-          trackId: props.selectedTrackId.value,
-          features: track.features[frameNumber.value],
-          confidencePairs: track.confidencePairs.value,
-        };
+    function annotationClicked(data: string, editing = false) {
+      if (props.editingTrack && editing) {
+        editingTrackData.value = null;
       }
-      return null;
-    });
+      emit('selectTrack', data, editing);
+    }
 
     /**
      * Handles Left/Right click for annotations and sets the selectedTrackId and if
@@ -142,12 +167,9 @@ export default defineComponent({
      * @param {string} data - trackId for the selected annotation
      * @param {boolean} editing - if the selected track should be edited or not
      */
-    function annotationClicked(data: string, editing = false) {
-      emit('selectTrack', data, editing);
-    }
-
-    function detectionChanged(data: any) {
-      const track = props.trackMap.get(editingTrackData.value!.trackId);
+    function detectionChanged(data) {
+      // We want the selectedTrackId, for brand new Detections
+      const track = props.trackMap.get(props.selectedTrackId.value);
       if (track) {
         const bounds = data.type === 'Feature'
           ? geojsonToBound2(data.geometry)
@@ -156,7 +178,14 @@ export default defineComponent({
           frame: frameNumber.value,
           bounds,
         });
-        //currentFrameDataTracks.value = createFrameData(currentFrameIds);
+        // TODO p1: figure out the best way to update tracks and intervals when adding new frames
+        // don't know if this should be done useTrackStore or somewehere else
+        if (!currentFrameIds.value.includes(track.trackId.value)) {
+          const min = Math.min(track.begin.value, frameNumber.value);
+          const max = Math.max(track.end.value, frameNumber.value);
+          props.intervalTree.insert([min, max], track.trackId.value);
+        }
+        editingTrackData.value = createEditingTrackData();
       }
     }
 
@@ -288,7 +317,7 @@ export default defineComponent({
       :type-color-map="typeColorMapper"
     />
     <edit-annotation-layer
-      v-if="editingTrackData !== null"
+      v-if="props.editingTrack.value"
       ref="annotationRectEditor"
       :data="editingTrackData"
       :state-styling="stateStyling"
