@@ -11,30 +11,19 @@ import {
   ref,
 } from '@vue/composition-api';
 
-//import { boundToGeojson } from '@/utils';
+import { FrameDataTrack } from '@/components/layers/LayerTypes';
 // eslint-disable-next-line no-unused-vars
-import Track, { Feature, ConfidencePair, TrackId } from '@/lib/track';
+import Track, { TrackId } from '@/lib/track';
 import { FeaturePointingTarget } from '@/use/useFeaturePointing';
 import IntervalTree from '@flatten-js/interval-tree';
 
-import AnnotationLayer from '@/components/layers/AnnotationLayer.vue';
+
+import AnnotationLayer from '@/components/layers/AnnotationLayer';
+import TextLayer from '@/components/layers/TextLayer';
 import EditAnnotationLayer from '@/components/layers/EditAnnotationLayer.vue';
-import TextLayer from '@/components/layers/TextLayer.vue';
 import MarkerLayer from '@/components/layers/MarkerLayer.vue';
 import { geojsonToBound, geojsonToBound2 } from '../../utils';
 
-interface CoordinateList{
-    x: number;
-    y: number;
-}
-
-interface FrameDataTrack {
-  selected: boolean;
-  editing: boolean;
-  trackId: string;
-  features: Feature;
-  confidencePairs: ConfidencePair[];
-}
 
 export default defineComponent({
   props: {
@@ -76,22 +65,67 @@ export default defineComponent({
     },
   },
 
-  components: {
-    AnnotationLayer, EditAnnotationLayer, TextLayer, MarkerLayer,
-  },
-
   setup(props, { emit }) {
     const annotator: any = inject('annotator');
     const frameNumber: Readonly<Ref<number>> = computed(() => annotator.frame as number);
 
 
-    // eslint-disable-next-line max-len
-    const currentFrameIds: Readonly<Ref<readonly string[]>> = computed(() => props.intervalTree.search([frameNumber.value, frameNumber.value]));
+    const Clicked = (trackId: number, editing: boolean) => {
+      emit('selectTrack', trackId, editing);
+    };
 
+    const annotationLayer = new AnnotationLayer({
+      annotator,
+      stateStyling: props.stateStyling,
+      typeColorMap: props.typeColorMapper,
+      signals: {
+        annotationClicked: Clicked,
+        annotationRightClicked: Clicked,
+      },
+    });
+
+    const textLayer = new TextLayer({
+      annotator,
+      stateStyling: props.stateStyling,
+      typeColorMap: props.typeColorMapper,
+    });
+
+    function updateLayers() {
+      // eslint-disable-next-line max-len
+      const currentFrameIds: number[] = props.intervalTree.search([frameNumber.value, frameNumber.value]);
+      const tracks: FrameDataTrack[] = [];
+      currentFrameIds.forEach(
+        (item: number) => {
+          if (props.filteredTrackIds.value.includes(item)) {
+            if (props.trackMap.has(item)) {
+              const track: Track = props.trackMap.get(item)!;
+              tracks.push({
+                selected: (props.selectedTrackId.value === track.trackId.value),
+                editing: props.editingTrack.value,
+                trackId: track.trackId.value,
+                features: track.features[frameNumber.value],
+                confidencePairs: track.confidencePairs.value,
+              });
+            }
+          }
+        },
+      );
+      annotationLayer.changeData(tracks);
+      textLayer.changeData(tracks);
+    }
+    updateLayers();
     // Is a referenced data so it can be set manually during updates to the bounds or features
     const editingTrackData: Ref<FrameDataTrack | null> = ref(null);
+    watch([
+      frameNumber,
+      props.editingTrack,
+      props.selectedTrackId,
+      props.filteredTrackIds,
+    ], () => {
+      updateLayers();
+    });
 
-
+    /*
     function createEditingTrackData() {
       if (!props.editingTrack.value) {
         return null;
@@ -149,6 +183,10 @@ export default defineComponent({
       return createFrameData(currentFrameIds.value);
     }
 
+    watch(frameNumber, () => {
+      baseLayer.changeData(createFrameData(currentFrameIds.value));
+    });
+
     // Provides the filtered track data for the currentFrame for all Layers
 
     const currentFrameDataTracks = computed(() => updateFrameDataTracks());
@@ -167,6 +205,7 @@ export default defineComponent({
      * @param {string} data - trackId for the selected annotation
      * @param {boolean} editing - if the selected track should be edited or not
      */
+    /*
     function detectionChanged(data: any) {
       // We want the selectedTrackId, for brand new Detections
       const track = props.trackMap.get(props.selectedTrackId.value);
@@ -188,7 +227,7 @@ export default defineComponent({
         editingTrackData.value = createEditingTrackData();
       }
     }
-
+*/
     function nextFrame() {
       annotator.$emit('next-frame');
     }
@@ -282,15 +321,15 @@ export default defineComponent({
     });
     */
     return {
-      currentFrameDataTracks,
+      // currentFrameDataTracks,
       editingTrackData,
       props,
-      annotationClicked,
+      // annotationClicked,
       previousFrame,
       nextFrame,
       togglePlay,
       frameNumber,
-      detectionChanged,
+      // detectionChanged,
     };
   },
 });
@@ -304,7 +343,7 @@ export default defineComponent({
       { bind: 'space', handler: togglePlay }
     ]"
   >
-    <annotation-layer
+    <!-- <annotation-layer
       :data="currentFrameDataTracks"
       :state-styling="stateStyling"
       :type-color-map="typeColorMapper"
@@ -325,7 +364,6 @@ export default defineComponent({
       editing="rectangle"
       @update:geojson="detectionChanged"
     />
-    <!--
     <edit-annotation-layer
       v-if="featurePointing"
       editing="point"
