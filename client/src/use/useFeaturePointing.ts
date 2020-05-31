@@ -4,7 +4,7 @@ import Track, { TrackId } from '@/lib/track';
 
 export type FeaturePointingTarget = 'head' | 'tail' | null;
 
-interface GeojsonGeometry {
+export interface GeojsonGeometry {
   geometry: {
     coordinates: [number, number];
   };
