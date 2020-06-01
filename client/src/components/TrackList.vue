@@ -126,7 +126,7 @@ export default Vue.extend({
       ]"
       :items="filteredTrackIds.value"
       :item-height="itemHeight"
-      :height="300"
+      :height="400"
     >
       <template #default="{ item: trackId }">
         <track-item

@@ -36,12 +36,7 @@ export default defineComponent({
 
   setup() {
     return {
-      // TODO p1 viewer params
       showTrackView: ref(false),
-      maxFrame: 328,
-      frame: 10,
-      // eslint-disable-next-line @typescript-eslint/no-empty-function
-      seek: () => {},
     };
   },
 });
@@ -49,53 +44,52 @@ export default defineComponent({
 
 <template>
   <div>
-    <!-- <Controls /> -->
-    <!-- <timeline-wrapper> -->
-    <!-- <template #default="{ maxFrame, frame, seek }"> -->
-    <template>
-      <Timeline
-        :max-frame="maxFrame"
-        :frame="frame"
-        @seek="seek"
-      >
-        <template
-          #child="{
-            startFrame,
-            endFrame,
-            maxFrame: childMaxFrame,
-            clientWidth,
-            clientHeight,
-          }"
+    <Controls />
+    <timeline-wrapper>
+      <template #default="{ maxFrame, frame, seek }">
+        <Timeline
+          :max-frame="maxFrame"
+          :frame="frame"
+          @seek="seek"
         >
-          <line-chart
-            v-if="!showTrackView"
-            :start-frame="startFrame"
-            :end-frame="endFrame"
-            :max-frame="childMaxFrame"
-            :data="lineChartData.value"
-            :client-width="clientWidth"
-            :client-height="clientHeight"
-          />
-          <event-chart
-            v-else
-            :start-frame="startFrame"
-            :end-frame="endFrame"
-            :max-frame="childMaxFrame"
-            :data="eventChartData.value"
-            :client-width="clientWidth"
-          />
-        </template>
-        <v-btn
-          outlined
-          x-small
-          class="toggle-timeline-button"
-          tab-index="-1"
-          @click="showTrackView = !showTrackView"
-        >
-          {{ showTrackView ? "Detection" : "Track" }}
-        </v-btn>
-      </Timeline>
-    </template>
-    <!-- </timeline-wrapper> -->
+          <template
+            #child="{
+              startFrame,
+              endFrame,
+              maxFrame: childMaxFrame,
+              clientWidth,
+              clientHeight,
+            }"
+          >
+            <line-chart
+              v-if="!showTrackView"
+              :start-frame="startFrame"
+              :end-frame="endFrame"
+              :max-frame="childMaxFrame"
+              :data="lineChartData.value"
+              :client-width="clientWidth"
+              :client-height="clientHeight"
+            />
+            <event-chart
+              v-else
+              :start-frame="startFrame"
+              :end-frame="endFrame"
+              :max-frame="childMaxFrame"
+              :data="eventChartData.value"
+              :client-width="clientWidth"
+            />
+          </template>
+          <v-btn
+            outlined
+            x-small
+            class="toggle-timeline-button"
+            tab-index="-1"
+            @click="showTrackView = !showTrackView"
+          >
+            {{ showTrackView ? "Detection" : "Track" }}
+          </v-btn>
+        </Timeline>
+      </template>
+    </timeline-wrapper>
   </div>
 </template>

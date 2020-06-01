@@ -58,6 +58,14 @@ export default defineComponent({
       type: Function as PropType<(delta: number) => void>,
       required: true,
     },
+    selectTrack: {
+      type: Function as PropType<(trackId: TrackId, mode: boolean) => void>,
+      required: true,
+    },
+    seek: {
+      type: Function as PropType<(frame: number) => void>,
+      required: true,
+    },
     width: {
       type: Number,
       default: 300,
@@ -88,14 +96,22 @@ export default defineComponent({
       }
     }
 
-    function handleTrackEdit(trackId: string) {
-      // TODO p1
-      return trackId;
+    function handleTrackClick(trackId: TrackId) {
+      const track = props.trackMap.get(trackId);
+      if (track === undefined) {
+        throw new Error(`Accessed missing track ${trackId}`);
+      }
+      props.seek(track.begin.value);
+      props.selectTrack(trackId, props.editingTrack.value);
     }
 
-    function handleTrackClick(trackId: string) {
-      // TODO p1
-      return trackId;
+    function handleTrackEdit(trackId: TrackId) {
+      const track = props.trackMap.get(trackId);
+      if (track === undefined) {
+        throw new Error(`Accessed missing track ${trackId}`);
+      }
+      props.seek(track.begin.value);
+      props.selectTrack(trackId, true);
     }
 
     return {
@@ -103,8 +119,8 @@ export default defineComponent({
       trackListProps: props,
       typeListProps: props,
       handleTrackChecked,
-      handleTrackEdit,
       handleTrackClick,
+      handleTrackEdit,
       ...toRefs(data),
     };
   },
@@ -114,6 +130,7 @@ export default defineComponent({
 <template>
   <v-card
     :width="width"
+    class="sidebar d-flex flex-column overflow-hidden"
     style="z-index:1;"
   >
     <v-btn
@@ -136,11 +153,12 @@ export default defineComponent({
       >
         <type-list
           v-bind="trackListProps"
-          class="flex-grow-1"
+          class="flex-shrink-1 typelist"
         />
+        <v-spacer />
         <v-divider />
         <track-list
-          class="flex-shrink-0"
+          class="flex-grow-0 flex-shrink-0"
           v-bind="trackListProps"
           @track-remove="removeTrack"
           @track-add="addTrack"
@@ -161,3 +179,15 @@ export default defineComponent({
     </v-slide-x-transition>
   </v-card>
 </template>
+
+<style scoped>
+.sidebar {
+  max-height: calc(100vh - 64px);
+}
+.wrapper {
+  height: 100%;
+}
+.typelist {
+  min-height: 100px;
+}
+</style>

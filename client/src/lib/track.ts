@@ -107,6 +107,13 @@ export default class Track {
     return this.features[feature.frame];
   }
 
+  getType() {
+    if (this.confidencePairs.value.length > 0) {
+      return this.confidencePairs.value[0][0];
+    }
+    return null;
+  }
+
   setType(trackType: string) {
     const i = this.confidencePairs.value.findIndex(([name, _val]) => name === trackType);
     const deleteCount = i >= 0 ? 1 : 0;
@@ -147,7 +154,9 @@ export default class Track {
   static fromJSON(json: TrackData): Track {
     const sparseFeatures: Array<Feature> = [];
     json.features.forEach((f) => { sparseFeatures[f.frame] = f; });
-    const track = new Track(json.trackId, {
+    // accept either number or string, convert to number
+    const intTrackId = parseInt(json.trackId.toString(), 10);
+    const track = new Track(intTrackId, {
       features: sparseFeatures,
       meta: json.meta,
       attributes: json.attributes,

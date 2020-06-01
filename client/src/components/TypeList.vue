@@ -23,12 +23,9 @@ export default Vue.extend({
 </script>
 
 <template>
-  <div class="d-flex flex-column">
+  <div class="overflow-y-auto">
     <v-subheader>Types</v-subheader>
-    <div
-      class="flex-grow-1"
-      style="overflow-y: auto;"
-    >
+    <div>
       <div>
         <v-checkbox
           v-for="type in allTypes.value"
