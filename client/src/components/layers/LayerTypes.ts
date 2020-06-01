@@ -9,8 +9,8 @@ interface FrameDataTrack {
   selected: boolean;
   editing: boolean;
   trackId: number;
-  features: Feature;
-  confidencePairs: ConfidencePair[];
+  features?: Feature | null;
+  confidencePairs?: ConfidencePair[];
 }
 
 export {

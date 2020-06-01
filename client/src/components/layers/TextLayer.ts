@@ -75,8 +75,18 @@ export default class TextLayer extends BaseLayer {
         }
         return this.stateStyling.standard.color;
       },
-      offsetY(data) {
-        return data.offsetY;
+      offset(data) {
+        const offset = {
+          x: 3,
+          y: 0,
+        };
+        if (data.offsetY) {
+          offset.y = data.offsetY;
+        }
+        if (data.offsetX) {
+          offset.y = data.offsetX;
+        }
+        return offset;
       },
     };
   }
