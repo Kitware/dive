@@ -19,6 +19,6 @@
     - name: Enable timer
       systemd:
           name: viame-deploy.timer
-          state: started
+          state: restarted
           enabled: yes
           daemon_reload: yes
