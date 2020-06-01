@@ -25,7 +25,7 @@ class Feature:
 class Track:
     begin: int
     end: int
-    trackId: str
+    trackId: int
     features: List[Feature] = field(default_factory=lambda: [])
     confidencePairs: List[Tuple[str, float]] = field(default_factory=lambda: [])
     attributes: Dict[str, Any] = field(default_factory=lambda: {})
@@ -44,8 +44,8 @@ def track_to_dict(track: Track):
     return track_dict
 
 
-def row_info(row: List[str]) -> Tuple[str, int, List[float], float]:
-    trackId = str(row[0])
+def row_info(row: List[str]) -> Tuple[int, int, List[float], float]:
+    trackId = int(row[0])
     frame = int(row[2])
     bounds = [
         float(row[3]),
