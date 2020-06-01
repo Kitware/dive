@@ -3,7 +3,7 @@ VIAME Fish format deserializer
 """
 import csv
 import re
-from dataclasses import dataclass, asdict, field
+from dataclasses import dataclass, field
 from typing import List, Dict, Tuple, Optional, Union, Any
 
 from girder.models.file import File
@@ -13,10 +13,10 @@ from girder.models.file import File
 class Feature:
     """Feature represents a single detection in a track."""
 
-    frame: int = None
-    bounds: List[float] = None
-    head: Optional[Tuple[int, int]] = None
-    tail: Optional[Tuple[int, int]] = None
+    frame: int
+    bounds: List[float]
+    head: Optional[Tuple[float, float]] = None
+    tail: Optional[Tuple[float, float]] = None
     fishLength: Optional[float] = None
     attributes: Optional[Dict[str, Union[bool, float, str]]] = None
 
@@ -27,11 +27,24 @@ class Track:
     end: int
     trackId: str
     features: List[Feature] = field(default_factory=lambda: [])
-    confidencePairs: Dict[str, float] = field(default_factory=lambda: {})
+    confidencePairs: List[Tuple[str, float]] = field(default_factory=lambda: [])
     attributes: Dict[str, Any] = field(default_factory=lambda: {})
 
 
-def row_info(row: List[str]) -> Tuple[int, int, List[float], float]:
+def track_to_dict(track: Track):
+    """Used instead of `asdict` for better performance."""
+
+    def omit_empty(d):
+        return {k: v for k, v in d.items() if v is not None}
+
+    track_dict = dict(track.__dict__)
+    track_dict["features"] = [
+        omit_empty(feature.__dict__) for feature in track_dict["features"]
+    ]
+    return track_dict
+
+
+def row_info(row: List[str]) -> Tuple[str, int, List[float], float]:
     trackId = str(row[0])
     frame = int(row[2])
     bounds = [
@@ -83,10 +96,12 @@ def _parse_row(row: List[str]) -> Tuple[Dict, Dict, Dict, List]:
                     features["tail"] = (groups[1], groups[2])
         if row[j].startswith("(atr)"):
             groups = re.match(r"\(atr\) (.+) (.+)", row[j])
-            attributes[groups[1]] = _deduceType(groups[2])
+            if groups:
+                attributes[groups[1]] = _deduceType(groups[2])
         if row[j].startswith("(trk-atr)"):
             groups = re.match(r"\(trk-atr\) (.+) (.+)", row[j])
-            track_attributes[groups[1]] = _deduceType(groups[2])
+            if groups:
+                track_attributes[groups[1]] = _deduceType(groups[2])
 
     return features, attributes, track_attributes, confidence_pairs
 
@@ -167,4 +182,4 @@ def load_csv_as_tracks(file):
         for (key, val) in track_attributes:
             track.attributes[key] = val
 
-    return {trackId: asdict(track) for trackId, track in tracks.items()}
+    return {trackId: track_to_dict(track) for trackId, track in tracks.items()}
