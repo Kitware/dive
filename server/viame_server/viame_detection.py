@@ -196,7 +196,7 @@ class ViameDetection(Resource):
             required=True,
             level=AccessType.READ,
         )
-        .jsonParam("tracks", "", requireArray=True, paramType="body")
+        .jsonParam("tracks", "", paramType="body")
     )
     def save_detection(self, folder, tracks):
         user = self.getCurrentUser()
