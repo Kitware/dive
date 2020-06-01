@@ -6,6 +6,7 @@ import json
 import re
 import io
 from dataclasses import dataclass, field
+from dacite import from_dict, Config
 from typing import List, Dict, Tuple, Optional, Union, Any
 
 from girder.models.file import File
@@ -44,19 +45,6 @@ def track_to_dict(track: Track):
         omit_empty(feature.__dict__) for feature in track_dict["features"]
     ]
     return track_dict
-
-
-@dataclass
-class FlatDetection:
-    bounds: Tuple[float, float, float, float]  # [x1, x2, y1, y2]
-    confidence: float
-    confidencePairs: List[Tuple[str, float]]
-    features: Dict[str, Any]
-    fishLength: float
-    frame: int
-    track: int
-    attributes: Optional[Dict[str, Any]] = None
-    trackAttributes: Optional[Dict[str, Any]] = None
 
 
 def row_info(row: List[str]) -> Tuple[int, int, List[float], float]:
@@ -174,7 +162,7 @@ def load_csv_as_tracks(file):
     return {trackId: track_to_dict(track) for trackId, track in tracks.items()}
 
 
-def json_row_to_csv(detection, trackAttributes=None):
+def write_track_to_csv(track: Track, csv_writer):
     def valueToString(value):
         if value is True:
             return "true"
@@ -182,56 +170,60 @@ def json_row_to_csv(detection, trackAttributes=None):
             return "false"
         return str(value)
 
-    columns = [
-        detection["track"],
-        "",
-        detection["frame"],
-        detection["bounds"][0],
-        detection["bounds"][2],
-        detection["bounds"][1],
-        detection["bounds"][3],
-        detection["confidence"],
-        detection["fishLength"],
-    ]
-    for [key, confidence] in detection["confidencePairs"]:
-        columns += [key, confidence]
-    if detection["features"]:
-        for [key, values] in detection["features"].items():
-            columns.append("(kp) {} {} {}".format(key, values[0], values[1]))
-    if detection["attributes"]:
-        for [key, value] in detection["attributes"].items():
-            columns.append("(atr) {} {}".format(key, valueToString(value)))
-    if trackAttributes:
-        for [key, value] in trackAttributes.items():
-            columns.append("(trk-atr) {} {}".format(key, valueToString(value)))
-    return columns
+    columns: List[Any] = []
+    for feature in track.features:
+        columns = [
+            track.trackId,
+            "",
+            feature.frame,
+            *feature.bounds,
+            track.confidencePairs[-1][1],
+            feature.fishLength,
+        ]
+
+        for pair in track.confidencePairs:
+            columns.extend(list(pair))
+
+        if feature.head and feature.tail:
+            columns.extend(
+                [
+                    f"(kp) head {feature.head[0]} {feature.head[1]}",
+                    f"(kp) tail {feature.tail[0]} {feature.tail[1]}",
+                ]
+            )
+
+        if feature.attributes:
+            for key, val in feature.attributes.items():
+                columns.append(f"(atr) {key} {valueToString(val)}")
+
+        if track.attributes:
+            for key, val in track.attributes.items():
+                columns.append(f"(trk-atr) {key} {valueToString(val)}")
+
+        csv_writer.writerow(columns)
 
 
-def export_json_as_csv(file) -> str:
+def export_tracks_as_csv(file) -> str:
     """
-    Export detection json to a CSV format.
+    Export track json to a CSV format.
 
     file: The detections JSON file
     """
 
-    detections = json.loads(
+    track_json = json.loads(
         b"".join(list(File().download(file, headers=False)())).decode()
     )
-    track = detections[0]["track"]
-    length = len(detections)
+
+    tracks = {
+        # Config kwarg needed to convert lists into tuples
+        trackId: from_dict(Track, track, config=Config(cast=[Tuple]))
+        for trackId, track in track_json.items()
+    }
 
     with io.StringIO() as csvFile:
         writer = csv.writer(csvFile)
 
-        for i in range(0, len(detections)):
-            trackAttributes = (
-                detections[i]["trackAttributes"]
-                if detections[i]["trackAttributes"]
-                else None
-            )
-            if i == length - 1 or detections[i + 1]["track"] != track:
-                writer.writerow(json_row_to_csv(detections[i], trackAttributes))
-            else:
-                writer.writerow(json_row_to_csv(detections[i]))
+        for track in tracks.values():
+            write_track_to_csv(track, writer)
 
         return csvFile.getvalue()

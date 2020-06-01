@@ -124,9 +124,13 @@ class ViameDetection(Resource):
         detectionItems.sort(key=lambda d: d["created"], reverse=True)
         item = detectionItems[0]
         file = Item().childFiles(item)[0]
+
+        if "csv" in file["exts"]:
+            return File().download(file)
+
         filename = ".".join([file["name"].split(".")[:-1][0], "csv"])
 
-        csv_string = viame.export_json_as_csv(file)
+        csv_string = viame.export_tracks_as_csv(file)
         csv_bytes = csv_string.encode()
 
         assetstore = Assetstore().findOne({"_id": file["assetstoreId"]})
