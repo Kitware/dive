@@ -3,21 +3,20 @@ import Track, { TrackId } from '@/lib/track';
 
 interface UseTrackSelectionControlsParams {
   trackIds: Readonly<Ref<readonly TrackId[]>>;
-  removeTrack: (trackId: TrackId) => void;
 }
 
 /* Maintain references to the selected Track, selected detection,
  * editing state, etc.
  */
 export default function useTrackSelectionControls(
-  { trackIds, removeTrack }: UseTrackSelectionControlsParams,
+  { trackIds }: UseTrackSelectionControlsParams,
 ) {
   // the currently selected Track
   const selectedTrackId = ref(null as TrackId | null);
   // boolean whether or not selectedTrackId is also being edited.
   const editingTrack = ref(false);
 
-  function setTrackEditMode(trackId: string, edit = false) {
+  function selectTrack(trackId: TrackId | null, edit = false) {
     console.warn(`SETTING TRACK ID ${trackId} with edit:${edit}`);
     selectedTrackId.value = trackId;
     editingTrack.value = edit;
@@ -40,20 +39,10 @@ export default function useTrackSelectionControls(
       }
     }
   }
-
-  // TODO p1: refactor to viewer
-  function wrapRemoveTrack(trackId: TrackId) {
-    if (selectedTrackId.value === trackId) {
-      selectedTrackId.value = null;
-    }
-    removeTrack(trackId);
-  }
-
   return {
     selectedTrackId,
     editingTrack,
     selectNextTrack,
-    setTrackEditMode,
-    removeTrack: wrapRemoveTrack,
+    selectTrack,
   };
 }

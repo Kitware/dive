@@ -81,9 +81,9 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
 
   async function loadTracks(datasetFolderId: string) {
     const data = await getDetections(datasetFolderId, 'track_json');
-    Object.entries(data).forEach(([trackId, value]) => {
+    Object.entries(data).forEach(([_, value]) => {
       const track = Track.fromJSON(value as TrackData);
-      const intTrackId = parseInt(trackId, 10);
+      const intTrackId = track.trackId.value;
       track.observers.push(onChange);
       trackMap.set(intTrackId, track);
       trackIds.value.push(intTrackId);

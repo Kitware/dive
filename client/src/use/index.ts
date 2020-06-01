@@ -1,5 +1,3 @@
-import useAnnotationLayer from './useAnnotationLayer';
-import useEditingLayer from './useEditingLayer';
 import useEventChart from './useEventChart';
 import useGirderDataset from './useGirderDataset';
 import useFeaturePointing from './useFeaturePointing';
@@ -14,8 +12,6 @@ import useTrackSelectionControls from './useTrackSelectionControls';
 import useTrackStore from './useTrackStore';
 
 export {
-  useAnnotationLayer,
-  useEditingLayer,
   useEventChart,
   useGirderDataset,
   useFeaturePointing,
