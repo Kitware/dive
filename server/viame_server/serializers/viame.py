@@ -131,7 +131,7 @@ def load_csv_as_tracks(file):
         track["features"].append(features)
         for (key, val) in track_attributes.items():
             track["attributes"][key] = val
-        if frame > track["end"]:
+        if frame >= track["end"]:
             track["end"] = frame
             # final confidence pair should be taken as the
             # pair that applied to the whole track
