@@ -1,8 +1,6 @@
 <script lang="ts">
 import {
   defineComponent,
-  reactive,
-  toRefs,
   computed,
   PropType,
   inject,
@@ -78,11 +76,9 @@ export default defineComponent({
       annotator,
       stateStyling: props.stateStyling,
       typeColorMap: props.typeColorMapper,
-      signals: {
-        annotationClicked: Clicked,
-        annotationRightClicked: Clicked,
-      },
     });
+    annotationLayer.$on('annotationClicked', Clicked);
+    annotationLayer.$on('annotationRightClicked', Clicked);
 
     const textLayer = new TextLayer({
       annotator,
@@ -103,7 +99,7 @@ export default defineComponent({
                 selected: (props.selectedTrackId.value === track.trackId.value),
                 editing: props.editingTrack.value,
                 trackId: track.trackId.value,
-                features: track.features[frameNumber.value],
+                features: track.getFeature(frameNumber.value),
                 confidencePairs: track.confidencePairs.value,
               });
             }

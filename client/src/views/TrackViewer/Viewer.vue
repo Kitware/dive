@@ -28,7 +28,7 @@ import ControlsContainer from './ControlsContainer.vue';
 import Sidebar from './Sidebar.vue';
 import components from './components';
 import ImageAnnotator  from "@/components/annotators/ImageAnnotator.vue"
-import Layers from '@/components/layers/Layers.vue';
+import Layers from '@/views/TrackViewer/Layers.vue';
 import { getPathFromLocation } from '@/utils';
 import store from '@/store';
 

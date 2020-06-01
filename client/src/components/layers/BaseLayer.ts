@@ -4,13 +4,13 @@ import { FrameDataTrack, CoordinateList } from '@/components/layers/LayerTypes';
 
 import { boundToGeojson } from '@/utils';
 import { StateStyles } from '@/use/useStyling';
-import geo from 'geojs';
+import Vue from 'vue';
 
 
 interface LayerStyle {
-    strokeWidth?: (number | ((a: any, b: any, data: any) => number));
-    strokeOpacity?: (number | ((a: any, b: any, data: any) => number));
-    strokeColor?: (string | ((a: any, b: any, data: any) => string));
+    strokeWidth?: (number | ((a: any, b: any, data: any) => number | undefined));
+    strokeOpacity?: (number | ((a: any, b: any, data: any) => number | undefined));
+    strokeColor?: (string | ((a: any, b: any, data: any) => string | undefined));
 }
 
 interface BaseLayerParams {
@@ -18,12 +18,9 @@ interface BaseLayerParams {
     annotator?: any;
     stateStyling?: StateStyles;
     typeColorMap?: (t: string) => string;
-    signals?: Record<string, any>;
 }
 
-export default class BaseLayer {
-    frameData?: FrameDataTrack[];
-
+export default class BaseLayer extends Vue {
     formattedData: any;
 
     annotator: any;
@@ -38,17 +35,13 @@ export default class BaseLayer {
 
     featureLayer: any;
 
-    signals: any;
 
     constructor({
-      frameData,
       annotator,
       stateStyling,
       typeColorMap,
-      signals = {
-        annotationClicked: () => null, annotationRightClicked: () => null,
-      },
     }: BaseLayerParams) {
+      super();
       this.annotator = annotator;
       this.stateStyling = stateStyling;
       this.typeColorMap = typeColorMap;
@@ -56,7 +49,6 @@ export default class BaseLayer {
       this.style = {};
       this.redrawSignalers = [];
       this.featureLayer = null;
-      this.signals = signals;
       this.initialize();
     }
 
@@ -81,7 +73,6 @@ export default class BaseLayer {
 
     changeData(frameData: FrameDataTrack[]) {
       this.redrawSignalers = [];
-      this.frameData = frameData;
       this.formattedData = this.formatData(frameData);
       this.redraw();
     }

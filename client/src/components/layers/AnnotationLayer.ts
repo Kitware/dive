@@ -3,6 +3,7 @@ import { boundToGeojson } from '@/utils';
 import { StateStyles } from '@/use/useStyling';
 import geo from 'geojs';
 import { GeojsonGeometry } from '@/use/useFeaturePointing';
+import { FrameDataTrack } from '@/components/layers/LayerTypes';
 
 
 export default class AnnotationLayer extends BaseLayer {
@@ -14,9 +15,9 @@ export default class AnnotationLayer extends BaseLayer {
       .createFeature('polygon', { selectionAPI: true })
       .geoOn(geo.event.feature.mouseclick, (e: any) => {
         if (e.mouse.buttonsDown.left) {
-          this.signals.annotationClicked(e.data.trackId, false);
+          this.$emit('annotationClicked', e.data.trackId, false);
         } else if (e.mouse.buttonsDown.right) {
-          this.signals.annotationRightClicked(e.data.trackId, false);
+          this.$emit('annotationRightClicked', e.data.trackId, false);
         }
       });
     this.featureLayer.geoOn(
