@@ -1,4 +1,4 @@
-# Playbook to install the systemd service and timers files
+# Playbook to remove the systemd service and timers files
 
 - hosts: localhost
   become: yes
@@ -22,4 +22,3 @@
       file:
         path: /etc/systemd/system/viame-deploy.timer
         state: absent
-
