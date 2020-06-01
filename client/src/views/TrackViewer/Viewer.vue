@@ -166,6 +166,10 @@ export default defineComponent({
       getPathFromLocation,
       pendingSaveCount,
       playbackComponent,
+      imageUrls,
+      videoUrl,
+      annotatorType,
+      frameRate,
       /* methods used locally */
       selectTrack,
       save,
@@ -199,12 +203,6 @@ export default defineComponent({
         intervalTree,
         featurePointing,
         featurePointingTarget,
-      },
-      playbackProps: {
-        imageUrls,
-        videoUrl,
-        annotatorType,
-        frameRate,
       },
     };
   },
@@ -262,12 +260,12 @@ export default defineComponent({
 
       <v-col style="position: relative; ">
         <component
-          :is="playbackProps.annotatorType.value"
-          v-if="playbackProps.imageUrls.value.length"
+          :is="annotatorType"
+          v-if="imageUrls.length || videoUrl"
           ref="playbackComponent"
-          :image-urls="playbackProps.imageUrls.value"
-          :video-url="playbackProps.videoUrl.value"
-          :frame-rate="playbackProps.frameRate.value"
+          :image-urls="imageUrls"
+          :video-url="videoUrl"
+          :frame-rate="frameRate"
           class="playback-component"
           @frame-update="frame = $event"
         >
@@ -420,5 +418,14 @@ export default defineComponent({
 </template>
 
 <style lang="scss" scoped>
-@import './viewer.scss';
+.confidence-filter {
+  flex-basis: 400px;
+}
+
+.selection-menu-button {
+  position: absolute;
+  right: 0;
+  top: 0;
+  z-index: 1;
+}
 </style>

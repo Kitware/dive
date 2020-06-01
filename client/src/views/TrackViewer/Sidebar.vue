@@ -185,9 +185,20 @@ export default defineComponent({
   max-height: calc(100vh - 64px);
 }
 .wrapper {
-  height: 100%;
+  /* height: 100%; */
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
 }
 .typelist {
   min-height: 100px;
+}
+.swap-button {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  z-index: 1;
 }
 </style>

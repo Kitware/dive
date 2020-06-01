@@ -93,3 +93,11 @@ export default defineComponent({
     </timeline-wrapper>
   </div>
 </template>
+
+<style scoped>
+.toggle-timeline-button {
+  position: absolute;
+  top: -24px;
+  left: 2px;
+}
+</style>

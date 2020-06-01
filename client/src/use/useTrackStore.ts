@@ -81,14 +81,16 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
 
   async function loadTracks(datasetFolderId: string) {
     const data = await getDetections(datasetFolderId, 'track_json');
-    Object.entries(data).forEach(([_, value]) => {
-      const track = Track.fromJSON(value as TrackData);
-      const intTrackId = track.trackId.value;
-      track.observers.push(onChange);
-      trackMap.set(intTrackId, track);
-      trackIds.value.push(intTrackId);
-      intervalTree.insert([track.begin.value, track.end.value], intTrackId);
-    });
+    if (data !== null) {
+      Object.entries(data).forEach(([_, value]) => {
+        const track = Track.fromJSON(value as TrackData);
+        const intTrackId = track.trackId.value;
+        track.observers.push(onChange);
+        trackMap.set(intTrackId, track);
+        trackIds.value.push(intTrackId);
+        intervalTree.insert([track.begin.value, track.end.value], intTrackId);
+      });
+    }
   }
 
   const sortedTrackIds = computed(() => trackIds.value.sort((a, b) => {
