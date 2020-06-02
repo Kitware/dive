@@ -60,6 +60,7 @@ export default defineComponent({
   setup(props) {
     const { datasetId } = props;
     const playbackComponent = ref(null as null | Seeker);
+    const frame = ref(0); // the currently displayed frame number
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const vuetify = inject('vuetify');
@@ -180,6 +181,7 @@ export default defineComponent({
       annotatorType,
       confidenceThreshold,
       dataset,
+      frame,
       frameRate,
       getPathFromLocation,
       imageUrls,
@@ -204,6 +206,7 @@ export default defineComponent({
       sidebarProps: {
         trackMap,
         filteredTrackIds,
+        frame,
         allTypes,
         checkedTypes,
         checkedTrackIds,

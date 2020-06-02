@@ -6,6 +6,13 @@ interface GirderModel {
   name: string;
 }
 
+interface Attribute {
+  belongs: 'track' | 'detection';
+  datatype: 'text' | 'number' | 'boolean';
+  name: string;
+  _id: string;
+}
+
 function makeViameFolder({
   folderId, name, fps, type,
 }: {
@@ -43,6 +50,11 @@ function deleteResources(resources: Array<GirderModel>) {
   return girderRest.post('resource', formData, {
     headers: { 'X-HTTP-Method-Override': 'DELETE' },
   });
+}
+
+async function getAttributes(): Promise<Attribute[]> {
+  const { data } = await girderRest.get('/viame/attribute');
+  return data as Attribute[];
 }
 
 function runVideoConversion(itemId: string) {
@@ -83,7 +95,10 @@ function setMetadataForItem(itemId: string, metadata: object) {
 }
 
 export {
+  Attribute,
+  GirderModel,
   deleteResources,
+  getAttributes,
   getPipelineList,
   makeViameFolder,
   runImageConversion,

@@ -8,10 +8,7 @@ export default function useSave() {
   async function save(datasetId: string, trackMap: Map<TrackId, Track>) {
     saveDetections(
       datasetId,
-      Array
-        .from(trackMap.entries())
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        .map(([_, track]) => track.serialize()),
+      Array.from(trackMap.values()).map((track) => track.serialize()),
     );
     pendingSaveCount.value = 0;
   }

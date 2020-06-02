@@ -11,7 +11,7 @@ export interface Feature {
   frame: number;
   bounds?: Array<number>;
   fishLength?: number;
-  attributes?: object;
+  attributes?: StringKeyObject;
   head?: [number, number];
   tail?: [number, number];
 }
@@ -104,6 +104,16 @@ export default class Track {
     this.updateBounds(feature.frame);
     this.notify('feature', f);
     return this.features[feature.frame];
+  }
+
+  setFeatureAttribute(frame: number, name: string, value: unknown) {
+    if (this.features[frame]) {
+      this.features[frame].attributes = {
+        ...this.features[frame].attributes,
+        [name]: value,
+      };
+      this.notify('feature', this.features[frame]);
+    }
   }
 
   getType() {

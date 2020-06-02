@@ -22,6 +22,10 @@ export default defineComponent({
       type: Object as PropType<Ref<Array<TrackId>>>,
       required: true,
     },
+    frame: {
+      type: Object as PropType<Ref<number>>,
+      required: true,
+    },
     allTypes: {
       type: Object as PropType<Ref<Array<string>>>,
       required: true,
@@ -134,7 +138,7 @@ export default defineComponent({
         key="attributes"
         class="wrapper d-flex"
       >
-        <attributes-panel />
+        <attributes-panel v-bind="{ trackMap, selectedTrackId, frame }" />
       </div>
     </v-slide-x-transition>
   </v-card>

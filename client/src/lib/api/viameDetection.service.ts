@@ -1,4 +1,5 @@
 import girderRest from '@/girder';
+import { TrackData } from '@/lib/track';
 
 interface ExportUrlsResponse {
   mediaType: string;
@@ -16,7 +17,7 @@ async function getDetections(folderId: string, formatting = 'track_json') {
   const { data } = await girderRest.get('viame_detection', {
     params: { folderId, formatting },
   });
-  return data;
+  return data as { [key: string]: TrackData };
 }
 
 async function saveDetections(folderId: string, serializable: unknown) {
