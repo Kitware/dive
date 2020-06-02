@@ -1,0 +1,21 @@
+# Playbook that updates the current instance
+
+- hosts: localhost
+  vars:
+    # Required to use docker_compose properly
+    ansible_python_interpreter: /usr/bin/python3
+  tasks:
+    - name: Stop Currently Running Service
+      docker_compose:
+        project_src: /home/viame/docker
+        state: absent
+
+    - name: Pull Repository Changes
+      shell: git pull
+      args:
+        chdir: /home/viame
+
+    - name: Restart and Build Service
+      docker_compose:
+        project_src: /home/viame/docker
+        build: yes

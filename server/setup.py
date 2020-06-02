@@ -25,6 +25,7 @@ setup(
     ],
     description="Server side functionality of VIAMEWeb",
     install_requires=requirements,
+    python_requires=">=3.7",
     license="Apache Software License 2.0",
     include_package_data=True,
     keywords="VIAME",
