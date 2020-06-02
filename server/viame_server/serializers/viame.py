@@ -178,7 +178,7 @@ def write_track_to_csv(track: Track, csv_writer):
             feature.frame,
             *feature.bounds,
             track.confidencePairs[-1][1],
-            feature.fishLength,
+            feature.fishLength or -1,
         ]
 
         for pair in track.confidencePairs:
