@@ -50,12 +50,8 @@ class Track:
 def row_info(row: List[str]) -> Tuple[int, int, List[float], float]:
     trackId = int(row[0])
     frame = int(row[2])
-    bounds = [
-        float(row[3]),
-        float(row[5]),
-        float(row[4]),
-        float(row[6]),
-    ]
+
+    bounds = [float(x) for x in row[3:7]]
     fish_length = float(row[8])
 
     return trackId, frame, bounds, fish_length
