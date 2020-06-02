@@ -24,7 +24,7 @@ export default function useFilteredTracks({ trackMap, sortedTrackIds }: UseTrack
       if (track === undefined) {
         throw new Error(`Accessed missing track ${trackId}`);
       }
-      track.confidencePairs.value.forEach(([name, _val]) => {
+      track.confidencePairs.value.forEach(([name]) => {
         typeSet.add(name);
       });
     });

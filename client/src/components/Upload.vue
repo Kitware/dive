@@ -60,6 +60,7 @@ async function readEntriesPromise(directoryReader) {
       directoryReader.readEntries(resolve, reject);
     });
   } catch (err) {
+    // eslint-disable-next-line no-console
     console.error(err);
     return [];
   }
@@ -242,6 +243,7 @@ export default {
           await this.uploadPending(this.pendingUploads[0], uploaded);
         } catch (err) {
           success = false;
+          // eslint-disable-next-line no-console
           console.error(err);
           break;
         }

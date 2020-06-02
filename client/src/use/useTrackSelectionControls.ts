@@ -1,5 +1,5 @@
 import { ref, Ref } from '@vue/composition-api';
-import Track, { TrackId } from '@/lib/track';
+import { TrackId } from '@/lib/track';
 
 interface UseTrackSelectionControlsParams {
   trackIds: Readonly<Ref<readonly TrackId[]>>;
@@ -17,7 +17,6 @@ export default function useTrackSelectionControls(
   const editingTrack = ref(false);
 
   function selectTrack(trackId: TrackId | null, edit = false) {
-    console.warn(`SETTING TRACK ID ${trackId} with edit:${edit}`);
     selectedTrackId.value = trackId;
     editingTrack.value = edit;
   }

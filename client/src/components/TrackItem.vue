@@ -1,6 +1,4 @@
 <script>
-import { stringNumberNullValidator } from '@/utils';
-
 export default {
   name: 'TrackItem',
 

@@ -51,6 +51,7 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
   }
 
   function addTrack(frame: number): Track {
+    markChangesPending();
     return new Track(Math.max(...trackIds.value) + 1, {
       begin: frame,
       end: frame,
@@ -72,6 +73,7 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
       throw new Error(`TrackId ${trackId} not found in trackIds.`);
     }
     trackIds.value.splice(listIndex, 1);
+    markChangesPending();
   }
 
   async function splitTracks() {
@@ -82,7 +84,7 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
   async function loadTracks(datasetFolderId: string) {
     const data = await getDetections(datasetFolderId, 'track_json');
     if (data !== null) {
-      Object.entries(data).forEach(([_, value]) => {
+      Object.entries(data).forEach(([, value]) => {
         const track = Track.fromJSON(value as TrackData);
         const intTrackId = track.trackId.value;
         track.observers.push(onChange);

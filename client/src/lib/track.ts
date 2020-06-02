@@ -1,5 +1,4 @@
 import { ref, Ref } from '@vue/composition-api';
-import { timeHours } from 'd3';
 
 export type ConfidencePair = [string, number];
 export type TrackId = number;
@@ -115,7 +114,7 @@ export default class Track {
   }
 
   setType(trackType: string) {
-    const i = this.confidencePairs.value.findIndex(([name, _val]) => name === trackType);
+    const i = this.confidencePairs.value.findIndex(([name]) => name === trackType);
     const deleteCount = i >= 0 ? 1 : 0;
     this.confidencePairs.value.splice(
       deleteCount ? i : 0,

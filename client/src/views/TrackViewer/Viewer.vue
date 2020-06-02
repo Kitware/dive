@@ -145,7 +145,7 @@ export default defineComponent({
 
     function removeTrack(trackId: TrackId) {
       if (selectedTrackId.value === trackId) {
-        selectTrack(null, false);
+        selectNextTrack(1);
       }
       tsRemoveTrack(trackId);
     }
@@ -158,21 +158,45 @@ export default defineComponent({
       saveToServer(datasetId, trackMap);
     }
 
+    function handleTrackEdit(trackId: TrackId) {
+      const track = trackMap.get(trackId);
+      if (track === undefined) {
+        throw new Error(`Accessed missing track ${trackId}`);
+      }
+      seek(track.begin.value);
+      selectTrack(trackId, true);
+    }
+
+    function handleTrackClick(trackId: TrackId) {
+      const track = trackMap.get(trackId);
+      if (track === undefined) {
+        throw new Error(`Accessed missing track ${trackId}`);
+      }
+      seek(track.begin.value);
+      selectTrack(trackId, editingTrack.value);
+    }
+
     return {
-      /* props use locally in Viewer.vue */
-      dataset,
+      /* props use locally */
+      annotatorType,
       confidenceThreshold,
-      location,
+      dataset,
+      frameRate,
       getPathFromLocation,
+      imageUrls,
+      location,
       pendingSaveCount,
       playbackComponent,
-      imageUrls,
       videoUrl,
-      annotatorType,
-      frameRate,
       /* methods used locally */
-      selectTrack,
+      addTrack,
+      handleTrackClick,
+      handleTrackEdit,
+      removeTrack,
       save,
+      seek,
+      selectNextTrack,
+      selectTrack,
       /* props for sub-components */
       controlsContainerProps: {
         lineChartData,
@@ -187,11 +211,6 @@ export default defineComponent({
         selectedTrackId,
         editingTrack,
         typeColorMapper,
-        removeTrack,
-        addTrack,
-        selectNextTrack,
-        selectTrack,
-        seek,
       },
       layerProps: {
         trackMap,
@@ -256,6 +275,12 @@ export default defineComponent({
     >
       <sidebar
         v-bind="sidebarProps"
+        @track-add="addTrack"
+        @track-remove="removeTrack"
+        @track-click="handleTrackClick"
+        @track-edit="handleTrackEdit"
+        @track-next="selectNextTrack(1)"
+        @track-previous="selectNextTrack(-1)"
       />
 
       <v-col style="position: relative; ">

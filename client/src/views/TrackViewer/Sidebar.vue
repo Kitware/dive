@@ -46,26 +46,6 @@ export default defineComponent({
       type: Function as PropType<(t: string) => string>,
       required: true,
     },
-    addTrack: {
-      type: Function as PropType<() => Track>,
-      required: true,
-    },
-    removeTrack: {
-      type: Function as PropType<(t: string) => void>,
-      required: true,
-    },
-    selectNextTrack: {
-      type: Function as PropType<(delta: number) => void>,
-      required: true,
-    },
-    selectTrack: {
-      type: Function as PropType<(trackId: TrackId, mode: boolean) => void>,
-      required: true,
-    },
-    seek: {
-      type: Function as PropType<(frame: number) => void>,
-      required: true,
-    },
     width: {
       type: Number,
       default: 300,
@@ -96,31 +76,11 @@ export default defineComponent({
       }
     }
 
-    function handleTrackClick(trackId: TrackId) {
-      const track = props.trackMap.get(trackId);
-      if (track === undefined) {
-        throw new Error(`Accessed missing track ${trackId}`);
-      }
-      props.seek(track.begin.value);
-      props.selectTrack(trackId, props.editingTrack.value);
-    }
-
-    function handleTrackEdit(trackId: TrackId) {
-      const track = props.trackMap.get(trackId);
-      if (track === undefined) {
-        throw new Error(`Accessed missing track ${trackId}`);
-      }
-      props.seek(track.begin.value);
-      props.selectTrack(trackId, true);
-    }
-
     return {
       swapTabs,
       trackListProps: props,
       typeListProps: props,
       handleTrackChecked,
-      handleTrackClick,
-      handleTrackEdit,
       ...toRefs(data),
     };
   },
@@ -160,13 +120,13 @@ export default defineComponent({
         <track-list
           class="flex-grow-0 flex-shrink-0"
           v-bind="trackListProps"
-          @track-remove="removeTrack"
-          @track-add="addTrack"
-          @track-click="handleTrackClick"
+          @track-remove="$emit('track-remove', $event)"
+          @track-add="$emit('track-add')"
+          @track-click="$emit('track-click', $event)"
           @track-checked="handleTrackChecked"
-          @track-edit="handleTrackEdit"
-          @select-track-up="selectNextTrack(-1)"
-          @select-track-down="selectNextTrack(1)"
+          @track-edit="$emit('track-edit', $event)"
+          @track-previous="$emit('track-previous')"
+          @track-next="$emit('track-next')"
         />
       </div>
       <div
@@ -184,6 +144,7 @@ export default defineComponent({
 .sidebar {
   max-height: calc(100vh - 64px);
 }
+
 .wrapper {
   /* height: 100%; */
   position: absolute;
@@ -192,9 +153,11 @@ export default defineComponent({
   right: 0;
   bottom: 0;
 }
+
 .typelist {
   min-height: 100px;
 }
+
 .swap-button {
   position: absolute;
   top: 5px;

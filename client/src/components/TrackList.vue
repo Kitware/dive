@@ -72,9 +72,9 @@ export default Vue.extend({
     scrollPreventDefault(element: HTMLElement, keyEvent: KeyboardEvent, direction: 'up' | 'down') {
       if (element === (this.$refs.virtualList as Vue).$el) {
         if (direction === 'up') {
-          this.$emit('select-track-up');
+          this.$emit('track-previous');
         } else if (direction === 'down') {
-          this.$emit('select-track-down');
+          this.$emit('track-next');
         }
         keyEvent.preventDefault();
       }
@@ -95,6 +95,7 @@ export default Vue.extend({
         types: this.allTypes.value,
       };
     },
+
     setType(trackId: TrackId, newType: string) {
       const track = this.trackMap.get(trackId);
       if (track === undefined) {
@@ -123,6 +124,8 @@ export default Vue.extend({
       v-mousetrap="[
         { bind: 'up', handler: (el, event) => scrollPreventDefault(el, event, 'up') },
         { bind: 'down', handler: (el, event) => scrollPreventDefault(el, event, 'down') },
+        { bind: 'enter', handler: () => $emit('track-click', selectedTrackId.value)},
+        { bind: 'del', handler: () => $emit('track-remove', selectedTrackId.value)},
       ]"
       :items="filteredTrackIds.value"
       :item-height="itemHeight"

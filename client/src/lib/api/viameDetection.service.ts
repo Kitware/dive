@@ -19,7 +19,7 @@ async function getDetections(folderId: string, formatting = 'track_json') {
   return data;
 }
 
-async function saveDetections(folderId: string, serializable: Record<string, any>) {
+async function saveDetections(folderId: string, serializable: unknown) {
   return girderRest.put('viame_detection', serializable, {
     params: { folderId },
   });
