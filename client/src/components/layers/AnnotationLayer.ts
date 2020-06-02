@@ -17,7 +17,7 @@ export default class AnnotationLayer extends BaseLayer {
         if (e.mouse.buttonsDown.left) {
           this.$emit('annotationClicked', e.data.trackId, false);
         } else if (e.mouse.buttonsDown.right) {
-          this.$emit('annotationRightClicked', e.data.trackId, false);
+          this.$emit('annotationRightClicked', e.data.trackId, true);
         }
       });
     this.featureLayer.geoOn(

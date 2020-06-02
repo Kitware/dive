@@ -1,4 +1,5 @@
 import BaseLayer from '@/components/layers/BaseLayer';
+import { FrameDataTrack } from '@/components/layers/LayerTypes';
 
 export default class TextLayer extends BaseLayer {
   initialize() {

@@ -13,11 +13,12 @@ interface LayerStyle {
     strokeColor?: (string | ((a: any, b: any, data: any) => string | undefined));
 }
 
-interface BaseLayerParams {
+export interface BaseLayerParams {
     frameData?: FrameDataTrack;
     annotator?: any;
     stateStyling?: StateStyles;
     typeColorMap?: (t: string) => string;
+    [x: string]: any;
 }
 
 export default class BaseLayer extends Vue {
@@ -64,7 +65,9 @@ export default class BaseLayer extends Vue {
         },
         ...this.style,
       };
-      this.featureLayer.style(style);
+      if (this.featureLayer.style) {
+        this.featureLayer.style(style);
+      }
     }
 
     redraw() {
