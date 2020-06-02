@@ -23,6 +23,10 @@ class Feature:
     fishLength: Optional[float] = None
     attributes: Optional[Dict[str, Union[bool, float, str]]] = None
 
+    def asdict(self):
+        """Removes entries with values of `None`."""
+        return {k: v for k, v in self.__dict__.items() if v is not None}
+
 
 @dataclass
 class Track:
@@ -33,18 +37,14 @@ class Track:
     confidencePairs: List[Tuple[str, float]] = field(default_factory=lambda: [])
     attributes: Dict[str, Any] = field(default_factory=lambda: {})
 
+    def asdict(self):
+        """Used instead of `dataclasses.asdict` for better performance."""
 
-def track_to_dict(track: Track):
-    """Used instead of `asdict` for better performance."""
-
-    def omit_empty(d):
-        return {k: v for k, v in d.items() if v is not None}
-
-    track_dict = dict(track.__dict__)
-    track_dict["features"] = [
-        omit_empty(feature.__dict__) for feature in track_dict["features"]
-    ]
-    return track_dict
+        track_dict = dict(self.__dict__)
+        track_dict["features"] = [
+            feature.asdict() for feature in track_dict["features"]
+        ]
+        return track_dict
 
 
 def row_info(row: List[str]) -> Tuple[int, int, List[float], float]:
@@ -159,7 +159,7 @@ def load_csv_as_tracks(file):
         for (key, val) in track_attributes:
             track.attributes[key] = val
 
-    return {trackId: track_to_dict(track) for trackId, track in tracks.items()}
+    return {trackId: track.asdict() for trackId, track in tracks.items()}
 
 
 def write_track_to_csv(track: Track, csv_writer):
