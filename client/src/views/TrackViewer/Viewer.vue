@@ -57,7 +57,7 @@ export default defineComponent({
     },
   },
 
-  setup(props, ctx) {
+  setup(props) {
     const { datasetId } = props;
     const playbackComponent = ref(null as null | Seeker);
 
@@ -144,6 +144,7 @@ export default defineComponent({
     }
 
     function removeTrack(trackId: TrackId) {
+      // if removed track was selected, unselect before remove
       if (selectedTrackId.value === trackId) {
         selectNextTrack(1);
       }
@@ -160,20 +161,18 @@ export default defineComponent({
 
     function handleTrackEdit(trackId: TrackId) {
       const track = trackMap.get(trackId);
-      if (track === undefined) {
-        throw new Error(`Accessed missing track ${trackId}`);
+      if (track !== undefined) {
+        seek(track.begin.value);
+        selectTrack(trackId, true);
       }
-      seek(track.begin.value);
-      selectTrack(trackId, true);
     }
 
     function handleTrackClick(trackId: TrackId) {
       const track = trackMap.get(trackId);
-      if (track === undefined) {
-        throw new Error(`Accessed missing track ${trackId}`);
+      if (track !== undefined) {
+        seek(track.begin.value);
+        selectTrack(trackId, editingTrack.value);
       }
-      seek(track.begin.value);
-      selectTrack(trackId, editingTrack.value);
     }
 
     return {

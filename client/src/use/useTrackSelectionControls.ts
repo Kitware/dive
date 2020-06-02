@@ -29,13 +29,18 @@ export default function useTrackSelectionControls(
         // if no track is selected, select the first one
         [selectedTrackId.value] = trackIds.value;
       } else {
-        // else select the next, and get stuck at the end
+        // else select the next, and loop back to beginnng
         const index = trackIds.value.indexOf(selectedTrackId.value);
         const newIndex = index + delta;
         if (newIndex >= 0 && newIndex < trackIds.value.length) {
+          // if we are not at the end
           selectedTrackId.value = trackIds.value[newIndex];
+        } else {
+          selectTrack(null, false);
         }
       }
+    } else {
+      selectTrack(null, false);
     }
   }
   return {

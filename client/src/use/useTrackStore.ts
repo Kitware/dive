@@ -59,6 +59,9 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
   }
 
   function removeTrack(trackId: TrackId): void {
+    if (trackId === null) {
+      return;
+    }
     const track = trackMap.get(trackId);
     if (track === undefined) {
       throw new Error(`TrackId ${trackId} not found in trackMap.`);
