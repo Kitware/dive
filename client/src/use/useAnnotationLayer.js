@@ -15,24 +15,22 @@ export default function useAnnotationLayer({
     const _editingTrackId = editingTrackId.value;
     return {
       strokeColor: (a, b, data) => {
-        if (_editingTrackId !== null) {
-          if (_editingTrackId !== data.record.detection.track) {
-            return stateStyling.disabled.color; // color for other objects when editing a detection
+        if (_editingTrackId !== null && _editingTrackId !== data.record.detection.track) {
+          if (stateStyling.disabled.color) {
+            return stateStyling.disabled.color;
           }
-
-          return stateStyling.selected.color;
         }
-        if (data.record.detection.track === _selectedTrackId) {
+        if (data.record.detection.track === _selectedTrackId && stateStyling.selected.color) {
           return stateStyling.selected.color;
         }
         if (data.record.detection.confidencePairs.length) {
           return typeColorMap(data.record.detection.confidencePairs[0][0]);
         }
-        return typeColorMap.range()[0];
+        return typeColorMap('');
       },
       strokeOpacity: (a, b, data) => {
         if (_editingTrackId !== null) {
-          if (_editingTrackId !== data.record.detection.track) {
+          if (_editingTrackId !== data.record.detection.track && stateStyling.disabled.opacity) {
             return stateStyling.disabled.opacity;
           }
 
@@ -45,7 +43,14 @@ export default function useAnnotationLayer({
         return stateStyling.standard.opacity;
       },
       strokeWidth: (a, b, data) => {
-        if (data.record.detection.track === _selectedTrackId) {
+        if (_editingTrackId !== null) {
+          if (_editingTrackId !== data.record.detection.track
+            && stateStyling.disabled.strokeWidth) {
+            return stateStyling.disabled.strokeWidth;
+          }
+        }
+
+        if (data.record.detection.track === _selectedTrackId && stateStyling.selected.strokeWidth) {
           return stateStyling.selected.strokeWidth;
         }
         return stateStyling.standard.strokeWidth;
