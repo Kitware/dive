@@ -65,7 +65,7 @@ export default class BaseLayer extends Vue {
         },
         ...this.style,
       };
-      if (this.featureLayer.style) {
+      if (this.featureLayer && this.featureLayer.style) {
         this.featureLayer.style(style);
       }
     }

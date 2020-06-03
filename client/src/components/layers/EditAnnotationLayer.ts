@@ -4,6 +4,7 @@ import { boundToGeojson } from '@/utils';
 import { StateStyles } from '@/use/useStyling';
 import geo from 'geojs';
 import { FrameDataTrack } from '@/components/layers/LayerTypes';
+import { thresholdFreedmanDiaconis } from 'd3';
 
 
 export default class EditAnnotationLayer extends BaseLayer {
@@ -26,32 +27,26 @@ export default class EditAnnotationLayer extends BaseLayer {
         clickToEdit: true,
         showLabels: false,
       });
-      this.featureLayer.geoOn(geo.event.annotation.state, (e) => this.handleEditStateChange(e));
-      this.featureLayer.geoOn(geo.event.annotation.edit_action, (e) => this.handelEditAction(e));
     }
-
-    super.initialize();
-
     // For these we need to use an anonymous function to prevent geoJS from erroring
+    this.featureLayer.geoOn(geo.event.annotation.edit_action, (e) => this.handleEditAction(e));
+    this.featureLayer.geoOn(geo.event.annotation.state, (e) => this.handleEditStateChange(e));
   }
 
   disable() {
     if (this.featureLayer) {
-      this.trackId = null;
-      this.featureLayer.mode(null);
       this.featureLayer.removeAllAnnotations();
+      this.featureLayer.mode(null);
     }
   }
 
   changeData(frameData: FrameDataTrack[]) {
     // Only redraw and update data if we change the selected track otherwise
     // the internal geoJS will handle updating
-    if (frameData.length > 0 && this.trackId !== frameData[0].trackId) {
-      this.disable();
-      this.initialize();
-      this.formattedData = this.formatData(frameData);
-      this.redraw();
-    }
+    this.disable();
+    this.initialize();
+    this.formattedData = this.formatData(frameData);
+    this.redraw();
   }
 
 
@@ -60,52 +55,94 @@ export default class EditAnnotationLayer extends BaseLayer {
    * @param frameData a single FrameDataTrack Array that is the editing item
    */
   formatData(frameData: FrameDataTrack[]) {
-    let geojson = super.formatData(frameData);
+    let geojson = null; //create new element start with null
     if (frameData.length > 0) {
       const track = frameData[0];
       if (track.features && track.features.bounds) {
-        this.trackId = track.trackId;
         geojson = boundToGeojson(track.features.bounds);
-        if (!('geometry' in geojson)) {
-          geojson = { type: 'Feature', geometry: geojson, properties: {} };
-        }
+      }
+    }
 
-        // check if is rectangle
-        const { coordinates } = geojson.geometry;
-        if (typeof this.editing === 'string') {
-          geojson.properties.annotationType = this.editing;
-        } else if (
-          coordinates.length === 1
+    if (geojson) {
+      if (!('geometry' in geojson)) {
+        geojson = { type: 'Feature', geometry: geojson, properties: {} };
+      }
+
+      // check if is rectangle
+      const { coordinates } = geojson.geometry;
+      if (typeof this.editing === 'string') {
+        geojson.properties.annotationType = this.editing;
+      } else if (
+        coordinates.length === 1
           && coordinates[0].length === 5
           && coordinates[0][0][0] === coordinates[0][3][0]
           && coordinates[0][0][1] === coordinates[0][1][1]
           && coordinates[0][2][1] === coordinates[0][3][1]
-        ) {
-          geojson.properties.annotationType = 'rectangle';
-        }
-        this.featureLayer.geojson(geojson);
-        const annotation = this.featureLayer.annotations()[0];
-        annotation.style(this.createStyle());
-
-        annotation.editHandleStyle(this.editHandleStyle());
-        if (this.editing) {
-          this.featureLayer.mode('edit', annotation);
-          this.featureLayer.draw();
-        }
-      } else if (this.editing) {
-        this.changed = true;
-        if (typeof this.editing !== 'string') {
-          throw new Error(
-            `editing props needs to be a string of value 
+      ) {
+        geojson.properties.annotationType = 'rectangle';
+      }
+      this.featureLayer.geojson(geojson);
+      const annotation = this.featureLayer.annotations()[0];
+      annotation.style(this.createStyle());
+      annotation.editHandleStyle(this.editHandleStyle());
+      if (this.editing) {
+        console.log('Should be in the edit mode');
+        this.featureLayer.mode('edit', annotation);
+        this.featureLayer.draw();
+      }
+    } else if (this.editing) {
+      this.changed = true;
+      if (typeof this.editing !== 'string') {
+        throw new Error(
+          `editing props needs to be a string of value 
             ${geo.listAnnotations().join(', ')}
              when geojson prop is not set`,
-          );
-        } else {
-          this.featureLayer.mode(this.editing);
-        }
+        );
+      } else {
+        this.featureLayer.mode(this.editing);
       }
     }
+
+
     return geojson;
+  }
+
+
+  handleEditStateChange(e) {
+    if (this.featureLayer === e.annotation.layer()) {
+      if (e.annotation.state() === 'done' && !this.formattedData) {
+        //we need to swap back to process the data gain with the edit mode
+        const newGeojson = e.annotation.geojson();
+        //The new annotation is in a state with now style, apply one
+        const annotation = this.featureLayer.annotations()[0];
+        annotation.style(this.createStyle());
+        annotation.editHandleStyle(this.editHandleStyle());
+        const geojson = {
+          ...newGeojson,
+          ...{
+            properties: {
+              annotationType: newGeojson.properties.annotationType,
+            },
+          },
+          type: 'NewAnnotation', //indicates which geoJSONtoBounds to use
+          refresh: true, // signals to update the annotation
+        };
+        // State doesn't change at the end of editing so this will
+        // swap into edit mode once geoJS is done
+        setTimeout(() => this.$emit('update:geojson', geojson), 0);
+      }
+      // Handles the adding of a brand new Detection
+    }
+  }
+
+  handleEditAction(e) {
+    if (e.action === geo.event.actionup) {
+      // This will commit the change to the current annotation on mouse up while editing
+      if (e.annotation.state() === 'edit') {
+        this.handleAnnotationChange(e);
+        this.changed = true;
+      }
+    }
   }
 
   /**
@@ -130,32 +167,13 @@ export default class EditAnnotationLayer extends BaseLayer {
             annotationType: newGeojson.properties.annotationType,
           },
         },
+        type: 'Feature',
       };
     }
     this.$emit('update:geojson', geojson);
   }
 
-  handleEditStateChange(e) {
-    if (this.featureLayer === e.annotation.layer()) {
-      // Handles the adding of a brand new Detection
-      if (this.changed) {
-        this.handleAnnotationChange(e);
-      }
-    }
-  }
-
-  handelEditAction(e) {
-    if (e.action === geo.event.actionup) {
-      // This will commit the change to the current annotation on mouse up
-      this.handleAnnotationChange(e);
-      this.changed = true;
-    }
-  }
-
   redraw() {
-    const annotation = this.featureLayer.annotations()[0];
-    this.featureLayer.mode('edit', annotation);
-    this.featureLayer.draw();
     return null;
   }
 

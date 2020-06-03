@@ -15,11 +15,13 @@ export default class AnnotationLayer extends BaseLayer {
       .createFeature('polygon', { selectionAPI: true })
       .geoOn(geo.event.feature.mouseclick, (e: any) => {
         if (e.mouse.buttonsDown.left) {
-          if (!e.data.deting || (e.data.editing && !e.data.selected)) {
+          if (!e.data.editing || (e.data.editing && !e.data.selected)) {
             this.$emit('annotationClicked', e.data.trackId, false);
           }
         } else if (e.mouse.buttonsDown.right) {
-          this.$emit('annotationRightClicked', e.data.trackId, true);
+          if (!e.data.editing || (e.data.editing && !e.data.selected)) {
+            this.$emit('annotationRightClicked', e.data.trackId, true);
+          }
         }
       });
     this.featureLayer.geoOn(
@@ -35,6 +37,8 @@ export default class AnnotationLayer extends BaseLayer {
     super.initialize();
   }
 
+  // TODO NOT WORKING YET I WANT TO UPDATE SELECTED TRACK INDEXES
+  // Instead of updating the entire list
   updateBounds(trackId, bounds) {
     const polygon = boundToGeojson(bounds);
     const coords = polygon.coordinates[0];
@@ -76,10 +80,12 @@ export default class AnnotationLayer extends BaseLayer {
           },
         };
         arr.push(annotation);
-        // Create a sparse array of selected tracks for updating them
+        // Create a sparse array of selected tracks for updating them if they are edited
+        /*
         if (track.selected) {
           this.selectedIndex[track.trackId] = arr.length;
         }
+        */
       }
     });
     return arr;
