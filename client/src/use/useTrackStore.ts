@@ -41,21 +41,33 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
    */
   const trackIds: Ref<Array<TrackId>> = ref([]);
 
-  function onChange(track: Track, key: string, value: unknown): void {
-    if (key === 'bounds') {
-      const oldInterval = value as [number, number];
+  function onChange(
+    { track, event, oldValue }:
+    { track: Track; event: string; oldValue: unknown },
+  ): void {
+    if (event === 'bounds') {
+      const oldInterval = oldValue as [number, number];
       intervalTree.remove(oldInterval, track.trackId.value);
       intervalTree.insert([track.begin.value, track.end.value], track.trackId.value);
     }
     markChangesPending();
   }
 
+  function insertTrack(track: Track) {
+    track.$on('notify', onChange);
+    trackMap.set(track.trackId.value, track);
+    intervalTree.insert([track.begin.value, track.end.value], track.trackId.value);
+    trackIds.value.push(track.trackId.value);
+  }
+
   function addTrack(frame: number): Track {
-    markChangesPending();
-    return new Track(Math.max(...trackIds.value) + 1, {
+    const track = new Track(Math.max(...trackIds.value) + 1, {
       begin: frame,
       end: frame,
     });
+    insertTrack(track);
+    markChangesPending();
+    return track;
   }
 
   function removeTrack(trackId: TrackId): void {
@@ -70,6 +82,7 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
     if (!intervalTree.remove(range, trackId)) {
       throw new Error(`TrackId ${trackId} with range ${range} not found in tree.`);
     }
+    track.$off(); // remove all event listeners
     trackMap.delete(trackId);
     const listIndex = trackIds.value.findIndex((v) => v === trackId);
     if (listIndex === -1) {
@@ -87,14 +100,9 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
   async function loadTracks(datasetFolderId: string) {
     const data = await getDetections(datasetFolderId, 'track_json');
     if (data !== null) {
-      Object.entries(data).forEach(([, value]) => {
-        const track = Track.fromJSON(value);
-        const intTrackId = track.trackId.value;
-        track.observers.push(onChange);
-        trackMap.set(intTrackId, track);
-        trackIds.value.push(intTrackId);
-        intervalTree.insert([track.begin.value, track.end.value], intTrackId);
-      });
+      Object.values(data).forEach(
+        (trackData) => insertTrack(Track.fromJSON(trackData)),
+      );
     }
   }
 
