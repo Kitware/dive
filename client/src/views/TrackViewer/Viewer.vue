@@ -177,6 +177,7 @@ export default defineComponent({
       location,
       pendingSaveCount,
       playbackComponent,
+      selectedTrackId,
       videoUrl,
       /* methods used locally */
       addTrack,
@@ -310,112 +311,9 @@ export default defineComponent({
             @selectTrack="selectTrack"
           />
         </component>
-      </v-col>
-    </v-row>
-    <!--
-    <v-row
-      no-gutters
-      class="fill-height"
-    >
-      <v-col style="position: relative; ">
-        <component
-          :is="annotatorType"
-          v-if="imageUrls.length || videoUrl"
-          ref="playbackComponent"
-          v-mousetrap="[
-            { bind: 'g', handler: () => toggleFeaturePointing('head') },
-            { bind: 'h', handler: () => toggleFeaturePointing('head') },
-            { bind: 't', handler: () => toggleFeaturePointing('tail') },
-            { bind: 'y', handler: () => toggleFeaturePointing('tail') },
-            { bind: 'f', handler: () => nextFrame() },
-            { bind: 'd', handler: () => prevFrame() },
-            { bind: 'q', handler: deleteFeaturePoints },
-            { bind: 'esc', handler: () => setTrackEditMode(null, false)}
-          ]"
-          class="playback-component"
-          :image-urls="imageUrls"
-          :video-url="videoUrl"
-          :frame-rate="frameRate"
-          @frame-update="frame = $event"
-        >
-          <template slot="control">
-            <Controls />
-            <timeline-wrapper>
-              <template #default="{ maxFrame, frame, seek }">
-                <Timeline
-                  :max-frame="maxFrame"
-                  :frame="frame"
-                  @seek="seek"
-                >
-                  <template
-                    #child="{ startFrame, endFrame, maxFrame: childMaxFrame,
-                              clientWidth, clientHeight}"
-                  >
-                    <line-chart
-                      v-if="!showTrackView && lineChartData.length > 0"
-                      :start-frame="startFrame"
-                      :end-frame="endFrame"
-                      :max-frame="childMaxFrame"
-                      :data="lineChartData"
-                      :client-width="clientWidth"
-                      :client-height="clientHeight"
-                    />
-                    <event-chart
-                      v-if="showTrackView && eventChartData"
-                      :start-frame="startFrame"
-                      :end-frame="endFrame"
-                      :max-frame="childMaxFrame"
-                      :data="eventChartData"
-                      :client-width="clientWidth"
-                    />
-                  </template>
-                  <v-btn
-                    outlined
-                    x-small
-                    class="toggle-timeline-button"
-                    tab-index="-1"
-                    @click="showTrackView = !showTrackView"
-                  >
-                    {{ showTrackView ? "Detection" : "Track" }}
-                  </v-btn>
-                </Timeline>
-              </template>
-            </timeline-wrapper>
-          </template>
-          <annotation-layer
-            v-if="annotationData"
-            :data="annotationData"
-            :annotation-style="annotationStyle"
-            @annotation-click="annotationClick"
-            @annotation-right-click="annotationRightClick"
-          />
-          <edit-annotation-layer
-            v-if="editingTrackId !== null && !playbackComponent.playing"
-            ref="annotationRectEditor"
-            editing="rectangle"
-            :geojson="editingDetectionGeojson"
-            :feature-style="editingBoxLayerStyle"
-            @update:geojson="detectionChanged"
-            @update:editing="setTrackEditMode(selectedTrackId, $event)"
-          />
-          <edit-annotation-layer
-            v-if="featurePointing"
-            editing="point"
-            @update:geojson="featurePointed"
-          />
-          <text-layer
-            v-if="textData.length > 0"
-            :data="textData"
-            :text-style="textStyle"
-          />
-          <marker-layer
-            v-if="markerData.length > 0"
-            :data="markerData"
-            :marker-style="markerStyle"
-          />
-        </component>
         <v-menu
-          v-if="selectedDetection"
+          v-if="selectedTrackId"
+          class="z-index: 100;"
           offset-y
         >
           <template v-slot:activator="{ on }">
@@ -446,7 +344,7 @@ export default defineComponent({
           </v-list>
         </v-menu>
       </v-col>
-    </v-row> -->
+    </v-row>
   </v-content>
 </template>
 
