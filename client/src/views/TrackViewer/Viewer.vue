@@ -237,7 +237,7 @@ export default defineComponent({
         </v-tab>
       </v-tabs>
       <span
-        v-if="dataset.name"
+        v-if="dataset"
         class="title pl-3"
       >
         {{ dataset.name }}
@@ -247,7 +247,9 @@ export default defineComponent({
         v-if="dataset"
         :selected="[dataset]"
       />
-      <export :folder-id="datasetId" />
+      <span class="ml-2">
+        <export :folder-id="datasetId" />
+      </span>
       <user-guide-button annotating />
       <v-badge
         overlap
