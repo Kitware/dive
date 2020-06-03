@@ -19,6 +19,8 @@ export default class EditAnnotationLayer extends BaseLayer {
     this.changed = false;
     this.editing = params.editing || 'rectangle';
     this.trackId = null;
+    //Only initialize once, prevents recreating Layer each edit
+    this.initialize();
   }
 
   initialize() {
@@ -44,7 +46,6 @@ export default class EditAnnotationLayer extends BaseLayer {
     // Only redraw and update data if we change the selected track otherwise
     // the internal geoJS will handle updating
     this.disable();
-    this.initialize();
     this.formattedData = this.formatData(frameData);
     this.redraw();
   }
@@ -112,6 +113,8 @@ export default class EditAnnotationLayer extends BaseLayer {
       if (e.annotation.state() === 'done' && !this.formattedData) {
         //we need to swap back to process the data gain with the edit mode
         const newGeojson = e.annotation.geojson();
+        //geoJS insists on calling done multiple times, this will prevent that
+        this.formattedData = [];
         //The new annotation is in a state with now style, apply one
         const annotation = this.featureLayer.annotations()[0];
         annotation.style(this.createStyle());
