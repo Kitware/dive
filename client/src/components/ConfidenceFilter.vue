@@ -21,14 +21,15 @@ export default {
 </script>
 
 <template>
-  <div class="confidence-filter">
+  <div>
     <v-slider
       :min="0"
       :max="1"
       :step="0.01"
       :value="confidence"
-      :label="`Confidence Filter: ${confidence.toFixed(2)}`"
-      hide-details
+      :hint="`Confidence Filter: ${confidence.toFixed(2)}`"
+      class="px-3 mb-2"
+      persistent-hint
       @input="updateConfidence"
     />
   </div>

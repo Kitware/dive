@@ -35,11 +35,19 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
 
   /* Reactive state
    *
-   * trackIds is a list of ID keys into trackMap.  When a reactive list of tracks
-   * is needed, a list of string track IDs and a non-reactive reference to trackMap
-   * should be used.
+   * trackIds is a list of ID keys into trackMap.  Used to watch for add and remove
+   * events that change the quantity of tracks
+   *
+   * canary is updated whenever a track being watched changes.  Used to watch for
+   * update events on existing tracks.  If your computed function relies on a property
+   * of a track, it must depend() on the canary.
    */
   const trackIds: Ref<Array<TrackId>> = ref([]);
+  const canary = ref(0);
+
+  function depend(): number {
+    return canary.value;
+  }
 
   function onChange(
     { track, event, oldValue }:
@@ -50,6 +58,7 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
       intervalTree.remove(oldInterval, track.trackId.value);
       intervalTree.insert([track.begin.value, track.end.value], track.trackId.value);
     }
+    canary.value += 1;
     markChangesPending();
   }
 
@@ -64,6 +73,7 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
     const track = new Track(Math.max(...trackIds.value) + 1, {
       begin: frame,
       end: frame,
+      confidencePairs: [['unknown', 1]],
     });
     insertTrack(track);
     markChangesPending();
@@ -120,6 +130,7 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
     sortedTrackIds,
     intervalTree,
     addTrack,
+    depend,
     removeTrack,
     splitTracks,
     loadTracks,

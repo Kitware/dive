@@ -29,20 +29,28 @@ import ImageAnnotator from '@/components/annotators/ImageAnnotator.vue';
 import NavigationTitle from '@/components/NavigationTitle.vue';
 import ConfidenceFilter from '@/components/ConfidenceFilter.vue';
 import UserGuideButton from '@/components/UserGuideButton.vue';
+import Export from '@/components/Export.vue';
+import RunPipelineMenu from '@/components/RunPipelineMenu.vue';
 
 import ControlsContainer from './ControlsContainer.vue';
 import Layers from './Layers.vue';
 import Sidebar from './Sidebar.vue';
 
+interface Seeker {
+  seek(frame: number): void;
+}
+
 export default defineComponent({
   components: {
     ControlsContainer,
+    Export,
     Sidebar,
     Layers,
     VideoAnnotator,
     ImageAnnotator,
     NavigationTitle,
     ConfidenceFilter,
+    RunPipelineMenu,
     UserGuideButton,
   },
 
@@ -55,7 +63,7 @@ export default defineComponent({
 
   setup(props) {
     const { datasetId } = props;
-    const playbackComponent = ref(new Vue());
+    const playbackComponent = ref({} as Seeker);
     const frame = ref(0); // the currently displayed frame number
 
     const { typeColorMapper, stateStyling } = useStyling();
@@ -144,7 +152,7 @@ export default defineComponent({
     function handleTrackEdit(trackId: TrackId) {
       const track = trackMap.get(trackId);
       if (track !== undefined) {
-        playbackComponent.value.$emit('seek', track.begin.value);
+        playbackComponent.value.seek(track.begin.value);
         selectTrack(trackId, true);
       }
     }
@@ -152,7 +160,7 @@ export default defineComponent({
     function handleTrackClick(trackId: TrackId) {
       const track = trackMap.get(trackId);
       if (track !== undefined) {
-        playbackComponent.value.$emit('seek', track.begin.value);
+        playbackComponent.value.seek(track.begin.value);
         selectTrack(trackId, editingTrack.value);
       }
     }
@@ -229,13 +237,18 @@ export default defineComponent({
         </v-tab>
       </v-tabs>
       <span
-        class="subtitle-1 text-center"
-        style="flex-grow: 1;"
+        v-if="dataset.name"
+        class="title pl-3"
       >
-        {{ dataset ? dataset.name : "" }}
+        {{ dataset.name }}
       </span>
+      <v-spacer />
+      <run-pipeline-menu
+        v-if="dataset"
+        :selected="[dataset]"
+      />
+      <export :folder-id="datasetId" />
       <user-guide-button annotating />
-      <ConfidenceFilter :confidence.sync="confidenceThreshold" />
       <v-badge
         overlap
         bottom
@@ -265,8 +278,9 @@ export default defineComponent({
         @track-edit="handleTrackEdit"
         @track-next="selectNextTrack(1)"
         @track-previous="selectNextTrack(-1)"
-      />
-
+      >
+        <ConfidenceFilter :confidence.sync="confidenceThreshold" />
+      </sidebar>
       <v-col style="position: relative; ">
         <component
           :is="annotatorType"
@@ -435,10 +449,6 @@ export default defineComponent({
 </template>
 
 <style lang="scss" scoped>
-.confidence-filter {
-  flex-basis: 400px;
-}
-
 .selection-menu-button {
   position: absolute;
   right: 0;

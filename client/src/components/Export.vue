@@ -8,6 +8,10 @@ export default {
       type: String,
       required: true,
     },
+    small: {
+      type: Boolean,
+      default: false,
+    },
   },
 
   data() {
@@ -41,13 +45,13 @@ export default {
       <v-btn
         class="ma-0"
         text
-        small
+        :small="small"
         v-on="on"
       >
         <v-icon
           left
           color="accent"
-          class="mdi-24px mr-1"
+          class="mdi-24px mr-2"
         >
           mdi-export
         </v-icon>

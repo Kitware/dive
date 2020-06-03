@@ -17,7 +17,7 @@ import IntervalTree from '@flatten-js/interval-tree';
 import AnnotationLayer from '@/components/layers/AnnotationLayer';
 import TextLayer from '@/components/layers/TextLayer';
 import EditAnnotationLayer from '@/components/layers/EditAnnotationLayer';
-// import MarkerLayer from '@/components/layers/MarkerLayer.vue';
+import MarkerLayer from '@/components/layers/MarkerLayer';
 import { geojsonToBound, geojsonToBound2 } from '../../utils';
 
 
@@ -84,6 +84,12 @@ export default defineComponent({
       editing: 'rectangle',
     });
 
+    const markerLayer = new MarkerLayer({
+      annotator,
+      stateStyling: props.stateStyling,
+      typeColorMap: props.typeColorMapper,
+    });
+
     function updateLayers(updated = {}) {
       console.log(updated);
       const currentFrameIds = props.intervalTree.search([frameNumber.value, frameNumber.value]);
@@ -132,6 +138,7 @@ export default defineComponent({
 
       annotationLayer.changeData(tracks);
       textLayer.changeData(tracks);
+      markerLayer.changeData(tracks);
       if (editingTracks.length) {
         if (!updated.annotationChanged) {
           console.log('changeData in editingTracks');

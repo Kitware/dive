@@ -2,7 +2,6 @@ import useEventChart from './useEventChart';
 import useGirderDataset from './useGirderDataset';
 import useFeaturePointing from './useFeaturePointing';
 import useLineChart from './useLineChart';
-import useMarkerLayer from './useMarkerLayer';
 import useSave from './useSave';
 import useTextLayer from './useTextLayer';
 import useStyling from './useStyling';
@@ -16,7 +15,6 @@ export {
   useGirderDataset,
   useFeaturePointing,
   useLineChart,
-  useMarkerLayer,
   useSave,
   useTextLayer,
   useStyling,

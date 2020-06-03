@@ -110,7 +110,7 @@ export default Vue.extend({
 <template>
   <div class="tracks">
     <v-subheader>
-      Tracks
+      Tracks ({{ filteredTrackIds.value.length }})
       <v-spacer />
       <v-btn
         icon
