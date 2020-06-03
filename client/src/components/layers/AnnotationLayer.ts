@@ -43,8 +43,6 @@ export default class AnnotationLayer extends BaseLayer {
     const polygon = boundToGeojson(bounds);
     const coords = polygon.coordinates[0];
     if (this.selectedIndex[trackId] !== undefined) {
-      console.log(this.formattedData[this.selectedIndex[trackId]].geometry.outer);
-
       this.formattedData[this.selectedIndex[trackId]].geometry = {
         ...this.formattedData[this.selectedIndex[trackId]].geometry,
         outer: [
