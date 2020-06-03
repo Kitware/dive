@@ -90,7 +90,6 @@ export default defineComponent({
     });
 
     function updateLayers(updated = {}) {
-      console.log(updated);
       const currentFrameIds = props.intervalTree.search([frameNumber.value, frameNumber.value]);
       const tracks = [] as FrameDataTrack[];
       const editingTracks = [] as FrameDataTrack[];
@@ -110,12 +109,10 @@ export default defineComponent({
                 features,
                 confidencePairs: track.confidencePairs.value,
               };
-              if (features) {
-                tracks.push(trackFrame);
-                // eslint-disable-next-line max-len
-                if ((tracks[tracks.length - 1].selected && props.editingTrack.value)) {
-                  editingTracks.push(trackFrame);
-                }
+              tracks.push(trackFrame);
+              // eslint-disable-next-line max-len
+              if ((tracks[tracks.length - 1].selected && props.editingTrack.value)) {
+                editingTracks.push(trackFrame);
               }
             }
           }
@@ -134,14 +131,11 @@ export default defineComponent({
         };
         editingTracks.push(trackFrame);
       }
-
       annotationLayer.changeData(tracks);
       textLayer.changeData(tracks);
       markerLayer.changeData(tracks);
       if (editingTracks.length) {
         if (!updated.annotationChanged) {
-          console.log('changeData in editingTracks');
-          console.log(editingTracks);
           editAnnotationLayer.changeData(editingTracks);
         }
       } else {
@@ -158,6 +152,8 @@ export default defineComponent({
       props.editingTrack,
       props.selectedTrackId,
     ], (values, oldvalues) => {
+      // Helper function for me to see what is going on
+      // REMOVE AFTERWARDS
       const updated = {};
       for (let i = 0; i < values.length; i += 1) {
         if (!oldvalues) {
@@ -171,7 +167,6 @@ export default defineComponent({
 
 
     const Clicked = (trackId: number, editing: boolean) => {
-      // eslint-disable-next-line @typescript-eslint/no-use-before-define
       editAnnotationLayer.disable();
       emit('selectTrack', trackId, editing);
     };
