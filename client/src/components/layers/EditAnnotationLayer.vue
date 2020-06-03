@@ -94,7 +94,7 @@ export default {
         // this.listenLayerClick();
       }
       if (this.geojson) {
-        let geojson = cloneDeep(this.geojson);
+        let { geojson } = this;
         if (!('geometry' in geojson)) {
           geojson = { type: 'Feature', geometry: geojson, properties: {} };
         }

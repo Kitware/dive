@@ -65,20 +65,12 @@ export default defineComponent({
     const annotator = inject('annotator') as unknown;
     const frameNumber: Readonly<Ref<number>> = computed(() => annotator.frame as number);
 
-    const Clicked = (trackId: number, editing: boolean) => {
-      // eslint-disable-next-line @typescript-eslint/no-use-before-define
-      editAnnotationLayer.disable();
-      emit('selectTrack', trackId, editing);
-    };
 
     const annotationLayer = new AnnotationLayer({
       annotator,
       stateStyling: props.stateStyling,
       typeColorMap: props.typeColorMapper,
     });
-    annotationLayer.$on('annotationClicked', Clicked);
-    annotationLayer.$on('annotationRightClicked', Clicked);
-
     const textLayer = new TextLayer({
       annotator,
       stateStyling: props.stateStyling,
@@ -92,7 +84,8 @@ export default defineComponent({
       editing: 'rectangle',
     });
 
-    function updateLayers() {
+    function updateLayers(updated = {}) {
+      console.log(updated);
       const currentFrameIds = props.intervalTree.search([frameNumber.value, frameNumber.value]);
       const tracks = [] as FrameDataTrack[];
       const editingTracks = [] as FrameDataTrack[];
@@ -114,7 +107,8 @@ export default defineComponent({
               };
               if (features) {
                 tracks.push(trackFrame);
-                if (tracks[tracks.length - 1].selected && props.editingTrack.value) {
+                // eslint-disable-next-line max-len
+                if ((tracks[tracks.length - 1].selected && props.editingTrack.value)) {
                   editingTracks.push(trackFrame);
                 }
               }
@@ -122,39 +116,77 @@ export default defineComponent({
           }
         },
       );
+
+      if (props.editingTrack.value && !currentFrameIds.includes(props.selectedTrackId.value)) {
+        const editTrack = props.trackMap.get(props.selectedTrackId.value);
+        const features = editTrack.getFeature(frameNumber.value);
+        const trackFrame = {
+          selected: true,
+          editing: true,
+          trackId: editTrack.trackId.value,
+          features,
+          confidencePairs: editTrack.confidencePairs.value,
+        };
+        editingTracks.push(trackFrame);
+      }
+
       annotationLayer.changeData(tracks);
       textLayer.changeData(tracks);
-      if (props.editingTrack.value) {
-        editAnnotationLayer.changeData(editingTracks);
+      if (editingTracks.length) {
+        if (!updated.annotationChanged) {
+          console.log('changeData in editingTracks');
+          console.log(editingTracks);
+          editAnnotationLayer.changeData(editingTracks);
+        }
       } else {
         editAnnotationLayer.disable();
       }
     }
 
-    editAnnotationLayer.$on('update:geojson', (data: StringKeyObject) => {
+
+    updateLayers();
+    const names = ['frame', 'ids', 'editing', 'selected'];
+    watch([
+      frameNumber,
+      props.trackIds,
+      props.editingTrack,
+      props.selectedTrackId,
+    ], (values, oldvalues) => {
+      const updated = {};
+      for (let i = 0; i < values.length; i += 1) {
+        if (!oldvalues) {
+          updated[names[i]] = true;
+        } else {
+          updated[names[i]] = (values[i] !== oldvalues[i]);
+        }
+      }
+      updateLayers(updated);
+    });
+
+
+    const Clicked = (trackId: number, editing: boolean) => {
+      // eslint-disable-next-line @typescript-eslint/no-use-before-define
+      editAnnotationLayer.disable();
+      emit('selectTrack', trackId, editing);
+    };
+    annotationLayer.$on('annotationClicked', Clicked);
+    annotationLayer.$on('annotationRightClicked', Clicked);
+
+    editAnnotationLayer.$on('update:geojson', (data) => {
       const track = props.trackMap.get(props.selectedTrackId.value);
       if (track) {
         const bounds = data.type !== 'Feature'
-          ? geojsonToBound2(data)
+          ? geojsonToBound2(data.geometry)
           : geojsonToBound(data.geometry);
         track.setFeature({
           frame: frameNumber.value,
           bounds,
         });
-        updateLayers();
+        // We don't need to update the editing layer unless we create a new annotation
+        updateLayers({ annotationChanged: !data.refresh });
       }
     });
 
-    updateLayers();
-
-    watch([
-      frameNumber,
-      props.editingTrack,
-      props.selectedTrackId,
-      props.trackIds,
-    ], () => {
-      updateLayers();
-    });
 
     return {
       props,
