@@ -86,7 +86,6 @@ export default class EditAnnotationLayer extends BaseLayer {
       annotation.style(this.createStyle());
       annotation.editHandleStyle(this.editHandleStyle());
       if (this.editing) {
-        console.log('Should be in the edit mode');
         this.featureLayer.mode('edit', annotation);
         this.featureLayer.draw();
       }

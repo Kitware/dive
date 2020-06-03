@@ -104,12 +104,10 @@ export default defineComponent({
                 features,
                 confidencePairs: track.confidencePairs.value,
               };
-              if (features) {
-                tracks.push(trackFrame);
-                // eslint-disable-next-line max-len
-                if ((tracks[tracks.length - 1].selected && props.editingTrack.value)) {
-                  editingTracks.push(trackFrame);
-                }
+              tracks.push(trackFrame);
+              // eslint-disable-next-line max-len
+              if ((tracks[tracks.length - 1].selected && props.editingTrack.value)) {
+                editingTracks.push(trackFrame);
               }
             }
           }
@@ -128,7 +126,6 @@ export default defineComponent({
         };
         editingTracks.push(trackFrame);
       }
-
       annotationLayer.changeData(tracks);
       textLayer.changeData(tracks);
       if (editingTracks.length) {
