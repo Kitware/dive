@@ -24,7 +24,9 @@ export default Vue.extend({
 
 <template>
   <div class="overflow-y-auto">
-    <v-subheader>Types</v-subheader>
+    <v-subheader>
+      Type Filter
+    </v-subheader>
     <div class="overflow-y-hidden">
       <v-checkbox
         v-for="type in allTypes.value"

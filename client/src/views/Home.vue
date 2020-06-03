@@ -185,6 +185,7 @@ export default {
               <export
                 v-if="exportTarget"
                 v-bind="exportTarget"
+                small
               />
               <v-btn
                 v-if="selected.length"

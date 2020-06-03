@@ -118,6 +118,7 @@ export default defineComponent({
           v-bind="trackListProps"
           class="flex-shrink-1 typelist"
         />
+        <slot />
         <v-spacer />
         <v-divider />
         <track-list

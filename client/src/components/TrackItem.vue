@@ -102,7 +102,7 @@ export default {
       @change="$emit('change', $event)"
     />
     <div
-      class="trackNumber"
+      class="trackNumber pl-0 pr-2"
       @click.self="$emit('click')"
     >
       {{ track.trackId.value + (editingTrack.value ? "*" : "") }}
@@ -112,7 +112,7 @@ export default {
       v-mousetrap="[
         { bind: 'shift+enter', handler: focusType },
       ]"
-      class="type-display flex-grow-1 flex-shrink-1 ml-2"
+      class="type-display flex-grow-1 flex-shrink-1 ml-0"
       @click="editing = true"
     >
       {{ comboValue || 'undefined' }}
@@ -120,7 +120,7 @@ export default {
     <v-combobox
       v-else
       ref="trackTypeBox"
-      class="ml-2"
+      class="ml-0"
       :value="comboValue"
       :items="types"
       dense
@@ -141,14 +141,23 @@ export default {
       </template>
       <v-list>
         <v-list-item @click="$emit('click')">
-          <v-list-item-title>Go to first frame</v-list-item-title>
+          <v-list-item-title>
+            <v-icon>mdi-map-marker</v-icon>
+            Go to first frame
+          </v-list-item-title>
         </v-list-item>
         <v-list-item @click="$emit('edit')">
-          <v-list-item-title>Edit annotation</v-list-item-title>
+          <v-list-item-title>
+            <v-icon>mdi-pencil</v-icon>
+            Edit annotation
+          </v-list-item-title>
         </v-list-item>
         <v-divider />
         <v-list-item @click="$emit('delete')">
-          <v-list-item-title>Delete track</v-list-item-title>
+          <v-list-item-title>
+            <v-icon color="error">mdi-trash-can</v-icon>
+            Delete track
+          </v-list-item-title>
         </v-list-item>
       </v-list>
     </v-menu>
@@ -158,12 +167,14 @@ export default {
 <style lang="scss" scoped>
 .track-item {
   height: 45px;
-  .trackNumber{
+  .trackNumber {
+    font-family: monospace;
     &:hover {
       cursor: pointer;
       font-weight: bolder;
+      text-decoration: underline;
     }
-}
+  }
   .type-display {
     overflow: hidden;
     text-overflow: ellipsis;

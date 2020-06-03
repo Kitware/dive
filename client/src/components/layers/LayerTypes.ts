@@ -9,7 +9,7 @@ interface FrameDataTrack {
   selected: boolean;
   editing: boolean;
   trackId: number;
-  features?: Feature | null;
+  features: Feature;
   confidencePairs?: ConfidencePair[];
 }
 

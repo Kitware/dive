@@ -8,6 +8,10 @@ export default {
       type: Array,
       default: () => [],
     },
+    small: {
+      type: Boolean,
+      default: false,
+    },
   },
 
   computed: {
@@ -58,7 +62,7 @@ export default {
     <template v-slot:activator="{ on }">
       <v-btn
         text
-        small
+        :small="small"
         :disabled="pipelinesNotRunnable"
         v-on="on"
       >

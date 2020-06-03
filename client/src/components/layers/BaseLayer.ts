@@ -79,7 +79,7 @@ export default class BaseLayer extends Vue {
       this.redraw();
     }
 
-    formatData(frameData: FrameDataTrack[]) {
+    formatData(frameData: FrameDataTrack[]): unknown[] {
       return [];
     }
 

@@ -9,16 +9,15 @@ import {
 } from '@vue/composition-api';
 
 import { FrameDataTrack } from '@/components/layers/LayerTypes';
-// eslint-disable-next-line no-unused-vars
-import Track, { TrackId, StringKeyObject } from '@/lib/track';
-import { FeaturePointingTarget } from '@/use/useFeaturePointing';
+import Track, { TrackId } from '@/lib/track';
 import IntervalTree from '@flatten-js/interval-tree';
 
 import AnnotationLayer from '@/components/layers/AnnotationLayer';
 import TextLayer from '@/components/layers/TextLayer';
 import EditAnnotationLayer from '@/components/layers/EditAnnotationLayer';
-// import MarkerLayer from '@/components/layers/MarkerLayer.vue';
-import { geojsonToBound, geojsonToBound2 } from '../../utils';
+import MarkerLayer from '@/components/layers/MarkerLayer';
+import { geojsonToBound, geojsonToBound2 } from '@/utils';
+import { FeaturePointingTarget } from '@/use/useFeaturePointing';
 
 
 export default defineComponent({
@@ -84,6 +83,12 @@ export default defineComponent({
       editing: 'rectangle',
     });
 
+    const markerLayer = new MarkerLayer({
+      annotator,
+      stateStyling: props.stateStyling,
+      typeColorMap: props.typeColorMapper,
+    });
+
     function updateLayers(updated = {}) {
       const currentFrameIds = props.intervalTree.search([frameNumber.value, frameNumber.value]);
       const tracks = [] as FrameDataTrack[];
@@ -128,6 +133,7 @@ export default defineComponent({
       }
       annotationLayer.changeData(tracks);
       textLayer.changeData(tracks);
+      markerLayer.changeData(tracks);
       if (editingTracks.length) {
         if (!updated.annotationChanged) {
           editAnnotationLayer.changeData(editingTracks);

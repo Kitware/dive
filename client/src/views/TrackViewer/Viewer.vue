@@ -29,20 +29,28 @@ import ImageAnnotator from '@/components/annotators/ImageAnnotator.vue';
 import NavigationTitle from '@/components/NavigationTitle.vue';
 import ConfidenceFilter from '@/components/ConfidenceFilter.vue';
 import UserGuideButton from '@/components/UserGuideButton.vue';
+import Export from '@/components/Export.vue';
+import RunPipelineMenu from '@/components/RunPipelineMenu.vue';
 
 import ControlsContainer from './ControlsContainer.vue';
 import Layers from './Layers.vue';
 import Sidebar from './Sidebar.vue';
 
+interface Seeker {
+  seek(frame: number): void;
+}
+
 export default defineComponent({
   components: {
     ControlsContainer,
+    Export,
     Sidebar,
     Layers,
     VideoAnnotator,
     ImageAnnotator,
     NavigationTitle,
     ConfidenceFilter,
+    RunPipelineMenu,
     UserGuideButton,
   },
 
@@ -55,7 +63,7 @@ export default defineComponent({
 
   setup(props) {
     const { datasetId } = props;
-    const playbackComponent = ref(new Vue());
+    const playbackComponent = ref({} as Seeker);
     const frame = ref(0); // the currently displayed frame number
 
     const { typeColorMapper, stateStyling } = useStyling();
@@ -144,7 +152,7 @@ export default defineComponent({
     function handleTrackEdit(trackId: TrackId) {
       const track = trackMap.get(trackId);
       if (track !== undefined) {
-        playbackComponent.value.$emit('seek', track.begin.value);
+        playbackComponent.value.seek(track.begin.value);
         selectTrack(trackId, true);
       }
     }
@@ -152,7 +160,7 @@ export default defineComponent({
     function handleTrackClick(trackId: TrackId) {
       const track = trackMap.get(trackId);
       if (track !== undefined) {
-        playbackComponent.value.$emit('seek', track.begin.value);
+        playbackComponent.value.seek(track.begin.value);
         selectTrack(trackId, editingTrack.value);
       }
     }
@@ -169,6 +177,7 @@ export default defineComponent({
       location,
       pendingSaveCount,
       playbackComponent,
+      selectedTrackId,
       videoUrl,
       /* methods used locally */
       addTrack,
@@ -229,13 +238,20 @@ export default defineComponent({
         </v-tab>
       </v-tabs>
       <span
-        class="subtitle-1 text-center"
-        style="flex-grow: 1;"
+        v-if="dataset"
+        class="title pl-3"
       >
-        {{ dataset ? dataset.name : "" }}
+        {{ dataset.name }}
+      </span>
+      <v-spacer />
+      <run-pipeline-menu
+        v-if="dataset"
+        :selected="[dataset]"
+      />
+      <span class="ml-2">
+        <export :folder-id="datasetId" />
       </span>
       <user-guide-button annotating />
-      <ConfidenceFilter :confidence.sync="confidenceThreshold" />
       <v-badge
         overlap
         bottom
@@ -265,8 +281,9 @@ export default defineComponent({
         @track-edit="handleTrackEdit"
         @track-next="selectNextTrack(1)"
         @track-previous="selectNextTrack(-1)"
-      />
-
+      >
+        <ConfidenceFilter :confidence.sync="confidenceThreshold" />
+      </sidebar>
       <v-col style="position: relative; ">
         <component
           :is="annotatorType"
@@ -294,112 +311,9 @@ export default defineComponent({
             @selectTrack="selectTrack"
           />
         </component>
-      </v-col>
-    </v-row>
-    <!--
-    <v-row
-      no-gutters
-      class="fill-height"
-    >
-      <v-col style="position: relative; ">
-        <component
-          :is="annotatorType"
-          v-if="imageUrls.length || videoUrl"
-          ref="playbackComponent"
-          v-mousetrap="[
-            { bind: 'g', handler: () => toggleFeaturePointing('head') },
-            { bind: 'h', handler: () => toggleFeaturePointing('head') },
-            { bind: 't', handler: () => toggleFeaturePointing('tail') },
-            { bind: 'y', handler: () => toggleFeaturePointing('tail') },
-            { bind: 'f', handler: () => nextFrame() },
-            { bind: 'd', handler: () => prevFrame() },
-            { bind: 'q', handler: deleteFeaturePoints },
-            { bind: 'esc', handler: () => setTrackEditMode(null, false)}
-          ]"
-          class="playback-component"
-          :image-urls="imageUrls"
-          :video-url="videoUrl"
-          :frame-rate="frameRate"
-          @frame-update="frame = $event"
-        >
-          <template slot="control">
-            <Controls />
-            <timeline-wrapper>
-              <template #default="{ maxFrame, frame, seek }">
-                <Timeline
-                  :max-frame="maxFrame"
-                  :frame="frame"
-                  @seek="seek"
-                >
-                  <template
-                    #child="{ startFrame, endFrame, maxFrame: childMaxFrame,
-                              clientWidth, clientHeight}"
-                  >
-                    <line-chart
-                      v-if="!showTrackView && lineChartData.length > 0"
-                      :start-frame="startFrame"
-                      :end-frame="endFrame"
-                      :max-frame="childMaxFrame"
-                      :data="lineChartData"
-                      :client-width="clientWidth"
-                      :client-height="clientHeight"
-                    />
-                    <event-chart
-                      v-if="showTrackView && eventChartData"
-                      :start-frame="startFrame"
-                      :end-frame="endFrame"
-                      :max-frame="childMaxFrame"
-                      :data="eventChartData"
-                      :client-width="clientWidth"
-                    />
-                  </template>
-                  <v-btn
-                    outlined
-                    x-small
-                    class="toggle-timeline-button"
-                    tab-index="-1"
-                    @click="showTrackView = !showTrackView"
-                  >
-                    {{ showTrackView ? "Detection" : "Track" }}
-                  </v-btn>
-                </Timeline>
-              </template>
-            </timeline-wrapper>
-          </template>
-          <annotation-layer
-            v-if="annotationData"
-            :data="annotationData"
-            :annotation-style="annotationStyle"
-            @annotation-click="annotationClick"
-            @annotation-right-click="annotationRightClick"
-          />
-          <edit-annotation-layer
-            v-if="editingTrackId !== null && !playbackComponent.playing"
-            ref="annotationRectEditor"
-            editing="rectangle"
-            :geojson="editingDetectionGeojson"
-            :feature-style="editingBoxLayerStyle"
-            @update:geojson="detectionChanged"
-            @update:editing="setTrackEditMode(selectedTrackId, $event)"
-          />
-          <edit-annotation-layer
-            v-if="featurePointing"
-            editing="point"
-            @update:geojson="featurePointed"
-          />
-          <text-layer
-            v-if="textData.length > 0"
-            :data="textData"
-            :text-style="textStyle"
-          />
-          <marker-layer
-            v-if="markerData.length > 0"
-            :data="markerData"
-            :marker-style="markerStyle"
-          />
-        </component>
         <v-menu
-          v-if="selectedDetection"
+          v-if="selectedTrackId"
+          class="z-index: 100;"
           offset-y
         >
           <template v-slot:activator="{ on }">
@@ -430,15 +344,11 @@ export default defineComponent({
           </v-list>
         </v-menu>
       </v-col>
-    </v-row> -->
+    </v-row>
   </v-content>
 </template>
 
 <style lang="scss" scoped>
-.confidence-filter {
-  flex-basis: 400px;
-}
-
 .selection-menu-button {
   position: absolute;
   right: 0;
