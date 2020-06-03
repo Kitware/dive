@@ -1,9 +1,10 @@
+import Vue from 'vue';
 import { ref, Ref } from '@vue/composition-api';
 
 export type ConfidencePair = [string, number];
 export type TrackId = number;
 
-interface StringKeyObject {
+export interface StringKeyObject {
   [key: string]: unknown;
 }
 
@@ -26,10 +27,6 @@ export interface TrackData {
   end: number;
 }
 
-interface Observer {
-  (track: Track, key: string, value: unknown): void;
-}
-
 interface TrackParams {
   meta?: StringKeyObject;
   begin?: number;
@@ -39,7 +36,18 @@ interface TrackParams {
   attributes?: StringKeyObject;
 }
 
-export default class Track {
+/**
+ * Track manages the state of a track, its
+ * frame data, and all metadata.  Some of its properties are
+ * reactive, others avoid reactivity for performance reasons.
+ * A track instance should never be returned by reference in
+ * a computed property to prevent deep reactivity from being
+ * applied.  Instead, return dereferenced values individually.
+ *
+ * Track extends Vue exclusively for $on and $emit.  No other
+ * uses of the vue superclass are expected.
+ */
+export default class Track extends Vue {
   trackId: Ref<TrackId>;
 
   meta: Ref<StringKeyObject>;
@@ -56,8 +64,6 @@ export default class Track {
 
   revision: Ref<number>;
 
-  observers: Array<Observer>;
-
   constructor(trackId: TrackId, {
     meta = {},
     begin = Infinity,
@@ -66,6 +72,7 @@ export default class Track {
     confidencePairs = [],
     attributes = {},
   }: TrackParams) {
+    super();
     this.trackId = ref(trackId);
     this.meta = ref(meta);
     this.attributes = ref(attributes);
@@ -73,7 +80,6 @@ export default class Track {
     this.begin = ref(begin);
     this.end = ref(end);
     this.revision = ref(0);
-    this.observers = [];
     this.confidencePairs = ref(confidencePairs);
   }
 
@@ -89,10 +95,18 @@ export default class Track {
     }
   }
 
-  /* TODO p2: register and unregister methods for observers */
+  // private $emit()
 
-  notify(name: string, payload: unknown | undefined) {
-    this.observers.forEach((o) => o(this, name, payload));
+  /**
+   * @param name an event name
+   * @param oldValue the value before the change being notified.
+   */
+  private notify(name: string, oldValue: unknown) {
+    this.$emit('notify', {
+      track: this,
+      event: name,
+      oldValue,
+    });
   }
 
   setFeature(feature: Feature): Feature {
@@ -136,8 +150,9 @@ export default class Track {
   }
 
   setAttribute(key: string, value: unknown) {
+    const oldval = this.attributes.value[key];
     this.attributes.value[key] = value;
-    this.notify('attributes', null);
+    this.notify('attributes', { key, value: oldval });
   }
 
   /* TODO p2: feature interpolation given frame */

@@ -3,7 +3,6 @@ import BaseLayer, { BaseLayerParams } from '@/components/layers/BaseLayer';
 import { boundToGeojson } from '@/utils';
 import { StateStyles } from '@/use/useStyling';
 import geo from 'geojs';
-import { GeojsonGeometry } from '@/use/useFeaturePointing';
 import { FrameDataTrack } from '@/components/layers/LayerTypes';
 
 

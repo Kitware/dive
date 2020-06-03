@@ -74,7 +74,7 @@ export default {
   },
   methods: {
     focusType() {
-      if (this.selectedTrackId === this.track.trackId.value) {
+      if (this.selected) {
         this.editing = true;
       }
     },

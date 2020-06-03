@@ -98,12 +98,11 @@ export default defineComponent({
     style="z-index:1;"
   >
     <v-btn
-      v-mousetrap="[{
-        bind: 'a',
-        handler: () => swapTabs,
-      }]"
+      v-mousetrap="[
+        { bind: 'a', handler: swapTabs },
+      ]"
       icon
-      title="A key"
+      title="press `a`"
       class="swap-button"
       @click="swapTabs"
     >
@@ -165,7 +164,7 @@ export default defineComponent({
 .swap-button {
   position: absolute;
   top: 5px;
-  right: 5px;
+  right: 16px;
   z-index: 1;
 }
 </style>

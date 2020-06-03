@@ -25,20 +25,18 @@ export default Vue.extend({
 <template>
   <div class="overflow-y-auto">
     <v-subheader>Types</v-subheader>
-    <div>
-      <div>
-        <v-checkbox
-          v-for="type in allTypes.value"
-          :key="type"
-          v-model="checkedTypes.value"
-          :value="type"
-          :color="typeColorMapper(type)"
-          :label="type"
-          dense
-          hide-details
-          class="my-2 ml-3"
-        />
-      </div>
+    <div class="overflow-y-hidden">
+      <v-checkbox
+        v-for="type in allTypes.value"
+        :key="type"
+        v-model="checkedTypes.value"
+        :value="type"
+        :color="typeColorMapper(type)"
+        :label="type"
+        dense
+        hide-details
+        class="my-1 ml-3"
+      />
     </div>
   </div>
 </template>

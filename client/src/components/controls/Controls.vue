@@ -52,7 +52,9 @@ export default {
     v-mousetrap="[
       { bind: 'left', handler: previousFrame },
       { bind: 'right', handler: nextFrame },
-      { bind: 'space', handler: togglePlay }
+      { bind: 'space', handler: togglePlay },
+      { bind: 'f', handler: nextFrame },
+      { bind: 'd', handler: previousFrame },
     ]"
   >
     <v-toolbar

@@ -6,20 +6,18 @@ import {
   inject,
   Ref,
   watch,
-  ref,
 } from '@vue/composition-api';
 
 import { FrameDataTrack } from '@/components/layers/LayerTypes';
 // eslint-disable-next-line no-unused-vars
-import Track, { TrackId } from '@/lib/track';
+import Track, { TrackId, StringKeyObject } from '@/lib/track';
 import { FeaturePointingTarget } from '@/use/useFeaturePointing';
 import IntervalTree from '@flatten-js/interval-tree';
-
 
 import AnnotationLayer from '@/components/layers/AnnotationLayer';
 import TextLayer from '@/components/layers/TextLayer';
 import EditAnnotationLayer from '@/components/layers/EditAnnotationLayer';
-import MarkerLayer from '@/components/layers/MarkerLayer.vue';
+// import MarkerLayer from '@/components/layers/MarkerLayer.vue';
 import { geojsonToBound, geojsonToBound2 } from '../../utils';
 
 
@@ -29,7 +27,7 @@ export default defineComponent({
       type: Map as PropType<Map<TrackId, Track>>,
       required: true,
     },
-    filteredTrackIds: {
+    trackIds: {
       type: Object as PropType<Ref<Array<TrackId>>>,
       required: true,
     },
@@ -64,9 +62,8 @@ export default defineComponent({
   },
 
   setup(props, { emit }) {
-    const annotator: any = inject('annotator');
+    const annotator = inject('annotator') as unknown;
     const frameNumber: Readonly<Ref<number>> = computed(() => annotator.frame as number);
-
 
     const Clicked = (trackId: number, editing: boolean) => {
       // eslint-disable-next-line @typescript-eslint/no-use-before-define
@@ -96,25 +93,30 @@ export default defineComponent({
     });
 
     function updateLayers() {
-      // eslint-disable-next-line max-len
-      const currentFrameIds: number[] = props.intervalTree.search([frameNumber.value, frameNumber.value]);
-      const tracks: FrameDataTrack[] = [];
-      const editingTracks: FrameDataTrack[] = [];
+      const currentFrameIds = props.intervalTree.search([frameNumber.value, frameNumber.value]);
+      const tracks = [] as FrameDataTrack[];
+      const editingTracks = [] as FrameDataTrack[];
       currentFrameIds.forEach(
         (item: number) => {
-          if (props.filteredTrackIds.value.includes(item)) {
+          if (props.trackIds.value.includes(item)) {
             if (props.trackMap.has(item)) {
-              const track: Track = props.trackMap.get(item)!;
+              const track = props.trackMap.get(item);
+              if (track === undefined) {
+                throw new Error(`trackMap missing trackid ${item}`);
+              }
+              const features = track.getFeature(frameNumber.value);
               const trackFrame = {
                 selected: (props.selectedTrackId.value === track.trackId.value),
                 editing: props.editingTrack.value,
                 trackId: track.trackId.value,
-                features: track.getFeature(frameNumber.value),
+                features,
                 confidencePairs: track.confidencePairs.value,
               };
-              tracks.push(trackFrame);
-              if (tracks[tracks.length - 1].selected && props.editingTrack.value) {
-                editingTracks.push(trackFrame);
+              if (features) {
+                tracks.push(trackFrame);
+                if (tracks[tracks.length - 1].selected && props.editingTrack.value) {
+                  editingTracks.push(trackFrame);
+                }
               }
             }
           }
@@ -129,7 +131,7 @@ export default defineComponent({
       }
     }
 
-    editAnnotationLayer.$on('update:geojson', (data) => {
+    editAnnotationLayer.$on('update:geojson', (data: StringKeyObject) => {
       const track = props.trackMap.get(props.selectedTrackId.value);
       if (track) {
         const bounds = data.type !== 'Feature'
@@ -144,61 +146,23 @@ export default defineComponent({
     });
 
     updateLayers();
-    // Is a referenced data so it can be set manually during updates to the bounds or features
-    const editingTrackData: Ref<FrameDataTrack | null> = ref(null);
+
     watch([
       frameNumber,
       props.editingTrack,
       props.selectedTrackId,
-      props.filteredTrackIds,
+      props.trackIds,
     ], () => {
       updateLayers();
     });
 
-    function nextFrame() {
-      annotator.$emit('next-frame');
-    }
-    function previousFrame() {
-      annotator.$emit('prev-frame');
-    }
-    function togglePlay() {
-      if (annotator.playing) {
-        annotator.$emit('pause');
-      } else {
-        annotator.$emit('play');
-      }
-    }
-
     return {
       props,
-      previousFrame,
-      nextFrame,
-      togglePlay,
     };
   },
 });
 </script>
 
 <template>
-  <div
-    v-mousetrap="[
-      { bind: 'left', handler: previousFrame },
-      { bind: 'right', handler: nextFrame },
-      { bind: 'space', handler: togglePlay }
-    ]"
-  >
-    <!--
-    <edit-annotation-layer
-      v-if="featurePointing"
-      editing="point"
-      @update:geojson="featurePointed"
-    />
-
-    <marker-layer
-      :data="markerData"
-      :styling="stateStyling"
-      :color-map="typeColorMapper"
-    />
-    -->
-  </div>
+  <div />
 </template>

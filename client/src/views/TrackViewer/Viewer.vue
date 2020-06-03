@@ -1,4 +1,5 @@
 <script lang="ts">
+import Vue from 'vue';
 import {
   computed,
   defineComponent,
@@ -33,11 +34,6 @@ import ControlsContainer from './ControlsContainer.vue';
 import Layers from './Layers.vue';
 import Sidebar from './Sidebar.vue';
 
-// TODO p2 rewrite annotators in typescript
-interface Seeker {
-  seek: (frame: number) => void;
-}
-
 export default defineComponent({
   components: {
     ControlsContainer,
@@ -59,18 +55,9 @@ export default defineComponent({
 
   setup(props) {
     const { datasetId } = props;
-    const playbackComponent = ref(null as null | Seeker);
+    const playbackComponent = ref(new Vue());
     const frame = ref(0); // the currently displayed frame number
 
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const vuetify = inject('vuetify');
-
-    // TODO p3: eventually we will have to migrate away from this style
-    // and use the new plugin pattern:
-    // https://vue-composition-api-rfc.netlify.com/#plugin-development
-    // const prompt = ctx.root.$prompt;
-
-    // external composition functions
     const { typeColorMapper, stateStyling } = useStyling();
     const {
       save: saveToServer, markChangesPending, pendingSaveCount,
@@ -138,12 +125,6 @@ export default defineComponent({
 
     const location = computed(() => store.state.location);
 
-    function seek(_frame: number) {
-      if (playbackComponent.value !== null) {
-        playbackComponent.value.seek(_frame);
-      }
-    }
-
     function removeTrack(trackId: TrackId) {
       // if removed track was selected, unselect before remove
       if (selectedTrackId.value === trackId) {
@@ -163,7 +144,7 @@ export default defineComponent({
     function handleTrackEdit(trackId: TrackId) {
       const track = trackMap.get(trackId);
       if (track !== undefined) {
-        seek(track.begin.value);
+        playbackComponent.value.$emit('seek', track.begin.value);
         selectTrack(trackId, true);
       }
     }
@@ -171,7 +152,7 @@ export default defineComponent({
     function handleTrackClick(trackId: TrackId) {
       const track = trackMap.get(trackId);
       if (track !== undefined) {
-        seek(track.begin.value);
+        playbackComponent.value.$emit('seek', track.begin.value);
         selectTrack(trackId, editingTrack.value);
       }
     }
@@ -191,13 +172,14 @@ export default defineComponent({
       videoUrl,
       /* methods used locally */
       addTrack,
+      deleteFeaturePoints,
       handleTrackClick,
       handleTrackEdit,
       removeTrack,
       save,
-      seek,
       selectNextTrack,
       selectTrack,
+      toggleFeaturePointing,
       /* props for sub-components */
       controlsContainerProps: {
         lineChartData,
@@ -216,7 +198,7 @@ export default defineComponent({
       },
       layerProps: {
         trackMap,
-        filteredTrackIds,
+        trackIds: enabledTrackIds,
         selectedTrackId,
         editingTrack,
         typeColorMapper,
@@ -277,7 +259,7 @@ export default defineComponent({
     >
       <sidebar
         v-bind="sidebarProps"
-        @track-add="addTrack"
+        @track-add="selectTrack(addTrack().trackId.value, true)"
         @track-remove="removeTrack"
         @track-click="handleTrackClick"
         @track-edit="handleTrackEdit"
@@ -290,6 +272,14 @@ export default defineComponent({
           :is="annotatorType"
           v-if="imageUrls.length || videoUrl"
           ref="playbackComponent"
+          v-mousetrap="[
+            { bind: 'g', handler: () => toggleFeaturePointing('head') },
+            { bind: 'h', handler: () => toggleFeaturePointing('head') },
+            { bind: 't', handler: () => toggleFeaturePointing('tail') },
+            { bind: 'y', handler: () => toggleFeaturePointing('tail') },
+            { bind: 'q', handler: deleteFeaturePoints },
+            { bind: 'esc', handler: () => selectTrack(null, false)}
+          ]"
           :image-urls="imageUrls"
           :video-url="videoUrl"
           :frame-rate="frameRate"
