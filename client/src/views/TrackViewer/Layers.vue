@@ -68,20 +68,11 @@ export default defineComponent({
     const frameNumber: Readonly<Ref<number>> = computed(() => annotator.frame as number);
 
 
-    const Clicked = (trackId: number, editing: boolean) => {
-      // eslint-disable-next-line @typescript-eslint/no-use-before-define
-      editAnnotationLayer.disable();
-      emit('selectTrack', trackId, editing);
-    };
-
     const annotationLayer = new AnnotationLayer({
       annotator,
       stateStyling: props.stateStyling,
       typeColorMap: props.typeColorMapper,
     });
-    annotationLayer.$on('annotationClicked', Clicked);
-    annotationLayer.$on('annotationRightClicked', Clicked);
-
     const textLayer = new TextLayer({
       annotator,
       stateStyling: props.stateStyling,
@@ -129,6 +120,26 @@ export default defineComponent({
       }
     }
 
+
+    updateLayers();
+    watch([
+      frameNumber,
+      props.editingTrack,
+      props.selectedTrackId,
+      props.filteredTrackIds,
+    ], () => {
+      updateLayers();
+    });
+
+
+    const Clicked = (trackId: number, editing: boolean) => {
+      // eslint-disable-next-line @typescript-eslint/no-use-before-define
+      editAnnotationLayer.disable();
+      emit('selectTrack', trackId, editing);
+    };
+    annotationLayer.$on('annotationClicked', Clicked);
+    annotationLayer.$on('annotationRightClicked', Clicked);
+
     editAnnotationLayer.$on('update:geojson', (data) => {
       const track = props.trackMap.get(props.selectedTrackId.value);
       if (track) {
@@ -143,17 +154,6 @@ export default defineComponent({
       }
     });
 
-    updateLayers();
-    // Is a referenced data so it can be set manually during updates to the bounds or features
-    const editingTrackData: Ref<FrameDataTrack | null> = ref(null);
-    watch([
-      frameNumber,
-      props.editingTrack,
-      props.selectedTrackId,
-      props.filteredTrackIds,
-    ], () => {
-      updateLayers();
-    });
 
     function nextFrame() {
       annotator.$emit('next-frame');

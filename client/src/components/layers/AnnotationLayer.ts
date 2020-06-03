@@ -15,7 +15,9 @@ export default class AnnotationLayer extends BaseLayer {
       .createFeature('polygon', { selectionAPI: true })
       .geoOn(geo.event.feature.mouseclick, (e: any) => {
         if (e.mouse.buttonsDown.left) {
-          this.$emit('annotationClicked', e.data.trackId, false);
+          if (!e.data.deting || (e.data.editing && !e.data.selected)) {
+            this.$emit('annotationClicked', e.data.trackId, false);
+          }
         } else if (e.mouse.buttonsDown.right) {
           this.$emit('annotationRightClicked', e.data.trackId, true);
         }
@@ -24,10 +26,36 @@ export default class AnnotationLayer extends BaseLayer {
       geo.event.feature.mouseclick_order,
       this.featureLayer.mouseOverOrderClosestBorder,
     );
+    this.featureLayer.geoOn(geo.event.mouseclick, (e) => {
+      // If we aren't clicking on an annotation we can deselect the current track
+      if (this.featureLayer.pointSearch(e.geo).found.length === 0) {
+        this.$emit('annotationClicked', null, false);
+      }
+    });
     super.initialize();
   }
 
+  updateBounds(trackId, bounds) {
+    const polygon = boundToGeojson(bounds);
+    const coords = polygon.coordinates[0];
+    if (this.selectedIndex[trackId] !== undefined) {
+      console.log(this.formattedData[this.selectedIndex[trackId]].geometry.outer);
+
+      this.formattedData[this.selectedIndex[trackId]].geometry = {
+        ...this.formattedData[this.selectedIndex[trackId]].geometry,
+        outer: [
+          { x: coords[0][0], y: coords[0][1] },
+          { x: coords[1][0], y: coords[1][1] },
+          { x: coords[2][0], y: coords[2][1] },
+          { x: coords[3][0], y: coords[3][1] },
+        ],
+      };
+      this.redraw();
+    }
+  }
+
   formatData(frameData: FrameDataTrack[]) {
+    this.selectedIndex = [];
     const arr = super.formatData(frameData);
     frameData.forEach((track: FrameDataTrack) => {
       if (track.features && track.features.bounds) {
@@ -47,12 +75,11 @@ export default class AnnotationLayer extends BaseLayer {
             ],
           },
         };
-        if (false) {
-          this.redraw();
-        }
-        // eslint-disable-next-line max-len
-        // this.redrawSignalers.push(new Proxy([coords, track.confidencePairs], this.redraw));
         arr.push(annotation);
+        // Create a sparse array of selected tracks for updating them
+        if (track.selected) {
+          this.selectedIndex[track.trackId] = arr.length;
+        }
       }
     });
     return arr;

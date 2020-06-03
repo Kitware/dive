@@ -32,9 +32,9 @@ export default class BaseLayer extends Vue {
 
     typeColorMap: (t: string) => string;
 
-    redrawSignalers: any[];
-
     featureLayer: any;
+
+    selectedIndex: number[]; // sparse array
 
 
     constructor({
@@ -48,8 +48,8 @@ export default class BaseLayer extends Vue {
       this.typeColorMap = typeColorMap;
       this.formattedData = null;
       this.style = {};
-      this.redrawSignalers = [];
       this.featureLayer = null;
+      this.selectedIndex = [];
       this.initialize();
     }
 
@@ -75,7 +75,6 @@ export default class BaseLayer extends Vue {
     }
 
     changeData(frameData: FrameDataTrack[]) {
-      this.redrawSignalers = [];
       this.formattedData = this.formatData(frameData);
       this.redraw();
     }

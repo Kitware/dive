@@ -12,44 +12,47 @@ export default class EditAnnotationLayer extends BaseLayer {
 
   editing: string;
 
+  trackId: number | null;
+
   constructor(params: BaseLayerParams) {
     super(params);
     this.changed = false;
     this.editing = params.editing || 'rectangle';
+    this.trackId = null;
   }
 
   initialize() {
-    this.changed = false;
     if (!this.featureLayer) {
       this.featureLayer = this.annotator.geoViewer.createLayer('annotation', {
         clickToEdit: true,
         showLabels: false,
       });
+      this.featureLayer.geoOn(geo.event.annotation.state, (e) => this.handleEditStateChange(e));
+      this.featureLayer.geoOn(geo.event.annotation.edit_action, (e) => this.handelEditAction(e));
     }
 
     super.initialize();
 
     // For these we need to use an anonymous function to prevent geoJS from erroring
-    this.featureLayer.geoOn(geo.event.annotation.state, (e) => this.handleEditStateChange(e));
-    this.featureLayer.geoOn(geo.event.annotation.edit_action, (e) => this.handelEditAction(e));
   }
 
   disable() {
     if (this.featureLayer) {
-      this.featureLayer.geoOff(geo.event.annotation.mode);
-      this.featureLayer.geoOff(geo.event.annotation.state);
-      this.featureLayer.geoOff(geo.event.annotation.edit_action);
-      this.featureLayer.removeAllAnnotations();
+      this.trackId = null;
       this.featureLayer.mode(null);
+      this.featureLayer.removeAllAnnotations();
     }
   }
 
   changeData(frameData: FrameDataTrack[]) {
-    this.disable();
-    this.initialize();
-    this.redrawSignalers = [];
-    this.formattedData = this.formatData(frameData);
-    this.redraw();
+    // Only redraw and update data if we change the selected track otherwise
+    // the internal geoJS will handle updating
+    if (frameData.length > 0 && this.trackId !== frameData[0].trackId) {
+      this.disable();
+      this.initialize();
+      this.formattedData = this.formatData(frameData);
+      this.redraw();
+    }
   }
 
 
@@ -62,10 +65,12 @@ export default class EditAnnotationLayer extends BaseLayer {
     if (frameData.length > 0) {
       const track = frameData[0];
       if (track.features && track.features.bounds) {
+        this.trackId = track.trackId;
         geojson = boundToGeojson(track.features.bounds);
         if (!('geometry' in geojson)) {
           geojson = { type: 'Feature', geometry: geojson, properties: {} };
         }
+
         // check if is rectangle
         const { coordinates } = geojson.geometry;
         if (typeof this.editing === 'string') {
