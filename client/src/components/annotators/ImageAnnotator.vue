@@ -117,7 +117,11 @@ export default {
         // Prevents advancing the frame while playing if the current image is not loaded
         if (!this.imgs[this.frame].cached || this.loadingVideo) {
           this.frame -= 1; // returns to a loaded image
+          // sync the annotations with the loading frame
+          this.syncedFrame = this.frame;
+          this.emitFrame();
           this.loadingVideo = true;
+
           return;
         }
         this.seek(this.frame);

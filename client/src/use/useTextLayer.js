@@ -37,16 +37,29 @@ export default function useTextLayer({
     const _editingTrackId = editingTrackId.value;
     return {
       color: (data) => {
-        if (_editingTrackId !== null) {
-          if (_editingTrackId !== data.detection.track) {
-            return stateStyling.disabled.color; // color for other detections when editing
+        if (_editingTrackId !== null && _editingTrackId !== data.detection.track) {
+          if (stateStyling.disabled.color) {
+            return stateStyling.disabled.color;
           }
-          return stateStyling.selected.color;
         }
-        if (data.detection.track === _selectedTrackId) {
+        if (data.detection.track === _selectedTrackId && stateStyling.selected.color) {
           return stateStyling.selected.color;
         }
         return typeColorMap(data.detection.confidencePairs[0][0]);
+      },
+      textOpacity: (data) => {
+        if (_editingTrackId !== null) {
+          if (_editingTrackId !== data.detection.track && stateStyling.disabled.opacity) {
+            return stateStyling.disabled.opacity;
+          }
+
+          return stateStyling.selected.opacity;
+        }
+
+        if (data.detection.track === _selectedTrackId) {
+          return stateStyling.selected.opacity;
+        }
+        return stateStyling.standard.opacity;
       },
       offsetY(data) {
         return data.offsetY;

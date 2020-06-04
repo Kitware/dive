@@ -168,9 +168,25 @@ export default defineComponent({
         .range[0];
       seek(_frame);
     }
+    /**
+     * Changes frames using the keyboard and jumps to the first frame of the track.
+     * @param {('up' | 'down')} direction indicates if the previous or next track should be selected
+     */
+    function selectTrackFirstFrame(direction) {
+      if (direction === 'up') {
+        selectPreviousTrack();
+      } else if (direction === 'down') {
+        selectNextTrack();
+      }
+      gotoTrackFirstFrame(selectedTrack.value);
+    }
     function annotationClick(data) {
       if (!featurePointing.value) {
-        setTrackEditMode(data.detection.track, false);
+        if (data !== null) {
+          setTrackEditMode(data.detection.track, false);
+        } else {
+          setTrackEditMode(data, false);
+        }
       }
     }
     function annotationRightClick(data) {
@@ -266,6 +282,7 @@ export default defineComponent({
       // Event Chart
       eventChartData,
       // local wrapper methods
+      selectTrackFirstFrame,
       gotoTrackFirstFrame,
       editTrack,
       seek,
@@ -368,8 +385,7 @@ export default defineComponent({
               @track-type-change="trackTypeChanged"
               @add-track="addTrack"
               @delete-track="deleteTrack"
-              @select-track-up="selectPreviousTrack"
-              @select-track-down="selectNextTrack"
+              @select-keyboard-track="selectTrackFirstFrame"
             />
           </div>
           <div
@@ -398,7 +414,7 @@ export default defineComponent({
             { bind: 'f', handler: () => nextFrame() },
             { bind: 'd', handler: () => prevFrame() },
             { bind: 'q', handler: deleteFeaturePoints },
-            { bind: 'esc', handler: () => setTrackEditMode(null, false)}
+            { bind: 'esc', handler: () => annotationClick(null)}
           ]"
           class="playback-component"
           :image-urls="imageUrls"
@@ -456,6 +472,7 @@ export default defineComponent({
             :annotation-style="annotationStyle"
             @annotation-click="annotationClick"
             @annotation-right-click="annotationRightClick"
+            @deselect-track="annotationClick(null)"
           />
           <edit-annotation-layer
             v-if="editingTrackId !== null && !playbackComponent.playing"
@@ -464,7 +481,6 @@ export default defineComponent({
             :geojson="editingDetectionGeojson"
             :feature-style="editingBoxLayerStyle"
             @update:geojson="detectionChanged"
-            @update:editing="setTrackEditMode(selectedTrackId, $event)"
           />
           <edit-annotation-layer
             v-if="featurePointing"
