@@ -14,9 +14,9 @@ interface LineChartData {
   name: string;
 }
 
-function updateHistogram(track: Track, histogram: number[]) {
-  const beginval = histogram[track.begin.value];
-  const endval = histogram[track.end.value];
+function updateHistogram(begin: number, end: number, histogram: number[]) {
+  const beginval = histogram[begin];
+  const endval = histogram[end];
   return [
     beginval === undefined ? 1 : beginval + 1,
     endval === undefined ? -1 : endval - 1,
@@ -49,12 +49,14 @@ export default function useLineChart({
         throw new Error(`Accessed missing track ${trackId}`);
       }
       const totalArr = histograms.get('total') as number[];
-      [totalArr[track.begin.value], totalArr[track.end.value]] = updateHistogram(track, totalArr);
-      const confidencePairs = track.confidencePairs.value;
+      const ibegin = track.begin;
+      const iend = track.end > track.begin ? track.end : track.begin + 1;
+      [totalArr[ibegin], totalArr[iend]] = updateHistogram(ibegin, iend, totalArr);
+      const { confidencePairs } = track;
       if (confidencePairs.length) {
         const trackType = confidencePairs[0][0];
         const typeArr = histograms.get(trackType) as number[];
-        [typeArr[track.begin.value], typeArr[track.end.value]] = updateHistogram(track, typeArr);
+        [typeArr[ibegin], typeArr[iend]] = updateHistogram(ibegin, iend, typeArr);
       }
     });
 

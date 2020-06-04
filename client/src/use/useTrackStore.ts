@@ -45,7 +45,7 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
   const trackIds: Ref<Array<TrackId>> = ref([]);
   const canary = ref(0);
 
-  function depend(): number {
+  function _depend(): number {
     return canary.value;
   }
 
@@ -55,18 +55,20 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
   ): void {
     if (event === 'bounds') {
       const oldInterval = oldValue as [number, number];
-      intervalTree.remove(oldInterval, track.trackId.value);
-      intervalTree.insert([track.begin.value, track.end.value], track.trackId.value);
+      intervalTree.remove(oldInterval, track.trackId);
+      intervalTree.insert([track.begin, track.end], track.trackId);
     }
-    canary.value += 1;
+    if (event !== 'feature') {
+      canary.value += 1;
+    }
     markChangesPending();
   }
 
   function insertTrack(track: Track) {
     track.$on('notify', onChange);
-    trackMap.set(track.trackId.value, track);
-    intervalTree.insert([track.begin.value, track.end.value], track.trackId.value);
-    trackIds.value.push(track.trackId.value);
+    trackMap.set(track.trackId, track);
+    intervalTree.insert([track.begin, track.end], track.trackId);
+    trackIds.value.push(track.trackId);
   }
 
   function addTrack(frame: number): Track {
@@ -88,7 +90,7 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
     if (track === undefined) {
       throw new Error(`TrackId ${trackId} not found in trackMap.`);
     }
-    const range = [track.begin.value, track.end.value];
+    const range = [track.begin, track.end];
     if (!intervalTree.remove(range, trackId)) {
       throw new Error(`TrackId ${trackId} with range ${range} not found in tree.`);
     }
@@ -116,21 +118,23 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
     }
   }
 
-  const sortedTrackIds = computed(() => trackIds.value.sort((a, b) => {
-    const trackA = trackMap.get(a);
-    const trackB = trackMap.get(b);
-    if (trackA === undefined || trackB === undefined) {
-      throw new Error(`Found trackIds not in track map: ${a}, ${b}`);
-    }
-    return trackA.begin.value - trackB.begin.value;
-  }));
+  const sortedTrackIds = computed(() => {
+    _depend();
+    return trackIds.value.sort((a, b) => {
+      const trackA = trackMap.get(a);
+      const trackB = trackMap.get(b);
+      if (trackA === undefined || trackB === undefined) {
+        throw new Error(`Found trackIds not in track map: ${a}, ${b}`);
+      }
+      return trackA.begin - trackB.begin;
+    });
+  });
 
   return {
     trackMap,
     sortedTrackIds,
     intervalTree,
     addTrack,
-    depend,
     removeTrack,
     splitTracks,
     loadTracks,

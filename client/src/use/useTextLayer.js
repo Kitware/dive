@@ -23,6 +23,7 @@ export default function useTextLayer({
           detection,
           frame: detection.frame,
           text: `${type}: ${confidence.toFixed(2)}`,
+          // center at the top right corner
           x: bounds[1],
           y: bounds[2],
           offsetY: i * 14,

@@ -1,11 +1,15 @@
 import girderRest from '@/girder';
-import { TrackData } from '@/lib/track';
+import Track, { TrackData, TrackId } from '@/lib/track';
 
 interface ExportUrlsResponse {
   mediaType: string;
   exportAllUrl: string;
   exportMediaUrl: string;
   exportDetectionsUrl: string;
+}
+
+interface SerializedTrackstore {
+  [key: number]: TrackData;
 }
 
 async function getExportUrls(id: string) {
@@ -20,8 +24,13 @@ async function getDetections(folderId: string, formatting = 'track_json') {
   return data as { [key: string]: TrackData };
 }
 
-async function saveDetections(folderId: string, serializable: unknown) {
-  return girderRest.put('viame_detection', serializable, {
+async function saveDetections(folderId: string, trackMap: Map<TrackId, Track>) {
+  const serialized = {} as SerializedTrackstore;
+  Array.from(trackMap.entries()).forEach(([id, track]) => {
+    serialized[id] = track.serialize();
+  });
+  console.log(serialized);
+  return girderRest.put('viame_detection', serialized, {
     params: { folderId },
   });
 }

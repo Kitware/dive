@@ -48,19 +48,19 @@ interface TrackParams {
  * uses of the vue superclass are expected.
  */
 export default class Track extends Vue {
-  trackId: Ref<TrackId>;
+  trackId: TrackId;
 
-  meta: Ref<StringKeyObject>;
+  meta: StringKeyObject;
 
-  attributes: Ref<StringKeyObject>;
+  attributes: StringKeyObject;
 
-  confidencePairs: Ref<Array<ConfidencePair>>;
+  confidencePairs: ConfidencePair[];
 
-  features: Array<Feature>;
+  features: Feature[];
 
-  begin: Ref<number>;
+  begin: number;
 
-  end: Ref<number>;
+  end: number;
 
   revision: Ref<number>;
 
@@ -73,25 +73,25 @@ export default class Track extends Vue {
     attributes = {},
   }: TrackParams) {
     super();
-    this.trackId = ref(trackId);
-    this.meta = ref(meta);
-    this.attributes = ref(attributes);
+    this.trackId = trackId;
+    this.meta = meta;
+    this.attributes = attributes;
     this.features = features; // NON-reactive sparse array
-    this.begin = ref(begin);
-    this.end = ref(end);
+    this.begin = begin;
+    this.end = end;
     this.revision = ref(0);
-    this.confidencePairs = ref(confidencePairs);
+    this.confidencePairs = confidencePairs;
   }
 
   private updateBounds(frame: number) {
-    if (frame < this.begin.value) {
-      const oldval = this.begin.value;
-      this.begin.value = frame;
-      this.notify('bounds', [oldval, this.end.value]);
-    } else if (frame > this.end.value) {
-      const oldval = this.end.value;
-      this.end.value = frame;
-      this.notify('bounds', [this.begin.value, oldval]);
+    if (frame < this.begin) {
+      const oldval = this.begin;
+      this.begin = frame;
+      this.notify('bounds', [oldval, this.end]);
+    } else if (frame > this.end) {
+      const oldval = this.end;
+      this.end = frame;
+      this.notify('bounds', [this.begin, oldval]);
     }
   }
 
@@ -131,27 +131,21 @@ export default class Track extends Vue {
   }
 
   getType() {
-    if (this.confidencePairs.value.length > 0) {
-      return this.confidencePairs.value[0][0];
+    if (this.confidencePairs.length > 0) {
+      return this.confidencePairs[0][0];
     }
     return null;
   }
 
   setType(trackType: string) {
-    const i = this.confidencePairs.value.findIndex(([name]) => name === trackType);
-    const deleteCount = i >= 0 ? 1 : 0;
-    this.confidencePairs.value.splice(
-      deleteCount ? i : 0,
-      deleteCount,
-      [trackType, 1],
-    );
-    // sort by confidence value
-    this.confidencePairs.value.sort((a, b) => a[1] - b[1]);
+    const old = this.confidencePairs;
+    this.confidencePairs = [[trackType, 1]];
+    this.notify('confidencePairs', old);
   }
 
   setAttribute(key: string, value: unknown) {
-    const oldval = this.attributes.value[key];
-    this.attributes.value[key] = value;
+    const oldval = this.attributes[key];
+    this.attributes[key] = value;
     this.notify('attributes', { key, value: oldval });
   }
 
@@ -162,16 +156,25 @@ export default class Track extends Vue {
     return maybeFrame || null;
   }
 
+  /* Condense the sparse array to a dense one */
+  getCondenseFeatures(): Feature[] {
+    const features = [] as Feature[];
+    this.features.forEach((f) => {
+      features.push(f);
+    });
+    return features;
+  }
+
   /* Serialize back to a regular track object */
   serialize(): TrackData {
     return {
-      trackId: this.trackId.value,
-      meta: this.meta.value,
-      attributes: this.attributes.value,
-      confidencePairs: this.confidencePairs.value,
-      features: this.features,
-      begin: this.begin.value,
-      end: this.end.value,
+      trackId: this.trackId,
+      meta: this.meta,
+      attributes: this.attributes,
+      confidencePairs: this.confidencePairs,
+      features: this.getCondenseFeatures(),
+      begin: this.begin,
+      end: this.end,
     };
   }
 
