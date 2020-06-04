@@ -6,35 +6,47 @@ import geo from 'geojs';
 import { FrameDataTrack } from '@/components/layers/LayerTypes';
 import { thresholdFreedmanDiaconis } from 'd3';
 
-
+/**
+ * This class is used to edit annotations within the viewer
+ * It will do and display different things based on it either being in
+ * rectangle or edit modes
+ * Basic operation is that changedData will start the edited annotation
+ * emits 'update:geojson' when data is changed
+ * @param {'rectangle' | 'edit'} string determines the mode to run in
+ * @param {changed} boolean - internal tracker for chaning objects.
+ */
 export default class EditAnnotationLayer extends BaseLayer {
   changed: boolean;
 
   editing: string;
 
-  trackId: number | null;
-
   constructor(params: BaseLayerParams) {
     super(params);
     this.changed = false;
     this.editing = params.editing || 'rectangle';
-    this.trackId = null;
     //Only initialize once, prevents recreating Layer each edit
     this.initialize();
   }
 
+  /**
+   * Initialization of the layer should only be done once for edit layers
+   * Handlers for edit_action and state which will emit data when necessary
+   */
   initialize() {
-    if (!this.featureLayer) {
+    if (!this.featureLayer && this.editing) {
       this.featureLayer = this.annotator.geoViewer.createLayer('annotation', {
         clickToEdit: true,
         showLabels: false,
       });
+      // For these we need to use an anonymous function to prevent geoJS from erroring
+      this.featureLayer.geoOn(geo.event.annotation.edit_action, (e) => this.handleEditAction(e));
+      this.featureLayer.geoOn(geo.event.annotation.state, (e) => this.handleEditStateChange(e));
     }
-    // For these we need to use an anonymous function to prevent geoJS from erroring
-    this.featureLayer.geoOn(geo.event.annotation.edit_action, (e) => this.handleEditAction(e));
-    this.featureLayer.geoOn(geo.event.annotation.state, (e) => this.handleEditStateChange(e));
   }
 
+  /**
+   * Removes the current annotation and resets the mode when completed editing
+   */
   disable() {
     if (this.featureLayer) {
       this.featureLayer.removeAllAnnotations();
@@ -42,9 +54,8 @@ export default class EditAnnotationLayer extends BaseLayer {
     }
   }
 
+  /** overrides default function to disable and clear anotations before drawing again */
   changeData(frameData: FrameDataTrack[]) {
-    // Only redraw and update data if we change the selected track otherwise
-    // the internal geoJS will handle updating
     this.disable();
     this.formattedData = this.formatData(frameData);
     this.redraw();
@@ -84,8 +95,10 @@ export default class EditAnnotationLayer extends BaseLayer {
       }
       this.featureLayer.geojson(geojson);
       const annotation = this.featureLayer.annotations()[0];
+      //Setup styling for rectangle and point editing
       annotation.style(this.createStyle());
       annotation.editHandleStyle(this.editHandleStyle());
+      annotation.highlightStyle(this.highlightStyle());
       if (this.editing) {
         this.featureLayer.mode('edit', annotation);
         this.featureLayer.draw();
@@ -99,6 +112,7 @@ export default class EditAnnotationLayer extends BaseLayer {
              when geojson prop is not set`,
         );
       } else {
+        // point or rectangle mode for the editor
         this.featureLayer.mode(this.editing);
       }
     }
@@ -108,6 +122,10 @@ export default class EditAnnotationLayer extends BaseLayer {
   }
 
 
+  /**
+   *
+   * @param e geo.event emitting by handlers
+   */
   handleEditStateChange(e) {
     if (this.featureLayer === e.annotation.layer()) {
       if (e.annotation.state() === 'done' && !this.formattedData) {
@@ -119,6 +137,7 @@ export default class EditAnnotationLayer extends BaseLayer {
         const annotation = this.featureLayer.annotations()[0];
         annotation.style(this.createStyle());
         annotation.editHandleStyle(this.editHandleStyle());
+        annotation.highlightStyle(this.highlightStyle());
         const geojson = {
           ...newGeojson,
           ...{
@@ -137,12 +156,18 @@ export default class EditAnnotationLayer extends BaseLayer {
     }
   }
 
+  /**
+   * If we release the mouse after movement we want to signal for the annotation to update
+   * @param e geo.event
+   */
   handleEditAction(e) {
-    if (e.action === geo.event.actionup) {
+    if (this.featureLayer === e.annotation.layer()) {
+      if (e.action === geo.event.actionup) {
       // This will commit the change to the current annotation on mouse up while editing
-      if (e.annotation.state() === 'edit') {
-        this.handleAnnotationChange(e);
-        this.changed = true;
+        if (e.annotation.state() === 'edit') {
+          this.handleAnnotationChange(e);
+          this.changed = true;
+        }
       }
     }
   }
@@ -175,20 +200,73 @@ export default class EditAnnotationLayer extends BaseLayer {
     this.$emit('update:geojson', geojson);
   }
 
+  /**
+   * Drawing for annotations are handled during initialization they don't need the standard redraw
+   * function from BaseLayer
+   */
   redraw() {
     return null;
   }
 
+  /**
+   * The base style used to represent the annotation
+   */
   createStyle() {
     const baseStyle = super.createStyle();
+    if (this.editing === 'rectangle') {
+      return {
+        ...baseStyle,
+        fill: false,
+        strokeColor: this.stateStyling.selected.color,
+      };
+    }
     return {
-      ...baseStyle,
       fill: false,
-      strokeColor: this.stateStyling.selected.color,
+      strokeWidth: 0,
+      strokeColor: 'none',
     };
   }
 
+  /**
+   * Styling for the handles used to drag the annotation for ediing
+   */
   editHandleStyle() {
+    if (this.editing === 'rectangle') {
+      return {
+        handles: {
+          rotate: false,
+        },
+      };
+    }
+    if (this.editing === 'point') {
+      return {
+        handles: false,
+      };
+    }
+    return {
+      handles: {
+        rotate: false,
+      },
+    };
+  }
+
+  /**
+   * Should never have highlighting enabled but this will remove any highlighting style
+   * from the annotation.  NOTE: this will not remove styling from handles
+   */
+  highlightStyle() {
+    if (this.editing === 'rectangle') {
+      return {
+        handles: {
+          rotate: false,
+        },
+      };
+    }
+    if (this.editing === 'point') {
+      return {
+        stroke: false,
+      };
+    }
     return {
       handles: {
         rotate: false,

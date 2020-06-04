@@ -189,6 +189,7 @@ export default defineComponent({
       selectNextTrack,
       selectTrack,
       toggleFeaturePointing,
+      featurePointed,
       /* props for sub-components */
       controlsContainerProps: {
         lineChartData,
@@ -309,6 +310,7 @@ export default defineComponent({
           <layers
             v-bind="layerProps"
             @selectTrack="selectTrack"
+            @featurePointUpdated="featurePointed"
           />
         </component>
         <v-menu

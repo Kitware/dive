@@ -53,27 +53,21 @@ export default function useFeaturePointing({
         [data.featurePointingTarget]: [x.toFixed(0), y.toFixed(0)],
       });
     }
-    /* TODO: DANGER: this is highly non-standard
-     * this and the nextTick() are here to cause
-     * the initialization function inside the EditAnnotationLayer to trip
-     */
     data.featurePointing = false;
-    Vue.nextTick(() => {
-      const feature = track.getFeature(frame);
-      if (!feature) {
-        return;
-      }
-      if (data.featurePointingTarget === 'tail') {
-        data.featurePointingTarget = 'head';
-      } else {
-        data.featurePointingTarget = 'tail';
-      }
-      if ('head' in feature && 'tail' in feature) {
-        data.featurePointing = false;
-      } else {
-        data.featurePointing = true;
-      }
-    });
+    const feature = track.getFeature(frame);
+    if (!feature) {
+      return;
+    }
+    if (data.featurePointingTarget === 'tail') {
+      data.featurePointingTarget = 'head';
+    } else {
+      data.featurePointingTarget = 'tail';
+    }
+    if ('head' in feature && 'tail' in feature) {
+      data.featurePointing = false;
+    } else {
+      data.featurePointing = true;
+    }
   }
 
   function deleteFeaturePoints(frame: number) {

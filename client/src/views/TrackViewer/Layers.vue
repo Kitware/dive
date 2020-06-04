@@ -83,6 +83,14 @@ export default defineComponent({
       editing: 'rectangle',
     });
 
+    const markerEditLayer = new EditAnnotationLayer({
+      annotator,
+      stateStyling: props.stateStyling,
+      typeColorMap: props.typeColorMapper,
+      editing: 'point',
+    });
+
+
     const markerLayer = new MarkerLayer({
       annotator,
       stateStyling: props.stateStyling,
@@ -111,7 +119,7 @@ export default defineComponent({
               };
               tracks.push(trackFrame);
               // eslint-disable-next-line max-len
-              if ((tracks[tracks.length - 1].selected && props.editingTrack.value)) {
+              if (tracks[tracks.length - 1].selected && (props.editingTrack.value || props.featurePointing.value)) {
                 editingTracks.push(trackFrame);
               }
             }
@@ -119,38 +127,48 @@ export default defineComponent({
         },
       );
 
-      if (props.editingTrack.value && !currentFrameIds.includes(props.selectedTrackId.value)) {
-        const editTrack = props.trackMap.get(props.selectedTrackId.value);
-        const features = editTrack.getFeature(frameNumber.value);
-        const trackFrame = {
-          selected: true,
-          editing: true,
-          trackId: editTrack.trackId.value,
-          features,
-          confidencePairs: editTrack.confidencePairs.value,
-        };
-        editingTracks.push(trackFrame);
-      }
       annotationLayer.changeData(tracks);
       textLayer.changeData(tracks);
       markerLayer.changeData(tracks);
-      if (editingTracks.length) {
-        if (!updated.annotationChanged) {
-          editAnnotationLayer.changeData(editingTracks);
+
+      if (props.selectedTrackId.value) {
+      // eslint-disable-next-line max-len
+        if ((props.editingTrack.value || props.featurePointing.value) && !currentFrameIds.includes(props.selectedTrackId.value)) {
+          const editTrack = props.trackMap.get(props.selectedTrackId.value);
+          const features = editTrack.getFeature(frameNumber.value);
+          const trackFrame = {
+            selected: true,
+            editing: true,
+            trackId: editTrack.trackId.value,
+            features,
+            confidencePairs: editTrack.confidencePairs.value,
+          };
+          editingTracks.push(trackFrame);
         }
-      } else {
-        editAnnotationLayer.disable();
+        // Only update tracks if created and not an annotationChanged
+        if (editingTracks.length) {
+          if (!updated.annotationChanged && props.editingTrack.value) {
+            editAnnotationLayer.changeData(editingTracks);
+          }
+          if (!updated.annotationChanged && props.featurePointing.value) {
+            markerEditLayer.changeData([]);
+          }
+        } else {
+          markerEditLayer.disable();
+          editAnnotationLayer.disable();
+        }
       }
     }
 
 
     updateLayers();
-    const names = ['frame', 'ids', 'editing', 'selected'];
+    const names = ['frame', 'ids', 'editing', 'selected', 'featurePointing'];
     watch([
       frameNumber,
       props.trackIds,
       props.editingTrack,
       props.selectedTrackId,
+      props.featurePointing,
     ], (values, oldvalues) => {
       // Helper function for me to see what is going on
       // REMOVE AFTERWARDS
@@ -167,8 +185,10 @@ export default defineComponent({
 
 
     const Clicked = (trackId: number, editing: boolean) => {
-      editAnnotationLayer.disable();
-      emit('selectTrack', trackId, editing);
+      if (!props.featurePointing.value) {
+        editAnnotationLayer.disable();
+        emit('selectTrack', trackId, editing);
+      }
     };
     annotationLayer.$on('annotationClicked', Clicked);
     annotationLayer.$on('annotationRightClicked', Clicked);
@@ -188,6 +208,9 @@ export default defineComponent({
       }
     });
 
+    markerEditLayer.$on('update:geojson', (data) => {
+      emit('featurePointUpdated', frameNumber.value, data);
+    });
 
     return {
       props,
