@@ -1,10 +1,14 @@
 import json
 import os
 import tempfile
+import shutil
 from pathlib import Path
 from subprocess import PIPE, Popen
 
 from girder_worker.app import app
+from viame_tasks.utils import organize_folder_for_training
+
+from typing import Dict
 
 
 class Config:
@@ -103,15 +107,13 @@ def run_pipeline(self, input_path, pipeline, input_type):
 
 
 @app.task(bind=True)
-def train_pipeline(self, folder, groundtruth):
+def train_pipeline(self, folder: Dict, groundtruth: str):
     """
     Train a pipeline by making a call to viame_train_detector
 
     :param folder: A girder Folder document for the training directory
-    :type folder: dict
-
-    :param groundtruth: A girder File document containing the detections
-    :type folder: dict
+    :param groundtruth: The name of either the file containing detections,
+        or the folder containing that file.
     """
     conf = Config()
     gc = self.girder_client
@@ -122,22 +124,22 @@ def train_pipeline(self, folder, groundtruth):
     training_executable = viame_install_path / "bin" / "viame_train_detector"
 
     with tempfile.TemporaryDirectory() as temp:
-        # Download data onto server
-        gc.downloadFolderRecursive(folder["_id"], temp)
+        temp_path = Path(temp)
 
-        return
+        # Download data onto server
+        gc.downloadFolderRecursive(folder["_id"], temp_path)
 
         # Organize data
-        gc.downloadFile(groundtruth["_id"], Path(temp) / "groundtruth.csv")
-
-        # Create labels.txt
-        #   To do this, go through the groundtruth and
-        #   compile a set of all the confidence pairs,
-
-        # Deal with Track JSON?
+        organize_folder_for_training(temp_path, groundtruth)
 
         # Call viame_train_detector
-        command = [str(training_executable), f"-i {temp}", f"-c {default_conf_file}"]
+        command = [
+            str(training_executable),
+            "-i",
+            f"{temp}",
+            "--config",
+            f"{default_conf_file}",
+        ]
         process = Popen(command, stdout=PIPE, stderr=PIPE)
         stdout, stderr = process.communicate()
 
