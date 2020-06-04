@@ -21,6 +21,7 @@ from viame_server.utils import (
     VideoMimeTypes,
     VideoType,
     move_existing_result_to_auxiliary_folder,
+    csv_detection_file,
 )
 
 
@@ -121,25 +122,8 @@ class ViameDetection(Resource):
         )
         detectionItems.sort(key=lambda d: d["created"], reverse=True)
         item = detectionItems[0]
-        file = Item().childFiles(item)[0]
 
-        if "csv" in file["exts"]:
-            return File().download(file)
-
-        filename = ".".join([file["name"].split(".")[:-1][0], "csv"])
-
-        csv_string = viame.export_tracks_as_csv(file)
-        csv_bytes = csv_string.encode()
-
-        assetstore = Assetstore().findOne({"_id": file["assetstoreId"]})
-        new_file = File().findOne({"name": filename}) or File().createFile(
-            user, item, filename, len(csv_bytes), assetstore
-        )
-
-        upload = Upload().createUploadToFile(new_file, user, len(csv_bytes))
-        new_file = Upload().handleChunk(upload, csv_bytes)
-
-        return File().download(new_file)
+        return File().download(csv_detection_file(item, user))
 
     @access.user
     @autoDescribeRoute(

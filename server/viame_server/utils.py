@@ -2,6 +2,11 @@ import cherrypy
 from girder.api.rest import setContentDisposition, setRawResponse, setResponseHeader
 from girder.models.folder import Folder
 from girder.models.item import Item
+from girder.models.file import File
+from girder.models.upload import Upload
+from girder.models.assetstore import Assetstore
+
+from viame_server.serializers import viame
 
 ImageSequenceType = "image-sequence"
 VideoType = "video"
@@ -70,6 +75,33 @@ def move_existing_result_to_auxiliary_folder(folder, user):
     )
     if existingResultItem:
         Item().move(existingResultItem, auxiliary)
+
+
+def csv_detection_file(detection_item, user):
+    """
+    Ensures that the detection item has a file which is a csv.
+
+    Returns the file document.
+    """
+
+    file = Item().childFiles(detection_item)[0]
+    if "csv" in file["exts"]:
+        return file
+
+    filename = ".".join([file["name"].split(".")[:-1][0], "csv"])
+
+    csv_string = viame.export_tracks_as_csv(file)
+    csv_bytes = csv_string.encode()
+
+    assetstore = Assetstore().findOne({"_id": file["assetstoreId"]})
+    new_file = File().findOne({"name": filename}) or File().createFile(
+        user, detection_item, filename, len(csv_bytes), assetstore
+    )
+
+    upload = Upload().createUploadToFile(new_file, user, len(csv_bytes))
+    new_file = Upload().handleChunk(upload, csv_bytes)
+
+    return new_file
 
 
 def itemIsWebsafeVideo(item: Item) -> bool:
