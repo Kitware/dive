@@ -11,7 +11,7 @@ RUN apt-get update && \
   apt-get update && apt-get install -qy \
     build-essential \
     wget \
-    python3 \
+    python3.7 \
     r-base \
     libffi-dev \
     libssl-dev \
@@ -19,16 +19,18 @@ RUN apt-get update && \
     zlib1g-dev \
     r-base \
     ffmpeg \
-    libpython3-dev && \
+    libpython3.7-dev && \
   apt-get clean && rm -rf /var/lib/apt/lists/*
 
-RUN wget https://bootstrap.pypa.io/get-pip.py && python3 get-pip.py
+RUN wget https://bootstrap.pypa.io/get-pip.py && python3.7 get-pip.py
 # END port of worker installation
 
 # install tini init system
 ENV TINI_VERSION v0.19.0
 ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini /tini
 RUN chmod +x /tini
+
+RUN pip install future
 
 # Pip install dependencies
 COPY server/setup.py /home/viame_girder/
@@ -43,5 +45,5 @@ RUN useradd -D --shell=/bin/bash && useradd -m worker
 RUN chown -R worker:worker /usr/local/lib/python*
 USER worker
 
-ENTRYPOINT ["/tini", "--", "python3", "-m", "girder_worker" ]
+ENTRYPOINT ["/tini", "--", "python3.7", "-m", "girder_worker" ]
 CMD [ "-l", "info" ]
