@@ -103,6 +103,55 @@ def run_pipeline(self, input_path, pipeline, input_type):
 
 
 @app.task(bind=True)
+def train_pipeline(self, folder, groundtruth):
+    """
+    Train a pipeline by making a call to viame_train_detector
+
+    :param folder: A girder Folder document for the training directory
+    :type folder: dict
+
+    :param groundtruth: A girder File document containing the detections
+    :type folder: dict
+    """
+    conf = Config()
+    gc = self.girder_client
+
+    viame_install_path = Path(conf.viame_install_path)
+    pipeline_base_path = Path(conf.pipeline_base_path)
+    default_conf_file = pipeline_base_path / "train_netharn_cascade.viame_csv.conf"
+    training_executable = viame_install_path / "bin" / "viame_train_detector"
+
+    with tempfile.TemporaryDirectory() as temp:
+        # Download data onto server
+        gc.downloadFolderRecursive(folder["_id"], temp)
+
+        return
+
+        # Organize data
+        gc.downloadFile(groundtruth["_id"], Path(temp) / "groundtruth.csv")
+
+        # Create labels.txt
+        #   To do this, go through the groundtruth and
+        #   compile a set of all the confidence pairs,
+
+        # Deal with Track JSON?
+
+        # Call viame_train_detector
+        command = [str(training_executable), f"-i {temp}", f"-c {default_conf_file}"]
+        process = Popen(command, stdout=PIPE, stderr=PIPE)
+        stdout, stderr = process.communicate()
+
+        # Send output to job manager
+        output = ""
+        if len(stdout):
+            output = f"{stdout.decode()}\n"
+        if len(stderr):
+            output = f"{output}{stderr.decode()}\n"
+
+        self.job_manager.write(output)
+
+
+@app.task(bind=True)
 def convert_video(self, path, folderId, token, auxiliaryFolderId):
     self.girder_client.token = token
 

@@ -5,7 +5,12 @@ from girder.constants import AccessType
 from girder.models.folder import Folder
 from girder.models.item import Item
 
-from viame_tasks.tasks import convert_images, convert_video, run_pipeline
+from viame_tasks.tasks import (
+    convert_images,
+    convert_video,
+    run_pipeline,
+    train_pipeline,
+)
 
 from .model.attribute import Attribute
 from .transforms import (
@@ -27,6 +32,7 @@ class Viame(Resource):
 
         self.route("GET", ("pipelines",), self.get_pipelines)
         self.route("POST", ("pipeline",), self.run_pipeline_task)
+        self.route("POST", ("train",), self.run_training)
         self.route("POST", ("conversion",), self.run_conversion_task)
         self.route("POST", ("image_conversion",), self.convert_folder_images)
         self.route("POST", ("attribute",), self.create_attribute)
@@ -74,6 +80,49 @@ class Viame(Resource):
                     str(folder["_id"]), result_metadata, delete_file=True
                 )
             ],
+        )
+
+    @access.user
+    @autoDescribeRoute(
+        Description("Run training on a folder").modelParam(
+            "folderId",
+            description="The folder containing the training data",
+            model=Folder,
+            paramType="query",
+            required=True,
+            level=AccessType.READ,
+        )
+    )
+    def run_training(self, folder):
+        user = self.getCurrentUser()
+        upload_token = self.getCurrentToken()
+        # move_existing_result_to_auxiliary_folder(folder, user)
+
+        detections = list(
+            Item().find({"meta.detection": str(folder["_id"])}).sort([("created", -1)])
+        )
+        detection = detections[0] if detections else None
+
+        if not detection:
+            raise Exception(f"No detections for folder {folder['name']}")
+
+        # TODO: Export track JSON as csv, so it can be downlaoded in task
+
+        # Temporary
+        groundtruth = detection
+
+        return train_pipeline.delay(
+            folder,
+            groundtruth,
+            girder_client_token=str(upload_token["_id"]),
+            girder_job_title=(
+                f"Running training on folder: {str} on {str(folder['name'])}"
+            ),
+            # girder_result_hooks=[
+            #     GirderUploadToFolder(
+            #         str(folder["_id"]), result_metadata, delete_file=True
+            #     )
+            # ],
         )
 
     @access.user
