@@ -21,6 +21,7 @@ from .transforms import (
 from .utils import (
     get_or_create_auxiliary_folder,
     move_existing_result_to_auxiliary_folder,
+    csv_detection_file,
 )
 
 
@@ -106,18 +107,14 @@ class Viame(Resource):
         if not detection:
             raise Exception(f"No detections for folder {folder['name']}")
 
-        # TODO: Export track JSON as csv, so it can be downlaoded in task
-
-        # Temporary
-        groundtruth = detection
+        # Ensure detection has a csv format
+        csv_detection_file(detection, user)
 
         return train_pipeline.delay(
             folder,
-            groundtruth,
+            detection["name"],
             girder_client_token=str(upload_token["_id"]),
-            girder_job_title=(
-                f"Running training on folder: {str} on {str(folder['name'])}"
-            ),
+            girder_job_title=(f"Running training on folder: {str(folder['name'])}"),
             # girder_result_hooks=[
             #     GirderUploadToFolder(
             #         str(folder["_id"]), result_metadata, delete_file=True
