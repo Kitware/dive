@@ -18,17 +18,8 @@ function getPathFromLocation(location: GirderModel) {
   }`;
 }
 
-/* geojsonToBounds beginning at top left */
+/* beginning at bottom left, rectangle is defined clockwise */
 function geojsonToBound({ coordinates }: {
-  coordinates: number[][][]; // Array of [x,y] points of vertexes of shapes
-}): [number, number, number, number] {
-  const coords = coordinates[0];
-  // return [x1, y1, x2, y2] of the first shape in the shape arr.
-  return [coords[0][0], coords[1][1], coords[1][0], coords[2][1]];
-}
-
-/* geojsonToBounds beginning at bottom left */
-function geojsonToBoundOther({ coordinates }: {
   coordinates: number[][][]; // Array of [x,y] points of vertexes of shapes
 }) {
   console.log(coordinates);
@@ -39,17 +30,18 @@ function geojsonToBoundOther({ coordinates }: {
 
 function boundToGeojson(bounds: [number, number, number, number]) {
   /* return clockwise 5 point rectangle from [x1, y1, x2, y2]
-   * beginning with (x1, y1)
+   * beginning with (x1, y2) (bottom left) because that's what GeoJS
+   * likes for some reason.
    */
   return {
     type: 'Polygon',
     coordinates: [
       [
+        [bounds[0], bounds[3]],
         [bounds[0], bounds[1]],
         [bounds[2], bounds[1]],
         [bounds[2], bounds[3]],
         [bounds[0], bounds[3]],
-        [bounds[0], bounds[1]],
       ],
     ],
   };
@@ -60,5 +52,4 @@ export {
   getPathFromLocation,
   geojsonToBound,
   boundToGeojson,
-  geojsonToBoundOther,
 };

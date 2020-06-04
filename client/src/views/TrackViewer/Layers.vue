@@ -16,7 +16,7 @@ import AnnotationLayer from '@/components/layers/AnnotationLayer';
 import TextLayer from '@/components/layers/TextLayer';
 import EditAnnotationLayer from '@/components/layers/EditAnnotationLayer';
 import MarkerLayer from '@/components/layers/MarkerLayer';
-import { geojsonToBound, geojsonToBoundOther } from '@/utils';
+import { geojsonToBound } from '@/utils';
 import { FeaturePointingTarget } from '@/use/useFeaturePointing';
 
 
@@ -180,9 +180,7 @@ export default defineComponent({
     editAnnotationLayer.$on('update:geojson', (data) => {
       const track = props.trackMap.get(props.selectedTrackId.value);
       if (track) {
-        const bounds = data.type !== 'Feature'
-          ? geojsonToBoundOther(data.geometry)
-          : geojsonToBound(data.geometry);
+        const bounds = geojsonToBound(data.geometry);
         track.setFeature({
           frame: frameNumber.value,
           bounds,
