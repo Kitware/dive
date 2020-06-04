@@ -2,8 +2,11 @@
 VIAME Fish format deserializer
 """
 import csv
+import json
 import re
+import io
 from dataclasses import dataclass, field
+from dacite import from_dict, Config
 from typing import List, Dict, Tuple, Optional, Union, Any
 
 from girder.models.file import File
@@ -20,6 +23,10 @@ class Feature:
     fishLength: Optional[float] = None
     attributes: Optional[Dict[str, Union[bool, float, str]]] = None
 
+    def asdict(self):
+        """Removes entries with values of `None`."""
+        return {k: v for k, v in self.__dict__.items() if v is not None}
+
 
 @dataclass
 class Track:
@@ -30,29 +37,21 @@ class Track:
     confidencePairs: List[Tuple[str, float]] = field(default_factory=lambda: [])
     attributes: Dict[str, Any] = field(default_factory=lambda: {})
 
+    def asdict(self):
+        """Used instead of `dataclasses.asdict` for better performance."""
 
-def track_to_dict(track: Track):
-    """Used instead of `asdict` for better performance."""
-
-    def omit_empty(d):
-        return {k: v for k, v in d.items() if v is not None}
-
-    track_dict = dict(track.__dict__)
-    track_dict["features"] = [
-        omit_empty(feature.__dict__) for feature in track_dict["features"]
-    ]
-    return track_dict
+        track_dict = dict(self.__dict__)
+        track_dict["features"] = [
+            feature.asdict() for feature in track_dict["features"]
+        ]
+        return track_dict
 
 
 def row_info(row: List[str]) -> Tuple[int, int, List[float], float]:
     trackId = int(row[0])
     frame = int(row[2])
-    bounds = [
-        float(row[3]),
-        float(row[5]),
-        float(row[4]),
-        float(row[6]),
-    ]
+
+    bounds = [float(x) for x in row[3:7]]
     fish_length = float(row[8])
 
     return trackId, frame, bounds, fish_length
@@ -113,39 +112,13 @@ def _parse_row_for_tracks(row: List[str]) -> Tuple[Feature, Dict, Dict, List]:
     feature = Feature(
         frame,
         bounds,
-        attributes=attributes,
+        attributes=attributes or None,
         fishLength=fishLength if fishLength > 0 else None,
         **head_tail_feature,
     )
 
     # Pass the rest of the unchanged info through as well
     return feature, attributes, track_attributes, confidence_pairs
-
-
-def load_csv_as_detections(file) -> List[Dict]:
-    rows = (
-        b"".join(list(File().download(file, headers=False)()))
-        .decode("utf-8")
-        .split("\n")
-    )
-    reader = csv.reader(row for row in rows if (not row.startswith("#") and row))
-    detections = []
-    for row in reader:
-        features, attributes, track_attributes, confidence_pairs = _parse_row(row)
-        detections.append(
-            {
-                "track": int(row[0]),
-                "frame": int(row[2]),
-                "bounds": [float(row[3]), float(row[5]), float(row[4]), float(row[6])],
-                "confidence": float(row[7]),
-                "fishLength": float(row[8]),
-                "confidencePairs": confidence_pairs,
-                "features": features,
-                "attributes": attributes or None,
-                "trackAttributes": track_attributes or None,
-            }
-        )
-    return detections
 
 
 def load_csv_as_tracks(file):
@@ -182,4 +155,71 @@ def load_csv_as_tracks(file):
         for (key, val) in track_attributes:
             track.attributes[key] = val
 
-    return {trackId: track_to_dict(track) for trackId, track in tracks.items()}
+    return {trackId: track.asdict() for trackId, track in tracks.items()}
+
+
+def write_track_to_csv(track: Track, csv_writer):
+    def valueToString(value):
+        if value is True:
+            return "true"
+        elif value is False:
+            return "false"
+        return str(value)
+
+    columns: List[Any] = []
+    for feature in track.features:
+        columns = [
+            track.trackId,
+            "",
+            feature.frame,
+            *feature.bounds,
+            track.confidencePairs[-1][1],
+            feature.fishLength or -1,
+        ]
+
+        for pair in track.confidencePairs:
+            columns.extend(list(pair))
+
+        if feature.head and feature.tail:
+            columns.extend(
+                [
+                    f"(kp) head {feature.head[0]} {feature.head[1]}",
+                    f"(kp) tail {feature.tail[0]} {feature.tail[1]}",
+                ]
+            )
+
+        if feature.attributes:
+            for key, val in feature.attributes.items():
+                columns.append(f"(atr) {key} {valueToString(val)}")
+
+        if track.attributes:
+            for key, val in track.attributes.items():
+                columns.append(f"(trk-atr) {key} {valueToString(val)}")
+
+        csv_writer.writerow(columns)
+
+
+def export_tracks_as_csv(file) -> str:
+    """
+    Export track json to a CSV format.
+
+    file: The detections JSON file
+    """
+
+    track_json = json.loads(
+        b"".join(list(File().download(file, headers=False)())).decode()
+    )
+
+    tracks = {
+        # Config kwarg needed to convert lists into tuples
+        trackId: from_dict(Track, track, config=Config(cast=[Tuple]))
+        for trackId, track in track_json.items()
+    }
+
+    with io.StringIO() as csvFile:
+        writer = csv.writer(csvFile)
+
+        for track in tracks.values():
+            write_track_to_csv(track, writer)
+
+        return csvFile.getvalue()

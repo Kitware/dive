@@ -9,6 +9,7 @@ requirements = [
     "girder_worker==0.6.0",
     "girder_worker_utils==0.8.5",
     "pysnooper",
+    "dacite",
 ]
 
 setup(

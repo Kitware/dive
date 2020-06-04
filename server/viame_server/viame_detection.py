@@ -1,7 +1,5 @@
-import csv
 import io
 import json
-import re
 import urllib
 from datetime import datetime
 
@@ -14,7 +12,7 @@ from girder.models.file import File
 from girder.models.folder import Folder
 from girder.models.item import Item
 from girder.models.upload import Upload
-from girder.utility import ziputil
+from girder.models.assetstore import Assetstore
 
 from viame_server.serializers import viame
 from viame_server.utils import (
@@ -34,6 +32,7 @@ class ViameDetection(Resource):
         self.route("PUT", (), self.save_detection)
         self.route("GET", ("clip_meta",), self.get_clip_meta)
         self.route("GET", (":id", "export",), self.export_data)
+        self.route("GET", (":id", "export_detections",), self.export_detections)
 
     def _get_clip_meta(self, folder):
         detections = list(
@@ -105,6 +104,47 @@ class ViameDetection(Resource):
 
     @access.user
     @autoDescribeRoute(
+        Description("Export detections of a clip into CSV format.")
+        .modelParam(
+            "id",
+            description="folder id of a clip",
+            model=Folder,
+            required=True,
+            level=AccessType.READ,
+        )
+    )
+    def export_detections(self, folder):
+        user = self.getCurrentUser()
+
+        detectionItems = list(
+            Item().findWithPermissions(
+                {"meta.detection": str(folder["_id"])}, user=self.getCurrentUser(),
+            )
+        )
+        detectionItems.sort(key=lambda d: d["created"], reverse=True)
+        item = detectionItems[0]
+        file = Item().childFiles(item)[0]
+
+        if "csv" in file["exts"]:
+            return File().download(file)
+
+        filename = ".".join([file["name"].split(".")[:-1][0], "csv"])
+
+        csv_string = viame.export_tracks_as_csv(file)
+        csv_bytes = csv_string.encode()
+
+        assetstore = Assetstore().findOne({"_id": file["assetstoreId"]})
+        new_file = File().findOne({"name": filename}) or File().createFile(
+            user, item, filename, len(csv_bytes), assetstore
+        )
+
+        upload = Upload().createUploadToFile(new_file, user, len(csv_bytes))
+        new_file = Upload().handleChunk(upload, csv_bytes)
+
+        return File().download(new_file)
+
+    @access.user
+    @autoDescribeRoute(
         Description("Get detections of a clip")
         .modelParam(
             "folderId",
@@ -114,23 +154,22 @@ class ViameDetection(Resource):
             required=True,
             level=AccessType.READ,
         )
-        .param("formatting", "Format to fetch", default="track_json",)
     )
-    def get_detection(self, folder, formatting):
+    def get_detection(self, folder):
         detectionItems = list(
             Item().findWithPermissions(
                 {"meta.detection": str(folder["_id"])}, user=self.getCurrentUser(),
             )
         )
         detectionItems.sort(key=lambda d: d["created"], reverse=True)
+
         if not len(detectionItems):
             return None
+
         file = Item().childFiles(detectionItems[0])[0]
-        if formatting == "track_json":
+        if "csv" in file["exts"]:
             return viame.load_csv_as_tracks(file)
-        elif formatting == "detection_json":
-            return viame.load_csv_as_detections(file)
-        raise RestException(f"formatting {formatting} is not recognized")
+        return File().download(file, contentDisposition="inline")
 
     @access.user
     @autoDescribeRoute(
@@ -157,76 +196,30 @@ class ViameDetection(Resource):
             required=True,
             level=AccessType.READ,
         )
-        .jsonParam("detections", "", requireArray=True, paramType="body")
+        .jsonParam("tracks", "", paramType="body")
     )
-    def save_detection(self, folder, detections):
+    def save_detection(self, folder, tracks):
         user = self.getCurrentUser()
 
-        def valueToString(value):
-            if value is True:
-                return "true"
-            elif value is False:
-                return "false"
-            return str(value)
-
-        def getRow(d, trackAttributes=None):
-            columns = [
-                d["track"],
-                "",
-                d["frame"],
-                d["bounds"][0],
-                d["bounds"][2],
-                d["bounds"][1],
-                d["bounds"][3],
-                d["confidence"],
-                d["fishLength"],
-            ]
-            for [key, confidence] in d["confidencePairs"]:
-                columns += [key, confidence]
-            if d["features"]:
-                for [key, values] in d["features"].items():
-                    columns.append("(kp) {} {} {}".format(key, values[0], values[1]))
-            if d["attributes"]:
-                for [key, value] in d["attributes"].items():
-                    columns.append("(atr) {} {}".format(key, valueToString(value)))
-            if trackAttributes:
-                for [key, value] in trackAttributes.items():
-                    columns.append("(trk-atr) {} {}".format(key, valueToString(value)))
-            return columns
-
-        detections.sort(key=lambda d: d["track"])
-
-        csvFile = io.StringIO()
-        writer = csv.writer(csvFile)
-        trackAttributes = None
-        length = len(detections)
-        track = detections[0]["track"]
-        for i in range(0, len(detections)):
-            trackAttributes = (
-                detections[i]["trackAttributes"]
-                if detections[i]["trackAttributes"]
-                else None
-            )
-            if i == length - 1 or detections[i + 1]["track"] != track:
-                writer.writerow(getRow(detections[i], trackAttributes))
-            else:
-                writer.writerow(getRow(detections[i]))
+        timestamp = datetime.now().strftime("%m-%d-%Y_%H:%M:%S")
+        item_name = f"result_{timestamp}.json"
 
         move_existing_result_to_auxiliary_folder(folder, user)
-
-        timestamp = datetime.now().strftime("%m-%d-%Y_%H:%M:%S")
-        newResultItem = Item().createItem("result_" + timestamp + ".csv", user, folder)
+        newResultItem = Item().createItem(item_name, user, folder)
         Item().setMetadata(
             newResultItem, {"detection": str(folder["_id"])}, allowNull=True,
         )
-        theBytes = csvFile.getvalue().encode()
-        byteIO = io.BytesIO(theBytes)
+
+        json_bytes = json.dumps(tracks).encode()
+        byteIO = io.BytesIO(json_bytes)
         Upload().uploadFromFile(
             byteIO,
-            len(theBytes),
-            "result.csv",
+            len(json_bytes),
+            item_name,
             parentType="item",
             parent=newResultItem,
             user=user,
+            mimeType="application/json",
         )
+
         return True
