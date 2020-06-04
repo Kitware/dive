@@ -22,7 +22,6 @@ function getPathFromLocation(location: GirderModel) {
 function geojsonToBound({ coordinates }: {
   coordinates: number[][][]; // Array of [x,y] points of vertexes of shapes
 }) {
-  console.log(coordinates);
   const coords = coordinates[0];
   // return [x1, y1, x2, y2] of the first shape in the shape arr.
   return [coords[1][0], coords[1][1], coords[3][0], coords[3][1]];

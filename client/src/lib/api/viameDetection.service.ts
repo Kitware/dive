@@ -29,7 +29,6 @@ async function saveDetections(folderId: string, trackMap: Map<TrackId, Track>) {
   Array.from(trackMap.entries()).forEach(([id, track]) => {
     serialized[id] = track.serialize();
   });
-  console.log(serialized);
   return girderRest.put('viame_detection', serialized, {
     params: { folderId },
   });
