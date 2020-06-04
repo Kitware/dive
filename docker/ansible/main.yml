@@ -1,0 +1,18 @@
+# Playbook that runs all included playbooks
+
+- hosts: localhost
+  vars:
+    # Required to use docker_compose properly
+    ansible_python_interpreter: /usr/bin/python3
+  tasks:
+    - name: Pull Repository Changes
+      shell: git pull
+      args:
+        chdir: /home/viame
+
+
+- name: Include systemd playbook
+  include: systemd.yml
+
+- name: Include deploy playbook
+  include: deploy.yml

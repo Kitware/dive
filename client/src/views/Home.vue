@@ -168,7 +168,7 @@ export default {
     <NavigationBar />
     <v-container fill-height>
       <v-row
-        class="fill-height"
+        class="fill-height nowraptable"
         no-gutters
       >
         <v-col :cols="12">
@@ -250,3 +250,9 @@ export default {
     </v-container>
   </v-content>
 </template>
+
+<style lang='scss'>
+.nowraptable table thead tr th .row {
+  flex-wrap: nowrap;
+}
+</style>
