@@ -6,7 +6,7 @@ export default function useSave() {
   const pendingSaveCount = ref(0);
 
   async function save(datasetId: string, trackMap: Map<TrackId, Track>) {
-    saveDetections(
+    await saveDetections(
       datasetId,
       trackMap,
     );

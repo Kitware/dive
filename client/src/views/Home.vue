@@ -181,7 +181,10 @@ export default {
             @dragover.native="dragover"
           >
             <template #headerwidget>
-              <run-pipeline-menu :selected="selected" />
+              <run-pipeline-menu
+                :selected="selected"
+                small
+              />
               <export
                 v-if="exportTarget"
                 v-bind="exportTarget"

@@ -35,8 +35,8 @@ export default function useLineChart({
      * enabled types
      */
     const histograms = new Map<string, number[]>();
-    histograms.set('total', []);
-    allTypes.value.forEach((t) => histograms.set(t, []));
+    histograms.set('total', [0]);
+    allTypes.value.forEach((t) => histograms.set(t, [0]));
 
     /* In order to populate the histograms, generate and solve a
      * sort of "balanced parenthesis" problem.
