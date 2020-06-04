@@ -29,7 +29,7 @@ export default function useEventChart({
       if (track === undefined) {
         throw new Error(`Accessed missing track ${trackId}`);
       }
-      const confidencePairs = track.confidencePairs.value;
+      const { confidencePairs } = track;
       if (confidencePairs.length) {
         const trackType = confidencePairs[0][0];
         values.push({
@@ -37,7 +37,7 @@ export default function useEventChart({
           name: `Track ${trackId}`,
           color: typeColorMapper(trackType),
           selected: trackId === selectedTrackId.value,
-          range: [track.begin.value, track.end.value],
+          range: [track.begin, track.end],
         });
       }
     });

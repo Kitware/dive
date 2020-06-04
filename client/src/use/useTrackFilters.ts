@@ -10,7 +10,9 @@ interface UseTrackFilterParams {
 }
 
 /* Provide track filtering controls on tracks loaded from useTrackStore. */
-export default function useFilteredTracks({ trackMap, sortedTrackIds }: UseTrackFilterParams) {
+export default function useFilteredTracks(
+  { trackMap, sortedTrackIds }: UseTrackFilterParams,
+) {
   /* Track IDs explicitly checked "ON" by the user */
   const checkedTrackIds = ref(Array.from(sortedTrackIds.value));
   /* The confidence threshold to test confidecePairs against */
@@ -24,7 +26,7 @@ export default function useFilteredTracks({ trackMap, sortedTrackIds }: UseTrack
       if (track === undefined) {
         throw new Error(`Accessed missing track ${trackId}`);
       }
-      track.confidencePairs.value.forEach(([name]) => {
+      track.confidencePairs.forEach(([name]) => {
         typeSet.add(name);
       });
     });
@@ -37,21 +39,22 @@ export default function useFilteredTracks({ trackMap, sortedTrackIds }: UseTrack
   /* track IDs filtered by type and confidence threshold */
   const filteredTrackIds = computed(() => {
     const checkedSet = new Set(checkedTypes.value);
+    const confidenceThresh = confidenceThreshold.value;
     return sortedTrackIds.value.filter((trackId) => {
       const track = trackMap.get(trackId);
       if (track === undefined) {
         throw new Error(`Accessed missing track ${trackId}`);
       }
-      const confidencePairsAboveThreshold = track.confidencePairs.value
+      const confidencePairsAboveThreshold = track.confidencePairs
         .some(([confkey, confval]) => (
-          confval >= confidenceThreshold.value && checkedSet.has(confkey)
+          confval >= confidenceThresh && checkedSet.has(confkey)
         ));
       return (
         /* include tracks where at least 1 confidence pair is above
          * the threshold and part of the checked type set */
         confidencePairsAboveThreshold
         /* include tracks with no confidence pairs */
-        || track.confidencePairs.value.length === 0
+        || track.confidencePairs.length === 0
       );
     });
   });

@@ -3,8 +3,12 @@ export default {
   name: 'TrackItem',
 
   props: {
-    track: {
-      type: Object,
+    trackType: {
+      type: String,
+      required: true,
+    },
+    trackId: {
+      type: Number,
       required: true,
     },
     types: {
@@ -48,10 +52,6 @@ export default {
       }
       return {};
     },
-
-    comboValue() {
-      return this.track.confidencePairs.value.length ? this.track.confidencePairs.value[0][0] : '';
-    },
   },
 
   watch: {
@@ -80,7 +80,7 @@ export default {
     },
     handleChange(newval) {
       this.editing = false;
-      if (newval !== this.comboValue) {
+      if (newval !== this.trackType) {
         this.$emit('type-change', newval);
       }
     },
@@ -98,14 +98,14 @@ export default {
       dense
       hide-details
       :input-value="inputValue"
-      :color="colorMap(comboValue)"
+      :color="colorMap(trackType)"
       @change="$emit('change', $event)"
     />
     <div
       class="trackNumber pl-0 pr-2"
       @click.self="$emit('click')"
     >
-      {{ track.trackId.value + (editingTrack.value ? "*" : "") }}
+      {{ trackId + (editingTrack.value ? "*" : "") }}
     </div>
     <div
       v-if="!editing"
@@ -115,13 +115,13 @@ export default {
       class="type-display flex-grow-1 flex-shrink-1 ml-0"
       @click="editing = true"
     >
-      {{ comboValue || 'undefined' }}
+      {{ trackType || 'undefined' }}
     </div>
     <v-combobox
       v-else
       ref="trackTypeBox"
       class="ml-0"
-      :value="comboValue"
+      :value="trackType"
       :items="types"
       dense
       hide-details

@@ -16,7 +16,7 @@ import AnnotationLayer from '@/components/layers/AnnotationLayer';
 import TextLayer from '@/components/layers/TextLayer';
 import EditAnnotationLayer from '@/components/layers/EditAnnotationLayer';
 import MarkerLayer from '@/components/layers/MarkerLayer';
-import { geojsonToBound } from '@/utils';
+import { geojsonToBound, geojsonToBoundOther } from '@/utils';
 import { FeaturePointingTarget } from '@/use/useFeaturePointing';
 
 
@@ -90,28 +90,32 @@ export default defineComponent({
     });
 
     function updateLayers(updated = {}) {
-      const currentFrameIds = props.intervalTree.search([frameNumber.value, frameNumber.value]);
+      const frame = frameNumber.value;
+      const editingTrack = props.editingTrack.value;
+      const selectedTrackId = props.selectedTrackId.value;
+      const trackIds = props.trackIds.value;
+      const currentFrameIds = props.intervalTree.search([frame, frame]);
       const tracks = [] as FrameDataTrack[];
       const editingTracks = [] as FrameDataTrack[];
       currentFrameIds.forEach(
         (item: number) => {
-          if (props.trackIds.value.includes(item)) {
+          if (trackIds.includes(item)) {
             if (props.trackMap.has(item)) {
               const track = props.trackMap.get(item);
               if (track === undefined) {
                 throw new Error(`trackMap missing trackid ${item}`);
               }
-              const features = track.getFeature(frameNumber.value);
+              const features = track.getFeature(frame);
               const trackFrame = {
-                selected: (props.selectedTrackId.value === track.trackId.value),
-                editing: props.editingTrack.value,
-                trackId: track.trackId.value,
+                selected: (selectedTrackId === track.trackId),
+                editing: editingTrack,
+                trackId: track.trackId,
                 features,
-                confidencePairs: track.confidencePairs.value,
+                confidencePairs: track.confidencePairs,
               };
               tracks.push(trackFrame);
               // eslint-disable-next-line max-len
-              if ((tracks[tracks.length - 1].selected && props.editingTrack.value)) {
+              if ((tracks[tracks.length - 1].selected && editingTrack)) {
                 editingTracks.push(trackFrame);
               }
             }
@@ -119,15 +123,15 @@ export default defineComponent({
         },
       );
 
-      if (props.editingTrack.value && !currentFrameIds.includes(props.selectedTrackId.value)) {
-        const editTrack = props.trackMap.get(props.selectedTrackId.value);
-        const features = editTrack.getFeature(frameNumber.value);
+      if (editingTrack && !currentFrameIds.includes(selectedTrackId)) {
+        const editTrack = props.trackMap.get(selectedTrackId);
+        const features = editTrack.getFeature(frame);
         const trackFrame = {
           selected: true,
           editing: true,
-          trackId: editTrack.trackId.value,
+          trackId: editTrack.trackId,
           features,
-          confidencePairs: editTrack.confidencePairs.value,
+          confidencePairs: editTrack.confidencePairs,
         };
         editingTracks.push(trackFrame);
       }
@@ -176,7 +180,9 @@ export default defineComponent({
     editAnnotationLayer.$on('update:geojson', (data) => {
       const track = props.trackMap.get(props.selectedTrackId.value);
       if (track) {
-        const bounds = geojsonToBound(data.geometry);
+        const bounds = data.type !== 'Feature'
+          ? geojsonToBoundOther(data.geometry)
+          : geojsonToBound(data.geometry);
         track.setFeature({
           frame: frameNumber.value,
           bounds,

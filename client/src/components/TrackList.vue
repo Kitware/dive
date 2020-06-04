@@ -50,12 +50,33 @@ export default Vue.extend({
     itemHeight: 45, // in pixels
   }),
 
+  computed: {
+    virtualListItems() {
+      const selectedTrackId = this.selectedTrackId.value;
+      const checkedTrackIds = this.checkedTrackIds.value;
+      const editingTrack = this.editingTrack.value;
+      const allTypes = this.allTypes.value;
+      return this.filteredTrackIds.value.map((trackId) => ({
+        trackId,
+        selectedTrackId,
+        checkedTrackIds,
+        editingTrack,
+        allTypes,
+      }));
+    },
+  },
+
   watch: {
     // eslint-disable-next-line func-names
     'selectedTrackId.value': function (trackId) {
       this.scrollToTrack(trackId);
     },
+    // eslint-disable-next-line func-names
+    'filteredTrackIds.value': function () {
+      this.$nextTick(() => this.scrollToTrack(this.selectedTrackId.value));
+    },
   },
+
 
   methods: {
     scrollToTrack(trackId: TrackId) {
@@ -80,19 +101,31 @@ export default Vue.extend({
       }
     },
 
-    getItemProps(trackId: TrackId) {
+    getItemProps({
+      trackId,
+      selectedTrackId,
+      checkedTrackIds,
+      editingTrack,
+      allTypes,
+    }: {
+      trackId: TrackId;
+      selectedTrackId: TrackId;
+      checkedTrackIds: TrackId[];
+      editingTrack: boolean;
+      allTypes: string[];
+    }) {
       const track = this.trackMap.get(trackId);
       if (track === undefined) {
         throw new Error(`Accessed missing track ${trackId}`);
       }
       return {
-        track,
+        trackType: track.getType() || '',
         trackId,
-        inputValue: this.checkedTrackIds.value.indexOf(trackId) >= 0,
-        selected: this.selectedTrackId.value === trackId,
-        editingTrack: this.editingTrack.value,
+        inputValue: checkedTrackIds.indexOf(trackId) >= 0,
+        selected: selectedTrackId === trackId,
+        editingTrack,
         colorMap: this.typeColorMapper,
-        types: this.allTypes.value,
+        types: allTypes,
       };
     },
 
@@ -127,18 +160,18 @@ export default Vue.extend({
         { bind: 'enter', handler: () => $emit('track-click', selectedTrackId.value)},
         { bind: 'del', handler: () => $emit('track-remove', selectedTrackId.value)},
       ]"
-      :items="filteredTrackIds.value"
+      :items="virtualListItems"
       :item-height="itemHeight"
       :height="400"
     >
-      <template #default="{ item: trackId }">
+      <template #default="{ item }">
         <track-item
-          v-bind="getItemProps(trackId)"
-          @change="$emit('track-checked', { trackId, value: $event })"
-          @type-change="setType(trackId, $event)"
-          @delete="$emit('track-remove', trackId)"
-          @click="$emit('track-click', trackId)"
-          @edit="$emit('track-edit', trackId)"
+          v-bind="getItemProps(item)"
+          @change="$emit('track-checked', { trackId: item.trackId, value: $event })"
+          @type-change="setType(item.trackId, $event)"
+          @delete="$emit('track-remove', item.trackId)"
+          @click="$emit('track-click', item.trackId)"
+          @edit="$emit('track-edit', item.trackId)"
         />
       </template>
     </v-virtual-scroll>

@@ -152,7 +152,7 @@ export default defineComponent({
     function handleTrackEdit(trackId: TrackId) {
       const track = trackMap.get(trackId);
       if (track !== undefined) {
-        playbackComponent.value.seek(track.begin.value);
+        playbackComponent.value.seek(track.begin);
         selectTrack(trackId, true);
       }
     }
@@ -160,7 +160,7 @@ export default defineComponent({
     function handleTrackClick(trackId: TrackId) {
       const track = trackMap.get(trackId);
       if (track !== undefined) {
-        playbackComponent.value.seek(track.begin.value);
+        playbackComponent.value.seek(track.begin);
         selectTrack(trackId, editingTrack.value);
       }
     }
@@ -275,7 +275,7 @@ export default defineComponent({
     >
       <sidebar
         v-bind="sidebarProps"
-        @track-add="selectTrack(addTrack().trackId.value, true)"
+        @track-add="selectTrack(addTrack(frame).trackId, true)"
         @track-remove="removeTrack"
         @track-click="handleTrackClick"
         @track-edit="handleTrackEdit"

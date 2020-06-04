@@ -18,13 +18,23 @@ function getPathFromLocation(location: GirderModel) {
   }`;
 }
 
-
+/* geojsonToBounds beginning at top left */
 function geojsonToBound({ coordinates }: {
   coordinates: number[][][]; // Array of [x,y] points of vertexes of shapes
 }): [number, number, number, number] {
   const coords = coordinates[0];
   // return [x1, y1, x2, y2] of the first shape in the shape arr.
   return [coords[0][0], coords[1][1], coords[1][0], coords[2][1]];
+}
+
+/* geojsonToBounds beginning at bottom left */
+function geojsonToBoundOther({ coordinates }: {
+  coordinates: number[][][]; // Array of [x,y] points of vertexes of shapes
+}) {
+  console.log(coordinates);
+  const coords = coordinates[0];
+  // return [x1, y1, x2, y2] of the first shape in the shape arr.
+  return [coords[1][0], coords[1][1], coords[3][0], coords[3][1]];
 }
 
 function boundToGeojson(bounds: [number, number, number, number]) {
@@ -50,4 +60,5 @@ export {
   getPathFromLocation,
   geojsonToBound,
   boundToGeojson,
+  geojsonToBoundOther,
 };
