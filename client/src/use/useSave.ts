@@ -1,5 +1,5 @@
 import { ref } from '@vue/composition-api';
-import Track, { TrackId } from '@/lib/track';
+import Track, { TrackId, TrackData } from '@/lib/track';
 import { saveDetections } from '@/lib/api/viameDetection.service';
 
 export default function useSave() {
@@ -8,7 +8,7 @@ export default function useSave() {
   async function save(datasetId: string, trackMap: Map<TrackId, Track>) {
     saveDetections(
       datasetId,
-      Array.from(trackMap.values()).map((track) => track.serialize()),
+      trackMap,
     );
     pendingSaveCount.value = 0;
   }

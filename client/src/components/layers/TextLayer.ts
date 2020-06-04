@@ -25,8 +25,8 @@ export default class TextLayer extends BaseLayer {
               editing: track.editing,
               confidencePairs: track.confidencePairs,
               text: `${type}: ${confidence.toFixed(2)}`,
-              x: bounds[1],
-              y: bounds[2],
+              x: bounds[2],
+              y: bounds[1],
               offsetY: i * 14,
             });
           });
@@ -48,12 +48,6 @@ export default class TextLayer extends BaseLayer {
 
   createStyle() {
     const baseStyle = super.createStyle();
-    const textStyle = {
-      fontSize: '14px',
-      textAlign: 'left',
-      color: this.stateStyling.standard.color,
-      textBaseline: 'top',
-    };
     return {
       ...baseStyle,
       color: (data) => {
