@@ -59,8 +59,18 @@ export default {
       const interactorOpts = this.geoViewer.interactor().options();
       interactorOpts.keyboard.focusHighlight = false;
       interactorOpts.keyboard.actions = {};
+      interactorOpts.click.cancelOnMove = 5;
+
       interactorOpts.actions = [
         interactorOpts.actions[0],
+        // The action below is needed to have GeoJS use the proper handler
+        // with cancelOnMove for right clicks
+        {
+          action: 'geo_action_select',
+          input: { right: true },
+          name: 'button edit',
+          owner: 'geo.MapIteractor',
+        },
         interactorOpts.actions[2],
         interactorOpts.actions[6],
         interactorOpts.actions[7],
