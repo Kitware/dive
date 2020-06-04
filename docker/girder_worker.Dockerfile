@@ -30,6 +30,8 @@ ENV TINI_VERSION v0.19.0
 ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini /tini
 RUN chmod +x /tini
 
+RUN pip install future
+
 # Pip install dependencies
 COPY server/setup.py /home/viame_girder/
 RUN pip install --no-cache-dir .
