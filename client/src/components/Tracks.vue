@@ -86,11 +86,7 @@ export default {
      */
     scrollPreventDefault(element, keyEvent, direction) {
       if (element === this.$refs.virtualList.$el) {
-        if (direction === 'up') {
-          this.$emit('select-track-up');
-        } else if (direction === 'down') {
-          this.$emit('select-track-down');
-        }
+        this.$emit('select-keyboard-track', direction);
         keyEvent.preventDefault();
       }
     },
