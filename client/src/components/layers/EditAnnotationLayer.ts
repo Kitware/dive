@@ -1,10 +1,13 @@
 /*eslint class-methods-use-this: "off"*/
-import BaseLayer, { BaseLayerParams } from '@/components/layers/BaseLayer';
+import BaseLayer, { BaseLayerParams, LayerStyle } from '@/components/layers/BaseLayer';
 import { boundToGeojson } from '@/utils';
 import { StateStyles } from '@/use/useStyling';
 import geo from 'geojs';
 import { FrameDataTrack } from '@/components/layers/LayerTypes';
-import { thresholdFreedmanDiaconis } from 'd3';
+
+interface EditAnnotationLayerParams {
+  editing: 'point' | 'rectangle';
+}
 
 /**
  * This class is used to edit annotations within the viewer
@@ -12,18 +15,16 @@ import { thresholdFreedmanDiaconis } from 'd3';
  * rectangle or edit modes
  * Basic operation is that changedData will start the edited annotation
  * emits 'update:geojson' when data is changed
- * @param {'rectangle' | 'edit'} string determines the mode to run in
- * @param {changed} boolean - internal tracker for chaning objects.
  */
-export default class EditAnnotationLayer extends BaseLayer {
+export default class EditAnnotationLayer extends BaseLayer<unknown> {
   changed: boolean;
 
-  editing: string;
+  editing: 'point' | 'rectangle';
 
-  constructor(params: BaseLayerParams) {
+  constructor(params: BaseLayerParams & EditAnnotationLayerParams) {
     super(params);
     this.changed = false;
-    this.editing = params.editing || 'rectangle';
+    this.editing = params.editing;
     //Only initialize once, prevents recreating Layer each edit
     this.initialize();
   }
@@ -211,7 +212,7 @@ export default class EditAnnotationLayer extends BaseLayer {
   /**
    * The base style used to represent the annotation
    */
-  createStyle() {
+  createStyle(): LayerStyle<unknown> {
     const baseStyle = super.createStyle();
     if (this.editing === 'rectangle') {
       return {

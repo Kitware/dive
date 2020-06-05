@@ -118,13 +118,15 @@ export default Vue.extend({
       if (track === undefined) {
         throw new Error(`Accessed missing track ${trackId}`);
       }
+      const type = track.getType();
+      const trackType = type ? type[0] : '';
       return {
-        trackType: track.getType() || '',
+        trackType,
         trackId,
         inputValue: checkedTrackIds.indexOf(trackId) >= 0,
         selected: selectedTrackId === trackId,
         editingTrack,
-        colorMap: this.typeColorMapper,
+        color: this.typeColorMapper(trackType),
         types: allTypes,
       };
     },

@@ -4,9 +4,9 @@ import * as d3 from 'd3';
 import { Vuetify } from 'vuetify';
 
 interface Style{
-  strokeWidth?: number;
-  opacity?: number;
-  color?: string;
+  strokeWidth: number;
+  opacity: number;
+  color: string;
 
 }
 export interface StateStyles {

@@ -5,12 +5,17 @@ import { StateStyles } from '@/use/useStyling';
 import Vue from 'vue';
 
 // eslint-disable-next-line max-len
-export type StyleFunction<T> = T | ((point: [number, number], index: number, data: any) => T | undefined);
+export type StyleFunction<T, D> = T | ((point: [number, number], index: number, data: D) => T | undefined);
 
-interface LayerStyle {
-  strokeWidth?: StyleFunction<number>;
-  strokeOpacity?: StyleFunction<number>;
-  strokeColor?: StyleFunction<string>;
+export interface LayerStyle<D> {
+  strokeWidth?: StyleFunction<number, D>;
+  strokeOpacity?: StyleFunction<number, D>;
+  strokeColor?: StyleFunction<string, D>;
+  fillColor?: (data: D) => string;
+  color?: (data: D) => string;
+  offset?: (data: D) => { x: number; y: number };
+  fill?: boolean;
+  radius?: number;
   [x: string]: unknown;
 }
 
@@ -19,20 +24,20 @@ export interface BaseLayerParams {
     annotator: Annotator;
     stateStyling: StateStyles;
     typeColorMap: d3.ScaleOrdinal<string, string>;
-    [x: string]: unknown;
 }
 
-export default abstract class BaseLayer extends Vue {
+export default abstract class BaseLayer<D> extends Vue {
     formattedData: unknown;
 
     annotator: Annotator;
 
     stateStyling: StateStyles;
 
-    style: LayerStyle;
+    style: LayerStyle<D>;
 
     typeColorMap: d3.ScaleOrdinal<string, string>;
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     featureLayer: any;
 
     selectedIndex: number[]; // sparse array
@@ -80,7 +85,7 @@ export default abstract class BaseLayer extends Vue {
 
     abstract formatData(frameData: FrameDataTrack[]): unknown;
 
-    createStyle(): LayerStyle {
+    createStyle(): LayerStyle<D> {
       return {
         strokeColor: 'black',
         strokeOpacity: 1.0,

@@ -1,6 +1,6 @@
 import { ref, Ref, computed } from '@vue/composition-api';
 import { getDetections } from '@/lib/api/viameDetection.service';
-import Track, { TrackData, TrackId } from '@/lib/track';
+import Track, { TrackId } from '@/lib/track';
 import IntervalTree from '@flatten-js/interval-tree';
 
 interface UseTrackStoreParams {

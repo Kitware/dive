@@ -1,4 +1,3 @@
-import Vue from 'vue';
 import { reactive, toRefs, Ref } from '@vue/composition-api';
 import Track, { TrackId } from '@/lib/track';
 

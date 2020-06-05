@@ -1,5 +1,5 @@
 import { ref } from '@vue/composition-api';
-import Track, { TrackId, TrackData } from '@/lib/track';
+import Track, { TrackId } from '@/lib/track';
 import { saveDetections } from '@/lib/api/viameDetection.service';
 
 export default function useSave() {

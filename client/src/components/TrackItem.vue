@@ -4,7 +4,7 @@ export default {
 
   props: {
     trackType: {
-      type: Array,
+      type: String,
       required: true,
     },
     trackId: {
@@ -27,8 +27,8 @@ export default {
       validator: Object,
       required: true,
     },
-    colorMap: {
-      type: Function,
+    color: {
+      type: String,
       required: true,
     },
   },
@@ -80,7 +80,7 @@ export default {
     },
     handleChange(newval) {
       this.editing = false;
-      if (newval !== this.trackType[0]) {
+      if (newval !== this.trackType) {
         this.$emit('type-change', newval);
       }
     },
@@ -98,7 +98,7 @@ export default {
       dense
       hide-details
       :input-value="inputValue"
-      :color="colorMap(trackType[0])"
+      :color="color"
       @change="$emit('change', $event)"
     />
     <div
@@ -121,7 +121,7 @@ export default {
       v-else
       ref="trackTypeBox"
       class="ml-0"
-      :value="trackType[0]"
+      :value="trackType"
       :items="types"
       dense
       hide-details
@@ -155,7 +155,9 @@ export default {
         <v-divider />
         <v-list-item @click="$emit('delete')">
           <v-list-item-title>
-            <v-icon color="error">mdi-trash-can</v-icon>
+            <v-icon color="error">
+              mdi-trash-can
+            </v-icon>
             Delete track
           </v-list-item-title>
         </v-list-item>

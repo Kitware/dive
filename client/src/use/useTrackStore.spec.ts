@@ -13,8 +13,7 @@ describe('useTrackStore', () => {
     let didCall = false;
     const markChangesPending = () => { didCall = true; };
     const ts = useTrackStore({ markChangesPending });
-    ts;
-    const newTrack = ts.addTrack();
+    ts.addTrack();
     expect(didCall).toEqual(true);
   });
 });

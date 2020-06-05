@@ -1,10 +1,8 @@
 <script lang="ts">
-import Vue from 'vue';
 import {
   computed,
   defineComponent,
   ref,
-  inject,
 } from '@vue/composition-api';
 
 

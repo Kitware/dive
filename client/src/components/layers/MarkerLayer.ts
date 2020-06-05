@@ -1,4 +1,4 @@
-import BaseLayer, { BaseLayerParams } from './BaseLayer';
+import BaseLayer, { LayerStyle } from './BaseLayer';
 import { FrameDataTrack } from './LayerTypes';
 
 interface FormattedMarkerFeature {
@@ -7,19 +7,12 @@ interface FormattedMarkerFeature {
   y: number;
 }
 
-export default class MarkerLayer extends BaseLayer {
-  pointFeature: any;
-
-  constructor(params: BaseLayerParams) {
-    super(params);
-    this.pointFeature = this.featureLayer.createFeature('point');
-    this.pointFeature.style(this.createStyle());
-  }
-
+export default class MarkerLayer extends BaseLayer<FormattedMarkerFeature> {
   initialize() {
-    this.featureLayer = this.annotator.geoViewer.createLayer('feature', {
+    const layer = this.annotator.geoViewer.createLayer('feature', {
       features: ['point'],
     });
+    this.featureLayer = layer.createFeature('point');
   }
 
   // eslint-disable-next-line class-methods-use-this
@@ -45,12 +38,12 @@ export default class MarkerLayer extends BaseLayer {
     return data;
   }
 
-  createStyle() {
+  createStyle(): LayerStyle<FormattedMarkerFeature> {
     const baseStyle = super.createStyle();
     return {
       ...baseStyle,
       fill: true,
-      fillColor: (data: FormattedMarkerFeature) => (
+      fillColor: (data) => (
         data.feature === 'tail' ? 'orange' : 'blue'
       ),
       radius: 4,

@@ -1,5 +1,5 @@
 /* eslint-disable class-methods-use-this */
-import BaseLayer from '@/components/layers/BaseLayer';
+import BaseLayer, { LayerStyle } from '@/components/layers/BaseLayer';
 import { boundToGeojson } from '@/utils';
 import geo, { Polygon, GeoEvent } from 'geojs';
 import { FrameDataTrack } from '@/components/layers/LayerTypes';
@@ -8,11 +8,11 @@ import { FrameDataTrack } from '@/components/layers/LayerTypes';
    trackId: number;
    selected: boolean;
    editing: boolean;
-   confidencePairs?: [string, number] | null;
+   confidencePairs: [string, number] | null;
    polygon: Polygon;
  }
 
-export default class AnnotationLayer extends BaseLayer {
+export default class AnnotationLayer extends BaseLayer<RectGeoJSData> {
   initialize() {
     const layer = this.annotator.geoViewer.createLayer('feature', {
       features: ['point', 'line', 'polygon'],
@@ -69,59 +69,31 @@ export default class AnnotationLayer extends BaseLayer {
     return null;
   }
 
-  createStyle() {
-    const baseStyle = super.createStyle();
+  createStyle(): LayerStyle<RectGeoJSData> {
     return {
-      ...baseStyle,
+      ...super.createStyle(),
       // Style conversion to get array objects to work in geoJS
       position: (data: [number, number]) => {
         const obj = { x: data[0], y: data[1] };
         return obj;
       },
-      strokeColor: (point: [number, number], index: number, data: RectGeoJSData) => {
-        if (data.editing) {
-          if (!data.selected) {
-            if (this.stateStyling.disabled && this.stateStyling.disabled.color !== 'type') {
-              return this.stateStyling.disabled.color;
-            }
-            if (data.confidencePairs && data.confidencePairs.length) {
-              return this.typeColorMap(data.confidencePairs[0][0]);
-            }
-          }
+      strokeColor: (_point: [number, number], _index: number, data: RectGeoJSData) => {
+        if (data.editing || data.selected) {
           return this.stateStyling.selected.color;
         }
-        if (data.selected) {
-          return this.stateStyling.selected.color;
-        }
-        if (data.confidencePairs && data.confidencePairs.length) {
-          return this.typeColorMap(data.confidencePairs[0][0]);
+        if (data.confidencePairs) {
+          return this.typeColorMap(data.confidencePairs[0]);
         }
         return this.typeColorMap.range()[0];
       },
-      strokeOpacity: (point: [number, number], index: number, data: RectGeoJSData) => {
-        if (data.editing) {
-          if (this.stateStyling.disabled && !data.selected) {
-            return this.stateStyling.disabled.opacity;
-          }
-          if (this.stateStyling.selected) {
-            return this.stateStyling.selected.opacity;
-          }
-        }
-
-        if (data.selected) {
+      strokeOpacity: (_point: [number, number], _index: number, data: RectGeoJSData) => {
+        if (data.editing || data.selected) {
           return this.stateStyling.selected.opacity;
         }
         return this.stateStyling.standard.opacity;
       },
-      strokeWidth: (point: [number, number], index: number, data: RectGeoJSData) => {
-        if (data.editing) {
-          if (!data.selected) {
-            return this.stateStyling.disabled.strokeWidth;
-          }
-          return this.stateStyling.selected.strokeWidth;
-        }
-
-        if (data.selected) {
+      strokeWidth: (_point: [number, number], _index: number, data: RectGeoJSData) => {
+        if (data.editing || data.selected) {
           return this.stateStyling.selected.strokeWidth;
         }
         return this.stateStyling.standard.strokeWidth;

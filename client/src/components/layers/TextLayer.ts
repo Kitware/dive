@@ -1,4 +1,4 @@
-import BaseLayer from '@/components/layers/BaseLayer';
+import BaseLayer, { LayerStyle } from '@/components/layers/BaseLayer';
 import { FrameDataTrack } from '@/components/layers/LayerTypes';
 
 interface TextData {
@@ -13,7 +13,7 @@ interface TextData {
   offsetX?: number;
 }
 
-export default class TextLayer extends BaseLayer {
+export default class TextLayer extends BaseLayer<TextData> {
   initialize() {
     const layer = this.annotator.geoViewer.createLayer('feature', {
       features: ['text'],
@@ -31,18 +31,17 @@ export default class TextLayer extends BaseLayer {
     frameData.forEach((track: FrameDataTrack) => {
       if (track.features && track.features.bounds) {
         const { bounds } = track.features;
-        if (bounds && track.confidencePairs !== undefined) {
-          track.confidencePairs.forEach(([type, confidence], i) => {
-            arr.push({
-              selected: track.selected,
-              editing: track.editing,
-              type,
-              confidence,
-              text: `${type}: ${confidence.toFixed(2)}`,
-              x: bounds[2],
-              y: bounds[1],
-              offsetY: i * 14,
-            });
+        if (bounds && track.confidencePairs !== null) {
+          const type = track.confidencePairs[0];
+          const confidence = track.confidencePairs[1];
+          arr.push({
+            selected: track.selected,
+            editing: track.editing,
+            type,
+            confidence,
+            text: `${type}: ${confidence.toFixed(2)}`,
+            x: bounds[2],
+            y: bounds[1],
           });
         }
       }
@@ -55,11 +54,11 @@ export default class TextLayer extends BaseLayer {
     return null;
   }
 
-  createStyle() {
+  createStyle(): LayerStyle<TextData> {
     const baseStyle = super.createStyle();
     return {
       ...baseStyle,
-      color: (data: TextData) => {
+      color: (data) => {
         if (data.editing || data.selected) {
           if (!data.selected) {
             if (this.stateStyling.disabled.color !== 'type') {
@@ -71,7 +70,7 @@ export default class TextLayer extends BaseLayer {
         }
         return this.typeColorMap(data.type);
       },
-      offset: (data: TextData) => ({
+      offset: (data) => ({
         x: data.offsetY || 3,
         y: data.offsetX || -8,
       }),
