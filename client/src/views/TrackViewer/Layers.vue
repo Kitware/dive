@@ -100,9 +100,7 @@ export default defineComponent({
       typeColorMap: props.typeColorMapper,
     });
 
-    function updateLayers({ annotationChanged = false }: {
-      annotationChanged?: boolean;
-    } = {}) {
+    function updateLayers(annotationChanged = false) {
       const frame = frameNumber.value;
       const editingTrack = props.editingTrack.value;
       const selectedTrackId = props.selectedTrackId.value;
@@ -195,20 +193,21 @@ export default defineComponent({
     annotationLayer.$on('annotationClicked', Clicked);
     annotationLayer.$on('annotationRightClicked', Clicked);
 
-    editAnnotationLayer.$on('update:geojson', (data: GeoEvent) => {
-      const track = props.trackMap.get(props.selectedTrackId.value);
-      if (track) {
-        const bounds = geojsonToBound(data.geometry);
-        track.setFeature({
-          frame: frameNumber.value,
-          bounds,
-        });
-        // We don't need to update the editing layer unless we create a new annotation
-        updateLayers({ annotationChanged: !data.refresh });
-      }
-    });
+    editAnnotationLayer.$on('update:geojson',
+      (data: GeoJSON.Feature<GeoJSON.Polygon>, refresh: boolean) => {
+        const track = props.trackMap.get(props.selectedTrackId.value);
+        if (track) {
+          const bounds = geojsonToBound(data);
+          track.setFeature({
+            frame: frameNumber.value,
+            bounds,
+          });
+          // We don't need to update the editing layer unless we create a new annotation
+          updateLayers(!refresh);
+        }
+      });
 
-    markerEditLayer.$on('update:geojson', (data: GeoEvent) => {
+    markerEditLayer.$on('update:geojson', (data: GeoJSON.Feature<GeoJSON.Point>) => {
       emit('featurePointUpdated', frameNumber.value, data);
     });
 

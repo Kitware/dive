@@ -22,8 +22,8 @@ function getPathFromLocation(location: GirderModel) {
 }
 
 /* beginning at bottom left, rectangle is defined clockwise */
-function geojsonToBound(geojson: GeoJSON.Polygon): RectBounds {
-  const coords = geojson.coordinates[0];
+function geojsonToBound(geojson: GeoJSON.Feature<GeoJSON.Polygon>): RectBounds {
+  const coords = geojson.geometry.coordinates[0];
   return [coords[1][0], coords[1][1], coords[3][0], coords[3][1]];
 }
 

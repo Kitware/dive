@@ -28,7 +28,7 @@ export interface BaseLayerParams {
 }
 
 export default abstract class BaseLayer<D> extends Vue {
-    formattedData: unknown;
+    formattedData: D[];
 
     annotator: Annotator;
 
@@ -53,7 +53,7 @@ export default abstract class BaseLayer<D> extends Vue {
       this.annotator = annotator;
       this.stateStyling = stateStyling;
       this.typeColorMap = typeColorMap;
-      this.formattedData = null;
+      this.formattedData = [];
       this.style = {};
       this.featureLayer = null;
       this.selectedIndex = [];
@@ -84,7 +84,7 @@ export default abstract class BaseLayer<D> extends Vue {
       this.redraw();
     }
 
-    abstract formatData(frameData: FrameDataTrack[]): unknown;
+    abstract formatData(frameData: FrameDataTrack[]): D[];
 
     createStyle(): LayerStyle<D> {
       return {

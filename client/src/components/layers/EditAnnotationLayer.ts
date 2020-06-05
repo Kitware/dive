@@ -1,8 +1,7 @@
 /*eslint class-methods-use-this: "off"*/
 import BaseLayer, { BaseLayerParams, LayerStyle } from '@/components/layers/BaseLayer';
 import { boundToGeojson } from '@/utils';
-import { StateStyles } from '@/use/useStyling';
-import geo from 'geojs';
+import geo, { GeoEvent } from 'geojs';
 import { FrameDataTrack } from '@/components/layers/LayerTypes';
 
 interface EditAnnotationLayerParams {
@@ -16,7 +15,7 @@ interface EditAnnotationLayerParams {
  * Basic operation is that changedData will start the edited annotation
  * emits 'update:geojson' when data is changed
  */
-export default class EditAnnotationLayer extends BaseLayer<unknown> {
+export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
   changed: boolean;
 
   editing: 'point' | 'rectangle';
@@ -40,9 +39,20 @@ export default class EditAnnotationLayer extends BaseLayer<unknown> {
         showLabels: false,
       });
       // For these we need to use an anonymous function to prevent geoJS from erroring
-      this.featureLayer.geoOn(geo.event.annotation.edit_action, (e) => this.handleEditAction(e));
-      this.featureLayer.geoOn(geo.event.annotation.state, (e) => this.handleEditStateChange(e));
+      this.featureLayer.geoOn(geo.event.annotation.edit_action,
+        (e: GeoEvent) => this.handleEditAction(e));
+      this.featureLayer.geoOn(geo.event.annotation.state,
+        (e: GeoEvent) => this.handleEditStateChange(e));
     }
+  }
+
+  applyStylesToAnnotations() {
+    const annotation = this.featureLayer.annotations()[0];
+    //Setup styling for rectangle and point editing
+    annotation.style(this.createStyle());
+    annotation.editHandleStyle(this.editHandleStyle());
+    annotation.highlightStyle(this.highlightStyle());
+    return annotation;
   }
 
   /**
@@ -62,6 +72,20 @@ export default class EditAnnotationLayer extends BaseLayer<unknown> {
     this.redraw();
   }
 
+  enterEditMode() {
+    this.changed = true;
+    if (typeof this.editing !== 'string') {
+      throw new Error(
+        `editing props needs to be a string of value 
+          ${geo.listAnnotations().join(', ')}
+            when geojson prop is not set`,
+      );
+    } else {
+      // point or rectangle mode for the editor
+      this.featureLayer.mode(this.editing);
+    }
+    return [];
+  }
 
   /**
    *
@@ -80,29 +104,16 @@ export default class EditAnnotationLayer extends BaseLayer<unknown> {
           },
         };
         this.featureLayer.geojson(geojsonFeature);
-        const annotation = this.featureLayer.annotations()[0];
-        //Setup styling for rectangle and point editing
-        annotation.style(this.createStyle());
-        annotation.editHandleStyle(this.editHandleStyle());
-        annotation.highlightStyle(this.highlightStyle());
+        const annotation = this.applyStylesToAnnotations();
         if (this.editing) {
           this.featureLayer.mode('edit', annotation);
           this.featureLayer.draw();
         }
-      }
-    } else {
-      this.changed = true;
-      if (typeof this.editing !== 'string') {
-        throw new Error(
-          `editing props needs to be a string of value 
-            ${geo.listAnnotations().join(', ')}
-             when geojson prop is not set`,
-        );
-      } else {
-        // point or rectangle mode for the editor
-        this.featureLayer.mode(this.editing);
+        return [geojsonFeature];
       }
     }
+    // if there wasn't a valid track in frameData
+    return this.enterEditMode();
   }
 
 
@@ -110,22 +121,19 @@ export default class EditAnnotationLayer extends BaseLayer<unknown> {
    *
    * @param e geo.event emitting by handlers
    */
-  handleEditStateChange(e) {
+  handleEditStateChange(e: GeoEvent) {
     if (this.featureLayer === e.annotation.layer()) {
-      if (e.annotation.state() === 'done' && !this.formattedData) {
-        //we need to swap back to process the data gain with the edit mode
-        const newGeojson = e.annotation.geojson();
+      if (e.annotation.state() === 'done' && this.formattedData.length === 0) {
+        const newGeojson = e.annotation.geojson() as (
+          GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.Point>
+        );
         //geoJS insists on calling done multiple times, this will prevent that
-        this.formattedData = [];
-        //The new annotation is in a state with now style, apply one
-        const annotation = this.featureLayer.annotations()[0];
-        annotation.style(this.createStyle());
-        annotation.editHandleStyle(this.editHandleStyle());
-        annotation.highlightStyle(this.highlightStyle());
-        newGeojson.refresh = true;
+        this.formattedData = [newGeojson];
+        //The new annotation is in a state without styling, so apply local stypes
+        this.applyStylesToAnnotations();
         // State doesn't change at the end of editing so this will
         // swap into edit mode once geoJS is done
-        setTimeout(() => this.$emit('update:geojson', newGeojson), 0);
+        setTimeout(() => this.$emit('update:geojson', newGeojson, true), 0);
       }
     }
   }
@@ -134,7 +142,7 @@ export default class EditAnnotationLayer extends BaseLayer<unknown> {
    * If we release the mouse after movement we want to signal for the annotation to update
    * @param e geo.event
    */
-  handleEditAction(e) {
+  handleEditAction(e: GeoEvent) {
     if (this.featureLayer === e.annotation.layer()) {
       if (e.action === geo.event.actionup) {
       // This will commit the change to the current annotation on mouse up while editing
@@ -150,28 +158,22 @@ export default class EditAnnotationLayer extends BaseLayer<unknown> {
    * This is a helper function to commit changes to an annotation/Detection
    * @param {geo.event} e Annotation event for editing or changing state
    */
-  handleAnnotationChange(e) {
+  handleAnnotationChange(e: GeoEvent) {
     this.changed = false;
-    const newGeojson = e.annotation.geojson();
-    let geojson = this.formattedData;
-    if (geojson) {
-      if ('geometry' in geojson) {
-        geojson.geometry.coordinates = newGeojson.geometry.coordinates;
-      } else {
-        geojson.coordinates = newGeojson.geometry.coordinates;
-      }
+    const newGeojson: GeoJSON.Feature<GeoJSON.Point|GeoJSON.Polygon> = e.annotation.geojson();
+    if (this.formattedData.length > 0) {
+      this.formattedData[0].geometry = newGeojson.geometry;
     } else {
-      geojson = {
+      this.formattedData = [{
         ...newGeojson,
-        ...{
-          properties: {
-            annotationType: newGeojson.properties.annotationType,
-          },
+        properties: {
+          annotationType: this.editing,
         },
         type: 'Feature',
-      };
+      }];
     }
-    this.$emit('update:geojson', geojson);
+    // must ALWAYS emit a polygon or point
+    this.$emit('update:geojson', this.formattedData[0]);
   }
 
   /**
@@ -185,7 +187,7 @@ export default class EditAnnotationLayer extends BaseLayer<unknown> {
   /**
    * The base style used to represent the annotation
    */
-  createStyle(): LayerStyle<unknown> {
+  createStyle(): LayerStyle<GeoJSON.Feature> {
     const baseStyle = super.createStyle();
     if (this.editing === 'rectangle') {
       return {

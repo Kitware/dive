@@ -3,12 +3,6 @@ import Track, { TrackId } from '@/lib/track';
 
 export type FeaturePointingTarget = 'head' | 'tail' | null;
 
-export interface GeojsonGeometry {
-  geometry: {
-    coordinates: [number, number];
-  };
-}
-
 export default function useFeaturePointing({
   selectedTrackId,
   trackMap,
@@ -37,7 +31,7 @@ export default function useFeaturePointing({
    * - if only one is set, automatically prepare to collect the other.
    * - when both are set, or when right click or escape are hit, disable feature pointing.
    */
-  function featurePointed(frame: number, geojson: GeojsonGeometry) {
+  function featurePointed(frame: number, geojson: GeoJSON.Feature<GeoJSON.Point>) {
     if (selectedTrackId.value === null) {
       throw new Error('Cannot set feaure points without selected track');
     }
