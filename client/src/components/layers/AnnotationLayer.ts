@@ -1,7 +1,7 @@
 /* eslint-disable class-methods-use-this */
 import BaseLayer, { LayerStyle } from '@/components/layers/BaseLayer';
 import { boundToGeojson } from '@/utils';
-import geo, { Polygon, GeoEvent } from 'geojs';
+import geo, { GeoEvent } from 'geojs';
 import { FrameDataTrack } from '@/components/layers/LayerTypes';
 
  interface RectGeoJSData{
@@ -9,7 +9,7 @@ import { FrameDataTrack } from '@/components/layers/LayerTypes';
    selected: boolean;
    editing: boolean;
    confidencePairs: [string, number] | null;
-   polygon: Polygon;
+   polygon: GeoJSON.Polygon;
  }
 
 export default class AnnotationLayer extends BaseLayer<RectGeoJSData> {
@@ -64,21 +64,17 @@ export default class AnnotationLayer extends BaseLayer<RectGeoJSData> {
   redraw() {
     this.featureLayer
       .data(this.formattedData)
-      .polygon((d: RectGeoJSData) => d.polygon.coordinates)
+      .polygon((d: RectGeoJSData) => d.polygon.coordinates[0])
       .draw();
-    return null;
   }
 
   createStyle(): LayerStyle<RectGeoJSData> {
     return {
       ...super.createStyle(),
       // Style conversion to get array objects to work in geoJS
-      position: (data: [number, number]) => {
-        const obj = { x: data[0], y: data[1] };
-        return obj;
-      },
-      strokeColor: (_point: [number, number], _index: number, data: RectGeoJSData) => {
-        if (data.editing || data.selected) {
+      position: (point) => ({ x: point[0], y: point[1] }),
+      strokeColor: (_point, _index, data) => {
+        if (data.selected) {
           return this.stateStyling.selected.color;
         }
         if (data.confidencePairs) {
@@ -86,14 +82,14 @@ export default class AnnotationLayer extends BaseLayer<RectGeoJSData> {
         }
         return this.typeColorMap.range()[0];
       },
-      strokeOpacity: (_point: [number, number], _index: number, data: RectGeoJSData) => {
-        if (data.editing || data.selected) {
+      strokeOpacity: (_point, _index, data) => {
+        if (data.selected) {
           return this.stateStyling.selected.opacity;
         }
         return this.stateStyling.standard.opacity;
       },
-      strokeWidth: (_point: [number, number], _index: number, data: RectGeoJSData) => {
-        if (data.editing || data.selected) {
+      strokeWidth: (_point, _index, data) => {
+        if (data.selected) {
           return this.stateStyling.selected.strokeWidth;
         }
         return this.stateStyling.standard.strokeWidth;

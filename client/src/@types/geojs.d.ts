@@ -4,10 +4,6 @@ declare module 'geojs' {
     [key: string]: any;
   }
 
-  export interface Polygon {
-      type: string;
-      coordinates: [number, number][];
-  }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const geojs: any;
   export default geojs;

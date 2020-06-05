@@ -13,6 +13,7 @@ export default class MarkerLayer extends BaseLayer<FormattedMarkerFeature> {
       features: ['point'],
     });
     this.featureLayer = layer.createFeature('point');
+    super.initialize();
   }
 
   // eslint-disable-next-line class-methods-use-this
@@ -43,14 +44,12 @@ export default class MarkerLayer extends BaseLayer<FormattedMarkerFeature> {
     return {
       ...baseStyle,
       fill: true,
-      fillColor: (data) => (
-        data.feature === 'tail' ? 'orange' : 'blue'
-      ),
+      fillColor: (data) => (data.feature === 'tail' ? 'orange' : 'blue'),
       radius: 4,
     };
   }
 
   redraw(): null {
-    return this.pointFeature.data(this.formattedData).draw();
+    return this.featureLayer.data(this.formattedData).draw();
   }
 }

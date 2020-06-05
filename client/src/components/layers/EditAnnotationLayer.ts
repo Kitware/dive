@@ -68,43 +68,29 @@ export default class EditAnnotationLayer extends BaseLayer<unknown> {
    * @param frameData a single FrameDataTrack Array that is the editing item
    */
   formatData(frameData: FrameDataTrack[]) {
-    let geojson = null; //create new element start with null
     if (frameData.length > 0) {
       const track = frameData[0];
       if (track.features && track.features.bounds) {
-        geojson = boundToGeojson(track.features.bounds);
+        const geojsonPolygon = boundToGeojson(track.features.bounds);
+        const geojsonFeature: GeoJSON.Feature = {
+          type: 'Feature',
+          geometry: geojsonPolygon,
+          properties: {
+            annotationType: this.editing,
+          },
+        };
+        this.featureLayer.geojson(geojsonFeature);
+        const annotation = this.featureLayer.annotations()[0];
+        //Setup styling for rectangle and point editing
+        annotation.style(this.createStyle());
+        annotation.editHandleStyle(this.editHandleStyle());
+        annotation.highlightStyle(this.highlightStyle());
+        if (this.editing) {
+          this.featureLayer.mode('edit', annotation);
+          this.featureLayer.draw();
+        }
       }
-    }
-
-    if (geojson) {
-      if (!('geometry' in geojson)) {
-        geojson = { type: 'Feature', geometry: geojson, properties: {} };
-      }
-
-      // check if is rectangle
-      const { coordinates } = geojson.geometry;
-      if (typeof this.editing === 'string') {
-        geojson.properties.annotationType = this.editing;
-      } else if (
-        coordinates.length === 1
-          && coordinates[0].length === 5
-          && coordinates[0][0][0] === coordinates[0][3][0]
-          && coordinates[0][0][1] === coordinates[0][1][1]
-          && coordinates[0][2][1] === coordinates[0][3][1]
-      ) {
-        geojson.properties.annotationType = 'rectangle';
-      }
-      this.featureLayer.geojson(geojson);
-      const annotation = this.featureLayer.annotations()[0];
-      //Setup styling for rectangle and point editing
-      annotation.style(this.createStyle());
-      annotation.editHandleStyle(this.editHandleStyle());
-      annotation.highlightStyle(this.highlightStyle());
-      if (this.editing) {
-        this.featureLayer.mode('edit', annotation);
-        this.featureLayer.draw();
-      }
-    } else if (this.editing) {
+    } else {
       this.changed = true;
       if (typeof this.editing !== 'string') {
         throw new Error(
@@ -117,9 +103,6 @@ export default class EditAnnotationLayer extends BaseLayer<unknown> {
         this.featureLayer.mode(this.editing);
       }
     }
-
-
-    return geojson;
   }
 
 
@@ -139,21 +122,11 @@ export default class EditAnnotationLayer extends BaseLayer<unknown> {
         annotation.style(this.createStyle());
         annotation.editHandleStyle(this.editHandleStyle());
         annotation.highlightStyle(this.highlightStyle());
-        const geojson = {
-          ...newGeojson,
-          ...{
-            properties: {
-              annotationType: newGeojson.properties.annotationType,
-            },
-          },
-          type: 'NewAnnotation', //indicates which geoJSONtoBounds to use
-          refresh: true, // signals to update the annotation
-        };
+        newGeojson.refresh = true;
         // State doesn't change at the end of editing so this will
         // swap into edit mode once geoJS is done
-        setTimeout(() => this.$emit('update:geojson', geojson), 0);
+        setTimeout(() => this.$emit('update:geojson', newGeojson), 0);
       }
-      // Handles the adding of a brand new Detection
     }
   }
 

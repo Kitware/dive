@@ -11,6 +11,7 @@ export interface LayerStyle<D> {
   strokeWidth?: StyleFunction<number, D>;
   strokeOpacity?: StyleFunction<number, D>;
   strokeColor?: StyleFunction<string, D>;
+  position?: (point: [number, number]) => { x: number; y: number };
   fillColor?: (data: D) => string;
   color?: (data: D) => string;
   offset?: (data: D) => { x: number; y: number };
