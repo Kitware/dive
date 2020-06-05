@@ -4,7 +4,7 @@ export default {
 
   props: {
     trackType: {
-      type: String,
+      type: Array,
       required: true,
     },
     trackId: {
@@ -80,7 +80,7 @@ export default {
     },
     handleChange(newval) {
       this.editing = false;
-      if (newval !== this.trackType) {
+      if (newval !== this.trackType[0]) {
         this.$emit('type-change', newval);
       }
     },
@@ -98,7 +98,7 @@ export default {
       dense
       hide-details
       :input-value="inputValue"
-      :color="colorMap(trackType)"
+      :color="colorMap(trackType[0])"
       @change="$emit('change', $event)"
     />
     <div
@@ -121,7 +121,7 @@ export default {
       v-else
       ref="trackTypeBox"
       class="ml-0"
-      :value="trackType"
+      :value="trackType[0]"
       :items="types"
       dense
       hide-details

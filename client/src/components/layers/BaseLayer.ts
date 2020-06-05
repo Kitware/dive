@@ -1,36 +1,37 @@
 /*eslint class-methods-use-this: "off"*/
-import Track, { Feature, ConfidencePair, TrackId } from '@/lib/track';
-import { FrameDataTrack, CoordinateList } from '@/components/layers/LayerTypes';
-
-import { boundToGeojson } from '@/utils';
+import { Annotator } from '@/components/annotators/annotatorType';
+import { FrameDataTrack } from '@/components/layers/LayerTypes';
 import { StateStyles } from '@/use/useStyling';
 import Vue from 'vue';
 
+// eslint-disable-next-line max-len
+export type StyleFunction<T> = T | ((point: [number, number], index: number, data: any) => T | undefined);
 
 interface LayerStyle {
-    strokeWidth?: (number | ((a: any, b: any, data: any) => number | undefined));
-    strokeOpacity?: (number | ((a: any, b: any, data: any) => number | undefined));
-    strokeColor?: (string | ((a: any, b: any, data: any) => string | undefined));
+  strokeWidth?: StyleFunction<number>;
+  strokeOpacity?: StyleFunction<number>;
+  strokeColor?: StyleFunction<string>;
+  [x: string]: unknown;
 }
 
 export interface BaseLayerParams {
     frameData?: FrameDataTrack;
-    annotator?: any;
-    stateStyling?: StateStyles;
-    typeColorMap?: (t: string) => string;
-    [x: string]: any;
+    annotator: Annotator;
+    stateStyling: StateStyles;
+    typeColorMap: d3.ScaleOrdinal<string, string>;
+    [x: string]: unknown;
 }
 
-export default class BaseLayer extends Vue {
-    formattedData: any;
+export default abstract class BaseLayer extends Vue {
+    formattedData: unknown;
 
-    annotator: any;
+    annotator: Annotator;
 
     stateStyling: StateStyles;
 
     style: LayerStyle;
 
-    typeColorMap: (t: string) => string;
+    typeColorMap: d3.ScaleOrdinal<string, string>;
 
     featureLayer: any;
 
@@ -70,18 +71,14 @@ export default class BaseLayer extends Vue {
       }
     }
 
-    redraw() {
-      return null;
-    }
+    abstract redraw(): void;
 
     changeData(frameData: FrameDataTrack[]) {
       this.formattedData = this.formatData(frameData);
       this.redraw();
     }
 
-    formatData(frameData: FrameDataTrack[]): unknown[] {
-      return [];
-    }
+    abstract formatData(frameData: FrameDataTrack[]): unknown;
 
     createStyle(): LayerStyle {
       return {

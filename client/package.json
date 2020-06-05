@@ -31,6 +31,7 @@
   "devDependencies": {
     "@types/axios": "^0.14.0",
     "@types/d3": "^5.7.2",
+    "@types/geojson": "^7946.0.7",
     "@types/jest": "^25.2.3",
     "@types/lodash": "^4.14.151",
     "@types/node": "^14.0.5",
@@ -112,7 +113,15 @@
       "spaced-comment": "off",
       "no-useless-constructor": "off",
       "@typescript-eslint/no-useless-constructor": "error",
-      "no-console": ["warn", {"allow": ["warn", "error"]}]
+      "no-console": [
+        "warn",
+        {
+          "allow": [
+            "warn",
+            "error"
+          ]
+        }
+      ]
     },
     "overrides": [
       {

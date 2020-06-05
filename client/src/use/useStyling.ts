@@ -10,9 +10,9 @@ interface Style{
 
 }
 export interface StateStyles {
-  standard?: Style;
-  selected?: Style;
-  disabled?: Style;
+  standard: Style;
+  selected: Style;
+  disabled: Style;
 }
 
 

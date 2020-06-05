@@ -8,17 +8,20 @@ import {
   watch,
 } from '@vue/composition-api';
 
+import { GeoEvent } from 'geojs';
+
 import { FrameDataTrack } from '@/components/layers/LayerTypes';
 import Track, { TrackId } from '@/lib/track';
 import IntervalTree from '@flatten-js/interval-tree';
 
 import AnnotationLayer from '@/components/layers/AnnotationLayer';
+import { Annotator } from '@/components/annotators/annotatorType';
 import TextLayer from '@/components/layers/TextLayer';
 import EditAnnotationLayer from '@/components/layers/EditAnnotationLayer';
 import MarkerLayer from '@/components/layers/MarkerLayer';
 import { geojsonToBound } from '@/utils';
 import { FeaturePointingTarget } from '@/use/useFeaturePointing';
-
+import { StateStyles } from '@/use/useStyling';
 
 export default defineComponent({
   props: {
@@ -43,11 +46,11 @@ export default defineComponent({
       required: true,
     },
     typeColorMapper: {
-      type: Function as PropType<(t: string) => string>,
+      type: Function as PropType<d3.ScaleOrdinal<string, string>>,
       required: true,
     },
     stateStyling: {
-      type: Object,
+      type: Object as PropType<StateStyles>,
       required: true,
     },
     featurePointing: {
@@ -61,7 +64,7 @@ export default defineComponent({
   },
 
   setup(props, { emit }) {
-    const annotator = inject('annotator') as unknown;
+    const annotator = inject('annotator') as Annotator;
     const frameNumber: Readonly<Ref<number>> = computed(() => annotator.frame as number);
 
 
@@ -97,11 +100,14 @@ export default defineComponent({
       typeColorMap: props.typeColorMapper,
     });
 
-    function updateLayers(updated = {}) {
+    function updateLayers({ annotationChanged = false }: {
+      annotationChanged?: boolean;
+    } = {}) {
       const frame = frameNumber.value;
       const editingTrack = props.editingTrack.value;
       const selectedTrackId = props.selectedTrackId.value;
       const trackIds = props.trackIds.value;
+      const featurePointing = props.featurePointing.value;
       const currentFrameIds = props.intervalTree.search([frame, frame]);
       const tracks = [] as FrameDataTrack[];
       const editingTracks = [] as FrameDataTrack[];
@@ -119,11 +125,11 @@ export default defineComponent({
                 editing: editingTrack,
                 trackId: track.trackId,
                 features,
-                confidencePairs: track.confidencePairs,
+                confidencePairs: track.getType(),
               };
               tracks.push(trackFrame);
               // eslint-disable-next-line max-len
-              if (tracks[tracks.length - 1].selected && (props.editingTrack.value || props.featurePointing.value)) {
+              if (tracks[tracks.length - 1].selected && (editingTrack || featurePointing)) {
                 editingTracks.push(trackFrame);
               }
             }
@@ -135,26 +141,28 @@ export default defineComponent({
       textLayer.changeData(tracks);
       markerLayer.changeData(tracks);
 
-      if (props.selectedTrackId.value) {
-      // eslint-disable-next-line max-len
-        if ((props.editingTrack.value || props.featurePointing.value) && !currentFrameIds.includes(props.selectedTrackId.value)) {
-          const editTrack = props.trackMap.get(props.selectedTrackId.value);
+      if (selectedTrackId) {
+        if ((editingTrack || featurePointing) && !currentFrameIds.includes(selectedTrackId)) {
+          const editTrack = props.trackMap.get(selectedTrackId);
+          if (editTrack === undefined) {
+            throw new Error(`trackMap missing trackid ${selectedTrackId}`);
+          }
           const features = editTrack.getFeature(frameNumber.value);
           const trackFrame = {
             selected: true,
             editing: true,
-            trackId: editTrack.trackId.value,
+            trackId: editTrack.trackId,
             features,
-            confidencePairs: editTrack.confidencePairs.value,
+            confidencePairs: editTrack.getType(),
           };
           editingTracks.push(trackFrame);
         }
         // Only update tracks if created and not an annotationChanged
         if (editingTracks.length) {
-          if (!updated.annotationChanged && props.editingTrack.value) {
+          if (!annotationChanged && editingTrack) {
             editAnnotationLayer.changeData(editingTracks);
           }
-          if (!updated.annotationChanged && props.featurePointing.value) {
+          if (!annotationChanged && featurePointing) {
             markerEditLayer.changeData([]);
           }
         } else {
@@ -166,25 +174,15 @@ export default defineComponent({
 
 
     updateLayers();
-    const names = ['frame', 'ids', 'editing', 'selected', 'featurePointing'];
+
     watch([
       frameNumber,
       props.trackIds,
       props.editingTrack,
       props.selectedTrackId,
       props.featurePointing,
-    ], (values, oldvalues) => {
-      // Helper function for me to see what is going on
-      // REMOVE AFTERWARDS
-      const updated = {};
-      for (let i = 0; i < values.length; i += 1) {
-        if (!oldvalues) {
-          updated[names[i]] = true;
-        } else {
-          updated[names[i]] = (values[i] !== oldvalues[i]);
-        }
-      }
-      updateLayers(updated);
+    ], () => {
+      updateLayers();
     });
 
 
@@ -197,7 +195,7 @@ export default defineComponent({
     annotationLayer.$on('annotationClicked', Clicked);
     annotationLayer.$on('annotationRightClicked', Clicked);
 
-    editAnnotationLayer.$on('update:geojson', (data) => {
+    editAnnotationLayer.$on('update:geojson', (data: GeoEvent) => {
       const track = props.trackMap.get(props.selectedTrackId.value);
       if (track) {
         const bounds = geojsonToBound(data.geometry);
@@ -210,7 +208,7 @@ export default defineComponent({
       }
     });
 
-    markerEditLayer.$on('update:geojson', (data) => {
+    markerEditLayer.$on('update:geojson', (data: GeoEvent) => {
       emit('featurePointUpdated', frameNumber.value, data);
     });
 

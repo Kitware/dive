@@ -1,5 +1,6 @@
 import Vue from 'vue';
 import { ref, Ref } from '@vue/composition-api';
+import { RectBounds } from '@/utils';
 
 export type ConfidencePair = [string, number];
 export type TrackId = number;
@@ -10,7 +11,7 @@ export interface StringKeyObject {
 
 export interface Feature {
   frame: number;
-  bounds?: Array<number>;
+  bounds?: RectBounds;
   fishLength?: number;
   attributes?: StringKeyObject;
   head?: [number, number];
@@ -130,9 +131,9 @@ export default class Track extends Vue {
     }
   }
 
-  getType() {
+  getType(): [string, number] | null {
     if (this.confidencePairs.length > 0) {
-      return this.confidencePairs[0][0];
+      return this.confidencePairs[0];
     }
     return null;
   }

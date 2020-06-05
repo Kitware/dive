@@ -22,8 +22,9 @@ export default class MarkerLayer extends BaseLayer {
     });
   }
 
+  // eslint-disable-next-line class-methods-use-this
   formatData(frameData: FrameDataTrack[]): FormattedMarkerFeature[] {
-    const data = super.formatData(frameData) as FormattedMarkerFeature[];
+    const data = [] as FormattedMarkerFeature[];
     frameData.forEach((fd) => {
       const feature = fd.features;
       if (feature?.head) {

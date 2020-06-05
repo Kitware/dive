@@ -1,10 +1,16 @@
+/* eslint-disable class-methods-use-this */
 import BaseLayer from '@/components/layers/BaseLayer';
 import { boundToGeojson } from '@/utils';
-import { StateStyles } from '@/use/useStyling';
-import geo from 'geojs';
-import { GeojsonGeometry } from '@/use/useFeaturePointing';
+import geo, { Polygon, GeoEvent } from 'geojs';
 import { FrameDataTrack } from '@/components/layers/LayerTypes';
 
+ interface RectGeoJSData{
+   trackId: number;
+   selected: boolean;
+   editing: boolean;
+   confidencePairs?: [string, number] | null;
+   polygon: Polygon;
+ }
 
 export default class AnnotationLayer extends BaseLayer {
   initialize() {
@@ -13,7 +19,7 @@ export default class AnnotationLayer extends BaseLayer {
     });
     this.featureLayer = layer
       .createFeature('polygon', { selectionAPI: true })
-      .geoOn(geo.event.feature.mouseclick, (e: any) => {
+      .geoOn(geo.event.feature.mouseclick, (e: GeoEvent) => {
         if (e.mouse.buttonsDown.left) {
           if (!e.data.editing || (e.data.editing && !e.data.selected)) {
             this.$emit('annotationClicked', e.data.trackId, false);
@@ -28,7 +34,7 @@ export default class AnnotationLayer extends BaseLayer {
       geo.event.feature.mouseclick_order,
       this.featureLayer.mouseOverOrderClosestBorder,
     );
-    this.featureLayer.geoOn(geo.event.mouseclick, (e) => {
+    this.featureLayer.geoOn(geo.event.mouseclick, (e: GeoEvent) => {
       // If we aren't clicking on an annotation we can deselect the current track
       if (this.featureLayer.pointSearch(e.geo).found.length === 0) {
         this.$emit('annotationClicked', null, false);
@@ -37,53 +43,19 @@ export default class AnnotationLayer extends BaseLayer {
     super.initialize();
   }
 
-  // TODO NOT WORKING YET I WANT TO UPDATE SELECTED TRACK INDEXES
-  // Instead of updating the entire list
-  updateBounds(trackId, bounds) {
-    const polygon = boundToGeojson(bounds);
-    const coords = polygon.coordinates[0];
-    if (this.selectedIndex[trackId] !== undefined) {
-      this.formattedData[this.selectedIndex[trackId]].geometry = {
-        ...this.formattedData[this.selectedIndex[trackId]].geometry,
-        outer: [
-          { x: coords[0][0], y: coords[0][1] },
-          { x: coords[1][0], y: coords[1][1] },
-          { x: coords[2][0], y: coords[2][1] },
-          { x: coords[3][0], y: coords[3][1] },
-        ],
-      };
-      this.redraw();
-    }
-  }
-
   formatData(frameData: FrameDataTrack[]) {
-    this.selectedIndex = [];
-    const arr = super.formatData(frameData);
+    const arr: RectGeoJSData[] = [];
     frameData.forEach((track: FrameDataTrack) => {
       if (track.features && track.features.bounds) {
         const polygon = boundToGeojson(track.features.bounds);
-        const coords = polygon.coordinates[0];
-        const annotation = {
+        const annotation: RectGeoJSData = {
           trackId: track.trackId,
           selected: track.selected,
           editing: track.editing,
           confidencePairs: track.confidencePairs,
-          geometry: {
-            outer: [
-              { x: coords[0][0], y: coords[0][1] },
-              { x: coords[1][0], y: coords[1][1] },
-              { x: coords[2][0], y: coords[2][1] },
-              { x: coords[3][0], y: coords[3][1] },
-            ],
-          },
+          polygon,
         };
         arr.push(annotation);
-        // Create a sparse array of selected tracks for updating them if they are edited
-        /*
-        if (track.selected) {
-          this.selectedIndex[track.trackId] = arr.length;
-        }
-        */
       }
     });
     return arr;
@@ -92,7 +64,7 @@ export default class AnnotationLayer extends BaseLayer {
   redraw() {
     this.featureLayer
       .data(this.formattedData)
-      .polygon((d: GeojsonGeometry) => d.geometry)
+      .polygon((d: RectGeoJSData) => d.polygon.coordinates)
       .draw();
     return null;
   }
@@ -101,13 +73,18 @@ export default class AnnotationLayer extends BaseLayer {
     const baseStyle = super.createStyle();
     return {
       ...baseStyle,
-      strokeColor: (a, b, data) => {
+      // Style conversion to get array objects to work in geoJS
+      position: (data: [number, number]) => {
+        const obj = { x: data[0], y: data[1] };
+        return obj;
+      },
+      strokeColor: (point: [number, number], index: number, data: RectGeoJSData) => {
         if (data.editing) {
           if (!data.selected) {
             if (this.stateStyling.disabled && this.stateStyling.disabled.color !== 'type') {
               return this.stateStyling.disabled.color;
             }
-            if (data.confidencePairs.length) {
+            if (data.confidencePairs && data.confidencePairs.length) {
               return this.typeColorMap(data.confidencePairs[0][0]);
             }
           }
@@ -116,12 +93,12 @@ export default class AnnotationLayer extends BaseLayer {
         if (data.selected) {
           return this.stateStyling.selected.color;
         }
-        if (data.confidencePairs.length) {
+        if (data.confidencePairs && data.confidencePairs.length) {
           return this.typeColorMap(data.confidencePairs[0][0]);
         }
         return this.typeColorMap.range()[0];
       },
-      strokeOpacity: (a, b, data) => {
+      strokeOpacity: (point: [number, number], index: number, data: RectGeoJSData) => {
         if (data.editing) {
           if (this.stateStyling.disabled && !data.selected) {
             return this.stateStyling.disabled.opacity;
@@ -136,7 +113,7 @@ export default class AnnotationLayer extends BaseLayer {
         }
         return this.stateStyling.standard.opacity;
       },
-      strokeWidth: (a, b, data) => {
+      strokeWidth: (point: [number, number], index: number, data: RectGeoJSData) => {
         if (data.editing) {
           if (!data.selected) {
             return this.stateStyling.disabled.strokeWidth;

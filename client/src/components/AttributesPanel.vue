@@ -61,8 +61,8 @@ export default Vue.extend({
       if (trackId) {
         const track = getTrack(this.trackMap, trackId);
         return {
-          trackId: track.trackId.value,
-          type: track.getType(),
+          trackId: track.trackId,
+          confidencePairs: track.confidencePairs,
           attributes: track.attributes.value,
         };
       }

@@ -1,19 +1,13 @@
-import Track, { Feature, ConfidencePair, TrackId } from '@/lib/track';
-
-interface CoordinateList{
-    x: number;
-    y: number;
-}
+import { Feature } from '@/lib/track';
 
 interface FrameDataTrack {
   selected: boolean;
   editing: boolean;
   trackId: number;
-  features: Feature;
-  confidencePairs?: ConfidencePair[];
+  features: Feature | null;
+  confidencePairs?: [string, number] | null;
 }
 
 export {
-  CoordinateList,
   FrameDataTrack,
 };
