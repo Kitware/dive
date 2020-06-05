@@ -2,8 +2,16 @@ import shutil
 from pathlib import Path
 
 
-def organize_folder_for_training(folder: Path, groundtruth: str):
-    groundtruth_path = folder / groundtruth
+def organize_folder_for_training(
+    root_training_dir: Path, data_dir: Path, groundtruth_path: Path
+):
+    """
+    Organize directory downloaded from girder into a structure compatible with Viame.
+
+    Relevant documentation:
+    https://viame.readthedocs.io/en/latest/section_links/object_detector_training.html
+    """
+
     if groundtruth_path.is_dir():
         groundtruth_dir = groundtruth_path
         files = list(groundtruth_dir.glob("*.csv"))
@@ -12,7 +20,7 @@ def organize_folder_for_training(folder: Path, groundtruth: str):
             raise Exception("No csv groundtruth files found.")
 
         groundtruth_file = files[0]
-        groundtruth_path = folder / groundtruth_file.name
+        groundtruth_path = data_dir / "groundtruth.csv"
         shutil.copyfile(groundtruth_file, groundtruth_path)
         shutil.rmtree(groundtruth_dir)
 
@@ -26,5 +34,5 @@ def organize_folder_for_training(folder: Path, groundtruth: str):
             for label in row[9::2]:
                 labels.add(label)
 
-    with open(folder / "labels.txt", "w") as labels_file:
+    with open(root_training_dir / "labels.txt", "w") as labels_file:
         labels_file.writelines(labels)

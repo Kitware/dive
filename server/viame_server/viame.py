@@ -110,9 +110,26 @@ class Viame(Resource):
         # Ensure detection has a csv format
         csv_detection_file(detection, user)
 
+        # Get relative path to the folder containing the detection item
+        path_from_root = [x["object"] for x in Item().parentsToRoot(detection)]
+        folder_index = next(
+            i for i, x in enumerate(path_from_root) if x["_id"] == folder["_id"]
+        )
+
+        # Get path with folder at the root
+        path_names = [x["name"] for x in path_from_root[folder_index + 1 :]]
+
+        if path_names:
+            # Detection item is not in the root folder (in a sub directory)
+            path_names.append(detection["name"])
+            groundtruth_path = "/".join(path_names)
+        else:
+            # Detection item is in root folder
+            groundtruth_path = detection["name"]
+
         return train_pipeline.delay(
             folder,
-            detection["name"],
+            groundtruth_path,
             girder_client_token=str(upload_token["_id"]),
             girder_job_title=(f"Running training on folder: {str(folder['name'])}"),
             # girder_result_hooks=[

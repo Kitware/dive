@@ -112,7 +112,7 @@ def train_pipeline(self, folder: Dict, groundtruth: str):
     Train a pipeline by making a call to viame_train_detector
 
     :param folder: A girder Folder document for the training directory
-    :param groundtruth: The name of either the file containing detections,
+    :param groundtruth: The relative path to either the file containing detections,
         or the folder containing that file.
     """
     conf = Config()
@@ -125,32 +125,38 @@ def train_pipeline(self, folder: Dict, groundtruth: str):
 
     with tempfile.TemporaryDirectory() as temp:
         temp_path = Path(temp)
+        download_path = temp_path / folder["name"]
+
+        os.mkdir(download_path)
 
         # Download data onto server
-        gc.downloadFolderRecursive(folder["_id"], temp_path)
+        gc.downloadFolderRecursive(folder["_id"], download_path)
 
         # Organize data
-        organize_folder_for_training(temp_path, groundtruth)
+        groundtruth_path = download_path / groundtruth
+        organize_folder_for_training(temp_path, download_path, groundtruth_path)
 
         # Call viame_train_detector
         command = [
+            f". {conf.viame_install_path}/setup_viame.sh &&",
             str(training_executable),
             "-i",
-            f"{temp}",
-            "--config",
+            f"{temp_path}",
+            "-c",
             f"{default_conf_file}",
         ]
-        process = Popen(command, stdout=PIPE, stderr=PIPE)
-        stdout, stderr = process.communicate()
+        process = Popen(
+            " ".join(command),
+            stdout=PIPE,
+            stderr=PIPE,
+            shell=True,
+            executable='/bin/bash',
+        )
 
-        # Send output to job manager
-        output = ""
-        if len(stdout):
-            output = f"{stdout.decode()}\n"
-        if len(stderr):
-            output = f"{output}{stderr.decode()}\n"
-
-        self.job_manager.write(output)
+        while process.poll() is None:
+            out = process.stdout.readline()
+            if out:
+                self.job_manager.write(out)
 
 
 @app.task(bind=True)
