@@ -8,8 +8,6 @@ import {
   watch,
 } from '@vue/composition-api';
 
-import { GeoEvent } from 'geojs';
-
 import { FrameDataTrack } from '@/components/layers/LayerTypes';
 import Track, { TrackId } from '@/lib/track';
 import IntervalTree from '@flatten-js/interval-tree';
@@ -126,7 +124,6 @@ export default defineComponent({
                 confidencePairs: track.getType(),
               };
               tracks.push(trackFrame);
-              // eslint-disable-next-line max-len
               if (tracks[tracks.length - 1].selected && (editingTrack || featurePointing)) {
                 editingTracks.push(trackFrame);
               }

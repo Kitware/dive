@@ -60,7 +60,6 @@ async function readEntriesPromise(directoryReader) {
       directoryReader.readEntries(resolve, reject);
     });
   } catch (err) {
-    // eslint-disable-next-line no-console
     console.error(err);
     return [];
   }

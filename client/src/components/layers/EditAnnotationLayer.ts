@@ -72,21 +72,6 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
     this.redraw();
   }
 
-  enterEditMode() {
-    this.changed = true;
-    if (typeof this.editing !== 'string') {
-      throw new Error(
-        `editing props needs to be a string of value 
-          ${geo.listAnnotations().join(', ')}
-            when geojson prop is not set`,
-      );
-    } else {
-      // point or rectangle mode for the editor
-      this.featureLayer.mode(this.editing);
-    }
-    return [];
-  }
-
   /**
    *
    * @param frameData a single FrameDataTrack Array that is the editing item
@@ -113,7 +98,19 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
       }
     }
     // if there wasn't a valid track in frameData
-    return this.enterEditMode();
+    // then put the component into annotation create mode
+    this.changed = true;
+    if (typeof this.editing !== 'string') {
+      throw new Error(
+        `editing props needs to be a string of value 
+          ${geo.listAnnotations().join(', ')}
+            when geojson prop is not set`,
+      );
+    } else {
+      // point or rectangle mode for the editor
+      this.featureLayer.mode(this.editing);
+    }
+    return [];
   }
 
 
@@ -124,16 +121,13 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
   handleEditStateChange(e: GeoEvent) {
     if (this.featureLayer === e.annotation.layer()) {
       if (e.annotation.state() === 'done' && this.formattedData.length === 0) {
-        const newGeojson = e.annotation.geojson() as (
-          GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.Point>
-        );
         //geoJS insists on calling done multiple times, this will prevent that
-        this.formattedData = [newGeojson];
+        this.formattedData = [e.annotation.geojson()];
         //The new annotation is in a state without styling, so apply local stypes
         this.applyStylesToAnnotations();
         // State doesn't change at the end of editing so this will
         // swap into edit mode once geoJS is done
-        setTimeout(() => this.$emit('update:geojson', newGeojson, true), 0);
+        setTimeout(() => this.$emit('update:geojson', this.formattedData[0], true), 0);
       }
     }
   }
@@ -145,35 +139,31 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
   handleEditAction(e: GeoEvent) {
     if (this.featureLayer === e.annotation.layer()) {
       if (e.action === geo.event.actionup) {
-      // This will commit the change to the current annotation on mouse up while editing
+        // This will commit the change to the current annotation on mouse up while editing
         if (e.annotation.state() === 'edit') {
-          this.handleAnnotationChange(e);
+          this.changed = false;
+          const newGeojson: GeoJSON.Feature<GeoJSON.Point|GeoJSON.Polygon> = (
+            e.annotation.geojson()
+          );
+          if (this.formattedData.length > 0) {
+            // update existing feature
+            this.formattedData[0].geometry = newGeojson.geometry;
+          } else {
+            // create new feature
+            this.formattedData = [{
+              ...newGeojson,
+              properties: {
+                annotationType: this.editing,
+              },
+              type: 'Feature',
+            }];
+          }
+          // must ALWAYS emit a polygon or point
+          this.$emit('update:geojson', this.formattedData[0]);
           this.changed = true;
         }
       }
     }
-  }
-
-  /**
-   * This is a helper function to commit changes to an annotation/Detection
-   * @param {geo.event} e Annotation event for editing or changing state
-   */
-  handleAnnotationChange(e: GeoEvent) {
-    this.changed = false;
-    const newGeojson: GeoJSON.Feature<GeoJSON.Point|GeoJSON.Polygon> = e.annotation.geojson();
-    if (this.formattedData.length > 0) {
-      this.formattedData[0].geometry = newGeojson.geometry;
-    } else {
-      this.formattedData = [{
-        ...newGeojson,
-        properties: {
-          annotationType: this.editing,
-        },
-        type: 'Feature',
-      }];
-    }
-    // must ALWAYS emit a polygon or point
-    this.$emit('update:geojson', this.formattedData[0]);
   }
 
   /**

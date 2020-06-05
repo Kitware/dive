@@ -67,19 +67,15 @@ export default Vue.extend({
   },
 
   watch: {
-    // eslint-disable-next-line func-names
-    'selectedTrackId.value': function (trackId) {
-      this.scrollToTrack(trackId);
-    },
-    // eslint-disable-next-line func-names
-    'filteredTrackIds.value': function () {
-      this.$nextTick(() => this.scrollToTrack(this.selectedTrackId.value));
-    },
+    // because Vue typescript definitions are broke and don't recognize
+    // the `this` context inside watcher handers
+    'selectedTrackId.value': 'scrollToTrack',
+    'filteredTrackIds.value': 'scrollToSelectedTrack',
   },
 
 
   methods: {
-    scrollToTrack(trackId: TrackId) {
+    scrollToTrack(trackId: TrackId): void {
       const virtualList = (this.$refs.virtualList as Vue).$el;
       const offset = this.filteredTrackIds.value.indexOf(trackId);
       if (offset === -1) {
@@ -88,6 +84,12 @@ export default Vue.extend({
         // try to show the selected track as the third track in the list
         virtualList.scrollTop = (offset * this.itemHeight) - (2 * this.itemHeight);
       }
+    },
+
+    scrollToSelectedTrack() {
+      // eslint-disable-next-line @typescript-eslint/ban-ts-ignore
+      // @ts-ignore
+      this.$nextTick(() => this.scrollToTrack(this.selectedTrackId.value));
     },
 
     scrollPreventDefault(element: HTMLElement, keyEvent: KeyboardEvent, direction: 'up' | 'down') {
