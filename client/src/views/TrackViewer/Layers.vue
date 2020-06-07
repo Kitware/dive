@@ -158,7 +158,11 @@ export default defineComponent({
             editAnnotationLayer.changeData(editingTracks);
           }
           if (!annotationChanged && featurePointing) {
-            markerEditLayer.changeData([]);
+            // Marker shouldn't be edited when creating a new track
+            const hasBounds = editingTracks.filter((item) => item.features && item.features.bounds);
+            if (!editingTrack || (editingTrack && hasBounds.length)) {
+              markerEditLayer.changeData([]);
+            }
           }
         } else {
           markerEditLayer.disable();
