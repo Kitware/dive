@@ -59,7 +59,12 @@ export default defineComponent({
     },
   },
 
-  setup(props) {
+  setup(props, ctx) {
+    // TODO: eventually we will have to migrate away from this style
+    // and use the new plugin pattern:
+    // https://vue-composition-api-rfc.netlify.com/#plugin-development
+    const prompt = ctx.root.$prompt;
+
     const { datasetId } = props;
     const playbackComponent = ref({} as Seeker);
     const frame = ref(0); // the currently displayed frame number
@@ -131,7 +136,15 @@ export default defineComponent({
 
     const location = computed(() => store.state.location);
 
-    function removeTrack(trackId: TrackId) {
+    async function removeTrack(trackId: TrackId) {
+      const result = await prompt({
+        title: 'Confirm',
+        text: 'Do you want to delete selected items?',
+        confirm: true,
+      });
+      if (!result) {
+        return;
+      }
       // if removed track was selected, unselect before remove
       if (selectedTrackId.value === trackId) {
         selectNextTrack(1);

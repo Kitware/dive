@@ -98,13 +98,17 @@ export default defineComponent({
       typeColorMap: props.typeColorMapper,
     });
 
-    function updateLayers(annotationChanged = false) {
+    function updateLayers() {
       const frame = frameNumber.value;
       const editingTrack = props.editingTrack.value;
       const selectedTrackId = props.selectedTrackId.value;
       const trackIds = props.trackIds.value;
       const featurePointing = props.featurePointing.value;
-      const currentFrameIds = props.intervalTree.search([frame, frame]);
+      // Bug in interval search tree requires own return function for 0 values
+      const currentFrameIds = props.intervalTree.search(
+        [frame, frame],
+        (value) => (value !== null ? value : null),
+      );
       const tracks = [] as FrameDataTrack[];
       const editingTracks = [] as FrameDataTrack[];
       currentFrameIds.forEach(
@@ -136,7 +140,7 @@ export default defineComponent({
       textLayer.changeData(tracks);
       markerLayer.changeData(tracks);
 
-      if (selectedTrackId) {
+      if (selectedTrackId !== null) {
         if ((editingTrack || featurePointing) && !currentFrameIds.includes(selectedTrackId)) {
           const editTrack = props.trackMap.get(selectedTrackId);
           if (editTrack === undefined) {
@@ -152,12 +156,11 @@ export default defineComponent({
           };
           editingTracks.push(trackFrame);
         }
-        // Only update tracks if created and not an annotationChanged
         if (editingTracks.length) {
-          if (!annotationChanged && editingTrack) {
+          if (editingTrack) {
             editAnnotationLayer.changeData(editingTracks);
           }
-          if (!annotationChanged && featurePointing) {
+          if (featurePointing) {
             // Marker shouldn't be edited when creating a new track
             const hasBounds = editingTracks.filter((item) => item.features && item.features.bounds);
             if (!editingTrack || (editingTrack && hasBounds.length)) {
@@ -195,7 +198,7 @@ export default defineComponent({
     annotationLayer.$on('annotationRightClicked', Clicked);
 
     editAnnotationLayer.$on('update:geojson',
-      (data: GeoJSON.Feature<GeoJSON.Polygon>, refresh: boolean) => {
+      (data: GeoJSON.Feature<GeoJSON.Polygon>) => {
         const track = props.trackMap.get(props.selectedTrackId.value);
         if (track) {
           const bounds = geojsonToBound(data);
@@ -203,8 +206,6 @@ export default defineComponent({
             frame: frameNumber.value,
             bounds,
           });
-          // We don't need to update the editing layer unless we create a new annotation
-          updateLayers(!refresh);
         }
       });
 
