@@ -23,13 +23,12 @@ describe('Track', () => {
         },
       ],
       meta: {},
-      trackId: '1',
+      trackId: 1,
     };
     const t = Track.fromJSON(itrack);
     expect(t).toBeInstanceOf(Track);
-    expect(t.begin.value).toBe(0);
-    expect(t.end.value).toBe(100);
-    expect(t.confidencePairs.value).toHaveLength(2);
-    expect(t.meta).toHaveProperty('value');
+    expect(t.begin).toBe(0);
+    expect(t.end).toBe(100);
+    expect(t.confidencePairs).toHaveLength(2);
   });
 });

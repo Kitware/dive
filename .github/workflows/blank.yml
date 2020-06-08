@@ -5,7 +5,7 @@ on:
     branches:
       - master
 jobs:
-  build:
+  build-and-test:
     defaults:
       run:
         working-directory: client
@@ -18,3 +18,5 @@ jobs:
         node-version: '10.x'
     - run: yarn install
     - run: yarn lint
+    - run: yarn test
+    - run: yarn build

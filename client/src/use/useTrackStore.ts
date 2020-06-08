@@ -72,7 +72,10 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
   }
 
   function addTrack(frame: number): Track {
-    const track = new Track(Math.max(...trackIds.value) + 1, {
+    const newTrackId = trackIds.value.length
+      ? Math.max(...trackIds.value) + 1
+      : 0;
+    const track = new Track(newTrackId, {
       begin: frame,
       end: frame,
       confidencePairs: [['unknown', 1]],
