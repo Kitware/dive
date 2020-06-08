@@ -137,9 +137,6 @@ export default defineComponent({
     const location = computed(() => store.state.location);
 
     async function removeTrack(trackId: TrackId) {
-      if (selectedTrackId === null) {
-        return;
-      }
       const result = await prompt({
         title: 'Confirm',
         text: 'Do you want to delete selected items?',

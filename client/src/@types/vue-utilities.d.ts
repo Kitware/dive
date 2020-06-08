@@ -4,8 +4,8 @@ interface PromptParams {
   title: string;
       text: string;
       positiveButton?: string;
-       negativeButton?: string;
-       confirm?: boolean;
+      negativeButton?: string;
+      confirm?: boolean;
 }
 declare module 'vue/types/vue' {
   interface Vue {

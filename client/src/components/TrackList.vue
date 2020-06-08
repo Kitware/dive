@@ -165,7 +165,8 @@ export default Vue.extend({
           disabled: $prompt.visible() },
         { bind: 'enter', handler: () => $emit('track-click', selectedTrackId.value),
           disabled: $prompt.visible()},
-        { bind: 'del', handler: () => $emit('track-remove', selectedTrackId.value),
+        { bind: 'del', handler: () =>
+            selectedTrackId.value !== null && $emit('track-remove', selectedTrackId.value),
           disabled: $prompt.visible()},
       ]"
       :items="virtualListItems"
