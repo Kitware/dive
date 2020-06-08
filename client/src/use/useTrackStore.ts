@@ -58,14 +58,12 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
       intervalTree.remove(oldInterval, track.trackId);
       intervalTree.insert([track.begin, track.end], track.trackId);
     }
-    if (event !== 'feature') {
-      canary.value += 1;
-    }
+    canary.value += 1;
     markChangesPending();
   }
 
   function insertTrack(track: Track) {
-    track.$on('notify', onChange);
+    track.bus.$on('notify', onChange);
     trackMap.set(track.trackId, track);
     intervalTree.insert([track.begin, track.end], track.trackId);
     trackIds.value.push(track.trackId);
@@ -97,7 +95,7 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
     if (!intervalTree.remove(range, trackId)) {
       throw new Error(`TrackId ${trackId} with range ${range} not found in tree.`);
     }
-    track.$off(); // remove all event listeners
+    track.bus.$off(); // remove all event listeners
     trackMap.delete(trackId);
     const listIndex = trackIds.value.findIndex((v) => v === trackId);
     if (listIndex === -1) {

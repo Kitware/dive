@@ -41,7 +41,6 @@
     "tests/**/*.tsx",
   ],
   "exclude": [
-    "node_modules",
-    "**/*.spec.ts"
+    "node_modules"
   ]
 }

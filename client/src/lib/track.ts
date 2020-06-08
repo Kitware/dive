@@ -48,7 +48,7 @@ interface TrackParams {
  * Track extends Vue exclusively for $on and $emit.  No other
  * uses of the vue superclass are expected.
  */
-export default class Track extends Vue {
+export default class Track {
   trackId: TrackId;
 
   meta: StringKeyObject;
@@ -65,6 +65,8 @@ export default class Track extends Vue {
 
   revision: Ref<number>;
 
+  bus: Vue;
+
   constructor(trackId: TrackId, {
     meta = {},
     begin = Infinity,
@@ -73,7 +75,7 @@ export default class Track extends Vue {
     confidencePairs = [],
     attributes = {},
   }: TrackParams) {
-    super();
+    this.bus = new Vue();
     this.trackId = trackId;
     this.meta = meta;
     this.attributes = attributes;
@@ -103,7 +105,7 @@ export default class Track extends Vue {
    * @param oldValue the value before the change being notified.
    */
   private notify(name: string, oldValue: unknown) {
-    this.$emit('notify', {
+    this.bus.$emit('notify', {
       track: this,
       event: name,
       oldValue,

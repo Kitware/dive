@@ -1,7 +1,7 @@
 /// <reference types="jest" />
 import Vue from 'vue';
 import CompositionApi from '@vue/composition-api';
-import Track, { TrackData } from './track';
+import Track, { TrackData } from '@/lib/track';
 
 Vue.use(CompositionApi);
 
