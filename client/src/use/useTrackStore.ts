@@ -18,17 +18,7 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
    *
    * TrackMap is provided for lookup by computed functions and templates.
    * Note that a track class instance must NEVER be returned in its entirety by
-   * a computed function.  The consumer of this composition function will probably
-   * want to `provide()` the trackMap to all children instead of passing it through
-   * the template.
-   *
-   * Note that composition api has `shallowRef` and `shallowReactive`, which might
-   * allow trackIds and trackMap to be combined into 1 object with the same reactivity
-   * goals.  They were separated to avoid any mental gymnastics and situations where
-   * the reactivity behavior is suprising to a future developer.
-   * See also: https://composition-api.vuejs.org/api.html#shallowreactive
-   *
-   * RangeList is a TODO for fast lookups
+   * a computed function.
    */
   const trackMap = new Map<TrackId, Track>();
   const intervalTree = new IntervalTree();
@@ -47,6 +37,14 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
 
   function _depend(): number {
     return canary.value;
+  }
+
+  function _getTrack(trackId: TrackId): Track {
+    const track = trackMap.get(trackId);
+    if (track === undefined) {
+      throw new Error(`TrackId ${trackId} not found in trackMap.`);
+    }
+    return track;
   }
 
   function onChange(
@@ -87,10 +85,7 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
     if (trackId === null) {
       return;
     }
-    const track = trackMap.get(trackId);
-    if (track === undefined) {
-      throw new Error(`TrackId ${trackId} not found in trackMap.`);
-    }
+    const track = _getTrack(trackId);
     const range = [track.begin, track.end];
     if (!intervalTree.remove(range, trackId)) {
       throw new Error(`TrackId ${trackId} with range ${range} not found in tree.`);
@@ -110,6 +105,20 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
     return null;
   }
 
+  /*
+   * Discard tracks whose highest confidencePair value
+   * is lower than specified.
+   */
+  async function removeTracksBelowConfidence(thresh: number) {
+    trackIds.value.forEach((trackId) => {
+      const track = _getTrack(trackId);
+      const confidence = track.getType();
+      if (confidence !== null && confidence[1] < thresh) {
+        removeTrack(trackId);
+      }
+    });
+  }
+
   async function loadTracks(datasetFolderId: string) {
     const data = await getDetections(datasetFolderId, 'track_json');
     if (data !== null) {
@@ -122,11 +131,8 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
   const sortedTrackIds = computed(() => {
     _depend();
     return trackIds.value.sort((a, b) => {
-      const trackA = trackMap.get(a);
-      const trackB = trackMap.get(b);
-      if (trackA === undefined || trackB === undefined) {
-        throw new Error(`Found trackIds not in track map: ${a}, ${b}`);
-      }
+      const trackA = _getTrack(a);
+      const trackB = _getTrack(b);
       return trackA.begin - trackB.begin;
     });
   });
@@ -137,6 +143,7 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
     intervalTree,
     addTrack,
     removeTrack,
+    removeTracksBelowConfidence,
     splitTracks,
     loadTracks,
   };

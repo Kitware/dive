@@ -8,8 +8,15 @@ import { getItemsInFolder, getFolder, getItemDownloadUri } from '@/lib/api/girde
 
 const defaultFrameRate = 30;
 
+interface VIIMEDataset extends GirderModel {
+  meta: {
+    type: 'video' | 'image-sequence';
+    fps: number;
+  };
+}
+
 export default function useGirderDataset() {
-  const dataset = ref(null as GirderModel | null);
+  const dataset = ref(null as VIIMEDataset | null);
   const imageUrls = ref([] as string[]);
   const videoUrl = ref('');
 
@@ -60,7 +67,7 @@ export default function useGirderDataset() {
   });
 
   async function loadDataset(datasetId: string) {
-    const folder = await getFolder(datasetId);
+    const folder = await getFolder(datasetId) as VIIMEDataset;
     if (!folder) {
       throw new Error(`could not fetch dataset for id ${datasetId}`);
     }
