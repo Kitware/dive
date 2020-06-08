@@ -127,7 +127,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
         this.applyStylesToAnnotations();
         // State doesn't change at the end of editing so this will
         // swap into edit mode once geoJS is done
-        setTimeout(() => this.$emit('update:geojson', this.formattedData[0], true), 0);
+        setTimeout(() => this.$emit('update:geojson', this.formattedData[0]), 0);
       }
     }
   }

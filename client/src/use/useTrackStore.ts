@@ -58,9 +58,7 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
       intervalTree.remove(oldInterval, track.trackId);
       intervalTree.insert([track.begin, track.end], track.trackId);
     }
-    if (event !== 'feature') {
-      canary.value += 1;
-    }
+    canary.value += 1;
     markChangesPending();
   }
 

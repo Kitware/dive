@@ -159,10 +159,14 @@ export default Vue.extend({
     <v-virtual-scroll
       ref="virtualList"
       v-mousetrap="[
-        { bind: 'up', handler: (el, event) => scrollPreventDefault(el, event, 'up') },
-        { bind: 'down', handler: (el, event) => scrollPreventDefault(el, event, 'down') },
-        { bind: 'enter', handler: () => $emit('track-click', selectedTrackId.value)},
-        { bind: 'del', handler: () => $emit('track-remove', selectedTrackId.value)},
+        { bind: 'up', handler: (el, event) => scrollPreventDefault(el, event, 'up'),
+          disabled: $prompt.visible() },
+        { bind: 'down', handler: (el, event) => scrollPreventDefault(el, event, 'down'),
+          disabled: $prompt.visible() },
+        { bind: 'enter', handler: () => $emit('track-click', selectedTrackId.value),
+          disabled: $prompt.visible()},
+        { bind: 'del', handler: () => $emit('track-remove', selectedTrackId.value),
+          disabled: $prompt.visible()},
       ]"
       :items="virtualListItems"
       :item-height="itemHeight"

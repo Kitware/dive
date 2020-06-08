@@ -50,11 +50,11 @@ export default {
 <template>
   <div
     v-mousetrap="[
-      { bind: 'left', handler: previousFrame },
-      { bind: 'right', handler: nextFrame },
-      { bind: 'space', handler: togglePlay },
-      { bind: 'f', handler: nextFrame },
-      { bind: 'd', handler: previousFrame },
+      { bind: 'left', handler: previousFrame, disabled: $prompt.visible() },
+      { bind: 'right', handler: nextFrame, disabled: $prompt.visible()},
+      { bind: 'space', handler: togglePlay, disabled: $prompt.visible() },
+      { bind: 'f', handler: nextFrame, disabled: $prompt.visible() },
+      { bind: 'd', handler: previousFrame, disabled: $prompt.visible() },
     ]"
   >
     <v-toolbar
