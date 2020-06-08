@@ -23,11 +23,11 @@ export default Vue.extend({
 </script>
 
 <template>
-  <div class="overflow-y-auto">
-    <v-subheader>
+  <div class="d-flex flex-column">
+    <v-subheader class="flex-shrink-0">
       Type Filter
     </v-subheader>
-    <div class="overflow-y-hidden">
+    <div class="overflow-y-auto flex-grow-1">
       <v-checkbox
         v-for="type in allTypes.value"
         :key="type"

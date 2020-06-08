@@ -116,7 +116,7 @@ export default defineComponent({
       >
         <type-list
           v-bind="trackListProps"
-          class="flex-shrink-1 typelist"
+          class="flex-shrink-1 flex-grow-1 typelist"
         />
         <slot />
         <v-spacer />

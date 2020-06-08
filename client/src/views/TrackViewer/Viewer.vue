@@ -293,7 +293,7 @@ export default defineComponent({
             { bind: 'h', handler: () => toggleFeaturePointing('head') },
             { bind: 't', handler: () => toggleFeaturePointing('tail') },
             { bind: 'y', handler: () => toggleFeaturePointing('tail') },
-            { bind: 'q', handler: deleteFeaturePoints },
+            { bind: 'q', handler: () => deleteFeaturePoints(frame) },
             { bind: 'esc', handler: () => selectTrack(null, false)}
           ]"
           :image-urls="imageUrls"
@@ -336,7 +336,7 @@ export default defineComponent({
                 Add feature points, starting with tail (t key)
               </v-list-item-title>
             </v-list-item>
-            <v-list-item @click="deleteFeaturePoints">
+            <v-list-item @click="deleteFeaturePoints(frame)">
               <v-list-item-title>
                 Delete both feature points for current frame (q key)
               </v-list-item-title>
