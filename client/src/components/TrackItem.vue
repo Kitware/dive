@@ -24,7 +24,7 @@ export default {
       required: true,
     },
     editingTrack: {
-      validator: Boolean,
+      type: Boolean,
       required: true,
     },
     color: {
