@@ -67,8 +67,15 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
 
   /** overrides default function to disable and clear anotations before drawing again */
   changeData(frameData: FrameDataTrack[]) {
-    this.disable();
-    this.formattedData = this.formatData(frameData);
+    /* An edited annotation calls updateLayers immediately.  This will
+      prevent it from updating so the geoJS editor can handle the state.
+    */
+    if (!this.changed) {
+      this.disable();
+      this.formattedData = this.formatData(frameData);
+    } else {
+      this.changed = false;
+    }
     this.redraw();
   }
 
@@ -99,7 +106,6 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
     }
     // if there wasn't a valid track in frameData
     // then put the component into annotation create mode
-    this.changed = true;
     if (typeof this.editing !== 'string') {
       throw new Error(
         `editing props needs to be a string of value 
@@ -141,7 +147,6 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
       if (e.action === geo.event.actionup) {
         // This will commit the change to the current annotation on mouse up while editing
         if (e.annotation.state() === 'edit') {
-          this.changed = false;
           const newGeojson: GeoJSON.Feature<GeoJSON.Point|GeoJSON.Polygon> = (
             e.annotation.geojson()
           );
@@ -159,8 +164,8 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
             }];
           }
           // must ALWAYS emit a polygon or point
-          this.$emit('update:geojson', this.formattedData[0]);
           this.changed = true;
+          this.$emit('update:geojson', this.formattedData[0]);
         }
       }
     }

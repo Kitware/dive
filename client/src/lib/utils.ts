@@ -49,9 +49,12 @@ function getResponseError(error: AxiosError): string | AxiosError {
  * removes and adds changed values.  If a value is in both old and new superset
  * and omitted from subset, it will remain omitted
  */
-function updateSubset<T>(oldarr: Readonly<Array<T>>, newarr: Readonly<Array<T>>) {
+function updateSubset<T>(oldarr: Array<T>, newarr: Readonly<Array<T>>) {
   const addedValues = difference(newarr, oldarr);
   const removedValues = difference(oldarr, newarr);
+  if (!addedValues.length && !removedValues.length) {
+    return oldarr;
+  }
   const oldset = new Set(oldarr);
   addedValues.forEach((v) => oldset.add(v));
   removedValues.forEach((v) => oldset.delete(v));
