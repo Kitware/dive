@@ -2,10 +2,10 @@ import Vue from 'vue';
 
 interface PromptParams {
   title: string;
-      text: string;
-      positiveButton?: string;
-      negativeButton?: string;
-      confirm?: boolean;
+  text: string;
+  positiveButton?: string;
+  negativeButton?: string;
+  confirm?: boolean;
 }
 declare module 'vue/types/vue' {
   interface Vue {
