@@ -24,7 +24,7 @@ export default {
       required: true,
     },
     editingTrack: {
-      validator: Object,
+      validator: Boolean,
       required: true,
     },
     color: {
@@ -105,7 +105,7 @@ export default {
       class="trackNumber pl-0 pr-2"
       @click.self="$emit('click')"
     >
-      {{ trackId + (editingTrack.value ? "*" : "") }}
+      {{ trackId + (editingTrack && selected ? "*" : "") }}
     </div>
     <div
       v-if="!editing"
