@@ -3,7 +3,6 @@ import useGirderDataset from './useGirderDataset';
 import useFeaturePointing from './useFeaturePointing';
 import useLineChart from './useLineChart';
 import useSave from './useSave';
-import useTextLayer from './useTextLayer';
 import useStyling from './useStyling';
 
 import useTrackFilters from './useTrackFilters';
@@ -16,7 +15,6 @@ export {
   useFeaturePointing,
   useLineChart,
   useSave,
-  useTextLayer,
   useStyling,
 
   useTrackFilters,
