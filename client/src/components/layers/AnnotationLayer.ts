@@ -4,13 +4,13 @@ import { boundToGeojson } from '@/utils';
 import geo, { GeoEvent } from 'geojs';
 import { FrameDataTrack } from '@/components/layers/LayerTypes';
 
- interface RectGeoJSData{
-   trackId: number;
-   selected: boolean;
-   editing: boolean;
-   confidencePairs: [string, number] | null;
-   polygon: GeoJSON.Polygon;
- }
+interface RectGeoJSData{
+  trackId: number;
+  selected: boolean;
+  editing: boolean;
+  confidencePairs: [string, number] | null;
+  polygon: GeoJSON.Polygon;
+}
 
 export default class AnnotationLayer extends BaseLayer<RectGeoJSData> {
   initialize() {
