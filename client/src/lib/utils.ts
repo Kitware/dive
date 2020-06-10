@@ -1,5 +1,6 @@
 import { AxiosError } from 'axios';
 import { difference } from 'lodash';
+
 /**
  * Binary search in JavaScript.
  * Adapted from https://stackoverflow.com/questions/22697936/binary-search-in-javascript
@@ -47,13 +48,14 @@ function getResponseError(error: AxiosError): string | AxiosError {
  * updateSubset keeps a subset up to date when its superset
  * changes.  Takes the old and new array values of the superset,
  * removes and adds changed values.  If a value is in both old and new superset
- * and omitted from subset, it will remain omitted
+ * and omitted from subset, it will remain omitted.  If old and new are
+ * the same, it will return null
  */
-function updateSubset<T>(oldarr: Array<T>, newarr: Readonly<Array<T>>) {
+function updateSubset<T>(oldarr: Readonly<Array<T>>, newarr: Readonly<Array<T>>): Array<T> | null {
   const addedValues = difference(newarr, oldarr);
   const removedValues = difference(oldarr, newarr);
   if (!addedValues.length && !removedValues.length) {
-    return oldarr;
+    return null;
   }
   const oldset = new Set(oldarr);
   addedValues.forEach((v) => oldset.add(v));
