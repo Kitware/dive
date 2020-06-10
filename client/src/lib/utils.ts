@@ -51,16 +51,20 @@ function getResponseError(error: AxiosError): string | AxiosError {
  * and omitted from subset, it will remain omitted.  If old and new are
  * the same, it will return null
  */
-function updateSubset<T>(oldarr: Readonly<Array<T>>, newarr: Readonly<Array<T>>): Array<T> | null {
-  const addedValues = difference(newarr, oldarr);
-  const removedValues = difference(oldarr, newarr);
+function updateSubset<T>(
+  oldsuper: Readonly<T[]>,
+  newsuper: Readonly<T[]>,
+  subarr: Readonly<T[]>
+): T[] | null {
+  const addedValues = difference(newsuper, oldsuper);
+  const removedValues = difference(oldsuper, newsuper);
   if (!addedValues.length && !removedValues.length) {
     return null;
   }
-  const oldset = new Set(oldarr);
-  addedValues.forEach((v) => oldset.add(v));
-  removedValues.forEach((v) => oldset.delete(v));
-  return Array.from(oldset);
+  const subset = new Set(subarr);
+  addedValues.forEach((v) => subset.add(v));
+  removedValues.forEach((v) => subset.delete(v));
+  return Array.from(subset);
 }
 
 export {
