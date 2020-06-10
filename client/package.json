@@ -74,30 +74,18 @@
     "verbose": true,
     "moduleNameMapper": {
       "^@/(.*)$": "<rootDir>/src/$1",
-      "\\.css$": "<rootDir>/test/stub.js",
-      "^vuetify/lib$": "vuetify",
-      "^vuetify/lib/(.*)": "vuetify/es5/$1"
+      "\\.css$": "<rootDir>/test/stub.js"
     },
-    "moduleDirectories": [
-      ".",
-      "src",
-      "node_modules"
-    ],
-    "moduleFileExtensions": [
-      "js",
-      "ts",
-      "json",
-      "vue"
-    ],
     "transform": {
       ".*\\.(vue)$": "vue-jest",
       "^.+\\.tsx?$": "ts-jest",
-      ".+\\.(css|styl|less|sass|scss|svg|png|jpg|ttf|woff|woff2)$": "jest-transform-stub",
       "^.+\\.jsx?$": "babel-jest"
     },
-    "transformIgnorePatterns": [
-      "/node_modules/(?!@girder/)"
-    ]
+    "globals": {
+      "ts-jest": {
+        "tsConfig": "tsconfig.spec.json"
+      }
+    }
   },
   "eslintConfig": {
     "root": true,
