@@ -54,7 +54,7 @@ function getResponseError(error: AxiosError): string | AxiosError {
 function updateSubset<T>(
   oldsuper: Readonly<T[]>,
   newsuper: Readonly<T[]>,
-  subarr: Readonly<T[]>
+  subarr: Readonly<T[]>,
 ): T[] | null {
   const addedValues = difference(newsuper, oldsuper);
   const removedValues = difference(oldsuper, newsuper);
