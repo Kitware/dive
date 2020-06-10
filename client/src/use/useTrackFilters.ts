@@ -64,13 +64,26 @@ export default function useFilteredTracks(
     return filteredTrackIds.value.filter((trackId) => checkedSet.has(trackId));
   });
 
+  // because vue watchers don't behave properly, and it's better to not have
+  // checkedTrackIds be a union null | array type
+  let oldCheckedTrackIds: TrackId[] = [];
   /* When the list of types (or checked IDs) changes
    * add the new enabled types to the set and remove old ones */
   watch(sortedTrackIds, (newval) => {
-    checkedTrackIds.value = updateSubset(checkedTrackIds.value, newval);
+    const newArr = updateSubset(oldCheckedTrackIds, newval, checkedTrackIds.value);
+    if (newArr !== null) {
+      oldCheckedTrackIds = Array.from(newval);
+      checkedTrackIds.value = newArr;
+    }
   });
+
+  let oldCheckedtypes: string[] = [];
   watch(allTypes, (newval) => {
-    checkedTypes.value = updateSubset(checkedTypes.value, newval);
+    const newArr = updateSubset(oldCheckedtypes, newval, checkedTypes.value);
+    if (newArr !== null) {
+      oldCheckedtypes = Array.from(newval);
+      checkedTypes.value = newArr;
+    }
   });
 
   return {
