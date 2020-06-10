@@ -66,14 +66,14 @@ export default function useFilteredTracks(
 
   /* When the list of types (or checked IDs) changes
    * add the new enabled types to the set and remove old ones */
-  watch(sortedTrackIds, (newval) => {
-    const newArr = updateSubset(checkedTrackIds.value, newval);
+  watch(sortedTrackIds, (newval, oldval) => {
+    const newArr = updateSubset(oldval, newval, checkedTrackIds.value);
     if (newArr !== null) {
       checkedTrackIds.value = newArr;
     }
   });
-  watch(allTypes, (newval) => {
-    const newArr = updateSubset(checkedTypes.value, newval);
+  watch(allTypes, (newval, oldval) => {
+    const newArr = updateSubset(oldval, newval, checkedTypes.value);
     if (newArr !== null) {
       checkedTypes.value = newArr;
     }
