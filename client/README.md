@@ -81,3 +81,7 @@ The major benefits of the `src/use` style are:
 * modularity.  Private behavior is hidden, and further refactors and features have less opportunity to break neighboring code
 * sanity.  All this logic and state is technically contained in a single component.  For the sake of developer quality of life, it was necessary to break the 1000-line `Viewer.vue` file down into more digestable chunks.
 * typescript adoption.  Typescript will be easier to incrementally adopt.
+
+## Tests
+
+Note that `tsconfig.spec.json` is an exact copy of `tsconfig.json` but the `target` and `module` are changed such that babel is not required for jest to execute tests.
