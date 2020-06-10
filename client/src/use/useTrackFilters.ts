@@ -15,9 +15,6 @@ export default function useFilteredTracks(
 ) {
   /* Track IDs explicitly checked "ON" by the user */
   const checkedTrackIds = ref(Array.from(sortedTrackIds.value));
-  // because vue watchers don't behave properly, and it's better to not have
-  // checkedTrackIds be a union null | array type
-  let oldCheckedTrackIds: TrackId[] = [];
   /* The confidence threshold to test confidecePairs against */
   const confidenceThreshold = ref(0.5);
 
@@ -38,8 +35,6 @@ export default function useFilteredTracks(
 
   /* Categorical types checked "ON" by the user */
   const checkedTypes = ref(Array.from(allTypes.value));
-  // see above
-  let oldCheckedtypes: string[] = [];
 
   /* track IDs filtered by type and confidence threshold */
   const filteredTrackIds = computed(() => {
@@ -69,6 +64,9 @@ export default function useFilteredTracks(
     return filteredTrackIds.value.filter((trackId) => checkedSet.has(trackId));
   });
 
+  // because vue watchers don't behave properly, and it's better to not have
+  // checkedTrackIds be a union null | array type
+  let oldCheckedTrackIds: TrackId[] = [];
   /* When the list of types (or checked IDs) changes
    * add the new enabled types to the set and remove old ones */
   watch(sortedTrackIds, (newval) => {
@@ -78,6 +76,8 @@ export default function useFilteredTracks(
       checkedTrackIds.value = newArr;
     }
   });
+
+  let oldCheckedtypes: string[] = [];
   watch(allTypes, (newval) => {
     const newArr = updateSubset(oldCheckedtypes, newval, checkedTypes.value);
     if (newArr !== null) {
