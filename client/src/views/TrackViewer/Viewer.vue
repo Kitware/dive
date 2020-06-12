@@ -212,7 +212,6 @@ export default defineComponent({
       handleTrackEdit,
       removeTrack,
       save,
-      selectNextTrack,
       selectTrack,
       toggleFeaturePointing,
       featurePointed,
