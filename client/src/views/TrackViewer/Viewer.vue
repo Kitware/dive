@@ -148,6 +148,9 @@ export default defineComponent({
       // if removed track was selected, unselect before remove
       if (selectedTrackId.value === trackId) {
         selectNextTrack(1);
+        if (editingTrack.value) {
+          selectTrack(selectedTrackId.value, false);
+        }
       }
       tsRemoveTrack(trackId);
     }
@@ -176,6 +179,17 @@ export default defineComponent({
       }
     }
 
+    //Selection of next track while seeking to position
+    function handleSelectNext(delta: number) {
+      selectNextTrack(delta);
+      if (selectedTrackId.value !== null) {
+        const track = trackMap.get(selectedTrackId.value);
+        if (track !== undefined) {
+          playbackComponent.value.seek(track.begin);
+        }
+      }
+    }
+
     return {
       /* props use locally */
       annotatorType,
@@ -194,6 +208,7 @@ export default defineComponent({
       addTrack,
       deleteFeaturePoints,
       handleTrackClick,
+      handleSelectNext,
       handleTrackEdit,
       removeTrack,
       save,
@@ -291,8 +306,8 @@ export default defineComponent({
         @track-remove="removeTrack"
         @track-click="handleTrackClick"
         @track-edit="handleTrackEdit"
-        @track-next="selectNextTrack(1)"
-        @track-previous="selectNextTrack(-1)"
+        @track-next="handleSelectNext(1)"
+        @track-previous="handleSelectNext(-1)"
       >
         <ConfidenceFilter :confidence.sync="confidenceThreshold" />
       </sidebar>
