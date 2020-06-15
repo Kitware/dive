@@ -1,4 +1,4 @@
-import girderRest from '@/girder';
+import girderRest from '@/plugins/girder';
 
 interface GirderModel {
   _id: string;

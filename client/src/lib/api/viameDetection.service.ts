@@ -1,4 +1,4 @@
-import girderRest from '@/girder';
+import girderRest from '@/plugins/girder';
 import Track, { TrackData, TrackId } from '@/lib/track';
 
 interface ExportUrlsResponse {

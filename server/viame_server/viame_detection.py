@@ -8,11 +8,11 @@ from girder.api.describe import Description, autoDescribeRoute
 from girder.api.rest import Resource
 from girder.constants import AccessType, TokenScope
 from girder.exceptions import RestException
+from girder.models.assetstore import Assetstore
 from girder.models.file import File
 from girder.models.folder import Folder
 from girder.models.item import Item
 from girder.models.upload import Upload
-from girder.models.assetstore import Assetstore
 
 from viame_server.serializers import viame
 from viame_server.utils import (
@@ -55,7 +55,7 @@ class ViameDetection(Resource):
             'videoUrl': videoUrl,
         }
 
-    @access.public(scope=TokenScope.DATA_READ, cookie=True)
+    @access.user
     @autoDescribeRoute(
         Description("Export VIAME data").modelParam(
             "id",
@@ -75,8 +75,7 @@ class ViameDetection(Resource):
         clipMeta = self._get_clip_meta(folder)
         detection = clipMeta.get('detection')
         if detection:
-            itemId = detection.get('_id', None)
-            export_detections = f'/api/v1/item/{itemId}/download'
+            export_detections = f'/api/v1/viame_detection/{folderId}/export_detections'
 
         source_type = folder.get('meta', {}).get('type', None)
         if source_type == VideoType:
@@ -102,10 +101,9 @@ class ViameDetection(Resource):
             'exportDetectionsUrl': export_detections,
         }
 
-    @access.user
+    @access.public(scope=TokenScope.DATA_READ, cookie=True)
     @autoDescribeRoute(
-        Description("Export detections of a clip into CSV format.")
-        .modelParam(
+        Description("Export detections of a clip into CSV format.").modelParam(
             "id",
             description="folder id of a clip",
             model=Folder,
@@ -145,8 +143,7 @@ class ViameDetection(Resource):
 
     @access.user
     @autoDescribeRoute(
-        Description("Get detections of a clip")
-        .modelParam(
+        Description("Get detections of a clip").modelParam(
             "folderId",
             description="folder id of a clip",
             model=Folder,

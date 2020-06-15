@@ -7,10 +7,10 @@ import promptService from '@/lib/vue-utilities/prompt-service';
 import vMousetrap from '@/lib/vue-utilities/v-mousetrap';
 
 import vuetify from '@/plugins/vuetify';
+import girderRest from '@/plugins/girder';
 import App from './App.vue';
 import router from './router';
 import store from './store';
-import girderRest from './girder';
 
 Vue.config.productionTip = false;
 Vue.use(VueCompositionApi);
