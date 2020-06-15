@@ -31,18 +31,17 @@ describe('useTrackSelectionControls', () => {
     const trackIds = ref([0, 2, 200, 1000]);
     const tsc = useTrackSelectionControls({ trackIds });
 
-    tsc.selectNextTrack();
-    expect(tsc.selectedTrackId.value).toBe(0);
-    tsc.selectNextTrack();
-    expect(tsc.selectedTrackId.value).toBe(2);
+    expect(tsc.selectNextTrack()).toBe(0);
 
-    tsc.selectNextTrack(-100);
-    expect(tsc.selectedTrackId.value).toBeNull();
+    tsc.selectTrack(tsc.selectNextTrack());
+    expect(tsc.selectNextTrack()).toBe(2);
 
-    tsc.selectNextTrack(100);
-    expect(tsc.selectedTrackId.value).toBe(0);
+    expect(tsc.selectNextTrack(-100)).toBeNull();
+    tsc.selectTrack(tsc.selectNextTrack(-100));
 
-    tsc.selectNextTrack(100);
-    expect(tsc.selectedTrackId.value).toBeNull();
+    expect(tsc.selectNextTrack(100)).toBe(0);
+    tsc.selectTrack(tsc.selectNextTrack(100));
+
+    expect(tsc.selectNextTrack(100)).toBeNull();
   });
 });

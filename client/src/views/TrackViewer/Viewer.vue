@@ -147,9 +147,9 @@ export default defineComponent({
       }
       // if removed track was selected, unselect before remove
       if (selectedTrackId.value === trackId) {
-        selectNextTrack(1);
-        if (editingTrack.value) {
-          selectTrack(selectedTrackId.value, false);
+        const newTrack = selectNextTrack(1) !== null ? selectNextTrack(1) : selectNextTrack(-1);
+        if (newTrack !== null) {
+          selectTrack(newTrack, false);
         }
       }
       tsRemoveTrack(trackId);
@@ -181,11 +181,14 @@ export default defineComponent({
 
     //Selection of next track while seeking to position
     function handleSelectNext(delta: number) {
-      selectNextTrack(delta);
-      if (selectedTrackId.value !== null) {
-        const track = trackMap.get(selectedTrackId.value);
-        if (track !== undefined) {
-          playbackComponent.value.seek(track.begin);
+      const newTrack = selectNextTrack(delta);
+      if (newTrack !== null) {
+        selectTrack(newTrack, false);
+        if (selectedTrackId.value !== null) {
+          const track = trackMap.get(selectedTrackId.value);
+          if (track !== undefined) {
+            playbackComponent.value.seek(track.begin);
+          }
         }
       }
     }
