@@ -23,25 +23,22 @@ export default function useTrackSelectionControls(
   /* default to index + 1
    * call with -1 to select previous, or pass any other delta
    */
-  function selectNextTrack(delta = 1) {
+  function selectNextTrack(delta = 1): TrackId | null {
     if (trackIds.value.length > 0) {
       if (selectedTrackId.value === null) {
-        // if no track is selected, select the first one
-        [selectedTrackId.value] = trackIds.value;
-      } else {
-        // else select the next, and loop back to beginnng
-        const index = trackIds.value.indexOf(selectedTrackId.value);
-        const newIndex = index + delta;
-        if (newIndex >= 0 && newIndex < trackIds.value.length) {
-          // if we are not at the end
-          selectedTrackId.value = trackIds.value[newIndex];
-        } else {
-          selectTrack(null, false);
-        }
+        // if no track is selected, return the first trackId
+        return trackIds.value[0];
       }
-    } else {
-      selectTrack(null, false);
+      // return the trackId by the delta offset if it exists
+      const index = trackIds.value.indexOf(selectedTrackId.value);
+      const newIndex = index + delta;
+      if (newIndex >= 0 && newIndex < trackIds.value.length) {
+        // if we are not at the end
+        return trackIds.value[newIndex];
+      }
     }
+    //Return null if no other conditions are met
+    return null;
   }
   return {
     selectedTrackId,

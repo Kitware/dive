@@ -147,7 +147,10 @@ export default defineComponent({
       }
       // if removed track was selected, unselect before remove
       if (selectedTrackId.value === trackId) {
-        selectNextTrack(1);
+        const newTrack = selectNextTrack(1) !== null ? selectNextTrack(1) : selectNextTrack(-1);
+        if (newTrack !== null) {
+          selectTrack(newTrack, false);
+        }
       }
       tsRemoveTrack(trackId);
     }
@@ -176,6 +179,21 @@ export default defineComponent({
       }
     }
 
+    //Selection of next track while seeking to position
+    function handleSelectNext(delta: number) {
+      const newTrack = selectNextTrack(delta);
+      if (newTrack !== null) {
+        selectTrack(newTrack, false);
+        const track = trackMap.get(newTrack);
+        if (track === undefined) {
+          throw new Error(`Accessed missing track ${newTrack}`);
+        } else {
+          playbackComponent.value.seek(track.begin);
+        }
+      }
+    }
+
+
     return {
       /* props use locally */
       annotatorType,
@@ -194,10 +212,10 @@ export default defineComponent({
       addTrack,
       deleteFeaturePoints,
       handleTrackClick,
+      handleSelectNext,
       handleTrackEdit,
       removeTrack,
       save,
-      selectNextTrack,
       selectTrack,
       toggleFeaturePointing,
       featurePointed,
@@ -291,8 +309,8 @@ export default defineComponent({
         @track-remove="removeTrack"
         @track-click="handleTrackClick"
         @track-edit="handleTrackEdit"
-        @track-next="selectNextTrack(1)"
-        @track-previous="selectNextTrack(-1)"
+        @track-next="handleSelectNext(1)"
+        @track-previous="handleSelectNext(-1)"
       >
         <ConfidenceFilter :confidence.sync="confidenceThreshold" />
       </sidebar>
