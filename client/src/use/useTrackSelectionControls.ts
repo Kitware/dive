@@ -27,8 +27,7 @@ export default function useTrackSelectionControls(
     if (trackIds.value.length > 0) {
       if (selectedTrackId.value === null) {
         // if no track is selected, select the first one
-        const [first] = trackIds.value;
-        return first;
+        return trackIds.value[0];
       }
       // else select the next, and loop back to beginnng
       const index = trackIds.value.indexOf(selectedTrackId.value);
