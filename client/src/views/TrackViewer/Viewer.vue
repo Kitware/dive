@@ -184,14 +184,15 @@ export default defineComponent({
       const newTrack = selectNextTrack(delta);
       if (newTrack !== null) {
         selectTrack(newTrack, false);
-        if (selectedTrackId.value !== null) {
-          const track = trackMap.get(selectedTrackId.value);
-          if (track !== undefined) {
-            playbackComponent.value.seek(track.begin);
-          }
+        const track = trackMap.get(newTrack);
+        if (track === undefined) {
+          throw new Error(`Accessed missing track ${newTrack}`);
+        } else {
+          playbackComponent.value.seek(track.begin);
         }
       }
     }
+
 
     return {
       /* props use locally */

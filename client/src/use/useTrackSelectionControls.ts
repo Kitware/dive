@@ -26,10 +26,10 @@ export default function useTrackSelectionControls(
   function selectNextTrack(delta = 1): TrackId | null {
     if (trackIds.value.length > 0) {
       if (selectedTrackId.value === null) {
-        // if no track is selected, select the first one
+        // if no track is selected, return the first trackId
         return trackIds.value[0];
       }
-      // else select the next, and loop back to beginnng
+      // return the trackId by the delta offset if it exists
       const index = trackIds.value.indexOf(selectedTrackId.value);
       const newIndex = index + delta;
       if (newIndex >= 0 && newIndex < trackIds.value.length) {
