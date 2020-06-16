@@ -1,4 +1,4 @@
-import girderRest from '@/girder';
+import girderRest from '@/plugins/girder';
 import { GirderModel } from '@girder/components/src';
 
 async function getItemsInFolder(folderId: string, limit: number) {
