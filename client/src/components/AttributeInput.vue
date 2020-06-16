@@ -1,13 +1,14 @@
-<script>
-export default {
-  name: 'AttributeInput',
+<script lang="ts">
+import Vue, { PropType } from 'vue';
+
+export default Vue.extend({
   props: {
     name: {
       type: String,
       required: true,
     },
     value: {
-      type: [String, Number, Boolean],
+      type: [String, Boolean, Number] as PropType<string|boolean|number|null>,
       default: null,
     },
     datatype: {
@@ -16,58 +17,60 @@ export default {
     },
     values: {
       type: Array,
-      required: false,
       default: () => [],
     },
   },
+
   computed: {
-    values_() {
-      return ['', ...this.values];
-    },
+    foo() { return this.value; },
   },
+
   methods: {
-    change(value) {
-      let newval;
-      switch (value) {
+    change(newval: string | boolean | number | undefined): void {
+      const { name } = this;
+      let value;
+      switch (newval) {
         case '':
-        case null:
-          newval = undefined;
+        case undefined:
+          value = undefined;
           break;
         default:
-          newval = value;
+          value = newval;
       }
-      this.$emit('change', { name: this.name, value: newval });
+      this.$emit('change', { name, value });
     },
   },
-};
+});
 </script>
 
 <template>
-  <v-combobox
-    v-if="datatype === 'text'"
-    :label="name"
-    :value="value"
-    :items="values_"
-    autocomplete="off"
-    @change="change"
-  />
-  <v-text-field
-    v-else-if="datatype === 'number'"
-    :label="name"
-    :value="value"
-    type="number"
-    autocomplete="off"
-    @change="change"
-  />
-  <v-select
-    v-else-if="datatype === 'boolean'"
-    :label="name"
-    :value="value"
-    :items="[
-      { text: '', value: null },
-      { text: 'true', value: true },
-      { text: 'false', value: false }
-    ]"
-    @change="change"
-  />
+  <div>
+    <v-combobox
+      v-if="datatype === 'text'"
+      :label="name"
+      :value="value"
+      :items="['', ...values]"
+      autocomplete="off"
+      @change="change"
+    />
+    <v-text-field
+      v-else-if="datatype === 'number'"
+      :label="name"
+      :value="value"
+      type="number"
+      autocomplete="off"
+      @change="change"
+    />
+    <v-select
+      v-else-if="datatype === 'boolean'"
+      :label="name"
+      :value="value"
+      :items="[
+        { text: '', value: undefined },
+        { text: 'true', value: true },
+        { text: 'false', value: false }
+      ]"
+      @change="change"
+    />
+  </div>
 </template>

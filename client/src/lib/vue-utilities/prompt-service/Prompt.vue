@@ -9,6 +9,7 @@ export default {
     text: '',
     positiveButton: 'Confirm',
     negativeButton: 'Cancel',
+    selected: 'positive',
     confirm: false,
     resolve: null,
   }),
@@ -16,6 +17,9 @@ export default {
     show(value) {
       if (!value) {
         this.resolve(false);
+      } else {
+        // Needs to mount and then dialog transition, single tick doesn't work
+        this.$nextTick(() => this.$nextTick(() => this.$refs.positive.$el.focus()));
       }
     },
   },
@@ -27,6 +31,19 @@ export default {
     positive() {
       this.show = false;
       this.resolve(true);
+    },
+    focus(direction) {
+      if (this.$refs[direction]) {
+        this.$refs[direction].$el.focus();
+        this.selected = direction;
+      }
+    },
+    select() {
+      if (this.selected === 'positive') {
+        this.positive();
+      } else {
+        this.negative();
+      }
     },
   },
 };
@@ -40,6 +57,11 @@ export default {
     <v-card>
       <v-card-title
         v-if="title"
+        v-mousetrap="[
+          { bind: 'left', handler: () => focus('negative') },
+          { bind: 'right', handler: () => focus('positive') },
+          { bind: 'enter', handler: () => select() },
+        ]"
         class="title"
       >
         {{ title }}
@@ -51,12 +73,14 @@ export default {
         <v-spacer />
         <v-btn
           v-if="confirm"
+          ref="negative"
           text
           @click="negative"
         >
           {{ negativeButton }}
         </v-btn>
         <v-btn
+          ref="positive"
           color="primary"
           text
           @click="positive"

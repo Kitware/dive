@@ -1,13 +1,17 @@
 import Vue from 'vue';
 
-// 2. Specify a file with the types you want to augment
-//    Vue has the constructor type in types/vue.d.ts
+interface PromptParams {
+  title: string;
+  text: string;
+  positiveButton?: string;
+  negativeButton?: string;
+  confirm?: boolean;
+}
 declare module 'vue/types/vue' {
-  // 3. Declare augmentation for Vue
   interface Vue {
     $promptAttach(): Vue;
-    $prompt(): Promise<any>;
+    $prompt(arg: PromptParams): Promise<unknown>;
     $snackbarAttach(): Vue;
-    $snackbar(): Promise<any>;
+    $snackbar(): Promise<unknown>;
   }
 }

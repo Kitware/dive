@@ -1,8 +1,8 @@
 import Vue from 'vue';
 import Router from 'vue-router';
 
-import girderRest from '@/girder';
-import Viewer from '@/views/Viewer/Viewer.vue';
+import girderRest from '@/plugins/girder';
+import Viewer from '@/views/TrackViewer/Viewer.vue';
 import Home from '@/views/Home.vue';
 import Jobs from '@/views/Jobs.vue';
 import Login from '@/views/Login.vue';

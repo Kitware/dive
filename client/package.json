@@ -5,51 +5,80 @@
   "scripts": {
     "serve": "rimraf -rf ./node_modules/.cache/vue-loader && vue-cli-service serve",
     "build": "vue-cli-service build",
-    "lint": "vue-cli-service lint"
+    "lint": "vue-cli-service lint",
+    "test": "vue-cli-service test:unit"
+  },
+  "resolutions": {
+    "@types/jest": "^25.2.3",
+    "vuetify": "^v2.3.0-beta.7"
   },
   "dependencies": {
-    "@girder/components": "^2.2.1",
+    "@flatten-js/interval-tree": "^1.0.11",
+    "@girder/components": "^2.2.4",
     "@mdi/font": "^3.9.97",
     "@vue/composition-api": "^0.5.0",
+    "axios": "^0.19.2",
     "core-js": "^3.6.4",
     "d3": "^5.12.0",
-    "geojs": "^0.19.5",
+    "geojs": "^0.20.0",
     "lodash": "^4.17.15",
     "mousetrap": "^1.6.5",
     "vue": "^2.6.10",
     "vue-router": "^3.0.3",
-    "vue-utilities": "git+https://github.com/Kitware/vue-utilities.git#5c261826458d73c4e8c8feea1d0037c08e633582",
-    "vue-virtual-scroll-list": "1.4.1",
-    "vuetify": "^2.2.4",
+    "vuetify": "^v2.3.0-beta.7",
     "vuex": "^3.0.1"
   },
   "devDependencies": {
+    "@types/axios": "^0.14.0",
+    "@types/d3": "^5.7.2",
+    "@types/geojson": "^7946.0.7",
+    "@types/jest": "^25.2.3",
     "@types/lodash": "^4.14.151",
-    "@typescript-eslint/eslint-plugin": "^2.26.0",
-    "@typescript-eslint/parser": "^2.26.0",
+    "@types/node": "^14.0.5",
+    "@typescript-eslint/eslint-plugin": "^2.33.0",
+    "@typescript-eslint/parser": "^2.33.0",
     "@vue/cli-plugin-babel": "~4.3.1",
-    "@vue/cli-plugin-eslint": "~4.3.1",
+    "@vue/cli-plugin-eslint": "~4.4.0",
     "@vue/cli-plugin-typescript": "~4.3.0",
+    "@vue/cli-plugin-unit-jest": "~4.4.0",
     "@vue/cli-service": "~4.3.1",
     "@vue/eslint-config-airbnb": "^5.0.2",
     "@vue/eslint-config-typescript": "^5.0.2",
+    "@vue/test-utils": "^1.0.3",
     "babel-eslint": "^10.1.0",
+    "babel-jest": "^26.0.1",
     "babel-register": "^6.26.0",
     "eslint": "^6.7.2",
+    "eslint-plugin-import": "^2.20.2",
     "eslint-plugin-vue": "^6.2.2",
     "git-describe": "^4.0.4",
-    "node-sass": "^4.12.0",
-    "pug": "^2.0.4",
-    "pug-plain-loader": "^1.0.0",
+    "jest": "^26.0.1",
+    "jest-transform-stub": "^2.0.0",
     "sass": "^1.26.3",
     "sass-loader": "^8.0.2",
-    "stylus": "^0.54.7",
-    "stylus-loader": "^3.0.2",
+    "ts-jest": "^26.0.0",
     "typescript": "~3.8.3",
     "vue-cli-plugin-vuetify": "^2.0.5",
+    "vue-jest": "^3.0.5",
     "vue-template-compiler": "^2.6.10",
-    "vuetify-loader": "^1.4.3",
-    "webpack": "^4.42.1"
+    "vuetify-loader": "^1.4.3"
+  },
+  "jest": {
+    "verbose": true,
+    "moduleNameMapper": {
+      "^@/(.*)$": "<rootDir>/src/$1",
+      "\\.css$": "<rootDir>/test/stub.js"
+    },
+    "transform": {
+      ".*\\.(vue)$": "vue-jest",
+      "^.+\\.tsx?$": "ts-jest",
+      "^.+\\.jsx?$": "babel-jest"
+    },
+    "globals": {
+      "ts-jest": {
+        "tsConfig": "tsconfig.spec.json"
+      }
+    }
   },
   "eslintConfig": {
     "root": true,
@@ -57,16 +86,17 @@
       "node": true
     },
     "extends": [
-      "plugin:vue/essential",
       "eslint:recommended",
       "plugin:vue/recommended",
-      "@vue/airbnb",
-      "@vue/typescript"
+      "@vue/airbnb"
     ],
     "rules": {
       "no-underscore-dangle": 0,
+      "spaced-comment": "off",
+      "no-useless-constructor": "off",
+      "@typescript-eslint/no-useless-constructor": "error",
       "no-console": [
-        "error",
+        "warn",
         {
           "allow": [
             "warn",
@@ -75,8 +105,21 @@
         }
       ]
     },
+    "overrides": [
+      {
+        "files": [
+          "**/*.ts",
+          "**/*.vue"
+        ],
+        "extends": [
+          "@vue/typescript",
+          "@vue/typescript/recommended"
+        ]
+      }
+    ],
     "parserOptions": {
-      "parser": "@typescript-eslint/parser"
+      "parser": "@typescript-eslint/parser",
+      "ecmaVersion": 2020
     }
   }
 }

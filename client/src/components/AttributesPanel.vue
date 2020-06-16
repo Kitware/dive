@@ -1,28 +1,52 @@
-<script>
+<script lang="ts">
+import { Ref } from '@vue/composition-api';
+import Vue, { PropType } from 'vue';
+
+import { getAttributes, Attribute } from '@/lib/api/viame.service';
+import Track, { TrackId, Feature } from '@/lib/track';
+
 import AttributeInput from '@/components/AttributeInput.vue';
 
-export default {
-  name: 'AttributesPanel',
+function getTrack(trackMap: Map<TrackId, Track>, trackId: TrackId): Track {
+  const track = trackMap.get(trackId);
+  if (track === undefined) {
+    throw new Error(`Track ${trackId} missing from map`);
+  }
+  return track;
+}
+
+export default Vue.extend({
   components: {
     AttributeInput,
   },
-  inject: ['girderRest'],
+
   props: {
-    selectedDetection: {
-      type: Object,
-      default: null,
+    trackMap: {
+      type: Map as PropType<Map<TrackId, Track>>,
+      required: true,
     },
-    selectedTrack: {
-      type: Object,
-      default: null,
+    selectedTrackId: {
+      type: Object as PropType<Ref<TrackId>>,
+      required: true,
+    },
+    frame: {
+      type: Object as PropType<Ref<number>>,
+      required: true,
     },
   },
+
+  data: () => ({
+    attributes: [] as Attribute[],
+  }),
+
   computed: {
     trackAttributes() {
       if (!this.attributes) {
         return [];
       }
-      return this.attributes.filter((attribute) => attribute.belongs === 'track');
+      return this.attributes.filter(
+        (attribute) => attribute.belongs === 'track',
+      );
     },
     detectionAttributes() {
       if (!this.attributes) {
@@ -32,15 +56,52 @@ export default {
         (attribute) => attribute.belongs === 'detection',
       );
     },
-  },
-  asyncComputed: {
-    async attributes() {
-      const { data } = await this.girderRest.get('/viame/attribute');
-      return data;
+    selectedTrack() {
+      const trackId = this.selectedTrackId.value;
+      if (trackId) {
+        const track = getTrack(this.trackMap, trackId);
+        return {
+          trackId: track.trackId,
+          confidencePairs: track.confidencePairs,
+          attributes: track.attributes.value,
+        };
+      }
+      return null;
+    },
+    selectedDetection() {
+      const trackId = this.selectedTrackId.value;
+      const frame = this.frame.value;
+      if (trackId) {
+        const track = getTrack(this.trackMap, trackId);
+        const feature = track.getFeature(frame);
+        return feature;
+      }
+      return null;
     },
   },
-  watch: {},
-};
+
+  async created() {
+    this.attributes = await getAttributes();
+  },
+
+  methods: {
+    updateTrackAttribute(
+      trackId: TrackId,
+      { name, value }: { name: string; value: unknown },
+    ) {
+      const track = getTrack(this.trackMap, trackId);
+      track.setAttribute(name, value);
+    },
+    updateFeatureAttribute(
+      trackId: TrackId,
+      oldFeature: Feature,
+      { name, value }: { name: string; value: unknown },
+    ) {
+      const track = getTrack(this.trackMap, trackId);
+      track.setFeatureAttribute(oldFeature.frame, name, value);
+    },
+  },
+});
 </script>
 
 <template>
@@ -49,7 +110,7 @@ export default {
     no-gutters
   >
     <v-col
-      class=""
+      class="flex-shrink-1"
       style="overflow-y: auto;"
     >
       <v-subheader>Track attributes</v-subheader>
@@ -86,7 +147,7 @@ export default {
                 ? selectedTrack.trackAttributes[attribute.name]
                 : undefined
             "
-            @change="$emit('change', { ...$event, ...{ type: 'track' } })"
+            @change="updateTrackAttribute(selectedTrackId.value, $event)"
           />
         </div>
       </template>
@@ -105,8 +166,12 @@ export default {
           style="line-height:22px;"
         >
           <div>Frame: {{ selectedDetection.frame }}</div>
-          <div>Confidence: {{ selectedDetection.confidence }}</div>
-          <div>Fish length: {{ selectedDetection.fishLength }}</div>
+          <div v-if="selectedDetection.confidence">
+            Confidence: {{ selectedDetection.confidence }}
+          </div>
+          <div v-if="selectedDetection.fishLength">
+            Fish length: {{ selectedDetection.fishLength }}
+          </div>
           <AttributeInput
             v-for="(attribute, i) of detectionAttributes"
             :key="i"
@@ -118,15 +183,10 @@ export default {
                 ? selectedDetection.attributes[attribute.name]
                 : undefined
             "
-            @change="$emit('change', { ...$event, ...{ type: 'detection' } })"
+            @change="updateFeatureAttribute(selectedTrackId.value, selectedDetection, $event)"
           />
         </div>
       </template>
     </v-col>
   </v-row>
 </template>
-
-<style lang="scss" scoped>
-.attributes-panel {
-}
-</style>

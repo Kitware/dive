@@ -1,5 +1,5 @@
 <script>
-import { runPipeline } from '@/common/viame.service';
+import { runPipeline } from '@/lib/api/viame.service';
 import { mapActions, mapState } from 'vuex';
 
 export default {
@@ -7,6 +7,10 @@ export default {
     selected: {
       type: Array,
       default: () => [],
+    },
+    small: {
+      type: Boolean,
+      default: false,
     },
   },
 
@@ -58,7 +62,7 @@ export default {
     <template v-slot:activator="{ on }">
       <v-btn
         text
-        small
+        :small="small"
         :disabled="pipelinesNotRunnable"
         v-on="on"
       >

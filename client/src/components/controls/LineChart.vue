@@ -34,42 +34,6 @@ export default {
     },
   },
   computed: {
-    lineData() {
-      return this.data.map((datum) => {
-        let lastFrame = -1;
-        // var lastPoint = [0, 0];
-        const padZero = [];
-        datum.values.forEach((point) => {
-          const frame = point[0];
-          if (frame !== lastFrame + 1) {
-            for (let i = lastFrame + 1; i < frame; i += 1) {
-              padZero.push([i, 0]);
-            }
-          }
-          padZero.push(point);
-          lastFrame = frame;
-        });
-        if (this.maxFrame !== lastFrame) {
-          for (let i = lastFrame + 1; i <= this.maxFrame; i += 1) {
-            padZero.push([i, 0]);
-          }
-        }
-        const clean = [padZero[0]];
-        let lastValue = padZero[0][1];
-        for (let i = 1; i < padZero.length; i += 1) {
-          if (padZero[i][1] !== lastValue) {
-            clean.push(padZero[i - 1]);
-            clean.push(padZero[i]);
-            // eslint-disable-next-line prefer-destructuring
-            lastValue = padZero[i][1];
-          }
-        }
-        if (clean.slice(-1)[0][0] !== this.maxFrame) {
-          clean.push(padZero.slice(-1)[0]);
-        }
-        return { ...datum, values: clean };
-      });
-    },
     /**
      * Useful way to compute properties together for a single watcher so if either change
      * In the future this can be done easily with compositionAPI
@@ -89,7 +53,7 @@ export default {
       this.initialize();
       this.update();
     },
-    lineData() {
+    data() {
       this.initialize();
       this.update();
     },
@@ -118,7 +82,7 @@ export default {
         .domain([this.startFrame, this.endFrame])
         .range([0, width]);
       this.x = x;
-      const max = d3.max(this.lineData, (datum) => d3.max(datum.values, (d) => d[1]));
+      const max = d3.max(this.data, (datum) => d3.max(datum.values, (d) => d[1]));
       const y = d3
         .scaleLinear()
         .domain([0, Math.max(max + max * 0.2, 2)])
@@ -152,7 +116,7 @@ export default {
 
       const path = svg
         .selectAll()
-        .data(this.lineData)
+        .data(this.data)
         .enter()
         .append('path')
         .attr('class', 'line')
@@ -180,15 +144,12 @@ export default {
       this.line.x((d) => this.x(d[0]));
       this.path.attr('d', (d) => this.line(d.values));
     },
-    rendered() {},
   },
 };
 </script>
 
 <template>
-  <div class="line-chart">
-    {{ rendered() }}
-  </div>
+  <div class="line-chart" />
 </template>
 
 <style lang="scss">

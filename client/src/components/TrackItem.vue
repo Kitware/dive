@@ -1,11 +1,14 @@
 <script>
-import { stringNumberNullValidator } from '@/utils';
-
 export default {
   name: 'TrackItem',
+
   props: {
-    track: {
-      type: Object,
+    trackType: {
+      type: String,
+      required: true,
+    },
+    trackId: {
+      type: Number,
       required: true,
     },
     types: {
@@ -16,22 +19,24 @@ export default {
       type: Boolean,
       required: true,
     },
-    selectedTrackId: {
-      validator: stringNumberNullValidator,
+    selected: {
+      type: Boolean,
       required: true,
     },
-    editingTrackId: {
-      validator: stringNumberNullValidator,
+    editingTrack: {
+      type: Boolean,
       required: true,
     },
-    colorMap: {
-      type: Function,
+    color: {
+      type: String,
       required: true,
     },
   },
+
   data: () => ({
     editing: false,
   }),
+
   computed: {
     /**
      * Sets styling for the selected track
@@ -39,19 +44,16 @@ export default {
      * opacity so it isn't overwhelming
      */
     style() {
-      if (this.selectedTrackId === this.track.trackId) {
+      if (this.selected) {
         return {
           'font-weight': 'bold',
-          'background-color': `${this.$vuetify.theme.themes.dark.accent}aa`,
+          'background-color': `${this.$vuetify.theme.themes.dark.accent}`,
         };
       }
       return {};
     },
-
-    comboValue() {
-      return this.track.confidencePairs.length ? this.track.confidencePairs[0][0] : '';
-    },
   },
+
   watch: {
     track() {
       this.editing = false;
@@ -72,13 +74,13 @@ export default {
   },
   methods: {
     focusType() {
-      if (this.selectedTrackId === this.track.trackId) {
+      if (this.selected) {
         this.editing = true;
       }
     },
     handleChange(newval) {
       this.editing = false;
-      if (newval !== this.comboValue) {
+      if (newval !== this.trackType) {
         this.$emit('type-change', newval);
       }
     },
@@ -96,30 +98,30 @@ export default {
       dense
       hide-details
       :input-value="inputValue"
-      :color="colorMap(comboValue)"
+      :color="color"
       @change="$emit('change', $event)"
     />
     <div
-      class="trackNumber"
+      class="trackNumber pl-0 pr-2"
       @click.self="$emit('click')"
     >
-      {{ track.trackId + (editingTrackId === track.trackId ? "*" : "") }}
+      {{ trackId + (editingTrack && selected ? "*" : "") }}
     </div>
     <div
       v-if="!editing"
       v-mousetrap="[
         { bind: 'shift+enter', handler: focusType },
       ]"
-      class="type-display flex-grow-1 flex-shrink-1 ml-2"
+      class="type-display flex-grow-1 flex-shrink-1 ml-0"
       @click="editing = true"
     >
-      {{ comboValue || 'undefined' }}
+      {{ trackType || 'undefined' }}
     </div>
     <v-combobox
       v-else
       ref="trackTypeBox"
-      class="ml-2"
-      :value="comboValue"
+      class="ml-0"
+      :value="trackType"
       :items="types"
       dense
       hide-details
@@ -138,15 +140,26 @@ export default {
         </v-btn>
       </template>
       <v-list>
-        <v-list-item @click="$emit('goto-first-frame')">
-          <v-list-item-title>Go to first frame</v-list-item-title>
+        <v-list-item @click="$emit('click')">
+          <v-list-item-title>
+            <v-icon>mdi-map-marker</v-icon>
+            Go to first frame
+          </v-list-item-title>
         </v-list-item>
         <v-list-item @click="$emit('edit')">
-          <v-list-item-title>Edit annotation</v-list-item-title>
+          <v-list-item-title>
+            <v-icon>mdi-pencil</v-icon>
+            Edit annotation
+          </v-list-item-title>
         </v-list-item>
         <v-divider />
         <v-list-item @click="$emit('delete')">
-          <v-list-item-title>Delete track</v-list-item-title>
+          <v-list-item-title>
+            <v-icon color="error">
+              mdi-trash-can
+            </v-icon>
+            Delete track
+          </v-list-item-title>
         </v-list-item>
       </v-list>
     </v-menu>
@@ -156,12 +169,14 @@ export default {
 <style lang="scss" scoped>
 .track-item {
   height: 45px;
-  .trackNumber{
+  .trackNumber {
+    font-family: monospace;
     &:hover {
       cursor: pointer;
       font-weight: bolder;
+      text-decoration: underline;
     }
-}
+  }
   .type-display {
     overflow: hidden;
     text-overflow: ellipsis;

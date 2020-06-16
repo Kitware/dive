@@ -44,6 +44,7 @@ export default function (vuetify) {
       }
       return p;
     };
+    Vue.prototype.$prompt.visible = () => component.$data.show;
     Vue.prototype.$prompt.hide = () => {
       component.$data.show = false;
     };

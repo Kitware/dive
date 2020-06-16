@@ -1,12 +1,12 @@
 /* eslint-disable no-param-reassign,func-names */
 
 import Mousetrap from 'mousetrap';
-import _ from 'lodash';
+import { isArray } from 'lodash';
 
 function bind(el, value, bindElement) {
   const mousetrap = new Mousetrap(bindElement ? el : undefined);
   el.mousetrap = mousetrap;
-  if (!_.isArray(value)) {
+  if (!isArray(value)) {
     value = [value];
   }
   value.forEach(({ bind: _bind, handler, disabled }) => {

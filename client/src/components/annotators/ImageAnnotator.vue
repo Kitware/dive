@@ -201,7 +201,6 @@ export default {
         const img = new Image();
         img.crossOrigin = 'Anonymous';
         img.src = this.imageUrls[i];
-        // eslint-disable-next-line no-param-reassign
         this.imgs[i] = img;
         const imageAndFrame = [img, i];
         this.pendingImgs.add(imageAndFrame);

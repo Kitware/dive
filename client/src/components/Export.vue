@@ -1,5 +1,5 @@
 <script>
-import { getExportUrls } from '@/common/viameDetection.service';
+import { getExportUrls } from '@/lib/api/viameDetection.service';
 import { MediaTypes } from '@/constants';
 
 export default {
@@ -7,6 +7,10 @@ export default {
     folderId: {
       type: String,
       required: true,
+    },
+    small: {
+      type: Boolean,
+      default: false,
     },
   },
 
@@ -41,13 +45,13 @@ export default {
       <v-btn
         class="ma-0"
         text
-        small
+        :small="small"
         v-on="on"
       >
         <v-icon
           left
           color="accent"
-          class="mdi-24px mr-1"
+          class="mdi-24px mr-2"
         >
           mdi-export
         </v-icon>

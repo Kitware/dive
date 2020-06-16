@@ -2,10 +2,8 @@ from girder.models.folder import Folder
 from girder.models.item import Item
 
 from viame_server.utils import (
-    itemIsWebsafeVideo,
     validImageFormats,
     ImageSequenceType,
-    VideoType,
 )
 
 
@@ -39,7 +37,7 @@ def maybe_mark_folder_for_annotation(event):
     """
     info = event.info
 
-    if info["parentType"] != "folder":
+    if "parentType" not in info or info["parentType"] != "folder":
         return
 
     parent = Folder().findOne({"_id": info["parentId"]})

@@ -14,7 +14,7 @@ import {
   deleteResources,
   setMetadataForItem,
   runImageConversion,
-} from '@/common/viame.service';
+} from '@/lib/api/viame.service';
 
 export default {
   name: 'Home',
@@ -181,10 +181,14 @@ export default {
             @dragover.native="dragover"
           >
             <template #headerwidget>
-              <run-pipeline-menu :selected="selected" />
+              <run-pipeline-menu
+                :selected="selected"
+                small
+              />
               <export
                 v-if="exportTarget"
                 v-bind="exportTarget"
+                small
               />
               <v-btn
                 v-if="selected.length"
