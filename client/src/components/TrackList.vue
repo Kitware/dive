@@ -132,14 +132,6 @@ export default Vue.extend({
         types: allTypes,
       };
     },
-
-    setType(trackId: TrackId, newType: string) {
-      const track = this.trackMap.get(trackId);
-      if (track === undefined) {
-        throw new Error(`Accessed missing track ${trackId}`);
-      }
-      track.setType(newType);
-    },
   },
 });
 </script>
@@ -177,7 +169,7 @@ export default Vue.extend({
         <track-item
           v-bind="getItemProps(item)"
           @change="$emit('track-checked', { trackId: item.trackId, value: $event })"
-          @type-change="setType(item.trackId, $event)"
+          @type-change="$emit('track-type-change', { trackId: item.trackId, value: $event })"
           @delete="$emit('track-remove', item.trackId)"
           @click="$emit('track-click', item.trackId)"
           @edit="$emit('track-edit', item.trackId)"

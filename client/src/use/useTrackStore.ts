@@ -34,6 +34,7 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
    */
   const trackIds: Ref<Array<TrackId>> = ref([]);
   const canary = ref(0);
+  const lastSetType = ref(null as string | null);
 
   function _depend(): number {
     return canary.value;
@@ -56,6 +57,12 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
       intervalTree.remove(oldInterval, track.trackId);
       intervalTree.insert([track.begin, track.end], track.trackId);
     }
+    if (event === 'confidencePairs') {
+      const pair = track.getType();
+      if (pair !== null) {
+        [lastSetType.value] = pair;
+      }
+    }
     canary.value += 1;
     markChangesPending();
   }
@@ -74,7 +81,7 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
     const track = new Track(newTrackId, {
       begin: frame,
       end: frame,
-      confidencePairs: [['unknown', 1]],
+      confidencePairs: [[lastSetType.value || 'unknown', 1]],
     });
     insertTrack(track);
     markChangesPending();

@@ -163,6 +163,17 @@ export default defineComponent({
       saveToServer(datasetId, trackMap);
     }
 
+    function handleTrackTypeChange(
+      { trackId, value }:
+      { trackId: TrackId; value: string },
+    ) {
+      const track = trackMap.get(trackId);
+      if (track === undefined) {
+        throw new Error(`Accessed missing track ${trackId}`);
+      }
+      track.setType(value);
+    }
+
     function handleTrackEdit(trackId: TrackId) {
       const track = trackMap.get(trackId);
       if (track !== undefined) {
@@ -214,6 +225,7 @@ export default defineComponent({
       handleTrackClick,
       handleSelectNext,
       handleTrackEdit,
+      handleTrackTypeChange,
       removeTrack,
       save,
       selectTrack,
@@ -311,6 +323,7 @@ export default defineComponent({
         @track-edit="handleTrackEdit"
         @track-next="handleSelectNext(1)"
         @track-previous="handleSelectNext(-1)"
+        @track-type-change="handleTrackTypeChange($event)"
       >
         <ConfidenceFilter :confidence.sync="confidenceThreshold" />
       </sidebar>
@@ -322,6 +335,7 @@ export default defineComponent({
           v-mousetrap="[
             { bind: 'g', handler: () => toggleFeaturePointing('head') },
             { bind: 'h', handler: () => toggleFeaturePointing('head') },
+            { bind: 'n', handler: () => selectTrack(addTrack(frame).trackId, true) },
             { bind: 't', handler: () => toggleFeaturePointing('tail') },
             { bind: 'y', handler: () => toggleFeaturePointing('tail') },
             { bind: 'q', handler: () => deleteFeaturePoints(frame) },

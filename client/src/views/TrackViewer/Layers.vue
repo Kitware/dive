@@ -171,6 +171,9 @@ export default defineComponent({
           markerEditLayer.disable();
           editAnnotationLayer.disable();
         }
+      } else {
+        markerEditLayer.disable();
+        editAnnotationLayer.disable();
       }
     }
 
