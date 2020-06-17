@@ -37,6 +37,14 @@ describe('useTrackStore', () => {
     expect(didCall).toEqual(true);
   });
 
+  it('throws an error when you access a track that is missing', () => {
+    const markChangesPending = () => null;
+    const ts = useTrackStore({ markChangesPending });
+    expect(() => ts.getTrack(0)).toThrow('TrackId 0 not found in trackMap.');
+    ts.addTrack(1000);
+    expect(ts.getTrack(0)).toBeTruthy();
+  });
+
   it('updates a reactive list when member tracks change', async () => {
     const ts = useTrackStore({ markChangesPending: () => null });
     const track = ts.addTrack(0);
