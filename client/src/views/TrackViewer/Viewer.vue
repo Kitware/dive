@@ -73,6 +73,7 @@ export default defineComponent({
     const {
       save: saveToServer, markChangesPending, pendingSaveCount,
     } = useSave();
+
     const {
       dataset,
       frameRate,
@@ -87,6 +88,7 @@ export default defineComponent({
       sortedTrackIds,
       intervalTree,
       addTrack,
+      getTrack,
       removeTrack: tsRemoveTrack,
       loadTracks,
     } = useTrackStore({ markChangesPending });
@@ -163,44 +165,28 @@ export default defineComponent({
       saveToServer(datasetId, trackMap);
     }
 
-    function handleTrackTypeChange(
-      { trackId, value }:
-      { trackId: TrackId; value: string },
-    ) {
-      const track = trackMap.get(trackId);
-      if (track === undefined) {
-        throw new Error(`Accessed missing track ${trackId}`);
-      }
-      track.setType(value);
+    function handleTrackTypeChange({ trackId, value }: { trackId: TrackId; value: string }) {
+      getTrack(trackId).setType(value);
     }
 
     function handleTrackEdit(trackId: TrackId) {
-      const track = trackMap.get(trackId);
-      if (track !== undefined) {
-        playbackComponent.value.seek(track.begin);
-        selectTrack(trackId, true);
-      }
+      const track = getTrack(trackId);
+      playbackComponent.value.seek(track.begin);
+      selectTrack(trackId, true);
     }
 
     function handleTrackClick(trackId: TrackId) {
-      const track = trackMap.get(trackId);
-      if (track !== undefined) {
-        playbackComponent.value.seek(track.begin);
-        selectTrack(trackId, editingTrack.value);
-      }
+      const track = getTrack(trackId);
+      playbackComponent.value.seek(track.begin);
+      selectTrack(trackId, editingTrack.value);
     }
 
-    //Selection of next track while seeking to position
     function handleSelectNext(delta: number) {
       const newTrack = selectNextTrack(delta);
       if (newTrack !== null) {
         selectTrack(newTrack, false);
-        const track = trackMap.get(newTrack);
-        if (track === undefined) {
-          throw new Error(`Accessed missing track ${newTrack}`);
-        } else {
-          playbackComponent.value.seek(track.begin);
-        }
+        const track = getTrack(newTrack);
+        playbackComponent.value.seek(track.begin);
       }
     }
 

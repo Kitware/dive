@@ -40,7 +40,7 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
     return canary.value;
   }
 
-  function _getTrack(trackId: TrackId): Track {
+  function getTrack(trackId: TrackId): Track {
     const track = trackMap.get(trackId);
     if (track === undefined) {
       throw new Error(`TrackId ${trackId} not found in trackMap.`);
@@ -92,7 +92,7 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
     if (trackId === null) {
       return;
     }
-    const track = _getTrack(trackId);
+    const track = getTrack(trackId);
     const range = [track.begin, track.end];
     if (!intervalTree.remove(range, trackId)) {
       throw new Error(`TrackId ${trackId} with range ${range} not found in tree.`);
@@ -118,7 +118,7 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
    */
   async function removeTracksBelowConfidence(thresh: number) {
     trackIds.value.forEach((trackId) => {
-      const track = _getTrack(trackId);
+      const track = getTrack(trackId);
       const confidence = track.getType();
       if (confidence !== null && confidence[1] < thresh) {
         removeTrack(trackId);
@@ -138,8 +138,8 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
   const sortedTrackIds = computed(() => {
     _depend();
     return trackIds.value.sort((a, b) => {
-      const trackA = _getTrack(a);
-      const trackB = _getTrack(b);
+      const trackA = getTrack(a);
+      const trackB = getTrack(b);
       return trackA.begin - trackB.begin;
     });
   });
@@ -149,6 +149,7 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
     sortedTrackIds,
     intervalTree,
     addTrack,
+    getTrack,
     removeTrack,
     removeTracksBelowConfidence,
     splitTracks,
