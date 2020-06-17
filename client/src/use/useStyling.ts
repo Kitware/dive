@@ -23,14 +23,14 @@ export default function useStyling() {
   }
   // Annotation State Colors
   const standard: Style = {
-    strokeWidth: 1,
-    opacity: 0.5,
+    strokeWidth: 3,
+    opacity: 1.0,
     color: 'type',
   };
   const selected: Style = {
     ...standard,
     color: vuetify.preset.theme.themes.dark.accent as string,
-    strokeWidth: 4,
+    strokeWidth: 5,
     opacity: 1.0,
   };
   const disabled: Style = {

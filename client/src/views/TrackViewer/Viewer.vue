@@ -7,7 +7,7 @@ import {
 
 
 import store from '@/store';
-import { getPathFromLocation } from '@/utils';
+import { getPathFromLocation, RectBounds } from '@/utils';
 import { TrackId } from '@/lib/track';
 
 import {
@@ -33,9 +33,11 @@ import RunPipelineMenu from '@/components/RunPipelineMenu.vue';
 import ControlsContainer from './ControlsContainer.vue';
 import Layers from './Layers.vue';
 import Sidebar from './Sidebar.vue';
+import { NewTrackSettings } from '../../components/CreationMode.vue';
 
 interface Seeker {
   seek(frame: number): void;
+  nextFrame(): void;
 }
 
 export default defineComponent({
@@ -91,6 +93,7 @@ export default defineComponent({
       getTrack,
       removeTrack: tsRemoveTrack,
       loadTracks,
+      setNewDefaultType,
     } = useTrackStore({ markChangesPending });
 
     const {
@@ -138,6 +141,8 @@ export default defineComponent({
 
     const location = computed(() => store.state.location);
 
+    let newTrackSettings: NewTrackSettings| null = null;
+
     async function removeTrack(trackId: TrackId) {
       const result = await prompt({
         title: 'Confirm',
@@ -167,6 +172,42 @@ export default defineComponent({
 
     function handleTrackTypeChange({ trackId, value }: { trackId: TrackId; value: string }) {
       getTrack(trackId).setType(value);
+    }
+
+    function handleNewTrackSettings(updatedTrackSettings: NewTrackSettings) {
+      setNewDefaultType(updatedTrackSettings.type);
+      newTrackSettings = updatedTrackSettings;
+    }
+
+    //Handles adding a new track with the NewTrack Settings
+    function handleAddTrack() {
+      selectTrack(addTrack(frame.value).trackId, true);
+    }
+
+    function handleUpdateRectBounds(frameNum: number, bounds: RectBounds) {
+      if (selectedTrackId.value !== null) {
+        const track = trackMap.get(selectedTrackId.value);
+        if (track) {
+          const features = track.getFeature(frameNum);
+          let newTrack = false;
+          if (!features || features.bounds !== undefined) {
+          //We are creating a brand new track and should apply the newTrackSettings
+            newTrack = true;
+          }
+          track.setFeature({
+            frame: frameNum,
+            bounds,
+          });
+          if (newTrack && newTrackSettings !== null) {
+            //Now we apply settings based on newTrackSettings
+            if (newTrackSettings.mode === 'Track' && newTrackSettings.modeSettings.Track.autoAdvanceFrame) {
+              playbackComponent.value.nextFrame();
+            } else if (newTrackSettings.mode === 'Detection' && newTrackSettings.modeSettings.Detection.continuous) {
+              handleAddTrack();
+            }
+          }
+        }
+      }
     }
 
     function handleTrackEdit(trackId: TrackId) {
@@ -212,6 +253,8 @@ export default defineComponent({
       handleSelectNext,
       handleTrackEdit,
       handleTrackTypeChange,
+      handleNewTrackSettings,
+      handleUpdateRectBounds,
       removeTrack,
       save,
       selectTrack,
@@ -310,6 +353,7 @@ export default defineComponent({
         @track-next="handleSelectNext(1)"
         @track-previous="handleSelectNext(-1)"
         @track-type-change="handleTrackTypeChange($event)"
+        @new-track-settings="handleNewTrackSettings($event)"
       >
         <ConfidenceFilter :confidence.sync="confidenceThreshold" />
       </sidebar>
@@ -340,6 +384,7 @@ export default defineComponent({
             v-bind="layerProps"
             @selectTrack="selectTrack"
             @featurePointUpdated="featurePointed"
+            @update-rect-bounds="handleUpdateRectBounds"
           />
         </component>
         <v-menu

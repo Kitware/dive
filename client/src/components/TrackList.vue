@@ -2,6 +2,7 @@
 import Vue, { PropType } from 'vue';
 import { Ref } from '@vue/composition-api';
 import TrackItem from '@/components/TrackItem.vue';
+import CreationMode, { NewTrackSettings } from '@/components/CreationMode.vue';
 import Track, { TrackId } from '@/lib/track';
 
 export default Vue.extend({
@@ -9,6 +10,7 @@ export default Vue.extend({
 
   components: {
     TrackItem,
+    CreationMode,
   },
 
   props: {
@@ -48,6 +50,11 @@ export default Vue.extend({
 
   data: () => ({
     itemHeight: 45, // in pixels
+    settingsActive: false,
+    settingsObj: {
+      mode: 'Track',
+      type: 'unknown',
+    },
   }),
 
   computed: {
@@ -63,6 +70,12 @@ export default Vue.extend({
         editingTrack,
         allTypes,
       }));
+    },
+    newTrackColor() {
+      if (this.settingsObj.type === 'unknown') {
+        return '';
+      }
+      return this.typeColorMapper(this.settingsObj.type);
     },
   },
 
@@ -102,7 +115,10 @@ export default Vue.extend({
         keyEvent.preventDefault();
       }
     },
-
+    setNewTrackSettings(settings: NewTrackSettings) {
+      this.settingsObj = settings;
+      this.$emit('new-track-settings', this.settingsObj);
+    },
     getItemProps({
       trackId,
       selectedTrackId,
@@ -137,17 +153,47 @@ export default Vue.extend({
 </script>
 
 <template>
-  <div class="tracks">
-    <v-subheader>
-      Tracks ({{ filteredTrackIds.value.length }})
-      <v-spacer />
-      <v-btn
-        icon
-        @click="$emit('track-add')"
-      >
-        <v-icon>mdi-plus</v-icon>
-      </v-btn>
+  <div class="d-flex flex-column">
+    <v-subheader class="flex-grow-1 trackHeader">
+      <v-container>
+        <v-row align="center">
+          Tracks ({{ filteredTrackIds.value.length }})
+          <v-spacer />
+          <v-btn
+            outlined
+            x-small
+            :color="newTrackColor"
+            @click="$emit('track-add')"
+          >
+            {{ settingsObj.mode }}<v-icon small>
+              mdi-plus
+            </v-icon>
+          </v-btn>
+          <v-btn
+            icon
+            small
+            @click="settingsActive = !settingsActive"
+          >
+            <v-icon
+              small
+              :color="settingsActive ? 'accent' : 'default'"
+            >
+              mdi-settings
+            </v-icon>
+          </v-btn>
+        </v-row>
+        <v-row>
+          <creation-mode
+            v-if="settingsActive"
+            :all-types="allTypes"
+            :type-color-mapper="typeColorMapper"
+            @settings-changed="setNewTrackSettings"
+          />
+        </v-row>
+      </v-container>
     </v-subheader>
+
+
     <v-virtual-scroll
       ref="virtualList"
       v-mousetrap="[
@@ -161,6 +207,7 @@ export default Vue.extend({
             selectedTrackId.value !== null && $emit('track-remove', selectedTrackId.value),
           disabled: $prompt.visible()},
       ]"
+      class="tracks flex-shrink-0"
       :items="virtualListItems"
       :item-height="itemHeight"
       :height="400"
@@ -182,6 +229,14 @@ export default Vue.extend({
 <style lang="scss">
 .strcoller {
   height: 100%;
+}
+.trackHeader{
+  height: auto;
+  .v-input--checkbox {
+    label {
+      white-space: pre-wrap;
+    }
+  }
 }
 .tracks {
   overflow-y: auto;

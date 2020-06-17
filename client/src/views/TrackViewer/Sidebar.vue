@@ -130,6 +130,7 @@ export default defineComponent({
           @track-checked="handleTrackChecked"
           @track-edit="$emit('track-edit', $event)"
           @track-type-change="$emit('track-type-change', $event)"
+          @new-track-settings="$emit('new-track-settings', $event)"
           @track-previous="$emit('track-previous')"
           @track-next="$emit('track-next')"
         />

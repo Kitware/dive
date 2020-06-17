@@ -202,14 +202,8 @@ export default defineComponent({
 
     editAnnotationLayer.$on('update:geojson',
       (data: GeoJSON.Feature<GeoJSON.Polygon>) => {
-        const track = props.trackMap.get(props.selectedTrackId.value);
-        if (track) {
-          const bounds = geojsonToBound(data);
-          track.setFeature({
-            frame: frameNumber.value,
-            bounds,
-          });
-        }
+        const bounds = geojsonToBound(data);
+        emit('update-rect-bounds', frameNumber.value, bounds);
       });
 
     markerEditLayer.$on('update:geojson', (data: GeoJSON.Feature<GeoJSON.Point>) => {
