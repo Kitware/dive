@@ -1,0 +1,155 @@
+import { Ref } from '@vue/composition-api';
+import Track, { TrackId } from '@/lib/track';
+import { RectBounds } from '@/utils';
+
+export interface NewTrackSettings {
+    mode: string;
+    type: string;
+    modeSettings: {
+        Track: {
+            autoAdvanceFrame: boolean;
+        };
+        Detection: {
+            continuous: boolean;
+        };
+    };
+}
+
+export interface Seeker {
+    seek(frame: number): void;
+    nextFrame(): void;
+  }
+/**
+ * The point of this composition function is to define and manage the transition betwee
+ * different UI states within the program.  States and state transitions can be modified
+ * based on settings, blocked if it tries to go to incompatible state or provide feedback
+ *
+ * Mostly allows us to inject additional logic into transitions.
+ */
+export default function useModeManager({
+  selectedTrackId,
+  editingTrack,
+  frame,
+  trackMap,
+  playbackComponent,
+  selectTrack,
+  getTrack,
+  selectNextTrack,
+  addTrack,
+  tsRemoveTrack,
+  setNewDefaultType,
+}: {
+    selectedTrackId: Ref<TrackId | null>;
+    editingTrack: Ref<boolean>;
+    frame: Ref<number>;
+    trackMap: Map<TrackId, Track>;
+    playbackComponent: Ref<Seeker>;
+    selectTrack: (trackId: TrackId | null, edit: boolean) => void;
+    getTrack: (trackId: TrackId) => Track;
+    selectNextTrack: (delta?: number) => TrackId | null;
+    addTrack: (frame: number) => Track;
+    tsRemoveTrack: (trackId: TrackId) => void;
+    setNewDefaultType: (type?: string) => void;
+}) {
+  function handleSelectTrack(trackId: TrackId | null, edit = false) {
+    selectTrack(trackId, edit);
+  }
+  //Handles adding a new track with the NewTrack Settings
+  function handleAddTrack() {
+    selectTrack(addTrack(frame.value).trackId, true);
+  }
+
+  function handleTrackTypeChange({ trackId, value }: { trackId: TrackId; value: string }) {
+    getTrack(trackId).setType(value);
+  }
+  // Default settings which are updated by the CreationMode component
+  // Not making them reactive, and eventually will probably be in localStorage
+  let newTrackSettings: NewTrackSettings |null = null;
+
+  function handleUpdateNewTrackSettings(updatedTrackSettings: NewTrackSettings) {
+    setNewDefaultType(updatedTrackSettings.type);
+    newTrackSettings = updatedTrackSettings;
+  }
+
+  function newTrackSettingsAfterLogic(newTrack: Track) {
+    if (newTrack && newTrackSettings !== null) {
+      if (newTrackSettings.mode === 'Track' && newTrackSettings.modeSettings.Track.autoAdvanceFrame) {
+        playbackComponent.value.nextFrame();
+      } else if (newTrackSettings.mode === 'Detection') {
+        if (newTrackSettings.modeSettings.Detection.continuous) {
+          handleAddTrack();
+        } else { //Deselect the new track
+          selectTrack(newTrack.trackId, false);
+        }
+      }
+    }
+  }
+
+  function handleUpdateRectBounds(frameNum: number, bounds: RectBounds) {
+    if (selectedTrackId.value !== null) {
+      const track = trackMap.get(selectedTrackId.value);
+      if (track) {
+        const features = track.getFeature(frameNum);
+        let newTrack = false;
+        if (!features || features.bounds !== undefined) {
+        //We are creating a brand new track and should apply the newTrackSettings
+          newTrack = true;
+        }
+        track.setFeature({
+          frame: frameNum,
+          bounds,
+        });
+        //If it is a new track and we have newTrack Settings
+        if (newTrack) {
+          newTrackSettingsAfterLogic(track);
+        }
+      }
+    }
+  }
+
+  function handleRemoveTrack(trackId: TrackId) {
+    // if removed track was selected, unselect before remove
+    if (selectedTrackId.value === trackId) {
+      const newTrack = selectNextTrack(1) !== null ? selectNextTrack(1) : selectNextTrack(-1);
+      if (newTrack !== null) {
+        selectTrack(newTrack, false);
+      }
+    }
+    tsRemoveTrack(trackId);
+  }
+
+  function handleTrackEdit(trackId: TrackId) {
+    const track = getTrack(trackId);
+    playbackComponent.value.seek(track.begin);
+    selectTrack(trackId, true);
+  }
+
+  function handleTrackClick(trackId: TrackId) {
+    const track = getTrack(trackId);
+    playbackComponent.value.seek(track.begin);
+    selectTrack(trackId, editingTrack.value);
+  }
+
+  function handleSelectNext(delta: number) {
+    const newTrack = selectNextTrack(delta);
+    if (newTrack !== null) {
+      selectTrack(newTrack, false);
+      const track = getTrack(newTrack);
+      playbackComponent.value.seek(track.begin);
+    }
+  }
+
+  return {
+    handler: {
+      selectTrack: handleSelectTrack,
+      trackEdit: handleTrackEdit,
+      trackTypeChange: handleTrackTypeChange,
+      updateNewTrackSettings: handleUpdateNewTrackSettings,
+      addTrack: handleAddTrack,
+      updateRectBounds: handleUpdateRectBounds,
+      selectNext: handleSelectNext,
+      trackClick: handleTrackClick,
+      removeTrack: handleRemoveTrack,
+    },
+  };
+}

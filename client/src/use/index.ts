@@ -8,6 +8,7 @@ import useStyling from './useStyling';
 import useTrackFilters from './useTrackFilters';
 import useTrackSelectionControls from './useTrackSelectionControls';
 import useTrackStore from './useTrackStore';
+import useModeManager from './useModeManager';
 
 export {
   useEventChart,
@@ -16,8 +17,8 @@ export {
   useLineChart,
   useSave,
   useStyling,
-
   useTrackFilters,
   useTrackSelectionControls,
   useTrackStore,
+  useModeManager,
 };

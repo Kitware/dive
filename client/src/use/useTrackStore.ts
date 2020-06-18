@@ -138,7 +138,7 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
     });
   });
 
-  const setNewDefaultType = (type = 'unknown') => {
+  const setNewDefaultType = (type = 'unknown'): void => {
     newDefaultType.value = type;
   };
 

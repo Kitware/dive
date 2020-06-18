@@ -7,8 +7,7 @@ import {
 
 
 import store from '@/store';
-import { getPathFromLocation, RectBounds } from '@/utils';
-import { TrackId } from '@/lib/track';
+import { getPathFromLocation } from '@/utils';
 
 import {
   useFeaturePointing,
@@ -20,6 +19,7 @@ import {
   useTrackSelectionControls,
   useTrackStore,
   useEventChart,
+  useModeManager,
 } from '@/use';
 
 import VideoAnnotator from '@/components/annotators/VideoAnnotator.vue';
@@ -33,9 +33,8 @@ import RunPipelineMenu from '@/components/RunPipelineMenu.vue';
 import ControlsContainer from './ControlsContainer.vue';
 import Layers from './Layers.vue';
 import Sidebar from './Sidebar.vue';
-import { NewTrackSettings } from '../../components/CreationMode.vue';
 
-interface Seeker {
+export interface Seeker {
   seek(frame: number): void;
   nextFrame(): void;
 }
@@ -61,12 +60,7 @@ export default defineComponent({
     },
   },
 
-  setup(props, ctx) {
-    // TODO: eventually we will have to migrate away from this style
-    // and use the new plugin pattern:
-    // https://vue-composition-api-rfc.netlify.com/#plugin-development
-    const prompt = ctx.root.$prompt;
-
+  setup(props) {
     const { datasetId } = props;
     const playbackComponent = ref({} as Seeker);
     const frame = ref(0); // the currently displayed frame number
@@ -139,28 +133,22 @@ export default defineComponent({
       enabledTrackIds, selectedTrackId, typeColorMapper, trackMap,
     });
 
+    // Provides wrappers for actions to integrate with settings
+    const { handler } = useModeManager({
+      selectedTrackId,
+      editingTrack,
+      frame,
+      trackMap,
+      playbackComponent,
+      selectTrack,
+      getTrack,
+      selectNextTrack,
+      addTrack,
+      tsRemoveTrack,
+      setNewDefaultType,
+    });
+
     const location = computed(() => store.state.location);
-
-    let newTrackSettings: NewTrackSettings| null = null;
-
-    async function removeTrack(trackId: TrackId) {
-      const result = await prompt({
-        title: 'Confirm',
-        text: 'Do you want to delete selected items?',
-        confirm: true,
-      });
-      if (!result) {
-        return;
-      }
-      // if removed track was selected, unselect before remove
-      if (selectedTrackId.value === trackId) {
-        const newTrack = selectNextTrack(1) !== null ? selectNextTrack(1) : selectNextTrack(-1);
-        if (newTrack !== null) {
-          selectTrack(newTrack, false);
-        }
-      }
-      tsRemoveTrack(trackId);
-    }
 
     function save() {
       // If editing the track, disable editing mode before save
@@ -168,67 +156,6 @@ export default defineComponent({
         selectTrack(selectedTrackId.value, false);
       }
       saveToServer(datasetId, trackMap);
-    }
-
-    function handleTrackTypeChange({ trackId, value }: { trackId: TrackId; value: string }) {
-      getTrack(trackId).setType(value);
-    }
-
-    function handleNewTrackSettings(updatedTrackSettings: NewTrackSettings) {
-      setNewDefaultType(updatedTrackSettings.type);
-      newTrackSettings = updatedTrackSettings;
-    }
-
-    //Handles adding a new track with the NewTrack Settings
-    function handleAddTrack() {
-      selectTrack(addTrack(frame.value).trackId, true);
-    }
-
-    function handleUpdateRectBounds(frameNum: number, bounds: RectBounds) {
-      if (selectedTrackId.value !== null) {
-        const track = trackMap.get(selectedTrackId.value);
-        if (track) {
-          const features = track.getFeature(frameNum);
-          let newTrack = false;
-          if (!features || features.bounds !== undefined) {
-          //We are creating a brand new track and should apply the newTrackSettings
-            newTrack = true;
-          }
-          track.setFeature({
-            frame: frameNum,
-            bounds,
-          });
-          if (newTrack && newTrackSettings !== null) {
-            //Now we apply settings based on newTrackSettings
-            if (newTrackSettings.mode === 'Track' && newTrackSettings.modeSettings.Track.autoAdvanceFrame) {
-              playbackComponent.value.nextFrame();
-            } else if (newTrackSettings.mode === 'Detection' && newTrackSettings.modeSettings.Detection.continuous) {
-              handleAddTrack();
-            }
-          }
-        }
-      }
-    }
-
-    function handleTrackEdit(trackId: TrackId) {
-      const track = getTrack(trackId);
-      playbackComponent.value.seek(track.begin);
-      selectTrack(trackId, true);
-    }
-
-    function handleTrackClick(trackId: TrackId) {
-      const track = getTrack(trackId);
-      playbackComponent.value.seek(track.begin);
-      selectTrack(trackId, editingTrack.value);
-    }
-
-    function handleSelectNext(delta: number) {
-      const newTrack = selectNextTrack(delta);
-      if (newTrack !== null) {
-        selectTrack(newTrack, false);
-        const track = getTrack(newTrack);
-        playbackComponent.value.seek(track.begin);
-      }
     }
 
 
@@ -249,13 +176,6 @@ export default defineComponent({
       /* methods used locally */
       addTrack,
       deleteFeaturePoints,
-      handleTrackClick,
-      handleSelectNext,
-      handleTrackEdit,
-      handleTrackTypeChange,
-      handleNewTrackSettings,
-      handleUpdateRectBounds,
-      removeTrack,
       save,
       selectTrack,
       toggleFeaturePointing,
@@ -287,6 +207,7 @@ export default defineComponent({
         featurePointing,
         featurePointingTarget,
       },
+      handler,
     };
   },
 });
@@ -346,14 +267,14 @@ export default defineComponent({
     >
       <sidebar
         v-bind="sidebarProps"
-        @track-add="selectTrack(addTrack(frame).trackId, true)"
-        @track-remove="removeTrack"
-        @track-click="handleTrackClick"
-        @track-edit="handleTrackEdit"
-        @track-next="handleSelectNext(1)"
-        @track-previous="handleSelectNext(-1)"
-        @track-type-change="handleTrackTypeChange($event)"
-        @new-track-settings="handleNewTrackSettings($event)"
+        @track-add="handler.addTrack(frame)"
+        @track-remove="handler.removeTrack"
+        @track-click="handler.trackClick"
+        @track-edit="handler.trackEdit"
+        @track-next="handler.selectNext(1)"
+        @track-previous="handler.selectNext(-1)"
+        @track-type-change="handler.trackTypeChange($event)"
+        @new-track-settings="handler.updateNewTrackSettings($event)"
       >
         <ConfidenceFilter :confidence.sync="confidenceThreshold" />
       </sidebar>
@@ -365,11 +286,11 @@ export default defineComponent({
           v-mousetrap="[
             { bind: 'g', handler: () => toggleFeaturePointing('head') },
             { bind: 'h', handler: () => toggleFeaturePointing('head') },
-            { bind: 'n', handler: () => selectTrack(addTrack(frame).trackId, true) },
+            { bind: 'n', handler: () => handler.addTrack(frame) },
             { bind: 't', handler: () => toggleFeaturePointing('tail') },
             { bind: 'y', handler: () => toggleFeaturePointing('tail') },
             { bind: 'q', handler: () => deleteFeaturePoints(frame) },
-            { bind: 'esc', handler: () => selectTrack(null, false)}
+            { bind: 'esc', handler: () => handler.selectTrack(null, false)}
           ]"
           :image-urls="imageUrls"
           :video-url="videoUrl"
@@ -382,9 +303,9 @@ export default defineComponent({
           </template>
           <layers
             v-bind="layerProps"
-            @selectTrack="selectTrack"
+            @selectTrack="handler.selectTrack"
             @featurePointUpdated="featurePointed"
-            @update-rect-bounds="handleUpdateRectBounds"
+            @update-rect-bounds="handler.updateRectBounds"
           />
         </component>
         <v-menu

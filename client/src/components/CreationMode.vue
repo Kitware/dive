@@ -22,21 +22,17 @@ export default Vue.extend({
       type: Object as PropType<Ref<Array<string>>>,
       required: true,
     },
-    typeColorMapper: {
-      type: Function as PropType<(t: string) => string>,
-      required: true,
-    },
   },
   data: () => ({
     itemHeight: 45, // in pixels
     help: {
       mode: {
-        Track: 'Track Mode - Used for advancing through frames and going through the process of creating a track.',
+        Track: 'Track Mode - advance a frame while drawing',
         Detection: 'Detection Mode - Used to create multiple detections on a single frame.',
       },
-      type: 'Choose a default type for the new Track to be.',
-      autoAdvanceFrame: 'After creating a track advance to the next frame.  Hit Esc or do a single click to exit.',
-      continuous: 'Immediately stay in detection creation mode after creating a new track.  Hit Esc or do sinle click to exit.',
+      type: 'Choose a default type for the new Track/Detection to be or type in a new type to add it',
+      autoAdvanceFrame: 'After creating a track advance to the next frame.  Hit Esc or do single click to exit.',
+      continuous: 'Immediately stay in detection creation mode after creating a new track.  Hit Esc or do single click to exit.',
     },
     modes: ['Track', 'Detection'],
     selectedMode: 'Track',
@@ -61,6 +57,8 @@ export default Vue.extend({
 
   },
   created() {
+    //We don't store the settings as reactive, just have the component emit them.
+    //In the future we may retrieve this from the localStorage for initialization
     this.emitSettings();
   },
 

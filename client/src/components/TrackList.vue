@@ -51,7 +51,7 @@ export default Vue.extend({
   data: () => ({
     itemHeight: 45, // in pixels
     settingsActive: false,
-    settingsObj: {
+    newTracksettings: {
       mode: 'Track',
       type: 'unknown',
     },
@@ -72,10 +72,11 @@ export default Vue.extend({
       }));
     },
     newTrackColor() {
-      if (this.settingsObj.type === 'unknown') {
-        return '';
+      if (this.newTracksettings.type !== 'unknown') {
+        return this.typeColorMapper(this.newTracksettings.type);
       }
-      return this.typeColorMapper(this.settingsObj.type);
+      // Return default color
+      return '';
     },
   },
 
@@ -116,8 +117,8 @@ export default Vue.extend({
       }
     },
     setNewTrackSettings(settings: NewTrackSettings) {
-      this.settingsObj = settings;
-      this.$emit('new-track-settings', this.settingsObj);
+      this.newTracksettings = settings;
+      this.$emit('new-track-settings', this.newTracksettings);
     },
     getItemProps({
       trackId,
@@ -165,7 +166,7 @@ export default Vue.extend({
             :color="newTrackColor"
             @click="$emit('track-add')"
           >
-            {{ settingsObj.mode }}<v-icon small>
+            {{ newTracksettings.mode }}<v-icon small>
               mdi-plus
             </v-icon>
           </v-btn>
@@ -183,12 +184,15 @@ export default Vue.extend({
           </v-btn>
         </v-row>
         <v-row>
-          <creation-mode
-            v-if="settingsActive"
-            :all-types="allTypes"
-            :type-color-mapper="typeColorMapper"
-            @settings-changed="setNewTrackSettings"
-          />
+          <v-expand-transition>
+            <keep-alive>
+              <creation-mode
+                v-if="settingsActive"
+                :all-types="allTypes"
+                @settings-changed="setNewTrackSettings"
+              />
+            </keep-alive>
+          </v-expand-transition>
         </v-row>
       </v-container>
     </v-subheader>
@@ -232,11 +236,6 @@ export default Vue.extend({
 }
 .trackHeader{
   height: auto;
-  .v-input--checkbox {
-    label {
-      white-space: pre-wrap;
-    }
-  }
 }
 .tracks {
   overflow-y: auto;
