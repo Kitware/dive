@@ -1,4 +1,4 @@
-import { inject } from '@vue/composition-api';
+import { inject, ref, Ref } from '@vue/composition-api';
 import colors from 'vuetify/lib/util/colors';
 import * as d3 from 'd3';
 import { Vuetify } from 'vuetify';
@@ -18,6 +18,7 @@ export interface StateStyles {
 
 export default function useStyling() {
   const vuetify = inject('vuetify') as Vuetify;
+  const customColors: Ref<Record<string, string>> = ref({});
   if (!vuetify) {
     throw new Error('Missing vuetify provide/inject');
   }
@@ -50,6 +51,18 @@ export default function useStyling() {
     colors.purple.darken3,
     colors.green.darken3,
   ];
-  const typeColorMapper = d3.scaleOrdinal().range(typeColors) as (t: string) => string;
-  return { stateStyling, typeColorMapper };
+
+  function updateTypeColor({ type, color }: {type: string; color: string}) {
+    customColors.value[type] = color;
+  }
+
+  const ordinalColorMapper = d3.scaleOrdinal().range(typeColors) as (t: string) => string;
+  const typeColorMapper = (type: string) => {
+    if (customColors.value[type]) {
+      return customColors.value[type];
+    }
+    return ordinalColorMapper(type);
+  };
+
+  return { stateStyling, typeColorMapper, updateTypeColor };
 }

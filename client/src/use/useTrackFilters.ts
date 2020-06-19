@@ -86,6 +86,21 @@ export default function useFilteredTracks(
     }
   });
 
+  function updateTypeName({ currentType, newType }: {currentType: string; newType: string}) {
+    //Go through the entire list and replace the oldType with the new Type
+    sortedTrackIds.value.forEach((trackId) => {
+      const track = trackMap.get(trackId);
+      if (track === undefined) {
+        throw new Error(`Accessed missing track ${trackId}`);
+      }
+      track.confidencePairs.forEach(([name]) => {
+        if (name === currentType) {
+          track.setType(newType);
+        }
+      });
+    });
+  }
+
   return {
     checkedTrackIds,
     checkedTypes,
@@ -93,5 +108,6 @@ export default function useFilteredTracks(
     allTypes,
     filteredTrackIds,
     enabledTrackIds,
+    updateTypeName,
   };
 }

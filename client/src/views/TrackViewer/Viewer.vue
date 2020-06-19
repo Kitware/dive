@@ -69,7 +69,7 @@ export default defineComponent({
     const playbackComponent = ref({} as Seeker);
     const frame = ref(0); // the currently displayed frame number
 
-    const { typeColorMapper, stateStyling } = useStyling();
+    const { typeColorMapper, stateStyling, updateTypeColor } = useStyling();
     const {
       save: saveToServer, markChangesPending, pendingSaveCount,
     } = useSave();
@@ -100,6 +100,7 @@ export default defineComponent({
       allTypes,
       filteredTrackIds,
       enabledTrackIds,
+      updateTypeName,
     } = useTrackFilters({ trackMap, sortedTrackIds });
 
     // Initialize the view
@@ -244,6 +245,8 @@ export default defineComponent({
         featurePointing,
         featurePointingTarget,
       },
+      updateTypeColor,
+      updateTypeName,
     };
   },
 });
@@ -310,6 +313,8 @@ export default defineComponent({
         @track-next="handleSelectNext(1)"
         @track-previous="handleSelectNext(-1)"
         @track-type-change="handleTrackTypeChange($event)"
+        @update-type-color="updateTypeColor($event)"
+        @update-type-name="updateTypeName($event)"
       >
         <ConfidenceFilter :confidence.sync="confidenceThreshold" />
       </sidebar>
