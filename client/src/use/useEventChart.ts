@@ -7,7 +7,7 @@ interface EventChartParams {
   enabledTrackIds: Readonly<Ref<readonly TrackId[]>>;
   selectedTrackId: Ref<TrackId | null>;
   trackMap: Map<TrackId, Track>;
-  typeColorMapper: (type: string) => string;
+  typeStyling: Ref<{ color: (type: string) => string }>;
 }
 
 interface EventChartData {
@@ -19,10 +19,11 @@ interface EventChartData {
 }
 
 export default function useEventChart({
-  enabledTrackIds, selectedTrackId, trackMap, typeColorMapper,
+  enabledTrackIds, selectedTrackId, trackMap, typeStyling,
 }: EventChartParams) {
   const eventChartData = computed(() => {
     const values = [] as EventChartData[];
+    const mapfunc = typeStyling.value.color;
     /* use forEach rather than filter().map() to save an interation */
     enabledTrackIds.value.forEach((trackId) => {
       const track = trackMap.get(trackId);
@@ -35,7 +36,7 @@ export default function useEventChart({
         values.push({
           trackId,
           name: `Track ${trackId}`,
-          color: typeColorMapper(trackType),
+          color: mapfunc(trackType),
           selected: trackId === selectedTrackId.value,
           range: [track.begin, track.end],
         });

@@ -46,8 +46,8 @@ export default defineComponent({
       type: Object as PropType<Ref<boolean>>,
       required: true,
     },
-    typeColorMapper: {
-      type: Function as PropType<(t: string) => string>,
+    typeStyling: {
+      type: Object as PropType<Ref<{ color: (t: string) => string }>>,
       required: true,
     },
     width: {
@@ -117,6 +117,8 @@ export default defineComponent({
         <type-list
           v-bind="trackListProps"
           class="flex-shrink-1 flex-grow-1 typelist"
+          @update-type-color="$emit('update-type-color',$event)"
+          @update-type-name="$emit('update-type-name',$event)"
         />
         <slot />
         <v-spacer />
