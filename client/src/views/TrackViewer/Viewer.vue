@@ -69,17 +69,14 @@ export default defineComponent({
     const playbackComponent = ref({} as Seeker);
     const frame = ref(0); // the currently displayed frame number
     const {
-      save: saveToServer,
-      markChangesPending,
-      pendingSaveCount,
-      saveTypeColors,
+      save: saveToServer, markChangesPending, pendingSaveCount,
     } = useSave();
 
     const {
       typeColorMapper,
       stateStyling,
       updateTypeColor,
-      customColors,
+      saveTypeColors,
       loadTypeColors,
     } = useStyling({ markChangesPending });
 
@@ -167,13 +164,13 @@ export default defineComponent({
       tsRemoveTrack(trackId);
     }
 
-    async function save() {
+    function save() {
       // If editing the track, disable editing mode before save
       if (editingTrack.value) {
         selectTrack(selectedTrackId.value, false);
       }
-      await saveToServer(datasetId, trackMap);
-      await saveTypeColors(datasetId, customColors, allTypes, typeColorMapper);
+      saveToServer(datasetId, trackMap);
+      saveTypeColors(datasetId, allTypes);
     }
 
     function handleTrackTypeChange({ trackId, value }: { trackId: TrackId; value: string }) {

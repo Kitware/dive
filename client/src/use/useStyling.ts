@@ -2,6 +2,7 @@ import { inject, ref, Ref } from '@vue/composition-api';
 import colors from 'vuetify/lib/util/colors';
 import * as d3 from 'd3';
 import { Vuetify } from 'vuetify';
+import { setMetadataForFolder } from '@/lib/api/viame.service';
 
 interface Style{
   strokeWidth: number;
@@ -78,7 +79,27 @@ export default function useStyling({ markChangesPending }: UseStylingParams) {
     return ordinalColorMapper(type);
   };
 
+  async function saveTypeColors(
+    datasetId: string,
+    allTypes: Ref<readonly string[]>,
+  ) {
+    //We need to remove any unused types in the colors, either deleted or changed
+    //Also want to save default colors for reloading
+    const savedTypeColors: Record<string, string> = { };
+    allTypes.value.forEach((name) => {
+      if (!savedTypeColors[name] && customColors.value[name]) {
+        savedTypeColors[name] = customColors.value[name];
+      } else if (!savedTypeColors[name]) { // Also save ordinal Colors as well
+        savedTypeColors[name] = typeColorMapper(name);
+      }
+    });
+
+    await setMetadataForFolder(datasetId, {
+      customTypeColors: savedTypeColors,
+    });
+  }
+
   return {
-    stateStyling, typeColorMapper, updateTypeColor, loadTypeColors, customColors,
+    stateStyling, typeColorMapper, updateTypeColor, loadTypeColors, saveTypeColors,
   };
 }
