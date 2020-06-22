@@ -76,8 +76,8 @@ export default defineComponent({
       typeColorMapper,
       stateStyling,
       updateTypeColor,
-      saveTypeColors,
       loadTypeColors,
+      saveTypeColors,
     } = useStyling({ markChangesPending });
 
     const {
