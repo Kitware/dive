@@ -1,4 +1,4 @@
-import { Ref } from '@vue/composition-api';
+import { ref, Ref } from '@vue/composition-api';
 import Track, { TrackId } from '@/lib/track';
 import { RectBounds } from '@/utils';
 
@@ -36,8 +36,7 @@ export default function useModeManager({
   getTrack,
   selectNextTrack,
   addTrack,
-  tsRemoveTrack,
-  setNewDefaultType,
+  removeTrack,
 }: {
     selectedTrackId: Ref<TrackId | null>;
     editingTrack: Ref<boolean>;
@@ -47,16 +46,17 @@ export default function useModeManager({
     selectTrack: (trackId: TrackId | null, edit: boolean) => void;
     getTrack: (trackId: TrackId) => Track;
     selectNextTrack: (delta?: number) => TrackId | null;
-    addTrack: (frame: number) => Track;
-    tsRemoveTrack: (trackId: TrackId) => void;
-    setNewDefaultType: (type?: string) => void;
+    addTrack: (frame: number, defaultType: string) => Track;
+    removeTrack: (trackId: TrackId) => void;
 }) {
+  const newDefaultType = ref('unknown');
+
   function handleSelectTrack(trackId: TrackId | null, edit = false) {
     selectTrack(trackId, edit);
   }
   //Handles adding a new track with the NewTrack Settings
   function handleAddTrack() {
-    selectTrack(addTrack(frame.value).trackId, true);
+    selectTrack(addTrack(frame.value, newDefaultType.value).trackId, true);
   }
 
   function handleTrackTypeChange({ trackId, value }: { trackId: TrackId; value: string }) {
@@ -67,7 +67,7 @@ export default function useModeManager({
   let newTrackSettings: NewTrackSettings |null = null;
 
   function handleUpdateNewTrackSettings(updatedTrackSettings: NewTrackSettings) {
-    setNewDefaultType(updatedTrackSettings.type);
+    newDefaultType.value = updatedTrackSettings.type;
     newTrackSettings = updatedTrackSettings;
   }
 
@@ -115,7 +115,7 @@ export default function useModeManager({
         selectTrack(newTrack, false);
       }
     }
-    tsRemoveTrack(trackId);
+    removeTrack(trackId);
   }
 
   function handleTrackEdit(trackId: TrackId) {
