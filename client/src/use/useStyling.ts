@@ -15,8 +15,12 @@ export interface StateStyles {
   disabled: Style;
 }
 
+interface UseStylingParams {
+  markChangesPending: () => void;
+}
 
-export default function useStyling() {
+
+export default function useStyling({ markChangesPending }: UseStylingParams) {
   const vuetify = inject('vuetify') as Vuetify;
   const customColors: Ref<Record<string, string>> = ref({});
   if (!vuetify) {
@@ -52,8 +56,18 @@ export default function useStyling() {
     colors.green.darken3,
   ];
 
+  function loadTypeColors(list?: Record<string, string>) {
+    if (list) {
+    // Copy over the item so they can be modified in future
+      Object.entries(list).forEach(([key, value]) => {
+        customColors.value[key] = value;
+      });
+    }
+  }
+
   function updateTypeColor({ type, color }: {type: string; color: string}) {
     customColors.value[type] = color;
+    markChangesPending();
   }
 
   const ordinalColorMapper = d3.scaleOrdinal().range(typeColors) as (t: string) => string;
@@ -64,5 +78,7 @@ export default function useStyling() {
     return ordinalColorMapper(type);
   };
 
-  return { stateStyling, typeColorMapper, updateTypeColor };
+  return {
+    stateStyling, typeColorMapper, updateTypeColor, loadTypeColors, customColors,
+  };
 }

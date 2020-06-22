@@ -39,13 +39,19 @@ export default Vue.extend({
     acceptChanges() {
       this.showPicker = false;
       if (this.editingType !== this.selectedType) {
-        const val = this.checkedTypes.value.pop(); //Cause a refresh
         this.$emit('update-type-name', { currentType: this.selectedType, newType: this.editingType });
-        this.checkedTypes.value.push(val); // Causes a color refresh
       }
       if (this.editingColor !== this.selectedColor) {
-        const val = this.checkedTypes.value.pop(); //Cause a refresh
         this.$emit('update-type-color', { type: this.editingType, color: this.editingColor });
+      }
+      this.colorRefresh();
+    },
+    /**
+     * Causes the color to refresh for annotations and events by toggling an item
+     */
+    colorRefresh() {
+      const val = this.checkedTypes.value.pop();
+      if (val) {
         this.checkedTypes.value.push(val); // Causes a color refresh
       }
     },

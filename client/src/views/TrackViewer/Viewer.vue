@@ -68,11 +68,20 @@ export default defineComponent({
     const { datasetId } = props;
     const playbackComponent = ref({} as Seeker);
     const frame = ref(0); // the currently displayed frame number
-
-    const { typeColorMapper, stateStyling, updateTypeColor } = useStyling();
     const {
-      save: saveToServer, markChangesPending, pendingSaveCount,
+      save: saveToServer,
+      markChangesPending,
+      pendingSaveCount,
+      saveTypeColors,
     } = useSave();
+
+    const {
+      typeColorMapper,
+      stateStyling,
+      updateTypeColor,
+      customColors,
+      loadTypeColors,
+    } = useStyling({ markChangesPending });
 
     const {
       dataset,
@@ -105,7 +114,7 @@ export default defineComponent({
 
     // Initialize the view
     Promise.all([
-      loadDataset(datasetId),
+      loadDataset(datasetId).then((meta) => { loadTypeColors(meta && meta.customTypeColors); }),
       loadTracks(datasetId),
     ]).catch((err) => {
       // TODO p2: alert on errors...
@@ -158,12 +167,13 @@ export default defineComponent({
       tsRemoveTrack(trackId);
     }
 
-    function save() {
+    async function save() {
       // If editing the track, disable editing mode before save
       if (editingTrack.value) {
         selectTrack(selectedTrackId.value, false);
       }
-      saveToServer(datasetId, trackMap);
+      await saveToServer(datasetId, trackMap);
+      await saveTypeColors(datasetId, customColors, allTypes, typeColorMapper);
     }
 
     function handleTrackTypeChange({ trackId, value }: { trackId: TrackId; value: string }) {
