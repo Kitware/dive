@@ -14,7 +14,7 @@ services:
     build:
       context: ../
       dockerfile: docker/girder.Dockerfile
-    image: kitware/viame:${TAG:-latest}
+    image: kitware/viame-web:${TAG:-latest}
     depends_on:
       - mongo
       - girder_worker
