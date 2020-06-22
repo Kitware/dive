@@ -1,6 +1,7 @@
-import { ref, Ref } from '@vue/composition-api';
+import { Ref, computed } from '@vue/composition-api';
 import Track, { TrackId } from '@/lib/track';
 import { RectBounds } from '@/utils';
+import store from '@/store/store';
 
 export interface NewTrackSettings {
     mode: string;
@@ -49,14 +50,16 @@ export default function useModeManager({
     addTrack: (frame: number, defaultType: string) => Track;
     removeTrack: (trackId: TrackId) => void;
 }) {
-  const newDefaultType = ref('unknown');
+  const newTrackSettings: Ref<NewTrackSettings> = computed(
+    () => store.state.Settings.newTrackSettings,
+  );
 
   function handleSelectTrack(trackId: TrackId | null, edit = false) {
     selectTrack(trackId, edit);
   }
   //Handles adding a new track with the NewTrack Settings
   function handleAddTrack() {
-    selectTrack(addTrack(frame.value, newDefaultType.value).trackId, true);
+    selectTrack(addTrack(frame.value, newTrackSettings.value.type).trackId, true);
   }
 
   function handleTrackTypeChange({ trackId, value }: { trackId: TrackId; value: string }) {
@@ -64,19 +67,14 @@ export default function useModeManager({
   }
   // Default settings which are updated by the CreationMode component
   // Not making them reactive, and eventually will probably be in localStorage
-  let newTrackSettings: NewTrackSettings |null = null;
 
-  function handleUpdateNewTrackSettings(updatedTrackSettings: NewTrackSettings) {
-    newDefaultType.value = updatedTrackSettings.type;
-    newTrackSettings = updatedTrackSettings;
-  }
 
   function newTrackSettingsAfterLogic(newTrack: Track) {
-    if (newTrack && newTrackSettings !== null) {
-      if (newTrackSettings.mode === 'Track' && newTrackSettings.modeSettings.Track.autoAdvanceFrame) {
+    if (newTrack && newTrackSettings.value !== null) {
+      if (newTrackSettings.value.mode === 'Track' && newTrackSettings.value.modeSettings.Track.autoAdvanceFrame) {
         playbackComponent.value.nextFrame();
-      } else if (newTrackSettings.mode === 'Detection') {
-        if (newTrackSettings.modeSettings.Detection.continuous) {
+      } else if (newTrackSettings.value.mode === 'Detection') {
+        if (newTrackSettings.value.modeSettings.Detection.continuous) {
           handleAddTrack();
         } else { //Deselect the new track
           selectTrack(newTrack.trackId, false);
@@ -144,7 +142,6 @@ export default function useModeManager({
       selectTrack: handleSelectTrack,
       trackEdit: handleTrackEdit,
       trackTypeChange: handleTrackTypeChange,
-      updateNewTrackSettings: handleUpdateNewTrackSettings,
       addTrack: handleAddTrack,
       updateRectBounds: handleUpdateRectBounds,
       selectNext: handleSelectNext,

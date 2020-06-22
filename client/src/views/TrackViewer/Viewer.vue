@@ -6,7 +6,7 @@ import {
 } from '@vue/composition-api';
 
 
-import store from '@/store';
+import store from '@/store/store';
 import { getPathFromLocation } from '@/utils';
 
 import {
@@ -146,7 +146,7 @@ export default defineComponent({
       removeTrack,
     });
 
-    const location = computed(() => store.state.location);
+    const location = computed(() => store.state.Location.location);
 
     function save() {
       // If editing the track, disable editing mode before save
@@ -272,7 +272,6 @@ export default defineComponent({
         @track-next="handler.selectNext(1)"
         @track-previous="handler.selectNext(-1)"
         @track-type-change="handler.trackTypeChange($event)"
-        @new-track-settings="handler.updateNewTrackSettings($event)"
       >
         <ConfidenceFilter :confidence.sync="confidenceThreshold" />
       </sidebar>

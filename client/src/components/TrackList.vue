@@ -1,8 +1,9 @@
 <script lang="ts">
 import Vue, { PropType } from 'vue';
+import { mapState } from 'vuex';
 import { Ref } from '@vue/composition-api';
 import TrackItem from '@/components/TrackItem.vue';
-import CreationMode, { NewTrackSettings } from '@/components/CreationMode.vue';
+import CreationMode from '@/components/CreationMode.vue';
 import Track, { TrackId } from '@/lib/track';
 
 export default Vue.extend({
@@ -51,13 +52,10 @@ export default Vue.extend({
   data: () => ({
     itemHeight: 45, // in pixels
     settingsActive: false,
-    newTracksettings: {
-      mode: 'Track',
-      type: 'unknown',
-    },
   }),
 
   computed: {
+    ...mapState('Settings', ['newTrackSettings']),
     virtualListItems() {
       const selectedTrackId = this.selectedTrackId.value;
       const checkedTrackIds = this.checkedTrackIds.value;
@@ -72,8 +70,8 @@ export default Vue.extend({
       }));
     },
     newTrackColor() {
-      if (this.newTracksettings.type !== 'unknown') {
-        return this.typeColorMapper(this.newTracksettings.type);
+      if (this.newTrackSettings.type !== 'unknown') {
+        return this.typeColorMapper(this.newTrackSettings.type);
       }
       // Return default color
       return '';
@@ -116,10 +114,6 @@ export default Vue.extend({
         keyEvent.preventDefault();
       }
     },
-    setNewTrackSettings(settings: NewTrackSettings) {
-      this.newTracksettings = settings;
-      this.$emit('new-track-settings', this.newTracksettings);
-    },
     getItemProps({
       trackId,
       selectedTrackId,
@@ -160,16 +154,26 @@ export default Vue.extend({
         <v-row align="center">
           Tracks ({{ filteredTrackIds.value.length }})
           <v-spacer />
-          <v-btn
-            outlined
-            x-small
-            :color="newTrackColor"
-            @click="$emit('track-add')"
+          <v-tooltip
+            open-delay="200"
+            bottom
+            max-width="200"
           >
-            {{ newTracksettings.mode }}<v-icon small>
-              mdi-plus
-            </v-icon>
-          </v-btn>
+            <template #activator="{ on }">
+              <v-btn
+                outlined
+                x-small
+                :color="newTrackColor"
+                v-on="on"
+                @click="$emit('track-add')"
+              >
+                {{ newTrackSettings.mode }}<v-icon small>
+                  mdi-plus
+                </v-icon>
+              </v-btn>
+            </template>
+            <span>Default Type: {{ newTrackSettings.type }}</span>
+          </v-tooltip>
           <v-btn
             icon
             small
@@ -189,7 +193,6 @@ export default Vue.extend({
               <creation-mode
                 v-if="settingsActive"
                 :all-types="allTypes"
-                @settings-changed="setNewTrackSettings"
               />
             </keep-alive>
           </v-expand-transition>

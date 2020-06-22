@@ -1,6 +1,7 @@
 <script lang="ts">
 import Vue, { PropType } from 'vue';
 import { Ref } from '@vue/composition-api';
+import { mapState } from 'vuex';
 
 export interface NewTrackSettings {
   mode: 'Track' | 'Detection';
@@ -37,42 +38,40 @@ export default Vue.extend({
       continuous: 'Immediately stay in detection creation mode after creating a new track.  Hit Esc or do single click to exit.',
     },
     modes: ['Track', 'Detection'],
-    selectedMode: 'Track',
-    selectedType: 'unknown',
-    modeSettings: {
-      Track: {
-        autoAdvanceFrame: true,
-      },
-      Detection: {
-        continuous: false,
-      },
-    },
   }),
-
   computed: {
+    ...mapState('Settings', ['newTrackSettings']),
     typeList() {
       // Add unknown as the default type to the typeList
       return ['unknown'].concat(this.allTypes.value);
     },
   },
 
-  created() {
-    //We don't store the settings as reactive, just have the component emit them.
-    //In the future we may retrieve this from the localStorage for initialization
-    this.emitSettings();
-  },
-
   methods: {
-    setType(newType: string) {
-      this.selectedType = newType;
+    /** Reduces the number of update functions utilizing Vuex by indicating the target type */
+    saveTypeSettings(event: 'Track' | 'Detection', target: 'mode' | 'type') {
+      // Copy the newTrackSettings for modification
+      const copy: NewTrackSettings = JSON.parse(JSON.stringify(this.newTrackSettings));
+      copy[target] = event; // Modify the value
+      this.$store.commit('Settings/setNewTrackSettings', copy);
     },
-
-    emitSettings() {
-      this.$emit('settings-changed', {
-        mode: this.selectedMode,
-        type: this.selectedType,
-        modeSettings: this.modeSettings,
-      } as NewTrackSettings);
+    /**
+     * Each submodule because of Typescript needs to be referenced like this
+     * Allows us to add more sub settings in the future
+     */
+    emitTrackSubSettings(event: true | null, target: 'autoAdvanceFrame') {
+      // Copy the newTrackSettings for modification
+      const copy: NewTrackSettings = JSON.parse(JSON.stringify(this.newTrackSettings));
+      const modeSettings = copy.modeSettings.Track;
+      modeSettings[target] = !!event; // Modify the value
+      this.$store.commit('Settings/setNewTrackSettings', copy);
+    },
+    emitDetectionSubSettings(event: true | null, target: 'continuous') {
+      // Copy the newTrackSettings for modification
+      const copy: NewTrackSettings = JSON.parse(JSON.stringify(this.newTrackSettings));
+      const modeSettings = copy.modeSettings.Detection;
+      modeSettings[target] = !!event; // Modify the value
+      this.$store.commit('Settings/setNewTrackSettings', copy);
     },
   },
 });
@@ -96,13 +95,13 @@ export default Vue.extend({
         </v-col>
         <v-col>
           <v-combobox
-            v-model="selectedMode"
+            :value="newTrackSettings.mode"
             class="ml-0"
             x-small
             :items="modes"
             dense
             hide-details
-            @change="emitSettings"
+            @change="saveTypeSettings($event, 'mode')"
           />
         </v-col>
         <v-col cols="2">
@@ -119,7 +118,7 @@ export default Vue.extend({
                 mdi-help
               </v-icon>
             </template>
-            <span>{{ help.mode[selectedMode] }}</span>
+            <span>{{ help.mode[newTrackSettings.mode] }}</span>
           </v-tooltip>
         </v-col>
       </v-row>
@@ -135,13 +134,13 @@ export default Vue.extend({
         </v-col>
         <v-col>
           <v-combobox
-            v-model="selectedType"
+            :value="newTrackSettings.type"
             class="ml-0"
             x-small
             :items="typeList"
             dense
             hide-details
-            @change="emitSettings"
+            @change="saveTypeSettings($event, 'type')"
           />
         </v-col>
         <v-col cols="2">
@@ -162,16 +161,16 @@ export default Vue.extend({
         </v-col>
       </v-row>
       <v-row
-        v-if="selectedMode==='Track'"
+        v-if="newTrackSettings.mode==='Track'"
       >
         <v-col>
           <v-switch
-            v-model="modeSettings.Track.autoAdvanceFrame"
+            :input-value="newTrackSettings.modeSettings.Track.autoAdvanceFrame"
             class="my-0 ml-1 pt-0"
             dense
             label="Advance Frame"
             hide-details
-            @change="emitSettings"
+            @change="emitTrackSubSettings($event,'autoAdvanceFrame')"
           />
         </v-col>
         <v-col cols="2">
@@ -192,16 +191,16 @@ export default Vue.extend({
         </v-col>
       </v-row>
       <v-row
-        v-if="selectedMode==='Detection'"
+        v-if="newTrackSettings.mode==='Detection'"
       >
         <v-col>
           <v-switch
-            v-model="modeSettings.Detection.continuous"
+            :input-value="newTrackSettings.modeSettings.Detection.continuous"
             class="my-0 ml-1 pt-0"
             dense
             label="Continuous"
             hide-details
-            @change="emitSettings"
+            @change="emitDetectionSubSettings($event,'continuous')"
           />
         </v-col>
         <v-col cols="2">

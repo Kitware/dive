@@ -33,7 +33,7 @@ export default {
     uploading: false,
   }),
   computed: {
-    ...mapState(['location']),
+    ...mapState('Location', ['location']),
 
     location: {
       get() {
@@ -92,7 +92,7 @@ export default {
     next();
   },
   methods: {
-    ...mapMutations(['setLocation']),
+    ...mapMutations('Location', ['setLocation']),
     handleNotification() {
       this.$refs.fileManager.$refs.girderBrowser.refresh();
     },

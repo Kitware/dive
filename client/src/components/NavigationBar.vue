@@ -17,7 +17,7 @@ export default {
     runningJobIds: [],
   }),
   computed: {
-    ...mapState(['location']),
+    ...mapState('Location', ['location']),
   },
   async created() {
     const jobStatus = all();
