@@ -14,7 +14,7 @@ services:
     build:
       context: ../
       dockerfile: docker/girder.Dockerfile
-    image: kitwareviame/girder:${TAG:-latest}
+    image: kitware/viame:${TAG:-latest}
     depends_on:
       - mongo
       - girder_worker
@@ -43,7 +43,7 @@ services:
     build:
       context: ../
       dockerfile: docker/girder_worker.Dockerfile
-    image: kitwareviame/girder:${TAG:-latest}
+    image: kitware/viame-worker:${TAG:-latest}
     volumes:
       # Exposes pipeline directory to girder so it can see what pipelines are available.
       - pipelines:${VIAME_PIPELINES_PATH}:ro
