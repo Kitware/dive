@@ -85,9 +85,8 @@ export default defineComponent({
       intervalTree,
       addTrack,
       getTrack,
-      removeTrack: tsRemoveTrack,
+      removeTrack,
       loadTracks,
-      setNewDefaultType,
     } = useTrackStore({ markChangesPending });
 
     const {
@@ -144,8 +143,7 @@ export default defineComponent({
       getTrack,
       selectNextTrack,
       addTrack,
-      tsRemoveTrack,
-      setNewDefaultType,
+      removeTrack,
     });
 
     const location = computed(() => store.state.location);

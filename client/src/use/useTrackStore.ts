@@ -34,7 +34,6 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
    */
   const trackIds: Ref<Array<TrackId>> = ref([]);
   const canary = ref(0);
-  const newDefaultType = ref(null as string | null);
 
   function _depend(): number {
     return canary.value;
@@ -68,14 +67,14 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
     trackIds.value.push(track.trackId);
   }
 
-  function addTrack(frame: number): Track {
+  function addTrack(frame: number, defaultType: string): Track {
     const newTrackId = trackIds.value.length
       ? Math.max(...trackIds.value) + 1
       : 0;
     const track = new Track(newTrackId, {
       begin: frame,
       end: frame,
-      confidencePairs: [[newDefaultType.value || 'unknown', 1]],
+      confidencePairs: [[defaultType, 1]],
     });
     insertTrack(track);
     markChangesPending();
@@ -138,10 +137,6 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
     });
   });
 
-  const setNewDefaultType = (type = 'unknown'): void => {
-    newDefaultType.value = type;
-  };
-
   return {
     trackMap,
     sortedTrackIds,
@@ -152,6 +147,5 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
     removeTracksBelowConfidence,
     splitTracks,
     loadTracks,
-    setNewDefaultType,
   };
 }

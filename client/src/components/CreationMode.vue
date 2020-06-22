@@ -3,26 +3,28 @@ import Vue, { PropType } from 'vue';
 import { Ref } from '@vue/composition-api';
 
 export interface NewTrackSettings {
-    mode: string;
-    type: string;
-    modeSettings: {
-        Track: {
-            autoAdvanceFrame: boolean;
-        };
-        Detection: {
-            continuous: boolean;
-        };
+  mode: 'Track' | 'Detection';
+  type: string;
+  modeSettings: {
+    Track: {
+      autoAdvanceFrame: boolean;
     };
+    Detection: {
+      continuous: boolean;
+    };
+  };
 }
 
 export default Vue.extend({
   name: 'CreationMode',
+
   props: {
     allTypes: {
       type: Object as PropType<Ref<Array<string>>>,
       required: true,
     },
   },
+
   data: () => ({
     itemHeight: 45, // in pixels
     help: {
@@ -50,12 +52,10 @@ export default Vue.extend({
   computed: {
     typeList() {
       // Add unknown as the default type to the typeList
-      let list = ['unknown'];
-      list = list.concat(this.allTypes.value);
-      return list;
+      return ['unknown'].concat(this.allTypes.value);
     },
-
   },
+
   created() {
     //We don't store the settings as reactive, just have the component emit them.
     //In the future we may retrieve this from the localStorage for initialization
@@ -66,16 +66,13 @@ export default Vue.extend({
     setType(newType: string) {
       this.selectedType = newType;
     },
-    /**
-     * Emits the settings object to propagate upwards the settings
-     */
+
     emitSettings() {
-      const settingsObj: NewTrackSettings = {
+      this.$emit('settings-changed', {
         mode: this.selectedMode,
         type: this.selectedType,
         modeSettings: this.modeSettings,
-      };
-      this.$emit('settings-changed', settingsObj);
+      } as NewTrackSettings);
     },
   },
 });
@@ -227,7 +224,3 @@ export default Vue.extend({
     </v-card>
   </div>
 </template>
-
-<style lang="scss">
-
-</style>

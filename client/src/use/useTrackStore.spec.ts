@@ -9,8 +9,8 @@ jest.mock('@/lib/api/viameDetection.service', () => ({}));
 describe('useTrackStore', () => {
   it('can add and remove tracks', () => {
     const ts = useTrackStore({ markChangesPending: () => null });
-    const t0 = ts.addTrack(20);
-    const t1 = ts.addTrack(10);
+    const t0 = ts.addTrack(20, 'foo');
+    const t1 = ts.addTrack(10, 'foo');
     expect(Array.from(ts.trackMap.keys()).length).toBe(2);
     expect(ts.sortedTrackIds.value[0]).toBe(1);
     expect(ts.intervalTree.search([10, 10]).length).toBe(1);
@@ -33,7 +33,7 @@ describe('useTrackStore', () => {
     let didCall = false;
     const markChangesPending = () => { didCall = true; };
     const ts = useTrackStore({ markChangesPending });
-    ts.addTrack(0);
+    ts.addTrack(0, 'foo');
     expect(didCall).toEqual(true);
   });
 
@@ -41,13 +41,13 @@ describe('useTrackStore', () => {
     const markChangesPending = () => null;
     const ts = useTrackStore({ markChangesPending });
     expect(() => ts.getTrack(0)).toThrow('TrackId 0 not found in trackMap.');
-    ts.addTrack(1000);
+    ts.addTrack(1000, 'foo');
     expect(ts.getTrack(0)).toBeTruthy();
   });
 
   it('updates a reactive list when member tracks change', async () => {
     const ts = useTrackStore({ markChangesPending: () => null });
-    const track = ts.addTrack(0);
+    const track = ts.addTrack(0, 'foo');
 
     let called = false;
 
