@@ -86,6 +86,10 @@ export default class Track {
     this.confidencePairs = confidencePairs;
   }
 
+  get length() {
+    return (this.end - this.begin) + 1;
+  }
+
   private updateBounds(frame: number) {
     if (frame < this.begin) {
       const oldval = this.begin;
@@ -97,8 +101,6 @@ export default class Track {
       this.notify('bounds', [this.begin, oldval]);
     }
   }
-
-  // private $emit()
 
   /**
    * @param name an event name

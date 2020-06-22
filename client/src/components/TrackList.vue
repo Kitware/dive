@@ -130,6 +130,7 @@ export default Vue.extend({
         editingTrack,
         color: this.typeColorMapper(trackType),
         types: allTypes,
+        splittable: track.length > 0,
       };
     },
   },
@@ -160,6 +161,8 @@ export default Vue.extend({
         { bind: 'del', handler: () =>
             selectedTrackId.value !== null && $emit('track-remove', selectedTrackId.value),
           disabled: $prompt.visible()},
+        { bind: 'x', handler: () => $emit('track-split', selectedTrackId.value),
+          disabled: $prompt.visible()}
       ]"
       :items="virtualListItems"
       :item-height="itemHeight"
@@ -173,6 +176,7 @@ export default Vue.extend({
           @delete="$emit('track-remove', item.trackId)"
           @click="$emit('track-click', item.trackId)"
           @edit="$emit('track-edit', item.trackId)"
+          @split="$emit('track-split', item.trackId)"
         />
       </template>
     </v-virtual-scroll>

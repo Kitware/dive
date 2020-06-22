@@ -91,6 +91,7 @@ export default defineComponent({
       getTrack,
       removeTrack: tsRemoveTrack,
       loadTracks,
+      splitTracks: tsSplitTracks,
     } = useTrackStore({ markChangesPending });
 
     const {
@@ -157,6 +158,20 @@ export default defineComponent({
       tsRemoveTrack(trackId);
     }
 
+    async function splitTracks(trackId: TrackId, _frame: number) {
+      const result = await prompt({
+        title: 'Confirm',
+        text: 'Do you want to split the selected track?',
+        confirm: true,
+      });
+      if (!result) {
+        return;
+      }
+      selectTrack(null, false);
+      const [, b] = tsSplitTracks(trackId, _frame);
+      selectTrack(b.trackId);
+    }
+
     function save() {
       // If editing the track, disable editing mode before save
       if (editingTrack.value) {
@@ -215,6 +230,7 @@ export default defineComponent({
       removeTrack,
       save,
       selectTrack,
+      splitTracks,
       toggleFeaturePointing,
       featurePointed,
       /* props for sub-components */
@@ -310,6 +326,7 @@ export default defineComponent({
         @track-next="handleSelectNext(1)"
         @track-previous="handleSelectNext(-1)"
         @track-type-change="handleTrackTypeChange($event)"
+        @track-split="splitTracks($event, frame)"
       >
         <ConfidenceFilter :confidence.sync="confidenceThreshold" />
       </sidebar>
