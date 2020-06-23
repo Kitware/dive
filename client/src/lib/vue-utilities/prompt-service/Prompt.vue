@@ -59,9 +59,9 @@ export default {
       <v-card-title
         v-if="title"
         v-mousetrap="[
-          { bind: 'left', handler: () => focus('negative') },
-          { bind: 'right', handler: () => focus('positive') },
-          { bind: 'enter', handler: () => select() },
+          { bind: 'left', handler: () => focus('negative'), disable: !show },
+          { bind: 'right', handler: () => focus('positive'), disable: !show },
+          { bind: 'enter', handler: () => select(), disable: !show },
         ]"
         class="title"
       >
