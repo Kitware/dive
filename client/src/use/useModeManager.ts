@@ -1,20 +1,7 @@
 import { Ref, computed } from '@vue/composition-api';
 import Track, { TrackId } from '@/lib/track';
 import { RectBounds } from '@/utils';
-import store from '@/store';
-
-export interface NewTrackSettings {
-    mode: string;
-    type: string;
-    modeSettings: {
-        Track: {
-            autoAdvanceFrame: boolean;
-        };
-        Detection: {
-            continuous: boolean;
-        };
-    };
-}
+import { NewTrackSettings } from './useSettings';
 
 export interface Seeker {
     seek(frame: number): void;
@@ -33,6 +20,7 @@ export default function useModeManager({
   frame,
   trackMap,
   playbackComponent,
+  newTrackSettings,
   selectTrack,
   getTrack,
   selectNextTrack,
@@ -44,22 +32,19 @@ export default function useModeManager({
     frame: Ref<number>;
     trackMap: Map<TrackId, Track>;
     playbackComponent: Ref<Seeker>;
+    newTrackSettings: NewTrackSettings;
     selectTrack: (trackId: TrackId | null, edit: boolean) => void;
     getTrack: (trackId: TrackId) => Track;
     selectNextTrack: (delta?: number) => TrackId | null;
     addTrack: (frame: number, defaultType: string) => Track;
     removeTrack: (trackId: TrackId) => void;
 }) {
-  const newTrackSettings: Ref<NewTrackSettings> = computed(
-    () => store.state.Settings.newTrackSettings,
-  );
-
   function handleSelectTrack(trackId: TrackId | null, edit = false) {
     selectTrack(trackId, edit);
   }
   //Handles adding a new track with the NewTrack Settings
   function handleAddTrack() {
-    selectTrack(addTrack(frame.value, newTrackSettings.value.type).trackId, true);
+    selectTrack(addTrack(frame.value, newTrackSettings.type).trackId, true);
   }
 
   function handleTrackTypeChange({ trackId, value }: { trackId: TrackId; value: string }) {
@@ -70,11 +55,11 @@ export default function useModeManager({
 
 
   function newTrackSettingsAfterLogic(newTrack: Track) {
-    if (newTrack && newTrackSettings.value !== null) {
-      if (newTrackSettings.value.mode === 'Track' && newTrackSettings.value.modeSettings.Track.autoAdvanceFrame) {
+    if (newTrack && newTrackSettings !== null) {
+      if (newTrackSettings.mode === 'Track' && newTrackSettings.modeSettings.Track.autoAdvanceFrame) {
         playbackComponent.value.nextFrame();
-      } else if (newTrackSettings.value.mode === 'Detection') {
-        if (newTrackSettings.value.modeSettings.Detection.continuous) {
+      } else if (newTrackSettings.mode === 'Detection') {
+        if (newTrackSettings.modeSettings.Detection.continuous) {
           handleAddTrack();
         } else { //Deselect the new track
           selectTrack(newTrack.trackId, false);
@@ -89,7 +74,7 @@ export default function useModeManager({
       if (track) {
         const features = track.getFeature(frameNum);
         let newTrack = false;
-        if (!features || features.bounds !== undefined) {
+        if (!features || features.bounds === undefined) {
         //We are creating a brand new track and should apply the newTrackSettings
           newTrack = true;
         }

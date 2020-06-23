@@ -6,7 +6,6 @@ import {
 } from '@vue/composition-api';
 
 
-import store from '@/store/index';
 import { getPathFromLocation } from '@/utils';
 
 import {
@@ -20,6 +19,7 @@ import {
   useTrackStore,
   useEventChart,
   useModeManager,
+  useSettings,
 } from '@/use';
 
 import VideoAnnotator from '@/components/annotators/VideoAnnotator.vue';
@@ -60,7 +60,7 @@ export default defineComponent({
     },
   },
 
-  setup(props) {
+  setup(props, context) {
     const { datasetId } = props;
     const playbackComponent = ref({} as Seeker);
     const frame = ref(0); // the currently displayed frame number
@@ -132,6 +132,7 @@ export default defineComponent({
       enabledTrackIds, selectedTrackId, typeColorMapper, trackMap,
     });
 
+    const { newTrackSettings, updateNewTrackSettings } = useSettings();
     // Provides wrappers for actions to integrate with settings
     const { handler } = useModeManager({
       selectedTrackId,
@@ -139,6 +140,7 @@ export default defineComponent({
       frame,
       trackMap,
       playbackComponent,
+      newTrackSettings,
       selectTrack,
       getTrack,
       selectNextTrack,
@@ -146,7 +148,7 @@ export default defineComponent({
       removeTrack,
     });
 
-    const location = computed(() => store.state.Location.location);
+    const location = computed(() => context.root.$store.state.Location.location);
 
     function save() {
       // If editing the track, disable editing mode before save
@@ -193,7 +195,9 @@ export default defineComponent({
         selectedTrackId,
         editingTrack,
         typeColorMapper,
+        newTrackSettings,
       },
+      updateNewTrackSettings,
       layerProps: {
         trackMap,
         trackIds: enabledTrackIds,
@@ -272,6 +276,7 @@ export default defineComponent({
         @track-next="handler.selectNext(1)"
         @track-previous="handler.selectNext(-1)"
         @track-type-change="handler.trackTypeChange($event)"
+        @update-new-track-settings="updateNewTrackSettings($event)"
       >
         <ConfidenceFilter :confidence.sync="confidenceThreshold" />
       </sidebar>

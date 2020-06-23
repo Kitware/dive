@@ -1,10 +1,10 @@
 <script lang="ts">
 import Vue, { PropType } from 'vue';
-import { mapState } from 'vuex';
 import { Ref } from '@vue/composition-api';
 import TrackItem from '@/components/TrackItem.vue';
 import CreationMode from '@/components/CreationMode.vue';
 import Track, { TrackId } from '@/lib/track';
+import { NewTrackSettings } from '@/use/useSettings';
 
 export default Vue.extend({
   name: 'TrackList',
@@ -47,6 +47,10 @@ export default Vue.extend({
       type: Function as PropType<(t: string) => string>,
       required: true,
     },
+    newTrackSettings: {
+      type: Object as PropType<NewTrackSettings>,
+      default: null,
+    },
   },
 
   data: () => ({
@@ -55,7 +59,6 @@ export default Vue.extend({
   }),
 
   computed: {
-    ...mapState('Settings', ['newTrackSettings']),
     virtualListItems() {
       const selectedTrackId = this.selectedTrackId.value;
       const checkedTrackIds = this.checkedTrackIds.value;
@@ -70,7 +73,7 @@ export default Vue.extend({
       }));
     },
     newTrackColor() {
-      if (this.newTrackSettings.type !== 'unknown') {
+      if (this.newTrackSettings && this.newTrackSettings.type !== 'unknown') {
         return this.typeColorMapper(this.newTrackSettings.type);
       }
       // Return default color
@@ -154,47 +157,62 @@ export default Vue.extend({
         <v-row align="center">
           Tracks ({{ filteredTrackIds.value.length }})
           <v-spacer />
-          <v-tooltip
-            open-delay="200"
-            bottom
-            max-width="200"
-          >
-            <template #activator="{ on }">
-              <v-btn
-                outlined
-                x-small
-                :color="newTrackColor"
-                v-on="on"
-                @click="$emit('track-add')"
-              >
-                {{ newTrackSettings.mode }}<v-icon small>
-                  mdi-plus
-                </v-icon>
-              </v-btn>
-            </template>
-            <span>Default Type: {{ newTrackSettings.type }}</span>
-          </v-tooltip>
           <v-btn
-            icon
-            small
-            @click="settingsActive = !settingsActive"
+            v-if="!newTrackSettings"
+            outlined
+            x-small
+            @click="$emit('track-add')"
           >
-            <v-icon
-              small
-              :color="settingsActive ? 'accent' : 'default'"
-            >
-              mdi-settings
+            <v-icon small>
+              mdi-plus
             </v-icon>
           </v-btn>
+          <div
+            v-else
+            class="newTrackSettings"
+          >
+            <v-tooltip
+              open-delay="200"
+              bottom
+              max-width="200"
+            >
+              <template #activator="{ on }">
+                <v-btn
+                  outlined
+                  x-small
+                  :color="newTrackColor"
+                  v-on="on"
+                  @click="$emit('track-add')"
+                >
+                  {{ newTrackSettings.mode }}<v-icon small>
+                    mdi-plus
+                  </v-icon>
+                </v-btn>
+              </template>
+              <span>Default Type: {{ newTrackSettings.type }}</span>
+            </v-tooltip>
+            <v-btn
+              icon
+              small
+              @click="settingsActive = !settingsActive"
+            >
+              <v-icon
+                small
+                :color="settingsActive ? 'accent' : 'default'"
+              >
+                mdi-settings
+              </v-icon>
+            </v-btn>
+          </div>
         </v-row>
         <v-row>
           <v-expand-transition>
-            <keep-alive>
-              <creation-mode
-                v-if="settingsActive"
-                :all-types="allTypes"
-              />
-            </keep-alive>
+            <creation-mode
+              v-if="settingsActive"
+              :all-types="allTypes"
+              :new-track-settings="newTrackSettings"
+              @update-new-track-settings="$emit('update-new-track-settings',$event)"
+            />
           </v-expand-transition>
         </v-row>
       </v-container>

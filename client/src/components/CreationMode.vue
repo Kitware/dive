@@ -1,7 +1,6 @@
 <script lang="ts">
 import Vue, { PropType } from 'vue';
 import { Ref } from '@vue/composition-api';
-import { mapState } from 'vuex';
 import { cloneDeep } from 'lodash';
 
 
@@ -26,6 +25,10 @@ export default Vue.extend({
       type: Object as PropType<Ref<Array<string>>>,
       required: true,
     },
+    newTrackSettings: {
+      type: Object as PropType<NewTrackSettings>,
+      required: true,
+    },
   },
 
   data: () => ({
@@ -42,20 +45,18 @@ export default Vue.extend({
     modes: ['Track', 'Detection'],
   }),
   computed: {
-    ...mapState('Settings', ['newTrackSettings']),
     typeList() {
       // Add unknown as the default type to the typeList
       return ['unknown'].concat(this.allTypes.value);
     },
   },
-
   methods: {
     /** Reduces the number of update functions utilizing Vuex by indicating the target type */
     saveTypeSettings(event: 'Track' | 'Detection', target: 'mode' | 'type') {
       // Copy the newTrackSettings for modification
       const copy: NewTrackSettings = cloneDeep(this.newTrackSettings);
       copy[target] = event; // Modify the value
-      this.$store.commit('Settings/setNewTrackSettings', copy);
+      this.$emit('update-new-track-settings', copy);
     },
     /**
      * Each submodule because of Typescript needs to be referenced like this
@@ -66,14 +67,14 @@ export default Vue.extend({
       const copy: NewTrackSettings = cloneDeep(this.newTrackSettings);
       const modeSettings = copy.modeSettings.Track;
       modeSettings[target] = !!event; // Modify the value
-      this.$store.commit('Settings/setNewTrackSettings', copy);
+      this.$emit('update-new-track-settings', copy);
     },
     saveDetectionSubSettings(event: true | null, target: 'continuous') {
       // Copy the newTrackSettings for modification
       const copy: NewTrackSettings = cloneDeep(this.newTrackSettings);
       const modeSettings = copy.modeSettings.Detection;
       modeSettings[target] = !!event; // Modify the value
-      this.$store.commit('Settings/setNewTrackSettings', copy);
+      this.$emit('update-new-track-settings', copy);
     },
   },
 });
@@ -97,13 +98,12 @@ export default Vue.extend({
         </v-col>
         <v-col>
           <v-combobox
-            :value="newTrackSettings.mode"
+            v-model="newTrackSettings.mode"
             class="ml-0"
             x-small
             :items="modes"
             dense
             hide-details
-            @change="saveTypeSettings($event, 'mode')"
           />
         </v-col>
         <v-col cols="2">
