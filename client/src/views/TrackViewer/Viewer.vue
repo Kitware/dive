@@ -8,7 +8,7 @@ import {
 
 import store from '@/store';
 import { getPathFromLocation } from '@/utils';
-import { TrackId } from '@/lib/track';
+import Track, { TrackId } from '@/lib/track';
 
 import {
   useFeaturePointing,
@@ -88,7 +88,9 @@ export default defineComponent({
       sortedTrackIds,
       intervalTree,
       addTrack,
+      insertTrack,
       getTrack,
+      getNewTrackId,
       removeTrack: tsRemoveTrack,
       loadTracks,
     } = useTrackStore({ markChangesPending });
@@ -157,6 +159,37 @@ export default defineComponent({
       tsRemoveTrack(trackId);
     }
 
+    async function splitTracks(trackId: TrackId | undefined, _frame: number) {
+      if (trackId) {
+        const track = getTrack(trackId);
+        let newtracks: [Track, Track];
+        try {
+          newtracks = track.split(_frame, getNewTrackId(), getNewTrackId() + 1);
+        } catch (err) {
+          await prompt({
+            title: 'Error while splitting track',
+            text: err,
+            positiveButton: 'OK',
+          });
+          return;
+        }
+        const result = await prompt({
+          title: 'Confirm',
+          text: 'Do you want to split the selected track?',
+          confirm: true,
+        });
+        if (!result) {
+          return;
+        }
+        const wasEditing = editingTrack.value;
+        selectTrack(null);
+        tsRemoveTrack(trackId);
+        insertTrack(newtracks[0]);
+        insertTrack(newtracks[1]);
+        selectTrack(newtracks[1].trackId, wasEditing);
+      }
+    }
+
     function save() {
       // If editing the track, disable editing mode before save
       if (editingTrack.value) {
@@ -215,6 +248,7 @@ export default defineComponent({
       removeTrack,
       save,
       selectTrack,
+      splitTracks,
       toggleFeaturePointing,
       featurePointed,
       /* props for sub-components */
@@ -310,6 +344,7 @@ export default defineComponent({
         @track-next="handleSelectNext(1)"
         @track-previous="handleSelectNext(-1)"
         @track-type-change="handleTrackTypeChange($event)"
+        @track-split="splitTracks($event, frame)"
       >
         <ConfidenceFilter :confidence.sync="confidenceThreshold" />
       </sidebar>
