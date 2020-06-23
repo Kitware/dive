@@ -19,6 +19,7 @@ export default {
         this.resolve(false);
       } else {
         // Needs to mount and then dialog transition, single tick doesn't work
+        this.selected = 'positive';
         this.$nextTick(() => this.$nextTick(() => this.$refs.positive.$el.focus()));
       }
     },
