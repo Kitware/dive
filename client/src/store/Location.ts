@@ -1,17 +1,20 @@
+import { Module } from 'vuex';
 import { GirderModel } from '@/lib/api/viame.service';
 
 export interface LocationState {
     location: null | GirderModel;
 }
 
-export default {
+const locationModule: Module<LocationState, never> = {
   namespaced: true,
   state: {
     location: null,
-  } as {location: null | GirderModel},
+  },
   mutations: {
-    setLocation(state: { location: null | GirderModel}, location: GirderModel) {
+    setLocation(state, location: GirderModel) {
       state.location = location;
     },
   },
 };
+
+export default locationModule;

@@ -1,24 +1,18 @@
 import Vue from 'vue';
 import Vuex from 'vuex';
 import VuexPersistence from 'vuex-persist';
-import Settings, { SettingsState } from './Settings';
-import Pipelines, { PiplineState } from './Pipelines';
-import Location, { LocationState } from './Location';
+import Settings from './Settings';
+import Pipelines from './Pipelines';
+import Location from './Location';
 
-export interface State {
-  Location: LocationState;
-  Pipelines: PiplineState;
-  Settings: SettingsState;
-}
-
-
-const vuexLocal = new VuexPersistence<State>({
-  storage: window.localStorage,
-  reducer: (state) => ({ Settings: state.Settings }), //only save Settings module
-});
 Vue.use(Vuex);
 
-export default new Vuex.Store<State>({
+const vuexLocal = new VuexPersistence({
+  storage: window.localStorage,
+  modules:  ['Settings'],
+});
+
+export default new Vuex.Store({
   modules: {
     Settings,
     Pipelines,
