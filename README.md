@@ -42,7 +42,7 @@ Run `pip install` on the against the server directory. Then `girder-worker -l in
 
 ## Running Locally
 
-You can run VIAME Web locally with vanilla docker-compose.
+You can run VIAME Web locally with vanilla docker-compose. Configure options in `.env`.
 
 ``` bash
 docker-compose -f docker/docker-compose.yml up
