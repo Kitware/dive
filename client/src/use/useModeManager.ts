@@ -1,7 +1,7 @@
 import { Ref, computed } from '@vue/composition-api';
 import Track, { TrackId } from '@/lib/track';
 import { RectBounds } from '@/utils';
-import store from '@/store/store';
+import store from '@/store';
 
 export interface NewTrackSettings {
     mode: string;

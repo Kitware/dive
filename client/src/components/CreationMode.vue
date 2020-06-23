@@ -2,6 +2,8 @@
 import Vue, { PropType } from 'vue';
 import { Ref } from '@vue/composition-api';
 import { mapState } from 'vuex';
+import { cloneDeep } from 'lodash';
+
 
 export interface NewTrackSettings {
   mode: 'Track' | 'Detection';
@@ -51,7 +53,7 @@ export default Vue.extend({
     /** Reduces the number of update functions utilizing Vuex by indicating the target type */
     saveTypeSettings(event: 'Track' | 'Detection', target: 'mode' | 'type') {
       // Copy the newTrackSettings for modification
-      const copy: NewTrackSettings = JSON.parse(JSON.stringify(this.newTrackSettings));
+      const copy: NewTrackSettings = cloneDeep(this.newTrackSettings);
       copy[target] = event; // Modify the value
       this.$store.commit('Settings/setNewTrackSettings', copy);
     },
@@ -59,16 +61,16 @@ export default Vue.extend({
      * Each submodule because of Typescript needs to be referenced like this
      * Allows us to add more sub settings in the future
      */
-    emitTrackSubSettings(event: true | null, target: 'autoAdvanceFrame') {
+    saveTrackSubSettings(event: true | null, target: 'autoAdvanceFrame') {
       // Copy the newTrackSettings for modification
-      const copy: NewTrackSettings = JSON.parse(JSON.stringify(this.newTrackSettings));
+      const copy: NewTrackSettings = cloneDeep(this.newTrackSettings);
       const modeSettings = copy.modeSettings.Track;
       modeSettings[target] = !!event; // Modify the value
       this.$store.commit('Settings/setNewTrackSettings', copy);
     },
-    emitDetectionSubSettings(event: true | null, target: 'continuous') {
+    saveDetectionSubSettings(event: true | null, target: 'continuous') {
       // Copy the newTrackSettings for modification
-      const copy: NewTrackSettings = JSON.parse(JSON.stringify(this.newTrackSettings));
+      const copy: NewTrackSettings = cloneDeep(this.newTrackSettings);
       const modeSettings = copy.modeSettings.Detection;
       modeSettings[target] = !!event; // Modify the value
       this.$store.commit('Settings/setNewTrackSettings', copy);
@@ -170,7 +172,7 @@ export default Vue.extend({
             dense
             label="Advance Frame"
             hide-details
-            @change="emitTrackSubSettings($event,'autoAdvanceFrame')"
+            @change="saveTrackSubSettings($event,'autoAdvanceFrame')"
           />
         </v-col>
         <v-col cols="2">
@@ -200,7 +202,7 @@ export default Vue.extend({
             dense
             label="Continuous"
             hide-details
-            @change="emitDetectionSubSettings($event,'continuous')"
+            @change="saveDetectionSubSettings($event,'continuous')"
           />
         </v-col>
         <v-col cols="2">

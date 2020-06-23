@@ -6,7 +6,7 @@ import {
 } from '@vue/composition-api';
 
 
-import store from '@/store/store';
+import store from '@/store/index';
 import { getPathFromLocation } from '@/utils';
 
 import {

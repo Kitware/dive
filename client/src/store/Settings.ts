@@ -1,3 +1,5 @@
+import { Module } from 'vuex';
+
 export interface NewTrackSettings {
     mode: string;
     type: string;
@@ -16,7 +18,7 @@ export interface SettingsState {
     newTrackSettings: NewTrackSettings;
 }
 
-const Settings = {
+const Settings: Module<SettingsState, never> = {
   namespaced: true,
   state: {
     newTrackSettings: {
@@ -30,15 +32,15 @@ const Settings = {
           continuous: true,
         },
       },
-    } as NewTrackSettings,
-  } as SettingsState,
+    },
+  },
   mutations: {
-    setNewTrackSettings(state: SettingsState, newSettings: NewTrackSettings) {
+    setNewTrackSettings(state, newSettings: NewTrackSettings) {
       state.newTrackSettings = newSettings;
     },
   },
   getters: {
-    getNewTrackSettings: (state: SettingsState) => state.newTrackSettings,
+    getNewTrackSettings: (state) => state.newTrackSettings,
   },
 };
 

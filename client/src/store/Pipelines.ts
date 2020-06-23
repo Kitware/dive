@@ -1,3 +1,4 @@
+import { Module } from 'vuex';
 import { getPipelineList } from '@/lib/api/viame.service';
 
 interface Pipe {
@@ -9,33 +10,24 @@ interface Categories {
     description: string;
     pipes: [Pipe];
 }
-interface PipelineType {
+
+export interface PipelineState {
     pipelines: null | Record<string, Categories>;
 }
-
-export interface PiplineState {
-    pipelines: PipelineType;
-}
-
-interface ActionParams {
-    commit: (mutation: string, pipelines: PipelineType) => void;
-    state: PiplineState;
-}
-
-export default {
+const pipelineModule: Module<PipelineState, never> = {
   namespaced: true,
   state: {
     pipelines: null,
   },
   mutations: {
-    setPipelines(state: PiplineState, pipelines: PipelineType) {
+    setPipelines(state, pipelines) {
       state.pipelines = pipelines;
     },
   },
   actions: {
-    async fetchPipelines({ commit, state }: ActionParams) {
+    async fetchPipelines({ commit, state }) {
       if (state.pipelines === null) {
-        const { data } = await getPipelineList() as {data: PipelineType};
+        const { data } = await getPipelineList() as {data: PipelineState};
         // Sort list of pipelines in each category by name
         Object.values(data).forEach((category) => {
           category.pipes.sort((a: Pipe, b: Pipe) => {
@@ -57,3 +49,5 @@ export default {
     },
   },
 };
+
+export default pipelineModule;
