@@ -130,7 +130,7 @@ export default Vue.extend({
         editingTrack,
         color: this.typeColorMapper(trackType),
         types: allTypes,
-        splittable: track.length > 0,
+        splittable: track.length > 1,
       };
     },
   },

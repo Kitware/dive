@@ -114,6 +114,41 @@ export default class Track {
     });
   }
 
+  /** Determine if track can be split at frame */
+  canSplit(frame: number) {
+    return frame > this.begin && frame <= this.end;
+  }
+
+  /**
+   * Split trackId in two at given frame, where frame is allocated
+   * to the second track.  Both tracks must end up with at least 1 detection.
+   */
+  split(frame: number, id1: TrackId, id2: TrackId): [Track, Track] {
+    if (!this.canSplit(frame)) {
+      throw new Error(`Cannot split track ${this.trackId} at frame ${frame}.  Frame bounds are [${this.begin}, ${this.end}]`);
+    }
+    return [
+      Track.fromJSON({
+        trackId: id1,
+        meta: this.meta,
+        begin: this.begin,
+        end: frame - 1,
+        features: this.features.slice(this.begin, frame),
+        confidencePairs: this.confidencePairs,
+        attributes: this.attributes,
+      }),
+      Track.fromJSON({
+        trackId: id2,
+        meta: this.meta,
+        begin: frame,
+        end: this.end,
+        features: this.features.slice(frame),
+        confidencePairs: this.confidencePairs,
+        attributes: this.attributes,
+      }),
+    ];
+  }
+
   setFeature(feature: Feature): Feature {
     const f = this.features[feature.frame] || {};
     this.features[feature.frame] = {

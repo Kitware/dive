@@ -103,36 +103,6 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
     markChangesPending();
   }
 
-  /**
-   * Split trackId in two at frame, where frame is allocated
-   * to the second track
-   */
-  function splitTracks(trackId: TrackId, frame: number): [Track, Track] {
-    const track = getTrack(trackId);
-    removeTrack(trackId);
-    const track1 = Track.fromJSON({
-      trackId: getNewTrackId(),
-      meta: track.meta,
-      begin: track.begin,
-      end: frame - 1,
-      features: track.features.slice(track.begin, frame),
-      confidencePairs: track.confidencePairs,
-      attributes: track.attributes,
-    });
-    insertTrack(track1);
-    const track2 = Track.fromJSON({
-      trackId: getNewTrackId(),
-      meta: track.meta,
-      begin: frame,
-      end: track.end,
-      features: track.features.slice(frame),
-      confidencePairs: track.confidencePairs,
-      attributes: track.attributes,
-    });
-    insertTrack(track2);
-    return [track1, track2];
-  }
-
   /*
    * Discard tracks whose highest confidencePair value
    * is lower than specified.
@@ -170,10 +140,11 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
     sortedTrackIds,
     intervalTree,
     addTrack,
+    insertTrack,
     getTrack,
+    getNewTrackId,
     removeTrack,
     removeTracksBelowConfidence,
-    splitTracks,
     loadTracks,
   };
 }
