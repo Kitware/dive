@@ -44,20 +44,31 @@ Run `pip install` on the against the server directory. Then `girder-worker -l in
 
 You can run VIAME Web locally with vanilla docker-compose. Configure options in `.env`.
 
+> **Note:** Pipeline runner requires [Nividia-Docker2 (deprecated)](https://github.com/nvidia/nvidia-docker/wiki/Installation-(version-2.0)) because GPU support for docker-compose has [not yet landed](https://github.com/docker/compose/issues/6691)
+
+### Use pre-built images
+
 ``` bash
+# Pull pre-built images
+docker-compose -f docker/docker-compose.yml pull
+# Bring the stack up
 docker-compose -f docker/docker-compose.yml up
 ```
 
 VIAME server will be running at http://localhost:8010/
 
-> **Note:** Pipeline runner requires [Nividia-Docker2 (deprecated)](https://github.com/nvidia/nvidia-docker/wiki/Installation-(version-2.0)) because native GPU support for docker-compose has [not yet landed](https://github.com/docker/compose/issues/6691)
-
-> **Note:** In order to build images yourself, the `.git` folder must exist, so you must `git clone` from source control.  A release archive zip can be used too, but only to run pre-built images from a container registry.
-
 You can run the data viewer without needing GPU support as well
 
 ``` bash
 docker-compose -f docker/docker-compose.yml up girder
+```
+
+### Build your own images
+
+> **Note:** In order to build images yourself, the `.git` folder must exist, so you must `git clone` from source control.  A release archive zip can be used too, but only to run pre-built images from a container registry.
+
+``` bash
+docker-compose -f docker/docker-compose.yml build
 ```
 
 ## Example Data
