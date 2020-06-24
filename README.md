@@ -42,6 +42,8 @@ Run `pip install` on the against the server directory. Then `girder-worker -l in
 
 ## Running Locally
 
+You can run VIAME Web locally with vanilla docker-compose. Configure options in `.env`.
+
 > **Note:** Pipeline runner requires [Nividia-Docker2 (deprecated)](https://github.com/nvidia/nvidia-docker/wiki/Installation-(version-2.0)) because GPU support for docker-compose has [not yet landed](https://github.com/docker/compose/issues/6691)
 
 ### Use pre-built images
