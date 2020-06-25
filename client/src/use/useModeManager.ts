@@ -1,4 +1,4 @@
-import { Ref, computed } from '@vue/composition-api';
+import { Ref } from '@vue/composition-api';
 import Track, { TrackId } from '@/lib/track';
 import { RectBounds } from '@/utils';
 import { NewTrackSettings } from './useSettings';
@@ -39,27 +39,37 @@ export default function useModeManager({
     addTrack: (frame: number, defaultType: string) => Track;
     removeTrack: (trackId: TrackId) => void;
 }) {
+  let newTrackMode = false;
+  let newDetectionMode = false;
+
   function handleSelectTrack(trackId: TrackId | null, edit = false) {
     selectTrack(trackId, edit);
+    if (newTrackMode && !edit) {
+      newTrackMode = false;
+    }
   }
   //Handles adding a new track with the NewTrack Settings
   function handleAddTrack() {
     selectTrack(addTrack(frame.value, newTrackSettings.type).trackId, true);
+    newTrackMode = true;
   }
 
   function handleTrackTypeChange({ trackId, value }: { trackId: TrackId; value: string }) {
     getTrack(trackId).setType(value);
   }
+  // Default settings which are updated by the CreationMode component
+  // Not making them reactive, and eventually will probably be in localStorage
 
-  function newTrackSettingsAfterLogic(newTrack: Track) {
-    if (newTrack && newTrackSettings !== null) {
+
+  function newTrackSettingsAfterLogic(addedTrack: Track) {
+    if (addedTrack && newTrackSettings !== null) {
       if (newTrackSettings.mode === 'Track' && newTrackSettings.modeSettings.Track.autoAdvanceFrame) {
         playbackComponent.value.nextFrame();
       } else if (newTrackSettings.mode === 'Detection') {
         if (newTrackSettings.modeSettings.Detection.continuous) {
           handleAddTrack();
-        } else { //Deselect the new track
-          selectTrack(newTrack.trackId, false);
+        } else { //Exit editing mode for the added track
+          selectTrack(addedTrack.trackId, false);
         }
       }
     }
@@ -69,20 +79,20 @@ export default function useModeManager({
     if (selectedTrackId.value !== null) {
       const track = trackMap.get(selectedTrackId.value);
       if (track) {
+        //Determines if we are creating a new Detection
         const features = track.getFeature(frameNum);
-        let newTrack = false;
         if (!features || features.bounds === undefined) {
-        //We are creating a brand new track and should apply the newTrackSettings
-          newTrack = true;
+          newDetectionMode = true;
         }
         track.setFeature({
           frame: frameNum,
           bounds,
         });
         //If it is a new track and we have newTrack Settings
-        if (newTrack) {
+        if (newTrackMode && newDetectionMode) {
           newTrackSettingsAfterLogic(track);
         }
+        newDetectionMode = false;
       }
     }
   }

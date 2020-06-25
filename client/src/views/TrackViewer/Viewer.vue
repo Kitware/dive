@@ -129,7 +129,7 @@ export default defineComponent({
       enabledTrackIds, selectedTrackId, typeColorMapper, trackMap,
     });
 
-    const { newTrackSettings, updateNewTrackSettings } = useSettings();
+    const { clientSettings, updateNewTrackSettings } = useSettings();
     // Provides wrappers for actions to integrate with settings
     const { handler } = useModeManager({
       selectedTrackId,
@@ -137,7 +137,7 @@ export default defineComponent({
       frame,
       trackMap,
       playbackComponent,
-      newTrackSettings,
+      newTrackSettings: clientSettings.newTrackSettings,
       selectTrack,
       getTrack,
       selectNextTrack,
@@ -192,7 +192,7 @@ export default defineComponent({
         selectedTrackId,
         editingTrack,
         typeColorMapper,
-        newTrackSettings,
+        newTrackSettings: clientSettings.newTrackSettings,
       },
       updateNewTrackSettings,
       layerProps: {

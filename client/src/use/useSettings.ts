@@ -14,30 +14,32 @@ export interface NewTrackSettings {
       };
     };
   }
+export interface ClientSettings {
+  NewTrackSettings: NewTrackSettings;
+}
 
 export default function useSettings() {
-  const newTrackSettings = reactive({
-    mode: ref('Track'),
-    type: ref('unknown'),
-    modeSettings: {
-      Track: {
-        autoAdvanceFrame: ref(false),
-      },
-      Detection: {
-        continuous: ref(true),
+  const clientSettings = reactive({
+    newTrackSettings: {
+      mode: ref('Track'),
+      type: ref('unknown'),
+      modeSettings: {
+        Track: {
+          autoAdvanceFrame: ref(false),
+        },
+        Detection: {
+          continuous: ref(true),
+        },
       },
     },
   });
 
   function saveSettings() {
-    //Get all settings
-    const Settings = {
-      newTrackSettings,
-    };
-    localStorage.setItem('Settings', JSON.stringify(Settings));
+    localStorage.setItem('Settings', JSON.stringify(clientSettings));
   }
 
   function updateNewTrackSettings(updatedNewTrackSettings: NewTrackSettings) {
+    const { newTrackSettings } = clientSettings;
     newTrackSettings.mode = updatedNewTrackSettings.mode;
     newTrackSettings.type = updatedNewTrackSettings.type;
     // eslint-disable-next-line max-len
@@ -57,5 +59,5 @@ export default function useSettings() {
   }
 
 
-  return { newTrackSettings, updateNewTrackSettings };
+  return { clientSettings, updateNewTrackSettings };
 }
