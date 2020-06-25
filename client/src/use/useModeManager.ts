@@ -50,9 +50,6 @@ export default function useModeManager({
   function handleTrackTypeChange({ trackId, value }: { trackId: TrackId; value: string }) {
     getTrack(trackId).setType(value);
   }
-  // Default settings which are updated by the CreationMode component
-  // Not making them reactive, and eventually will probably be in localStorage
-
 
   function newTrackSettingsAfterLogic(newTrack: Track) {
     if (newTrack && newTrackSettings !== null) {

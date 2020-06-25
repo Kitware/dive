@@ -33,11 +33,8 @@ import RunPipelineMenu from '@/components/RunPipelineMenu.vue';
 import ControlsContainer from './ControlsContainer.vue';
 import Layers from './Layers.vue';
 import Sidebar from './Sidebar.vue';
+import { Seeker } from '../../use/useModeManager';
 
-export interface Seeker {
-  seek(frame: number): void;
-  nextFrame(): void;
-}
 
 export default defineComponent({
   components: {
