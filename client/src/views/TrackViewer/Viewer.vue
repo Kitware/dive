@@ -146,7 +146,7 @@ export default defineComponent({
       frame,
       trackMap,
       playbackComponent,
-      newTrackSettings: clientSettings.newTrackSettings,
+      newTrackSettings: clientSettings.newTrackSettings.value,
       selectTrack,
       getTrack,
       selectNextTrack,

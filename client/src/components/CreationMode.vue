@@ -26,7 +26,7 @@ export default Vue.extend({
       required: true,
     },
     newTrackSettings: {
-      type: Object as PropType<NewTrackSettings>,
+      type: Object as PropType<Ref<NewTrackSettings>>,
       required: true,
     },
   },
@@ -54,7 +54,7 @@ export default Vue.extend({
     /** Reduces the number of update functions utilizing Vuex by indicating the target type */
     saveTypeSettings(event: 'Track' | 'Detection', target: 'mode' | 'type') {
       // Copy the newTrackSettings for modification
-      const copy: NewTrackSettings = cloneDeep(this.newTrackSettings);
+      const copy: NewTrackSettings = cloneDeep(this.newTrackSettings.value);
       copy[target] = event; // Modify the value
       this.$emit('update-new-track-settings', copy);
     },
@@ -64,14 +64,14 @@ export default Vue.extend({
      */
     saveTrackSubSettings(event: true | null, target: 'autoAdvanceFrame') {
       // Copy the newTrackSettings for modification
-      const copy: NewTrackSettings = cloneDeep(this.newTrackSettings);
+      const copy: NewTrackSettings = cloneDeep(this.newTrackSettings.value);
       const modeSettings = copy.modeSettings.Track;
       modeSettings[target] = !!event; // Modify the value
       this.$emit('update-new-track-settings', copy);
     },
     saveDetectionSubSettings(event: true | null, target: 'continuous') {
       // Copy the newTrackSettings for modification
-      const copy: NewTrackSettings = cloneDeep(this.newTrackSettings);
+      const copy: NewTrackSettings = cloneDeep(this.newTrackSettings.value);
       const modeSettings = copy.modeSettings.Detection;
       modeSettings[target] = !!event; // Modify the value
       this.$emit('update-new-track-settings', copy);
@@ -98,7 +98,7 @@ export default Vue.extend({
         </v-col>
         <v-col>
           <v-combobox
-            v-model="newTrackSettings.mode"
+            v-model="newTrackSettings.value.mode"
             class="ml-0"
             x-small
             :items="modes"
@@ -120,7 +120,7 @@ export default Vue.extend({
                 mdi-help
               </v-icon>
             </template>
-            <span>{{ help.mode[newTrackSettings.mode] }}</span>
+            <span>{{ help.mode[newTrackSettings.value.mode] }}</span>
           </v-tooltip>
         </v-col>
       </v-row>
@@ -136,7 +136,7 @@ export default Vue.extend({
         </v-col>
         <v-col>
           <v-combobox
-            :value="newTrackSettings.type"
+            :value="newTrackSettings.value.type"
             class="ml-0"
             x-small
             :items="typeList"
@@ -163,11 +163,12 @@ export default Vue.extend({
         </v-col>
       </v-row>
       <v-row
-        v-if="newTrackSettings.mode==='Track'"
+        v-if="newTrackSettings.value.mode==='Track'"
       >
         <v-col>
           <v-switch
-            :input-value="newTrackSettings.modeSettings.Track.autoAdvanceFrame"
+            :input-value="
+              newTrackSettnewTrackSettings.valueings.modeSettings.Track.autoAdvanceFrame"
             class="my-0 ml-1 pt-0"
             dense
             label="Advance Frame"
@@ -193,11 +194,11 @@ export default Vue.extend({
         </v-col>
       </v-row>
       <v-row
-        v-if="newTrackSettings.mode==='Detection'"
+        v-if="newTrackSettings.value.mode==='Detection'"
       >
         <v-col>
           <v-switch
-            :input-value="newTrackSettings.modeSettings.Detection.continuous"
+            :input-value="newTrackSettings.value.modeSettings.Detection.continuous"
             class="my-0 ml-1 pt-0"
             dense
             label="Continuous"

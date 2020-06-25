@@ -1,5 +1,5 @@
 import {
-  reactive, ref,
+  reactive, toRefs,
 } from '@vue/composition-api';
 
 export interface NewTrackSettings {
@@ -15,24 +15,24 @@ export interface NewTrackSettings {
     };
   }
 export interface ClientSettings {
-  NewTrackSettings: NewTrackSettings;
+  newTrackSettings: NewTrackSettings;
 }
 
 export default function useSettings() {
   const clientSettings = reactive({
     newTrackSettings: {
-      mode: ref('Track'),
-      type: ref('unknown'),
+      mode: 'Track',
+      type: 'unknown',
       modeSettings: {
         Track: {
-          autoAdvanceFrame: ref(false),
+          autoAdvanceFrame: false,
         },
         Detection: {
-          continuous: ref(true),
+          continuous: true,
         },
       },
     },
-  });
+  } as ClientSettings);
 
   function saveSettings() {
     localStorage.setItem('Settings', JSON.stringify(clientSettings));
@@ -58,6 +58,5 @@ export default function useSettings() {
     updateNewTrackSettings(defaultSettings.newTrackSettings);
   }
 
-
-  return { clientSettings, updateNewTrackSettings };
+  return { clientSettings: toRefs(clientSettings), updateNewTrackSettings };
 }

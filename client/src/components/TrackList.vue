@@ -48,7 +48,7 @@ export default Vue.extend({
       required: true,
     },
     newTrackSettings: {
-      type: Object as PropType<NewTrackSettings>,
+      type: Object as PropType<Ref<NewTrackSettings>>,
       default: null,
     },
   },
@@ -73,8 +73,8 @@ export default Vue.extend({
       }));
     },
     newTrackColor() {
-      if (this.newTrackSettings && this.newTrackSettings.type !== 'unknown') {
-        return this.typeColorMapper(this.newTrackSettings.type);
+      if (this.newTrackSettings && this.newTrackSettings.value.type !== 'unknown') {
+        return this.typeColorMapper(this.newTrackSettings.value.type);
       }
       // Return default color
       return '';
@@ -185,12 +185,12 @@ export default Vue.extend({
                   v-on="on"
                   @click="$emit('track-add')"
                 >
-                  {{ newTrackSettings.mode }}<v-icon small>
+                  {{ newTrackSettings.value.mode }}<v-icon small>
                     mdi-plus
                   </v-icon>
                 </v-btn>
               </template>
-              <span>Default Type: {{ newTrackSettings.type }}</span>
+              <span>Default Type: {{ newTrackSettings.value.type }}</span>
             </v-tooltip>
             <v-btn
               icon
