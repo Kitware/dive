@@ -126,6 +126,7 @@ def train_pipeline(self, folder: Dict, groundtruth: str):
     with tempfile.TemporaryDirectory() as temp:
         temp_path = Path(temp)
         download_path = temp_path / folder["name"]
+        training_output_path = temp_path / "training_output"
 
         os.mkdir(download_path)
 
@@ -141,9 +142,13 @@ def train_pipeline(self, folder: Dict, groundtruth: str):
             f". {conf.viame_install_path}/setup_viame.sh &&",
             str(training_executable),
             "-i",
-            f"{temp_path}",
+            str(temp_path),
             "-c",
-            f"{default_conf_file}",
+            str(default_conf_file),
+            "-s",
+            f"detector_trainer:ocv_windowed:train_directory={training_output_path / 'deep_training'}",
+            "-s",
+            f"detector_trainer:ocv_windowed:output_directory={training_output_path / 'category_models'}",
         ]
         process = Popen(
             " ".join(command),
@@ -155,8 +160,12 @@ def train_pipeline(self, folder: Dict, groundtruth: str):
 
         while process.poll() is None:
             out = process.stdout.readline()
+            err = process.stderr.readline()
+
             if out:
                 self.job_manager.write(out)
+            if err:
+                self.job_manager.write(err)
 
 
 @app.task(bind=True)

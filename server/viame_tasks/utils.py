@@ -35,4 +35,5 @@ def organize_folder_for_training(
                 labels.add(label)
 
     with open(root_training_dir / "labels.txt", "w") as labels_file:
-        labels_file.writelines(labels)
+        label_lines = [f"{label}\n" for label in labels]
+        labels_file.writelines(label_lines)
