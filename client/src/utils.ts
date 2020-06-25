@@ -29,7 +29,7 @@ function getPathFromLocation(location: Location) {
     return '/';
   }
   if (location.type) {
-    return `/${location.type}`
+    return `/${location.type}`;
   }
   return `/${location._modelType}${
     location._id ? `/${location._id}` : ''
