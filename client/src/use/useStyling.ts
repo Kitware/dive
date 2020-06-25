@@ -1,3 +1,4 @@
+import Vue from 'vue';
 import {
   inject, ref, Ref, computed,
 } from '@vue/composition-api';
@@ -63,7 +64,7 @@ export default function useStyling({ markChangesPending }: UseStylingParams) {
     if (list) {
       // Copy over the item so they can be modified in future
       Object.entries(list).forEach(([key, value]) => {
-        customColors.value[key] = value;
+        Vue.set(customColors.value, key, value);
       });
     }
   }
