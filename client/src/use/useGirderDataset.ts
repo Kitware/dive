@@ -72,7 +72,7 @@ export default function useGirderDataset() {
       throw new Error(`could not fetch dataset for id ${datasetId}`);
     }
     dataset.value = folder;
-    return dataset.value.meta;
+    return dataset.value;
   }
 
   return {

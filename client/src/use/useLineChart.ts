@@ -3,7 +3,7 @@ import Track, { TrackId } from '@/lib/track';
 
 interface UseLineChartParams {
   enabledTrackIds: Readonly<Ref<readonly TrackId[]>>;
-  typeColorMapper: (type: string) => unknown;
+  typeStyling: Ref<{ color: (type: string) => string }>;
   trackMap: Map<TrackId, Track>;
   allTypes: Readonly<Ref<readonly string[]>>;
 }
@@ -25,7 +25,7 @@ function updateHistogram(begin: number, end: number, histogram: number[]) {
 
 export default function useLineChart({
   enabledTrackIds,
-  typeColorMapper,
+  typeStyling,
   trackMap,
   allTypes,
 }: UseLineChartParams) {
@@ -60,6 +60,7 @@ export default function useLineChart({
       }
     });
 
+    const mapfunc = typeStyling.value.color;
     /* Now, each histograms array looks like this:
      *   [1, 2, 0, -2, -1]
      * We want to accumulate each array left-to-right so it looks like this:
@@ -74,7 +75,7 @@ export default function useLineChart({
         }, 0);
         return {
           values: accumulatedHistogram,
-          color: type === 'total' ? 'lime' : typeColorMapper(type),
+          color: type === 'total' ? 'lime' : mapfunc(type),
           name: type,
         };
       }) as LineChartData[];

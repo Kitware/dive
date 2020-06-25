@@ -64,11 +64,11 @@ export default class TextLayer extends BaseLayer<TextData> {
             if (this.stateStyling.disabled.color !== 'type') {
               return this.stateStyling.disabled.color;
             }
-            return this.typeColorMap(data.type);
+            return this.typeStyling.value.color(data.type);
           }
           return this.stateStyling.selected.color;
         }
-        return this.typeColorMap(data.type);
+        return this.typeStyling.value.color(data.type);
       },
       offset: (data) => ({
         x: data.offsetY || 3,

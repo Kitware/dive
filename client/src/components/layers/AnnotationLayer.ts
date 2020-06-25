@@ -78,9 +78,9 @@ export default class AnnotationLayer extends BaseLayer<RectGeoJSData> {
           return this.stateStyling.selected.color;
         }
         if (data.confidencePairs) {
-          return this.typeColorMap(data.confidencePairs[0]);
+          return this.typeStyling.value.color(data.confidencePairs[0]);
         }
-        return this.typeColorMap.range()[0];
+        return this.typeStyling.value.color('');
       },
       strokeOpacity: (_point, _index, data) => {
         if (data.selected) {

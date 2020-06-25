@@ -14,8 +14,8 @@ export default Vue.extend({
       type: Object as PropType<Ref<string[]>>,
       required: true,
     },
-    typeColorMapper: {
-      type: Function as PropType<(t: string) => string>,
+    typeStyling: {
+      type: Object as PropType<Ref<{ color: (t: string) => string }>>,
       required: true,
     },
   },
@@ -33,7 +33,7 @@ export default Vue.extend({
       this.selectedType = type;
       this.editingType = this.selectedType;
       this.showPicker = true;
-      this.selectedColor = this.typeColorMapper(type);
+      this.selectedColor = this.typeStyling.value.color(type);
       this.editingColor = this.selectedColor;
     },
     acceptChanges() {
@@ -74,12 +74,12 @@ export default Vue.extend({
           <v-checkbox
             v-model="checkedTypes.value"
             :value="type"
-            :color="typeColorMapper(type)"
+            :color="typeStyling.value.color(type)"
             :label="type"
             dense
             shrink
             hide-details
-            class="my-1 ml-3 typeCheckBox"
+            class="my-1 ml-3 type-checkbox"
           />
           <v-spacer />
           <v-tooltip
@@ -111,25 +111,11 @@ export default Vue.extend({
       width="350"
     >
       <div
-        class="typeEdit"
+        class="type-edit"
       >
         <v-card>
           <v-card-title>
             Editing Type
-            <v-spacer />
-            <v-spacer />
-            <v-btn
-              class="mr-1"
-              icon
-              small
-              @click="showPicker = false"
-            >
-              <v-icon
-                small
-              >
-                mdi-close
-              </v-icon>
-            </v-btn>
           </v-card-title>
           <v-card-subtitle class="my-0 py-0">
             <v-container class="py-0">
@@ -174,11 +160,18 @@ export default Vue.extend({
           <v-card-actions>
             <v-spacer />
             <v-btn
-              color="primary"
+              depressed=""
               text
+              @click="showPicker = false"
+            >
+              Cancel
+            </v-btn>
+            <v-btn
+              color="primary"
+              depressed
               @click="acceptChanges"
             >
-              OK
+              Save
             </v-btn>
           </v-card-actions>
         </v-card>
@@ -187,18 +180,21 @@ export default Vue.extend({
   </div>
 </template>
 
-<style lang='scss'>
-.typeEdit{
+<style scoped lang='scss'>
+.type-edit{
   overflow: hidden;
 }
-.typeCheckBox{
-max-width: 80%;
-overflow:hidden;
+
+.type-checkbox{
+  max-width: 80%;
+  overflow:hidden;
 }
+
 .hover-show-parent {
   .hover-show-child {
     display: none;
   }
+
   &:hover {
     .hover-show-child {
       display: inherit;

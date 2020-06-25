@@ -40,8 +40,8 @@ export default Vue.extend({
       type: Object as PropType<Ref<boolean>>,
       required: true,
     },
-    typeColorMapper: {
-      type: Function as PropType<(t: string) => string>,
+    typeStyling: {
+      type: Object as PropType<Ref<{ color: (t: string) => string }>>,
       required: true,
     },
   },
@@ -128,7 +128,7 @@ export default Vue.extend({
         inputValue: checkedTrackIds.indexOf(trackId) >= 0,
         selected: selectedTrackId === trackId,
         editingTrack,
-        color: this.typeColorMapper(trackType),
+        color: this.typeStyling.value.color(trackType),
         types: allTypes,
       };
     },

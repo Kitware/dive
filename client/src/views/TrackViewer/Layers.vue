@@ -43,8 +43,8 @@ export default defineComponent({
       type: Object as PropType<Ref<boolean>>,
       required: true,
     },
-    typeColorMapper: {
-      type: Function as PropType<d3.ScaleOrdinal<string, string>>,
+    typeStyling: {
+      type: Object as PropType<Ref<{ color: (t: string) => string }>>,
       required: true,
     },
     stateStyling: {
@@ -69,25 +69,25 @@ export default defineComponent({
     const annotationLayer = new AnnotationLayer({
       annotator,
       stateStyling: props.stateStyling,
-      typeColorMap: props.typeColorMapper,
+      typeStyling: props.typeStyling,
     });
     const textLayer = new TextLayer({
       annotator,
       stateStyling: props.stateStyling,
-      typeColorMap: props.typeColorMapper,
+      typeStyling: props.typeStyling,
     });
 
     const editAnnotationLayer = new EditAnnotationLayer({
       annotator,
       stateStyling: props.stateStyling,
-      typeColorMap: props.typeColorMapper,
+      typeStyling: props.typeStyling,
       editing: 'rectangle',
     });
 
     const markerEditLayer = new EditAnnotationLayer({
       annotator,
       stateStyling: props.stateStyling,
-      typeColorMap: props.typeColorMapper,
+      typeStyling: props.typeStyling,
       editing: 'point',
     });
 
@@ -95,7 +95,7 @@ export default defineComponent({
     const markerLayer = new MarkerLayer({
       annotator,
       stateStyling: props.stateStyling,
-      typeColorMap: props.typeColorMapper,
+      typeStyling: props.typeStyling,
     });
 
     function updateLayers() {
@@ -186,6 +186,7 @@ export default defineComponent({
       props.editingTrack,
       props.selectedTrackId,
       props.featurePointing,
+      props.typeStyling,
     ], () => {
       updateLayers();
     });

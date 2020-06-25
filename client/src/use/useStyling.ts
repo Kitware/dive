@@ -1,15 +1,17 @@
-import { inject, ref, Ref } from '@vue/composition-api';
+import {
+  inject, ref, Ref, computed,
+} from '@vue/composition-api';
 import colors from 'vuetify/lib/util/colors';
 import * as d3 from 'd3';
 import { Vuetify } from 'vuetify';
 import { setMetadataForFolder } from '@/lib/api/viame.service';
 
-interface Style{
+interface Style {
   strokeWidth: number;
   opacity: number;
   color: string;
-
 }
+
 export interface StateStyles {
   standard: Style;
   selected: Style;
@@ -59,25 +61,33 @@ export default function useStyling({ markChangesPending }: UseStylingParams) {
 
   function loadTypeColors(list?: Record<string, string>) {
     if (list) {
-    // Copy over the item so they can be modified in future
+      // Copy over the item so they can be modified in future
       Object.entries(list).forEach(([key, value]) => {
         customColors.value[key] = value;
       });
     }
   }
 
-  function updateTypeColor({ type, color }: {type: string; color: string}) {
+  function updateTypeColor({ type, color }: { type: string; color: string }) {
     customColors.value[type] = color;
     markChangesPending();
   }
 
-  const ordinalColorMapper = d3.scaleOrdinal().range(typeColors) as (t: string) => string;
-  const typeColorMapper = (type: string) => {
-    if (customColors.value[type]) {
-      return customColors.value[type];
-    }
-    return ordinalColorMapper(type);
-  };
+  const ordinalColorMapper = d3.scaleOrdinal<string>().range(typeColors);
+  const typeStyling = computed(() => {
+    const _customColors = customColors.value;
+    return {
+      color: (type: string) => {
+        if (_customColors[type]) {
+          return _customColors[type];
+        }
+        if (type === '') {
+          return ordinalColorMapper.range()[0];
+        }
+        return ordinalColorMapper(type);
+      },
+    };
+  });
 
   async function saveTypeColors(
     datasetId: string,
@@ -85,12 +95,12 @@ export default function useStyling({ markChangesPending }: UseStylingParams) {
   ) {
     //We need to remove any unused types in the colors, either deleted or changed
     //Also want to save default colors for reloading
-    const savedTypeColors: Record<string, string> = { };
+    const savedTypeColors: Record<string, string> = {};
     allTypes.value.forEach((name) => {
       if (!savedTypeColors[name] && customColors.value[name]) {
         savedTypeColors[name] = customColors.value[name];
       } else if (!savedTypeColors[name]) { // Also save ordinal Colors as well
-        savedTypeColors[name] = typeColorMapper(name);
+        savedTypeColors[name] = typeStyling.value.color(name);
       }
     });
 
@@ -100,6 +110,6 @@ export default function useStyling({ markChangesPending }: UseStylingParams) {
   }
 
   return {
-    stateStyling, typeColorMapper, updateTypeColor, loadTypeColors, saveTypeColors,
+    stateStyling, typeStyling, updateTypeColor, loadTypeColors, saveTypeColors,
   };
 }

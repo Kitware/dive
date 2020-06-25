@@ -73,7 +73,7 @@ export default defineComponent({
     } = useSave();
 
     const {
-      typeColorMapper,
+      typeStyling,
       stateStyling,
       updateTypeColor,
       loadTypeColors,
@@ -109,13 +109,16 @@ export default defineComponent({
       updateTypeName,
     } = useTrackFilters({ trackMap, sortedTrackIds });
 
-    // Initialize the view
     Promise.all([
-      loadDataset(datasetId).then((meta) => { loadTypeColors(meta && meta.customTypeColors); }),
+      loadDataset(datasetId),
       loadTracks(datasetId),
     ]).catch((err) => {
       // TODO p2: alert on errors...
       console.error(err);
+      throw err;
+    }).then(() => {
+      // tasks to run after dataset and tracks have loaded
+      loadTypeColors(dataset.value?.meta.customTypeColors);
     });
 
     const {
@@ -136,11 +139,11 @@ export default defineComponent({
     } = useFeaturePointing({ selectedTrackId, trackMap });
 
     const { lineChartData } = useLineChart({
-      enabledTrackIds, typeColorMapper, allTypes, trackMap,
+      enabledTrackIds, typeStyling, allTypes, trackMap,
     });
 
     const { eventChartData } = useEventChart({
-      enabledTrackIds, selectedTrackId, typeColorMapper, trackMap,
+      enabledTrackIds, selectedTrackId, typeStyling, trackMap,
     });
 
     const location = computed(() => store.state.location);
@@ -225,6 +228,8 @@ export default defineComponent({
       selectTrack,
       toggleFeaturePointing,
       featurePointed,
+      updateTypeColor,
+      updateTypeName,
       /* props for sub-components */
       controlsContainerProps: {
         lineChartData,
@@ -239,21 +244,19 @@ export default defineComponent({
         checkedTrackIds,
         selectedTrackId,
         editingTrack,
-        typeColorMapper,
+        typeStyling,
       },
       layerProps: {
         trackMap,
         trackIds: enabledTrackIds,
         selectedTrackId,
         editingTrack,
-        typeColorMapper,
+        typeStyling,
         stateStyling,
         intervalTree,
         featurePointing,
         featurePointingTarget,
       },
-      updateTypeColor,
-      updateTypeName,
     };
   },
 });

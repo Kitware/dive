@@ -46,8 +46,8 @@ export default defineComponent({
       type: Object as PropType<Ref<boolean>>,
       required: true,
     },
-    typeColorMapper: {
-      type: Function as PropType<(t: string) => string>,
+    typeStyling: {
+      type: Object as PropType<Ref<{ color: (t: string) => string }>>,
       required: true,
     },
     width: {
