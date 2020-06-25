@@ -1,19 +1,10 @@
 import { Module } from 'vuex';
-import { getPipelineList } from '@/lib/api/viame.service';
-
-interface Pipe {
-    name: string;
-    pipe: string;
-    type: string;
-}
-interface Categories {
-    description: string;
-    pipes: [Pipe];
-}
+import { getPipelineList, Category } from '@/lib/api/viame.service';
 
 export interface PipelineState {
-    pipelines: null | Record<string, Categories>;
+    pipelines: null | Record<string, Category>;
 }
+
 const pipelineModule: Module<PipelineState, never> = {
   namespaced: true,
   state: {
@@ -27,10 +18,10 @@ const pipelineModule: Module<PipelineState, never> = {
   actions: {
     async fetchPipelines({ commit, state }) {
       if (state.pipelines === null) {
-        const { data } = await getPipelineList() as {data: PipelineState};
+        const { data } = await getPipelineList();
         // Sort list of pipelines in each category by name
         Object.values(data).forEach((category) => {
-          category.pipes.sort((a: Pipe, b: Pipe) => {
+          category.pipes.sort((a, b) => {
             const aName = a.name.toLowerCase();
             const bName = b.name.toLowerCase();
             if (aName > bName) {
