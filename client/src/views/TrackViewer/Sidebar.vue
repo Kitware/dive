@@ -138,6 +138,7 @@ export default defineComponent({
           @track-previous="$emit('track-previous')"
           @track-next="$emit('track-next')"
           @update-new-track-settings="$emit('update-new-track-settings',$event)"
+          @track-split="$emit('track-split', $event)"
         />
       </div>
       <div

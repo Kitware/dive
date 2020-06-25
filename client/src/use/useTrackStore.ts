@@ -47,6 +47,12 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
     return track;
   }
 
+  function getNewTrackId() {
+    return trackIds.value.length
+      ? Math.max(...trackIds.value) + 1
+      : 0;
+  }
+
   function onChange(
     { track, event, oldValue }:
     { track: Track; event: string; oldValue: unknown },
@@ -68,10 +74,7 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
   }
 
   function addTrack(frame: number, defaultType: string): Track {
-    const newTrackId = trackIds.value.length
-      ? Math.max(...trackIds.value) + 1
-      : 0;
-    const track = new Track(newTrackId, {
+    const track = new Track(getNewTrackId(), {
       begin: frame,
       end: frame,
       confidencePairs: [[defaultType, 1]],
@@ -98,11 +101,6 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
     }
     trackIds.value.splice(listIndex, 1);
     markChangesPending();
-  }
-
-  async function splitTracks() {
-    // TODO p2
-    return null;
   }
 
   /*
@@ -142,10 +140,11 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
     sortedTrackIds,
     intervalTree,
     addTrack,
+    insertTrack,
     getTrack,
+    getNewTrackId,
     removeTrack,
     removeTracksBelowConfidence,
-    splitTracks,
     loadTracks,
   };
 }

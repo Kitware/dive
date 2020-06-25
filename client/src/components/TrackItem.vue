@@ -27,6 +27,10 @@ export default {
       type: Boolean,
       required: true,
     },
+    splittable: {
+      type: Boolean,
+      default: false,
+    },
     color: {
       type: String,
       required: true,
@@ -150,6 +154,15 @@ export default {
           <v-list-item-title>
             <v-icon>mdi-pencil</v-icon>
             Edit annotation
+          </v-list-item-title>
+        </v-list-item>
+        <v-list-item
+          v-if="splittable && selected"
+          @click="$emit('split')"
+        >
+          <v-list-item-title>
+            <v-icon>mdi-call-split</v-icon>
+            Split track
           </v-list-item-title>
         </v-list-item>
         <v-divider />

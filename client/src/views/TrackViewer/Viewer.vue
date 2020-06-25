@@ -7,6 +7,7 @@ import {
 
 
 import { getPathFromLocation } from '@/utils';
+import Track, { TrackId } from '@/lib/track';
 
 import {
   useFeaturePointing,
@@ -57,7 +58,12 @@ export default defineComponent({
     },
   },
 
-  setup(props, context) {
+  setup(props, ctx) {
+    // TODO: eventually we will have to migrate away from this style
+    // and use the new plugin pattern:
+    // https://vue-composition-api-rfc.netlify.com/#plugin-development
+    const prompt = ctx.root.$prompt;
+
     const { datasetId } = props;
     const playbackComponent = ref({} as Seeker);
     const frame = ref(0); // the currently displayed frame number
@@ -81,8 +87,11 @@ export default defineComponent({
       sortedTrackIds,
       intervalTree,
       addTrack,
+      insertTrack,
       getTrack,
       removeTrack,
+      getNewTrackId,
+      removeTrack: tsRemoveTrack,
       loadTracks,
     } = useTrackStore({ markChangesPending });
 
@@ -145,7 +154,38 @@ export default defineComponent({
       removeTrack,
     });
 
-    const location = computed(() => context.root.$store.state.Location.location);
+    const location = computed(() => ctx.root.$store.state.Location.location);
+
+    async function splitTracks(trackId: TrackId | undefined, _frame: number) {
+      if (trackId) {
+        const track = getTrack(trackId);
+        let newtracks: [Track, Track];
+        try {
+          newtracks = track.split(_frame, getNewTrackId(), getNewTrackId() + 1);
+        } catch (err) {
+          await prompt({
+            title: 'Error while splitting track',
+            text: err,
+            positiveButton: 'OK',
+          });
+          return;
+        }
+        const result = await prompt({
+          title: 'Confirm',
+          text: 'Do you want to split the selected track?',
+          confirm: true,
+        });
+        if (!result) {
+          return;
+        }
+        const wasEditing = editingTrack.value;
+        selectTrack(null);
+        tsRemoveTrack(trackId);
+        insertTrack(newtracks[0]);
+        insertTrack(newtracks[1]);
+        selectTrack(newtracks[1].trackId, wasEditing);
+      }
+    }
 
     function save() {
       // If editing the track, disable editing mode before save
@@ -175,6 +215,7 @@ export default defineComponent({
       deleteFeaturePoints,
       save,
       selectTrack,
+      splitTracks,
       toggleFeaturePointing,
       featurePointed,
       /* props for sub-components */
@@ -274,6 +315,7 @@ export default defineComponent({
         @track-previous="handler.selectNext(-1)"
         @track-type-change="handler.trackTypeChange($event)"
         @update-new-track-settings="updateNewTrackSettings($event)"
+        @track-split="splitTracks($event, frame)"
       >
         <ConfidenceFilter :confidence.sync="confidenceThreshold" />
       </sidebar>
