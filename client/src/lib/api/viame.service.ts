@@ -97,6 +97,10 @@ function runPipeline(itemId: string, pipeline: string) {
   );
 }
 
+function runTraining(folder: GirderModel) {
+  return girderRest.post('/viame/train', null, { params: { folderId: folder._id } });
+}
+
 function setMetadataForItem(itemId: string, metadata: object) {
   return girderRest.put(
     `/item/${itemId}/metadata?allowNull=true`,
@@ -120,6 +124,7 @@ export {
   runImageConversion,
   runVideoConversion,
   runPipeline,
+  runTraining,
   setMetadataForItem,
   setMetadataForFolder,
 };

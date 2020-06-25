@@ -14,6 +14,7 @@ import {
   deleteResources,
   setMetadataForItem,
   runImageConversion,
+  runTraining,
 } from '@/lib/api/viame.service';
 
 export default {
@@ -95,6 +96,18 @@ export default {
     ...mapMutations('Location', ['setLocation']),
     handleNotification() {
       this.$refs.fileManager.$refs.girderBrowser.refresh();
+    },
+    async runTrainingOnFolder() {
+      const folder = this.selected[0];
+
+      this.selected = [];
+      await runTraining(folder);
+
+      this.$snackbar({
+        text: `Started training on folder ${folder.name}`,
+        timeout: 2000,
+        immediate: true,
+      });
     },
     isAnnotationFolder(item) {
       // TODO: update to check for other info
@@ -181,6 +194,22 @@ export default {
             @dragover.native="dragover"
           >
             <template #headerwidget>
+              <v-btn
+                text
+                small
+                :disabled="selected.filter(
+                  ({ _modelType, meta }) => _modelType === 'folder' && meta && meta.annotate
+                ).length !== 1"
+                @click="runTrainingOnFolder"
+              >
+                <v-icon
+                  left
+                  color="accent"
+                >
+                  mdi-brain
+                </v-icon>
+                Run Training
+              </v-btn>
               <run-pipeline-menu
                 :selected="selected"
                 small
