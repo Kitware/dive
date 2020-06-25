@@ -70,7 +70,7 @@ export default function useStyling({ markChangesPending }: UseStylingParams) {
   }
 
   function updateTypeColor({ type, color }: { type: string; color: string }) {
-    customColors.value[type] = color;
+    Vue.set(customColors.value, type, color);
     markChangesPending();
   }
 
