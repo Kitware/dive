@@ -186,7 +186,6 @@ export default defineComponent({
       props.editingTrack,
       props.selectedTrackId,
       props.featurePointing,
-      props.typeStyling,
     ], () => {
       updateLayers();
     });
