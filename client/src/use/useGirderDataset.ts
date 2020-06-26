@@ -12,6 +12,7 @@ interface VIIMEDataset extends GirderModel {
   meta: {
     type: 'video' | 'image-sequence';
     fps: number;
+    customTypeColors?: Record<string, string>;
   };
 }
 
@@ -19,7 +20,6 @@ export default function useGirderDataset() {
   const dataset = ref(null as VIIMEDataset | null);
   const imageUrls = ref([] as string[]);
   const videoUrl = ref('');
-
   const frameRate = computed(() => (dataset.value && dataset.value.meta.fps as number)
     || defaultFrameRate);
 
@@ -72,6 +72,7 @@ export default function useGirderDataset() {
       throw new Error(`could not fetch dataset for id ${datasetId}`);
     }
     dataset.value = folder;
+    return dataset.value;
   }
 
   return {

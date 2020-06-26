@@ -103,6 +103,12 @@ function setMetadataForItem(itemId: string, metadata: object) {
     metadata,
   );
 }
+function setMetadataForFolder(folderId: string, metadata: object) {
+  return girderRest.put(
+    `/folder/${folderId}/metadata?allowNull=true`,
+    metadata,
+  );
+}
 
 export {
   Attribute,
@@ -115,4 +121,5 @@ export {
   runVideoConversion,
   runPipeline,
   setMetadataForItem,
+  setMetadataForFolder,
 };
