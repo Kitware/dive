@@ -73,11 +73,11 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
     trackIds.value.push(track.trackId);
   }
 
-  function addTrack(frame: number): Track {
+  function addTrack(frame: number, defaultType: string): Track {
     const track = new Track(getNewTrackId(), {
       begin: frame,
       end: frame,
-      confidencePairs: [['unknown', 1]],
+      confidencePairs: [[defaultType, 1]],
     });
     insertTrack(track);
     markChangesPending();

@@ -6,7 +6,6 @@ import {
 } from '@vue/composition-api';
 
 
-import store from '@/store';
 import { getPathFromLocation } from '@/utils';
 import Track, { TrackId } from '@/lib/track';
 
@@ -20,6 +19,8 @@ import {
   useTrackSelectionControls,
   useTrackStore,
   useEventChart,
+  useModeManager,
+  useSettings,
 } from '@/use';
 
 import VideoAnnotator from '@/components/annotators/VideoAnnotator.vue';
@@ -33,10 +34,8 @@ import RunPipelineMenu from '@/components/RunPipelineMenu.vue';
 import ControlsContainer from './ControlsContainer.vue';
 import Layers from './Layers.vue';
 import Sidebar from './Sidebar.vue';
+import { Seeker } from '../../use/useModeManager';
 
-interface Seeker {
-  seek(frame: number): void;
-}
 
 export default defineComponent({
   components: {
@@ -96,6 +95,7 @@ export default defineComponent({
       addTrack,
       insertTrack,
       getTrack,
+      removeTrack,
       getNewTrackId,
       removeTrack: tsRemoveTrack,
       loadTracks,
@@ -148,26 +148,23 @@ export default defineComponent({
       enabledTrackIds, selectedTrackId, typeStyling, trackMap,
     });
 
-    const location = computed(() => store.state.location);
+    const { clientSettings, updateNewTrackSettings } = useSettings();
+    // Provides wrappers for actions to integrate with settings
+    const { handler } = useModeManager({
+      selectedTrackId,
+      editingTrack,
+      frame,
+      trackMap,
+      playbackComponent,
+      newTrackSettings: clientSettings.newTrackSettings.value,
+      selectTrack,
+      getTrack,
+      selectNextTrack,
+      addTrack,
+      removeTrack,
+    });
 
-    async function removeTrack(trackId: TrackId) {
-      const result = await prompt({
-        title: 'Confirm',
-        text: 'Do you want to delete selected items?',
-        confirm: true,
-      });
-      if (!result) {
-        return;
-      }
-      // if removed track was selected, unselect before remove
-      if (selectedTrackId.value === trackId) {
-        const newTrack = selectNextTrack(1) !== null ? selectNextTrack(1) : selectNextTrack(-1);
-        if (newTrack !== null) {
-          selectTrack(newTrack, false);
-        }
-      }
-      tsRemoveTrack(trackId);
-    }
+    const location = computed(() => ctx.root.$store.state.Location.location);
 
     async function splitTracks(trackId: TrackId | undefined, _frame: number) {
       if (trackId) {
@@ -209,31 +206,6 @@ export default defineComponent({
       saveTypeColors(datasetId, allTypes);
     }
 
-    function handleTrackTypeChange({ trackId, value }: { trackId: TrackId; value: string }) {
-      getTrack(trackId).setType(value);
-    }
-
-    function handleTrackEdit(trackId: TrackId) {
-      const track = getTrack(trackId);
-      playbackComponent.value.seek(track.begin);
-      selectTrack(trackId, true);
-    }
-
-    function handleTrackClick(trackId: TrackId) {
-      const track = getTrack(trackId);
-      playbackComponent.value.seek(track.begin);
-      selectTrack(trackId, editingTrack.value);
-    }
-
-    function handleSelectNext(delta: number) {
-      const newTrack = selectNextTrack(delta);
-      if (newTrack !== null) {
-        selectTrack(newTrack, false);
-        const track = getTrack(newTrack);
-        playbackComponent.value.seek(track.begin);
-      }
-    }
-
 
     return {
       /* props use locally */
@@ -252,11 +224,6 @@ export default defineComponent({
       /* methods used locally */
       addTrack,
       deleteFeaturePoints,
-      handleTrackClick,
-      handleSelectNext,
-      handleTrackEdit,
-      handleTrackTypeChange,
-      removeTrack,
       save,
       selectTrack,
       splitTracks,
@@ -278,8 +245,10 @@ export default defineComponent({
         checkedTrackIds,
         selectedTrackId,
         editingTrack,
+        newTrackSettings: clientSettings.newTrackSettings,
         typeStyling,
       },
+      updateNewTrackSettings,
       layerProps: {
         trackMap,
         trackIds: enabledTrackIds,
@@ -291,6 +260,7 @@ export default defineComponent({
         featurePointing,
         featurePointingTarget,
       },
+      handler,
     };
   },
 });
@@ -350,13 +320,14 @@ export default defineComponent({
     >
       <sidebar
         v-bind="sidebarProps"
-        @track-add="selectTrack(addTrack(frame).trackId, true)"
-        @track-remove="removeTrack"
-        @track-click="handleTrackClick"
-        @track-edit="handleTrackEdit"
-        @track-next="handleSelectNext(1)"
-        @track-previous="handleSelectNext(-1)"
-        @track-type-change="handleTrackTypeChange($event)"
+        @track-add="handler.addTrack(frame)"
+        @track-remove="handler.removeTrack"
+        @track-click="handler.trackClick"
+        @track-edit="handler.trackEdit"
+        @track-next="handler.selectNext(1)"
+        @track-previous="handler.selectNext(-1)"
+        @track-type-change="handler.trackTypeChange($event)"
+        @update-new-track-settings="updateNewTrackSettings($event)"
         @track-split="splitTracks($event, frame)"
         @update-type-color="updateTypeColor($event)"
         @update-type-name="updateTypeName($event)"
@@ -371,11 +342,11 @@ export default defineComponent({
           v-mousetrap="[
             { bind: 'g', handler: () => toggleFeaturePointing('head') },
             { bind: 'h', handler: () => toggleFeaturePointing('head') },
-            { bind: 'n', handler: () => selectTrack(addTrack(frame).trackId, true) },
+            { bind: 'n', handler: () => handler.addTrack(frame) },
             { bind: 't', handler: () => toggleFeaturePointing('tail') },
             { bind: 'y', handler: () => toggleFeaturePointing('tail') },
             { bind: 'q', handler: () => deleteFeaturePoints(frame) },
-            { bind: 'esc', handler: () => selectTrack(null, false)}
+            { bind: 'esc', handler: () => handler.selectTrack(null, false)}
           ]"
           :image-urls="imageUrls"
           :video-url="videoUrl"
@@ -388,8 +359,9 @@ export default defineComponent({
           </template>
           <layers
             v-bind="layerProps"
-            @selectTrack="selectTrack"
+            @selectTrack="handler.selectTrack"
             @featurePointUpdated="featurePointed"
+            @update-rect-bounds="handler.updateRectBounds"
           />
         </component>
         <v-menu

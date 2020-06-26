@@ -13,6 +13,16 @@ interface Attribute {
   _id: string;
 }
 
+interface Pipe {
+  name: string;
+  pipe: string;
+  type: string;
+}
+export interface Category {
+  description: string;
+  pipes: [Pipe];
+}
+
 function makeViameFolder({
   folderId, name, fps, type,
 }: {
@@ -78,7 +88,7 @@ function runImageConversion(folder: string) {
 }
 
 function getPipelineList() {
-  return girderRest.get('viame/pipelines');
+  return girderRest.get<Record<string, Category>>('viame/pipelines');
 }
 
 function runPipeline(itemId: string, pipeline: string) {

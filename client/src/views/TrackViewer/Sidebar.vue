@@ -11,6 +11,7 @@ import AttributesPanel from '@/components/AttributesPanel.vue';
 import TypeList from '@/components/TypeList.vue';
 import TrackList from '@/components/TrackList.vue';
 import Track, { TrackId } from '@/lib/track';
+import { NewTrackSettings } from '@/use/useSettings';
 
 export default defineComponent({
   props: {
@@ -53,6 +54,10 @@ export default defineComponent({
     width: {
       type: Number,
       default: 300,
+    },
+    newTrackSettings: {
+      type: Object as PropType<NewTrackSettings>,
+      default: null,
     },
   },
 
@@ -134,6 +139,7 @@ export default defineComponent({
           @track-type-change="$emit('track-type-change', $event)"
           @track-previous="$emit('track-previous')"
           @track-next="$emit('track-next')"
+          @update-new-track-settings="$emit('update-new-track-settings',$event)"
           @track-split="$emit('track-split', $event)"
         />
       </div>

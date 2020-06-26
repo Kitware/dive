@@ -1,19 +1,16 @@
-import Vue from 'vue';
-import Vuex from 'vuex';
+import { Module } from 'vuex';
+import { getPipelineList, Category } from '@/lib/api/viame.service';
 
-import { getPipelineList } from '@/lib/api/viame.service';
+export interface PipelineState {
+    pipelines: null | Record<string, Category>;
+}
 
-Vue.use(Vuex);
-
-export default new Vuex.Store({
+const pipelineModule: Module<PipelineState, never> = {
+  namespaced: true,
   state: {
-    location: null,
     pipelines: null,
   },
   mutations: {
-    setLocation(state, location) {
-      state.location = location;
-    },
     setPipelines(state, pipelines) {
       state.pipelines = pipelines;
     },
@@ -42,4 +39,6 @@ export default new Vuex.Store({
       return state.pipelines;
     },
   },
-});
+};
+
+export default pipelineModule;

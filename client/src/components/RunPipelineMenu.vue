@@ -15,7 +15,7 @@ export default {
   },
 
   computed: {
-    ...mapState(['pipelines']),
+    ...mapState('Pipelines', ['pipelines']),
     selectedEligibleClips() {
       return this.selected.filter(
         ({ _modelType, meta }) => _modelType === 'folder' && meta && meta.annotate,
@@ -31,7 +31,7 @@ export default {
   },
 
   methods: {
-    ...mapActions(['fetchPipelines']),
+    ...mapActions('Pipelines', ['fetchPipelines']),
 
     async runPipelineOnSelectedItem(pipeline) {
       const clips = this.selectedEligibleClips;

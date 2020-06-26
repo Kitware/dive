@@ -2,13 +2,16 @@
 import Vue, { PropType } from 'vue';
 import { Ref } from '@vue/composition-api';
 import TrackItem from '@/components/TrackItem.vue';
+import CreationMode from '@/components/CreationMode.vue';
 import Track, { TrackId } from '@/lib/track';
+import { NewTrackSettings } from '@/use/useSettings';
 
 export default Vue.extend({
   name: 'TrackList',
 
   components: {
     TrackItem,
+    CreationMode,
   },
 
   props: {
@@ -44,10 +47,15 @@ export default Vue.extend({
       type: Object as PropType<Ref<{ color: (t: string) => string }>>,
       required: true,
     },
+    newTrackSettings: {
+      type: Object as PropType<Ref<NewTrackSettings>>,
+      default: null,
+    },
   },
 
   data: () => ({
     itemHeight: 45, // in pixels
+    settingsActive: false,
   }),
 
   computed: {
@@ -69,6 +77,13 @@ export default Vue.extend({
         editingTrack,
         allTypes,
       }));
+    },
+    newTrackColor(): string {
+      if (this.newTrackSettings && this.newTrackSettings.value.type !== 'unknown') {
+        return this.typeStyling.value.color(this.newTrackSettings.value.type);
+      }
+      // Return default color
+      return '';
     },
   },
 
@@ -106,7 +121,6 @@ export default Vue.extend({
         keyEvent.preventDefault();
       }
     },
-
     getItemProps({
       trackId,
       selectedTrackId,
@@ -142,17 +156,75 @@ export default Vue.extend({
 </script>
 
 <template>
-  <div class="tracks">
-    <v-subheader>
-      Tracks ({{ filteredTrackIds.value.length }})
-      <v-spacer />
-      <v-btn
-        icon
-        @click="$emit('track-add')"
-      >
-        <v-icon>mdi-plus</v-icon>
-      </v-btn>
+  <div class="d-flex flex-column">
+    <v-subheader class="flex-grow-1 trackHeader">
+      <v-container>
+        <v-row align="center">
+          Tracks ({{ filteredTrackIds.value.length }})
+          <v-spacer />
+          <v-btn
+            v-if="!newTrackSettings"
+            outlined
+            x-small
+            @click="$emit('track-add')"
+          >
+            <v-icon small>
+              mdi-plus
+            </v-icon>
+          </v-btn>
+          <div
+            v-else
+            class="newTrackSettings"
+          >
+            <v-tooltip
+              open-delay="200"
+              bottom
+              max-width="200"
+            >
+              <template #activator="{ on }">
+                <v-btn
+                  outlined
+                  x-small
+                  :color="newTrackColor"
+                  v-on="on"
+                  @click="$emit('track-add')"
+                >
+                  {{ newTrackSettings.value.mode }}<v-icon small>
+                    mdi-plus
+                  </v-icon>
+                </v-btn>
+              </template>
+              <span>Default Type: {{ newTrackSettings.value.type }}</span>
+            </v-tooltip>
+            <v-btn
+              icon
+              small
+              class="ml-2"
+              @click="settingsActive = !settingsActive"
+            >
+              <v-icon
+                small
+                :color="settingsActive ? 'accent' : 'default'"
+              >
+                mdi-settings
+              </v-icon>
+            </v-btn>
+          </div>
+        </v-row>
+        <v-row>
+          <v-expand-transition>
+            <creation-mode
+              v-if="settingsActive"
+              :all-types="allTypes"
+              :new-track-settings="newTrackSettings"
+              @update-new-track-settings="$emit('update-new-track-settings',$event)"
+            />
+          </v-expand-transition>
+        </v-row>
+      </v-container>
     </v-subheader>
+
+
     <v-virtual-scroll
       ref="virtualList"
       v-mousetrap="[
@@ -168,6 +240,7 @@ export default Vue.extend({
         { bind: 'x', handler: () => $emit('track-split', selectedTrackId.value),
           disabled: $prompt.visible()}
       ]"
+      class="tracks flex-shrink-0"
       :items="virtualListItems"
       :item-height="itemHeight"
       :height="400"
@@ -190,6 +263,9 @@ export default Vue.extend({
 <style lang="scss">
 .strcoller {
   height: 100%;
+}
+.trackHeader{
+  height: auto;
 }
 .tracks {
   overflow-y: auto;
