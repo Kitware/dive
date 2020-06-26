@@ -3,6 +3,7 @@ import { Annotator } from '@/components/annotators/annotatorType';
 import { FrameDataTrack } from '@/components/layers/LayerTypes';
 import { StateStyles } from '@/use/useStyling';
 import Vue from 'vue';
+import { Ref } from '@vue/composition-api';
 
 // eslint-disable-next-line max-len
 export type StyleFunction<T, D> = T | ((point: [number, number], index: number, data: D) => T | undefined);
@@ -24,7 +25,7 @@ export interface BaseLayerParams {
     frameData?: FrameDataTrack;
     annotator: Annotator;
     stateStyling: StateStyles;
-    typeColorMap: d3.ScaleOrdinal<string, string>;
+    typeStyling: Ref<{ color: (type: string) => string }>;
 }
 
 export default abstract class BaseLayer<D> extends Vue {
@@ -36,7 +37,7 @@ export default abstract class BaseLayer<D> extends Vue {
 
     style: LayerStyle<D>;
 
-    typeColorMap: d3.ScaleOrdinal<string, string>;
+    typeStyling: Ref<{ color: (type: string) => string }>;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     featureLayer: any;
@@ -47,12 +48,12 @@ export default abstract class BaseLayer<D> extends Vue {
     constructor({
       annotator,
       stateStyling,
-      typeColorMap,
+      typeStyling,
     }: BaseLayerParams) {
       super();
       this.annotator = annotator;
       this.stateStyling = stateStyling;
-      this.typeColorMap = typeColorMap;
+      this.typeStyling = typeStyling;
       this.formattedData = [];
       this.style = {};
       this.featureLayer = null;

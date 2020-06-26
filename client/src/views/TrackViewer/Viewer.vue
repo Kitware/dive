@@ -68,11 +68,17 @@ export default defineComponent({
     const { datasetId } = props;
     const playbackComponent = ref({} as Seeker);
     const frame = ref(0); // the currently displayed frame number
-
-    const { typeColorMapper, stateStyling } = useStyling();
     const {
       save: saveToServer, markChangesPending, pendingSaveCount,
     } = useSave();
+
+    const {
+      typeStyling,
+      stateStyling,
+      updateTypeColor,
+      loadTypeColors,
+      saveTypeColors,
+    } = useStyling({ markChangesPending });
 
     const {
       dataset,
@@ -102,15 +108,19 @@ export default defineComponent({
       allTypes,
       filteredTrackIds,
       enabledTrackIds,
+      updateTypeName,
     } = useTrackFilters({ trackMap, sortedTrackIds });
 
-    // Initialize the view
     Promise.all([
       loadDataset(datasetId),
       loadTracks(datasetId),
     ]).catch((err) => {
       // TODO p2: alert on errors...
       console.error(err);
+      throw err;
+    }).then(() => {
+      // tasks to run after dataset and tracks have loaded
+      loadTypeColors(dataset.value?.meta.customTypeColors);
     });
 
     const {
@@ -131,11 +141,11 @@ export default defineComponent({
     } = useFeaturePointing({ selectedTrackId, trackMap });
 
     const { lineChartData } = useLineChart({
-      enabledTrackIds, typeColorMapper, allTypes, trackMap,
+      enabledTrackIds, typeStyling, allTypes, trackMap,
     });
 
     const { eventChartData } = useEventChart({
-      enabledTrackIds, selectedTrackId, typeColorMapper, trackMap,
+      enabledTrackIds, selectedTrackId, typeStyling, trackMap,
     });
 
     const location = computed(() => store.state.location);
@@ -196,6 +206,7 @@ export default defineComponent({
         selectTrack(selectedTrackId.value, false);
       }
       saveToServer(datasetId, trackMap);
+      saveTypeColors(datasetId, allTypes);
     }
 
     function handleTrackTypeChange({ trackId, value }: { trackId: TrackId; value: string }) {
@@ -251,6 +262,8 @@ export default defineComponent({
       splitTracks,
       toggleFeaturePointing,
       featurePointed,
+      updateTypeColor,
+      updateTypeName,
       /* props for sub-components */
       controlsContainerProps: {
         lineChartData,
@@ -265,14 +278,14 @@ export default defineComponent({
         checkedTrackIds,
         selectedTrackId,
         editingTrack,
-        typeColorMapper,
+        typeStyling,
       },
       layerProps: {
         trackMap,
         trackIds: enabledTrackIds,
         selectedTrackId,
         editingTrack,
-        typeColorMapper,
+        typeStyling,
         stateStyling,
         intervalTree,
         featurePointing,
@@ -345,6 +358,8 @@ export default defineComponent({
         @track-previous="handleSelectNext(-1)"
         @track-type-change="handleTrackTypeChange($event)"
         @track-split="splitTracks($event, frame)"
+        @update-type-color="updateTypeColor($event)"
+        @update-type-name="updateTypeName($event)"
       >
         <ConfidenceFilter :confidence.sync="confidenceThreshold" />
       </sidebar>
