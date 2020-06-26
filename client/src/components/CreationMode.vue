@@ -168,7 +168,7 @@ export default Vue.extend({
         <v-col>
           <v-switch
             :input-value="
-              newTrackSettnewTrackSettings.valueings.modeSettings.Track.autoAdvanceFrame"
+              newTrackSettings.value.modeSettings.Track.autoAdvanceFrame"
             class="my-0 ml-1 pt-0"
             dense
             label="Advance Frame"
