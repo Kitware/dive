@@ -82,12 +82,15 @@ export default Vue.extend({
 
 <template>
   <div class="CreationMode mb-2">
-    <v-divider />
-
-    <v-subheader>Settings</v-subheader>
-    <v-card>
+    <v-card
+      outlined
+      class="pa-2 pb-0 mt-3"
+    >
+      <div class="subheading">
+        New Annotation Settings
+      </div>
       <v-row
-        align="center"
+        align="end"
         dense
       >
         <v-col
@@ -99,7 +102,7 @@ export default Vue.extend({
         <v-col>
           <v-combobox
             v-model="newTrackSettings.value.mode"
-            class="ml-0"
+            class="ml-0 pa-0"
             x-small
             :items="modes"
             dense
@@ -125,7 +128,7 @@ export default Vue.extend({
         </v-col>
       </v-row>
       <v-row
-        align="center"
+        align="end"
         dense
       >
         <v-col
@@ -137,7 +140,7 @@ export default Vue.extend({
         <v-col>
           <v-combobox
             :value="newTrackSettings.value.type"
-            class="ml-0"
+            class="ml-0 pa-0"
             x-small
             :items="typeList"
             dense

@@ -199,6 +199,7 @@ export default Vue.extend({
             <v-btn
               icon
               small
+              class="ml-2"
               @click="settingsActive = !settingsActive"
             >
               <v-icon
