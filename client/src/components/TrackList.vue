@@ -59,7 +59,13 @@ export default Vue.extend({
   }),
 
   computed: {
-    virtualListItems() {
+    virtualListItems(): {
+      trackId: number;
+      selectedTrackId: number;
+      checkedTrackIds: number[];
+      editingTrack: boolean;
+      allTypes: string[];
+    }[] {
       const selectedTrackId = this.selectedTrackId.value;
       const checkedTrackIds = this.checkedTrackIds.value;
       const editingTrack = this.editingTrack.value;
@@ -72,7 +78,7 @@ export default Vue.extend({
         allTypes,
       }));
     },
-    newTrackColor() {
+    newTrackColor(): string {
       if (this.newTrackSettings && this.newTrackSettings.value.type !== 'unknown') {
         return this.typeColorMapper(this.newTrackSettings.value.type);
       }
@@ -101,13 +107,11 @@ export default Vue.extend({
       }
     },
 
-    scrollToSelectedTrack() {
-      // eslint-disable-next-line @typescript-eslint/ban-ts-ignore
-      // @ts-ignore
+    scrollToSelectedTrack(): void {
       this.$nextTick(() => this.scrollToTrack(this.selectedTrackId.value));
     },
 
-    scrollPreventDefault(element: HTMLElement, keyEvent: KeyboardEvent, direction: 'up' | 'down') {
+    scrollPreventDefault(element: HTMLElement, keyEvent: KeyboardEvent, direction: 'up' | 'down'): void {
       if (element === (this.$refs.virtualList as Vue).$el) {
         if (direction === 'up') {
           this.$emit('track-previous');

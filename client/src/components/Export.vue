@@ -55,13 +55,13 @@ export default {
         >
           mdi-export
         </v-icon>
-        Export
+        Download
       </v-btn>
     </template>
     <template>
       <v-card v-if="menuOpen && exportUrls">
         <v-card-title>
-          Export options
+          Download options
         </v-card-title>
 
         <v-card-text class="pb-0">
