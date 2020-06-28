@@ -54,7 +54,7 @@ export default Vue.extend({
   },
 
   data: () => ({
-    itemHeight: 45, // in pixels
+    itemHeight: 70, // in pixels
     settingsActive: false,
   }),
 
@@ -149,6 +149,7 @@ export default Vue.extend({
         color: this.typeStyling.value.color(trackType),
         types: allTypes,
         splittable: track.length > 1,
+        length: track.length,
       };
     },
   },
@@ -223,8 +224,15 @@ export default Vue.extend({
         </v-row>
       </v-container>
     </v-subheader>
-
-
+    <datalist id="allTypesOptions">
+      <option
+        v-for="type in allTypes.value"
+        :key="type"
+        :value="type"
+      >
+        {{ type }}
+      </option>
+    </datalist>
     <v-virtual-scroll
       ref="virtualList"
       v-mousetrap="[
@@ -240,10 +248,11 @@ export default Vue.extend({
         { bind: 'x', handler: () => $emit('track-split', selectedTrackId.value),
           disabled: $prompt.visible()}
       ]"
-      class="tracks flex-shrink-0"
+      class="tracks"
       :items="virtualListItems"
       :item-height="itemHeight"
-      :height="400"
+      :height="420"
+      bench="1"
     >
       <template #default="{ item }">
         <track-item
@@ -269,6 +278,7 @@ export default Vue.extend({
 }
 .tracks {
   overflow-y: auto;
+  overflow-x: hidden;
 
   .v-input--checkbox {
     label {

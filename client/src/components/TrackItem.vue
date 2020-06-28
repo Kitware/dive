@@ -37,9 +37,12 @@ export default {
     },
   },
 
-  data: () => ({
-    editing: false,
-  }),
+  data() {
+    return {
+      value: this.trackType,
+      skipOnFocus: false,
+    };
+  },
 
   computed: {
     /**
@@ -50,43 +53,35 @@ export default {
     style() {
       if (this.selected) {
         return {
-          'font-weight': 'bold',
-          'background-color': `${this.$vuetify.theme.themes.dark.accent}`,
+          'background-color': `${this.$vuetify.theme.themes.dark.accentBackground}`,
         };
       }
       return {};
     },
   },
-
-  watch: {
-    track() {
-      this.editing = false;
-    },
-    /**
-     * When editing is enabled through Keyboard Shortcut this will provide focus
-     * and open the menu so the use can choose an item with the keyboard
-     * nextTick is used because the ref isn't rendered until editing is true
-     */
-    editing(val) {
-      if (val) {
-        this.$nextTick(() => {
-          this.$refs.trackTypeBox.focus();
-          this.$refs.trackTypeBox.activateMenu();
-        });
-      }
-    },
-  },
   methods: {
     focusType() {
       if (this.selected) {
-        this.editing = true;
+        this.skipOnFocus = true;
+        this.$refs.typeInputBox.focus();
+        this.$refs.typeInputBox.select();
       }
     },
-    handleChange(newval) {
-      this.editing = false;
-      if (newval !== this.trackType) {
-        this.$emit('type-change', newval);
+    blurType(e) {
+      e.target.blur();
+    },
+    onBlur() {
+      if (this.value === '') {
+        this.value = this.trackType;
+      } else if (this.value !== this.trackType) {
+        this.$emit('type-change', this.value);
       }
+    },
+    onFocus(e) {
+      if (!this.skipOnFocus) {
+        this.value = '';
+      }
+      this.skipOnFocus = false;
     },
   },
 };
@@ -94,94 +89,107 @@ export default {
 
 <template>
   <div
-    class="track-item d-flex align-center hover-show-parent px-1"
+    v-mousetrap="[
+      { bind: 'shift+enter', handler: focusType },
+    ]"
+    class="track-item d-flex flex-column align-start hover-show-parent px-1"
     :style="style"
   >
-    <v-checkbox
-      class="my-0 ml-1 pt-0"
-      dense
-      hide-details
-      :input-value="inputValue"
-      :color="color"
-      @change="$emit('change', $event)"
-    />
-    <div
-      class="trackNumber pl-0 pr-2"
-      @click.self="$emit('click')"
+    <v-row class="px-3 pt-2 justify-center item-row">
+      <v-checkbox
+        class="my-0 ml-1 pt-0"
+        dense
+        hide-details
+        :input-value="inputValue"
+        :color="color"
+        @change="$emit('change', $event)"
+      />
+      <div
+        class="trackNumber pl-0 pr-2"
+        @click.self="$emit('click')"
+      >
+        {{ trackId + (editingTrack && selected ? "*" : "") }}
+      </div>
+      <v-spacer />
+      <input
+        ref="typeInputBox"
+        v-model="value"
+        type="text"
+        list="allTypesOptions"
+        class="input-box"
+        @focus="onFocus"
+        @blur="onBlur"
+        @keydown.esc="blurType"
+        @keydown.enter="blurType"
+        @keydown.down="value=''"
+      >
+    </v-row>
+    <v-row
+      class="px-3 pb-2 justify-center item-row"
     >
-      {{ trackId + (editingTrack && selected ? "*" : "") }}
-    </div>
-    <div
-      v-if="!editing"
-      v-mousetrap="[
-        { bind: 'shift+enter', handler: focusType },
-      ]"
-      class="type-display flex-grow-1 flex-shrink-1 ml-0"
-      @click="editing = true"
-    >
-      {{ trackType || 'undefined' }}
-    </div>
-    <v-combobox
-      v-else
-      ref="trackTypeBox"
-      class="ml-0"
-      :value="trackType"
-      :items="types"
-      dense
-      hide-details
-      @input="handleChange"
-    />
-    <v-menu offset-y>
-      <template v-slot:activator="{ on }">
-        <v-btn
-          class="hover-show-child"
-          icon
-          v-on="on"
-        >
-          <v-icon>
-            mdi-dots-horizontal
-          </v-icon>
-        </v-btn>
-      </template>
-      <v-list>
-        <v-list-item @click="$emit('click')">
-          <v-list-item-title>
-            <v-icon>mdi-map-marker</v-icon>
-            Go to first frame
-          </v-list-item-title>
-        </v-list-item>
-        <v-list-item @click="$emit('edit')">
-          <v-list-item-title>
-            <v-icon>mdi-pencil</v-icon>
-            Edit annotation
-          </v-list-item-title>
-        </v-list-item>
-        <v-list-item
-          v-if="splittable && selected"
-          @click="$emit('split')"
-        >
-          <v-list-item-title>
-            <v-icon>mdi-call-split</v-icon>
-            Split track
-          </v-list-item-title>
-        </v-list-item>
-        <v-divider />
-        <v-list-item @click="$emit('delete')">
-          <v-list-item-title>
-            <v-icon color="error">
-              mdi-trash-can
-            </v-icon>
-            Delete track
-          </v-list-item-title>
-        </v-list-item>
-      </v-list>
-    </v-menu>
+      <v-btn
+        small
+        icon
+      >
+        <v-icon>mdi-chevron-double-left</v-icon>
+      </v-btn>
+      <v-btn
+        small
+        icon
+      >
+        <v-icon>mdi-chevron-left</v-icon>
+      </v-btn>
+      <v-btn
+        small
+        icon
+      >
+        <v-icon>mdi-chevron-right</v-icon>
+      </v-btn>
+      <v-btn
+        small
+        icon
+      >
+        <v-icon>mdi-chevron-double-right</v-icon>
+      </v-btn>
+      <v-spacer />
+      <v-btn
+        small
+        icon
+      >
+        <v-icon>mdi-pencil</v-icon>
+      </v-btn>
+      <v-btn
+        small
+        icon
+        :disabled="!selected"
+      >
+        <v-icon>mdi-star-outline</v-icon>
+      </v-btn>
+      <v-btn
+        small
+        icon
+        :disabled="!selected"
+      >
+        <v-icon>mdi-call-split</v-icon>
+      </v-btn>
+      <v-btn
+        small
+        icon
+        color="error"
+        :disabled="!selected"
+      >
+        <v-icon>mdi-delete</v-icon>
+      </v-btn>
+    </v-row>
   </div>
 </template>
 
 <style lang="scss" scoped>
 .track-item {
-  height: 45px;
+  .item-row {
+    width: 100%;
+  }
+
   .trackNumber {
     font-family: monospace;
     &:hover {
@@ -190,26 +198,12 @@ export default {
       text-decoration: underline;
     }
   }
-  .type-display {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-}
-
-.selected {
-  font-weight: bold;
-  background-color: var(--v-accent-base);
-}
-
-.hover-show-parent {
-  .hover-show-child {
-    display: none;
-  }
-  &:hover {
-    .hover-show-child {
-      display: inherit;
-    }
+  .input-box {
+    border: 1px solid rgb(255, 255, 255, 0.15);
+    border-radius: 4px;
+    padding: 0 6px;
+    width: 160px;
+    color: white;
   }
 }
 </style>
