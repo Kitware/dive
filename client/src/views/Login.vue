@@ -45,9 +45,23 @@ export default {
           class="mb-2"
         >
         <h3>Welcome to VIAME Web (Public Beta)</h3>
-        <span>
+        <div>
           Log in or register to get started.
-        </span>
+        </div>
+        <v-alert
+          outlined
+          class="my-4"
+        >
+          VIAME Web is automatically updated at 2AM EST/EDT Sundays and Thursdays.
+          Downtime is typically less than 10 minutes.
+        </v-alert>
+        <div>
+          If you need help, check the
+          <a href="https://github.com/VIAME/VIAME-Web/wiki/User-Documentation">
+            User Documentation
+          </a>
+          or email <a href="mailto:viame-web@kitware.com">viame-web@kitware.com</a>
+        </div>
       </v-alert>
       <GirderAuth :register="true" />
     </v-dialog>
