@@ -79,14 +79,23 @@ export default function useModeManager({
     if (selectedTrackId.value !== null) {
       const track = trackMap.get(selectedTrackId.value);
       if (track) {
-        //Determines if we are creating a new Detection
+        // Determines if we are creating a new Detection
         const features = track.getFeature(frameNum);
-        if (!features || features.bounds === undefined) {
+        const [real, upper, lower] = features;
+        if (!real || real.bounds === undefined) {
           newDetectionMode = true;
         }
+        // a new keyframe enables interpolation
+        // iff its lower bound allows it OR it has no
+        // lower bound and its upper bound allows it
+        const interpolate = newTrackMode
+          ? newTrackSettings.modeSettings.Track.interpolate
+          : !!((real?.interpolate || (lower?.interpolate) || (!lower && upper?.interpolate)));
         track.setFeature({
           frame: frameNum,
           bounds,
+          keyframe: true,
+          interpolate,
         });
         //If it is a new track and we have newTrack Settings
         if (newTrackMode && newDetectionMode) {
@@ -110,13 +119,17 @@ export default function useModeManager({
 
   function handleTrackEdit(trackId: TrackId) {
     const track = getTrack(trackId);
-    playbackComponent.value.seek(track.begin);
+    if (frame.value < track.begin || frame.value > track.end) {
+      playbackComponent.value.seek(track.begin);
+    }
     selectTrack(trackId, true);
   }
 
   function handleTrackClick(trackId: TrackId) {
     const track = getTrack(trackId);
-    playbackComponent.value.seek(track.begin);
+    if (frame.value < track.begin || frame.value > track.end) {
+      playbackComponent.value.seek(track.begin);
+    }
     selectTrack(trackId, editingTrack.value);
   }
 

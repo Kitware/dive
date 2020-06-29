@@ -329,6 +329,7 @@ export default defineComponent({
         @track-type-change="handler.trackTypeChange($event)"
         @update-new-track-settings="updateNewTrackSettings($event)"
         @track-split="splitTracks($event, frame)"
+        @track-seek="playbackComponent.seek($event)"
         @update-type-color="updateTypeColor($event)"
         @update-type-name="updateTypeName($event)"
       >
