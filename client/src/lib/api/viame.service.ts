@@ -110,6 +110,17 @@ function setMetadataForFolder(folderId: string, metadata: object) {
   );
 }
 
+async function getValidVideoFileTypes() {
+  const { data } = await girderRest.get('viame/valid_video_filetypes');
+  return data;
+}
+
+async function getValidImageFileTypes() {
+  const { data } = await girderRest.get('viame/valid_image_filetypes');
+  return data;
+}
+
+
 export {
   Attribute,
   GirderModel,
@@ -122,4 +133,6 @@ export {
   runPipeline,
   setMetadataForItem,
   setMetadataForFolder,
+  getValidVideoFileTypes,
+  getValidImageFileTypes,
 };
