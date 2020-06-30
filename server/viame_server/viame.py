@@ -16,6 +16,7 @@ from .transforms import (
 from .utils import (
     get_or_create_auxiliary_folder,
     move_existing_result_to_auxiliary_folder,
+    webValidImageFormats,
     validImageFormats,
     validVideoFormats,
 )
@@ -35,8 +36,7 @@ class Viame(Resource):
         self.route("GET", ("attribute",), self.get_attributes)
         self.route("PUT", ("attribute", ":id"), self.update_attribute)
         self.route("DELETE", ("attribute", ":id"), self.delete_attribute)
-        self.route("GET", ("valid_video_filetypes",), self.get_valid_video_filetypes)
-        self.route("GET", ("valid_image_filetypes",), self.get_valid_image_filetypes)
+        self.route("GET", ("valid_filetypes",), self.get_valid_filetypes)
 
     @access.user
     @describeRoute(Description("Get available pipelines"))
@@ -158,11 +158,6 @@ class Viame(Resource):
         return Attribute().remove(attribute)
 
     @access.user
-    @describeRoute(Description("Get Valid Video filetypes for uploading"))
-    def get_valid_video_filetypes(self, params):
-        return validVideoFormats
-
-    @access.user
-    @describeRoute(Description("Get Valid Image filetypes for uploading"))
-    def get_valid_image_filetypes(self, params):
-        return validImageFormats
+    @describeRoute(Description("Get Valid Image/Video filetypes for uploading"))
+    def get_valid_filetypes(self, params):
+        return {'image': validImageFormats, 'video': validVideoFormats, 'web': webValidImageFormats}
