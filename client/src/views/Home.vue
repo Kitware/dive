@@ -1,5 +1,5 @@
 <script>
-import { mapState, mapMutations } from 'vuex';
+import { mapMutations } from 'vuex';
 import { FileManager } from '@girder/components/src/components/Snippet';
 import { getLocationType } from '@girder/components/src/utils';
 
@@ -33,11 +33,11 @@ export default {
     uploading: false,
   }),
   computed: {
-    ...mapState('Location', ['location']),
+    //...mapState('Location', ['location']),
 
     location: {
       get() {
-        return this.location_;
+        return this.$store.state.Location.location;
       },
       set(value) {
         this.location_ = value;
@@ -89,6 +89,7 @@ export default {
   },
   beforeRouteUpdate(to, from, next) {
     this.location_ = getLocationFromRoute(to);
+    this.setLocation(this.location_);
     next();
   },
   methods: {
