@@ -89,12 +89,13 @@ export default {
             .forEach((event) => {
               const left = x(event.range[0]);
               bars.push({
-                left: x(event.range[0]),
+                left,
                 width: Math.max(x(event.range[1]) - left, 3),
-                top: i * 15,
+                top: i * 15 + 3,
                 color: event.color,
                 selected: event.selected,
                 name: event.name,
+                markers: event.markers,
               });
             });
         });
@@ -146,23 +147,40 @@ export default {
         return;
       }
       canvas.width = this.clientWidth;
-      canvas.height = bars.slice(-1)[0].top + 10;
+      canvas.height = bars.slice(-1)[0].top + 15;
       bars.forEach((bar) => {
-        let padding = 0;
+        const typeColor = bar.color ? bar.color : '#4c9ac2';
         if (bar.selected) {
-          ctx.fillStyle = this.$vuetify.theme.themes.dark.accent;
-
-          ctx.fillRect(bar.left, bar.top, bar.width, 10);
-          padding = 2;
+          ctx.fillStyle = 'white';
+          bar.markers
+            .map((n) => this.x(n))
+            .slice(0, bar.markers.length - 1)
+            .forEach((m, i) => {
+              const current = bar.markers[i];
+              const next = bar.markers[i + 1];
+              const width = (current + 1 === next) ? 2 : 5;
+              ctx.fillRect(m, bar.top, width, 10);
+            });
+          ctx.save();
+          ctx.strokeStyle = 'white';
+          ctx.lineWidth = 2;
+          ctx.rect(
+            bar.left,
+            bar.top,
+            bar.width,
+            10,
+          );
+          ctx.stroke();
+          ctx.restore();
+        } else {
+          ctx.fillStyle = typeColor;
+          ctx.fillRect(
+            bar.left,
+            bar.top,
+            bar.width,
+            10,
+          );
         }
-
-        ctx.fillStyle = bar.color ? bar.color : '#4c9ac2';
-        ctx.fillRect(
-          bar.left + padding,
-          bar.top + padding,
-          bar.width - padding * 2,
-          10 - padding * 2,
-        );
       });
     },
     mousemove(e) {

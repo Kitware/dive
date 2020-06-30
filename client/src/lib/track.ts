@@ -264,7 +264,6 @@ export default class Track {
     }
 
     if (this.featureIndex.length !== 0) {
-      console.log(this.features[frame], this.featureIndex, position, maybeInterpolated);
       throw new Error(`Unexpected condition: Track bounds mis-aligned with feature array.
         begin=${this.begin}
         end=${this.end}

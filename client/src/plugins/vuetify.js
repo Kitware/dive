@@ -22,6 +22,7 @@ const appVuetifyConfig = merge(girderVuetifyConfig, {
         neutral: colors.grey.lighten5,
       },
       dark: {
+        accent: colors.blue.lighten1,
         accentBackground: '#2c7596',
       },
     },
