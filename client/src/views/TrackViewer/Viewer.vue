@@ -132,7 +132,7 @@ export default defineComponent({
     }).then(() => {
       // tasks to run after dataset and tracks have loaded
       loadTypeColors(dataset.value?.meta.customTypeColors);
-      if (location.value === null) {
+      if (!location.value) {
         updateLocation();
       }
     });
