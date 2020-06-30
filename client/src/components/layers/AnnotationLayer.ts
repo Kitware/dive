@@ -82,15 +82,40 @@ export default class AnnotationLayer extends BaseLayer<RectGeoJSData> {
         }
         return this.typeStyling.value.color('');
       },
+      fill: (data, _index) => {
+        if (data.confidencePairs) {
+          return this.typeStyling.value.fill(data.confidencePairs[0]);
+        }
+        return this.stateStyling.standard.fill;
+      },
+      fillColor: (_point, _index, data) => {
+        if (data.confidencePairs) {
+          return this.typeStyling.value.color(data.confidencePairs[0]);
+        }
+        return this.typeStyling.value.color('');
+      },
+      fillOpacity: (_point, _index, data) => {
+        if (data.confidencePairs) {
+          return this.typeStyling.value.opacity(data.confidencePairs[0]);
+        }
+        return this.stateStyling.standard.opacity;
+      },
       strokeOpacity: (_point, _index, data) => {
         if (data.selected) {
           return this.stateStyling.selected.opacity;
         }
+        if (data.confidencePairs) {
+          return this.typeStyling.value.opacity(data.confidencePairs[0]);
+        }
+
         return this.stateStyling.standard.opacity;
       },
       strokeWidth: (_point, _index, data) => {
         if (data.selected) {
           return this.stateStyling.selected.strokeWidth;
+        }
+        if (data.confidencePairs) {
+          return this.typeStyling.value.strokeWidth(data.confidencePairs[0]);
         }
         return this.stateStyling.standard.strokeWidth;
       },

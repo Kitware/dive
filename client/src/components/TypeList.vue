@@ -1,6 +1,7 @@
 <script lang="ts">
 import { PropType, Ref } from '@vue/composition-api';
 import Vue from 'vue';
+import { TypeStyling } from '../use/useStyling';
 
 export default Vue.extend({
   name: 'TypeList',
@@ -15,7 +16,7 @@ export default Vue.extend({
       required: true,
     },
     typeStyling: {
-      type: Object as PropType<Ref<{ color: (t: string) => string }>>,
+      type: Object as PropType<Ref<TypeStyling>>,
       required: true,
     },
   },
@@ -24,8 +25,14 @@ export default Vue.extend({
       showPicker: false,
       selectedColor: '',
       selectedType: '',
+      selectedThickness: 5,
+      selectedFill: false,
+      selectedOpacity: 1.0,
       editingType: '',
       editingColor: '',
+      editingThickness: 5,
+      editingFill: false,
+      editingOpacity: 1.0,
     };
   },
   methods: {
@@ -35,15 +42,22 @@ export default Vue.extend({
       this.showPicker = true;
       this.selectedColor = this.typeStyling.value.color(type);
       this.editingColor = this.selectedColor;
+      this.selectedThickness = this.typeStyling.value.strokeWidth(type);
+      this.selectedFill = this.typeStyling.value.fill(type);
+      this.selectedOpacity = this.typeStyling.value.opacity(type);
     },
     acceptChanges() {
       this.showPicker = false;
       if (this.editingType !== this.selectedType) {
         this.$emit('update-type-name', { currentType: this.selectedType, newType: this.editingType });
       }
-      if (this.editingColor !== this.selectedColor) {
-        this.$emit('update-type-color', { type: this.editingType, color: this.editingColor });
-      }
+      this.$emit('update-type-style', {
+        type: this.editingType,
+        color: this.editingColor,
+        strokeWidth: this.editingThickness,
+        fill: this.editingFill,
+        opacity: this.editingOpacity,
+      });
       this.colorRefresh();
     },
     /**
@@ -142,6 +156,42 @@ export default Vue.extend({
                 <v-text-field
                   v-model="editingType"
                   label="Name"
+                />
+              </v-col>
+            </v-row>
+            <v-row>
+              <v-col>
+                <v-text-field
+                  v-model="editingThickness"
+                  type="number"
+                  :rules="[
+                    val => (val || '').length > 0 || 'This field is required'
+                  ]"
+                  required
+                  label="Line Thickness"
+                  hide-details
+                />
+              </v-col>
+              <v-col>
+                <v-text-field
+                  v-model="editingOpacity"
+                  type="number"
+                  :rules="[
+                    val => (val >= 0 && val <= 1) || 'This field is required'
+                  ]"
+                  required
+                  label="Opacity"
+                  hide-details
+                />
+              </v-col>
+              <v-col>
+                <v-checkbox
+                  v-model="editingFill"
+                  label="Fill"
+                  dense
+                  shrink
+                  hide-details
+                  class="my-1 ml-3 type-checkbox"
                 />
               </v-col>
             </v-row>

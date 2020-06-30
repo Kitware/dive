@@ -74,9 +74,9 @@ export default defineComponent({
     const {
       typeStyling,
       stateStyling,
-      updateTypeColor,
-      loadTypeColors,
-      saveTypeColors,
+      updateTypeStyle,
+      loadTypeStyles,
+      saveTypeStyles,
     } = useStyling({ markChangesPending });
 
     const {
@@ -120,7 +120,7 @@ export default defineComponent({
       throw err;
     }).then(() => {
       // tasks to run after dataset and tracks have loaded
-      loadTypeColors(dataset.value?.meta.customTypeColors);
+      loadTypeStyles(dataset.value?.meta.customTypeStyling);
     });
 
     const {
@@ -203,7 +203,7 @@ export default defineComponent({
         selectTrack(selectedTrackId.value, false);
       }
       saveToServer(datasetId, trackMap);
-      saveTypeColors(datasetId, allTypes);
+      saveTypeStyles(datasetId, allTypes);
     }
 
 
@@ -229,7 +229,7 @@ export default defineComponent({
       splitTracks,
       toggleFeaturePointing,
       featurePointed,
-      updateTypeColor,
+      updateTypeStyle,
       updateTypeName,
       /* props for sub-components */
       controlsContainerProps: {
@@ -329,7 +329,7 @@ export default defineComponent({
         @track-type-change="handler.trackTypeChange($event)"
         @update-new-track-settings="updateNewTrackSettings($event)"
         @track-split="splitTracks($event, frame)"
-        @update-type-color="updateTypeColor($event)"
+        @update-type-style="updateTypeStyle($event)"
         @update-type-name="updateTypeName($event)"
       >
         <ConfidenceFilter :confidence.sync="confidenceThreshold" />

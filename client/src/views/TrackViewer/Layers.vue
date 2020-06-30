@@ -19,7 +19,7 @@ import EditAnnotationLayer from '@/components/layers/EditAnnotationLayer';
 import MarkerLayer from '@/components/layers/MarkerLayer';
 import { geojsonToBound } from '@/utils';
 import { FeaturePointingTarget } from '@/use/useFeaturePointing';
-import { StateStyles } from '@/use/useStyling';
+import { StateStyles, TypeStyling } from '@/use/useStyling';
 
 export default defineComponent({
   props: {
@@ -44,7 +44,7 @@ export default defineComponent({
       required: true,
     },
     typeStyling: {
-      type: Object as PropType<Ref<{ color: (t: string) => string }>>,
+      type: Object as PropType<Ref<TypeStyling>>,
       required: true,
     },
     stateStyling: {
