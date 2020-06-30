@@ -7,13 +7,13 @@ import Export from '@/components/Export.vue';
 import RunPipelineMenu from '@/components/RunPipelineMenu.vue';
 import Upload from '@/components/Upload.vue';
 import NavigationBar from '@/components/NavigationBar.vue';
-import { videoFilesRegEx, webFriendlyImageRegEx, imageFilesRegEx } from '@/constants';
 import { getPathFromLocation, getLocationFromRoute } from '@/utils';
 import {
   runVideoConversion,
   deleteResources,
   setMetadataForItem,
   runImageConversion,
+  getValidFileTypes,
 } from '@/lib/api/viame.service';
 
 export default {
@@ -83,6 +83,7 @@ export default {
     this.location_ = getLocationFromRoute(this.$route);
     this.setLocation(this.location_);
     this.notificationBus.$on('message:job_status', this.handleNotification);
+    this.filetypes = getValidFileTypes();
   },
   beforeDestroy() {
     this.notificationBus.$off('message:job_status', this.handleNotification);
@@ -120,6 +121,9 @@ export default {
     },
     uploaded(uploads) {
       this.uploaderDialog = false;
+      const videoFilesRegEx = new RegExp(`${this.filetypes.video.join('$|')}$`, 'i');
+      const imageFilesRegEx = new RegExp(`${this.filetypes.image.join('$|')}$`, 'i');
+      const webFriendlyImageRegEx = new RegExp(`${this.filetypes.web.join('$|')}$`, 'i');
 
       // Check if any transcoding should be done
       const transcodes = uploads.filter(({ results, folder }) => {
