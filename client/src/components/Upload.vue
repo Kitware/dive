@@ -5,15 +5,20 @@ import {
   sizeFormatter,
 } from '@girder/components/src/utils/mixins';
 import {
-  videoFilesRegEx,
-  imageFilesRegEx,
   ImageSequenceType,
   VideoType,
 } from '@/constants';
-import { makeViameFolder } from '@/lib/api/viame.service';
+import {
+  makeViameFolder,
+  getValidVideoFileTypes,
+  getValidImageFileTypes,
+} from '@/lib/api/viame.service';
 import { getResponseError } from '@/lib/utils';
 
-function prepareFiles(files) {
+function prepareFiles(files, video, image) {
+  const videoFilesRegEx = new RegExp(`${video.join('$|')}$`, 'i');
+  const imageFilesRegEx = new RegExp(`${image.join('$|')}$`, 'i');
+
   const videoFilter = (file) => videoFilesRegEx.test(file.name);
   const csvFilter = (file) => /\.csv$/i.test(file.name);
   const imageFilter = (file) => imageFilesRegEx.test(file.name);
@@ -111,11 +116,17 @@ export default {
     pendingUploads: [],
     defaultFPS: '10', // requires string for the input item
     ImageSequenceType,
+    videotypes: [],
+    imagetypes: [],
   }),
   computed: {
     uploadEnabled() {
       return this.location && this.location._modelType === 'folder';
     },
+  },
+  async created() {
+    this.videotypes = await getValidVideoFileTypes();
+    this.imagetypes = await getValidImageFileTypes();
   },
   methods: {
     // Filter to show how many images are left to upload
@@ -163,7 +174,7 @@ export default {
       if (files.length === 0) return;
       this.preUploadErrorMessage = null;
       try {
-        this.addPendingUpload(name, files);
+        this.addPendingUpload(name, files, this.videotypes, this.imagetypes);
       } catch (err) {
         this.preUploadErrorMessage = err;
       }
@@ -173,13 +184,13 @@ export default {
       const name = files.length === 1 ? files[0].name : '';
       this.preUploadErrorMessage = null;
       try {
-        this.addPendingUpload(name, files);
+        this.addPendingUpload(name, files, this.videotypes, this.imagetypes);
       } catch (err) {
         this.preUploadErrorMessage = err;
       }
     },
-    addPendingUpload(name, allFiles) {
-      const { type, media, csv } = prepareFiles(allFiles);
+    addPendingUpload(name, allFiles, video, image) {
+      const { type, media, csv } = prepareFiles(allFiles, video, image);
 
       const files = media.concat(csv);
       const defaultFilename = files[0].name;
@@ -255,6 +266,9 @@ export default {
     async uploadPending(pendingUpload, uploaded) {
       const { name, files, createSubFolders } = pendingUpload;
       const fps = parseInt(pendingUpload.fps, 10);
+
+      const videoFilesRegEx = new RegExp(`${this.videotypes.join('$|')}$`, 'i');
+
       // eslint-disable-next-line no-param-reassign
       pendingUpload.uploading = true;
 
