@@ -18,6 +18,13 @@ interface Pipe {
   pipe: string;
   type: string;
 }
+
+export interface Types {
+  video: [string];
+  image: [string];
+  web: [string];
+}
+
 export interface Category {
   description: string;
   pipes: [Pipe];
@@ -110,9 +117,8 @@ function setMetadataForFolder(folderId: string, metadata: object) {
   );
 }
 
-async function getValidFileTypes() {
-  const { data } = await girderRest.get('viame/valid_filetypes');
-  return data;
+function getValidFileTypes() {
+  return girderRest.get<Record<string, Types>>('viame/valid_filetypes');
 }
 
 
