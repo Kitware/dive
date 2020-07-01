@@ -44,7 +44,7 @@ export default class MarkerLayer extends BaseLayer<FormattedMarkerFeature> {
     return {
       ...baseStyle,
       fill: true,
-      fillColor: (data) => (data.feature === 'tail' ? 'orange' : 'blue'),
+      fillColor: (_point, _index, data) => (data.feature === 'tail' ? 'orange' : 'blue'),
       radius: 4,
     };
   }

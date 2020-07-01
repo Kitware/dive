@@ -77,6 +77,26 @@ export default function useStyling({ markChangesPending }: UseStylingParams) {
     colors.green.darken3,
   ];
 
+  /*
+  const numColors = 8;
+  for (let i = 0; i < numColors; i += 1) {
+    const baseColor = d3.color(d3.interpolateSpectral(i * (1 / numColors)))?.hex();
+    if (baseColor) {
+      //typeColors.push(baseColor);
+      const hueColor = d3.hsl(baseColor);
+      hueColor.s = 1.0;
+      hueColor.l = 0.5;
+      typeColors.push(hueColor.hex());
+      hueColor.s = 0.5;
+      hueColor.l = 0.25;
+      typeColors.push(hueColor.hex());
+      hueColor.s = 0.5;
+      hueColor.l = 0.75;
+      typeColors.push(hueColor.hex());
+    }
+  }
+  */
+
   function loadTypeStyles({ styles, colorList }:
     { styles?: Record<string, CustomStyle>; colorList?: Record<string, string> }) {
     //Handles old style Colors first
