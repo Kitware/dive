@@ -148,9 +148,12 @@ export default {
       }
       canvas.width = this.clientWidth;
       canvas.height = bars.slice(-1)[0].top + 15;
+      let selectedBar = null;
       bars.forEach((bar) => {
         const typeColor = bar.color ? bar.color : '#4c9ac2';
         if (bar.selected) {
+          selectedBar = bar;
+          /*
           ctx.fillStyle = 'white';
           bar.markers
             .map((n) => this.x(n))
@@ -172,6 +175,7 @@ export default {
           );
           ctx.stroke();
           ctx.restore();
+          */
         } else {
           ctx.fillStyle = typeColor;
           ctx.fillRect(
@@ -182,6 +186,42 @@ export default {
           );
         }
       });
+      if (selectedBar) {
+        //draw screen
+        ctx.fillStyle = '#000000DD'; //black with opacity
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        const bar = selectedBar;
+        const typeColor = bar.color ? bar.color : '#4c9ac2';
+        ctx.fillStyle = typeColor;
+        ctx.strokeStyle = typeColor;
+        ctx.lineWidth = 2;
+        ctx.fillRect(
+          bar.left,
+          bar.top,
+          bar.width,
+          10,
+        );
+        ctx.fillStyle = '#000000AA'; //black with opacity
+        ctx.fillRect(
+          bar.left,
+          bar.top,
+          bar.width,
+          10,
+        );
+        ctx.fillStyle = typeColor;
+        bar.markers
+          .map((n) => this.x(n))
+          .slice(0, bar.markers.length - 1)
+          .forEach((m, i) => {
+            const current = bar.markers[i];
+            const next = bar.markers[i + 1];
+            const width = (current + 1 === next) ? 2 : 5;
+            ctx.fillRect(m, bar.top, width, 10);
+          });
+        // ctx.save();
+
+        //ctx.restore();
+      }
     },
     mousemove(e) {
       this.tooltip = null;
