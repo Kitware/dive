@@ -211,7 +211,7 @@ export default class Track {
         Math.round(feature.bounds[1]),
         Math.round(feature.bounds[2]),
         Math.round(feature.bounds[3]),
-      ]
+      ];
     }
     if (feature.keyframe) {
       listInsert(this.featureIndex, feature.frame);

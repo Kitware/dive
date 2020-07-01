@@ -42,12 +42,22 @@ export default function useModeManager({
   let newTrackMode = false;
   let newDetectionMode = false;
 
+  // Seek to the nearest point in the track.
+  function seekNearest(track: Track) {
+    if (frame.value < track.begin) {
+      playbackComponent.value.seek(track.begin);
+    } else if (frame.value > track.end) {
+      playbackComponent.value.seek(track.end);
+    }
+  }
+
   function handleSelectTrack(trackId: TrackId | null, edit = false) {
     selectTrack(trackId, edit);
     if (newTrackMode && !edit) {
       newTrackMode = false;
     }
   }
+
   //Handles adding a new track with the NewTrack Settings
   function handleAddTrack() {
     selectTrack(addTrack(frame.value, newTrackSettings.type).trackId, true);
@@ -85,17 +95,20 @@ export default function useModeManager({
         if (!real || real.bounds === undefined) {
           newDetectionMode = true;
         }
-        // a new keyframe enables interpolation
+        // A new keyframe enables interpolation
         // iff its lower bound allows it OR it has no
         // lower bound and its upper bound allows it
-        const interpolate = newTrackMode
+        // OR the existing feature at the current frame
+        // allows it. This final case happens when an interpolated
+        // frame is edited to become a keyframe.
+        const interpolateTrack = newTrackMode
           ? newTrackSettings.modeSettings.Track.interpolate
-          : !!((real?.interpolate || (lower?.interpolate) || (!lower && upper?.interpolate)));
+          : !!(real?.interpolate || (lower?.interpolate) || (!lower && upper?.interpolate));
         track.setFeature({
           frame: frameNum,
           bounds,
           keyframe: true,
-          interpolate,
+          interpolate: newDetectionMode ? false : interpolateTrack,
         });
         //If it is a new track and we have newTrack Settings
         if (newTrackMode && newDetectionMode) {
@@ -119,17 +132,13 @@ export default function useModeManager({
 
   function handleTrackEdit(trackId: TrackId) {
     const track = getTrack(trackId);
-    if (frame.value < track.begin || frame.value > track.end) {
-      playbackComponent.value.seek(track.begin);
-    }
+    seekNearest(track);
     selectTrack(trackId, true);
   }
 
   function handleTrackClick(trackId: TrackId) {
     const track = getTrack(trackId);
-    if (frame.value < track.begin || frame.value > track.end) {
-      playbackComponent.value.seek(track.begin);
-    }
+    seekNearest(track);
     selectTrack(trackId, editingTrack.value);
   }
 
@@ -137,8 +146,7 @@ export default function useModeManager({
     const newTrack = selectNextTrack(delta);
     if (newTrack !== null) {
       selectTrack(newTrack, false);
-      const track = getTrack(newTrack);
-      playbackComponent.value.seek(track.begin);
+      seekNearest(getTrack(newTrack));
     }
   }
 
