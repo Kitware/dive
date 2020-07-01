@@ -77,10 +77,20 @@ export default function useStyling({ markChangesPending }: UseStylingParams) {
     colors.green.darken3,
   ];
 
-  function loadTypeStyles(list?: Record<string, CustomStyle>) {
-    if (list) {
+  function loadTypeStyles({ styles, colorList }:
+    { styles?: Record<string, CustomStyle>; colorList?: Record<string, string> }) {
+    //Handles old style Colors first
+    if (colorList) {
+      Object.entries(colorList).forEach(([key, value]) => {
+        if (!customStyles.value[key]) {
+          customStyles.value[key] = {};
+        }
+        Vue.set(customStyles.value[key], 'color', value);
+      });
+    }
+    if (styles) {
       // Copy over the item so they can be modified in future
-      Object.entries(list).forEach(([key, value]) => {
+      Object.entries(styles).forEach(([key, value]) => {
         Vue.set(customStyles.value, key, value);
       });
     }
@@ -91,7 +101,6 @@ export default function useStyling({ markChangesPending }: UseStylingParams) {
     type, color, strokeWidth, opacity, fill,
   }:
     {type: string; color?: string; strokeWidth?: number; opacity?: number; fill?: boolean}) {
-    console.log(`Update Type: ${type} color:${color} width:${strokeWidth}`);
     if (!customStyles.value[type]) {
       Vue.set(customStyles.value, type, {});
     }
@@ -99,7 +108,6 @@ export default function useStyling({ markChangesPending }: UseStylingParams) {
       color, strokeWidth, opacity, fill,
     };
     Object.entries(args).forEach(([key, value]) => {
-      console.log(`key: ${key} value:${value}`);
       if (value !== undefined) {
         if (!customStyles.value[type]) {
           Vue.set(customStyles.value, type, {});
@@ -107,7 +115,6 @@ export default function useStyling({ markChangesPending }: UseStylingParams) {
         Vue.set(customStyles.value[type], key, value);
       }
     });
-    console.log(customStyles);
     markChangesPending();
   }
 
@@ -131,7 +138,7 @@ export default function useStyling({ markChangesPending }: UseStylingParams) {
         return stateStyling.standard.strokeWidth;
       },
       fill: (type: string) => {
-        if (_customStyles[type] && _customStyles[type].fill) {
+        if (_customStyles[type] && _customStyles[type].fill !== undefined) {
           return _customStyles[type].fill;
         }
         return stateStyling.standard.fill;

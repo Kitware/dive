@@ -173,18 +173,6 @@ export default Vue.extend({
                 />
               </v-col>
               <v-col>
-                <v-text-field
-                  v-model="editingOpacity"
-                  type="number"
-                  :rules="[
-                    val => (val >= 0 && val <= 1) || 'This field is required'
-                  ]"
-                  required
-                  label="Opacity"
-                  hide-details
-                />
-              </v-col>
-              <v-col>
                 <v-checkbox
                   v-model="editingFill"
                   label="Fill"
@@ -193,6 +181,32 @@ export default Vue.extend({
                   hide-details
                   class="my-1 ml-3 type-checkbox"
                 />
+              </v-col>
+            </v-row>
+            <v-row>
+              <v-col>
+                <v-slider
+                  v-model="editingOpacity"
+                  min="0.0"
+                  max="1.0"
+                  step="0.01"
+                  class="align-center"
+                  height="10"
+                  dense
+                  label="Opacity"
+                  hide-details
+                >
+                  <template v-slot:append>
+                    <v-text-field
+                      v-model="editingOpacity"
+                      class="mt-0 pt-0"
+                      hide-details
+                      single-line
+                      type="number"
+                      style="width: 60px"
+                    />
+                  </template>
+                </v-slider>
               </v-col>
             </v-row>
             <v-row

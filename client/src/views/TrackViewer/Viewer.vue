@@ -120,7 +120,10 @@ export default defineComponent({
       throw err;
     }).then(() => {
       // tasks to run after dataset and tracks have loaded
-      loadTypeStyles(dataset.value?.meta.customTypeStyling);
+      loadTypeStyles({
+        styles: dataset.value?.meta.customTypeStyling,
+        colorList: dataset.value?.meta.customTypeColors,
+      });
     });
 
     const {

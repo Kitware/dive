@@ -11,6 +11,7 @@ export type ObjectFunction<T, D> = T | ((data: D, index: number) => T | undefine
 
 export interface LayerStyle<D> {
   strokeWidth?: StyleFunction<number, D>;
+  strokeOffset?: StyleFunction<number, D>;
   strokeOpacity?: StyleFunction<number, D>;
   strokeColor?: StyleFunction<string, D>;
   position?: (point: [number, number]) => { x: number; y: number };
