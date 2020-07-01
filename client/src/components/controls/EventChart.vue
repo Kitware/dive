@@ -95,6 +95,7 @@ export default {
                 color: event.color,
                 selected: event.selected,
                 name: event.name,
+                length: event.range[1] - event.range[0],
                 markers: event.markers,
               });
             });
@@ -201,7 +202,7 @@ export default {
           bar.width,
           10,
         );
-        ctx.fillStyle = '#000000AA'; //black with opacity
+        ctx.fillStyle = '#00000088'; //black with opacity
         ctx.fillRect(
           bar.left,
           bar.top,
@@ -209,14 +210,20 @@ export default {
           10,
         );
         ctx.fillStyle = typeColor;
+        const width = bar.width / (bar.length - 1);
+        let widthDivisor = 1;
         bar.markers
           .map((n) => this.x(n))
-          .slice(0, bar.markers.length - 1)
+          .slice(0, bar.markers.length)
           .forEach((m, i) => {
             const current = bar.markers[i];
             const next = bar.markers[i + 1];
-            const width = (current + 1 === next) ? 2 : 5;
-            ctx.fillRect(m, bar.top, width, 10);
+            if (i === bar.markers.length - 1) {
+              widthDivisor = 2.0;
+            }
+            ctx.fillRect(m - width / 2.0, bar.top, width / widthDivisor, 10);
+            // ctx.fillStyle = '#AAAAAA77';
+            // ctx.fillRect(m - width / 2.0, bar.top, width, 10);
           });
         // ctx.save();
 
