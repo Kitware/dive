@@ -1,5 +1,5 @@
 <script>
-import { mapMutations } from 'vuex';
+import { mapActions, mapState, mapMutations } from 'vuex';
 import { FileManager } from '@girder/components/src/components/Snippet';
 import { getLocationType } from '@girder/components/src/utils';
 
@@ -13,7 +13,6 @@ import {
   deleteResources,
   setMetadataForItem,
   runImageConversion,
-  getValidFileTypes,
 } from '@/lib/api/viame.service';
 
 export default {
@@ -32,7 +31,8 @@ export default {
     uploading: false,
   }),
   computed: {
-
+    ...mapState('Filetypes', ['filetypes']),
+    ...mapState('Location', ['location']),
     location: {
       get() {
         return this.$store.state.Location.location;
@@ -83,12 +83,13 @@ export default {
   created() {
     this.setLocation(getLocationFromRoute(this.$route));
     this.notificationBus.$on('message:job_status', this.handleNotification);
-    this.filetypes = getValidFileTypes();
+    this.fetchFiletypes();
   },
   beforeDestroy() {
     this.notificationBus.$off('message:job_status', this.handleNotification);
   },
   methods: {
+    ...mapActions('Filetypes', ['fetchFiletypes']),
     ...mapMutations('Location', ['setLocation']),
     handleNotification() {
       this.$refs.fileManager.$refs.girderBrowser.refresh();

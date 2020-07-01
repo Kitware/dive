@@ -8,10 +8,8 @@ import {
   ImageSequenceType,
   VideoType,
 } from '@/constants';
-import {
-  makeViameFolder,
-  getValidFileTypes,
-} from '@/lib/api/viame.service';
+import { makeViameFolder } from '@/lib/api/viame.service';
+import { mapActions, mapState } from 'vuex';
 import { getResponseError } from '@/lib/utils';
 
 function prepareFiles(files, filetypes) {
@@ -115,17 +113,22 @@ export default {
     pendingUploads: [],
     defaultFPS: '10', // requires string for the input item
     ImageSequenceType,
-    filetypes: {},
   }),
   computed: {
+    ...mapState('Filetypes', ['filetypes']),
     uploadEnabled() {
       return this.location && this.location._modelType === 'folder';
     },
+    getFiletypes() {
+      return this.filetypes;
+    },
   },
-  async created() {
-    this.filetypes = await getValidFileTypes();
+  created() {
+    this.fetchFiletypes();
   },
   methods: {
+    ...mapActions('Filetypes', ['fetchFiletypes']),
+
     // Filter to show how many images are left to upload
     filesNotUploaded(item) {
       return item.files.filter(
@@ -186,8 +189,8 @@ export default {
         this.preUploadErrorMessage = err;
       }
     },
-    addPendingUpload(name, allFiles, video, image) {
-      const { type, media, csv } = prepareFiles(allFiles, video, image);
+    addPendingUpload(name, allFiles, filetypes) {
+      const { type, media, csv } = prepareFiles(allFiles, filetypes);
 
       const files = media.concat(csv);
       const defaultFilename = files[0].name;

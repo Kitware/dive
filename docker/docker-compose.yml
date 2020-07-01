@@ -39,7 +39,7 @@ services:
       - BROKER_CONNECTION_TIMEOUT=2
 
   girder_worker:
-    runtime: ${WORKER_RUNTIME}
+    # runtime: ${WORKER_RUNTIME}
     build:
       context: ../
       dockerfile: docker/girder_worker.Dockerfile
