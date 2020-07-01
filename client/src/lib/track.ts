@@ -204,6 +204,15 @@ export default class Track {
       ...f,
       ...feature,
     };
+    // round bounds if necessary
+    if (feature.bounds) {
+      this.features[feature.frame].bounds = [
+        Math.round(feature.bounds[0]),
+        Math.round(feature.bounds[1]),
+        Math.round(feature.bounds[2]),
+        Math.round(feature.bounds[3]),
+      ]
+    }
     if (feature.keyframe) {
       listInsert(this.featureIndex, feature.frame);
     }
