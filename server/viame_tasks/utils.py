@@ -1,9 +1,11 @@
 import shutil
+
+from tempfile import mktemp
 from pathlib import Path
 
 
 def organize_folder_for_training(
-    root_training_dir: Path, data_dir: Path, groundtruth_path: Path
+    root_training_dir: Path, data_dir: Path, downloaded_groundtruth: Path
 ):
     """
     Organize directory downloaded from girder into a structure compatible with Viame.
@@ -12,20 +14,25 @@ def organize_folder_for_training(
     https://viame.readthedocs.io/en/latest/section_links/object_detector_training.html
     """
 
-    if groundtruth_path.is_dir():
-        groundtruth_dir = groundtruth_path
-        files = list(groundtruth_dir.glob("*.csv"))
+    if downloaded_groundtruth.is_dir():
+        files = list(downloaded_groundtruth.glob("*.csv"))
 
         if not files:
             raise Exception("No csv groundtruth files found.")
 
         groundtruth_file = files[0]
-        groundtruth_path = data_dir / "groundtruth.csv"
-        shutil.copyfile(groundtruth_file, groundtruth_path)
-        shutil.rmtree(groundtruth_dir)
+        temp_file = downloaded_groundtruth.parent / mktemp()
+
+        # Replace directory with file of same name
+        shutil.copyfile(groundtruth_file, temp_file)
+        shutil.rmtree(downloaded_groundtruth)
+        shutil.move(str(temp_file), downloaded_groundtruth)
+
+    groundtruth = data_dir / "groundtruth.csv"
+    shutil.move(str(downloaded_groundtruth), groundtruth)
 
     labels = set()
-    with open(groundtruth_path, 'r') as groundtruth_infile:
+    with open(groundtruth, 'r') as groundtruth_infile:
         for line in groundtruth_infile.readlines():
             row = [c.strip() for c in line.split(",")]
 
