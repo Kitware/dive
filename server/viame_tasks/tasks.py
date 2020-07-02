@@ -135,38 +135,36 @@ def train_pipeline(self, folder: Dict, groundtruth: str):
         # Organize data
         groundtruth_path = download_path / groundtruth
         organize_folder_for_training(temp_path, download_path, groundtruth_path)
+        training_output_path = Path(tempfile.mkdtemp())
 
-        with tempfile.TemporaryDirectory() as training_temp:
-            training_output_path = Path(training_temp)
+        # Call viame_train_detector
+        command = [
+            f". {conf.viame_install_path}/setup_viame.sh &&",
+            str(training_executable),
+            "-i",
+            str(temp_path),
+            "-c",
+            str(default_conf_file),
+        ]
+        process = Popen(
+            " ".join(command),
+            stdout=PIPE,
+            stderr=PIPE,
+            shell=True,
+            executable='/bin/bash',
+            cwd=training_output_path,
+        )
 
-            # Call viame_train_detector
-            command = [
-                f". {conf.viame_install_path}/setup_viame.sh &&",
-                str(training_executable),
-                "-i",
-                str(temp_path),
-                "-c",
-                str(default_conf_file),
-            ]
-            process = Popen(
-                " ".join(command),
-                stdout=PIPE,
-                stderr=PIPE,
-                shell=True,
-                executable='/bin/bash',
-                cwd=training_output_path,
-            )
+        while process.poll() is None:
+            out = process.stdout.read()
+            err = process.stderr.read()
 
-            while process.poll() is None:
-                out = process.stdout.read()
-                err = process.stderr.read()
+            if out:
+                self.job_manager.write(out)
+            if err:
+                self.job_manager.write(err)
 
-                if out:
-                    self.job_manager.write(out)
-                if err:
-                    self.job_manager.write(err)
-
-            return training_output_path
+        return training_output_path
 
 
 @app.task(bind=True)
