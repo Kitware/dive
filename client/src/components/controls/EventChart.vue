@@ -149,6 +149,7 @@ export default {
       }
       canvas.width = this.clientWidth;
       canvas.height = bars.slice(-1)[0].top + 15;
+      const overflow = 1.1; // CHANGE to > ~1.05 if you want overlapping or not keyframes
       let selectedBar = null;
       bars.forEach((bar) => {
         const typeColor = bar.color ? bar.color : '#4c9ac2';
@@ -156,9 +157,10 @@ export default {
           //Save the selectedBar for drawing after all other are complete
           selectedBar = bar;
         } else {
+          const width = (bar.width / (bar.length - 1)) * overflow;
           ctx.fillStyle = typeColor;
           ctx.fillRect(
-            bar.left,
+            bar.left - width / 2.0,
             bar.top,
             bar.width,
             10,
@@ -171,11 +173,12 @@ export default {
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         const bar = selectedBar;
         const typeColor = bar.color ? bar.color : '#4c9ac2';
+        const width = (bar.width / (bar.length - 1)) * overflow;
         ctx.fillStyle = typeColor;
         ctx.lineWidth = 2;
         //Draw the background rect color
         ctx.fillRect(
-          bar.left,
+          bar.left - width / 2.0,
           bar.top,
           bar.width,
           10,
@@ -192,8 +195,6 @@ export default {
           );
           //Draw the markers for the keyframes
           ctx.fillStyle = typeColor;
-          const overflow = 1.10; // CHANGE to > ~1.05 if you want overlapping or not keyframes
-          const width = (bar.width / (bar.length - 1)) * overflow;
           let widthDivisor = 1;
           bar.markers
             .map((n) => this.x(n))
