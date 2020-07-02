@@ -120,6 +120,9 @@ export default function useStyling({ markChangesPending }: UseStylingParams) {
     if (styles) {
       // Copy over the item so they can be modified in future
       Object.entries(styles).forEach(([key, value]) => {
+        if (!customStyles.value[key]) {
+          Vue.set(customStyles.value, key, {});
+        }
         Vue.set(customStyles.value, key, value);
       });
     }

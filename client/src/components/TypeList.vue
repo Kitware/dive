@@ -155,17 +155,16 @@ export default Vue.extend({
                 />
               </v-col>
             </v-row>
-            <v-row>
+            <v-row dense>
               <v-col>
                 <v-text-field
                   v-model="editingThickness"
                   type="number"
                   :rules="[
-                    val => (val || '').length > 0 || 'This field is required'
+                    val => val >= 0 || 'Must be greater than 0'
                   ]"
                   required
                   label="Line Thickness"
-                  hide-details
                 />
               </v-col>
               <v-col>
@@ -179,30 +178,34 @@ export default Vue.extend({
                 />
               </v-col>
             </v-row>
-            <v-row>
+            <v-row dense>
               <v-col>
-                <v-slider
-                  v-model="editingOpacity"
-                  min="0.0"
-                  max="1.0"
-                  step="0.01"
-                  class="align-center"
-                  height="10"
-                  dense
-                  label="Opacity"
-                  hide-details
-                >
-                  <template v-slot:append>
-                    <v-text-field
-                      v-model="editingOpacity"
-                      class="mt-0 pt-0"
-                      hide-details
-                      single-line
-                      type="number"
-                      style="width: 60px"
-                    />
-                  </template>
-                </v-slider>
+                <v-row class="my-0">
+                  <v-slider
+                    v-model="editingOpacity"
+                    min="0.0"
+                    max="1.0"
+                    step="0.01"
+                    class="align-center"
+                    height="10"
+                    dense
+                    label="Opacity"
+                    hide-details
+                  >
+                    <template v-slot:append>
+                      <v-text-field
+                        v-model="editingOpacity"
+                        class="mt-0 pt-0"
+                        :rules="[
+                          val => ( val >= 0 && val <= 1)|| 'Must be between 0 and 1'
+                        ]"
+                        single-line
+                        type="number"
+                        style="width: 60px"
+                      />
+                    </template>
+                  </v-slider>
+                </v-row>
               </v-col>
             </v-row>
             <v-row
