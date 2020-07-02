@@ -1,6 +1,5 @@
 <script lang="ts">
 import {
-  computed,
   defineComponent,
   ref,
 } from '@vue/composition-api';
@@ -111,6 +110,18 @@ export default defineComponent({
       updateTypeName,
     } = useTrackFilters({ trackMap, sortedTrackIds });
 
+    const location = ref(ctx.root.$store.state.Location.location);
+
+    function updateLocation() {
+      if (dataset.value && dataset.value.parentId && dataset.value.parentCollection) {
+        location.value = {
+          _id: dataset.value.parentId,
+          _modelType: dataset.value.parentCollection,
+        };
+        ctx.root.$store.commit('Location/setLocation', location.value);
+      }
+    }
+
     Promise.all([
       loadDataset(datasetId),
       loadTracks(datasetId),
@@ -124,6 +135,9 @@ export default defineComponent({
         styles: dataset.value?.meta.customTypeStyling,
         colorList: dataset.value?.meta.customTypeColors,
       });
+      if (!location.value) {
+        updateLocation();
+      }
     });
 
     const {
@@ -167,7 +181,6 @@ export default defineComponent({
       removeTrack,
     });
 
-    const location = computed(() => ctx.root.$store.state.Location.location);
 
     async function splitTracks(trackId: TrackId | undefined, _frame: number) {
       if (trackId) {
