@@ -25,9 +25,6 @@ export default Vue.extend({
       showPicker: false,
       selectedColor: '',
       selectedType: '',
-      selectedThickness: 5,
-      selectedFill: false,
-      selectedOpacity: 1.0,
       editingType: '',
       editingColor: '',
       editingThickness: 5,
@@ -40,11 +37,10 @@ export default Vue.extend({
       this.selectedType = type;
       this.editingType = this.selectedType;
       this.showPicker = true;
-      this.selectedColor = this.typeStyling.value.color(type);
-      this.editingColor = this.selectedColor;
-      this.selectedThickness = this.typeStyling.value.strokeWidth(type);
-      this.selectedFill = this.typeStyling.value.fill(type);
-      this.selectedOpacity = this.typeStyling.value.opacity(type);
+      this.editingColor = this.typeStyling.value.color(type);
+      this.editingThickness = this.typeStyling.value.strokeWidth(type);
+      this.editingFill = this.typeStyling.value.fill(type);
+      this.editingOpacity = this.typeStyling.value.opacity(type);
     },
     acceptChanges() {
       this.showPicker = false;

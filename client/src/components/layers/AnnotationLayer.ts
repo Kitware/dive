@@ -82,7 +82,7 @@ export default class AnnotationLayer extends BaseLayer<RectGeoJSData> {
         }
         return this.typeStyling.value.color('');
       },
-      fill: (data, _index) => {
+      fill: (data) => {
         if (data.confidencePairs) {
           return this.typeStyling.value.fill(data.confidencePairs[0]);
         }

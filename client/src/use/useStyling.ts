@@ -2,7 +2,6 @@ import Vue from 'vue';
 import {
   inject, ref, Ref, computed,
 } from '@vue/composition-api';
-import colors from 'vuetify/lib/util/colors';
 import * as d3 from 'd3';
 import { Vuetify } from 'vuetify';
 import { setMetadataForFolder } from '@/lib/api/viame.service';
@@ -67,20 +66,17 @@ export default function useStyling({ markChangesPending }: UseStylingParams) {
   };
   // Colors provided for the different Types
   const stateStyling: StateStyles = { standard, selected, disabled };
-  const typeColors = [
-    // colors.red.accent1,
-    // colors.yellow.darken3,
-    // colors.purple.lighten3,
-    // colors.green.lighten3,
-    // colors.yellow.lighten3,
-    // colors.purple.darken3,
-    // colors.green.darken3,
-  ];
+  const typeColors = [];
 
 
-  const numColors = 8;
+  const numColors = 12; //We can up the number of colors but they will become similar;
   for (let i = 0; i < numColors; i += 1) {
-    const baseColor = d3.color(d3.interpolateSpectral(i * (1 / numColors)))?.hex();
+    //We are using a rainbow but we want to skip the cyan area so number will be reduced
+    const pos = (i * (1 / numColors));
+    if (pos > 0.58 && pos < 0.63) {
+      break;
+    }
+    const baseColor = d3.color(d3.interpolateRainbow(pos))?.hex();
     if (baseColor) {
       //typeColors.push(baseColor);
       const hueColor = d3.hsl(baseColor);
@@ -88,26 +84,29 @@ export default function useStyling({ markChangesPending }: UseStylingParams) {
       hueColor.l = 0.5;
       typeColors.push(hueColor.hex());
       hueColor.s = 0.5;
-      hueColor.l = 0.25;
+      hueColor.l = 0.35;
       typeColors.push(hueColor.hex());
-      hueColor.s = 0.5;
+      hueColor.s = 1.0;
       hueColor.l = 0.75;
       typeColors.push(hueColor.hex());
     }
   }
-  let seed = 0;
-  typeColors.sort((a, b) => {
-    seed += Math.PI;
+
+  //Mix up colors in a uniform way for each launch
+  let seed = 0.5;
+  typeColors.sort(() => {
+    seed += seed;
     return Math.cos(seed);
   });
 
   function loadTypeStyles({ styles, colorList }:
     { styles?: Record<string, CustomStyle>; colorList?: Record<string, string> }) {
     //Handles old style Colors first
+
     if (colorList) {
       Object.entries(colorList).forEach(([key, value]) => {
         if (!customStyles.value[key]) {
-          customStyles.value[key] = {};
+          Vue.set(customStyles.value, key, {});
         }
         Vue.set(customStyles.value[key], 'color', value);
       });
