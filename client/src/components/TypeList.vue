@@ -30,6 +30,7 @@ export default Vue.extend({
       editingThickness: 5,
       editingFill: false,
       editingOpacity: 1.0,
+      valid: true,
     };
   },
   methods: {
@@ -74,45 +75,47 @@ export default Vue.extend({
     <v-subheader class="flex-shrink-0">
       Type Filter
     </v-subheader>
-    <div class="overflow-y-auto flex-grow-1">
-      <v-container>
+    <div class="overflow-y-auto">
+      <v-container class="py-2">
         <v-row
           v-for="type in allTypes.value"
           :key="type"
           class="hover-show-parent"
         >
-          <v-checkbox
-            v-model="checkedTypes.value"
-            :value="type"
-            :color="typeStyling.value.color(type)"
-            :label="type"
-            dense
-            shrink
-            hide-details
-            class="my-1 ml-3 type-checkbox"
-          />
-          <v-spacer />
-          <v-tooltip
-            open-delay="100"
-            bottom
-          >
-            <template #activator="{ on }">
-              <v-btn
-                class="mr-1 hover-show-child"
-                icon
-                small
-                v-on="on"
-                @click="clickEdit(type)"
-              >
-                <v-icon
+          <v-col class="d-flex flex-row align-center py-0">
+            <v-checkbox
+              v-model="checkedTypes.value"
+              :value="type"
+              :color="typeStyling.value.color(type)"
+              :label="type"
+              dense
+              shrink
+              hide-details
+              class="my-1"
+            />
+            <v-spacer />
+            <v-tooltip
+              open-delay="100"
+              bottom
+            >
+              <template #activator="{ on }">
+                <v-btn
+                  class="mr-1 hover-show-child"
+                  icon
                   small
+                  v-on="on"
+                  @click="clickEdit(type)"
                 >
-                  mdi-pencil
-                </v-icon>
-              </v-btn>
-            </template>
-            <span>Edit</span>
-          </v-tooltip>
+                  <v-icon
+                    small
+                  >
+                    mdi-pencil
+                  </v-icon>
+                </v-btn>
+              </template>
+              <span>Edit</span>
+            </v-tooltip>
+          </v-col>
         </v-row>
       </v-container>
     </div>
@@ -146,80 +149,69 @@ export default Vue.extend({
               </v-row>
             </v-container>
           </v-card-subtitle>
-          <v-container class="pt-0">
-            <v-row dense>
-              <v-col>
-                <v-text-field
-                  v-model="editingType"
-                  label="Name"
-                />
-              </v-col>
-            </v-row>
-            <v-row dense>
-              <v-col>
-                <v-text-field
-                  v-model="editingThickness"
-                  type="number"
-                  :rules="[
-                    val => val >= 0 || 'Must be greater than 0'
-                  ]"
-                  required
-                  label="Line Thickness"
-                />
-              </v-col>
-              <v-col>
-                <v-checkbox
-                  v-model="editingFill"
-                  label="Fill"
-                  dense
-                  shrink
-                  hide-details
-                  class="my-1 ml-3 type-checkbox"
-                />
-              </v-col>
-            </v-row>
-            <v-row dense>
-              <v-col>
-                <v-row class="my-0">
+          <v-card-text>
+            <v-form v-model="valid">
+              <v-row>
+                <v-col>
+                  <v-text-field
+                    v-model="editingType"
+                    label="Type Name"
+                    hide-details
+                  />
+                </v-col>
+              </v-row>
+              <v-row class="align-center">
+                <v-col>
+                  <v-text-field
+                    v-model="editingThickness"
+                    type="number"
+                    :rules="[
+                      val => val >= 0 || 'Must be >= 0'
+                    ]"
+                    required
+                    hide-details
+                    label="Box Border Thickness"
+                  />
+                </v-col>
+                <v-col>
+                  <v-checkbox
+                    v-model="editingFill"
+                    label="Fill"
+                    dense
+                    shrink
+                    hint="Toggle Box Shading"
+                    persistent-hint
+                  />
+                </v-col>
+              </v-row>
+              <v-row>
+                <v-col>
                   <v-slider
                     v-model="editingOpacity"
+                    :label="`${parseFloat(editingOpacity).toFixed(2)}`"
                     min="0.0"
                     max="1.0"
                     step="0.01"
-                    class="align-center"
-                    height="10"
-                    dense
-                    label="Opacity"
-                    hide-details
-                  >
-                    <template v-slot:append>
-                      <v-text-field
-                        v-model="editingOpacity"
-                        class="mt-0 pt-0"
-                        :rules="[
-                          val => ( val >= 0 && val <= 1)|| 'Must be between 0 and 1'
-                        ]"
-                        single-line
-                        type="number"
-                        style="width: 60px"
-                      />
-                    </template>
-                  </v-slider>
-                </v-row>
-              </v-col>
-            </v-row>
-            <v-row
-              dense
-              align="center"
-            >
-              <v-col class="mx-2">
-                <v-color-picker
-                  v-model="editingColor"
-                  hide-inputs
-                />
-              </v-col>
-            </v-row>
-          </v-container>
+                    height="8"
+                    hint="Border & Fill Opacity"
+                    class="pr-3"
+                    persistent-hint
+                  />
+                </v-col>
+              </v-row>
+              <v-row
+                dense
+                align="center"
+              >
+                <v-col class="mx-2">
+                  <v-color-picker
+                    v-model="editingColor"
+                    hide-inputs
+                  />
+                </v-col>
+              </v-row>
+            </v-form>
+          </v-card-text>
           <v-card-actions>
             <v-spacer />
             <v-btn
@@ -232,6 +224,7 @@ export default Vue.extend({
             <v-btn
               color="primary"
               depressed
+              :disabled="!valid"
               @click="acceptChanges"
             >
               Save
@@ -244,15 +237,6 @@ export default Vue.extend({
 </template>
 
 <style scoped lang='scss'>
-.type-edit{
-  overflow: hidden;
-}
-
-.type-checkbox{
-  max-width: 80%;
-  overflow:hidden;
-}
-
 .hover-show-parent {
   .hover-show-child {
     display: none;
