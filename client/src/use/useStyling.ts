@@ -68,16 +68,16 @@ export default function useStyling({ markChangesPending }: UseStylingParams) {
   // Colors provided for the different Types
   const stateStyling: StateStyles = { standard, selected, disabled };
   const typeColors = [
-    colors.red.accent1,
-    colors.yellow.darken3,
-    colors.purple.lighten3,
-    colors.green.lighten3,
-    colors.yellow.lighten3,
-    colors.purple.darken3,
-    colors.green.darken3,
+    // colors.red.accent1,
+    // colors.yellow.darken3,
+    // colors.purple.lighten3,
+    // colors.green.lighten3,
+    // colors.yellow.lighten3,
+    // colors.purple.darken3,
+    // colors.green.darken3,
   ];
 
-  /*
+
   const numColors = 8;
   for (let i = 0; i < numColors; i += 1) {
     const baseColor = d3.color(d3.interpolateSpectral(i * (1 / numColors)))?.hex();
@@ -95,7 +95,11 @@ export default function useStyling({ markChangesPending }: UseStylingParams) {
       typeColors.push(hueColor.hex());
     }
   }
-  */
+  let seed = 0;
+  typeColors.sort((a, b) => {
+    seed += Math.PI;
+    return Math.cos(seed);
+  });
 
   function loadTypeStyles({ styles, colorList }:
     { styles?: Record<string, CustomStyle>; colorList?: Record<string, string> }) {
