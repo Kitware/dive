@@ -6,6 +6,8 @@ declare module '@girder/components/src' {
     name: string;
     _id: string;
     _modelType: 'item' | 'folder' | 'file' | 'user';
+    parentCollection?: string;
+    parentId?: string;
     meta: { [key: string]: unknown };
   }
 
