@@ -1,5 +1,4 @@
 <script>
-import { mapActions, mapState, mapMutations } from 'vuex';
 import { FileManager } from '@girder/components/src/components/Snippet';
 import { getLocationType } from '@girder/components/src/utils';
 
@@ -8,6 +7,11 @@ import RunPipelineMenu from '@/components/RunPipelineMenu.vue';
 import Upload from '@/components/Upload.vue';
 import NavigationBar from '@/components/NavigationBar.vue';
 import { getPathFromLocation, getLocationFromRoute } from '@/utils';
+import {
+  mapActions,
+  mapMutations,
+  mapGetters,
+} from 'vuex';
 import {
   runVideoConversion,
   deleteResources,
@@ -31,8 +35,8 @@ export default {
     uploading: false,
   }),
   computed: {
-    ...mapState('Filetypes', ['filetypes']),
-    ...mapState('Location', ['location']),
+    ...mapGetters('Filetypes', ['getVidRegEx', 'getImgRegEx', 'getWebRegEx']),
+
     location: {
       get() {
         return this.$store.state.Location.location;

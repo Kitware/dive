@@ -9,16 +9,14 @@ import {
   VideoType,
 } from '@/constants';
 import { makeViameFolder } from '@/lib/api/viame.service';
-import { mapActions, mapState } from 'vuex';
+import { mapGetters } from 'vuex';
 import { getResponseError } from '@/lib/utils';
 
-function prepareFiles(files, filetypes) {
-  const videoFilesRegEx = new RegExp(`${filetypes.video.join('$|')}$`, 'i');
-  const imageFilesRegEx = new RegExp(`${filetypes.image.join('$|')}$`, 'i');
-
-  const videoFilter = (file) => videoFilesRegEx.test(file.name);
+function prepareFiles(files, videoRegEx, imageRegEx) {
+  console.log(files, videoRegEx, imageRegEx);
+  const videoFilter = (file) => videoRegEx.test(file.name);
   const csvFilter = (file) => /\.csv$/i.test(file.name);
-  const imageFilter = (file) => imageFilesRegEx.test(file.name);
+  const imageFilter = (file) => imageRegEx.test(file.name);
 
   const videoFiles = files.filter(videoFilter);
   const imageFiles = files.filter(imageFilter);
@@ -115,20 +113,12 @@ export default {
     ImageSequenceType,
   }),
   computed: {
-    ...mapState('Filetypes', ['filetypes']),
+    ...mapGetters('Filetypes', ['getVidRegEx', 'getImgRegEx']),
     uploadEnabled() {
       return this.location && this.location._modelType === 'folder';
     },
-    getFiletypes() {
-      return this.filetypes;
-    },
-  },
-  created() {
-    this.fetchFiletypes();
   },
   methods: {
-    ...mapActions('Filetypes', ['fetchFiletypes']),
-
     // Filter to show how many images are left to upload
     filesNotUploaded(item) {
       return item.files.filter(
@@ -189,8 +179,8 @@ export default {
         this.preUploadErrorMessage = err;
       }
     },
-    addPendingUpload(name, allFiles, filetypes) {
-      const { type, media, csv } = prepareFiles(allFiles, filetypes);
+    addPendingUpload(name, allFiles) {
+      const { type, media, csv } = prepareFiles(allFiles, this.getVidRegEx, this.getImgRegEx);
 
       const files = media.concat(csv);
       const defaultFilename = files[0].name;
