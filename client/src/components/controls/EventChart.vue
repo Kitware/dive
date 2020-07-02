@@ -153,30 +153,8 @@ export default {
       bars.forEach((bar) => {
         const typeColor = bar.color ? bar.color : '#4c9ac2';
         if (bar.selected) {
+          //Save the selectedBar for drawing after all other are complete
           selectedBar = bar;
-          /*
-          ctx.fillStyle = 'white';
-          bar.markers
-            .map((n) => this.x(n))
-            .slice(0, bar.markers.length - 1)
-            .forEach((m, i) => {
-              const current = bar.markers[i];
-              const next = bar.markers[i + 1];
-              const width = (current + 1 === next) ? 2 : 5;
-              ctx.fillRect(m, bar.top, width, 10);
-            });
-          ctx.save();
-          ctx.strokeStyle = 'white';
-          ctx.lineWidth = 2;
-          ctx.rect(
-            bar.left,
-            bar.top,
-            bar.width,
-            10,
-          );
-          ctx.stroke();
-          ctx.restore();
-          */
         } else {
           ctx.fillStyle = typeColor;
           ctx.fillRect(
@@ -194,40 +172,39 @@ export default {
         const bar = selectedBar;
         const typeColor = bar.color ? bar.color : '#4c9ac2';
         ctx.fillStyle = typeColor;
-        ctx.strokeStyle = typeColor;
         ctx.lineWidth = 2;
+        //Draw the background rect color
         ctx.fillRect(
           bar.left,
           bar.top,
           bar.width,
           10,
         );
-        ctx.fillStyle = '#00000088'; //black with opacity
-        ctx.fillRect(
-          bar.left,
-          bar.top,
-          bar.width,
-          10,
-        );
-        ctx.fillStyle = typeColor;
-        const width = bar.width / (bar.length - 1);
-        let widthDivisor = 1;
-        bar.markers
-          .map((n) => this.x(n))
-          .slice(0, bar.markers.length)
-          .forEach((m, i) => {
-            const current = bar.markers[i];
-            const next = bar.markers[i + 1];
-            if (i === bar.markers.length - 1) {
-              widthDivisor = 2.0;
-            }
-            ctx.fillRect(m - width / 2.0, bar.top, width / widthDivisor, 10);
-            // ctx.fillStyle = '#AAAAAA77';
-            // ctx.fillRect(m - width / 2.0, bar.top, width, 10);
-          });
-        // ctx.save();
-
-        //ctx.restore();
+        //Only complicate drawing if there are less markers than total frames in a bar
+        if (bar.length !== bar.markers.length) {
+        //Draw a screen over the color to mute it
+          ctx.fillStyle = '#00000088'; //black with opacity
+          ctx.fillRect(
+            bar.left,
+            bar.top,
+            bar.width,
+            10,
+          );
+          //Draw the markers for the keyframes
+          ctx.fillStyle = typeColor;
+          const overflow = 1.10; // CHANGE to > ~1.05 if you want overlapping or not keyframes
+          const width = (bar.width / (bar.length - 1)) * overflow;
+          let widthDivisor = 1;
+          bar.markers
+            .map((n) => this.x(n))
+            .slice(0, bar.markers.length)
+            .forEach((m, i) => {
+              if (i === bar.markers.length - 1) {
+                widthDivisor = 2.0;
+              }
+              ctx.fillRect(m - width / 2.0, bar.top, width / widthDivisor, 10);
+            });
+        }
       }
     },
     mousemove(e) {
