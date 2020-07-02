@@ -87,9 +87,6 @@ export default {
   beforeDestroy() {
     this.notificationBus.$off('message:job_status', this.handleNotification);
   },
-  beforeRouteUpdate(to, from, next) {
-    next();
-  },
   methods: {
     ...mapMutations('Location', ['setLocation']),
     handleNotification() {
