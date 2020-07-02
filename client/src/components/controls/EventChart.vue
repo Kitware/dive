@@ -157,10 +157,9 @@ export default {
           //Save the selectedBar for drawing after all other are complete
           selectedBar = bar;
         } else {
-          const width = (bar.width / (bar.length - 1)) * overflow;
           ctx.fillStyle = typeColor;
           ctx.fillRect(
-            bar.left - width / 2.0,
+            bar.left,
             bar.top,
             bar.width,
             10,
@@ -184,7 +183,7 @@ export default {
           10,
         );
         //Only complicate drawing if there are less markers than total frames in a bar
-        if (bar.length !== bar.markers.length) {
+        if (bar.length !== bar.markers.length - 1) {
         //Draw a screen over the color to mute it
           ctx.fillStyle = '#00000088'; //black with opacity
           ctx.fillRect(
