@@ -147,10 +147,6 @@ def train_pipeline(self, folder: Dict, groundtruth: str):
                 str(temp_path),
                 "-c",
                 str(default_conf_file),
-                "-s",
-                f"detector_trainer:ocv_windowed:train_directory={training_output_path / 'deep_training'}",
-                "-s",
-                f"detector_trainer:ocv_windowed:output_directory={training_output_path / 'category_models'}",
             ]
             process = Popen(
                 " ".join(command),
@@ -158,16 +154,19 @@ def train_pipeline(self, folder: Dict, groundtruth: str):
                 stderr=PIPE,
                 shell=True,
                 executable='/bin/bash',
+                cwd=training_output_path,
             )
 
             while process.poll() is None:
-                out = process.stdout.readline()
-                err = process.stderr.readline()
+                out = process.stdout.read()
+                err = process.stderr.read()
 
                 if out:
                     self.job_manager.write(out)
                 if err:
                     self.job_manager.write(err)
+
+            return training_output_path
 
 
 @app.task(bind=True)

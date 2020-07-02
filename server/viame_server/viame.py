@@ -132,11 +132,9 @@ class Viame(Resource):
             groundtruth_path,
             girder_client_token=str(upload_token["_id"]),
             girder_job_title=(f"Running training on folder: {str(folder['name'])}"),
-            # girder_result_hooks=[
-            #     GirderUploadToFolder(
-            #         str(folder["_id"]), result_metadata, delete_file=True
-            #     )
-            # ],
+            girder_result_hooks=[
+                GirderUploadToFolder(str(folder["_id"]), delete_file=True)
+            ],
         )
 
     @access.user
