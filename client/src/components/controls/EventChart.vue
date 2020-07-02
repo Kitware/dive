@@ -151,7 +151,6 @@ export default {
       const overflow = 0.6; // How much of a frame-width each detection box should occupy
       const barHeight = 10;
       bars.forEach((bar) => {
-        const featureWidth = (bar.width / (bar.length - 1)) * overflow;
         if (!bar.selected) {
           // If this bar is not selected
           const typeColor = bar.color ? bar.color : '#4c9ac2';
@@ -168,12 +167,8 @@ export default {
           // Else draw individual feature frame segments
           // Decrease SelectedColor opacity to mute it.
           ctx.fillStyle = selectedColor.concat(muteOpacity);
-          ctx.fillRect(
-            bar.left,
-            bar.top,
-            bar.width,
-            barHeight,
-          );
+          ctx.fillRect(bar.left, bar.top, bar.width, barHeight);
+          const featureWidth = (bar.width / (bar.length - 1)) * overflow;
           // Draw bright markers for the keyframes
           ctx.fillStyle = selectedColor;
           bar.markers
