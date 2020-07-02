@@ -20,7 +20,7 @@ const filetypeModule: Module<FiletypeState, never> = {
       if (state.filetypes === null) {
         const { data } = await getValidFileTypes();
 
-        commit('setFileTypes', data);
+        commit('setFiletypes', data);
         return data;
       }
       return state.filetypes;

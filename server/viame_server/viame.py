@@ -160,4 +160,4 @@ class Viame(Resource):
     @access.user
     @describeRoute(Description("Get Valid Image/Video filetypes for uploading"))
     def get_valid_filetypes(self, params):
-        return {"types" : {'image': validImageFormats, 'video': validVideoFormats, 'web': webValidImageFormats}}
+        return {'image': validImageFormats, 'video': validVideoFormats, 'web': webValidImageFormats}
