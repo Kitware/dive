@@ -119,9 +119,6 @@ export default {
     uploadEnabled() {
       return this.location && this.location._modelType === 'folder';
     },
-    getFiletypes() {
-      return this.filetypes;
-    },
   },
   created() {
     this.fetchFiletypes();
