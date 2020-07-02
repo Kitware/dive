@@ -32,6 +32,13 @@ export interface TypeStyling {
   opacity: (type: string) => number;
 }
 
+interface UpdateStylingArgs {
+  type: string;
+  color?: string;
+  strokeWidth?: number;
+  opacity?: number;
+  fill?: boolean;
+}
 interface UseStylingParams {
   markChangesPending: () => void;
 }
@@ -102,7 +109,6 @@ export default function useStyling({ markChangesPending }: UseStylingParams) {
   function loadTypeStyles({ styles, colorList }:
     { styles?: Record<string, CustomStyle>; colorList?: Record<string, string> }) {
     //Handles old style Colors first
-
     if (colorList) {
       Object.entries(colorList).forEach(([key, value]) => {
         if (!customStyles.value[key]) {
@@ -119,17 +125,11 @@ export default function useStyling({ markChangesPending }: UseStylingParams) {
     }
   }
 
-
-  function updateTypeStyle({
-    type, color, strokeWidth, opacity, fill,
-  }:
-    {type: string; color?: string; strokeWidth?: number; opacity?: number; fill?: boolean}) {
+  function updateTypeStyle(args: UpdateStylingArgs) {
+    const { type } = args;
     if (!customStyles.value[type]) {
       Vue.set(customStyles.value, type, {});
     }
-    const args = {
-      color, strokeWidth, opacity, fill,
-    };
     Object.entries(args).forEach(([key, value]) => {
       if (value !== undefined) {
         if (!customStyles.value[type]) {
