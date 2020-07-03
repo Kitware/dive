@@ -71,40 +71,51 @@ export default function useStyling({ markChangesPending }: UseStylingParams) {
     opacity: 0.45,
     fill: false,
   };
-  // Colors provided for the different Types
   const stateStyling: StateStyles = { standard, selected, disabled };
-  const typeColors = [];
 
-
-  const numColors = 12; //We can up the number of colors but they will become similar;
-  for (let i = 0; i < numColors; i += 1) {
+  /**
+   * Generates a color pallette to be used for mapping type names to colors.
+   * It generates colors from a rainbow spectrum and then takes a dark and lighter version
+   * of each color.
+   * @param {int} numColors - number of colors to attempt to generate the higher
+   * the number the more similar the colors will be.  Cyan like colors will be filtered out,
+   * so numColors isn't a guarantee of x*3 (normal, dark, light) colors.
+   */
+  function generateColors(numColors: number) {
+    const colorList = [];
+    for (let i = 0; i < numColors; i += 1) {
     //We are using a rainbow but we want to skip the cyan area so number will be reduced
-    const pos = (i * (1 / numColors));
-    if (pos > 0.58 && pos < 0.63) {
-      break;
+      const pos = (i * (1 / numColors));
+      if (pos > 0.58 && pos < 0.63) {
+        break;
+      }
+      const baseColor = d3.color(d3.interpolateRainbow(pos))?.hex();
+      if (baseColor) {
+        const hueColor = d3.hsl(baseColor);
+        hueColor.s = 1.0;
+        hueColor.l = 0.5;
+        colorList.push(hueColor.hex());
+        hueColor.s = 0.5;
+        hueColor.l = 0.35;
+        colorList.push(hueColor.hex());
+        hueColor.s = 1.0;
+        hueColor.l = 0.75;
+        colorList.push(hueColor.hex());
+      }
     }
-    const baseColor = d3.color(d3.interpolateRainbow(pos))?.hex();
-    if (baseColor) {
-      //typeColors.push(baseColor);
-      const hueColor = d3.hsl(baseColor);
-      hueColor.s = 1.0;
-      hueColor.l = 0.5;
-      typeColors.push(hueColor.hex());
-      hueColor.s = 0.5;
-      hueColor.l = 0.35;
-      typeColors.push(hueColor.hex());
-      hueColor.s = 1.0;
-      hueColor.l = 0.75;
-      typeColors.push(hueColor.hex());
-    }
+
+    //Mix up colors in a uniform way so reloads have the same types associated with the same colors
+    let seed = 0.5;
+    colorList.sort(() => {
+      seed += seed;
+      return Math.cos(seed);
+    });
+    return colorList;
   }
 
-  //Mix up colors in a uniform way for each launch
-  let seed = 0.5;
-  typeColors.sort(() => {
-    seed += seed;
-    return Math.cos(seed);
-  });
+  //Generate Colors for the types.
+  const typeColors = generateColors(12);
+
 
   function loadTypeStyles({ styles, colorList }:
     { styles?: Record<string, CustomStyle>; colorList?: Record<string, string> }) {
