@@ -1,6 +1,10 @@
 <script>
+import TooltipBtn from './TooltipButton.vue';
+
 export default {
   name: 'TrackItem',
+
+  components: { TooltipBtn },
 
   props: {
     trackType: {
@@ -27,7 +31,7 @@ export default {
       type: Boolean,
       required: true,
     },
-    editingTrack: {
+    editing: {
       type: Boolean,
       required: true,
     },
@@ -45,7 +49,7 @@ export default {
   },
 
   computed: {
-    splittable() {
+    isTrack() {
       return this.track.length > 1;
     },
     trackId() {
@@ -70,17 +74,21 @@ export default {
      */
     feature() {
       if (this.track.revision.value) {
-        const [real, lower, upper] = this.track.getFeature(this.frame.value);
+        const { features, interpolate } = this.track.canInterpolate(this.frame.value);
+        const [real, lower, upper] = features;
         return {
           real,
           lower,
           upper,
+          shouldInterpolate: interpolate,
+          isKeyframe: real?.keyframe,
         };
       }
       return {
         real: null,
         lower: null,
         upper: null,
+        shouldInterpolate: false,
       };
     },
   },
@@ -120,13 +128,13 @@ export default {
       }
     },
     toggleInterpolation() {
-      const newValue = this.feature.lower
-        ? this.feature.lower.interpolate || false
-        : (this.feature.upper && this.feature.upper.interpolate) || false;
-      if (this.feature.lower || this.feature.upper) {
+      const targetFeature = this.feature.isKeyframe
+        ? this.feature.real
+        : (this.feature.lower || this.feature.upper);
+      if (targetFeature) {
         this.track.setFeature({
-          ...(this.feature.lower || this.feature.upper),
-          interpolate: !newValue,
+          ...targetFeature,
+          interpolate: !this.feature.shouldInterpolate,
         });
       }
     },
@@ -167,7 +175,7 @@ export default {
         class="trackNumber pl-0 pr-2"
         @click.self="$emit('click')"
       >
-        {{ trackId + (editingTrack && selected ? "*" : "") }}
+        {{ trackId }}
       </div>
       <v-spacer />
       <input
@@ -186,112 +194,72 @@ export default {
     <v-row
       class="px-3 py-1 justify-center item-row flex-nowrap"
     >
+      <v-spacer v-if="!isTrack" />
       <template v-if="selected">
-        <v-btn
-          small
-          icon
+        <tooltip-btn
           color="error"
+          icon="mdi-delete"
+          :tooltip-text="`Delete ${isTrack ? 'Track' : 'Detection'}`"
           @click="$emit('delete')"
-        >
-          <v-icon>mdi-delete</v-icon>
-        </v-btn>
+        />
 
-        <v-btn
-          small
-          icon
-          :disabled="!(frame.value > track.begin && frame.value <= track.end)"
+        <tooltip-btn
+          v-if="isTrack"
+          :disabled="!track.canSplit(frame.value)"
+          icon="mdi-call-split"
+          tooltip-text="Split Track"
           @click="$emit('split')"
-        >
-          <v-icon>mdi-call-split</v-icon>
-        </v-btn>
-      </template>
+        />
 
-      <template v-if="selected">
-        <v-btn
-          small
-          icon
+        <tooltip-btn
+          v-if="isTrack"
+          :icon="(feature.shouldInterpolate)
+            ? 'mdi-vector-selection'
+            : 'mdi-selection-off'"
           :disabled="!feature.real"
+          tooltip-text="Toggle keyframe"
           @click="toggleKeyframe"
-        >
-          <v-icon v-if="feature.real && feature.real.keyframe">
-            mdi-star
-          </v-icon>
-          <v-icon v-else>
-            mdi-star-outline
-          </v-icon>
-        </v-btn>
-
-        <v-btn
-          small
-          icon
-          @click="toggleInterpolation"
-        >
-          <v-icon
-            v-if="
-              (feature.real && feature.real.interpolate)
-                || (feature.lower && feature.lower.interpolate)
-                || ((feature.lower === null) && feature.upper && feature.upper.interpolate)
-            "
-          >
-            mdi-vector-selection
-          </v-icon>
-          <v-icon v-else>
-            mdi-selection-off
-          </v-icon>
-        </v-btn>
+        />
       </template>
-      <v-spacer />
-      <template v-if="track.length > 1">
-        <v-btn
-          small
-          icon
+      <v-spacer v-if="isTrack" />
+      <template v-if="isTrack">
+        <tooltip-btn
+          icon="mdi-chevron-double-left"
+          tooltip-text="Seek to track beginning"
           @click="$emit('seek', track.begin)"
-        >
-          <v-icon>mdi-chevron-double-left</v-icon>
-        </v-btn>
+        />
 
-        <v-btn
-          small
-          icon
+        <tooltip-btn
+          icon="mdi-chevron-left"
+          tooltip-text="Seek to previous keyframe"
           @click="gotoPrevious"
-        >
-          <v-icon>mdi-chevron-left</v-icon>
-        </v-btn>
+        />
 
-        <v-btn
-          small
-          icon
+        <tooltip-btn
+          icon="mdi-chevron-right"
+          tooltip-text="Seek to next keyframe"
           @click="gotoNext"
-        >
-          <v-icon>mdi-chevron-right</v-icon>
-        </v-btn>
+        />
 
-        <v-btn
-          small
-          icon
+        <tooltip-btn
+          icon="mdi-chevron-double-right"
+          tooltip-text="Seek to track end"
           @click="$emit('seek', track.end)"
-        >
-          <v-icon>mdi-chevron-double-right</v-icon>
-        </v-btn>
+        />
       </template>
-      <template v-else>
-        <v-btn
-          small
-          icon
-          @click="$emit('seek', track.begin)"
-        >
-          <v-icon>mdi-map-marker</v-icon>
-        </v-btn>
-      </template>
+      <tooltip-btn
+        v-else
+        icon="mdi-map-marker"
+        tooltip-text="Seek to detection"
+        @click="$emit('seek', track.begin)"
+      />
 
-      <v-btn
-        small
-        icon
+      <tooltip-btn
+        :icon="(editing) ? 'mdi-pencil-box' : 'mdi-pencil-box-outline'"
+        tooltip-text="Toggle edit mode"
         :disabled="!inputValue"
         @click="$emit('edit')"
-      >
-        <v-icon>mdi-pencil</v-icon>
-      </v-btn>
+      />
     </v-row>
   </div>
 </template>

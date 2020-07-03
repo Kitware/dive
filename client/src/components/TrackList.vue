@@ -144,12 +144,13 @@ export default Vue.extend({
       }
       const type = track.getType();
       const trackType = type ? type[0] : '';
+      const selected = selectedTrackId === trackId;
       return {
         trackType,
         track,
         inputValue: checkedTrackIds.indexOf(trackId) >= 0,
-        selected: selectedTrackId === trackId,
-        editingTrack,
+        selected,
+        editing: selected && this.editingTrack.value,
         color: this.typeStyling.value.color(trackType),
         types: allTypes,
         frame: this.frame,

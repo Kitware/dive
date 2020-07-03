@@ -90,20 +90,14 @@ export default function useModeManager({
       const track = trackMap.get(selectedTrackId.value);
       if (track) {
         // Determines if we are creating a new Detection
-        const features = track.getFeature(frameNum);
-        const [real, upper, lower] = features;
+        const { features, interpolate } = track.canInterpolate(frameNum);
+        const [real] = features;
         if (!real || real.bounds === undefined) {
           newDetectionMode = true;
         }
-        // A new keyframe enables interpolation
-        // iff its lower bound allows it OR it has no
-        // lower bound and its upper bound allows it
-        // OR the existing feature at the current frame
-        // allows it. This final case happens when an interpolated
-        // frame is edited to become a keyframe.
         const interpolateTrack = newTrackMode
           ? newTrackSettings.modeSettings.Track.interpolate
-          : !!(real?.interpolate || (lower?.interpolate) || (!lower && upper?.interpolate));
+          : interpolate;
         track.setFeature({
           frame: frameNum,
           bounds,
@@ -130,10 +124,11 @@ export default function useModeManager({
     removeTrack(trackId);
   }
 
+  /** Toggle editing mode for track */
   function handleTrackEdit(trackId: TrackId) {
     const track = getTrack(trackId);
     seekNearest(track);
-    selectTrack(trackId, true);
+    selectTrack(trackId, trackId === selectedTrackId.value ? (!editingTrack.value) : true);
   }
 
   function handleTrackClick(trackId: TrackId) {

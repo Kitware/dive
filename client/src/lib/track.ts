@@ -168,6 +168,20 @@ export default class Track {
     return frame > this.begin && frame <= this.end;
   }
 
+  /** Determine if a hypothetical feature at frame should enable interpolation */
+  canInterpolate(frame: number): {
+      features: [Feature|null, Feature|null, Feature|null];
+      interpolate: boolean;
+    } {
+    const [real, lower, upper] = this.getFeature(frame);
+    return {
+      features: [real, lower, upper],
+      interpolate: real?.interpolate
+        || (lower?.interpolate)
+        || (!lower && (upper?.interpolate || false)),
+    };
+  }
+
   /**
    * Split trackId in two at given frame, where frame is allocated
    * to the second track.  Both tracks must end up with at least 1 detection.
