@@ -239,7 +239,7 @@ export default Vue.extend({
 <style scoped lang='scss'>
 .type-checkbox {
   max-width: 80%;
-  overflow: hidden;
+  overflow-wrap: anywhere;
 }
 
 .hover-show-parent {
