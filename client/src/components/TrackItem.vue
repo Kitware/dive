@@ -50,7 +50,7 @@ export default {
 
   computed: {
     isTrack() {
-      return this.track.length > 1;
+      return this.track.revision.value && this.track.length > 1;
     },
     trackId() {
       return this.track.trackId;
@@ -80,6 +80,8 @@ export default {
           real,
           lower,
           upper,
+          // Upper an lower are always going to be keyframes
+          targetKeyframe: real?.isKeyframe ? real : (lower || upper),
           shouldInterpolate: interpolate,
           isKeyframe: real?.keyframe,
         };
@@ -88,7 +90,9 @@ export default {
         real: null,
         lower: null,
         upper: null,
+        targetKeyframe: null,
         shouldInterpolate: false,
+        isKeyframe: false,
       };
     },
   },
@@ -117,7 +121,7 @@ export default {
       this.skipOnFocus = false;
     },
     toggleKeyframe() {
-      if (!this.feature.real.keyframe) {
+      if (this.feature.real && !this.feature.isKeyframe) {
         this.track.setFeature({
           ...this.feature.real,
           frame: this.frame.value,
@@ -128,12 +132,9 @@ export default {
       }
     },
     toggleInterpolation() {
-      const targetFeature = this.feature.isKeyframe
-        ? this.feature.real
-        : (this.feature.lower || this.feature.upper);
-      if (targetFeature) {
+      if (this.feature.targetKeyframe) {
         this.track.setFeature({
-          ...targetFeature,
+          ...this.feature.targetKeyframe,
           interpolate: !this.feature.shouldInterpolate,
         });
       }
@@ -213,12 +214,21 @@ export default {
 
         <tooltip-btn
           v-if="isTrack"
-          :icon="(feature.shouldInterpolate)
-            ? 'mdi-vector-selection'
-            : 'mdi-selection-off'"
+          :icon="(feature.isKeyframe)
+            ? 'mdi-star'
+            : 'mdi-star-outline'"
           :disabled="!feature.real"
           tooltip-text="Toggle keyframe"
           @click="toggleKeyframe"
+        />
+
+        <tooltip-btn
+          v-if="isTrack"
+          :icon="(feature.shouldInterpolate)
+            ? 'mdi-vector-selection'
+            : 'mdi-selection-off'"
+          tooltip-text="Toggle interpolation"
+          @click="toggleInterpolation"
         />
       </template>
       <v-spacer v-if="isTrack" />
