@@ -91,7 +91,7 @@ export default Vue.extend({
               dense
               shrink
               hide-details
-              class="my-1"
+              class="my-1 type-checkbox"
             />
             <v-spacer />
             <v-tooltip
@@ -237,6 +237,11 @@ export default Vue.extend({
 </template>
 
 <style scoped lang='scss'>
+.type-checkbox {
+  max-width: 80%;
+  overflow: hidden;
+}
+
 .hover-show-parent {
   .hover-show-child {
     display: none;
