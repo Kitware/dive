@@ -87,7 +87,7 @@ export default {
               const left = x(event.range[0]);
               bars.push({
                 left,
-                width: (x(event.range[1]) - left) || x(1),
+                width: Math.max(x(event.range[1]) - left, x(1)),
                 top: i * 15 + 3,
                 color: event.color,
                 selected: event.selected,
