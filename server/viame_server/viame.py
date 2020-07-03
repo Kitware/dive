@@ -133,7 +133,7 @@ class Viame(Resource):
             girder_client_token=str(upload_token["_id"]),
             girder_job_title=(f"Running training on folder: {str(folder['name'])}"),
             girder_result_hooks=[
-                GirderUploadToFolder(str(folder["_id"]), delete_file=True)
+                GirderUploadToFolder(str(folder["_id"]), metadata={}, delete_file=True)
             ],
         )
 
