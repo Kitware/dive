@@ -8,6 +8,7 @@ import { Ref } from '@vue/composition-api';
 // eslint-disable-next-line max-len
 export type StyleFunction<T, D> = T | ((point: [number, number], index: number, data: D) => T | undefined);
 export type ObjectFunction<T, D> = T | ((data: D, index: number) => T | undefined);
+export type PointFunction<T, D> = T | ((data: D) => T | undefined);
 
 export interface LayerStyle<D> {
   strokeWidth?: StyleFunction<number, D>;
@@ -15,7 +16,7 @@ export interface LayerStyle<D> {
   strokeOpacity?: StyleFunction<number, D>;
   strokeColor?: StyleFunction<string, D>;
   position?: (point: [number, number]) => { x: number; y: number };
-  fillColor?: StyleFunction<string, D>;
+  fillColor?: StyleFunction<string, D> | PointFunction<string, D>;
   fillOpacity?: StyleFunction<number, D>;
   color?: (data: D) => string;
   offset?: (data: D) => { x: number; y: number };
