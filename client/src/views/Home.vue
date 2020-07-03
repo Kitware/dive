@@ -1,5 +1,5 @@
 <script>
-import { mapState, mapMutations } from 'vuex';
+import { mapMutations } from 'vuex';
 import { FileManager } from '@girder/components/src/components/Snippet';
 import { getLocationType } from '@girder/components/src/utils';
 
@@ -27,20 +27,21 @@ export default {
   },
   inject: ['notificationBus'],
   data: () => ({
-    location_: null,
     uploaderDialog: false,
     selected: [],
     uploading: false,
   }),
   computed: {
-    ...mapState('Location', ['location']),
 
     location: {
       get() {
-        return this.location_;
+        return this.$store.state.Location.location;
       },
+      /**
+       * This setter is used by Girder Web Components to set the location when it changes
+       * by clicking on a Breadcrumb link
+       */
       set(value) {
-        this.location_ = value;
         const newPath = getPathFromLocation(value);
         if (this.$route.path !== newPath) {
           this.$router.push(newPath);
@@ -80,16 +81,11 @@ export default {
     },
   },
   created() {
-    this.location_ = getLocationFromRoute(this.$route);
-    this.setLocation(this.location_);
+    this.setLocation(getLocationFromRoute(this.$route));
     this.notificationBus.$on('message:job_status', this.handleNotification);
   },
   beforeDestroy() {
     this.notificationBus.$off('message:job_status', this.handleNotification);
-  },
-  beforeRouteUpdate(to, from, next) {
-    this.location_ = getLocationFromRoute(to);
-    next();
   },
   methods: {
     ...mapMutations('Location', ['setLocation']),
