@@ -31,11 +31,8 @@ export default {
       required: true,
     },
     data: {
-      type: Array,
+      type: Object,
       required: true,
-      validator(data) {
-        return !data.find((datum) => !datum.range);
-      },
     },
   },
   data() {
@@ -48,7 +45,7 @@ export default {
   },
   computed: {
     barData() {
-      const sorted = sortBy(this.data, (data) => data.range[0]);
+      const sorted = sortBy(this.data.values, (data) => data.range[0]);
       const bars = [];
       sorted.forEach((event) => {
         for (let i = 0, n = bars.length; i < n; i += 1) {
@@ -90,7 +87,7 @@ export default {
               const left = x(event.range[0]);
               bars.push({
                 left,
-                width: Math.max(x(event.range[1]) - left, 3),
+                width: (x(event.range[1]) - left) || x(1),
                 top: i * 15 + 3,
                 color: event.color,
                 selected: event.selected,
@@ -149,63 +146,44 @@ export default {
       }
       canvas.width = this.clientWidth;
       canvas.height = bars.slice(-1)[0].top + 15;
-      const overflow = 1.1; // CHANGE to > ~1.05 if you want overlapping or not keyframes
-      let selectedBar = null;
+      const muteOpacity = '30'; // Hex string: how much to mute regular colors: '#RRGGBB[AA]'
+      const selectedColor = this.$vuetify.theme.themes.dark.accent;
+      const overflow = 0.6; // How much of a frame-width each detection box should occupy
+      const barHeight = 10;
       bars.forEach((bar) => {
-        const typeColor = bar.color ? bar.color : '#4c9ac2';
-        if (bar.selected) {
-          //Save the selectedBar for drawing after all other are complete
-          selectedBar = bar;
+        if (!bar.selected) {
+          // If this bar is not selected
+          const typeColor = bar.color ? bar.color : '#4c9ac2';
+          const typeColorMuted = typeColor.concat(muteOpacity);
+          ctx.fillStyle = this.data.muted
+            ? typeColorMuted
+            : typeColor;
+          ctx.fillRect(bar.left, bar.top, bar.width, barHeight);
+        } else if (bar.length === bar.markers.length - 1) {
+          // Else if Keyframe density is 100%
+          ctx.fillStyle = selectedColor;
+          ctx.fillRect(bar.left, bar.top, bar.width, barHeight);
         } else {
-          ctx.fillStyle = typeColor;
-          ctx.fillRect(
-            bar.left,
-            bar.top,
-            bar.width,
-            10,
-          );
-        }
-      });
-      if (selectedBar) {
-        //draw screen
-        ctx.fillStyle = '#000000DD'; //black with opacity
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        const bar = selectedBar;
-        const typeColor = bar.color ? bar.color : '#4c9ac2';
-        const width = (bar.width / (bar.length - 1)) * overflow;
-        ctx.fillStyle = typeColor;
-        ctx.lineWidth = 2;
-        //Draw the background rect color
-        ctx.fillRect(
-          bar.left - width / 2.0,
-          bar.top,
-          bar.width,
-          10,
-        );
-        //Only complicate drawing if there are less markers than total frames in a bar
-        if (bar.length !== bar.markers.length - 1) {
-        //Draw a screen over the color to mute it
-          ctx.fillStyle = '#00000088'; //black with opacity
-          ctx.fillRect(
-            bar.left,
-            bar.top,
-            bar.width,
-            10,
-          );
-          //Draw the markers for the keyframes
-          ctx.fillStyle = typeColor;
-          let widthDivisor = 1;
+          // Else draw individual feature frame segments
+          // Decrease SelectedColor opacity to mute it.
+          ctx.fillStyle = selectedColor.concat(muteOpacity);
+          ctx.fillRect(bar.left, bar.top, bar.width, barHeight);
+          const featureWidth = (bar.width / (bar.length - 1)) * overflow;
+          // Draw bright markers for the keyframes
+          ctx.fillStyle = selectedColor;
           bar.markers
             .map((n) => this.x(n))
-            .slice(0, bar.markers.length)
-            .forEach((m, i) => {
-              if (i === bar.markers.length - 1) {
-                widthDivisor = 2.0;
-              }
-              ctx.fillRect(m - width / 2.0, bar.top, width / widthDivisor, 10);
+            .forEach((m) => {
+              ctx.fillRect(
+                // offset frame back 1/2 width so the cursor falls in the middle
+                m - (featureWidth / 2),
+                bar.top,
+                featureWidth,
+                barHeight,
+              );
             });
         }
-      }
+      });
     },
     mousemove(e) {
       this.tooltip = null;
