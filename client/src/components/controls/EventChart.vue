@@ -172,15 +172,25 @@ export default {
           // Draw bright markers for the keyframes
           ctx.fillStyle = selectedColor;
           bar.markers
-            .map((n) => this.x(n))
-            .forEach((m) => {
+            .map(([f, interpolate]) => [this.x(f), interpolate])
+            .forEach(([pos, interpolate], i) => {
+              const halfFeatureWidth = (featureWidth / 2);
+              const barMiddle = bar.top + (barHeight / 2);
+              const next = bar.markers[i + 1];
               ctx.fillRect(
                 // offset frame back 1/2 width so the cursor falls in the middle
-                m - (featureWidth / 2),
+                pos - halfFeatureWidth,
                 bar.top,
                 featureWidth,
                 barHeight,
               );
+              if (next && interpolate) {
+                const nextPos = this.x(next[0]);
+                ctx.strokeStyle = this.$vuetify.theme.themes.dark.success;
+                ctx.moveTo(pos + halfFeatureWidth, barMiddle);
+                ctx.lineTo(nextPos - halfFeatureWidth, barMiddle);
+                ctx.stroke();
+              }
             });
         }
       });

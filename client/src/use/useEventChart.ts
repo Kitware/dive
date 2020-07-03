@@ -16,7 +16,7 @@ interface EventChartData {
   color: string;
   selected: boolean;
   range: [number, number];
-  markers: number[];
+  markers: [number, boolean][];
 }
 
 export default function useEventChart({
@@ -41,7 +41,8 @@ export default function useEventChart({
           color: mapfunc(trackType),
           selected: trackId === selectedTrackIdValue,
           range: [track.begin, track.end],
-          markers: track.featureIndex,
+          markers: track.featureIndex.map((i) => (
+            [i, track.features[i].interpolate || false])),
         });
       }
     });
