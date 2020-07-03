@@ -167,7 +167,7 @@ export default defineComponent({
     const location = computed(() => ctx.root.$store.state.Location.location);
 
     async function splitTracks(trackId: TrackId | undefined, _frame: number) {
-      if (trackId) {
+      if (typeof trackId === 'number') {
         const track = getTrack(trackId);
         let newtracks: [Track, Track];
         try {
