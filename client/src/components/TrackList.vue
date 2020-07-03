@@ -150,7 +150,7 @@ export default Vue.extend({
         track,
         inputValue: checkedTrackIds.indexOf(trackId) >= 0,
         selected,
-        editing: selected && this.editingTrack.value,
+        editing: selected && editingTrack,
         color: this.typeStyling.value.color(trackType),
         types: allTypes,
         frame: this.frame,
