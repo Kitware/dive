@@ -22,6 +22,7 @@ from .utils import (
     get_or_create_auxiliary_folder,
     move_existing_result_to_auxiliary_folder,
     csv_detection_file,
+    training_output_folder,
 )
 
 
@@ -127,13 +128,18 @@ class Viame(Resource):
             # Detection item is in root folder
             groundtruth_path = detection["name"]
 
+        # Ensure the folder to upload results to exists
+        results_folder = training_output_folder(folder, user)
+
         return train_pipeline.delay(
             folder,
             groundtruth_path,
             girder_client_token=str(upload_token["_id"]),
             girder_job_title=(f"Running training on folder: {str(folder['name'])}"),
             girder_result_hooks=[
-                GirderUploadToFolder(str(folder["_id"]), metadata={}, delete_file=True)
+                GirderUploadToFolder(
+                    str(results_folder["_id"]), metadata={}, delete_file=True
+                )
             ],
         )
 

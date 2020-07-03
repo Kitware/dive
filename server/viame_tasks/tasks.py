@@ -135,6 +135,10 @@ def train_pipeline(self, folder: Dict, groundtruth: str):
         # Organize data
         groundtruth_path = download_path / groundtruth
         organize_folder_for_training(temp_path, download_path, groundtruth_path)
+
+        # No context manager used, because this needs to exist when the girder result
+        # hook is called. Because we set the `delete_file=True` parameter on that hook,
+        # this folder will be deleted after the hook finishes.
         training_output_path = Path(tempfile.mkdtemp())
 
         # Call viame_train_detector

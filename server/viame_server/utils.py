@@ -33,6 +33,9 @@ VideoMimeTypes = {
     "video/x-msvideo",
 }
 
+TrainingOutputFolderName = "Training Results"
+
+
 # Ad hoc way to guess the FPS of an Image Sequence based on file names
 # Currently not being used, can only be used once you know that all items
 # have been imported.
@@ -75,6 +78,13 @@ def move_existing_result_to_auxiliary_folder(folder, user):
     )
     if existingResultItem:
         Item().move(existingResultItem, auxiliary)
+
+
+def training_output_folder(folder, user):
+    """Ensure that `folder` has a "Training Output" folder"""
+    return Folder().createFolder(
+        folder, TrainingOutputFolderName, creator=user, reuseExisting=True
+    )
 
 
 def csv_detection_file(detection_item, user):
