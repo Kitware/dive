@@ -117,9 +117,7 @@ export default function useModeManager({
     // if removed track was selected, unselect before remove
     if (selectedTrackId.value === trackId) {
       const newTrack = selectNextTrack(1) !== null ? selectNextTrack(1) : selectNextTrack(-1);
-      if (newTrack !== null) {
-        selectTrack(newTrack, false);
-      }
+      selectTrack(newTrack, false);
     }
     removeTrack(trackId);
   }
