@@ -1,9 +1,9 @@
 import json
 import os
 import tempfile
-import shutil
 from pathlib import Path
 from subprocess import PIPE, Popen
+from datetime import datetime
 
 from girder_worker.app import app
 from viame_tasks.utils import organize_folder_for_training
@@ -140,6 +140,10 @@ def train_pipeline(self, folder: Dict, groundtruth: str):
         # hook is called. Because we set the `delete_file=True` parameter on that hook,
         # this folder will be deleted after the hook finishes.
         training_output_path = Path(tempfile.mkdtemp())
+        timestamped_output = (
+            training_output_path / datetime.utcnow().replace(microsecond=0).isoformat()
+        )
+        timestamped_output.mkdir()
 
         # Call viame_train_detector
         command = [
@@ -156,7 +160,7 @@ def train_pipeline(self, folder: Dict, groundtruth: str):
             stderr=PIPE,
             shell=True,
             executable='/bin/bash',
-            cwd=training_output_path,
+            cwd=timestamped_output,
         )
 
         while process.poll() is None:
