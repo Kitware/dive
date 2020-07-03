@@ -184,7 +184,7 @@ export default {
       >
     </v-row>
     <v-row
-      class="px-3 py-1 justify-center item-row"
+      class="px-3 py-1 justify-center item-row flex-nowrap"
     >
       <template v-if="selected">
         <v-btn
