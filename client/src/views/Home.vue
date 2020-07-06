@@ -9,7 +9,6 @@ import NavigationBar from '@/components/NavigationBar.vue';
 import { getPathFromLocation, getLocationFromRoute } from '@/utils';
 import {
   mapActions,
-  mapState,
   mapMutations,
   mapGetters,
 } from 'vuex';
@@ -36,7 +35,6 @@ export default {
     uploading: false,
   }),
   computed: {
-    ...mapState('Location', ['location']),
     ...mapGetters('Filetypes', ['getVidRegEx', 'getImgRegEx', 'getWebRegEx']),
 
     location: {

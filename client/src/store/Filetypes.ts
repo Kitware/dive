@@ -41,7 +41,6 @@ const filetypeModule: Module<FiletypeState, never> = {
         const { data } = await getValidFileTypes();
         commit('setFiletypes', data);
       }
-      return state.filetypes;
     },
   },
 };

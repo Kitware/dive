@@ -9,7 +9,7 @@ import {
   VideoType,
 } from '@/constants';
 import { makeViameFolder } from '@/lib/api/viame.service';
-import { mapActions, mapGetters } from 'vuex';
+import { mapGetters } from 'vuex';
 import { getResponseError } from '@/lib/utils';
 
 function prepareFiles(files, videoRegEx, imageRegEx) {
@@ -117,12 +117,7 @@ export default {
       return this.location && this.location._modelType === 'folder';
     },
   },
-  created() {
-    this.fetchFiletypes();
-  },
   methods: {
-    ...mapActions('Filetypes', ['fetchFiletypes']),
-
     // Filter to show how many images are left to upload
     filesNotUploaded(item) {
       return item.files.filter(
