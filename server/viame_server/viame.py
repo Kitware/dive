@@ -163,5 +163,5 @@ class Viame(Resource):
         return {
             "image": validImageFormats,
             "video": validVideoFormats,
-            "web": webValidImageFormats
+            "web": webValidImageFormats,
         }
