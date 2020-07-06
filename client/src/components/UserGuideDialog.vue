@@ -46,6 +46,9 @@ export default {
           name: 'Editing',
           data: [
             {
+              name: 'New Track', icon: 'mdi-keyboard', actions: ['N Key'], description: 'Create a new Track/Detection',
+            },
+            {
               name: 'Edit Track', icon: 'mdi-mouse', actions: ['Right Click Mouse'], description: 'Right click a track to enter Edit Mode',
             },
             {

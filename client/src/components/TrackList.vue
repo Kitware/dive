@@ -181,26 +181,6 @@ export default Vue.extend({
             v-else
             class="newTrackSettings"
           >
-            <v-tooltip
-              open-delay="200"
-              bottom
-              max-width="200"
-            >
-              <template #activator="{ on }">
-                <v-btn
-                  outlined
-                  x-small
-                  :color="newTrackColor"
-                  v-on="on"
-                  @click="$emit('track-add')"
-                >
-                  {{ newTrackSettings.value.mode }}<v-icon small>
-                    mdi-plus
-                  </v-icon>
-                </v-btn>
-              </template>
-              <span>Default Type: {{ newTrackSettings.value.type }}</span>
-            </v-tooltip>
             <v-btn
               icon
               small
@@ -214,6 +194,27 @@ export default Vue.extend({
                 mdi-settings
               </v-icon>
             </v-btn>
+            <v-tooltip
+              open-delay="200"
+              bottom
+              max-width="200"
+            >
+              <template #activator="{ on }">
+                <v-btn
+                  outlined
+                  x-small
+                  :color="newTrackColor"
+                  v-on="on"
+                  @click="$emit('track-add')"
+                >
+                  <v-icon small>
+                    mdi-plus
+                  </v-icon>
+                  {{ newTrackSettings.value.mode }}
+                </v-btn>
+              </template>
+              <span>Default Type: {{ newTrackSettings.value.type }}</span>
+            </v-tooltip>
           </div>
         </v-row>
         <v-row>
