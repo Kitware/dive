@@ -180,7 +180,7 @@ export default defineComponent({
 
 
     async function splitTracks(trackId: TrackId | undefined, _frame: number) {
-      if (trackId) {
+      if (typeof trackId === 'number') {
         const track = getTrack(trackId);
         let newtracks: [Track, Track];
         try {
@@ -342,6 +342,7 @@ export default defineComponent({
         @track-type-change="handler.trackTypeChange($event)"
         @update-new-track-settings="updateNewTrackSettings($event)"
         @track-split="splitTracks($event, frame)"
+        @track-seek="playbackComponent.seek($event)"
         @update-type-color="updateTypeColor($event)"
         @update-type-name="updateTypeName($event)"
       >
