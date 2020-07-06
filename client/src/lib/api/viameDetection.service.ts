@@ -34,6 +34,13 @@ async function saveDetections(folderId: string, trackMap: Map<TrackId, Track>) {
   });
 }
 
+async function getMevaDetections(folderId: string, formatting = 'track_json') {
+  const { data } = await girderRest.get('viame_detection/meva', {
+    params: { folderId, formatting },
+  });
+  return data as { [key: string]: TrackData };
+}
+
 interface ClipMetaResponse {
   videoUrl: string;
 }

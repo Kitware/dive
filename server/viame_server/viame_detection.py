@@ -14,7 +14,7 @@ from girder.models.folder import Folder
 from girder.models.item import Item
 from girder.models.upload import Upload
 
-from viame_server.serializers import viame
+from viame_server.serializers import viame, meva
 from viame_server.utils import (
     ImageMimeTypes,
     ImageSequenceType,
@@ -33,6 +33,8 @@ class ViameDetection(Resource):
         self.route("GET", ("clip_meta",), self.get_clip_meta)
         self.route("GET", (":id", "export",), self.export_data)
         self.route("GET", (":id", "export_detections",), self.export_detections)
+
+        self.route("GET", ("meva",), self.get_meva_detection)
 
     def _get_clip_meta(self, folder):
         detections = list(
@@ -220,3 +222,30 @@ class ViameDetection(Resource):
         )
 
         return True
+
+    @access.user
+    @autoDescribeRoute(
+        Description("Get detections of a meva clip").modelParam(
+            "folderId",
+            description="folder id of a meva clip",
+            model=Folder,
+            paramType="query",
+            required=False,
+            level=AccessType.READ,
+        )
+    )
+    def get_meva_detection(self, folder):
+        detectionItems = list(
+            Item().findWithPermissions(
+                {"meta.detection": str(folder["_id"])}, user=self.getCurrentUser(),
+            )
+        )
+        detectionItems.sort(key=lambda d: d["created"], reverse=True)
+
+        if not len(detectionItems):
+            return None
+
+        files = Item().childFiles(detectionItems)
+        if "yml" in file["exts"]:
+            return meva.load_kpf_as_tracks(files)
+        return File().download(file, contentDisposition="inline")
