@@ -168,7 +168,7 @@ export default {
           // Else draw individual feature frame segments
           // Decrease SelectedColor opacity to mute it.
           ctx.fillStyle = selectedColor.concat(muteOpacity);
-          ctx.fillRect(bar.left, bar.top, bar.right - bar.left, barHeight);
+          ctx.fillRect(bar.left, bar.top, barWidth, barHeight);
           const featureWidth = (barWidth / (bar.length - 1)) * overflow;
           // Draw bright markers for the keyframes
           ctx.fillStyle = selectedColor;
