@@ -84,10 +84,10 @@ export default {
               [event.range[0], event.range[1]],
             ))
             .forEach((event) => {
-              const left = x(event.range[0]);
               bars.push({
-                left,
-                width: Math.max(x(event.range[1]) - left, x(1)),
+                left: x(event.range[0]),
+                right: x(event.range[1]),
+                minWidth: x(this.startFrame_ + 1),
                 top: i * 15 + 3,
                 color: event.color,
                 selected: event.selected,
@@ -151,6 +151,7 @@ export default {
       const overflow = 0.6; // How much of a frame-width each detection box should occupy
       const barHeight = 10;
       bars.forEach((bar) => {
+        const barWidth = Math.max(bar.right - bar.left, bar.minWidth);
         if (!bar.selected) {
           // If this bar is not selected
           const typeColor = bar.color ? bar.color : '#4c9ac2';
@@ -158,17 +159,17 @@ export default {
           ctx.fillStyle = this.data.muted
             ? typeColorMuted
             : typeColor;
-          ctx.fillRect(bar.left, bar.top, bar.width, barHeight);
+          ctx.fillRect(bar.left, bar.top, barWidth, barHeight);
         } else if (bar.length === bar.markers.length - 1) {
           // Else if Keyframe density is 100%
           ctx.fillStyle = selectedColor;
-          ctx.fillRect(bar.left, bar.top, bar.width, barHeight);
+          ctx.fillRect(bar.left, bar.top, barWidth, barHeight);
         } else {
           // Else draw individual feature frame segments
           // Decrease SelectedColor opacity to mute it.
           ctx.fillStyle = selectedColor.concat(muteOpacity);
-          ctx.fillRect(bar.left, bar.top, bar.width, barHeight);
-          const featureWidth = (bar.width / (bar.length - 1)) * overflow;
+          ctx.fillRect(bar.left, bar.top, bar.right - bar.left, barHeight);
+          const featureWidth = (barWidth / (bar.length - 1)) * overflow;
           // Draw bright markers for the keyframes
           ctx.fillStyle = selectedColor;
           bar.markers
