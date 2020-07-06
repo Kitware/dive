@@ -84,10 +84,11 @@ export default {
               [event.range[0], event.range[1]],
             ))
             .forEach((event) => {
+              const frameWidth = x(this.startFrame_ + 1) * 0.6;
               bars.push({
                 left: x(event.range[0]),
                 right: x(event.range[1]),
-                minWidth: x(this.startFrame_ + 1),
+                minWidth: frameWidth,
                 top: i * 15 + 3,
                 color: event.color,
                 selected: event.selected,
@@ -175,21 +176,20 @@ export default {
           bar.markers
             .map(([f, interpolate]) => [this.x(f), interpolate])
             .forEach(([pos, interpolate], i) => {
-              const halfFeatureWidth = (featureWidth / 2);
               const barMiddle = bar.top + (barHeight / 2);
               const next = bar.markers[i + 1];
               ctx.fillRect(
                 // offset frame back 1/2 width so the cursor falls in the middle
-                pos - halfFeatureWidth,
+                pos,
                 bar.top,
                 featureWidth,
                 barHeight,
               );
               if (next && interpolate) {
                 const nextPos = this.x(next[0]);
-                ctx.strokeStyle = this.$vuetify.theme.themes.dark.success;
-                ctx.moveTo(pos + halfFeatureWidth, barMiddle);
-                ctx.lineTo(nextPos - halfFeatureWidth, barMiddle);
+                ctx.strokeStyle = this.$vuetify.theme.themes.dark.accent;
+                ctx.moveTo(pos, barMiddle);
+                ctx.lineTo(nextPos, barMiddle);
                 ctx.stroke();
               }
             });
