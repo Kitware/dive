@@ -73,7 +73,7 @@ export default Vue.extend({
       const frame = this.frame.value;
       if (trackId) {
         const track = getTrack(this.trackMap, trackId);
-        const feature = track.getFeature(frame);
+        const [feature] = track.getFeature(frame);
         return feature;
       }
       return null;

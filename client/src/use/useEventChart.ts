@@ -17,6 +17,7 @@ interface EventChartData {
   color: string;
   selected: boolean;
   range: [number, number];
+  markers: [number, boolean][];
 }
 
 export default function useEventChart({
@@ -25,6 +26,7 @@ export default function useEventChart({
   const eventChartData = computed(() => {
     const values = [] as EventChartData[];
     const mapfunc = typeStyling.value.color;
+    const selectedTrackIdValue = selectedTrackId.value;
     /* use forEach rather than filter().map() to save an interation */
     enabledTrackIds.value.forEach((trackId) => {
       const track = trackMap.get(trackId);
@@ -38,12 +40,17 @@ export default function useEventChart({
           trackId,
           name: `Track ${trackId}`,
           color: mapfunc(trackType),
-          selected: trackId === selectedTrackId.value,
+          selected: trackId === selectedTrackIdValue,
           range: [track.begin, track.end],
+          markers: track.featureIndex.map((i) => (
+            [i, track.features[i].interpolate || false])),
         });
       }
     });
-    return values;
+    return {
+      muted: selectedTrackIdValue !== null,
+      values,
+    };
   });
 
   return { eventChartData };

@@ -140,8 +140,9 @@ export default defineComponent({
           @track-type-change="$emit('track-type-change', $event)"
           @track-previous="$emit('track-previous')"
           @track-next="$emit('track-next')"
-          @update-new-track-settings="$emit('update-new-track-settings',$event)"
           @track-split="$emit('track-split', $event)"
+          @track-seek="$emit('track-seek', $event)"
+          @update-new-track-settings="$emit('update-new-track-settings',$event)"
         />
       </div>
       <div

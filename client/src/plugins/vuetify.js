@@ -21,6 +21,10 @@ const appVuetifyConfig = merge(girderVuetifyConfig, {
         primary: colors.blue.darken2,
         neutral: colors.grey.lighten5,
       },
+      dark: {
+        accent: colors.blue.lighten1,
+        accentBackground: '#2c7596',
+      },
     },
   },
 });

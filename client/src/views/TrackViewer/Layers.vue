@@ -91,7 +91,6 @@ export default defineComponent({
       editing: 'point',
     });
 
-
     const markerLayer = new MarkerLayer({
       annotator,
       stateStyling: props.stateStyling,
@@ -109,6 +108,10 @@ export default defineComponent({
         [frame, frame],
         (value) => (value !== null ? value : null),
       );
+      // Possibly include editing track or selected track
+      // even if it's not in range.
+      // if (sele!currentFrameIds.indexOf())
+
       const tracks = [] as FrameDataTrack[];
       const editingTracks = [] as FrameDataTrack[];
       currentFrameIds.forEach(
@@ -119,7 +122,7 @@ export default defineComponent({
               if (track === undefined) {
                 throw new Error(`trackMap missing trackid ${item}`);
               }
-              const features = track.getFeature(frame);
+              const [features] = track.getFeature(frame);
               const trackFrame = {
                 selected: (selectedTrackId === track.trackId),
                 editing: editingTrack,
@@ -146,12 +149,13 @@ export default defineComponent({
           if (editTrack === undefined) {
             throw new Error(`trackMap missing trackid ${selectedTrackId}`);
           }
-          const features = editTrack.getFeature(frameNumber.value);
+          const [real, lower, upper] = editTrack.getFeature(frameNumber.value);
+          const features = real || lower || upper;
           const trackFrame = {
             selected: true,
             editing: true,
             trackId: editTrack.trackId,
-            features,
+            features: (features && features.interpolate) ? features : null,
             confidencePairs: editTrack.getType(),
           };
           editingTracks.push(trackFrame);

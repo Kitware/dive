@@ -31,11 +31,8 @@ export default {
       required: true,
     },
     data: {
-      type: Array,
+      type: Object,
       required: true,
-      validator(data) {
-        return !data.find((datum) => !datum.range);
-      },
     },
   },
   data() {
@@ -48,7 +45,7 @@ export default {
   },
   computed: {
     barData() {
-      const sorted = sortBy(this.data, (data) => data.range[0]);
+      const sorted = sortBy(this.data.values, (data) => data.range[0]);
       const bars = [];
       sorted.forEach((event) => {
         for (let i = 0, n = bars.length; i < n; i += 1) {
@@ -87,14 +84,17 @@ export default {
               [event.range[0], event.range[1]],
             ))
             .forEach((event) => {
-              const left = x(event.range[0]);
+              const frameWidth = x(this.startFrame_ + 1) * 0.6;
               bars.push({
                 left: x(event.range[0]),
-                width: Math.max(x(event.range[1]) - left, 3),
-                top: i * 15,
+                right: x(event.range[1]),
+                minWidth: frameWidth,
+                top: i * 15 + 3,
                 color: event.color,
                 selected: event.selected,
                 name: event.name,
+                length: event.range[1] - event.range[0],
+                markers: event.markers,
               });
             });
         });
@@ -146,23 +146,54 @@ export default {
         return;
       }
       canvas.width = this.clientWidth;
-      canvas.height = bars.slice(-1)[0].top + 10;
+      canvas.height = bars.slice(-1)[0].top + 15;
+      const muteOpacity = '30'; // Hex string: how much to mute regular colors: '#RRGGBB[AA]'
+      const selectedColor = this.$vuetify.theme.themes.dark.accent;
+      const overflow = 0.6; // How much of a frame-width each detection box should occupy
+      const barHeight = 10;
       bars.forEach((bar) => {
-        let padding = 0;
-        if (bar.selected) {
-          ctx.fillStyle = this.$vuetify.theme.themes.dark.accent;
-
-          ctx.fillRect(bar.left, bar.top, bar.width, 10);
-          padding = 2;
+        const barWidth = Math.max(bar.right - bar.left, bar.minWidth);
+        if (!bar.selected) {
+          // If this bar is not selected
+          const typeColor = bar.color ? bar.color : '#4c9ac2';
+          const typeColorMuted = typeColor.concat(muteOpacity);
+          ctx.fillStyle = this.data.muted
+            ? typeColorMuted
+            : typeColor;
+          ctx.fillRect(bar.left, bar.top, barWidth, barHeight);
+        } else if (bar.length === bar.markers.length - 1) {
+          // Else if Keyframe density is 100%
+          ctx.fillStyle = selectedColor;
+          ctx.fillRect(bar.left, bar.top, barWidth, barHeight);
+        } else {
+          // Else draw individual feature frame segments
+          // Decrease SelectedColor opacity to mute it.
+          ctx.fillStyle = selectedColor.concat(muteOpacity);
+          ctx.fillRect(bar.left, bar.top, barWidth, barHeight);
+          const featureWidth = (barWidth / (bar.length - 1)) * overflow;
+          // Draw bright markers for the keyframes
+          ctx.fillStyle = selectedColor;
+          bar.markers
+            .map(([f, interpolate]) => [this.x(f), interpolate])
+            .forEach(([pos, interpolate], i) => {
+              const barMiddle = bar.top + (barHeight / 2);
+              const next = bar.markers[i + 1];
+              ctx.fillRect(
+                // offset frame back 1/2 width so the cursor falls in the middle
+                pos,
+                bar.top,
+                featureWidth,
+                barHeight,
+              );
+              if (next && interpolate) {
+                const nextPos = this.x(next[0]);
+                ctx.strokeStyle = this.$vuetify.theme.themes.dark.accent;
+                ctx.moveTo(pos, barMiddle);
+                ctx.lineTo(nextPos, barMiddle);
+                ctx.stroke();
+              }
+            });
         }
-
-        ctx.fillStyle = bar.color ? bar.color : '#4c9ac2';
-        ctx.fillRect(
-          bar.left + padding,
-          bar.top + padding,
-          bar.width - padding * 2,
-          10 - padding * 2,
-        );
       });
     },
     mousemove(e) {
