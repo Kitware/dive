@@ -1,5 +1,4 @@
 <script>
-import { mapActions, mapState, mapMutations } from 'vuex';
 import { FileManager } from '@girder/components/src/components/Snippet';
 import { getLocationType } from '@girder/components/src/utils';
 
@@ -8,6 +7,12 @@ import RunPipelineMenu from '@/components/RunPipelineMenu.vue';
 import Upload from '@/components/Upload.vue';
 import NavigationBar from '@/components/NavigationBar.vue';
 import { getPathFromLocation, getLocationFromRoute } from '@/utils';
+import {
+  mapActions,
+  mapState,
+  mapMutations,
+  mapGetters,
+} from 'vuex';
 import {
   runVideoConversion,
   deleteResources,
@@ -31,8 +36,9 @@ export default {
     uploading: false,
   }),
   computed: {
-    ...mapState('Filetypes', ['filetypes']),
     ...mapState('Location', ['location']),
+    ...mapGetters('Filetypes', ['getVidRegEx', 'getImgRegEx', 'getWebRegEx']),
+
     location: {
       get() {
         return this.$store.state.Location.location;
@@ -118,17 +124,13 @@ export default {
     },
     uploaded(uploads) {
       this.uploaderDialog = false;
-      const videoFilesRegEx = new RegExp(`${this.filetypes.video.join('$|')}$`, 'i');
-      const imageFilesRegEx = new RegExp(`${this.filetypes.image.join('$|')}$`, 'i');
-      const webFriendlyImageRegEx = new RegExp(`${this.filetypes.web.join('$|')}$`, 'i');
-
       // Check if any transcoding should be done
       const transcodes = uploads.filter(({ results, folder }) => {
         const videoTranscodes = results
-          .filter(({ name }) => videoFilesRegEx.test(name))
+          .filter(({ name }) => this.getVidRegEx.test(name))
           .map(({ itemId }) => runVideoConversion(itemId));
         const imageTranscodes = results
-          .filter(({ name }) => !webFriendlyImageRegEx.test(name) && imageFilesRegEx.test(name));
+          .filter(({ name }) => !this.getWebRegEx.test(name) && this.getImgRegEx.test(name));
 
         if (imageTranscodes.length > 0) {
           runImageConversion(folder._id);

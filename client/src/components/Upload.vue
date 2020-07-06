@@ -9,16 +9,13 @@ import {
   VideoType,
 } from '@/constants';
 import { makeViameFolder } from '@/lib/api/viame.service';
-import { mapActions, mapState } from 'vuex';
+import { mapActions, mapGetters } from 'vuex';
 import { getResponseError } from '@/lib/utils';
 
-function prepareFiles(files, filetypes) {
-  const videoFilesRegEx = new RegExp(`${filetypes.video.join('$|')}$`, 'i');
-  const imageFilesRegEx = new RegExp(`${filetypes.image.join('$|')}$`, 'i');
-
-  const videoFilter = (file) => videoFilesRegEx.test(file.name);
+function prepareFiles(files, imageRegEx, videoRegEx) {
+  const videoFilter = (file) => videoRegEx.test(file.name);
   const csvFilter = (file) => /\.csv$/i.test(file.name);
-  const imageFilter = (file) => imageFilesRegEx.test(file.name);
+  const imageFilter = (file) => imageRegEx.test(file.name);
 
   const videoFiles = files.filter(videoFilter);
   const imageFiles = files.filter(imageFilter);
@@ -115,7 +112,7 @@ export default {
     ImageSequenceType,
   }),
   computed: {
-    ...mapState('Filetypes', ['filetypes']),
+    ...mapGetters('Filetypes', ['getVidRegEx', 'getImgRegEx']),
     uploadEnabled() {
       return this.location && this.location._modelType === 'folder';
     },
@@ -171,7 +168,7 @@ export default {
       if (files.length === 0) return;
       this.preUploadErrorMessage = null;
       try {
-        this.addPendingUpload(name, files, this.filetypes);
+        this.addPendingUpload(name, files);
       } catch (err) {
         this.preUploadErrorMessage = err;
       }
@@ -181,13 +178,15 @@ export default {
       const name = files.length === 1 ? files[0].name : '';
       this.preUploadErrorMessage = null;
       try {
-        this.addPendingUpload(name, files, this.filetypes);
+        this.addPendingUpload(name, files);
       } catch (err) {
         this.preUploadErrorMessage = err;
       }
     },
-    addPendingUpload(name, allFiles, filetypes) {
-      const { type, media, csv } = prepareFiles(allFiles, filetypes);
+    addPendingUpload(name, allFiles) {
+      const videoRegEx = this.getVidRegEx;
+      const imageRegEx = this.getImgRegEx;
+      const { type, media, csv } = prepareFiles(allFiles, imageRegEx, videoRegEx);
 
       const files = media.concat(csv);
       const defaultFilename = files[0].name;
@@ -264,8 +263,6 @@ export default {
       const { name, files, createSubFolders } = pendingUpload;
       const fps = parseInt(pendingUpload.fps, 10);
 
-      const videoFilesRegEx = new RegExp(`${this.filetypes.video.join('$|')}$`, 'i');
-
       // eslint-disable-next-line no-param-reassign
       pendingUpload.uploading = true;
 
@@ -282,7 +279,7 @@ export default {
           const subfile = files.splice(0, 1);
           const subname = subfile[0].file.name.replace(/\..*/, '');
           // Only video subfolders should be used typically
-          const subtype = videoFilesRegEx.test(subfile[0].file.name) ? 'video' : 'unknown';
+          const subtype = this.vidRegEx.test(subfile[0].file.name) ? 'video' : 'unknown';
           // eslint-disable-next-line no-await-in-loop
           folder = await (this.createUploadFolder(subname, createSubFolders, fps, subtype));
           if (folder) {

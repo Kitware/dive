@@ -1,8 +1,8 @@
 import { Module } from 'vuex';
-import { getValidFileTypes, Types } from '@/lib/api/viame.service';
+import { getValidFileTypes } from '@/lib/api/viame.service';
 
 export interface FiletypeState {
-    filetypes: null | Record<string, Types>;
+    filetypes: null | Record<string, any>;
 }
 
 const filetypeModule: Module<FiletypeState, never> = {
@@ -15,13 +15,31 @@ const filetypeModule: Module<FiletypeState, never> = {
       state.filetypes = filetypes;
     },
   },
+  getters: {
+    getVidRegEx(state) {
+      if (state !== null) {
+        return new RegExp(`${state.filetypes!.video.join('$|')}$`, 'i');
+      }
+      return null;
+    },
+    getImgRegEx(state) {
+      if (state !== null) {
+        return new RegExp(`${state.filetypes!.image.join('$|')}$`, 'i');
+      }
+      return null;
+    },
+    getWebRegEx(state) {
+      if (state !== null) {
+        return new RegExp(`${state.filetypes!.web.join('$|')}$`, 'i');
+      }
+      return null;
+    },
+  },
   actions: {
     async fetchFiletypes({ commit, state }) {
       if (state.filetypes === null) {
         const { data } = await getValidFileTypes();
-
         commit('setFiletypes', data);
-        return data;
       }
       return state.filetypes;
     },
