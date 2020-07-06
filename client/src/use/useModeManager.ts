@@ -102,7 +102,8 @@ export default function useModeManager({
           frame: frameNum,
           bounds,
           keyframe: true,
-          interpolate: newDetectionMode ? false : interpolateTrack,
+          interpolate: (newDetectionMode && !newTrackMode)
+            ? false : interpolateTrack,
         });
         //If it is a new track and we have newTrack Settings
         if (newTrackMode && newDetectionMode) {

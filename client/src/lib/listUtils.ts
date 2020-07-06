@@ -62,7 +62,7 @@ function listRemove(
   val: number,
 ): number | null {
   const position = binarySearch(arr, val);
-  if (position > 0) {
+  if (position >= 0) {
     const deleted = arr.splice(position, 1);
     return deleted ? deleted[0] : null;
   }

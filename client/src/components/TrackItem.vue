@@ -50,7 +50,7 @@ export default {
 
   computed: {
     isTrack() {
-      return this.track.revision.value && this.track.length > 1;
+      return this.track.length > 1 || this.feature.shouldInterpolate;
     },
     trackId() {
       return this.track.trackId;
