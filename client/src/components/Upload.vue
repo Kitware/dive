@@ -12,7 +12,7 @@ import { makeViameFolder } from '@/lib/api/viame.service';
 import { mapActions, mapGetters } from 'vuex';
 import { getResponseError } from '@/lib/utils';
 
-function prepareFiles(files, imageRegEx, videoRegEx) {
+function prepareFiles(files, videoRegEx, imageRegEx) {
   const videoFilter = (file) => videoRegEx.test(file.name);
   const csvFilter = (file) => /\.csv$/i.test(file.name);
   const imageFilter = (file) => imageRegEx.test(file.name);
@@ -184,9 +184,7 @@ export default {
       }
     },
     addPendingUpload(name, allFiles) {
-      const videoRegEx = this.getVidRegEx;
-      const imageRegEx = this.getImgRegEx;
-      const { type, media, csv } = prepareFiles(allFiles, imageRegEx, videoRegEx);
+      const { type, media, csv } = prepareFiles(allFiles, this.getVidRegEx, this.getImgRegEx);
 
       const files = media.concat(csv);
       const defaultFilename = files[0].name;
