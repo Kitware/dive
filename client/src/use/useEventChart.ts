@@ -1,13 +1,14 @@
 
 import { computed, Ref } from '@vue/composition-api';
 import Track, { TrackId } from '@/lib/track';
+import { TypeStyling } from './useStyling';
 
 
 interface EventChartParams {
   enabledTrackIds: Readonly<Ref<readonly TrackId[]>>;
   selectedTrackId: Ref<TrackId | null>;
   trackMap: Map<TrackId, Track>;
-  typeStyling: Ref<{ color: (type: string) => string }>;
+  typeStyling: Ref<TypeStyling>;
 }
 
 interface EventChartData {

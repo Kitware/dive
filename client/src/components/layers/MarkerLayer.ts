@@ -40,11 +40,10 @@ export default class MarkerLayer extends BaseLayer<FormattedMarkerFeature> {
   }
 
   createStyle(): LayerStyle<FormattedMarkerFeature> {
-    const baseStyle = super.createStyle();
     return {
-      ...baseStyle,
+      ...super.createStyle(),
       fill: true,
-      fillColor: (data) => (data.feature === 'tail' ? 'orange' : 'blue'),
+      fillColor: (data: FormattedMarkerFeature) => (data.feature === 'tail' ? 'orange' : 'blue'),
       radius: 4,
     };
   }
