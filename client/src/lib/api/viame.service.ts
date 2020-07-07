@@ -112,7 +112,7 @@ function setMetadataForFolder(folderId: string, metadata: object) {
 }
 
 function getValidFileTypes() {
-  return girderRest.get<Record<string, any>>('viame/valid_filetypes');
+  return girderRest.get<Record<string, string[]>>('viame/valid_filetypes');
 }
 
 

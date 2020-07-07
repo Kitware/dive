@@ -2,7 +2,7 @@ import { Module } from 'vuex';
 import { getValidFileTypes } from '@/lib/api/viame.service';
 
 export interface FiletypeState {
-    filetypes: null | Record<string, any>;
+    filetypes: null | Record<string, string[]>;
 }
 
 const filetypeModule: Module<FiletypeState, never> = {
@@ -11,26 +11,26 @@ const filetypeModule: Module<FiletypeState, never> = {
     filetypes: null,
   },
   mutations: {
-    setFiletypes(state, filetypes) {
+    setFiletypes(state, filetypes: Record<string, string[]>) {
       state.filetypes = filetypes;
     },
   },
   getters: {
     getVidRegEx(state) {
-      if (state !== null) {
-        return new RegExp(`${state.filetypes!.video.join('$|')}$`, 'i');
+      if (state.filetypes !== null) {
+        return new RegExp(`${state.filetypes.video.join('$|')}$`, 'i');
       }
       return null;
     },
     getImgRegEx(state) {
-      if (state !== null) {
-        return new RegExp(`${state.filetypes!.image.join('$|')}$`, 'i');
+      if (state.filetypes !== null) {
+        return new RegExp(`${state.filetypes.image.join('$|')}$`, 'i');
       }
       return null;
     },
     getWebRegEx(state) {
-      if (state !== null) {
-        return new RegExp(`${state.filetypes!.web.join('$|')}$`, 'i');
+      if (state.filetypes !== null) {
+        return new RegExp(`${state.filetypes.web.join('$|')}$`, 'i');
       }
       return null;
     },
