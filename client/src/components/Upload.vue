@@ -13,7 +13,6 @@ import { mapGetters } from 'vuex';
 import { getResponseError } from '@/lib/utils';
 
 function prepareFiles(files, videoRegEx, imageRegEx) {
-  console.log(files, videoRegEx, imageRegEx);
   const videoFilter = (file) => videoRegEx.test(file.name);
   const csvFilter = (file) => /\.csv$/i.test(file.name);
   const imageFilter = (file) => imageRegEx.test(file.name);
