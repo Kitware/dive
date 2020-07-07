@@ -1,15 +1,11 @@
 import { ref, Ref } from '@vue/composition-api';
-import { TrackId } from '@/lib/track';
-
-interface UseTrackSelectionControlsParams {
-  trackIds: Readonly<Ref<readonly TrackId[]>>;
-}
+import Track, { TrackId } from '@/lib/track';
 
 /* Maintain references to the selected Track, selected detection,
  * editing state, etc.
  */
 export default function useTrackSelectionControls(
-  { trackIds }: UseTrackSelectionControlsParams,
+  { tracks }: {tracks: Readonly<Ref<readonly Track[]>>},
 ) {
   // the currently selected Track
   const selectedTrackId = ref(null as TrackId | null);
@@ -24,17 +20,17 @@ export default function useTrackSelectionControls(
    * call with -1 to select previous, or pass any other delta
    */
   function selectNextTrack(delta = 1): TrackId | null {
-    if (trackIds.value.length > 0) {
+    if (tracks.value.length > 0) {
       if (selectedTrackId.value === null) {
         // if no track is selected, return the first trackId
-        return trackIds.value[0];
+        return tracks.value[0].trackId;
       }
       // return the trackId by the delta offset if it exists
-      const index = trackIds.value.indexOf(selectedTrackId.value);
+      const index = tracks.value.findIndex((t) => t.trackId === selectedTrackId.value);
       const newIndex = index + delta;
-      if (newIndex >= 0 && newIndex < trackIds.value.length) {
+      if (newIndex >= 0 && newIndex < tracks.value.length) {
         // if we are not at the end
-        return trackIds.value[newIndex];
+        return tracks.value[newIndex].trackId;
       }
     }
     //Return null if no other conditions are met

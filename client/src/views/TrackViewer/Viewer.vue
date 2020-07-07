@@ -89,7 +89,7 @@ export default defineComponent({
 
     const {
       trackMap,
-      sortedTrackIds,
+      sortedTracks,
       intervalTree,
       addTrack,
       insertTrack,
@@ -105,10 +105,10 @@ export default defineComponent({
       checkedTypes,
       confidenceThreshold,
       allTypes,
-      filteredTrackIds,
-      enabledTrackIds,
+      filteredTracks,
+      enabledTracks,
       updateTypeName,
-    } = useTrackFilters({ trackMap, sortedTrackIds });
+    } = useTrackFilters({ sortedTracks });
 
     const location = ref(ctx.root.$store.state.Location.location);
 
@@ -146,7 +146,7 @@ export default defineComponent({
       editingTrack,
       selectNextTrack,
     } = useTrackSelectionControls({
-      trackIds: filteredTrackIds,
+      tracks: filteredTracks,
     });
 
     const {
@@ -158,11 +158,11 @@ export default defineComponent({
     } = useFeaturePointing({ selectedTrackId, trackMap });
 
     const { lineChartData } = useLineChart({
-      enabledTrackIds, typeStyling, allTypes, trackMap,
+      enabledTracks, typeStyling, allTypes,
     });
 
     const { eventChartData } = useEventChart({
-      enabledTrackIds, selectedTrackId, typeStyling, trackMap,
+      enabledTracks, selectedTrackId, typeStyling,
     });
 
     const { clientSettings, updateNewTrackSettings } = useSettings();
@@ -254,7 +254,7 @@ export default defineComponent({
       },
       sidebarProps: {
         trackMap,
-        filteredTrackIds,
+        filteredTracks,
         frame,
         allTypes,
         checkedTypes,
@@ -267,7 +267,7 @@ export default defineComponent({
       updateNewTrackSettings,
       layerProps: {
         trackMap,
-        trackIds: enabledTrackIds,
+        tracks: enabledTracks,
         selectedTrackId,
         editingTrack,
         typeStyling,
