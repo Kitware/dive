@@ -11,7 +11,6 @@ from typing import List, Dict, Tuple, Optional, Union, Any
 
 from girder.models.file import File
 
-
 @dataclass
 class Feature:
     """Feature represents a single detection in a track."""

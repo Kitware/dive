@@ -235,17 +235,28 @@ class ViameDetection(Resource):
         )
     )
     def get_meva_detection(self, folder):
-        detectionItems = list(
-            Item().findWithPermissions(
-                {"meta.detection": str(folder["_id"])}, user=self.getCurrentUser(),
+        try:
+            detectionItems = list(
+                Item().findWithPermissions(
+                    {"folderId": folder["_id"]}, user=self.getCurrentUser(),
+                )
             )
-        )
-        detectionItems.sort(key=lambda d: d["created"], reverse=True)
 
-        if not len(detectionItems):
-            return None
+            detectionItems.sort(key=lambda d: d["created"], reverse=True)
+            files = Item().childFiles(detectionItems)
+            nut = []
+            for file in files:
+                if "yml" in file["exts"]:
+                    nut.append(file)
+            return nut
 
-        files = Item().childFiles(detectionItems)
-        if "yml" in file["exts"]:
-            return meva.load_kpf_as_tracks(files)
-        return File().download(file, contentDisposition="inline")
+        except:
+            items = Folder().childItems(folder)
+            nut = []
+            for item in items:
+                files = Item().childFiles(item)
+                for file in files:
+                    if "yml" in file["exts"]:
+                        nut.append(file)
+            # nut.append("nut")
+            return meva.load_kpf_as_tracks(nut)

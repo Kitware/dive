@@ -12,7 +12,9 @@ from typing import List, Dict, Tuple, Optional, Union, Any
 from girder.models.file import File
 from .viame import Track, Meva_Feature
 
+@dataclass
 class Detection(models.Detection):
+    geom_id: int
     activity_id: int
     activity: str
     src_status: str
@@ -31,36 +33,42 @@ def load_kpf_as_tracks(ymls):
 
     actor_map = {}
     activity_map = {}
-    for file in ymls:
-        yml = kpf.load_yaml(file)
-        for row in yml:
-            if kpf.TYPES in row:
-                types = yml
-                continue
-            if kpf.GEOM in row:
-                deserialize_geom(file, actor_map)
-                print(actor_map)
-                geom = yml
-                continue
-            if kpf.ACTIVITY in row:
-                activity = yml
-                continue
+    try:
+        yml = kpf.load_yaml(list(File().download(ymls[0], headers=False)()))
+        return type(row[0])
+    except:
+        yml = list(File().download(ymls[0], headers=False)())
+        for r in yml:
+            return json.loads(r)
+    # for file in ymls:
+    #     yml = File().download(file, headers=False)
+    #     for row in yml:
+    #         if kpf.TYPES in row:
+    #             types = yml
+    #             continue
+    #         if kpf.GEOM in row:
+    #             geom = yml
+    #             continue
+    #         if kpf.ACTIVITY in row:
+    #             activity = yml
+    #             continue
 
-    if types:
-        deserialize_types(types, actor_map)
-    else:
-        print("WARNING: types yaml was not given")
-    if geom:
-        deserialize_geom(geom, actor_map)
-    else:
-        print("WARNING: geom yaml was not given")
-    if activity:
-        deserialize_activities(activity, activity_map, actor_map)
-    else:
-        print("WARNING: activity yaml was not given")
+    # return activity
+    # if types:
+    #     deserialize_types(types, actor_map)
+    # else:
+    #     print("WARNING: types yaml was not given")
+    # if geom:
+    #     deserialize_geom(geom, actor_map)
+    # else:
+    #     print("WARNING: geom yaml was not given")
+    # if activity:
+    #     deserialize_activities(activity, activity_map, actor_map)
+    # else:
+    #     print("WARNING: activity yaml was not given")
 
-    tracks = parse_actor_map_to_tracks(actor_map)
-    return {trackId: track.asdict() for trackId, track in tracks.items()}
+    # tracks = parse_actor_map_to_tracks(actor_map)
+    # return {trackId: track.asdict() for trackId, track in tracks.items()}
 
 
 def parse_actor_map_to_tracks(actor_map):
@@ -78,12 +86,23 @@ def parse_actor_map_to_tracks(actor_map):
             confidencePairs = []
             attributes = {}
 
-            #How to split into tracks, currently does it by activity id
-            if detection.activity_id not in ids:
-                ids[detection.activity_id] = i
-                tracks[i] = Track(detection.frame, detection.frame, i)
-                i += 1
-            track = tracks[ids[detection.activity_id]]
+            #How to split into tracks, currently does it by geom id
+            if detection.geom_id not in tracks:
+                tracks[detection.geom_id] = Track(detection.frame, detection.frame, detection.geom_id)
+
+            # if actor_id not in ids:
+            #     ids[actor_id] = i
+            #     tracks[i] = Track(detection.frame, detection.frame, i)
+            #     i += 1
+
+            # if detection.activity_id not in ids:
+            #     ids[detection.activity_id] = i
+            #     tracks[i] = Track(detection.frame, detection.frame, i)
+            #     i += 1
+
+            track = tracks[detection.geom_id]
+            # track = tracks[ids[actor_id]]
+            # track = tracks[ids[detection.activity_id]]
             track.begin = min(detection.frame, track.begin)
             track.end = max(track.end, detection.frame)
             track.features.append(feature)
@@ -108,6 +127,7 @@ def deserialize_geom(file, actor_map):
             actor_id = geom[kpf.ACTOR_ID]
             frame = geom[kpf.FRAME]
             timestamp = geom[kpf.SECONDS]
+            geom_id = geom_packet[kpf.GEOM_ID]
             box = geom[kpf.BOX]
             box = [int(n) for n in box.split(' ')]
             if len(box) != 4:
@@ -116,7 +136,7 @@ def deserialize_geom(file, actor_map):
             if kpf.KEYFRAME in geom:
                 keyframe = geom[kpf.KEYFRAME]
             box = models.Box(left=box[0], top=box[1], right=box[2], bottom=box[3])
-            detection = Detection(frame=frame, box=box, keyframe=keyframe, timestamp=timestamp)
+            detection = Detection(frame=frame, box=box, keyframe=keyframe, geom_id=geom_id, timestamp=timestamp)
             if actor_id in actor_map:
                 actor_map[actor_id].detections.append(detection)
             else:
