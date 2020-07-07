@@ -1,5 +1,5 @@
 import { Module } from 'vuex';
-import { getValidFileTypes, Types } from '@/lib/api/viame.service';
+import { getValidFileTypes } from '@/lib/api/viame.service';
 
 export interface FiletypeState {
     filetypes: null | Record<string, string[]>;
@@ -39,7 +39,6 @@ const filetypeModule: Module<FiletypeState, never> = {
     async fetchFiletypes({ commit, state }) {
       if (state.filetypes === null) {
         const { data } = await getValidFileTypes();
-
         commit('setFiletypes', data);
       }
     },

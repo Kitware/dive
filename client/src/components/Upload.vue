@@ -163,7 +163,7 @@ export default {
       if (files.length === 0) return;
       this.preUploadErrorMessage = null;
       try {
-        this.addPendingUpload(name, files, this.filetypes);
+        this.addPendingUpload(name, files);
       } catch (err) {
         this.preUploadErrorMessage = err;
       }
@@ -173,7 +173,7 @@ export default {
       const name = files.length === 1 ? files[0].name : '';
       this.preUploadErrorMessage = null;
       try {
-        this.addPendingUpload(name, files, this.filetypes);
+        this.addPendingUpload(name, files);
       } catch (err) {
         this.preUploadErrorMessage = err;
       }
@@ -255,8 +255,6 @@ export default {
     async uploadPending(pendingUpload, uploaded) {
       const { name, files, createSubFolders } = pendingUpload;
       const fps = parseInt(pendingUpload.fps, 10);
-
-      const videoFilesRegEx = new RegExp(`${this.filetypes.video.join('$|')}$`, 'i');
 
       // eslint-disable-next-line no-param-reassign
       pendingUpload.uploading = true;
