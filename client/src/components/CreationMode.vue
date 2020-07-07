@@ -2,20 +2,7 @@
 import Vue, { PropType } from 'vue';
 import { Ref } from '@vue/composition-api';
 import { cloneDeep } from 'lodash';
-
-
-export interface NewTrackSettings {
-  mode: 'Track' | 'Detection';
-  type: string;
-  modeSettings: {
-    Track: {
-      autoAdvanceFrame: boolean;
-    };
-    Detection: {
-      continuous: boolean;
-    };
-  };
-}
+import { NewTrackSettings } from '@/use/useSettings';
 
 export default Vue.extend({
   name: 'CreationMode',
@@ -40,6 +27,7 @@ export default Vue.extend({
       },
       type: 'Choose a default type for the new Track/Detection to be or type in a new type to add it',
       autoAdvanceFrame: 'After creating a track advance to the next frame.  Hit Esc or do single click to exit.',
+      interpolate: 'Whether new tracks should have interpolation enabled by default',
       continuous: 'Immediately stay in detection creation mode after creating a new track.  Hit Esc or do single click to exit.',
     },
     modes: ['Track', 'Detection'],
@@ -168,7 +156,7 @@ export default Vue.extend({
       <v-row
         v-if="newTrackSettings.value.mode==='Track'"
       >
-        <v-col>
+        <v-col class="py-1">
           <v-switch
             :input-value="
               newTrackSettings.value.modeSettings.Track.autoAdvanceFrame"
@@ -179,7 +167,10 @@ export default Vue.extend({
             @change="saveTrackSubSettings($event,'autoAdvanceFrame')"
           />
         </v-col>
-        <v-col cols="2">
+        <v-col
+          cols="2"
+          class="py-1"
+        >
           <v-tooltip
             open-delay="200"
             bottom
@@ -193,6 +184,36 @@ export default Vue.extend({
               </v-icon>
             </template>
             <span>{{ help.autoAdvanceFrame }}</span>
+          </v-tooltip>
+        </v-col>
+        <v-col class="py-1">
+          <v-switch
+            :input-value="
+              newTrackSettings.value.modeSettings.Track.interpolate"
+            class="my-0 ml-1 pt-0"
+            dense
+            label="Interpolate"
+            hide-details
+            @change="saveTrackSubSettings($event,'interpolate')"
+          />
+        </v-col>
+        <v-col
+          cols="2"
+          class="py-1"
+        >
+          <v-tooltip
+            open-delay="200"
+            bottom
+          >
+            <template #activator="{ on }">
+              <v-icon
+                small
+                v-on="on"
+              >
+                mdi-help
+              </v-icon>
+            </template>
+            <span>{{ help.interpolate }}</span>
           </v-tooltip>
         </v-col>
       </v-row>

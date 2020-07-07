@@ -43,6 +43,10 @@ export default Vue.extend({
       type: Object as PropType<Ref<boolean>>,
       required: true,
     },
+    frame: {
+      type: Object as PropType<Ref<number>>,
+      required: true,
+    },
     typeStyling: {
       type: Object as PropType<Ref<{ color: (t: string) => string }>>,
       required: true,
@@ -54,7 +58,7 @@ export default Vue.extend({
   },
 
   data: () => ({
-    itemHeight: 45, // in pixels
+    itemHeight: 70, // in pixels
     settingsActive: false,
   }),
 
@@ -140,15 +144,16 @@ export default Vue.extend({
       }
       const type = track.getType();
       const trackType = type ? type[0] : '';
+      const selected = selectedTrackId === trackId;
       return {
         trackType,
-        trackId,
+        track,
         inputValue: checkedTrackIds.indexOf(trackId) >= 0,
-        selected: selectedTrackId === trackId,
-        editingTrack,
+        selected,
+        editing: selected && editingTrack,
         color: this.typeStyling.value.color(trackType),
         types: allTypes,
-        splittable: track.length > 1,
+        frame: this.frame,
       };
     },
   },
@@ -176,26 +181,6 @@ export default Vue.extend({
             v-else
             class="newTrackSettings"
           >
-            <v-tooltip
-              open-delay="200"
-              bottom
-              max-width="200"
-            >
-              <template #activator="{ on }">
-                <v-btn
-                  outlined
-                  x-small
-                  :color="newTrackColor"
-                  v-on="on"
-                  @click="$emit('track-add')"
-                >
-                  {{ newTrackSettings.value.mode }}<v-icon small>
-                    mdi-plus
-                  </v-icon>
-                </v-btn>
-              </template>
-              <span>Default Type: {{ newTrackSettings.value.type }}</span>
-            </v-tooltip>
             <v-btn
               icon
               small
@@ -209,6 +194,27 @@ export default Vue.extend({
                 mdi-settings
               </v-icon>
             </v-btn>
+            <v-tooltip
+              open-delay="200"
+              bottom
+              max-width="200"
+            >
+              <template #activator="{ on }">
+                <v-btn
+                  outlined
+                  x-small
+                  :color="newTrackColor"
+                  v-on="on"
+                  @click="$emit('track-add')"
+                >
+                  <v-icon small>
+                    mdi-plus
+                  </v-icon>
+                  {{ newTrackSettings.value.mode }}
+                </v-btn>
+              </template>
+              <span>Default Type: {{ newTrackSettings.value.type }}</span>
+            </v-tooltip>
           </div>
         </v-row>
         <v-row>
@@ -223,8 +229,15 @@ export default Vue.extend({
         </v-row>
       </v-container>
     </v-subheader>
-
-
+    <datalist id="allTypesOptions">
+      <option
+        v-for="type in allTypes.value"
+        :key="type"
+        :value="type"
+      >
+        {{ type }}
+      </option>
+    </datalist>
     <v-virtual-scroll
       ref="virtualList"
       v-mousetrap="[
@@ -240,10 +253,11 @@ export default Vue.extend({
         { bind: 'x', handler: () => $emit('track-split', selectedTrackId.value),
           disabled: $prompt.visible()}
       ]"
-      class="tracks flex-shrink-0"
+      class="tracks"
       :items="virtualListItems"
       :item-height="itemHeight"
-      :height="400"
+      :height="420"
+      bench="1"
     >
       <template #default="{ item }">
         <track-item
@@ -254,6 +268,7 @@ export default Vue.extend({
           @click="$emit('track-click', item.trackId)"
           @edit="$emit('track-edit', item.trackId)"
           @split="$emit('track-split', item.trackId)"
+          @seek="$emit('track-seek', $event)"
         />
       </template>
     </v-virtual-scroll>
@@ -269,6 +284,7 @@ export default Vue.extend({
 }
 .tracks {
   overflow-y: auto;
+  overflow-x: hidden;
 
   .v-input--checkbox {
     label {

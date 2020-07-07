@@ -12,6 +12,7 @@ import TypeList from '@/components/TypeList.vue';
 import TrackList from '@/components/TrackList.vue';
 import Track, { TrackId } from '@/lib/track';
 import { NewTrackSettings } from '@/use/useSettings';
+import { TypeStyling } from '../../use/useStyling';
 
 export default defineComponent({
   props: {
@@ -48,7 +49,7 @@ export default defineComponent({
       required: true,
     },
     typeStyling: {
-      type: Object as PropType<Ref<{ color: (t: string) => string }>>,
+      type: Object as PropType<Ref<TypeStyling>>,
       required: true,
     },
     width: {
@@ -122,8 +123,8 @@ export default defineComponent({
         <type-list
           v-bind="trackListProps"
           class="flex-shrink-1 flex-grow-1 typelist"
-          @update-type-color="$emit('update-type-color',$event)"
           @update-type-name="$emit('update-type-name',$event)"
+          @update-type-style="$emit('update-type-style',$event)"
         />
         <slot />
         <v-spacer />
@@ -139,8 +140,9 @@ export default defineComponent({
           @track-type-change="$emit('track-type-change', $event)"
           @track-previous="$emit('track-previous')"
           @track-next="$emit('track-next')"
-          @update-new-track-settings="$emit('update-new-track-settings',$event)"
           @track-split="$emit('track-split', $event)"
+          @track-seek="$emit('track-seek', $event)"
+          @update-new-track-settings="$emit('update-new-track-settings',$event)"
         />
       </div>
       <div

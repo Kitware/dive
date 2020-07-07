@@ -1,9 +1,10 @@
 import { computed, Ref } from '@vue/composition-api';
 import Track, { TrackId } from '@/lib/track';
+import { TypeStyling } from './useStyling';
 
 interface UseLineChartParams {
   enabledTrackIds: Readonly<Ref<readonly TrackId[]>>;
-  typeStyling: Ref<{ color: (type: string) => string }>;
+  typeStyling: Ref<TypeStyling>;
   trackMap: Map<TrackId, Track>;
   allTypes: Readonly<Ref<readonly string[]>>;
 }

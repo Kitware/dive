@@ -19,7 +19,7 @@ import EditAnnotationLayer from '@/components/layers/EditAnnotationLayer';
 import MarkerLayer from '@/components/layers/MarkerLayer';
 import { geojsonToBound } from '@/utils';
 import { FeaturePointingTarget } from '@/use/useFeaturePointing';
-import { StateStyles } from '@/use/useStyling';
+import { StateStyles, TypeStyling } from '@/use/useStyling';
 
 export default defineComponent({
   props: {
@@ -44,7 +44,7 @@ export default defineComponent({
       required: true,
     },
     typeStyling: {
-      type: Object as PropType<Ref<{ color: (t: string) => string }>>,
+      type: Object as PropType<Ref<TypeStyling>>,
       required: true,
     },
     stateStyling: {
@@ -91,7 +91,6 @@ export default defineComponent({
       editing: 'point',
     });
 
-
     const markerLayer = new MarkerLayer({
       annotator,
       stateStyling: props.stateStyling,
@@ -109,6 +108,10 @@ export default defineComponent({
         [frame, frame],
         (value) => (value !== null ? value : null),
       );
+      // Possibly include editing track or selected track
+      // even if it's not in range.
+      // if (sele!currentFrameIds.indexOf())
+
       const tracks = [] as FrameDataTrack[];
       const editingTracks = [] as FrameDataTrack[];
       currentFrameIds.forEach(
@@ -119,7 +122,7 @@ export default defineComponent({
               if (track === undefined) {
                 throw new Error(`trackMap missing trackid ${item}`);
               }
-              const features = track.getFeature(frame);
+              const [features] = track.getFeature(frame);
               const trackFrame = {
                 selected: (selectedTrackId === track.trackId),
                 editing: editingTrack,
@@ -146,12 +149,13 @@ export default defineComponent({
           if (editTrack === undefined) {
             throw new Error(`trackMap missing trackid ${selectedTrackId}`);
           }
-          const features = editTrack.getFeature(frameNumber.value);
+          const [real, lower, upper] = editTrack.getFeature(frameNumber.value);
+          const features = real || lower || upper;
           const trackFrame = {
             selected: true,
             editing: true,
             trackId: editTrack.trackId,
-            features,
+            features: (features && features.interpolate) ? features : null,
             confidencePairs: editTrack.getType(),
           };
           editingTracks.push(trackFrame);
