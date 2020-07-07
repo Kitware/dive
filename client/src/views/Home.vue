@@ -1,17 +1,16 @@
 <script>
-import { FileManager } from '@girder/components/src/components/Snippet';
-import { getLocationType } from '@girder/components/src/utils';
-
-import Export from '@/components/Export.vue';
-import RunPipelineMenu from '@/components/RunPipelineMenu.vue';
-import Upload from '@/components/Upload.vue';
-import NavigationBar from '@/components/NavigationBar.vue';
-import { getPathFromLocation, getLocationFromRoute } from '@/utils';
 import {
   mapActions,
   mapMutations,
   mapGetters,
 } from 'vuex';
+import { FileManager } from '@girder/components/src/components/Snippet';
+import { getLocationType } from '@girder/components/src/utils';
+import Export from '@/components/Export.vue';
+import RunPipelineMenu from '@/components/RunPipelineMenu.vue';
+import Upload from '@/components/Upload.vue';
+import NavigationBar from '@/components/NavigationBar.vue';
+import { getPathFromLocation, getLocationFromRoute } from '@/utils';
 import {
   runVideoConversion,
   deleteResources,

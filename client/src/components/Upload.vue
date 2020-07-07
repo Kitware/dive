@@ -1,4 +1,5 @@
 <script>
+import { mapGetters } from 'vuex';
 import Dropzone from '@girder/components/src/components/Presentation/Dropzone.vue';
 import {
   fileUploader,
@@ -9,11 +10,9 @@ import {
   VideoType,
 } from '@/constants';
 import { makeViameFolder } from '@/lib/api/viame.service';
-import { mapGetters } from 'vuex';
 import { getResponseError } from '@/lib/utils';
 
 function prepareFiles(files, videoRegEx, imageRegEx) {
-  console.log(files, videoRegEx, imageRegEx);
   const videoFilter = (file) => videoRegEx.test(file.name);
   const csvFilter = (file) => /\.csv$/i.test(file.name);
   const imageFilter = (file) => imageRegEx.test(file.name);
@@ -275,7 +274,7 @@ export default {
           const subfile = files.splice(0, 1);
           const subname = subfile[0].file.name.replace(/\..*/, '');
           // Only video subfolders should be used typically
-          const subtype = videoFilesRegEx.test(subfile[0].file.name) ? 'video' : 'unknown';
+          const subtype = this.getVidRegEx.test(subfile[0].file.name) ? 'video' : 'unknown';
           // eslint-disable-next-line no-await-in-loop
           folder = await (this.createUploadFolder(subname, createSubFolders, fps, subtype));
           if (folder) {
