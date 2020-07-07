@@ -12,11 +12,20 @@ export default {
       type: Boolean,
       default: false,
     },
+    showExcludeOption: {
+      type: Boolean,
+      default: true,
+    },
+    confidence: {
+      type: Number,
+      default: -1,
+    },
   },
 
   data() {
     return {
       menuOpen: false,
+      excludeFiltered: false,
     };
   },
 
@@ -40,6 +49,7 @@ export default {
     :close-on-content-click="false"
     :nudge-width="120"
     offset-y
+    max-width="280"
   >
     <template #activator="{ on }">
       <v-btn
@@ -80,7 +90,14 @@ export default {
         </v-card-actions>
 
         <v-card-text class="pb-0">
-          Get latest detections csv only
+          <div>Get latest detections csv only</div>
+          <v-checkbox
+            v-if="showExcludeOption"
+            v-model="excludeFiltered"
+            :label="`exclude tracks below confidence threshold (${confidence.toFixed(2)})`"
+            dense
+            hide-details
+          />
         </v-card-text>
         <v-card-actions>
           <v-spacer />
@@ -91,14 +108,13 @@ export default {
             :disabled="!exportUrls.exportDetectionsUrl"
             :href="exportUrls.exportDetectionsUrl"
           >
-            <span v-if="exportUrls.exportDetectionsUrl">detections </span>
+            <span v-if="exportUrls.exportDetectionsUrl">detections</span>
             <span v-else>detections unavailable</span>
           </v-btn>
         </v-card-actions>
 
         <v-card-text class="pb-0">
-          Zip all media, detections, and edit history
-          <br> recursively from all sub-folders
+          Zip all media, detections, and edit history recursively from all sub-folders
         </v-card-text>
         <v-card-actions>
           <v-spacer />

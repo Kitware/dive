@@ -11,7 +11,19 @@ export default function useFilteredTracks(
   /* Track IDs explicitly checked "ON" by the user */
   const checkedTrackIds = ref(sortedTracks.value.map((t) => t.trackId));
   /* The confidence threshold to test confidecePairs against */
-  const confidenceThreshold = ref(0.5);
+  const confidenceFilters = ref({ default: 0.5 } as Record<string, number>);
+
+  /**
+   * TODO: update
+   * Short-term representation of a global threshold before individual
+   * type thresholds are implemented
+   */
+  const defaultConfidenceThreshold = computed({
+    get: () => confidenceFilters.value.default,
+    set: (val: number) => {
+      confidenceFilters.value.default = val;
+    },
+  });
 
   /* Collect all known types from confidence pairs */
   const allTypes = computed(() => {
@@ -30,7 +42,7 @@ export default function useFilteredTracks(
   /* track IDs filtered by type and confidence threshold */
   const filteredTracks = computed(() => {
     const checkedSet = new Set(checkedTypes.value);
-    const confidenceThresh = confidenceThreshold.value;
+    const confidenceThresh = defaultConfidenceThreshold.value;
     return sortedTracks.value.filter((track) => {
       const confidencePairsAboveThreshold = track.confidencePairs
         .some(([confkey, confval]) => (
@@ -85,13 +97,21 @@ export default function useFilteredTracks(
     });
   }
 
+  function populateConfidenceFilters(val?: Record<string, number>) {
+    if (val) {
+      confidenceFilters.value = val;
+    }
+  }
+
   return {
     checkedTrackIds,
     checkedTypes,
-    confidenceThreshold,
+    confidenceThreshold: defaultConfidenceThreshold,
+    confidenceFilters,
     allTypes,
     filteredTracks,
     enabledTracks,
+    populateConfidenceFilters,
     updateTypeName,
   };
 }

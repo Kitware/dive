@@ -31,6 +31,7 @@ export default {
       class="px-3 mb-2"
       persistent-hint
       @input="updateConfidence"
+      @end="$emit('end')"
     />
   </div>
 </template>
