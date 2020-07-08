@@ -26,26 +26,12 @@ class Feature:
         """Removes entries with values of `None`."""
         return {k: v for k, v in self.__dict__.items() if v is not None}
 
-
-@dataclass
-class Meva_Feature(Feature):
-    """MEVA Feature represents a single detection in a track."""
-    actor_id: Optional[int] = None
-    cset: Optional[str] = None
-    #Activities
-    activity_id: Optional[int] = None
-    activity: Optional[str] = None
-    status: Optional[str] = None
-
-    timestamp: Optional[float] = None
-
-
 @dataclass
 class Track:
     begin: int
     end: int
     trackId: int
-    features: Union[List[Feature], List[Meva_Feature]] = field(default_factory=lambda: [])
+    features: List[Feature] = field(default_factory=lambda: [])
     confidencePairs: List[Tuple[str, float]] = field(default_factory=lambda: [])
     attributes: Dict[str, Any] = field(default_factory=lambda: {})
 
