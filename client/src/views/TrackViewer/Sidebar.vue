@@ -20,8 +20,8 @@ export default defineComponent({
       type: Map as PropType<Map<TrackId, Track>>,
       required: true,
     },
-    filteredTrackIds: {
-      type: Object as PropType<Ref<Array<TrackId>>>,
+    filteredTracks: {
+      type: Object as PropType<Ref<Array<Track>>>,
       required: true,
     },
     frame: {
