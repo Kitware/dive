@@ -128,11 +128,9 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
 
   const sortedTracks = computed(() => {
     _depend();
-    return trackIds.value.sort((a, b) => {
-      const trackA = getTrack(a);
-      const trackB = getTrack(b);
-      return trackA.begin - trackB.begin;
-    }).map((trackId) => getTrack(trackId));
+    return trackIds.value
+      .map((trackId) => getTrack(trackId))
+      .sort((a, b) => a.begin - b.begin);
   });
 
   return {
