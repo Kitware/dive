@@ -96,7 +96,7 @@ def parse_actor_map_to_tracks(actor_map):
             track_attributes = {'actor_id': actor_id, 'activity_id': actor.activity_id, 'activity': actor.activity,
                           'confidence': actor.activity_con, 'status': actor.src_status}
 
-            #How to split into tracks, currently does it by geom id
+            #How to split into tracks, currently does it by actor id
             # if detection.geom_id not in tracks:
             #     tracks[detection.geom_id] = Track(detection.frame, detection.frame, detection.geom_id)
 
