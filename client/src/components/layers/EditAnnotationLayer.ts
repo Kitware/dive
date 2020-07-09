@@ -5,7 +5,7 @@ import geo, { GeoEvent } from 'geojs';
 import { FrameDataTrack } from '@/components/layers/LayerTypes';
 
 interface EditAnnotationLayerParams {
-  editing: 'point' | 'rectangle';
+  editing: 'point' | 'rectangle' | 'polygon';
 }
 
 /**
@@ -18,7 +18,7 @@ interface EditAnnotationLayerParams {
 export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
   changed: boolean;
 
-  editing: 'point' | 'rectangle';
+  editing: 'point' | 'rectangle' | 'polygon';
 
   constructor(params: BaseLayerParams & EditAnnotationLayerParams) {
     super(params);
@@ -133,7 +133,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
         this.applyStylesToAnnotations();
         // State doesn't change at the end of editing so this will
         // swap into edit mode once geoJS is done
-        setTimeout(() => this.$emit('update:geojson', this.formattedData[0]), 0);
+        setTimeout(() => this.$emit('update:geojson', this.formattedData[0], this.editing), 0);
       }
     }
   }
@@ -165,7 +165,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
           }
           // must ALWAYS emit a polygon or point
           this.changed = true;
-          this.$emit('update:geojson', this.formattedData[0]);
+          this.$emit('update:geojson', this.formattedData[0], this.editing);
         }
       }
     }

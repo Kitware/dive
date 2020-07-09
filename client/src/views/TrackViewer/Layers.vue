@@ -13,6 +13,7 @@ import Track, { TrackId } from '@/lib/track';
 import IntervalTree from '@flatten-js/interval-tree';
 
 import AnnotationLayer from '@/components/layers/AnnotationLayer';
+import HTMLLayer from '@/components/layers/HTMLLayer';
 import { Annotator } from '@/components/annotators/annotatorType';
 import TextLayer from '@/components/layers/TextLayer';
 import EditAnnotationLayer from '@/components/layers/EditAnnotationLayer';
@@ -82,6 +83,11 @@ export default defineComponent({
       stateStyling: props.stateStyling,
       typeStyling: props.typeStyling,
       editing: 'rectangle',
+    });
+    const htmlLayer = new HTMLLayer({
+      annotator,
+      stateStyling: props.stateStyling,
+      typeStyling: props.typeStyling,
     });
 
     const markerEditLayer = new EditAnnotationLayer({
@@ -160,7 +166,8 @@ export default defineComponent({
         }
         if (editingTracks.length) {
           if (editingTrack) {
-            editAnnotationLayer.changeData(editingTracks);
+            //editAnnotationLayer.changeData(editingTracks);
+            htmlLayer.changeData(editingTracks);
           }
           if (featurePointing) {
             // Marker shouldn't be edited when creating a new track
