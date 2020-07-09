@@ -338,7 +338,7 @@ export default defineComponent({
       >
         <ConfidenceFilter
           :confidence.sync="confidenceThreshold"
-          @end="markChangesPending"
+          @end="markChangesPending('meta')"
         />
       </sidebar>
       <v-col style="position: relative; ">

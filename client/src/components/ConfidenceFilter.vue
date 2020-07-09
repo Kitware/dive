@@ -32,6 +32,7 @@ export default {
       persistent-hint
       @input="updateConfidence"
       @end="$emit('end')"
+      @mouseup="$emit('end')"
     />
   </div>
 </template>

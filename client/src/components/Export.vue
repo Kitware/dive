@@ -12,26 +12,22 @@ export default {
       type: Boolean,
       default: false,
     },
-    showExcludeOption: {
-      type: Boolean,
-      default: true,
-    },
-    confidence: {
-      type: Number,
-      default: -1,
-    },
   },
 
   data() {
     return {
       menuOpen: false,
       excludeFiltered: false,
+      activator: 0,
     };
   },
 
   asyncComputed: {
     async exportUrls() {
-      return getExportUrls(this.folderId);
+      if (this.menuOpen) {
+        return getExportUrls(this.folderId, this.excludeFiltered);
+      }
+      return null;
     },
   },
 
@@ -92,12 +88,21 @@ export default {
         <v-card-text class="pb-0">
           <div>Get latest detections csv only</div>
           <v-checkbox
-            v-if="showExcludeOption"
             v-model="excludeFiltered"
-            :label="`exclude tracks below confidence threshold (${confidence.toFixed(2)})`"
+            label="exclude tracks below confidence threshold"
             dense
             hide-details
           />
+          <div class="py-2">
+            <span>Current thresholds:</span>
+            <span
+              v-for="(val, key) in exportUrls.currentThresholds"
+              :key="key"
+              class="pt-2"
+            >
+              ({{ key }}, {{ val }})
+            </span>
+          </div>
         </v-card-text>
         <v-card-actions>
           <v-spacer />
