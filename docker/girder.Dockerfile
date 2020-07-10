@@ -1,5 +1,6 @@
 FROM node:latest as builder
 WORKDIR /app
+
 # Install dependencies
 COPY client/package.json client/yarn.lock /app/
 RUN yarn --frozen-lockfile
@@ -10,6 +11,12 @@ RUN yarn build
 
 
 FROM girder/girder as runtime
+
+ENV GIRDER_MONGO_URI mongodb://mongo:27017/girder
+ENV GIRDER_ADMIN_USER admin
+ENV GIRDER_ADMIN_PASSWORD viame
+ENV CELERY_BROKER_URL amqp://guest:guest@rabbit/
+ENV BROKER_CONNECTION_TIMEOUT 2
 
 COPY --from=builder /app/dist/ /usr/share/girder/static/viame/
 

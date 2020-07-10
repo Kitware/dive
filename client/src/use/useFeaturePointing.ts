@@ -47,7 +47,7 @@ export default function useFeaturePointing({
       });
     }
     data.featurePointing = false;
-    const feature = track.getFeature(frame);
+    const [feature] = track.getFeature(frame);
     if (!feature) {
       return;
     }

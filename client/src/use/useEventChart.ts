@@ -1,13 +1,13 @@
 
 import { computed, Ref } from '@vue/composition-api';
 import Track, { TrackId } from '@/lib/track';
+import { TypeStyling } from './useStyling';
 
 
 interface EventChartParams {
-  enabledTrackIds: Readonly<Ref<readonly TrackId[]>>;
+  enabledTracks: Readonly<Ref<readonly Track[]>>;
   selectedTrackId: Ref<TrackId | null>;
-  trackMap: Map<TrackId, Track>;
-  typeStyling: Ref<{ color: (type: string) => string }>;
+  typeStyling: Ref<TypeStyling>;
 }
 
 interface EventChartData {
@@ -16,33 +16,36 @@ interface EventChartData {
   color: string;
   selected: boolean;
   range: [number, number];
+  markers: [number, boolean][];
 }
 
 export default function useEventChart({
-  enabledTrackIds, selectedTrackId, trackMap, typeStyling,
+  enabledTracks, selectedTrackId, typeStyling,
 }: EventChartParams) {
   const eventChartData = computed(() => {
     const values = [] as EventChartData[];
     const mapfunc = typeStyling.value.color;
+    const selectedTrackIdValue = selectedTrackId.value;
     /* use forEach rather than filter().map() to save an interation */
-    enabledTrackIds.value.forEach((trackId) => {
-      const track = trackMap.get(trackId);
-      if (track === undefined) {
-        throw new Error(`Accessed missing track ${trackId}`);
-      }
+    enabledTracks.value.forEach((track) => {
       const { confidencePairs } = track;
       if (confidencePairs.length) {
         const trackType = confidencePairs[0][0];
         values.push({
-          trackId,
-          name: `Track ${trackId}`,
+          trackId: track.trackId,
+          name: `Track ${track.trackId}`,
           color: mapfunc(trackType),
-          selected: trackId === selectedTrackId.value,
+          selected: track.trackId === selectedTrackIdValue,
           range: [track.begin, track.end],
+          markers: track.featureIndex.map((i) => (
+            [i, track.features[i].interpolate || false])),
         });
       }
     });
-    return values;
+    return {
+      muted: selectedTrackIdValue !== null,
+      values,
+    };
   });
 
   return { eventChartData };

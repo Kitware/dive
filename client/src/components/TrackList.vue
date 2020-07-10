@@ -6,6 +6,14 @@ import CreationMode from '@/components/CreationMode.vue';
 import Track, { TrackId } from '@/lib/track';
 import { NewTrackSettings } from '@/use/useSettings';
 
+interface VirtualListItem {
+  track: Track;
+  selectedTrackId: number;
+  checkedTrackIds: number[];
+  editingTrack: boolean;
+  allTypes: string[];
+}
+
 export default Vue.extend({
   name: 'TrackList',
 
@@ -19,8 +27,8 @@ export default Vue.extend({
       type: Map as PropType<Map<TrackId, Track>>,
       required: true,
     },
-    filteredTrackIds: {
-      type: Object as PropType<Ref<Array<TrackId>>>,
+    filteredTracks: {
+      type: Object as PropType<Ref<Track[]>>,
       required: true,
     },
     allTypes: {
@@ -43,6 +51,10 @@ export default Vue.extend({
       type: Object as PropType<Ref<boolean>>,
       required: true,
     },
+    frame: {
+      type: Object as PropType<Ref<number>>,
+      required: true,
+    },
     typeStyling: {
       type: Object as PropType<Ref<{ color: (t: string) => string }>>,
       required: true,
@@ -54,30 +66,25 @@ export default Vue.extend({
   },
 
   data: () => ({
-    itemHeight: 45, // in pixels
+    itemHeight: 70, // in pixels
     settingsActive: false,
   }),
 
   computed: {
-    virtualListItems(): {
-      trackId: number;
-      selectedTrackId: number;
-      checkedTrackIds: number[];
-      editingTrack: boolean;
-      allTypes: string[];
-    }[] {
+    virtualListItems(): VirtualListItem[] {
       const selectedTrackId = this.selectedTrackId.value;
       const checkedTrackIds = this.checkedTrackIds.value;
       const editingTrack = this.editingTrack.value;
       const allTypes = this.allTypes.value;
-      return this.filteredTrackIds.value.map((trackId) => ({
-        trackId,
+      return this.filteredTracks.value.map((track) => ({
+        track,
         selectedTrackId,
         checkedTrackIds,
         editingTrack,
         allTypes,
       }));
     },
+
     newTrackColor(): string {
       if (this.newTrackSettings && this.newTrackSettings.value.type !== 'unknown') {
         return this.typeStyling.value.color(this.newTrackSettings.value.type);
@@ -91,19 +98,22 @@ export default Vue.extend({
     // because Vue typescript definitions are broke and don't recognize
     // the `this` context inside watcher handers
     'selectedTrackId.value': 'scrollToTrack',
-    'filteredTrackIds.value': 'scrollToSelectedTrack',
+    'filteredTracks.value': 'scrollToSelectedTrack',
   },
 
 
   methods: {
     scrollToTrack(trackId: TrackId): void {
       const virtualList = (this.$refs.virtualList as Vue).$el;
-      const offset = this.filteredTrackIds.value.indexOf(trackId);
-      if (offset === -1) {
-        virtualList.scrollTop = 0;
-      } else {
-        // try to show the selected track as the third track in the list
-        virtualList.scrollTop = (offset * this.itemHeight) - (2 * this.itemHeight);
+      const track = this.trackMap.get(trackId);
+      if (track) {
+        const offset = this.filteredTracks.value.indexOf(track);
+        if (offset === -1) {
+          virtualList.scrollTop = 0;
+        } else {
+          // try to show the selected track as the third track in the list
+          virtualList.scrollTop = (offset * this.itemHeight) - (2 * this.itemHeight);
+        }
       }
     },
 
@@ -121,34 +131,20 @@ export default Vue.extend({
         keyEvent.preventDefault();
       }
     },
-    getItemProps({
-      trackId,
-      selectedTrackId,
-      checkedTrackIds,
-      editingTrack,
-      allTypes,
-    }: {
-      trackId: TrackId;
-      selectedTrackId: TrackId;
-      checkedTrackIds: TrackId[];
-      editingTrack: boolean;
-      allTypes: string[];
-    }) {
-      const track = this.trackMap.get(trackId);
-      if (track === undefined) {
-        throw new Error(`Accessed missing track ${trackId}`);
-      }
-      const type = track.getType();
+
+    getItemProps(item: VirtualListItem) {
+      const type = item.track.getType();
       const trackType = type ? type[0] : '';
+      const selected = item.selectedTrackId === item.track.trackId;
       return {
         trackType,
-        trackId,
-        inputValue: checkedTrackIds.indexOf(trackId) >= 0,
-        selected: selectedTrackId === trackId,
-        editingTrack,
+        track: item.track,
+        inputValue: item.checkedTrackIds.indexOf(item.track.trackId) >= 0,
+        selected,
+        editing: selected && item.editingTrack,
         color: this.typeStyling.value.color(trackType),
-        types: allTypes,
-        splittable: track.length > 1,
+        types: item.allTypes,
+        frame: this.frame,
       };
     },
   },
@@ -160,7 +156,7 @@ export default Vue.extend({
     <v-subheader class="flex-grow-1 trackHeader">
       <v-container>
         <v-row align="center">
-          Tracks ({{ filteredTrackIds.value.length }})
+          Tracks ({{ filteredTracks.value.length }})
           <v-spacer />
           <v-btn
             v-if="!newTrackSettings"
@@ -176,26 +172,6 @@ export default Vue.extend({
             v-else
             class="newTrackSettings"
           >
-            <v-tooltip
-              open-delay="200"
-              bottom
-              max-width="200"
-            >
-              <template #activator="{ on }">
-                <v-btn
-                  outlined
-                  x-small
-                  :color="newTrackColor"
-                  v-on="on"
-                  @click="$emit('track-add')"
-                >
-                  {{ newTrackSettings.value.mode }}<v-icon small>
-                    mdi-plus
-                  </v-icon>
-                </v-btn>
-              </template>
-              <span>Default Type: {{ newTrackSettings.value.type }}</span>
-            </v-tooltip>
             <v-btn
               icon
               small
@@ -209,6 +185,27 @@ export default Vue.extend({
                 mdi-settings
               </v-icon>
             </v-btn>
+            <v-tooltip
+              open-delay="200"
+              bottom
+              max-width="200"
+            >
+              <template #activator="{ on }">
+                <v-btn
+                  outlined
+                  x-small
+                  :color="newTrackColor"
+                  v-on="on"
+                  @click="$emit('track-add')"
+                >
+                  <v-icon small>
+                    mdi-plus
+                  </v-icon>
+                  {{ newTrackSettings.value.mode }}
+                </v-btn>
+              </template>
+              <span>Default Type: {{ newTrackSettings.value.type }}</span>
+            </v-tooltip>
           </div>
         </v-row>
         <v-row>
@@ -223,8 +220,15 @@ export default Vue.extend({
         </v-row>
       </v-container>
     </v-subheader>
-
-
+    <datalist id="allTypesOptions">
+      <option
+        v-for="type in allTypes.value"
+        :key="type"
+        :value="type"
+      >
+        {{ type }}
+      </option>
+    </datalist>
     <v-virtual-scroll
       ref="virtualList"
       v-mousetrap="[
@@ -240,20 +244,22 @@ export default Vue.extend({
         { bind: 'x', handler: () => $emit('track-split', selectedTrackId.value),
           disabled: $prompt.visible()}
       ]"
-      class="tracks flex-shrink-0"
+      class="tracks"
       :items="virtualListItems"
       :item-height="itemHeight"
-      :height="400"
+      :height="420"
+      bench="1"
     >
       <template #default="{ item }">
         <track-item
           v-bind="getItemProps(item)"
-          @change="$emit('track-checked', { trackId: item.trackId, value: $event })"
-          @type-change="$emit('track-type-change', { trackId: item.trackId, value: $event })"
-          @delete="$emit('track-remove', item.trackId)"
-          @click="$emit('track-click', item.trackId)"
-          @edit="$emit('track-edit', item.trackId)"
-          @split="$emit('track-split', item.trackId)"
+          @change="$emit('track-checked', { trackId: item.track.trackId, value: $event })"
+          @type-change="$emit('track-type-change', { trackId: item.track.trackId, value: $event })"
+          @delete="$emit('track-remove', item.track.trackId)"
+          @click="$emit('track-click', item.track.trackId)"
+          @edit="$emit('track-edit', item.track.trackId)"
+          @split="$emit('track-split', item.track.trackId)"
+          @seek="$emit('track-seek', $event)"
         />
       </template>
     </v-virtual-scroll>
@@ -269,6 +275,7 @@ export default Vue.extend({
 }
 .tracks {
   overflow-y: auto;
+  overflow-x: hidden;
 
   .v-input--checkbox {
     label {

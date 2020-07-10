@@ -1,10 +1,10 @@
 import { computed, Ref } from '@vue/composition-api';
-import Track, { TrackId } from '@/lib/track';
+import Track from '@/lib/track';
+import { TypeStyling } from './useStyling';
 
 interface UseLineChartParams {
-  enabledTrackIds: Readonly<Ref<readonly TrackId[]>>;
-  typeStyling: Ref<{ color: (type: string) => string }>;
-  trackMap: Map<TrackId, Track>;
+  enabledTracks: Readonly<Ref<readonly Track[]>>;
+  typeStyling: Ref<TypeStyling>;
   allTypes: Readonly<Ref<readonly string[]>>;
 }
 
@@ -24,9 +24,8 @@ function updateHistogram(begin: number, end: number, histogram: number[]) {
 }
 
 export default function useLineChart({
-  enabledTrackIds,
+  enabledTracks,
   typeStyling,
-  trackMap,
   allTypes,
 }: UseLineChartParams) {
   const lineChartData = computed(() => {
@@ -43,11 +42,7 @@ export default function useLineChart({
      * For each begin time, push a 1, for each end time, push a -1.
      * Then iterate each histogram and generate its accumulation at each point.
      */
-    enabledTrackIds.value.forEach((trackId) => {
-      const track = trackMap.get(trackId);
-      if (track === undefined) {
-        throw new Error(`Accessed missing track ${trackId}`);
-      }
+    enabledTracks.value.forEach((track) => {
       const totalArr = histograms.get('total') as number[];
       const ibegin = track.begin;
       const iend = track.end > track.begin ? track.end : track.begin + 1;

@@ -5,6 +5,7 @@ import { ImageSequenceType, VideoType } from '@/constants';
 import { GirderModel } from '@girder/components/src';
 import { getClipMeta } from '@/lib/api/viameDetection.service';
 import { getItemsInFolder, getFolder, getItemDownloadUri } from '@/lib/api/girder.service';
+import { CustomStyle } from './useStyling';
 
 const defaultFrameRate = 30;
 
@@ -13,6 +14,7 @@ interface VIIMEDataset extends GirderModel {
     type: 'video' | 'image-sequence';
     fps: number;
     customTypeColors?: Record<string, string>;
+    customTypeStyling?: Record<string, CustomStyle>;
   };
 }
 
