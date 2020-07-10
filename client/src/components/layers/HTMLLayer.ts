@@ -44,7 +44,7 @@ export default class HTMLLayer extends BaseLayer<HTMLData> {
     this.htmlLayer.canvas().id = 'annotationMenu';
     this.props = {
       keyframe: false,
-      position: { x: 0, y: 0 },
+      color: null,
     };
 
     const ComponentClass = Vue.extend(AnnotationMenu);
@@ -57,30 +57,37 @@ export default class HTMLLayer extends BaseLayer<HTMLData> {
     });
 
     instance.$mount();
-    document.getElementById('annotationMenu').appendChild(instance.$el);
+    const element = document.getElementById('annotationMenu');
+    if (element) {
+      element.appendChild(instance.$el);
+    }
 
+    instance.$on('ToggleKeyFrame', () => {
+      this.$emit('ToggleKeyFrame');
+    });
     this.initialize();
   }
+
 
   initialize() {
     super.initialize();
   }
 
   formatData(frameData: FrameDataTrack[]) {
-    const arr: RectGeoJSData[] = [];
+    this.props.visible = true;
+    const arr: HTMLData[] = [];
     frameData.forEach((track: FrameDataTrack) => {
       if (track.features && track.features.bounds) {
-        console.log(track.features.bounds);
         const annotation: HTMLData = {
           trackId: track.trackId,
           selected: track.selected,
           editing: track.editing,
           confidencePairs: track.confidencePairs,
           keyframe: track.features.keyframe,
-          position: ({
-            x: track.features.bounds[1],
-            y: track.features.bounds[2],
-          }),
+          position: {
+            x: track.features.bounds[2],
+            y: track.features.bounds[1],
+          },
         };
         arr.push(annotation);
       }
@@ -88,15 +95,30 @@ export default class HTMLLayer extends BaseLayer<HTMLData> {
     return arr;
   }
 
+  /**
+   * Removes the current annotation and resets the mode when completed editing
+   */
+  disable() {
+    if (this.props.visible) {
+      this.props.visible = false;
+    }
+  }
+
   redraw() {
-    this.updateElementPos(this.formattedData[0]);
+    if (this.formatData.length) {
+      this.updateElementPos(this.formattedData[0]);
+    }
   }
 
   updateElementPos(frameData: HTMLData) {
     //Lets take the props ref and place the menu
-    console.log(`x: ${frameData.position?.x} y:${frameData.position.y}`);
-    this.props.keyframe = frameData.keyframe;
-    this.props.position = frameData.position;
+    if (frameData) {
+      this.props.keyframe = frameData.keyframe;
+      this.props.color = this.createStyle().strokeColor(null, null, frameData);
+      this.htmlLayer.position(frameData.position);
+    } else {
+      this.disable();
+    }
   }
 
   createStyle(): LayerStyle<HTMLData> {

@@ -1,28 +1,34 @@
+<script lang="ts">
+import { Ref } from '@vue/composition-api';
+import Vue, { PropType } from 'vue';
 
-<script>
 import TooltipBtn from '@/components/TooltipButton.vue';
 
-export default {
+export default Vue.extend({
   name: 'AnnotationMenu',
   components: {
     TooltipBtn,
   },
   data() {
     return {
+      visible: false,
+      keyframe: false,
+      color: null,
     };
   },
-};
+});
 </script>
 <template>
   <div
+    v-if="visible"
     class="menuItem"
-    :style="{top:`${position.x}px`, left:`${position.y}px`}"
   >
     <tooltip-btn
       :icon="(keyframe)
         ? 'mdi-star'
         : 'mdi-star-outline'"
       tooltip-text="Toggle keyframe"
+      :color="color"
       @click="$emit('ToggleKeyFrame')"
     />
   </div>
@@ -32,11 +38,5 @@ export default {
 .menuItem {
   position: absolute;
   z-index: 3000;
-  bottom: 0;
-  right: 0;
-  width: 20px;
-  height: 20px;
-  background: rgba(0, 0, 0, 0.8);
-  overflow-y: auto;
 }
 </style>

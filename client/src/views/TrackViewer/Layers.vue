@@ -120,6 +120,7 @@ export default defineComponent({
 
       const frameData = [] as FrameDataTrack[];
       const editingTracks = [] as FrameDataTrack[];
+      const selectedTrack = [] as FrameDataTrack[];
       currentFrameIds.forEach(
         (trackId: TrackId) => {
           const track = props.trackMap.get(trackId);
@@ -136,8 +137,12 @@ export default defineComponent({
               confidencePairs: track.getType(),
             };
             frameData.push(trackFrame);
-            if (frameData[frameData.length - 1].selected && (editingTrack || featurePointing)) {
-              editingTracks.push(trackFrame);
+            if (frameData[frameData.length - 1].selected) {
+              //Display the menu for the selected Track
+              selectedTrack.push(frameData[frameData.length - 1]);
+              if (editingTrack || featurePointing) {
+                editingTracks.push(trackFrame);
+              }
             }
           }
         },
@@ -147,9 +152,15 @@ export default defineComponent({
       textLayer.changeData(frameData);
       markerLayer.changeData(frameData);
 
+      // Editing and manipulation of tracks;
       if (selectedTrackId !== null) {
+        if (currentFrameIds.includes(selectedTrackId)) {
+          htmlLayer.changeData(selectedTrack);
+        } else {
+          htmlLayer.disable();
+        }
+        const editTrack = props.trackMap.get(selectedTrackId);
         if ((editingTrack || featurePointing) && !currentFrameIds.includes(selectedTrackId)) {
-          const editTrack = props.trackMap.get(selectedTrackId);
           if (editTrack === undefined) {
             throw new Error(`trackMap missing trackid ${selectedTrackId}`);
           }
@@ -166,8 +177,7 @@ export default defineComponent({
         }
         if (editingTracks.length) {
           if (editingTrack) {
-            //editAnnotationLayer.changeData(editingTracks);
-            htmlLayer.changeData(editingTracks);
+            editAnnotationLayer.changeData(editingTracks);
           }
           if (featurePointing) {
             // Marker shouldn't be edited when creating a new track
@@ -183,6 +193,7 @@ export default defineComponent({
       } else {
         markerEditLayer.disable();
         editAnnotationLayer.disable();
+        htmlLayer.disable();
       }
     }
 
@@ -217,6 +228,26 @@ export default defineComponent({
 
     markerEditLayer.$on('update:geojson', (data: GeoJSON.Feature<GeoJSON.Point>) => {
       emit('featurePointUpdated', frameNumber.value, data);
+    });
+
+    htmlLayer.$on('ToggleKeyFrame', () => {
+      const selectedTrackId = props.selectedTrackId.value;
+      const track = props.trackMap.get(selectedTrackId);
+      const frame = frameNumber.value;
+      if (track) {
+        const { features } = track.canInterpolate(frame);
+        const [real, lower, upper] = features;
+
+        if (features && real && !real.keyframe) {
+          track.setFeature({
+            ...real,
+            frame,
+            keyframe: true,
+          });
+        } else {
+          track.deleteFeature(frame);
+        }
+      }
     });
 
     return {
