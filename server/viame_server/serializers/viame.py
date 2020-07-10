@@ -8,8 +8,8 @@ import io
 from dataclasses import dataclass, field
 from dacite import from_dict, Config
 from typing import List, Dict, Tuple, Optional, Union, Any
-
 from girder.models.file import File
+from viame_server.serializers.models import Feature, Track, interpolate
 
 
 def row_info(row: List[str]) -> Tuple[int, int, List[float], float]:
