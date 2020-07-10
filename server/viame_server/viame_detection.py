@@ -165,9 +165,18 @@ class ViameDetection(Resource):
         if not len(detectionItems):
             return None
 
-        file = Item().childFiles(detectionItems[0])[0]
+        files = Item().childFiles(detectionItems[0])
+        file = files[0]
         if "csv" in file["exts"]:
             return viame.load_csv_as_tracks(file)
+        else:
+            yamls = []
+            for f in files:
+                if "yml" in file["exts"]:
+                    yamls.append(f)
+            if yamls:
+                return meva.load_kpf_as_tracks(yamls)
+
         return File().download(file, contentDisposition="inline")
 
     @access.user
