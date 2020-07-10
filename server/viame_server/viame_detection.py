@@ -244,19 +244,19 @@ class ViameDetection(Resource):
 
             detectionItems.sort(key=lambda d: d["created"], reverse=True)
             files = Item().childFiles(detectionItems)
-            nut = []
+            yamls = []
             for file in files:
                 if "yml" in file["exts"]:
-                    nut.append(file)
-            return nut
+                    yamls.append(file)
+            return yamls
 
         except:
             items = Folder().childItems(folder)
-            nut = []
+            yamls = []
             for item in items:
                 files = Item().childFiles(item)
                 for file in files:
                     if "yml" in file["exts"]:
-                        nut.append(file)
+                        yamls.append(file)
             # nut.append("nut")
-            return meva.load_kpf_as_tracks(nut)
+            return meva.load_kpf_as_tracks(yamls)
