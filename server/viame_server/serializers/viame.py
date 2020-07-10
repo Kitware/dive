@@ -11,39 +11,6 @@ from typing import List, Dict, Tuple, Optional, Union, Any
 
 from girder.models.file import File
 
-@dataclass
-class Feature:
-    """Feature represents a single detection in a track."""
-
-    frame: int
-    bounds: List[float]
-    head: Optional[Tuple[float, float]] = None
-    tail: Optional[Tuple[float, float]] = None
-    fishLength: Optional[float] = None
-    attributes: Optional[Dict[str, Union[bool, float, str]]] = None
-
-    def asdict(self):
-        """Removes entries with values of `None`."""
-        return {k: v for k, v in self.__dict__.items() if v is not None}
-
-@dataclass
-class Track:
-    begin: int
-    end: int
-    trackId: int
-    features: List[Feature] = field(default_factory=lambda: [])
-    confidencePairs: List[Tuple[str, float]] = field(default_factory=lambda: [])
-    attributes: Dict[str, Any] = field(default_factory=lambda: {})
-
-    def asdict(self):
-        """Used instead of `dataclasses.asdict` for better performance."""
-
-        track_dict = dict(self.__dict__)
-        track_dict["features"] = [
-            feature.asdict() for feature in track_dict["features"]
-        ]
-        return track_dict
-
 
 def row_info(row: List[str]) -> Tuple[int, int, List[float], float]:
     trackId = int(row[0])
