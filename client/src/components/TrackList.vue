@@ -5,6 +5,7 @@ import TrackItem from '@/components/TrackItem.vue';
 import CreationMode from '@/components/CreationMode.vue';
 import Track, { TrackId } from '@/lib/track';
 import { NewTrackSettings } from '@/use/useSettings';
+import { cloneDeep } from 'lodash';
 
 interface VirtualListItem {
   track: Track;
@@ -95,6 +96,7 @@ export default Vue.extend({
   },
 
   watch: {
+    'allTypes.value': 'checkExistingTrack',
     // because Vue typescript definitions are broke and don't recognize
     // the `this` context inside watcher handers
     'selectedTrackId.value': 'scrollToTrack',
@@ -103,6 +105,17 @@ export default Vue.extend({
 
 
   methods: {
+    /**
+     * On load check allTypes to make sure it exists in the overall list if not default to unknown
+     * All changes should have a created type after initial load.
+     */
+    checkExistingTrack(types: string[]) {
+      if (types.length && types.indexOf(this.newTrackSettings.value.type) === -1) {
+        const copy: NewTrackSettings = cloneDeep(this.newTrackSettings.value);
+        copy.type = 'unknown'; // Modify the value
+        this.$emit('update-new-track-settings', copy);
+      }
+    },
     scrollToTrack(trackId: TrackId): void {
       const virtualList = (this.$refs.virtualList as Vue).$el;
       const track = this.trackMap.get(trackId);
