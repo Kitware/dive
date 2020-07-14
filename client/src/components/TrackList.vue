@@ -108,9 +108,11 @@ export default Vue.extend({
     /**
      * On load check allTypes to make sure it exists in the overall list if not default to unknown
      * All changes should have a created type after initial load.
+     * Has the additional benefit if you delete the only newTrackSettings.type
+     * It will default back to the unknown type instead of creating a type that isn't known
      */
     checkExistingTrack(types: string[]) {
-      if (types.length && types.indexOf(this.newTrackSettings.value.type) === -1) {
+      if (types.indexOf(this.newTrackSettings.value.type) === -1) {
         const copy: NewTrackSettings = cloneDeep(this.newTrackSettings.value);
         copy.type = 'unknown'; // Modify the value
         this.$emit('update-new-track-settings', copy);
