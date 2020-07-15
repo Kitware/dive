@@ -66,11 +66,19 @@ export default defineComponent({
     const frameNumber: Readonly<Ref<number>> = computed(() => annotator.frame as number);
 
 
-    const annotationLayer = new AnnotationLayer({
+    const rectAnnotationLayer = new AnnotationLayer({
       annotator,
       stateStyling: props.stateStyling,
       typeStyling: props.typeStyling,
+      type: 'rectangle',
     });
+    const polyAnnotationLayer = new AnnotationLayer({
+      annotator,
+      stateStyling: props.stateStyling,
+      typeStyling: props.typeStyling,
+      type: 'polygon',
+    });
+
     const textLayer = new TextLayer({
       annotator,
       stateStyling: props.stateStyling,
@@ -81,14 +89,14 @@ export default defineComponent({
       annotator,
       stateStyling: props.stateStyling,
       typeStyling: props.typeStyling,
-      editing: 'rectangle',
+      type: 'polygon',
     });
 
     const markerEditLayer = new EditAnnotationLayer({
       annotator,
       stateStyling: props.stateStyling,
       typeStyling: props.typeStyling,
-      editing: 'point',
+      type: 'point',
     });
 
     const markerLayer = new MarkerLayer({
@@ -137,7 +145,8 @@ export default defineComponent({
         },
       );
 
-      annotationLayer.changeData(frameData);
+      rectAnnotationLayer.changeData(frameData);
+      polyAnnotationLayer.changeData(frameData);
       textLayer.changeData(frameData);
       markerLayer.changeData(frameData);
 
@@ -199,13 +208,17 @@ export default defineComponent({
         emit('selectTrack', trackId, editing);
       }
     };
-    annotationLayer.$on('annotationClicked', Clicked);
-    annotationLayer.$on('annotationRightClicked', Clicked);
+    rectAnnotationLayer.$on('annotationClicked', Clicked);
+    rectAnnotationLayer.$on('annotationRightClicked', Clicked);
 
     editAnnotationLayer.$on('update:geojson',
-      (data: GeoJSON.Feature<GeoJSON.Polygon>) => {
-        const bounds = geojsonToBound(data);
-        emit('update-rect-bounds', frameNumber.value, bounds);
+      (data: GeoJSON.Feature<GeoJSON.Polygon>, type: string) => {
+        if (type === 'rectangle') {
+          const bounds = geojsonToBound(data);
+          emit('update-rect-bounds', frameNumber.value, bounds);
+        } else if (type === 'polygon') {
+          emit('update-polygon', frameNumber.value, data.geometry);
+        }
       });
 
     markerEditLayer.$on('update:geojson', (data: GeoJSON.Feature<GeoJSON.Point>) => {

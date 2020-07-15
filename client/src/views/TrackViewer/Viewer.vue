@@ -379,6 +379,7 @@ export default defineComponent({
             @selectTrack="handler.selectTrack"
             @featurePointUpdated="featurePointed"
             @update-rect-bounds="handler.updateRectBounds"
+            @update-polygon="handler.updatePolygon"
           />
         </component>
         <v-menu

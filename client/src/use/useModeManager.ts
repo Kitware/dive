@@ -1,6 +1,6 @@
 import { Ref } from '@vue/composition-api';
 import Track, { TrackId } from '@/lib/track';
-import { RectBounds } from '@/utils';
+import { RectBounds, findBounds } from '@/utils';
 import { NewTrackSettings } from './useSettings';
 
 export interface Seeker {
@@ -114,6 +114,36 @@ export default function useModeManager({
     }
   }
 
+  function handleUpdatePolygon(frameNum: number, data: GeoJSON.Polygon) {
+    if (selectedTrackId.value !== null) {
+      const track = trackMap.get(selectedTrackId.value);
+      if (track) {
+        // Determines if we are creating a new Detection
+        const { features, interpolate } = track.canInterpolate(frameNum);
+        const [real] = features;
+        if (!real || real.bounds === undefined) {
+          newDetectionMode = true;
+        }
+        const interpolateTrack = newTrackMode
+          ? newTrackSettings.modeSettings.Track.interpolate
+          : interpolate;
+        track.setFeature({
+          frame: frameNum,
+          polygon: data,
+          bounds: findBounds(data),
+          keyframe: true,
+          interpolate: (newDetectionMode && !newTrackMode)
+            ? false : interpolateTrack,
+        });
+        //If it is a new track and we have newTrack Settings
+        if (newTrackMode && newDetectionMode) {
+          newTrackSettingsAfterLogic(track);
+        }
+        newDetectionMode = false;
+      }
+    }
+  }
+
   function handleRemoveTrack(trackId: TrackId) {
     // if removed track was selected, unselect before remove
     if (selectedTrackId.value === trackId) {
@@ -151,6 +181,7 @@ export default function useModeManager({
       trackTypeChange: handleTrackTypeChange,
       addTrack: handleAddTrack,
       updateRectBounds: handleUpdateRectBounds,
+      updatePolygon: handleUpdatePolygon,
       selectNext: handleSelectNext,
       trackClick: handleTrackClick,
       removeTrack: handleRemoveTrack,

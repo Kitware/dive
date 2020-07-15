@@ -1,5 +1,5 @@
 /* eslint-disable class-methods-use-this */
-import BaseLayer, { LayerStyle } from '@/components/layers/BaseLayer';
+import BaseLayer, { LayerStyle, BaseLayerParams } from '@/components/layers/BaseLayer';
 import { boundToGeojson } from '@/utils';
 import geo, { GeoEvent } from 'geojs';
 import { FrameDataTrack } from '@/components/layers/LayerTypes';
@@ -12,7 +12,23 @@ interface RectGeoJSData{
   polygon: GeoJSON.Polygon;
 }
 
+interface AnnotationLayerParams {
+  type: 'rectangle' | 'polygon';
+}
+
 export default class AnnotationLayer extends BaseLayer<RectGeoJSData> {
+  type: 'rectangle' | 'polygon';
+
+  constructor(params: BaseLayerParams & AnnotationLayerParams) {
+    super(params);
+    this.type = params.type;
+    if (!this.type) {
+      this.type = 'rectangle';
+    }
+    //Only initialize once, prevents recreating Layer each edit
+    this.initialize();
+  }
+
   initialize() {
     const layer = this.annotator.geoViewer.createLayer('feature', {
       features: ['point', 'line', 'polygon'],
@@ -22,7 +38,7 @@ export default class AnnotationLayer extends BaseLayer<RectGeoJSData> {
       .geoOn(geo.event.feature.mouseclick, (e: GeoEvent) => {
         if (e.mouse.buttonsDown.left) {
           if (!e.data.editing || (e.data.editing && !e.data.selected)) {
-            this.$emit('annotationClicked', e.data.trackId, false);
+            //this.$emit('annotationClicked', e.data.trackId, false);
           }
         } else if (e.mouse.buttonsDown.right) {
           if (!e.data.editing || (e.data.editing && !e.data.selected)) {
@@ -37,7 +53,7 @@ export default class AnnotationLayer extends BaseLayer<RectGeoJSData> {
     this.featureLayer.geoOn(geo.event.mouseclick, (e: GeoEvent) => {
       // If we aren't clicking on an annotation we can deselect the current track
       if (this.featureLayer.pointSearch(e.geo).found.length === 0) {
-        this.$emit('annotationClicked', null, false);
+        //this.$emit('annotationClicked', null, false);
       }
     });
     super.initialize();
@@ -47,7 +63,10 @@ export default class AnnotationLayer extends BaseLayer<RectGeoJSData> {
     const arr: RectGeoJSData[] = [];
     frameData.forEach((track: FrameDataTrack) => {
       if (track.features && track.features.bounds) {
-        const polygon = boundToGeojson(track.features.bounds);
+        let polygon = boundToGeojson(track.features.bounds);
+        if (this.type === 'polygon' && track.features.polygon) {
+          polygon = track.features.polygon;
+        }
         const annotation: RectGeoJSData = {
           trackId: track.trackId,
           selected: track.selected,
