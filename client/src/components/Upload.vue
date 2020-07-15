@@ -1,22 +1,21 @@
 <script>
+import { mapGetters } from 'vuex';
 import Dropzone from '@girder/components/src/components/Presentation/Dropzone.vue';
 import {
   fileUploader,
   sizeFormatter,
 } from '@girder/components/src/utils/mixins';
 import {
-  videoFilesRegEx,
-  imageFilesRegEx,
   ImageSequenceType,
   VideoType,
 } from '@/constants';
 import { makeViameFolder } from '@/lib/api/viame.service';
 import { getResponseError } from '@/lib/utils';
 
-function prepareFiles(files) {
-  const videoFilter = (file) => videoFilesRegEx.test(file.name);
+function prepareFiles(files, videoRegEx, imageRegEx) {
+  const videoFilter = (file) => videoRegEx.test(file.name);
   const csvFilter = (file) => /\.csv$/i.test(file.name);
-  const imageFilter = (file) => imageFilesRegEx.test(file.name);
+  const imageFilter = (file) => imageRegEx.test(file.name);
   const ymlFilter = (file) => /\.yml$/i.test(file.name);
 
   const videoFiles = files.filter(videoFilter);
@@ -119,6 +118,7 @@ export default {
     ImageSequenceType,
   }),
   computed: {
+    ...mapGetters('Filetypes', ['getVidRegEx', 'getImgRegEx']),
     uploadEnabled() {
       return this.location && this.location._modelType === 'folder';
     },
@@ -187,8 +187,8 @@ export default {
     addPendingUpload(name, allFiles) {
       const {
         type, media, csv, yml,
-      } = prepareFiles(allFiles);
-
+      } = prepareFiles(allFiles, this.getVidRegEx, this.getImgRegEx);
+      
       let files = media.concat(csv);
       if (yml.length > 0) {
         files = media.concat(yml);
@@ -266,6 +266,7 @@ export default {
     async uploadPending(pendingUpload, uploaded) {
       const { name, files, createSubFolders } = pendingUpload;
       const fps = parseInt(pendingUpload.fps, 10);
+
       // eslint-disable-next-line no-param-reassign
       pendingUpload.uploading = true;
 
@@ -282,7 +283,7 @@ export default {
           const subfile = files.splice(0, 1);
           const subname = subfile[0].file.name.replace(/\..*/, '');
           // Only video subfolders should be used typically
-          const subtype = videoFilesRegEx.test(subfile[0].file.name) ? 'video' : 'unknown';
+          const subtype = this.getVidRegEx.test(subfile[0].file.name) ? 'video' : 'unknown';
           // eslint-disable-next-line no-await-in-loop
           folder = await (this.createUploadFolder(subname, createSubFolders, fps, subtype));
           if (folder) {
