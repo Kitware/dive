@@ -153,6 +153,13 @@ export default {
             detection: folder._id,
           },
         ));
+        const ymlFiles = results.filter((result) => result.name.endsWith('.yml'));
+        ymlFiles.forEach((ymlFile) => setMetadataForItem(
+          ymlFile.itemId,
+          {
+            detection: folder._id,
+          },
+        ));
       });
     },
   },
