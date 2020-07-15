@@ -212,18 +212,3 @@ def _deserialize_actor(actor, actor_map, activity_id, activity_type, confidence,
             activity_id=activity_id, activity=activity_type, src_status=status, confidence=confidence
         )
     return actor_map[actor_id]
-
-
-def serialize_types(actor_map: Dict[int, models.Actor]):
-    kpf.serialize_types(actor_map)
-
-def serialize_geom(actor_map: Dict[int, models.Actor]):
-    kpf.serialize_geom(actor_map)
-
-def serialize_activities(activity_map: Dict[int, models.Activity], actor_map: Dict[int, models.Actor]):
-    kpf.serialize_activities(activity_map, actor_map)
-
-def serialize_to_files(
-    output_basename: str, activity_list: models.ActivityList, keyframes_only=False,
-):
-    kpf.serialize_to_files(output_basename, activity_list, keyframes_only)
