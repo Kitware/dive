@@ -16,10 +16,12 @@ function prepareFiles(files, videoRegEx, imageRegEx) {
   const videoFilter = (file) => videoRegEx.test(file.name);
   const csvFilter = (file) => /\.csv$/i.test(file.name);
   const imageFilter = (file) => imageRegEx.test(file.name);
+  const ymlFilter = (file) => /\.yml$/i.test(file.name);
 
   const videoFiles = files.filter(videoFilter);
   const imageFiles = files.filter(imageFilter);
   const csvFiles = files.filter(csvFilter);
+  const ymlFiles = files.filter(ymlFilter);
 
   if (videoFiles.length > 0 && imageFiles.length > 0) {
     throw new Error('Do not upload images and videos in the same batch.');
@@ -29,17 +31,21 @@ function prepareFiles(files, videoRegEx, imageRegEx) {
     throw new Error('Annotation upload is not supported when multiple videos are uploaded');
   } else if (videoFiles.length === 0 && imageFiles.length === 0 && csvFiles.length > 0) {
     throw new Error('Cannot upload annotations without media');
+  } else if (videoFiles.length === 0 && imageFiles.length === 0 && ymlFiles.length > 0) {
+    throw new Error('Cannot upload kpf annotations without media');
   } else if (videoFiles.length) {
     return {
       type: VideoType,
       media: videoFiles,
       csv: csvFiles,
+      yml: ymlFiles,
     };
   } else if (imageFiles.length) {
     return {
       type: ImageSequenceType,
       media: imageFiles,
       csv: csvFiles,
+      yml: ymlFiles,
     };
   }
   throw new Error('No supported data types found.  Please choose video or image frames.');
@@ -179,9 +185,14 @@ export default {
       }
     },
     addPendingUpload(name, allFiles) {
-      const { type, media, csv } = prepareFiles(allFiles, this.getVidRegEx, this.getImgRegEx);
+      const {
+        type, media, csv, yml,
+      } = prepareFiles(allFiles, this.getVidRegEx, this.getImgRegEx);
 
-      const files = media.concat(csv);
+      let files = media.concat(csv);
+      if (yml.length > 0) {
+        files = media.concat(yml);
+      }
       const defaultFilename = files[0].name;
       // mapping needs to be done for the mixin upload functions
       const internalFiles = files.map((file) => ({

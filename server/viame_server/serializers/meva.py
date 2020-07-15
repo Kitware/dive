@@ -12,7 +12,7 @@ from dacite import from_dict, Config
 from typing import List, Dict, Tuple, Optional, Union, Any
 
 from girder.models.file import File
-from .viame import Track, Feature
+from viame_server.serializers.models import Feature, Track
 
 @dataclass
 class Detection:
@@ -70,6 +70,7 @@ def load_kpf_as_tracks(ymls):
             deserialize_geom(geom, actor_map)
         else:
             print("WARNING: geom yaml was not given")
+            raise BoilerError('GEOM yaml needed to create Tracks')
         if activity:
             deserialize_activities(activity, activity_map, actor_map)
         else:
@@ -92,14 +93,7 @@ def parse_actor_map_to_tracks(actor_map):
             feat_attributes = {'timestamp': detection.timestamp, 'geom_id': detection.geom_id}
             feature = Feature(frame=detection.frame, bounds=bounds, attributes=feat_attributes)
 
-            confidencePairs = [(actor.actor_type, actor.confidence)]
-            track_attributes = {'actor_id': actor_id, 'activity_id': actor.activity_id, 'activity': actor.activity,
-                          'confidence': actor.activity_con, 'status': actor.src_status}
-
-            #How to split into tracks, currently does it by actor id
-            # if detection.geom_id not in tracks:
-            #     tracks[detection.geom_id] = Track(detection.frame, detection.frame, detection.geom_id)
-
+            # Create a new track per actor id
             if actor_id not in ids:
                 ids[actor_id] = i
                 confidence_pairs = [(actor.actor_type, actor.confidence)]
@@ -108,16 +102,9 @@ def parse_actor_map_to_tracks(actor_map):
                 tracks[i] = Track(begin=actor.begin, end=actor.end, trackId=i, confidencePairs=confidence_pairs, attributes=track_attributes)
                 i += 1
 
-            # if detection.activity_id not in ids:
-            #     ids[detection.activity_id] = i
-            #     tracks[i] = Track(detection.frame, detection.frame, i)
-            #     i += 1
-
-            # track = tracks[detection.geom_id]
             track = tracks[ids[actor_id]]
-            # track = tracks[ids[detection.activity_id]]
-
             track.features.append(feature)
+
     return tracks
 
 
@@ -189,7 +176,7 @@ def _deserialize_activity(activity_packet, actor_map):
     if len(activity_type_keys) != 1:
         raise BoilerError(f'{activity_type_obj} should only have 1 key')
     activity_type = activity_type_keys[0]
-    confidence = activity_type_obj[activity_type]
+    confidence = float(activity_type_obj[activity_type])
     status = None
     if kpf.STATUS in activity:
         # status = ActivityPipelineStatuses(activity[kpf.STATUS])
@@ -225,18 +212,3 @@ def _deserialize_actor(actor, actor_map, activity_id, activity_type, confidence,
             activity_id=activity_id, activity=activity_type, src_status=status, confidence=confidence
         )
     return actor_map[actor_id]
-
-
-def serialize_types(actor_map: Dict[int, models.Actor]):
-    kpf.serialize_types(actor_map)
-
-def serialize_geom(actor_map: Dict[int, models.Actor]):
-    kpf.serialize_geom(actor_map)
-
-def serialize_activities(activity_map: Dict[int, models.Activity], actor_map: Dict[int, models.Actor]):
-    kpf.serialize_activities(activity_map, actor_map)
-
-def serialize_to_files(
-    output_basename: str, activity_list: models.ActivityList, keyframes_only=False,
-):
-    kpf.serialize_to_files(output_basename, activity_list, keyframes_only)

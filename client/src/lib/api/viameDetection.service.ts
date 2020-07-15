@@ -18,12 +18,9 @@ async function getExportUrls(id: string) {
 }
 
 async function getDetections(folderId: string, formatting = 'track_json') {
-  console.log('GETTTTTTTTTTTTT DETECTIONSSSSSSSSSSS');
-  console.log(folderId);
   const { data } = await girderRest.get('viame_detection', {
     params: { folderId, formatting },
   });
-  console.log(data);
   return data as { [key: string]: TrackData };
 }
 
@@ -35,13 +32,6 @@ async function saveDetections(folderId: string, trackMap: Map<TrackId, Track>) {
   return girderRest.put('viame_detection', serialized, {
     params: { folderId },
   });
-}
-
-async function getMevaDetections(folderId: string, formatting = 'track_json') {
-  const { data } = await girderRest.get('viame_detection/meva', {
-    params: { folderId, formatting },
-  });
-  return data as { [key: string]: TrackData };
 }
 
 interface ClipMetaResponse {
