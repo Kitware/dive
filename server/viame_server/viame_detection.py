@@ -34,8 +34,6 @@ class ViameDetection(Resource):
         self.route("GET", (":id", "export",), self.export_data)
         self.route("GET", (":id", "export_detections",), self.export_detections)
 
-        self.route("GET", ("meva",), self.get_meva_detection)
-
     def _get_clip_meta(self, folder):
         detections = list(
             Item().find({"meta.detection": str(folder["_id"])}).sort([("created", -1)])
@@ -244,29 +242,3 @@ class ViameDetection(Resource):
             level=AccessType.READ,
         )
     )
-    def get_meva_detection(self, folder):
-        try:
-            detectionItems = list(
-                Item().findWithPermissions(
-                    {"folderId": folder["_id"]}, user=self.getCurrentUser(),
-                )
-            )
-
-            detectionItems.sort(key=lambda d: d["created"], reverse=True)
-            files = Item().childFiles(detectionItems)
-            yamls = []
-            for file in files:
-                if "yml" in file["exts"]:
-                    yamls.append(file)
-            return yamls
-
-        except:
-            items = Folder().childItems(folder)
-            yamls = []
-            for item in items:
-                files = Item().childFiles(item)
-                for file in files:
-                    if "yml" in file["exts"]:
-                        yamls.append(file)
-            # nut.append("nut")
-            return meva.load_kpf_as_tracks(yamls)
