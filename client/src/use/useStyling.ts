@@ -106,7 +106,7 @@ export default function useStyling({ markChangesPending }: UseStylingParams) {
   const disabled: Style = {
     ...standard,
     color: 'type',
-    strokeWidth: 0.5,
+    strokeWidth: 1,
     opacity: 0.45,
     fill: false,
   };

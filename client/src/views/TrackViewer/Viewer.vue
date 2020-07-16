@@ -25,6 +25,7 @@ import {
 import VideoAnnotator from '@/components/annotators/VideoAnnotator.vue';
 import ImageAnnotator from '@/components/annotators/ImageAnnotator.vue';
 import NavigationTitle from '@/components/NavigationTitle.vue';
+import EditorMenu from '@/components/EditorMenu.vue';
 import ConfidenceFilter from '@/components/ConfidenceFilter.vue';
 import UserGuideButton from '@/components/UserGuideButton.vue';
 import Export from '@/components/Export.vue';
@@ -48,6 +49,7 @@ export default defineComponent({
     ConfidenceFilter,
     RunPipelineMenu,
     UserGuideButton,
+    EditorMenu,
   },
 
   props: {
@@ -275,6 +277,8 @@ export default defineComponent({
         intervalTree,
         featurePointing,
         featurePointingTarget,
+        annotationSettings: handler.annotationModes,
+        annotationUpdate: handler.annotationUpdate,
       },
       handler,
     };
@@ -304,6 +308,11 @@ export default defineComponent({
       >
         {{ dataset.name }}
       </span>
+      <v-spacer />
+      <editor-menu
+        :annotation-modes="handler.annotationModes"
+        @updateAnnotationMode="handler.updateAnnotationMode($event)"
+      />
       <v-spacer />
       <run-pipeline-menu
         v-if="dataset"
@@ -380,6 +389,7 @@ export default defineComponent({
             @featurePointUpdated="featurePointed"
             @update-rect-bounds="handler.updateRectBounds"
             @update-polygon="handler.updatePolygon"
+            @editingModeChanged="handler.updateAnnotationHelpMode"
           />
         </component>
         <v-menu

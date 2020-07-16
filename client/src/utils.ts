@@ -68,17 +68,14 @@ function findBounds(polygon: GeoJSON.Polygon): RectBounds {
     yLow: Infinity,
     yHigh: -Infinity,
   };
-  console.log(coords);
   coords.forEach(([xCoord, yCoord]) => {
-    console.log(`${xCoord} : ${yCoord}`);
     limits.xLow = Math.min(xCoord, limits.xLow);
     limits.xHigh = Math.max(xCoord, limits.xHigh);
     limits.yLow = Math.min(yCoord, limits.yLow);
     limits.yHigh = Math.max(yCoord, limits.yHigh);
   });
   //Now we create some bounds from our 4 points
-  console.log(`${limits.xLow}, ${limits.yHigh}, ${limits.yLow}, ${limits.xHigh}`);
-  return [limits.xLow, limits.yHigh, limits.xHigh, limits.yLow];
+  return [limits.xLow, limits.yLow, limits.xHigh, limits.yHigh];
 }
 
 export {

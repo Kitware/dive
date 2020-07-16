@@ -36,7 +36,7 @@ export default defineComponent({
 
   setup() {
     return {
-      showTrackView: ref(true),
+      showTrackView: ref(false),
     };
   },
 });

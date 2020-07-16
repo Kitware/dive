@@ -4,8 +4,17 @@ import { boundToGeojson } from '@/utils';
 import geo, { GeoEvent } from 'geojs';
 import { FrameDataTrack } from '@/components/layers/LayerTypes';
 
+export type EditAnnotationTypes = 'point' | 'rectangle' | 'polygon' | 'line';
 interface EditAnnotationLayerParams {
-  type: 'point' | 'rectangle' | 'polygon';
+  type: EditAnnotationTypes;
+}
+
+interface EditHandleStyle {
+  type: string;
+  x: number;
+  y: number;
+  index: number;
+  editHandle: boolean;
 }
 
 /**
@@ -18,11 +27,14 @@ interface EditAnnotationLayerParams {
 export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
   changed: boolean;
 
-  type: 'point' | 'rectangle' | 'polygon';
+  mode: 'editing' | 'creation';
+
+  type: EditAnnotationTypes;
 
   constructor(params: BaseLayerParams & EditAnnotationLayerParams) {
     super(params);
     this.changed = false;
+    this.mode = 'editing';
     this.type = params.type;
     //Only initialize once, prevents recreating Layer each edit
     this.initialize();
@@ -53,6 +65,14 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
     annotation.editHandleStyle(this.editHandleStyle());
     annotation.highlightStyle(this.highlightStyle());
     return annotation;
+  }
+
+  setType(type: EditAnnotationTypes) {
+    this.type = type;
+  }
+
+  getMode(): 'creation' | 'editing' {
+    return this.mode;
   }
 
   /**
@@ -87,28 +107,35 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
     if (frameData.length > 0) {
       const track = frameData[0];
       if (track.features && track.features.bounds) {
-        let geojsonPolygon = boundToGeojson(track.features.bounds);
-        console.log(geojsonPolygon);
+        let geojsonPolygon = null;
+        if (this.type === 'rectangle') {
+          geojsonPolygon = boundToGeojson(track.features.bounds);
+        }
         if (this.type === 'polygon' && track.features.polygon) {
           geojsonPolygon = track.features.polygon;
         }
-        console.log(geojsonPolygon);
-        const geojsonFeature: GeoJSON.Feature = {
-          type: 'Feature',
-          geometry: geojsonPolygon,
-          properties: {
-            annotationType: this.type,
-          },
-        };
+        if (!geojsonPolygon) {
+          this.mode = 'creation';
+          this.featureLayer.mode(this.type);
+        } else if (geojsonPolygon) {
+          const geojsonFeature: GeoJSON.Feature = {
+            type: 'Feature',
+            geometry: geojsonPolygon,
+            properties: {
+              annotationType: this.type,
+            },
+          };
 
 
-        this.featureLayer.geojson(geojsonFeature);
-        const annotation = this.applyStylesToAnnotations();
-        if (this.type) {
-          this.featureLayer.mode('edit', annotation);
-          this.featureLayer.draw();
+          this.featureLayer.geojson(geojsonFeature);
+          const annotation = this.applyStylesToAnnotations();
+          if (this.type) {
+            this.mode = 'editing';
+            this.featureLayer.mode('edit', annotation);
+            this.featureLayer.draw();
+          }
+          return [geojsonFeature];
         }
-        return [geojsonFeature];
       }
     }
     // if there wasn't a valid track in frameData
@@ -121,6 +148,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
       );
     } else {
       // point or rectangle mode for the editor
+      this.mode = 'creation';
       this.featureLayer.mode(this.type);
     }
     return [];
@@ -221,6 +249,17 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
         handles: false,
       };
     }
+    if (this.type === 'polygon') {
+      return {
+        handles: false,
+        radius: (handle: EditHandleStyle): number => {
+          if (handle.type === 'edge') {
+            return 6;
+          }
+          return 8;
+        },
+      };
+    }
     return {
       handles: {
         rotate: false,
@@ -233,7 +272,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
    * from the annotation.  NOTE: this will not remove styling from handles
    */
   highlightStyle() {
-    if (this.type === 'rectangle') {
+    if (this.type === 'rectangle' || this.type === 'polygon') {
       return {
         handles: {
           rotate: false,
