@@ -230,15 +230,3 @@ class ViameDetection(Resource):
         )
 
         return True
-
-    @access.user
-    @autoDescribeRoute(
-        Description("Get detections of a meva clip").modelParam(
-            "folderId",
-            description="folder id of a meva clip",
-            model=Folder,
-            paramType="query",
-            required=False,
-            level=AccessType.READ,
-        )
-    )

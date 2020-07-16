@@ -188,7 +188,7 @@ export default {
       const {
         type, media, csv, yml,
       } = prepareFiles(allFiles, this.getVidRegEx, this.getImgRegEx);
-      
+
       let files = media.concat(csv);
       if (yml.length > 0) {
         files = media.concat(yml);
