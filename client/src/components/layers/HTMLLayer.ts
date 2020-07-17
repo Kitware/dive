@@ -118,12 +118,11 @@ export default class HTMLLayer extends BaseLayer<HTMLData> {
     //Lets take the props ref and place the menu
     if (frameData) {
       this.props.keyframe = frameData.keyframe;
-      if (this.createStyle().strokeColor) {
-        if (typeof this.createStyle().strokeColor === 'string') {
-          this.props.color = this.createStyle().strokeColor as string;
-        } else if (this.createStyle().strokeColor instanceof Function) {
-          this.props.color = (this.createStyle().strokeColor as Function)([0, 0], 0, frameData);
-        }
+      const { strokeColor } = this.createStyle();
+      if (typeof strokeColor === 'string') {
+        this.props.color = strokeColor;
+      } else if (strokeColor instanceof Function) {
+        this.props.color = strokeColor([0, 0], 0, frameData);
       }
       this.htmlLayer.position(frameData.position);
     } else {
