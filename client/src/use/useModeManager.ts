@@ -229,7 +229,7 @@ export default function useModeManager({
       annotationModes.value.states[mode][type] = annotState;
     } else if (annotationModes.value.mode === 'editing') {
       //Only one can be active at a time:
-      Object.keys(annotationModes.value.states.editing).forEach((key) => {
+      (Object.keys(annotationModes.value.states.editing) as AnnotationTypes[]).forEach((key) => {
         annotationModes.value.states.editing[key] = 'enabled';
       });
       annotationModes.value.states[mode][type] = annotState;
@@ -237,7 +237,6 @@ export default function useModeManager({
     annotationUpdate.value = !annotationUpdate.value;
   }
   function updateAnnotationHelpMode(helpMode: 'visible' | 'editing' | 'creation') {
-    console.log('Updating HelpMode');
     annotationModes.value.helpMode = helpMode;
   }
   watch(editingTrack, (newval: boolean) => {

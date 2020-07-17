@@ -112,14 +112,16 @@ export default Vue.extend({
         const baseMode = this.help[this.annotationModes.value.helpMode];
         const states = this.annotationModes.value.states[this.annotationModes.value.mode];
         let selected = '';
-        Object.keys(states).forEach((key: AnnotationTypes) => {
+        (Object.keys(states) as AnnotationTypes[]).forEach((key) => {
           if (states[key] === 'selected') {
             selected = key;
           }
         });
-        this.currentHelp = baseMode[selected].text;
-        if (baseMode[selected].display) {
-          this.snackbar = true;
+        if (selected !== '' && baseMode[selected]) {
+          this.currentHelp = baseMode[selected].text;
+          if (baseMode[selected].display) {
+            this.snackbar = true;
+          }
         }
       }
       this.$snackbar.setOptions({
@@ -172,8 +174,8 @@ export default Vue.extend({
     <v-spacer />
     <v-btn
       icon
-      @click="toggleHelp"
       :color="snackbar ? 'primary' : 'default'"
+      @click="toggleHelp"
     >
       <v-icon> mdi-help</v-icon>
     </v-btn>
