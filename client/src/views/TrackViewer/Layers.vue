@@ -21,6 +21,7 @@ import MarkerLayer from '@/components/layers/MarkerLayer';
 import { geojsonToBound } from '@/utils';
 import { FeaturePointingTarget } from '@/use/useFeaturePointing';
 import { StateStyles, TypeStyling } from '@/use/useStyling';
+import { AnnotationMenuSignals } from '@/components/layers/AnnotationMenu/AnnotationMenuTypes';
 
 export default defineComponent({
   props: {
@@ -230,22 +231,24 @@ export default defineComponent({
       emit('featurePointUpdated', frameNumber.value, data);
     });
 
-    htmlLayer.$on('ToggleKeyFrame', () => {
-      const selectedTrackId = props.selectedTrackId.value;
-      const track = props.trackMap.get(selectedTrackId);
-      const frame = frameNumber.value;
-      if (track) {
-        const { features } = track.canInterpolate(frame);
-        const [real, lower, upper] = features;
+    htmlLayer.$on('AnnotationFrame', (data: AnnotationMenuSignals) => {
+      if (data.type === 'toggleKeyFrame') {
+        const selectedTrackId = props.selectedTrackId.value;
+        const track = props.trackMap.get(selectedTrackId);
+        const frame = frameNumber.value;
+        if (track) {
+          const { features } = track.canInterpolate(frame);
+          const [real] = features;
 
-        if (features && real && !real.keyframe) {
-          track.setFeature({
-            ...real,
-            frame,
-            keyframe: true,
-          });
-        } else {
-          track.deleteFeature(frame);
+          if (features && real && !real.keyframe) {
+            track.setFeature({
+              ...real,
+              frame,
+              keyframe: true,
+            });
+          } else {
+            track.deleteFeature(frame);
+          }
         }
       }
     });

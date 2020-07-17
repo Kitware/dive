@@ -2,7 +2,9 @@
 import BaseLayer, { LayerStyle, BaseLayerParams } from '@/components/layers/BaseLayer';
 import { FrameDataTrack } from '@/components/layers/LayerTypes';
 import Vue from 'vue';
-import AnnotationMenu from './AnnotationMenu.vue';
+import { GeoJSHTMLLayer } from 'geojs';
+import AnnotationMenu from './AnnotationMenu/AnnotationMenu.vue';
+import { AnnotationMenuProps, AnnotationMenuSignals } from './AnnotationMenu/AnnotationMenuTypes';
 
 interface HTMLData{
   trackId: number;
@@ -18,9 +20,9 @@ interface HTMLData{
  * An area for displaying a context menu for selected annotations.
  */
 export default class HTMLLayer extends BaseLayer<HTMLData> {
-  htmlLayer: Record<string, any>;
+  htmlLayer: GeoJSHTMLLayer;
 
-  props: Record<string, any>;
+  props: AnnotationMenuProps;
 
   constructor(params: BaseLayerParams) {
     super(params);
@@ -31,20 +33,22 @@ export default class HTMLLayer extends BaseLayer<HTMLData> {
       let subpos = pos;
       if (pos === undefined && !actualValue) {
         subpos = this.annotator.geoViewer.gcsToDisplay(htmlPosition(undefined, true));
-        return {
-          left: subpos.x,
-          top: null,
-          right: null,
-          bottom: this.annotator.geoViewer.size().height - subpos.y,
-        };
+        if (subpos) {
+          return {
+            left: subpos.x,
+            top: null,
+            right: null,
+            bottom: this.annotator.geoViewer.size().height - subpos.y,
+          };
+        }
       }
       return htmlPosition.call(this.htmlLayer, pos, actualValue);
     };
 
     this.htmlLayer.canvas().id = 'annotationMenu';
     this.props = {
+      visible: false,
       keyframe: false,
-      color: null,
     };
 
     const ComponentClass = Vue.extend(AnnotationMenu);
@@ -62,8 +66,8 @@ export default class HTMLLayer extends BaseLayer<HTMLData> {
       element.appendChild(instance.$el);
     }
 
-    instance.$on('ToggleKeyFrame', () => {
-      this.$emit('ToggleKeyFrame');
+    instance.$on('AnnotationMenu', (data: AnnotationMenuSignals) => {
+      this.$emit('AnnotationMenu', data);
     });
     this.initialize();
   }
@@ -114,7 +118,13 @@ export default class HTMLLayer extends BaseLayer<HTMLData> {
     //Lets take the props ref and place the menu
     if (frameData) {
       this.props.keyframe = frameData.keyframe;
-      this.props.color = this.createStyle().strokeColor(null, null, frameData);
+      if (this.createStyle().strokeColor) {
+        if (typeof this.createStyle().strokeColor === 'string') {
+          this.props.color = this.createStyle().strokeColor as string;
+        } else if (this.createStyle().strokeColor instanceof Function) {
+          this.props.color = (this.createStyle().strokeColor as Function)([0, 0], 0, frameData);
+        }
+      }
       this.htmlLayer.position(frameData.position);
     } else {
       this.disable();

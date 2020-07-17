@@ -1,8 +1,8 @@
 <script lang="ts">
-import { Ref } from '@vue/composition-api';
-import Vue, { PropType } from 'vue';
+import Vue from 'vue';
 
 import TooltipBtn from '@/components/TooltipButton.vue';
+
 
 export default Vue.extend({
   name: 'AnnotationMenu',
@@ -29,7 +29,7 @@ export default Vue.extend({
         : 'mdi-star-outline'"
       tooltip-text="Toggle keyframe"
       :color="color"
-      @click="$emit('ToggleKeyFrame')"
+      @click="$emit('AnnotationMenu', {type:'toggleKeyframe'})"
     />
   </div>
 </template>
