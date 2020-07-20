@@ -97,8 +97,8 @@ function runPipeline(itemId: string, pipeline: string) {
   );
 }
 
-function runTraining(folder: GirderModel) {
-  return girderRest.post('/viame/train', null, { params: { folderId: folder._id } });
+function runTraining(folder: GirderModel, pipelineName: string) {
+  return girderRest.post('/viame/train', null, { params: { folderId: folder._id, pipelineName } });
 }
 
 function setMetadataForItem(itemId: string, metadata: object) {

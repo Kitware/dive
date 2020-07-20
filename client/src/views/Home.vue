@@ -101,7 +101,7 @@ export default {
       const folder = this.selected[0];
 
       this.selected = [];
-      await runTraining(folder);
+      await runTraining(folder, folder.name);
 
       this.$snackbar({
         text: `Started training on folder ${folder.name}`,
