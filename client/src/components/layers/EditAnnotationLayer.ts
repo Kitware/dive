@@ -31,6 +31,8 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
 
   type: EditAnnotationTypes;
 
+  trackType?: string;
+
   constructor(params: BaseLayerParams & EditAnnotationLayerParams) {
     super(params);
     this.changed = false;
@@ -126,13 +128,15 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
             },
           };
 
+          if (track.confidencePairs) {
+            [this.trackType] = track.confidencePairs;
+          }
 
           this.featureLayer.geojson(geojsonFeature);
           const annotation = this.applyStylesToAnnotations();
           if (this.type) {
             this.mode = 'editing';
             this.featureLayer.mode('edit', annotation);
-            this.featureLayer.draw();
           }
           return [geojsonFeature];
         }
@@ -211,6 +215,9 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
    * function from BaseLayer
    */
   redraw() {
+    this.applyStylesToAnnotations();
+    this.featureLayer.draw();
+
     return null;
   }
 
@@ -223,13 +230,19 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
       return {
         ...baseStyle,
         fill: false,
-        strokeColor: this.stateStyling.selected.color,
+        strokeColor: (_point, _index, _data) => {
+          if (this.trackType) {
+            return this.typeStyling.value.color(this.trackType);
+          }
+          return this.stateStyling.selected.color;
+        },
+
       };
     }
     return {
       fill: false,
       strokeWidth: 0,
-      strokeColor: 'none',
+      strokeColor: this.stateStyling.selected.color,
     };
   }
 
@@ -251,12 +264,28 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
     }
     if (this.type === 'polygon') {
       return {
-        handles: false,
+        handles: {
+          rotate: false,
+        },
+        fill: true,
         radius: (handle: EditHandleStyle): number => {
           if (handle.type === 'edge') {
-            return 6;
+            return 5;
           }
           return 8;
+        },
+        fillOpacity: 0.25,
+        strokeColor: (_data: any, _index: any) => {
+          if (this.trackType) {
+            return this.typeStyling.value.color(this.trackType);
+          }
+          return this.typeStyling.value.color('');
+        },
+        fillColor: (_data: any, _index: any) => {
+          if (this.trackType) {
+            return this.typeStyling.value.color(this.trackType);
+          }
+          return this.typeStyling.value.color('');
         },
       };
     }
