@@ -33,11 +33,17 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
 
   trackType?: string;
 
+  selectedHandleIndex: number;
+
+  hoverHandleIndex: number;
+
   constructor(params: BaseLayerParams & EditAnnotationLayerParams) {
     super(params);
     this.changed = false;
     this.mode = 'editing';
     this.type = params.type;
+    this.selectedHandleIndex = -1;
+    this.hoverHandleIndex = -1;
     //Only initialize once, prevents recreating Layer each edit
     this.initialize();
   }
@@ -57,15 +63,27 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
         (e: GeoEvent) => this.handleEditAction(e));
       this.featureLayer.geoOn(geo.event.annotation.state,
         (e: GeoEvent) => this.handleEditStateChange(e));
+      this.featureLayer.geoOn(geo.event.annotation.select_edit_handle,
+        (e: GeoEvent) => this.selectEditHandle(e));
+      this.featureLayer.geoOn(geo.event.mouseclick, (e: GeoEvent) => {
+        // If we aren't clicking on an annotation we can deselect the current track
+        if (this.hoverHandleIndex !== -1) {
+          this.selectedHandleIndex = this.hoverHandleIndex;
+          setTimeout(() => this.redraw(), 0);
+          this.$emit('update:selectedIndex', this.selectedHandleIndex / 2.0);
+        }
+      });
     }
   }
 
   applyStylesToAnnotations() {
     const annotation = this.featureLayer.annotations()[0];
     //Setup styling for rectangle and point editing
-    annotation.style(this.createStyle());
-    annotation.editHandleStyle(this.editHandleStyle());
-    annotation.highlightStyle(this.highlightStyle());
+    if (annotation) {
+      annotation.style(this.createStyle());
+      annotation.editHandleStyle(this.editHandleStyle());
+      annotation.highlightStyle(this.highlightStyle());
+    }
     return annotation;
   }
 
@@ -106,6 +124,8 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
    * @param frameData a single FrameDataTrack Array that is the editing item
    */
   formatData(frameData: FrameDataTrack[]) {
+    this.selectedHandleIndex = -1;
+    this.hoverHandleIndex = -1;
     if (frameData.length > 0) {
       const track = frameData[0];
       if (track.features && track.features.bounds) {
@@ -210,6 +230,21 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
     }
   }
 
+  selectEditHandle(e: GeoEvent) {
+    let multiplier = 2; //For Polygons we skip over edge editors
+    if (this.type === 'line') {
+      multiplier = 1;
+    }
+    if (e.enable) {
+      if (e.handle.handle.selected
+        && e.handle.handle.index * multiplier !== this.hoverHandleIndex) {
+        this.hoverHandleIndex = e.handle.handle.index * multiplier;
+      } if (!e.handle.handle.selected) {
+        this.hoverHandleIndex = -1;
+      }
+    }
+  }
+
   /**
    * Drawing for annotations are handled during initialization they don't need the standard redraw
    * function from BaseLayer
@@ -281,7 +316,10 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
           }
           return this.typeStyling.value.color('');
         },
-        fillColor: (_data: any, _index: any) => {
+        fillColor: (_data: any, index: any) => {
+          if (index === this.selectedHandleIndex) {
+            return '#00FF00';
+          }
           if (this.trackType) {
             return this.typeStyling.value.color(this.trackType);
           }

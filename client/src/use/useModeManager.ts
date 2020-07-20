@@ -26,6 +26,7 @@ export interface EditorSettings {
     visible: Record<AnnotationTypes, AnnotationState>;
     editing: Record<AnnotationTypes, AnnotationState>;
   };
+  selectedIndex: number;
 }
 /**
  * The point of this composition function is to define and manage the transition betwee
@@ -61,7 +62,34 @@ export default function useModeManager({
 }) {
   let newTrackMode = false;
   let newDetectionMode = false;
+  const annotationUpdate: Ref<boolean> = ref(false); //signal to update annotation tab
 
+  const annotationModes: Ref<EditorSettings> = ref({
+    mode: 'visible',
+    helpMode: 'visible',
+    display: [
+      { id: 'rectangle', title: 'Bounds', icon: 'mdi-vector-square' },
+      { id: 'polygon', title: 'Polygon', icon: 'mdi-vector-polygon' },
+      { id: 'line', title: 'Lines', icon: 'mdi-vector-line' },
+      { id: 'point', title: 'Points', icon: 'mdi-vector-point' },
+
+    ],
+    states: {
+      visible: {
+        rectangle: 'selected',
+        polygon: 'selected',
+        point: 'selected',
+        line: 'selected',
+      },
+      editing: {
+        rectangle: 'selected',
+        polygon: 'enabled',
+        point: 'enabled',
+        line: 'enabled',
+      },
+    },
+    selectedIndex: -1,
+  });
   // Seek to the nearest point in the track.
   function seekNearest(track: Track) {
     if (frame.value < track.begin) {
@@ -76,6 +104,7 @@ export default function useModeManager({
     if (newTrackMode && !edit) {
       newTrackMode = false;
     }
+    annotationModes.value.selectedIndex = -1;
   }
 
   //Handles adding a new track with the NewTrack Settings
@@ -164,6 +193,25 @@ export default function useModeManager({
     }
   }
 
+  /**
+   * Removes the selectedIndex point for the selected Polygon/line
+   */
+  function handleRemovePoint() {
+    if (selectedTrackId.value !== null && annotationModes.value.selectedIndex !== -1) {
+      const track = trackMap.get(selectedTrackId.value);
+      if (track) {
+        // Determines if we are creating a new Detection
+        const { features } = track.canInterpolate(frame.value);
+        const [real] = features;
+        if (real && real.polygon) {
+          real.polygon.coordinates[0].splice(annotationModes.value.selectedIndex, 1);
+          annotationModes.value.selectedIndex = -1;
+          annotationUpdate.value = !annotationUpdate.value;
+        }
+      }
+    }
+  }
+
   function handleRemoveTrack(trackId: TrackId) {
     // if removed track was selected, unselect before remove
     if (selectedTrackId.value === trackId) {
@@ -194,33 +242,10 @@ export default function useModeManager({
     }
   }
 
-  const annotationModes: Ref<EditorSettings> = ref({
-    mode: 'visible',
-    helpMode: 'visible',
-    display: [
-      { id: 'rectangle', title: 'Bounds', icon: 'mdi-vector-square' },
-      { id: 'polygon', title: 'Polygon', icon: 'mdi-vector-polygon' },
-      { id: 'line', title: 'Lines', icon: 'mdi-vector-line' },
-      { id: 'point', title: 'Points', icon: 'mdi-vector-point' },
+  function handleSetSelectedIndex(_frame: number, index: number) {
+    annotationModes.value.selectedIndex = index;
+  }
 
-    ],
-    states: {
-      visible: {
-        rectangle: 'selected',
-        polygon: 'selected',
-        point: 'selected',
-        line: 'selected',
-      },
-      editing: {
-        rectangle: 'selected',
-        polygon: 'enabled',
-        point: 'enabled',
-        line: 'enabled',
-      },
-    },
-  });
-
-  const annotationUpdate: Ref<boolean> = ref(false);
   function updateAnnotationMode({ mode, type, annotState }:
     {mode: 'visible' | 'editing'; type: AnnotationTypes; annotState: AnnotationState }) {
     //Depending on the current mode we update the state
@@ -260,6 +285,8 @@ export default function useModeManager({
       selectNext: handleSelectNext,
       trackClick: handleTrackClick,
       removeTrack: handleRemoveTrack,
+      removePoint: handleRemovePoint,
+      setSelectedIndex: handleSetSelectedIndex,
       annotationModes,
       annotationUpdate,
       updateAnnotationMode,

@@ -312,6 +312,7 @@ export default defineComponent({
       <editor-menu
         :annotation-modes="handler.annotationModes"
         @updateAnnotationMode="handler.updateAnnotationMode($event)"
+        @delete-point="handler.removePoint"
       />
       <v-spacer />
       <run-pipeline-menu
@@ -390,6 +391,7 @@ export default defineComponent({
             @update-rect-bounds="handler.updateRectBounds"
             @update-polygon="handler.updatePolygon"
             @editingModeChanged="handler.updateAnnotationHelpMode"
+            @select-index="handler.setSelectedIndex"
           />
         </component>
         <v-menu

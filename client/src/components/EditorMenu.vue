@@ -68,6 +68,9 @@ export default Vue.extend({
       });
       return obj;
     },
+    selectedIndex() {
+      return this.annotationModes.value.selectedIndex;
+    },
     currentMode() {
       const { mode } = this.annotationModes.value;
       return mode;
@@ -87,6 +90,9 @@ export default Vue.extend({
         type: id,
         annotState,
       });
+    },
+    deletePoint() {
+      this.$emit('delete-point');
     },
     toggleHelp() {
       if (this.snackbar) {
@@ -170,6 +176,27 @@ export default Vue.extend({
         </template>
         <span>{{ item.title }}</span>
       </v-tooltip>
+    </span>
+    <v-spacer />
+    <span v-if="selectedIndex !== -1 && currentMode === 'editing'">
+      <v-tooltip
+        bottom
+        open-delay="100"
+      >
+        <template #activator="{ on }">
+          <v-btn
+            :color="'error'"
+            class="mx-1"
+            v-on="on"
+            @click="deletePoint()"
+          >
+            <v-icon>mdi-delete</v-icon>
+            point
+          </v-btn>
+        </template>
+        <span>Remove Point</span>
+      </v-tooltip>
+
     </span>
     <v-spacer />
     <v-btn

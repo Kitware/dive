@@ -283,6 +283,12 @@ export default defineComponent({
         }
       });
 
+    //Selecting an index so it can be removed
+    editAnnotationLayer.$on('update:selectedIndex', (index: number) => {
+      console.log(`select-index:${index}`);
+      emit('select-index', frameNumber.value, index);
+    });
+
     markerEditLayer.$on('update:geojson', (data: GeoJSON.Feature<GeoJSON.Point>) => {
       emit('featurePointUpdated', frameNumber.value, data);
     });
