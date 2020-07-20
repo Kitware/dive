@@ -8,6 +8,7 @@ class Feature:
 
     frame: int
     bounds: List[float]
+    polygon: List[float]
     head: Optional[Tuple[float, float]] = None
     tail: Optional[Tuple[float, float]] = None
     fishLength: Optional[float] = None
