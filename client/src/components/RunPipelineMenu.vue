@@ -50,6 +50,15 @@ export default {
         },
       });
     },
+    pipeTypeDisplay(pipeType) {
+      switch (pipeType) {
+        case 'trained':
+          return 'trained';
+
+        default:
+          return `${pipeType}s`;
+      }
+    },
   },
 };
 </script>
@@ -90,45 +99,44 @@ export default {
           >docs</a>
           for more information about these options.
         </v-card-text>
-
-        <v-card-actions>
-          <template
-            v-for="(pipeType) in Object.keys(pipelines)"
+        <v-row
+          v-for="(pipeType) in Object.keys(pipelines)"
+          :key="pipeType"
+          class="my-2"
+        >
+          <v-menu
+            :key="pipeType"
+            offset-y
           >
-            <v-menu
-              :key="pipeType"
-              offset-y
-            >
-              <template v-slot:activator="{ on }">
-                <v-btn
-                  depressed
-                  class="mx-2 grow"
-                  v-on="on"
+            <template v-slot:activator="{ on }">
+              <v-btn
+                depressed
+                class="mx-2 grow"
+                v-on="on"
+              >
+                {{ pipeTypeDisplay(pipeType) }}
+                <v-icon
+                  left
+                  color="accent"
                 >
-                  {{ pipeType }}s
-                  <v-icon
-                    left
-                    color="accent"
-                  >
-                    mdi-menu-down
-                  </v-icon>
-                </v-btn>
-              </template>
+                  mdi-menu-down
+                </v-icon>
+              </v-btn>
+            </template>
 
-              <v-list>
-                <v-list-item
-                  v-for="({ name, pipe }) in pipelines[pipeType].pipes"
-                  :key="pipe"
-                  @click="runPipelineOnSelectedItem(pipe)"
-                >
-                  <v-list-item-title>
-                    {{ name }}
-                  </v-list-item-title>
-                </v-list-item>
-              </v-list>
-            </v-menu>
-          </template>
-        </v-card-actions>
+            <v-list>
+              <v-list-item
+                v-for="({ name, pipe }) in pipelines[pipeType].pipes"
+                :key="pipe"
+                @click="runPipelineOnSelectedItem(pipe)"
+              >
+                <v-list-item-title>
+                  {{ name }}
+                </v-list-item-title>
+              </v-list-item>
+            </v-list>
+          </v-menu>
+        </v-row>
       </v-card>
     </template>
   </v-menu>
