@@ -24,6 +24,7 @@ services:
       - girder_assetstore:/home/assetstore
       # Mount pipeline directory from girder_worker
       - pipelines:${VIAME_PIPELINES_PATH}:ro
+      - trained-pipelines:${VIAME_TRAINED_PIPELINES_PATH}:ro
       - type: bind
         source: ${PUBLIC_DATA_PATH}
         target: /data/public
@@ -32,6 +33,7 @@ services:
           nocopy: true
     environment:
       - VIAME_PIPELINES_PATH=${VIAME_PIPELINES_PATH}
+      - VIAME_TRAINED_PIPELINES_PATH=${VIAME_TRAINED_PIPELINES_PATH}
       - GIRDER_MONGO_URI=mongodb://mongo:27017/girder
       - GIRDER_ADMIN_USER=${GIRDER_ADMIN_USER}
       - GIRDER_ADMIN_PASS=${GIRDER_ADMIN_PASS}
@@ -48,14 +50,17 @@ services:
     volumes:
       # Exposes pipeline directory to girder so it can see what pipelines are available.
       - pipelines:${VIAME_PIPELINES_PATH}:ro
+      - trained-pipelines:${VIAME_TRAINED_PIPELINES_PATH}
     depends_on:
       - rabbit
     environment:
       - VIAME_PIPELINES_PATH=${VIAME_PIPELINES_PATH}
+      - VIAME_TRAINED_PIPELINES_PATH=${VIAME_TRAINED_PIPELINES_PATH}
       - CELERY_BROKER_URL=amqp://guest:guest@rabbit/
       - BROKER_CONNECTION_TIMEOUT=2
 
 volumes:
   pipelines:
+  trained-pipelines:
   mongo_db:
   girder_assetstore:

@@ -45,5 +45,10 @@ RUN useradd -D --shell=/bin/bash && useradd -m worker
 RUN chown -R worker:worker /usr/local/lib/python*
 USER worker
 
+# Create volume directory and make it writable
+# This is necessary otherwise the directory won't be writable by `worker`
+ENV VIAME_TRAINED_PIPELINES_PATH /home/worker/trained
+RUN mkdir -p ${VIAME_TRAINED_PIPELINES_PATH}
+
 ENTRYPOINT ["/tini", "--", "python3.7", "-m", "girder_worker" ]
 CMD [ "-l", "info" ]

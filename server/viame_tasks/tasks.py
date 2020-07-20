@@ -9,7 +9,7 @@ from datetime import datetime
 from girder_worker.app import app
 from viame_tasks.utils import (
     organize_folder_for_training,
-    trained_pipeline_folder as _trained_pipeline_folder
+    trained_pipeline_folder as _trained_pipeline_folder,
 )
 
 from typing import Dict

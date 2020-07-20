@@ -1,7 +1,6 @@
 import os
 import re
 import sys
-from os import getenv
 from pathlib import Path
 
 from girder import events, plugin
@@ -13,30 +12,58 @@ from .event import check_existing_annotations, maybe_mark_folder_for_annotation
 from .viame import Viame
 from .viame_detection import ViameDetection
 
-env_pipelines_path = getenv("VIAME_PIPELINES_PATH")
+env_pipelines_path = os.getenv("VIAME_PIPELINES_PATH")
+env_trained_pipelines_path = os.getenv("VIAME_TRAINED_PIPELINES_PATH")
 
 
-def load_pipelines():
+def get_pipeline_paths():
     if env_pipelines_path is None:
         print(
             "No pipeline path specified. ",
             "Please set the VIAME_PIPELINES_PATH environment variable.",
             file=sys.stderr,
         )
-        return []
+        main_pipeline_path = None
+    else:
+        main_pipeline_path = Path(env_pipelines_path)
+        if not main_pipeline_path.exists():
+            print("Specified pipeline path does not exist!", file=sys.stderr)
+            main_pipeline_path = None
 
-    pipeline_path = Path(env_pipelines_path)
-    if not pipeline_path.exists():
-        print("Specified pipeline path does not exist!", file=sys.stderr)
-        return []
+    if env_trained_pipelines_path is None:
+        print(
+            "No trained pieline path specified. ",
+            "Please set the VIAME_TRAINED_PIPELINES_PATH environment variable.",
+            file=sys.stderr,
+        )
+        trained_pipeline_path = None
+    else:
+        trained_pipeline_path = Path(env_trained_pipelines_path)
+        if not trained_pipeline_path.exists():
+            print("Specified trained pipeline path does not exist!", file=sys.stderr)
+            trained_pipeline_path = None
 
-    allowed = r"^detector_.+|tracker_.+"
-    disallowed = r".*local.*|detector_svm_models.pipe|tracker_svm_models.pipe"
-    pipelist = [
-        path.name
-        for path in pipeline_path.glob("./*.pipe")
-        if re.match(allowed, path.name) and not re.match(disallowed, path.name)
-    ]
+    return (main_pipeline_path, trained_pipeline_path)
+
+
+def load_pipelines():
+    main_pipeline_path, trained_pipeline_path = get_pipeline_paths()
+
+    pipelist = []
+    if main_pipeline_path is not None:
+        allowed = r"^detector_.+|tracker_.+"
+        disallowed = r".*local.*|detector_svm_models.pipe|tracker_svm_models.pipe"
+        pipelist.extend(
+            [
+                path.name
+                for path in main_pipeline_path.glob("./*.pipe")
+                if re.match(allowed, path.name) and not re.match(disallowed, path.name)
+            ]
+        )
+
+    if trained_pipeline_path is not None:
+        pipelist.extend([path.name for path in trained_pipeline_path.glob("./*.pipe")])
+
     pipedict = {}
     for pipe in pipelist:
         pipe_type, *nameparts = pipe.replace(".pipe", "").split("_")
