@@ -86,7 +86,8 @@ class Viame(Resource):
 
     @access.user
     @autoDescribeRoute(
-        Description("Run training on a folder").modelParam(
+        Description("Run training on a folder")
+        .modelParam(
             "folderId",
             description="The folder containing the training data",
             model=Folder,
@@ -94,8 +95,14 @@ class Viame(Resource):
             required=True,
             level=AccessType.READ,
         )
+        .param(
+            "pipelineName",
+            description="The name of the resulting pipeline",
+            paramType="query",
+            required=True,
+        )
     )
-    def run_training(self, folder):
+    def run_training(self, folder, pipelineName):
         user = self.getCurrentUser()
         upload_token = self.getCurrentToken()
         # move_existing_result_to_auxiliary_folder(folder, user)
@@ -134,6 +141,7 @@ class Viame(Resource):
         return train_pipeline.delay(
             folder,
             groundtruth_path,
+            pipelineName,
             girder_client_token=str(upload_token["_id"]),
             girder_job_title=(f"Running training on folder: {str(folder['name'])}"),
             girder_result_hooks=[

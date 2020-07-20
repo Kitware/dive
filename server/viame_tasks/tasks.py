@@ -1,12 +1,16 @@
 import json
 import os
 import tempfile
+import shutil
 from pathlib import Path
 from subprocess import PIPE, Popen
 from datetime import datetime
 
 from girder_worker.app import app
-from viame_tasks.utils import organize_folder_for_training
+from viame_tasks.utils import (
+    organize_folder_for_training,
+    trained_pipeline_folder as _trained_pipeline_folder
+)
 
 from typing import Dict
 
@@ -107,13 +111,14 @@ def run_pipeline(self, input_path, pipeline, input_type):
 
 
 @app.task(bind=True)
-def train_pipeline(self, folder: Dict, groundtruth: str):
+def train_pipeline(self, folder: Dict, groundtruth: str, pipeline_name: str):
     """
     Train a pipeline by making a call to viame_train_detector
 
     :param folder: A girder Folder document for the training directory
     :param groundtruth: The relative path to either the file containing detections,
         or the folder containing that file.
+    :param pipeline_name: The base name of the resulting pipeline.
     """
     conf = Config()
     gc = self.girder_client
@@ -164,13 +169,26 @@ def train_pipeline(self, folder: Dict, groundtruth: str):
         )
 
         while process.poll() is None:
-            out = process.stdout.read()
-            err = process.stderr.read()
+            out = process.stdout.read() if process.stdout else None
+            err = process.stderr.read() if process.stderr else None
 
             if out:
                 self.job_manager.write(out)
             if err:
                 self.job_manager.write(err)
+
+        # Trained_ prefix is added to easier conform with existing pipeline names
+        timestamped_pipeline_name = (
+            f"trained_{pipeline_name}_{timestamped_output.name}.pipe"
+        )
+        generated_detector_pipeline = timestamped_output / "detector.pipe"
+
+        trained_pipeline_folder = _trained_pipeline_folder()
+        if trained_pipeline_folder:
+            shutil.copy(
+                generated_detector_pipeline,
+                trained_pipeline_folder / timestamped_pipeline_name,
+            )
 
         return training_output_path
 
