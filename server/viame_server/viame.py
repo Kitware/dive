@@ -1,3 +1,5 @@
+import re
+
 from girder.api import access
 from girder.api.describe import Description, autoDescribeRoute, describeRoute
 from girder.api.rest import Resource
@@ -25,12 +27,61 @@ from .utils import (
     training_output_folder,
 )
 
+from typing import Dict, List
+from typing_extensions import TypedDict
+
+
+class PipelineDescription(TypedDict):
+    name: str
+    type: str
+    pipe: str
+
+
+class PipelineDict(TypedDict):
+    pipes: List[PipelineDescription]
+    description: str
+
+
+def load_pipelines(pipeline_paths):
+    main_pipeline_path, trained_pipeline_path = pipeline_paths
+
+    pipelist = []
+    if main_pipeline_path is not None:
+        allowed = r"^detector_.+|tracker_.+"
+        disallowed = r".*local.*|detector_svm_models.pipe|tracker_svm_models.pipe"
+        pipelist.extend(
+            [
+                path.name
+                for path in main_pipeline_path.glob("./*.pipe")
+                if re.match(allowed, path.name) and not re.match(disallowed, path.name)
+            ]
+        )
+
+    if trained_pipeline_path is not None:
+        pipelist.extend([path.name for path in trained_pipeline_path.glob("./*.pipe")])
+
+    pipedict: Dict[str, PipelineDict] = {}
+    for pipe in pipelist:
+        pipe_type, *nameparts = pipe.replace(".pipe", "").split("_")
+        pipe_info: PipelineDescription = {
+            "name": " ".join(nameparts),
+            "type": pipe_type,
+            "pipe": pipe,
+        }
+
+        if pipe_type in pipedict:
+            pipedict[pipe_type]["pipes"].append(pipe_info)
+        else:
+            pipedict[pipe_type] = {"pipes": [pipe_info], "description": ""}
+
+    return pipedict
+
 
 class Viame(Resource):
-    def __init__(self, pipelines=[]):
+    def __init__(self, pipeline_paths=()):
         super(Viame, self).__init__()
         self.resourceName = "viame"
-        self.pipelines = pipelines
+        self.pipeline_paths = pipeline_paths
 
         self.route("GET", ("pipelines",), self.get_pipelines)
         self.route("POST", ("pipeline",), self.run_pipeline_task)
@@ -45,7 +96,7 @@ class Viame(Resource):
     @access.user
     @describeRoute(Description("Get available pipelines"))
     def get_pipelines(self, params):
-        return self.pipelines
+        return load_pipelines(self.pipeline_paths)
 
     @access.user
     @autoDescribeRoute(
