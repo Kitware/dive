@@ -20,6 +20,7 @@ import {
   useEventChart,
   useModeManager,
   useSettings,
+  useAnnotationMode,
 } from '@/use';
 
 import VideoAnnotator from '@/components/annotators/VideoAnnotator.vue';
@@ -168,6 +169,14 @@ export default defineComponent({
     });
 
     const { clientSettings, updateNewTrackSettings } = useSettings();
+
+    const {
+      setSelectedIndex,
+      annotationModes,
+      annotationUpdate,
+      updateAnnotationMode,
+      updateAnnotationHelpMode,
+    } = useAnnotationMode({ editingTrack });
     // Provides wrappers for actions to integrate with settings
     const { handler } = useModeManager({
       selectedTrackId,
@@ -181,6 +190,8 @@ export default defineComponent({
       selectNextTrack,
       addTrack,
       removeTrack,
+      selectedIndex: annotationModes.selectedIndex,
+      setSelectedIndex,
     });
 
 
@@ -277,9 +288,14 @@ export default defineComponent({
         intervalTree,
         featurePointing,
         featurePointingTarget,
-        annotationSettings: handler.annotationModes,
-        annotationUpdate: handler.annotationUpdate,
+        annotationSettings: annotationModes,
+        annotationUpdate,
       },
+      annotationModes,
+      updateAnnotationMode,
+      annotationUpdate,
+      updateAnnotationHelpMode,
+      setSelectedIndex,
       handler,
     };
   },
@@ -310,8 +326,8 @@ export default defineComponent({
       </span>
       <v-spacer />
       <editor-menu
-        :annotation-modes="handler.annotationModes"
-        @updateAnnotationMode="handler.updateAnnotationMode($event)"
+        :annotation-modes="annotationModes"
+        @updateAnnotationMode="updateAnnotationMode($event)"
         @delete-point="handler.removePoint"
       />
       <v-spacer />
@@ -390,8 +406,8 @@ export default defineComponent({
             @featurePointUpdated="featurePointed"
             @update-rect-bounds="handler.updateRectBounds"
             @update-polygon="handler.updatePolygon"
-            @editingModeChanged="handler.updateAnnotationHelpMode"
-            @select-index="handler.setSelectedIndex"
+            @editingModeChanged="updateAnnotationHelpMode"
+            @select-index="setSelectedIndex"
           />
         </component>
         <v-menu

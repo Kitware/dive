@@ -3,7 +3,6 @@ import BaseLayer, { LayerStyle, BaseLayerParams } from '@/components/layers/Base
 import { boundToGeojson } from '@/utils';
 import geo, { GeoEvent } from 'geojs';
 import { FrameDataTrack } from '@/components/layers/LayerTypes';
-import { timeThursday } from 'd3';
 
 interface RectGeoJSData{
   trackId: number;

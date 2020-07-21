@@ -1,9 +1,8 @@
 <script lang="ts">
 import Vue, { PropType } from 'vue';
-import { Ref } from '@vue/composition-api';
 import {
   EditorSettings, AnnotationTypes, AnnotationState, AnnotationDisplay,
-} from '../use/useModeManager';
+} from '../use/useAnnotationMode';
 
 /**
  * This is used to control the editing and viewing of different annotation types
@@ -12,11 +11,16 @@ interface EditorSettingsState {
     state?: AnnotationState;
 }
 
+interface AnnotationHelp {
+  display: boolean;
+  text: string;
+}
+
 export default Vue.extend({
   name: 'EditorMenu',
   props: {
     annotationModes: {
-      type: Object as PropType<Ref<EditorSettings>>,
+      type: Object as PropType<EditorSettings>,
       required: true,
     },
   },
@@ -59,8 +63,8 @@ export default Vue.extend({
   computed: {
     options() {
       const obj: AnnotationDisplay[] = [];
-      const currentStates = this.annotationModes.value.states[this.annotationModes.value.mode];
-      this.annotationModes.value.display.forEach((val) => {
+      const currentStates = this.annotationModes.states.value[this.annotationModes.mode.value];
+      this.annotationModes.display.value.forEach((val) => {
         obj.push({
           ...val,
           state: currentStates[val.id],
@@ -69,10 +73,10 @@ export default Vue.extend({
       return obj;
     },
     selectedIndex() {
-      return this.annotationModes.value.selectedIndex;
+      return this.annotationModes.selectedIndex.value;
     },
     currentMode() {
-      const { mode } = this.annotationModes.value;
+      const mode = this.annotationModes.mode.value;
       return mode;
     },
   },
@@ -82,11 +86,11 @@ export default Vue.extend({
   methods: {
     updateType(id: AnnotationTypes) {
       let annotState = 'selected';
-      if (this.annotationModes.value.states[this.annotationModes.value.mode][id] === 'selected') {
+      if (this.annotationModes.states.value[this.annotationModes.mode.value][id] === 'selected') {
         annotState = 'enabled';
       }
       this.$emit('updateAnnotationMode', {
-        mode: this.annotationModes.value.mode,
+        mode: this.annotationModes.mode.value,
         type: id,
         annotState,
       });
@@ -107,7 +111,7 @@ export default Vue.extend({
       if (!this.snackbar) {
         return;
       }
-      const { helpMode } = this.annotationModes.value;
+      const helpMode = this.annotationModes.helpMode.value;
       if (helpMode === 'visible') {
         this.currentHelp = this.help.visible.default.text;
         if (this.help.visible.default.display) {
@@ -115,18 +119,21 @@ export default Vue.extend({
         }
       } else {
         //Now we calculate what is the selected mode
-        const baseMode = this.help[this.annotationModes.value.helpMode];
-        const states = this.annotationModes.value.states[this.annotationModes.value.mode];
-        let selected = '';
+        const baseMode = this.help[this.annotationModes.helpMode.value];
+        const states = this.annotationModes.states.value[this.annotationModes.mode.value];
+        let selected: AnnotationTypes | '' = '';
         (Object.keys(states) as AnnotationTypes[]).forEach((key) => {
           if (states[key] === 'selected') {
             selected = key;
           }
         });
-        if (selected !== '' && baseMode[selected]) {
-          this.currentHelp = baseMode[selected].text;
-          if (baseMode[selected].display) {
-            this.snackbar = true;
+        if (selected !== '') {
+          const selectedBaseMode: AnnotationHelp = baseMode[selected];
+          if (selectedBaseMode) {
+            this.currentHelp = selectedBaseMode.text;
+            if (selectedBaseMode.display) {
+              this.snackbar = true;
+            }
           }
         }
       }

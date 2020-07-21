@@ -20,7 +20,7 @@ import MarkerLayer from '@/components/layers/MarkerLayer';
 import { geojsonToBound } from '@/utils';
 import { FeaturePointingTarget } from '@/use/useFeaturePointing';
 import { StateStyles, TypeStyling } from '@/use/useStyling';
-import { EditorSettings, AnnotationTypes } from '../../use/useModeManager';
+import { EditorSettings } from '../../use/useAnnotationMode';
 
 export default defineComponent({
   props: {
@@ -61,7 +61,7 @@ export default defineComponent({
       required: true,
     },
     annotationSettings: {
-      type: Object as PropType<Ref<EditorSettings>>,
+      type: Object as PropType<EditorSettings>,
       required: true,
     },
     annotationUpdate: {
@@ -118,9 +118,9 @@ export default defineComponent({
     const editingType: Ref< false | EditAnnotationTypes> = computed(() => {
       if (props.editingTrack.value) {
         //We need the selected type for editing modes
-        const annotationSettings = props.annotationSettings.value;
+        const { annotationSettings } = props;
         let editType: EditAnnotationTypes = 'rectangle';
-        Object.entries(annotationSettings.states.editing).forEach(([key, val]) => {
+        Object.entries(annotationSettings.states.value.editing).forEach(([key, val]) => {
           if (val === 'selected') {
             editType = key as EditAnnotationTypes;
           }
@@ -136,7 +136,7 @@ export default defineComponent({
       const selectedTrackId = props.selectedTrackId.value;
       const tracks = props.tracks.value;
       const featurePointing = props.featurePointing.value;
-      const annotationSettings = props.annotationSettings.value;
+      const { annotationSettings } = props;
       // Bug in interval search tree requires own return function for 0 values
       const currentFrameIds: TrackId[] = props.intervalTree.search(
         [frame, frame],
@@ -176,7 +176,7 @@ export default defineComponent({
       );
       let editingMode: 'editing' | 'creation' | null = null; // creation
 
-      const visibleModes = annotationSettings.states.visible;
+      const visibleModes = annotationSettings.states.value.visible;
       if (visibleModes.rectangle === 'selected') {
         //We modify rects opacity/thickness if polygons are visible or not
         rectAnnotationLayer.setDrawingOther(visibleModes.polygon === 'selected');
@@ -223,7 +223,6 @@ export default defineComponent({
             editAnnotationLayer.changeData(editingTracks);
             if (editingMode !== editAnnotationLayer.getMode()) {
               editingMode = editAnnotationLayer.getMode();
-              console.log('editingMode Changed');
               emit('editingModeChanged', editingMode);
             }
           }
@@ -285,8 +284,7 @@ export default defineComponent({
 
     //Selecting an index so it can be removed
     editAnnotationLayer.$on('update:selectedIndex', (index: number) => {
-      console.log(`select-index:${index}`);
-      emit('select-index', frameNumber.value, index);
+      emit('select-index', index);
     });
 
     markerEditLayer.$on('update:geojson', (data: GeoJSON.Feature<GeoJSON.Point>) => {

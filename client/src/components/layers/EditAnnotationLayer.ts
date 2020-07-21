@@ -66,11 +66,11 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
       this.featureLayer.geoOn(geo.event.annotation.select_edit_handle,
         (e: GeoEvent) => this.selectEditHandle(e));
       this.featureLayer.geoOn(geo.event.mouseclick, (e: GeoEvent) => {
-        // If we aren't clicking on an annotation we can deselect the current track
-        if (this.hoverHandleIndex !== -1) {
+        if (e.buttonsDown.left && this.hoverHandleIndex !== -1) {
           this.selectedHandleIndex = this.hoverHandleIndex;
           setTimeout(() => this.redraw(), 0);
-          this.$emit('update:selectedIndex', this.selectedHandleIndex / 2.0);
+          const multiplier = 2.0; // used for polygon because of edge handles
+          this.$emit('update:selectedIndex', this.selectedHandleIndex / multiplier);
         }
       });
     }
@@ -265,7 +265,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
       return {
         ...baseStyle,
         fill: false,
-        strokeColor: (_point, _index, _data) => {
+        strokeColor: () => {
           if (this.trackType) {
             return this.typeStyling.value.color(this.trackType);
           }
@@ -310,13 +310,13 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
           return 8;
         },
         fillOpacity: 0.25,
-        strokeColor: (_data: any, _index: any) => {
+        strokeColor: () => {
           if (this.trackType) {
             return this.typeStyling.value.color(this.trackType);
           }
           return this.typeStyling.value.color('');
         },
-        fillColor: (_data: any, index: any) => {
+        fillColor: (_data: EditHandleStyle, index: number) => {
           if (index === this.selectedHandleIndex) {
             return '#00FF00';
           }
