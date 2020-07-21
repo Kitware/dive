@@ -23,7 +23,7 @@ export interface EditorSettings {
 }
 
 export default function useAnnotationMode({ editingTrack }: { editingTrack: Ref<boolean> }) {
-  const annotationUpdate: Ref<boolean> = ref(false); //signal to update annotation
+  const annotationEditingMode: Ref<string> = ref('rectangle'); //signal to update annotation
 
   const annotationModes = reactive({
     mode: 'visible',
@@ -68,8 +68,8 @@ export default function useAnnotationMode({ editingTrack }: { editingTrack: Ref<
         annotationModes.states.editing[key] = 'enabled';
       });
       annotationModes.states[mode][type] = annotState;
+      annotationEditingMode.value = type;
     }
-    annotationUpdate.value = !annotationUpdate.value;
   }
   function updateAnnotationHelpMode(helpMode: 'visible' | 'editing' | 'creation') {
     annotationModes.helpMode = helpMode;
@@ -85,7 +85,7 @@ export default function useAnnotationMode({ editingTrack }: { editingTrack: Ref<
   return {
     setSelectedIndex: handleSetSelectedIndex,
     annotationModes: toRefs(annotationModes),
-    annotationUpdate,
+    annotationEditingMode,
     updateAnnotationMode,
     updateAnnotationHelpMode,
   };

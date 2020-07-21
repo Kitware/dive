@@ -64,8 +64,8 @@ export default defineComponent({
       type: Object as PropType<EditorSettings>,
       required: true,
     },
-    annotationUpdate: {
-      type: Object as PropType<Ref<boolean>>,
+    annotationEditingMode: {
+      type: Object as PropType<Ref<string>>,
       required: true,
     },
   },
@@ -252,7 +252,7 @@ export default defineComponent({
       props.editingTrack,
       props.selectedTrackId,
       props.featurePointing,
-      props.annotationUpdate,
+      props.annotationEditingMode,
     ], () => {
       updateLayers();
     });

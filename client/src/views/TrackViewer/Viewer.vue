@@ -173,7 +173,7 @@ export default defineComponent({
     const {
       setSelectedIndex,
       annotationModes,
-      annotationUpdate,
+      annotationEditingMode,
       updateAnnotationMode,
       updateAnnotationHelpMode,
     } = useAnnotationMode({ editingTrack });
@@ -289,11 +289,11 @@ export default defineComponent({
         featurePointing,
         featurePointingTarget,
         annotationSettings: annotationModes,
-        annotationUpdate,
+        annotationEditingMode,
       },
       annotationModes,
       updateAnnotationMode,
-      annotationUpdate,
+      annotationEditingMode,
       updateAnnotationHelpMode,
       setSelectedIndex,
       handler,
