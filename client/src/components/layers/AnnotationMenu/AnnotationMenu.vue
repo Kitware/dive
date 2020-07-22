@@ -29,7 +29,7 @@ export default Vue.extend({
         : 'mdi-star-outline'"
       tooltip-text="Toggle keyframe"
       :color="color"
-      @click="$emit('AnnotationMenu', {type:'toggleKeyframe'})"
+      @click="$emit('AnnotationMenu', {type:'toggleKeyFrame'})"
     />
   </div>
 </template>

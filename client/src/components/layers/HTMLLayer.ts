@@ -29,6 +29,10 @@ export default class HTMLLayer extends BaseLayer<HTMLData> {
     this.featureLayer = this.annotator.geoViewer.createLayer('ui', { zIndex: 3 });
     this.htmlLayer = this.featureLayer.createWidget('dom', { position: { x: 0, y: 0 } });
     const htmlPosition = this.htmlLayer.position;
+    /**
+     * Wrapper caller for setting the position which places it near
+     * the offset location specified.
+    */
     this.htmlLayer.position = (pos, actualValue) => {
       let subpos = pos;
       if (pos === undefined && !actualValue) {
@@ -66,6 +70,7 @@ export default class HTMLLayer extends BaseLayer<HTMLData> {
       element.appendChild(instance.$el);
     }
 
+    //Emits all signals from the AnnotationMenu to Layers
     instance.$on('AnnotationMenu', (data: AnnotationMenuSignals) => {
       this.$emit('AnnotationMenu', data);
     });
@@ -143,52 +148,6 @@ export default class HTMLLayer extends BaseLayer<HTMLData> {
           return this.typeStyling.value.color(data.confidencePairs[0]);
         }
         return this.typeStyling.value.color('');
-      },
-      fill: (data) => {
-        if (data.confidencePairs) {
-          return this.typeStyling.value.fill(data.confidencePairs[0]);
-        }
-        return this.stateStyling.standard.fill;
-      },
-      fillColor: (_point, _index, data) => {
-        if (data.confidencePairs) {
-          return this.typeStyling.value.color(data.confidencePairs[0]);
-        }
-        return this.typeStyling.value.color('');
-      },
-      fillOpacity: (_point, _index, data) => {
-        if (data.confidencePairs) {
-          return this.typeStyling.value.opacity(data.confidencePairs[0]);
-        }
-        return this.stateStyling.standard.opacity;
-      },
-      strokeOpacity: (_point, _index, data) => {
-        if (data.selected) {
-          return this.stateStyling.selected.opacity;
-        }
-        if (data.confidencePairs) {
-          return this.typeStyling.value.opacity(data.confidencePairs[0]);
-        }
-
-        return this.stateStyling.standard.opacity;
-      },
-      strokeOffset: (_point, _index, data) => {
-        if (data.selected) {
-          return this.stateStyling.selected.strokeWidth;
-        }
-        if (data.confidencePairs) {
-          return this.typeStyling.value.strokeWidth(data.confidencePairs[0]);
-        }
-        return this.stateStyling.standard.strokeWidth;
-      },
-      strokeWidth: (_point, _index, data) => {
-        if (data.selected) {
-          return this.stateStyling.selected.strokeWidth;
-        }
-        if (data.confidencePairs) {
-          return this.typeStyling.value.strokeWidth(data.confidencePairs[0]);
-        }
-        return this.stateStyling.standard.strokeWidth;
       },
     };
   }

@@ -231,7 +231,7 @@ export default defineComponent({
       emit('featurePointUpdated', frameNumber.value, data);
     });
 
-    htmlLayer.$on('AnnotationFrame', (data: AnnotationMenuSignals) => {
+    htmlLayer.$on('AnnotationMenu', (data: AnnotationMenuSignals) => {
       if (data.type === 'toggleKeyFrame') {
         const selectedTrackId = props.selectedTrackId.value;
         const track = props.trackMap.get(selectedTrackId);
