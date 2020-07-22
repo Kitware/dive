@@ -166,15 +166,13 @@ class ViameDetection(Resource):
         file = Item().childFiles(detectionItems[0])[0]
         if "csv" in file["exts"]:
             return viame.load_csv_as_tracks(file)
-        else:
-            # There might be up to 3 yamls
-            allFiles = [Item().childFiles(item)[0] for item in detectionItems[:3]]
-            yamls = []
-            for f in allFiles:
-                if "yml" in f["exts"]:
-                    yamls.append(f)
-            if yamls:
-                return meva.load_kpf_as_tracks(yamls)
+
+        # There might be up to 3 yamls
+        allFiles = [Item().childFiles(item)[0] for item in detectionItems[:3]]
+
+        yamls = [f for f in allFiles if "yml" in f["exts"]]
+        if yamls:
+            return meva.load_kpf_as_tracks(yamls)
 
         return File().download(file, contentDisposition="inline")
 
