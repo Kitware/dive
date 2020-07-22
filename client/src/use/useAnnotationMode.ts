@@ -1,5 +1,5 @@
 import {
-  Ref, ref, watch, reactive, toRefs,
+  Ref, ref, watch, reactive, toRefs, computed,
 } from '@vue/composition-api';
 
 export type AnnotationState = 'enabled' | 'disabled' | 'selected';
@@ -82,10 +82,21 @@ export default function useAnnotationMode({ editingTrack }: { editingTrack: Ref<
       annotationModes.helpMode = 'visible';
     }
   });
+  //Array of visible items
+  const annotationVisible = computed(() => {
+    const visible: string[] = [];
+    (Object.keys(annotationModes.states.visible) as AnnotationTypes[]).forEach((type) => {
+      if (annotationModes.states.visible[type] === 'selected') {
+        visible.push(type);
+      }
+    });
+    return visible;
+  });
   return {
     setSelectedIndex: handleSetSelectedIndex,
     annotationModes: toRefs(annotationModes),
     annotationEditingMode,
+    annotationVisible,
     updateAnnotationMode,
     updateAnnotationHelpMode,
   };

@@ -43,7 +43,7 @@ export default Vue.extend({
           },
           polygon: {
             display: true,
-            text: 'Move a vertex (large circles) by clicking and dragging.  Create a new vertex by dragging and edge (small circles)',
+            text: 'Move a vertex (large circles) by clicking and dragging.  Create a new vertex by dragging an edge (small circles)',
           },
         },
         creation: {
@@ -81,7 +81,7 @@ export default Vue.extend({
     },
   },
   watch: {
-    'annotationModes.value.helpMode': 'updateSnackBar',
+    'annotationModes.helpMode.value': 'updateSnackBar',
   },
   methods: {
     updateType(id: AnnotationTypes) {

@@ -68,6 +68,10 @@ export default defineComponent({
       type: Object as PropType<Ref<string>>,
       required: true,
     },
+    annotationVisible: {
+      type: Object as PropType<Ref<string[]>>,
+      required: true,
+    },
   },
 
   setup(props, { emit }) {
@@ -136,6 +140,7 @@ export default defineComponent({
       const selectedTrackId = props.selectedTrackId.value;
       const tracks = props.tracks.value;
       const featurePointing = props.featurePointing.value;
+      const annotationVisible = props.annotationVisible.value;
       const { annotationSettings } = props;
       // Bug in interval search tree requires own return function for 0 values
       const currentFrameIds: TrackId[] = props.intervalTree.search(
@@ -174,28 +179,26 @@ export default defineComponent({
           }
         },
       );
-      let editingMode: 'editing' | 'creation' | null = null; // creation
 
-      const visibleModes = annotationSettings.states.value.visible;
-      if (visibleModes.rectangle === 'selected') {
+      if (annotationVisible.indexOf('rectangle') !== -1) {
         //We modify rects opacity/thickness if polygons are visible or not
-        rectAnnotationLayer.setDrawingOther(visibleModes.polygon === 'selected');
+        rectAnnotationLayer.setDrawingOther(annotationVisible.indexOf('polygon') !== -1);
         rectAnnotationLayer.changeData(frameData);
       } else {
         rectAnnotationLayer.disable();
       }
-      if (visibleModes.polygon === 'selected') {
-        polyAnnotationLayer.setDrawingOther(visibleModes.rectangle === 'selected');
+      if (annotationVisible.indexOf('polygon') !== -1) {
+        polyAnnotationLayer.setDrawingOther(annotationVisible.indexOf('rectangle') !== -1);
         polyAnnotationLayer.changeData(frameData);
       } else {
         polyAnnotationLayer.disable();
       }
-      if (visibleModes.point === 'selected') {
+      if (annotationVisible.indexOf('point') !== -1) {
         markerLayer.changeData(frameData);
       } else {
         markerLayer.disable();
       }
-      if (visibleModes.rectangle === 'selected' || visibleModes.polygon === 'selected' || visibleModes.point === 'selected') {
+      if (annotationVisible.length) {
         textLayer.changeData(frameData);
       } else {
         textLayer.disable();
@@ -218,6 +221,7 @@ export default defineComponent({
           };
           editingTracks.push(trackFrame);
         }
+        let editingMode: 'editing' | 'creation' | null = null; // creation mode
         if (editingTracks.length) {
           if (editingTrack) {
             editAnnotationLayer.changeData(editingTracks);
@@ -252,6 +256,7 @@ export default defineComponent({
       props.editingTrack,
       props.selectedTrackId,
       props.featurePointing,
+      props.annotationVisible,
       props.annotationEditingMode,
     ], () => {
       updateLayers();

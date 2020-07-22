@@ -174,6 +174,7 @@ export default defineComponent({
       setSelectedIndex,
       annotationModes,
       annotationEditingMode,
+      annotationVisible,
       updateAnnotationMode,
       updateAnnotationHelpMode,
     } = useAnnotationMode({ editingTrack });
@@ -290,6 +291,7 @@ export default defineComponent({
         featurePointingTarget,
         annotationSettings: annotationModes,
         annotationEditingMode,
+        annotationVisible,
       },
       annotationModes,
       updateAnnotationMode,
