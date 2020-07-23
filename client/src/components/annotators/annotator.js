@@ -21,6 +21,7 @@ export default {
         geoViewer: () => this.geoViewer,
         playing: () => this.playing,
         frame: () => this.frame,
+        filename: () => this.filename,
         maxFrame: () => this.maxFrame,
         syncedFrame: () => this.syncedFrame,
       },
@@ -29,6 +30,7 @@ export default {
       ready: false,
       playing: false,
       frame: 0,
+      filename: 'test',
       maxFrame: 0,
       syncedFrame: 0,
     };

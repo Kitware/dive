@@ -21,6 +21,7 @@ interface VIIMEDataset extends GirderModel {
 export default function useGirderDataset() {
   const dataset = ref(null as VIIMEDataset | null);
   const imageUrls = ref([] as string[]);
+  const imageFiles = ref([] as string[]);
   const videoUrl = ref('');
   const frameRate = computed(() => (dataset.value && dataset.value.meta.fps as number)
     || defaultFrameRate);
@@ -63,6 +64,17 @@ export default function useGirderDataset() {
           );
         })
         .map((item) => getItemDownloadUri(item._id));
+
+      imageFiles.value = items
+        .filter((item) => {
+          const name = item.name.toLowerCase();
+          return (
+            name.endsWith('png')
+            || name.endsWith('jpeg')
+            || name.endsWith('jpg')
+          );
+        })
+        .map((item) => item.name);
     } else {
       throw new Error(`Unable to load media for dataset type: ${_dataset.meta.type}`);
     }
@@ -82,6 +94,7 @@ export default function useGirderDataset() {
     frameRate,
     annotatorType,
     imageUrls,
+    imageFiles,
     videoUrl,
     loadDataset,
   };

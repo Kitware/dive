@@ -165,7 +165,10 @@ def write_track_to_csv(track: Track, csv_writer):
 
             if feature.attributes:
                 for key, val in feature.attributes.items():
-                    columns.append(f"(atr) {key} {valueToString(val)}")
+                    if key == 'imageFile':
+                        columns[1] = valueToString(val)
+                    else:
+                        columns.append(f"(atr) {key} {valueToString(val)}")
 
             if track.attributes:
                 for key, val in track.attributes.items():

@@ -66,6 +66,7 @@ export default defineComponent({
     const { datasetId } = props;
     const playbackComponent = ref({} as Seeker);
     const frame = ref(0); // the currently displayed frame number
+
     const {
       save: saveToServer, markChangesPending, pendingSaveCount,
     } = useSave();
@@ -83,6 +84,7 @@ export default defineComponent({
       frameRate,
       annotatorType,
       imageUrls,
+      imageFiles,
       videoUrl,
       loadDataset,
     } = useGirderDataset();
@@ -232,6 +234,7 @@ export default defineComponent({
       frameRate,
       getPathFromLocation,
       imageUrls,
+      imageFiles,
       location,
       pendingSaveCount,
       playbackComponent,
@@ -366,6 +369,7 @@ export default defineComponent({
             { bind: 'esc', handler: () => handler.selectTrack(null, false)}
           ]"
           :image-urls="imageUrls"
+          :image-files="imageFiles"
           :video-url="videoUrl"
           :frame-rate="frameRate"
           class="playback-component"

@@ -5,4 +5,5 @@ export interface Annotator {
   playing: boolean;
   maxFrame: number;
   syncedFrame: number;
+  filename: string;
 }

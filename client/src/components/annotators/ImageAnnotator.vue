@@ -11,6 +11,10 @@ export default {
       type: Array,
       required: true,
     },
+    imageFiles: {
+      type: Array,
+      required: true,
+    },
   },
   data() {
     return {
@@ -25,6 +29,7 @@ export default {
 
     this.maxFrame = this.imageUrls.length - 1;
     this.imgs = new Array(this.imageUrls.length);
+    this.filename = this.imageFiles[this.frame];
     this.pendingImgs = new Set();
     this.cacheImages();
     if (this.imgs.length) {
@@ -70,6 +75,7 @@ export default {
     async seek(frame) {
       this.lastFrame = this.frame;
       this.frame = frame;
+      this.filename = this.imageFiles[frame];
       this.syncedFrame = frame;
       this.emitFrame();
       this.cacheImages();
