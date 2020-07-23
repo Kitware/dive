@@ -14,12 +14,13 @@ from viame_server.serializers.models import Feature, Track, interpolate
 
 def row_info(row: List[str]) -> Tuple[int, int, List[float], float]:
     trackId = int(row[0])
+    filename = str(row[1])
     frame = int(row[2])
 
     bounds = [round(float(x)) for x in row[3:7]]
     fish_length = float(row[8])
 
-    return trackId, frame, bounds, fish_length
+    return trackId, filename, frame, bounds, fish_length
 
 
 def _deduceType(value: str) -> Union[bool, float, str]:
@@ -72,8 +73,10 @@ def _parse_row(row: List[str]) -> Tuple[Dict, Dict, Dict, List]:
 
 def _parse_row_for_tracks(row: List[str]) -> Tuple[Feature, Dict, Dict, List]:
     head_tail_feature, attributes, track_attributes, confidence_pairs = _parse_row(row)
-    trackId, frame, bounds, fishLength = row_info(row)
+    trackId, filename, frame, bounds, fishLength = row_info(row)
 
+    if filename:
+        attributes['imageFile'] = filename
     feature = Feature(
         frame,
         bounds,
@@ -98,7 +101,6 @@ def load_csv_as_tracks(file):
     )
     reader = csv.reader(row for row in rows if (not row.startswith("#") and row))
     tracks = {}
-
     for row in reader:
         (
             feature,
@@ -106,7 +108,8 @@ def load_csv_as_tracks(file):
             track_attributes,
             confidence_pairs,
         ) = _parse_row_for_tracks(row)
-        trackId, frame, _, _ = row_info(row)
+
+        trackId, _, frame, _, _ = row_info(row)
 
         if trackId not in tracks:
             tracks[trackId] = Track(frame, frame, trackId)

@@ -86,7 +86,6 @@ export default function useModeManager({
   }
 
   function handleUpdateRectBounds(frameNum: number, bounds: RectBounds, filename: string) {
-    console.log(filename);
     if (selectedTrackId.value !== null) {
       const track = trackMap.get(selectedTrackId.value);
       if (track) {
