@@ -253,9 +253,9 @@ export default class Track {
     return null;
   }
 
-  setType(trackType: string) {
+  setType(trackType: string, confidenceVal = 1) {
     const old = this.confidencePairs;
-    this.confidencePairs = [[trackType, 1]];
+    this.confidencePairs = [[trackType, confidenceVal]];
     this.notify('confidencePairs', old);
   }
 

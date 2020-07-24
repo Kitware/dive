@@ -77,9 +77,9 @@ export default function useFilteredTracks(
   function updateTypeName({ currentType, newType }: {currentType: string; newType: string}) {
     //Go through the entire list and replace the oldType with the new Type
     sortedTracks.value.forEach((track) => {
-      track.confidencePairs.forEach(([name]) => {
+      track.confidencePairs.forEach(([name, confidenceVal]) => {
         if (name === currentType) {
-          track.setType(newType);
+          track.setType(newType, confidenceVal);
         }
       });
     });
