@@ -2,7 +2,7 @@ import {
   Ref, ref, watch, reactive, toRefs, computed,
 } from '@vue/composition-api';
 
-export type AnnotationState = 'enabled' | 'disabled' | 'selected';
+export type AnnotationState = 'enabled' | 'disabled' | 'selected' | 'hidden';
 export type AnnotationTypes = 'rectangle' | 'polygon' | 'line' | 'point';
 export interface AnnotationDisplay {
   id: AnnotationTypes;
@@ -39,14 +39,14 @@ export default function useAnnotationMode({ editingTrack }: { editingTrack: Ref<
       visible: {
         rectangle: 'selected',
         polygon: 'selected',
-        point: 'selected',
-        line: 'selected',
+        point: 'hidden',
+        line: 'hidden',
       },
       editing: {
         rectangle: 'selected',
         polygon: 'enabled',
-        point: 'enabled',
-        line: 'enabled',
+        point: 'hidden',
+        line: 'hidden',
       },
     },
     selectedIndex: -1,
@@ -65,7 +65,9 @@ export default function useAnnotationMode({ editingTrack }: { editingTrack: Ref<
     } else if (annotationModes.mode === 'editing') {
       //Only one can be active at a time:
       (Object.keys(annotationModes.states.editing) as AnnotationTypes[]).forEach((key) => {
-        annotationModes.states.editing[key] = 'enabled';
+        if (annotationModes.states.editing[key] === 'selected') {
+          annotationModes.states.editing[key] = 'enabled';
+        }
       });
       annotationModes.states[mode][type] = annotState;
       annotationEditingMode.value = type;

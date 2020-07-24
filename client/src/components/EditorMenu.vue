@@ -14,6 +14,7 @@ interface EditorSettingsState {
 interface AnnotationHelp {
   display: boolean;
   text: string;
+  title: string;
 }
 
 export default Vue.extend({
@@ -28,31 +29,40 @@ export default Vue.extend({
     return {
       snackbar: false,
       timeout: 4000,
-      currentHelp: '',
+      currentHelp: {
+        display: true,
+        title: '',
+        text: '',
+      },
       help: {
         visible: {
           default: {
             display: false,
+            title: 'Visibility',
             text: 'Toggle the different modes to turn items on and off the screen',
           },
         },
         editing: {
           rectangle: {
             display: true,
+            title: 'Editing Rectangle',
             text: 'Click and drag a corner to resize the rectangle.  Click off the rectangle to exit editing mode',
           },
           polygon: {
             display: true,
+            title: 'Editing Polygon',
             text: 'Move a vertex (large circles) by clicking and dragging.  Create a new vertex by dragging an edge (small circles)',
           },
         },
         creation: {
           rectangle: {
             display: true,
+            title: 'Create Rectangle',
             text: 'Click and drag to create a rectangle.  The rectangle will be created when the left mouse button is released.  Press Escape or Right Click to cancel',
           },
           polygon: {
             display: true,
+            title: 'Create Polygon',
             text: 'Click onces to start and continue clicking to generate new vertices.  Either connect the line to the beginning, Double Click or Right Click.  Escape will cancel creation',
           },
         },
@@ -113,7 +123,7 @@ export default Vue.extend({
       }
       const helpMode = this.annotationModes.helpMode.value;
       if (helpMode === 'visible') {
-        this.currentHelp = this.help.visible.default.text;
+        this.currentHelp = this.help.visible.default;
         if (this.help.visible.default.display) {
           this.snackbar = true;
         }
@@ -130,7 +140,7 @@ export default Vue.extend({
         if (selected !== '') {
           const selectedBaseMode: AnnotationHelp = baseMode[selected];
           if (selectedBaseMode) {
-            this.currentHelp = selectedBaseMode.text;
+            this.currentHelp = selectedBaseMode;
             if (selectedBaseMode.display) {
               this.snackbar = true;
             }
@@ -143,7 +153,8 @@ export default Vue.extend({
 
       if (this.snackbar) {
         this.$snackbar({
-          text: this.currentHelp,
+          title: this.currentHelp.title,
+          text: this.currentHelp.text,
           button: 'Disable Help',
           timeout: 6000,
           immediate: true,
@@ -160,12 +171,15 @@ export default Vue.extend({
 
 <template>
   <v-toolbar dense>
-    <v-toolbar-title>{{ currentMode }}:</v-toolbar-title>
+    <v-toolbar-title class="title">
+      {{ currentMode }}:
+    </v-toolbar-title>
     <span
       v-for="(item, index) in options"
       :key="index"
     >
       <v-tooltip
+        v-if="item.state !== 'hidden'"
         bottom
         open-delay="100"
       >
@@ -206,12 +220,27 @@ export default Vue.extend({
 
     </span>
     <v-spacer />
-    <v-btn
-      icon
-      :color="snackbar ? 'primary' : 'default'"
-      @click="toggleHelp"
+    <v-tooltip
+      bottom
+      open-delay="100"
     >
-      <v-icon> mdi-help</v-icon>
-    </v-btn>
+      <template #activator="{ on }">
+        <v-btn
+          icon
+          :color="snackbar ? 'primary' : 'default'"
+          v-on="on"
+          @click="toggleHelp"
+        >
+          <v-icon> mdi-help</v-icon>
+        </v-btn>
+      </template>
+      <span>Toggle Help</span>
+    </v-tooltip>
   </v-toolbar>
 </template>
+
+<style lang='scss' scoped>
+.title {
+  text-transform: capitalize;
+}
+</style>

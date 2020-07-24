@@ -68,9 +68,9 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
       this.featureLayer.geoOn(geo.event.mouseclick, (e: GeoEvent) => {
         if (e.buttonsDown.left && this.hoverHandleIndex !== -1) {
           this.selectedHandleIndex = this.hoverHandleIndex;
-          setTimeout(() => this.redraw(), 0);
-          const multiplier = 2.0; // used for polygon because of edge handles
-          this.$emit('update:selectedIndex', this.selectedHandleIndex / multiplier);
+          setTimeout(() => this.redraw(), 0); //Redraw timeout to update the selected handle
+          const divisor = 2.0; // used for polygon because edge handles
+          this.$emit('update:selectedIndex', this.selectedHandleIndex / divisor);
         }
       });
     }
@@ -231,14 +231,14 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
   }
 
   selectEditHandle(e: GeoEvent) {
-    let multiplier = 2; //For Polygons we skip over edge editors
+    let divisor = 2; //For Polygons we skip over edge editors
     if (this.type === 'line') {
-      multiplier = 1;
+      divisor = 1;
     }
     if (e.enable) {
       if (e.handle.handle.selected
-        && e.handle.handle.index * multiplier !== this.hoverHandleIndex) {
-        this.hoverHandleIndex = e.handle.handle.index * multiplier;
+        && (e.handle.handle.index * divisor) !== this.hoverHandleIndex) {
+        this.hoverHandleIndex = e.handle.handle.index * divisor;
       } if (!e.handle.handle.selected) {
         this.hoverHandleIndex = -1;
       }

@@ -10,6 +10,7 @@ interface PromptParams {
 
 interface SnackBarParams{
     text: string;
+    title?: string;
     button: string;
     callback?: () => void;
     timeout?: number;
