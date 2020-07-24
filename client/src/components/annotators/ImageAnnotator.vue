@@ -11,10 +11,6 @@ export default {
       type: Array,
       required: true,
     },
-    imageFiles: {
-      type: Array,
-      required: true,
-    },
   },
   data() {
     return {
@@ -29,7 +25,7 @@ export default {
 
     this.maxFrame = this.imageUrls.length - 1;
     this.imgs = new Array(this.imageUrls.length);
-    this.filename = this.imageFiles[this.frame];
+    this.filename = this.imageUrls[this.frame].filename;
     this.pendingImgs = new Set();
     this.cacheImages();
     if (this.imgs.length) {
@@ -75,7 +71,7 @@ export default {
     async seek(frame) {
       this.lastFrame = this.frame;
       this.frame = frame;
-      this.filename = this.imageFiles[frame];
+      this.filename = this.imageUrls[frame].filename;
       this.syncedFrame = frame;
       this.emitFrame();
       this.cacheImages();
@@ -173,7 +169,7 @@ export default {
       return new Promise((resolve) => {
         const img = new Image();
         img.crossOrigin = 'Anonymous';
-        img.src = this.imageUrls[frame];
+        img.src = this.imageUrls[frame].url;
         this.imgs[frame] = img;
         img.onload = () => {
           img.onload = null;
@@ -206,7 +202,7 @@ export default {
       if (!this.imgs[i]) {
         const img = new Image();
         img.crossOrigin = 'Anonymous';
-        img.src = this.imageUrls[i];
+        img.src = this.imageUrls[i].url;
         this.imgs[i] = img;
         const imageAndFrame = [img, i];
         this.pendingImgs.add(imageAndFrame);

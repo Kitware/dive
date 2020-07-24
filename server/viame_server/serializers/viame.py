@@ -75,8 +75,6 @@ def _parse_row_for_tracks(row: List[str]) -> Tuple[Feature, Dict, Dict, List]:
     head_tail_feature, attributes, track_attributes, confidence_pairs = _parse_row(row)
     trackId, filename, frame, bounds, fishLength = row_info(row)
 
-    if filename:
-        attributes['imageFile'] = filename
     feature = Feature(
         frame,
         bounds,
@@ -126,7 +124,7 @@ def load_csv_as_tracks(file):
     return {trackId: track.asdict() for trackId, track in tracks.items()}
 
 
-def write_track_to_csv(track: Track, csv_writer):
+def write_track_to_csv(track: Track, csv_writer, filenames=None):
     def valueToString(value):
         if value is True:
             return "true"
@@ -155,6 +153,9 @@ def write_track_to_csv(track: Track, csv_writer):
                 feature.fishLength or -1,
             ]
 
+            if filenames:
+                columns[1] = filenames[feature.frame]
+
             for pair in track.confidencePairs:
                 columns.extend(list(pair))
 
@@ -168,10 +169,7 @@ def write_track_to_csv(track: Track, csv_writer):
 
             if feature.attributes:
                 for key, val in feature.attributes.items():
-                    if key == 'imageFile':
-                        columns[1] = valueToString(val)
-                    else:
-                        columns.append(f"(atr) {key} {valueToString(val)}")
+                    columns.append(f"(atr) {key} {valueToString(val)}")
 
             if track.attributes:
                 for key, val in track.attributes.items():
@@ -180,7 +178,7 @@ def write_track_to_csv(track: Track, csv_writer):
             csv_writer.writerow(columns)
 
 
-def export_tracks_as_csv(file) -> str:
+def export_tracks_as_csv(file, filenames=None) -> str:
     """
     Export track json to a CSV format.
 
@@ -201,6 +199,6 @@ def export_tracks_as_csv(file) -> str:
         writer = csv.writer(csvFile)
 
         for track in tracks.values():
-            write_track_to_csv(track, writer)
+            write_track_to_csv(track, writer, filenames)
 
         return csvFile.getvalue()

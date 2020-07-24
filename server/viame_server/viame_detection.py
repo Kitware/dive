@@ -83,7 +83,6 @@ class ViameDetection(Resource):
             params = {
                 'mimeFilter': json.dumps(list(ImageMimeTypes)),
             }
-            print(params)
             export_media = (
                 f'/api/v1/folder/{folderId}/download?{urllib.parse.urlencode(params)}'
             )
@@ -122,7 +121,9 @@ class ViameDetection(Resource):
 
         filename = ".".join([file["name"].split(".")[:-1][0], "csv"])
 
-        csv_string = viame.export_tracks_as_csv(file)
+        imageFiles = sorted([f['name'] for f in Folder().childItems(folder) if (f['name'].endswith('png') or f['name'].endswith('jpg') or f['name'].endswith('jpeg'))])
+
+        csv_string = viame.export_tracks_as_csv(file, imageFiles)
         csv_bytes = csv_string.encode()
 
         assetstore = Assetstore().findOne({"_id": file["assetstoreId"]})

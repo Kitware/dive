@@ -85,7 +85,7 @@ export default function useModeManager({
     }
   }
 
-  function handleUpdateRectBounds(frameNum: number, bounds: RectBounds, filename: string) {
+  function handleUpdateRectBounds(frameNum: number, bounds: RectBounds) {
     if (selectedTrackId.value !== null) {
       const track = trackMap.get(selectedTrackId.value);
       if (track) {
@@ -104,9 +104,6 @@ export default function useModeManager({
           keyframe: true,
           interpolate: (newDetectionMode && !newTrackMode)
             ? false : interpolateTrack,
-          attributes: {
-            imageFile: filename,
-          },
         });
         //If it is a new track and we have newTrack Settings
         if (newTrackMode && newDetectionMode) {
