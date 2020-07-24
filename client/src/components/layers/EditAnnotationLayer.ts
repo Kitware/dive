@@ -63,8 +63,9 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
         (e: GeoEvent) => this.handleEditAction(e));
       this.featureLayer.geoOn(geo.event.annotation.state,
         (e: GeoEvent) => this.handleEditStateChange(e));
+      //Event name is misleading, this means hovering over an edit handle
       this.featureLayer.geoOn(geo.event.annotation.select_edit_handle,
-        (e: GeoEvent) => this.selectEditHandle(e));
+        (e: GeoEvent) => this.hoverEditHandle(e));
       this.featureLayer.geoOn(geo.event.mouseclick, (e: GeoEvent) => {
         if (e.buttonsDown.left && this.hoverHandleIndex !== -1) {
           this.selectedHandleIndex = this.hoverHandleIndex;
@@ -73,6 +74,21 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
           this.$emit('update:selectedIndex', this.selectedHandleIndex / divisor);
         }
       });
+    }
+  }
+
+  hoverEditHandle(e: GeoEvent) {
+    let divisor = 2; //For Polygons we skip over edge handles (midpoints)
+    if (this.type === 'line') {
+      divisor = 1;
+    }
+    if (e.enable) {
+      if (e.handle.handle.selected
+        && (e.handle.handle.index * divisor) !== this.hoverHandleIndex) {
+        this.hoverHandleIndex = e.handle.handle.index * divisor;
+      } if (!e.handle.handle.selected) {
+        this.hoverHandleIndex = -1;
+      }
     }
   }
 
@@ -87,10 +103,16 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
     return annotation;
   }
 
+  /**
+   * Set the current Editing type for switching between editing polygons or rects.
+   * */
   setType(type: EditAnnotationTypes) {
     this.type = type;
   }
 
+  /**
+   * Provides whether the user is creating a new annotation or editing one
+   */
   getMode(): 'creation' | 'editing' {
     return this.mode;
   }
@@ -129,20 +151,20 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
     if (frameData.length > 0) {
       const track = frameData[0];
       if (track.features && track.features.bounds) {
-        let geojsonPolygon = null;
+        let geoJSONData = null;
         if (this.type === 'rectangle') {
-          geojsonPolygon = boundToGeojson(track.features.bounds);
+          geoJSONData = boundToGeojson(track.features.bounds);
         }
         if (this.type === 'polygon' && track.features.polygon) {
-          geojsonPolygon = track.features.polygon;
+          geoJSONData = track.features.polygon;
         }
-        if (!geojsonPolygon) {
+        if (!geoJSONData) {
           this.mode = 'creation';
           this.featureLayer.mode(this.type);
-        } else if (geojsonPolygon) {
+        } else if (geoJSONData) {
           const geojsonFeature: GeoJSON.Feature = {
             type: 'Feature',
-            geometry: geojsonPolygon,
+            geometry: geoJSONData,
             properties: {
               annotationType: this.type,
             },
@@ -230,21 +252,6 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
     }
   }
 
-  selectEditHandle(e: GeoEvent) {
-    let divisor = 2; //For Polygons we skip over edge editors
-    if (this.type === 'line') {
-      divisor = 1;
-    }
-    if (e.enable) {
-      if (e.handle.handle.selected
-        && (e.handle.handle.index * divisor) !== this.hoverHandleIndex) {
-        this.hoverHandleIndex = e.handle.handle.index * divisor;
-      } if (!e.handle.handle.selected) {
-        this.hoverHandleIndex = -1;
-      }
-    }
-  }
-
   /**
    * Drawing for annotations are handled during initialization they don't need the standard redraw
    * function from BaseLayer
@@ -277,7 +284,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
     return {
       fill: false,
       strokeWidth: 0,
-      strokeColor: this.stateStyling.selected.color,
+      strokeColor: 'none',
     };
   }
 

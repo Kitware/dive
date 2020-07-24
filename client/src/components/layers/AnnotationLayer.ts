@@ -40,6 +40,10 @@ export default class AnnotationLayer extends BaseLayer<RectGeoJSData> {
     this.featureLayer = layer
       .createFeature('polygon', { selectionAPI: true })
       .geoOn(geo.event.feature.mouseclick, (e: GeoEvent) => {
+        /**
+         * Handle clicking on individual annotations, if DrawingOther is true we use the
+         * Rectangle type if only the polygon is visible we use the polygon bounds
+         * */
         if (e.mouse.buttonsDown.left) {
           if (!e.data.editing || (e.data.editing && !e.data.selected)) {
             if (this.type !== 'polygon' || (this.type === 'polygon' && !this.drawingOther)) {
@@ -71,6 +75,7 @@ export default class AnnotationLayer extends BaseLayer<RectGeoJSData> {
 
   /**
    * Used to set the drawingOther parameter used to change styling if other types are drawn
+   * and also handle selection clicking between different types
    * @param val - determines if we are drawing other types of annotations
    */
   setDrawingOther(val: boolean) {
@@ -89,7 +94,7 @@ export default class AnnotationLayer extends BaseLayer<RectGeoJSData> {
             polygon = track.features.polygon;
           }
         }
-        //exit if in poly mode with no polygon
+        //exit if in poly mode with no polygon available
         if (!hasPoly && this.type === 'polygon') {
           return;
         }
@@ -153,6 +158,7 @@ export default class AnnotationLayer extends BaseLayer<RectGeoJSData> {
         return this.stateStyling.standard.opacity;
       },
       strokeOpacity: (_point, _index, data) => {
+        // Reduce the rectangle opacity if a polygon is also drawn
         if (this.drawingOther && data.hasPoly && this.type !== 'polygon') {
           return this.stateStyling.disabled.opacity;
         }
@@ -175,6 +181,7 @@ export default class AnnotationLayer extends BaseLayer<RectGeoJSData> {
         return this.stateStyling.standard.strokeWidth;
       },
       strokeWidth: (_point, _index, data) => {
+        //Reduce rectangle line thickness if polygon is also drawn
         if (this.drawingOther && data.hasPoly && this.type !== 'polygon') {
           return this.stateStyling.disabled.strokeWidth;
         }

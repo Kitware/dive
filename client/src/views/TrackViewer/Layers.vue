@@ -193,11 +193,7 @@ export default defineComponent({
       } else {
         polyAnnotationLayer.disable();
       }
-      if (annotationVisible.indexOf('point') !== -1) {
-        markerLayer.changeData(frameData);
-      } else {
-        markerLayer.disable();
-      }
+      markerLayer.changeData(frameData);
       if (annotationVisible.length) {
         textLayer.changeData(frameData);
       } else {
@@ -221,14 +217,10 @@ export default defineComponent({
           };
           editingTracks.push(trackFrame);
         }
-        let editingMode: 'editing' | 'creation' | null = null; // creation mode
         if (editingTracks.length) {
           if (editingTrack) {
             editAnnotationLayer.changeData(editingTracks);
-            if (editingMode !== editAnnotationLayer.getMode()) {
-              editingMode = editAnnotationLayer.getMode();
-              emit('editingModeChanged', editingMode);
-            }
+            emit('editingModeChanged', editAnnotationLayer.getMode());
           }
           if (featurePointing) {
             // Marker shouldn't be edited when creating a new track
