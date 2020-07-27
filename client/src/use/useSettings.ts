@@ -1,3 +1,4 @@
+import { merge } from 'lodash';
 import {
   reactive, toRefs,
 } from '@vue/composition-api';
@@ -8,6 +9,7 @@ export interface NewTrackSettings {
     modeSettings: {
       Track: {
         autoAdvanceFrame: boolean;
+        interpolate: boolean;
       };
       Detection: {
         continuous: boolean;
@@ -26,6 +28,7 @@ export default function useSettings() {
       modeSettings: {
         Track: {
           autoAdvanceFrame: false,
+          interpolate: false,
         },
         Detection: {
           continuous: true,
@@ -39,15 +42,9 @@ export default function useSettings() {
   }
 
   function updateNewTrackSettings(updatedNewTrackSettings: NewTrackSettings) {
-    const { newTrackSettings } = clientSettings;
-    newTrackSettings.mode = updatedNewTrackSettings.mode;
-    newTrackSettings.type = updatedNewTrackSettings.type;
-    // eslint-disable-next-line max-len
-    newTrackSettings.modeSettings.Track.autoAdvanceFrame = updatedNewTrackSettings.modeSettings.Track.autoAdvanceFrame;
-    // eslint-disable-next-line max-len
-    newTrackSettings.modeSettings.Detection.continuous = updatedNewTrackSettings.modeSettings.Detection.continuous;
-
-    //Handle Saving of the data
+    clientSettings.newTrackSettings = merge(
+      clientSettings.newTrackSettings, updatedNewTrackSettings,
+    );
     saveSettings();
   }
 

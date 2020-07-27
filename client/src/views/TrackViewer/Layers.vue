@@ -19,7 +19,7 @@ import EditAnnotationLayer from '@/components/layers/EditAnnotationLayer';
 import MarkerLayer from '@/components/layers/MarkerLayer';
 import { geojsonToBound } from '@/utils';
 import { FeaturePointingTarget } from '@/use/useFeaturePointing';
-import { StateStyles } from '@/use/useStyling';
+import { StateStyles, TypeStyling } from '@/use/useStyling';
 
 export default defineComponent({
   props: {
@@ -27,8 +27,8 @@ export default defineComponent({
       type: Map as PropType<Map<TrackId, Track>>,
       required: true,
     },
-    trackIds: {
-      type: Object as PropType<Ref<Array<TrackId>>>,
+    tracks: {
+      type: Object as PropType<Ref<Track[]>>,
       required: true,
     },
     intervalTree: {
@@ -44,7 +44,7 @@ export default defineComponent({
       required: true,
     },
     typeStyling: {
-      type: Object as PropType<Ref<{ color: (t: string) => string }>>,
+      type: Object as PropType<Ref<TypeStyling>>,
       required: true,
     },
     stateStyling: {
@@ -91,7 +91,6 @@ export default defineComponent({
       editing: 'point',
     });
 
-
     const markerLayer = new MarkerLayer({
       annotator,
       stateStyling: props.stateStyling,
@@ -102,43 +101,45 @@ export default defineComponent({
       const frame = frameNumber.value;
       const editingTrack = props.editingTrack.value;
       const selectedTrackId = props.selectedTrackId.value;
-      const trackIds = props.trackIds.value;
+      const tracks = props.tracks.value;
       const featurePointing = props.featurePointing.value;
       // Bug in interval search tree requires own return function for 0 values
-      const currentFrameIds = props.intervalTree.search(
+      const currentFrameIds: TrackId[] = props.intervalTree.search(
         [frame, frame],
         (value) => (value !== null ? value : null),
       );
-      const tracks = [] as FrameDataTrack[];
+      // Possibly include editing track or selected track
+      // even if it's not in range.
+      // if (sele!currentFrameIds.indexOf())
+
+      const frameData = [] as FrameDataTrack[];
       const editingTracks = [] as FrameDataTrack[];
       currentFrameIds.forEach(
-        (item: number) => {
-          if (trackIds.includes(item)) {
-            if (props.trackMap.has(item)) {
-              const track = props.trackMap.get(item);
-              if (track === undefined) {
-                throw new Error(`trackMap missing trackid ${item}`);
-              }
-              const features = track.getFeature(frame);
-              const trackFrame = {
-                selected: (selectedTrackId === track.trackId),
-                editing: editingTrack,
-                trackId: track.trackId,
-                features,
-                confidencePairs: track.getType(),
-              };
-              tracks.push(trackFrame);
-              if (tracks[tracks.length - 1].selected && (editingTrack || featurePointing)) {
-                editingTracks.push(trackFrame);
-              }
+        (trackId: TrackId) => {
+          const track = props.trackMap.get(trackId);
+          if (track === undefined) {
+            throw new Error(`TrackID ${trackId} not found in map`);
+          }
+          if (tracks.includes(track)) {
+            const [features] = track.getFeature(frame);
+            const trackFrame = {
+              selected: (selectedTrackId === track.trackId),
+              editing: editingTrack,
+              trackId: track.trackId,
+              features,
+              confidencePairs: track.getType(),
+            };
+            frameData.push(trackFrame);
+            if (frameData[frameData.length - 1].selected && (editingTrack || featurePointing)) {
+              editingTracks.push(trackFrame);
             }
           }
         },
       );
 
-      annotationLayer.changeData(tracks);
-      textLayer.changeData(tracks);
-      markerLayer.changeData(tracks);
+      annotationLayer.changeData(frameData);
+      textLayer.changeData(frameData);
+      markerLayer.changeData(frameData);
 
       if (selectedTrackId !== null) {
         if ((editingTrack || featurePointing) && !currentFrameIds.includes(selectedTrackId)) {
@@ -146,12 +147,13 @@ export default defineComponent({
           if (editTrack === undefined) {
             throw new Error(`trackMap missing trackid ${selectedTrackId}`);
           }
-          const features = editTrack.getFeature(frameNumber.value);
+          const [real, lower, upper] = editTrack.getFeature(frameNumber.value);
+          const features = real || lower || upper;
           const trackFrame = {
             selected: true,
             editing: true,
             trackId: editTrack.trackId,
-            features,
+            features: (features && features.interpolate) ? features : null,
             confidencePairs: editTrack.getType(),
           };
           editingTracks.push(trackFrame);
@@ -182,7 +184,7 @@ export default defineComponent({
 
     watch([
       frameNumber,
-      props.trackIds,
+      props.tracks,
       props.editingTrack,
       props.selectedTrackId,
       props.featurePointing,

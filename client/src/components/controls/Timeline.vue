@@ -276,6 +276,7 @@ export default {
       width: 0;
       height: 100%;
       border-left: 1px solid #299be3;
+      z-index:1;
     }
 
     .child {

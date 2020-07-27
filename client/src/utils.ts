@@ -28,7 +28,7 @@ function getPathFromLocation(location: Location) {
   if (!location) {
     return '/';
   }
-  if (location.type) {
+  if (location.type && !location._modelType) {
     return `/${location.type}`;
   }
   return `/${location._modelType}${

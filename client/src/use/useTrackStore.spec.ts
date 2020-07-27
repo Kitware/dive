@@ -12,19 +12,19 @@ describe('useTrackStore', () => {
     const t0 = ts.addTrack(20, 'foo');
     const t1 = ts.addTrack(10, 'foo');
     expect(Array.from(ts.trackMap.keys()).length).toBe(2);
-    expect(ts.sortedTrackIds.value[0]).toBe(1);
+    expect(ts.sortedTracks.value[0].trackId).toBe(1);
     expect(ts.intervalTree.search([10, 10]).length).toBe(1);
     expect(ts.intervalTree.search([10, 20]).length).toBe(2);
 
     ts.removeTrack(t1.trackId);
     expect(Array.from(ts.trackMap.keys()).length).toBe(1);
-    expect(ts.sortedTrackIds.value[0]).toBe(0);
+    expect(ts.sortedTracks.value[0].trackId).toBe(0);
     expect(ts.intervalTree.search([10, 10]).length).toBe(0);
     expect(ts.intervalTree.search([10, 20]).length).toBe(1);
 
     ts.removeTrack(t0.trackId);
     expect(Array.from(ts.trackMap.keys()).length).toBe(0);
-    expect(ts.sortedTrackIds.value.length).toBe(0);
+    expect(ts.sortedTracks.value.length).toBe(0);
     expect(ts.intervalTree.search([10, 10]).length).toBe(0);
     expect(ts.intervalTree.search([10, 20]).length).toBe(0);
   });
@@ -52,7 +52,7 @@ describe('useTrackStore', () => {
     let called = false;
 
     watchEffect(() => {
-      if (ts.sortedTrackIds.value.length) {
+      if (ts.sortedTracks.value.length) {
         called = true;
       }
     });

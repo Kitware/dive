@@ -1,22 +1,26 @@
 /*eslint class-methods-use-this: "off"*/
 import { Annotator } from '@/components/annotators/annotatorType';
 import { FrameDataTrack } from '@/components/layers/LayerTypes';
-import { StateStyles } from '@/use/useStyling';
+import { StateStyles, TypeStyling } from '@/use/useStyling';
 import Vue from 'vue';
 import { Ref } from '@vue/composition-api';
 
 // eslint-disable-next-line max-len
 export type StyleFunction<T, D> = T | ((point: [number, number], index: number, data: D) => T | undefined);
+export type ObjectFunction<T, D> = T | ((data: D, index: number) => T | undefined);
+export type PointFunction<T, D> = T | ((data: D) => T | undefined);
 
 export interface LayerStyle<D> {
   strokeWidth?: StyleFunction<number, D>;
+  strokeOffset?: StyleFunction<number, D>;
   strokeOpacity?: StyleFunction<number, D>;
   strokeColor?: StyleFunction<string, D>;
   position?: (point: [number, number]) => { x: number; y: number };
-  fillColor?: (data: D) => string;
+  fillColor?: StyleFunction<string, D> | PointFunction<string, D>;
+  fillOpacity?: StyleFunction<number, D>;
   color?: (data: D) => string;
   offset?: (data: D) => { x: number; y: number };
-  fill?: boolean;
+  fill?: ObjectFunction<boolean, D> | boolean;
   radius?: number;
   [x: string]: unknown;
 }
@@ -25,7 +29,7 @@ export interface BaseLayerParams {
     frameData?: FrameDataTrack;
     annotator: Annotator;
     stateStyling: StateStyles;
-    typeStyling: Ref<{ color: (type: string) => string }>;
+    typeStyling: Ref<TypeStyling>;
 }
 
 export default abstract class BaseLayer<D> extends Vue {
@@ -37,7 +41,7 @@ export default abstract class BaseLayer<D> extends Vue {
 
     style: LayerStyle<D>;
 
-    typeStyling: Ref<{ color: (type: string) => string }>;
+    typeStyling: Ref<TypeStyling>;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     featureLayer: any;

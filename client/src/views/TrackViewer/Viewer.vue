@@ -1,6 +1,5 @@
 <script lang="ts">
 import {
-  computed,
   defineComponent,
   ref,
 } from '@vue/composition-api';
@@ -74,9 +73,9 @@ export default defineComponent({
     const {
       typeStyling,
       stateStyling,
-      updateTypeColor,
-      loadTypeColors,
-      saveTypeColors,
+      updateTypeStyle,
+      loadTypeStyles,
+      saveTypeStyles,
     } = useStyling({ markChangesPending });
 
     const {
@@ -90,7 +89,7 @@ export default defineComponent({
 
     const {
       trackMap,
-      sortedTrackIds,
+      sortedTracks,
       intervalTree,
       addTrack,
       insertTrack,
@@ -106,10 +105,22 @@ export default defineComponent({
       checkedTypes,
       confidenceThreshold,
       allTypes,
-      filteredTrackIds,
-      enabledTrackIds,
+      filteredTracks,
+      enabledTracks,
       updateTypeName,
-    } = useTrackFilters({ trackMap, sortedTrackIds });
+    } = useTrackFilters({ sortedTracks });
+
+    const location = ref(ctx.root.$store.state.Location.location);
+
+    function updateLocation() {
+      if (dataset.value && dataset.value.parentId && dataset.value.parentCollection) {
+        location.value = {
+          _id: dataset.value.parentId,
+          _modelType: dataset.value.parentCollection,
+        };
+        ctx.root.$store.commit('Location/setLocation', location.value);
+      }
+    }
 
     Promise.all([
       loadDataset(datasetId),
@@ -120,7 +131,13 @@ export default defineComponent({
       throw err;
     }).then(() => {
       // tasks to run after dataset and tracks have loaded
-      loadTypeColors(dataset.value?.meta.customTypeColors);
+      loadTypeStyles({
+        styles: dataset.value?.meta.customTypeStyling,
+        colorList: dataset.value?.meta.customTypeColors,
+      });
+      if (!location.value) {
+        updateLocation();
+      }
     });
 
     const {
@@ -129,7 +146,7 @@ export default defineComponent({
       editingTrack,
       selectNextTrack,
     } = useTrackSelectionControls({
-      trackIds: filteredTrackIds,
+      tracks: filteredTracks,
     });
 
     const {
@@ -141,11 +158,11 @@ export default defineComponent({
     } = useFeaturePointing({ selectedTrackId, trackMap });
 
     const { lineChartData } = useLineChart({
-      enabledTrackIds, typeStyling, allTypes, trackMap,
+      enabledTracks, typeStyling, allTypes,
     });
 
     const { eventChartData } = useEventChart({
-      enabledTrackIds, selectedTrackId, typeStyling, trackMap,
+      enabledTracks, selectedTrackId, typeStyling,
     });
 
     const { clientSettings, updateNewTrackSettings } = useSettings();
@@ -164,10 +181,9 @@ export default defineComponent({
       removeTrack,
     });
 
-    const location = computed(() => ctx.root.$store.state.Location.location);
 
     async function splitTracks(trackId: TrackId | undefined, _frame: number) {
-      if (trackId) {
+      if (typeof trackId === 'number') {
         const track = getTrack(trackId);
         let newtracks: [Track, Track];
         try {
@@ -203,7 +219,7 @@ export default defineComponent({
         selectTrack(selectedTrackId.value, false);
       }
       saveToServer(datasetId, trackMap);
-      saveTypeColors(datasetId, allTypes);
+      saveTypeStyles(datasetId, allTypes);
     }
 
 
@@ -229,7 +245,7 @@ export default defineComponent({
       splitTracks,
       toggleFeaturePointing,
       featurePointed,
-      updateTypeColor,
+      updateTypeStyle,
       updateTypeName,
       /* props for sub-components */
       controlsContainerProps: {
@@ -238,7 +254,7 @@ export default defineComponent({
       },
       sidebarProps: {
         trackMap,
-        filteredTrackIds,
+        filteredTracks,
         frame,
         allTypes,
         checkedTypes,
@@ -251,7 +267,7 @@ export default defineComponent({
       updateNewTrackSettings,
       layerProps: {
         trackMap,
-        trackIds: enabledTrackIds,
+        tracks: enabledTracks,
         selectedTrackId,
         editingTrack,
         typeStyling,
@@ -329,7 +345,8 @@ export default defineComponent({
         @track-type-change="handler.trackTypeChange($event)"
         @update-new-track-settings="updateNewTrackSettings($event)"
         @track-split="splitTracks($event, frame)"
-        @update-type-color="updateTypeColor($event)"
+        @track-seek="playbackComponent.seek($event)"
+        @update-type-style="updateTypeStyle($event)"
         @update-type-name="updateTypeName($event)"
       >
         <ConfidenceFilter :confidence.sync="confidenceThreshold" />

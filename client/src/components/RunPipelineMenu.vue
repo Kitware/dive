@@ -54,6 +54,8 @@ export default {
       switch (pipeType) {
         case 'trained':
           return 'trained';
+        case 'generate':
+          return 'utility';
 
         default:
           return `${pipeType}s`;
@@ -118,7 +120,12 @@ export default {
                 <v-icon
                   left
                   color="accent"
+                  <<<<<<<
+                  h-e-a-d="======"
+                  class="ml-0"
                 >
+                  >>>>>> master
+                  >
                   mdi-menu-down
                 </v-icon>
               </v-btn>

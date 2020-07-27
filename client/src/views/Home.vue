@@ -1,13 +1,15 @@
 <script>
-import { mapState, mapMutations } from 'vuex';
+import {
+  mapActions,
+  mapMutations,
+  mapGetters,
+} from 'vuex';
 import { FileManager } from '@girder/components/src/components/Snippet';
 import { getLocationType } from '@girder/components/src/utils';
-
 import Export from '@/components/Export.vue';
 import RunPipelineMenu from '@/components/RunPipelineMenu.vue';
 import Upload from '@/components/Upload.vue';
 import NavigationBar from '@/components/NavigationBar.vue';
-import { videoFilesRegEx, webFriendlyImageRegEx, imageFilesRegEx } from '@/constants';
 import { getPathFromLocation, getLocationFromRoute } from '@/utils';
 import {
   runVideoConversion,
@@ -28,20 +30,22 @@ export default {
   },
   inject: ['notificationBus'],
   data: () => ({
-    location_: null,
     uploaderDialog: false,
     selected: [],
     uploading: false,
   }),
   computed: {
-    ...mapState('Location', ['location']),
+    ...mapGetters('Filetypes', ['getVidRegEx', 'getImgRegEx', 'getWebRegEx']),
 
     location: {
       get() {
-        return this.location_;
+        return this.$store.state.Location.location;
       },
+      /**
+       * This setter is used by Girder Web Components to set the location when it changes
+       * by clicking on a Breadcrumb link
+       */
       set(value) {
-        this.location_ = value;
         const newPath = getPathFromLocation(value);
         if (this.$route.path !== newPath) {
           this.$router.push(newPath);
@@ -81,18 +85,15 @@ export default {
     },
   },
   created() {
-    this.location_ = getLocationFromRoute(this.$route);
-    this.setLocation(this.location_);
+    this.setLocation(getLocationFromRoute(this.$route));
     this.notificationBus.$on('message:job_status', this.handleNotification);
+    this.fetchFiletypes();
   },
   beforeDestroy() {
     this.notificationBus.$off('message:job_status', this.handleNotification);
   },
-  beforeRouteUpdate(to, from, next) {
-    this.location_ = getLocationFromRoute(to);
-    next();
-  },
   methods: {
+    ...mapActions('Filetypes', ['fetchFiletypes']),
     ...mapMutations('Location', ['setLocation']),
     handleNotification() {
       this.$refs.fileManager.$refs.girderBrowser.refresh();
@@ -133,14 +134,13 @@ export default {
     },
     uploaded(uploads) {
       this.uploaderDialog = false;
-
       // Check if any transcoding should be done
       const transcodes = uploads.filter(({ results, folder }) => {
         const videoTranscodes = results
-          .filter(({ name }) => videoFilesRegEx.test(name))
+          .filter(({ name }) => this.getVidRegEx.test(name))
           .map(({ itemId }) => runVideoConversion(itemId));
         const imageTranscodes = results
-          .filter(({ name }) => !webFriendlyImageRegEx.test(name) && imageFilesRegEx.test(name));
+          .filter(({ name }) => !this.getWebRegEx.test(name) && this.getImgRegEx.test(name));
 
         if (imageTranscodes.length > 0) {
           runImageConversion(folder._id);
