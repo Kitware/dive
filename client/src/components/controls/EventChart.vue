@@ -165,6 +165,7 @@ export default {
           // Else if Keyframe density is 100%
           ctx.fillStyle = selectedColor;
           ctx.fillRect(bar.left, bar.top, barWidth, barHeight);
+          this.scrollToElement(bar);
         } else {
           // Else draw individual feature frame segments
           // Decrease SelectedColor opacity to mute it.
@@ -193,8 +194,20 @@ export default {
                 ctx.stroke();
               }
             });
+          this.scrollToElement(bar);
         }
       });
+    },
+    scrollToElement(selectedBar) {
+      const eventChart = this.$refs.canvas.parentNode;
+      const { offsetHeight } = eventChart;
+      const { scrollTop } = eventChart;
+      const { top } = selectedBar;
+      if (top > offsetHeight) {
+        eventChart.scrollTop = top + offsetHeight / 2.0;
+      } else if (scrollTop > top) {
+        eventChart.scrollTop = 0.0;
+      }
     },
     mousemove(e) {
       this.tooltip = null;
