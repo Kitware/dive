@@ -222,11 +222,11 @@ export default {
       if (remainder > 10) {
         return;
       }
-      const top = offsetY - (offsetY % 15);
+      const top = offsetY - (offsetY % 15) + 3;
       const bar = this.bars
         .filter((b) => b.top === top)
         .reverse()
-        .find((b) => b.left < offsetX && b.left + b.width > offsetX);
+        .find((b) => b.left < offsetX && b.right - b.left > offsetX);
       if (!bar) {
         return;
       }
@@ -274,7 +274,7 @@ export default {
     border: 1px solid white;
     padding: 0px 5px;
     font-size: 14px;
-    z-index: 1;
+    z-index: 2;
   }
 }
 </style>
