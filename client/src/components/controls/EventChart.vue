@@ -226,7 +226,8 @@ export default {
       const bar = this.bars
         .filter((b) => b.top === top)
         .reverse()
-        .find((b) => b.left < offsetX && b.right - b.left > offsetX);
+        .find((b) => b.left < offsetX
+        && (b.right - b.left > offsetX || b.left + b.minWidth > offsetX));
       if (!bar) {
         return;
       }
