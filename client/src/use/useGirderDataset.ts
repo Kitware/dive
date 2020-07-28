@@ -20,7 +20,7 @@ interface VIIMEDataset extends GirderModel {
 
 export default function useGirderDataset() {
   const dataset = ref(null as VIIMEDataset | null);
-  const imageUrls = ref([] as Record<string, any>);
+  const imageData = ref([] as Record<string, string>[]);
   const videoUrl = ref('');
   const frameRate = computed(() => (dataset.value && dataset.value.meta.fps as number)
     || defaultFrameRate);
@@ -36,7 +36,7 @@ export default function useGirderDataset() {
     throw new Error(`Unknown dataset type: ${dataset.value.meta.type}`);
   });
 
-  // set imageUrls or videoUrl depending on dataset type
+  // set imageData or videoUrl depending on dataset type
   watchEffect(async () => {
     const _dataset = dataset.value;
     if (!_dataset) {
@@ -53,7 +53,7 @@ export default function useGirderDataset() {
     } else if (_dataset.meta.type === ImageSequenceType) {
       // Image Sequence type annotator
       const items = await getItemsInFolder(_dataset._id, 20000);
-      imageUrls.value = items
+      imageData.value = items
         .filter((item) => {
           const name = item.name.toLowerCase();
           return (
@@ -85,7 +85,7 @@ export default function useGirderDataset() {
     dataset,
     frameRate,
     annotatorType,
-    imageUrls,
+    imageData,
     videoUrl,
     loadDataset,
   };

@@ -64,7 +64,6 @@ export default defineComponent({
   setup(props, { emit }) {
     const annotator = inject('annotator') as Annotator;
     const frameNumber: Readonly<Ref<number>> = computed(() => annotator.frame as number);
-    const filename: Readonly<Ref<string>> = computed(() => annotator.filename as string);
 
     const annotationLayer = new AnnotationLayer({
       annotator,
@@ -205,7 +204,7 @@ export default defineComponent({
     editAnnotationLayer.$on('update:geojson',
       (data: GeoJSON.Feature<GeoJSON.Polygon>) => {
         const bounds = geojsonToBound(data);
-        emit('update-rect-bounds', frameNumber.value, bounds, filename.value);
+        emit('update-rect-bounds', frameNumber.value, bounds);
       });
 
     markerEditLayer.$on('update:geojson', (data: GeoJSON.Feature<GeoJSON.Point>) => {
