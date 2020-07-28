@@ -30,7 +30,7 @@ export default {
       ready: false,
       playing: false,
       frame: 0,
-      filename: 'test',
+      filename: '',
       maxFrame: 0,
       syncedFrame: 0,
     };
