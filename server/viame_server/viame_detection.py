@@ -121,7 +121,7 @@ class ViameDetection(Resource):
 
         filename = ".".join([file["name"].split(".")[:-1][0], "csv"])
 
-        imageFiles = sorted([f['name'] for f in Folder().childItems(folder) if (f['name'].endswith('png') or f['name'].endswith('jpg') or f['name'].endswith('jpeg'))])
+        imageFiles = [f['name'] for f in Folder().childItems(folder, filters={"lowerName": {"$regex": r'^\.jpg|\.jpeg|\.png' }}).sort("lowerName")]
 
         csv_string = viame.export_tracks_as_csv(file, imageFiles)
         csv_bytes = csv_string.encode()
