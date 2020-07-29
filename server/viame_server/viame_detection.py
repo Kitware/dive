@@ -1,4 +1,5 @@
 import json
+import re
 import urllib
 
 from girder.api import access
@@ -121,7 +122,8 @@ class ViameDetection(Resource):
 
         filename = ".".join([file["name"].split(".")[:-1][0], "csv"])
 
-        imageFiles = [f['name'] for f in Folder().childItems(folder, filters={"lowerName": {"$regex": r'^\.jpg|\.jpeg|\.png' }}).sort("lowerName")]
+        imageRegex = re.compile("^\." + "|\.".join(webValidImageFormats))
+        imageFiles = [f['name'] for f in Folder().childItems(folder, filters={"lowerName": {"$regex": imageRegex}}).sort("lowerName")]
 
         csv_string = viame.export_tracks_as_csv(file, imageFiles)
         csv_bytes = csv_string.encode()
