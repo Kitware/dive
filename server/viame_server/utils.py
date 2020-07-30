@@ -1,7 +1,14 @@
+import io
+import json
+import re
+from datetime import datetime
+
 import cherrypy
-from girder.api.rest import setContentDisposition, setRawResponse, setResponseHeader
+from girder.api.rest import (setContentDisposition, setRawResponse,
+                             setResponseHeader)
 from girder.models.folder import Folder
 from girder.models.item import Item
+from girder.models.upload import Upload
 
 ImageSequenceType = "image-sequence"
 VideoType = "video"
@@ -9,6 +16,12 @@ VideoType = "video"
 webValidImageFormats = {"png", "jpg", "jpeg"}
 validImageFormats = {*webValidImageFormats, "tif", "tiff", "sgi", "bmp", "pgm"}
 validVideoFormats = {"mp4", "avi", "mov", "mpg"}
+
+videoRegex = re.compile("\." + "|\.".join(validVideoFormats), re.IGNORECASE)
+imageRegex = re.compile("\." + "|\.".join(validImageFormats), re.IGNORECASE)
+safeImageRegex = re.compile("\." + "|\.".join(webValidImageFormats), re.IGNORECASE)
+csvRegex = re.compile("\.csv$", re.IGNORECASE)
+ymlRegex = re.compile("\.ya?ml$", re.IGNORECASE)
 
 ImageMimeTypes = {
     "image/png",
@@ -65,12 +78,35 @@ def get_or_create_auxiliary_folder(folder, user):
 def move_existing_result_to_auxiliary_folder(folder, user):
     auxiliary = get_or_create_auxiliary_folder(folder, user)
 
-    existingResultItem = Item().findOne(
+    existingResultItems = Item().find(
         {"meta.detection": str(folder["_id"]), "folderId": folder["_id"]}
     )
-    if existingResultItem:
-        Item().move(existingResultItem, auxiliary)
+    for item in existingResultItems:
+        Item().move(item, auxiliary)
 
 
 def itemIsWebsafeVideo(item: Item) -> bool:
     return item.get("meta", {}).get("codec") == "h264"
+
+
+def saveTracks(folder, tracks, user):
+    timestamp = datetime.now().strftime("%m-%d-%Y_%H:%M:%S")
+    item_name = f"result_{timestamp}.json"
+
+    move_existing_result_to_auxiliary_folder(folder, user)
+    newResultItem = Item().createItem(item_name, user, folder)
+    Item().setMetadata(
+        newResultItem, {"detection": str(folder["_id"])}, allowNull=True,
+    )
+
+    json_bytes = json.dumps(tracks).encode()
+    byteIO = io.BytesIO(json_bytes)
+    Upload().uploadFromFile(
+        byteIO,
+        len(json_bytes),
+        item_name,
+        parentType="item",
+        parent=newResultItem,
+        user=user,
+        mimeType="application/json",
+    )

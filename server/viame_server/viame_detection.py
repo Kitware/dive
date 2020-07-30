@@ -1,7 +1,5 @@
-import io
 import json
 import urllib
-from datetime import datetime
 
 from girder.api import access
 from girder.api.describe import Description, autoDescribeRoute
@@ -13,15 +11,11 @@ from girder.models.file import File
 from girder.models.folder import Folder
 from girder.models.item import Item
 from girder.models.upload import Upload
-
-from viame_server.serializers import viame, meva
-from viame_server.utils import (
-    ImageMimeTypes,
-    ImageSequenceType,
-    VideoMimeTypes,
-    VideoType,
-    move_existing_result_to_auxiliary_folder,
-)
+from viame_server.serializers import meva, viame
+from viame_server.utils import (ImageMimeTypes, ImageSequenceType,
+                                VideoMimeTypes, VideoType,
+                                move_existing_result_to_auxiliary_folder,
+                                saveTracks)
 
 
 class ViameDetection(Resource):
@@ -159,21 +153,9 @@ class ViameDetection(Resource):
             )
         )
         detectionItems.sort(key=lambda d: d["created"], reverse=True)
-
         if not len(detectionItems):
             return None
-
         file = Item().childFiles(detectionItems[0])[0]
-        if "csv" in file["exts"]:
-            return viame.load_csv_as_tracks(file)
-
-        # There might be up to 3 yamls
-        allFiles = [Item().childFiles(item)[0] for item in detectionItems[:3]]
-
-        yamls = [f for f in allFiles if "yml" in f["exts"]]
-        if yamls:
-            return meva.load_kpf_as_tracks(yamls)
-
         return File().download(file, contentDisposition="inline")
 
     @access.user
@@ -205,26 +187,5 @@ class ViameDetection(Resource):
     )
     def save_detection(self, folder, tracks):
         user = self.getCurrentUser()
-
-        timestamp = datetime.now().strftime("%m-%d-%Y_%H:%M:%S")
-        item_name = f"result_{timestamp}.json"
-
-        move_existing_result_to_auxiliary_folder(folder, user)
-        newResultItem = Item().createItem(item_name, user, folder)
-        Item().setMetadata(
-            newResultItem, {"detection": str(folder["_id"])}, allowNull=True,
-        )
-
-        json_bytes = json.dumps(tracks).encode()
-        byteIO = io.BytesIO(json_bytes)
-        Upload().uploadFromFile(
-            byteIO,
-            len(json_bytes),
-            item_name,
-            parentType="item",
-            parent=newResultItem,
-            user=user,
-            mimeType="application/json",
-        )
-
+        saveTracks(folder, tracks, user)
         return True

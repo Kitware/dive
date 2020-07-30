@@ -1,10 +1,6 @@
 from girder.models.folder import Folder
 from girder.models.item import Item
-
-from viame_server.utils import (
-    validImageFormats,
-    ImageSequenceType,
-)
+from viame_server.utils import ImageSequenceType, validImageFormats
 
 
 def check_existing_annotations(event):
@@ -28,26 +24,3 @@ def check_existing_annotations(event):
             "viame": True,
         })
         Folder().save(folder)
-
-
-def maybe_mark_folder_for_annotation(event):
-    """
-    event handler for attaching appropriate metadata
-    to user-uploaded data
-    """
-    info = event.info
-
-    if "parentType" not in info or info["parentType"] != "folder":
-        return
-
-    parent = Folder().findOne({"_id": info["parentId"]})
-
-    # We can only mark images as able to annotate
-    # Videos must be marked by the annotation pipeline.
-    meta = parent.get("meta", {})
-    if meta.get("type") == ImageSequenceType and meta.get("viame"):
-        fileType = info["mimeType"].split("/")[-1]
-
-        if fileType in validImageFormats:
-            parent["meta"]["annotate"] = True
-            Folder().save(parent)

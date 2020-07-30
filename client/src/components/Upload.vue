@@ -1,55 +1,9 @@
 <script>
-import { mapGetters } from 'vuex';
 import Dropzone from '@girder/components/src/components/Presentation/Dropzone.vue';
-import {
-  fileUploader,
-  sizeFormatter,
-} from '@girder/components/src/utils/mixins';
-import {
-  ImageSequenceType,
-  VideoType,
-} from '@/constants';
-import { makeViameFolder } from '@/lib/api/viame.service';
+import { fileUploader, sizeFormatter } from '@girder/components/src/utils/mixins';
+import { ImageSequenceType, VideoType } from '@/constants';
+import { makeViameFolder, validateUploadGroup } from '@/lib/api/viame.service';
 import { getResponseError } from '@/lib/utils';
-
-function prepareFiles(files, videoRegEx, imageRegEx) {
-  const videoFilter = (file) => videoRegEx.test(file.name);
-  const csvFilter = (file) => /\.csv$/i.test(file.name);
-  const imageFilter = (file) => imageRegEx.test(file.name);
-  const ymlFilter = (file) => /\.yml$/i.test(file.name);
-
-  const videoFiles = files.filter(videoFilter);
-  const imageFiles = files.filter(imageFilter);
-  const csvFiles = files.filter(csvFilter);
-  const ymlFiles = files.filter(ymlFilter);
-
-  if (videoFiles.length > 0 && imageFiles.length > 0) {
-    throw new Error('Do not upload images and videos in the same batch.');
-  } else if (csvFiles.length > 1) {
-    throw new Error('Can only upload a single CSV Annotation per import');
-  } else if (videoFiles.length > 1 && csvFiles.length > 0) {
-    throw new Error('Annotation upload is not supported when multiple videos are uploaded');
-  } else if (videoFiles.length === 0 && imageFiles.length === 0 && csvFiles.length > 0) {
-    throw new Error('Cannot upload annotations without media');
-  } else if (videoFiles.length === 0 && imageFiles.length === 0 && ymlFiles.length > 0) {
-    throw new Error('Cannot upload kpf annotations without media');
-  } else if (videoFiles.length) {
-    return {
-      type: VideoType,
-      media: videoFiles,
-      csv: csvFiles,
-      yml: ymlFiles,
-    };
-  } else if (imageFiles.length) {
-    return {
-      type: ImageSequenceType,
-      media: imageFiles,
-      csv: csvFiles,
-      yml: ymlFiles,
-    };
-  }
-  throw new Error('No supported data types found.  Please choose video or image frames.');
-}
 
 function entryToFile(entry) {
   return new Promise((resolve) => {
@@ -118,7 +72,6 @@ export default {
     ImageSequenceType,
   }),
   computed: {
-    ...mapGetters('Filetypes', ['getVidRegEx', 'getImgRegEx']),
     uploadEnabled() {
       return this.location && this.location._modelType === 'folder';
     },
@@ -169,47 +122,50 @@ export default {
       if (files.length === 0) return;
       this.preUploadErrorMessage = null;
       try {
-        this.addPendingUpload(name, files);
+        await this.addPendingUpload(name, files);
       } catch (err) {
         this.preUploadErrorMessage = err;
       }
     },
-    onFileChange(files) {
+    async onFileChange(files) {
       if (files.length === 0) return;
       const name = files.length === 1 ? files[0].name : '';
       this.preUploadErrorMessage = null;
       try {
-        this.addPendingUpload(name, files);
+        await this.addPendingUpload(name, files);
       } catch (err) {
         this.preUploadErrorMessage = err;
       }
     },
-    addPendingUpload(name, allFiles) {
-      const {
-        type, media, csv, yml,
-      } = prepareFiles(allFiles, this.getVidRegEx, this.getImgRegEx);
-
-      let files = media.concat(csv);
-      if (yml.length > 0) {
-        files = media.concat(yml);
+    async addPendingUpload(name, allFiles) {
+      const resp = await validateUploadGroup(allFiles.map((f) => f.name));
+      if (!resp.ok) {
+        throw new Error(resp.message);
       }
-      const defaultFilename = files[0].name;
+      const fps = this.defaultFPS;
+      const defaultFilename = resp.media[0];
+      const validFiles = resp.media.concat(resp.annotations);
+      console.log(validFiles, allFiles, defaultFilename);
       // mapping needs to be done for the mixin upload functions
-      const internalFiles = files.map((file) => ({
-        file,
-        status: 'pending',
-        progress: {
-          indeterminate: false,
-          current: 0,
-          size: file.size,
-        },
-        upload: null,
-        result: null,
-      }));
+      const internalFiles = allFiles
+        .filter((f) => validFiles.includes(f))
+        .map((file) => ({
+          file,
+          status: 'pending',
+          progress: {
+            indeterminate: false,
+            current: 0,
+            size: file.size,
+          },
+          upload: null,
+          result: null,
+        }));
       // decide on the default createSubfoleders based on content uploaded
       let createSubFolders = false;
-      if (type === 'video' && media.length > 1) {
-        createSubFolders = true;
+      if (resp.type === 'video') {
+        if (resp.media.length > 1) {
+          createSubFolders = true;
+        }
       }
       this.pendingUploads.push({
         createSubFolders,
@@ -218,8 +174,8 @@ export default {
             ? defaultFilename.replace(/\..*/, '')
             : defaultFilename,
         files: internalFiles,
-        type,
-        fps: this.defaultFPS,
+        type: resp.type,
+        fps,
         uploading: false,
       });
     },
