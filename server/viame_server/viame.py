@@ -24,7 +24,7 @@ class Viame(Resource):
         self.pipelines = pipelines
         self.route("GET", ("pipelines",), self.get_pipelines)
         self.route("POST", ("pipeline",), self.run_pipeline_task)
-        self.route("POST", ("postprocess",), self.postprocess)
+        self.route("POST", ("postprocess", ":id"), self.postprocess)
         self.route("POST", ("attribute",), self.create_attribute)
         self.route("GET", ("attribute",), self.get_attributes)
         self.route("PUT", ("attribute", ":id"), self.update_attribute)
@@ -106,7 +106,7 @@ class Viame(Resource):
             mediatype = 'video'
 
         elif len(images):
-            mediatype = 'image_sequence'
+            mediatype = 'image-sequence'
 
         return {
             "ok": ok,
@@ -120,11 +120,9 @@ class Viame(Resource):
     @autoDescribeRoute(
         Description("Post-processing to be run after media/annotation import")
         .modelParam(
-            "folder",
+            "id",
             description="Folder containing the images to convert",
             model=Folder,
-            paramType="query",
-            required=True,
             level=AccessType.WRITE,
         )
     )
@@ -163,7 +161,7 @@ class Viame(Resource):
         # Preprocess CSV if necessasry
         csvItems = Folder().childItems(folder, filters={"lowerName": {"$regex": csvRegex}})
         if csvItems.count() == 1:
-            file = Item().childFiles(csvItems[0])
+            file = Item().childFiles(csvItems.next())[0]
             saveTracks(folder, viame_serializer.load_csv_as_tracks(file), user)
         elif csvItems.count() > 1:
             raise RestException('Can have at most 1 annotation CSV file')

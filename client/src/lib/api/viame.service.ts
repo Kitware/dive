@@ -21,7 +21,7 @@ interface Pipe {
 
 interface ValidationResponse {
   ok: boolean;
-  type: 'video' | 'image_sequence';
+  type: 'video' | 'image-sequence';
   media: string[];
   annotations: string[];
   message: string;
@@ -93,6 +93,10 @@ function setMetadataForFolder(folderId: string, metadata: object) {
   );
 }
 
+function postProcess(folderId: string) {
+  return girderRest.post(`viame/postprocess/${folderId}`);
+}
+
 async function validateUploadGroup(names: string[]): Promise<ValidationResponse> {
   const { data } = await girderRest.post<ValidationResponse>('viame/validate_files', names);
   return data;
@@ -106,6 +110,7 @@ export {
   getAttributes,
   getPipelineList,
   makeViameFolder,
+  postProcess,
   runPipeline,
   setMetadataForFolder,
   validateUploadGroup,

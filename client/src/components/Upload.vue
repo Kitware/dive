@@ -2,7 +2,7 @@
 import Dropzone from '@girder/components/src/components/Presentation/Dropzone.vue';
 import { fileUploader, sizeFormatter } from '@girder/components/src/utils/mixins';
 import { ImageSequenceType, VideoType } from '@/constants';
-import { makeViameFolder, validateUploadGroup } from '@/lib/api/viame.service';
+import { makeViameFolder, validateUploadGroup, postProcess } from '@/lib/api/viame.service';
 import { getResponseError } from '@/lib/utils';
 
 function entryToFile(entry) {
@@ -145,10 +145,9 @@ export default {
       const fps = this.defaultFPS;
       const defaultFilename = resp.media[0];
       const validFiles = resp.media.concat(resp.annotations);
-      console.log(validFiles, allFiles, defaultFilename);
       // mapping needs to be done for the mixin upload functions
       const internalFiles = allFiles
-        .filter((f) => validFiles.includes(f))
+        .filter((f) => validFiles.includes(f.name))
         .map((file) => ({
           file,
           status: 'pending',
@@ -160,7 +159,7 @@ export default {
           upload: null,
           result: null,
         }));
-      // decide on the default createSubfoleders based on content uploaded
+      // decide on the default createSubFolders based on content uploaded
       let createSubFolders = false;
       if (resp.type === 'video') {
         if (resp.media.length > 1) {
@@ -215,9 +214,6 @@ export default {
         }
       }
       this.$emit('update:uploading', false);
-      if (success) {
-        this.$emit('uploaded', uploaded);
-      }
     },
     async uploadPending(pendingUpload, uploaded) {
       const { name, files, createSubFolders } = pendingUpload;
@@ -228,9 +224,9 @@ export default {
 
       let folder = this.location;
       if (!pendingUpload.createSubFolders) {
-        folder = await this.createUploadFolder(name, createSubFolders, fps, pendingUpload.type);
+        folder = await this.createUploadFolder(name, fps, pendingUpload.type);
         if (folder) {
-          await this.uploadFiles(pendingUpload.name, folder, files, createSubFolders, uploaded);
+          await this.uploadFiles(pendingUpload.name, folder, files, uploaded);
           this.remove(pendingUpload);
         }
       } else {
@@ -238,19 +234,19 @@ export default {
           // take the file name and convert it to a folder name;
           const subfile = files.splice(0, 1);
           const subname = subfile[0].file.name.replace(/\..*/, '');
-          // Only video subfolders should be used typically
-          const subtype = this.getVidRegEx.test(subfile[0].file.name) ? 'video' : 'unknown';
+          // All sub-folders for a pendingUpload must be the same type
+          const subtype = pendingUpload.type;
           // eslint-disable-next-line no-await-in-loop
-          folder = await (this.createUploadFolder(subname, createSubFolders, fps, subtype));
+          folder = await (this.createUploadFolder(subname, fps, subtype));
           if (folder) {
             // eslint-disable-next-line no-await-in-loop
-            await this.uploadFiles(subname, folder, subfile, createSubFolders, uploaded);
+            await this.uploadFiles(subname, folder, subfile, uploaded);
           }
         }
         this.remove(pendingUpload);
       }
     },
-    async createUploadFolder(name, createSubFolders, fps, type) {
+    async createUploadFolder(name, fps, type) {
       try {
         const { data } = await makeViameFolder({
           folderId: this.location._id,
@@ -264,13 +260,14 @@ export default {
         throw error;
       }
     },
-    async uploadFiles(name, folder, files, createSubFolders, uploaded) {
+    async uploadFiles(name, folder, files, uploaded) {
       // function called after mixins upload finishes
-      const postUpload = (data) => {
+      const postUpload = async (data) => {
         uploaded.push({
           folder,
           results: data.results,
         });
+        await postProcess(folder._id);
       };
       // Sets the files used by the fileUploader mixin
       this.setFiles(files);
