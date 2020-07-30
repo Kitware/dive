@@ -17,6 +17,7 @@ export default {
       loadingVideo: false,
     };
   },
+
   created() {
     // Below are configuration settings we can set until we decide on good numbers to utilize.
     this.playCache = 1; // seconds required to be fully cached before playback
@@ -38,7 +39,6 @@ export default {
       };
     }
   },
-
   methods: {
     init() {
       this.baseInit(); // Mixin method
@@ -262,7 +262,11 @@ export default {
         </v-progress-circular>
       </div>
     </div>
-    <slot name="control" />
+    <slot
+      ref="control"
+      name="control"
+      @resize="onResize"
+    />
     <slot v-if="ready" />
   </div>
 </template>

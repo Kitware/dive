@@ -34,9 +34,29 @@ export default defineComponent({
     },
   },
 
-  setup() {
+  setup(props, { emit }) {
+    const showDetectionView = ref(true);
+    const showEventView = ref(false);
+
+    function toggleView(type: string) {
+      if (!showDetectionView.value && !showEventView.value) {
+        emit('resize');
+      }
+      if (type === 'Detection') {
+        showDetectionView.value = !showDetectionView.value;
+        showEventView.value = false;
+      } else if (type === 'Event') {
+        showEventView.value = !showEventView.value;
+        showDetectionView.value = false;
+      }
+      if (!showDetectionView.value && !showEventView.value) {
+        emit('resize');
+      }
+    }
     return {
-      showTrackView: ref(false),
+      showDetectionView,
+      showEventView,
+      toggleView,
     };
   },
 });
@@ -45,11 +65,32 @@ export default defineComponent({
 <template>
   <div>
     <Controls />
-    <timeline-wrapper>
+    <div class="timeline-buttons">
+      <v-btn
+        :outlined="showDetectionView"
+        x-small
+        class="toggle-timeline-button-detection"
+        tab-index="-1"
+        @click="toggleView('Detection')"
+      >
+        Detection
+      </v-btn>
+      <v-btn
+        :outlined="showEventView"
+        x-small
+        class="toggle-timeline-button-event"
+        tab-index="-1"
+        @click="toggleView('Event')"
+      >
+        Events
+      </v-btn>
+    </div>
+    <timeline-wrapper v-if="(showDetectionView || showEventView)">
       <template #default="{ maxFrame, frame, seek }">
         <Timeline
           :max-frame="maxFrame"
           :frame="frame"
+          :display="(showDetectionView || showEventView)"
           @seek="seek"
         >
           <template
@@ -63,7 +104,7 @@ export default defineComponent({
             }"
           >
             <line-chart
-              v-if="!showTrackView"
+              v-if="showDetectionView"
               :start-frame="startFrame"
               :end-frame="endFrame"
               :max-frame="childMaxFrame"
@@ -73,7 +114,7 @@ export default defineComponent({
               :margin="margin"
             />
             <event-chart
-              v-else
+              v-if="showEventView"
               :start-frame="startFrame"
               :end-frame="endFrame"
               :max-frame="childMaxFrame"
@@ -82,15 +123,6 @@ export default defineComponent({
               :margin="margin"
             />
           </template>
-          <v-btn
-            outlined
-            x-small
-            class="toggle-timeline-button"
-            tab-index="-1"
-            @click="showTrackView = !showTrackView"
-          >
-            {{ showTrackView ? "Detection" : "Track" }}
-          </v-btn>
         </Timeline>
       </template>
     </timeline-wrapper>
@@ -98,9 +130,9 @@ export default defineComponent({
 </template>
 
 <style scoped>
-.toggle-timeline-button {
-  position: absolute;
-  top: -24px;
-  left: 2px;
+.timeline-buttons{
+  position:relative;
+  top:-24px;
+  margin-bottom:-24px;
 }
 </style>

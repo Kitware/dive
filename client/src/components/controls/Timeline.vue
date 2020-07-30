@@ -13,6 +13,10 @@ export default {
       type: Number,
       default: 0,
     },
+    display: {
+      type: Boolean,
+      default: true,
+    },
   },
   data() {
     return {
@@ -67,6 +71,13 @@ export default {
         this.endFrame = Math.min(frame + 200, this.maxFrame);
       } else if (frame < this.startFrame) {
         this.startFrame = Math.max(frame - 100, 0);
+      }
+    },
+    display(val) {
+      if (!val) {
+        this.clientHeight = 0;
+      } else {
+        this.initialize();
       }
     },
   },
