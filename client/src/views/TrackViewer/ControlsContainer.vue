@@ -59,6 +59,7 @@ export default defineComponent({
               maxFrame: childMaxFrame,
               clientWidth,
               clientHeight,
+              margin,
             }"
           >
             <line-chart
@@ -69,6 +70,7 @@ export default defineComponent({
               :data="lineChartData.value"
               :client-width="clientWidth"
               :client-height="clientHeight"
+              :margin="margin"
             />
             <event-chart
               v-else
@@ -77,6 +79,7 @@ export default defineComponent({
               :max-frame="childMaxFrame"
               :data="eventChartData.value"
               :client-width="clientWidth"
+              :margin="margin"
             />
           </template>
           <v-btn

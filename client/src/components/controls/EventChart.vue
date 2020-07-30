@@ -30,6 +30,10 @@ export default {
       type: Number,
       required: true,
     },
+    margin: {
+      type: Number,
+      default: 0,
+    },
     data: {
       type: Object,
       required: true,
@@ -84,7 +88,7 @@ export default {
               [event.range[0], event.range[1]],
             ))
             .forEach((event) => {
-              const frameWidth = x(this.startFrame_ + 1) * 0.6;
+              const frameWidth = (x(this.startFrame_ + 1) - x(this.startFrame_)) * 0.6;
               bars.push({
                 left: x(event.range[0]),
                 right: x(event.range[1]),
@@ -131,7 +135,7 @@ export default {
       const x = d3
         .scaleLinear()
         .domain([this.startFrame_, this.endFrame_])
-        .range([0, width]);
+        .range([this.margin, width]);
       this.x = x;
     },
     update() {
