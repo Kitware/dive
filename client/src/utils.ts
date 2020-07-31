@@ -1,7 +1,9 @@
 // eslint-disable-next-line @typescript-eslint/ban-ts-ignore
 // @ts-ignore
 import { isRootLocation } from '@girder/components/src/utils/locationHelpers';
-import { GirderModel } from './lib/api/viame.service';
+
+import { getFolder } from '@/lib/api/girder.service';
+import { GirderModel } from '@/lib/api/viame.service';
 
 interface Location {
   type?: 'collections' | 'users' | 'root';
@@ -12,14 +14,17 @@ interface Location {
 // [x1, y1, x2, y2] as (left, top), (bottom, right)
 export type RectBounds = [number, number, number, number];
 
-function getLocationFromRoute({ params }: { params: GirderModel }) {
+async function getLocationFromRoute({ params }: { params: GirderModel }) {
   if (isRootLocation(params)) {
     return {
       type: params._modelType,
     };
   }
-  if (params._modelType) {
+  if (params._modelType === 'user') {
     return params;
+  }
+  if (params._modelType === 'folder') {
+    return getFolder(params._id);
   }
   return null;
 }
