@@ -203,6 +203,12 @@ export default defineComponent({
       }
       saveToServer(datasetId, trackMap, {
         customTypeStyling: getTypeStyles(allTypes),
+      });
+    }
+
+    function saveThreshold() {
+      markChangesPending('meta');
+      saveToServer(datasetId, undefined, {
         confidenceFilters: confidenceFilters.value,
       });
     }
@@ -229,6 +235,7 @@ export default defineComponent({
       featurePointed,
       markChangesPending,
       save,
+      saveThreshold,
       selectTrack,
       splitTracks,
       toggleFeaturePointing,
@@ -338,7 +345,7 @@ export default defineComponent({
       >
         <ConfidenceFilter
           :confidence.sync="confidenceThreshold"
-          @end="markChangesPending('meta')"
+          @end="saveThreshold"
         />
       </sidebar>
       <v-col style="position: relative; ">

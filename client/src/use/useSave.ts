@@ -13,13 +13,13 @@ export default function useSave() {
 
   async function save(
     datasetId: string,
-    trackMap: Map<TrackId, Track>,
-    datasetMeta: object,
+    trackMap?: Map<TrackId, Track>,
+    datasetMeta?: object,
   ) {
-    if (pendingSaveCountMap.value.default) {
+    if (trackMap && pendingSaveCountMap.value.default) {
       await saveDetections(datasetId, trackMap);
     }
-    if (pendingSaveCountMap.value.meta) {
+    if (datasetMeta && pendingSaveCountMap.value.meta) {
       await setMetadataForFolder(datasetId, datasetMeta);
     }
     pendingSaveCountMap.value = { default: 0 };
