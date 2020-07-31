@@ -23,6 +23,7 @@ export default {
     uploaderDialog: false,
     selected: [],
     uploading: false,
+    loading: false,
   }),
   computed: {
     location: {
@@ -98,9 +99,24 @@ export default {
       if (!result) {
         return;
       }
-      await deleteResources(this.selected);
-      this.$refs.fileManager.$refs.girderBrowser.refresh();
-      this.selected = [];
+      try {
+        this.loading = true;
+        await deleteResources(this.selected);
+        this.$refs.fileManager.$refs.girderBrowser.refresh();
+        this.selected = [];
+      } catch (err) {
+        let text = 'Unable to delete resource(s)';
+        if (err.response && err.response.status === 403) {
+          text = 'You do not have permission to delete selected resource(s).';
+        }
+        this.$prompt({
+          title: 'Delete Failed',
+          text,
+          positiveButton: 'OK',
+        });
+      } finally {
+        this.loading = false;
+      }
     },
     dragover() {
       if (this.shouldShowUpload) {
@@ -114,6 +130,11 @@ export default {
 <template>
   <v-content>
     <NavigationBar />
+    <v-progress-linear
+      :indeterminate="loading"
+      height="6"
+      :style="{ visibility: loading ? 'visible' : 'hidden' }"
+    />
     <v-container fill-height>
       <v-row
         class="fill-height nowraptable"

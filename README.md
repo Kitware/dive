@@ -16,7 +16,7 @@ Additional documentation will be available in the future for users.
 
 ## Documentation
 
-* [Client User Guide](https://github.com/VIAME/VIAME-Web/wiki/User-Documentation)
+* [Client User Guide](https://github.com/VIAME/VIAME-Web/wiki)
 * [Client Development Docs](client/README.md)
 * [Docker Getting Started Guide](docker/README.md)
 
