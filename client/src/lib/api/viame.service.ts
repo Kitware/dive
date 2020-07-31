@@ -19,6 +19,14 @@ interface Pipe {
   type: string;
 }
 
+interface ValidationResponse {
+  ok: boolean;
+  type: 'video' | 'image-sequence';
+  media: string[];
+  annotations: string[];
+  message: string;
+}
+
 export interface Category {
   description: string;
   pipes: [Pipe];
@@ -68,26 +76,6 @@ async function getAttributes(): Promise<Attribute[]> {
   return data as Attribute[];
 }
 
-function runVideoConversion(itemId: string) {
-  return girderRest.post(
-    '/viame/conversion',
-    null,
-    {
-      params: { itemId },
-    },
-  );
-}
-
-function runImageConversion(folder: string) {
-  return girderRest.post(
-    '/viame/image_conversion',
-    null,
-    {
-      params: { folder },
-    },
-  );
-}
-
 function getPipelineList() {
   return girderRest.get<Record<string, Category>>('viame/pipelines');
 }
@@ -98,12 +86,6 @@ function runPipeline(itemId: string, pipeline: string) {
   );
 }
 
-function setMetadataForItem(itemId: string, metadata: object) {
-  return girderRest.put(
-    `/item/${itemId}/metadata?allowNull=true`,
-    metadata,
-  );
-}
 function setMetadataForFolder(folderId: string, metadata: object) {
   return girderRest.put(
     `/folder/${folderId}/metadata?allowNull=true`,
@@ -111,8 +93,13 @@ function setMetadataForFolder(folderId: string, metadata: object) {
   );
 }
 
-function getValidFileTypes() {
-  return girderRest.get<Record<string, string[]>>('viame/valid_filetypes');
+function postProcess(folderId: string) {
+  return girderRest.post(`viame/postprocess/${folderId}`);
+}
+
+async function validateUploadGroup(names: string[]): Promise<ValidationResponse> {
+  const { data } = await girderRest.post<ValidationResponse>('viame/validate_files', names);
+  return data;
 }
 
 
@@ -123,10 +110,8 @@ export {
   getAttributes,
   getPipelineList,
   makeViameFolder,
-  runImageConversion,
-  runVideoConversion,
+  postProcess,
   runPipeline,
-  setMetadataForItem,
   setMetadataForFolder,
-  getValidFileTypes,
+  validateUploadGroup,
 };
