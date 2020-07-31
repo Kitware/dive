@@ -5,16 +5,23 @@ from girder.constants import AccessType
 from girder.exceptions import RestException
 from girder.models.folder import Folder
 from girder.models.item import Item
+
 from viame_tasks.tasks import convert_images, convert_video, run_pipeline
 
 from .model.attribute import Attribute
 from .serializers import meva as meva_serializer
 from .serializers import viame as viame_serializer
-from .transforms import (GetPathFromFolderId, GetPathFromItemId,
-                         GirderUploadToFolder)
-from .utils import (csvRegex, get_or_create_auxiliary_folder, imageRegex,
-                    move_existing_result_to_auxiliary_folder, safeImageRegex,
-                    saveTracks, videoRegex, ymlRegex)
+from .transforms import GetPathFromFolderId, GetPathFromItemId, GirderUploadToFolder
+from .utils import (
+    csvRegex,
+    get_or_create_auxiliary_folder,
+    imageRegex,
+    move_existing_result_to_auxiliary_folder,
+    safeImageRegex,
+    saveTracks,
+    videoRegex,
+    ymlRegex,
+)
 
 
 class Viame(Resource):
@@ -75,8 +82,9 @@ class Viame(Resource):
 
     @access.user
     @autoDescribeRoute(
-        Description("Test whether or not a set of files are safe to upload")
-        .jsonParam("files", "", paramType="body")
+        Description("Test whether or not a set of files are safe to upload").jsonParam(
+            "files", "", paramType="body"
+        )
     )
     def validate_files(self, files):
         ok = True
@@ -86,7 +94,6 @@ class Viame(Resource):
         csvs = [f for f in files if csvRegex.search(f)]
         images = [f for f in files if imageRegex.search(f)]
         ymls = [f for f in files if ymlRegex.search(f)]
-        print(videoRegex.match('foo.mp4'), videoRegex)
         if len(videos) > 0 and len(images) > 0:
             ok = False
             message = "Do not upload images and videos in the same batch."
@@ -98,7 +105,9 @@ class Viame(Resource):
             message = "Cannot mix annotation import types"
         elif len(videos) > 1 and (len(csvs) > 0 or len(ymls) > 0):
             ok = False
-            message = "Annotation upload is not supported when multiple videos are uploaded"
+            message = (
+                "Annotation upload is not supported when multiple videos are uploaded"
+            )
         elif len(videos) == 0 and len(images) == 0:
             ok = False
             message = "No supported media-type files found"
@@ -118,8 +127,9 @@ class Viame(Resource):
 
     @access.user
     @autoDescribeRoute(
-        Description("Post-processing to be run after media/annotation import")
-        .modelParam(
+        Description(
+            "Post-processing to be run after media/annotation import"
+        ).modelParam(
             "id",
             description="Folder containing the images to convert",
             model=Folder,
@@ -132,7 +142,9 @@ class Viame(Resource):
         auxiliary = get_or_create_auxiliary_folder(folder, user)
 
         # transcode VIDEO if necessary
-        videoItems = Folder().childItems(folder, filters={"lowerName": {"$regex": videoRegex}})
+        videoItems = Folder().childItems(
+            folder, filters={"lowerName": {"$regex": videoRegex}}
+        )
 
         for item in videoItems:
             convert_video.delay(
@@ -146,8 +158,12 @@ class Viame(Resource):
             )
 
         # transcode IMAGERY if necessary
-        imageItems = Folder().childItems(folder, filters={"lowerName": {"$regex": imageRegex}})
-        safeImageItems = Folder().childItems(folder, filters={"lowerName": {"$regex": safeImageRegex}})
+        imageItems = Folder().childItems(
+            folder, filters={"lowerName": {"$regex": imageRegex}}
+        )
+        safeImageItems = Folder().childItems(
+            folder, filters={"lowerName": {"$regex": safeImageRegex}}
+        )
 
         if imageItems.count() > 0 and safeImageItems.count() == 0:
             convert_images.delay(
@@ -159,20 +175,24 @@ class Viame(Resource):
             folder["meta"]["annotate"] = True
 
         # Preprocess CSV if necessasry
-        csvItems = Folder().childItems(folder, filters={"lowerName": {"$regex": csvRegex}})
+        csvItems = Folder().childItems(
+            folder, filters={"lowerName": {"$regex": csvRegex}}
+        )
         if csvItems.count() == 1:
             file = Item().childFiles(csvItems.next())[0]
             saveTracks(folder, viame_serializer.load_csv_as_tracks(file), user)
         elif csvItems.count() > 1:
             raise RestException('Can have at most 1 annotation CSV file')
 
-        ymlItems = Folder().childItems(folder, filters={"lowerName": {"$regex": ymlRegex}})
+        ymlItems = Folder().childItems(
+            folder, filters={"lowerName": {"$regex": ymlRegex}}
+        )
 
         # Preprocess KPF if necessary
         if ymlItems.count() > 0:
             # There might be up to 3 yamls
             allFiles = [Item().childFiles(item)[0] for item in ymlItems]
-            saveTracks(folder,  meva_serializer.load_kpf_as_tracks(allFiles), user)
+            saveTracks(folder, meva_serializer.load_kpf_as_tracks(allFiles), user)
 
         Folder().save(folder)
         return folder
