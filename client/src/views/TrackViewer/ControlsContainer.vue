@@ -34,23 +34,21 @@ export default defineComponent({
     },
   },
 
-  setup(props, { emit }) {
+  setup() {
     const showDetectionView = ref(true);
     const showEventView = ref(false);
 
-    function toggleView(type: string) {
-      if (!showDetectionView.value && !showEventView.value) {
-        emit('resize');
-      }
+    /**
+     * Toggles on and off the individual timeline views
+     * Resizing is handled by the Annator itself.
+     */
+    function toggleView(type: 'Detection' | 'Event') {
       if (type === 'Detection') {
         showDetectionView.value = !showDetectionView.value;
         showEventView.value = false;
       } else if (type === 'Event') {
         showEventView.value = !showEventView.value;
         showDetectionView.value = false;
-      }
-      if (!showDetectionView.value && !showEventView.value) {
-        emit('resize');
       }
     }
     return {
@@ -69,7 +67,6 @@ export default defineComponent({
       <v-btn
         :outlined="showDetectionView"
         x-small
-        class="toggle-timeline-button-detection"
         tab-index="-1"
         @click="toggleView('Detection')"
       >
@@ -78,7 +75,6 @@ export default defineComponent({
       <v-btn
         :outlined="showEventView"
         x-small
-        class="toggle-timeline-button-event"
         tab-index="-1"
         @click="toggleView('Event')"
       >

@@ -33,7 +33,20 @@ export default {
     };
     video.addEventListener('pause', this.videoPaused);
   },
-
+  mounted() {
+    //Adjusts the size to fix the geoMap display if any of the contents sizes change.
+    if (this.$refs.container) {
+      this.observer = new ResizeObserver(() => {
+        this.onResize();
+      });
+      this.observer.observe(this.$refs.container);
+    }
+  },
+  beforeDestroy() {
+    if (this.observer) {
+      this.observer.unobserve(this.$refs.container);
+    }
+  },
   methods: {
     init() {
       this.baseInit(); // Mixin method

@@ -15,9 +15,9 @@ export default {
   data() {
     return {
       loadingVideo: false,
+      observer: null,
     };
   },
-
   created() {
     // Below are configuration settings we can set until we decide on good numbers to utilize.
     this.playCache = 1; // seconds required to be fully cached before playback
@@ -37,6 +37,20 @@ export default {
         img.cached = true;
         this.init();
       };
+    }
+  },
+  mounted() {
+    //Adjusts the size to fix the geoMap display if any of the contents sizes change.
+    if (this.$refs.container) {
+      this.observer = new ResizeObserver(() => {
+        this.onResize();
+      });
+      this.observer.observe(this.$refs.container);
+    }
+  },
+  beforeDestroy() {
+    if (this.observer) {
+      this.observer.unobserve(this.$refs.container);
     }
   },
   methods: {
