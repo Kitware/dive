@@ -200,14 +200,12 @@ export default {
       const uploaded = [];
       this.$emit('update:uploading', true);
 
-      let success = true;
       // This is in a while loop to act like a Queue with it adding new items during upload
       while (this.pendingUploads.length > 0) {
         try {
           // eslint-disable-next-line no-await-in-loop
           await this.uploadPending(this.pendingUploads[0], uploaded);
         } catch (err) {
-          success = false;
           // eslint-disable-next-line no-console
           console.error(err);
           break;
@@ -223,7 +221,7 @@ export default {
       pendingUpload.uploading = true;
 
       let folder = this.location;
-      if (!pendingUpload.createSubFolders) {
+      if (!createSubFolders) {
         folder = await this.createUploadFolder(name, fps, pendingUpload.type);
         if (folder) {
           await this.uploadFiles(pendingUpload.name, folder, files, uploaded);
