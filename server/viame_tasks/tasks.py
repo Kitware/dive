@@ -217,4 +217,8 @@ def convert_images(self, folderId):
                 gc.delete(f"item/{item['_id']}")
                 count += 1
 
+    self.girder_client.addMetadataToFolder(
+        folderId, {"annotate": True},  # mark the parent folder as able to annotate.
+    )
+
     return count

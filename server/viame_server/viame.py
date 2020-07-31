@@ -94,26 +94,25 @@ class Viame(Resource):
         csvs = [f for f in files if csvRegex.search(f)]
         images = [f for f in files if imageRegex.search(f)]
         ymls = [f for f in files if ymlRegex.search(f)]
-        if len(videos) > 0 and len(images) > 0:
+        if len(videos) and len(images):
             ok = False
             message = "Do not upload images and videos in the same batch."
         elif len(csvs) > 1:
             ok = False
             message = "Can only upload a single CSV Annotation per import"
-        elif len(csvs) == 1 and len(ymls) > 0:
+        elif len(csvs) == 1 and len(ymls):
             ok = False
             message = "Cannot mix annotation import types"
-        elif len(videos) > 1 and (len(csvs) > 0 or len(ymls) > 0):
+        elif len(videos) > 1 and (len(csvs) or len(ymls)):
             ok = False
             message = (
                 "Annotation upload is not supported when multiple videos are uploaded"
             )
-        elif len(videos) == 0 and len(images) == 0:
+        elif (not len(videos)) and (not len(images)):
             ok = False
             message = "No supported media-type files found"
         elif len(videos):
             mediatype = 'video'
-
         elif len(images):
             mediatype = 'image-sequence'
 
@@ -165,7 +164,7 @@ class Viame(Resource):
             folder, filters={"lowerName": {"$regex": safeImageRegex}}
         )
 
-        if imageItems.count() > 0 and safeImageItems.count() == 0:
+        if imageItems.count() > safeImageItems.count():
             convert_images.delay(
                 folder["_id"],
                 girder_client_token=str(upload_token["_id"]),
