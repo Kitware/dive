@@ -168,7 +168,7 @@ class Viame(Resource):
 
         ymlItems = Folder().childItems(folder, filters={"lowerName": {"$regex": ymlRegex}})
 
-        # Proprocess KPF if necessary
+        # Preprocess KPF if necessary
         if ymlItems.count() > 0:
             # There might be up to 3 yamls
             allFiles = [Item().childFiles(item)[0] for item in ymlItems]
