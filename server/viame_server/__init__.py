@@ -30,7 +30,7 @@ def load_pipelines():
         print("Specified pipeline path does not exist!", file=sys.stderr)
         return []
 
-    allowed = r"^detector_.+|tracker_.+"
+    allowed = r"^detector_.+|^tracker_.+|^generate_.+"
     disallowed = r".*local.*|detector_svm_models.pipe|tracker_svm_models.pipe"
     pipelist = [
         path.name

@@ -74,7 +74,7 @@ function generateColors(numColors: number) {
   }
 
   //Mix up colors in a uniform way so reloads have the same types associated with the same colors
-  let seed = 0.5;
+  let seed = 0.28;
   colorList.sort(() => {
     seed += seed;
     return Math.cos(seed);
@@ -111,7 +111,7 @@ export default function useStyling({ markChangesPending }: UseStylingParams) {
   };
   const stateStyling: StateStyles = { standard, selected, disabled };
   //Generate Colors for the types.
-  const typeColors = generateColors(12);
+  const typeColors = generateColors(10);
 
 
   function populateTypeStyles(styles?: Record<string, CustomStyle>) {
