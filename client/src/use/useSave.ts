@@ -18,11 +18,12 @@ export default function useSave() {
   ) {
     if (trackMap && pendingSaveCountMap.value.default) {
       await saveDetections(datasetId, trackMap);
+      Vue.set(pendingSaveCountMap.value, 'default', 0);
     }
     if (datasetMeta && pendingSaveCountMap.value.meta) {
       await setMetadataForFolder(datasetId, datasetMeta);
+      Vue.set(pendingSaveCountMap.value, 'meta', 0);
     }
-    pendingSaveCountMap.value = { default: 0 };
   }
 
   function markChangesPending(name = 'default') {
