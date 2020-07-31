@@ -69,6 +69,7 @@ export default {
     uploading(newval) {
       if (!newval) {
         this.$refs.fileManager.$refs.girderBrowser.refresh();
+        this.uploaderDialog = false;
       }
     },
   },

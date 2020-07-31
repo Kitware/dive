@@ -17,9 +17,9 @@ webValidImageFormats = {"png", "jpg", "jpeg"}
 validImageFormats = {*webValidImageFormats, "tif", "tiff", "sgi", "bmp", "pgm"}
 validVideoFormats = {"mp4", "avi", "mov", "mpg"}
 
-videoRegex = re.compile("\." + "|\.".join(validVideoFormats), re.IGNORECASE)
-imageRegex = re.compile("\." + "|\.".join(validImageFormats), re.IGNORECASE)
-safeImageRegex = re.compile("\." + "|\.".join(webValidImageFormats), re.IGNORECASE)
+videoRegex = re.compile("\." + "|\.".join(validVideoFormats) + '$', re.IGNORECASE)
+imageRegex = re.compile("\." + "|\.".join(validImageFormats) + '$', re.IGNORECASE)
+safeImageRegex = re.compile("\." + "|\.".join(webValidImageFormats) + '$', re.IGNORECASE)
 csvRegex = re.compile("\.csv$", re.IGNORECASE)
 ymlRegex = re.compile("\.ya?ml$", re.IGNORECASE)
 
