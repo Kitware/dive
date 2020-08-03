@@ -11,11 +11,16 @@ from girder.models.file import File
 from girder.models.folder import Folder
 from girder.models.item import Item
 from girder.models.upload import Upload
+
 from viame_server.serializers import meva, viame
-from viame_server.utils import (ImageMimeTypes, ImageSequenceType,
-                                VideoMimeTypes, VideoType,
-                                move_existing_result_to_auxiliary_folder,
-                                saveTracks)
+from viame_server.utils import (
+    ImageMimeTypes,
+    ImageSequenceType,
+    VideoMimeTypes,
+    VideoType,
+    move_existing_result_to_auxiliary_folder,
+    saveTracks,
+)
 
 
 class ViameDetection(Resource):
@@ -116,9 +121,6 @@ class ViameDetection(Resource):
         detectionItems.sort(key=lambda d: d["created"], reverse=True)
         item = detectionItems[0]
         file = Item().childFiles(item)[0]
-
-        if "csv" in file["exts"]:
-            return File().download(file)
 
         filename = ".".join([file["name"].split(".")[:-1][0], "csv"])
 
