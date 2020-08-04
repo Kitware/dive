@@ -4,7 +4,7 @@ import {
 import { ImageSequenceType, VideoType } from '@/constants';
 import { GirderModel } from '@girder/components/src';
 import { getClipMeta } from '@/lib/api/viameDetection.service';
-import { getValidFileTypes } from '@/lib/api/viame.service';
+import { getValidWebImages } from '@/lib/api/viame.service';
 import { getItemsInFolder, getFolder, getItemDownloadUri } from '@/lib/api/girder.service';
 import { CustomStyle } from './useStyling';
 
@@ -58,21 +58,12 @@ export default function useGirderDataset() {
       videoUrl.value = clipMeta.videoUrl;
     } else if (_dataset.meta.type === ImageSequenceType) {
       // Image Sequence type annotator
-      const items = await getItemsInFolder(_dataset._id, 20000);
-      const filetypes = await getValidFileTypes();
-      const imageRegEx = new RegExp(`${filetypes.data.web.join('$|')}$`, 'i');
-      imageData.value = items
-        .filter((item) => {
-          const name = item.name.toLowerCase();
-          return (
-            imageRegEx.test(name)
-          );
-        })
-        .map((item) => ({
-          url: getItemDownloadUri(item._id),
-          filename: item.name,
-        }
-        ));
+      const items = await getValidWebImages(_dataset._id);
+      imageData.value = items.map((item: any) => ({
+        url: getItemDownloadUri(item._id),
+        filename: item.name,
+      }
+      ));
     } else {
       throw new Error(`Unable to load media for dataset type: ${_dataset.meta.type}`);
     }

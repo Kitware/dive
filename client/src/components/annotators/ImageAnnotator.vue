@@ -71,7 +71,6 @@ export default {
     async seek(frame) {
       this.lastFrame = this.frame;
       this.frame = frame;
-      this.filename = this.imageData[frame].filename;
       this.syncedFrame = frame;
       this.emitFrame();
       this.cacheImages();

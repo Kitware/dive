@@ -15,6 +15,7 @@ from girder.models.upload import Upload
 from viame_server.serializers import meva, viame
 from viame_server.utils import (ImageMimeTypes, ImageSequenceType,
                                 VideoMimeTypes, VideoType,
+                                safeImageRegex,
                                 move_existing_result_to_auxiliary_folder,
                                 saveTracks)
 
@@ -122,8 +123,7 @@ class ViameDetection(Resource):
 
         filename = ".".join([file["name"].split(".")[:-1][0], "csv"])
 
-        imageRegex = re.compile("^\." + "|\.".join(webValidImageFormats))
-        imageFiles = [f['name'] for f in Folder().childItems(folder, filters={"lowerName": {"$regex": imageRegex}}).sort("lowerName")]
+        imageFiles = [f['name'] for f in Folder().childItems(folder, filters={"lowerName": {"$regex": safeImageRegex}}).sort("lowerName")]
 
         csv_string = viame.export_tracks_as_csv(file, imageFiles)
         csv_bytes = csv_string.encode()
