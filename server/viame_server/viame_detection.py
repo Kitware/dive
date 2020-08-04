@@ -122,6 +122,10 @@ class ViameDetection(Resource):
         item = detectionItems[0]
         file = Item().childFiles(item)[0]
 
+        # TODO: deprecated, remove after we migrate everyone to json
+        if "csv" in file["exts"]:
+            return File().download(file)
+
         filename = ".".join([file["name"].split(".")[:-1][0], "csv"])
 
         csv_string = viame.export_tracks_as_csv(file)
@@ -158,6 +162,10 @@ class ViameDetection(Resource):
         if not len(detectionItems):
             return None
         file = Item().childFiles(detectionItems[0])[0]
+
+        # TODO: deprecated, remove after we migrate to json
+        if "csv" in file["exts"]:
+            return viame.load_csv_as_tracks(file)
         return File().download(file, contentDisposition="inline")
 
     @access.user
