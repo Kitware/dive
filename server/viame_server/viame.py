@@ -139,6 +139,18 @@ class Viame(Resource):
         )
     )
     def postprocess(self, folder, skipJobs):
+        """
+        Post-processing to be run after media/annotation import
+
+
+        When skipJobs=False, the following may run as jobs:
+            Transcoding of Video
+            Transcoding of Images
+            Conversion of KPF annotations into track JSON
+
+        In either case, the following may run synchronously:
+            Conversion of CSV annotations into track JSON
+        """
         user = self.getCurrentUser()
         auxiliary = get_or_create_auxiliary_folder(folder, user)
 
