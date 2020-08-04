@@ -7,6 +7,7 @@ import {
   Ref,
   watch,
 } from '@vue/composition-api';
+import { uniq } from 'lodash';
 
 import { FrameDataTrack } from '@/components/layers/LayerTypes';
 import Track, { TrackId } from '@/lib/track';
@@ -20,7 +21,7 @@ import MarkerLayer from '@/components/layers/MarkerLayer';
 import { geojsonToBound } from '@/utils';
 import { FeaturePointingTarget } from '@/use/useFeaturePointing';
 import { StateStyles, TypeStyling } from '@/use/useStyling';
-import { EditorSettings } from '../../use/useAnnotationMode';
+import { EditorSettings } from '@/use/useModeManager';
 
 export default defineComponent({
   props: {
@@ -60,16 +61,8 @@ export default defineComponent({
       type: Object as PropType<Ref<FeaturePointingTarget>>,
       required: true,
     },
-    annotationSettings: {
+    annotationModes: {
       type: Object as PropType<EditorSettings>,
-      required: true,
-    },
-    annotationEditingMode: {
-      type: Object as PropType<Ref<string>>,
-      required: true,
-    },
-    annotationVisible: {
-      type: Object as PropType<Ref<string[]>>,
       required: true,
     },
   },
@@ -77,7 +70,6 @@ export default defineComponent({
   setup(props, { emit }) {
     const annotator = inject('annotator') as Annotator;
     const frameNumber: Readonly<Ref<number>> = computed(() => annotator.frame as number);
-
 
     const rectAnnotationLayer = new AnnotationLayer({
       annotator,
@@ -118,21 +110,13 @@ export default defineComponent({
       typeStyling: props.typeStyling,
     });
 
+    const editingType: Ref<false|EditAnnotationTypes> = computed(() => (
+      props.editingTrack.value && props.annotationModes.state.value.editing
+    ));
 
-    const editingType: Ref< false | EditAnnotationTypes> = computed(() => {
-      if (props.editingTrack.value) {
-        //We need the selected type for editing modes
-        const { annotationSettings } = props;
-        let editType: EditAnnotationTypes = 'rectangle';
-        Object.entries(annotationSettings.states.value.editing).forEach(([key, val]) => {
-          if (val === 'selected') {
-            editType = key as EditAnnotationTypes;
-          }
-        });
-        return editType;
-      }
-      return false;
-    });
+    const annotationVisible = computed(() => uniq(props.annotationModes.state.value.visible.concat(
+      props.editingTrack.value ? [props.annotationModes.state.value.editing] : [],
+    )));
 
     function updateLayers() {
       const frame = frameNumber.value;
@@ -140,8 +124,7 @@ export default defineComponent({
       const selectedTrackId = props.selectedTrackId.value;
       const tracks = props.tracks.value;
       const featurePointing = props.featurePointing.value;
-      const annotationVisible = props.annotationVisible.value;
-      const { annotationSettings } = props;
+      const annotationVisible_ = annotationVisible.value;
       // Bug in interval search tree requires own return function for 0 values
       const currentFrameIds: TrackId[] = props.intervalTree.search(
         [frame, frame],
@@ -180,21 +163,21 @@ export default defineComponent({
         },
       );
 
-      if (annotationVisible.indexOf('rectangle') !== -1) {
+      if (annotationVisible_.includes('rectangle')) {
         //We modify rects opacity/thickness if polygons are visible or not
-        rectAnnotationLayer.setDrawingOther(annotationVisible.indexOf('polygon') !== -1);
+        rectAnnotationLayer.setDrawingOther(annotationVisible_.includes('polygon'));
         rectAnnotationLayer.changeData(frameData);
       } else {
         rectAnnotationLayer.disable();
       }
-      if (annotationVisible.indexOf('polygon') !== -1) {
-        polyAnnotationLayer.setDrawingOther(annotationVisible.indexOf('rectangle') !== -1);
+      if (annotationVisible_.includes('polygon')) {
+        polyAnnotationLayer.setDrawingOther(annotationVisible_.includes('rectangle'));
         polyAnnotationLayer.changeData(frameData);
       } else {
         polyAnnotationLayer.disable();
       }
       markerLayer.changeData(frameData);
-      if (annotationVisible.length) {
+      if (annotationVisible_.length) {
         textLayer.changeData(frameData);
       } else {
         textLayer.disable();
@@ -239,17 +222,15 @@ export default defineComponent({
       }
     }
 
-
     updateLayers();
 
     watch([
       frameNumber,
+      annotationVisible,
       props.tracks,
       props.editingTrack,
       props.selectedTrackId,
       props.featurePointing,
-      props.annotationVisible,
-      props.annotationEditingMode,
     ], () => {
       updateLayers();
     });
@@ -281,7 +262,7 @@ export default defineComponent({
 
     //Selecting an index so it can be removed
     editAnnotationLayer.$on('update:selectedIndex', (index: number) => {
-      emit('select-index', index);
+      emit('select-feature-handle', index);
     });
 
     markerEditLayer.$on('update:geojson', (data: GeoJSON.Feature<GeoJSON.Point>) => {

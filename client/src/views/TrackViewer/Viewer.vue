@@ -4,7 +4,6 @@ import {
   ref,
 } from '@vue/composition-api';
 
-
 import { getPathFromLocation } from '@/utils';
 import Track, { TrackId } from '@/lib/track';
 
@@ -20,7 +19,6 @@ import {
   useEventChart,
   useModeManager,
   useSettings,
-  useAnnotationMode,
 } from '@/use';
 
 import VideoAnnotator from '@/components/annotators/VideoAnnotator.vue';
@@ -31,17 +29,18 @@ import ConfidenceFilter from '@/components/ConfidenceFilter.vue';
 import UserGuideButton from '@/components/UserGuideButton.vue';
 import Export from '@/components/Export.vue';
 import RunPipelineMenu from '@/components/RunPipelineMenu.vue';
+import FeatureHandleControls from '@/components/FeatureHandleControls.vue';
+import { Seeker } from '@/use/useModeManager';
 
 import ControlsContainer from './ControlsContainer.vue';
 import Layers from './Layers.vue';
 import Sidebar from './Sidebar.vue';
-import { Seeker } from '../../use/useModeManager';
-
 
 export default defineComponent({
   components: {
     ControlsContainer,
     Export,
+    FeatureHandleControls,
     Sidebar,
     Layers,
     VideoAnnotator,
@@ -170,16 +169,8 @@ export default defineComponent({
 
     const { clientSettings, updateNewTrackSettings } = useSettings();
 
-    const {
-      setSelectedIndex,
-      annotationModes,
-      annotationEditingMode,
-      annotationVisible,
-      updateAnnotationMode,
-      updateAnnotationHelpMode,
-    } = useAnnotationMode({ editingTrack });
     // Provides wrappers for actions to integrate with settings
-    const { handler } = useModeManager({
+    const { handler, annotationModes } = useModeManager({
       selectedTrackId,
       editingTrack,
       frame,
@@ -191,8 +182,6 @@ export default defineComponent({
       selectNextTrack,
       addTrack,
       removeTrack,
-      selectedIndex: annotationModes.selectedIndex,
-      setSelectedIndex,
     });
 
 
@@ -259,12 +248,21 @@ export default defineComponent({
       splitTracks,
       toggleFeaturePointing,
       featurePointed,
+      updateNewTrackSettings,
       updateTypeStyle,
       updateTypeName,
+      handler,
       /* props for sub-components */
       controlsContainerProps: {
         lineChartData,
         eventChartData,
+      },
+      FeatureHandleControlsProps: {
+        selectedFeatureHandle: annotationModes.selectedFeatureHandle,
+      },
+      modeEditorProps: {
+        annotationState: annotationModes.state,
+        editingTrack,
       },
       sidebarProps: {
         trackMap,
@@ -278,7 +276,6 @@ export default defineComponent({
         newTrackSettings: clientSettings.newTrackSettings,
         typeStyling,
       },
-      updateNewTrackSettings,
       layerProps: {
         trackMap,
         tracks: enabledTracks,
@@ -289,16 +286,8 @@ export default defineComponent({
         intervalTree,
         featurePointing,
         featurePointingTarget,
-        annotationSettings: annotationModes,
-        annotationEditingMode,
-        annotationVisible,
+        annotationModes,
       },
-      annotationModes,
-      updateAnnotationMode,
-      annotationEditingMode,
-      updateAnnotationHelpMode,
-      setSelectedIndex,
-      handler,
     };
   },
 });
@@ -327,12 +316,14 @@ export default defineComponent({
         {{ dataset.name }}
       </span>
       <v-spacer />
-      <editor-menu
-        :annotation-modes="annotationModes"
-        @updateAnnotationMode="updateAnnotationMode($event)"
+      <feature-handle-controls
+        v-bind="FeatureHandleControlsProps"
         @delete-point="handler.removePoint"
       />
-      <v-spacer />
+      <editor-menu
+        v-bind="modeEditorProps"
+        class="shrink px-6"
+      />
       <run-pipeline-menu
         v-if="dataset"
         :selected="[dataset]"
@@ -408,8 +399,7 @@ export default defineComponent({
             @featurePointUpdated="featurePointed"
             @update-rect-bounds="handler.updateRectBounds"
             @update-polygon="handler.updatePolygon"
-            @editingModeChanged="updateAnnotationHelpMode"
-            @select-index="setSelectedIndex"
+            @select-feature-handle="handler.selectFeatureHandle"
           />
         </component>
         <v-menu

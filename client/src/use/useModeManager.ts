@@ -1,8 +1,20 @@
-import { Ref } from '@vue/composition-api';
+import {
+  Ref, reactive, toRefs,
+} from '@vue/composition-api';
+import { cloneDeep } from 'lodash';
+
 import Track, { TrackId } from '@/lib/track';
 import { RectBounds, findBounds } from '@/utils';
-import { cloneDeep } from 'lodash';
+import { EditAnnotationTypes } from '@/components/layers/EditAnnotationLayer';
 import { NewTrackSettings } from './useSettings';
+
+export interface EditorSettings {
+  state: Ref<{
+    visible: EditAnnotationTypes[];
+    editing: EditAnnotationTypes;
+  }>;
+  selectedFeatureHandle: Ref<number>;
+}
 
 export interface Seeker {
     seek(frame: number): void;
@@ -27,8 +39,6 @@ export default function useModeManager({
   selectNextTrack,
   addTrack,
   removeTrack,
-  selectedIndex,
-  setSelectedIndex,
 }: {
     selectedTrackId: Ref<TrackId | null>;
     editingTrack: Ref<boolean>;
@@ -41,13 +51,23 @@ export default function useModeManager({
     selectNextTrack: (delta?: number) => TrackId | null;
     addTrack: (frame: number, defaultType: string) => Track;
     removeTrack: (trackId: TrackId) => void;
-    selectedIndex: Ref<number>;
-    setSelectedIndex: (index: number) => void;
 }) {
   let newTrackMode = false;
   let newDetectionMode = false;
-  // Seek to the nearest point in the track.
+
+  const annotationModes = reactive({
+    state: {
+      visible: ['rectangle', 'polygon'],
+      editing: 'rectangle',
+    },
+    // selectedFeatureHandle could arguably belong in useTrackSelectionControls,
+    // but the meaning of this value varies based on the editing mode.  When in
+    // polygon edit mode, this corresponds to a polygon point.  Ditto in line mode.
+    selectedFeatureHandle: -1,
+  });
+
   function seekNearest(track: Track) {
+    // Seek to the nearest point in the track.
     if (frame.value < track.begin) {
       playbackComponent.value.seek(track.begin);
     } else if (frame.value > track.end) {
@@ -60,11 +80,11 @@ export default function useModeManager({
     if (newTrackMode && !edit) {
       newTrackMode = false;
     }
-    setSelectedIndex(-1);
+    annotationModes.selectedFeatureHandle = -1;
   }
 
-  //Handles adding a new track with the NewTrack Settings
   function handleAddTrack() {
+    // Handles adding a new track with the NewTrack Settings
     selectTrack(addTrack(frame.value, newTrackSettings.type).trackId, true);
     newTrackMode = true;
   }
@@ -72,11 +92,10 @@ export default function useModeManager({
   function handleTrackTypeChange({ trackId, value }: { trackId: TrackId; value: string }) {
     getTrack(trackId).setType(value);
   }
-  // Default settings which are updated by the CreationMode component
-  // Not making them reactive, and eventually will probably be in localStorage
-
 
   function newTrackSettingsAfterLogic(addedTrack: Track) {
+    // Default settings which are updated by the CreationMode component
+    // Not making them reactive, and eventually will probably be in localStorage
     if (addedTrack && newTrackSettings !== null) {
       if (newTrackSettings.mode === 'Track' && newTrackSettings.modeSettings.Track.autoAdvanceFrame) {
         playbackComponent.value.nextFrame();
@@ -153,7 +172,7 @@ export default function useModeManager({
    * Removes the selectedIndex point for the selected Polygon/line
    */
   function handleRemovePoint() {
-    if (selectedTrackId.value !== null && selectedIndex.value !== -1) {
+    if (selectedTrackId.value !== null && annotationModes.selectedFeatureHandle !== -1) {
       const track = trackMap.get(selectedTrackId.value);
       if (track) {
         // Determines if we are creating a new Detection
@@ -163,8 +182,8 @@ export default function useModeManager({
           //could operate directly on the polygon memory, but small enough to copy and edit
           const polygon = cloneDeep(real.polygon);
           if (polygon.coordinates[0].length > 3) {
-            polygon.coordinates[0].splice(selectedIndex.value, 1);
-            setSelectedIndex(-1);
+            polygon.coordinates[0].splice(annotationModes.selectedFeatureHandle, 1);
+            annotationModes.selectedFeatureHandle = -1;
             track.setFeature({
               frame: frame.value,
               polygon,
@@ -208,7 +227,12 @@ export default function useModeManager({
     }
   }
 
+  function handleSelectFeatureHandle(i: number) {
+    annotationModes.selectedFeatureHandle = i;
+  }
+
   return {
+    annotationModes: toRefs(annotationModes) as EditorSettings,
     handler: {
       selectTrack: handleSelectTrack,
       trackEdit: handleTrackEdit,
@@ -220,6 +244,7 @@ export default function useModeManager({
       trackClick: handleTrackClick,
       removeTrack: handleRemoveTrack,
       removePoint: handleRemovePoint,
+      selectFeatureHandle: handleSelectFeatureHandle,
     },
   };
 }
