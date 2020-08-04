@@ -174,11 +174,12 @@ def write_track_to_csv(track: Track, csv_writer):
             csv_writer.writerow(columns)
 
 
-def export_tracks_as_csv(file) -> str:
+def export_tracks_as_csv(file, excludeBelowThreshold, thresholds) -> str:
     """
     Export track json to a CSV format.
 
     file: The detections JSON file
+    excludeBelowThreshold: 
     """
 
     track_json = json.loads(
@@ -195,6 +196,7 @@ def export_tracks_as_csv(file) -> str:
         writer = csv.writer(csvFile)
 
         for track in tracks.values():
-            write_track_to_csv(track, writer)
+            if (not excludeBelowThreshold) or track.exceeds_thresholds(thresholds):
+                write_track_to_csv(track, writer)
 
         return csvFile.getvalue()
