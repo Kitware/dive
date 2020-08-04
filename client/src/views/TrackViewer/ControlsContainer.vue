@@ -130,5 +130,6 @@ export default defineComponent({
   position:relative;
   top:-24px;
   margin-bottom:-24px;
+  width: 150px;
 }
 </style>

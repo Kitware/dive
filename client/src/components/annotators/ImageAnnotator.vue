@@ -15,7 +15,6 @@ export default {
   data() {
     return {
       loadingVideo: false,
-      observer: null,
     };
   },
   created() {
@@ -37,20 +36,6 @@ export default {
         img.cached = true;
         this.init();
       };
-    }
-  },
-  mounted() {
-    //Adjusts the size to fix the geoMap display if any of the contents sizes change.
-    if (this.$refs.container) {
-      this.observer = new ResizeObserver(() => {
-        this.onResize();
-      });
-      this.observer.observe(this.$refs.container);
-    }
-  },
-  beforeDestroy() {
-    if (this.observer) {
-      this.observer.unobserve(this.$refs.container);
     }
   },
   methods: {
@@ -101,17 +86,6 @@ export default {
     pause() {
       this.playing = false;
       this.loadingVideo = false;
-    },
-
-    onResize() {
-      if (!this.geoViewer) {
-        return;
-      }
-      const size = this.$refs.container.getBoundingClientRect();
-      const mapSize = this.geoViewer.size();
-      if (size.width !== mapSize.width || size.height !== mapSize.height) {
-        this.geoViewer.size(size);
-      }
     },
     /**
      * Handles playback of the image sequence
@@ -255,7 +229,6 @@ export default {
 
 <template>
   <div
-    v-resize="onResize"
     class="video-annotator"
   >
     <div
