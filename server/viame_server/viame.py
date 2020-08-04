@@ -125,7 +125,7 @@ class Viame(Resource):
         Description("Post-processing to be run after media/annotation import")
         .modelParam(
             "id",
-            description="Folder containing the images to convert",
+            description="Folder containing the items to process",
             model=Folder,
             level=AccessType.WRITE,
         )
