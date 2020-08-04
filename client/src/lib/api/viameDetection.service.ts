@@ -6,15 +6,20 @@ interface ExportUrlsResponse {
   exportAllUrl: string;
   exportMediaUrl: string;
   exportDetectionsUrl: string;
+  currentThresholds: Record<string, number>;
 }
 
 interface SerializedTrackstore {
   [key: number]: TrackData;
 }
 
-async function getExportUrls(id: string) {
-  const { data } = await girderRest.get(`viame_detection/${id}/export`);
-  return data as ExportUrlsResponse;
+async function getExportUrls(
+  id: string,
+  excludeBelowThreshold: boolean,
+): Promise<ExportUrlsResponse> {
+  return (await girderRest.get<ExportUrlsResponse>(`viame_detection/${id}/export`, {
+    params: { excludeBelowThreshold },
+  })).data;
 }
 
 async function getDetections(folderId: string, formatting = 'track_json') {
