@@ -75,13 +75,15 @@ export default {
         :disabled="pipelinesNotRunnable"
         v-on="on"
       >
-        <v-icon
-          left
-          color="accent"
-        >
+        <v-icon color="accent">
           mdi-pipe
         </v-icon>
-        Run pipeline
+        <span
+          v-show="!$vuetify.breakpoint.mdAndDown"
+          class="pl-1"
+        >
+          Run pipeline
+        </span>
       </v-btn>
     </template>
 

@@ -30,10 +30,10 @@ export default {
       color="secondary darken-2"
       class="mx-3"
     >
-      User Guide
-      <v-icon class="pl-2">
+      <v-icon left>
         mdi-help-circle
       </v-icon>
+      User Guide
     </v-btn>
     <v-dialog
       v-else
@@ -49,10 +49,15 @@ export default {
           class="mx-3"
           v-on="on"
         >
-          Help
-          <v-icon class="pl-2">
+          <v-icon>
             mdi-help-circle
           </v-icon>
+          <span
+            v-show="!$vuetify.breakpoint.smAndDown"
+            class="pl-1"
+          >
+            Help
+          </span>
         </v-btn>
       </template>
       <v-card>

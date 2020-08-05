@@ -54,14 +54,15 @@ export default {
         :small="small"
         v-on="on"
       >
-        <v-icon
-          left
-          color="accent"
-          class="mdi-24px mr-2"
-        >
+        <v-icon color="accent">
           mdi-export
         </v-icon>
-        Download
+        <span
+          v-show="!$vuetify.breakpoint.mdAndDown"
+          class="pl-1"
+        >
+          Download
+        </span>
       </v-btn>
     </template>
     <template>
