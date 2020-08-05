@@ -220,7 +220,8 @@ def convert_images(self, folderId):
                 count += 1
 
     self.girder_client.addMetadataToFolder(
-        folderId, {"annotate": True},  # mark the parent folder as able to annotate.
+        str(folderId),
+        {"annotate": True},  # mark the parent folder as able to annotate.
     )
 
     return count
