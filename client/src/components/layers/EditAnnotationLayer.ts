@@ -126,6 +126,11 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
     if (this.featureLayer) {
       this.featureLayer.removeAllAnnotations();
       this.featureLayer.mode(null);
+      if (this.selectedHandleIndex !== -1) {
+        this.selectedHandleIndex = -1;
+        this.hoverHandleIndex = -1;
+        this.$emit('update:selectedIndex', this.selectedHandleIndex);
+      }
     }
   }
 
@@ -150,6 +155,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
   formatData(frameData: FrameDataTrack[]) {
     this.selectedHandleIndex = -1;
     this.hoverHandleIndex = -1;
+    this.$emit('update:selectedIndex', this.selectedHandleIndex);
     if (frameData.length > 0) {
       const track = frameData[0];
       if (track.features && track.features.bounds) {
