@@ -152,8 +152,7 @@ export default defineComponent({
       enabledTracks, selectedTrackId, typeStyling,
     });
 
-    const { clientSettings, 
-    Settings } = useSettings();
+    const { clientSettings, updateNewTrackSettings } = useSettings();
 
     // Provides wrappers for actions to integrate with settings
     const { handler, annotationModes } = useModeManager({
