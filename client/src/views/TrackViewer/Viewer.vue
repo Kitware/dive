@@ -323,6 +323,7 @@ export default defineComponent({
       <editor-menu
         v-bind="modeEditorProps"
         class="shrink px-6"
+        @set-annotaiton-state="handler.setAnnotationState"
       />
       <run-pipeline-menu
         v-if="dataset"

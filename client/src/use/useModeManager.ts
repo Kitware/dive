@@ -75,12 +75,16 @@ export default function useModeManager({
     }
   }
 
+  function handleSelectFeatureHandle(i: number) {
+    annotationModes.selectedFeatureHandle = i;
+  }
+
   function handleSelectTrack(trackId: TrackId | null, edit = false) {
     selectTrack(trackId, edit);
     if (newTrackMode && !edit) {
       newTrackMode = false;
     }
-    annotationModes.selectedFeatureHandle = -1;
+    handleSelectFeatureHandle(-1);
   }
 
   function handleAddTrack() {
@@ -183,7 +187,7 @@ export default function useModeManager({
           const polygon = cloneDeep(real.polygon);
           if (polygon.coordinates[0].length > 3) {
             polygon.coordinates[0].splice(annotationModes.selectedFeatureHandle, 1);
-            annotationModes.selectedFeatureHandle = -1;
+            handleSelectFeatureHandle(-1);
             track.setFeature({
               frame: frame.value,
               polygon,
@@ -227,8 +231,13 @@ export default function useModeManager({
     }
   }
 
-  function handleSelectFeatureHandle(i: number) {
-    annotationModes.selectedFeatureHandle = i;
+  function handleSetAnnotationState({ visible, editing }: {
+    visible?: EditAnnotationTypes[];
+    editing?: EditAnnotationTypes;
+  }) {
+    if (visible) annotationModes.state.visible = visible;
+    if (editing) annotationModes.state.editing = editing;
+    handleSelectFeatureHandle(-1);
   }
 
   return {
@@ -245,6 +254,7 @@ export default function useModeManager({
       removeTrack: handleRemoveTrack,
       removePoint: handleRemovePoint,
       selectFeatureHandle: handleSelectFeatureHandle,
+      setAnnotationState: handleSetAnnotationState,
     },
   };
 }

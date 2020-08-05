@@ -33,6 +33,7 @@ export default Vue.extend({
       if (this.editingTrack.value) {
         return {
           color: 'primary',
+          class: ['primary'],
           text: 'Edit',
           icon: 'mdi-pencil',
           model: 'editing',
@@ -40,18 +41,13 @@ export default Vue.extend({
         };
       }
       return {
-        color: 'default',
+        color: 'grey',
+        class: ['grey', 'darken-2'],
         text: 'View',
         icon: 'mdi-eye',
         model: 'visible',
         multiple: true,
       };
-    },
-  },
-
-  methods: {
-    deletePoint() {
-      this.$emit('delete-point');
     },
   },
 });
@@ -61,25 +57,20 @@ export default Vue.extend({
   <v-row>
     <v-divider vertical />
     <v-col class="d-flex align-center py-0">
-      <v-chip
-        :color="config.color"
-        class="mr-1"
-        style="width: 115px;"
-      >
-        <v-icon
-          small
-          class="pr-1"
-        >
+      <span :class="['mr-1', 'px-2', 'py-1', 'modechip', ...config.class ]">
+        <v-icon class="pr-1">
           {{ config.icon }}
         </v-icon>
         <span class="text-subtitle-2">
           {{ config.text }} mode
         </span>
-      </v-chip>
+      </span>
       <v-btn-toggle
-        v-model="annotationState.value[config.model]"
+        :value="annotationState.value[config.model]"
         :multiple="config.multiple"
+        :mandatory="!config.multiple"
         group
+        @change="$emit('set-annotaiton-state', { [config.model]: $event })"
       >
         <v-btn
           v-for="button in buttons"
@@ -98,3 +89,10 @@ export default Vue.extend({
     <v-divider vertical />
   </v-row>
 </template>
+
+<style scoped>
+.modechip {
+  border-radius: 16px;
+  width: 120px;
+}
+</style>

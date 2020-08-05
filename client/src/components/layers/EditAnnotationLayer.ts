@@ -71,7 +71,9 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
           this.selectedHandleIndex = this.hoverHandleIndex;
           setTimeout(() => this.redraw(), 0); //Redraw timeout to update the selected handle
           const divisor = 2.0; // used for polygon because edge handles
-          this.$emit('update:selectedIndex', this.selectedHandleIndex / divisor);
+          if (this.type !== 'rectangle') {
+            this.$emit('update:selectedIndex', this.selectedHandleIndex / divisor);
+          }
         }
       });
     }
