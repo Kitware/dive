@@ -1,12 +1,12 @@
 <script lang="ts">
 import {
+  computed,
   defineComponent,
   ref,
 } from '@vue/composition-api';
 
 import { getPathFromLocation } from '@/utils';
 import Track, { TrackId } from '@/lib/track';
-
 import {
   useFeaturePointing,
   useGirderDataset,
@@ -76,8 +76,8 @@ export default defineComponent({
       typeStyling,
       stateStyling,
       updateTypeStyle,
-      loadTypeStyles,
-      saveTypeStyles,
+      populateTypeStyles,
+      getTypeStyles,
     } = useStyling({ markChangesPending });
 
     const {
@@ -106,40 +106,25 @@ export default defineComponent({
       checkedTrackIds,
       checkedTypes,
       confidenceThreshold,
+      confidenceFilters,
       allTypes,
       filteredTracks,
       enabledTracks,
+      populateConfidenceFilters,
       updateTypeName,
     } = useTrackFilters({ sortedTracks });
-
-    const location = ref(ctx.root.$store.state.Location.location);
-
-    function updateLocation() {
-      if (dataset.value && dataset.value.parentId && dataset.value.parentCollection) {
-        location.value = {
-          _id: dataset.value.parentId,
-          _modelType: dataset.value.parentCollection,
-        };
-        ctx.root.$store.commit('Location/setLocation', location.value);
-      }
-    }
 
     Promise.all([
       loadDataset(datasetId),
       loadTracks(datasetId),
-    ]).catch((err) => {
-      // TODO p2: alert on errors...
-      console.error(err);
-      throw err;
-    }).then(() => {
+    ]).then(([ds]) => {
       // tasks to run after dataset and tracks have loaded
-      loadTypeStyles({
-        styles: dataset.value?.meta.customTypeStyling,
-        colorList: dataset.value?.meta.customTypeColors,
+      populateTypeStyles(ds.meta.customTypeStyling);
+      populateConfidenceFilters(ds.meta.confidenceFilters);
+      ctx.root.$store.commit('Location/setLocation', {
+        _id: ds.parentId,
+        _modelType: ds.parentCollection,
       });
-      if (!location.value) {
-        updateLocation();
-      }
     });
 
     const {
@@ -167,7 +152,8 @@ export default defineComponent({
       enabledTracks, selectedTrackId, typeStyling,
     });
 
-    const { clientSettings, updateNewTrackSettings } = useSettings();
+    const { clientSettings, 
+    Settings } = useSettings();
 
     // Provides wrappers for actions to integrate with settings
     const { handler, annotationModes } = useModeManager({
@@ -221,10 +207,20 @@ export default defineComponent({
       if (editingTrack.value) {
         selectTrack(selectedTrackId.value, false);
       }
-      saveToServer(datasetId, trackMap);
-      saveTypeStyles(datasetId, allTypes);
+      saveToServer(datasetId, trackMap, {
+        customTypeStyling: getTypeStyles(allTypes),
+      });
     }
 
+    function saveThreshold() {
+      markChangesPending('meta');
+      saveToServer(datasetId, undefined, {
+        confidenceFilters: confidenceFilters.value,
+      });
+    }
+
+    const dataPath = computed(() => (
+      getPathFromLocation(ctx.root.$store.state.Location.location)));
 
     return {
       /* props use locally */
@@ -233,9 +229,8 @@ export default defineComponent({
       dataset,
       frame,
       frameRate,
-      getPathFromLocation,
       imageUrls,
-      location,
+      dataPath,
       pendingSaveCount,
       playbackComponent,
       selectedTrackId,
@@ -243,11 +238,13 @@ export default defineComponent({
       /* methods used locally */
       addTrack,
       deleteFeaturePoints,
+      featurePointed,
+      markChangesPending,
       save,
+      saveThreshold,
       selectTrack,
       splitTracks,
       toggleFeaturePointing,
-      featurePointed,
       updateNewTrackSettings,
       updateTypeStyle,
       updateTypeName,
@@ -304,7 +301,7 @@ export default defineComponent({
         hide-slider
         style="flex-basis:0; flex-grow:0;"
       >
-        <v-tab :to="getPathFromLocation(location)">
+        <v-tab :to="dataPath">
           Data
           <v-icon>mdi-database</v-icon>
         </v-tab>
@@ -369,7 +366,10 @@ export default defineComponent({
         @update-type-style="updateTypeStyle($event)"
         @update-type-name="updateTypeName($event)"
       >
-        <ConfidenceFilter :confidence.sync="confidenceThreshold" />
+        <ConfidenceFilter
+          :confidence.sync="confidenceThreshold"
+          @end="saveThreshold"
+        />
       </sidebar>
       <v-col style="position: relative; ">
         <component
