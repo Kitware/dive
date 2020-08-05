@@ -47,23 +47,28 @@ export default {
     offset-y
     max-width="280"
   >
-    <template #activator="{ on }">
-      <v-btn
-        class="ma-0"
-        text
-        :small="small"
-        v-on="on"
-      >
-        <v-icon color="accent">
-          mdi-export
-        </v-icon>
-        <span
-          v-show="!$vuetify.breakpoint.mdAndDown"
-          class="pl-1"
-        >
-          Download
-        </span>
-      </v-btn>
+    <template #activator="{ on: menuOn }">
+      <v-tooltip bottom>
+        <template #activator="{ on: tooltipOn }">
+          <v-btn
+            class="ma-0"
+            text
+            :small="small"
+            v-on="{ ...tooltipOn, ...menuOn }"
+          >
+            <v-icon color="accent">
+              mdi-download
+            </v-icon>
+            <span
+              v-show="!$vuetify.breakpoint.mdAndDown"
+              class="pl-1"
+            >
+              Download
+            </span>
+          </v-btn>
+        </template>
+        <span>Download media and annotations</span>
+      </v-tooltip>
     </template>
     <template>
       <v-card v-if="menuOpen && exportUrls">
@@ -88,22 +93,24 @@ export default {
 
         <v-card-text class="pb-0">
           <div>Get latest detections csv only</div>
-          <v-checkbox
-            v-model="excludeFiltered"
-            label="exclude tracks below confidence threshold"
-            dense
-            hide-details
-          />
-          <div class="py-2">
-            <span>Current thresholds:</span>
-            <span
-              v-for="(val, key) in exportUrls.currentThresholds"
-              :key="key"
-              class="pt-2"
-            >
-              ({{ key }}, {{ val }})
-            </span>
-          </div>
+          <template v-if="Object.keys(exportUrls.currentThresholds).length">
+            <v-checkbox
+              v-model="excludeFiltered"
+              label="exclude tracks below confidence threshold"
+              dense
+              hide-details
+            />
+            <div class="py-2">
+              <span>Current thresholds:</span>
+              <span
+                v-for="(val, key) in exportUrls.currentThresholds"
+                :key="key"
+                class="pt-2"
+              >
+                ({{ key }}, {{ val }})
+              </span>
+            </div>
+          </template>
         </v-card-text>
         <v-card-actions>
           <v-spacer />

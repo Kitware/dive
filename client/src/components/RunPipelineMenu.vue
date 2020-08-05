@@ -68,23 +68,28 @@ export default {
     max-width="300"
     offset-y
   >
-    <template v-slot:activator="{ on }">
-      <v-btn
-        text
-        :small="small"
-        :disabled="pipelinesNotRunnable"
-        v-on="on"
-      >
-        <v-icon color="accent">
-          mdi-pipe
-        </v-icon>
-        <span
-          v-show="!$vuetify.breakpoint.mdAndDown"
-          class="pl-1"
-        >
-          Run pipeline
-        </span>
-      </v-btn>
+    <template v-slot:activator="{ on: menuOn }">
+      <v-tooltip bottom>
+        <template #activator="{ on: tooltipOn }">
+          <v-btn
+            text
+            :small="small"
+            :disabled="pipelinesNotRunnable"
+            v-on="{ ...tooltipOn, ...menuOn }"
+          >
+            <v-icon color="accent">
+              mdi-pipe
+            </v-icon>
+            <span
+              v-show="!$vuetify.breakpoint.mdAndDown"
+              class="pl-1"
+            >
+              Run pipeline
+            </span>
+          </v-btn>
+        </template>
+        <span>Run CV algorithm pipelines on this data</span>
+      </v-tooltip>
     </template>
 
     <template>
