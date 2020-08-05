@@ -84,7 +84,6 @@ export default function useModeManager({
     if (newTrackMode && !edit) {
       newTrackMode = false;
     }
-    handleSelectFeatureHandle(-1);
   }
 
   function handleAddTrack() {
@@ -237,7 +236,6 @@ export default function useModeManager({
   }) {
     if (visible) annotationModes.state.visible = visible;
     if (editing) annotationModes.state.editing = editing;
-    handleSelectFeatureHandle(-1);
   }
 
   return {
