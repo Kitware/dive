@@ -4,7 +4,6 @@ import {
 } from '@vue/composition-api';
 import * as d3 from 'd3';
 import { Vuetify } from 'vuetify';
-import { setMetadataForFolder } from '@/lib/api/viame.service';
 
 interface Style {
   strokeWidth: number;
@@ -23,8 +22,8 @@ export interface CustomStyle {
   strokeWidth?: number;
   opacity?: number;
   fill?: boolean;
-
 }
+
 export interface TypeStyling {
   color: (type: string) => string;
   strokeWidth: (type: string) => number;
@@ -40,7 +39,7 @@ interface UpdateStylingArgs {
   fill?: boolean;
 }
 interface UseStylingParams {
-  markChangesPending: () => void;
+  markChangesPending: (name: string) => void;
 }
 
 /**
@@ -85,7 +84,7 @@ function generateColors(numColors: number) {
 
 export default function useStyling({ markChangesPending }: UseStylingParams) {
   const vuetify = inject('vuetify') as Vuetify;
-  const customStyles: Ref<Record<string, CustomStyle>> = ref({});
+  const customStyles = ref({} as Record<string, CustomStyle>);
   if (!vuetify) {
     throw new Error('Missing vuetify provide/inject');
   }
@@ -115,25 +114,9 @@ export default function useStyling({ markChangesPending }: UseStylingParams) {
   const typeColors = generateColors(10);
 
 
-  function loadTypeStyles({ styles, colorList }:
-    { styles?: Record<string, CustomStyle>; colorList?: Record<string, string> }) {
-    //Handles old style Colors first
-    if (colorList) {
-      Object.entries(colorList).forEach(([key, value]) => {
-        if (!customStyles.value[key]) {
-          Vue.set(customStyles.value, key, {});
-        }
-        Vue.set(customStyles.value[key], 'color', value);
-      });
-    }
+  function populateTypeStyles(styles?: Record<string, CustomStyle>) {
     if (styles) {
-      // Copy over the item so they can be modified in future
-      Object.entries(styles).forEach(([key, value]) => {
-        if (!customStyles.value[key]) {
-          Vue.set(customStyles.value, key, {});
-        }
-        Vue.set(customStyles.value, key, value);
-      });
+      customStyles.value = styles;
     }
   }
 
@@ -144,13 +127,10 @@ export default function useStyling({ markChangesPending }: UseStylingParams) {
     }
     Object.entries(args).forEach(([key, value]) => {
       if (value !== undefined) {
-        if (!customStyles.value[type]) {
-          Vue.set(customStyles.value, type, {});
-        }
         Vue.set(customStyles.value[type], key, value);
       }
     });
-    markChangesPending();
+    markChangesPending('meta');
   }
 
   const ordinalColorMapper = d3.scaleOrdinal<string>().range(typeColors);
@@ -187,13 +167,10 @@ export default function useStyling({ markChangesPending }: UseStylingParams) {
     } as TypeStyling;
   });
 
-  async function saveTypeStyles(
-    datasetId: string,
-    allTypes: Ref<readonly string[]>,
-  ) {
+  function getTypeStyles(allTypes: Ref<readonly string[]>) {
     //We need to remove any unused types in the colors, either deleted or changed
     //Also want to save default colors for reloading
-    const savedTypeStyles: Record<string, CustomStyle> = {};
+    const savedTypeStyles = {} as Record<string, CustomStyle>;
     allTypes.value.forEach((name) => {
       if (!savedTypeStyles[name] && customStyles.value[name]) {
         savedTypeStyles[name] = customStyles.value[name];
@@ -201,17 +178,14 @@ export default function useStyling({ markChangesPending }: UseStylingParams) {
         savedTypeStyles[name] = { color: typeStyling.value.color(name) };
       }
     });
-
-    await setMetadataForFolder(datasetId, {
-      customTypeStyling: savedTypeStyles,
-    });
+    return savedTypeStyles;
   }
 
   return {
     stateStyling,
     typeStyling,
     updateTypeStyle,
-    loadTypeStyles,
-    saveTypeStyles,
+    populateTypeStyles,
+    getTypeStyles,
   };
 }

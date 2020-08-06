@@ -38,6 +38,12 @@ class Track:
         ]
         return track_dict
 
+    def exceeds_thresholds(self, thresholds: Dict[str, float]) -> bool:
+        defaultThresh = thresholds.get('default', 0)
+        return any([
+            confidence >= thresholds.get(field, defaultThresh)
+            for field, confidence in self.confidencePairs])
+
 
 # interpolate all features [a, b)
 def interpolate(a: Feature, b: Feature) -> List[Feature]:
