@@ -37,27 +37,19 @@ export default defineComponent({
   },
 
   setup() {
-    const showDetectionView = ref(true);
-    const showEventView = ref(false);
+    const currentView = ref('Detections');
     const collapsed = ref(false);
 
     /**
      * Toggles on and off the individual timeline views
      * Resizing is handled by the Annator itself.
      */
-    function toggleView(type: 'Detection' | 'Event') {
-      if (type === 'Detection') {
-        showDetectionView.value = true;
-        showEventView.value = false;
-      } else if (type === 'Event') {
-        showEventView.value = true;
-        showDetectionView.value = false;
-      }
+    function toggleView(type: 'Detections' | 'Events') {
+      currentView.value = type;
       collapsed.value = false;
     }
     return {
-      showDetectionView,
-      showEventView,
+      currentView,
       toggleView,
       collapsed,
     };
@@ -77,19 +69,19 @@ export default defineComponent({
       />
       <v-btn
         class="mx-2"
-        :outlined="showDetectionView"
+        :outlined="currentView==='Detections' && !collapsed"
         x-small
         tab-index="-1"
-        @click="toggleView('Detection')"
+        @click="toggleView('Detections')"
       >
         Detections
       </v-btn>
       <v-btn
         class="mx-2"
-        :outlined="showEventView"
+        :outlined="currentView==='Events' && !collapsed"
         x-small
         tab-index="-1"
-        @click="toggleView('Event')"
+        @click="toggleView('Events')"
       >
         Events
       </v-btn>
@@ -99,7 +91,7 @@ export default defineComponent({
         <Timeline
           :max-frame="maxFrame"
           :frame="frame"
-          :display="(showDetectionView || showEventView)"
+          :display="!collapsed"
           @seek="seek"
         >
           <template
@@ -113,7 +105,7 @@ export default defineComponent({
             }"
           >
             <line-chart
-              v-if="showDetectionView"
+              v-if="currentView==='Detections'"
               :start-frame="startFrame"
               :end-frame="endFrame"
               :max-frame="childMaxFrame"
@@ -123,7 +115,7 @@ export default defineComponent({
               :margin="margin"
             />
             <event-chart
-              v-if="showEventView"
+              v-if="currentView==='Events'"
               :start-frame="startFrame"
               :end-frame="endFrame"
               :max-frame="childMaxFrame"
