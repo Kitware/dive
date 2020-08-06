@@ -13,6 +13,7 @@ import TimelineWrapper from '@/components/controls/TimelineWrapper.vue';
 import Timeline from '@/components/controls/Timeline.vue';
 import LineChart from '@/components/controls/LineChart.vue';
 import EventChart from '@/components/controls/EventChart.vue';
+import TooltipBtn from '@/components/TooltipButton.vue';
 
 export default defineComponent({
   components: {
@@ -21,6 +22,7 @@ export default defineComponent({
     LineChart,
     Timeline,
     TimelineWrapper,
+    TooltipBtn,
   },
 
   props: {
@@ -37,6 +39,7 @@ export default defineComponent({
   setup() {
     const showDetectionView = ref(true);
     const showEventView = ref(false);
+    const collapsed = ref(false);
 
     /**
      * Toggles on and off the individual timeline views
@@ -44,17 +47,19 @@ export default defineComponent({
      */
     function toggleView(type: 'Detection' | 'Event') {
       if (type === 'Detection') {
-        showDetectionView.value = !showDetectionView.value;
+        showDetectionView.value = true;
         showEventView.value = false;
       } else if (type === 'Event') {
-        showEventView.value = !showEventView.value;
+        showEventView.value = true;
         showDetectionView.value = false;
       }
+      collapsed.value = false;
     }
     return {
       showDetectionView,
       showEventView,
       toggleView,
+      collapsed,
     };
   },
 });
@@ -64,15 +69,23 @@ export default defineComponent({
   <div>
     <Controls />
     <div class="timeline-buttons">
+      <tooltip-btn
+        class="mx-2"
+        :icon="collapsed?'mdi-chevron-up-box-outline': 'mdi-chevron-down-box-outline'"
+        tooltip-text="Collapse/Expand Timeline"
+        @click="collapsed=!collapsed"
+      />
       <v-btn
+        class="mx-2"
         :outlined="showDetectionView"
         x-small
         tab-index="-1"
         @click="toggleView('Detection')"
       >
-        Detection
+        Detections
       </v-btn>
       <v-btn
+        class="mx-2"
         :outlined="showEventView"
         x-small
         tab-index="-1"
@@ -81,7 +94,7 @@ export default defineComponent({
         Events
       </v-btn>
     </div>
-    <timeline-wrapper v-if="(showDetectionView || showEventView)">
+    <timeline-wrapper v-if="(!collapsed)">
       <template #default="{ maxFrame, frame, seek }">
         <Timeline
           :max-frame="maxFrame"
@@ -130,6 +143,6 @@ export default defineComponent({
   position:relative;
   top:-24px;
   margin-bottom:-24px;
-  width: 150px;
+  width: 250px;
 }
 </style>
