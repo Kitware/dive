@@ -79,6 +79,7 @@ export default defineComponent({
           </v-tooltip>
           <v-btn
             class="mx-2"
+            :class="{'timeline-button':currentView!=='Detections' || collapsed}"
             depressed
             :outlined="currentView==='Detections' && !collapsed"
             x-small
@@ -89,6 +90,7 @@ export default defineComponent({
           </v-btn>
           <v-btn
             class="mx-2"
+            :class="{'timeline-button':currentView!=='Events' || collapsed}"
             depressed
             :outlined="currentView==='Events' && !collapsed"
             x-small
@@ -144,5 +146,8 @@ export default defineComponent({
   </div>
 </template>
 
-<style scoped>
+<style lang="scss" scoped>
+.timeline-button {
+    border: thin solid transparent;
+}
 </style>
