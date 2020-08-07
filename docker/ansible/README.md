@@ -25,3 +25,8 @@ ansible-playbook docker/ansible/clean.systemd.yml
 
 # Operation
 Once the service is initiated, it will run the `deploy.yml` playbook at the interval specified in `viame-deploy.timer`. This will update the server with any changes.
+
+`deploy.yml` will read in variables from `.vars.yml`. These are not tracked in source control, as they're assumed to contain sensitive information. The following variables are expected to be defined in `.vars.yml`:
+
+- `deploy_email_address` - The email address that the emails will be sent from
+- `notify_email_address` - The email address that the emails will be sent to

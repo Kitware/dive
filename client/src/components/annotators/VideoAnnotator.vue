@@ -33,7 +33,6 @@ export default {
     };
     video.addEventListener('pause', this.videoPaused);
   },
-
   methods: {
     init() {
       this.baseInit(); // Mixin method

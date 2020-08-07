@@ -13,6 +13,10 @@ export default {
       type: Number,
       default: 0,
     },
+    display: {
+      type: Boolean,
+      default: true,
+    },
   },
   data() {
     return {
@@ -23,6 +27,7 @@ export default {
       timelineScale: null,
       clientWidth: 0,
       clientHeight: 0,
+      margin: 20,
     };
   },
   computed: {
@@ -41,7 +46,7 @@ export default {
         return null;
       }
       return Math.round(
-        this.$refs.workarea.clientWidth
+        this.margin + (this.clientWidth - this.margin)
           * ((this.frame - this.startFrame) / (this.endFrame - this.startFrame)),
       );
     },
@@ -68,6 +73,13 @@ export default {
         this.startFrame = Math.max(frame - 100, 0);
       }
     },
+    display(val) {
+      if (!val) {
+        this.clientHeight = 0;
+      } else {
+        this.initialize();
+      }
+    },
   },
   created() {
     this.update = throttle(this.update, 30);
@@ -85,13 +97,13 @@ export default {
       const width = this.$refs.workarea.clientWidth || 0;
       const height = this.$refs.workarea.clientHeight || 0;
       // clientWidth and clientHeight are properties used to resize child elements
-      this.clientWidth = width;
+      this.clientWidth = width - this.margin;
       // Timeline height needs to offset so it doesn't overlap the frame number
       this.clientHeight = height - 15;
       const scale = d3
         .scaleLinear()
         .domain([0, this.maxFrame])
-        .range([0, width]);
+        .range([this.margin, this.clientWidth]);
       this.timelineScale = scale;
       const axis = d3
         .axisTop()
@@ -105,7 +117,7 @@ export default {
           .append('svg');
       }
       this.svg.style('display', 'block')
-        .attr('width', width)
+        .attr('width', this.clientWidth)
         .attr('height', height);
       if (!this.g) {
         this.g = this.svg.append('g')
@@ -147,8 +159,8 @@ export default {
     },
     emitSeek(e) {
       const frame = Math.round(
-        ((e.clientX - this.$refs.workarea.getBoundingClientRect().left)
-          / this.$refs.workarea.clientWidth)
+        ((e.clientX - (this.$refs.workarea.getBoundingClientRect().left + 20))
+          / (this.clientWidth - this.margin))
           * (this.endFrame - this.startFrame)
           + this.startFrame,
       );
@@ -190,7 +202,7 @@ export default {
         return;
       }
       const delta = this.minimapDraggingStartClientX - e.clientX;
-      const frameDelta = (delta / this.$refs.minimap.clientWidth) * this.maxFrame;
+      const frameDelta = (delta / this.clientWidth) * this.maxFrame;
       const startFrame = this.minimapDraggingStartFrame - frameDelta;
       if (startFrame < 0) {
         return;
@@ -239,6 +251,7 @@ export default {
           :maxFrame="maxFrame"
           :clientWidth="clientWidth"
           :clientHeight="clientHeight"
+          :margin="margin"
         />
       </div>
     </div>

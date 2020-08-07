@@ -3,7 +3,7 @@ import { FrameDataTrack } from '@/components/layers/LayerTypes';
 
 interface TextData {
   selected: boolean;
-  editing: boolean;
+  editing: boolean | string;
   type: string;
   confidence: number;
   text: string;
@@ -52,6 +52,10 @@ export default class TextLayer extends BaseLayer<TextData> {
   redraw() {
     this.featureLayer.data(this.formattedData).draw();
     return null;
+  }
+
+  disable() {
+    this.featureLayer.data([]).draw();
   }
 
   createStyle(): LayerStyle<TextData> {

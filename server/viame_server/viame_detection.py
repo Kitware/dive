@@ -13,15 +13,10 @@ from girder.models.file import File
 from girder.models.folder import Folder
 from girder.models.item import Item
 from girder.models.upload import Upload
-
 from viame_server.serializers import viame
-from viame_server.utils import (
-    ImageMimeTypes,
-    ImageSequenceType,
-    VideoMimeTypes,
-    VideoType,
-    move_existing_result_to_auxiliary_folder,
-)
+from viame_server.utils import (ImageMimeTypes, ImageSequenceType,
+                                VideoMimeTypes, VideoType,
+                                move_existing_result_to_auxiliary_folder)
 
 
 class ViameDetection(Resource):
@@ -31,7 +26,7 @@ class ViameDetection(Resource):
         self.route("GET", (), self.get_detection)
         self.route("PUT", (), self.save_detection)
         self.route("GET", ("clip_meta",), self.get_clip_meta)
-        self.route("GET", (":id", "export",), self.export_data)
+        self.route("GET", (":id", "export",), self.get_export_urls)
         self.route("GET", (":id", "export_detections",), self.export_detections)
 
     def _get_clip_meta(self, folder):
@@ -64,8 +59,15 @@ class ViameDetection(Resource):
             required=True,
             level=AccessType.READ,
         )
+        .param(
+            "excludeBelowThreshold",
+            "Exclude tracks with confidencePairs below set threshold",
+            paramType="query",
+            dataType="boolean",
+            default=False,
+        )
     )
-    def export_data(self, folder):
+    def get_export_urls(self, folder, excludeBelowThreshold):
         folderId = str(folder['_id'])
 
         export_all = f'/api/v1/folder/{folderId}/download'
@@ -75,7 +77,10 @@ class ViameDetection(Resource):
         clipMeta = self._get_clip_meta(folder)
         detection = clipMeta.get('detection')
         if detection:
-            export_detections = f'/api/v1/viame_detection/{folderId}/export_detections'
+            export_detections = (
+                f'/api/v1/viame_detection/{folderId}/export_detections'
+                f'?excludeBelowThreshold={excludeBelowThreshold}'
+            )
 
         source_type = folder.get('meta', {}).get('type', None)
         if source_type == VideoType:
@@ -99,6 +104,7 @@ class ViameDetection(Resource):
             'exportAllUrl': export_all,
             'exportMediaUrl': export_media,
             'exportDetectionsUrl': export_detections,
+            'currentThresholds': folder.get("meta", {}).get("confidenceFilters", {})
         }
 
     @access.public(scope=TokenScope.DATA_READ, cookie=True)
@@ -110,8 +116,15 @@ class ViameDetection(Resource):
             required=True,
             level=AccessType.READ,
         )
+        .param(
+            "excludeBelowThreshold",
+            "Exclude tracks with confidencePairs below set threshold",
+            paramType="query",
+            dataType="boolean",
+            default=False,
+        )
     )
-    def export_detections(self, folder):
+    def export_detections(self, folder, excludeBelowThreshold):
         user = self.getCurrentUser()
 
         detectionItems = list(
@@ -128,7 +141,8 @@ class ViameDetection(Resource):
 
         filename = ".".join([file["name"].split(".")[:-1][0], "csv"])
 
-        csv_string = viame.export_tracks_as_csv(file)
+        thresholds = folder.get("meta", {}).get("confidenceFilters", {})
+        csv_string = viame.export_tracks_as_csv(file, excludeBelowThreshold, thresholds)
         csv_bytes = csv_string.encode()
 
         assetstore = Assetstore().findOne({"_id": file["assetstoreId"]})
