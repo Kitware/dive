@@ -76,9 +76,9 @@ export default {
             @input="input"
           />
         </v-row>
-        <v-row dense>
+        <v-row class="controls-row">
           <v-col
-            class="pl-0"
+            class="pl-1"
             align="left"
             cols="4"
             md="4"
@@ -93,9 +93,6 @@ export default {
           <v-col
             align="center"
             cols="4"
-            md="4"
-            sm="4"
-            xs="4"
           >
             <v-btn
               icon
@@ -143,3 +140,9 @@ export default {
     </v-toolbar>
   </div>
 </template>
+
+<style lang="scss" scoped>
+.controls-row {
+  min-width:420px;
+}
+</style>
