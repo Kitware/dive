@@ -38,7 +38,6 @@ export default {
       };
     }
   },
-
   methods: {
     init() {
       this.baseInit(); // Mixin method
@@ -87,17 +86,6 @@ export default {
     pause() {
       this.playing = false;
       this.loadingVideo = false;
-    },
-
-    onResize() {
-      if (!this.geoViewer) {
-        return;
-      }
-      const size = this.$refs.container.getBoundingClientRect();
-      const mapSize = this.geoViewer.size();
-      if (size.width !== mapSize.width || size.height !== mapSize.height) {
-        this.geoViewer.size(size);
-      }
     },
     /**
      * Handles playback of the image sequence
@@ -241,7 +229,6 @@ export default {
 
 <template>
   <div
-    v-resize="onResize"
     class="video-annotator"
   >
     <div
@@ -262,7 +249,11 @@ export default {
         </v-progress-circular>
       </div>
     </div>
-    <slot name="control" />
+    <slot
+      ref="control"
+      name="control"
+      @resize="onResize"
+    />
     <slot v-if="ready" />
   </div>
 </template>

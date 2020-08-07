@@ -31,6 +31,7 @@ export default {
       frame: 0,
       maxFrame: 0,
       syncedFrame: 0,
+      observer: null,
     };
   },
   created() {
@@ -41,6 +42,20 @@ export default {
     this.provided.$on('seek', this.seek);
     this.emitFrame();
     this.emitFrame = throttle(this.emitFrame, 200);
+  },
+  mounted() {
+    //Adjusts the size to fix the geoMap display if any of the contents sizes change.
+    if (this.$refs.container) {
+      this.observer = new ResizeObserver(() => {
+        this.onResize();
+      });
+      this.observer.observe(this.$refs.container);
+    }
+  },
+  beforeDestroy() {
+    if (this.observer) {
+      this.observer.unobserve(this.$refs.container);
+    }
   },
   methods: {
     baseInit() {
@@ -95,6 +110,16 @@ export default {
       const targetFrame = this.frame + 1;
       if (targetFrame <= this.maxFrame) {
         this.seek(targetFrame);
+      }
+    },
+    onResize() {
+      if (!this.geoViewer) {
+        return;
+      }
+      const size = this.$refs.container.getBoundingClientRect();
+      const mapSize = this.geoViewer.size();
+      if (size.width !== mapSize.width || size.height !== mapSize.height) {
+        this.geoViewer.size(size);
       }
     },
     emitFrame() {
