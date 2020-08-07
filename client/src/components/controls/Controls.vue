@@ -76,43 +76,68 @@ export default {
             @input="input"
           />
         </v-row>
-        <v-row>
-          <v-spacer />
-          <v-btn
-            icon
-            small
-            title="Left key"
-            @click="previousFrame"
+        <v-row dense>
+          <v-col
+            class="pl-0"
+            align="left"
+            cols="4"
+            md="4"
+            sm="6"
+            xs="8"
           >
-            <v-icon>mdi-skip-previous</v-icon>
-          </v-btn>
-          <v-btn
-            v-if="!annotator.playing"
-            icon
-            small
-            title="Space key"
-            @click="annotator.$emit('play')"
+            <slot
+              justify="start"
+              name="timelineControls"
+            />
+          </v-col>
+          <v-col
+            align="center"
+            cols="4"
+            md="4"
+            sm="4"
+            xs="4"
           >
-            <v-icon>mdi-play</v-icon>
-          </v-btn>
-          <v-btn
-            v-else
-            icon
-            small
-            title="Space key"
-            @click="annotator.$emit('pause')"
-          >
-            <v-icon>mdi-pause</v-icon>
-          </v-btn>
-          <v-btn
-            icon
-            small
-            title="Right key"
-            @click="nextFrame"
-          >
-            <v-icon>mdi-skip-next</v-icon>
-          </v-btn>
-          <v-spacer />
+            <v-btn
+              icon
+              small
+              title="Left key"
+              @click="previousFrame"
+            >
+              <v-icon>mdi-skip-previous</v-icon>
+            </v-btn>
+            <v-btn
+              v-if="!annotator.playing"
+              icon
+              small
+              title="Space key"
+              @click="annotator.$emit('play')"
+            >
+              <v-icon>mdi-play</v-icon>
+            </v-btn>
+            <v-btn
+              v-else
+              icon
+              small
+              title="Space key"
+              @click="annotator.$emit('pause')"
+            >
+              <v-icon>mdi-pause</v-icon>
+            </v-btn>
+            <v-btn
+              icon
+              small
+              title="Right key"
+              @click="nextFrame"
+            >
+              <v-icon>mdi-skip-next</v-icon>
+            </v-btn>
+          </v-col>
+          <v-col
+            cols="4"
+            md="4"
+            sm="2"
+            xs="0"
+          />
         </v-row>
       </v-container>
     </v-toolbar>

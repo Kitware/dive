@@ -59,33 +59,47 @@ export default defineComponent({
 
 <template>
   <div>
-    <Controls />
-    <div class="timeline-buttons">
-      <tooltip-btn
-        class="mx-2"
-        :icon="collapsed?'mdi-chevron-up-box-outline': 'mdi-chevron-down-box-outline'"
-        tooltip-text="Collapse/Expand Timeline"
-        @click="collapsed=!collapsed"
-      />
-      <v-btn
-        class="mx-2"
-        :outlined="currentView==='Detections' && !collapsed"
-        x-small
-        tab-index="-1"
-        @click="toggleView('Detections')"
-      >
-        Detections
-      </v-btn>
-      <v-btn
-        class="mx-2"
-        :outlined="currentView==='Events' && !collapsed"
-        x-small
-        tab-index="-1"
-        @click="toggleView('Events')"
-      >
-        Events
-      </v-btn>
-    </div>
+    <Controls>
+      <template slot="timelineControls">
+        <div>
+          <v-tooltip
+            open-delay="200"
+            bottom
+          >
+            <template #activator="{ on }">
+              <v-icon
+                small
+                v-on="on"
+                @click="collapsed=!collapsed"
+              >
+                {{ collapsed?'mdi-chevron-up-box': 'mdi-chevron-down-box' }}
+              </v-icon>
+            </template>
+            <span>Collapse/Expand Timeline</span>
+          </v-tooltip>
+          <v-btn
+            class="mx-2"
+            depressed
+            :outlined="currentView==='Detections' && !collapsed"
+            x-small
+            tab-index="-1"
+            @click="toggleView('Detections')"
+          >
+            Detections
+          </v-btn>
+          <v-btn
+            class="mx-2"
+            depressed
+            :outlined="currentView==='Events' && !collapsed"
+            x-small
+            tab-index="-1"
+            @click="toggleView('Events')"
+          >
+            Events
+          </v-btn>
+        </div>
+      </template>
+    </Controls>
     <timeline-wrapper v-if="(!collapsed)">
       <template #default="{ maxFrame, frame, seek }">
         <Timeline
@@ -131,10 +145,4 @@ export default defineComponent({
 </template>
 
 <style scoped>
-.timeline-buttons{
-  position:relative;
-  top:-24px;
-  margin-bottom:-24px;
-  width: 250px;
-}
 </style>
