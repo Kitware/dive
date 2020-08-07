@@ -4,7 +4,16 @@
     v-bind="options"
     :timeout="timeout"
   >
-    {{ text }}
+    <h3
+      v-if="title"
+      class="mx-2"
+    >
+      {{ title }}:
+    </h3>
+    <v-spacer />
+    <div>
+      {{ text }}
+    </div>
     <v-btn
       v-if="callback"
       color="primary"
@@ -21,6 +30,7 @@ export default {
   name: 'Snackbar',
   data: () => ({
     show: false,
+    title: '',
     text: '',
     button: '',
     callback: null,
