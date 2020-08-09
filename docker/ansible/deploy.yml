@@ -21,7 +21,7 @@
         state: absent
 
     - name: Send email on build failure
-      when: register.rc != 0
+      when: build.failed
       mail:
         from: "{{ deploy_email_address }}"
         to: "{{ notify_email_address  }}"
