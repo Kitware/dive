@@ -13,6 +13,7 @@ import TimelineWrapper from '@/components/controls/TimelineWrapper.vue';
 import Timeline from '@/components/controls/Timeline.vue';
 import LineChart from '@/components/controls/LineChart.vue';
 import EventChart from '@/components/controls/EventChart.vue';
+import TooltipBtn from '@/components/TooltipButton.vue';
 
 export default defineComponent({
   components: {
@@ -21,6 +22,7 @@ export default defineComponent({
     LineChart,
     Timeline,
     TimelineWrapper,
+    TooltipBtn,
   },
 
   props: {
@@ -35,8 +37,21 @@ export default defineComponent({
   },
 
   setup() {
+    const currentView = ref('Detections');
+    const collapsed = ref(false);
+
+    /**
+     * Toggles on and off the individual timeline views
+     * Resizing is handled by the Annator itself.
+     */
+    function toggleView(type: 'Detections' | 'Events') {
+      currentView.value = type;
+      collapsed.value = false;
+    }
     return {
-      showTrackView: ref(false),
+      currentView,
+      toggleView,
+      collapsed,
     };
   },
 });
@@ -44,12 +59,55 @@ export default defineComponent({
 
 <template>
   <div>
-    <Controls />
-    <timeline-wrapper>
+    <Controls>
+      <template slot="timelineControls">
+        <div>
+          <v-tooltip
+            open-delay="200"
+            bottom
+          >
+            <template #activator="{ on }">
+              <v-icon
+                small
+                v-on="on"
+                @click="collapsed=!collapsed"
+              >
+                {{ collapsed?'mdi-chevron-up-box': 'mdi-chevron-down-box' }}
+              </v-icon>
+            </template>
+            <span>Collapse/Expand Timeline</span>
+          </v-tooltip>
+          <v-btn
+            class="mx-2"
+            :class="{'timeline-button':currentView!=='Detections' || collapsed}"
+            depressed
+            :outlined="currentView==='Detections' && !collapsed"
+            x-small
+            tab-index="-1"
+            @click="toggleView('Detections')"
+          >
+            Detections
+          </v-btn>
+          <v-btn
+            class="mx-2"
+            :class="{'timeline-button':currentView!=='Events' || collapsed}"
+            depressed
+            :outlined="currentView==='Events' && !collapsed"
+            x-small
+            tab-index="-1"
+            @click="toggleView('Events')"
+          >
+            Events
+          </v-btn>
+        </div>
+      </template>
+    </Controls>
+    <timeline-wrapper v-if="(!collapsed)">
       <template #default="{ maxFrame, frame, seek }">
         <Timeline
           :max-frame="maxFrame"
           :frame="frame"
+          :display="!collapsed"
           @seek="seek"
         >
           <template
@@ -59,45 +117,37 @@ export default defineComponent({
               maxFrame: childMaxFrame,
               clientWidth,
               clientHeight,
+              margin,
             }"
           >
             <line-chart
-              v-if="!showTrackView"
+              v-if="currentView==='Detections'"
               :start-frame="startFrame"
               :end-frame="endFrame"
               :max-frame="childMaxFrame"
               :data="lineChartData.value"
               :client-width="clientWidth"
               :client-height="clientHeight"
+              :margin="margin"
             />
             <event-chart
-              v-else
+              v-if="currentView==='Events'"
               :start-frame="startFrame"
               :end-frame="endFrame"
               :max-frame="childMaxFrame"
               :data="eventChartData.value"
               :client-width="clientWidth"
+              :margin="margin"
             />
           </template>
-          <v-btn
-            outlined
-            x-small
-            class="toggle-timeline-button"
-            tab-index="-1"
-            @click="showTrackView = !showTrackView"
-          >
-            {{ showTrackView ? "Detection" : "Track" }}
-          </v-btn>
         </Timeline>
       </template>
     </timeline-wrapper>
   </div>
 </template>
 
-<style scoped>
-.toggle-timeline-button {
-  position: absolute;
-  top: -24px;
-  left: 2px;
+<style lang="scss" scoped>
+.timeline-button {
+    border: thin solid transparent;
 }
 </style>

@@ -25,6 +25,10 @@ export default {
       type: Number,
       required: true,
     },
+    margin: {
+      type: Number,
+      default: 0,
+    },
     data: {
       type: Array,
       required: true,
@@ -80,7 +84,7 @@ export default {
       const x = d3
         .scaleLinear()
         .domain([this.startFrame, this.endFrame])
-        .range([0, width]);
+        .range([this.margin, width]);
       this.x = x;
       const max = d3.max(this.data, (datum) => d3.max(datum.values, (d) => d[1]));
       const y = d3
@@ -111,7 +115,7 @@ export default {
         .call(axis)
         .call((g) => g
           .selectAll('.tick text')
-          .attr('x', 0)
+          .attr('x', -5)
           .attr('dx', 13));
 
       const path = svg

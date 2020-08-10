@@ -1,7 +1,20 @@
-import { Ref } from '@vue/composition-api';
+import {
+  Ref, reactive, toRefs,
+} from '@vue/composition-api';
+import { cloneDeep } from 'lodash';
+
 import Track, { TrackId } from '@/lib/track';
-import { RectBounds } from '@/utils';
+import { RectBounds, findBounds } from '@/utils';
+import { EditAnnotationTypes } from '@/components/layers/EditAnnotationLayer';
 import { NewTrackSettings } from './useSettings';
+
+export interface EditorSettings {
+  state: Ref<{
+    visible: EditAnnotationTypes[];
+    editing: EditAnnotationTypes;
+  }>;
+  selectedFeatureHandle: Ref<number>;
+}
 
 export interface Seeker {
     seek(frame: number): void;
@@ -42,13 +55,28 @@ export default function useModeManager({
   let newTrackMode = false;
   let newDetectionMode = false;
 
-  // Seek to the nearest point in the track.
+  const annotationModes = reactive({
+    state: {
+      visible: ['rectangle', 'polygon'],
+      editing: 'rectangle',
+    },
+    // selectedFeatureHandle could arguably belong in useTrackSelectionControls,
+    // but the meaning of this value varies based on the editing mode.  When in
+    // polygon edit mode, this corresponds to a polygon point.  Ditto in line mode.
+    selectedFeatureHandle: -1,
+  });
+
   function seekNearest(track: Track) {
+    // Seek to the nearest point in the track.
     if (frame.value < track.begin) {
       playbackComponent.value.seek(track.begin);
     } else if (frame.value > track.end) {
       playbackComponent.value.seek(track.end);
     }
+  }
+
+  function handleSelectFeatureHandle(i: number) {
+    annotationModes.selectedFeatureHandle = i;
   }
 
   function handleSelectTrack(trackId: TrackId | null, edit = false) {
@@ -58,8 +86,8 @@ export default function useModeManager({
     }
   }
 
-  //Handles adding a new track with the NewTrack Settings
   function handleAddTrack() {
+    // Handles adding a new track with the NewTrack Settings
     selectTrack(addTrack(frame.value, newTrackSettings.type).trackId, true);
     newTrackMode = true;
   }
@@ -67,11 +95,10 @@ export default function useModeManager({
   function handleTrackTypeChange({ trackId, value }: { trackId: TrackId; value: string }) {
     getTrack(trackId).setType(value);
   }
-  // Default settings which are updated by the CreationMode component
-  // Not making them reactive, and eventually will probably be in localStorage
-
 
   function newTrackSettingsAfterLogic(addedTrack: Track) {
+    // Default settings which are updated by the CreationMode component
+    // Not making them reactive, and eventually will probably be in localStorage
     if (addedTrack && newTrackSettings !== null) {
       if (newTrackSettings.mode === 'Track' && newTrackSettings.modeSettings.Track.autoAdvanceFrame) {
         playbackComponent.value.nextFrame();
@@ -114,6 +141,65 @@ export default function useModeManager({
     }
   }
 
+  function handleUpdatePolygon(frameNum: number, data: GeoJSON.Polygon) {
+    if (selectedTrackId.value !== null) {
+      const track = trackMap.get(selectedTrackId.value);
+      if (track) {
+        // Determines if we are creating a new Detection
+        const { features, interpolate } = track.canInterpolate(frameNum);
+        const [real] = features;
+        if (!real || real.bounds === undefined) {
+          newDetectionMode = true;
+        }
+        const interpolateTrack = newTrackMode
+          ? newTrackSettings.modeSettings.Track.interpolate
+          : interpolate;
+        track.setFeature({
+          frame: frameNum,
+          polygon: data,
+          bounds: findBounds(data),
+          keyframe: true,
+          interpolate: (newDetectionMode && !newTrackMode)
+            ? false : interpolateTrack,
+        });
+        //If it is a new track and we have newTrack Settings
+        if (newTrackMode && newDetectionMode) {
+          newTrackSettingsAfterLogic(track);
+        }
+        newDetectionMode = false;
+      }
+    }
+  }
+
+  /**
+   * Removes the selectedIndex point for the selected Polygon/line
+   */
+  function handleRemovePoint() {
+    if (selectedTrackId.value !== null && annotationModes.selectedFeatureHandle !== -1) {
+      const track = trackMap.get(selectedTrackId.value);
+      if (track) {
+        // Determines if we are creating a new Detection
+        const { features } = track.canInterpolate(frame.value);
+        const [real] = features;
+        if (real && real.polygon) {
+          //could operate directly on the polygon memory, but small enough to copy and edit
+          const polygon = cloneDeep(real.polygon);
+          if (polygon.coordinates[0].length > 3) {
+            polygon.coordinates[0].splice(annotationModes.selectedFeatureHandle, 1);
+            handleSelectFeatureHandle(-1);
+            track.setFeature({
+              frame: frame.value,
+              polygon,
+              bounds: findBounds(polygon),
+            });
+          } else {
+            console.warn('Polygons must have at least 3 points');
+          }
+        }
+      }
+    }
+  }
+
   function handleRemoveTrack(trackId: TrackId) {
     // if removed track was selected, unselect before remove
     if (selectedTrackId.value === trackId) {
@@ -144,16 +230,29 @@ export default function useModeManager({
     }
   }
 
+  function handleSetAnnotationState({ visible, editing }: {
+    visible?: EditAnnotationTypes[];
+    editing?: EditAnnotationTypes;
+  }) {
+    if (visible) annotationModes.state.visible = visible;
+    if (editing) annotationModes.state.editing = editing;
+  }
+
   return {
+    annotationModes: toRefs(annotationModes) as EditorSettings,
     handler: {
       selectTrack: handleSelectTrack,
       trackEdit: handleTrackEdit,
       trackTypeChange: handleTrackTypeChange,
       addTrack: handleAddTrack,
       updateRectBounds: handleUpdateRectBounds,
+      updatePolygon: handleUpdatePolygon,
       selectNext: handleSelectNext,
       trackClick: handleTrackClick,
       removeTrack: handleRemoveTrack,
+      removePoint: handleRemovePoint,
+      selectFeatureHandle: handleSelectFeatureHandle,
+      setAnnotationState: handleSetAnnotationState,
     },
   };
 }
