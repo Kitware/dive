@@ -45,6 +45,9 @@ export default {
        * by clicking on a Breadcrumb link
        */
       set(value) {
+        if (this.locationIsViameFolder && value.name === 'auxiliary') {
+          return;
+        }
         const newPath = getPathFromLocation(value);
         if (this.$route.path !== newPath) {
           this.$router.push(newPath);
