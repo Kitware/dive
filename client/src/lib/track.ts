@@ -20,6 +20,7 @@ export interface Feature {
   interpolate?: boolean;
   keyframe?: boolean;
   bounds?: RectBounds;
+  polygon?: GeoJSON.Polygon;
   fishLength?: number;
   attributes?: StringKeyObject;
   head?: [number, number];

@@ -30,6 +30,10 @@ export default {
       type: Number,
       required: true,
     },
+    margin: {
+      type: Number,
+      default: 0,
+    },
     data: {
       type: Object,
       required: true,
@@ -84,7 +88,7 @@ export default {
               [event.range[0], event.range[1]],
             ))
             .forEach((event) => {
-              const frameWidth = x(this.startFrame_ + 1) * 0.6;
+              const frameWidth = (x(this.startFrame_ + 1) - x(this.startFrame_)) * 0.6;
               bars.push({
                 left: x(event.range[0]),
                 right: x(event.range[1]),
@@ -131,7 +135,7 @@ export default {
       const x = d3
         .scaleLinear()
         .domain([this.startFrame_, this.endFrame_])
-        .range([0, width]);
+        .range([this.margin, width]);
       this.x = x;
     },
     update() {
@@ -165,6 +169,7 @@ export default {
           // Else if Keyframe density is 100%
           ctx.fillStyle = selectedColor;
           ctx.fillRect(bar.left, bar.top, barWidth, barHeight);
+          this.scrollToElement(bar);
         } else {
           // Else draw individual feature frame segments
           // Decrease SelectedColor opacity to mute it.
@@ -193,8 +198,20 @@ export default {
                 ctx.stroke();
               }
             });
+          this.scrollToElement(bar);
         }
       });
+    },
+    scrollToElement(selectedBar) {
+      const eventChart = this.$refs.canvas.parentNode;
+      const { offsetHeight } = eventChart;
+      const { scrollTop } = eventChart;
+      const { top } = selectedBar;
+      if (top > offsetHeight) {
+        eventChart.scrollTop = top + offsetHeight / 2.0;
+      } else if (scrollTop > top) {
+        eventChart.scrollTop = 0.0;
+      }
     },
     mousemove(e) {
       this.tooltip = null;
@@ -209,11 +226,12 @@ export default {
       if (remainder > 10) {
         return;
       }
-      const top = offsetY - (offsetY % 15);
+      const top = offsetY - (offsetY % 15) + 3;
       const bar = this.bars
         .filter((b) => b.top === top)
         .reverse()
-        .find((b) => b.left < offsetX && b.left + b.width > offsetX);
+        .find((b) => b.left < offsetX
+        && (b.right - b.left > offsetX || b.left + b.minWidth > offsetX));
       if (!bar) {
         return;
       }
@@ -261,7 +279,7 @@ export default {
     border: 1px solid white;
     padding: 0px 5px;
     font-size: 14px;
-    z-index: 1;
+    z-index: 2;
   }
 }
 </style>
