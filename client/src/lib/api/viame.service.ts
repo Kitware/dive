@@ -101,6 +101,13 @@ async function validateUploadGroup(names: string[]): Promise<ValidationResponse>
   return data;
 }
 
+async function getValidWebImages(folderId: string) {
+  const { data } = await girderRest.get('viame/valid_images', {
+    params: { folderId },
+  });
+  return data;
+}
+
 
 export {
   Attribute,
@@ -113,4 +120,5 @@ export {
   runPipeline,
   setMetadataForFolder,
   validateUploadGroup,
+  getValidWebImages,
 };

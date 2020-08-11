@@ -1,4 +1,5 @@
 import json
+import re
 import urllib
 
 from girder.api import access
@@ -18,6 +19,7 @@ from viame_server.utils import (
     ImageSequenceType,
     VideoMimeTypes,
     VideoType,
+    safeImageRegex,
     move_existing_result_to_auxiliary_folder,
     saveTracks,
 )
@@ -98,7 +100,6 @@ class ViameDetection(Resource):
             params = {
                 'mimeFilter': json.dumps(list(ImageMimeTypes)),
             }
-            print(params)
             export_media = (
                 f'/api/v1/folder/{folderId}/download?{urllib.parse.urlencode(params)}'
             )
@@ -146,8 +147,10 @@ class ViameDetection(Resource):
 
         filename = ".".join([file["name"].split(".")[:-1][0], "csv"])
 
+        imageFiles = [f['name'] for f in Folder().childItems(folder, filters={"lowerName": {"$regex": safeImageRegex}}).sort("lowerName")]
+
         thresholds = folder.get("meta", {}).get("confidenceFilters", {})
-        csv_string = viame.export_tracks_as_csv(file, excludeBelowThreshold, thresholds)
+        csv_string = viame.export_tracks_as_csv(file, excludeBelowThreshold, thresholds, imageFiles)
         csv_bytes = csv_string.encode()
 
         assetstore = Assetstore().findOne({"_id": file["assetstoreId"]})
