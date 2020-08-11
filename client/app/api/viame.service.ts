@@ -102,7 +102,7 @@ async function validateUploadGroup(names: string[]): Promise<ValidationResponse>
 }
 
 async function getValidWebImages(folderId: string) {
-  const { data } = await girderRest.get('viame/valid_images', {
+  const { data } = await girderRest.get<GirderModel[]>('viame/valid_images', {
     params: { folderId },
   });
   return data;

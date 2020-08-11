@@ -60,7 +60,7 @@ export default function useGirderDataset() {
     } else if (_dataset.meta.type === ImageSequenceType) {
       // Image Sequence type annotator
       const items = await getValidWebImages(_dataset._id);
-      imageData.value = items.map((item: any) => ({
+      imageData.value = items.map((item) => ({
         url: getItemDownloadUri(item._id),
         filename: item.name,
       }
