@@ -22,7 +22,7 @@ export default {
   created() {
     const video = document.createElement('video');
     this.video = video;
-    video.preload = 'auto';
+    video.preload = 'metadata';
     video.src = this.videoUrl;
     video.onloadedmetadata = () => {
       video.onloadedmetadata = null;

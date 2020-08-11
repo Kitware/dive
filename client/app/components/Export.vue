@@ -35,6 +35,9 @@ export default {
     mediaType() {
       return MediaTypes[this.exportUrls.mediaType];
     },
+    thresholds() {
+      return Object.keys(this.exportUrls.currentThresholds || {});
+    },
   },
 };
 </script>
@@ -93,7 +96,7 @@ export default {
 
         <v-card-text class="pb-0">
           <div>Get latest detections csv only</div>
-          <template v-if="Object.keys(exportUrls.currentThresholds).length">
+          <template v-if="thresholds.length">
             <v-checkbox
               v-model="excludeFiltered"
               label="exclude tracks below confidence threshold"

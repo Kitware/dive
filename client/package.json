@@ -1,12 +1,11 @@
 {
   "name": "vue-media-annotator",
   "version": "0.1.0",
-  "private": true,
   "scripts": {
-    "serve": "rimraf -rf ./node_modules/.cache/vue-loader && vue-cli-service serve",
-    "build": "vue-cli-service build",
-    "lint": "vue-cli-service lint",
-    "test": "vue-cli-service test:unit"
+    "serve": "rimraf -rf ./node_modules/.cache/vue-loader && vue-cli-service serve app/main.ts",
+    "build": "vue-cli-service build app/main.ts",
+    "lint": "vue-cli-service lint src/ app/",
+    "test": "vue-cli-service test:unit src/ app/"
   },
   "resolutions": {
     "@types/jest": "^25.2.3",

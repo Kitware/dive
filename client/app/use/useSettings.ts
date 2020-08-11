@@ -17,10 +17,10 @@ export interface NewTrackSettings {
   };
 }
 
-export default function useSettings(allTypes: Ref<string[]>) {
+export default function useSettings(allTypes: Ref<Readonly<string[]>>) {
   const clientSettings = reactive({
     newTrackSettings: {
-      mode: 'Track',
+      mode: 'Track' as 'Track' | 'Detection',
       type: 'unknown',
       modeSettings: {
         Track: {

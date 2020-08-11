@@ -157,7 +157,7 @@ export default Vue.extend({
         <v-row align="center">
           Tracks ({{ filteredTracks.value.length }})
           <v-spacer />
-          <div class="newTrackSettings">
+          <div>
             <v-btn
               icon
               small

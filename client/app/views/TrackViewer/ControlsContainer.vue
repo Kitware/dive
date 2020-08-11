@@ -7,8 +7,7 @@ import TimelineWrapper from 'vue-media-annotator/components/controls/TimelineWra
 import Timeline from 'vue-media-annotator/components/controls/Timeline.vue';
 import LineChart from 'vue-media-annotator/components/controls/LineChart.vue';
 import EventChart from 'vue-media-annotator/components/controls/EventChart.vue';
-
-import TooltipBtn from 'app/components/TooltipButton.vue';
+import TooltipBtn from 'vue-media-annotator/components/TooltipButton.vue';
 
 export default defineComponent({
   components: {

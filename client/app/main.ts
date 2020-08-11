@@ -1,13 +1,13 @@
 import Vue from 'vue';
 import VueCompositionApi from '@vue/composition-api';
-
 import NotificationBus from '@girder/components/src/utils/notifications';
-import snackbarService from 'vue-media-annotator/lib/vue-utilities/snackbar-service';
-import promptService from 'vue-media-annotator/lib/vue-utilities/prompt-service';
-import vMousetrap from 'vue-media-annotator/lib/vue-utilities/v-mousetrap';
 
-import vuetify from 'vue-media-annotator/plugins/vuetify';
-import girderRest from 'vue-media-annotator/plugins/girder';
+import snackbarService from 'app/vue-utilities/snackbar-service';
+import promptService from 'app/vue-utilities/prompt-service';
+import vMousetrap from 'app/vue-utilities/v-mousetrap';
+import vuetify from 'app/plugins/vuetify';
+import girderRest from 'app/plugins/girder';
+
 import App from './App.vue';
 import router from './router';
 import store from './store';

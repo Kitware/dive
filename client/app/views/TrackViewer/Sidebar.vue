@@ -12,6 +12,7 @@ import TrackList from 'vue-media-annotator/components/TrackList.vue';
 import Track, { TrackId } from 'vue-media-annotator/track';
 import { TypeStyling } from 'vue-media-annotator/use/useStyling';
 
+import { NewTrackSettings } from 'app/use/useSettings';
 import AttributesPanel from 'app/components/AttributesPanel.vue';
 import CreationMode from 'app/components/CreationMode.vue';
 
@@ -54,7 +55,7 @@ export default defineComponent({
       required: true,
     },
     newTrackSettings: {
-      type: Object as PropType<string>,
+      type: Object as PropType<Ref<NewTrackSettings>>,
       required: true,
     },
     width: {
@@ -94,7 +95,11 @@ export default defineComponent({
 
     return {
       swapTabs,
-      trackListProps: props,
+      trackListProps: {
+        ...props,
+        newTrackMode: props.newTrackSettings.value.mode,
+        newTrackType: props.newTrackSettings.value.type,
+      },
       typeListProps: props,
       handleTrackChecked,
       ...toRefs(data),
