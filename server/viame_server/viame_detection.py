@@ -13,11 +13,16 @@ from girder.models.folder import Folder
 from girder.models.item import Item
 from girder.models.upload import Upload
 
-from viame_server.utils import (ImageMimeTypes, ImageSequenceType,
-                                VideoMimeTypes, VideoType,
-                                safeImageRegex,
-                                move_existing_result_to_auxiliary_folder,
-                                saveTracks)
+from viame_server.serializers import meva, viame
+from viame_server.utils import (
+    ImageMimeTypes,
+    ImageSequenceType,
+    VideoMimeTypes,
+    VideoType,
+    safeImageRegex,
+    move_existing_result_to_auxiliary_folder,
+    saveTracks,
+)
 
 
 class ViameDetection(Resource):
