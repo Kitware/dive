@@ -4,8 +4,6 @@ import useTrackStore from 'vue-media-annotator/use/useTrackStore';
 
 Vue.use(CompositionApi);
 
-jest.mock('vue-media-annotator/lib/api/viameDetection.service', () => ({}));
-
 describe('useTrackStore', () => {
   it('can add and remove tracks', () => {
     const ts = useTrackStore({ markChangesPending: () => null });
