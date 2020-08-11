@@ -1,49 +1,9 @@
 <script>
-import { mapGetters } from 'vuex';
 import Dropzone from '@girder/components/src/components/Presentation/Dropzone.vue';
-import {
-  fileUploader,
-  sizeFormatter,
-} from '@girder/components/src/utils/mixins';
-import {
-  ImageSequenceType,
-  VideoType,
-} from 'app/constants';
-import { makeViameFolder } from 'app/api/viame.service';
+import { fileUploader, sizeFormatter } from '@girder/components/src/utils/mixins';
+import { ImageSequenceType, VideoType } from 'app/constants';
+import { makeViameFolder, validateUploadGroup, postProcess } from 'app/api/viame.service';
 import { getResponseError } from 'app/utils';
-
-function prepareFiles(files, videoRegEx, imageRegEx) {
-  const videoFilter = (file) => videoRegEx.test(file.name);
-  const csvFilter = (file) => /\.csv$/i.test(file.name);
-  const imageFilter = (file) => imageRegEx.test(file.name);
-
-  const videoFiles = files.filter(videoFilter);
-  const imageFiles = files.filter(imageFilter);
-  const csvFiles = files.filter(csvFilter);
-
-  if (videoFiles.length > 0 && imageFiles.length > 0) {
-    throw new Error('Do not upload images and videos in the same batch.');
-  } else if (csvFiles.length > 1) {
-    throw new Error('Can only upload a single CSV Annotation per import');
-  } else if (videoFiles.length > 1 && csvFiles.length > 0) {
-    throw new Error('Annotation upload is not supported when multiple videos are uploaded');
-  } else if (videoFiles.length === 0 && imageFiles.length === 0 && csvFiles.length > 0) {
-    throw new Error('Cannot upload annotations without media');
-  } else if (videoFiles.length) {
-    return {
-      type: VideoType,
-      media: videoFiles,
-      csv: csvFiles,
-    };
-  } else if (imageFiles.length) {
-    return {
-      type: ImageSequenceType,
-      media: imageFiles,
-      csv: csvFiles,
-    };
-  }
-  throw new Error('No supported data types found.  Please choose video or image frames.');
-}
 
 function entryToFile(entry) {
   return new Promise((resolve) => {
@@ -112,7 +72,6 @@ export default {
     ImageSequenceType,
   }),
   computed: {
-    ...mapGetters('Filetypes', ['getVidRegEx', 'getImgRegEx']),
     uploadEnabled() {
       return this.location && this.location._modelType === 'folder';
     },
@@ -163,42 +122,49 @@ export default {
       if (files.length === 0) return;
       this.preUploadErrorMessage = null;
       try {
-        this.addPendingUpload(name, files);
+        await this.addPendingUpload(name, files);
       } catch (err) {
         this.preUploadErrorMessage = err;
       }
     },
-    onFileChange(files) {
+    async onFileChange(files) {
       if (files.length === 0) return;
       const name = files.length === 1 ? files[0].name : '';
       this.preUploadErrorMessage = null;
       try {
-        this.addPendingUpload(name, files);
+        await this.addPendingUpload(name, files);
       } catch (err) {
         this.preUploadErrorMessage = err;
       }
     },
-    addPendingUpload(name, allFiles) {
-      const { type, media, csv } = prepareFiles(allFiles, this.getVidRegEx, this.getImgRegEx);
-
-      const files = media.concat(csv);
-      const defaultFilename = files[0].name;
+    async addPendingUpload(name, allFiles) {
+      const resp = await validateUploadGroup(allFiles.map((f) => f.name));
+      if (!resp.ok) {
+        throw new Error(resp.message);
+      }
+      const fps = this.defaultFPS;
+      const defaultFilename = resp.media[0];
+      const validFiles = resp.media.concat(resp.annotations);
       // mapping needs to be done for the mixin upload functions
-      const internalFiles = files.map((file) => ({
-        file,
-        status: 'pending',
-        progress: {
-          indeterminate: false,
-          current: 0,
-          size: file.size,
-        },
-        upload: null,
-        result: null,
-      }));
-      // decide on the default createSubfoleders based on content uploaded
+      const internalFiles = allFiles
+        .filter((f) => validFiles.includes(f.name))
+        .map((file) => ({
+          file,
+          status: 'pending',
+          progress: {
+            indeterminate: false,
+            current: 0,
+            size: file.size,
+          },
+          upload: null,
+          result: null,
+        }));
+      // decide on the default createSubFolders based on content uploaded
       let createSubFolders = false;
-      if (type === 'video' && media.length > 1) {
-        createSubFolders = true;
+      if (resp.type === 'video') {
+        if (resp.media.length > 1) {
+          createSubFolders = true;
+        }
       }
       this.pendingUploads.push({
         createSubFolders,
@@ -207,8 +173,8 @@ export default {
             ? defaultFilename.replace(/\..*/, '')
             : defaultFilename,
         files: internalFiles,
-        type,
-        fps: this.defaultFPS,
+        type: resp.type,
+        fps,
         uploading: false,
       });
     },
@@ -234,23 +200,18 @@ export default {
       const uploaded = [];
       this.$emit('update:uploading', true);
 
-      let success = true;
       // This is in a while loop to act like a Queue with it adding new items during upload
       while (this.pendingUploads.length > 0) {
         try {
           // eslint-disable-next-line no-await-in-loop
           await this.uploadPending(this.pendingUploads[0], uploaded);
         } catch (err) {
-          success = false;
           // eslint-disable-next-line no-console
           console.error(err);
           break;
         }
       }
       this.$emit('update:uploading', false);
-      if (success) {
-        this.$emit('uploaded', uploaded);
-      }
     },
     async uploadPending(pendingUpload, uploaded) {
       const { name, files, createSubFolders } = pendingUpload;
@@ -260,10 +221,10 @@ export default {
       pendingUpload.uploading = true;
 
       let folder = this.location;
-      if (!pendingUpload.createSubFolders) {
-        folder = await this.createUploadFolder(name, createSubFolders, fps, pendingUpload.type);
+      if (!createSubFolders) {
+        folder = await this.createUploadFolder(name, fps, pendingUpload.type);
         if (folder) {
-          await this.uploadFiles(pendingUpload.name, folder, files, createSubFolders, uploaded);
+          await this.uploadFiles(pendingUpload.name, folder, files, uploaded);
           this.remove(pendingUpload);
         }
       } else {
@@ -271,19 +232,19 @@ export default {
           // take the file name and convert it to a folder name;
           const subfile = files.splice(0, 1);
           const subname = subfile[0].file.name.replace(/\..*/, '');
-          // Only video subfolders should be used typically
-          const subtype = this.getVidRegEx.test(subfile[0].file.name) ? 'video' : 'unknown';
+          // All sub-folders for a pendingUpload must be the same type
+          const subtype = pendingUpload.type;
           // eslint-disable-next-line no-await-in-loop
-          folder = await (this.createUploadFolder(subname, createSubFolders, fps, subtype));
+          folder = await (this.createUploadFolder(subname, fps, subtype));
           if (folder) {
             // eslint-disable-next-line no-await-in-loop
-            await this.uploadFiles(subname, folder, subfile, createSubFolders, uploaded);
+            await this.uploadFiles(subname, folder, subfile, uploaded);
           }
         }
         this.remove(pendingUpload);
       }
     },
-    async createUploadFolder(name, createSubFolders, fps, type) {
+    async createUploadFolder(name, fps, type) {
       try {
         const { data } = await makeViameFolder({
           folderId: this.location._id,
@@ -297,13 +258,14 @@ export default {
         throw error;
       }
     },
-    async uploadFiles(name, folder, files, createSubFolders, uploaded) {
+    async uploadFiles(name, folder, files, uploaded) {
       // function called after mixins upload finishes
-      const postUpload = (data) => {
+      const postUpload = async (data) => {
         uploaded.push({
           folder,
           results: data.results,
         });
+        await postProcess(folder._id);
       };
       // Sets the files used by the fileUploader mixin
       this.setFiles(files);

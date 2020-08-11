@@ -63,7 +63,7 @@ export default Vue.extend({
         return {
           trackId: track.trackId,
           confidencePairs: track.confidencePairs,
-          attributes: track.attributes.value,
+          attributes: track.attributes,
         };
       }
       return null;
@@ -134,6 +134,17 @@ export default Vue.extend({
               class="ml-3"
             >
               {{ pair[0] }}: {{ pair[1].toFixed(2) }}
+            </div>
+            <div v-if="Object.keys(selectedTrack.attributes).length">
+              <br>
+              Attributes:
+              <div
+                v-for="(pair, index) in selectedTrack.attributes"
+                :key="index"
+                class="ml-3"
+              >
+                {{ index }}: {{ pair }}
+              </div>
             </div>
           </div>
           <AttributeInput
