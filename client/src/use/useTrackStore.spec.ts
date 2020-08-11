@@ -1,10 +1,10 @@
 import Vue from 'vue';
 import CompositionApi, { watchEffect } from '@vue/composition-api';
-import useTrackStore from '@/use/useTrackStore';
+import useTrackStore from 'vue-media-annotator/use/useTrackStore';
 
 Vue.use(CompositionApi);
 
-jest.mock('@/lib/api/viameDetection.service', () => ({}));
+jest.mock('vue-media-annotator/lib/api/viameDetection.service', () => ({}));
 
 describe('useTrackStore', () => {
   it('can add and remove tracks', () => {

@@ -1,4 +1,5 @@
 const { gitDescribeSync } = require('git-describe');
+const { path } = require('path');
 const packagejson = require('./package.json');
 
 process.env.VUE_APP_GIT_HASH = gitDescribeSync().hash;
@@ -10,6 +11,13 @@ module.exports = {
       '/api': {
         target: 'http://localhost:8010',
         secure: false,
+      },
+    },
+  },
+  configureWEbpack: {
+    resolve: {
+      alias: {
+        'app/': path.join(__dirname, 'app/'),
       },
     },
   },
