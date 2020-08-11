@@ -267,5 +267,7 @@ class Viame(Resource):
     )
     def get_valid_images(self, folder):
         return Folder().childItems(
-            folder, filters={"lowerName": {"$regex": safeImageRegex}}
+            folder,
+            filters={"lowerName": {"$regex": safeImageRegex}},
+            sort=[("lowerName", pymongo.ASCENDING,)]
         )
