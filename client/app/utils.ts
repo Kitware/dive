@@ -2,6 +2,7 @@ import { AxiosError } from 'axios';
 // eslint-disable-next-line @typescript-eslint/ban-ts-ignore
 // @ts-ignore
 import { isRootLocation } from '@girder/components/src/utils/locationHelpers';
+import { getFolder } from 'app/api/girder.service';
 import { GirderModel } from 'app/api/viame.service';
 
 interface Location {
@@ -10,14 +11,17 @@ interface Location {
   _modelType?: string;
 }
 
-function getLocationFromRoute({ params }: { params: GirderModel }) {
+async function getLocationFromRoute({ params }: { params: GirderModel }) {
   if (isRootLocation(params)) {
     return {
       type: params._modelType,
     };
   }
-  if (params._modelType) {
+  if (params._modelType === 'user') {
     return params;
+  }
+  if (params._modelType === 'folder') {
+    return getFolder(params._id);
   }
   return null;
 }

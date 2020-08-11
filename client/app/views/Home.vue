@@ -46,6 +46,9 @@ export default {
        * by clicking on a Breadcrumb link
        */
       set(value) {
+        if (this.locationIsViameFolder && value.name === 'auxiliary') {
+          return;
+        }
         const newPath = getPathFromLocation(value);
         if (this.$route.path !== newPath) {
           this.$router.push(newPath);
@@ -56,6 +59,7 @@ export default {
     shouldShowUpload() {
       return (
         this.location
+        && !this.locationIsViameFolder
         && getLocationType(this.location) === 'folder'
         && !this.selected.length
       );
@@ -74,7 +78,18 @@ export default {
           isViameFolder: selected.meta && selected.meta.annotate,
         };
       }
+      if (this.locationIsViameFolder) {
+        return {
+          title: this.location.name,
+          folderId: this.location._id,
+          folderType: this.location.meta.type,
+          isViameFolder: true,
+        };
+      }
       return null;
+    },
+    locationIsViameFolder() {
+      return !!(this.location && this.location.meta && this.location.meta.annotate);
     },
   },
   watch: {
@@ -84,8 +99,8 @@ export default {
       }
     },
   },
-  created() {
-    this.setLocation(getLocationFromRoute(this.$route));
+  async created() {
+    this.setLocation(await getLocationFromRoute(this.$route));
     this.notificationBus.$on('message:job_status', this.handleNotification);
     this.fetchFiletypes();
   },
@@ -176,14 +191,14 @@ export default {
           <FileManager
             ref="fileManager"
             v-model="selected"
+            :selectable="!locationIsViameFolder"
             :new-folder-enabled="!selected.length"
-            selectable
             :location.sync="location"
             @dragover.native="dragover"
           >
             <template #headerwidget>
               <run-pipeline-menu
-                :selected="selected"
+                :selected="(locationIsViameFolder ? [location] : selected)"
                 small
               />
               <export
@@ -242,10 +257,11 @@ export default {
                 class="ml-2"
                 x-small
                 color="primary"
+                depressed
                 :to="{ name: 'viewer', params: { datasetId: item._id } }"
                 @click.stop="openClip(item)"
               >
-                Annotate
+                Launch Annotator
               </v-btn>
             </template>
           </FileManager>

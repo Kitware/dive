@@ -2,7 +2,7 @@ import girderRest from 'app/plugins/girder';
 
 interface GirderModel {
   _id: string;
-  _modelType: 'folder' | 'item' | 'file';
+  _modelType: 'folder' | 'item' | 'file' | 'user';
   name: string;
 }
 
