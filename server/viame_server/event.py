@@ -1,5 +1,6 @@
 from girder.models.folder import Folder
 from girder.models.item import Item
+
 from viame_server.utils import ImageSequenceType, validImageFormats
 
 
@@ -18,9 +19,7 @@ def check_existing_annotations(event):
         folder = Folder().findOne({"_id": item["folderId"]})
 
         # FPS is hardcoded for now
-        folder["meta"].update({
-            "type": ImageSequenceType,
-            "fps": 30,
-            "viame": True,
-        })
+        folder["meta"].update(
+            {"type": ImageSequenceType, "fps": 30,}
+        )
         Folder().save(folder)

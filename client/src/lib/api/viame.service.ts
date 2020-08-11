@@ -45,7 +45,6 @@ function makeViameFolder({
     `metadata=${JSON.stringify({
       fps,
       type,
-      viame: true,
     })}`,
     {
       params: { parentId: folderId, name },

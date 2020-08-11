@@ -17,12 +17,17 @@ export default {
   data() {
     return {
       menuOpen: false,
+      excludeFiltered: false,
+      activator: 0,
     };
   },
 
   asyncComputed: {
     async exportUrls() {
-      return getExportUrls(this.folderId);
+      if (this.menuOpen) {
+        return getExportUrls(this.folderId, this.excludeFiltered);
+      }
+      return null;
     },
   },
 
@@ -40,23 +45,30 @@ export default {
     :close-on-content-click="false"
     :nudge-width="120"
     offset-y
+    max-width="280"
   >
-    <template #activator="{ on }">
-      <v-btn
-        class="ma-0"
-        text
-        :small="small"
-        v-on="on"
-      >
-        <v-icon
-          left
-          color="accent"
-          class="mdi-24px mr-2"
-        >
-          mdi-export
-        </v-icon>
-        Download
-      </v-btn>
+    <template #activator="{ on: menuOn }">
+      <v-tooltip bottom>
+        <template #activator="{ on: tooltipOn }">
+          <v-btn
+            class="ma-0"
+            text
+            :small="small"
+            v-on="{ ...tooltipOn, ...menuOn }"
+          >
+            <v-icon color="accent">
+              mdi-download
+            </v-icon>
+            <span
+              v-show="!$vuetify.breakpoint.mdAndDown"
+              class="pl-1"
+            >
+              Download
+            </span>
+          </v-btn>
+        </template>
+        <span>Download media and annotations</span>
+      </v-tooltip>
     </template>
     <template>
       <v-card v-if="menuOpen && exportUrls">
@@ -80,7 +92,25 @@ export default {
         </v-card-actions>
 
         <v-card-text class="pb-0">
-          Get latest detections csv only
+          <div>Get latest detections csv only</div>
+          <template v-if="Object.keys(exportUrls.currentThresholds).length">
+            <v-checkbox
+              v-model="excludeFiltered"
+              label="exclude tracks below confidence threshold"
+              dense
+              hide-details
+            />
+            <div class="py-2">
+              <span>Current thresholds:</span>
+              <span
+                v-for="(val, key) in exportUrls.currentThresholds"
+                :key="key"
+                class="pt-2"
+              >
+                ({{ key }}, {{ val }})
+              </span>
+            </div>
+          </template>
         </v-card-text>
         <v-card-actions>
           <v-spacer />
@@ -91,14 +121,13 @@ export default {
             :disabled="!exportUrls.exportDetectionsUrl"
             :href="exportUrls.exportDetectionsUrl"
           >
-            <span v-if="exportUrls.exportDetectionsUrl">detections </span>
+            <span v-if="exportUrls.exportDetectionsUrl">detections</span>
             <span v-else>detections unavailable</span>
           </v-btn>
         </v-card-actions>
 
         <v-card-text class="pb-0">
-          Zip all media, detections, and edit history
-          <br> recursively from all sub-folders
+          Zip all media, detections, and edit history recursively from all sub-folders
         </v-card-text>
         <v-card-actions>
           <v-spacer />

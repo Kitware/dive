@@ -9,7 +9,6 @@ Image chips that compose a video are stored as girder items in a folder.  Videos
   "annotate": true,
   "fps": <number>,
   "type": "image-sequence" | "video",
-  "viame": true,
 }
 ```
 

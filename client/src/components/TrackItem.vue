@@ -47,7 +47,6 @@ export default {
       skipOnFocus: false,
     };
   },
-
   computed: {
     isTrack() {
       return this.track.length > 1 || this.feature.shouldInterpolate;
@@ -94,6 +93,11 @@ export default {
         shouldInterpolate: false,
         isKeyframe: false,
       };
+    },
+  },
+  watch: {
+    trackType(val) {
+      this.value = val;
     },
   },
   methods: {

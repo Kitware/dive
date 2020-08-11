@@ -51,4 +51,10 @@ export default class MarkerLayer extends BaseLayer<FormattedMarkerFeature> {
   redraw(): null {
     return this.featureLayer.data(this.formattedData).draw();
   }
+
+  disable() {
+    this.featureLayer
+      .data([])
+      .draw();
+  }
 }

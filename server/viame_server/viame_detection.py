@@ -12,7 +12,7 @@ from girder.models.file import File
 from girder.models.folder import Folder
 from girder.models.item import Item
 from girder.models.upload import Upload
-from viame_server.serializers import meva, viame
+
 from viame_server.utils import (ImageMimeTypes, ImageSequenceType,
                                 VideoMimeTypes, VideoType,
                                 safeImageRegex,
@@ -27,7 +27,7 @@ class ViameDetection(Resource):
         self.route("GET", (), self.get_detection)
         self.route("PUT", (), self.save_detection)
         self.route("GET", ("clip_meta",), self.get_clip_meta)
-        self.route("GET", (":id", "export",), self.export_data)
+        self.route("GET", (":id", "export",), self.get_export_urls)
         self.route("GET", (":id", "export_detections",), self.export_detections)
 
     def _get_clip_meta(self, folder):
@@ -60,8 +60,15 @@ class ViameDetection(Resource):
             required=True,
             level=AccessType.READ,
         )
+        .param(
+            "excludeBelowThreshold",
+            "Exclude tracks with confidencePairs below set threshold",
+            paramType="query",
+            dataType="boolean",
+            default=False,
+        )
     )
-    def export_data(self, folder):
+    def get_export_urls(self, folder, excludeBelowThreshold):
         folderId = str(folder['_id'])
 
         export_all = f'/api/v1/folder/{folderId}/download'
@@ -71,7 +78,10 @@ class ViameDetection(Resource):
         clipMeta = self._get_clip_meta(folder)
         detection = clipMeta.get('detection')
         if detection:
-            export_detections = f'/api/v1/viame_detection/{folderId}/export_detections'
+            export_detections = (
+                f'/api/v1/viame_detection/{folderId}/export_detections'
+                f'?excludeBelowThreshold={excludeBelowThreshold}'
+            )
 
         source_type = folder.get('meta', {}).get('type', None)
         if source_type == VideoType:
@@ -94,6 +104,7 @@ class ViameDetection(Resource):
             'exportAllUrl': export_all,
             'exportMediaUrl': export_media,
             'exportDetectionsUrl': export_detections,
+            'currentThresholds': folder.get("meta", {}).get("confidenceFilters", {})
         }
 
     @access.public(scope=TokenScope.DATA_READ, cookie=True)
@@ -105,8 +116,15 @@ class ViameDetection(Resource):
             required=True,
             level=AccessType.READ,
         )
+        .param(
+            "excludeBelowThreshold",
+            "Exclude tracks with confidencePairs below set threshold",
+            paramType="query",
+            dataType="boolean",
+            default=False,
+        )
     )
-    def export_detections(self, folder):
+    def export_detections(self, folder, excludeBelowThreshold):
         user = self.getCurrentUser()
 
         detectionItems = list(
@@ -118,6 +136,7 @@ class ViameDetection(Resource):
         item = detectionItems[0]
         file = Item().childFiles(item)[0]
 
+        # TODO: deprecated, remove after we migrate everyone to json
         if "csv" in file["exts"]:
             return File().download(file)
 
@@ -125,7 +144,8 @@ class ViameDetection(Resource):
 
         imageFiles = [f['name'] for f in Folder().childItems(folder, filters={"lowerName": {"$regex": safeImageRegex}}).sort("lowerName")]
 
-        csv_string = viame.export_tracks_as_csv(file, imageFiles)
+        thresholds = folder.get("meta", {}).get("confidenceFilters", {})
+        csv_string = viame.export_tracks_as_csv(file, excludeBelowThreshold, thresholds, imageFiles)
         csv_bytes = csv_string.encode()
 
         assetstore = Assetstore().findOne({"_id": file["assetstoreId"]})
@@ -159,6 +179,10 @@ class ViameDetection(Resource):
         if not len(detectionItems):
             return None
         file = Item().childFiles(detectionItems[0])[0]
+
+        # TODO: deprecated, remove after we migrate to json
+        if "csv" in file["exts"]:
+            return viame.load_csv_as_tracks(file)
         return File().download(file, contentDisposition="inline")
 
     @access.user

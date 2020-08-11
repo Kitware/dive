@@ -1,13 +1,12 @@
 <script lang="ts">
 import {
+  computed,
   defineComponent,
   ref,
 } from '@vue/composition-api';
 
-
 import { getPathFromLocation } from '@/utils';
 import Track, { TrackId } from '@/lib/track';
-
 import {
   useFeaturePointing,
   useGirderDataset,
@@ -25,21 +24,23 @@ import {
 import VideoAnnotator from '@/components/annotators/VideoAnnotator.vue';
 import ImageAnnotator from '@/components/annotators/ImageAnnotator.vue';
 import NavigationTitle from '@/components/NavigationTitle.vue';
+import EditorMenu from '@/components/EditorMenu.vue';
 import ConfidenceFilter from '@/components/ConfidenceFilter.vue';
 import UserGuideButton from '@/components/UserGuideButton.vue';
 import Export from '@/components/Export.vue';
 import RunPipelineMenu from '@/components/RunPipelineMenu.vue';
+import FeatureHandleControls from '@/components/FeatureHandleControls.vue';
+import { Seeker } from '@/use/useModeManager';
 
 import ControlsContainer from './ControlsContainer.vue';
 import Layers from './Layers.vue';
 import Sidebar from './Sidebar.vue';
-import { Seeker } from '../../use/useModeManager';
-
 
 export default defineComponent({
   components: {
     ControlsContainer,
     Export,
+    FeatureHandleControls,
     Sidebar,
     Layers,
     VideoAnnotator,
@@ -48,6 +49,7 @@ export default defineComponent({
     ConfidenceFilter,
     RunPipelineMenu,
     UserGuideButton,
+    EditorMenu,
   },
 
   props: {
@@ -75,8 +77,8 @@ export default defineComponent({
       typeStyling,
       stateStyling,
       updateTypeStyle,
-      loadTypeStyles,
-      saveTypeStyles,
+      populateTypeStyles,
+      getTypeStyles,
     } = useStyling({ markChangesPending });
 
     const {
@@ -105,40 +107,25 @@ export default defineComponent({
       checkedTrackIds,
       checkedTypes,
       confidenceThreshold,
+      confidenceFilters,
       allTypes,
       filteredTracks,
       enabledTracks,
+      populateConfidenceFilters,
       updateTypeName,
     } = useTrackFilters({ sortedTracks });
-
-    const location = ref(ctx.root.$store.state.Location.location);
-
-    function updateLocation() {
-      if (dataset.value && dataset.value.parentId && dataset.value.parentCollection) {
-        location.value = {
-          _id: dataset.value.parentId,
-          _modelType: dataset.value.parentCollection,
-        };
-        ctx.root.$store.commit('Location/setLocation', location.value);
-      }
-    }
 
     Promise.all([
       loadDataset(datasetId),
       loadTracks(datasetId),
-    ]).catch((err) => {
-      // TODO p2: alert on errors...
-      console.error(err);
-      throw err;
-    }).then(() => {
+    ]).then(([ds]) => {
       // tasks to run after dataset and tracks have loaded
-      loadTypeStyles({
-        styles: dataset.value?.meta.customTypeStyling,
-        colorList: dataset.value?.meta.customTypeColors,
+      populateTypeStyles(ds.meta.customTypeStyling);
+      populateConfidenceFilters(ds.meta.confidenceFilters);
+      ctx.root.$store.commit('Location/setLocation', {
+        _id: ds.parentId,
+        _modelType: ds.parentCollection,
       });
-      if (!location.value) {
-        updateLocation();
-      }
     });
 
     const {
@@ -167,8 +154,9 @@ export default defineComponent({
     });
 
     const { clientSettings, updateNewTrackSettings } = useSettings();
+
     // Provides wrappers for actions to integrate with settings
-    const { handler } = useModeManager({
+    const { handler, annotationModes } = useModeManager({
       selectedTrackId,
       editingTrack,
       frame,
@@ -219,10 +207,20 @@ export default defineComponent({
       if (editingTrack.value) {
         selectTrack(selectedTrackId.value, false);
       }
-      saveToServer(datasetId, trackMap);
-      saveTypeStyles(datasetId, allTypes);
+      saveToServer(datasetId, trackMap, {
+        customTypeStyling: getTypeStyles(allTypes),
+      });
     }
 
+    function saveThreshold() {
+      markChangesPending('meta');
+      saveToServer(datasetId, undefined, {
+        confidenceFilters: confidenceFilters.value,
+      });
+    }
+
+    const dataPath = computed(() => (
+      getPathFromLocation(ctx.root.$store.state.Location.location)));
 
     return {
       /* props use locally */
@@ -233,7 +231,7 @@ export default defineComponent({
       frameRate,
       getPathFromLocation,
       imageData,
-      location,
+      dataPath,
       pendingSaveCount,
       playbackComponent,
       selectedTrackId,
@@ -241,17 +239,28 @@ export default defineComponent({
       /* methods used locally */
       addTrack,
       deleteFeaturePoints,
+      featurePointed,
+      markChangesPending,
       save,
+      saveThreshold,
       selectTrack,
       splitTracks,
       toggleFeaturePointing,
-      featurePointed,
+      updateNewTrackSettings,
       updateTypeStyle,
       updateTypeName,
+      handler,
       /* props for sub-components */
       controlsContainerProps: {
         lineChartData,
         eventChartData,
+      },
+      FeatureHandleControlsProps: {
+        selectedFeatureHandle: annotationModes.selectedFeatureHandle,
+      },
+      modeEditorProps: {
+        annotationState: annotationModes.state,
+        editingTrack,
       },
       sidebarProps: {
         trackMap,
@@ -265,7 +274,6 @@ export default defineComponent({
         newTrackSettings: clientSettings.newTrackSettings,
         typeStyling,
       },
-      updateNewTrackSettings,
       layerProps: {
         trackMap,
         tracks: enabledTracks,
@@ -276,8 +284,8 @@ export default defineComponent({
         intervalTree,
         featurePointing,
         featurePointingTarget,
+        annotationModes,
       },
-      handler,
     };
   },
 });
@@ -294,7 +302,7 @@ export default defineComponent({
         hide-slider
         style="flex-basis:0; flex-grow:0;"
       >
-        <v-tab :to="getPathFromLocation(location)">
+        <v-tab :to="dataPath">
           Data
           <v-icon>mdi-database</v-icon>
         </v-tab>
@@ -306,6 +314,15 @@ export default defineComponent({
         {{ dataset.name }}
       </span>
       <v-spacer />
+      <feature-handle-controls
+        v-bind="FeatureHandleControlsProps"
+        @delete-point="handler.removePoint"
+      />
+      <editor-menu
+        v-bind="modeEditorProps"
+        class="shrink px-6"
+        @set-annotaiton-state="handler.setAnnotationState"
+      />
       <run-pipeline-menu
         v-if="dataset"
         :selected="[dataset]"
@@ -350,7 +367,10 @@ export default defineComponent({
         @update-type-style="updateTypeStyle($event)"
         @update-type-name="updateTypeName($event)"
       >
-        <ConfidenceFilter :confidence.sync="confidenceThreshold" />
+        <ConfidenceFilter
+          :confidence.sync="confidenceThreshold"
+          @end="saveThreshold"
+        />
       </sidebar>
       <v-col style="position: relative; ">
         <component
@@ -380,6 +400,8 @@ export default defineComponent({
             @selectTrack="handler.selectTrack"
             @featurePointUpdated="featurePointed"
             @update-rect-bounds="handler.updateRectBounds"
+            @update-polygon="handler.updatePolygon"
+            @select-feature-handle="handler.selectFeatureHandle"
           />
         </component>
         <v-menu

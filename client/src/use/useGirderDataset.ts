@@ -10,12 +10,12 @@ import { CustomStyle } from './useStyling';
 
 const defaultFrameRate = 30;
 
-interface VIIMEDataset extends GirderModel {
+interface VIAMEDataset extends GirderModel {
   meta: {
     type: 'video' | 'image-sequence';
     fps: number;
-    customTypeColors?: Record<string, string>;
     customTypeStyling?: Record<string, CustomStyle>;
+    confidenceFilters?: Record<string, number>;
   };
 }
 
@@ -25,7 +25,7 @@ interface FrameImage {
 }
 
 export default function useGirderDataset() {
-  const dataset = ref(null as VIIMEDataset | null);
+  const dataset = ref(null as VIAMEDataset | null);
   const imageData = ref([] as FrameImage[]);
   const videoUrl = ref('');
   const frameRate = computed(() => (dataset.value && dataset.value.meta.fps as number)
@@ -70,7 +70,7 @@ export default function useGirderDataset() {
   });
 
   async function loadDataset(datasetId: string) {
-    const folder = await getFolder(datasetId) as VIIMEDataset;
+    const folder = await getFolder(datasetId) as VIAMEDataset;
     if (!folder) {
       throw new Error(`could not fetch dataset for id ${datasetId}`);
     }

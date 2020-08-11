@@ -4,18 +4,36 @@
   vars:
     # Required to use docker_compose properly
     ansible_python_interpreter: /usr/bin/python3
+  vars_files:
+      - ".vars.yml"
   tasks:
-    - name: Stop Currently Running Service
-      docker_compose:
-        project_src: /home/viame/docker
-        state: absent
-
     - name: Pull Repository Changes
       shell: git pull
       args:
         chdir: /home/viame
 
-    - name: Restart and Build Service
+    - name: Stop and Build Service
+      ignore_errors: yes
+      register: build
       docker_compose:
         project_src: /home/viame/docker
         build: yes
+        state: absent
+
+    - name: Send email on build failure
+      when: register.rc != 0
+      mail:
+        from: "{{ deploy_email_address }}"
+        to: "{{ notify_email_address  }}"
+        subject: Failed Build of Viame-Web
+        body: |
+          Captured stdout:
+          {{ build.stdout  }}
+
+          Captured stderr:
+          {{ build.stderr  }}
+
+    - name: Start Service
+      docker_compose:
+        project_src: /home/viame/docker
+        state: present
