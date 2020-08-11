@@ -39,6 +39,7 @@ class Viame(Resource):
         self.route("PUT", ("attribute", ":id"), self.update_attribute)
         self.route("POST", ("validate_files",), self.validate_files)
         self.route("DELETE", ("attribute", ":id"), self.delete_attribute)
+        self.route("GET", ("valid_images",), self.get_valid_images)
 
     @access.user
     @describeRoute(Description("Get available pipelines"))
@@ -252,3 +253,21 @@ class Viame(Resource):
     @autoDescribeRoute(Description("").modelParam("id", model=Attribute, required=True))
     def delete_attribute(self, attribute, params):
         return Attribute().remove(attribute)
+
+    @access.user
+    @autoDescribeRoute(
+        Description("").modelParam(
+            "folderId",
+            description="folder id of a clip",
+            model=Folder,
+            paramType="query",
+            required=True,
+            level=AccessType.READ,
+        )
+    )
+    def get_valid_images(self, folder):
+        return Folder().childItems(
+            folder,
+            filters={"lowerName": {"$regex": safeImageRegex}},
+            sort=[("lowerName", pymongo.ASCENDING,)]
+        )

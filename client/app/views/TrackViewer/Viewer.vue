@@ -70,6 +70,7 @@ export default defineComponent({
     const { datasetId } = props;
     const playbackComponent = ref({} as Seeker);
     const frame = ref(0); // the currently displayed frame number
+
     const {
       save: saveToServer, markChangesPending, pendingSaveCount,
     } = useSave();
@@ -86,7 +87,7 @@ export default defineComponent({
       dataset,
       frameRate,
       annotatorType,
-      imageUrls,
+      imageData,
       videoUrl,
       loadDataset,
     } = useGirderDataset();
@@ -238,7 +239,8 @@ export default defineComponent({
       dataset,
       frame,
       frameRate,
-      imageUrls,
+      getPathFromLocation,
+      imageData,
       dataPath,
       pendingSaveCount,
       playbackComponent,
@@ -383,7 +385,7 @@ export default defineComponent({
       <v-col style="position: relative; ">
         <component
           :is="annotatorType"
-          v-if="imageUrls.length || videoUrl"
+          v-if="imageData.length || videoUrl"
           ref="playbackComponent"
           v-mousetrap="[
             { bind: 'g', handler: () => toggleFeaturePointing('head') },
@@ -394,7 +396,7 @@ export default defineComponent({
             { bind: 'q', handler: () => deleteFeaturePoints(frame) },
             { bind: 'esc', handler: () => handler.selectTrack(null, false)}
           ]"
-          :image-urls="imageUrls"
+          :image-data="imageData"
           :video-url="videoUrl"
           :frame-rate="frameRate"
           class="playback-component"

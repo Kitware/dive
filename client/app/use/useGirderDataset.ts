@@ -4,7 +4,8 @@ import {
 } from '@vue/composition-api';
 import { CustomStyle } from 'vue-media-annotator/use/useStyling';
 
-import { getItemsInFolder, getFolder, getItemDownloadUri } from 'app/api/girder.service';
+import { getFolder, getItemDownloadUri } from 'app/api/girder.service';
+import { getValidWebImages } from 'app/api/viame.service';
 import { getClipMeta } from 'app/api/viameDetection.service';
 import { ImageSequenceType, VideoType } from 'app/constants';
 
@@ -19,9 +20,14 @@ interface VIAMEDataset extends GirderModel {
   };
 }
 
+interface FrameImage {
+  url: string;
+  filename: string;
+}
+
 export default function useGirderDataset() {
   const dataset = ref(null as VIAMEDataset | null);
-  const imageUrls = ref([] as string[]);
+  const imageData = ref([] as FrameImage[]);
   const videoUrl = ref('');
   const frameRate = computed(() => (dataset.value && dataset.value.meta.fps as number)
     || defaultFrameRate);
@@ -37,7 +43,7 @@ export default function useGirderDataset() {
     throw new Error(`Unknown dataset type: ${dataset.value.meta.type}`);
   });
 
-  // set imageUrls or videoUrl depending on dataset type
+  // set imageData or videoUrl depending on dataset type
   watchEffect(async () => {
     const _dataset = dataset.value;
     if (!_dataset) {
@@ -53,17 +59,12 @@ export default function useGirderDataset() {
       videoUrl.value = clipMeta.videoUrl;
     } else if (_dataset.meta.type === ImageSequenceType) {
       // Image Sequence type annotator
-      const items = await getItemsInFolder(_dataset._id, 20000);
-      imageUrls.value = items
-        .filter((item) => {
-          const name = item.name.toLowerCase();
-          return (
-            name.endsWith('png')
-            || name.endsWith('jpeg')
-            || name.endsWith('jpg')
-          );
-        })
-        .map((item) => getItemDownloadUri(item._id));
+      const items = await getValidWebImages(_dataset._id);
+      imageData.value = items.map((item: any) => ({
+        url: getItemDownloadUri(item._id),
+        filename: item.name,
+      }
+      ));
     } else {
       throw new Error(`Unable to load media for dataset type: ${_dataset.meta.type}`);
     }
@@ -82,7 +83,7 @@ export default function useGirderDataset() {
     dataset,
     frameRate,
     annotatorType,
-    imageUrls,
+    imageData,
     videoUrl,
     loadDataset,
   };
