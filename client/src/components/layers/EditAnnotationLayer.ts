@@ -159,17 +159,17 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
     if (frameData.length > 0) {
       const track = frameData[0];
       if (track.features && track.features.bounds) {
-        let geoJSONData = null;
+        let geoJSONData: GeoJSON.Point | GeoJSON.Polygon | undefined;
         if (this.type === 'rectangle') {
           geoJSONData = boundToGeojson(track.features.bounds);
-        }
-        if (this.type === 'polygon' && track.features.polygon) {
-          geoJSONData = track.features.polygon;
+        } else if (this.type === 'polygon') {
+          // TODO: this assumes only one polygon
+          geoJSONData = track.features.geometry?.features?.[0]?.geometry;
         }
         if (!geoJSONData) {
           this.mode = 'creation';
           this.featureLayer.mode(this.type);
-        } else if (geoJSONData) {
+        } else {
           const geojsonFeature: GeoJSON.Feature = {
             type: 'Feature',
             geometry: geoJSONData,

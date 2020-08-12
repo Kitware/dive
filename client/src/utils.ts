@@ -4,6 +4,7 @@ import { isRootLocation } from '@girder/components/src/utils/locationHelpers';
 
 import { getFolder } from '@/lib/api/girder.service';
 import { GirderModel } from '@/lib/api/viame.service';
+import geojs from 'geojs';
 
 interface Location {
   type?: 'collections' | 'users' | 'root';
