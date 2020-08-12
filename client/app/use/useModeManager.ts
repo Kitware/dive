@@ -1,25 +1,18 @@
 import {
-  Ref, reactive, toRefs,
+  computed, Ref, reactive, ref,
 } from '@vue/composition-api';
-import { cloneDeep } from 'lodash';
+import { cloneDeep, uniq } from 'lodash';
 import Track, { TrackId } from 'vue-media-annotator/track';
 import { RectBounds, findBounds } from 'vue-media-annotator/utils';
 import { EditAnnotationTypes } from 'vue-media-annotator/layers/EditAnnotationLayer';
 
 import { NewTrackSettings } from './useSettings';
 
-export interface EditorSettings {
-  state: Ref<{
-    visible: EditAnnotationTypes[];
-    editing: EditAnnotationTypes;
-  }>;
-  selectedFeatureHandle: Ref<number>;
+export interface Seeker {
+  seek(frame: number): void;
+  nextFrame(): void;
 }
 
-export interface Seeker {
-    seek(frame: number): void;
-    nextFrame(): void;
-  }
 /**
  * The point of this composition function is to define and manage the transition betwee
  * different UI states within the program.  States and state transitions can be modified
@@ -56,15 +49,19 @@ export default function useModeManager({
   let newDetectionMode = false;
 
   const annotationModes = reactive({
-    state: {
-      visible: ['rectangle', 'polygon'],
-      editing: 'rectangle',
-    },
-    // selectedFeatureHandle could arguably belong in useTrackSelectionControls,
-    // but the meaning of this value varies based on the editing mode.  When in
-    // polygon edit mode, this corresponds to a polygon point.  Ditto in line mode.
-    selectedFeatureHandle: -1,
+    visible: ['rectangle', 'polygon'] as EditAnnotationTypes[],
+    editing: 'rectangle' as EditAnnotationTypes,
   });
+  // selectedFeatureHandle could arguably belong in useTrackSelectionControls,
+  // but the meaning of this value varies based on the editing mode.  When in
+  // polygon edit mode, this corresponds to a polygon point.  Ditto in line mode.
+  const selectedFeatureHandle = ref(-1);
+  // which type is currently being edited, if any
+  const editingMode = computed(() => editingTrack.value && annotationModes.editing);
+  // which types are currently visible, always including the editingType
+  const visibleModes = computed(() => (
+    uniq(annotationModes.visible.concat(editingMode.value || []))
+  ));
 
   function seekNearest(track: Track) {
     // Seek to the nearest point in the track.
@@ -76,7 +73,7 @@ export default function useModeManager({
   }
 
   function handleSelectFeatureHandle(i: number) {
-    annotationModes.selectedFeatureHandle = i;
+    selectedFeatureHandle.value = i;
   }
 
   function handleSelectTrack(trackId: TrackId | null, edit = false) {
@@ -175,7 +172,7 @@ export default function useModeManager({
    * Removes the selectedIndex point for the selected Polygon/line
    */
   function handleRemovePoint() {
-    if (selectedTrackId.value !== null && annotationModes.selectedFeatureHandle !== -1) {
+    if (selectedTrackId.value !== null && selectedFeatureHandle.value !== -1) {
       const track = trackMap.get(selectedTrackId.value);
       if (track) {
         // Determines if we are creating a new Detection
@@ -185,7 +182,7 @@ export default function useModeManager({
           //could operate directly on the polygon memory, but small enough to copy and edit
           const polygon = cloneDeep(real.polygon);
           if (polygon.coordinates[0].length > 3) {
-            polygon.coordinates[0].splice(annotationModes.selectedFeatureHandle, 1);
+            polygon.coordinates[0].splice(selectedFeatureHandle.value, 1);
             handleSelectFeatureHandle(-1);
             track.setFeature({
               frame: frame.value,
@@ -234,12 +231,14 @@ export default function useModeManager({
     visible?: EditAnnotationTypes[];
     editing?: EditAnnotationTypes;
   }) {
-    if (visible) annotationModes.state.visible = visible;
-    if (editing) annotationModes.state.editing = editing;
+    if (visible) annotationModes.visible = visible;
+    if (editing) annotationModes.editing = editing;
   }
 
   return {
-    annotationModes: toRefs(annotationModes) as EditorSettings,
+    editingMode,
+    visibleModes,
+    selectedFeatureHandle,
     handler: {
       selectTrack: handleSelectTrack,
       trackEdit: handleTrackEdit,

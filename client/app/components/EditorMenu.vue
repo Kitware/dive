@@ -10,11 +10,12 @@ export default Vue.extend({
       type: Object as PropType<Ref<boolean>>,
       required: true,
     },
-    annotationState: {
-      type: Object as PropType<Ref<{
-        visible: EditAnnotationTypes[];
-        editing: EditAnnotationTypes;
-      }>>,
+    visibleModes: {
+      type: Object as PropType<Ref<EditAnnotationTypes[]>>,
+      required: true,
+    },
+    editingMode: {
+      type: Object as PropType<Ref<EditAnnotationTypes>>,
       required: true,
     },
   },
@@ -29,7 +30,15 @@ export default Vue.extend({
   },
 
   computed: {
-    config() {
+    config(): {
+      color: string;
+      class: string[];
+      text: string;
+      icon: string;
+      model: string;
+      value: string | string[];
+      multiple: boolean;
+      } {
       if (this.editingTrack.value) {
         return {
           color: 'primary',
@@ -37,6 +46,7 @@ export default Vue.extend({
           text: 'Edit',
           icon: 'mdi-pencil',
           model: 'editing',
+          value: this.editingMode.value,
           multiple: false,
         };
       }
@@ -46,6 +56,7 @@ export default Vue.extend({
         text: 'View',
         icon: 'mdi-eye',
         model: 'visible',
+        value: this.visibleModes.value,
         multiple: true,
       };
     },
@@ -66,7 +77,7 @@ export default Vue.extend({
         </span>
       </span>
       <v-btn-toggle
-        :value="annotationState.value[config.model]"
+        :value="config.value"
         :multiple="config.multiple"
         :mandatory="!config.multiple"
         group

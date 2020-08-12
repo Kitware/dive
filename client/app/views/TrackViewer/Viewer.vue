@@ -15,6 +15,7 @@ import {
 } from 'vue-media-annotator/use';
 import VideoAnnotator from 'vue-media-annotator/components/annotators/VideoAnnotator.vue';
 import ImageAnnotator from 'vue-media-annotator/components/annotators/ImageAnnotator.vue';
+import LayerManager from 'vue-media-annotator/components/LayerManager.vue';
 
 import { getDetections } from 'app/api/viameDetection.service';
 import NavigationTitle from 'app/components/NavigationTitle.vue';
@@ -35,7 +36,6 @@ import {
 } from 'app/use';
 
 import ControlsContainer from './ControlsContainer.vue';
-import Layers from './Layers.vue';
 import Sidebar from './Sidebar.vue';
 
 export default defineComponent({
@@ -44,7 +44,7 @@ export default defineComponent({
     Export,
     FeatureHandleControls,
     Sidebar,
-    Layers,
+    LayerManager,
     VideoAnnotator,
     ImageAnnotator,
     NavigationTitle,
@@ -166,7 +166,12 @@ export default defineComponent({
     const { clientSettings, updateNewTrackSettings } = useSettings(allTypes);
 
     // Provides wrappers for actions to integrate with settings
-    const { handler, annotationModes } = useModeManager({
+    const {
+      selectedFeatureHandle,
+      handler,
+      editingMode,
+      visibleModes,
+    } = useModeManager({
       selectedTrackId,
       editingTrack,
       frame,
@@ -265,11 +270,12 @@ export default defineComponent({
         lineChartData,
         eventChartData,
       },
-      FeatureHandleControlsProps: {
-        selectedFeatureHandle: annotationModes.selectedFeatureHandle,
+      featureHandleControlsProps: {
+        selectedFeatureHandle,
       },
       modeEditorProps: {
-        annotationState: annotationModes.state,
+        editingMode,
+        visibleModes,
         editingTrack,
       },
       sidebarProps: {
@@ -285,16 +291,16 @@ export default defineComponent({
         typeStyling,
       },
       layerProps: {
-        trackMap,
-        tracks: enabledTracks,
-        selectedTrackId,
-        editingTrack,
-        typeStyling,
-        stateStyling,
-        intervalTree,
+        editingMode,
         featurePointing,
         featurePointingTarget,
-        annotationModes,
+        intervalTree,
+        selectedTrackId,
+        stateStyling,
+        trackMap,
+        tracks: enabledTracks,
+        typeStyling,
+        visibleModes,
       },
     };
   },
@@ -325,7 +331,7 @@ export default defineComponent({
       </span>
       <v-spacer />
       <feature-handle-controls
-        v-bind="FeatureHandleControlsProps"
+        v-bind="featureHandleControlsProps"
         @delete-point="handler.removePoint"
       />
       <editor-menu
@@ -405,13 +411,13 @@ export default defineComponent({
           <template slot="control">
             <controls-container v-bind="controlsContainerProps" />
           </template>
-          <layers
+          <layer-manager
             v-bind="layerProps"
-            @selectTrack="handler.selectTrack"
-            @featurePointUpdated="featurePointed"
+            @feature-point-ppdated="featurePointed"
+            @select-track="handler.selectTrack"
+            @select-feature-handle="handler.selectFeatureHandle"
             @update-rect-bounds="handler.updateRectBounds"
             @update-polygon="handler.updatePolygon"
-            @select-feature-handle="handler.selectFeatureHandle"
           />
         </component>
         <v-menu
