@@ -7,20 +7,26 @@
   vars_files:
       - ".vars.yml"
   tasks:
-    - name: Pull Repository Changes
+    - name: Pull Changes
       shell: git pull
       args:
         chdir: /home/viame
 
-    - name: Stop and Build Service
+    - name: Stop Service
+      docker_compose:
+        project_src: /home/viame
+        state: absent
+    
+    - name: Build and Start Service
       ignore_errors: yes
       register: build
       docker_compose:
         project_src: /home/viame/docker
         build: yes
-        state: absent
+        state: present
 
     - name: Send email on build failure
+      ignore_errors: yes
       when: build.failed
       mail:
         from: "{{ deploy_email_address }}"
@@ -28,12 +34,13 @@
         subject: Failed Build of Viame-Web
         body: |
           Captured stdout:
-          {{ build.stdout  }}
+          {{ build.module_stdout  }}
 
           Captured stderr:
-          {{ build.stderr  }}
+          {{ build.module_stderr  }}
 
-    - name: Start Service
+    - name: Start Service Without Updates
+      when: build.failed
       docker_compose:
         project_src: /home/viame/docker
         state: present
