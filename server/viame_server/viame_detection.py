@@ -231,10 +231,11 @@ class ViameDetection(Resource):
     def save_detection(self, folder, tracks):
         user = self.getCurrentUser()
         saveTracks(folder, tracks, user)
-        # verify schema
-        dataclass_tracks = {
-            # Config kwarg needed to convert lists into tuples
-            trackId: from_dict(models.Track, track, config=Config(cast=[Tuple]))
-            for trackId, track in tracks.items()
-        }
+        # TODO: verify schema before save.
+        # Right now the data object is too large in many cases and this takes too long to complete.
+        # dataclass_tracks = {
+        #     # Config kwarg needed to convert lists into tuples
+        #     trackId: from_dict(models.Track, track, config=Config(cast=[Tuple]))
+        #     for trackId, track in tracks.items()
+        # }
         return True
