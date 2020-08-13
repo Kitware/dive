@@ -88,10 +88,11 @@ export default class AnnotationLayer extends BaseLayer<RectGeoJSData> {
       if (track.features && track.features.bounds) {
         let polygon = boundToGeojson(track.features.bounds);
         let hasPoly = false;
-        if (track.features.polygon) {
+        // TODO: this assumes only 1 polygon in the geometry
+        if (track.features.geometry?.features?.[0]) {
           hasPoly = true;
           if (this.type === 'polygon') {
-            polygon = track.features.polygon;
+            polygon = track.features.geometry?.features?.[0].geometry as GeoJSON.Polygon;
           }
         }
         //exit if in poly mode with no polygon available
