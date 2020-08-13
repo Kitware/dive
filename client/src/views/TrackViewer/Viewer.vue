@@ -24,20 +24,23 @@ import {
 import VideoAnnotator from '@/components/annotators/VideoAnnotator.vue';
 import ImageAnnotator from '@/components/annotators/ImageAnnotator.vue';
 import NavigationTitle from '@/components/NavigationTitle.vue';
+import EditorMenu from '@/components/EditorMenu.vue';
 import ConfidenceFilter from '@/components/ConfidenceFilter.vue';
 import UserGuideButton from '@/components/UserGuideButton.vue';
 import Export from '@/components/Export.vue';
 import RunPipelineMenu from '@/components/RunPipelineMenu.vue';
+import FeatureHandleControls from '@/components/FeatureHandleControls.vue';
+import { Seeker } from '@/use/useModeManager';
 
 import ControlsContainer from './ControlsContainer.vue';
 import Layers from './Layers.vue';
 import Sidebar from './Sidebar.vue';
-import { Seeker } from '../../use/useModeManager';
 
 export default defineComponent({
   components: {
     ControlsContainer,
     Export,
+    FeatureHandleControls,
     Sidebar,
     Layers,
     VideoAnnotator,
@@ -46,6 +49,7 @@ export default defineComponent({
     ConfidenceFilter,
     RunPipelineMenu,
     UserGuideButton,
+    EditorMenu,
   },
 
   props: {
@@ -64,6 +68,7 @@ export default defineComponent({
     const { datasetId } = props;
     const playbackComponent = ref({} as Seeker);
     const frame = ref(0); // the currently displayed frame number
+
     const {
       save: saveToServer, markChangesPending, pendingSaveCount,
     } = useSave();
@@ -80,7 +85,7 @@ export default defineComponent({
       dataset,
       frameRate,
       annotatorType,
-      imageUrls,
+      imageData,
       videoUrl,
       loadDataset,
     } = useGirderDataset();
@@ -149,8 +154,9 @@ export default defineComponent({
     });
 
     const { clientSettings, updateNewTrackSettings } = useSettings();
+
     // Provides wrappers for actions to integrate with settings
-    const { handler } = useModeManager({
+    const { handler, annotationModes } = useModeManager({
       selectedTrackId,
       editingTrack,
       frame,
@@ -223,7 +229,8 @@ export default defineComponent({
       dataset,
       frame,
       frameRate,
-      imageUrls,
+      getPathFromLocation,
+      imageData,
       dataPath,
       pendingSaveCount,
       playbackComponent,
@@ -239,12 +246,21 @@ export default defineComponent({
       selectTrack,
       splitTracks,
       toggleFeaturePointing,
+      updateNewTrackSettings,
       updateTypeStyle,
       updateTypeName,
+      handler,
       /* props for sub-components */
       controlsContainerProps: {
         lineChartData,
         eventChartData,
+      },
+      FeatureHandleControlsProps: {
+        selectedFeatureHandle: annotationModes.selectedFeatureHandle,
+      },
+      modeEditorProps: {
+        annotationState: annotationModes.state,
+        editingTrack,
       },
       sidebarProps: {
         trackMap,
@@ -258,7 +274,6 @@ export default defineComponent({
         newTrackSettings: clientSettings.newTrackSettings,
         typeStyling,
       },
-      updateNewTrackSettings,
       layerProps: {
         trackMap,
         tracks: enabledTracks,
@@ -269,8 +284,8 @@ export default defineComponent({
         intervalTree,
         featurePointing,
         featurePointingTarget,
+        annotationModes,
       },
-      handler,
     };
   },
 });
@@ -299,6 +314,15 @@ export default defineComponent({
         {{ dataset.name }}
       </span>
       <v-spacer />
+      <feature-handle-controls
+        v-bind="FeatureHandleControlsProps"
+        @delete-point="handler.removePoint"
+      />
+      <editor-menu
+        v-bind="modeEditorProps"
+        class="shrink px-6"
+        @set-annotaiton-state="handler.setAnnotationState"
+      />
       <run-pipeline-menu
         v-if="dataset"
         :selected="[dataset]"
@@ -351,7 +375,7 @@ export default defineComponent({
       <v-col style="position: relative; ">
         <component
           :is="annotatorType"
-          v-if="imageUrls.length || videoUrl"
+          v-if="imageData.length || videoUrl"
           ref="playbackComponent"
           v-mousetrap="[
             { bind: 'g', handler: () => toggleFeaturePointing('head') },
@@ -362,7 +386,7 @@ export default defineComponent({
             { bind: 'q', handler: () => deleteFeaturePoints(frame) },
             { bind: 'esc', handler: () => handler.selectTrack(null, false)}
           ]"
-          :image-urls="imageUrls"
+          :image-data="imageData"
           :video-url="videoUrl"
           :frame-rate="frameRate"
           class="playback-component"
@@ -376,6 +400,8 @@ export default defineComponent({
             @selectTrack="handler.selectTrack"
             @featurePointUpdated="featurePointed"
             @update-rect-bounds="handler.updateRectBounds"
+            @update-polygon="handler.updatePolygon"
+            @select-feature-handle="handler.selectFeatureHandle"
           />
         </component>
         <v-menu

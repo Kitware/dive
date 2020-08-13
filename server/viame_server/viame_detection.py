@@ -1,7 +1,6 @@
-import io
 import json
+import re
 import urllib
-from datetime import datetime
 
 from girder.api import access
 from girder.api.describe import Description, autoDescribeRoute
@@ -13,10 +12,17 @@ from girder.models.file import File
 from girder.models.folder import Folder
 from girder.models.item import Item
 from girder.models.upload import Upload
-from viame_server.serializers import viame
-from viame_server.utils import (ImageMimeTypes, ImageSequenceType,
-                                VideoMimeTypes, VideoType,
-                                move_existing_result_to_auxiliary_folder)
+
+from viame_server.serializers import meva, viame
+from viame_server.utils import (
+    ImageMimeTypes,
+    ImageSequenceType,
+    VideoMimeTypes,
+    VideoType,
+    safeImageRegex,
+    move_existing_result_to_auxiliary_folder,
+    saveTracks,
+)
 
 
 class ViameDetection(Resource):
@@ -94,7 +100,6 @@ class ViameDetection(Resource):
             params = {
                 'mimeFilter': json.dumps(list(ImageMimeTypes)),
             }
-            print(params)
             export_media = (
                 f'/api/v1/folder/{folderId}/download?{urllib.parse.urlencode(params)}'
             )
@@ -136,13 +141,16 @@ class ViameDetection(Resource):
         item = detectionItems[0]
         file = Item().childFiles(item)[0]
 
+        # TODO: deprecated, remove after we migrate everyone to json
         if "csv" in file["exts"]:
             return File().download(file)
 
         filename = ".".join([file["name"].split(".")[:-1][0], "csv"])
 
+        imageFiles = [f['name'] for f in Folder().childItems(folder, filters={"lowerName": {"$regex": safeImageRegex}}).sort("lowerName")]
+
         thresholds = folder.get("meta", {}).get("confidenceFilters", {})
-        csv_string = viame.export_tracks_as_csv(file, excludeBelowThreshold, thresholds)
+        csv_string = viame.export_tracks_as_csv(file, excludeBelowThreshold, thresholds, imageFiles)
         csv_bytes = csv_string.encode()
 
         assetstore = Assetstore().findOne({"_id": file["assetstoreId"]})
@@ -173,11 +181,11 @@ class ViameDetection(Resource):
             )
         )
         detectionItems.sort(key=lambda d: d["created"], reverse=True)
-
         if not len(detectionItems):
             return None
-
         file = Item().childFiles(detectionItems[0])[0]
+
+        # TODO: deprecated, remove after we migrate to json
         if "csv" in file["exts"]:
             return viame.load_csv_as_tracks(file)
         return File().download(file, contentDisposition="inline")
@@ -211,26 +219,5 @@ class ViameDetection(Resource):
     )
     def save_detection(self, folder, tracks):
         user = self.getCurrentUser()
-
-        timestamp = datetime.now().strftime("%m-%d-%Y_%H:%M:%S")
-        item_name = f"result_{timestamp}.json"
-
-        move_existing_result_to_auxiliary_folder(folder, user)
-        newResultItem = Item().createItem(item_name, user, folder)
-        Item().setMetadata(
-            newResultItem, {"detection": str(folder["_id"])}, allowNull=True,
-        )
-
-        json_bytes = json.dumps(tracks).encode()
-        byteIO = io.BytesIO(json_bytes)
-        Upload().uploadFromFile(
-            byteIO,
-            len(json_bytes),
-            item_name,
-            parentType="item",
-            parent=newResultItem,
-            user=user,
-            mimeType="application/json",
-        )
-
+        saveTracks(folder, tracks, user)
         return True

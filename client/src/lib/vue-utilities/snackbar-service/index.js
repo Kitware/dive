@@ -19,6 +19,7 @@ export default function (vuetify) {
     };
     Vue.prototype.$snackbar = function ({
       text,
+      title,
       button,
       callback,
       timeout,
@@ -26,6 +27,7 @@ export default function (vuetify) {
     }) {
       function set() {
         component.$data.text = text;
+        component.$data.title = title;
         component.$data.button = button;
         component.$data.callback = callback;
         component.$data.timeout = timeout || 2000;
