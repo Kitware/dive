@@ -2,7 +2,7 @@ import girderRest from '@/plugins/girder';
 
 interface GirderModel {
   _id: string;
-  _modelType: 'folder' | 'item' | 'file';
+  _modelType: 'folder' | 'item' | 'file' | 'user';
   name: string;
 }
 
@@ -17,6 +17,14 @@ interface Pipe {
   name: string;
   pipe: string;
   type: string;
+}
+
+interface ValidationResponse {
+  ok: boolean;
+  type: 'video' | 'image-sequence';
+  media: string[];
+  annotations: string[];
+  message: string;
 }
 
 export interface Category {
@@ -37,7 +45,6 @@ function makeViameFolder({
     `metadata=${JSON.stringify({
       fps,
       type,
-      viame: true,
     })}`,
     {
       params: { parentId: folderId, name },
@@ -68,26 +75,6 @@ async function getAttributes(): Promise<Attribute[]> {
   return data as Attribute[];
 }
 
-function runVideoConversion(itemId: string) {
-  return girderRest.post(
-    '/viame/conversion',
-    null,
-    {
-      params: { itemId },
-    },
-  );
-}
-
-function runImageConversion(folder: string) {
-  return girderRest.post(
-    '/viame/image_conversion',
-    null,
-    {
-      params: { folder },
-    },
-  );
-}
-
 function getPipelineList() {
   return girderRest.get<Record<string, Category>>('viame/pipelines');
 }
@@ -108,6 +95,7 @@ function setMetadataForItem(itemId: string, metadata: object) {
     metadata,
   );
 }
+
 function setMetadataForFolder(folderId: string, metadata: object) {
   return girderRest.put(
     `/folder/${folderId}/metadata?allowNull=true`,
@@ -115,8 +103,20 @@ function setMetadataForFolder(folderId: string, metadata: object) {
   );
 }
 
-function getValidFileTypes() {
-  return girderRest.get<Record<string, string[]>>('viame/valid_filetypes');
+function postProcess(folderId: string) {
+  return girderRest.post(`viame/postprocess/${folderId}`);
+}
+
+async function validateUploadGroup(names: string[]): Promise<ValidationResponse> {
+  const { data } = await girderRest.post<ValidationResponse>('viame/validate_files', names);
+  return data;
+}
+
+async function getValidWebImages(folderId: string) {
+  const { data } = await girderRest.get('viame/valid_images', {
+    params: { folderId },
+  });
+  return data;
 }
 
 
@@ -127,11 +127,11 @@ export {
   getAttributes,
   getPipelineList,
   makeViameFolder,
-  runImageConversion,
-  runVideoConversion,
+  postProcess,
   runPipeline,
   runTraining,
   setMetadataForItem,
   setMetadataForFolder,
-  getValidFileTypes,
+  validateUploadGroup,
+  getValidWebImages,
 };

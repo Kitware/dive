@@ -11,6 +11,7 @@ requirements = [
     "pysnooper",
     "dacite",
     "typing_extensions",
+    "diva-boiler",
 ]
 
 setup(

@@ -7,7 +7,7 @@ export default {
   mixins: [annotator],
 
   props: {
-    imageUrls: {
+    imageData: {
       type: Array,
       required: true,
     },
@@ -23,8 +23,9 @@ export default {
     this.cacheSeconds = 6; // seconds to cache from the current frame
     this.frontBackRatio = 0.90; // 90% forward frames, 10% backward frames when caching
 
-    this.maxFrame = this.imageUrls.length - 1;
-    this.imgs = new Array(this.imageUrls.length);
+    this.maxFrame = this.imageData.length - 1;
+    this.imgs = new Array(this.imageData.length);
+    this.filename = this.imageData[this.frame].filename;
     this.pendingImgs = new Set();
     this.cacheImages();
     if (this.imgs.length) {
@@ -38,7 +39,6 @@ export default {
       };
     }
   },
-
   methods: {
     init() {
       this.baseInit(); // Mixin method
@@ -87,17 +87,6 @@ export default {
     pause() {
       this.playing = false;
       this.loadingVideo = false;
-    },
-
-    onResize() {
-      if (!this.geoViewer) {
-        return;
-      }
-      const size = this.$refs.container.getBoundingClientRect();
-      const mapSize = this.geoViewer.size();
-      if (size.width !== mapSize.width || size.height !== mapSize.height) {
-        this.geoViewer.size(size);
-      }
     },
     /**
      * Handles playback of the image sequence
@@ -167,7 +156,7 @@ export default {
       return new Promise((resolve) => {
         const img = new Image();
         img.crossOrigin = 'Anonymous';
-        img.src = this.imageUrls[frame];
+        img.src = this.imageData[frame].url;
         this.imgs[frame] = img;
         img.onload = () => {
           img.onload = null;
@@ -200,7 +189,7 @@ export default {
       if (!this.imgs[i]) {
         const img = new Image();
         img.crossOrigin = 'Anonymous';
-        img.src = this.imageUrls[i];
+        img.src = this.imageData[i].url;
         this.imgs[i] = img;
         const imageAndFrame = [img, i];
         this.pendingImgs.add(imageAndFrame);
@@ -241,7 +230,6 @@ export default {
 
 <template>
   <div
-    v-resize="onResize"
     class="video-annotator"
   >
     <div
@@ -262,7 +250,11 @@ export default {
         </v-progress-circular>
       </div>
     </div>
-    <slot name="control" />
+    <slot
+      ref="control"
+      name="control"
+      @resize="onResize"
+    />
     <slot v-if="ready" />
   </div>
 </template>

@@ -67,24 +67,31 @@ export default {
 
 <template>
   <v-menu
-    max-width="300"
+    max-width="320"
     offset-y
   >
-    <template v-slot:activator="{ on }">
-      <v-btn
-        text
-        :small="small"
-        :disabled="pipelinesNotRunnable"
-        v-on="on"
-      >
-        <v-icon
-          left
-          color="accent"
-        >
-          mdi-pipe
-        </v-icon>
-        Run pipeline
-      </v-btn>
+    <template v-slot:activator="{ on: menuOn }">
+      <v-tooltip bottom>
+        <template #activator="{ on: tooltipOn }">
+          <v-btn
+            text
+            :small="small"
+            :disabled="pipelinesNotRunnable"
+            v-on="{ ...tooltipOn, ...menuOn }"
+          >
+            <v-icon color="accent">
+              mdi-pipe
+            </v-icon>
+            <span
+              v-show="!$vuetify.breakpoint.mdAndDown"
+              class="pl-1"
+            >
+              Run pipeline
+            </span>
+          </v-btn>
+        </template>
+        <span>Run CV algorithm pipelines on this data</span>
+      </v-tooltip>
     </template>
 
     <template>
@@ -101,48 +108,46 @@ export default {
           >docs</a>
           for more information about these options.
         </v-card-text>
-        <v-row
-          v-for="(pipeType) in Object.keys(pipelines)"
-          :key="pipeType"
-          class="my-2"
-        >
-          <v-menu
+        <v-row class="px-3">
+          <v-col
+            v-for="(pipeType) in Object.keys(pipelines)"
             :key="pipeType"
-            offset-y
+            cols="6"
           >
-            <template v-slot:activator="{ on }">
-              <v-btn
-                depressed
-                class="mx-2 grow"
-                v-on="on"
-              >
-                {{ pipeTypeDisplay(pipeType) }}
-                <v-icon
-                  left
-                  color="accent"
-                  <<<<<<<
-                  h-e-a-d="======"
-                  class="ml-0"
+            <v-menu
+              :key="pipeType"
+              offset-y
+            >
+              <template v-slot:activator="{ on }">
+                <v-btn
+                  depressed
+                  block
+                  v-on="on"
                 >
-                  >>>>>> master
+                  {{ pipeTypeDisplay(pipeType) }}
+                  <v-icon
+                    left
+                    color="accent"
+                    class="ml-0"
                   >
-                  mdi-menu-down
-                </v-icon>
-              </v-btn>
-            </template>
+                    mdi-menu-down
+                  </v-icon>
+                </v-btn>
+              </template>
 
-            <v-list>
-              <v-list-item
-                v-for="({ name, pipe }) in pipelines[pipeType].pipes"
-                :key="pipe"
-                @click="runPipelineOnSelectedItem(pipe)"
-              >
-                <v-list-item-title>
-                  {{ name }}
-                </v-list-item-title>
-              </v-list-item>
-            </v-list>
-          </v-menu>
+              <v-list>
+                <v-list-item
+                  v-for="({ name, pipe }) in pipelines[pipeType].pipes"
+                  :key="pipe"
+                  @click="runPipelineOnSelectedItem(pipe)"
+                >
+                  <v-list-item-title>
+                    {{ name }}
+                  </v-list-item-title>
+                </v-list-item>
+              </v-list>
+            </v-menu>
+          </v-col>
         </v-row>
       </v-card>
     </template>

@@ -10,7 +10,7 @@ import {
 
 export type ConfidencePair = [string, number];
 export type TrackId = number;
-
+export type TrackSupportedFeature = GeoJSON.Point | GeoJSON.Polygon;
 export interface StringKeyObject {
   [key: string]: unknown;
 }
@@ -20,6 +20,7 @@ export interface Feature {
   interpolate?: boolean;
   keyframe?: boolean;
   bounds?: RectBounds;
+  geometry?: GeoJSON.FeatureCollection<TrackSupportedFeature>;
   fishLength?: number;
   attributes?: StringKeyObject;
   head?: [number, number];
@@ -170,9 +171,9 @@ export default class Track {
 
   /** Determine if a hypothetical feature at frame should enable interpolation */
   canInterpolate(frame: number): {
-      features: [Feature|null, Feature|null, Feature|null];
-      interpolate: boolean;
-    } {
+    features: [Feature | null, Feature | null, Feature | null];
+    interpolate: boolean;
+  } {
     const [real, lower, upper] = this.getFeature(frame);
     return {
       features: [real, lower, upper],
@@ -212,7 +213,7 @@ export default class Track {
     ];
   }
 
-  setFeature(feature: Feature): Feature {
+  setFeature(feature: Feature, geometry: GeoJSON.Feature<TrackSupportedFeature>[] = []): Feature {
     const f = this.features[feature.frame] || {};
     this.features[feature.frame] = {
       ...f,
@@ -230,9 +231,36 @@ export default class Track {
     if (feature.keyframe) {
       listInsert(this.featureIndex, feature.frame);
     }
+    const fg = this.features[feature.frame].geometry || { type: 'FeatureCollection', features: [] };
+    geometry.forEach((geo) => {
+      const i = fg.features
+        .findIndex((item) => {
+          const keyMatch = !geo.properties?.key || item.properties?.key === geo.properties?.key;
+          const typeMatch = item.geometry.type === geo.geometry.type;
+          return keyMatch && typeMatch;
+        });
+      fg.features.splice(i, 1, geo);
+    });
+    if (fg.features.length) {
+      this.features[feature.frame].geometry = fg;
+    }
     this.maybeExpandBounds(feature.frame);
     this.notify('feature', f);
     return this.features[feature.frame];
+  }
+
+  /* Get features by properties.key, geometry.type, or both */
+  getFeatureGeometry(frame: number, { key, type }:
+    { key?: string; type?: GeoJSON.GeoJsonGeometryTypes }) {
+    const feature = this.features[frame];
+    if (!feature.geometry) {
+      return [];
+    }
+    return feature.geometry.features.filter((item) => {
+      const matchesKey = !key || item.properties?.key === key;
+      const matchesType = !type || item.geometry.type === type;
+      return matchesKey && matchesType;
+    });
   }
 
   setFeatureAttribute(frame: number, name: string, value: unknown) {
@@ -264,7 +292,7 @@ export default class Track {
     this.notify('attributes', { key, value: oldval });
   }
 
-  getFeature(frame: number): [Feature|null, Feature|null, Feature|null] {
+  getFeature(frame: number): [Feature | null, Feature | null, Feature | null] {
     // First, try a direct keyframe hit
     const maybeFrame = this.features[frame];
     if (maybeFrame) {

@@ -14,12 +14,13 @@ from viame_server.serializers.models import Feature, Track, interpolate
 
 def row_info(row: List[str]) -> Tuple[int, int, List[float], float]:
     trackId = int(row[0])
+    filename = str(row[1])
     frame = int(row[2])
 
     bounds = [round(float(x)) for x in row[3:7]]
     fish_length = float(row[8])
 
-    return trackId, frame, bounds, fish_length
+    return trackId, filename, frame, bounds, fish_length
 
 
 def _deduceType(value: str) -> Union[bool, float, str]:
@@ -72,7 +73,7 @@ def _parse_row(row: List[str]) -> Tuple[Dict, Dict, Dict, List]:
 
 def _parse_row_for_tracks(row: List[str]) -> Tuple[Feature, Dict, Dict, List]:
     head_tail_feature, attributes, track_attributes, confidence_pairs = _parse_row(row)
-    trackId, frame, bounds, fishLength = row_info(row)
+    trackId, filename, frame, bounds, fishLength = row_info(row)
 
     feature = Feature(
         frame,
@@ -98,7 +99,6 @@ def load_csv_as_tracks(file):
     )
     reader = csv.reader(row for row in rows if (not row.startswith("#") and row))
     tracks = {}
-
     for row in reader:
         (
             feature,
@@ -106,7 +106,8 @@ def load_csv_as_tracks(file):
             track_attributes,
             confidence_pairs,
         ) = _parse_row_for_tracks(row)
-        trackId, frame, _, _ = row_info(row)
+
+        trackId, _, frame, _, _ = row_info(row)
 
         if trackId not in tracks:
             tracks[trackId] = Track(frame, frame, trackId)
@@ -123,7 +124,7 @@ def load_csv_as_tracks(file):
     return {trackId: track.asdict() for trackId, track in tracks.items()}
 
 
-def write_track_to_csv(track: Track, csv_writer):
+def write_track_to_csv(track: Track, csv_writer, filenames=None):
     def valueToString(value):
         if value is True:
             return "true"
@@ -152,6 +153,9 @@ def write_track_to_csv(track: Track, csv_writer):
                 feature.fishLength or -1,
             ]
 
+            if filenames:
+                columns[1] = filenames[feature.frame]
+
             for pair in track.confidencePairs:
                 columns.extend(list(pair))
 
@@ -174,11 +178,12 @@ def write_track_to_csv(track: Track, csv_writer):
             csv_writer.writerow(columns)
 
 
-def export_tracks_as_csv(file) -> str:
+def export_tracks_as_csv(file, excludeBelowThreshold, thresholds, filenames=None) -> str:
     """
     Export track json to a CSV format.
 
     file: The detections JSON file
+    excludeBelowThreshold: 
     """
 
     track_json = json.loads(
@@ -195,6 +200,7 @@ def export_tracks_as_csv(file) -> str:
         writer = csv.writer(csvFile)
 
         for track in tracks.values():
-            write_track_to_csv(track, writer)
+            if (not excludeBelowThreshold) or track.exceeds_thresholds(thresholds):
+                write_track_to_csv(track, writer, filenames)
 
         return csvFile.getvalue()

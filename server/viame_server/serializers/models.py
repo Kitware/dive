@@ -3,11 +3,31 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 
 @dataclass
+class GeoJSONGeometry:
+    type: str
+    coordinates: Union[List[List[float]], List[List[List[float]]]]
+
+
+@dataclass
+class GeoJSONFeature:
+    type: str
+    geometry: GeoJSONGeometry
+    properties: Dict[str, Union[bool, float, str]]
+
+
+@dataclass
+class GeoJSONFeatureCollection:
+    type: str
+    features: List[GeoJSONFeature]
+
+
+@dataclass
 class Feature:
     """Feature represents a single detection in a track."""
 
     frame: int
     bounds: List[float]
+    geometry: Optional[GeoJSONFeatureCollection] = None
     head: Optional[Tuple[float, float]] = None
     tail: Optional[Tuple[float, float]] = None
     fishLength: Optional[float] = None
@@ -37,6 +57,15 @@ class Track:
             feature.asdict() for feature in track_dict["features"]
         ]
         return track_dict
+
+    def exceeds_thresholds(self, thresholds: Dict[str, float]) -> bool:
+        defaultThresh = thresholds.get('default', 0)
+        return any(
+            [
+                confidence >= thresholds.get(field, defaultThresh)
+                for field, confidence in self.confidencePairs
+            ]
+        )
 
 
 # interpolate all features [a, b)

@@ -1,9 +1,5 @@
 <script>
-import {
-  mapActions,
-  mapMutations,
-  mapGetters,
-} from 'vuex';
+import { mapMutations } from 'vuex';
 import { FileManager } from '@girder/components/src/components/Snippet';
 import { getLocationType } from '@girder/components/src/utils';
 import Export from '@/components/Export.vue';
@@ -11,13 +7,7 @@ import RunPipelineMenu from '@/components/RunPipelineMenu.vue';
 import Upload from '@/components/Upload.vue';
 import NavigationBar from '@/components/NavigationBar.vue';
 import { getPathFromLocation, getLocationFromRoute } from '@/utils';
-import {
-  runVideoConversion,
-  deleteResources,
-  setMetadataForItem,
-  runImageConversion,
-  runTraining,
-} from '@/lib/api/viame.service';
+import { deleteResources, runTraining } from '@/lib/api/viame.service';
 
 export default {
   name: 'Home',
@@ -33,10 +23,9 @@ export default {
     uploaderDialog: false,
     selected: [],
     uploading: false,
+    loading: false,
   }),
   computed: {
-    ...mapGetters('Filetypes', ['getVidRegEx', 'getImgRegEx', 'getWebRegEx']),
-
     location: {
       get() {
         return this.$store.state.Location.location;
@@ -46,6 +35,9 @@ export default {
        * by clicking on a Breadcrumb link
        */
       set(value) {
+        if (this.locationIsViameFolder && value.name === 'auxiliary') {
+          return;
+        }
         const newPath = getPathFromLocation(value);
         if (this.$route.path !== newPath) {
           this.$router.push(newPath);
@@ -56,6 +48,7 @@ export default {
     shouldShowUpload() {
       return (
         this.location
+        && !this.locationIsViameFolder
         && getLocationType(this.location) === 'folder'
         && !this.selected.length
       );
@@ -74,26 +67,36 @@ export default {
           isViameFolder: selected.meta && selected.meta.annotate,
         };
       }
+      if (this.locationIsViameFolder) {
+        return {
+          title: this.location.name,
+          folderId: this.location._id,
+          folderType: this.location.meta.type,
+          isViameFolder: true,
+        };
+      }
       return null;
+    },
+    locationIsViameFolder() {
+      return !!(this.location && this.location.meta && this.location.meta.annotate);
     },
   },
   watch: {
     uploading(newval) {
       if (!newval) {
         this.$refs.fileManager.$refs.girderBrowser.refresh();
+        this.uploaderDialog = false;
       }
     },
   },
-  created() {
-    this.setLocation(getLocationFromRoute(this.$route));
+  async created() {
+    this.setLocation(await getLocationFromRoute(this.$route));
     this.notificationBus.$on('message:job_status', this.handleNotification);
-    this.fetchFiletypes();
   },
   beforeDestroy() {
     this.notificationBus.$off('message:job_status', this.handleNotification);
   },
   methods: {
-    ...mapActions('Filetypes', ['fetchFiletypes']),
     ...mapMutations('Location', ['setLocation']),
     handleNotification() {
       this.$refs.fileManager.$refs.girderBrowser.refresh();
@@ -123,54 +126,29 @@ export default {
       if (!result) {
         return;
       }
-      await deleteResources(this.selected);
-      this.$refs.fileManager.$refs.girderBrowser.refresh();
-      this.selected = [];
+      try {
+        this.loading = true;
+        await deleteResources(this.selected);
+        this.$refs.fileManager.$refs.girderBrowser.refresh();
+        this.selected = [];
+      } catch (err) {
+        let text = 'Unable to delete resource(s)';
+        if (err.response && err.response.status === 403) {
+          text = 'You do not have permission to delete selected resource(s).';
+        }
+        this.$prompt({
+          title: 'Delete Failed',
+          text,
+          positiveButton: 'OK',
+        });
+      } finally {
+        this.loading = false;
+      }
     },
     dragover() {
       if (this.shouldShowUpload) {
         this.uploaderDialog = true;
       }
-    },
-    uploaded(uploads) {
-      this.uploaderDialog = false;
-      // Check if any transcoding should be done
-      const transcodes = uploads.filter(({ results, folder }) => {
-        const videoTranscodes = results
-          .filter(({ name }) => this.getVidRegEx.test(name))
-          .map(({ itemId }) => runVideoConversion(itemId));
-        const imageTranscodes = results
-          .filter(({ name }) => !this.getWebRegEx.test(name) && this.getImgRegEx.test(name));
-
-        if (imageTranscodes.length > 0) {
-          runImageConversion(folder._id);
-        }
-        return videoTranscodes.concat(...imageTranscodes).length > 0;
-      });
-
-      if (transcodes.length) {
-        this.$snackbar({
-          text: `Transcoding started on ${transcodes.length} clip${
-            transcodes.length > 1 ? 's' : ''
-          }`,
-          timeout: 4500,
-          button: 'View',
-          callback: () => {
-            this.$router.push('/jobs');
-          },
-        });
-      }
-
-      // promote csv files to as its own result item
-      uploads.forEach(({ folder, results }) => {
-        const csvFiles = results.filter((result) => result.name.endsWith('.csv'));
-        csvFiles.forEach((csvFile) => setMetadataForItem(
-          csvFile.itemId,
-          {
-            detection: folder._id,
-          },
-        ));
-      });
     },
   },
 };
@@ -179,6 +157,11 @@ export default {
 <template>
   <v-content>
     <NavigationBar />
+    <v-progress-linear
+      :indeterminate="loading"
+      height="6"
+      :style="{ visibility: loading ? 'visible' : 'hidden' }"
+    />
     <v-container fill-height>
       <v-row
         class="fill-height nowraptable"
@@ -188,8 +171,8 @@ export default {
           <FileManager
             ref="fileManager"
             v-model="selected"
+            :selectable="!locationIsViameFolder"
             :new-folder-enabled="!selected.length"
-            selectable
             :location.sync="location"
             @dragover.native="dragover"
           >
@@ -211,7 +194,7 @@ export default {
                 Run Training
               </v-btn>
               <run-pipeline-menu
-                :selected="selected"
+                :selected="(locationIsViameFolder ? [location] : selected)"
                 small
               />
               <export
@@ -260,7 +243,6 @@ export default {
                 <Upload
                   :location="location"
                   :uploading.sync="uploading"
-                  @uploaded="uploaded"
                 />
               </v-dialog>
             </template>
@@ -270,10 +252,11 @@ export default {
                 class="ml-2"
                 x-small
                 color="primary"
+                depressed
                 :to="{ name: 'viewer', params: { datasetId: item._id } }"
                 @click.stop="openClip(item)"
               >
-                Annotate
+                Launch Annotator
               </v-btn>
             </template>
           </FileManager>

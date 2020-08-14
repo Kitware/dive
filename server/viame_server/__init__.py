@@ -6,7 +6,7 @@ from girder import events, plugin
 from girder.models.setting import Setting
 
 from .client_webroot import ClientWebroot
-from .event import check_existing_annotations, maybe_mark_folder_for_annotation
+from .event import check_existing_annotations
 from .viame import Viame
 from .viame_detection import ViameDetection
 
@@ -60,9 +60,6 @@ class GirderPlugin(plugin.GirderPlugin):
             "filesystem_assetstore_imported",
             "check_annotations",
             check_existing_annotations,
-        )
-        events.bind(
-            "model.upload.finalize", "fileUpload", maybe_mark_folder_for_annotation,
         )
 
         # Create dependency on worker

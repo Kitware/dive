@@ -27,10 +27,10 @@ class Config:
 
 # TODO: Need to test with runnable viameweb
 @app.task(bind=True)
-def run_pipeline(self, input_path, pipeline, input_type):
+def run_pipeline(self, input_path, output_folder, pipeline, input_type):
     conf = Config()
     # Delete is false because the file needs to exist for kwiver to write to
-    # The girder upload transform will take care of removing it
+    # removed at the bottom of the function
     with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as temp:
         detector_output_path = temp.name
     with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as temp:
@@ -99,15 +99,19 @@ def run_pipeline(self, input_path, pipeline, input_type):
     else:
         self.job_manager.write(str(stdout) + "\n" + str(stderr))
 
-    # Figure out which of track_output_path, detector_output_path to return
-    # Some pipelines don't produce track output, so fallback to returning detector path
-    # Both files WILL exist, but if a file hasn't been written to, it will be 0 bytes
     if os.path.getsize(track_output_path) > 0:
-        os.remove(detector_output_path)
-        return track_output_path
+        output_path = track_output_path
     else:
-        os.remove(track_output_path)
-        return detector_output_path
+        output_path = detector_output_path
+
+    newfile = self.girder_client.uploadFileToFolder(output_folder, output_path)
+
+    self.girder_client.addMetadataToItem(newfile["itemId"], {"pipeline": pipeline,})
+    self.girder_client.post(
+        f'viame/postprocess/{output_folder}', data={"skipJobs": True}
+    )
+    os.remove(track_output_path)
+    os.remove(detector_output_path)
 
 
 @app.task(bind=True)
@@ -194,9 +198,7 @@ def train_pipeline(self, folder: Dict, groundtruth: str, pipeline_name: str):
 
 
 @app.task(bind=True)
-def convert_video(self, path, folderId, token, auxiliaryFolderId):
-    self.girder_client.token = token
-
+def convert_video(self, path, folderId, auxiliaryFolderId):
     # Delete is true, so the tempfile is deleted when the block closes.
     # We are only using this to get a name, and recreating it below.
     with tempfile.NamedTemporaryFile(suffix=".mp4", delete=True) as temp:
@@ -307,5 +309,10 @@ def convert_images(self, folderId):
                 gc.uploadFileToFolder(folderId, new_item_path)
                 gc.delete(f"item/{item['_id']}")
                 count += 1
+
+    self.girder_client.addMetadataToFolder(
+        str(folderId),
+        {"annotate": True},  # mark the parent folder as able to annotate.
+    )
 
     return count
