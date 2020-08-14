@@ -46,6 +46,7 @@ def organize_folder_for_training(
     groundtruth = data_dir / "groundtruth.csv"
     shutil.move(str(downloaded_groundtruth), groundtruth)
 
+    # Generate labels.txt
     labels = set()
     with open(groundtruth, 'r') as groundtruth_infile:
         for line in groundtruth_infile.readlines():

@@ -12,8 +12,7 @@ from viame_tasks.utils import (
     trained_pipeline_folder as _trained_pipeline_folder,
 )
 
-from typing import Dict
-
+from typing import Dict, List
 
 class Config:
     def __init__(self):
@@ -106,7 +105,7 @@ def run_pipeline(self, input_path, output_folder, pipeline, input_type):
 
     newfile = self.girder_client.uploadFileToFolder(output_folder, output_path)
 
-    self.girder_client.addMetadataToItem(newfile["itemId"], {"pipeline": pipeline,})
+    self.girder_client.addMetadataToItem(newfile["itemId"], {"pipeline": pipeline})
     self.girder_client.post(
         f'viame/postprocess/{output_folder}', data={"skipJobs": True}
     )
@@ -115,11 +114,18 @@ def run_pipeline(self, input_path, output_folder, pipeline, input_type):
 
 
 @app.task(bind=True)
-def train_pipeline(self, folder: Dict, groundtruth: str, pipeline_name: str):
+def train_pipeline(
+    self,
+    results_folder: Dict,
+    training_data: List[Dict],
+    groundtruth: Dict,
+    pipeline_name: str,
+):
     """
     Train a pipeline by making a call to viame_train_detector
 
-    :param folder: A girder Folder document for the training directory
+    :param source_folder: The Girder Folder to pull training data from
+    :param results_folder: The Girder Folder to place the results of training into
     :param groundtruth: The relative path to either the file containing detections,
         or the folder containing that file.
     :param pipeline_name: The base name of the resulting pipeline.
@@ -132,69 +138,75 @@ def train_pipeline(self, folder: Dict, groundtruth: str, pipeline_name: str):
     default_conf_file = pipeline_base_path / "train_netharn_cascade.viame_csv.conf"
     training_executable = viame_install_path / "bin" / "viame_train_detector"
 
-    with tempfile.TemporaryDirectory() as temp:
-        temp_path = Path(temp)
-        download_path = temp_path / folder["name"]
-
-        os.mkdir(download_path)
+    # root_data_dir is the directory passed to `viame_train_detector`
+    with tempfile.TemporaryDirectory() as _temp_dir_string:
+        root_data_dir = Path(_temp_dir_string)
+        download_path = Path(tempfile.mkdtemp(dir=root_data_dir))
 
         # Download data onto server
-        gc.downloadFolderRecursive(folder["_id"], download_path)
+        gc.downloadItem(str(groundtruth["_id"]), download_path)
+        for item in training_data:
+            gc.downloadItem(str(item["_id"]), download_path)
 
         # Organize data
-        groundtruth_path = download_path / groundtruth
-        organize_folder_for_training(temp_path, download_path, groundtruth_path)
+        groundtruth_path = download_path / groundtruth["name"]
+        organize_folder_for_training(root_data_dir, download_path, groundtruth_path)
 
-        # No context manager used, because this needs to exist when the girder result
-        # hook is called. Because we set the `delete_file=True` parameter on that hook,
-        # this folder will be deleted after the hook finishes.
-        training_output_path = Path(tempfile.mkdtemp())
-        timestamped_output = (
-            training_output_path / datetime.utcnow().replace(microsecond=0).isoformat()
-        )
-        timestamped_output.mkdir()
+        with tempfile.TemporaryDirectory() as _training_output_path:
+            training_output_path = Path(_training_output_path)
 
-        # Call viame_train_detector
-        command = [
-            f". {conf.viame_install_path}/setup_viame.sh &&",
-            str(training_executable),
-            "-i",
-            str(temp_path),
-            "-c",
-            str(default_conf_file),
-        ]
-        process = Popen(
-            " ".join(command),
-            stdout=PIPE,
-            stderr=PIPE,
-            shell=True,
-            executable='/bin/bash',
-            cwd=timestamped_output,
-        )
-
-        while process.poll() is None:
-            out = process.stdout.read() if process.stdout else None
-            err = process.stderr.read() if process.stderr else None
-
-            if out:
-                self.job_manager.write(out)
-            if err:
-                self.job_manager.write(err)
-
-        # Trained_ prefix is added to easier conform with existing pipeline names
-        timestamped_pipeline_name = (
-            f"trained_{pipeline_name}_{timestamped_output.name}.pipe"
-        )
-        generated_detector_pipeline = timestamped_output / "detector.pipe"
-
-        trained_pipeline_folder = _trained_pipeline_folder()
-        if trained_pipeline_folder:
-            shutil.copy(
-                generated_detector_pipeline,
-                trained_pipeline_folder / timestamped_pipeline_name,
+            # Make timestamped folder, to properly identify the training job
+            timestamped_output = (
+                training_output_path
+                / datetime.utcnow().replace(microsecond=0).isoformat()
             )
+            timestamped_output.mkdir()
 
-        return training_output_path
+            # Call viame_train_detector
+            command = [
+                f". {conf.viame_install_path}/setup_viame.sh &&",
+                str(training_executable),
+                "-i",
+                str(root_data_dir),
+                "-c",
+                str(default_conf_file),
+            ]
+            process = Popen(
+                " ".join(command),
+                stdout=PIPE,
+                stderr=PIPE,
+                shell=True,
+                executable='/bin/bash',
+                cwd=timestamped_output,
+            )
+            while process.poll() is None:
+                out = process.stdout.read() if process.stdout else None
+                err = process.stderr.read() if process.stderr else None
+
+                if out:
+                    self.job_manager.write(out)
+                if err:
+                    self.job_manager.write(err)
+
+            # Trained_ prefix is added to easier conform with existing pipeline names
+            timestamped_pipeline_name = (
+                f"trained_{pipeline_name}_{timestamped_output.name}.pipe"
+            )
+            generated_detector_pipeline = timestamped_output / "detector.pipe"
+
+            # If `_trained_pipeline_folder()` returns `None`, the results of this
+            # training job will be uploaded to Girder, but will not be runnable as
+            # a normal pipeline through the client
+            trained_pipeline_folder = _trained_pipeline_folder()
+            if trained_pipeline_folder:
+                shutil.copy(
+                    generated_detector_pipeline,
+                    trained_pipeline_folder / timestamped_pipeline_name,
+                )
+
+            self.girder_client.uploadFileToFolder(
+                results_folder["_id"], training_output_path
+            )
 
 
 @app.task(bind=True)
@@ -248,7 +260,7 @@ def convert_video(self, path, folderId, auxiliaryFolderId):
     self.job_manager.write(output)
     new_file = self.girder_client.uploadFileToFolder(folderId, output_path)
     self.girder_client.addMetadataToItem(
-        new_file['itemId'], {"codec": "h264",},
+        new_file['itemId'], {"codec": "h264"},
     )
     self.girder_client.addMetadataToFolder(
         folderId,
