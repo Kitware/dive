@@ -5,6 +5,7 @@ from datetime import datetime
 
 from girder.models.folder import Folder
 from girder.models.item import Item
+from girder.models.file import File
 from girder.models.upload import Upload
 from girder.models.assetstore import Assetstore
 
