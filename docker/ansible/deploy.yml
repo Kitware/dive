@@ -12,6 +12,12 @@
       args:
         chdir: "{{ project_directory }}"
 
+    - name: Pull Latest Viame Docker Image
+      docker_image:
+        name: kitware/viame:gpu-all-models-latest
+        source: pull
+        force_source: yes
+
     - name: Build Service
       ignore_errors: yes
       register: build
