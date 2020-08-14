@@ -12,12 +12,7 @@
       args:
         chdir: /home/viame
 
-    - name: Stop Service
-      docker_compose:
-        project_src: /home/viame
-        state: absent
-    
-    - name: Build and Start Service
+    - name: Build Service
       ignore_errors: yes
       register: build
       docker_compose:
@@ -39,8 +34,13 @@
           Captured stderr:
           {{ build.module_stderr  }}
 
-    - name: Start Service Without Updates
-      when: build.failed
+    - name: Stop Service
+      when: not build.failed
       docker_compose:
-        project_src: /home/viame/docker
-        state: present
+        project_src: /home/viame
+        state: absent
+
+    - name: Start Service
+      docker_compose:
+        project_src: /home/viame
+        state: absent
