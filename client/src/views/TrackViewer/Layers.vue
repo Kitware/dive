@@ -16,6 +16,8 @@ import IntervalTree from '@flatten-js/interval-tree';
 import AnnotationLayer from '@/components/layers/AnnotationLayer';
 import RectangleLayer from '@/components/layers/AnnotationLayers/RectangleLayer';
 import PolygonLayer from '@/components/layers/AnnotationLayers/PolygonLayer';
+import PointLayer from '@/components/layers/AnnotationLayers/PointLayer';
+import LineLayer from '@/components/layers/AnnotationLayers/LineLayer';
 import { Annotator } from '@/components/annotators/annotatorType';
 import TextLayer from '@/components/layers/TextLayer';
 import EditAnnotationLayer, { EditAnnotationTypes } from '@/components/layers/EditAnnotationLayer';
@@ -84,6 +86,17 @@ export default defineComponent({
       typeStyling: props.typeStyling,
     });
 
+    const markerLayer = new PointLayer({
+      annotator,
+      stateStyling: props.stateStyling,
+      typeStyling: props.typeStyling,
+    });
+
+    const lineLayer = new LineLayer({
+      annotator,
+      stateStyling: props.stateStyling,
+      typeStyling: props.typeStyling,
+    });
     const textLayer = new TextLayer({
       annotator,
       stateStyling: props.stateStyling,
@@ -104,11 +117,6 @@ export default defineComponent({
       type: 'point',
     });
 
-    const markerLayer = new MarkerLayer({
-      annotator,
-      stateStyling: props.stateStyling,
-      typeStyling: props.typeStyling,
-    });
 
     const editingType: Ref<false|EditAnnotationTypes> = computed(() => (
       props.editingTrack.value && props.annotationModes.state.value.editing
@@ -177,6 +185,7 @@ export default defineComponent({
         polyAnnotationLayer.disable();
       }
       markerLayer.changeData(frameData);
+      lineLayer.changeData(frameData);
       if (annotationVisible_.length) {
         textLayer.changeData(frameData);
       } else {

@@ -53,8 +53,7 @@ export default class PointLayer extends BaseLayer<PointGeoJSData> {
 
   // eslint-disable-next-line class-methods-use-this
   formatData(frameData: FrameDataTrack[]): PointGeoJSData[] {
-    const arr: PointGeoJSData[] = [];
-    arr.concat(this.checkHeadTail(frameData));
+    const arr: PointGeoJSData[] = (this.checkHeadTail(frameData));
     frameData.forEach((track: FrameDataTrack) => {
       if (track.features && track.features.bounds) {
         if (track.features.geometry?.features?.[0]) {
