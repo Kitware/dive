@@ -257,7 +257,7 @@ export default defineComponent({
           const bounds = geojsonToBound(data);
           emit('update-rect-bounds', frameNumber.value, bounds);
         } else if (type === 'polygon') {
-          emit('update-polygon', frameNumber.value, data.geometry);
+          emit('update-polygon', frameNumber.value, data);
         }
       });
 

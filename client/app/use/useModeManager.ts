@@ -13,6 +13,9 @@ export interface Seeker {
   nextFrame(): void;
 }
 
+// TODO: remove this when we support multiple polygons
+const defaultPolygonKey = '';
+
 /**
  * The point of this composition function is to define and manage the transition betwee
  * different UI states within the program.  States and state transitions can be modified
@@ -138,7 +141,7 @@ export default function useModeManager({
     }
   }
 
-  function handleUpdatePolygon(frameNum: number, data: GeoJSON.Polygon) {
+  function handleUpdatePolygon(frameNum: number, data: GeoJSON.Feature<GeoJSON.Polygon>) {
     if (selectedTrackId.value !== null) {
       const track = trackMap.get(selectedTrackId.value);
       if (track) {
@@ -151,14 +154,22 @@ export default function useModeManager({
         const interpolateTrack = newTrackMode
           ? newTrackSettings.modeSettings.Track.interpolate
           : interpolate;
-        track.setFeature({
-          frame: frameNum,
-          polygon: data,
-          bounds: findBounds(data),
-          keyframe: true,
-          interpolate: (newDetectionMode && !newTrackMode)
-            ? false : interpolateTrack,
-        });
+        track.setFeature(
+          {
+            frame: frameNum,
+            bounds: findBounds(data.geometry),
+            keyframe: true,
+            interpolate: (newDetectionMode && !newTrackMode)
+              ? false : interpolateTrack,
+          },
+          [{
+            type: data.type,
+            geometry: data.geometry,
+            properties: {
+              key: defaultPolygonKey,
+            },
+          }],
+        );
         //If it is a new track and we have newTrack Settings
         if (newTrackMode && newDetectionMode) {
           newTrackSettingsAfterLogic(track);
@@ -178,20 +189,23 @@ export default function useModeManager({
         // Determines if we are creating a new Detection
         const { features } = track.canInterpolate(frame.value);
         const [real] = features;
-        if (real && real.polygon) {
-          //could operate directly on the polygon memory, but small enough to copy and edit
-          const polygon = cloneDeep(real.polygon);
-          if (polygon.coordinates[0].length > 3) {
-            polygon.coordinates[0].splice(selectedFeatureHandle.value, 1);
-            handleSelectFeatureHandle(-1);
-            track.setFeature({
-              frame: frame.value,
-              polygon,
-              bounds: findBounds(polygon),
-            });
-          } else {
-            console.warn('Polygons must have at least 3 points');
-          }
+        if (!real) return;
+        const polygonFeatures = track.getFeatureGeometry(frame.value, {
+          type: 'Polygon',
+          key: defaultPolygonKey,
+        }) as GeoJSON.Feature<GeoJSON.Polygon>[];
+        if (polygonFeatures.length === 0) return;
+        //could operate directly on the polygon memory, but small enough to copy and edit
+        const clone = cloneDeep(polygonFeatures[0]);
+        if (clone.geometry.coordinates[0].length > 3) {
+          clone.geometry.coordinates[0].splice(selectedFeatureHandle.value, 1);
+          handleSelectFeatureHandle(-1);
+          track.setFeature({
+            frame: frame.value,
+            bounds: findBounds(clone.geometry),
+          }, [clone]);
+        } else {
+          console.warn('Polygons must have at least 3 points');
         }
       }
     }
