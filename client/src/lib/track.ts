@@ -10,7 +10,7 @@ import {
 
 export type ConfidencePair = [string, number];
 export type TrackId = number;
-export type TrackSupportedFeature = GeoJSON.Point | GeoJSON.Polygon;
+export type TrackSupportedFeature = GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString;
 export interface StringKeyObject {
   [key: string]: unknown;
 }

@@ -14,6 +14,8 @@ import Track, { TrackId } from '@/lib/track';
 import IntervalTree from '@flatten-js/interval-tree';
 
 import AnnotationLayer from '@/components/layers/AnnotationLayer';
+import RectangleLayer from '@/components/layers/AnnotationLayers/RectangleLayer';
+import PolygonLayer from '@/components/layers/AnnotationLayers/PolygonLayer';
 import { Annotator } from '@/components/annotators/annotatorType';
 import TextLayer from '@/components/layers/TextLayer';
 import EditAnnotationLayer, { EditAnnotationTypes } from '@/components/layers/EditAnnotationLayer';
@@ -71,17 +73,15 @@ export default defineComponent({
     const annotator = inject('annotator') as Annotator;
     const frameNumber: Readonly<Ref<number>> = computed(() => annotator.frame as number);
 
-    const rectAnnotationLayer = new AnnotationLayer({
+    const rectAnnotationLayer = new RectangleLayer({
       annotator,
       stateStyling: props.stateStyling,
       typeStyling: props.typeStyling,
-      type: 'rectangle',
     });
-    const polyAnnotationLayer = new AnnotationLayer({
+    const polyAnnotationLayer = new PolygonLayer({
       annotator,
       stateStyling: props.stateStyling,
       typeStyling: props.typeStyling,
-      type: 'polygon',
     });
 
     const textLayer = new TextLayer({
@@ -237,7 +237,7 @@ export default defineComponent({
 
 
     const Clicked = (trackId: number, editing: boolean) => {
-      //So we only want to pass the click whjen not in creation mode or editing mode for features
+      //So we only want to pass the click when not in creation mode or editing mode for features
       const creationMode = editAnnotationLayer.getMode() === 'creation';
       const editingPolyorLine = (editingType.value && (editingType.value === 'polygon' || editingType.value === 'line'));
       if (!props.featurePointing.value && !(editingPolyorLine && creationMode)) {
