@@ -47,13 +47,13 @@ export default class AnnotationLayer extends BaseLayer<RectGeoJSData> {
         if (e.mouse.buttonsDown.left) {
           if (!e.data.editing || (e.data.editing && !e.data.selected)) {
             if (this.type !== 'polygon' || (this.type === 'polygon' && !this.drawingOther)) {
-              this.$emit('annotationClicked', e.data.trackId, false);
+              this.$emit('annotation-clicked', e.data.trackId, false);
             }
           }
         } else if (e.mouse.buttonsDown.right) {
           if (!e.data.editing || (e.data.editing && !e.data.selected)) {
             if (this.type !== 'polygon' || (this.type === 'polygon' && !this.drawingOther)) {
-              this.$emit('annotationRightClicked', e.data.trackId, true);
+              this.$emit('annotation-right-clicked', e.data.trackId, true);
             }
           }
         }
@@ -66,7 +66,7 @@ export default class AnnotationLayer extends BaseLayer<RectGeoJSData> {
       // If we aren't clicking on an annotation we can deselect the current track
       if (this.featureLayer.pointSearch(e.geo).found.length === 0) {
         if (this.type !== 'polygon' || (this.type === 'polygon' && !this.drawingOther)) {
-          this.$emit('annotationClicked', null, false);
+          this.$emit('annotation-clicked', null, false);
         }
       }
     });
