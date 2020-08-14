@@ -45,10 +45,12 @@ class ViameDetection(Resource):
 
         videoUrl = None
         # Find a video tagged with an h264 codec left by the transcoder
-        video = Item().findOne({'folderId': folder['_id'], 'meta.codec': 'h264',})
+        item = Item().findOne({'folderId': folder['_id'], 'meta.codec': 'h264',})
+        video = Item().childFiles(item)[0]
+        
         if video:
             videoUrl = (
-                f'/api/v1/item/{str(video["_id"])}/download?contentDisposition=inline'
+                f'/api/v1/file/{str(video["_id"])}/download?contentDisposition=inline'
             )
 
         return {
