@@ -10,13 +10,13 @@
     - name: Pull Changes
       shell: git pull
       args:
-        chdir: /home/viame
+        chdir: "{{ project_directory }}"
 
     - name: Build Service
       ignore_errors: yes
       register: build
       docker_compose:
-        project_src: /home/viame/docker
+        project_src: "{{ project_directory }}/docker"
         build: yes
         state: present
 
@@ -35,12 +35,12 @@
           {{ build.module_stderr  }}
 
     - name: Stop Service
-      when: not build.failed
+      when: not build.failed and build.changed
       docker_compose:
-        project_src: /home/viame
+        project_src: "{{ project_directory }}/docker"
         state: absent
 
     - name: Start Service
       docker_compose:
-        project_src: /home/viame
-        state: absent
+        project_src: "{{ project_directory }}/docker"
+        state: present
