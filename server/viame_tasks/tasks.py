@@ -14,6 +14,7 @@ from viame_tasks.utils import (
 
 from typing import Dict, List
 
+
 class Config:
     def __init__(self):
         self.pipeline_base_path = os.environ.get(
@@ -152,12 +153,11 @@ def train_pipeline(
         groundtruth_path = download_path / groundtruth["name"]
         organize_folder_for_training(root_data_dir, download_path, groundtruth_path)
 
+        # Completely separate directory from `root_data_dir`
         with tempfile.TemporaryDirectory() as _training_output_path:
-            training_output_path = Path(_training_output_path)
-
             # Make timestamped folder, to properly identify the training job
             timestamped_output = (
-                training_output_path
+                Path(_training_output_path)
                 / datetime.utcnow().replace(microsecond=0).isoformat()
             )
             timestamped_output.mkdir()
@@ -188,11 +188,17 @@ def train_pipeline(
                 if err:
                     self.job_manager.write(err)
 
+            if process.returncode:
+                # Not sure what else to do for now
+                return
+
             # Trained_ prefix is added to easier conform with existing pipeline names
             timestamped_pipeline_name = (
                 f"trained_{pipeline_name}_{timestamped_output.name}.pipe"
             )
-            generated_detector_pipeline = timestamped_output / "detector.pipe"
+            generated_detector_pipeline = (
+                timestamped_output / "category_models" / "detector.pipe"
+            )
 
             # If `_trained_pipeline_folder()` returns `None`, the results of this
             # training job will be uploaded to Girder, but will not be runnable as
@@ -204,8 +210,8 @@ def train_pipeline(
                     trained_pipeline_folder / timestamped_pipeline_name,
                 )
 
-            self.girder_client.uploadFileToFolder(
-                results_folder["_id"], training_output_path
+            self.girder_client._uploadFolderRecursive(
+                timestamped_output, results_folder["_id"], "folder"
             )
 
 
