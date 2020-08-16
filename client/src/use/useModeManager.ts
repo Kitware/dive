@@ -16,8 +16,9 @@ export interface EditorSettings {
   selectedFeatureHandle: Ref<number>;
 }
 
-// TODO: remove this when we support multiple polygons
+// TODO: remove this when we support multiple polygons/lines
 const defaultPolygonKey = '';
+const defaultLineKey = '';
 
 export interface Seeker {
     seek(frame: number): void;
@@ -60,13 +61,14 @@ export default function useModeManager({
 
   const annotationModes = reactive({
     state: {
-      visible: ['rectangle', 'polygon'],
+      visible: ['rectangle', 'polygon', 'line'],
       editing: 'rectangle',
     },
     // selectedFeatureHandle could arguably belong in useTrackSelectionControls,
     // but the meaning of this value varies based on the editing mode.  When in
     // polygon edit mode, this corresponds to a polygon point.  Ditto in line mode.
     selectedFeatureHandle: -1,
+    selectedAnnotationKey: '',
   });
 
   function seekNearest(track: Track) {
@@ -81,6 +83,13 @@ export default function useModeManager({
   function handleSelectFeatureHandle(i: number) {
     annotationModes.selectedFeatureHandle = i;
   }
+  /**
+   * Eventually will allow you to select annotations once a track is selected
+   * @param {string} key name of the annotation you want to edit
+   */
+  function handleSelectAnnotation(key: string) {
+    annotationModes.selectedAnnotationKey = key;
+  }
 
   function handleSelectTrack(trackId: TrackId | null, edit = false) {
     selectTrack(trackId, edit);
@@ -88,6 +97,7 @@ export default function useModeManager({
       newTrackMode = false;
     }
   }
+
 
   function handleAddTrack() {
     // Handles adding a new track with the NewTrack Settings
@@ -144,6 +154,46 @@ export default function useModeManager({
     }
   }
 
+  //Want to use this as a base function for updating geoJSON items
+  function handleUpdateGeoJSON(
+    frameNum: number,
+    key: string,
+    data: GeoJSON.Feature<GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString>,
+  ) {
+    //Now we would go through the different types and create or handle updating
+    if (selectedTrackId.value !== null) {
+      const track = trackMap.get(selectedTrackId.value);
+      if (track) {
+        // Determines if we are creating a new Detection
+        const { features, interpolate } = track.canInterpolate(frameNum);
+        const [real] = features;
+        if (!real || real.bounds === undefined) {
+          newDetectionMode = true;
+        }
+        const interpolateTrack = newTrackMode
+          ? newTrackSettings.modeSettings.Track.interpolate
+          : interpolate;
+        // TODO: update to only work with polygon changes, not line changes
+        track.setFeature(
+          {
+            frame: frameNum,
+            bounds: findBounds(data.geometry),
+            keyframe: true,
+            interpolate: (newDetectionMode && !newTrackMode)
+              ? false : interpolateTrack,
+          },
+          [{
+            type: data.type,
+            geometry: data.geometry,
+            properties: {
+              key,
+            },
+          }],
+        );
+      }
+    }
+  }
+
   function handleUpdatePolygon(frameNum: number, data: GeoJSON.Feature<GeoJSON.Polygon>) {
     if (selectedTrackId.value !== null) {
       const track = trackMap.get(selectedTrackId.value);
@@ -185,7 +235,7 @@ export default function useModeManager({
   /**
    * Removes the selectedIndex point for the selected Polygon/line
    */
-  function handleRemovePoint() {
+  function handleRemovePoint(key = '', type = '') {
     if (selectedTrackId.value !== null && annotationModes.selectedFeatureHandle !== -1) {
       const track = trackMap.get(selectedTrackId.value);
       if (track) {

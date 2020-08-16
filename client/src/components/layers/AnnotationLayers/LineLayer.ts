@@ -28,7 +28,13 @@ export default class LineLayer extends BaseLayer<LineGeoJSData> {
     super.initialize();
   }
 
-  dashSegment(start: GeoJSON.Position, end: GeoJSON.Position, dashLength = 5) {
+  /**
+   * Creates a linear line of points that can be used to create a dashed line segment
+   * @param {number} start - start point of the line segment
+   * @param {number} end -end point of the line segment
+   * @param {int} dashLength=5 - the length of the dashes that are displayed
+   */
+  static dashSegment(start: GeoJSON.Position, end: GeoJSON.Position, dashLength = 5) {
     const distance = Math.sqrt((start[0] - end[0]) ** 2 + (start[1] - end[1]) ** 2);
     const linearSubdivide = Math.round(distance / dashLength);
 
@@ -42,6 +48,11 @@ export default class LineLayer extends BaseLayer<LineGeoJSData> {
     return coordinates;
   }
 
+  /**
+   * Function specific to the current head/tails data format for drawing the line
+   * @param {FrameDataTrack} frameData -standard data frame
+   */
+  // TODO: find a better way to store and handle head/tail data
   checkHeadTail(frameData: FrameDataTrack[]) {
     const data = [] as LineGeoJSData[];
     frameData.forEach((track: FrameDataTrack) => {
@@ -49,7 +60,7 @@ export default class LineLayer extends BaseLayer<LineGeoJSData> {
       if (feature?.head && feature?.tail) {
         const start = [Number(feature.head[0]), Number(feature.head[1])];
         const end = [Number(feature.tail[0]), Number(feature.tail[1])];
-        const coordinates = this.dashSegment(start, end);
+        const coordinates = LineLayer.dashSegment(start, end);
         const line: GeoJSON.LineString = {
           coordinates,
           type: 'LineString',

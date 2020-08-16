@@ -32,7 +32,8 @@ COPY server/setup.py /home/viame_girder/
 RUN pip install --no-cache-dir .
 
 COPY server/ /home/viame_girder/
-RUN pip install --no-deps .
+RUN pip install .
+RUN pip install .
 
 RUN girder build
 
