@@ -51,7 +51,12 @@ def run_pipeline(self, input_path, output_folder, pipeline, input_type):
     if len(filtered_directory_files) == 0:
         raise ValueError('No media files found in {}'.format(input_path))
 
-    pipeline_path = os.path.join(conf.pipeline_base_path, pipeline)
+    pipeline = pipeline.replace(" ", r"\ ")
+    trained_pipeline_folder = _trained_pipeline_folder()
+    if pipeline.startswith("trained_") and trained_pipeline_folder:
+        pipeline_path = os.path.join(trained_pipeline_folder, pipeline)
+    else:
+        pipeline_path = os.path.join(conf.pipeline_base_path, pipeline)
 
     if input_type == 'video':
         input_file = os.path.join(input_path, filtered_directory_files[0])
@@ -138,6 +143,8 @@ def train_pipeline(
     pipeline_base_path = Path(conf.pipeline_base_path)
     default_conf_file = pipeline_base_path / "train_netharn_cascade.viame_csv.conf"
     training_executable = viame_install_path / "bin" / "viame_train_detector"
+
+    pipeline_name = pipeline_name.replace(" ", "_")
 
     # root_data_dir is the directory passed to `viame_train_detector`
     with tempfile.TemporaryDirectory() as _temp_dir_string:
