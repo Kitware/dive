@@ -48,10 +48,9 @@ class ViameDetection(Resource):
         item = Item().findOne({'folderId': folder['_id'], 'meta.codec': 'h264',})
         if item:
             video = Item().childFiles(item)[0]
-            if video:
-                videoUrl = (
-                    f'/api/v1/file/{str(video["_id"])}/download?contentDisposition=inline'
-                )
+            videoUrl = (
+                f'/api/v1/file/{str(video["_id"])}/download?contentDisposition=inline'
+            )
 
         return {
             'folder': folder,
