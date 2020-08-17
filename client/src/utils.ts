@@ -66,6 +66,26 @@ function boundToGeojson(bounds: RectBounds): GeoJSON.Polygon {
   };
 }
 
+/**
+ *  Removing a point for a Line is different than a polygon
+ * @param data
+ */
+function removePoint(data: GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.LineString>, index: number) {
+  if (data.geometry.type === 'Polygon') {
+    if (data.geometry.coordinates[0].length > 3) {
+      data.geometry.coordinates[0].splice(index, 1);
+      return true;
+    }
+    console.warn('Polygons must have at least 3 points');
+    return false;
+  } if (data.geometry.coordinates.length > 2) { //Handling a Line
+    data.geometry.coordinates.splice(index, 1);
+    return true;
+  }
+  console.warn('Lines must have at least 2 points');
+  return false;
+}
+
 function findBounds(
   data: GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.LineString | GeoJSON.Point>,
 ): RectBounds {
@@ -100,4 +120,5 @@ export {
   geojsonToBound,
   boundToGeojson,
   findBounds,
+  removePoint,
 };

@@ -89,11 +89,8 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
   }
 
   hoverEditHandle(e: GeoEvent) {
-    let divisor = 2; //For Polygons we skip over edge handles (midpoints)
-    if (this.type === 'line') {
-      divisor = 1;
-    }
-    if (e.enable) {
+    const divisor = 2; //For Polygons we skip over edge handles (midpoints)
+    if (e.enable && e.handle.handle.type === 'vertex') {
       if (e.handle.handle.selected
         && (e.handle.handle.index * divisor) !== this.hoverHandleIndex) {
         this.hoverHandleIndex = e.handle.handle.index * divisor;

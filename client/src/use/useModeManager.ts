@@ -4,7 +4,7 @@ import {
 import { cloneDeep } from 'lodash';
 
 import Track, { TrackId } from '@/lib/track';
-import { RectBounds, findBounds } from '@/utils';
+import { RectBounds, findBounds, removePoint } from '@/utils';
 import { EditAnnotationTypes } from '@/components/layers/EditAnnotationLayer';
 import { NewTrackSettings } from './useSettings';
 
@@ -68,7 +68,6 @@ export default function useModeManager({
     // but the meaning of this value varies based on the editing mode.  When in
     // polygon edit mode, this corresponds to a polygon point.  Ditto in line mode.
     selectedFeatureHandle: -1,
-    selectedAnnotationKey: '',
   });
 
   function seekNearest(track: Track) {
@@ -82,13 +81,6 @@ export default function useModeManager({
 
   function handleSelectFeatureHandle(i: number) {
     annotationModes.selectedFeatureHandle = i;
-  }
-  /**
-   * Eventually will allow you to select annotations once a track is selected
-   * @param {string} key name of the annotation you want to edit
-   */
-  function handleSelectAnnotation(key: string) {
-    annotationModes.selectedAnnotationKey = key;
   }
 
   function handleSelectTrack(trackId: TrackId | null, edit = false) {
@@ -190,6 +182,10 @@ export default function useModeManager({
             },
           }],
         );
+        if (newTrackMode && newDetectionMode) {
+          newTrackSettingsAfterLogic(track);
+        }
+        newDetectionMode = false;
       }
     }
   }
@@ -232,6 +228,11 @@ export default function useModeManager({
     }
   }
 
+  const modeMap: {point: 'Point'; line: 'LineString'; polygon: 'Polygon'} = {
+    point: 'Point',
+    line: 'LineString',
+    polygon: 'Polygon',
+  };
   /**
    * Removes the selectedIndex point for the selected Polygon/line
    */
@@ -243,22 +244,20 @@ export default function useModeManager({
         const { features } = track.canInterpolate(frame.value);
         const [real] = features;
         if (!real) return;
-        const polygonFeatures = track.getFeatureGeometry(frame.value, {
-          type: 'Polygon',
-          key: defaultPolygonKey,
+        const geoJSONType = modeMap[annotationModes.state.editing];
+        const geoJsonFeatures = track.getFeatureGeometry(frame.value, {
+          type: geoJSONType,
+          key,
         }) as GeoJSON.Feature<GeoJSON.Polygon>[];
-        if (polygonFeatures.length === 0) return;
+        if (geoJsonFeatures.length === 0) return;
         //could operate directly on the polygon memory, but small enough to copy and edit
-        const clone = cloneDeep(polygonFeatures[0]);
-        if (clone.geometry.coordinates[0].length > 3) {
-          clone.geometry.coordinates[0].splice(annotationModes.selectedFeatureHandle, 1);
+        const clone = cloneDeep(geoJsonFeatures[0]);
+        if (removePoint(clone, annotationModes.selectedFeatureHandle)) {
           handleSelectFeatureHandle(-1);
           track.setFeature({
             frame: frame.value,
             bounds: findBounds(clone),
           }, [clone]);
-        } else {
-          console.warn('Polygons must have at least 3 points');
         }
       }
     }
