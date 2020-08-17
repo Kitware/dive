@@ -64,7 +64,9 @@ def load_pipelines(pipeline_paths):
         )
 
     if trained_pipeline_path is not None:
-        pipelist.extend([path.name for path in trained_pipeline_path.glob("./*.pipe")])
+        pipelist.extend(
+            [path.name for path in trained_pipeline_path.iterdir() if path.is_dir()]
+        )
 
     pipedict: Dict[str, PipelineDict] = {}
     for pipe in pipelist:

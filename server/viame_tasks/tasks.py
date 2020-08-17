@@ -51,10 +51,13 @@ def run_pipeline(self, input_path, output_folder, pipeline, input_type):
     if len(filtered_directory_files) == 0:
         raise ValueError('No media files found in {}'.format(input_path))
 
+    # Handle spaces in pipeline names
     pipeline = pipeline.replace(" ", r"\ ")
+
+    # Handle trained pipelines
     trained_pipeline_folder = _trained_pipeline_folder()
     if pipeline.startswith("trained_") and trained_pipeline_folder:
-        pipeline_path = os.path.join(trained_pipeline_folder, pipeline)
+        pipeline_path = os.path.join(trained_pipeline_folder, pipeline, "detector.pipe")
     else:
         pipeline_path = os.path.join(conf.pipeline_base_path, pipeline)
 
@@ -162,12 +165,7 @@ def train_pipeline(
 
         # Completely separate directory from `root_data_dir`
         with tempfile.TemporaryDirectory() as _training_output_path:
-            # Make timestamped folder, to properly identify the training job
-            timestamped_output = (
-                Path(_training_output_path)
-                / datetime.utcnow().replace(microsecond=0).isoformat()
-            )
-            timestamped_output.mkdir()
+            training_output_path = Path(_training_output_path)
 
             # Call viame_train_detector
             command = [
@@ -184,7 +182,7 @@ def train_pipeline(
                 stderr=PIPE,
                 shell=True,
                 executable='/bin/bash',
-                cwd=timestamped_output,
+                cwd=training_output_path,
             )
             while process.poll() is None:
                 out = process.stdout.read() if process.stdout else None
@@ -199,12 +197,15 @@ def train_pipeline(
                 # Not sure what else to do for now
                 return
 
-            # Trained_ prefix is added to easier conform with existing pipeline names
-            timestamped_pipeline_name = (
-                f"trained_{pipeline_name}_{timestamped_output.name}.pipe"
-            )
-            generated_detector_pipeline = (
-                timestamped_output / "category_models" / "detector.pipe"
+            timestamp = datetime.utcnow().replace(microsecond=0).isoformat()
+
+            # Trained_ prefix is added to conform with existing pipeline names
+            trained_model_folder_name = f"trained_{pipeline_name}_{timestamp}"
+            training_results = training_output_path / trained_model_folder_name
+
+            # Rename the original folder with our new folder name
+            shutil.move(
+                training_output_path / "category_models", training_results,
             )
 
             # If `_trained_pipeline_folder()` returns `None`, the results of this
@@ -212,13 +213,13 @@ def train_pipeline(
             # a normal pipeline through the client
             trained_pipeline_folder = _trained_pipeline_folder()
             if trained_pipeline_folder:
-                shutil.copy(
-                    generated_detector_pipeline,
-                    trained_pipeline_folder / timestamped_pipeline_name,
+                shutil.copytree(
+                    training_results,
+                    trained_pipeline_folder / trained_model_folder_name,
                 )
 
             self.girder_client._uploadFolderRecursive(
-                timestamped_output, results_folder["_id"], "folder"
+                training_results, results_folder["_id"], "folder"
             )
 
 
