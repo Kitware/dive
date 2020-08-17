@@ -46,6 +46,13 @@
         project_src: "{{ project_directory }}/docker"
         state: absent
 
+      # Necessary so that the old pipelines data doesn't overwrite any changes
+    - name: Remove pipelines volume
+      when: not build.failed and build.changed
+      docker_volume:
+        name: viame_web_pipelines
+        state: absent
+
     - name: Start Service
       docker_compose:
         project_src: "{{ project_directory }}/docker"
