@@ -264,10 +264,7 @@ export default defineComponent({
         if (type === 'rectangle') {
           const bounds = geojsonToBound(data);
           emit('update-rect-bounds', frameNumber.value, bounds);
-        } else if (type === 'polygon') {
-          emit('update-polygon', frameNumber.value, data, key);
-        } else if (type === 'line') {
-          console.log(data);
+        } else {
           emit('update-geojson', frameNumber.value, data, key);
         }
       });

@@ -268,6 +268,24 @@ export default class Track {
     });
   }
 
+  removeFeatureGeometry(frame: number, { key, type }:
+    { key?: string; type?: GeoJSON.GeoJsonGeometryTypes }) {
+    const feature = this.features[frame];
+    if (!feature.geometry) {
+      return false;
+    }
+    const index = feature.geometry.features.findIndex((item) => {
+      const matchesKey = !key || item.properties?.key === key;
+      const matchesType = !type || item.geometry.type === type;
+      return matchesKey && matchesType;
+    });
+    if (index !== -1) {
+      feature.geometry.features.splice(index, 1);
+      return true;
+    }
+    return false;
+  }
+
   setFeatureAttribute(frame: number, name: string, value: unknown) {
     if (this.features[frame]) {
       this.features[frame].attributes = {

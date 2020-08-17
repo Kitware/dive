@@ -16,9 +16,6 @@ export interface EditorSettings {
   selectedFeatureHandle: Ref<number>;
 }
 
-// TODO: remove this when we support multiple polygons/lines
-const defaultPolygonKey = '';
-const defaultLineKey = '';
 
 export interface Seeker {
     seek(frame: number): void;
@@ -190,44 +187,6 @@ export default function useModeManager({
     }
   }
 
-  function handleUpdatePolygon(frameNum: number, data: GeoJSON.Feature<GeoJSON.Polygon>) {
-    if (selectedTrackId.value !== null) {
-      const track = trackMap.get(selectedTrackId.value);
-      if (track) {
-        // Determines if we are creating a new Detection
-        const { features, interpolate } = track.canInterpolate(frameNum);
-        const [real] = features;
-        if (!real || real.bounds === undefined) {
-          newDetectionMode = true;
-        }
-        const interpolateTrack = newTrackMode
-          ? newTrackSettings.modeSettings.Track.interpolate
-          : interpolate;
-        track.setFeature(
-          {
-            frame: frameNum,
-            bounds: findBounds(data),
-            keyframe: true,
-            interpolate: (newDetectionMode && !newTrackMode)
-              ? false : interpolateTrack,
-          },
-          [{
-            type: data.type,
-            geometry: data.geometry,
-            properties: {
-              key: defaultPolygonKey,
-            },
-          }],
-        );
-        //If it is a new track and we have newTrack Settings
-        if (newTrackMode && newDetectionMode) {
-          newTrackSettingsAfterLogic(track);
-        }
-        newDetectionMode = false;
-      }
-    }
-  }
-
   const modeMap: {point: 'Point'; line: 'LineString'; polygon: 'Polygon'} = {
     point: 'Point',
     line: 'LineString',
@@ -236,7 +195,7 @@ export default function useModeManager({
   /**
    * Removes the selectedIndex point for the selected Polygon/line
    */
-  function handleRemovePoint(key = '', type = '') {
+  function handleRemovePoint(key = '', type: '' | 'Point' | 'Polygon' | 'LineString' = '') {
     if (selectedTrackId.value !== null && annotationModes.selectedFeatureHandle !== -1) {
       const track = trackMap.get(selectedTrackId.value);
       if (track) {
@@ -244,7 +203,8 @@ export default function useModeManager({
         const { features } = track.canInterpolate(frame.value);
         const [real] = features;
         if (!real) return;
-        const geoJSONType = modeMap[annotationModes.state.editing];
+        // TODO: This can be changed when we have selection of annotations by key/type
+        const geoJSONType = type !== '' ? type : modeMap[annotationModes.state.editing as 'polygon' | 'line'];
         const geoJsonFeatures = track.getFeatureGeometry(frame.value, {
           type: geoJSONType,
           key,
@@ -261,6 +221,23 @@ export default function useModeManager({
         }
       }
     }
+  }
+
+  function handleRemoveAnnotation(frameNum: number, key = '', type: '' | 'Point' | 'Polygon' | 'LineString' = '') {
+    if (selectedTrackId.value !== null && annotationModes.selectedFeatureHandle !== -1) {
+      const track = trackMap.get(selectedTrackId.value);
+      if (track) {
+        // Determines if we are creating a new Detection
+        const { features } = track.canInterpolate(frame.value);
+        const [real] = features;
+        if (!real) return false;
+        // TODO: This can be changed when we have selection of annotations by key/type
+        const geoJSONType = type !== '' ? type : modeMap[annotationModes.state.editing as 'polygon' | 'line'];
+        track.removeFeatureGeometry(frameNum, { key, type: geoJSONType });
+        return true;
+      }
+    }
+    return false;
   }
 
   function handleRemoveTrack(trackId: TrackId) {
@@ -309,12 +286,12 @@ export default function useModeManager({
       trackTypeChange: handleTrackTypeChange,
       addTrack: handleAddTrack,
       updateRectBounds: handleUpdateRectBounds,
-      updatePolygon: handleUpdatePolygon,
       updateGeoJSON: handleUpdateGeoJSON,
       selectNext: handleSelectNext,
       trackClick: handleTrackClick,
       removeTrack: handleRemoveTrack,
       removePoint: handleRemovePoint,
+      removeAnnotation: handleRemoveAnnotation,
       selectFeatureHandle: handleSelectFeatureHandle,
       setAnnotationState: handleSetAnnotationState,
     },

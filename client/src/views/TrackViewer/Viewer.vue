@@ -317,6 +317,7 @@ export default defineComponent({
       <feature-handle-controls
         v-bind="FeatureHandleControlsProps"
         @delete-point="handler.removePoint"
+        @delete-annotation="handler.removeAnnotation"
       />
       <editor-menu
         v-bind="modeEditorProps"
@@ -400,7 +401,6 @@ export default defineComponent({
             @selectTrack="handler.selectTrack"
             @featurePointUpdated="featurePointed"
             @update-rect-bounds="handler.updateRectBounds"
-            @update-polygon="handler.updatePolygon"
             @update-geojson="handler.updateGeoJSON"
             @select-feature-handle="handler.selectFeatureHandle"
           />
