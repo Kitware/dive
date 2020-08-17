@@ -157,8 +157,8 @@ export default function useModeManager({
   //Want to use this as a base function for updating geoJSON items
   function handleUpdateGeoJSON(
     frameNum: number,
-    key: string,
     data: GeoJSON.Feature<GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString>,
+    key: string,
   ) {
     //Now we would go through the different types and create or handle updating
     if (selectedTrackId.value !== null) {
@@ -177,7 +177,7 @@ export default function useModeManager({
         track.setFeature(
           {
             frame: frameNum,
-            bounds: findBounds(data.geometry),
+            bounds: findBounds(data),
             keyframe: true,
             interpolate: (newDetectionMode && !newTrackMode)
               ? false : interpolateTrack,
@@ -210,7 +210,7 @@ export default function useModeManager({
         track.setFeature(
           {
             frame: frameNum,
-            bounds: findBounds(data.geometry),
+            bounds: findBounds(data),
             keyframe: true,
             interpolate: (newDetectionMode && !newTrackMode)
               ? false : interpolateTrack,
@@ -255,7 +255,7 @@ export default function useModeManager({
           handleSelectFeatureHandle(-1);
           track.setFeature({
             frame: frame.value,
-            bounds: findBounds(clone.geometry),
+            bounds: findBounds(clone),
           }, [clone]);
         } else {
           console.warn('Polygons must have at least 3 points');
@@ -311,6 +311,7 @@ export default function useModeManager({
       addTrack: handleAddTrack,
       updateRectBounds: handleUpdateRectBounds,
       updatePolygon: handleUpdatePolygon,
+      updateGeoJSON: handleUpdateGeoJSON,
       selectNext: handleSelectNext,
       trackClick: handleTrackClick,
       removeTrack: handleRemoveTrack,

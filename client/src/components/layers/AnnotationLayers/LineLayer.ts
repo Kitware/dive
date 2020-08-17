@@ -161,15 +161,7 @@ export default class LineLayer extends BaseLayer<LineGeoJSData> {
 
         return this.stateStyling.standard.opacity;
       },
-      strokeOffset: (_point, _index, data) => {
-        if (data.selected) {
-          return this.stateStyling.selected.strokeWidth;
-        }
-        if (data.confidencePairs) {
-          return this.typeStyling.value.strokeWidth(data.confidencePairs[0]);
-        }
-        return this.stateStyling.standard.strokeWidth;
-      },
+      strokeOffset: 0,
       strokeWidth: (_point, _index, data) => {
         if (data.selected) {
           return this.stateStyling.selected.strokeWidth;

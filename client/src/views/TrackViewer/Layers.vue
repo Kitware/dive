@@ -260,12 +260,15 @@ export default defineComponent({
     polyAnnotationLayer.$on('annotationRightClicked', Clicked);
 
     editAnnotationLayer.$on('update:geojson',
-      (data: GeoJSON.Feature<GeoJSON.Polygon>, type: string) => {
+      (data: GeoJSON.Feature<GeoJSON.Polygon>, type: string, key = '') => {
         if (type === 'rectangle') {
           const bounds = geojsonToBound(data);
           emit('update-rect-bounds', frameNumber.value, bounds);
         } else if (type === 'polygon') {
-          emit('update-polygon', frameNumber.value, data);
+          emit('update-polygon', frameNumber.value, data, key);
+        } else if (type === 'line') {
+          console.log(data);
+          emit('update-geojson', frameNumber.value, data, key);
         }
       });
 

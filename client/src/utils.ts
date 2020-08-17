@@ -66,7 +66,9 @@ function boundToGeojson(bounds: RectBounds): GeoJSON.Polygon {
   };
 }
 
-function findBounds(data: GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.LineString>): RectBounds {
+function findBounds(
+  data: GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.LineString | GeoJSON.Point>,
+): RectBounds {
   let coords;
   if (data.geometry.type === 'Polygon') {
     // eslint-disable-next-line prefer-destructuring

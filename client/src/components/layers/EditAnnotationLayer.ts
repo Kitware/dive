@@ -17,6 +17,12 @@ interface EditHandleStyle {
   editHandle: boolean;
 }
 
+const annotationGeoJSONMap = {
+  point: 'Point',
+  polygon: 'Polygon',
+  line: 'LineString',
+};
+
 /**
  * This class is used to edit annotations within the viewer
  * It will do and display different things based on it either being in
@@ -33,6 +39,8 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
 
   trackType?: string;
 
+  selectedKey?: string;
+
   selectedHandleIndex: number;
 
   hoverHandleIndex: number;
@@ -41,6 +49,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
     super(params);
     this.changed = false;
     this.mode = 'editing';
+    this.selectedKey = '';
     this.type = params.type;
     this.selectedHandleIndex = -1;
     this.hoverHandleIndex = -1;
@@ -149,6 +158,26 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
   }
 
   /**
+   * retrieves geoJSON data based on the key and type
+   * @param frameData
+   */
+  getGeoJSONData(track: FrameDataTrack) {
+    let geoJSONData;
+    if (track && track.features && track.features.geometry) {
+      track.features.geometry.features.forEach((feature) => {
+        if (feature.geometry && feature.geometry.type.toLowerCase().includes(this.type)) {
+          if (feature.properties && feature.properties.key !== 'undefined') {
+            if (feature.properties.key === this.selectedKey) {
+              geoJSONData = feature.geometry;
+            }
+          }
+        }
+      });
+    }
+    return geoJSONData;
+  }
+
+  /**
    *
    * @param frameData a single FrameDataTrack Array that is the editing item
    */
@@ -162,9 +191,9 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
         let geoJSONData: GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString | undefined;
         if (this.type === 'rectangle') {
           geoJSONData = boundToGeojson(track.features.bounds);
-        } else if (this.type === 'polygon') {
+        } else {
           // TODO: this assumes only one polygon
-          geoJSONData = track.features.geometry?.features?.[0]?.geometry;
+          geoJSONData = this.getGeoJSONData(track);
         }
         if (!geoJSONData) {
           this.mode = 'creation';
@@ -236,7 +265,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
       if (e.action === geo.event.actionup) {
         // This will commit the change to the current annotation on mouse up while editing
         if (e.annotation.state() === 'edit') {
-          const newGeojson: GeoJSON.Feature<GeoJSON.Point|GeoJSON.Polygon> = (
+          const newGeojson: GeoJSON.Feature<GeoJSON.Point|GeoJSON.Polygon|GeoJSON.LineString> = (
             e.annotation.geojson()
           );
           if (this.formattedData.length > 0) {
@@ -312,7 +341,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
         handles: false,
       };
     }
-    if (this.type === 'polygon') {
+    if (this.type === 'polygon' || this.type === 'line') {
       return {
         handles: {
           rotate: false,

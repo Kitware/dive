@@ -401,6 +401,7 @@ export default defineComponent({
             @featurePointUpdated="featurePointed"
             @update-rect-bounds="handler.updateRectBounds"
             @update-polygon="handler.updatePolygon"
+            @update-geojson="handler.updateGeoJSON"
             @select-feature-handle="handler.selectFeatureHandle"
           />
         </component>

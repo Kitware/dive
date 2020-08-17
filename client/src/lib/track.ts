@@ -10,7 +10,8 @@ import {
 
 export type ConfidencePair = [string, number];
 export type TrackId = number;
-export type TrackSupportedFeature = GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString;
+export type TrackSupportedFeature = (
+  GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString | GeoJSON.Point);
 export interface StringKeyObject {
   [key: string]: unknown;
 }
@@ -239,7 +240,11 @@ export default class Track {
           const typeMatch = item.geometry.type === geo.geometry.type;
           return keyMatch && typeMatch;
         });
-      fg.features.splice(i, 1, geo);
+      if (i >= 0) {
+        fg.features.splice(i, 1, geo);
+      } else {
+        fg.features.push(geo);
+      }
     });
     if (fg.features.length) {
       this.features[feature.frame].geometry = fg;
