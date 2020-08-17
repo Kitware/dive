@@ -16,6 +16,9 @@ Steps to reproduce the behavior:
 2. Click on '....'
 4. See error
 
+**Related data**
+Is there a dataset on [viame.kitware.com](https://viame.kitware.com) that illustrates this bug well?  Please link it here.
+
 **Expected behavior**
 A clear and concise description of what you expected to happen.
 
