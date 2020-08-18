@@ -17,11 +17,6 @@ interface EditHandleStyle {
   editHandle: boolean;
 }
 
-const annotationGeoJSONMap = {
-  point: 'Point',
-  polygon: 'Polygon',
-  line: 'LineString',
-};
 
 /**
  * This class is used to edit annotations within the viewer
