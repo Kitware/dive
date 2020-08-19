@@ -7,33 +7,53 @@
   vars_files:
       - ".vars.yml"
   tasks:
-    - name: Pull Repository Changes
+    - name: Pull Changes
       shell: git pull
       args:
-        chdir: /home/viame
+        chdir: "{{ project_directory }}"
 
-    - name: Stop and Build Service
+    - name: Pull Latest Viame Docker Image
+      docker_image:
+        name: kitware/viame:gpu-all-models-latest
+        source: pull
+        force_source: yes
+
+    - name: Build Service
       ignore_errors: yes
       register: build
       docker_compose:
-        project_src: /home/viame/docker
+        project_src: "{{ project_directory }}/docker"
         build: yes
-        state: absent
+        state: present
 
     - name: Send email on build failure
-      when: register.rc != 0
+      ignore_errors: yes
+      when: build.failed
       mail:
         from: "{{ deploy_email_address }}"
         to: "{{ notify_email_address  }}"
         subject: Failed Build of Viame-Web
         body: |
           Captured stdout:
-          {{ build.stdout  }}
+          {{ build.module_stdout  }}
 
           Captured stderr:
-          {{ build.stderr  }}
+          {{ build.module_stderr  }}
+
+    - name: Stop Service
+      when: not build.failed and build.changed
+      docker_compose:
+        project_src: "{{ project_directory }}/docker"
+        state: absent
+
+      # Necessary so that the old pipelines data doesn't overwrite any changes
+    - name: Remove pipelines volume
+      when: not build.failed and build.changed
+      docker_volume:
+        name: viame_web_pipelines
+        state: absent
 
     - name: Start Service
       docker_compose:
-        project_src: /home/viame/docker
+        project_src: "{{ project_directory }}/docker"
         state: present
