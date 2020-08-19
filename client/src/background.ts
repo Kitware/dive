@@ -1,9 +1,21 @@
-
 import { app, protocol, BrowserWindow } from 'electron';
 import { createProtocol } from 'vue-cli-plugin-electron-builder/lib';
-// import installExtension, { VUEJS_DEVTOOLS } from 'electron-devtools-installer';
+import installExtension, { VUEJS_DEVTOOLS } from 'electron-devtools-installer';
+
+const path = require("path");
+const {getPluginEntry} = require("mpv.js");
+// Absolute path to the plugin directory.
+// const pluginDir = path.join(path.dirname(require.resolve("mpv.js")), "build", "Release");
+// // See pitfalls section for details.
+// if (process.platform !== "linux") {process.chdir(pluginDir);}
+// // Fix for latest Electron.
+// app.commandLine.appendSwitch("no-sandbox");
+// // To support a broader number of systems.
+// app.commandLine.appendSwitch("ignore-gpu-blacklist");
+// app.commandLine.appendSwitch("register-pepper-plugins", getPluginEntry(pluginDir));
 
 const isDevelopment = process.env.NODE_ENV !== 'production';
+console.log('ELECTRON TIME!!!!!');
 
 // Keep a global reference of the window object, if you don't, the window will
 // be closed automatically when the JavaScript object is garbage collected.
@@ -25,18 +37,20 @@ function createWindow() {
       // #node-integration for more info
       nodeIntegration: (process.env
         .ELECTRON_NODE_INTEGRATION as unknown) as boolean,
+      plugins: true,
     },
   });
 
-  if (process.env.WEBPACK_DEV_SERVER_URL) {
+  if (process.env.IS_ELECTRON) {
     // Load the url of the dev server if in development mode
+    console.log(process.env.IS_ELECTRON);
     win.loadURL(process.env.WEBPACK_DEV_SERVER_URL as string);
     if (!process.env.IS_TEST) win.webContents.openDevTools();
   } else {
     createProtocol('app');
+    console.log('local');
     // Load the index.html when not in development
-    console.log("AHHHHHHHHHHHHHHHHHHH");
-    win.loadURL('http://localhost:8080');
+    win.loadURL(`file://${__dirname}/index.html`);
   }
 
   win.on('closed', () => {
@@ -65,14 +79,14 @@ app.on('activate', () => {
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
 app.on('ready', async () => {
-  // if (isDevelopment && !process.env.IS_TEST) {
-  //   // Install Vue Devtools
-  //   try {
-  //     await installExtension(VUEJS_DEVTOOLS);
-  //   } catch (e) {
-  //     console.error('Vue Devtools failed to install:', e.toString());
-  //   }
-  // }
+  if (isDevelopment && !process.env.IS_TEST) {
+    // Install Vue Devtools
+    try {
+      await installExtension(VUEJS_DEVTOOLS);
+    } catch (e) {
+      console.error('Vue Devtools failed to install:', e.toString());
+    }
+  }
   createWindow();
 });
 

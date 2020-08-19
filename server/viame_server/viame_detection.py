@@ -44,6 +44,7 @@ class ViameDetection(Resource):
         detection = detections[0] if len(detections) else None
 
         videoUrl = None
+        video = None
         # Find a video tagged with an h264 codec left by the transcoder
         item = Item().findOne({'folderId': folder['_id'], 'meta.codec': 'h264',})
         if item:
