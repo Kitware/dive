@@ -15,6 +15,19 @@ Additional documentation will be available in the future for users.
 </nobr>
 </p>
 
+## Features
+
+* Video Annotation
+  * Single-frame boxes and polygons
+  * Multi-frame bounding box tracks with interpolation
+  * Automatic transcoding to support `avi`, `mov`, 
+* Still image annotation
+  * Bounding boxes
+  * Polygons
+* Customizable labeling
+  * label shapes and tracks
+  * add text, numeric, multiple-choice attributes
+
 ## Documentation
 
 * [Client User Guide](https://github.com/VIAME/VIAME-Web/wiki)
