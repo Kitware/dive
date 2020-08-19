@@ -6,12 +6,13 @@
     "serve": "rimraf -rf ./node_modules/.cache/vue-loader && vue-cli-service serve",
     "build": "vue-cli-service build",
     "lint": "vue-cli-service lint",
+    "electron:build": "vue-cli-service electron:build",
+    "electron:serve": "vue-cli-service electron:serve",
+    "postinstall": "electron-builder install-app-deps",
+    "postuninstall": "electron-builder install-app-deps",
     "test": "vue-cli-service test:unit"
   },
-  "resolutions": {
-    "@types/jest": "^25.2.3",
-    "vuetify": "^v2.3.0-beta.7"
-  },
+  "main": "background.js",
   "dependencies": {
     "@flatten-js/interval-tree": "^1.0.11",
     "@girder/components": "^2.2.4",
@@ -34,12 +35,12 @@
     "@types/geojson": "^7946.0.7",
     "@types/jest": "^25.2.3",
     "@types/lodash": "^4.14.151",
-    "@types/node": "^14.0.5",
+    "@types/node@": "^12",
     "@typescript-eslint/eslint-plugin": "^2.33.0",
     "@typescript-eslint/parser": "^2.33.0",
     "@vue/cli-plugin-babel": "~4.3.1",
     "@vue/cli-plugin-eslint": "~4.4.0",
-    "@vue/cli-plugin-typescript": "~4.3.0",
+    "@vue/cli-plugin-typescript": "~4.5.0",
     "@vue/cli-plugin-unit-jest": "~4.4.0",
     "@vue/cli-service": "~4.3.1",
     "@vue/eslint-config-airbnb": "^5.0.2",
@@ -48,6 +49,8 @@
     "babel-eslint": "^10.1.0",
     "babel-jest": "^26.0.1",
     "babel-register": "^6.26.0",
+    "electron": "^9.0.0",
+    "electron-devtools-installer": "^3.1.0",
     "eslint": "^6.7.2",
     "eslint-plugin-import": "^2.20.2",
     "eslint-plugin-vue": "^6.2.2",
@@ -57,28 +60,12 @@
     "sass": "^1.26.3",
     "sass-loader": "^8.0.2",
     "ts-jest": "^26.0.0",
-    "typescript": "~3.8.3",
+    "typescript": "~3.9.3",
+    "vue-cli-plugin-electron-builder": "~2.0.0-rc.4",
     "vue-cli-plugin-vuetify": "^2.0.5",
     "vue-jest": "^3.0.5",
     "vue-template-compiler": "^2.6.10",
     "vuetify-loader": "^1.4.3"
-  },
-  "jest": {
-    "verbose": true,
-    "moduleNameMapper": {
-      "^@/(.*)$": "<rootDir>/src/$1",
-      "\\.css$": "<rootDir>/test/stub.js"
-    },
-    "transform": {
-      ".*\\.(vue)$": "vue-jest",
-      "^.+\\.tsx?$": "ts-jest",
-      "^.+\\.jsx?$": "babel-jest"
-    },
-    "globals": {
-      "ts-jest": {
-        "tsConfig": "tsconfig.spec.json"
-      }
-    }
   },
   "eslintConfig": {
     "root": true,
@@ -121,5 +108,26 @@
       "parser": "@typescript-eslint/parser",
       "ecmaVersion": 2020
     }
+  },
+  "jest": {
+    "verbose": true,
+    "moduleNameMapper": {
+      "^@/(.*)$": "<rootDir>/src/$1",
+      "\\.css$": "<rootDir>/test/stub.js"
+    },
+    "transform": {
+      ".*\\.(vue)$": "vue-jest",
+      "^.+\\.tsx?$": "ts-jest",
+      "^.+\\.jsx?$": "babel-jest"
+    },
+    "globals": {
+      "ts-jest": {
+        "tsConfig": "tsconfig.spec.json"
+      }
+    }
+  },
+  "resolutions": {
+    "@types/jest": "^25.2.3",
+    "vuetify": "^v2.3.0-beta.7"
   }
 }
