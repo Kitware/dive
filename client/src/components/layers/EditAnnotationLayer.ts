@@ -40,6 +40,10 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
 
   hoverHandleIndex: number;
 
+  lineLimit: number;
+
+  lineList: any[];
+
   constructor(params: BaseLayerParams & EditAnnotationLayerParams) {
     super(params);
     this.changed = false;
@@ -48,6 +52,8 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
     this.type = params.type;
     this.selectedHandleIndex = -1;
     this.hoverHandleIndex = -1;
+    this.lineLimit = 2;
+    this.lineList = [];
     //Only initialize once, prevents recreating Layer each edit
     this.initialize();
   }
@@ -65,6 +71,28 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
       // For these we need to use an anonymous function to prevent geoJS from erroring
       this.featureLayer.geoOn(geo.event.annotation.edit_action,
         (e: GeoEvent) => this.handleEditAction(e));
+      this.featureLayer.geoOn(geo.event.actiondown,
+        (e: GeoEvent) => {
+          if (this.mode === 'creation' && this.type === 'line') {
+            console.log('Coorindate Editing');
+            console.log(e);
+            if (this.lineList.length === 0) {
+              this.lineList.push({
+                feature: 'head',
+                x: e.mouse.geo.x,
+                y: e.mouse.geo.y,
+              });
+            } else if (this.lineList.length === 1) {
+              this.lineList.push({
+                feature: 'tail',
+                x: e.mouse.geo.x,
+                y: e.mouse.geo.y,
+              });
+              const annotation = this.applyStylesToAnnotations();
+              this.featureLayer.mode('edit', annotation);
+            }
+          }
+        });
       this.featureLayer.geoOn(geo.event.annotation.state,
         (e: GeoEvent) => this.handleEditStateChange(e));
       //Event name is misleading, this means hovering over an edit handle
@@ -127,6 +155,19 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
     if (this.featureLayer) {
       this.featureLayer.removeAllAnnotations();
       this.featureLayer.mode(null);
+      if (this.lineList.length > 0 && this.lineList.length < this.lineLimit) {
+        //We want to record the point
+        console.log(this.lineList[0]);
+        const geoJSON = {
+          type: 'Feature',
+          geometry: {
+            type: 'Point',
+            coordinates: [this.lineList[0].x, this.lineList[0].y],
+          },
+          annotationType: 'point',
+        };
+        this.$emit('update:geojson', [geoJSON], 'point');
+      }
       if (this.selectedHandleIndex !== -1) {
         this.selectedHandleIndex = -1;
         this.hoverHandleIndex = -1;
@@ -224,6 +265,9 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
     } else {
       // point or rectangle mode for the editor
       this.mode = 'creation';
+      if (this.type === 'line') {
+        this.lineList = [];
+      }
       this.featureLayer.mode(this.type);
     }
     return [];
@@ -297,7 +341,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
    */
   createStyle(): LayerStyle<GeoJSON.Feature> {
     const baseStyle = super.createStyle();
-    if (this.type === 'rectangle' || this.type === 'polygon') {
+    if (this.type === 'rectangle' || this.type === 'polygon' || this.type === 'line') {
       return {
         ...baseStyle,
         fill: false,
@@ -337,6 +381,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
       return {
         handles: {
           rotate: false,
+          edge: this.type !== 'line',
         },
         fill: true,
         radius: (handle: EditHandleStyle): number => {
