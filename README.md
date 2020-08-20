@@ -8,9 +8,9 @@ Additional documentation will be available in the future for users.
 <p align="center">
 <br>
 <nobr>
-<img src="https://raw.githubusercontent.com/wiki/VIAME/VIAME-Web/images/Misc/FishPolygonSelected.png" alt="Example Tracks" width="370" border="1">
+<img src="https://raw.githubusercontent.com/wiki/VIAME/VIAME-Web/images/Misc/FishPolygonSelected.png" alt="Example from viame.kitware.com sample data" width="370" border="1">
 &nbsp; &nbsp; &nbsp;
-<img src="https://raw.githubusercontent.com/wiki/VIAME/VIAME-Web/images/Misc/PolygonUAV.png" alt="Example Tracks" width="430" border="1">
+<img src="https://raw.githubusercontent.com/wiki/VIAME/VIAME-Web/images/Misc/PolygonUAV.png" alt="Example from mevadata.org UAV clip" width="430" border="1">
 &nbsp; &nbsp; &nbsp;
 </nobr>
 </p>
