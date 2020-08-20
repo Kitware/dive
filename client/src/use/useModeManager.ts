@@ -143,6 +143,48 @@ export default function useModeManager({
     }
   }
 
+  function updateHeadTails(
+    frameNum: number,
+    track: Track,
+    interpolate: boolean,
+    coordinates: GeoJSON.Position[],
+  ) {
+    //Update the Head and Tails points as well
+    const geoJSONPointHead: GeoJSON.Point = {
+      type: 'Point',
+      coordinates: coordinates[0],
+    };
+    track.setFeature({
+      frame: frameNum,
+      keyframe: true,
+      interpolate,
+    },
+    [{
+      type: 'Feature',
+      geometry: geoJSONPointHead,
+      properties: {
+        key: 'head',
+      },
+    }]);
+    // eslint-disable-next-line prefer-destructuring
+    const geoJSONPointTail: GeoJSON.Point = {
+      type: 'Point',
+      coordinates: coordinates[1],
+    };
+    track.setFeature({
+      frame: frameNum,
+      keyframe: true,
+      interpolate,
+    },
+    [{
+      type: 'Feature',
+      geometry: geoJSONPointTail,
+      properties: {
+        key: 'tail',
+      },
+    }]);
+  }
+
   //Want to use this as a base function for updating geoJSON items
   function handleUpdateGeoJSON(
     frameNum: number,
@@ -162,11 +204,16 @@ export default function useModeManager({
         const interpolateTrack = newTrackMode
           ? newTrackSettings.modeSettings.Track.interpolate
           : interpolate;
+
+        const interpolateSetting = (newDetectionMode && !newTrackMode)
+          ? false : interpolateTrack;
+        if (data.geometry.type === 'LineString') {
+          updateHeadTails(frameNum, track, interpolateSetting, data.geometry.coordinates);
+        }
         // TODO: update to only work with polygon changes, not line changes
         track.setFeature(
           {
             frame: frameNum,
-            bounds: findBounds(data),
             keyframe: true,
             interpolate: (newDetectionMode && !newTrackMode)
               ? false : interpolateTrack,
@@ -179,8 +226,18 @@ export default function useModeManager({
             },
           }],
         );
+        //Update bounds based on type and condition of the updated bounds
+        if (false && real) {
+          const oldBounds = real?.bounds || 0;
+          const newbounds = findBounds(data);
+          if (newbounds > oldBounds) {
+            //update if polygon or line
+          } else if (newbounds < oldBounds) {
+            //updat eonly if it is a polygon
+          }
+        }
         if (newTrackMode && newDetectionMode) {
-          newTrackSettingsAfterLogic(track);
+          //newTrackSettingsAfterLogic(track);
         }
         newDetectionMode = false;
       }

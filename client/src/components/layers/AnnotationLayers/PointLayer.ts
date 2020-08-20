@@ -87,7 +87,15 @@ export default class PointLayer extends BaseLayer<PointGeoJSData> {
       ...super.createStyle(),
       fill: true,
       fillColor: (data: PointGeoJSData) => (data.feature === 'tail' ? 'orange' : 'blue'),
-      radius: 4,
+      radius: (data: PointGeoJSData) => {
+        if (data.selected) {
+          return this.stateStyling.selected.strokeWidth * 2;
+        }
+        if (data.confidencePairs) {
+          return this.typeStyling.value.strokeWidth(data.confidencePairs[0]) * 2;
+        }
+        return this.stateStyling.standard.strokeWidth * 2;
+      },
     };
   }
 

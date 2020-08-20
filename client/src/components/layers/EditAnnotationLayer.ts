@@ -74,8 +74,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
       this.featureLayer.geoOn(geo.event.actiondown,
         (e: GeoEvent) => {
           if (this.mode === 'creation' && this.type === 'line') {
-            console.log('Coorindate Editing');
-            console.log(e);
+            let key = 'head';
             if (this.lineList.length === 0) {
               this.lineList.push({
                 feature: 'head',
@@ -88,8 +87,34 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
                 x: e.mouse.geo.x,
                 y: e.mouse.geo.y,
               });
-              const annotation = this.applyStylesToAnnotations();
-              this.featureLayer.mode('edit', annotation);
+              key = 'tail';
+            }
+            const geoJSON = {
+              type: 'Feature',
+              geometry: {
+                type: 'Point',
+                coordinates: [Number(e.mouse.geo.x), Number(e.mouse.geo.y)],
+              },
+              annotationType: 'point',
+            };
+
+            this.changed = true;
+            this.$emit('update:geojson', geoJSON, 'point', key);
+            if (this.lineList.length === 2) {
+              const geoJSONLine = {
+                type: 'Feature',
+                geometry: {
+                  type: 'LineString',
+                  coordinates: [
+                    [Number(this.lineList[0].x), Number(this.lineList[0].y)],
+                    [Number(this.lineList[1].x), Number(this.lineList[1].y)],
+                  ],
+                },
+                annotationType: 'line',
+              };
+              this.featureLayer.mode(null);
+              this.changed = false;
+              this.$emit('update:geojson', geoJSONLine, 'line');
             }
           }
         });
@@ -102,7 +127,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
         if (e.buttonsDown.left && this.hoverHandleIndex !== -1) {
           this.selectedHandleIndex = this.hoverHandleIndex;
           setTimeout(() => this.redraw(), 0); //Redraw timeout to update the selected handle
-          const divisor = 2.0; // used for polygon because edge handles
+          const divisor = this.type === 'line' ? 1 : 2; // used for polygon because edge handles
           if (this.type !== 'rectangle') {
             this.$emit('update:selectedIndex', this.selectedHandleIndex / divisor);
           }
@@ -112,7 +137,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
   }
 
   hoverEditHandle(e: GeoEvent) {
-    const divisor = 2; //For Polygons we skip over edge handles (midpoints)
+    const divisor = this.type === 'line' ? 1 : 2; //For Polygons we skip over edge handles (midpoints)
     if (e.enable && e.handle.handle.type === 'vertex') {
       if (e.handle.handle.selected
         && (e.handle.handle.index * divisor) !== this.hoverHandleIndex) {
@@ -155,19 +180,6 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
     if (this.featureLayer) {
       this.featureLayer.removeAllAnnotations();
       this.featureLayer.mode(null);
-      if (this.lineList.length > 0 && this.lineList.length < this.lineLimit) {
-        //We want to record the point
-        console.log(this.lineList[0]);
-        const geoJSON = {
-          type: 'Feature',
-          geometry: {
-            type: 'Point',
-            coordinates: [this.lineList[0].x, this.lineList[0].y],
-          },
-          annotationType: 'point',
-        };
-        this.$emit('update:geojson', [geoJSON], 'point');
-      }
       if (this.selectedHandleIndex !== -1) {
         this.selectedHandleIndex = -1;
         this.hoverHandleIndex = -1;

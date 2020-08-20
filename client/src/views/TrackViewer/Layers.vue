@@ -184,8 +184,8 @@ export default defineComponent({
       } else {
         polyAnnotationLayer.disable();
       }
-      markerLayer.changeData(frameData);
       lineLayer.changeData(frameData);
+      markerLayer.changeData(frameData);
       if (annotationVisible_.length) {
         textLayer.changeData(frameData);
       } else {
@@ -222,10 +222,12 @@ export default defineComponent({
             }
           }
         } else {
+          console.log('Disable Edit because editingTracks length');
           markerEditLayer.disable();
           editAnnotationLayer.disable();
         }
       } else {
+        console.log('Editing false because no selected track');
         markerEditLayer.disable();
         editAnnotationLayer.disable();
       }
@@ -250,6 +252,7 @@ export default defineComponent({
       const creationMode = editAnnotationLayer.getMode() === 'creation';
       const editingPolyorLine = (editingType.value && (editingType.value === 'polygon' || editingType.value === 'line'));
       if (!props.featurePointing.value && !(editingPolyorLine && creationMode)) {
+        console.log('disable because of clicking');
         editAnnotationLayer.disable();
         emit('selectTrack', trackId, editing);
       }
@@ -260,7 +263,8 @@ export default defineComponent({
     polyAnnotationLayer.$on('annotationRightClicked', Clicked);
 
     editAnnotationLayer.$on('update:geojson',
-      (data: GeoJSON.Feature<GeoJSON.Polygon>, type: string, key = '') => {
+      (data: GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.LineString>, type: string, key = '') => {
+        console.log(`Update Type: ${type}`);
         if (type === 'rectangle') {
           const bounds = geojsonToBound(data);
           emit('update-rect-bounds', frameNumber.value, bounds);

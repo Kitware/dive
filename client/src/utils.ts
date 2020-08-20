@@ -90,6 +90,7 @@ function findBounds(
   data: GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.LineString | GeoJSON.Point>,
 ): RectBounds {
   let coords;
+  console.log(data);
   if (data.geometry.type === 'Polygon') {
     // eslint-disable-next-line prefer-destructuring
     coords = data.geometry.coordinates[0];

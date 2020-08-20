@@ -1,6 +1,7 @@
 /* eslint-disable class-methods-use-this */
 import BaseLayer, { LayerStyle, BaseLayerParams } from '@/components/layers/BaseLayer';
 import { FrameDataTrack } from '@/components/layers/LayerTypes';
+import { cloneDeep } from 'lodash';
 
 interface LineGeoJSData{
   trackId: number;
@@ -38,7 +39,7 @@ export default class LineLayer extends BaseLayer<LineGeoJSData> {
     const distance = Math.sqrt((start[0] - end[0]) ** 2 + (start[1] - end[1]) ** 2);
     const linearSubdivide = Math.round(distance / dashLength);
 
-    const coordinates = [start];
+    const coordinates = [];
     for (let i = 0; i < linearSubdivide; i += 1) {
       const x = start[0] + ((end[0] - start[0]) / linearSubdivide) * i;
       const y = start[1] + ((end[1] - start[1]) / linearSubdivide) * i;
@@ -46,6 +47,16 @@ export default class LineLayer extends BaseLayer<LineGeoJSData> {
     }
     coordinates.push(end);
     return coordinates;
+  }
+
+  static dashLine(coordinates: GeoJSON.Position[], dashLength = 5) {
+    //Iterate over and dash each segement
+    let dashed: GeoJSON.Position[] = [];
+    for (let i = 0; i + 1 < coordinates.length; i += 1) {
+      const segment = LineLayer.dashSegment(coordinates[i], coordinates[i + 1], dashLength);
+      dashed = dashed.concat(segment);
+    }
+    return dashed;
   }
 
   /**
@@ -86,13 +97,15 @@ export default class LineLayer extends BaseLayer<LineGeoJSData> {
         if (track.features.geometry?.features?.[0]) {
           track.features.geometry.features.forEach((feature) => {
             if (feature.geometry && feature.geometry.type === 'LineString') {
-              const line = feature.geometry;
+              const line = cloneDeep(feature.geometry);
+              line.coordinates = LineLayer.dashLine(line.coordinates);
               const annotation: LineGeoJSData = {
                 trackId: track.trackId,
                 selected: track.selected,
                 editing: track.editing,
                 confidencePairs: track.confidencePairs,
                 line,
+                dashed: true,
               };
               arr.push(annotation);
             }
