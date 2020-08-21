@@ -1,17 +1,21 @@
 {
-  "name": "viameweb",
-  "version": "0.1.0",
-  "private": true,
+  "name": "vue-media-annotator",
+  "version": "0.1.4",
   "scripts": {
-    "serve": "rimraf -rf ./node_modules/.cache/vue-loader && vue-cli-service serve",
-    "build": "vue-cli-service build",
-    "lint": "vue-cli-service lint",
-    "test": "vue-cli-service test:unit"
+    "serve": "rimraf -rf ./node_modules/.cache/vue-loader && vue-cli-service serve app/main.ts",
+    "build": "vue-cli-service build app/main.ts",
+    "lint": "vue-cli-service lint src/ app/",
+    "test": "vue-cli-service test:unit src/ app/"
   },
   "resolutions": {
     "@types/jest": "^25.2.3",
     "vuetify": "^v2.3.0-beta.7"
   },
+  "files": [
+    "/src/",
+    "/babel.config.js",
+    "/vue.config.js"
+  ],
   "dependencies": {
     "@flatten-js/interval-tree": "^1.0.11",
     "@girder/components": "^2.2.4",
@@ -49,6 +53,7 @@
     "babel-jest": "^26.0.1",
     "babel-register": "^6.26.0",
     "eslint": "^6.7.2",
+    "eslint-import-resolver-typescript": "^2.2.0",
     "eslint-plugin-import": "^2.20.2",
     "eslint-plugin-vue": "^6.2.2",
     "git-describe": "^4.0.4",
@@ -66,7 +71,8 @@
   "jest": {
     "verbose": true,
     "moduleNameMapper": {
-      "^@/(.*)$": "<rootDir>/src/$1",
+      "^vue-media-annotator/(.*)$": "<rootDir>/src/$1",
+      "^app/(.*)$": "<rootDir>/app/$1",
       "\\.css$": "<rootDir>/test/stub.js"
     },
     "transform": {
@@ -104,6 +110,11 @@
           ]
         }
       ]
+    },
+    "settings": {
+      "import/resolver": {
+        "typescript": {}
+      }
     },
     "overrides": [
       {

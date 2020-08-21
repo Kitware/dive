@@ -1,4 +1,5 @@
 const { gitDescribeSync } = require('git-describe');
+const path = require('path');
 const packagejson = require('./package.json');
 
 process.env.VUE_APP_GIT_HASH = gitDescribeSync().hash;
@@ -17,5 +18,7 @@ module.exports = {
   chainWebpack: (config) => {
     config.output.strictModuleExceptionHandling(true);
     config.resolve.symlinks(false);
+    config.resolve.alias.set('app', path.resolve(__dirname, 'app'));
+    config.resolve.alias.set('vue-media-annotator', path.resolve(__dirname, 'src'));
   },
 };

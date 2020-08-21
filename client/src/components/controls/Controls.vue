@@ -78,7 +78,7 @@ export default {
         </v-row>
         <v-row class="controls-row">
           <v-col
-            class="pl-1"
+            class="pl-1 py-1"
             align="left"
             cols="4"
             md="4"
@@ -93,6 +93,7 @@ export default {
           <v-col
             align="center"
             cols="4"
+            class="py-1"
           >
             <v-btn
               icon
@@ -134,6 +135,7 @@ export default {
             md="4"
             sm="2"
             xs="0"
+            class="py-1"
           />
         </v-row>
       </v-container>

@@ -11,6 +11,13 @@ export default {
       type: Array,
       required: true,
     },
+    loadImageFunc: {
+      type: Function,
+      default: async (imageDataItem, img) => {
+        // eslint-disable-next-line no-param-reassign
+        img.src = imageDataItem.url;
+      },
+    },
   },
   data() {
     return {
@@ -156,13 +163,13 @@ export default {
       return new Promise((resolve) => {
         const img = new Image();
         img.crossOrigin = 'Anonymous';
-        img.src = this.imageData[frame].url;
         this.imgs[frame] = img;
         img.onload = () => {
           img.onload = null;
           img.cached = true;
           resolve(frame);
         };
+        this.loadImageFunc(this.imageData[frame], img);
       });
     },
     /**
@@ -189,7 +196,6 @@ export default {
       if (!this.imgs[i]) {
         const img = new Image();
         img.crossOrigin = 'Anonymous';
-        img.src = this.imageData[i].url;
         this.imgs[i] = img;
         const imageAndFrame = [img, i];
         this.pendingImgs.add(imageAndFrame);
@@ -205,6 +211,7 @@ export default {
             }
           }
         };
+        this.loadImageFunc(this.imageData[i], img);
       }
     },
     /**

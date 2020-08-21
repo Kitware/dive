@@ -1,11 +1,8 @@
 <script lang="ts">
 import Vue, { PropType } from 'vue';
 import { Ref } from '@vue/composition-api';
-import TrackItem from '@/components/TrackItem.vue';
-import CreationMode from '@/components/CreationMode.vue';
-import Track, { TrackId } from '@/lib/track';
-import { NewTrackSettings } from '@/use/useSettings';
-import { cloneDeep } from 'lodash';
+import TrackItem from 'vue-media-annotator/components/TrackItem.vue';
+import Track, { TrackId } from 'vue-media-annotator/track';
 
 interface VirtualListItem {
   track: Track;
@@ -18,10 +15,7 @@ interface VirtualListItem {
 export default Vue.extend({
   name: 'TrackList',
 
-  components: {
-    TrackItem,
-    CreationMode,
-  },
+  components: { TrackItem },
 
   props: {
     trackMap: {
@@ -60,9 +54,13 @@ export default Vue.extend({
       type: Object as PropType<Ref<{ color: (t: string) => string }>>,
       required: true,
     },
-    newTrackSettings: {
-      type: Object as PropType<Ref<NewTrackSettings>>,
-      default: null,
+    newTrackMode: {
+      type: String as PropType<'detection'|'track'>,
+      required: true,
+    },
+    newTrackType: {
+      type: String as PropType<string>,
+      required: true,
     },
   },
 
@@ -87,8 +85,8 @@ export default Vue.extend({
     },
 
     newTrackColor(): string {
-      if (this.newTrackSettings && this.newTrackSettings.value.type !== 'unknown') {
-        return this.typeStyling.value.color(this.newTrackSettings.value.type);
+      if (this.newTrackType !== 'unknown') {
+        return this.typeStyling.value.color(this.newTrackType);
       }
       // Return default color
       return '';
@@ -96,7 +94,6 @@ export default Vue.extend({
   },
 
   watch: {
-    'allTypes.value': 'checkExistingTrack',
     // because Vue typescript definitions are broke and don't recognize
     // the `this` context inside watcher handers
     'selectedTrackId.value': 'scrollToTrack',
@@ -105,19 +102,6 @@ export default Vue.extend({
 
 
   methods: {
-    /**
-     * On load check allTypes to make sure it exists in the overall list if not default to unknown
-     * All changes should have a created type after initial load.
-     * Has the additional benefit if you delete the only newTrackSettings.type
-     * It will default back to the unknown type instead of creating a type that isn't known
-     */
-    checkExistingTrack(types: string[]) {
-      if (types.indexOf(this.newTrackSettings.value.type) === -1) {
-        const copy: NewTrackSettings = cloneDeep(this.newTrackSettings.value);
-        copy.type = 'unknown'; // Modify the value
-        this.$emit('update-new-track-settings', copy);
-      }
-    },
     scrollToTrack(trackId: TrackId): void {
       const virtualList = (this.$refs.virtualList as Vue).$el;
       const track = this.trackMap.get(trackId);
@@ -173,24 +157,11 @@ export default Vue.extend({
         <v-row align="center">
           Tracks ({{ filteredTracks.value.length }})
           <v-spacer />
-          <v-btn
-            v-if="!newTrackSettings"
-            outlined
-            x-small
-            @click="$emit('track-add')"
-          >
-            <v-icon small>
-              mdi-plus
-            </v-icon>
-          </v-btn>
-          <div
-            v-else
-            class="newTrackSettings"
-          >
+          <div>
             <v-btn
               icon
               small
-              class="ml-2"
+              class="mr-2"
               @click="settingsActive = !settingsActive"
             >
               <v-icon
@@ -216,20 +187,18 @@ export default Vue.extend({
                   <v-icon small>
                     mdi-plus
                   </v-icon>
-                  {{ newTrackSettings.value.mode }}
+                  {{ newTrackMode }}
                 </v-btn>
               </template>
-              <span>Default Type: {{ newTrackSettings.value.type }}</span>
+              <span>Default Type: {{ newTrackType }}</span>
             </v-tooltip>
           </div>
         </v-row>
         <v-row>
           <v-expand-transition>
-            <creation-mode
+            <slot
               v-if="settingsActive"
-              :all-types="allTypes"
-              :new-track-settings="newTrackSettings"
-              @update-new-track-settings="$emit('update-new-track-settings',$event)"
+              name="settings"
             />
           </v-expand-transition>
         </v-row>

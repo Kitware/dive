@@ -1,5 +1,5 @@
 import { ref, Ref } from '@vue/composition-api';
-import Track, { TrackId } from '@/lib/track';
+import Track, { TrackId } from 'vue-media-annotator/track';
 
 /* Maintain references to the selected Track, selected detection,
  * editing state, etc.
