@@ -42,7 +42,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
 
   lineLimit: number;
 
-  lineList: any[];
+  lineList: GeoJSON.Position[];
 
   constructor(params: BaseLayerParams & EditAnnotationLayerParams) {
     super(params);
@@ -72,67 +72,49 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
       this.featureLayer.geoOn(geo.event.annotation.edit_action,
         (e: GeoEvent) => this.handleEditAction(e));
       this.featureLayer.geoOn(geo.event.actiondown,
-        (e: GeoEvent) => {
-          if (this.mode === 'creation' && this.type === 'line') {
-            let key = 'head';
-            if (this.lineList.length === 0) {
-              this.lineList.push({
-                feature: 'head',
-                x: e.mouse.geo.x,
-                y: e.mouse.geo.y,
-              });
-            } else if (this.lineList.length === 1) {
-              this.lineList.push({
-                feature: 'tail',
-                x: e.mouse.geo.x,
-                y: e.mouse.geo.y,
-              });
-              key = 'tail';
-            }
-            const geoJSON = {
-              type: 'Feature',
-              geometry: {
-                type: 'Point',
-                coordinates: [Number(e.mouse.geo.x), Number(e.mouse.geo.y)],
-              },
-              annotationType: 'point',
-            };
+        (e: GeoEvent) => this.pointCreation(e));
+    }
+  }
 
-            this.changed = true;
-            this.$emit('update:geojson', geoJSON, 'point', key);
-            if (this.lineList.length === 2) {
-              const geoJSONLine = {
-                type: 'Feature',
-                geometry: {
-                  type: 'LineString',
-                  coordinates: [
-                    [Number(this.lineList[0].x), Number(this.lineList[0].y)],
-                    [Number(this.lineList[1].x), Number(this.lineList[1].y)],
-                  ],
-                },
-                annotationType: 'line',
-              };
-              this.featureLayer.mode(null);
-              this.changed = false;
-              this.$emit('update:geojson', geoJSONLine, 'line');
-            }
-          }
-        });
-      this.featureLayer.geoOn(geo.event.annotation.state,
-        (e: GeoEvent) => this.handleEditStateChange(e));
-      //Event name is misleading, this means hovering over an edit handle
-      this.featureLayer.geoOn(geo.event.annotation.select_edit_handle,
-        (e: GeoEvent) => this.hoverEditHandle(e));
-      this.featureLayer.geoOn(geo.event.mouseclick, (e: GeoEvent) => {
-        if (e.buttonsDown.left && this.hoverHandleIndex !== -1) {
-          this.selectedHandleIndex = this.hoverHandleIndex;
-          setTimeout(() => this.redraw(), 0); //Redraw timeout to update the selected handle
-          const divisor = this.type === 'line' ? 1 : 2; // used for polygon because edge handles
-          if (this.type !== 'rectangle') {
-            this.$emit('update:selectedIndex', this.selectedHandleIndex / divisor);
-          }
-        }
-      });
+  pointCreation(e: GeoEvent) {
+    if (this.mode === 'creation' && this.type === 'line') {
+      let key = 'head';
+      if (this.lineList.length === 0) {
+        this.lineList.push([
+          Number(e.mouse.geo.x),
+          Number(e.mouse.geo.y),
+        ]);
+      } else if (this.lineList.length === 1) {
+        this.lineList.push([
+          Number(e.mouse.geo.x),
+          Number(e.mouse.geo.y),
+        ]);
+        key = 'tail';
+      }
+      const geoJSON = {
+        type: 'Feature',
+        geometry: {
+          type: 'Point',
+          coordinates: [Number(e.mouse.geo.x), Number(e.mouse.geo.y)],
+        },
+        annotationType: 'point',
+      };
+
+      this.changed = true;
+      this.$emit('update:geojson', geoJSON, 'point', key);
+      if (this.lineList.length === 2) {
+        const geoJSONLine = {
+          type: 'Feature',
+          geometry: {
+            type: 'LineString',
+            coordinates: this.lineList,
+          },
+          annotationType: 'line',
+        };
+        this.featureLayer.mode(null);
+        this.changed = false;
+        this.$emit('update:geojson', geoJSONLine, 'line', 'HeadTails');
+      }
     }
   }
 
@@ -164,6 +146,11 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
    * */
   setType(type: EditAnnotationTypes) {
     this.type = type;
+    if (this.type === 'line') {
+      this.selectedKey = 'HeadTails';
+    } else {
+      this.selectedKey = '';
+    }
   }
 
   /**
@@ -299,7 +286,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
         this.applyStylesToAnnotations();
         // State doesn't change at the end of editing so this will
         // swap into edit mode once geoJS is done
-        setTimeout(() => this.$emit('update:geojson', this.formattedData[0], this.type), 0);
+        setTimeout(() => this.$emit('update:geojson', this.formattedData[0], this.type, this.selectedKey), 0);
       }
     }
   }
@@ -331,7 +318,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
           }
           // must ALWAYS emit a polygon or point
           this.changed = true;
-          this.$emit('update:geojson', this.formattedData[0], this.type);
+          this.$emit('update:geojson', this.formattedData[0], this.type, this.selectedKey);
         }
       }
     }
