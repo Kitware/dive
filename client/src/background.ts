@@ -5,14 +5,14 @@ import installExtension, { VUEJS_DEVTOOLS } from 'electron-devtools-installer';
 const path = require("path");
 const {getPluginEntry} = require("mpv.js");
 // Absolute path to the plugin directory.
-// const pluginDir = path.join(path.dirname(require.resolve("mpv.js")), "build", "Release");
-// // See pitfalls section for details.
-// if (process.platform !== "linux") {process.chdir(pluginDir);}
-// // Fix for latest Electron.
-// app.commandLine.appendSwitch("no-sandbox");
-// // To support a broader number of systems.
-// app.commandLine.appendSwitch("ignore-gpu-blacklist");
-// app.commandLine.appendSwitch("register-pepper-plugins", getPluginEntry(pluginDir));
+const pluginDir = path.join(path.dirname(require.resolve("mpv.js")), "build", "Release");
+// See pitfalls section for details.
+if (process.platform !== "linux") {process.chdir(pluginDir);}
+// Fix for latest Electron.
+app.commandLine.appendSwitch("no-sandbox");
+// To support a broader number of systems.
+app.commandLine.appendSwitch("ignore-gpu-blacklist");
+app.commandLine.appendSwitch("register-pepper-plugins", getPluginEntry(pluginDir));
 
 const isDevelopment = process.env.NODE_ENV !== 'production';
 console.log('ELECTRON TIME!!!!!');
@@ -45,6 +45,8 @@ function createWindow() {
     // Load the url of the dev server if in development mode
     console.log(process.env.IS_ELECTRON);
     win.loadURL(process.env.WEBPACK_DEV_SERVER_URL as string);
+    // win.loadURL(`file:/${__dirname}/index.html`);
+
     if (!process.env.IS_TEST) win.webContents.openDevTools();
   } else {
     createProtocol('app');

@@ -7,7 +7,8 @@ import Home from '@/views/Home.vue';
 import Jobs from '@/views/Jobs.vue';
 import Login from '@/views/Login.vue';
 import Settings from '@/views/Settings.vue';
-import ElectronViewer from '@/views/electron/ElectronViewer.vue';
+import FileDialog from '@/views/electron/FileDialog.vue';
+// import ElectronViewer from '@/views/electron/ElectronViewer.vue';
 
 Vue.use(Router);
 
@@ -23,6 +24,11 @@ function beforeEnter(to, from, next) {
 
 export default new Router({
   routes: [
+    {
+      path: '/electron/viewer',
+      name: 'electron_viewer',
+      component: FileDialog,
+    },
     {
       path: '/login',
       name: 'login',
@@ -51,12 +57,6 @@ export default new Router({
       path: '/:_modelType?/:_id?',
       name: 'home',
       component: Home,
-      beforeEnter,
-    },
-    {
-      path: '/electron/viewer',
-      name: 'electron_viewer',
-      component: ElectronViewer,
       beforeEnter,
     },
   ],

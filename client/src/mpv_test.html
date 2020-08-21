@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    html, body, #main {
+      margin: 0;
+      height: 100%;
+    }
+    .container {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+    .player {
+      flex: 1;
+      min-height: 0;
+    }
+    .controls {
+      display: flex;
+      height: 40px;
+    }
+    .control {
+      width: 50px;
+      height: 40px;
+      font-size: 23px;
+      border: none;
+      outline: none;
+      cursor: pointer;
+      background: #fff;
+      margin-right: 5px;
+    }
+    .control:last-child {
+      margin: 0 0 0 5px;
+    }
+    .control:hover {
+      background: #e3ddd8;
+    }
+    .seek {
+      flex: 1;
+      height: 40px;
+      margin: 0;
+      cursor: pointer;
+      outline: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="main"></div>
+  <script src="../node_modules/babel-standalone/babel.js"></script>
+  <script type="text/babel" src="renderer.js"></script>
+</body>
+</html>

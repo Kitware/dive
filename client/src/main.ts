@@ -1,5 +1,6 @@
 import Vue from 'vue';
 import VueCompositionApi from '@vue/composition-api';
+import VueCoreVideoPlayer from 'vue-core-video-player';
 
 import NotificationBus from '@girder/components/src/utils/notifications';
 import snackbarService from '@/lib/vue-utilities/snackbar-service';
@@ -17,6 +18,7 @@ Vue.use(VueCompositionApi);
 Vue.use(snackbarService(vuetify));
 Vue.use(promptService(vuetify));
 Vue.use(vMousetrap);
+Vue.use(VueCoreVideoPlayer);
 
 const notificationBus = new NotificationBus(girderRest);
 notificationBus.connect();
