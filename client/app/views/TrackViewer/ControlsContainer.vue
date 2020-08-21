@@ -55,7 +55,7 @@ export default defineComponent({
   <div>
     <Controls>
       <template slot="timelineControls">
-        <div>
+        <div style="min-width: 210px">
           <v-tooltip
             open-delay="200"
             bottom
@@ -72,7 +72,7 @@ export default defineComponent({
             <span>Collapse/Expand Timeline</span>
           </v-tooltip>
           <v-btn
-            class="mx-2"
+            class="ml-2"
             :class="{'timeline-button':currentView!=='Detections' || collapsed}"
             depressed
             :outlined="currentView==='Detections' && !collapsed"
@@ -83,7 +83,7 @@ export default defineComponent({
             Detections
           </v-btn>
           <v-btn
-            class="mx-2"
+            class="ml-2"
             :class="{'timeline-button':currentView!=='Events' || collapsed}"
             depressed
             :outlined="currentView==='Events' && !collapsed"

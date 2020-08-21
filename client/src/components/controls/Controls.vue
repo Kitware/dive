@@ -76,15 +76,11 @@ export default {
             @input="input"
           />
         </v-row>
-        <v-row class="controls-row">
-          <v-col
-            class="pl-1 py-1"
-            align="left"
-            cols="4"
-            md="4"
-            sm="6"
-            xs="8"
-          >
+        <v-row
+          align-content="space-between"
+          dense
+        >
+          <v-col class="pl-1 py-1">
             <slot
               justify="start"
               name="timelineControls"
@@ -92,13 +88,12 @@ export default {
           </v-col>
           <v-col
             align="center"
-            cols="4"
             class="py-1"
           >
             <v-btn
               icon
               small
-              title="Left key"
+              title="(d, left-arrow) previous frame"
               @click="previousFrame"
             >
               <v-icon>mdi-skip-previous</v-icon>
@@ -107,7 +102,7 @@ export default {
               v-if="!annotator.playing"
               icon
               small
-              title="Space key"
+              title="(space) Play"
               @click="annotator.$emit('play')"
             >
               <v-icon>mdi-play</v-icon>
@@ -116,7 +111,7 @@ export default {
               v-else
               icon
               small
-              title="Space key"
+              title="(space) Pause"
               @click="annotator.$emit('pause')"
             >
               <v-icon>mdi-pause</v-icon>
@@ -124,27 +119,27 @@ export default {
             <v-btn
               icon
               small
-              title="Right key"
+              title="(f, right-arrow) next frame"
               @click="nextFrame"
             >
               <v-icon>mdi-skip-next</v-icon>
             </v-btn>
           </v-col>
           <v-col
-            cols="4"
-            md="4"
-            sm="2"
-            xs="0"
-            class="py-1"
-          />
+            class="pl-1 py-1"
+            align="right"
+          >
+            <v-btn
+              icon
+              small
+              title="(r)eset pan and zoom"
+              @click="annotator.$emit('reset-zoom')"
+            >
+              <v-icon>mdi-image-filter-center-focus</v-icon>
+            </v-btn>
+          </v-col>
         </v-row>
       </v-container>
     </v-toolbar>
   </div>
 </template>
-
-<style lang="scss" scoped>
-.controls-row {
-  min-width:420px;
-}
-</style>
