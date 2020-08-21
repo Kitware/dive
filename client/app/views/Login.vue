@@ -41,7 +41,7 @@ export default {
       >
         <img
           style="width: 100%"
-          src="app/assets/logo.png"
+          src="../assets/logo.png"
           class="mb-2"
         >
         <h3>Welcome to VIAME Web (Public Beta)</h3>

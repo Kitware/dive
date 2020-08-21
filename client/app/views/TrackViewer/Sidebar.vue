@@ -153,7 +153,6 @@ export default defineComponent({
           @track-next="$emit('track-next')"
           @track-split="$emit('track-split', $event)"
           @track-seek="$emit('track-seek', $event)"
-          @update-new-track-settings="$emit('update-new-track-settings',$event)"
         >
           <template slot="settings">
             <creation-mode
