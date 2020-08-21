@@ -95,11 +95,7 @@ export default defineComponent({
 
     return {
       swapTabs,
-      trackListProps: {
-        ...props,
-        newTrackMode: props.newTrackSettings.value.mode,
-        newTrackType: props.newTrackSettings.value.type,
-      },
+      trackListProps: props,
       typeListProps: props,
       handleTrackChecked,
       ...toRefs(data),
@@ -143,6 +139,8 @@ export default defineComponent({
         <track-list
           class="flex-grow-0 flex-shrink-0"
           v-bind="trackListProps"
+          :new-track-mode="newTrackSettings.value.mode"
+          :new-track-type="newTrackSettings.value.type"
           @track-remove="$emit('track-remove', $event)"
           @track-add="$emit('track-add')"
           @track-click="$emit('track-click', $event)"
