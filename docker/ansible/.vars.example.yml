@@ -1,4 +1,4 @@
 ---
 deploy_email_address: address.to.send.from@gmail.com
 notify_email_address: address.to.send.to@gmail.com
-
+project_directory: /home/viame

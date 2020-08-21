@@ -18,7 +18,13 @@ ENV GIRDER_ADMIN_PASSWORD viame
 ENV CELERY_BROKER_URL amqp://guest:guest@rabbit/
 ENV BROKER_CONNECTION_TIMEOUT 2
 
-COPY --from=builder /app/dist/ /usr/share/girder/static/viame/
+# Initialize python virtual environment
+RUN apt-get update && apt-get install -y python3.7-venv
+ENV VIRTUAL_ENV=/opt/venv
+RUN python3.7 -m venv $VIRTUAL_ENV
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+
+COPY --from=builder /app/dist/ $VIRTUAL_ENV/share/girder/static/viame/
 
 # install tini init system
 ENV TINI_VERSION v0.19.0
