@@ -155,7 +155,7 @@ export default defineComponent({
           @track-seek="$emit('track-seek', $event)"
           @update-new-track-settings="$emit('update-new-track-settings',$event)"
         >
-          <template>
+          <template slot="settings">
             <creation-mode
               :all-types="allTypes"
               :new-track-settings="newTrackSettings"
