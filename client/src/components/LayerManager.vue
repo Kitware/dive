@@ -268,8 +268,6 @@ export default defineComponent({
           const bounds = geojsonToBound(data as GeoJSON.Feature<GeoJSON.Polygon>);
           emit('update-rect-bounds', frameNumber.value, bounds);
         } else {
-          console.log(`Updating KEy: ${key}`);
-          console.log(data);
           emit('update-geojson', frameNumber.value, data, key);
         }
       });

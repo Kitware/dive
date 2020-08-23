@@ -69,6 +69,8 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
         showLabels: false,
       });
       // For these we need to use an anonymous function to prevent geoJS from erroring
+      this.featureLayer.geoOn(geo.event.annotation.edit_action,
+        (e: GeoEvent) => this.handleEditAction(e));
       this.featureLayer.geoOn(geo.event.annotation.state,
         (e: GeoEvent) => this.handleEditStateChange(e));
       //Event name is misleading, this means hovering over an edit handle
@@ -180,10 +182,11 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
     if (this.featureLayer) {
       this.featureLayer.removeAllAnnotations();
       this.featureLayer.mode(null);
+      this.lineList = [];
       if (this.selectedHandleIndex !== -1) {
         this.selectedHandleIndex = -1;
         this.hoverHandleIndex = -1;
-        this.$emit('update:selectedIndex', this.selectedHandleIndex);
+        this.$emit('update:selectedIndex', this.selectedHandleIndex, this.type, this.selectedKey);
       }
     }
   }
