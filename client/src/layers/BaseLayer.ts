@@ -21,7 +21,7 @@ export interface LayerStyle<D> {
   color?: (data: D) => string;
   offset?: (data: D) => { x: number; y: number };
   fill?: ObjectFunction<boolean, D> | boolean;
-  radius?: number;
+  radius?: PointFunction<number, D> | number;
   [x: string]: unknown;
 }
 

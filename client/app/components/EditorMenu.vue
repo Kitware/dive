@@ -25,6 +25,8 @@ export default Vue.extend({
       buttons: [
         { id: 'rectangle', title: 'Bounds', icon: 'mdi-vector-square' },
         { id: 'polygon', title: 'Polygon', icon: 'mdi-vector-polygon' },
+        { id: 'line', title: 'Line', icon: 'mdi-vector-line' },
+
       ],
     };
   },

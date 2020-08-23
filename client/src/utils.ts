@@ -50,20 +50,53 @@ function boundToGeojson(bounds: RectBounds): GeoJSON.Polygon {
   };
 }
 
-function findBounds(polygon: GeoJSON.Polygon): RectBounds {
-  const coords = polygon.coordinates[0];
+/**
+ *  Removing a point for a Line is different than a polygon
+ * @param data
+ */
+function removePoint(
+  data: GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.LineString | GeoJSON.Point>, index: number,
+) {
+  if (data.geometry.type === 'Polygon') {
+    if (data.geometry.coordinates[0].length > 3) {
+      data.geometry.coordinates[0].splice(index, 1);
+      return true;
+    }
+    console.warn('Polygons must have at least 3 points');
+    return false;
+  } if (data.geometry.coordinates.length > 2) { //Handling a Line
+    data.geometry.coordinates.splice(index, 1);
+    return true;
+  }
+  console.warn('Lines must have at least 2 points');
+  return false;
+}
+
+
+function findBounds(
+  data: GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.LineString | GeoJSON.Point>,
+): RectBounds {
+  let coords;
+  if (data.geometry.type === 'Polygon') {
+    // eslint-disable-next-line prefer-destructuring
+    coords = data.geometry.coordinates[0];
+  } else if (data.geometry.type === 'LineString') {
+    coords = data.geometry.coordinates;
+  }
   const limits = {
     xLow: Infinity,
     xHigh: -Infinity,
     yLow: Infinity,
     yHigh: -Infinity,
   };
-  coords.forEach(([xCoord, yCoord]) => {
-    limits.xLow = Math.min(xCoord, limits.xLow);
-    limits.xHigh = Math.max(xCoord, limits.xHigh);
-    limits.yLow = Math.min(yCoord, limits.yLow);
-    limits.yHigh = Math.max(yCoord, limits.yHigh);
-  });
+  if (coords) {
+    coords.forEach(([xCoord, yCoord]) => {
+      limits.xLow = Math.min(xCoord, limits.xLow);
+      limits.xHigh = Math.max(xCoord, limits.xHigh);
+      limits.yLow = Math.min(yCoord, limits.yLow);
+      limits.yHigh = Math.max(yCoord, limits.yHigh);
+    });
+  }
   //Now we create some bounds from our 4 points
   return [limits.xLow, limits.yLow, limits.xHigh, limits.yHigh];
 }
@@ -73,4 +106,5 @@ export {
   findBounds,
   geojsonToBound,
   updateSubset,
+  removePoint,
 };

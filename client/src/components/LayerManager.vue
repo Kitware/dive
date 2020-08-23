@@ -10,10 +10,15 @@ import {
 } from '@vue/composition-api';
 
 import { Annotator } from 'vue-media-annotator/components/annotators/annotatorType';
-import AnnotationLayer from 'vue-media-annotator/layers/AnnotationLayer';
+import RectangleLayer from 'vue-media-annotator/layers/AnnotationLayers/RectangleLayer';
+import PolygonLayer from 'vue-media-annotator/layers/AnnotationLayers/PolygonLayer';
+import PointLayer from 'vue-media-annotator/layers/AnnotationLayers/PointLayer';
+import LineLayer from 'vue-media-annotator/layers/AnnotationLayers/LineLayer';
+
+//import AnnotationLayer from 'vue-media-annotator/layers/AnnotationLayer';
 import EditAnnotationLayer, { EditAnnotationTypes } from 'vue-media-annotator/layers/EditAnnotationLayer';
 import { FrameDataTrack } from 'vue-media-annotator/layers/LayerTypes';
-import MarkerLayer from 'vue-media-annotator/layers/MarkerLayer';
+//import MarkerLayer from 'vue-media-annotator/layers/MarkerLayer';
 import TextLayer from 'vue-media-annotator/layers/TextLayer';
 import Track, { TrackId } from 'vue-media-annotator/track';
 import { geojsonToBound } from 'vue-media-annotator/utils';
@@ -68,18 +73,28 @@ export default defineComponent({
     const annotator = inject('annotator') as Annotator;
     const frameNumber = computed(() => annotator.frame);
 
-    const rectAnnotationLayer = new AnnotationLayer({
+    const rectAnnotationLayer = new RectangleLayer({
       annotator,
       stateStyling: props.stateStyling,
       typeStyling: props.typeStyling,
-      type: 'rectangle',
     });
-    const polyAnnotationLayer = new AnnotationLayer({
+    const polyAnnotationLayer = new PolygonLayer({
       annotator,
       stateStyling: props.stateStyling,
       typeStyling: props.typeStyling,
-      type: 'polygon',
     });
+
+    const lineLayer = new LineLayer({
+      annotator,
+      stateStyling: props.stateStyling,
+      typeStyling: props.typeStyling,
+    });
+    const markerLayer = new PointLayer({
+      annotator,
+      stateStyling: props.stateStyling,
+      typeStyling: props.typeStyling,
+    });
+
 
     const textLayer = new TextLayer({
       annotator,
@@ -101,11 +116,6 @@ export default defineComponent({
       type: 'point',
     });
 
-    const markerLayer = new MarkerLayer({
-      annotator,
-      stateStyling: props.stateStyling,
-      typeStyling: props.typeStyling,
-    });
 
     function updateLayers(
       frame: number,
@@ -163,6 +173,7 @@ export default defineComponent({
       } else {
         polyAnnotationLayer.disable();
       }
+      lineLayer.changeData(frameData);
       markerLayer.changeData(frameData);
       if (visibleModes.length) {
         textLayer.changeData(frameData);
@@ -252,12 +263,14 @@ export default defineComponent({
     polyAnnotationLayer.$on('annotation-right-clicked', Clicked);
 
     editAnnotationLayer.$on('update:geojson',
-      (data: GeoJSON.Feature<GeoJSON.Polygon>, type: string) => {
+      (data: GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.LineString>, type: string, key = '') => {
         if (type === 'rectangle') {
-          const bounds = geojsonToBound(data);
+          const bounds = geojsonToBound(data as GeoJSON.Feature<GeoJSON.Polygon>);
           emit('update-rect-bounds', frameNumber.value, bounds);
-        } else if (type === 'polygon') {
-          emit('update-polygon', frameNumber.value, data);
+        } else {
+          console.log(`Updating KEy: ${key}`);
+          console.log(data);
+          emit('update-geojson', frameNumber.value, data, key);
         }
       });
 
