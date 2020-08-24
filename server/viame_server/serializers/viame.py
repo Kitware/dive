@@ -9,7 +9,16 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 from dacite import Config, from_dict
 from girder.models.file import File
+
 from viame_server.serializers.models import Feature, Track, interpolate
+
+
+def valueToString(value):
+    if value is True:
+        return "true"
+    elif value is False:
+        return "false"
+    return str(value)
 
 
 def row_info(row: List[str]) -> Tuple[int, int, List[float], float]:
@@ -124,61 +133,9 @@ def load_csv_as_tracks(file):
     return {trackId: track.asdict() for trackId, track in tracks.items()}
 
 
-def write_track_to_csv(track: Track, csv_writer, filenames=None):
-    def valueToString(value):
-        if value is True:
-            return "true"
-        elif value is False:
-            return "false"
-        return str(value)
-
-    columns: List[Any] = []
-    for index, keyframe in enumerate(track.features):
-        features = [keyframe]
-
-        # If this is not the last keyframe, and interpolation is
-        # enabled for this keyframe, interpolate
-        if keyframe.interpolate and index < len(track.features) - 1:
-            nextKeyframe = track.features[index + 1]
-            # interpolate all features in [a,b)
-            features = interpolate(keyframe, nextKeyframe)
-
-        for feature in features:
-            columns = [
-                track.trackId,
-                "",
-                feature.frame,
-                *feature.bounds,
-                track.confidencePairs[-1][1],
-                feature.fishLength or -1,
-            ]
-
-            if filenames:
-                columns[1] = filenames[feature.frame]
-
-            for pair in track.confidencePairs:
-                columns.extend(list(pair))
-
-            if feature.head and feature.tail:
-                columns.extend(
-                    [
-                        f"(kp) head {feature.head[0]} {feature.head[1]}",
-                        f"(kp) tail {feature.tail[0]} {feature.tail[1]}",
-                    ]
-                )
-
-            if feature.attributes:
-                for key, val in feature.attributes.items():
-                    columns.append(f"(atr) {key} {valueToString(val)}")
-
-            if track.attributes:
-                for key, val in track.attributes.items():
-                    columns.append(f"(trk-atr) {key} {valueToString(val)}")
-
-            csv_writer.writerow(columns)
-
-
-def export_tracks_as_csv(file, excludeBelowThreshold, thresholds, filenames=None) -> str:
+def export_tracks_as_csv(
+    file, excludeBelowThreshold, thresholds, filenames=None
+) -> str:
     """
     Export track json to a CSV format.
 
@@ -189,18 +146,54 @@ def export_tracks_as_csv(file, excludeBelowThreshold, thresholds, filenames=None
     track_json = json.loads(
         b"".join(list(File().download(file, headers=False)())).decode()
     )
+    csvFile = io.StringIO()
+    writer = csv.writer(csvFile)
+    for t in track_json.values():
+        track = from_dict(Track, t, config=Config(cast=[Tuple]))
+        if (not excludeBelowThreshold) or track.exceeds_thresholds(thresholds):
+            for index, keyframe in enumerate(track.features):
+                features = [keyframe]
 
-    tracks = {
-        # Config kwarg needed to convert lists into tuples
-        trackId: from_dict(Track, track, config=Config(cast=[Tuple]))
-        for trackId, track in track_json.items()
-    }
+                # If this is not the last keyframe, and interpolation is
+                # enabled for this keyframe, interpolate
+                if keyframe.interpolate and index < len(track.features) - 1:
+                    nextKeyframe = track.features[index + 1]
+                    # interpolate all features in [a,b)
+                    features = interpolate(keyframe, nextKeyframe)
 
-    with io.StringIO() as csvFile:
-        writer = csv.writer(csvFile)
+                for feature in features:
+                    columns = [
+                        track.trackId,
+                        "",
+                        feature.frame,
+                        *feature.bounds,
+                        track.confidencePairs[-1][1],
+                        feature.fishLength or -1,
+                    ]
 
-        for track in tracks.values():
-            if (not excludeBelowThreshold) or track.exceeds_thresholds(thresholds):
-                write_track_to_csv(track, writer, filenames)
+                    if filenames:
+                        columns[1] = filenames[feature.frame]
 
-        return csvFile.getvalue()
+                    for pair in track.confidencePairs:
+                        columns.extend(list(pair))
+
+                    if feature.head and feature.tail:
+                        columns.extend(
+                            [
+                                f"(kp) head {feature.head[0]} {feature.head[1]}",
+                                f"(kp) tail {feature.tail[0]} {feature.tail[1]}",
+                            ]
+                        )
+
+                    if feature.attributes:
+                        for key, val in feature.attributes.items():
+                            columns.append(f"(atr) {key} {valueToString(val)}")
+
+                    if track.attributes:
+                        for key, val in track.attributes.items():
+                            columns.append(f"(trk-atr) {key} {valueToString(val)}")
+
+                    writer.writerow(columns)
+                    yield csvFile.getvalue()
+                    csvFile.seek(0)
+                    csvFile.truncate(0)
