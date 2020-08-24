@@ -211,7 +211,6 @@ export default function useModeManager({
           key: 'head',
         },
       }]);
-      // eslint-disable-next-line prefer-destructuring
       const geoJSONPointTail: GeoJSON.Point = {
         type: 'Point',
         coordinates: coordinates[1],
@@ -294,6 +293,8 @@ export default function useModeManager({
     }
   }
 
+  const headTailReservedKeys = ['head', 'tail', 'HeadTails'];
+
   function handleUpdateGeoJSON(
     frameNum: number,
     data: GeoJSON.Feature<GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString>,
@@ -313,7 +314,7 @@ export default function useModeManager({
           : interpolate;
         const interpolateSetting = (newDetectionMode && !newTrackMode)
           ? false : interpolateTrack;
-        if (data.geometry.type === 'LineString' || data.geometry.type === 'Point') {
+        if (headTailReservedKeys.includes(key)) {
           updateHeadTails(frameNum, track, interpolateSetting, key, data);
         }
 
@@ -384,15 +385,14 @@ export default function useModeManager({
         if (geoJsonFeatures.length === 0) return;
         //could operate directly on the polygon memory, but small enough to copy and edit
         const clone = cloneDeep(geoJsonFeatures[0]);
-        if (removePoint(clone, selectedFeatureHandle.value, selectedKey.value)) {
-          if (selectedKey.value === 'HeadTails') {
-            removeHeadTails(frame.value, track, selectedFeatureHandle.value);
-          } else {
-            track.setFeature({
-              frame: frame.value,
-              bounds: findBounds(clone),
-            }, [clone]);
-          }
+        if (selectedKey.value === 'HeadTails') {
+          removeHeadTails(frame.value, track, selectedFeatureHandle.value);
+          handleSelectFeatureHandle(-1);
+        } else if (removePoint(clone, selectedFeatureHandle.value)) {
+          track.setFeature({
+            frame: frame.value,
+            bounds: findBounds(clone),
+          }, [clone]);
           handleSelectFeatureHandle(-1);
         }
       }
@@ -415,6 +415,7 @@ export default function useModeManager({
     }
     return false;
   }
+
   function handleRemoveTrack(trackId: TrackId) {
     // if removed track was selected, unselect before remove
     if (selectedTrackId.value === trackId) {

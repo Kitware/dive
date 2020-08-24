@@ -56,7 +56,7 @@ function boundToGeojson(bounds: RectBounds): GeoJSON.Polygon {
  */
 function removePoint(
   data:
-  GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.LineString | GeoJSON.Point>, index: number, key: string,
+  GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.LineString | GeoJSON.Point>, index: number,
 ) {
   if (data.geometry.type === 'Polygon') {
     if (data.geometry.coordinates[0].length > 3) {
@@ -69,11 +69,12 @@ function removePoint(
   if (data.geometry.coordinates.length > 2) { //Handling a Line
     data.geometry.coordinates.splice(index, 1);
     return true;
-  } if (key === 'HeadTails') {
-    return true;
   }
-  console.warn('Lines must have at least 2 points');
-  return false;
+  if (data.geometry.type === 'LineString' && data.geometry.coordinates.length === 2) {
+    console.warn('Lines must have at least 2 points');
+    return false;
+  }
+  return true;
 }
 
 
