@@ -1,44 +1,29 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-ignore
-// @ts-ignore
-import { isRootLocation } from '@girder/components/src/utils/locationHelpers';
-
-import { getFolder } from '@/lib/api/girder.service';
-import { GirderModel } from '@/lib/api/viame.service';
-
-interface Location {
-  type?: 'collections' | 'users' | 'root';
-  _id?: string;
-  _modelType?: string;
-}
+import { difference } from 'lodash';
 
 // [x1, y1, x2, y2] as (left, top), (bottom, right)
 export type RectBounds = [number, number, number, number];
 
-async function getLocationFromRoute({ params }: { params: GirderModel }) {
-  if (isRootLocation(params)) {
-    return {
-      type: params._modelType,
-    };
+/*
+ * updateSubset keeps a subset up to date when its superset
+ * changes.  Takes the old and new array values of the superset,
+ * removes and adds changed values.  If a value is in both old and new superset
+ * and omitted from subset, it will remain omitted.  If old and new are
+ * the same, it will return null
+ */
+function updateSubset<T>(
+  oldsuper: Readonly<T[]>,
+  newsuper: Readonly<T[]>,
+  subarr: Readonly<T[]>,
+): T[] | null {
+  const addedValues = difference(newsuper, oldsuper);
+  const removedValues = difference(oldsuper, newsuper);
+  if (!addedValues.length && !removedValues.length) {
+    return null;
   }
-  if (params._modelType === 'user') {
-    return params;
-  }
-  if (params._modelType === 'folder') {
-    return getFolder(params._id);
-  }
-  return null;
-}
-
-function getPathFromLocation(location: Location) {
-  if (!location) {
-    return '/';
-  }
-  if (location.type && !location._modelType) {
-    return `/${location.type}`;
-  }
-  return `/${location._modelType}${
-    location._id ? `/${location._id}` : ''
-  }`;
+  const subset = new Set(subarr);
+  addedValues.forEach((v) => subset.add(v));
+  removedValues.forEach((v) => subset.delete(v));
+  return Array.from(subset);
 }
 
 /* beginning at bottom left, rectangle is defined clockwise */
@@ -84,9 +69,8 @@ function findBounds(polygon: GeoJSON.Polygon): RectBounds {
 }
 
 export {
-  getLocationFromRoute,
-  getPathFromLocation,
-  geojsonToBound,
   boundToGeojson,
   findBounds,
+  geojsonToBound,
+  updateSubset,
 };

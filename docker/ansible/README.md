@@ -30,3 +30,6 @@ Once the service is initiated, it will run the `deploy.yml` playbook at the inte
 
 - `deploy_email_address` - The email address that the emails will be sent from
 - `notify_email_address` - The email address that the emails will be sent to
+- `project_directory` - The directory on the local machine that the project is located
+
+**Note**: The `project_directory` variable is used as a convienience for developers, but the `viame-deploy.service` file still contains a hardcoded reference to `home/viame`. If trying to use the service/timer in a local setup under a different directory, you will need to edit the `viame-deploy.service` file by hand.

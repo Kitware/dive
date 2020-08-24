@@ -1,7 +1,9 @@
 import json
 import re
 import urllib
+from typing import Tuple
 
+from dacite import Config, from_dict
 from girder.api import access
 from girder.api.describe import Description, autoDescribeRoute
 from girder.api.rest import Resource
@@ -13,14 +15,14 @@ from girder.models.folder import Folder
 from girder.models.item import Item
 from girder.models.upload import Upload
 
-from viame_server.serializers import meva, viame
+from viame_server.serializers import meva, models, viame
 from viame_server.utils import (
     ImageMimeTypes,
     ImageSequenceType,
     VideoMimeTypes,
     VideoType,
-    safeImageRegex,
     move_existing_result_to_auxiliary_folder,
+    safeImageRegex,
     saveTracks,
 )
 
@@ -42,11 +44,13 @@ class ViameDetection(Resource):
         detection = detections[0] if len(detections) else None
 
         videoUrl = None
+        video = None
         # Find a video tagged with an h264 codec left by the transcoder
-        video = Item().findOne({'folderId': folder['_id'], 'meta.codec': 'h264',})
-        if video:
+        item = Item().findOne({'folderId': folder['_id'], 'meta.codec': 'h264',})
+        if item:
+            video = Item().childFiles(item)[0]
             videoUrl = (
-                f'/api/v1/item/{str(video["_id"])}/download?contentDisposition=inline'
+                f'/api/v1/file/{str(video["_id"])}/download?contentDisposition=inline'
             )
 
         return {
@@ -58,7 +62,8 @@ class ViameDetection(Resource):
 
     @access.user
     @autoDescribeRoute(
-        Description("Export VIAME data").modelParam(
+        Description("Export VIAME data")
+        .modelParam(
             "id",
             description="folder id of a clip",
             model=Folder,
@@ -109,12 +114,13 @@ class ViameDetection(Resource):
             'exportAllUrl': export_all,
             'exportMediaUrl': export_media,
             'exportDetectionsUrl': export_detections,
-            'currentThresholds': folder.get("meta", {}).get("confidenceFilters", {})
+            'currentThresholds': folder.get("meta", {}).get("confidenceFilters", {}),
         }
 
     @access.public(scope=TokenScope.DATA_READ, cookie=True)
     @autoDescribeRoute(
-        Description("Export detections of a clip into CSV format.").modelParam(
+        Description("Export detections of a clip into CSV format.")
+        .modelParam(
             "id",
             description="folder id of a clip",
             model=Folder,
@@ -147,10 +153,17 @@ class ViameDetection(Resource):
 
         filename = ".".join([file["name"].split(".")[:-1][0], "csv"])
 
-        imageFiles = [f['name'] for f in Folder().childItems(folder, filters={"lowerName": {"$regex": safeImageRegex}}).sort("lowerName")]
+        imageFiles = [
+            f['name']
+            for f in Folder()
+            .childItems(folder, filters={"lowerName": {"$regex": safeImageRegex}})
+            .sort("lowerName")
+        ]
 
         thresholds = folder.get("meta", {}).get("confidenceFilters", {})
-        csv_string = viame.export_tracks_as_csv(file, excludeBelowThreshold, thresholds, imageFiles)
+        csv_string = viame.export_tracks_as_csv(
+            file, excludeBelowThreshold, thresholds, imageFiles
+        )
         csv_bytes = csv_string.encode()
 
         assetstore = Assetstore().findOne({"_id": file["assetstoreId"]})
@@ -220,4 +233,11 @@ class ViameDetection(Resource):
     def save_detection(self, folder, tracks):
         user = self.getCurrentUser()
         saveTracks(folder, tracks, user)
+        # TODO: verify schema before save.
+        # Right now the data object is too large in many cases and this takes too long to complete.
+        # dataclass_tracks = {
+        #     # Config kwarg needed to convert lists into tuples
+        #     trackId: from_dict(models.Track, track, config=Config(cast=[Tuple]))
+        #     for trackId, track in tracks.items()
+        # }
         return True

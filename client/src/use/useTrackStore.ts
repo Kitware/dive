@@ -1,6 +1,5 @@
 import { ref, Ref, computed } from '@vue/composition-api';
-import { getDetections } from '@/lib/api/viameDetection.service';
-import Track, { TrackId } from '@/lib/track';
+import Track, { TrackId } from 'vue-media-annotator/track';
 import IntervalTree from '@flatten-js/interval-tree';
 
 interface UseTrackStoreParams {
@@ -117,15 +116,6 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
     });
   }
 
-  async function loadTracks(datasetFolderId: string) {
-    const data = await getDetections(datasetFolderId, 'track_json');
-    if (data !== null) {
-      Object.values(data).forEach(
-        (trackData) => insertTrack(Track.fromJSON(trackData)),
-      );
-    }
-  }
-
   const sortedTracks = computed(() => {
     _depend();
     return trackIds.value
@@ -143,6 +133,5 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
     getNewTrackId,
     removeTrack,
     removeTracksBelowConfidence,
-    loadTracks,
   };
 }

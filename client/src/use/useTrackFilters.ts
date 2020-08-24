@@ -1,8 +1,8 @@
 import {
   ref, computed, Ref, watch,
 } from '@vue/composition-api';
-import Track, { TrackId } from '@/lib/track';
-import { updateSubset } from '@/lib/utils';
+import Track, { TrackId } from 'vue-media-annotator/track';
+import { updateSubset } from 'vue-media-annotator/utils';
 
 /* Provide track filtering controls on tracks loaded from useTrackStore. */
 export default function useFilteredTracks(

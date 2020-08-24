@@ -8,11 +8,25 @@ Additional documentation will be available in the future for users.
 <p align="center">
 <br>
 <nobr>
-<img src="http://www.viametoolkit.org/wp-content/uploads/2019/11/viame-web-prelim.png" alt="Example Tracks" width="405" height="250" border="1">
-&nbsp; &nbsp; &nbsp; 
-<img src="http://www.viametoolkit.org/wp-content/uploads/2019/11/girder-dark-example.png" alt="Dark Girder" width="400" height="250" border="1">
+<img src="https://raw.githubusercontent.com/wiki/VIAME/VIAME-Web/images/Misc/FishPolygonSelected.png" alt="Example from viame.kitware.com sample data" width="370" border="1">
+&nbsp; &nbsp; &nbsp;
+<img src="https://raw.githubusercontent.com/wiki/VIAME/VIAME-Web/images/Misc/PolygonUAV.png" alt="Example from mevadata.org UAV clip" width="430" border="1">
+&nbsp; &nbsp; &nbsp;
 </nobr>
 </p>
+
+## Features
+
+* Video Annotation
+  * Single-frame boxes and polygons
+  * Multi-frame bounding box tracks with interpolation
+  * Automatic transcoding to support `avi`, `mov`, 
+* Still image annotation
+  * Bounding boxes
+  * Polygons
+* Customizable labeling
+  * label shapes and tracks
+  * add text, numeric, multiple-choice attributes
 
 ## Documentation
 

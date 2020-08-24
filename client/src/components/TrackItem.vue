@@ -1,5 +1,5 @@
 <script>
-import TooltipBtn from './TooltipButton.vue';
+import TooltipBtn from 'vue-media-annotator/components/TooltipButton.vue';
 
 export default {
   name: 'TrackItem',
