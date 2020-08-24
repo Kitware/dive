@@ -413,7 +413,7 @@ export default defineComponent({
           </template>
           <layer-manager
             v-bind="layerProps"
-            @feature-point-ppdated="featurePointed"
+            @feature-point-updated="featurePointed"
             @select-track="handler.selectTrack"
             @select-feature-handle="handler.selectFeatureHandle"
             @update-rect-bounds="handler.updateRectBounds"
