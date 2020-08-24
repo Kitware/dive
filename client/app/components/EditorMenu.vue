@@ -81,7 +81,6 @@ export default Vue.extend({
       <v-btn-toggle
         :value="config.value"
         :multiple="config.multiple"
-        :mandatory="!config.multiple"
         group
         @change="$emit('set-annotaiton-state', { [config.model]: $event })"
       >

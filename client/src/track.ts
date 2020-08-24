@@ -258,7 +258,7 @@ export default class Track {
   getFeatureGeometry(frame: number, { key, type }:
     { key?: string; type?: GeoJSON.GeoJsonGeometryTypes }) {
     const feature = this.features[frame];
-    if (!feature.geometry) {
+    if (!feature || !feature.geometry) {
       return [];
     }
     return feature.geometry.features.filter((item) => {
@@ -281,6 +281,7 @@ export default class Track {
     });
     if (index !== -1) {
       feature.geometry.features.splice(index, 1);
+      this.notify('feature', feature);
       return true;
     }
     return false;

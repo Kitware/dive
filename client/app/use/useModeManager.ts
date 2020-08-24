@@ -3,7 +3,9 @@ import {
 } from '@vue/composition-api';
 import { cloneDeep, uniq } from 'lodash';
 import Track, { TrackId } from 'vue-media-annotator/track';
-import { RectBounds, findBounds, removePoint } from 'vue-media-annotator/utils';
+import {
+  RectBounds, findBounds, removePoint, updateBounds,
+} from 'vue-media-annotator/utils';
 import { EditAnnotationTypes } from 'vue-media-annotator/layers/EditAnnotationLayer';
 
 import { NewTrackSettings } from './useSettings';
@@ -57,6 +59,8 @@ export default function useModeManager({
   // but the meaning of this value varies based on the editing mode.  When in
   // polygon edit mode, this corresponds to a polygon point.  Ditto in line mode.
   const selectedFeatureHandle = ref(-1);
+  //The Key of the selected type, for now mostly '' but is used for HeadTails Processing
+  const selectedKey = ref('');
   // which type is currently being edited, if any
   const editingMode = computed(() => editingTrack.value && annotationModes.editing);
   // which types are currently visible, always including the editingType
@@ -73,8 +77,15 @@ export default function useModeManager({
     }
   }
 
-  function handleSelectFeatureHandle(i: number) {
+  function handleSelectKey(key: string | '') {
+    selectedKey.value = key;
+  }
+
+  function handleSelectFeatureHandle(i: number, key = '') {
     selectedFeatureHandle.value = i;
+    if (key !== '') {
+      handleSelectKey(key);
+    }
   }
 
   function handleSelectTrack(trackId: TrackId | null, edit = false) {
@@ -139,46 +150,148 @@ export default function useModeManager({
     }
   }
 
+
+  function handleFeaturePointing(key: 'head' | 'tail') {
+    if (selectedTrackId.value !== null) {
+      handleSelectKey(key);
+      annotationModes.editing = 'point';
+      selectTrack(selectedTrackId.value, true);
+    }
+  }
+
+
+  /** removing the entire HeadTails or one of the points */
+  function removeHeadTails(frameNum: number, track: Track, index: number) {
+    handleSelectTrack(selectedTrackId.value, false);
+    track.removeFeatureGeometry(frameNum, {
+      key: 'HeadTails',
+      type: 'LineString',
+    });
+    if (index === -1 || index === 0) {
+      track.removeFeatureGeometry(frameNum, {
+        key: 'head',
+        type: 'Point',
+      });
+    }
+    if (index === -1 || index === 1) {
+      track.removeFeatureGeometry(frameNum, {
+        key: 'tail',
+        type: 'Point',
+      });
+    }
+  }
+  /**
+   * When creating a HeadTails Line this will update the individual points
+   * or creating a line if we have both points available
+   */
   function updateHeadTails(
     frameNum: number,
     track: Track,
     interpolate: boolean,
-    coordinates: GeoJSON.Position[],
+    key: string,
+    data: GeoJSON.Feature<GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString>,
   ) {
     //Update the Head and Tails points as well
-    const geoJSONPointHead: GeoJSON.Point = {
-      type: 'Point',
-      coordinates: coordinates[0],
-    };
-    track.setFeature({
-      frame: frameNum,
-      keyframe: true,
-      interpolate,
-    },
-    [{
-      type: 'Feature',
-      geometry: geoJSONPointHead,
-      properties: {
-        key: 'head',
+    if (data.geometry.type === 'LineString' && key === 'HeadTails') {
+      const { coordinates } = data.geometry;
+
+      const geoJSONPointHead: GeoJSON.Point = {
+        type: 'Point',
+        coordinates: coordinates[0],
+      };
+      track.setFeature({
+        frame: frameNum,
+        keyframe: true,
+        interpolate,
       },
-    }]);
-    // eslint-disable-next-line prefer-destructuring
-    const geoJSONPointTail: GeoJSON.Point = {
-      type: 'Point',
-      coordinates: coordinates[1],
-    };
-    track.setFeature({
-      frame: frameNum,
-      keyframe: true,
-      interpolate,
-    },
-    [{
-      type: 'Feature',
-      geometry: geoJSONPointTail,
-      properties: {
-        key: 'tail',
+      [{
+        type: 'Feature',
+        geometry: geoJSONPointHead,
+        properties: {
+          key: 'head',
+        },
+      }]);
+      // eslint-disable-next-line prefer-destructuring
+      const geoJSONPointTail: GeoJSON.Point = {
+        type: 'Point',
+        coordinates: coordinates[1],
+      };
+      track.setFeature({
+        frame: frameNum,
+        keyframe: true,
+        interpolate,
       },
-    }]);
+      [{
+        type: 'Feature',
+        geometry: geoJSONPointTail,
+        properties: {
+          key: 'tail',
+        },
+      }]);
+    } else if (data.geometry.type === 'Point') {
+      //So now we have to add the Line if both points exist
+      const coordinates: GeoJSON.Position[] = [];
+      coordinates.push(data.geometry.coordinates);
+      if (key === 'head') {
+        const tail = track.getFeatureGeometry(frame.value, {
+          type: 'Point',
+          key: 'tail',
+        });
+        if (tail.length) {
+          coordinates.push(tail[0].geometry.coordinates as GeoJSON.Position);
+        }
+      } else if (key === 'tail') {
+        const head = track.getFeatureGeometry(frame.value, {
+          type: 'Point',
+          key: 'head',
+        });
+        if (head.length) {
+          coordinates.unshift(head[0].geometry.coordinates as GeoJSON.Position);
+        }
+      }
+      //Now we add the headTails item if the two points exist
+      if (coordinates.length === 2) {
+        const { features } = track.canInterpolate(frameNum);
+        const [real] = features;
+        //Update bounds based on type and condition of the updated bounds
+        let oldBounds;
+        if (real) {
+          oldBounds = real.bounds;
+        }
+
+        const lineData: GeoJSON.Feature<GeoJSON.LineString> = {
+          type: 'Feature',
+          geometry: {
+            type: 'LineString',
+            coordinates,
+          },
+          properties: {
+            key: 'HeadTails',
+          },
+        };
+        const newbounds = findBounds(lineData);
+        const updatedBounds = updateBounds(oldBounds, newbounds, lineData);
+        track.setFeature(
+          {
+            frame: frameNum,
+            bounds: updatedBounds,
+            keyframe: true,
+            interpolate,
+          },
+          [lineData],
+        );
+      }
+    }
+  }
+
+
+  function handleremoveFeaturePoint() {
+    if (selectedTrackId.value !== null) {
+      const track = trackMap.get(selectedTrackId.value);
+      if (track) {
+        removeHeadTails(frame.value, track, -1);
+      }
+    }
   }
 
   function handleUpdateGeoJSON(
@@ -200,17 +313,28 @@ export default function useModeManager({
           : interpolate;
         const interpolateSetting = (newDetectionMode && !newTrackMode)
           ? false : interpolateTrack;
-        if (data.geometry.type === 'LineString') {
-          updateHeadTails(frameNum, track, interpolateSetting, data.geometry.coordinates);
+        if (data.geometry.type === 'LineString' || data.geometry.type === 'Point') {
+          updateHeadTails(frameNum, track, interpolateSetting, key, data);
         }
+
+        //Update bounds based on type and condition of the updated bounds
+        let oldBounds;
+        if (real) {
+          oldBounds = real.bounds;
+        }
+        const newbounds = findBounds(data);
+        const updatedBounds = updateBounds(oldBounds, newbounds, data);
+
+        const feature = {
+          frame: frameNum,
+          keyframe: true,
+          bounds: updatedBounds,
+          interpolate: (newDetectionMode && !newTrackMode)
+            ? false : interpolateTrack,
+        };
         // TODO: update to only work with polygon changes, not line changes
         track.setFeature(
-          {
-            frame: frameNum,
-            keyframe: true,
-            interpolate: (newDetectionMode && !newTrackMode)
-              ? false : interpolateTrack,
-          },
+          feature,
           [{
             type: data.type,
             geometry: data.geometry,
@@ -219,15 +343,13 @@ export default function useModeManager({
             },
           }],
         );
-        //Update bounds based on type and condition of the updated bounds
-        if (false && real) {
-          const oldBounds = real?.bounds || 0;
-          const newbounds = findBounds(data);
-          if (newbounds > oldBounds) {
-            //update if polygon or line
-          } else if (newbounds < oldBounds) {
-            //updat eonly if it is a polygon
-          }
+
+        //If we are creating a point, we swap back to rectangle once done
+        //we also check if we need to make the line
+        if (data.geometry.type === 'Point' && annotationModes.editing === 'point') {
+          handleSelectKey('');
+          annotationModes.editing = 'rectangle';
+          selectTrack(selectedTrackId.value, false);
         }
         //If it is a new track and we have newTrack Settings
         if (newTrackMode && newDetectionMode) {
@@ -246,7 +368,7 @@ export default function useModeManager({
   /**
    * Removes the selectedIndex point for the selected Polygon/line
    */
-  function handleRemovePoint(key = '', type: '' | 'Point' | 'Polygon' | 'LineString' = '') {
+  function handleRemovePoint(type: '' | 'Point' | 'Polygon' | 'LineString' = '') {
     if (selectedTrackId.value !== null && selectedFeatureHandle.value !== -1) {
       const track = trackMap.get(selectedTrackId.value);
       if (track) {
@@ -257,19 +379,21 @@ export default function useModeManager({
         const geoJSONType = type !== '' ? type : modeMap[annotationModes.editing as 'polygon' | 'line'];
         const geoJsonFeatures = track.getFeatureGeometry(frame.value, {
           type: geoJSONType,
-          key,
+          key: selectedKey.value,
         });
         if (geoJsonFeatures.length === 0) return;
         //could operate directly on the polygon memory, but small enough to copy and edit
         const clone = cloneDeep(geoJsonFeatures[0]);
-        if (removePoint(clone, selectedFeatureHandle.value)) {
+        if (removePoint(clone, selectedFeatureHandle.value, selectedKey.value)) {
+          if (selectedKey.value === 'HeadTails') {
+            removeHeadTails(frame.value, track, selectedFeatureHandle.value);
+          } else {
+            track.setFeature({
+              frame: frame.value,
+              bounds: findBounds(clone),
+            }, [clone]);
+          }
           handleSelectFeatureHandle(-1);
-          track.setFeature({
-            frame: frame.value,
-            bounds: findBounds(clone),
-          }, [clone]);
-        } else {
-          console.warn('Polygons must have at least 3 points');
         }
       }
     }
@@ -333,7 +457,10 @@ export default function useModeManager({
     editingMode,
     visibleModes,
     selectedFeatureHandle,
+    selectedKey,
     handler: {
+      handleFeaturePointing,
+      handleremoveFeaturePoint,
       selectTrack: handleSelectTrack,
       trackEdit: handleTrackEdit,
       trackTypeChange: handleTrackTypeChange,
@@ -344,6 +471,7 @@ export default function useModeManager({
       trackClick: handleTrackClick,
       removeTrack: handleRemoveTrack,
       removePoint: handleRemovePoint,
+      selectKey: handleSelectKey,
       removeAnnotation: handleRemoveAnnotation,
       selectFeatureHandle: handleSelectFeatureHandle,
       setAnnotationState: handleSetAnnotationState,

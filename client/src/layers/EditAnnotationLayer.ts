@@ -82,7 +82,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
           setTimeout(() => this.redraw(), 0); //Redraw timeout to update the selected handle
           const divisor = this.type === 'line' ? 1 : 2; // used for polygon because edge handles
           if (this.type !== 'rectangle') {
-            this.$emit('update:selectedIndex', this.selectedHandleIndex / divisor);
+            this.$emit('update:selectedIndex', this.selectedHandleIndex / divisor, this.type, this.selectedKey);
           }
         }
       });
@@ -168,6 +168,12 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
     }
   }
 
+  setKey(key: string) {
+    if (key !== '') {
+      this.selectedKey = key;
+    }
+  }
+
   /**
    * Provides whether the user is creating a new annotation or editing one
    */
@@ -232,7 +238,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
   formatData(frameData: FrameDataTrack[]) {
     this.selectedHandleIndex = -1;
     this.hoverHandleIndex = -1;
-    this.$emit('update:selectedIndex', this.selectedHandleIndex);
+    this.$emit('update:selectedIndex', this.selectedHandleIndex, this.type, this.selectedKey);
     if (frameData.length > 0) {
       const track = frameData[0];
       if (track.features && track.features.bounds) {
@@ -243,7 +249,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
           // TODO: this assumes only one polygon
           geoJSONData = this.getGeoJSONData(track);
         }
-        if (!geoJSONData) {
+        if (!geoJSONData || this.type === 'point') {
           this.mode = 'creation';
           this.featureLayer.mode(this.type);
         } else {

@@ -171,6 +171,7 @@ export default defineComponent({
       handler,
       editingMode,
       visibleModes,
+      selectedKey,
     } = useModeManager({
       selectedTrackId,
       editingTrack,
@@ -301,6 +302,7 @@ export default defineComponent({
         tracks: enabledTracks,
         typeStyling,
         visibleModes,
+        selectedKey,
       },
     };
   },
@@ -395,12 +397,12 @@ export default defineComponent({
           v-if="imageData.length || videoUrl"
           ref="playbackComponent"
           v-mousetrap="[
-            { bind: 'g', handler: () => toggleFeaturePointing('head') },
-            { bind: 'h', handler: () => toggleFeaturePointing('head') },
+            { bind: 'g', handler: () => handler.handleFeaturePointing('head') },
+            { bind: 'h', handler: () => handler.handleFeaturePointing('head') },
             { bind: 'n', handler: () => handler.addTrack(frame) },
-            { bind: 't', handler: () => toggleFeaturePointing('tail') },
-            { bind: 'y', handler: () => toggleFeaturePointing('tail') },
-            { bind: 'q', handler: () => deleteFeaturePoints(frame) },
+            { bind: 't', handler: () => handler.handleFeaturePointing('tail') },
+            { bind: 'y', handler: () => handler.handleFeaturePointing('tail') },
+            { bind: 'q', handler: () => handler.handleremoveFeaturePoint() },
             { bind: 'esc', handler: () => handler.selectTrack(null, false)}
           ]"
           :image-data="imageData"

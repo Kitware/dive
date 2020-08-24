@@ -67,6 +67,10 @@ export default defineComponent({
       type: Object as PropType<Ref<EditAnnotationTypes[]>>,
       required: true,
     },
+    selectedKey: {
+      type: Object as PropType<Ref<string>>,
+      required: true,
+    },
   },
 
   setup(props, { emit }) {
@@ -124,6 +128,7 @@ export default defineComponent({
       tracks: Track[],
       featurePointing: boolean,
       visibleModes: EditAnnotationTypes[],
+      selectedKey: string,
     ) {
       // intervalTree requires custom search because 0 is treated as false by default
       const currentFrameIds: TrackId[] = props.intervalTree.search(
@@ -133,6 +138,7 @@ export default defineComponent({
 
       if (editingTrack) {
         editAnnotationLayer.setType(editingTrack);
+        editAnnotationLayer.setKey(selectedKey);
       }
 
       const frameData = [] as FrameDataTrack[];
@@ -173,7 +179,11 @@ export default defineComponent({
       } else {
         polyAnnotationLayer.disable();
       }
-      lineLayer.changeData(frameData);
+      if (visibleModes.includes('line')) {
+        lineLayer.changeData(frameData);
+      } else {
+        lineLayer.disable();
+      }
       markerLayer.changeData(frameData);
       if (visibleModes.length) {
         textLayer.changeData(frameData);
@@ -207,7 +217,7 @@ export default defineComponent({
             // Marker shouldn't be edited when creating a new track
             const hasBounds = editingTracks.filter((item) => item.features && item.features.bounds);
             if (!editingTrack || (editingTrack && hasBounds.length)) {
-              markerEditLayer.changeData([]);
+              editAnnotationLayer.changeData([]);
             }
           }
         } else {
@@ -227,6 +237,7 @@ export default defineComponent({
       props.tracks.value,
       props.featurePointing.value,
       props.visibleModes.value,
+      props.selectedKey.value,
     );
 
     watch([
@@ -244,6 +255,7 @@ export default defineComponent({
         props.tracks.value,
         props.featurePointing.value,
         props.visibleModes.value,
+        props.selectedKey.value,
       );
     });
 
@@ -251,7 +263,7 @@ export default defineComponent({
       //So we only want to pass the click whjen not in creation mode or editing mode for features
       const creationMode = editAnnotationLayer.getMode() === 'creation';
       const editingPolyorLine = (props.editingMode.value && (
-        props.editingMode.value === 'polygon' || props.editingMode.value === 'line'));
+        props.editingMode.value === 'polygon' || props.editingMode.value === 'line' || props.editingMode.value === 'point'));
       if (!props.featurePointing.value && !(editingPolyorLine && creationMode)) {
         editAnnotationLayer.disable();
         emit('select-track', trackId, editing);
@@ -263,7 +275,7 @@ export default defineComponent({
     polyAnnotationLayer.$on('annotation-right-clicked', Clicked);
 
     editAnnotationLayer.$on('update:geojson',
-      (data: GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.LineString>, type: string, key = '') => {
+      (data: GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.LineString | GeoJSON.Point>, type: string, key = '') => {
         if (type === 'rectangle') {
           const bounds = geojsonToBound(data as GeoJSON.Feature<GeoJSON.Polygon>);
           emit('update-rect-bounds', frameNumber.value, bounds);
@@ -273,8 +285,8 @@ export default defineComponent({
       });
 
     //Selecting an index so it can be removed
-    editAnnotationLayer.$on('update:selectedIndex', (index: number) => {
-      emit('select-feature-handle', index);
+    editAnnotationLayer.$on('update:selectedIndex', (index: number, _type: EditAnnotationTypes, key = '') => {
+      emit('select-feature-handle', index, key);
     });
 
     markerEditLayer.$on('update:geojson', (data: GeoJSON.Feature<GeoJSON.Point>) => {
