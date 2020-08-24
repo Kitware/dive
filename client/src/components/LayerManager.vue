@@ -55,10 +55,6 @@ export default defineComponent({
       type: Object as PropType<StateStyles>,
       required: true,
     },
-    featurePointing: {
-      type: Object as PropType<Ref<boolean>>,
-      required: true,
-    },
     editingMode: {
       type: Object as PropType<Ref<false|EditAnnotationTypes>>,
       required: true,
@@ -113,20 +109,11 @@ export default defineComponent({
       type: 'rectangle',
     });
 
-    const markerEditLayer = new EditAnnotationLayer({
-      annotator,
-      stateStyling: props.stateStyling,
-      typeStyling: props.typeStyling,
-      type: 'point',
-    });
-
-
     function updateLayers(
       frame: number,
       editingTrack: false | EditAnnotationTypes,
       selectedTrackId: TrackId,
       tracks: Track[],
-      featurePointing: boolean,
       visibleModes: EditAnnotationTypes[],
       selectedKey: string,
     ) {
@@ -159,7 +146,7 @@ export default defineComponent({
               confidencePairs: track.getType(),
             };
             frameData.push(trackFrame);
-            if (frameData[frameData.length - 1].selected && (editingTrack || featurePointing)) {
+            if (frameData[frameData.length - 1].selected && (editingTrack)) {
               editingTracks.push(trackFrame);
             }
           }
@@ -192,7 +179,7 @@ export default defineComponent({
       }
 
       if (selectedTrackId !== null) {
-        if ((editingTrack || featurePointing) && !currentFrameIds.includes(selectedTrackId)) {
+        if ((editingTrack) && !currentFrameIds.includes(selectedTrackId)) {
           const editTrack = props.trackMap.get(selectedTrackId);
           if (editTrack === undefined) {
             throw new Error(`trackMap missing trackid ${selectedTrackId}`);
@@ -213,19 +200,10 @@ export default defineComponent({
             editAnnotationLayer.changeData(editingTracks);
             emit('editingModeChanged', editAnnotationLayer.getMode());
           }
-          if (featurePointing) {
-            // Marker shouldn't be edited when creating a new track
-            const hasBounds = editingTracks.filter((item) => item.features && item.features.bounds);
-            if (!editingTrack || (editingTrack && hasBounds.length)) {
-              editAnnotationLayer.changeData([]);
-            }
-          }
         } else {
-          markerEditLayer.disable();
           editAnnotationLayer.disable();
         }
       } else {
-        markerEditLayer.disable();
         editAnnotationLayer.disable();
       }
     }
@@ -235,7 +213,6 @@ export default defineComponent({
       props.editingMode.value,
       props.selectedTrackId.value,
       props.tracks.value,
-      props.featurePointing.value,
       props.visibleModes.value,
       props.selectedKey.value,
     );
@@ -245,7 +222,6 @@ export default defineComponent({
       props.editingMode,
       props.tracks,
       props.selectedTrackId,
-      props.featurePointing,
       props.visibleModes,
     ], () => {
       updateLayers(
@@ -253,7 +229,6 @@ export default defineComponent({
         props.editingMode.value,
         props.selectedTrackId.value,
         props.tracks.value,
-        props.featurePointing.value,
         props.visibleModes.value,
         props.selectedKey.value,
       );
@@ -264,7 +239,7 @@ export default defineComponent({
       const creationMode = editAnnotationLayer.getMode() === 'creation';
       const editingPolyorLine = (props.editingMode.value && (
         props.editingMode.value === 'polygon' || props.editingMode.value === 'line' || props.editingMode.value === 'point'));
-      if (!props.featurePointing.value && !(editingPolyorLine && creationMode)) {
+      if (!(editingPolyorLine && creationMode)) {
         editAnnotationLayer.disable();
         emit('select-track', trackId, editing);
       }
@@ -289,9 +264,6 @@ export default defineComponent({
       emit('select-feature-handle', index, key);
     });
 
-    markerEditLayer.$on('update:geojson', (data: GeoJSON.Feature<GeoJSON.Point>) => {
-      emit('feature-point-updated', frameNumber.value, data);
-    });
   },
 });
 </script>
