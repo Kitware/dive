@@ -21,37 +21,6 @@ export default class PointLayer extends BaseLayer<PointGeoJSData> {
   }
 
   // eslint-disable-next-line class-methods-use-this
-  checkHeadTail(frameData: FrameDataTrack[]): PointGeoJSData[] {
-    const data = [] as PointGeoJSData[];
-    frameData.forEach((track: FrameDataTrack) => {
-      const feature = track.features;
-      if (feature?.head) {
-        data.push({
-          trackId: track.trackId,
-          selected: track.selected,
-          editing: track.editing,
-          confidencePairs: track.confidencePairs,
-          feature: 'head',
-          x: feature.head[0],
-          y: feature.head[1],
-        });
-      }
-      if (feature?.tail) {
-        data.push({
-          trackId: track.trackId,
-          selected: track.selected,
-          editing: track.editing,
-          confidencePairs: track.confidencePairs,
-          feature: 'tail',
-          x: feature.tail[0],
-          y: feature.tail[1],
-        });
-      }
-    });
-    return data;
-  }
-
-  // eslint-disable-next-line class-methods-use-this
   formatData(frameData: FrameDataTrack[]): PointGeoJSData[] {
     const arr: PointGeoJSData[] = []; //(this.checkHeadTail(frameData));
     frameData.forEach((track: FrameDataTrack) => {

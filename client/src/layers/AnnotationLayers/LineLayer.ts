@@ -59,39 +59,8 @@ export default class LineLayer extends BaseLayer<LineGeoJSData> {
     return dashed;
   }
 
-  /**
-   * Function specific to the current head/tails data format for drawing the line
-   * @param {FrameDataTrack} frameData -standard data frame
-   */
-  // TODO: find a better way to store and handle head/tail data
-  checkHeadTail(frameData: FrameDataTrack[]) {
-    const data = [] as LineGeoJSData[];
-    frameData.forEach((track: FrameDataTrack) => {
-      const feature = track.features;
-      if (feature?.head && feature?.tail) {
-        const start = [Number(feature.head[0]), Number(feature.head[1])];
-        const end = [Number(feature.tail[0]), Number(feature.tail[1])];
-        const coordinates = LineLayer.dashSegment(start, end);
-        const line: GeoJSON.LineString = {
-          coordinates,
-          type: 'LineString',
-        };
-        const annotation: LineGeoJSData = {
-          trackId: track.trackId,
-          selected: track.selected,
-          editing: track.editing,
-          confidencePairs: track.confidencePairs,
-          line,
-          dashed: true,
-        };
-        data.push(annotation);
-      }
-    });
-    return data;
-  }
-
   formatData(frameData: FrameDataTrack[]) {
-    const arr: LineGeoJSData[] = this.checkHeadTail(frameData);
+    const arr: LineGeoJSData[] = [];
     frameData.forEach((track: FrameDataTrack) => {
       if (track.features && track.features.bounds) {
         if (track.features.geometry?.features?.[0]) {
