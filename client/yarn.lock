@@ -9899,6 +9899,11 @@ mux.js@5.5.1:
   resolved "https://registry.yarnpkg.com/mux.js/-/mux.js-5.5.1.tgz#5bd5d7b2e5e5560da8126928e93af3c532e08372"
   integrity sha512-5VmmjADBqS4++8pTI6poSRJ+chHdaoI4XErcQPM5w4QfwaDl+FQlSI0iOgWbYDn6CBCbDRKaSCcEiN2K5aHNGQ==
 
+mux.js@^5.6.4:
+  version "5.6.4"
+  resolved "https://registry.yarnpkg.com/mux.js/-/mux.js-5.6.4.tgz#0975fb4f2641884d127d912f08eb629171a4b423"
+  integrity sha512-k7UUafOn1axLqcnx0oF3xbTrVMXHd54ytwFHW30v+SRbZED63QjK7al+q9KMlF+NQOkydd+46xPqHk+ELZxL+g==
+
 mz@^2.4.0:
   version "2.7.0"
   resolved "https://registry.yarnpkg.com/mz/-/mz-2.7.0.tgz#95008057a56cafadc2bc63dde7f9ff6955948e32"

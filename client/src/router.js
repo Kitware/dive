@@ -7,16 +7,16 @@ import Home from '@/views/Home.vue';
 import Jobs from '@/views/Jobs.vue';
 import Login from '@/views/Login.vue';
 import Settings from '@/views/Settings.vue';
-import FileDialog from '@/views/electron/FileDialog.vue';
-// import ElectronViewer from '@/views/electron/ElectronViewer.vue';
+// import FileDialog from '@/views/electron/FileDialog.vue';
+import ElectronViewer from '@/views/electron/ElectronViewer.vue';
 
 Vue.use(Router);
 
 function beforeEnter(to, from, next) {
   if (!girderRest.user) {
     next('/login');
-  } else if (process.env.IS_ELECTRON) {
-    next('/electron/viewer');
+  // } else if (process.env.IS_ELECTRON) {
+  //   next('/electron/viewer');
   } else {
     next();
   }
@@ -27,7 +27,7 @@ export default new Router({
     {
       path: '/electron/viewer',
       name: 'electron_viewer',
-      component: FileDialog,
+      component: ElectronViewer,
     },
     {
       path: '/login',

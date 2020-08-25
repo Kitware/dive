@@ -1,25 +1,3 @@
-<template>
-  <v-layout row wrap>
-    <v-flex sm12>
-      <v-card dark color="secondary">
-        <v-card-text class="px-0">
-          <v-btn color="primary" @click="openFile()">Open File</v-btn>
-          <v-btn color="primary" @click="saveFile()">Save File</v-btn>
-          <v-flex sm6 offset-sm3>
-            <v-text-field
-              v-model="textAreaValue"
-              textarea
-              name="editor"
-              label="this is a placeholder"
-              id="editor">
-            </v-text-field>
-          </v-flex>
-        </v-card-text>
-      </v-card>qqq
-    </v-flex>
-  </v-layout>
-</template>
-
 <script>
 
 const { dialog } = require('electron').remote;
@@ -82,3 +60,25 @@ export default {
   },
 };
 </script>
+
+<template>
+  <v-layout row wrap>
+    <v-flex sm12>
+      <v-card dark color="secondary">
+        <v-card-text class="px-0">
+          <v-btn color="primary" @click="openFile()">Open File</v-btn>
+          <v-btn color="primary" @click="saveFile()">Save File</v-btn>
+          <v-flex sm6 offset-sm3>
+            <v-text-field
+              v-model="textAreaValue"
+              textarea
+              name="editor"
+              label="this is a placeholder"
+              id="editor">
+            </v-text-field>
+          </v-flex>
+        </v-card-text>
+      </v-card>qqq
+    </v-flex>
+  </v-layout>
+</template>

@@ -36,6 +36,7 @@ import ControlsContainer from './ControlsContainer.vue';
 import Layers from './Layers.vue';
 import Sidebar from './Sidebar.vue';
 
+
 export default defineComponent({
   components: {
     ControlsContainer,
