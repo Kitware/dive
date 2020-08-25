@@ -4,7 +4,7 @@ import BaseLayer, { BaseLayerParams, LayerStyle } from 'vue-media-annotator/laye
 import { boundToGeojson } from 'vue-media-annotator/utils';
 import geo, { GeoEvent } from 'geojs';
 
-export type EditAnnotationTypes = 'point' | 'rectangle' | 'polygon' | 'line';
+export type EditAnnotationTypes = 'Point' | 'rectangle' | 'Polygon' | 'LineString';
 interface EditAnnotationLayerParams {
   type: EditAnnotationTypes;
 }
@@ -17,6 +17,12 @@ interface EditHandleStyle {
   editHandle: boolean;
 }
 
+const typeMapper = {
+  LineString: 'line',
+  Polygon: 'polygon',
+  Point: 'point',
+  rectangle: 'rectangle',
+};
 /**
  * This class is used to edit annotations within the viewer
  * It will do and display different things based on it either being in
@@ -80,7 +86,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
         if (e.buttonsDown.left && this.hoverHandleIndex !== -1) {
           this.selectedHandleIndex = this.hoverHandleIndex;
           setTimeout(() => this.redraw(), 0); //Redraw timeout to update the selected handle
-          const divisor = this.type === 'line' ? 1 : 2; // used for polygon because edge handles
+          const divisor = this.type === 'LineString' ? 1 : 2; // used for polygon because edge handles
           if (this.type !== 'rectangle') {
             this.$emit('update:selectedIndex', this.selectedHandleIndex / divisor, this.type, this.selectedKey);
           }
@@ -92,7 +98,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
   }
 
   pointCreation(e: GeoEvent) {
-    if (this.mode === 'creation' && this.type === 'line') {
+    if (this.mode === 'creation' && this.type === 'LineString') {
       let key = 'head';
       if (this.lineList.length === 0) {
         this.lineList.push([
@@ -112,11 +118,11 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
           type: 'Point',
           coordinates: [Number(e.mouse.geo.x), Number(e.mouse.geo.y)],
         },
-        annotationType: 'point',
+        annotationType: 'Point',
       };
 
       this.changed = true;
-      this.$emit('update:geojson', geoJSON, 'point', key);
+      this.$emit('update:geojson', geoJSON, 'Point', key);
       if (this.lineList.length === 2) {
         const geoJSONLine = {
           type: 'Feature',
@@ -124,17 +130,17 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
             type: 'LineString',
             coordinates: this.lineList,
           },
-          annotationType: 'line',
+          annotationType: 'LineString',
         };
         this.featureLayer.mode(null);
         this.changed = false;
-        this.$emit('update:geojson', geoJSONLine, 'line', 'HeadTails');
+        this.$emit('update:geojson', geoJSONLine, 'LineString', 'HeadTails');
       }
     }
   }
 
   hoverEditHandle(e: GeoEvent) {
-    const divisor = this.type === 'line' ? 1 : 2; //For Polygons we skip over edge handles (midpoints)
+    const divisor = this.type === 'LineString' ? 1 : 2; //For Polygons we skip over edge handles (midpoints)
     if (e.enable && e.handle.handle.type === 'vertex') {
       if (e.handle.handle.selected
         && (e.handle.handle.index * divisor) !== this.hoverHandleIndex) {
@@ -161,7 +167,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
    * */
   setType(type: EditAnnotationTypes) {
     this.type = type;
-    if (this.type === 'line') {
+    if (this.type === 'LineString') {
       this.selectedKey = 'HeadTails';
     } else {
       this.selectedKey = '';
@@ -205,7 +211,8 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
     let geoJSONData;
     if (track && track.features && track.features.geometry) {
       track.features.geometry.features.forEach((feature) => {
-        if (feature.geometry && feature.geometry.type.toLowerCase().includes(this.type)) {
+        if (feature.geometry
+          && feature.geometry.type.toLowerCase().includes(typeMapper[this.type])) {
           if (feature.properties && feature.properties.key !== 'undefined') {
             if (feature.properties.key === this.selectedKey) {
               geoJSONData = feature.geometry;
@@ -249,15 +256,15 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
           // TODO: this assumes only one polygon
           geoJSONData = this.getGeoJSONData(track);
         }
-        if (!geoJSONData || this.type === 'point') {
+        if (!geoJSONData || this.type === 'Point') {
           this.mode = 'creation';
-          this.featureLayer.mode(this.type);
+          this.featureLayer.mode(typeMapper[this.type]);
         } else {
           const geojsonFeature: GeoJSON.Feature = {
             type: 'Feature',
             geometry: geoJSONData,
             properties: {
-              annotationType: this.type,
+              annotationType: typeMapper[this.type],
             },
           };
 
@@ -286,10 +293,10 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
     } else {
       // point or rectangle mode for the editor
       this.mode = 'creation';
-      if (this.type === 'line') {
+      if (this.type === 'LineString') {
         this.lineList = [];
       }
-      this.featureLayer.mode(this.type);
+      this.featureLayer.mode(typeMapper[this.type]);
     }
     return [];
   }
@@ -362,7 +369,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
    */
   createStyle(): LayerStyle<GeoJSON.Feature> {
     const baseStyle = super.createStyle();
-    if (this.type === 'rectangle' || this.type === 'polygon' || this.type === 'line') {
+    if (this.type === 'rectangle' || this.type === 'Polygon' || this.type === 'LineString') {
       return {
         ...baseStyle,
         fill: false,
@@ -393,16 +400,16 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
         },
       };
     }
-    if (this.type === 'point') {
+    if (this.type === 'Point') {
       return {
         handles: false,
       };
     }
-    if (this.type === 'polygon' || this.type === 'line') {
+    if (this.type === 'Polygon' || this.type === 'LineString') {
       return {
         handles: {
           rotate: false,
-          edge: this.type !== 'line',
+          edge: this.type !== 'LineString',
         },
         fill: true,
         radius: (handle: EditHandleStyle): number => {
@@ -441,14 +448,14 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
    * from the annotation.  NOTE: this will not remove styling from handles
    */
   highlightStyle() {
-    if (this.type === 'rectangle' || this.type === 'polygon') {
+    if (this.type === 'rectangle' || this.type === 'Polygon') {
       return {
         handles: {
           rotate: false,
         },
       };
     }
-    if (this.type === 'point') {
+    if (this.type === 'Point') {
       return {
         stroke: false,
       };

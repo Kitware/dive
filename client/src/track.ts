@@ -256,7 +256,7 @@ export default class Track {
 
   /* Get features by properties.key, geometry.type, or both */
   getFeatureGeometry(frame: number, { key, type }:
-    { key?: string; type?: GeoJSON.GeoJsonGeometryTypes }) {
+    { key?: string; type?: GeoJSON.GeoJsonGeometryTypes | '' | 'rectangle' }) {
     const feature = this.features[frame];
     if (!feature || !feature.geometry) {
       return [];
@@ -269,7 +269,7 @@ export default class Track {
   }
 
   removeFeatureGeometry(frame: number, { key, type }:
-    { key?: string; type?: GeoJSON.GeoJsonGeometryTypes }) {
+    { key?: string; type?: GeoJSON.GeoJsonGeometryTypes | '' | 'rectangle' }) {
     const feature = this.features[frame];
     if (!feature.geometry) {
       return false;

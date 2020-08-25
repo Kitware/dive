@@ -52,7 +52,7 @@ export default function useModeManager({
   let newDetectionMode = false;
 
   const annotationModes = reactive({
-    visible: ['rectangle', 'polygon', 'line'] as EditAnnotationTypes[],
+    visible: ['rectangle', 'Polygon', 'LineString'] as EditAnnotationTypes[],
     editing: 'rectangle' as EditAnnotationTypes,
   });
   // selectedFeatureHandle could arguably belong in useTrackSelectionControls,
@@ -154,7 +154,7 @@ export default function useModeManager({
   function handleFeaturePointing(key: 'head' | 'tail') {
     if (selectedTrackId.value !== null) {
       handleSelectKey(key);
-      annotationModes.editing = 'point';
+      annotationModes.editing = 'Point';
       selectTrack(selectedTrackId.value, true);
     }
   }
@@ -284,7 +284,7 @@ export default function useModeManager({
   }
 
 
-  function handleremoveFeaturePoint() {
+  function handleRemoveFeaturePoint() {
     if (selectedTrackId.value !== null) {
       const track = trackMap.get(selectedTrackId.value);
       if (track) {
@@ -347,7 +347,7 @@ export default function useModeManager({
 
         //If we are creating a point, we swap back to rectangle once done
         //we also check if we need to make the line
-        if (data.geometry.type === 'Point' && annotationModes.editing === 'point') {
+        if (data.geometry.type === 'Point' && annotationModes.editing === 'Point') {
           handleSelectKey('');
           annotationModes.editing = 'rectangle';
           selectTrack(selectedTrackId.value, false);
@@ -361,15 +361,10 @@ export default function useModeManager({
     }
   }
 
-  const modeMap: {point: 'Point'; line: 'LineString'; polygon: 'Polygon'} = {
-    point: 'Point',
-    line: 'LineString',
-    polygon: 'Polygon',
-  };
   /**
    * Removes the selectedIndex point for the selected Polygon/line
    */
-  function handleRemovePoint(type: '' | 'Point' | 'Polygon' | 'LineString' = '') {
+  function handleRemovePoint(type: '' | GeoJSON.GeoJsonGeometryTypes = '') {
     if (selectedTrackId.value !== null && selectedFeatureHandle.value !== -1) {
       const track = trackMap.get(selectedTrackId.value);
       if (track) {
@@ -377,7 +372,7 @@ export default function useModeManager({
         const { features } = track.canInterpolate(frame.value);
         const [real] = features;
         if (!real) return;
-        const geoJSONType = type !== '' ? type : modeMap[annotationModes.editing as 'polygon' | 'line'];
+        const geoJSONType = type !== '' ? type : annotationModes.editing;
         const geoJsonFeatures = track.getFeatureGeometry(frame.value, {
           type: geoJSONType,
           key: selectedKey.value,
@@ -399,7 +394,7 @@ export default function useModeManager({
     }
   }
 
-  function handleRemoveAnnotation(frameNum: number, key = '', type: '' | 'Point' | 'Polygon' | 'LineString' = '') {
+  function handleRemoveAnnotation(frameNum: number, key = '', type: '' | GeoJSON.GeoJsonGeometryTypes) {
     if (selectedTrackId.value !== null && selectedFeatureHandle.value !== -1) {
       const track = trackMap.get(selectedTrackId.value);
       if (track) {
@@ -408,7 +403,7 @@ export default function useModeManager({
         const [real] = features;
         if (!real) return false;
         // TODO: This can be changed when we have selection of annotations by key/type
-        const geoJSONType = type !== '' ? type : modeMap[annotationModes.editing as 'polygon' | 'line'];
+        const geoJSONType = type !== '' ? type : annotationModes.editing;
         track.removeFeatureGeometry(frameNum, { key, type: geoJSONType });
         return true;
       }
@@ -461,7 +456,7 @@ export default function useModeManager({
     selectedKey,
     handler: {
       handleFeaturePointing,
-      handleremoveFeaturePoint,
+      handleRemoveFeaturePoint,
       selectTrack: handleSelectTrack,
       trackEdit: handleTrackEdit,
       trackTypeChange: handleTrackTypeChange,

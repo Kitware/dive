@@ -402,7 +402,7 @@ export default defineComponent({
             { bind: 'n', handler: () => handler.addTrack(frame) },
             { bind: 't', handler: () => handler.handleFeaturePointing('tail') },
             { bind: 'y', handler: () => handler.handleFeaturePointing('tail') },
-            { bind: 'q', handler: () => handler.handleremoveFeaturePoint() },
+            { bind: 'q', handler: () => handler.handleRemoveFeaturePoint() },
             { bind: 'esc', handler: () => handler.selectTrack(null, false)}
           ]"
           :image-data="imageData"

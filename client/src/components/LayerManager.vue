@@ -155,18 +155,18 @@ export default defineComponent({
 
       if (visibleModes.includes('rectangle')) {
         //We modify rects opacity/thickness if polygons are visible or not
-        rectAnnotationLayer.setDrawingOther(visibleModes.includes('polygon'));
+        rectAnnotationLayer.setDrawingOther(visibleModes.includes('Polygon'));
         rectAnnotationLayer.changeData(frameData);
       } else {
         rectAnnotationLayer.disable();
       }
-      if (visibleModes.includes('polygon')) {
+      if (visibleModes.includes('Polygon')) {
         polyAnnotationLayer.setDrawingOther(visibleModes.includes('rectangle'));
         polyAnnotationLayer.changeData(frameData);
       } else {
         polyAnnotationLayer.disable();
       }
-      if (visibleModes.includes('line')) {
+      if (visibleModes.includes('LineString')) {
         lineLayer.changeData(frameData);
       } else {
         lineLayer.disable();
@@ -238,7 +238,7 @@ export default defineComponent({
       //So we only want to pass the click whjen not in creation mode or editing mode for features
       const creationMode = editAnnotationLayer.getMode() === 'creation';
       const editingPolyorLine = (props.editingMode.value && (
-        props.editingMode.value === 'polygon' || props.editingMode.value === 'line' || props.editingMode.value === 'point'));
+        props.editingMode.value === 'Polygon' || props.editingMode.value === 'LineString' || props.editingMode.value === 'Point'));
       if (!(editingPolyorLine && creationMode)) {
         editAnnotationLayer.disable();
         emit('select-track', trackId, editing);
@@ -263,7 +263,6 @@ export default defineComponent({
     editAnnotationLayer.$on('update:selectedIndex', (index: number, _type: EditAnnotationTypes, key = '') => {
       emit('select-feature-handle', index, key);
     });
-
   },
 });
 </script>
