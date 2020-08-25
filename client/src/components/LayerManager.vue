@@ -15,10 +15,8 @@ import PolygonLayer from 'vue-media-annotator/layers/AnnotationLayers/PolygonLay
 import PointLayer from 'vue-media-annotator/layers/AnnotationLayers/PointLayer';
 import LineLayer from 'vue-media-annotator/layers/AnnotationLayers/LineLayer';
 
-//import AnnotationLayer from 'vue-media-annotator/layers/AnnotationLayer';
 import EditAnnotationLayer, { EditAnnotationTypes } from 'vue-media-annotator/layers/EditAnnotationLayer';
 import { FrameDataTrack } from 'vue-media-annotator/layers/LayerTypes';
-//import MarkerLayer from 'vue-media-annotator/layers/MarkerLayer';
 import TextLayer from 'vue-media-annotator/layers/TextLayer';
 import Track, { TrackId } from 'vue-media-annotator/track';
 import { geojsonToBound } from 'vue-media-annotator/utils';
@@ -89,7 +87,7 @@ export default defineComponent({
       stateStyling: props.stateStyling,
       typeStyling: props.typeStyling,
     });
-    const markerLayer = new PointLayer({
+    const pointLayer = new PointLayer({
       annotator,
       stateStyling: props.stateStyling,
       typeStyling: props.typeStyling,
@@ -171,7 +169,7 @@ export default defineComponent({
       } else {
         lineLayer.disable();
       }
-      markerLayer.changeData(frameData);
+      pointLayer.changeData(frameData);
       if (visibleModes.length) {
         textLayer.changeData(frameData);
       } else {

@@ -148,12 +148,15 @@ export default defineComponent({
     });
 
     const {
-      featurePointing,
-      featurePointingTarget,
-      toggleFeaturePointing,
-      featurePointed,
-      deleteFeaturePoints,
-    } = useFeaturePointing({ selectedTrackId, trackMap });
+      handleRemoveFeaturePoint,
+      updateHeadTails,
+      removeHeadTails,
+    } = useFeaturePointing({
+      selectedTrackId,
+      trackMap,
+      selectTrack,
+      frame,
+    });
 
     const { lineChartData } = useLineChart({
       enabledTracks, typeStyling, allTypes,
@@ -184,6 +187,8 @@ export default defineComponent({
       selectNextTrack,
       addTrack,
       removeTrack,
+      updateHeadTails,
+      removeHeadTails,
     });
 
 
@@ -253,15 +258,13 @@ export default defineComponent({
       selectedTrackId,
       videoUrl,
       /* methods used locally */
+      handleRemoveFeaturePoint,
       addTrack,
-      deleteFeaturePoints,
-      featurePointed,
       markChangesPending,
       save,
       saveThreshold,
       selectTrack,
       splitTracks,
-      toggleFeaturePointing,
       updateNewTrackSettings,
       updateTypeStyle,
       updateTypeName,
@@ -293,8 +296,6 @@ export default defineComponent({
       },
       layerProps: {
         editingMode,
-        featurePointing,
-        featurePointingTarget,
         intervalTree,
         selectedTrackId,
         stateStyling,
@@ -402,7 +403,7 @@ export default defineComponent({
             { bind: 'n', handler: () => handler.addTrack(frame) },
             { bind: 't', handler: () => handler.handleFeaturePointing('tail') },
             { bind: 'y', handler: () => handler.handleFeaturePointing('tail') },
-            { bind: 'q', handler: () => handler.handleRemoveFeaturePoint() },
+            { bind: 'q', handler: () => handleRemoveFeaturePoint() },
             { bind: 'esc', handler: () => handler.selectTrack(null, false)}
           ]"
           :image-data="imageData"
