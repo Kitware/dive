@@ -91,9 +91,13 @@ class ViameDetection(Resource):
         ]
         thresholds = folder.get("meta", {}).get("confidenceFilters", {})
 
+        track_dict = json.loads(
+            b"".join(list(File().download(file, headers=False)())).decode()
+        )
+
         def downloadGenerator():
             for data in viame.export_tracks_as_csv(
-                file, excludeBelowThreshold, thresholds, imageFiles
+                track_dict, excludeBelowThreshold, thresholds, imageFiles
             ):
                 yield data
 

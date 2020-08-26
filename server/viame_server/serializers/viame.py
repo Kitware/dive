@@ -134,23 +134,19 @@ def load_csv_as_tracks(file):
 
 
 def export_tracks_as_csv(
-    file, excludeBelowThreshold, thresholds, filenames=None
+    track_dict, excludeBelowThreshold=False, thresholds={}, filenames=None
 ) -> str:
-    """
-    Export track json to a CSV format.
-
-    file: The detections JSON file
-    excludeBelowThreshold: 
-    """
-
-    track_json = json.loads(
-        b"".join(list(File().download(file, headers=False)())).decode()
-    )
+    """Export track json to a CSV format."""
     csvFile = io.StringIO()
     writer = csv.writer(csvFile)
-    for t in track_json.values():
+    for t in track_dict.values():
         track = from_dict(Track, t, config=Config(cast=[Tuple]))
         if (not excludeBelowThreshold) or track.exceeds_thresholds(thresholds):
+
+            sorted_confidence_pairs = sorted(
+                track.confidencePairs, key=lambda item: item[1]
+            )
+
             for index, keyframe in enumerate(track.features):
                 features = [keyframe]
 
@@ -167,14 +163,14 @@ def export_tracks_as_csv(
                         "",
                         feature.frame,
                         *feature.bounds,
-                        track.confidencePairs[-1][1],
+                        sorted_confidence_pairs[-1][1],
                         feature.fishLength or -1,
                     ]
 
                     if filenames:
                         columns[1] = filenames[feature.frame]
 
-                    for pair in track.confidencePairs:
+                    for pair in sorted_confidence_pairs:
                         columns.extend(list(pair))
 
                     if feature.head and feature.tail:
