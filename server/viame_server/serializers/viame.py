@@ -37,7 +37,7 @@ def _deduceType(value: str) -> Union[bool, float, str]:
 def create_geoJSONFeature(type:str, coords: List[float], key=''):
     feature = {
         "type": "Feature",
-        "propertes": {
+        "properties": {
             "key": key
         },
         "geometry":{
@@ -89,7 +89,7 @@ def _parse_row(row: List[str]) -> Tuple[Dict, Dict, Dict, List]:
         if row[j].startswith("(poly)"):
             groups = re.match(r"(\(poly\)) ((?:[0-9]+\.[0-9]+\s)+)", row[j])
             if groups:
-                temp = groups[2].split() 
+                temp = [float(x) for x in groups[2].split()]
                 coords = list(zip(temp[::2], temp[1::2]))
                 print(coords)
                 #now we form the geoJSON feature for this track/frame
