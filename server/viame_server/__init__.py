@@ -10,11 +10,13 @@ from .event import check_existing_annotations
 from .viame import Viame
 from .viame_detection import ViameDetection
 
+from typing import Tuple, Optional
+
 env_pipelines_path = os.getenv("VIAME_PIPELINES_PATH")
 env_trained_pipelines_path = os.getenv("VIAME_TRAINED_PIPELINES_PATH")
 
 
-def get_pipeline_paths():
+def get_pipeline_paths() -> Tuple[Optional[Path], Optional[Path]]:
     if env_pipelines_path is None:
         print(
             "No pipeline path specified. ",

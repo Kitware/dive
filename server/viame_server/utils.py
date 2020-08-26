@@ -2,6 +2,7 @@ import io
 import json
 import re
 from datetime import datetime
+from pathlib import Path
 
 from girder.models.folder import Folder
 from girder.models.item import Item
@@ -10,6 +11,9 @@ from girder.models.upload import Upload
 from girder.models.assetstore import Assetstore
 
 from viame_server.serializers import viame
+
+from typing import List, Dict
+from typing_extensions import TypedDict
 
 ImageSequenceType = "image-sequence"
 VideoType = "video"
@@ -45,36 +49,72 @@ VideoMimeTypes = {
 }
 
 TrainingOutputFolderName = "Training Results"
+DefaultTrainingConfiguration = "train_netharn_cascade.viame_csv.conf"
 
 
-# Ad hoc way to guess the FPS of an Image Sequence based on file names
-# Currently not being used, can only be used once you know that all items
-# have been imported.
-def determine_image_sequence_fps(folder):
-    items = Item().find({"folderId": folder["_id"]})
+class TrainingConfigurationDescription(TypedDict):
+    configs: List[str]
+    default: str
 
-    start = None
-    current = None
 
-    item_length = 0
-    for item in items:
-        item_length += 1
-        name = item["name"]
+class PipelineDescription(TypedDict):
+    name: str
+    type: str
+    pipe: str
 
-        try:
-            _, two, three, four, _ = name.split(".")
-            seconds = two[:2] * 3600 + two[2:4] * 60 + two[4:]
 
-            if not start:
-                start = int(seconds)
-            current = int(seconds)
+class PipelineDict(TypedDict):
+    pipes: List[PipelineDescription]
+    description: str
 
-        except ValueError:
-            if "annotations.csv" not in name:
-                return None
 
-    total = current - start
-    return round(item_length / total)
+def load_pipelines(pipeline_paths):
+    main_pipeline_path, trained_pipeline_path = pipeline_paths
+
+    pipelist = []
+    if main_pipeline_path is not None:
+        allowed = r"^detector_.+|tracker_.+"
+        disallowed = r".*local.*|detector_svm_models.pipe|tracker_svm_models.pipe"
+        pipelist.extend(
+            [
+                path.name
+                for path in main_pipeline_path.glob("./*.pipe")
+                if re.match(allowed, path.name) and not re.match(disallowed, path.name)
+            ]
+        )
+
+    if trained_pipeline_path is not None:
+        pipelist.extend(
+            [path.name for path in trained_pipeline_path.iterdir() if path.is_dir()]
+        )
+
+    pipedict: Dict[str, PipelineDict] = {}
+    for pipe in pipelist:
+        pipe_type, *nameparts = pipe.replace(".pipe", "").split("_")
+        pipe_info: PipelineDescription = {
+            "name": " ".join(nameparts),
+            "type": pipe_type,
+            "pipe": pipe,
+        }
+
+        if pipe_type in pipedict:
+            pipedict[pipe_type]["pipes"].append(pipe_info)
+        else:
+            pipedict[pipe_type] = {"pipes": [pipe_info], "description": ""}
+
+    return pipedict
+
+
+def load_training_configurations(pipeline_paths) -> TrainingConfigurationDescription:
+    main_pipeline_path: Path
+    main_pipeline_path, _ = pipeline_paths
+
+    configurations = [path.name for path in main_pipeline_path.glob("./*.conf")]
+
+    return {
+        "configs": configurations,
+        "default": DefaultTrainingConfiguration,
+    }
 
 
 def get_or_create_auxiliary_folder(folder, user):

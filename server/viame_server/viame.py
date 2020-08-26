@@ -25,6 +25,8 @@ from .utils import (
     get_or_create_auxiliary_folder,
     imageRegex,
     move_existing_result_to_auxiliary_folder,
+    load_pipelines,
+    load_training_configurations,
     csv_detection_file,
     training_output_folder,
     safeImageRegex,
@@ -32,57 +34,6 @@ from .utils import (
     videoRegex,
     ymlRegex,
 )
-
-from typing import Dict, List
-from typing_extensions import TypedDict
-
-
-class PipelineDescription(TypedDict):
-    name: str
-    type: str
-    pipe: str
-
-
-class PipelineDict(TypedDict):
-    pipes: List[PipelineDescription]
-    description: str
-
-
-def load_pipelines(pipeline_paths):
-    main_pipeline_path, trained_pipeline_path = pipeline_paths
-
-    pipelist = []
-    if main_pipeline_path is not None:
-        allowed = r"^detector_.+|tracker_.+"
-        disallowed = r".*local.*|detector_svm_models.pipe|tracker_svm_models.pipe"
-        pipelist.extend(
-            [
-                path.name
-                for path in main_pipeline_path.glob("./*.pipe")
-                if re.match(allowed, path.name) and not re.match(disallowed, path.name)
-            ]
-        )
-
-    if trained_pipeline_path is not None:
-        pipelist.extend(
-            [path.name for path in trained_pipeline_path.iterdir() if path.is_dir()]
-        )
-
-    pipedict: Dict[str, PipelineDict] = {}
-    for pipe in pipelist:
-        pipe_type, *nameparts = pipe.replace(".pipe", "").split("_")
-        pipe_info: PipelineDescription = {
-            "name": " ".join(nameparts),
-            "type": pipe_type,
-            "pipe": pipe,
-        }
-
-        if pipe_type in pipedict:
-            pipedict[pipe_type]["pipes"].append(pipe_info)
-        else:
-            pipedict[pipe_type] = {"pipes": [pipe_info], "description": ""}
-
-    return pipedict
 
 
 class Viame(Resource):
@@ -93,6 +44,7 @@ class Viame(Resource):
 
         self.route("GET", ("pipelines",), self.get_pipelines)
         self.route("POST", ("pipeline",), self.run_pipeline_task)
+        self.route("GET", ("training_configs",), self.get_training_configs)
         self.route("POST", ("train",), self.run_training)
         self.route("POST", ("postprocess", ":id"), self.postprocess)
         self.route("POST", ("attribute",), self.create_attribute)
@@ -106,6 +58,11 @@ class Viame(Resource):
     @describeRoute(Description("Get available pipelines"))
     def get_pipelines(self, params):
         return load_pipelines(self.pipeline_paths)
+
+    @access.user
+    @describeRoute(Description("Get available training configurations."))
+    def get_training_configs(self, params):
+        return load_training_configurations(self.pipeline_paths)
 
     @access.user
     @autoDescribeRoute(
@@ -155,8 +112,14 @@ class Viame(Resource):
             paramType="query",
             required=True,
         )
+        .param(
+            "config",
+            description="The configuration to use for training",
+            paramType="query",
+            required=True,
+        )
     )
-    def run_training(self, folder, pipelineName):
+    def run_training(self, folder, pipelineName, config):
         user = self.getCurrentUser()
         upload_token = self.getCurrentToken()
         # move_existing_result_to_auxiliary_folder(folder, user)
@@ -183,6 +146,7 @@ class Viame(Resource):
             training_data=training_data,
             groundtruth=detection,
             pipeline_name=pipelineName,
+            config=config,
             girder_client_token=str(upload_token["_id"]),
             girder_job_title=(f"Running training on folder: {str(folder['name'])}"),
         )

@@ -129,6 +129,7 @@ def train_pipeline(
     training_data: List[Dict],
     groundtruth: Dict,
     pipeline_name: str,
+    config: str,
 ):
     """
     Train a pipeline by making a call to viame_train_detector
@@ -144,8 +145,8 @@ def train_pipeline(
 
     viame_install_path = Path(conf.viame_install_path)
     pipeline_base_path = Path(conf.pipeline_base_path)
-    default_conf_file = pipeline_base_path / "train_netharn_cascade.viame_csv.conf"
     training_executable = viame_install_path / "bin" / "viame_train_detector"
+    config_file = pipeline_base_path / config
 
     pipeline_name = pipeline_name.replace(" ", "_")
 
@@ -174,7 +175,7 @@ def train_pipeline(
                 "-i",
                 str(root_data_dir),
                 "-c",
-                str(default_conf_file),
+                str(config_file),
             ]
             process = Popen(
                 " ".join(command),
@@ -205,7 +206,7 @@ def train_pipeline(
 
             # Rename the original folder with our new folder name
             shutil.move(
-                training_output_path / "category_models", training_results,
+                str(training_output_path / "category_models"), training_results,
             )
 
             # If `_trained_pipeline_folder()` returns `None`, the results of this
