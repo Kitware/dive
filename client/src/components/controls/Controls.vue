@@ -88,7 +88,8 @@ export default {
           </v-col>
           <v-col
             align="center"
-            class="py-1"
+            class="py-1 shrink"
+            style="min-width: 100px;"
           >
             <v-btn
               icon

@@ -367,6 +367,7 @@ export default defineComponent({
     <v-row
       no-gutters
       class="fill-height"
+      style="min-width: 700px;"
     >
       <sidebar
         v-bind="sidebarProps"
@@ -388,7 +389,7 @@ export default defineComponent({
           @end="saveThreshold"
         />
       </sidebar>
-      <v-col style="position: relative; ">
+      <v-col style="position: relative">
         <component
           :is="annotatorType"
           v-if="imageData.length || videoUrl"

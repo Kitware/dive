@@ -94,8 +94,8 @@ export default {
     >
       <v-card-title>{{ category.name }}</v-card-title>
       <v-tooltip
-        v-for="item in category.data"
-        :key="item.name"
+        v-for="(item, index) in category.data"
+        :key="`${item.name}_${index}`"
         color="red"
         top
       >
