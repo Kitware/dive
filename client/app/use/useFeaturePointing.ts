@@ -46,7 +46,7 @@ export default function useFeaturePointing({
     key: string,
     data: GeoJSON.Feature<GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString>,
   ) {
-    //Update the Head and Tails points as well
+    //Update the Head and Tails points as well if we are updating the line
     if (data.geometry.type === 'LineString' && key === 'HeadTails') {
       const { coordinates } = data.geometry;
 
@@ -83,8 +83,9 @@ export default function useFeaturePointing({
         },
       }]);
     } else if (data.geometry.type === 'Point') {
-      //So now we have to add the Line if both points exist
+      //So now we have to add the Line only if both points exist
       const coordinates: GeoJSON.Position[] = [];
+      //Add our initial point in there for the line
       coordinates.push(data.geometry.coordinates);
       if (key === 'head') {
         const tail = track.getFeatureGeometry(frameNum, {

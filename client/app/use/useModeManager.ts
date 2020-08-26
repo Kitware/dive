@@ -161,6 +161,7 @@ export default function useModeManager({
   }
 
 
+  //Creation of head or tail points
   function handleFeaturePointing(key: 'head' | 'tail') {
     if (selectedTrackId.value !== null) {
       handleSelectKey(key);
