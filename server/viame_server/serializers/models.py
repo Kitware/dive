@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 @dataclass
 class GeoJSONGeometry:
     type: str
-    coordinates: Union[List[List[float]], List[List[List[float]]]]
+    coordinates: Union[List[float], List[List[float]], List[List[List[float]]]]
 
 
 @dataclass

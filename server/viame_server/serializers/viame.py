@@ -34,6 +34,25 @@ def _deduceType(value: str) -> Union[bool, float, str]:
     except ValueError:
         return value
 
+def create_geoJSONFeature(type:str, coords: List[float], key=''):
+    feature = {
+        "type": "Feature",
+        "propertes": {
+            "key": key
+        },
+        "geometry":{
+            "type": type
+        },
+    }
+    if 'Polygon' in type:
+        feature['geometry']['coordinates'] = [coords]
+    else:
+        feature['geometry']['coordinates'] = coords
+
+    return feature
+
+
+
 
 def _parse_row(row: List[str]) -> Tuple[Dict, Dict, Dict, List]:
     """
@@ -67,6 +86,17 @@ def _parse_row(row: List[str]) -> Tuple[Dict, Dict, Dict, List]:
             groups = re.match(r"\(trk-atr\) (.+) (.+)", row[j])
             if groups:
                 track_attributes[groups[1]] = _deduceType(groups[2])
+        if row[j].startswith("(poly)"):
+            groups = re.match(r"(\(poly\)) ((?:[0-9]+\.[0-9]+\s)+)", row[j])
+            if groups:
+                temp = groups[2].split() 
+                coords = list(zip(temp[::2], temp[1::2]))
+                print(coords)
+                #now we form the geoJSON feature for this track/frame
+                features["geometry"] = {
+                    "type" : "FeatureCollection",
+                    "features": [create_geoJSONFeature('Polygon', coords)]
+                 }
 
     return features, attributes, track_attributes, confidence_pairs
 
@@ -170,10 +200,18 @@ def write_track_to_csv(track: Track, csv_writer, filenames=None):
             if feature.attributes:
                 for key, val in feature.attributes.items():
                     columns.append(f"(atr) {key} {valueToString(val)}")
+            
 
             if track.attributes:
                 for key, val in track.attributes.items():
                     columns.append(f"(trk-atr) {key} {valueToString(val)}")
+
+            if feature.geometry and "FeatureCollection" in feature.geometry.type:
+                for geoJSONFeature in feature.geometry.features:
+                    if 'Polygon' in geoJSONFeature.geometry.type:
+                        #Coordinates need to be flattened out from their list of tuples
+                        coordinates = [item for sublist in geoJSONFeature.geometry.coordinates[0] for item in sublist]
+                        columns.append(f"(poly) {' '.join(map(str, coordinates))}")
 
             csv_writer.writerow(columns)
 
