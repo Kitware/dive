@@ -32,6 +32,11 @@ export interface Category {
   pipes: [Pipe];
 }
 
+export interface TrainingConfigs {
+  configs: string[];
+  default: string;
+}
+
 function makeViameFolder({
   folderId, name, fps, type,
 }: {
@@ -85,8 +90,12 @@ function runPipeline(itemId: string, pipeline: string) {
   );
 }
 
-function runTraining(folder: GirderModel, pipelineName: string) {
-  return girderRest.post('/viame/train', null, { params: { folderId: folder._id, pipelineName } });
+function getTrainingConfigurations(): Promise<TrainingConfigs[]> {
+  return girderRest.get('/viame/training_configs');
+}
+
+function runTraining(folder: GirderModel, pipelineName: string, config: string) {
+  return girderRest.post('/viame/train', null, { params: { folderId: folder._id, pipelineName, config } });
 }
 
 function setMetadataForItem(itemId: string, metadata: object) {
@@ -129,6 +138,7 @@ export {
   makeViameFolder,
   postProcess,
   runPipeline,
+  getTrainingConfigurations,
   runTraining,
   setMetadataForItem,
   setMetadataForFolder,

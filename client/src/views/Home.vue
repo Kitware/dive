@@ -4,10 +4,11 @@ import { FileManager } from '@girder/components/src/components/Snippet';
 import { getLocationType } from '@girder/components/src/utils';
 import Export from '@/components/Export.vue';
 import RunPipelineMenu from '@/components/RunPipelineMenu.vue';
+import RunTrainingMenu from '@/components/RunTrainingMenu.vue';
 import Upload from '@/components/Upload.vue';
 import NavigationBar from '@/components/NavigationBar.vue';
 import { getPathFromLocation, getLocationFromRoute } from '@/utils';
-import { deleteResources, runTraining } from '@/lib/api/viame.service';
+import { deleteResources } from '@/lib/api/viame.service';
 
 export default {
   name: 'Home',
@@ -17,6 +18,7 @@ export default {
     Upload,
     NavigationBar,
     RunPipelineMenu,
+    RunTrainingMenu,
   },
   inject: ['notificationBus'],
   data: () => ({
@@ -101,18 +103,6 @@ export default {
     handleNotification() {
       this.$refs.fileManager.$refs.girderBrowser.refresh();
     },
-    async runTrainingOnFolder() {
-      const folder = this.selected[0];
-
-      this.selected = [];
-      await runTraining(folder, folder.name);
-
-      this.$snackbar({
-        text: `Started training on folder ${folder.name}`,
-        timeout: 2000,
-        immediate: true,
-      });
-    },
     isAnnotationFolder(item) {
       // TODO: update to check for other info
       return item._modelType === 'folder' && item.meta.annotate;
@@ -177,22 +167,10 @@ export default {
             @dragover.native="dragover"
           >
             <template #headerwidget>
-              <v-btn
-                text
+              <run-training-menu
+                :selected="(locationIsViameFolder ? [location] : selected)"
                 small
-                :disabled="selected.filter(
-                  ({ _modelType, meta }) => _modelType === 'folder' && meta && meta.annotate
-                ).length !== 1"
-                @click="runTrainingOnFolder"
-              >
-                <v-icon
-                  left
-                  color="accent"
-                >
-                  mdi-brain
-                </v-icon>
-                Run Training
-              </v-btn>
+              />
               <run-pipeline-menu
                 :selected="(locationIsViameFolder ? [location] : selected)"
                 small
