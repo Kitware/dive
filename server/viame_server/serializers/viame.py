@@ -201,29 +201,6 @@ def export_tracks_as_csv(
                         sorted_confidence_pairs[-1][1],
                         feature.fishLength or -1,
                     ]
-                )
-
-            if feature.attributes:
-                for key, val in feature.attributes.items():
-                    columns.append(f"(atr) {key} {valueToString(val)}")
-            
-
-            if track.attributes:
-                for key, val in track.attributes.items():
-                    columns.append(f"(trk-atr) {key} {valueToString(val)}")
-
-            if feature.geometry and "FeatureCollection" in feature.geometry.type:
-                for geoJSONFeature in feature.geometry.features:
-                    if 'Polygon' in geoJSONFeature.geometry.type:
-                        #Coordinates need to be flattened out from their list of tuples
-                        coordinates = [item for sublist in geoJSONFeature.geometry.coordinates[0] for item in sublist]
-                        columns.append(f"(poly) {' '.join(map(str, coordinates))}")
-                    if 'Point' in geoJSONFeature.geometry.type:
-                        coordinates  = geoJSONFeature.geometry.coordinates
-                        key = geoJSONFeature.properties['key']
-                        columns.append(f"(kp) {key} {coordinates[0]} {coordinates[1]}")                        
-
-            csv_writer.writerow(columns)
 
                     if filenames:
                         columns[1] = filenames[feature.frame]
@@ -246,6 +223,17 @@ def export_tracks_as_csv(
                     if track.attributes:
                         for key, val in track.attributes.items():
                             columns.append(f"(trk-atr) {key} {valueToString(val)}")
+
+                    if feature.geometry and "FeatureCollection" in feature.geometry.type:
+                        for geoJSONFeature in feature.geometry.features:
+                            if 'Polygon' in geoJSONFeature.geometry.type:
+                                #Coordinates need to be flattened out from their list of tuples
+                                coordinates = [item for sublist in geoJSONFeature.geometry.coordinates[0] for item in sublist]
+                                columns.append(f"(poly) {' '.join(map(str, coordinates))}")
+                            if 'Point' in geoJSONFeature.geometry.type:
+                                coordinates  = geoJSONFeature.geometry.coordinates
+                                key = geoJSONFeature.properties['key']
+                                columns.append(f"(kp) {key} {coordinates[0]} {coordinates[1]}")        
 
                     writer.writerow(columns)
                     yield csvFile.getvalue()
