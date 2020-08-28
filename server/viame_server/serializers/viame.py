@@ -50,14 +50,12 @@ def create_geoJSONFeature(features: Feature, type:str, coords: List[float], key=
                     "type" : "FeatureCollection",
                     "features": []
                  }
-        
     else: #check for existing type/key pairs
         if (features["geometry"]["features"]):
             for subfeature in features["geometry"]["features"]:
                 if subfeature["geometry"]["type"] == type and subfeature["properties"]["key"] == key:
                     feature = subfeature
                     break
-
     if not "geometry" in feature:
         feature = {
             "type": "Feature",
@@ -74,9 +72,6 @@ def create_geoJSONFeature(features: Feature, type:str, coords: List[float], key=
         feature['geometry']['coordinates'] = coords
 
     features['geometry']['features'].append(feature)
-
-
-
 
 def _parse_row(row: List[str]) -> Tuple[Dict, Dict, Dict, List]:
     """
@@ -217,14 +212,6 @@ def export_tracks_as_csv(
 
                     for pair in sorted_confidence_pairs:
                         columns.extend(list(pair))
-
-                    if feature.head and feature.tail:
-                        columns.extend(
-                            [
-                                f"(kp) head {feature.head[0]} {feature.head[1]}",
-                                f"(kp) tail {feature.tail[0]} {feature.tail[1]}",
-                            ]
-                        )
 
                     if feature.attributes:
                         for key, val in feature.attributes.items():
