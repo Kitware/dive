@@ -42,6 +42,7 @@ export default {
     this.provided.$on('play', this.play);
     this.provided.$on('pause', this.pause);
     this.provided.$on('seek', this.seek);
+    this.provided.$on('reset-zoom', this.resetZoom);
     this.emitFrame();
     this.emitFrame = throttle(this.emitFrame, 200);
   },
@@ -55,6 +56,7 @@ export default {
     }
   },
   beforeDestroy() {
+    this.provided.$off();
     if (this.observer) {
       this.observer.unobserve(this.$refs.container);
     }
@@ -128,5 +130,9 @@ export default {
       this.$emit('frame-update', this.frame);
     },
     rendered() {},
+    resetZoom() {
+      this.geoViewer.zoom(-1);
+      this.geoViewer.center({ x: 0, y: 0 });
+    },
   },
 };
