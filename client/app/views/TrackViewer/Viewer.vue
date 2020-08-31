@@ -25,7 +25,7 @@ import UserGuideButton from 'app/components/UserGuideButton.vue';
 import Export from 'app/components/Export.vue';
 import RunPipelineMenu from 'app/components/RunPipelineMenu.vue';
 import FeatureHandleControls from 'app/components/FeatureHandleControls.vue';
-import { Seeker } from 'app/use/useModeManager';
+import { Annotator } from 'app/use/useModeManager';
 import { getPathFromLocation } from 'app/utils';
 import {
   useFeaturePointing,
@@ -68,7 +68,7 @@ export default defineComponent({
     const prompt = ctx.root.$prompt;
 
     const { datasetId } = props;
-    const playbackComponent = ref({} as Seeker);
+    const playbackComponent = ref({} as Annotator);
     const frame = ref(0); // the currently displayed frame number
 
     const {
@@ -365,6 +365,7 @@ export default defineComponent({
     <v-row
       no-gutters
       class="fill-height"
+      style="min-width: 700px;"
     >
       <sidebar
         v-bind="sidebarProps"
@@ -386,7 +387,7 @@ export default defineComponent({
           @end="saveThreshold"
         />
       </sidebar>
-      <v-col style="position: relative; ">
+      <v-col style="position: relative">
         <component
           :is="annotatorType"
           v-if="imageData.length || videoUrl"
@@ -398,6 +399,7 @@ export default defineComponent({
             { bind: 't', handler: () => toggleFeaturePointing('tail') },
             { bind: 'y', handler: () => toggleFeaturePointing('tail') },
             { bind: 'q', handler: () => deleteFeaturePoints(frame) },
+            { bind: 'r', handler: () => playbackComponent.resetZoom() },
             { bind: 'esc', handler: () => handler.selectTrack(null, false)}
           ]"
           :image-data="imageData"

@@ -8,8 +8,9 @@ import { EditAnnotationTypes } from 'vue-media-annotator/layers/EditAnnotationLa
 
 import { NewTrackSettings } from './useSettings';
 
-export interface Seeker {
+export interface Annotator {
   seek(frame: number): void;
+  resetZoom(): void;
   nextFrame(): void;
 }
 
@@ -40,7 +41,7 @@ export default function useModeManager({
     editingTrack: Ref<boolean>;
     frame: Ref<number>;
     trackMap: Map<TrackId, Track>;
-    playbackComponent: Ref<Seeker>;
+    playbackComponent: Ref<Annotator>;
     newTrackSettings: NewTrackSettings;
     selectTrack: (trackId: TrackId | null, edit: boolean) => void;
     getTrack: (trackId: TrackId) => Track;
