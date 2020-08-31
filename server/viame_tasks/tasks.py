@@ -201,7 +201,8 @@ def train_pipeline(
             timestamp = datetime.utcnow().replace(microsecond=0).isoformat()
 
             # Trained_ prefix is added to conform with existing pipeline names
-            trained_model_folder_name = f"trained_{pipeline_name}_{timestamp}"
+            trained_model_folder_name = f"trained_{pipeline_name}"
+            girder_output_folder_name = f"{pipeline_name} {timestamp}"
             training_results = training_output_path / trained_model_folder_name
 
             # Rename the original folder with our new folder name
@@ -219,6 +220,7 @@ def train_pipeline(
                     trained_pipeline_folder / trained_model_folder_name,
                 )
 
+            training_results.rename(girder_output_folder_name)
             self.girder_client._uploadFolderRecursive(
                 training_results, results_folder["_id"], "folder"
             )
