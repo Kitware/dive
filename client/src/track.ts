@@ -15,6 +15,7 @@ export interface StringKeyObject {
   [key: string]: unknown;
 }
 
+/* Frame feature for both TrackData and Track */
 export interface Feature {
   frame: number;
   interpolate?: boolean;
@@ -27,6 +28,7 @@ export interface Feature {
   tail?: [number, number];
 }
 
+/** TrackData is the json schema for Track transport */
 export interface TrackData {
   trackId: TrackId;
   meta: StringKeyObject;
@@ -37,6 +39,7 @@ export interface TrackData {
   end: number;
 }
 
+/* Constructor params for Track */
 interface TrackParams {
   meta?: StringKeyObject;
   begin?: number;

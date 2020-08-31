@@ -2,7 +2,6 @@ import io
 import json
 import re
 import urllib
-import time
 from typing import Tuple, Dict
 
 from dacite import Config, from_dict
@@ -284,16 +283,16 @@ class ViameDetection(Resource):
             requireObject=True)
     )
     def save_detection(self, folder, tracks):
-        start = time.time()
         user = self.getCurrentUser()
         upsert: Dict[str, dict] = tracks.get('upsert', {})
         delete: List[str] = tracks.get('delete', [])
         track_dict = getTrackData(self._load_detections(folder))
 
-        for track_id, track in upsert.items():
-            track_dict[str(track_id)] = from_dict(models.Track, track, config=Config(cast=[Tuple]))
         for track_id in delete:
             del track_dict[str(track_id)]
+        for track_id, track in upsert.items():
+            validated: models.Track = from_dict(models.Track, track, config=Config(cast=[Tuple]))
+            track_dict[str(track_id)] = validated.asdict()
         
         upserted_len = len(upsert.keys())
         deleted_len = len(delete)
@@ -304,5 +303,4 @@ class ViameDetection(Resource):
         return {
             "updated": upserted_len,
             "deleted": deleted_len,
-            "elapsed_ms": int((time.time() - start) * 1000) # ms
         }

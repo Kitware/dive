@@ -3,7 +3,7 @@ import Track, { TrackId } from 'vue-media-annotator/track';
 import IntervalTree from '@flatten-js/interval-tree';
 
 interface UseTrackStoreParams {
-  markChangesPending: () => void;
+  markChangesPending: (type: 'upsert' | 'delete', track?: Track) => void;
 }
 
 /**
@@ -62,7 +62,7 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
       intervalTree.insert([track.begin, track.end], track.trackId);
     }
     canary.value += 1;
-    markChangesPending();
+    markChangesPending('upsert', track);
   }
 
   function insertTrack(track: Track) {
@@ -79,7 +79,7 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
       confidencePairs: [[defaultType, 1]],
     });
     insertTrack(track);
-    markChangesPending();
+    markChangesPending('upsert', track);
     return track;
   }
 
@@ -99,7 +99,7 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
       throw new Error(`TrackId ${trackId} not found in trackIds.`);
     }
     trackIds.value.splice(listIndex, 1);
-    markChangesPending();
+    markChangesPending('delete', track);
   }
 
   /*
