@@ -212,7 +212,12 @@ class Viame(Resource):
         csvItems = Folder().childItems(
             folder,
             filters={"lowerName": {"$regex": csvRegex}},
-            sort=[("created", pymongo.DESCENDING,)],
+            sort=[
+                (
+                    "created",
+                    pymongo.DESCENDING,
+                )
+            ],
         )
         if csvItems.count() >= 1:
             file = Item().childFiles(csvItems.next())[0]
@@ -271,6 +276,11 @@ class Viame(Resource):
         return Folder().childItems(
             folder,
             filters={"lowerName": {"$regex": safeImageRegex}},
-            sort=[("lowerName", pymongo.ASCENDING,)],
+            sort=[
+                (
+                    "lowerName",
+                    pymongo.ASCENDING,
+                )
+            ],
         )
 

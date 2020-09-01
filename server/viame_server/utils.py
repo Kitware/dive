@@ -113,7 +113,9 @@ def saveTracks(folder, tracks, user):
     move_existing_result_to_auxiliary_folder(folder, user)
     newResultItem = Item().createItem(item_name, user, folder)
     Item().setMetadata(
-        newResultItem, {"detection": str(folder["_id"])}, allowNull=True,
+        newResultItem,
+        {"detection": str(folder["_id"])},
+        allowNull=True,
     )
 
     json_bytes = json.dumps(tracks).encode()

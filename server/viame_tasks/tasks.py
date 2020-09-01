@@ -98,7 +98,12 @@ def run_pipeline(self, input_path, output_folder, pipeline, input_type):
 
     newfile = self.girder_client.uploadFileToFolder(output_folder, output_path)
 
-    self.girder_client.addMetadataToItem(newfile["itemId"], {"pipeline": pipeline,})
+    self.girder_client.addMetadataToItem(
+        newfile["itemId"],
+        {
+            "pipeline": pipeline,
+        },
+    )
     self.girder_client.post(
         f'viame/postprocess/{output_folder}', data={"skipJobs": True}
     )
@@ -157,7 +162,10 @@ def convert_video(self, path, folderId, auxiliaryFolderId):
     self.job_manager.write(output)
     new_file = self.girder_client.uploadFileToFolder(folderId, output_path)
     self.girder_client.addMetadataToItem(
-        new_file['itemId'], {"codec": "h264",},
+        new_file['itemId'],
+        {
+            "codec": "h264",
+        },
     )
     self.girder_client.addMetadataToFolder(
         folderId,
@@ -202,7 +210,9 @@ def convert_images(self, folderId):
             new_item_path = dest_dir / ".".join([*item["name"].split(".")[:-1], "png"])
 
             process = Popen(
-                ["ffmpeg", "-i", item_path, new_item_path], stdout=PIPE, stderr=PIPE,
+                ["ffmpeg", "-i", item_path, new_item_path],
+                stdout=PIPE,
+                stderr=PIPE,
             )
             stdout, stderr = process.communicate()
 
