@@ -34,6 +34,7 @@ export default function useSave(datasetId: string) {
   ) {
     if (type === 'delete' && track !== undefined) {
       pendingChangeMap.delete.add(track.trackId);
+      pendingChangeMap.upsert.delete(track.trackId);
     } else if (type === 'upsert' && track !== undefined) {
       pendingChangeMap.delete.delete(track.trackId);
       pendingChangeMap.upsert.set(track.trackId, track);

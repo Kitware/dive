@@ -289,7 +289,7 @@ class ViameDetection(Resource):
         track_dict = getTrackData(self._load_detections(folder))
 
         for track_id in delete:
-            del track_dict[str(track_id)]
+            track_dict.pop(str(track_id), None)
         for track_id, track in upsert.items():
             validated: models.Track = from_dict(models.Track, track, config=Config(cast=[Tuple]))
             track_dict[str(track_id)] = validated.asdict()
