@@ -1,6 +1,6 @@
 
 import { computed, Ref } from '@vue/composition-api';
-import Track, { TrackId } from '@/lib/track';
+import Track, { TrackId } from 'vue-media-annotator/track';
 import { TypeStyling } from './useStyling';
 
 

@@ -1,12 +1,16 @@
 {
   "include": [
-    "src/**/*"
+    "src/**/*",
+    "app/**/*"
   ],
   "compilerOptions": {
     "baseUrl": "",
     "paths": {
-      "@/*": [
+      "vue-media-annotator/*": [
         "src/*"
+      ],
+      "app/*": [
+        "app/*"
       ]
     }
   }

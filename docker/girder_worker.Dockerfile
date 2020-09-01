@@ -28,6 +28,12 @@ RUN apt-get update && \
 RUN wget https://bootstrap.pypa.io/get-pip.py && python3.7 get-pip.py
 # END port of worker installation
 
+# Initialize python virtual environment
+RUN apt-get update && apt-get install -y python3.7-venv
+ENV VIRTUAL_ENV=/opt/venv
+RUN python3.7 -m venv $VIRTUAL_ENV
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+
 # install tini init system
 ENV TINI_VERSION v0.19.0
 ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini /tini

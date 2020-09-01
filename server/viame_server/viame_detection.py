@@ -1,15 +1,22 @@
+import io
 import json
 import urllib
 
 from girder.api import access
 from girder.api.describe import Description, autoDescribeRoute
-from girder.api.rest import Resource
+from girder.api.rest import (
+    Resource,
+    setContentDisposition,
+    setRawResponse,
+    setResponseHeader,
+)
 from girder.constants import AccessType, TokenScope
-from girder.models.assetstore import Assetstore
+from girder.exceptions import RestException
 from girder.models.file import File
 from girder.models.folder import Folder
 from girder.models.item import Item
 from girder.models.upload import Upload
+from girder.utility import ziputil
 
 from viame_server.serializers import viame
 from viame_server.utils import (
@@ -31,6 +38,7 @@ class ViameDetection(Resource):
         self.route("GET", ("clip_meta",), self.get_clip_meta)
         self.route("GET", (":id", "export",), self.get_export_urls)
         self.route("GET", (":id", "export_detections",), self.export_detections)
+        self.route("GET", (":id", "export_all",), self.export_all)
 
     def _get_clip_meta(self, folder):
         detections = list(
@@ -39,11 +47,13 @@ class ViameDetection(Resource):
         detection = detections[0] if len(detections) else None
 
         videoUrl = None
+        video = None
         # Find a video tagged with an h264 codec left by the transcoder
-        video = Item().findOne({'folderId': folder['_id'], 'meta.codec': 'h264',})
-        if video:
+        item = Item().findOne({'folderId': folder['_id'], 'meta.codec': 'h264',})
+        if item:
+            video = Item().childFiles(item)[0]
             videoUrl = (
-                f'/api/v1/item/{str(video["_id"])}/download?contentDisposition=inline'
+                f'/api/v1/file/{str(video["_id"])}/download?contentDisposition=inline'
             )
 
         return {
@@ -52,6 +62,42 @@ class ViameDetection(Resource):
             'video': video,
             'videoUrl': videoUrl,
         }
+
+    def _generate_detections(self, folder, excludeBelowThreshold):
+        detectionItems = list(
+            Item().findWithPermissions(
+                {"meta.detection": str(folder["_id"])}, user=self.getCurrentUser(),
+            )
+        )
+        detectionItems.sort(key=lambda d: d["created"], reverse=True)
+        item = detectionItems[0]
+        file = Item().childFiles(item)[0]
+
+        # TODO: deprecated, remove after we migrate everyone to json
+        if "csv" in file["exts"]:
+            return File().download(file)
+
+        filename = ".".join([file["name"].split(".")[:-1][0], "csv"])
+
+        imageFiles = [
+            f['name']
+            for f in Folder()
+            .childItems(folder, filters={"lowerName": {"$regex": safeImageRegex}})
+            .sort("lowerName")
+        ]
+        thresholds = folder.get("meta", {}).get("confidenceFilters", {})
+
+        track_dict = json.loads(
+            b"".join(list(File().download(file, headers=False)())).decode()
+        )
+
+        def downloadGenerator():
+            for data in viame.export_tracks_as_csv(
+                track_dict, excludeBelowThreshold, thresholds, imageFiles
+            ):
+                yield data
+
+        return filename, downloadGenerator
 
     @access.user
     @autoDescribeRoute(
@@ -83,6 +129,10 @@ class ViameDetection(Resource):
         if detection:
             export_detections = (
                 f'/api/v1/viame_detection/{folderId}/export_detections'
+                f'?excludeBelowThreshold={excludeBelowThreshold}'
+            )
+            export_all = (
+                f'/api/v1/viame_detection/{folderId}/export_all'
                 f'?excludeBelowThreshold={excludeBelowThreshold}'
             )
 
@@ -129,47 +179,44 @@ class ViameDetection(Resource):
         )
     )
     def export_detections(self, folder, excludeBelowThreshold):
+        filename, gen = self._generate_detections(folder, excludeBelowThreshold)
+        setContentDisposition(filename)
+        return gen
+
+    @access.public(scope=TokenScope.DATA_READ, cookie=True)
+    @autoDescribeRoute(
+        Description("Export detections of a clip into CSV format.")
+        .modelParam(
+            "id",
+            description="folder id of a clip",
+            model=Folder,
+            required=True,
+            level=AccessType.READ,
+        )
+        .param(
+            "excludeBelowThreshold",
+            "Exclude tracks with confidencePairs below set threshold",
+            paramType="query",
+            dataType="boolean",
+            default=False,
+        )
+    )
+    def export_all(self, folder, excludeBelowThreshold):
+        _, gen = self._generate_detections(folder, excludeBelowThreshold)
+        setResponseHeader('Content-Type', 'application/zip')
+        setContentDisposition(folder['name'] + '.zip')
         user = self.getCurrentUser()
 
-        detectionItems = list(
-            Item().findWithPermissions(
-                {"meta.detection": str(folder["_id"])}, user=self.getCurrentUser(),
-            )
-        )
-        detectionItems.sort(key=lambda d: d["created"], reverse=True)
-        item = detectionItems[0]
-        file = Item().childFiles(item)[0]
+        def stream():
+            z = ziputil.ZipGenerator(folder['name'])
+            for (path, file) in Folder().fileList(folder, user=user, subpath=False):
+                for data in z.addFile(file, path):
+                    yield data
+            for data in z.addFile(gen, "output_tracks.csv"):
+                yield data
+            yield z.footer()
 
-        # return File().download(csv_detection_file(item, user))
-
-        # TODO: deprecated, remove after we migrate everyone to json
-        if "csv" in file["exts"]:
-            return File().download(file)
-
-        filename = ".".join([file["name"].split(".")[:-1][0], "csv"])
-
-        imageFiles = [
-            f['name']
-            for f in Folder()
-            .childItems(folder, filters={"lowerName": {"$regex": safeImageRegex}})
-            .sort("lowerName")
-        ]
-
-        thresholds = folder.get("meta", {}).get("confidenceFilters", {})
-        csv_string = viame.export_tracks_as_csv(
-            file, excludeBelowThreshold, thresholds, imageFiles
-        )
-        csv_bytes = csv_string.encode()
-
-        assetstore = Assetstore().findOne({"_id": file["assetstoreId"]})
-        new_file = File().findOne({"name": filename}) or File().createFile(
-            user, item, filename, len(csv_bytes), assetstore
-        )
-
-        upload = Upload().createUploadToFile(new_file, user, len(csv_bytes))
-        new_file = Upload().handleChunk(upload, csv_bytes)
-
-        return File().download(new_file)
+        return stream
 
     @access.user
     @autoDescribeRoute(

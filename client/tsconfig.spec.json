@@ -17,8 +17,11 @@
       "webpack-env"
     ],
     "paths": {
-      "@/*": [
+      "vue-media-annotator/*": [
         "src/*"
+      ],
+      "app/*": [
+        "app/*"
       ]
     },
     "lib": [
@@ -34,6 +37,8 @@
     ]
   },
   "include": [
+    "app/**/*.ts",
+    "app/**/*.vue",
     "src/**/*.ts",
     "src/**/*.tsx",
     "src/**/*.vue",
