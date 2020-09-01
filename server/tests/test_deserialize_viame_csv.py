@@ -11,7 +11,7 @@ test_tuple = [
             "0,1.png,0,884,510,1219,737,1,-1,ignored,1",
             "0,2.png,1,111,222,3333,444,1,-1,typestring,1",
             "1,1.png,0,747,457,1039,633,1,-1,type2,1",
-            "2,3.png,2,10,50,20,35,1,-1,type3,1,(kp) head 22.4534 45.6564,(kp) tail 55.232 22.3445",
+            "2,3.png,2,10,50,20,35,1,-1,type3,0.765,(kp) head 22.4534 45.6564,(kp) tail 55.232 22.3445",
         ],
         {
             "0": {
@@ -60,40 +60,38 @@ test_tuple = [
                         "bounds": [10, 50, 20, 35],
                         "keyframe": True,
                         "interpolate": False,
-                        "geometry": [
-                            {
-                                "type": "FeatureCollection",
-                                "features": [
-                                    {
-                                        "type": "Feature",
-                                        "properties": {"key": "head"},
-                                        "geometry": {
-                                            "type": "Point",
-                                            "coordinates": [22.4534, 45.6564],
-                                        },
+                        "geometry": {
+                            "type": "FeatureCollection",
+                            "features": [
+                                {
+                                    "type": "Feature",
+                                    "properties": {"key": "head"},
+                                    "geometry": {
+                                        "type": "Point",
+                                        "coordinates": [22.4534, 45.6564],
                                     },
-                                    {
-                                        "type": "Feature",
-                                        "properties": {"key": "tail"},
-                                        "geometry": {
-                                            "type": "Point",
-                                            "coordinates": [55.232, 22.3445],
-                                        },
+                                },
+                                {
+                                    "type": "Feature",
+                                    "properties": {"key": "tail"},
+                                    "geometry": {
+                                        "type": "Point",
+                                        "coordinates": [55.232, 22.3445],
                                     },
-                                    {
-                                        "type": "Feature",
-                                        "properties": {"key": "HeadTails"},
-                                        "geometry": {
-                                            "coordinates": [
-                                                [22.4534, 45.6564],
-                                                [55.232, 22.3445],
-                                            ],
-                                            "type": "LineString",
-                                        },
+                                },
+                                {
+                                    "type": "Feature",
+                                    "properties": {"key": "HeadTails"},
+                                    "geometry": {
+                                        "coordinates": [
+                                            [22.4534, 45.6564],
+                                            [55.232, 22.3445],
+                                        ],
+                                        "type": "LineString",
                                     },
-                                ],
-                            }
-                        ],
+                                },
+                            ],
+                        },
                     }
                 ],
                 "begin": 2,
