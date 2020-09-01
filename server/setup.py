@@ -4,14 +4,14 @@
 from setuptools import find_packages, setup
 
 requirements = [
-    "cheroot>=8.4.5", # https://github.com/cherrypy/cheroot/issues/312
+    "cheroot>=8.4.5",  # https://github.com/cherrypy/cheroot/issues/312
     "girder==3.1.0",
     "girder_jobs==3.0.3",
     "girder_worker==0.6.0",
     "girder_worker_utils==0.8.5",
     "pysnooper",
     "dacite",
-    "diva-boiler"
+    "diva-boiler",
 ]
 
 setup(
