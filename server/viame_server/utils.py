@@ -150,8 +150,11 @@ def csv_detection_file(detection_item, user):
         return file
 
     filename = ".".join([file["name"].split(".")[:-1][0], "csv"])
+    track_dict = json.loads(
+        b"".join(list(File().download(file, headers=False)())).decode()
+    )
 
-    csv_string = viame.export_tracks_as_csv(file)
+    csv_string = "".join((line for line in viame.export_tracks_as_csv(track_dict)))
     csv_bytes = csv_string.encode()
 
     assetstore = Assetstore().findOne({"_id": file["assetstoreId"]})
