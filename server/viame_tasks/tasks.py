@@ -98,12 +98,7 @@ def run_pipeline(self, input_path, output_folder, pipeline, input_type):
 
     newfile = self.girder_client.uploadFileToFolder(output_folder, output_path)
 
-    self.girder_client.addMetadataToItem(
-        newfile["itemId"],
-        {
-            "pipeline": pipeline,
-        },
-    )
+    self.girder_client.addMetadataToItem(newfile["itemId"], {"pipeline": pipeline})
     self.girder_client.post(
         f'viame/postprocess/{output_folder}', data={"skipJobs": True}
     )
@@ -161,12 +156,7 @@ def convert_video(self, path, folderId, auxiliaryFolderId):
     output = str(stdout) + "\n" + str(stderr)
     self.job_manager.write(output)
     new_file = self.girder_client.uploadFileToFolder(folderId, output_path)
-    self.girder_client.addMetadataToItem(
-        new_file['itemId'],
-        {
-            "codec": "h264",
-        },
-    )
+    self.girder_client.addMetadataToItem(new_file['itemId'], {"codec": "h264"})
     self.girder_client.addMetadataToFolder(
         folderId,
         {

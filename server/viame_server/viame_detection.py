@@ -41,30 +41,9 @@ class ViameDetection(Resource):
         self.route("GET", (), self.get_detection)
         self.route("PUT", (), self.save_detection)
         self.route("GET", ("clip_meta",), self.get_clip_meta)
-        self.route(
-            "GET",
-            (
-                ":id",
-                "export",
-            ),
-            self.get_export_urls,
-        )
-        self.route(
-            "GET",
-            (
-                ":id",
-                "export_detections",
-            ),
-            self.export_detections,
-        )
-        self.route(
-            "GET",
-            (
-                ":id",
-                "export_all",
-            ),
-            self.export_all,
-        )
+        self.route("GET", (":id", "export"), self.get_export_urls)
+        self.route("GET", (":id", "export_detections"), self.export_detections)
+        self.route("GET", (":id", "export_all"), self.export_all)
 
     def _get_clip_meta(self, folder):
         detections = list(
@@ -110,8 +89,7 @@ class ViameDetection(Resource):
     def _generate_detections(self, folder, excludeBelowThreshold):
         detectionItems = list(
             Item().findWithPermissions(
-                {"meta.detection": str(folder["_id"])},
-                user=self.getCurrentUser(),
+                {"meta.detection": str(folder["_id"])}, user=self.getCurrentUser()
             )
         )
         detectionItems.sort(key=lambda d: d["created"], reverse=True)

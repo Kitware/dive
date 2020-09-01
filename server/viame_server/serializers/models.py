@@ -84,10 +84,6 @@ def interpolate(a: Feature, b: Feature) -> List[Feature]:
             for (abox, bbox) in zip(a.bounds, b.bounds)
         ]
         feature_list.append(
-            Feature(
-                frame=a.frame + frame,
-                bounds=bounds,
-                keyframe=False,
-            )
+            Feature(frame=a.frame + frame, bounds=bounds, keyframe=False)
         )
     return feature_list
