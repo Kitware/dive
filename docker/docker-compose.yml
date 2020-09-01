@@ -68,6 +68,7 @@ services:
     environment:
       - WORKER_WATCHING_QUEUES=pipelines
       - WORKER_CONCURRENCY=2
+      - WORKER_GPU_UUID=${PIPELINE_GPU_UUID}
 
   girder_worker_training:
     # Merge base-worker object with this config
@@ -75,6 +76,7 @@ services:
     environment:
       - WORKER_WATCHING_QUEUES=training
       - WORKER_CONCURRENCY=1
+      - WORKER_GPU_UUID=${TRAINING_GPU_UUID}
 
 volumes:
   pipelines:

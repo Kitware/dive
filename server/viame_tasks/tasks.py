@@ -15,8 +15,52 @@ from viame_tasks.utils import (
 from typing import Dict, List
 
 
+def get_available_gpus() -> Dict[str, str]:
+    """
+    Return the list of available GPUs.
+
+    The return of this function is a dictionary that maps each GPU's UUID to its index.
+    """
+    # Get info from nvidia-smi, in the format: index, gpu-uuid
+    # Use this format instead of list due to required equal signs
+    command = "nvidia-smi --query-gpu=index,uuid --format=csv,noheader,nounits"
+
+    process = Popen(command, stderr=PIPE, stdout=PIPE, shell=True)
+    stdout_bytes, _ = process.communicate()
+
+    if process.returncode != 0:
+        return {}
+
+    # Create a list of the form [..., [index, uuid], ...]
+    stdout_lines = [line.strip() for line in stdout_bytes.decode().split("\n") if line]
+    stdout_tuples: List[List] = [line.split(", ") for line in stdout_lines]
+
+    uuid_to_index_dict = {uuid: index for index, uuid in stdout_tuples}
+    return uuid_to_index_dict
+
+
+def get_gpu_environment() -> Dict[str, str]:
+    """Get environment variables for using CUDA enabled GPUs."""
+    env = os.environ.copy()
+
+    # Default gpu index to the first one
+    job_gpu_index = "0"
+    available_gpus = get_available_gpus()
+
+    gpu_uuid = os.environ.get("WORKER_GPU_UUID")
+    if gpu_uuid:
+        job_gpu_index = available_gpus.get(gpu_uuid) or job_gpu_index
+
+    if available_gpus:
+        env["CUDA_VISIBLE_DEVICES"] = str(job_gpu_index)
+
+    return env
+
+
 class Config:
     def __init__(self):
+        self.gpu_process_env = get_gpu_environment()
+
         self.pipeline_base_path = os.environ.get(
             'VIAME_PIPELINES_PATH', '/opt/noaa/viame/configs/pipelines/'
         )
@@ -25,10 +69,10 @@ class Config:
         )
 
 
-# TODO: Need to test with runnable viameweb
 @app.task(bind=True)
 def run_pipeline(self, input_path, output_folder, pipeline, input_type):
     conf = Config()
+
     # Delete is false because the file needs to exist for kwiver to write to
     # removed at the bottom of the function
     with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as temp:
@@ -96,7 +140,14 @@ def run_pipeline(self, input_path, output_folder, pipeline, input_type):
 
     cmd = " ".join(command)
     print('Running command:', cmd)
-    process = Popen(cmd, stderr=PIPE, stdout=PIPE, shell=True, executable='/bin/bash')
+    process = Popen(
+        cmd,
+        stderr=PIPE,
+        stdout=PIPE,
+        shell=True,
+        executable='/bin/bash',
+        env=conf.gpu_process_env,
+    )
     stdout, stderr = process.communicate()
     if process.returncode > 0:
         raise RuntimeError(
@@ -184,6 +235,7 @@ def train_pipeline(
                 shell=True,
                 executable='/bin/bash',
                 cwd=training_output_path,
+                env=conf.gpu_process_env,
             )
             while process.poll() is None:
                 out = process.stdout.read() if process.stdout else None
