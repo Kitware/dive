@@ -64,7 +64,7 @@ def create_geoJSONFeature(features: Feature, type: str, coords: List[float], key
         }
     if "Polygon" == type:
         feature["geometry"]['coordinates'] = [coords]
-    elif ["LineString", "Point"].count(type):
+    elif type in ["LineString", "Point"]:
         feature['geometry']['coordinates'] = coords
 
     features['geometry']['features'].append(feature)
