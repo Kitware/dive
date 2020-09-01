@@ -5,7 +5,7 @@ import csv
 import io
 import json
 import re
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union, Mapping
 
 from dacite import Config, from_dict
 from girder.models.file import File
@@ -96,16 +96,11 @@ def _parse_row_for_tracks(row: List[str]) -> Tuple[Feature, Dict, Dict, List]:
     return feature, attributes, track_attributes, confidence_pairs
 
 
-def load_csv_as_tracks(file):
+def load_csv_as_tracks(rows: List[str]) -> Dict[str, dict]:
     """
     Convert VIAME web CSV to json tracks.
     Expect detections to be in increasing order (either globally or by track).
     """
-    rows = (
-        b"".join(list(File().download(file, headers=False)()))
-        .decode("utf-8")
-        .split("\n")
-    )
     reader = csv.reader(row for row in rows if (not row.startswith("#") and row))
     tracks = {}
     for row in reader:

@@ -73,7 +73,7 @@ export default defineComponent({
 
     const {
       save: saveToServer, markChangesPending, pendingSaveCount,
-    } = useSave();
+    } = useSave(datasetId);
 
     const {
       typeStyling,
@@ -222,14 +222,13 @@ export default defineComponent({
       if (editingTrack.value) {
         selectTrack(selectedTrackId.value, false);
       }
-      saveToServer(datasetId, trackMap, {
+      saveToServer({
         customTypeStyling: getTypeStyles(allTypes),
       });
     }
 
     function saveThreshold() {
-      markChangesPending('meta');
-      saveToServer(datasetId, undefined, {
+      saveToServer({
         confidenceFilters: confidenceFilters.value,
       });
     }
@@ -255,7 +254,6 @@ export default defineComponent({
       addTrack,
       deleteFeaturePoints,
       featurePointed,
-      markChangesPending,
       save,
       saveThreshold,
       selectTrack,
