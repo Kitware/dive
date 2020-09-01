@@ -54,7 +54,7 @@ def _parse_row(row: List[str]) -> Tuple[Dict, Dict, Dict, List]:
     confidence_pairs = [
         [row[i], float(row[i + 1])]
         for i in range(9, len(row), 2)
-        if not row[i].startswith("(")
+        if row[i] and row[i + 1] and not row[i].startswith("(")
     ]
     start = len(row) - 1 if len(row) % 2 == 0 else len(row) - 2
 
