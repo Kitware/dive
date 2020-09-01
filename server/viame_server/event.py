@@ -1,7 +1,7 @@
 from girder.models.folder import Folder
 from girder.models.item import Item
 
-from viame_server.utils import ImageSequenceType, validImageFormats
+from viame_server.utils import ImageSequenceType, csvRegex
 
 
 def check_existing_annotations(event):
@@ -10,16 +10,20 @@ def check_existing_annotations(event):
     to no-copy import data
     """
     info = event.info
+    objectType = info.get("type")
+    importPath = info.get("importPath")
 
-    if "annotations.csv" in info["importPath"]:
+    if not importPath or not objectType or objectType != "item":
+        return
+
+    if csvRegex.search(importPath):
+        # Update file metadata
         item = Item().findOne({"_id": info["id"]})
         item["meta"].update({"detection": str(item["folderId"])})
         Item().save(item)
 
-        folder = Folder().findOne({"_id": item["folderId"]})
-
+        # Update metadata of parent folder
         # FPS is hardcoded for now
-        folder["meta"].update(
-            {"type": ImageSequenceType, "fps": 30,}
-        )
+        folder = Folder().findOne({"_id": item["folderId"]})
+        folder["meta"].update({"type": ImageSequenceType, "fps": 30, "annotate": True})
         Folder().save(folder)
