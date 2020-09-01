@@ -5,6 +5,7 @@ from girder.api.rest import Resource
 from girder.constants import AccessType
 from girder.exceptions import RestException
 from girder.models.folder import Folder
+from girder.models.file import File
 from girder.models.item import Item
 from girder.models.token import Token
 
@@ -20,6 +21,7 @@ from .utils import (
     imageRegex,
     move_existing_result_to_auxiliary_folder,
     safeImageRegex,
+    getTrackData,
     saveTracks,
     videoRegex,
     ymlRegex,
@@ -214,7 +216,7 @@ class Viame(Resource):
         )
         if csvItems.count() >= 1:
             file = Item().childFiles(csvItems.next())[0]
-            json_output = viame_serializer.load_csv_as_tracks(file)
+            json_output = getTrackData(file)
             saveTracks(folder, json_output, user)
             csvItems.rewind()
             for item in csvItems:
@@ -269,5 +271,6 @@ class Viame(Resource):
         return Folder().childItems(
             folder,
             filters={"lowerName": {"$regex": safeImageRegex}},
-            sort=[("lowerName", pymongo.ASCENDING,)]
+            sort=[("lowerName", pymongo.ASCENDING,)],
         )
+

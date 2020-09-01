@@ -39,7 +39,7 @@ interface UpdateStylingArgs {
   fill?: boolean;
 }
 interface UseStylingParams {
-  markChangesPending: (name: string) => void;
+  markChangesPending: () => void;
 }
 
 /**
@@ -130,7 +130,7 @@ export default function useStyling({ markChangesPending }: UseStylingParams) {
         Vue.set(customStyles.value[type], key, value);
       }
     });
-    markChangesPending('meta');
+    markChangesPending();
   }
 
   const ordinalColorMapper = d3.scaleOrdinal<string>().range(typeColors);

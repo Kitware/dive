@@ -30,12 +30,18 @@ async function getDetections(folderId: string, formatting = 'track_json') {
   return data as { [key: string]: TrackData };
 }
 
-async function saveDetections(folderId: string, trackMap: Map<TrackId, Track>) {
+async function saveDetections(folderId: string, args: {
+  delete: TrackId[];
+  upsert: Map<TrackId, Track>;
+}) {
   const serialized = {} as SerializedTrackstore;
-  Array.from(trackMap.entries()).forEach(([id, track]) => {
+  Array.from(args.upsert.entries()).forEach(([id, track]) => {
     serialized[id] = track.serialize();
   });
-  return girderRest.put('viame_detection', serialized, {
+  return girderRest.put('viame_detection', {
+    upsert: serialized,
+    delete: args.delete,
+  }, {
     params: { folderId },
   });
 }

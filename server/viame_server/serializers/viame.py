@@ -4,7 +4,7 @@ VIAME Fish format deserializer
 import csv
 import io
 import re
-from typing import Dict, List, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union, Mapping
 
 from dacite import Config, from_dict
 from girder.models.file import File
@@ -80,7 +80,7 @@ def _parse_row(row: List[str]) -> Tuple[Dict, Dict, Dict, List]:
     confidence_pairs = [
         [row[i], float(row[i + 1])]
         for i in range(9, len(row), 2)
-        if not row[i].startswith("(")
+        if row[i] and row[i + 1] and not row[i].startswith("(")
     ]
     head_tail = []
     start = (9 + len(confidence_pairs)*2)
@@ -127,16 +127,11 @@ def _parse_row_for_tracks(row: List[str]) -> Tuple[Feature, Dict, Dict, List]:
     return feature, attributes, track_attributes, confidence_pairs
 
 
-def load_csv_as_tracks(file):
+def load_csv_as_tracks(rows: List[str]) -> Dict[str, dict]:
     """
     Convert VIAME web CSV to json tracks.
     Expect detections to be in increasing order (either globally or by track).
     """
-    rows = (
-        b"".join(list(File().download(file, headers=False)()))
-        .decode("utf-8")
-        .split("\n")
-    )
     reader = csv.reader(row for row in rows if (not row.startswith("#") and row))
     tracks = {}
     for row in reader:

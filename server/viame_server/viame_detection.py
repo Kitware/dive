@@ -2,7 +2,7 @@ import io
 import json
 import re
 import urllib
-from typing import Tuple
+from typing import Tuple, Dict
 
 from dacite import Config, from_dict
 from girder.api import access
@@ -29,6 +29,7 @@ from viame_server.utils import (
     VideoType,
     move_existing_result_to_auxiliary_folder,
     safeImageRegex,
+    getTrackData,
     saveTracks,
 )
 
@@ -67,6 +68,19 @@ class ViameDetection(Resource):
             'videoUrl': videoUrl,
         }
 
+    def _load_detections(self, folder):
+        detectionItems = list(
+            Item().findWithPermissions(
+                {"meta.detection": str(folder["_id"])}, user=self.getCurrentUser(),
+            )
+        )
+        detectionItems.sort(key=lambda d: d["created"], reverse=True)
+        if not len(detectionItems):
+            return None
+        file = Item().childFiles(detectionItems[0])[0]
+
+        return file
+
     def _generate_detections(self, folder, excludeBelowThreshold):
         detectionItems = list(
             Item().findWithPermissions(
@@ -91,9 +105,7 @@ class ViameDetection(Resource):
         ]
         thresholds = folder.get("meta", {}).get("confidenceFilters", {})
 
-        track_dict = json.loads(
-            b"".join(list(File().download(file, headers=False)())).decode()
-        )
+        track_dict = getTrackData(file)
 
         def downloadGenerator():
             for data in viame.export_tracks_as_csv(
@@ -234,19 +246,9 @@ class ViameDetection(Resource):
         )
     )
     def get_detection(self, folder):
-        detectionItems = list(
-            Item().findWithPermissions(
-                {"meta.detection": str(folder["_id"])}, user=self.getCurrentUser(),
-            )
-        )
-        detectionItems.sort(key=lambda d: d["created"], reverse=True)
-        if not len(detectionItems):
-            return None
-        file = Item().childFiles(detectionItems[0])[0]
-
-        # TODO: deprecated, remove after we migrate to json
+        file = self._load_detections(folder)
         if "csv" in file["exts"]:
-            return viame.load_csv_as_tracks(file)
+            return getTrackData(file)
         return File().download(file, contentDisposition="inline")
 
     @access.user
@@ -274,16 +276,31 @@ class ViameDetection(Resource):
             required=True,
             level=AccessType.READ,
         )
-        .jsonParam("tracks", "", paramType="body")
+        .jsonParam(
+            "tracks",
+            "upsert and delete tracks",
+            paramType="body",
+            requireObject=True)
     )
     def save_detection(self, folder, tracks):
         user = self.getCurrentUser()
-        saveTracks(folder, tracks, user)
-        # TODO: verify schema before save.
-        # Right now the data object is too large in many cases and this takes too long to complete.
-        # dataclass_tracks = {
-        #     # Config kwarg needed to convert lists into tuples
-        #     trackId: from_dict(models.Track, track, config=Config(cast=[Tuple]))
-        #     for trackId, track in tracks.items()
-        # }
-        return True
+        upsert: Dict[str, dict] = tracks.get('upsert', {})
+        delete: List[str] = tracks.get('delete', [])
+        track_dict = getTrackData(self._load_detections(folder))
+
+        for track_id in delete:
+            track_dict.pop(str(track_id), None)
+        for track_id, track in upsert.items():
+            validated: models.Track = from_dict(models.Track, track, config=Config(cast=[Tuple]))
+            track_dict[str(track_id)] = validated.asdict()
+        
+        upserted_len = len(upsert.keys())
+        deleted_len = len(delete)
+        
+        if upserted_len or deleted_len:
+            saveTracks(folder, track_dict, user)
+
+        return {
+            "updated": upserted_len,
+            "deleted": deleted_len,
+        }
