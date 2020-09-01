@@ -17,7 +17,8 @@ services:
     image: kitware/viame-web:${TAG:-latest}
     depends_on:
       - mongo
-      - girder_worker
+      - girder_worker_pipelines
+      - girder_worker_training
     ports:
       - "8010:8080"
     volumes:
@@ -40,7 +41,7 @@ services:
       - CELERY_BROKER_URL=amqp://guest:guest@rabbit/
       - BROKER_CONNECTION_TIMEOUT=2
 
-  girder_worker:
+  girder_worker_pipelines:
     runtime: ${WORKER_RUNTIME}
     ipc: host
     build:
@@ -54,6 +55,29 @@ services:
     depends_on:
       - rabbit
     environment:
+      - WORKER_WATCHING_QUEUES=pipelines
+      - WORKER_CONCURRENCY=2
+      - VIAME_PIPELINES_PATH=${VIAME_PIPELINES_PATH}
+      - VIAME_TRAINED_PIPELINES_PATH=${VIAME_TRAINED_PIPELINES_PATH}
+      - CELERY_BROKER_URL=amqp://guest:guest@rabbit/
+      - BROKER_CONNECTION_TIMEOUT=2
+
+  girder_worker_training:
+    runtime: ${WORKER_RUNTIME}
+    ipc: host
+    build:
+      context: ../
+      dockerfile: docker/girder_worker.Dockerfile
+    image: kitware/viame-worker:${TAG:-latest}
+    volumes:
+      # Exposes pipeline directory to girder so it can see what pipelines are available.
+      - pipelines:${VIAME_PIPELINES_PATH}:ro
+      - trained-pipelines:${VIAME_TRAINED_PIPELINES_PATH}
+    depends_on:
+      - rabbit
+    environment:
+      - WORKER_WATCHING_QUEUES=training
+      - WORKER_CONCURRENCY=1
       - VIAME_PIPELINES_PATH=${VIAME_PIPELINES_PATH}
       - VIAME_TRAINED_PIPELINES_PATH=${VIAME_TRAINED_PIPELINES_PATH}
       - CELERY_BROKER_URL=amqp://guest:guest@rabbit/

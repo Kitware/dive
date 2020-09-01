@@ -49,6 +49,9 @@ RUN pip install --no-cache-dir .
 COPY server/ /home/viame_girder/
 RUN pip install --no-deps .
 
+# Copy provision scripts
+COPY docker/provision /home/provision
+
 # Switch over to user "worker"
 RUN useradd -D --shell=/bin/bash && useradd -m worker
 RUN chown -R worker:worker /usr/local/lib/python*
@@ -59,5 +62,5 @@ USER worker
 ENV VIAME_TRAINED_PIPELINES_PATH /home/worker/trained
 RUN mkdir -p ${VIAME_TRAINED_PIPELINES_PATH}
 
-ENTRYPOINT ["/tini", "--", "python3.7", "-m", "girder_worker" ]
-CMD [ "-l", "info" ]
+ENTRYPOINT ["/tini", "--"]
+CMD ["/home/provision/girder_worker_entrypoint.sh"]

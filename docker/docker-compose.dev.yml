@@ -13,7 +13,11 @@ services:
       - ../server:/home/viame_girder
     entrypoint: ["/home/provision/girder_entrypoint_dev.sh"]
 
-  girder_worker:
+  girder_worker_pipelines:
+    volumes:
+      - ../server:/home/viame_girder
+
+  girder_worker_training:
     volumes:
       - ../server:/home/viame_girder
 
