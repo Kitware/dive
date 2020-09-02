@@ -1,10 +1,11 @@
 import csv
 import io
 import os
+from typing import Dict, List
+
 import pytest
 
-from typing import Dict, List
-from viame_server.serializers import viame, models
+from viame_server.serializers import models, viame
 
 # Test cases can use this by staying under frame 100
 filenames = [f"{str(i)}.png" for i in range(1, 100)]
@@ -128,7 +129,7 @@ test_tuple = [
                                     },
                                 },
                             ],
-                        },                    
+                        },
                     },
                     {
                         "frame": 3,
@@ -143,10 +144,18 @@ test_tuple = [
                                     "properties": {"key": ""},
                                     "geometry": {
                                         "type": "Polygon",
-                                        "coordinates": [[[1.0, 2.34], [3.0, 4.0], [5.0, 6.0], [7.0, 8.08], [9.0, 10.0]]],
+                                        "coordinates": [
+                                            [
+                                                [1.0, 2.34],
+                                                [3.0, 4.0],
+                                                [5.0, 6.0],
+                                                [7.0, 8.08],
+                                                [9.0, 10.0],
+                                            ]
+                                        ],
                                     },
                                 },
-                            ]
+                            ],
                         },
                     },
                 ],
@@ -173,19 +182,14 @@ test_tuple = [
                         "bounds": [884, 510, 1219, 737],
                         "keyframe": True,
                         "interpolate": False,
-                        "attributes":{
-                            "detectionAttr": "frame 0 attr"
-                        }
+                        "attributes": {"detectionAttr": "frame 0 attr"},
                     },
                     {
                         "frame": 1,
                         "bounds": [111, 222, 3333, 444],
                         "keyframe": True,
                         "interpolate": False,
-                        "attributes":{
-                            "detectionAttr": "frame 1 attr"
-                        }
-
+                        "attributes": {"detectionAttr": "frame 1 attr"},
                     },
                 ],
                 "begin": 0,
@@ -204,4 +208,3 @@ test_tuple = [
 def test_write_csv(input: Dict[str, dict], expected: List[str]):
     for i, line in enumerate(viame.export_tracks_as_csv(input, filenames=filenames)):
         assert line.strip(' ').rstrip() == expected[i]
-

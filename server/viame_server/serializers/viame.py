@@ -4,7 +4,7 @@ VIAME Fish format deserializer
 import csv
 import io
 import re
-from typing import Any, Dict, List, Optional, Tuple, Union, Mapping
+from typing import Any, Dict, List, Mapping, Optional, Tuple, Union
 
 from dacite import Config, from_dict
 from girder.models.file import File
@@ -80,17 +80,21 @@ def _parse_row(row: List[str]) -> Tuple[Dict, Dict, Dict, List]:
     confidence_pairs = [
         [row[i], float(row[i + 1])]
         for i in range(9, len(row), 2)
-        if i+1 < len(row) and row[i] and row[i + 1] and not row[i].startswith("(")
+        if i + 1 < len(row) and row[i] and row[i + 1] and not row[i].startswith("(")
     ]
     head_tail = []
-    start = (9 + len(confidence_pairs)*2)
+    start = 9 + len(confidence_pairs) * 2
 
     for j in range(start, len(row)):
-        head_regex = re.match(r"^\(kp\) head ([0-9]+\.*[0-9]*) ([0-9]+\.*[0-9]*)", row[j])
+        head_regex = re.match(
+            r"^\(kp\) head ([0-9]+\.*[0-9]*) ([0-9]+\.*[0-9]*)", row[j]
+        )
         if head_regex:
             head_tail.insert(0, [float(head_regex[1]), float(head_regex[2])])
             create_geoJSONFeature(features, 'Point', head_tail[0], 'head')
-        tail_regex = re.match(r"^\(kp\) tail ([0-9]+\.*[0-9]*) ([0-9]+\.*[0-9]*)", row[j])
+        tail_regex = re.match(
+            r"^\(kp\) tail ([0-9]+\.*[0-9]*) ([0-9]+\.*[0-9]*)", row[j]
+        )
         if tail_regex:
             head_tail.insert(1, [float(tail_regex[1]), float(tail_regex[2])])
             create_geoJSONFeature(features, 'Point', head_tail[1], 'tail')
