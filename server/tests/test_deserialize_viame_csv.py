@@ -52,6 +52,46 @@ test_tuple = [
             },
         },
     ),
+    (
+        [
+            # test that variable length is handled properly
+            # length == 11, valid
+            "0,1.png,0,884,510,1219,737,1,-1,typestring,1",
+            # length == 12, note ignored
+            "0,2.png,1,111,222,3333,444,1,-1,typestring,1,(note) note",
+            # Length == 13, both notes ignored
+            "0,3.png,2,747,457,1039,633,1,-1,typestring,1,(note) note,(note) note2",
+        ],
+        {
+            "0": {
+                "trackId": 0,
+                "attributes": {},
+                "confidencePairs": [["typestring", 1.0]],
+                "features": [
+                    {
+                        "frame": 0,
+                        "bounds": [884, 510, 1219, 737],
+                        "keyframe": True,
+                        "interpolate": False,
+                    },
+                    {
+                        "frame": 1,
+                        "bounds": [111, 222, 3333, 444],
+                        "keyframe": True,
+                        "interpolate": False,
+                    },
+                    {
+                        "frame": 2,
+                        "bounds": [747, 457, 1039, 633],
+                        "keyframe": True,
+                        "interpolate": False,
+                    },
+                ],
+                "begin": 0,
+                "end": 2,
+            },
+        },
+    ),
 ]
 
 
