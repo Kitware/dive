@@ -5,7 +5,7 @@ import csv
 import io
 import json
 import re
-from typing import Any, Dict, List, Optional, Tuple, Union, Mapping
+from typing import Any, Dict, List, Mapping, Optional, Tuple, Union
 
 from dacite import Config, from_dict
 from girder.models.file import File

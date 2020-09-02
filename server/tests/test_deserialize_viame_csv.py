@@ -1,6 +1,7 @@
 import json
+from typing import Dict, List
+
 import pytest
-from typing import List, Dict
 
 from viame_server.serializers import viame
 

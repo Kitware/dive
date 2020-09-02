@@ -1,28 +1,30 @@
-from boiler import models
-from boiler.serialization import kpf
-from boiler.definitions import ActorType
-
 import csv
+import io
 import json
 import re
-import io
-import yaml
 from dataclasses import dataclass, field
-from dacite import from_dict, Config
-from typing import List, Dict, Tuple, Optional, Union, Any
+from typing import Any, Dict, List, Optional, Tuple, Union
 
+import yaml
+from boiler import models
+from boiler.definitions import ActorType
+from boiler.serialization import kpf
+from dacite import Config, from_dict
 from girder.models.file import File
+
 from viame_server.serializers.models import Feature, Track
+
 
 @dataclass
 class Detection:
     frame: int
-    box: models.Box 
+    box: models.Box
     keyframe: bool = False
 
     geom_id: Optional[int] = None
     timestamp: Optional[float] = None
-    
+
+
 @dataclass
 class Actor:
     actor_id: int
@@ -37,6 +39,7 @@ class Actor:
     activity_con: Optional[float] = None
     src_status: Optional[str] = None
 
+
 def load_kpf_as_tracks(ymls):
     types = None
     activity = None
@@ -47,8 +50,8 @@ def load_kpf_as_tracks(ymls):
     error_report = {}
     try:
         for file in ymls:
-            rows = (
-                b"".join(list(File().download(file, headers=False)())).decode("utf-8")
+            rows = b"".join(list(File().download(file, headers=False)())).decode(
+                "utf-8"
             )
             yml = kpf.load_yaml(rows)
             for row in yml:
@@ -82,6 +85,7 @@ def load_kpf_as_tracks(ymls):
         error_report['error'] = str(e)
         return error_report
 
+
 def parse_actor_map_to_tracks(actor_map):
     tracks = {}
     ids = {}
@@ -89,17 +93,38 @@ def parse_actor_map_to_tracks(actor_map):
     for actor_id in actor_map:
         actor = actor_map[actor_id]
         for detection in actor.detections:
-            bounds = [float(detection.box.left), float(detection.box.bottom), float(detection.box.right), float(detection.box.top)]
-            feat_attributes = {'timestamp': detection.timestamp, 'geom_id': detection.geom_id}
-            feature = Feature(frame=detection.frame, bounds=bounds, attributes=feat_attributes)
+            bounds = [
+                float(detection.box.left),
+                float(detection.box.bottom),
+                float(detection.box.right),
+                float(detection.box.top),
+            ]
+            feat_attributes = {
+                'timestamp': detection.timestamp,
+                'geom_id': detection.geom_id,
+            }
+            feature = Feature(
+                frame=detection.frame, bounds=bounds, attributes=feat_attributes
+            )
 
             # Create a new track per actor id
             if actor_id not in ids:
                 ids[actor_id] = i
                 confidence_pairs = [(actor.actor_type, actor.confidence)]
-                track_attributes = {'actor_id': actor_id, 'activity_id': actor.activity_id, 'activity': actor.activity,
-                                    'confidence': actor.activity_con, 'status': actor.src_status}
-                tracks[i] = Track(begin=actor.begin, end=actor.end, trackId=i, confidencePairs=confidence_pairs, attributes=track_attributes)
+                track_attributes = {
+                    'actor_id': actor_id,
+                    'activity_id': actor.activity_id,
+                    'activity': actor.activity,
+                    'confidence': actor.activity_con,
+                    'status': actor.src_status,
+                }
+                tracks[i] = Track(
+                    begin=actor.begin,
+                    end=actor.end,
+                    trackId=i,
+                    confidencePairs=confidence_pairs,
+                    attributes=track_attributes,
+                )
                 i += 1
 
             track = tracks[ids[actor_id]]
@@ -117,7 +142,9 @@ def deserialize_types(file, actor_map):
             cset3 = kpf_types[kpf.CSET3]
             cset3keys = list(cset3.keys())
             if len(cset3keys) != 1:
-                raise BoilerError(f'{kpf.CSET3} should only have 1 key, found {cset3keys}')
+                raise BoilerError(
+                    f'{kpf.CSET3} should only have 1 key, found {cset3keys}'
+                )
             name = cset3keys[0]
             if id1 in actor_map:
                 actor_map[id1].actor_type = name
@@ -126,7 +153,6 @@ def deserialize_types(file, actor_map):
                 actor_map[id1] = Actor(
                     actor_type=name, detections=[], actor_id=id1, confidence=cset3[name]
                 )  # type: ignore
-
 
 
 def deserialize_geom(file, actor_map):
@@ -147,14 +173,25 @@ def deserialize_geom(file, actor_map):
             if kpf.KEYFRAME in geom:
                 keyframe = geom[kpf.KEYFRAME]
             box = models.Box(left=box[0], top=box[1], right=box[2], bottom=box[3])
-            detection = Detection(frame=frame, box=box, keyframe=keyframe, geom_id=geom_id, timestamp=timestamp)
+            detection = Detection(
+                frame=frame,
+                box=box,
+                keyframe=keyframe,
+                geom_id=geom_id,
+                timestamp=timestamp,
+            )
 
             if actor_id in actor_map:
                 actor_map[actor_id].detections.append(detection)
             else:
                 actor_map[actor_id] = Actor(  # type: ignore
-                    actor_type='other', begin=frame, end=frame, detections=[detection], actor_id=actor_id
+                    actor_type='other',
+                    begin=frame,
+                    end=frame,
+                    detections=[detection],
+                    actor_id=actor_id,
                 )
+
 
 def deserialize_activities(file, activity_map, actor_map):
     yml = kpf.load_yaml(file)
@@ -162,6 +199,7 @@ def deserialize_activities(file, activity_map, actor_map):
         if kpf.ACTIVITY in activity_packet:
             activity = _deserialize_activity(activity_packet, actor_map)
             activity_map[activity.activity_id] = activity
+
 
 def _deserialize_activity(activity_packet, actor_map):
     """
@@ -188,10 +226,23 @@ def _deserialize_activity(activity_packet, actor_map):
         begin=frame_timespan[0],
         end=frame_timespan[1],
         status=status,
-        actors=[_deserialize_actor(a, actor_map, activity[kpf.ACTIVITY_ID], activity_type, confidence, status) for a in actors],
+        actors=[
+            _deserialize_actor(
+                a,
+                actor_map,
+                activity[kpf.ACTIVITY_ID],
+                activity_type,
+                confidence,
+                status,
+            )
+            for a in actors
+        ],
     )
 
-def _deserialize_actor(actor, actor_map, activity_id, activity_type, confidence, status):
+
+def _deserialize_actor(
+    actor, actor_map, activity_id, activity_type, confidence, status
+):
     if kpf.ACTOR_ID not in actor:
         raise BoilerError(f'actor {actor} missing {kpf.ACTOR_ID}')
     if kpf.TIMESPANS not in actor:
@@ -208,7 +259,12 @@ def _deserialize_actor(actor, actor_map, activity_id, activity_type, confidence,
         actor_map[actor_id].activity_con = confidence
     else:
         actor_map[actor_id] = Actor(  # type: ignore
-            clip_id=actor_id, begin=frame_timespan[0], end=frame_timespan[1],
-            activity_id=activity_id, activity=activity_type, src_status=status, confidence=confidence
+            clip_id=actor_id,
+            begin=frame_timespan[0],
+            end=frame_timespan[1],
+            activity_id=activity_id,
+            activity=activity_type,
+            src_status=status,
+            confidence=confidence,
         )
     return actor_map[actor_id]

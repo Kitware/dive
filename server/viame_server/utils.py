@@ -6,10 +6,10 @@ from typing import Dict
 
 import cherrypy
 from girder.api.rest import setContentDisposition, setRawResponse, setResponseHeader
+from girder.models.file import File
 from girder.models.folder import Folder
 from girder.models.item import Item
 from girder.models.upload import Upload
-from girder.models.file import File
 
 from viame_server.serializers import viame
 
@@ -99,12 +99,12 @@ def getTrackData(file: File) -> Dict[str, dict]:
         return {}
     if "csv" in file["exts"]:
         return viame.load_csv_as_tracks(
-            b"".join(list(File().download(file, headers=False)())).decode("utf-8").splitlines()
+            b"".join(list(File().download(file, headers=False)()))
+            .decode("utf-8")
+            .splitlines()
         )
-    return json.loads(
-        b"".join(list(File().download(file, headers=False)())).decode()
-    )
-    
+    return json.loads(b"".join(list(File().download(file, headers=False)())).decode())
+
 
 def saveTracks(folder, tracks, user):
     timestamp = datetime.now().strftime("%m-%d-%Y_%H:%M:%S")
@@ -112,9 +112,7 @@ def saveTracks(folder, tracks, user):
 
     move_existing_result_to_auxiliary_folder(folder, user)
     newResultItem = Item().createItem(item_name, user, folder)
-    Item().setMetadata(
-        newResultItem, {"detection": str(folder["_id"])}, allowNull=True,
-    )
+    Item().setMetadata(newResultItem, {"detection": str(folder["_id"])}, allowNull=True)
 
     json_bytes = json.dumps(tracks).encode()
     byteIO = io.BytesIO(json_bytes)
