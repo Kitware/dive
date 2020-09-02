@@ -62,6 +62,13 @@ services:
       - CELERY_BROKER_URL=amqp://guest:guest@rabbit/
       - BROKER_CONNECTION_TIMEOUT=2
 
+  # Worker for misc non gpu-bound tasks
+  girder_worker_default:
+    # Merge base-worker object with this config
+    << : *base-worker
+    environment:
+      - WORKER_WATCHING_QUEUES=celery
+
   girder_worker_pipelines:
     # Merge base-worker object with this config
     << : *base-worker

@@ -249,9 +249,9 @@ class Viame(Resource):
 
             for item in videoItems:
                 convert_video.delay(
-                    GetPathFromItemId(str(item["_id"])),
-                    str(item["folderId"]),
-                    auxiliary["_id"],
+                    path=GetPathFromItemId(str(item["_id"])),
+                    folderId=str(item["folderId"]),
+                    auxiliaryFolderId=auxiliary["_id"],
                     girder_job_title=(
                         "Converting {} to a web friendly format".format(
                             str(item["_id"])
@@ -270,12 +270,13 @@ class Viame(Resource):
 
             if imageItems.count() > safeImageItems.count():
                 convert_images.delay(
-                    folder["_id"],
+                    folderId=folder["_id"],
                     girder_client_token=str(token["_id"]),
                     girder_job_title=(
                         f"Converting {folder['_id']} to a web friendly format",
                     ),
                 )
+
             elif imageItems.count() > 0:
                 folder["meta"]["annotate"] = True
 
@@ -297,7 +298,7 @@ class Viame(Resource):
         csvItems = Folder().childItems(
             folder,
             filters={"lowerName": {"$regex": csvRegex}},
-            sort=[("created", pymongo.DESCENDING,)],
+            sort=[("created", pymongo.DESCENDING)],
         )
         if csvItems.count() >= 1:
             file = Item().childFiles(csvItems.next())[0]
@@ -356,5 +357,5 @@ class Viame(Resource):
         return Folder().childItems(
             folder,
             filters={"lowerName": {"$regex": safeImageRegex}},
-            sort=[("lowerName", pymongo.ASCENDING,)],
+            sort=[("lowerName", pymongo.ASCENDING)],
         )
