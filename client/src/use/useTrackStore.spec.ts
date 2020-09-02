@@ -35,7 +35,7 @@ describe('useTrackStore', () => {
 
     ts.removeTrack(t1.trackId);
     expect(Array.from(ts.trackMap.keys()).length).toBe(1);
-    expect(ts.intervalTree.search([0, 0])).toStrictEqual(["0"]);
+    expect(ts.intervalTree.search([0, 0])).toStrictEqual(['0']);
   });
 
   it('marks changes pending when a track updates', () => {
