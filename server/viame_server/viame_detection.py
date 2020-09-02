@@ -2,7 +2,7 @@ import io
 import json
 import re
 import urllib
-from typing import Tuple, Dict
+from typing import Dict, Tuple
 
 from dacite import Config, from_dict
 from girder.api import access
@@ -27,9 +27,9 @@ from viame_server.utils import (
     ImageSequenceType,
     VideoMimeTypes,
     VideoType,
+    getTrackData,
     move_existing_result_to_auxiliary_folder,
     safeImageRegex,
-    getTrackData,
     saveTracks,
 )
 
@@ -76,7 +76,8 @@ class ViameDetection(Resource):
     def _load_detections(self, folder):
         detectionItems = list(
             Item().findWithPermissions(
-                {"meta.detection": str(folder["_id"])}, user=self.getCurrentUser(),
+                {"meta.detection": str(folder["_id"])},
+                user=self.getCurrentUser(),
             )
         )
         detectionItems.sort(key=lambda d: d["created"], reverse=True)
@@ -282,10 +283,8 @@ class ViameDetection(Resource):
             level=AccessType.READ,
         )
         .jsonParam(
-            "tracks",
-            "upsert and delete tracks",
-            paramType="body",
-            requireObject=True)
+            "tracks", "upsert and delete tracks", paramType="body", requireObject=True
+        )
     )
     def save_detection(self, folder, tracks):
         user = self.getCurrentUser()
@@ -296,12 +295,14 @@ class ViameDetection(Resource):
         for track_id in delete:
             track_dict.pop(str(track_id), None)
         for track_id, track in upsert.items():
-            validated: models.Track = from_dict(models.Track, track, config=Config(cast=[Tuple]))
+            validated: models.Track = from_dict(
+                models.Track, track, config=Config(cast=[Tuple])
+            )
             track_dict[str(track_id)] = validated.asdict()
-        
+
         upserted_len = len(upsert.keys())
         deleted_len = len(delete)
-        
+
         if upserted_len or deleted_len:
             saveTracks(folder, track_dict, user)
 

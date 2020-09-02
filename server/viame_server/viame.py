@@ -4,8 +4,8 @@ from girder.api.describe import Description, autoDescribeRoute, describeRoute
 from girder.api.rest import Resource
 from girder.constants import AccessType
 from girder.exceptions import RestException
-from girder.models.folder import Folder
 from girder.models.file import File
+from girder.models.folder import Folder
 from girder.models.item import Item
 from girder.models.token import Token
 
@@ -18,10 +18,10 @@ from .transforms import GetPathFromFolderId, GetPathFromItemId
 from .utils import (
     csvRegex,
     get_or_create_auxiliary_folder,
+    getTrackData,
     imageRegex,
     move_existing_result_to_auxiliary_folder,
     safeImageRegex,
-    getTrackData,
     saveTracks,
     videoRegex,
     ymlRegex,
@@ -273,4 +273,3 @@ class Viame(Resource):
             filters={"lowerName": {"$regex": safeImageRegex}},
             sort=[("lowerName", pymongo.ASCENDING)],
         )
-
