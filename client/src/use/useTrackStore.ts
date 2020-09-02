@@ -58,8 +58,8 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
   ): void {
     if (event === 'bounds') {
       const oldInterval = oldValue as [number, number];
-      intervalTree.remove(oldInterval, track.trackId);
-      intervalTree.insert([track.begin, track.end], track.trackId);
+      intervalTree.remove(oldInterval, track.trackId.toString());
+      intervalTree.insert([track.begin, track.end], track.trackId.toString());
     }
     canary.value += 1;
     markChangesPending('upsert', track);
@@ -68,7 +68,7 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
   function insertTrack(track: Track) {
     track.bus.$on('notify', onChange);
     trackMap.set(track.trackId, track);
-    intervalTree.insert([track.begin, track.end], track.trackId);
+    intervalTree.insert([track.begin, track.end], track.trackId.toString());
     trackIds.value.push(track.trackId);
   }
 
@@ -89,7 +89,7 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
     }
     const track = getTrack(trackId);
     const range = [track.begin, track.end];
-    if (!intervalTree.remove(range, trackId)) {
+    if (!intervalTree.remove(range, trackId.toString())) {
       throw new Error(`TrackId ${trackId} with range ${range} not found in tree.`);
     }
     track.bus.$off(); // remove all event listeners

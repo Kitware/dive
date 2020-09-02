@@ -27,6 +27,17 @@ describe('useTrackStore', () => {
     expect(ts.intervalTree.search([10, 20]).length).toBe(0);
   });
 
+  it('can insert and delete single-frame detections', () => {
+    const ts = useTrackStore({ markChangesPending: () => null });
+    const t0 = ts.addTrack(0, 'foo');
+    const t1 = ts.addTrack(0, 'bar');
+    expect(Array.from(ts.trackMap.keys()).length).toBe(2);
+
+    ts.removeTrack(t1.trackId);
+    expect(Array.from(ts.trackMap.keys()).length).toBe(1);
+    expect(ts.intervalTree.search([0, 0])).toStrictEqual(['0']);
+  });
+
   it('marks changes pending when a track updates', () => {
     let didCall = false;
     const markChangesPending = () => { didCall = true; };

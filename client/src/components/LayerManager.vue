@@ -115,11 +115,9 @@ export default defineComponent({
       visibleModes: EditAnnotationTypes[],
       selectedKey: string,
     ) {
-      // intervalTree requires custom search because 0 is treated as false by default
-      const currentFrameIds: TrackId[] = props.intervalTree.search(
-        [frame, frame],
-        (value) => (value !== null ? value : null),
-      );
+      const currentFrameIds: TrackId[] = props.intervalTree
+        .search([frame, frame])
+        .map((str: string) => parseInt(str, 10));
 
       if (editingTrack) {
         editAnnotationLayer.setType(editingTrack);
