@@ -5,6 +5,7 @@ import shutil
 from pathlib import Path
 from subprocess import PIPE, Popen
 from datetime import datetime
+from GPUtil import getGPUs
 
 from girder_worker.app import app
 from viame_tasks.utils import (
@@ -15,44 +16,17 @@ from viame_tasks.utils import (
 from typing import Dict, List
 
 
-def get_available_gpus() -> Dict[str, str]:
-    """
-    Return the list of available GPUs.
-
-    The return of this function is a dictionary that maps each GPU's UUID to its index.
-    """
-    # Get info from nvidia-smi, in the format: index, gpu-uuid
-    # Use this format instead of list due to required equal signs
-    command = "nvidia-smi --query-gpu=index,uuid --format=csv,noheader,nounits"
-
-    process = Popen(command, stderr=PIPE, stdout=PIPE, shell=True)
-    stdout_bytes, _ = process.communicate()
-
-    if process.returncode != 0:
-        return {}
-
-    # Create a list of the form [..., [index, uuid], ...]
-    stdout_lines = [line.strip() for line in stdout_bytes.decode().split("\n") if line]
-    stdout_tuples: List[List] = [line.split(", ") for line in stdout_lines]
-
-    uuid_to_index_dict = {uuid: index for index, uuid in stdout_tuples}
-    return uuid_to_index_dict
-
-
 def get_gpu_environment() -> Dict[str, str]:
     """Get environment variables for using CUDA enabled GPUs."""
     env = os.environ.copy()
 
-    # Default gpu index to the first one
-    job_gpu_index = "0"
-    available_gpus = get_available_gpus()
+    gpu_uuid = env.get("WORKER_GPU_UUID")
+    gpus = [gpu.id for gpu in getGPUs() if gpu.uuid == gpu_uuid]
 
-    gpu_uuid = os.environ.get("WORKER_GPU_UUID")
-    if gpu_uuid:
-        job_gpu_index = available_gpus.get(gpu_uuid) or job_gpu_index
-
-    if available_gpus:
-        env["CUDA_VISIBLE_DEVICES"] = str(job_gpu_index)
+    # Only set this env var if WORKER_GPU_UUID was supplied,
+    # and it matches an installed GPU
+    if gpus:
+        env["CUDA_VISIBLE_DEVICES"] = str(gpus[0])
 
     return env
 
