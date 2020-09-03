@@ -232,9 +232,7 @@ def train_pipeline(
             training_results = training_output_path / trained_model_folder_name
 
             # Rename the original folder with our new folder name
-            shutil.move(
-                str(training_output_path / "category_models"), training_results,
-            )
+            shutil.move(str(training_output_path / "category_models"), training_results)
 
             # If `_trained_pipeline_folder()` returns `None`, the results of this
             # training job will be uploaded to Girder, but will not be runnable as
@@ -302,9 +300,7 @@ def convert_video(self, path, folderId, auxiliaryFolderId):
     output = str(stdout) + "\n" + str(stderr)
     self.job_manager.write(output)
     new_file = self.girder_client.uploadFileToFolder(folderId, output_path)
-    self.girder_client.addMetadataToItem(
-        new_file['itemId'], {"codec": "h264"},
-    )
+    self.girder_client.addMetadataToItem(new_file['itemId'], {"codec": "h264"})
     self.girder_client.addMetadataToFolder(
         folderId,
         {
@@ -348,7 +344,9 @@ def convert_images(self, folderId):
             new_item_path = dest_dir / ".".join([*item["name"].split(".")[:-1], "png"])
 
             process = Popen(
-                ["ffmpeg", "-i", item_path, new_item_path], stdout=PIPE, stderr=PIPE,
+                ["ffmpeg", "-i", item_path, new_item_path],
+                stdout=PIPE,
+                stderr=PIPE,
             )
             stdout, stderr = process.communicate()
 
