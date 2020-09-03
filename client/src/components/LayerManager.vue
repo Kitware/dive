@@ -115,6 +115,7 @@ export default defineComponent({
       visibleModes: EditAnnotationTypes[],
       selectedKey: string,
     ) {
+      console.log('updateLayers');
       const currentFrameIds: TrackId[] = props.intervalTree
         .search([frame, frame])
         .map((str: string) => parseInt(str, 10));
@@ -193,6 +194,7 @@ export default defineComponent({
         }
         if (editingTracks.length) {
           if (editingTrack) {
+            console.log('changeData');
             editAnnotationLayer.changeData(editingTracks);
             emit('editingModeChanged', editAnnotationLayer.getMode());
           }
@@ -254,11 +256,10 @@ export default defineComponent({
           emit('update-geojson', frameNumber.value, data, key);
         }
       });
-
-    //Selecting an index so it can be removed
-    editAnnotationLayer.$on('update:selectedIndex', (index: number, _type: EditAnnotationTypes, key = '') => {
-      emit('select-feature-handle', index, key);
-    });
+    editAnnotationLayer.$on('update:in-progress-geojson',
+      (data: GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.LineString>) => emit('update-in-progress-geojson', frameNumber.value, data));
+    editAnnotationLayer.$on('update:selectedIndex',
+      (index: number, _type: EditAnnotationTypes, key = '') => emit('select-feature-handle', index, key));
   },
 });
 </script>

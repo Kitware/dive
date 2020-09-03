@@ -8,6 +8,7 @@ import {
 } from 'vue-media-annotator/utils';
 import { EditAnnotationTypes } from 'vue-media-annotator/layers/EditAnnotationLayer';
 
+import Recipe, { RecipeUpdateCallbackArgs } from 'vue-media-annotator/recipe';
 import { NewTrackSettings } from './useSettings';
 
 export interface Annotator {
@@ -36,32 +37,33 @@ export default function useModeManager({
   selectNextTrack,
   addTrack,
   removeTrack,
-  removeHeadTails,
-  updateHeadTails,
+  // removeHeadTails,
+  // updateHeadTails,
 }: {
-    selectedTrackId: Ref<TrackId | null>;
-    editingTrack: Ref<boolean>;
-    frame: Ref<number>;
-    trackMap: Map<TrackId, Track>;
-    playbackComponent: Ref<Annotator>;
-    newTrackSettings: NewTrackSettings;
-    selectTrack: (trackId: TrackId | null, edit: boolean) => void;
-    getTrack: (trackId: TrackId) => Track;
-    selectNextTrack: (delta?: number) => TrackId | null;
-    addTrack: (frame: number, defaultType: string) => Track;
-    removeTrack: (trackId: TrackId) => void;
-    removeHeadTails: (frameNum: number, track: Track, index: number) => void;
-    updateHeadTails: (
-      frameNum: number,
-      track: Track,
-      interpolate: boolean,
-      key: string,
-      data: GeoJSON.Feature<GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString>,
-    ) => void;
+  selectedTrackId: Ref<TrackId | null>;
+  editingTrack: Ref<boolean>;
+  frame: Ref<number>;
+  trackMap: Map<TrackId, Track>;
+  playbackComponent: Ref<Annotator>;
+  newTrackSettings: NewTrackSettings;
+  selectTrack: (trackId: TrackId | null, edit: boolean) => void;
+  getTrack: (trackId: TrackId) => Track;
+  selectNextTrack: (delta?: number) => TrackId | null;
+  addTrack: (frame: number, defaultType: string) => Track;
+  removeTrack: (trackId: TrackId) => void;
+  // removeHeadTails: (frameNum: number, track: Track, index: number) => void;
+  // updateHeadTails: (
+  //   frameNum: number,
+  //   track: Track,
+  //   interpolate: boolean,
+  //   key: string,
+  //   data: GeoJSON.Feature<GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString>,
+  // ) => void;
 }) {
   let newTrackMode = false;
   let newDetectionMode = false;
 
+  const recipes: Recipe[] = [];
   const annotationModes = reactive({
     visible: ['rectangle', 'Polygon', 'LineString'] as EditAnnotationTypes[],
     editing: 'rectangle' as EditAnnotationTypes,
@@ -70,7 +72,7 @@ export default function useModeManager({
   // but the meaning of this value varies based on the editing mode.  When in
   // polygon edit mode, this corresponds to a polygon point.  Ditto in line mode.
   const selectedFeatureHandle = ref(-1);
-  //The Key of the selected type, for now mostly '' but is used for HeadTails Processing
+  //The Key of the selected type, for now mostly ''
   const selectedKey = ref('');
   // which type is currently being edited, if any
   const editingMode = computed(() => editingTrack.value && annotationModes.editing);
@@ -78,6 +80,10 @@ export default function useModeManager({
   const visibleModes = computed(() => (
     uniq(annotationModes.visible.concat(editingMode.value || []))
   ));
+
+  function addRecipe(r: Recipe) {
+    recipes.push(r);
+  }
 
   function seekNearest(track: Track) {
     // Seek to the nearest point in the track.
@@ -161,17 +167,35 @@ export default function useModeManager({
     }
   }
 
-
-  //Creation of head or tail points
-  function handleFeaturePointing(key: 'head' | 'tail') {
-    if (selectedTrackId.value !== null) {
-      handleSelectKey(key);
-      annotationModes.editing = 'Point';
-      selectTrack(selectedTrackId.value, true);
-    }
+  function recipeCallback(args: RecipeUpdateCallbackArgs) {
+    console.log('callbac');
+    if (args.newMode) selectTrack(selectedTrackId.value, args.newMode === 'editing');
+    if (args.newSelectedKey) selectedKey.value = args.newSelectedKey;
+    if (args.newType) annotationModes.editing = args.newType;
   }
 
-  const headTailReservedKeys = ['head', 'tail', 'HeadTails'];
+  function handleUpdateInProgressGeoJSON(
+    frameNum: number,
+    data: GeoJSON.LineString | GeoJSON.Polygon,
+  ) {
+    if (!selectedTrackId.value) return;
+    const track = trackMap.get(selectedTrackId.value);
+    if (!track) return;
+    recipes.forEach(
+      (r) => r.update(frameNum, track, selectedKey.value, data, recipeCallback),
+    );
+  }
+
+  // //Creation of head or tail points
+  // function handleFeaturePointing(key: 'head' | 'tail') {
+  //   if (selectedTrackId.value !== null) {
+  //     handleSelectKey(key);
+  //     annotationModes.editing = 'Point';
+  //     selectTrack(selectedTrackId.value, true);
+  //   }
+  // }
+
+  // const headTailReservedKeys = ['head', 'tail', 'HeadTails'];
 
   function handleUpdateGeoJSON(
     frameNum: number,
@@ -181,7 +205,7 @@ export default function useModeManager({
     if (selectedTrackId.value !== null) {
       const track = trackMap.get(selectedTrackId.value);
       if (track) {
-      // Determines if we are creating a new Detection
+        // Determines if we are creating a new Detection
         const { features, interpolate } = track.canInterpolate(frameNum);
         const [real] = features;
         if (!real || real.bounds === undefined) {
@@ -190,11 +214,11 @@ export default function useModeManager({
         const interpolateTrack = newTrackMode
           ? newTrackSettings.modeSettings.Track.interpolate
           : interpolate;
-        const interpolateSetting = (newDetectionMode && !newTrackMode)
-          ? false : interpolateTrack;
-        if (headTailReservedKeys.includes(key)) {
-          updateHeadTails(frameNum, track, interpolateSetting, key, data);
-        }
+        // const interpolateSetting = (newDetectionMode && !newTrackMode)
+        //   ? false : interpolateTrack;
+        // if (headTailReservedKeys.includes(key)) {
+        //   updateHeadTails(frameNum, track, interpolateSetting, key, data);
+        // }
 
         //Update bounds based on type and condition of the updated bounds
         let oldBounds;
@@ -258,10 +282,10 @@ export default function useModeManager({
         if (geoJsonFeatures.length === 0) return;
         //could operate directly on the polygon memory, but small enough to copy and edit
         const clone = cloneDeep(geoJsonFeatures[0]);
-        if (selectedKey.value === 'HeadTails') {
-          removeHeadTails(frame.value, track, selectedFeatureHandle.value);
-          handleSelectFeatureHandle(-1);
-        } else if (removePoint(clone, selectedFeatureHandle.value)) {
+        // if (selectedKey.value === 'HeadTails') {
+        //   removeHeadTails(frame.value, track, selectedFeatureHandle.value);
+        //   handleSelectFeatureHandle(-1);
+        if (removePoint(clone, selectedFeatureHandle.value)) {
           track.setFeature({
             frame: frame.value,
             bounds: findBounds(clone),
@@ -332,14 +356,16 @@ export default function useModeManager({
     visibleModes,
     selectedFeatureHandle,
     selectedKey,
+    addRecipe,
     handler: {
-      handleFeaturePointing,
+      // handleFeaturePointing,
       selectTrack: handleSelectTrack,
       trackEdit: handleTrackEdit,
       trackTypeChange: handleTrackTypeChange,
       addTrack: handleAddTrack,
       updateRectBounds: handleUpdateRectBounds,
       updateGeoJSON: handleUpdateGeoJSON,
+      updateInProgressGeoJSON: handleUpdateInProgressGeoJSON,
       selectNext: handleSelectNext,
       trackClick: handleTrackClick,
       removeTrack: handleRemoveTrack,

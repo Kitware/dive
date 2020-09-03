@@ -17,6 +17,8 @@ import VideoAnnotator from 'vue-media-annotator/components/annotators/VideoAnnot
 import ImageAnnotator from 'vue-media-annotator/components/annotators/ImageAnnotator.vue';
 import LayerManager from 'vue-media-annotator/components/LayerManager.vue';
 
+import HeadTailRecipe from 'app/recipes/headtail';
+
 import { getDetections } from 'app/api/viameDetection.service';
 import NavigationTitle from 'app/components/NavigationTitle.vue';
 import EditorMenu from 'app/components/EditorMenu.vue';
@@ -28,7 +30,7 @@ import FeatureHandleControls from 'app/components/FeatureHandleControls.vue';
 import { Annotator } from 'app/use/useModeManager';
 import { getPathFromLocation } from 'app/utils';
 import {
-  useFeaturePointing,
+  // useFeaturePointing,
   useGirderDataset,
   useModeManager,
   useSave,
@@ -147,16 +149,16 @@ export default defineComponent({
       tracks: filteredTracks,
     });
 
-    const {
-      handleRemoveFeaturePoint,
-      updateHeadTails,
-      removeHeadTails,
-    } = useFeaturePointing({
-      selectedTrackId,
-      trackMap,
-      selectTrack,
-      frame,
-    });
+    // const {
+    //   handleRemoveFeaturePoint,
+    //   updateHeadTails,
+    //   removeHeadTails,
+    // } = useFeaturePointing({
+    //   selectedTrackId,
+    //   trackMap,
+    //   selectTrack,
+    //   frame,
+    // });
 
     const { lineChartData } = useLineChart({
       enabledTracks, typeStyling, allTypes,
@@ -171,6 +173,7 @@ export default defineComponent({
     // Provides wrappers for actions to integrate with settings
     const {
       selectedFeatureHandle,
+      addRecipe,
       handler,
       editingMode,
       visibleModes,
@@ -187,10 +190,9 @@ export default defineComponent({
       selectNextTrack,
       addTrack,
       removeTrack,
-      updateHeadTails,
-      removeHeadTails,
     });
 
+    addRecipe(new HeadTailRecipe());
 
     async function splitTracks(trackId: TrackId | undefined, _frame: number) {
       if (typeof trackId === 'number') {
@@ -257,7 +259,7 @@ export default defineComponent({
       selectedTrackId,
       videoUrl,
       /* methods used locally */
-      handleRemoveFeaturePoint,
+      // handleRemoveFeaturePoint,
       addTrack,
       markChangesPending,
       save,
@@ -398,12 +400,12 @@ export default defineComponent({
           v-if="imageData.length || videoUrl"
           ref="playbackComponent"
           v-mousetrap="[
-            { bind: 'g', handler: () => handler.handleFeaturePointing('head') },
-            { bind: 'h', handler: () => handler.handleFeaturePointing('head') },
+            /* { bind: 'g', handler: () => handler.handleFeaturePointing('head') },
+            { bind: 'h', handler: () => handler.handleFeaturePointing('head') }, */
             { bind: 'n', handler: () => handler.addTrack(frame) },
-            { bind: 't', handler: () => handler.handleFeaturePointing('tail') },
+            /* { bind: 't', handler: () => handler.handleFeaturePointing('tail') },
             { bind: 'y', handler: () => handler.handleFeaturePointing('tail') },
-            { bind: 'q', handler: () => handleRemoveFeaturePoint() },
+            { bind: 'q', handler: () => handleRemoveFeaturePoint() }, */
             { bind: 'r', handler: () => playbackComponent.resetZoom() },
             { bind: 'esc', handler: () => handler.selectTrack(null, false)}
           ]"
@@ -422,6 +424,7 @@ export default defineComponent({
             @select-feature-handle="handler.selectFeatureHandle"
             @update-rect-bounds="handler.updateRectBounds"
             @update-geojson="handler.updateGeoJSON"
+            @update-in-progress-geojson="handler.updateInProgressGeoJSON"
           />
         </component>
         <v-menu

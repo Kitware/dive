@@ -45,9 +45,8 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
 
   hoverHandleIndex: number;
 
-  lineLimit: number;
-
-  lineList: GeoJSON.Position[];
+  /* in-progress events only emitted for lines and polygons */
+  shapeInProgress: GeoJSON.LineString | GeoJSON.Polygon | null;
 
   constructor(params: BaseLayerParams & EditAnnotationLayerParams) {
     super(params);
@@ -57,8 +56,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
     this.type = params.type;
     this.selectedHandleIndex = -1;
     this.hoverHandleIndex = -1;
-    this.lineLimit = 2;
-    this.lineList = [];
+    this.shapeInProgress = null;
 
     //Only initialize once, prevents recreating Layer each edit
     this.initialize();
@@ -92,50 +90,36 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
           }
         }
       });
-      this.featureLayer.geoOn(geo.event.actiondown,
-        (e: GeoEvent) => this.pointCreation(e));
+      this.featureLayer.geoOn(geo.event.actiondown, (e: GeoEvent) => this.setShapeInProgress(e));
     }
   }
 
-  pointCreation(e: GeoEvent) {
-    if (this.mode === 'creation' && this.type === 'LineString') {
-      let key = 'head';
-      if (this.lineList.length === 0) {
-        this.lineList.push([
-          Number(e.mouse.geo.x),
-          Number(e.mouse.geo.y),
-        ]);
-      } else if (this.lineList.length === 1) {
-        this.lineList.push([
-          Number(e.mouse.geo.x),
-          Number(e.mouse.geo.y),
-        ]);
-        key = 'tail';
-      }
-      const geoJSON = {
-        type: 'Feature',
-        geometry: {
-          type: 'Point',
-          coordinates: [Number(e.mouse.geo.x), Number(e.mouse.geo.y)],
-        },
-        annotationType: 'Point',
-      };
-
-      this.changed = true;
-      this.$emit('update:geojson', geoJSON, 'Point', key);
-      if (this.lineList.length === 2) {
-        const geoJSONLine = {
-          type: 'Feature',
-          geometry: {
-            type: 'LineString',
-            coordinates: this.lineList,
-          },
-          annotationType: 'LineString',
+  /**
+   * Listen to mousedown events and build a replica of the in-progress annotation
+   * shape that GeoJS is keepin internally.  Emit the shape as update:in-progress-geojson
+   */
+  setShapeInProgress(e: GeoEvent) {
+    if (this.mode === 'creation' && ['LineString', 'Polygon'].includes(this.type)) {
+      if (this.shapeInProgress === null) {
+        // Initialize a new in-progress shape
+        this.shapeInProgress = {
+          type: this.type as ('Polygon' | 'LineString'),
+          coordinates: this.type === 'Polygon' ? [[]] : [],
         };
-        this.featureLayer.mode(null);
-        this.changed = false;
-        this.$emit('update:geojson', geoJSONLine, 'LineString', 'HeadTails');
       }
+      // Update the coordinates of the existing shape
+      const newPoint: GeoJSON.Position = [Math.round(e.mouse.geo.x), Math.round(e.mouse.geo.y)];
+      if (this.type === 'Polygon') {
+        const coords = this.shapeInProgress?.coordinates as GeoJSON.Position[][];
+        // Magic 0: there can only be a single polygon in progress at a time
+        coords[0].push(newPoint);
+      } else {
+        const coords = this.shapeInProgress?.coordinates as GeoJSON.Position[];
+        coords.push(newPoint);
+      }
+      this.$emit('update:in-progress-geojson', this.shapeInProgress);
+    } else if (this.shapeInProgress) {
+      this.shapeInProgress = null;
     }
   }
 
@@ -167,11 +151,6 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
    * */
   setType(type: EditAnnotationTypes) {
     this.type = type;
-    if (this.type === 'LineString') {
-      this.selectedKey = 'HeadTails';
-    } else {
-      this.selectedKey = '';
-    }
   }
 
   setKey(key: string) {
@@ -194,7 +173,6 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
     if (this.featureLayer) {
       this.featureLayer.removeAllAnnotations();
       this.featureLayer.mode(null);
-      this.lineList = [];
       if (this.selectedHandleIndex !== -1) {
         this.selectedHandleIndex = -1;
         this.hoverHandleIndex = -1;
@@ -293,9 +271,6 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
     } else {
       // point or rectangle mode for the editor
       this.mode = 'creation';
-      if (this.type === 'LineString') {
-        this.lineList = [];
-      }
       this.featureLayer.mode(typeMapper[this.type]);
     }
     return [];
@@ -345,7 +320,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
               type: 'Feature',
             }];
           }
-          // must ALWAYS emit a polygon or point
+          // must ALWAYS emit geometry
           this.changed = true;
           this.$emit('update:geojson', this.formattedData[0], this.type, this.selectedKey);
         }
