@@ -151,7 +151,7 @@ export default {
       if (!bars.length) {
         return;
       }
-      canvas.width = this.clientWidth;
+      canvas.width = this.clientWidth + this.margin;
       canvas.height = bars.slice(-1)[0].top + 15;
       const muteOpacity = '30'; // Hex string: how much to mute regular colors: '#RRGGBB[AA]'
       const selectedColor = this.$vuetify.theme.themes.dark.accent;
