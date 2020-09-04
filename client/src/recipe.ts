@@ -21,10 +21,11 @@
 import Track from './track';
 import { EditAnnotationTypes } from './layers/EditAnnotationLayer';
 
-export interface RecipeUpdateCallbackArgs {
+export interface UpdateResponse {
   newMode?: 'editing' | 'creation';
   newType?: EditAnnotationTypes;
   newSelectedKey?: string;
+  data: Record<string, GeoJSON.Feature<GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString>[]> | null;
 }
 
 export default interface Recipe {
@@ -32,6 +33,6 @@ export default interface Recipe {
     frameNum: number,
     track: Track,
     key: string,
-    data: GeoJSON.Polygon | GeoJSON.LineString,
-    callback: (args: RecipeUpdateCallbackArgs) => void) => boolean;
+    data: GeoJSON.Polygon | GeoJSON.LineString
+  ) => UpdateResponse;
 };

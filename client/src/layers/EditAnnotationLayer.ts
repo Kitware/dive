@@ -96,7 +96,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
 
   /**
    * Listen to mousedown events and build a replica of the in-progress annotation
-   * shape that GeoJS is keepin internally.  Emit the shape as update:in-progress-geojson
+   * shape that GeoJS is keeps internally.  Emit the shape as update:in-progress-geojson
    */
   setShapeInProgress(e: GeoEvent) {
     if (this.mode === 'creation' && ['LineString', 'Polygon'].includes(this.type)) {

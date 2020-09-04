@@ -1,5 +1,5 @@
 import Track from 'vue-media-annotator/track';
-import Recipe, { RecipeUpdateCallbackArgs } from 'vue-media-annotator/recipe';
+import Recipe from 'vue-media-annotator/recipe';
 
 export default class HeadTail implements Recipe {
   active: boolean;
@@ -32,19 +32,44 @@ export default class HeadTail implements Recipe {
     track: Track,
     key: string,
     data: GeoJSON.LineString | GeoJSON.Polygon,
-    callback: (args: RecipeUpdateCallbackArgs) => void,
-  ): boolean {
+  ) {
     const linestring = data as GeoJSON.LineString;
     if (this.active) {
       console.log(frameNum, track.trackId, key, data, this);
       if (linestring.coordinates.length === 2) {
-        callback({
-          newMode: 'editing',
-          newType: 'Point',
-        });
+        const headFeature: GeoJSON.Feature<GeoJSON.Point> = {
+          type: 'Feature',
+          geometry: {
+            type: 'Point',
+            coordinates: [linestring.coordinates[0][0], linestring.coordinates[0][1]],
+          },
+          properties: {},
+        };
+        const tailFeature: GeoJSON.Feature<GeoJSON.Point> = {
+          type: 'Feature',
+          geometry: {
+            type: 'Point',
+            coordinates: [linestring.coordinates[1][0], linestring.coordinates[1][1]],
+          },
+          properties: {},
+        };
+        const headTailLine: GeoJSON.Feature<GeoJSON.LineString> = {
+          type: 'Feature',
+          geometry: linestring,
+          properties: {},
+        };
+        return {
+          data: {
+            head: [headFeature],
+            tail: [tailFeature],
+            HeadTails: [headTailLine],
+          },
+          newMode: 'editing' as 'editing',
+          newType: 'rectangle' as 'rectangle',
+        };
       }
     }
-    return false;
+    return { data: null };
   }
 
   // activate(track: Track) {

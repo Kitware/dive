@@ -67,7 +67,7 @@ export default class LineLayer extends BaseLayer<LineGeoJSData> {
           track.features.geometry.features.forEach((feature) => {
             if (feature.geometry && feature.geometry.type === 'LineString') {
               const line = cloneDeep(feature.geometry);
-              line.coordinates = LineLayer.dashLine(line.coordinates);
+              // line.coordinates = LineLayer.dashLine(line.coordinates);
               const annotation: LineGeoJSData = {
                 trackId: track.trackId,
                 selected: track.selected,
@@ -131,9 +131,9 @@ export default class LineLayer extends BaseLayer<LineGeoJSData> {
         return this.stateStyling.standard.opacity;
       },
       strokeOpacity: (_point, _index, data) => {
-        if (_index % 2 === 1 && data.dashed) {
-          return 0.0;
-        }
+        // if (_index % 2 === 1 && data.dashed) {
+        //   return 0.0;
+        // }
         if (data.selected) {
           return this.stateStyling.selected.opacity;
         }

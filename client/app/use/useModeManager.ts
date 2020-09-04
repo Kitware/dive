@@ -1,14 +1,14 @@
 import {
   computed, Ref, reactive, ref,
 } from '@vue/composition-api';
-import { cloneDeep, uniq } from 'lodash';
-import Track, { TrackId } from 'vue-media-annotator/track';
+import { cloneDeep, uniq, flatMapDeep } from 'lodash';
+import Track, { TrackId, Feature } from 'vue-media-annotator/track';
 import {
   RectBounds, findBounds, removePoint, updateBounds,
 } from 'vue-media-annotator/utils';
 import { EditAnnotationTypes } from 'vue-media-annotator/layers/EditAnnotationLayer';
 
-import Recipe, { RecipeUpdateCallbackArgs } from 'vue-media-annotator/recipe';
+import Recipe from 'vue-media-annotator/recipe';
 import { NewTrackSettings } from './useSettings';
 
 export interface Annotator {
@@ -85,6 +85,19 @@ export default function useModeManager({
     recipes.push(r);
   }
 
+  /**
+   * Figure out if a new feature should enable interpolation
+   * based on current state and the result of canInterolate.
+   */
+  function _shouldInterpolate(interpolate: boolean) {
+    const interpolateTrack = newTrackMode
+      ? newTrackSettings.modeSettings.Track.interpolate
+      : interpolate;
+    return (newDetectionMode && !newTrackMode)
+      ? false
+      : interpolateTrack;
+  }
+
   function seekNearest(track: Track) {
     // Seek to the nearest point in the track.
     if (frame.value < track.begin) {
@@ -148,15 +161,11 @@ export default function useModeManager({
         if (!real || real.bounds === undefined) {
           newDetectionMode = true;
         }
-        const interpolateTrack = newTrackMode
-          ? newTrackSettings.modeSettings.Track.interpolate
-          : interpolate;
         track.setFeature({
           frame: frameNum,
           bounds,
           keyframe: true,
-          interpolate: (newDetectionMode && !newTrackMode)
-            ? false : interpolateTrack,
+          interpolate: _shouldInterpolate(interpolate),
         });
         //If it is a new track and we have newTrack Settings
         if (newTrackMode && newDetectionMode) {
@@ -167,12 +176,47 @@ export default function useModeManager({
     }
   }
 
-  function recipeCallback(args: RecipeUpdateCallbackArgs) {
-    console.log('callbac');
-    if (args.newMode) selectTrack(selectedTrackId.value, args.newMode === 'editing');
-    if (args.newSelectedKey) selectedKey.value = args.newSelectedKey;
-    if (args.newType) annotationModes.editing = args.newType;
+  function _updateTrackFeature(
+    frameNum: number,
+    real: Feature | null,
+    data: Record<string, GeoJSON.Feature<GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString>[]>,
+    track: Track,
+    interpolate: boolean,
+  ) {
+    //Update bounds based on type and condition of the updated bounds
+    // let oldBounds;
+    // if (real) {
+    //   oldBounds = real.bounds;
+    // }
+
+    // TODO: figure out how to handle multiple data
+    // const newbounds = findBounds(data[0]);
+    // const updatedBounds = updateBounds(oldBounds, newbounds, data[0]);
+
+    const feature = {
+      frame: frameNum,
+      keyframe: true,
+      // bounds: updatedBounds,
+      interpolate,
+    };
+    // flatten the { key: geom[] } argument into a geom array.
+    const newFeatureGeometry = flatMapDeep(data,
+      (geomlist, key) => geomlist.map((geom) => ({
+        type: geom.type,
+        geometry: geom.geometry,
+        properties: { key },
+      })));
+    console.log(newFeatureGeometry);
+    // TODO: update to only work with polygon changes, not line changes
+    track.setFeature(feature, newFeatureGeometry);
   }
+
+  // function _recipeCallback(args: RecipeUpdateCallbackArgs) {
+  //   if (args.newMode) selectTrack(selectedTrackId.value, args.newMode === 'editing');
+  //   if (args.newSelectedKey) selectedKey.value = args.newSelectedKey;
+  //   if (args.newType) annotationModes.editing = args.newType;
+  // }
+
 
   function handleUpdateInProgressGeoJSON(
     frameNum: number,
@@ -181,9 +225,24 @@ export default function useModeManager({
     if (!selectedTrackId.value) return;
     const track = trackMap.get(selectedTrackId.value);
     if (!track) return;
-    recipes.forEach(
-      (r) => r.update(frameNum, track, selectedKey.value, data, recipeCallback),
-    );
+    for (let i = 0; i < recipes.length; i += 1) {
+      const recipe = recipes[i];
+      const update = recipe.update(frameNum, track, selectedKey.value, data);
+      if (update.data !== null) {
+        const { features, interpolate } = track.canInterpolate(frameNum);
+        const [real] = features;
+        // TODO real
+        _updateTrackFeature(
+          frameNum, real, update.data,
+          track, _shouldInterpolate(interpolate),
+        );
+        if (update.newMode) selectTrack(selectedTrackId.value, update.newMode === 'editing');
+        if (update.newSelectedKey) selectedKey.value = update.newSelectedKey;
+        if (update.newType) annotationModes.editing = update.newType;
+        // TODO for now, only one recipe will be active at a time.
+        break;
+      }
+    }
   }
 
   // //Creation of head or tail points
@@ -211,42 +270,10 @@ export default function useModeManager({
         if (!real || real.bounds === undefined) {
           newDetectionMode = true;
         }
-        const interpolateTrack = newTrackMode
-          ? newTrackSettings.modeSettings.Track.interpolate
-          : interpolate;
-        // const interpolateSetting = (newDetectionMode && !newTrackMode)
-        //   ? false : interpolateTrack;
-        // if (headTailReservedKeys.includes(key)) {
-        //   updateHeadTails(frameNum, track, interpolateSetting, key, data);
-        // }
-
-        //Update bounds based on type and condition of the updated bounds
-        let oldBounds;
-        if (real) {
-          oldBounds = real.bounds;
-        }
-        const newbounds = findBounds(data);
-        const updatedBounds = updateBounds(oldBounds, newbounds, data);
-
-        const feature = {
-          frame: frameNum,
-          keyframe: true,
-          bounds: updatedBounds,
-          interpolate: (newDetectionMode && !newTrackMode)
-            ? false : interpolateTrack,
-        };
-        // TODO: update to only work with polygon changes, not line changes
-        track.setFeature(
-          feature,
-          [{
-            type: data.type,
-            geometry: data.geometry,
-            properties: {
-              key,
-            },
-          }],
+        _updateTrackFeature(
+          frameNum, real, { [key]: [data] }, track,
+          _shouldInterpolate(interpolate),
         );
-
         //If we are creating a point, we swap back to rectangle once done
         //we also check if we need to make the line
         if (data.geometry.type === 'Point' && annotationModes.editing === 'Point') {
