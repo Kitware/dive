@@ -25,14 +25,22 @@ export interface UpdateResponse {
   newMode?: 'editing' | 'creation';
   newType?: EditAnnotationTypes;
   newSelectedKey?: string;
-  data: Record<string, GeoJSON.Feature<GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString>[]> | null;
+  data: Record<
+    string,
+    GeoJSON.Feature<GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString>[]
+  > | null;
 }
 
-export default interface Recipe {
+interface Recipe {
+  name: string;
   update: (
     frameNum: number,
     track: Track,
     key: string,
     data: GeoJSON.Polygon | GeoJSON.LineString
   ) => UpdateResponse;
-};
+  activate: () => void;
+}
+
+
+export default Recipe;

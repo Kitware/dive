@@ -107,14 +107,14 @@ export default function useModeManager({
     }
   }
 
-  function handleSelectKey(key: string | '') {
+  function _selectKey(key: string | '') {
     selectedKey.value = key;
   }
 
   function handleSelectFeatureHandle(i: number, key = '') {
     selectedFeatureHandle.value = i;
     if (key !== '') {
-      handleSelectKey(key);
+      _selectKey(key);
     }
   }
 
@@ -277,7 +277,7 @@ export default function useModeManager({
         //If we are creating a point, we swap back to rectangle once done
         //we also check if we need to make the line
         if (data.geometry.type === 'Point' && annotationModes.editing === 'Point') {
-          handleSelectKey('');
+          _selectKey('');
           annotationModes.editing = 'rectangle';
           selectTrack(selectedTrackId.value, false);
         }
@@ -370,12 +370,17 @@ export default function useModeManager({
     }
   }
 
-  function handleSetAnnotationState({ visible, editing }: {
+  function handleSetAnnotationState({ visible, editing, key }: {
     visible?: EditAnnotationTypes[];
     editing?: EditAnnotationTypes;
+    key: string;
   }) {
     if (visible) annotationModes.visible = visible;
-    if (editing) annotationModes.editing = editing;
+    if (editing) {
+      annotationModes.editing = editing;
+      if (key) _selectKey(key);
+      selectTrack(selectedTrackId.value, !!selectedTrackId.value);
+    }
   }
 
   return {
@@ -385,7 +390,6 @@ export default function useModeManager({
     selectedKey,
     addRecipe,
     handler: {
-      // handleFeaturePointing,
       selectTrack: handleSelectTrack,
       trackEdit: handleTrackEdit,
       trackTypeChange: handleTrackTypeChange,
@@ -397,7 +401,6 @@ export default function useModeManager({
       trackClick: handleTrackClick,
       removeTrack: handleRemoveTrack,
       removePoint: handleRemovePoint,
-      selectKey: handleSelectKey,
       removeAnnotation: handleRemoveAnnotation,
       selectFeatureHandle: handleSelectFeatureHandle,
       setAnnotationState: handleSetAnnotationState,

@@ -207,6 +207,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
     /* An edited annotation calls updateLayers immediately.  This will
       prevent it from updating so the geoJS editor can handle the state.
     */
+    console.log(frameData);
     if (this.changed) {
       this.changed = false;
     } else {

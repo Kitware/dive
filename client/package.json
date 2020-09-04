@@ -109,7 +109,9 @@
             "error"
           ]
         }
-      ]
+      ],
+      "semi": "off",
+      "@typescript-eslint/semi": ["error"]
     },
     "settings": {
       "import/resolver": {

@@ -27,6 +27,7 @@ import UserGuideButton from 'app/components/UserGuideButton.vue';
 import Export from 'app/components/Export.vue';
 import RunPipelineMenu from 'app/components/RunPipelineMenu.vue';
 import FeatureHandleControls from 'app/components/FeatureHandleControls.vue';
+import RecipeControls from 'app/recipes/RecipeControls.vue';
 import { Annotator } from 'app/use/useModeManager';
 import { getPathFromLocation } from 'app/utils';
 import {
@@ -39,6 +40,7 @@ import {
 
 import ControlsContainer from './ControlsContainer.vue';
 import Sidebar from './Sidebar.vue';
+
 
 export default defineComponent({
   components: {
@@ -54,6 +56,7 @@ export default defineComponent({
     RunPipelineMenu,
     UserGuideButton,
     EditorMenu,
+    RecipeControls,
   },
 
   props: {
@@ -192,7 +195,10 @@ export default defineComponent({
       removeTrack,
     });
 
-    addRecipe(new HeadTailRecipe());
+    const recipeMap = {
+      headtail: new HeadTailRecipe(),
+    };
+    addRecipe(recipeMap.headtail);
 
     async function splitTracks(trackId: TrackId | undefined, _frame: number) {
       if (typeof trackId === 'number') {
@@ -258,6 +264,7 @@ export default defineComponent({
       playbackComponent,
       selectedTrackId,
       videoUrl,
+      recipeMap,
       /* methods used locally */
       // handleRemoveFeaturePoint,
       addTrack,
@@ -315,7 +322,7 @@ export default defineComponent({
   <v-content
     class="viewer"
   >
-    <v-app-bar app>
+    <v-app-bar app >
       <navigation-title />
       <v-tabs
         icons-and-text
@@ -326,6 +333,9 @@ export default defineComponent({
           Data
           <v-icon>mdi-database</v-icon>
         </v-tab>
+        <v-tab to="/settings">
+          Settings<v-icon>mdi-settings</v-icon>
+        </v-tab>
       </v-tabs>
       <span
         v-if="dataset"
@@ -333,17 +343,29 @@ export default defineComponent({
       >
         {{ dataset.name }}
       </span>
+      <span class="px-3">
+        20171027.214850.950.029384.png
+      </span>
       <v-spacer />
-      <feature-handle-controls
-        v-bind="featureHandleControlsProps"
-        @delete-point="handler.removePoint"
-        @delete-annotation="handler.removeAnnotation"
-      />
-      <editor-menu
-        v-bind="modeEditorProps"
-        class="shrink px-6"
-        @set-annotaiton-state="handler.setAnnotationState"
-      />
+      <template #extension>
+        <span>Viewer/Edit Controls</span>
+        <v-spacer />
+        <feature-handle-controls
+          v-bind="featureHandleControlsProps"
+          @delete-point="handler.removePoint"
+          @delete-annotation="handler.removeAnnotation"
+        />
+        <editor-menu
+          v-bind="modeEditorProps"
+          class="shrink px-6"
+          @set-annotation-state="handler.setAnnotationState"
+        />
+        <recipe-controls
+          :recipe-map="recipeMap"
+          @set-annotation-state="handler.setAnnotationState"
+          class="pr-3"
+        />
+      </template>
       <run-pipeline-menu
         v-if="dataset"
         :selected="[dataset]"

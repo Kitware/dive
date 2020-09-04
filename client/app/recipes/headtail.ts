@@ -1,11 +1,20 @@
+import { ref, Ref } from '@vue/composition-api';
+
 import Track from 'vue-media-annotator/track';
 import Recipe from 'vue-media-annotator/recipe';
 
+export const HeadTailLineKey = 'HeadTails';
+export const HeadPointKey = 'head';
+export const TailPointKey = 'tail';
+
 export default class HeadTail implements Recipe {
-  active: boolean;
+  active: Ref<boolean>;
+
+  name: string;
 
   constructor() {
-    this.active = true;
+    this.active = ref(false);
+    this.name = 'HeadTail';
   }
 
   static remove(frameNum: number, track: Track, index: number) {
@@ -33,8 +42,9 @@ export default class HeadTail implements Recipe {
     key: string,
     data: GeoJSON.LineString | GeoJSON.Polygon,
   ) {
+    console.log('update headtail');
     const linestring = data as GeoJSON.LineString;
-    if (this.active) {
+    if (this.active.value) {
       console.log(frameNum, track.trackId, key, data, this);
       if (linestring.coordinates.length === 2) {
         const headFeature: GeoJSON.Feature<GeoJSON.Point> = {
@@ -58,29 +68,24 @@ export default class HeadTail implements Recipe {
           geometry: linestring,
           properties: {},
         };
+        this.active.value = false;
         return {
           data: {
-            head: [headFeature],
-            tail: [tailFeature],
-            HeadTails: [headTailLine],
+            [HeadPointKey]: [headFeature],
+            [TailPointKey]: [tailFeature],
+            [HeadTailLineKey]: [headTailLine],
           },
+          // TODO why is typescript losing its mind here.
           newMode: 'editing' as 'editing',
           newType: 'rectangle' as 'rectangle',
+          newSelectedKey: HeadTailLineKey,
         };
       }
     }
     return { data: null };
   }
 
-  // activate(track: Track) {
-
-  // }
-
-  // handleGeojsonUpdate() {
-
-  // }
-
-  // handleEditingGeojsonUpdate() {
-
-  // }
+  activate() {
+    this.active.value = true;
+  }
 }

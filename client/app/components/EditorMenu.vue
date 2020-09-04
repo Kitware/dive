@@ -22,17 +22,24 @@ export default Vue.extend({
 
   data() {
     return {
-      buttons: [
+      editButtons: [
         { id: 'rectangle', title: 'Bounds', icon: 'mdi-vector-square' },
         { id: 'Polygon', title: 'Polygon', icon: 'mdi-vector-polygon' },
-        { id: 'LineString', title: 'Line', icon: 'mdi-vector-line' },
-
+      ],
+      viewButtons: [
+        { id: 'rectangle', title: 'Bounds', icon: 'mdi-vector-square' },
+        { id: 'Polygon', title: 'Polygon', icon: 'mdi-vector-polygon' },
+        {
+          id: 'LineString',
+          title: 'Line',
+          icon: 'mdi-vector-line',
+        },
       ],
     };
   },
 
   computed: {
-    config(): {
+    configs(): {
       color: string;
       class: string[];
       text: string;
@@ -40,9 +47,14 @@ export default Vue.extend({
       model: string;
       value: string | string[];
       multiple: boolean;
-      } {
-      if (this.editingTrack.value) {
-        return {
+      buttons: {
+        id: string;
+        title: string;
+        icon: string;
+      }[];
+      }[] {
+      return [
+        {
           color: 'primary',
           class: ['primary'],
           text: 'Edit',
@@ -50,17 +62,19 @@ export default Vue.extend({
           model: 'editing',
           value: this.editingMode.value,
           multiple: false,
-        };
-      }
-      return {
-        color: 'grey',
-        class: ['grey', 'darken-2'],
-        text: 'View',
-        icon: 'mdi-eye',
-        model: 'visible',
-        value: this.visibleModes.value,
-        multiple: true,
-      };
+          buttons: this.editButtons,
+        },
+        {
+          color: 'grey',
+          class: ['grey', 'darken-2'],
+          text: 'View',
+          icon: 'mdi-eye',
+          model: 'visible',
+          value: this.visibleModes.value,
+          multiple: true,
+          buttons: this.viewButtons,
+        },
+      ];
     },
   },
 });
@@ -68,43 +82,39 @@ export default Vue.extend({
 
 <template>
   <v-row>
-    <v-divider vertical />
-    <v-col class="d-flex align-center py-0">
-      <span :class="['mr-1', 'px-2', 'py-1', 'modechip', ...config.class ]">
+    <v-col class="d-flex align-center px-4" v-for="config in configs" :key="config.text">
+      <span :class="['mr-3', 'px-3', 'py-1', 'modechip', ...config.class ]">
         <v-icon class="pr-1">
           {{ config.icon }}
         </v-icon>
         <span class="text-subtitle-2">
-          {{ config.text }} mode
+          {{ config.text }}
         </span>
       </span>
       <v-btn-toggle
+        dense
+        group
         :value="config.value"
         :multiple="config.multiple"
-        group
-        @change="$emit('set-annotaiton-state', { [config.model]: $event })"
+        :color="config.color"
+        @change="$emit('set-annotation-state', { [config.model]: $event })"
       >
         <v-btn
-          v-for="button in buttons"
+          style="border-radius: 3px;"
+          v-for="button in config.buttons"
           :key="button.id"
           :value="button.id"
-          outlined
-          icon
-          active-class="active-editor-menu-button"
-          style="border-radius: 5px;"
-          :color="config.color"
         >
           <v-icon>{{ button.icon }}</v-icon>
         </v-btn>
       </v-btn-toggle>
     </v-col>
-    <v-divider vertical />
   </v-row>
 </template>
 
 <style scoped>
 .modechip {
   border-radius: 16px;
-  width: 120px;
+  white-space: nowrap;
 }
 </style>
