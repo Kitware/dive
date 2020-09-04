@@ -409,7 +409,10 @@ export default defineComponent({
           @frame-update="frame = $event"
         >
           <template slot="control">
-            <controls-container v-bind="controlsContainerProps" />
+            <controls-container
+              v-bind="controlsContainerProps"
+              @select-track="handler.selectTrack"
+            />
           </template>
           <layer-manager
             v-bind="layerProps"

@@ -132,6 +132,7 @@ export default defineComponent({
               :data="eventChartData.value"
               :client-width="clientWidth"
               :margin="margin"
+              @select-track="$emit('select-track', $event)"
             />
           </template>
         </Timeline>

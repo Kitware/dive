@@ -45,6 +45,7 @@ export default {
       tooltip: null,
       startFrame_: this.startFrame,
       endFrame_: this.endFrame,
+      hoverTrack: null,
     };
   },
   computed: {
@@ -97,6 +98,7 @@ export default {
                 color: event.color,
                 selected: event.selected,
                 name: event.name,
+                trackId: event.trackId,
                 length: event.range[1] - event.range[0],
                 markers: event.markers,
               });
@@ -122,7 +124,7 @@ export default {
   },
   created() {
     this.update = throttle(this.update, 20);
-    this.detectBarHovering = debounce(this.detectBarHovering, 300);
+    this.detectBarHovering = debounce(this.detectBarHovering, 100);
     this.tooltipTimeoutHandle = null;
   },
   mounted() {
@@ -207,8 +209,8 @@ export default {
       const { offsetHeight } = eventChart;
       const { scrollTop } = eventChart;
       const { top } = selectedBar;
-      if (top > offsetHeight) {
-        eventChart.scrollTop = top + offsetHeight / 2.0;
+      if (top > offsetHeight + scrollTop || top < scrollTop) {
+        eventChart.scrollTop = top - offsetHeight / 2.0;
       } else if (scrollTop > top) {
         eventChart.scrollTop = 0.0;
       }
@@ -217,8 +219,14 @@ export default {
       this.tooltip = null;
       this.detectBarHovering(e);
     },
+    mousedown() {
+      if (this.hoverTrack !== null) {
+        this.$emit('select-track', this.hoverTrack);
+      }
+    },
     mouseout() {
       this.detectBarHovering.cancel();
+      this.hoverTrack = null;
     },
     detectBarHovering(e) {
       const { offsetX, offsetY } = e;
@@ -231,10 +239,12 @@ export default {
         .filter((b) => b.top === top)
         .reverse()
         .find((b) => b.left < offsetX
-        && (b.right - b.left > offsetX || b.left + b.minWidth > offsetX));
+        && (b.right > offsetX || b.left + b.minWidth > offsetX));
       if (!bar) {
+        this.hoverTrack = null;
         return;
       }
+      this.hoverTrack = bar.trackId;
       this.tooltip = {
         left: offsetX,
         top: offsetY,
@@ -254,6 +264,7 @@ export default {
       ref="canvas"
       @mousemove="mousemove"
       @mouseout="mouseout"
+      @mousedown="mousedown"
     />
     <div
       v-if="tooltip"
