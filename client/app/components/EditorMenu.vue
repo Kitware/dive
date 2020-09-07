@@ -82,7 +82,11 @@ export default Vue.extend({
 
 <template>
   <v-row>
-    <v-col class="d-flex align-center px-4" v-for="config in configs" :key="config.text">
+    <v-col
+      v-for="config in configs"
+      :key="config.text"
+      class="d-flex align-center px-4"
+    >
       <span :class="['mr-3', 'px-3', 'py-1', 'modechip', ...config.class ]">
         <v-icon class="pr-1">
           {{ config.icon }}
@@ -100,9 +104,9 @@ export default Vue.extend({
         @change="$emit('set-annotation-state', { [config.model]: $event })"
       >
         <v-btn
-          style="border-radius: 3px;"
           v-for="button in config.buttons"
           :key="button.id"
+          style="border-radius: 3px;"
           :value="button.id"
         >
           <v-icon>{{ button.icon }}</v-icon>

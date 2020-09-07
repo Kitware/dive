@@ -248,7 +248,6 @@ export default function useModeManager({
           if (newTrackMode && newDetectionMode) {
             newTrackSettingsAfterLogic(track);
           }
-          console.log(annotationModes.editing);
           newDetectionMode = false;
         }
       }

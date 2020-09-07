@@ -29,7 +29,10 @@ export default Vue.extend({
           Macros
         </span>
       </div>
-      <v-btn-toggle dense group>
+      <v-btn-toggle
+        dense
+        group
+      >
         <headtail
           :recipe="recipeMap['headtail']"
           @set-annotation-state="$emit('set-annotation-state', $event)"

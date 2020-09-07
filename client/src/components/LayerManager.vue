@@ -115,7 +115,6 @@ export default defineComponent({
       visibleModes: EditAnnotationTypes[],
       selectedKey: string,
     ) {
-      console.log('updateLayers', editingTrack);
       const currentFrameIds: TrackId[] = props.intervalTree
         .search([frame, frame])
         .map((str: string) => parseInt(str, 10));
@@ -194,7 +193,6 @@ export default defineComponent({
         }
         if (editingTracks.length) {
           if (editingTrack) {
-            console.log('ChangeData', editingTracks);
             editAnnotationLayer.changeData(editingTracks);
             emit('editingModeChanged', editAnnotationLayer.getMode());
           }
@@ -249,7 +247,6 @@ export default defineComponent({
 
     editAnnotationLayer.$on('update:geojson',
       (data: GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.LineString | GeoJSON.Point>, type: string, key = '') => {
-        console.log(type, key);
         if (type === 'rectangle') {
           const bounds = geojsonToBound(data as GeoJSON.Feature<GeoJSON.Polygon>);
           emit('update-rect-bounds', frameNumber.value, bounds);

@@ -88,10 +88,10 @@ function updateBounds(
   };
   newData.forEach((poly) => {
     poly.coordinates.forEach((pos) => {
-      limits.xLow = Math.min(limits.xLow, pos[0][0]);
-      limits.xHigh = Math.max(limits.xHigh, pos[1][0]);
-      limits.yLow = Math.min(limits.yLow, pos[0][1]);
-      limits.yHigh = Math.max(limits.yHigh, pos[1][1]);
+      limits.xLow = Math.min(limits.xLow, pos[0][0], pos[1][0]);
+      limits.xHigh = Math.max(limits.xHigh, pos[0][0], pos[1][0]);
+      limits.yLow = Math.min(limits.yLow, pos[0][1], pos[1][1]);
+      limits.yHigh = Math.max(limits.yHigh, pos[0][1], pos[1][1]);
     });
   });
   return [limits.xLow, limits.yLow, limits.xHigh, limits.yHigh];

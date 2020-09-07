@@ -31,7 +31,6 @@ import RecipeControls from 'app/recipes/RecipeControls.vue';
 import { Annotator } from 'app/use/useModeManager';
 import { getPathFromLocation } from 'app/utils';
 import {
-  // useFeaturePointing,
   useGirderDataset,
   useModeManager,
   useSave,
@@ -152,17 +151,6 @@ export default defineComponent({
       tracks: filteredTracks,
     });
 
-    // const {
-    //   handleRemoveFeaturePoint,
-    //   updateHeadTails,
-    //   removeHeadTails,
-    // } = useFeaturePointing({
-    //   selectedTrackId,
-    //   trackMap,
-    //   selectTrack,
-    //   frame,
-    // });
-
     const { lineChartData } = useLineChart({
       enabledTracks, typeStyling, allTypes,
     });
@@ -266,7 +254,6 @@ export default defineComponent({
       videoUrl,
       recipeMap,
       /* methods used locally */
-      // handleRemoveFeaturePoint,
       addTrack,
       markChangesPending,
       save,
@@ -322,7 +309,7 @@ export default defineComponent({
   <v-content
     class="viewer"
   >
-    <v-app-bar app >
+    <v-app-bar app>
       <navigation-title />
       <v-tabs
         icons-and-text
@@ -362,8 +349,8 @@ export default defineComponent({
         />
         <recipe-controls
           :recipe-map="recipeMap"
-          @set-annotation-state="handler.setAnnotationState"
           class="pr-3"
+          @set-annotation-state="handler.setAnnotationState"
         />
       </template>
       <run-pipeline-menu

@@ -175,8 +175,9 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
    */
   disable() {
     if (this.featureLayer) {
-      this.featureLayer.removeAllAnnotations();
       this.featureLayer.mode(null);
+      this.featureLayer.removeAllAnnotations(false);
+      this.shapeInProgress = null;
       if (this.selectedHandleIndex !== -1) {
         this.selectedHandleIndex = -1;
         this.hoverHandleIndex = -1;
@@ -207,15 +208,15 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
   }
 
   /** overrides default function to disable and clear anotations before drawing again */
-  changeData(frameData: FrameDataTrack[]) {
+  async changeData(frameData: FrameDataTrack[]) {
     /* An edited annotation calls updateLayers immediately.  This will
       prevent it from updating so the geoJS editor can handle the state.
     */
-    console.log(frameData);
     if (this.changed) {
       this.changed = false;
     } else {
       this.disable();
+      await this.$nextTick();
       this.formattedData = this.formatData(frameData);
     }
     this.redraw();
@@ -228,9 +229,6 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
   formatData(frameData: FrameDataTrack[]) {
     this.selectedHandleIndex = -1;
     this.hoverHandleIndex = -1;
-    console.log(frameData, 'FRAME DATA', this.type);
-    this.featureLayer.clear();
-    this.shapeInProgress = null;
     this.$emit('update:selectedIndex', this.selectedHandleIndex, this.type, this.selectedKey);
     if (frameData.length > 0) {
       const track = frameData[0];
@@ -242,7 +240,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
           // TODO: this assumes only one polygon
           geoJSONData = this.getGeoJSONData(track);
         }
-        if (!geoJSONData || this.type === 'Point' || this.type === 'LineString') {
+        if (!geoJSONData || this.type === 'Point') {
           this.mode = 'creation';
           this.featureLayer.mode(typeMapper[this.type]);
         } else {
