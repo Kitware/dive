@@ -190,7 +190,7 @@ export default function useModeManager({
       newType: undefined as EditAnnotationTypes | undefined,
       newSelectedKey: undefined as string | undefined,
     };
-    if (key) {
+    if (key !== undefined) {
       update.geoJsonFeatureRecord[key] = [data];
     }
 
@@ -225,6 +225,10 @@ export default function useModeManager({
         if (Object.keys(update.geoJsonFeatureRecord).length) {
           // Persist the changes into the track object
           // flatten the { key: geom[], key2: geom[], ... } argument into a geom array.
+          if (data.geometry.type === 'Polygon') {
+            update.polyBoundsUpdates.push(data.geometry);
+          }
+          console.log(update.polyBoundsUpdates);
           track.setFeature({
             frame: frameNum,
             keyframe: true,
