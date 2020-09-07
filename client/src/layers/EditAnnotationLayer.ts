@@ -117,7 +117,11 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
         const coords = this.shapeInProgress?.coordinates as GeoJSON.Position[];
         coords.push(newPoint);
       }
-      this.$emit('update:in-progress-geojson', this.shapeInProgress);
+      this.$emit('update:in-progress-geojson', {
+        type: 'Feature',
+        geometry: this.shapeInProgress,
+        properties: {},
+      });
     } else if (this.shapeInProgress) {
       this.shapeInProgress = null;
     }
@@ -224,6 +228,9 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
   formatData(frameData: FrameDataTrack[]) {
     this.selectedHandleIndex = -1;
     this.hoverHandleIndex = -1;
+    console.log(frameData, 'FRAME DATA', this.type);
+    this.featureLayer.clear();
+    this.shapeInProgress = null;
     this.$emit('update:selectedIndex', this.selectedHandleIndex, this.type, this.selectedKey);
     if (frameData.length > 0) {
       const track = frameData[0];
@@ -235,7 +242,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
           // TODO: this assumes only one polygon
           geoJSONData = this.getGeoJSONData(track);
         }
-        if (!geoJSONData || this.type === 'Point') {
+        if (!geoJSONData || this.type === 'Point' || this.type === 'LineString') {
           this.mode = 'creation';
           this.featureLayer.mode(typeMapper[this.type]);
         } else {

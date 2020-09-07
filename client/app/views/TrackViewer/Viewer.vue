@@ -446,7 +446,6 @@ export default defineComponent({
             @select-feature-handle="handler.selectFeatureHandle"
             @update-rect-bounds="handler.updateRectBounds"
             @update-geojson="handler.updateGeoJSON"
-            @update-in-progress-geojson="handler.updateInProgressGeoJSON"
           />
         </component>
         <v-menu

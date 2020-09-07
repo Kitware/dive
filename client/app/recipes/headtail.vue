@@ -1,7 +1,7 @@
 <script lang="ts">
 import Vue from 'vue';
 import { PropType } from '@vue/composition-api';
-import { HeadTailLineKey } from './headtail';
+import HeadTail, { HeadTailLineKey } from './headtail';
 
 export default Vue.extend({
   props: {

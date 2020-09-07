@@ -29,6 +29,7 @@ export interface UpdateResponse {
     string,
     GeoJSON.Feature<GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString>[]
   > | null;
+  bounds: GeoJSON.Polygon | null;
 }
 
 interface Recipe {
@@ -36,8 +37,8 @@ interface Recipe {
   update: (
     frameNum: number,
     track: Track,
-    key: string,
-    data: GeoJSON.Polygon | GeoJSON.LineString
+    data: GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.LineString | GeoJSON.Point>[],
+    key?: string,
   ) => UpdateResponse;
   activate: () => void;
 }

@@ -4,7 +4,7 @@ import {
 import { cloneDeep, uniq, flatMapDeep } from 'lodash';
 import Track, { TrackId, Feature } from 'vue-media-annotator/track';
 import {
-  RectBounds, findBounds, removePoint, updateBounds,
+  RectBounds, removePoint, updateBounds,
 } from 'vue-media-annotator/utils';
 import { EditAnnotationTypes } from 'vue-media-annotator/layers/EditAnnotationLayer';
 
@@ -176,91 +176,24 @@ export default function useModeManager({
     }
   }
 
-  function _updateTrackFeature(
-    frameNum: number,
-    real: Feature | null,
-    data: Record<string, GeoJSON.Feature<GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString>[]>,
-    track: Track,
-    interpolate: boolean,
-  ) {
-    //Update bounds based on type and condition of the updated bounds
-    // let oldBounds;
-    // if (real) {
-    //   oldBounds = real.bounds;
-    // }
-
-    // TODO: figure out how to handle multiple data
-    // const newbounds = findBounds(data[0]);
-    // const updatedBounds = updateBounds(oldBounds, newbounds, data[0]);
-
-    const feature = {
-      frame: frameNum,
-      keyframe: true,
-      // bounds: updatedBounds,
-      interpolate,
-    };
-    // flatten the { key: geom[] } argument into a geom array.
-    const newFeatureGeometry = flatMapDeep(data,
-      (geomlist, key) => geomlist.map((geom) => ({
-        type: geom.type,
-        geometry: geom.geometry,
-        properties: { key },
-      })));
-    console.log(newFeatureGeometry);
-    // TODO: update to only work with polygon changes, not line changes
-    track.setFeature(feature, newFeatureGeometry);
-  }
-
-  // function _recipeCallback(args: RecipeUpdateCallbackArgs) {
-  //   if (args.newMode) selectTrack(selectedTrackId.value, args.newMode === 'editing');
-  //   if (args.newSelectedKey) selectedKey.value = args.newSelectedKey;
-  //   if (args.newType) annotationModes.editing = args.newType;
-  // }
-
-
-  function handleUpdateInProgressGeoJSON(
-    frameNum: number,
-    data: GeoJSON.LineString | GeoJSON.Polygon,
-  ) {
-    if (!selectedTrackId.value) return;
-    const track = trackMap.get(selectedTrackId.value);
-    if (!track) return;
-    for (let i = 0; i < recipes.length; i += 1) {
-      const recipe = recipes[i];
-      const update = recipe.update(frameNum, track, selectedKey.value, data);
-      if (update.data !== null) {
-        const { features, interpolate } = track.canInterpolate(frameNum);
-        const [real] = features;
-        // TODO real
-        _updateTrackFeature(
-          frameNum, real, update.data,
-          track, _shouldInterpolate(interpolate),
-        );
-        if (update.newMode) selectTrack(selectedTrackId.value, update.newMode === 'editing');
-        if (update.newSelectedKey) selectedKey.value = update.newSelectedKey;
-        if (update.newType) annotationModes.editing = update.newType;
-        // TODO for now, only one recipe will be active at a time.
-        break;
-      }
-    }
-  }
-
-  // //Creation of head or tail points
-  // function handleFeaturePointing(key: 'head' | 'tail') {
-  //   if (selectedTrackId.value !== null) {
-  //     handleSelectKey(key);
-  //     annotationModes.editing = 'Point';
-  //     selectTrack(selectedTrackId.value, true);
-  //   }
-  // }
-
-  // const headTailReservedKeys = ['head', 'tail', 'HeadTails'];
-
   function handleUpdateGeoJSON(
     frameNum: number,
     data: GeoJSON.Feature<GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString>,
-    key: string,
+    key?: string,
   ) {
+    const update = {
+      // Transformed geometry data
+      geoJsonFeatureRecord: {} as Record<string,
+        GeoJSON.Feature<GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString>[]>,
+      polyBoundsUpdates: [] as GeoJSON.Polygon[],
+      newMode: undefined as 'visible' | 'editing' | 'creation' | undefined,
+      newType: undefined as EditAnnotationTypes | undefined,
+      newSelectedKey: undefined as string | undefined,
+    };
+    if (key) {
+      update.geoJsonFeatureRecord[key] = [data];
+    }
+
     if (selectedTrackId.value !== null) {
       const track = trackMap.get(selectedTrackId.value);
       if (track) {
@@ -270,22 +203,54 @@ export default function useModeManager({
         if (!real || real.bounds === undefined) {
           newDetectionMode = true;
         }
-        _updateTrackFeature(
-          frameNum, real, { [key]: [data] }, track,
-          _shouldInterpolate(interpolate),
-        );
-        //If we are creating a point, we swap back to rectangle once done
-        //we also check if we need to make the line
-        if (data.geometry.type === 'Point' && annotationModes.editing === 'Point') {
-          _selectKey('');
-          annotationModes.editing = 'rectangle';
-          selectTrack(selectedTrackId.value, false);
+
+        // Give recipes the opportunity to make changes
+        for (let i = 0; i < recipes.length; i += 1) {
+          const recipe = recipes[i];
+          const changes = recipe.update(frameNum, track, [data], key);
+          Object.assign(update.geoJsonFeatureRecord, changes.data || {});
+          if (changes.bounds) {
+            update.polyBoundsUpdates.push(changes.bounds);
+          }
+          update.newMode = update.newMode || changes.newMode;
+          update.newType = update.newType || changes.newType;
+          update.newSelectedKey = update.newSelectedKey || changes.newSelectedKey;
         }
-        //If it is a new track and we have newTrack Settings
-        if (newTrackMode && newDetectionMode) {
-          newTrackSettingsAfterLogic(track);
+
+        // Switch other modes if a recipe requested it
+        if (update.newMode) selectTrack(selectedTrackId.value, update.newMode === 'editing');
+        if (update.newSelectedKey) selectedKey.value = update.newSelectedKey;
+        if (update.newType) annotationModes.editing = update.newType;
+
+        if (Object.keys(update.geoJsonFeatureRecord).length) {
+          // Persist the changes into the track object
+          // flatten the { key: geom[], key2: geom[], ... } argument into a geom array.
+          track.setFeature({
+            frame: frameNum,
+            keyframe: true,
+            bounds: updateBounds(real?.bounds, update.polyBoundsUpdates),
+            interpolate,
+          }, flatMapDeep(update.geoJsonFeatureRecord,
+            (geomlist, key_) => geomlist.map((geom) => ({
+              type: geom.type,
+              geometry: geom.geometry,
+              properties: { key: key_ },
+            }))));
+
+          //If we are creating a point, we swap back to rectangle once done
+          //we also check if we need to make the line
+          if (data.geometry.type === 'Point' && annotationModes.editing === 'Point') {
+            _selectKey('');
+            annotationModes.editing = 'rectangle';
+            selectTrack(selectedTrackId.value, false);
+          }
+          //If it is a new track and we have newTrack Settings
+          if (newTrackMode && newDetectionMode) {
+            newTrackSettingsAfterLogic(track);
+          }
+          console.log(annotationModes.editing);
+          newDetectionMode = false;
         }
-        newDetectionMode = false;
       }
     }
   }
@@ -315,7 +280,7 @@ export default function useModeManager({
         if (removePoint(clone, selectedFeatureHandle.value)) {
           track.setFeature({
             frame: frame.value,
-            bounds: findBounds(clone),
+            // bounds: findBounds(clone),
           }, [clone]);
           handleSelectFeatureHandle(-1);
         }
@@ -396,7 +361,6 @@ export default function useModeManager({
       addTrack: handleAddTrack,
       updateRectBounds: handleUpdateRectBounds,
       updateGeoJSON: handleUpdateGeoJSON,
-      updateInProgressGeoJSON: handleUpdateInProgressGeoJSON,
       selectNext: handleSelectNext,
       trackClick: handleTrackClick,
       removeTrack: handleRemoveTrack,
