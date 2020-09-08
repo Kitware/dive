@@ -22,14 +22,15 @@ import Track from './track';
 import { EditAnnotationTypes } from './layers/EditAnnotationLayer';
 
 export interface UpdateResponse {
-  newMode?: 'editing' | 'creation';
-  newType?: EditAnnotationTypes;
-  newSelectedKey?: string;
   data: Record<
     string,
     GeoJSON.Feature<GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString>[]
-  > | null;
-  bounds: GeoJSON.Polygon | null;
+  >;
+  union: GeoJSON.Polygon[];
+  unionWithoutBounds: GeoJSON.Polygon[];
+  newMode?: 'editing' | 'creation';
+  newType?: EditAnnotationTypes;
+  newSelectedKey?: string;
 }
 
 interface Recipe {

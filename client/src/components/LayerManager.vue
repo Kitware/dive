@@ -8,6 +8,7 @@ import {
   Ref,
   watch,
 } from '@vue/composition-api';
+import { GeoEvent } from 'geojs';
 
 import { Annotator } from 'vue-media-annotator/components/annotators/annotatorType';
 import RectangleLayer from 'vue-media-annotator/layers/AnnotationLayers/RectangleLayer';
@@ -194,7 +195,6 @@ export default defineComponent({
         if (editingTracks.length) {
           if (editingTrack) {
             editAnnotationLayer.changeData(editingTracks);
-            emit('editingModeChanged', editAnnotationLayer.getMode());
           }
         } else {
           editAnnotationLayer.disable();
@@ -240,23 +240,28 @@ export default defineComponent({
         emit('select-track', trackId, editing);
       }
     };
-    rectAnnotationLayer.$on('annotation-clicked', Clicked);
-    rectAnnotationLayer.$on('annotation-right-clicked', Clicked);
-    polyAnnotationLayer.$on('annotation-clicked', Clicked);
-    polyAnnotationLayer.$on('annotation-right-clicked', Clicked);
 
-    editAnnotationLayer.$on('update:geojson',
-      (data: GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.LineString | GeoJSON.Point>, type: string, key = '') => {
+    rectAnnotationLayer.bus.$on('annotation-clicked', Clicked);
+    rectAnnotationLayer.bus.$on('annotation-right-clicked', Clicked);
+    polyAnnotationLayer.bus.$on('annotation-clicked', Clicked);
+    polyAnnotationLayer.bus.$on('annotation-right-clicked', Clicked);
+    editAnnotationLayer.bus.$on('update:geojson',
+      (data: GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.LineString | GeoJSON.Point>, type: string, key = '', cb: () => void) => {
         if (type === 'rectangle') {
           const bounds = geojsonToBound(data as GeoJSON.Feature<GeoJSON.Polygon>);
+          cb();
           emit('update-rect-bounds', frameNumber.value, bounds);
         } else {
-          emit('update-geojson', frameNumber.value, data, key);
+          emit('update-geojson', frameNumber.value, data, key, cb);
         }
       });
-    editAnnotationLayer.$on('update:in-progress-geojson',
-      (data: GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.LineString>) => emit('update-geojson', frameNumber.value, data));
-    editAnnotationLayer.$on('update:selectedIndex',
+    editAnnotationLayer.bus.$on('update:in-progress-geojson', (
+      data: GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.LineString>,
+      type: string,
+      key = '',
+      cb: () => void,
+    ) => emit('update-geojson', frameNumber.value, data, key, cb));
+    editAnnotationLayer.bus.$on('update:selectedIndex',
       (index: number, _type: EditAnnotationTypes, key = '') => emit('select-feature-handle', index, key));
   },
 });

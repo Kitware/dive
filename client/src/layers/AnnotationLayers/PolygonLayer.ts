@@ -35,11 +35,11 @@ export default class PolygonLayer extends BaseLayer<PolyGeoJSData> {
          * */
           if (e.mouse.buttonsDown.left && !this.drawingOther) {
             if (!e.data.editing || (e.data.editing && !e.data.selected)) {
-              this.$emit('annotation-clicked', e.data.trackId, false);
+              this.bus.$emit('annotation-clicked', e.data.trackId, false);
             }
           } else if (e.mouse.buttonsDown.right && !this.drawingOther) {
             if (!e.data.editing || (e.data.editing && !e.data.selected)) {
-              this.$emit('annotation-right-clicked', e.data.trackId, true);
+              this.bus.$emit('annotation-right-clicked', e.data.trackId, true);
             }
           }
         });
@@ -50,7 +50,7 @@ export default class PolygonLayer extends BaseLayer<PolyGeoJSData> {
       this.featureLayer.geoOn(geo.event.mouseclick, (e: GeoEvent) => {
       // If we aren't clicking on an annotation we can deselect the current track
         if (this.featureLayer.pointSearch(e.geo).found.length === 0 && !this.drawingOther) {
-          this.$emit('annotation-clicked', null, false);
+          this.bus.$emit('annotation-clicked', null, false);
         }
       });
       super.initialize();

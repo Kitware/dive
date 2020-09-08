@@ -108,14 +108,14 @@ export default function useModeManager({
   }
 
   function _selectKey(key: string | '') {
-    selectedKey.value = key;
+    if (typeof key === 'string') {
+      selectedKey.value = key;
+    }
   }
 
   function handleSelectFeatureHandle(i: number, key = '') {
     selectedFeatureHandle.value = i;
-    if (key !== '') {
-      _selectKey(key);
-    }
+    _selectKey(key);
   }
 
   function handleSelectTrack(trackId: TrackId | null, edit = false) {
@@ -180,16 +180,19 @@ export default function useModeManager({
     frameNum: number,
     data: GeoJSON.Feature<GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString>,
     key?: string,
+    preventInterrupt?: () => void,
   ) {
     const update = {
       // Transformed geometry data
       geoJsonFeatureRecord: {} as Record<string,
         GeoJSON.Feature<GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString>[]>,
-      polyBoundsUpdates: [] as GeoJSON.Polygon[],
+      union: [] as GeoJSON.Polygon[],
+      unionWithoutBounds: [] as GeoJSON.Polygon[],
       newMode: undefined as 'visible' | 'editing' | 'creation' | undefined,
       newType: undefined as EditAnnotationTypes | undefined,
       newSelectedKey: undefined as string | undefined,
     };
+
     if (key !== undefined) {
       update.geoJsonFeatureRecord[key] = [data];
     }
@@ -208,13 +211,27 @@ export default function useModeManager({
         for (let i = 0; i < recipes.length; i += 1) {
           const recipe = recipes[i];
           const changes = recipe.update(frameNum, track, [data], key);
-          Object.assign(update.geoJsonFeatureRecord, changes.data || {});
-          if (changes.bounds) {
-            update.polyBoundsUpdates.push(changes.bounds);
-          }
+          Object.assign(update.geoJsonFeatureRecord, changes.data);
+          update.union.push(...changes.union);
+          update.unionWithoutBounds.push(...changes.unionWithoutBounds);
+          console.log('changes', changes, key);
           update.newMode = update.newMode || changes.newMode;
           update.newType = update.newType || changes.newType;
           update.newSelectedKey = update.newSelectedKey || changes.newSelectedKey;
+        }
+
+        console.log('update', update, preventInterrupt);
+        if (
+          !update.newMode
+          && !update.newSelectedKey
+          && !update.newType
+          && preventInterrupt
+        ) {
+          /**
+           * Normally, we want to prevent interrupting the editor
+           * but sometimes an interrupt is necessary
+           */
+          preventInterrupt();
         }
 
         // Switch other modes if a recipe requested it
@@ -226,13 +243,12 @@ export default function useModeManager({
           // Persist the changes into the track object
           // flatten the { key: geom[], key2: geom[], ... } argument into a geom array.
           if (data.geometry.type === 'Polygon') {
-            update.polyBoundsUpdates.push(data.geometry);
+            update.unionWithoutBounds.push(data.geometry);
           }
-          console.log(update.polyBoundsUpdates);
           track.setFeature({
             frame: frameNum,
             keyframe: true,
-            bounds: updateBounds(real?.bounds, update.polyBoundsUpdates),
+            bounds: updateBounds(real?.bounds, update.union, update.unionWithoutBounds),
             interpolate,
           }, flatMapDeep(update.geoJsonFeatureRecord,
             (geomlist, key_) => geomlist.map((geom) => ({
@@ -241,13 +257,6 @@ export default function useModeManager({
               properties: { key: key_ },
             }))));
 
-          //If we are creating a point, we swap back to rectangle once done
-          //we also check if we need to make the line
-          if (data.geometry.type === 'Point' && annotationModes.editing === 'Point') {
-            _selectKey('');
-            annotationModes.editing = 'rectangle';
-            selectTrack(selectedTrackId.value, false);
-          }
           //If it is a new track and we have newTrack Settings
           if (newTrackMode && newDetectionMode) {
             newTrackSettingsAfterLogic(track);
@@ -346,8 +355,8 @@ export default function useModeManager({
     if (visible) annotationModes.visible = visible;
     if (editing) {
       annotationModes.editing = editing;
-      if (key) _selectKey(key);
-      selectTrack(selectedTrackId.value, !!selectedTrackId.value);
+      _selectKey(key);
+      selectTrack(selectedTrackId.value, true);
     }
   }
 

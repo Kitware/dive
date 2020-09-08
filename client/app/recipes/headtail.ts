@@ -14,22 +14,15 @@ export default class HeadTail implements Recipe {
 
   constructor() {
     this.active = ref(false);
+
     this.name = 'HeadTail';
   }
 
-  static findBounds(ls: GeoJSON.LineString): GeoJSON.Polygon {
-    return {
+  static findBounds(ls: GeoJSON.LineString): GeoJSON.Polygon[] {
+    return [{
       type: 'Polygon',
-      coordinates: [[
-        [
-          ls.coordinates[0][0],
-          ls.coordinates[0][1],
-        ], [
-          ls.coordinates[1][0],
-          ls.coordinates[1][1],
-        ],
-      ]],
-    };
+      coordinates: [ls.coordinates],
+    }];
   }
 
   static remove(frameNum: number, track: Track, index: number) {
@@ -63,27 +56,30 @@ export default class HeadTail implements Recipe {
       },
       properties: {},
     };
-    const tailFeature: GeoJSON.Feature<GeoJSON.Point> = {
-      type: 'Feature',
-      geometry: {
-        type: 'Point',
-        coordinates: [
-          ls.coordinates[1][0],
-          ls.coordinates[1][1],
-        ],
-      },
-      properties: {},
-    };
-    const headTailLine: GeoJSON.Feature<GeoJSON.LineString> = {
-      type: 'Feature',
-      geometry: ls,
-      properties: {},
-    };
-    return {
+    const ret: Record<string, GeoJSON.Feature<GeoJSON.Point|GeoJSON.LineString>[]> = {
       [HeadPointKey]: [headFeature],
-      [TailPointKey]: [tailFeature],
-      [HeadTailLineKey]: [headTailLine],
     };
+    if (ls.coordinates.length === 2) {
+      const tailFeature: GeoJSON.Feature<GeoJSON.Point> = {
+        type: 'Feature',
+        geometry: {
+          type: 'Point',
+          coordinates: [
+            ls.coordinates[1][0],
+            ls.coordinates[1][1],
+          ],
+        },
+        properties: {},
+      };
+      const headTailLine: GeoJSON.Feature<GeoJSON.LineString> = {
+        type: 'Feature',
+        geometry: ls,
+        properties: {},
+      };
+      ret[TailPointKey] = [tailFeature];
+      ret[HeadTailLineKey] = [headTailLine];
+    }
+    return ret;
   }
 
   update(
@@ -102,7 +98,8 @@ export default class HeadTail implements Recipe {
        */
         return {
           data: HeadTail.makeGeom(linestring.geometry),
-          bounds: HeadTail.findBounds(linestring.geometry),
+          union: HeadTail.findBounds(linestring.geometry),
+          unionWithoutBounds: [],
         };
       }
       if (this.active.value) {
@@ -114,14 +111,25 @@ export default class HeadTail implements Recipe {
             data: HeadTail.makeGeom(linestring.geometry),
             // TODO why is typescript losing its mind here.
             newMode: 'editing' as 'editing',
-            // newType: 'rectangle' as 'rectangle',
+            newType: 'rectangle' as 'rectangle',
             newSelectedKey: HeadTailLineKey,
-            bounds: HeadTail.findBounds(linestring.geometry),
+            union: HeadTail.findBounds(linestring.geometry),
+            unionWithoutBounds: [],
           };
         }
       }
     }
-    return { data: null, bounds: null };
+    return { data: {}, union: [], unionWithoutBounds: [] };
+  }
+
+  abort(data: GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.LineString | GeoJSON.Point>) {
+    this.active.value = false;
+    // console.log('aborted', data);
+    return {
+      data: {},
+      union: [],
+      unionWithoutBounds: [],
+    };
   }
 
   activate() {

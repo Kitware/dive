@@ -78,15 +78,24 @@ function removePoint(
 
 function updateBounds(
   oldBounds: RectBounds | undefined,
-  newData: GeoJSON.Polygon[],
+  union: GeoJSON.Polygon[],
+  unionNoBounds: GeoJSON.Polygon[],
 ): RectBounds {
   const limits = {
-    xLow: oldBounds?.[0] || Infinity,
-    xHigh: oldBounds?.[2] || -Infinity,
-    yLow: oldBounds?.[1] || Infinity,
-    yHigh: oldBounds?.[3] || -Infinity,
+    xLow: Infinity,
+    yLow: Infinity,
+    xHigh: -Infinity,
+    yHigh: -Infinity,
   };
-  newData.forEach((poly) => {
+  if (oldBounds && unionNoBounds.length === 0) {
+    [
+      limits.xLow,
+      limits.yLow,
+      limits.xHigh,
+      limits.yHigh,
+    ] = oldBounds;
+  }
+  union.concat(unionNoBounds).forEach((poly) => {
     poly.coordinates.forEach((pos) => {
       pos.forEach((point) => {
         limits.xLow = Math.min(limits.xLow, point[0]);
@@ -96,6 +105,7 @@ function updateBounds(
       });
     });
   });
+  // console.log('yes', union, unionNoBounds);
   return [limits.xLow, limits.yLow, limits.xHigh, limits.yHigh];
 }
 

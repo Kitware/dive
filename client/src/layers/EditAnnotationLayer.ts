@@ -31,7 +31,7 @@ const typeMapper = {
  * emits 'update:geojson' when data is changed
  */
 export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
-  changed: boolean;
+  skipNextExternalUpdate: boolean;
 
   mode: 'editing' | 'creation';
 
@@ -50,7 +50,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
 
   constructor(params: BaseLayerParams & EditAnnotationLayerParams) {
     super(params);
-    this.changed = false;
+    this.skipNextExternalUpdate = false;
     this.mode = 'editing';
     this.selectedKey = '';
     this.type = params.type;
@@ -86,7 +86,8 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
           setTimeout(() => this.redraw(), 0); //Redraw timeout to update the selected handle
           const divisor = this.type === 'LineString' ? 1 : 2; // used for polygon because edge handles
           if (this.type !== 'rectangle') {
-            this.$emit('update:selectedIndex', this.selectedHandleIndex / divisor, this.type, this.selectedKey);
+            this.bus.$emit('update:selectedIndex',
+              this.selectedHandleIndex / divisor, this.type, this.selectedKey);
           }
         }
       });
@@ -117,11 +118,12 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
         const coords = this.shapeInProgress?.coordinates as GeoJSON.Position[];
         coords.push(newPoint);
       }
-      this.$emit('update:in-progress-geojson', {
+      // this.skipNextExternalUpdate = true;
+      this.bus.$emit('update:in-progress-geojson', {
         type: 'Feature',
         geometry: this.shapeInProgress,
         properties: {},
-      });
+      }, this.type, this.selectedKey, () => { console.warn('PREVENT'); this.skipNextExternalUpdate = true; });
     } else if (this.shapeInProgress) {
       this.shapeInProgress = null;
     }
@@ -181,7 +183,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
       if (this.selectedHandleIndex !== -1) {
         this.selectedHandleIndex = -1;
         this.hoverHandleIndex = -1;
-        this.$emit('update:selectedIndex', this.selectedHandleIndex, this.type, this.selectedKey);
+        this.bus.$emit('update:selectedIndex', this.selectedHandleIndex, this.type, this.selectedKey);
       }
     }
   }
@@ -209,14 +211,14 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
 
   /** overrides default function to disable and clear anotations before drawing again */
   async changeData(frameData: FrameDataTrack[]) {
+    console.log(frameData);
     /* An edited annotation calls updateLayers immediately.  This will
       prevent it from updating so the geoJS editor can handle the state.
     */
-    if (this.changed) {
-      this.changed = false;
+    if (this.skipNextExternalUpdate) {
+      this.skipNextExternalUpdate = false;
     } else {
       this.disable();
-      await this.$nextTick();
       this.formattedData = this.formatData(frameData);
     }
     this.redraw();
@@ -227,9 +229,10 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
    * @param frameData a single FrameDataTrack Array that is the editing item
    */
   formatData(frameData: FrameDataTrack[]) {
+    console.log('FormatData');
     this.selectedHandleIndex = -1;
     this.hoverHandleIndex = -1;
-    this.$emit('update:selectedIndex', this.selectedHandleIndex, this.type, this.selectedKey);
+    this.bus.$emit('update:selectedIndex', this.selectedHandleIndex, this.type, this.selectedKey);
     if (frameData.length > 0) {
       const track = frameData[0];
       if (track.features && track.features.bounds) {
@@ -288,6 +291,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
    * @param e geo.event emitting by handlers
    */
   handleEditStateChange(e: GeoEvent) {
+    // console.log(e);
     if (this.featureLayer === e.annotation.layer()) {
       if (e.annotation.state() === 'done' && this.formattedData.length === 0) {
         //geoJS insists on calling done multiple times, this will prevent that
@@ -296,7 +300,9 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
         this.applyStylesToAnnotations();
         // State doesn't change at the end of editing so this will
         // swap into edit mode once geoJS is done
-        setTimeout(() => this.$emit('update:geojson', this.formattedData[0], this.type, this.selectedKey), 0);
+        setTimeout(() => this.bus.$emit('update:geojson', this.formattedData[0], this.type, this.selectedKey, () => {
+          this.skipNextExternalUpdate = true;
+        }), 0);
       }
     }
   }
@@ -306,6 +312,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
    * @param e geo.event
    */
   handleEditAction(e: GeoEvent) {
+    // console.log(e);
     if (this.featureLayer === e.annotation.layer()) {
       if (e.action === geo.event.actionup) {
         // This will commit the change to the current annotation on mouse up while editing
@@ -326,9 +333,10 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
               type: 'Feature',
             }];
           }
-          // must ALWAYS emit geometry
-          this.changed = true;
-          this.$emit('update:geojson', this.formattedData[0], this.type, this.selectedKey);
+          this.bus.$emit('update:geojson', this.formattedData[0], this.type, this.selectedKey, () => {
+            console.warn('PREVENT');
+            this.skipNextExternalUpdate = true;
+          });
         }
       }
     }
