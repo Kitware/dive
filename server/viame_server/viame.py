@@ -133,7 +133,7 @@ class Viame(Resource):
             raise Exception(f"No detections for folder {folder['name']}")
 
         # Ensure detection has a csv format
-        csv_detection_file(detection, user)
+        csv_detection_file(folder, detection, user)
 
         # Ensure the folder to upload results to exists
         results_folder = training_output_folder(folder, user)

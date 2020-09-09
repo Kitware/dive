@@ -138,7 +138,7 @@ def training_output_folder(folder, user):
     )
 
 
-def csv_detection_file(detection_item, user):
+def csv_detection_file(folder, detection_item, user):
     """
     Ensures that the detection item has a file which is a csv.
 
@@ -154,7 +154,15 @@ def csv_detection_file(detection_item, user):
         b"".join(list(File().download(file, headers=False)())).decode()
     )
 
-    csv_string = "".join((line for line in viame.export_tracks_as_csv(track_dict)))
+    thresholds = folder.get("meta", {}).get("confidenceFilters", {})
+    csv_string = "".join(
+        (
+            line
+            for line in viame.export_tracks_as_csv(
+                track_dict, excludeBelowThreshold=True, thresholds=thresholds
+            )
+        )
+    )
     csv_bytes = csv_string.encode()
 
     assetstore = Assetstore().findOne({"_id": file["assetstoreId"]})
@@ -178,9 +186,7 @@ def saveTracks(folder, tracks, user):
 
     move_existing_result_to_auxiliary_folder(folder, user)
     newResultItem = Item().createItem(item_name, user, folder)
-    Item().setMetadata(
-        newResultItem, {"detection": str(folder["_id"])}, allowNull=True,
-    )
+    Item().setMetadata(newResultItem, {"detection": str(folder["_id"])}, allowNull=True)
 
     json_bytes = json.dumps(tracks).encode()
     byteIO = io.BytesIO(json_bytes)
