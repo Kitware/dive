@@ -18,6 +18,7 @@ import ImageAnnotator from 'vue-media-annotator/components/annotators/ImageAnnot
 import LayerManager from 'vue-media-annotator/components/LayerManager.vue';
 
 import HeadTailRecipe from 'app/recipes/headtail';
+import PolyRecipe from 'app/recipes/polygonbase';
 
 import { getDetections } from 'app/api/viameDetection.service';
 import NavigationTitle from 'app/components/NavigationTitle.vue';
@@ -184,8 +185,10 @@ export default defineComponent({
     });
 
     const recipeMap = {
+      poly: new PolyRecipe(),
       headtail: new HeadTailRecipe(),
     };
+    addRecipe(recipeMap.poly);
     addRecipe(recipeMap.headtail);
 
     async function splitTracks(trackId: TrackId | undefined, _frame: number) {

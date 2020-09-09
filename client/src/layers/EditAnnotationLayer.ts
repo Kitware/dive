@@ -119,7 +119,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
         coords.push(newPoint);
       }
       // this.skipNextExternalUpdate = true;
-      this.bus.$emit('update:in-progress-geojson', {
+      this.bus.$emit('update:geojson', 'in-progress', {
         type: 'Feature',
         geometry: this.shapeInProgress,
         properties: {},
@@ -160,8 +160,11 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
   }
 
   setKey(key: string) {
-    if (key !== '') {
+    console.log('setKey');
+    if (typeof key === 'string') {
       this.selectedKey = key;
+    } else {
+      throw new Error(`${key} is invalid`);
     }
   }
 
@@ -177,6 +180,8 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
    */
   disable() {
     if (this.featureLayer) {
+      console.warn('DISABLE');
+      this.skipNextExternalUpdate = false;
       this.featureLayer.mode(null);
       this.featureLayer.removeAllAnnotations(false);
       this.shapeInProgress = null;
@@ -197,7 +202,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
     if (track && track.features && track.features.geometry) {
       track.features.geometry.features.forEach((feature) => {
         if (feature.geometry
-          && feature.geometry.type.toLowerCase().includes(typeMapper[this.type])) {
+            && feature.geometry.type.toLowerCase() === this.type.toLowerCase()) {
           if (feature.properties && feature.properties.key !== 'undefined') {
             if (feature.properties.key === this.selectedKey) {
               geoJSONData = feature.geometry;
@@ -211,15 +216,14 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
 
   /** overrides default function to disable and clear anotations before drawing again */
   async changeData(frameData: FrameDataTrack[]) {
-    console.log(frameData);
-    /* An edited annotation calls updateLayers immediately.  This will
-      prevent it from updating so the geoJS editor can handle the state.
-    */
-    if (this.skipNextExternalUpdate) {
-      this.skipNextExternalUpdate = false;
-    } else {
+    if (this.skipNextExternalUpdate === false) {
+      // disable resets things before we load a new/different shape or mode
       this.disable();
       this.formattedData = this.formatData(frameData);
+    } else {
+      // prevent was called and it has prevented this update.
+      // disable the skip for next time.
+      this.skipNextExternalUpdate = false;
     }
     this.redraw();
   }
@@ -229,7 +233,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
    * @param frameData a single FrameDataTrack Array that is the editing item
    */
   formatData(frameData: FrameDataTrack[]) {
-    console.log('FormatData');
+    console.log('FormatData', this.type, this.selectedKey);
     this.selectedHandleIndex = -1;
     this.hoverHandleIndex = -1;
     this.bus.$emit('update:selectedIndex', this.selectedHandleIndex, this.type, this.selectedKey);
@@ -242,6 +246,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
         } else {
           // TODO: this assumes only one polygon
           geoJSONData = this.getGeoJSONData(track);
+          console.log('Geojson data lost...', geoJSONData);
         }
         if (!geoJSONData || this.type === 'Point') {
           this.mode = 'creation';
@@ -300,9 +305,11 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
         this.applyStylesToAnnotations();
         // State doesn't change at the end of editing so this will
         // swap into edit mode once geoJS is done
-        setTimeout(() => this.bus.$emit('update:geojson', this.formattedData[0], this.type, this.selectedKey, () => {
+        this.mode = 'editing';
+        this.bus.$emit('update:geojson', 'editing', this.formattedData[0], this.type, this.selectedKey, () => {
+          console.warn('PREVENT');
           this.skipNextExternalUpdate = true;
-        }), 0);
+        });
       }
     }
   }
@@ -333,7 +340,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
               type: 'Feature',
             }];
           }
-          this.bus.$emit('update:geojson', this.formattedData[0], this.type, this.selectedKey, () => {
+          this.bus.$emit('update:geojson', 'editing', this.formattedData[0], this.type, this.selectedKey, () => {
             console.warn('PREVENT');
             this.skipNextExternalUpdate = true;
           });

@@ -11,6 +11,7 @@ import { EditAnnotationTypes } from 'vue-media-annotator/layers/EditAnnotationLa
 import Recipe from 'vue-media-annotator/recipe';
 import { NewTrackSettings } from './useSettings';
 
+type SupportedFeature = GeoJSON.Feature<GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString>;
 export interface Annotator {
   seek(frame: number): void;
   resetZoom(): void;
@@ -107,9 +108,11 @@ export default function useModeManager({
     }
   }
 
-  function _selectKey(key: string | '') {
+  function _selectKey(key: string) {
     if (typeof key === 'string') {
       selectedKey.value = key;
+    } else {
+      selectedKey.value = '';
     }
   }
 
@@ -161,6 +164,7 @@ export default function useModeManager({
         if (!real || real.bounds === undefined) {
           newDetectionMode = true;
         }
+        console.log(bounds, features);
         track.setFeature({
           frame: frameNum,
           bounds,
@@ -177,25 +181,22 @@ export default function useModeManager({
   }
 
   function handleUpdateGeoJSON(
+    mode: 'in-progress' | 'editing',
     frameNum: number,
-    data: GeoJSON.Feature<GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString>,
+    // Type alias this
+    data: SupportedFeature,
     key?: string,
     preventInterrupt?: () => void,
   ) {
     const update = {
       // Transformed geometry data
-      geoJsonFeatureRecord: {} as Record<string,
-        GeoJSON.Feature<GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString>[]>,
+      geoJsonFeatureRecord: {} as Record<string, SupportedFeature[]>,
       union: [] as GeoJSON.Polygon[],
       unionWithoutBounds: [] as GeoJSON.Polygon[],
-      newMode: undefined as 'visible' | 'editing' | 'creation' | undefined,
+      // newMode: undefined as 'visible' | 'editing' | 'creation' | undefined,
       newType: undefined as EditAnnotationTypes | undefined,
       newSelectedKey: undefined as string | undefined,
     };
-
-    if (key !== undefined) {
-      update.geoJsonFeatureRecord[key] = [data];
-    }
 
     if (selectedTrackId.value !== null) {
       const track = trackMap.get(selectedTrackId.value);
@@ -210,19 +211,25 @@ export default function useModeManager({
         // Give recipes the opportunity to make changes
         for (let i = 0; i < recipes.length; i += 1) {
           const recipe = recipes[i];
-          const changes = recipe.update(frameNum, track, [data], key);
+          const changes = recipe.update(mode, frameNum, track, [data], key);
+          // Raise error if geoJsonFeatureRecord[key] is not undefined
           Object.assign(update.geoJsonFeatureRecord, changes.data);
           update.union.push(...changes.union);
           update.unionWithoutBounds.push(...changes.unionWithoutBounds);
           console.log('changes', changes, key);
-          update.newMode = update.newMode || changes.newMode;
+          // update.newMode = update.newMode || changes.newMode;
           update.newType = update.newType || changes.newType;
           update.newSelectedKey = update.newSelectedKey || changes.newSelectedKey;
         }
 
-        console.log('update', update, preventInterrupt);
+        const somethingChanged = (
+          update.union.length !== 0
+          || update.unionWithoutBounds.length !== 0
+          || Object.keys(update.geoJsonFeatureRecord).length !== 0
+        );
+
         if (
-          !update.newMode
+          somethingChanged
           && !update.newSelectedKey
           && !update.newType
           && preventInterrupt
@@ -232,19 +239,11 @@ export default function useModeManager({
            * but sometimes an interrupt is necessary
            */
           preventInterrupt();
+        } else {
+          if (update.newSelectedKey) selectedKey.value = update.newSelectedKey;
+          if (update.newType) annotationModes.editing = update.newType;
         }
-
-        // Switch other modes if a recipe requested it
-        if (update.newMode) selectTrack(selectedTrackId.value, update.newMode === 'editing');
-        if (update.newSelectedKey) selectedKey.value = update.newSelectedKey;
-        if (update.newType) annotationModes.editing = update.newType;
-
-        if (Object.keys(update.geoJsonFeatureRecord).length) {
-          // Persist the changes into the track object
-          // flatten the { key: geom[], key2: geom[], ... } argument into a geom array.
-          if (data.geometry.type === 'Polygon') {
-            update.unionWithoutBounds.push(data.geometry);
-          }
+        if (somethingChanged) {
           track.setFeature({
             frame: frameNum,
             keyframe: true,

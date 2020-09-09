@@ -19,7 +19,7 @@ export default Vue.extend({
 
   methods: {
     activate() {
-      this.$emit('set-annotation-state', { editing: 'LineString' });
+      this.$emit('set-annotation-state', { editing: 'LineString', key: HeadTailLineKey });
       this.recipe.activate();
     },
   },

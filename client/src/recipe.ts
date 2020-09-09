@@ -36,11 +36,12 @@ export interface UpdateResponse {
 interface Recipe {
   name: string;
   update: (
+    mode: 'in-progress' | 'editing',
     frameNum: number,
     track: Track,
     data: GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.LineString | GeoJSON.Point>[],
     key?: string,
-  ) => UpdateResponse;
+  ) => Readonly<UpdateResponse>;
   activate: () => void;
 }
 

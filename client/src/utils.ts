@@ -80,7 +80,11 @@ function updateBounds(
   oldBounds: RectBounds | undefined,
   union: GeoJSON.Polygon[],
   unionNoBounds: GeoJSON.Polygon[],
-): RectBounds {
+): RectBounds | undefined {
+  if (!oldBounds && union.length === 0 && unionNoBounds.length === 0) {
+    // nothing to do, skip bounds update
+    return undefined;
+  }
   const limits = {
     xLow: Infinity,
     yLow: Infinity,
@@ -95,17 +99,18 @@ function updateBounds(
       limits.yHigh,
     ] = oldBounds;
   }
+  console.log(limits, union, unionNoBounds);
   union.concat(unionNoBounds).forEach((poly) => {
-    poly.coordinates.forEach((pos) => {
-      pos.forEach((point) => {
-        limits.xLow = Math.min(limits.xLow, point[0]);
-        limits.xHigh = Math.max(limits.xHigh, point[0]);
-        limits.yLow = Math.min(limits.yLow, point[1]);
-        limits.yHigh = Math.max(limits.yHigh, point[1]);
+    poly.coordinates.forEach((posarr) => {
+      posarr.forEach((pos) => {
+        limits.xLow = Math.min(limits.xLow, pos[0]);
+        limits.xHigh = Math.max(limits.xHigh, pos[0]);
+        limits.yLow = Math.min(limits.yLow, pos[1]);
+        limits.yHigh = Math.max(limits.yHigh, pos[1]);
       });
     });
   });
-  // console.log('yes', union, unionNoBounds);
+  console.log('yes', limits);
   return [limits.xLow, limits.yLow, limits.xHigh, limits.yHigh];
 }
 

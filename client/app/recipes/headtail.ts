@@ -1,11 +1,12 @@
 import { ref, Ref } from '@vue/composition-api';
 
 import Track from 'vue-media-annotator/track';
-import Recipe from 'vue-media-annotator/recipe';
+import Recipe, { UpdateResponse } from 'vue-media-annotator/recipe';
 
 export const HeadTailLineKey = 'HeadTails';
 export const HeadPointKey = 'head';
 export const TailPointKey = 'tail';
+const EmptyResponse = { data: {}, union: [], unionWithoutBounds: [] };
 
 export default class HeadTail implements Recipe {
   active: Ref<boolean>;
@@ -19,6 +20,7 @@ export default class HeadTail implements Recipe {
   }
 
   static findBounds(ls: GeoJSON.LineString): GeoJSON.Polygon[] {
+    console.log('ls', ls.coordinates);
     return [{
       type: 'Polygon',
       coordinates: [ls.coordinates],
@@ -83,6 +85,7 @@ export default class HeadTail implements Recipe {
   }
 
   update(
+    mode: 'in-progress' | 'editing',
     frameNum: number,
     track: Track,
     data: GeoJSON.Feature<GeoJSON.LineString | GeoJSON.Polygon | GeoJSON.Point>[],
@@ -91,8 +94,20 @@ export default class HeadTail implements Recipe {
     const linestrings = data.filter((d) => d.geometry.type === 'LineString');
     if (linestrings.length) {
       const linestring = linestrings[0] as GeoJSON.Feature<GeoJSON.LineString>;
-
-      if (key === HeadTailLineKey) {
+      if (this.active.value && mode === 'in-progress') {
+      /**
+       * IF the recipe is active, we are creating a new headtail
+       */
+        if (linestring.geometry.coordinates.length === 2) {
+          return {
+            data: HeadTail.makeGeom(linestring.geometry),
+            newSelectedKey: HeadTailLineKey,
+            union: HeadTail.findBounds(linestring.geometry),
+            unionWithoutBounds: [],
+          };
+        }
+      }
+      if (key === HeadTailLineKey && mode === 'editing') {
       /**
        * IF recipe isn't active, but the key matches, we are editing
        */
@@ -102,34 +117,8 @@ export default class HeadTail implements Recipe {
           unionWithoutBounds: [],
         };
       }
-      if (this.active.value) {
-      /**
-       * IF the recipe is active, we are creating a new headtail
-       */
-        if (linestring.geometry.coordinates.length === 2) {
-          return {
-            data: HeadTail.makeGeom(linestring.geometry),
-            // TODO why is typescript losing its mind here.
-            newMode: 'editing' as 'editing',
-            newType: 'rectangle' as 'rectangle',
-            newSelectedKey: HeadTailLineKey,
-            union: HeadTail.findBounds(linestring.geometry),
-            unionWithoutBounds: [],
-          };
-        }
-      }
     }
-    return { data: {}, union: [], unionWithoutBounds: [] };
-  }
-
-  abort(data: GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.LineString | GeoJSON.Point>) {
-    this.active.value = false;
-    // console.log('aborted', data);
-    return {
-      data: {},
-      union: [],
-      unionWithoutBounds: [],
-    };
+    return EmptyResponse;
   }
 
   activate() {
