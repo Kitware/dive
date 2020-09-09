@@ -5,7 +5,7 @@ import csv
 import io
 import json
 import re
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union, Generator
 
 from dacite import Config, from_dict
 from girder.models.file import File
@@ -135,7 +135,7 @@ def load_csv_as_tracks(file):
 
 def export_tracks_as_csv(
     track_dict, excludeBelowThreshold=False, thresholds={}, filenames=None
-) -> str:
+) -> Generator[str, None, None]:
     """Export track json to a CSV format."""
     csvFile = io.StringIO()
     writer = csv.writer(csvFile)
