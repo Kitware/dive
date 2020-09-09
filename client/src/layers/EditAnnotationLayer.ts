@@ -95,6 +95,10 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
     }
   }
 
+  setSkipNext() {
+    this.skipNextExternalUpdate = true;
+  }
+
   /**
    * Listen to mousedown events and build a replica of the in-progress annotation
    * shape that GeoJS is keeps internally.  Emit the shape as update:in-progress-geojson
@@ -123,7 +127,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
         type: 'Feature',
         geometry: this.shapeInProgress,
         properties: {},
-      }, this.type, this.selectedKey, () => { console.warn('PREVENT'); this.skipNextExternalUpdate = true; });
+      }, this.type, this.selectedKey, this.setSkipNext);
     } else if (this.shapeInProgress) {
       this.shapeInProgress = null;
     }
@@ -160,7 +164,6 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
   }
 
   setKey(key: string) {
-    console.log('setKey');
     if (typeof key === 'string') {
       this.selectedKey = key;
     } else {
@@ -180,7 +183,6 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
    */
   disable() {
     if (this.featureLayer) {
-      console.warn('DISABLE');
       this.skipNextExternalUpdate = false;
       this.featureLayer.mode(null);
       this.featureLayer.removeAllAnnotations(false);
@@ -233,7 +235,6 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
    * @param frameData a single FrameDataTrack Array that is the editing item
    */
   formatData(frameData: FrameDataTrack[]) {
-    console.log('FormatData', this.type, this.selectedKey);
     this.selectedHandleIndex = -1;
     this.hoverHandleIndex = -1;
     this.bus.$emit('update:selectedIndex', this.selectedHandleIndex, this.type, this.selectedKey);
@@ -246,7 +247,6 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
         } else {
           // TODO: this assumes only one polygon
           geoJSONData = this.getGeoJSONData(track);
-          console.log('Geojson data lost...', geoJSONData);
         }
         if (!geoJSONData || this.type === 'Point') {
           this.mode = 'creation';
@@ -296,7 +296,6 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
    * @param e geo.event emitting by handlers
    */
   handleEditStateChange(e: GeoEvent) {
-    // console.log(e);
     if (this.featureLayer === e.annotation.layer()) {
       if (e.annotation.state() === 'done' && this.formattedData.length === 0) {
         //geoJS insists on calling done multiple times, this will prevent that
@@ -306,10 +305,14 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
         // State doesn't change at the end of editing so this will
         // swap into edit mode once geoJS is done
         this.mode = 'editing';
-        this.bus.$emit('update:geojson', 'editing', this.formattedData[0], this.type, this.selectedKey, () => {
-          console.warn('PREVENT');
-          this.skipNextExternalUpdate = true;
-        });
+        this.bus.$emit(
+          'update:geojson',
+          'editing',
+          this.formattedData[0],
+          this.type,
+          this.selectedKey,
+          this.setSkipNext,
+        );
       }
     }
   }
@@ -319,7 +322,6 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
    * @param e geo.event
    */
   handleEditAction(e: GeoEvent) {
-    // console.log(e);
     if (this.featureLayer === e.annotation.layer()) {
       if (e.action === geo.event.actionup) {
         // This will commit the change to the current annotation on mouse up while editing
@@ -340,10 +342,14 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
               type: 'Feature',
             }];
           }
-          this.bus.$emit('update:geojson', 'editing', this.formattedData[0], this.type, this.selectedKey, () => {
-            console.warn('PREVENT');
-            this.skipNextExternalUpdate = true;
-          });
+          this.bus.$emit(
+            'update:geojson',
+            'editing',
+            this.formattedData[0],
+            this.type,
+            this.selectedKey,
+            this.setSkipNext,
+          );
         }
       }
     }

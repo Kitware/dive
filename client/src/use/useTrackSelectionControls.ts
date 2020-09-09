@@ -13,7 +13,6 @@ export default function useTrackSelectionControls(
   const editingTrack = ref(false);
 
   function selectTrack(trackId: TrackId | null, edit = false) {
-    console.error('SelectTrack', trackId, edit);
     selectedTrackId.value = trackId;
     editingTrack.value = edit;
   }

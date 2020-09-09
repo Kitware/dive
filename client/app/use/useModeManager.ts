@@ -164,7 +164,6 @@ export default function useModeManager({
         if (!real || real.bounds === undefined) {
           newDetectionMode = true;
         }
-        console.log(bounds, features);
         track.setFeature({
           frame: frameNum,
           bounds,
@@ -181,68 +180,91 @@ export default function useModeManager({
   }
 
   function handleUpdateGeoJSON(
-    mode: 'in-progress' | 'editing',
+    eventType: 'in-progress' | 'editing',
     frameNum: number,
     // Type alias this
     data: SupportedFeature,
     key?: string,
     preventInterrupt?: () => void,
   ) {
+    /**
+     * Declare aggregate update collector. Each recipe
+     * will have the opportunity to modify this object.
+     */
     const update = {
-      // Transformed geometry data
+      // Geometry data to be applied to the feature
       geoJsonFeatureRecord: {} as Record<string, SupportedFeature[]>,
+      // Ploygons to be unioned with existing bounds (update)
       union: [] as GeoJSON.Polygon[],
+      // Polygons to be unioned without existing bounds (overwrite)
       unionWithoutBounds: [] as GeoJSON.Polygon[],
-      // newMode: undefined as 'visible' | 'editing' | 'creation' | undefined,
+      // If the editor mode should change types
       newType: undefined as EditAnnotationTypes | undefined,
+      // If the selected key should change
       newSelectedKey: undefined as string | undefined,
     };
 
     if (selectedTrackId.value !== null) {
       const track = trackMap.get(selectedTrackId.value);
       if (track) {
-        // Determines if we are creating a new Detection
+        // newDetectionMode is true if there's no keyframe on frameNum
         const { features, interpolate } = track.canInterpolate(frameNum);
         const [real] = features;
         if (!real || real.bounds === undefined) {
           newDetectionMode = true;
         }
 
-        // Give recipes the opportunity to make changes
-        for (let i = 0; i < recipes.length; i += 1) {
-          const recipe = recipes[i];
-          const changes = recipe.update(mode, frameNum, track, [data], key);
-          // Raise error if geoJsonFeatureRecord[key] is not undefined
+        // Give each recipe the opportunity to make changes
+        recipes.forEach((recipe) => {
+          const changes = recipe.update(eventType, frameNum, track, [data], key);
+          // Prevent key conflicts among recipes
+          Object.keys(changes.data).forEach((key_) => {
+            if (key_ in update.geoJsonFeatureRecord) {
+              throw new Error(`Recipe ${recipe.name} tried to overwrite key ${key_} when it was already set`);
+            }
+          });
           Object.assign(update.geoJsonFeatureRecord, changes.data);
+          // Collect unions
           update.union.push(...changes.union);
           update.unionWithoutBounds.push(...changes.unionWithoutBounds);
-          console.log('changes', changes, key);
-          // update.newMode = update.newMode || changes.newMode;
-          update.newType = update.newType || changes.newType;
-          update.newSelectedKey = update.newSelectedKey || changes.newSelectedKey;
-        }
+          // Prevent more than 1 recipe from changing a given mode/key
+          if (changes.newType) {
+            if (update.newType) {
+              throw new Error(`Recipe ${recipe.name} tried to modify type when it was already set`);
+            }
+            update.newType = changes.newType;
+          }
+          if (changes.newSelectedKey) {
+            if (update.newSelectedKey) {
+              throw new Error(`Recipe ${recipe.name} tried to modify selectedKey when it was already set`);
+            }
+            update.newSelectedKey = changes.newSelectedKey;
+          }
+        });
 
+        // somethingChanged indicates whether there will need to be a redraw
+        // of the geometry currently displayed
         const somethingChanged = (
           update.union.length !== 0
           || update.unionWithoutBounds.length !== 0
           || Object.keys(update.geoJsonFeatureRecord).length !== 0
         );
 
+        // If a drawable changed, but we aren't changing modes
+        // prevent an interrupt within EditAnnotationLayer
         if (
           somethingChanged
           && !update.newSelectedKey
           && !update.newType
           && preventInterrupt
         ) {
-          /**
-           * Normally, we want to prevent interrupting the editor
-           * but sometimes an interrupt is necessary
-           */
           preventInterrupt();
         } else {
+          // Otherwise, one of these state changes will trigger an interrupt.
           if (update.newSelectedKey) selectedKey.value = update.newSelectedKey;
           if (update.newType) annotationModes.editing = update.newType;
         }
+        // Update the state of the track in the trackstore.
         if (somethingChanged) {
           track.setFeature({
             frame: frameNum,
@@ -256,13 +278,20 @@ export default function useModeManager({
               properties: { key: key_ },
             }))));
 
-          //If it is a new track and we have newTrack Settings
-          if (newTrackMode && newDetectionMode) {
-            newTrackSettingsAfterLogic(track);
+          // Only perform "initialization" after the first shape
+          if (eventType === 'editing') {
+            // If it is a new track and we have newTrack Settings
+            if (newTrackMode && newDetectionMode) {
+              newTrackSettingsAfterLogic(track);
+            }
+            newDetectionMode = false;
           }
-          newDetectionMode = false;
         }
+      } else {
+        throw new Error(`${selectedTrackId.value} missing from trackMap`);
       }
+    } else {
+      throw new Error('Cannot call handleUpdateGeojson without a selected Track ID');
     }
   }
 

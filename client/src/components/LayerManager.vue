@@ -129,7 +129,6 @@ export default defineComponent({
             throw new Error(`TrackID ${trackId} not found in map`);
           }
           if (tracks.includes(track)) {
-            console.log('includes', editingTrack);
             const [features] = track.getFeature(frame);
             const trackFrame = {
               selected: (selectedTrackId === track.trackId),
@@ -190,17 +189,14 @@ export default defineComponent({
         }
         if (editingTracks.length) {
           if (editingTrack) {
-            console.log('CHANGEDATA', editingTracks);
             editAnnotationLayer.setType(editingTrack);
             editAnnotationLayer.setKey(selectedKey);
             editAnnotationLayer.changeData(editingTracks);
           }
         } else {
-          console.log('disable');
           editAnnotationLayer.disable();
         }
       } else {
-        console.log('disable2');
         editAnnotationLayer.disable();
       }
     }
@@ -233,10 +229,8 @@ export default defineComponent({
 
     const Clicked = (trackId: number, editing: boolean) => {
       //So we only want to pass the click whjen not in creation mode or editing mode for features
-      const creationMode = editAnnotationLayer.getMode() === 'creation';
-      const editingPolyorLine = (props.editingMode.value && (
-        props.editingMode.value === 'Polygon' || props.editingMode.value === 'LineString' || props.editingMode.value === 'Point'));
-      if (!(editingPolyorLine && creationMode)) {
+      if (editAnnotationLayer.getMode() !== 'creation') {
+        console.log('Selecting', editAnnotationLayer.getMode());
         editAnnotationLayer.disable();
         emit('select-track', trackId, editing);
       }

@@ -20,7 +20,6 @@ export default class HeadTail implements Recipe {
   }
 
   static findBounds(ls: GeoJSON.LineString): GeoJSON.Polygon[] {
-    console.log('ls', ls.coordinates);
     return [{
       type: 'Polygon',
       coordinates: [ls.coordinates],
@@ -98,12 +97,21 @@ export default class HeadTail implements Recipe {
       /**
        * IF the recipe is active, we are creating a new headtail
        */
-        if (linestring.geometry.coordinates.length === 2) {
+        const geom = linestring.geometry;
+        if (geom.coordinates.length === 2) {
+          // Both head and tail placed, replace them.
           return {
-            data: HeadTail.makeGeom(linestring.geometry),
+            ...EmptyResponse,
+            data: HeadTail.makeGeom(geom),
             newSelectedKey: HeadTailLineKey,
-            union: HeadTail.findBounds(linestring.geometry),
-            unionWithoutBounds: [],
+            union: HeadTail.findBounds(geom),
+          };
+        }
+        if (geom.coordinates.length === 1) {
+          // Only the head placed so far
+          return {
+            ...EmptyResponse,
+            data: HeadTail.makeGeom(geom),
           };
         }
       }
@@ -112,9 +120,9 @@ export default class HeadTail implements Recipe {
        * IF recipe isn't active, but the key matches, we are editing
        */
         return {
+          ...EmptyResponse,
           data: HeadTail.makeGeom(linestring.geometry),
           union: HeadTail.findBounds(linestring.geometry),
-          unionWithoutBounds: [],
         };
       }
     }

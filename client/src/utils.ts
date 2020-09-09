@@ -99,7 +99,6 @@ function updateBounds(
       limits.yHigh,
     ] = oldBounds;
   }
-  console.log(limits, union, unionNoBounds);
   union.concat(unionNoBounds).forEach((poly) => {
     poly.coordinates.forEach((posarr) => {
       posarr.forEach((pos) => {
@@ -110,7 +109,6 @@ function updateBounds(
       });
     });
   });
-  console.log('yes', limits);
   return [limits.xLow, limits.yLow, limits.xHigh, limits.yHigh];
 }
 
