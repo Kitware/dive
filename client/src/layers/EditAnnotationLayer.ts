@@ -95,8 +95,8 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
     }
   }
 
-  setSkipNext() {
-    this.skipNextExternalUpdate = true;
+  skipNextFunc() {
+    return () => { this.skipNextExternalUpdate = true; };
   }
 
   /**
@@ -122,12 +122,11 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
         const coords = this.shapeInProgress?.coordinates as GeoJSON.Position[];
         coords.push(newPoint);
       }
-      // this.skipNextExternalUpdate = true;
       this.bus.$emit('update:geojson', 'in-progress', {
         type: 'Feature',
         geometry: this.shapeInProgress,
         properties: {},
-      }, this.type, this.selectedKey, this.setSkipNext);
+      }, this.type, this.selectedKey, this.skipNextFunc());
     } else if (this.shapeInProgress) {
       this.shapeInProgress = null;
     }
@@ -311,7 +310,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
           this.formattedData[0],
           this.type,
           this.selectedKey,
-          this.setSkipNext,
+          this.skipNextFunc(),
         );
       }
     }
@@ -348,7 +347,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
             this.formattedData[0],
             this.type,
             this.selectedKey,
-            this.setSkipNext,
+            this.skipNextFunc(),
           );
         }
       }

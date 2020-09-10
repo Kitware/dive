@@ -230,7 +230,6 @@ export default defineComponent({
     const Clicked = (trackId: number, editing: boolean) => {
       //So we only want to pass the click whjen not in creation mode or editing mode for features
       if (editAnnotationLayer.getMode() !== 'creation') {
-        console.log('Selecting', editAnnotationLayer.getMode());
         editAnnotationLayer.disable();
         emit('select-track', trackId, editing);
       }

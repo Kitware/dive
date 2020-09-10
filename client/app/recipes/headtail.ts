@@ -6,7 +6,7 @@ import Recipe, { UpdateResponse } from 'vue-media-annotator/recipe';
 export const HeadTailLineKey = 'HeadTails';
 export const HeadPointKey = 'head';
 export const TailPointKey = 'tail';
-const EmptyResponse = { data: {}, union: [], unionWithoutBounds: [] };
+const EmptyResponse: UpdateResponse = { data: {}, union: [], unionWithoutBounds: [] };
 
 export default class HeadTail implements Recipe {
   active: Ref<boolean>;
@@ -104,8 +104,9 @@ export default class HeadTail implements Recipe {
             ...EmptyResponse,
             data: HeadTail.makeGeom(geom),
             newSelectedKey: HeadTailLineKey,
+            newType: 'LineString',
             union: HeadTail.findBounds(geom),
-          };
+          } as UpdateResponse;
         }
         if (geom.coordinates.length === 1) {
           // Only the head placed so far
