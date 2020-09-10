@@ -17,8 +17,7 @@ import VideoAnnotator from 'vue-media-annotator/components/annotators/VideoAnnot
 import ImageAnnotator from 'vue-media-annotator/components/annotators/ImageAnnotator.vue';
 import LayerManager from 'vue-media-annotator/components/LayerManager.vue';
 
-import HeadTailRecipe from 'app/recipes/headtail';
-import PolyRecipe from 'app/recipes/polygonbase';
+import recipeMapGetter from 'app/recipes';
 
 import { getDetections } from 'app/api/viameDetection.service';
 import NavigationTitle from 'app/components/NavigationTitle.vue';
@@ -28,7 +27,6 @@ import UserGuideButton from 'app/components/UserGuideButton.vue';
 import Export from 'app/components/Export.vue';
 import RunPipelineMenu from 'app/components/RunPipelineMenu.vue';
 import FeatureHandleControls from 'app/components/FeatureHandleControls.vue';
-import RecipeControls from 'app/recipes/RecipeControls.vue';
 import { Annotator } from 'app/use/useModeManager';
 import { getPathFromLocation } from 'app/utils';
 import {
@@ -56,7 +54,6 @@ export default defineComponent({
     RunPipelineMenu,
     UserGuideButton,
     EditorMenu,
-    RecipeControls,
   },
 
   props: {
@@ -75,7 +72,7 @@ export default defineComponent({
     const { datasetId } = props;
     const playbackComponent = ref({} as Annotator);
     const frame = ref(0); // the currently displayed frame number
-
+    const recipeMap = recipeMapGetter();
     const {
       save: saveToServer, markChangesPending, pendingSaveCount,
     } = useSave(datasetId);
@@ -165,12 +162,12 @@ export default defineComponent({
     // Provides wrappers for actions to integrate with settings
     const {
       selectedFeatureHandle,
-      addRecipe,
       handler,
       editingMode,
       visibleModes,
       selectedKey,
     } = useModeManager({
+      recipes: Object.values(recipeMap).map((r) => r.recipe),
       selectedTrackId,
       editingTrack,
       frame,
@@ -183,13 +180,6 @@ export default defineComponent({
       addTrack,
       removeTrack,
     });
-
-    const recipeMap = {
-      poly: new PolyRecipe(),
-      headtail: new HeadTailRecipe(),
-    };
-    addRecipe(recipeMap.poly);
-    addRecipe(recipeMap.headtail);
 
     async function splitTracks(trackId: TrackId | undefined, _frame: number) {
       if (typeof trackId === 'number') {
@@ -255,7 +245,6 @@ export default defineComponent({
       playbackComponent,
       selectedTrackId,
       videoUrl,
-      recipeMap,
       /* methods used locally */
       addTrack,
       markChangesPending,
@@ -276,6 +265,7 @@ export default defineComponent({
         selectedFeatureHandle,
       },
       modeEditorProps: {
+        recipeMap,
         editingMode,
         visibleModes,
         editingTrack,
@@ -333,28 +323,20 @@ export default defineComponent({
       >
         {{ dataset.name }}
       </span>
-      <span class="px-3">
-        20171027.214850.950.029384.png
-      </span>
       <v-spacer />
       <template #extension>
         <span>Viewer/Edit Controls</span>
-        <v-spacer />
-        <feature-handle-controls
-          v-bind="featureHandleControlsProps"
-          @delete-point="handler.removePoint"
-          @delete-annotation="handler.removeAnnotation"
-        />
         <editor-menu
           v-bind="modeEditorProps"
           class="shrink px-6"
           @set-annotation-state="handler.setAnnotationState"
         />
-        <recipe-controls
-          :recipe-map="recipeMap"
-          class="pr-3"
-          @set-annotation-state="handler.setAnnotationState"
+        <feature-handle-controls
+          v-bind="featureHandleControlsProps"
+          @delete-point="handler.removePoint"
+          @delete-annotation="handler.removeAnnotation"
         />
+        <v-spacer />
       </template>
       <run-pipeline-menu
         v-if="dataset"

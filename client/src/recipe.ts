@@ -3,20 +3,9 @@
  * annotator state and adds or removes geometry while the recipe is active.
  *
  * Recipes can be activated by hotkeys or UI externally.
- * Recipes will generally deactivate themselves when the recipe is complete.
- *
- * Examples:
- *
- * Drawing a head-tail line for fish.
- *   User activates recipe
- *   Recipe puts editor into line creation mode
- *   User clicks starting point
- *   EditAnnotationLayer emits the point creation event.
- *   Recipe records event.
- *   User clicks ending point
- *   EditAnnotationLayer emits the point creation event.
- *   Recipe ends the Line annotation creation process.
+ * Recipes will usually deactivate themselves when the recipe is complete.
  */
+import { Ref } from '@vue/composition-api';
 
 import Track from './track';
 import { EditAnnotationTypes } from './layers/EditAnnotationLayer';
@@ -43,6 +32,8 @@ interface Recipe {
     key?: string,
   ) => Readonly<UpdateResponse>;
   activate: () => void;
+  deactivate: () => void;
+  active: Ref<boolean>;
 }
 
 

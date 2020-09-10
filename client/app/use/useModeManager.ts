@@ -33,6 +33,7 @@ export default function useModeManager({
   trackMap,
   playbackComponent,
   newTrackSettings,
+  recipes,
   selectTrack,
   getTrack,
   selectNextTrack,
@@ -47,6 +48,7 @@ export default function useModeManager({
   trackMap: Map<TrackId, Track>;
   playbackComponent: Ref<Annotator>;
   newTrackSettings: NewTrackSettings;
+  recipes: Recipe[];
   selectTrack: (trackId: TrackId | null, edit: boolean) => void;
   getTrack: (trackId: TrackId) => Track;
   selectNextTrack: (delta?: number) => TrackId | null;
@@ -64,7 +66,6 @@ export default function useModeManager({
   let newTrackMode = false;
   let newDetectionMode = false;
 
-  const recipes: Recipe[] = [];
   const annotationModes = reactive({
     visible: ['rectangle', 'Polygon', 'LineString'] as EditAnnotationTypes[],
     editing: 'rectangle' as EditAnnotationTypes,
@@ -81,10 +82,6 @@ export default function useModeManager({
   const visibleModes = computed(() => (
     uniq(annotationModes.visible.concat(editingMode.value || []))
   ));
-
-  function addRecipe(r: Recipe) {
-    recipes.push(r);
-  }
 
   /**
    * Figure out if a new feature should enable interpolation
@@ -375,16 +372,25 @@ export default function useModeManager({
     }
   }
 
-  function handleSetAnnotationState({ visible, editing, key }: {
+  function handleSetAnnotationState({
+    visible, editing, key, recipe,
+  }: {
     visible?: EditAnnotationTypes[];
     editing?: EditAnnotationTypes;
     key: string;
+    recipe?: Recipe;
   }) {
-    if (visible) annotationModes.visible = visible;
+    if (visible) {
+      annotationModes.visible = visible;
+    }
     if (editing) {
       annotationModes.editing = editing;
       _selectKey(key);
       selectTrack(selectedTrackId.value, true);
+      recipes.forEach((r) => r.deactivate());
+    }
+    if (recipe) {
+      recipe.activate();
     }
   }
 
@@ -393,7 +399,6 @@ export default function useModeManager({
     visibleModes,
     selectedFeatureHandle,
     selectedKey,
-    addRecipe,
     handler: {
       selectTrack: handleSelectTrack,
       trackEdit: handleTrackEdit,

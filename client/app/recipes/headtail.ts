@@ -15,7 +15,6 @@ export default class HeadTail implements Recipe {
 
   constructor() {
     this.active = ref(false);
-
     this.name = 'HeadTail';
   }
 
@@ -100,6 +99,7 @@ export default class HeadTail implements Recipe {
         const geom = linestring.geometry;
         if (geom.coordinates.length === 2) {
           // Both head and tail placed, replace them.
+          this.active.value = false;
           return {
             ...EmptyResponse,
             data: HeadTail.makeGeom(geom),
@@ -133,5 +133,9 @@ export default class HeadTail implements Recipe {
 
   activate() {
     this.active.value = true;
+  }
+
+  deactivate() {
+    this.active.value = false;
   }
 }

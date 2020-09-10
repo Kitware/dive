@@ -37,7 +37,13 @@ export default class PolygonBoundsExpand implements Recipe {
     return EmptyResponse;
   }
 
+  // eslint-disable-next-line class-methods-use-this
   activate() {
-    this.active.value = true;
+    // no-op
+  }
+
+  // eslint-disable-next-line class-methods-use-this
+  deactivate() {
+    // no-op
   }
 }
