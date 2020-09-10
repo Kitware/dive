@@ -113,6 +113,7 @@ export default class HeadTail implements Recipe {
           return {
             ...EmptyResponse,
             data: HeadTail.makeGeom(geom),
+            union: HeadTail.findBounds(geom),
           };
         }
       }
