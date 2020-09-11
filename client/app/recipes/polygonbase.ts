@@ -40,6 +40,7 @@ export default class PolygonBoundsExpand implements Recipe {
   // eslint-disable-next-line class-methods-use-this
   activate() {
     // no-op
+    return {};
   }
 
   // eslint-disable-next-line class-methods-use-this

@@ -2,6 +2,7 @@ import { ref, Ref } from '@vue/composition-api';
 
 import Track from 'vue-media-annotator/track';
 import Recipe, { UpdateResponse } from 'vue-media-annotator/recipe';
+import { EditAnnotationTypes } from 'vue-media-annotator/layers/EditAnnotationLayer';
 
 export const HeadTailLineKey = 'HeadTails';
 export const HeadPointKey = 'head';
@@ -99,12 +100,11 @@ export default class HeadTail implements Recipe {
         const geom = linestring.geometry;
         if (geom.coordinates.length === 2) {
           // Both head and tail placed, replace them.
-          this.active.value = false;
+          // this.active.value = false;
           return {
             ...EmptyResponse,
             data: HeadTail.makeGeom(geom),
             newSelectedKey: HeadTailLineKey,
-            newType: 'LineString',
             union: HeadTail.findBounds(geom),
           } as UpdateResponse;
         }
@@ -133,6 +133,7 @@ export default class HeadTail implements Recipe {
 
   activate() {
     this.active.value = true;
+    return { editing: 'LineString' as EditAnnotationTypes, key: HeadTailLineKey };
   }
 
   deactivate() {

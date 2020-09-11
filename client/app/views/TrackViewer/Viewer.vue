@@ -204,18 +204,18 @@ export default defineComponent({
           return;
         }
         const wasEditing = editingTrack.value;
-        selectTrack(null);
+        handler.selectTrack(null);
         tsRemoveTrack(trackId);
         insertTrack(newtracks[0]);
         insertTrack(newtracks[1]);
-        selectTrack(newtracks[1].trackId, wasEditing);
+        handler.selectTrack(newtracks[1].trackId, wasEditing);
       }
     }
 
     function save() {
       // If editing the track, disable editing mode before save
       if (editingTrack.value) {
-        selectTrack(selectedTrackId.value, false);
+        handler.selectTrack(selectedTrackId.value, false);
       }
       saveToServer({
         customTypeStyling: getTypeStyles(allTypes),
@@ -250,7 +250,6 @@ export default defineComponent({
       markChangesPending,
       save,
       saveThreshold,
-      selectTrack,
       splitTracks,
       updateNewTrackSettings,
       updateTypeStyle,

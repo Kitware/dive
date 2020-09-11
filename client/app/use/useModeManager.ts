@@ -105,7 +105,7 @@ export default function useModeManager({
     }
   }
 
-  function _selectKey(key: string) {
+  function _selectKey(key: string | undefined) {
     if (typeof key === 'string') {
       selectedKey.value = key;
     } else {
@@ -123,6 +123,10 @@ export default function useModeManager({
     if (newTrackMode && !edit) {
       newTrackMode = false;
     }
+    // TODO remove this hack when full linestring support is added.
+    // if (edit && annotationModes.editing === 'LineString') {
+    //   annotationModes.editing = 'rectangle';
+    // }
   }
 
   function handleAddTrack() {
@@ -258,8 +262,13 @@ export default function useModeManager({
           preventInterrupt();
         } else {
           // Otherwise, one of these state changes will trigger an interrupt.
-          if (update.newSelectedKey) selectedKey.value = update.newSelectedKey;
-          if (update.newType) annotationModes.editing = update.newType;
+          if (update.newSelectedKey) {
+            selectedKey.value = update.newSelectedKey;
+          }
+          if (update.newType) {
+            annotationModes.editing = update.newType;
+            recipes.forEach((r) => r.deactivate());
+          }
         }
         // Update the state of the track in the trackstore.
         if (somethingChanged) {
@@ -319,10 +328,10 @@ export default function useModeManager({
             frame: frame.value,
             // bounds: findBounds(clone),
           }, [clone]);
-          handleSelectFeatureHandle(-1);
         }
       }
     }
+    handleSelectFeatureHandle(-1);
   }
 
   function handleRemoveAnnotation(frameNum: number, key = '', type: '' | GeoJSON.GeoJsonGeometryTypes) {
@@ -375,11 +384,18 @@ export default function useModeManager({
   function handleSetAnnotationState({
     visible, editing, key, recipe,
   }: {
-    visible?: EditAnnotationTypes[];
-    editing?: EditAnnotationTypes;
-    key: string;
-    recipe?: Recipe;
-  }) {
+      visible?: EditAnnotationTypes[];
+      editing?: EditAnnotationTypes;
+      key?: string;
+      recipe?: Recipe;
+    }) {
+    if (recipe) {
+      handleSetAnnotationState(recipe.activate());
+      // Call again incase the recipe was marked
+      // inactive by the recursive call
+      recipe.activate();
+      return;
+    }
     if (visible) {
       annotationModes.visible = visible;
     }
@@ -388,9 +404,6 @@ export default function useModeManager({
       _selectKey(key);
       selectTrack(selectedTrackId.value, true);
       recipes.forEach((r) => r.deactivate());
-    }
-    if (recipe) {
-      recipe.activate();
     }
   }
 

@@ -31,7 +31,11 @@ interface Recipe {
     data: GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.LineString | GeoJSON.Point>[],
     key?: string,
   ) => Readonly<UpdateResponse>;
-  activate: () => void;
+  activate: () => {
+    visible?: EditAnnotationTypes[];
+    editing?: EditAnnotationTypes;
+    key?: string;
+  };
   deactivate: () => void;
   active: Ref<boolean>;
 }

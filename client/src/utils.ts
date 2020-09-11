@@ -50,30 +50,27 @@ function boundToGeojson(bounds: RectBounds): GeoJSON.Polygon {
   };
 }
 
-/**
- *  Removing a point for a Line is different than a polygon
- * @param data
- */
 function removePoint(
   data: GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.LineString | GeoJSON.Point>, index: number,
 ): boolean {
   if (data.geometry.type === 'Polygon') {
-    if (data.geometry.coordinates[0].length > 3) {
-      data.geometry.coordinates[0].splice(index, 1);
+    const coords = data.geometry.coordinates[0];
+    const second = coords[1];
+    // Polygons must have 3 points, but the first and last are always the same
+    if (coords.length > 4) {
+      if (index === 0 || index === coords.length - 1) {
+        // Replace the last point with the second,
+        // the first is about to be removed
+        // A B C D A --> B C D B
+        coords.splice(coords.length - 1, 1, second);
+      }
+      coords.splice(index, 1);
       return true;
     }
     console.warn('Polygons must have at least 3 points');
     return false;
   }
-  if (data.geometry.coordinates.length > 2) { //Handling a Line
-    data.geometry.coordinates.splice(index, 1);
-    return true;
-  }
-  if (data.geometry.type === 'LineString' && data.geometry.coordinates.length === 2) {
-    console.warn('Lines must have at least 2 points');
-    return false;
-  }
-  return true;
+  return false;
 }
 
 function updateBounds(

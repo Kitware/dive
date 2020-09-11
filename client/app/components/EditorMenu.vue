@@ -60,7 +60,7 @@ export default Vue.extend({
           icon: r.icon || 'mdi-pencil',
           active: r.recipe.active.value,
           activate: () => {
-            this.$emit('set-annotation-state', { editing: r.editing, key: r.key, recipe: r.recipe });
+            this.$emit('set-annotation-state', { recipe: r.recipe });
           },
         }))),
       ];
@@ -165,7 +165,7 @@ export default Vue.extend({
 
 <style scoped>
 .modechip {
-  border-radius: 16px;
+  border-radius: 4px;
   white-space: nowrap;
   border: 1px solid;
 }
