@@ -79,13 +79,15 @@ def load_kpf_as_tracks(ymls):
             print("WARNING: activity yaml was not given")
 
         tracks = parse_actor_map_to_tracks(actor_map)
-        return {trackId: track.dict(exclude_none=True) for trackId, track in tracks.items()}
+        return {
+            trackId: track.dict(exclude_none=True) for trackId, track in tracks.items()
+        }
     except Exception as e:
         error_report['error'] = str(e)
         return error_report
 
 
-def parse_actor_map_to_tracks(actor_map) -> Dict[int,Track]:
+def parse_actor_map_to_tracks(actor_map) -> Dict[int, Track]:
     tracks = {}
     ids = {}
     i = 1
@@ -103,9 +105,7 @@ def parse_actor_map_to_tracks(actor_map) -> Dict[int,Track]:
                 'geom_id': detection.geom_id,
             }
             feature = Feature(
-                frame=detection.frame,
-                bounds=bounds,
-                attributes=feat_attributes
+                frame=detection.frame, bounds=bounds, attributes=feat_attributes
             )
 
             # Create a new track per actor id

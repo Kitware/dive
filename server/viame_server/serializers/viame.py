@@ -123,7 +123,7 @@ def load_csv_as_tracks(rows: List[str]) -> Dict[str, dict]:
 
         for (key, val) in track_attributes:
             track.attributes[key] = val
-        
+
     return {trackId: track.dict(exclude_none=True) for trackId, track in tracks.items()}
 
 
