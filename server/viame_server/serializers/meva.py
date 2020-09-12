@@ -9,7 +9,6 @@ import yaml
 from boiler import models
 from boiler.definitions import ActorType
 from boiler.serialization import kpf
-from dacite import Config, from_dict
 from girder.models.file import File
 
 from viame_server.serializers.models import Feature, Track
@@ -80,13 +79,15 @@ def load_kpf_as_tracks(ymls):
             print("WARNING: activity yaml was not given")
 
         tracks = parse_actor_map_to_tracks(actor_map)
-        return {trackId: track.asdict() for trackId, track in tracks.items()}
+        return {
+            trackId: track.dict(exclude_none=True) for trackId, track in tracks.items()
+        }
     except Exception as e:
         error_report['error'] = str(e)
         return error_report
 
 
-def parse_actor_map_to_tracks(actor_map):
+def parse_actor_map_to_tracks(actor_map) -> Dict[int, Track]:
     tracks = {}
     ids = {}
     i = 1
