@@ -35,10 +35,6 @@ class Feature:
     interpolate: Optional[bool] = False
     keyframe: Optional[bool] = True
 
-    def asdict(self):
-        """Removes entries with values of `None`."""
-        return {k: v for k, v in self.__dict__.items() if v is not None}
-
 
 @dataclass
 class Track:
@@ -48,15 +44,6 @@ class Track:
     features: List[Feature] = field(default_factory=lambda: [])
     confidencePairs: List[Tuple[str, float]] = field(default_factory=lambda: [])
     attributes: Dict[str, Any] = field(default_factory=lambda: {})
-
-    def asdict(self):
-        """Used instead of `dataclasses.asdict` for better performance."""
-
-        track_dict = dict(self.__dict__)
-        track_dict["features"] = [
-            feature.asdict() for feature in track_dict["features"]
-        ]
-        return track_dict
 
     def exceeds_thresholds(self, thresholds: Dict[str, float]) -> bool:
         defaultThresh = thresholds.get('default', 0)

@@ -2,7 +2,7 @@ import csv
 import io
 import json
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, asdict
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import yaml
@@ -80,7 +80,7 @@ def load_kpf_as_tracks(ymls):
             print("WARNING: activity yaml was not given")
 
         tracks = parse_actor_map_to_tracks(actor_map)
-        return {trackId: track.asdict() for trackId, track in tracks.items()}
+        return {trackId: asdict(track) for trackId, track in tracks.items()}
     except Exception as e:
         error_report['error'] = str(e)
         return error_report

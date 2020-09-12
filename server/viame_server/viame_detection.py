@@ -3,6 +3,7 @@ import json
 import re
 import urllib
 from typing import Dict, Tuple
+import dataclasses
 
 from dacite import Config, from_dict
 from girder.api import access
@@ -298,7 +299,7 @@ class ViameDetection(Resource):
             validated: models.Track = from_dict(
                 models.Track, track, config=Config(cast=[Tuple])
             )
-            track_dict[str(track_id)] = validated.asdict()
+            track_dict[str(track_id)] = dataclasses.asdict(validated)
 
         upserted_len = len(upsert.keys())
         deleted_len = len(delete)

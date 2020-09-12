@@ -6,6 +6,7 @@ import io
 import json
 import re
 from typing import Any, Dict, List, Mapping, Optional, Tuple, Union
+from dataclasses import asdict
 
 from dacite import Config, from_dict
 from girder.models.file import File
@@ -125,7 +126,7 @@ def load_csv_as_tracks(rows: List[str]) -> Dict[str, dict]:
         for (key, val) in track_attributes:
             track.attributes[key] = val
 
-    return {trackId: track.asdict() for trackId, track in tracks.items()}
+    return {trackId: asdict(track) for trackId, track in tracks.items()}
 
 
 def export_tracks_as_csv(
