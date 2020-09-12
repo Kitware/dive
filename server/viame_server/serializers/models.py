@@ -1,49 +1,44 @@
-from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple, Union
+from pydantic import BaseModel, Field
 
 
-@dataclass
-class GeoJSONGeometry:
+class GeoJSONGeometry(BaseModel):
     type: str
     coordinates: Union[List[List[float]], List[List[List[float]]]]
 
 
-@dataclass
-class GeoJSONFeature:
+class GeoJSONFeature(BaseModel):
     type: str
     geometry: GeoJSONGeometry
     properties: Dict[str, Union[bool, float, str]]
 
 
-@dataclass
-class GeoJSONFeatureCollection:
+class GeoJSONFeatureCollection(BaseModel):
     type: str
     features: List[GeoJSONFeature]
 
 
-@dataclass
-class Feature:
+class Feature(BaseModel):
     """Feature represents a single detection in a track."""
 
     frame: int
-    bounds: List[float]
+    bounds: List[int]
+    attributes: Optional[Dict[str, Union[bool, float, str]]]
     geometry: Optional[GeoJSONFeatureCollection] = None
     head: Optional[Tuple[float, float]] = None
     tail: Optional[Tuple[float, float]] = None
     fishLength: Optional[float] = None
-    attributes: Optional[Dict[str, Union[bool, float, str]]] = None
     interpolate: Optional[bool] = False
     keyframe: Optional[bool] = True
 
 
-@dataclass
-class Track:
+class Track(BaseModel):
     begin: int
     end: int
     trackId: int
-    features: List[Feature] = field(default_factory=lambda: [])
-    confidencePairs: List[Tuple[str, float]] = field(default_factory=lambda: [])
-    attributes: Dict[str, Any] = field(default_factory=lambda: {})
+    features: List[Feature] = Field(default_factory=lambda: [])
+    confidencePairs: List[Tuple[str, float]] = Field(default_factory=lambda: [])
+    attributes: Dict[str, Any] = Field(default_factory=lambda: {})
 
     def exceeds_thresholds(self, thresholds: Dict[str, float]) -> bool:
         defaultThresh = thresholds.get('default', 0)

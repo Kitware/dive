@@ -98,4 +98,7 @@ test_tuple = [
 @pytest.mark.parametrize("input,expected", test_tuple)
 def test_read_csv(input: List[str], expected: Dict[str, dict]):
     out_json = viame.load_csv_as_tracks(input)
+    print("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF")
+    print(json.dumps(out_json, sort_keys=True))
+    print(json.dumps(expected, sort_keys=True))
     assert json.dumps(out_json, sort_keys=True) == json.dumps(expected, sort_keys=True)
