@@ -6,7 +6,6 @@ import io
 import re
 from typing import Any, Dict, List, Mapping, Optional, Tuple, Union
 
-from dacite import Config, from_dict
 from girder.models.file import File
 
 from viame_server.serializers.models import Feature, Track, interpolate
@@ -20,7 +19,7 @@ def valueToString(value):
     return str(value)
 
 
-def row_info(row: List[str]) -> Tuple[int, int, List[float], float]:
+def row_info(row: List[str]) -> Tuple[int, str, int, List[float], float]:
     trackId = int(row[0])
     filename = str(row[1])
     frame = int(row[2])
@@ -120,8 +119,8 @@ def _parse_row_for_tracks(row: List[str]) -> Tuple[Feature, Dict, Dict, List]:
     trackId, filename, frame, bounds, fishLength = row_info(row)
 
     feature = Feature(
-        frame,
-        bounds,
+        frame=frame,
+        bounds=bounds,
         attributes=attributes or None,
         fishLength=fishLength if fishLength > 0 else None,
         **head_tail_feature,
@@ -137,7 +136,7 @@ def load_csv_as_tracks(rows: List[str]) -> Dict[str, dict]:
     Expect detections to be in increasing order (either globally or by track).
     """
     reader = csv.reader(row for row in rows if (not row.startswith("#") and row))
-    tracks = {}
+    tracks: Dict[int, Track] = {}
     for row in reader:
         (
             feature,
@@ -149,7 +148,7 @@ def load_csv_as_tracks(rows: List[str]) -> Dict[str, dict]:
         trackId, _, frame, _, _ = row_info(row)
 
         if trackId not in tracks:
-            tracks[trackId] = Track(frame, frame, trackId)
+            tracks[trackId] = Track(begin=frame, end=frame, trackId=trackId)
 
         track = tracks[trackId]
         track.begin = min(frame, track.begin)
@@ -160,7 +159,7 @@ def load_csv_as_tracks(rows: List[str]) -> Dict[str, dict]:
         for (key, val) in track_attributes.items():
             track.attributes[key] = val
 
-    return {trackId: track.asdict() for trackId, track in tracks.items()}
+    return {trackId: track.dict(exclude_none=True) for trackId, track in tracks.items()}
 
 
 def export_tracks_as_csv(
@@ -170,7 +169,7 @@ def export_tracks_as_csv(
     csvFile = io.StringIO()
     writer = csv.writer(csvFile)
     for t in track_dict.values():
-        track = from_dict(Track, t, config=Config(cast=[Tuple]))
+        track = Track(**t)
         if (not excludeBelowThreshold) or track.exceeds_thresholds(thresholds):
 
             sorted_confidence_pairs = sorted(
