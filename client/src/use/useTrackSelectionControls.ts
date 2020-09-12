@@ -14,7 +14,7 @@ export default function useTrackSelectionControls(
 
   function selectTrack(trackId: TrackId | null, edit = false) {
     selectedTrackId.value = trackId;
-    editingTrack.value = edit;
+    editingTrack.value = !!trackId && edit;
   }
   /* default to index + 1
    * call with -1 to select previous, or pass any other delta

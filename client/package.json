@@ -20,6 +20,7 @@
     "@flatten-js/interval-tree": "^1.0.11",
     "@girder/components": "^2.2.4",
     "@mdi/font": "^3.9.97",
+    "@types/mousetrap": "^1.6.3",
     "@vue/composition-api": "^0.5.0",
     "axios": "^0.19.2",
     "core-js": "^3.6.4",
@@ -111,7 +112,9 @@
         }
       ],
       "semi": "off",
-      "@typescript-eslint/semi": ["error"]
+      "@typescript-eslint/semi": [
+        "error"
+      ]
     },
     "settings": {
       "import/resolver": {

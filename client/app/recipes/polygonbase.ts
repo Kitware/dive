@@ -1,4 +1,5 @@
 import { ref, Ref } from '@vue/composition-api';
+import Vue from 'vue';
 
 import Track from 'vue-media-annotator/track';
 import Recipe, { UpdateResponse } from 'vue-media-annotator/recipe';
@@ -10,9 +11,18 @@ export default class PolygonBoundsExpand implements Recipe {
 
   name: string;
 
+  icon: Ref<string>;
+
+  toggleable: Ref<boolean>;
+
+  bus: Vue;
+
   constructor() {
+    this.bus = new Vue();
     this.active = ref(true);
     this.name = 'PolygonBase';
+    this.toggleable = ref(false);
+    this.icon = ref('');
   }
 
   update(
@@ -40,11 +50,15 @@ export default class PolygonBoundsExpand implements Recipe {
   // eslint-disable-next-line class-methods-use-this
   activate() {
     // no-op
-    return {};
   }
 
   // eslint-disable-next-line class-methods-use-this
   deactivate() {
     // no-op
+  }
+
+  // eslint-disable-next-line class-methods-use-this
+  mousetrap() {
+    return [];
   }
 }

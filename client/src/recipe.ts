@@ -5,8 +5,10 @@
  * Recipes can be activated by hotkeys or UI externally.
  * Recipes will usually deactivate themselves when the recipe is complete.
  */
+import Vue from 'vue';
 import { Ref } from '@vue/composition-api';
 
+import { Mousetrap } from './types';
 import Track from './track';
 import { EditAnnotationTypes } from './layers/EditAnnotationLayer';
 
@@ -24,6 +26,10 @@ export interface UpdateResponse {
 
 interface Recipe {
   name: string;
+  icon: Ref<string>;
+  active: Ref<boolean>;
+  toggleable: Ref<boolean>;
+  bus: Vue;
   update: (
     mode: 'in-progress' | 'editing',
     frameNum: number,
@@ -31,13 +37,9 @@ interface Recipe {
     data: GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.LineString | GeoJSON.Point>[],
     key?: string,
   ) => Readonly<UpdateResponse>;
-  activate: () => {
-    visible?: EditAnnotationTypes[];
-    editing?: EditAnnotationTypes;
-    key?: string;
-  };
+  activate: () => unknown;
+  mousetrap: () => Mousetrap[];
   deactivate: () => void;
-  active: Ref<boolean>;
 }
 
 

@@ -17,7 +17,8 @@ import VideoAnnotator from 'vue-media-annotator/components/annotators/VideoAnnot
 import ImageAnnotator from 'vue-media-annotator/components/annotators/ImageAnnotator.vue';
 import LayerManager from 'vue-media-annotator/components/LayerManager.vue';
 
-import recipeMapGetter from 'app/recipes';
+import PolygonBase from 'app/recipes/polygonbase';
+import HeadTail from 'app/recipes/headtail';
 
 import { getDetections } from 'app/api/viameDetection.service';
 import NavigationTitle from 'app/components/NavigationTitle.vue';
@@ -38,7 +39,6 @@ import {
 
 import ControlsContainer from './ControlsContainer.vue';
 import Sidebar from './Sidebar.vue';
-
 
 export default defineComponent({
   components: {
@@ -72,10 +72,14 @@ export default defineComponent({
     const { datasetId } = props;
     const playbackComponent = ref({} as Annotator);
     const frame = ref(0); // the currently displayed frame number
-    const recipeMap = recipeMapGetter();
     const {
       save: saveToServer, markChangesPending, pendingSaveCount,
     } = useSave(datasetId);
+
+    const recipes = [
+      new HeadTail(),
+      new PolygonBase(),
+    ];
 
     const {
       typeStyling,
@@ -167,7 +171,7 @@ export default defineComponent({
       visibleModes,
       selectedKey,
     } = useModeManager({
-      recipes: Object.values(recipeMap).map((r) => r.recipe),
+      recipes,
       selectedTrackId,
       editingTrack,
       frame,
@@ -264,7 +268,7 @@ export default defineComponent({
         selectedFeatureHandle,
       },
       modeEditorProps: {
-        recipeMap,
+        recipes,
         editingMode,
         visibleModes,
         editingTrack,
@@ -392,20 +396,15 @@ export default defineComponent({
           :is="annotatorType"
           v-if="imageData.length || videoUrl"
           ref="playbackComponent"
+          class="playback-component"
           v-mousetrap="[
-            /* { bind: 'g', handler: () => handler.handleFeaturePointing('head') },
-            { bind: 'h', handler: () => handler.handleFeaturePointing('head') }, */
             { bind: 'n', handler: () => handler.addTrack(frame) },
-            /* { bind: 't', handler: () => handler.handleFeaturePointing('tail') },
-            { bind: 'y', handler: () => handler.handleFeaturePointing('tail') },
-            { bind: 'q', handler: () => handleRemoveFeaturePoint() }, */
             { bind: 'r', handler: () => playbackComponent.resetZoom() },
             { bind: 'esc', handler: () => handler.selectTrack(null, false)}
           ]"
           :image-data="imageData"
           :video-url="videoUrl"
           :frame-rate="frameRate"
-          class="playback-component"
           @frame-update="frame = $event"
         >
           <template slot="control">
@@ -419,48 +418,7 @@ export default defineComponent({
             @update-geojson="handler.updateGeoJSON"
           />
         </component>
-        <v-menu
-          v-if="selectedTrackId"
-          class="z-index: 100;"
-          offset-y
-        >
-          <template v-slot:activator="{ on }">
-            <v-btn
-              class="selection-menu-button"
-              icon
-              v-on="on"
-            >
-              <v-icon>mdi-dots-horizontal</v-icon>
-            </v-btn>
-          </template>
-          <v-list>
-            <v-list-item @click="toggleFeaturePointing('head')">
-              <v-list-item-title>
-                Add feature points, starting with head (g key)
-              </v-list-item-title>
-            </v-list-item>
-            <v-list-item @click="toggleFeaturePointing('tail')">
-              <v-list-item-title>
-                Add feature points, starting with tail (t key)
-              </v-list-item-title>
-            </v-list-item>
-            <v-list-item @click="deleteFeaturePoints(frame)">
-              <v-list-item-title>
-                Delete both feature points for current frame (q key)
-              </v-list-item-title>
-            </v-list-item>
-          </v-list>
-        </v-menu>
       </v-col>
     </v-row>
   </v-content>
 </template>
-
-<style lang="scss" scoped>
-.selection-menu-button {
-  position: absolute;
-  right: 0;
-  top: 0;
-  z-index: 1;
-}
-</style>

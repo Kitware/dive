@@ -1,8 +1,10 @@
 import { ref, Ref } from '@vue/composition-api';
+import Vue from 'vue';
 
 import Track from 'vue-media-annotator/track';
 import Recipe, { UpdateResponse } from 'vue-media-annotator/recipe';
 import { EditAnnotationTypes } from 'vue-media-annotator/layers/EditAnnotationLayer';
+import { Mousetrap } from 'vue-media-annotator/types';
 
 export const HeadTailLineKey = 'HeadTails';
 export const HeadPointKey = 'head';
@@ -14,9 +16,21 @@ export default class HeadTail implements Recipe {
 
   name: string;
 
+  startWithHead: boolean;
+
+  bus: Vue;
+
+  toggleable: Ref<boolean>;
+
+  icon: Ref<string>;
+
   constructor() {
+    this.bus = new Vue();
+    this.startWithHead = true;
     this.active = ref(false);
     this.name = 'HeadTail';
+    this.toggleable = ref(true);
+    this.icon = ref('mdi-fish');
   }
 
   static findBounds(ls: GeoJSON.LineString): GeoJSON.Polygon[] {
@@ -133,10 +147,33 @@ export default class HeadTail implements Recipe {
 
   activate() {
     this.active.value = true;
-    return { editing: 'LineString' as EditAnnotationTypes, key: HeadTailLineKey };
+    this.bus.$emit('activate', {
+      editing: 'LineString' as EditAnnotationTypes,
+      key: HeadTailLineKey,
+      recipeName: this.name,
+    });
   }
 
   deactivate() {
     this.active.value = false;
+  }
+
+  mousetrap(): Mousetrap[] {
+    return [
+      {
+        bind: 'h',
+        handler: () => {
+          this.startWithHead = true;
+          this.activate();
+        },
+      },
+      {
+        bind: 't',
+        handler: () => {
+          this.startWithHead = true;
+          this.activate();
+        },
+      },
+    ];
   }
 }

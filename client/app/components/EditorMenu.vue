@@ -1,16 +1,19 @@
 <script lang="ts">
+import { flatten } from 'lodash';
 import Vue, { PropType } from 'vue';
 import { Ref } from '@vue/composition-api';
-import { EditAnnotationTypes } from 'vue-media-annotator/layers/EditAnnotationLayer';
 
-import { RecipeMapEntry } from 'app/recipes';
+import { Mousetrap } from 'vue-media-annotator/types';
+import { EditAnnotationTypes } from 'vue-media-annotator/layers/EditAnnotationLayer';
+import Recipe from 'vue-media-annotator/recipe';
 
 interface ButtonData {
   id: string;
   icon: string;
   type?: EditAnnotationTypes;
   active: boolean;
-  activate: () => void;
+  mousetrap?: Mousetrap[];
+  click: () => void;
 }
 
 export default Vue.extend({
@@ -28,8 +31,8 @@ export default Vue.extend({
       type: Object as PropType<Ref<EditAnnotationTypes>>,
       required: true,
     },
-    recipeMap: {
-      type: Object as PropType<Record<string, RecipeMapEntry>>,
+    recipes: {
+      type: Array as PropType<Recipe[]>,
       required: true,
     },
   },
@@ -41,28 +44,45 @@ export default Vue.extend({
         {
           id: 'rectangle',
           icon: 'mdi-vector-square',
-          active: em === 'rectangle',
-          activate: () => {
+          active: this.editingTrack.value && em === 'rectangle',
+          mousetrap: [{
+            bind: '1',
+            handler: () => {
+              this.$emit('set-annotation-state', { editing: 'rectangle' });
+            },
+          }],
+          click: () => {
             this.$emit('set-annotation-state', { editing: 'rectangle' });
           },
         },
         {
           id: 'Polygon',
           icon: 'mdi-vector-polygon',
-          active: em === 'Polygon',
-          activate: () => {
+          active: this.editingTrack.value && em === 'Polygon',
+          mousetrap: [{
+            bind: '2',
+            handler: () => {
+              this.$emit('set-annotation-state', { editing: 'Polygon' });
+            },
+          }],
+          click: () => {
             this.$emit('set-annotation-state', { editing: 'Polygon' });
           },
         },
-        /* Include recipes as editing modes */
-        ...(Object.values(this.recipeMap).filter((r) => r.toggleable).map((r) => ({
-          id: r.id,
-          icon: r.icon || 'mdi-pencil',
-          active: r.recipe.active.value,
-          activate: () => {
-            this.$emit('set-annotation-state', { recipe: r.recipe });
-          },
-        }))),
+        /* Include recipes as editing modes if they're toggleable */
+        ...this.recipes.filter((r) => r.toggleable.value).map((r, i) => ({
+          id: r.name,
+          icon: r.icon.value || 'mdi-pencil',
+          active: this.editingTrack.value && r.active.value,
+          click: () => r.activate(),
+          mousetrap: [
+            {
+              bind: (i + 3).toString(),
+              handler: () => r.activate(),
+            },
+            ...r.mousetrap(),
+          ],
+        })),
       ];
     },
     viewButtons(): ButtonData[] {
@@ -73,23 +93,26 @@ export default Vue.extend({
           type: 'rectangle',
           icon: 'mdi-vector-square',
           active: this.isVisible('rectangle'),
-          activate: () => this.toggleVisible('rectangle'),
+          click: () => this.toggleVisible('rectangle'),
         },
         {
           id: 'Polygon',
           type: 'Polygon',
           icon: 'mdi-vector-polygon',
           active: this.isVisible('Polygon'),
-          activate: () => this.toggleVisible('Polygon'),
+          click: () => this.toggleVisible('Polygon'),
         },
         {
           id: 'LineString',
           type: 'LineString',
           active: this.isVisible('LineString'),
           icon: 'mdi-vector-line',
-          activate: () => this.toggleVisible('LineString'),
+          click: () => this.toggleVisible('LineString'),
         },
       ];
+    },
+    mousetrap(): Mousetrap[] {
+      return flatten(this.editButtons.map((b) => b.mousetrap || []));
     },
   },
 
@@ -114,7 +137,9 @@ export default Vue.extend({
 </script>
 
 <template>
-  <v-row>
+  <v-row
+    v-mousetrap="mousetrap"
+  >
     <v-col class="d-flex align-center px-4">
       <span
         class="mr-1 px-3 py-1 modechip grey darken-2"
@@ -132,7 +157,7 @@ export default Vue.extend({
         :outlined="!button.active"
         :color="button.active ? 'grey darken-2' : ''"
         class="mx-1"
-        @click="button.activate"
+        @click="button.click"
       >
         <v-icon>{{ button.icon }}</v-icon>
       </v-btn>
@@ -155,8 +180,9 @@ export default Vue.extend({
         :outlined="!button.active"
         :color="button.active ? 'primary' : ''"
         class="mx-1"
-        @click="button.activate"
+        @click="button.click"
       >
+        <pre v-if="button.mousetrap">{{ button.mousetrap[0].bind }}:</pre>
         <v-icon>{{ button.icon }}</v-icon>
       </v-btn>
     </v-col>

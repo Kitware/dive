@@ -1,5 +1,5 @@
 import {
-  computed, Ref, reactive, ref,
+  computed, Ref, reactive, ref, onBeforeUnmount,
 } from '@vue/composition-api';
 import { cloneDeep, uniq, flatMapDeep } from 'lodash';
 import Track, { TrackId, Feature } from 'vue-media-annotator/track';
@@ -18,7 +18,12 @@ export interface Annotator {
   nextFrame(): void;
 }
 
-
+interface SetAnnotationStateArgs {
+  visible?: EditAnnotationTypes[];
+  editing?: EditAnnotationTypes;
+  key?: string;
+  recipeName?: string;
+}
 /**
  * The point of this composition function is to define and manage the transition betwee
  * different UI states within the program.  States and state transitions can be modified
@@ -39,8 +44,6 @@ export default function useModeManager({
   selectNextTrack,
   addTrack,
   removeTrack,
-  // removeHeadTails,
-  // updateHeadTails,
 }: {
   selectedTrackId: Ref<TrackId | null>;
   editingTrack: Ref<boolean>;
@@ -54,14 +57,6 @@ export default function useModeManager({
   selectNextTrack: (delta?: number) => TrackId | null;
   addTrack: (frame: number, defaultType: string) => Track;
   removeTrack: (trackId: TrackId) => void;
-  // removeHeadTails: (frameNum: number, track: Track, index: number) => void;
-  // updateHeadTails: (
-  //   frameNum: number,
-  //   track: Track,
-  //   interpolate: boolean,
-  //   key: string,
-  //   data: GeoJSON.Feature<GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString>,
-  // ) => void;
 }) {
   let newTrackMode = false;
   let newDetectionMode = false;
@@ -382,30 +377,29 @@ export default function useModeManager({
   }
 
   function handleSetAnnotationState({
-    visible, editing, key, recipe,
-  }: {
-      visible?: EditAnnotationTypes[];
-      editing?: EditAnnotationTypes;
-      key?: string;
-      recipe?: Recipe;
-    }) {
-    if (recipe) {
-      handleSetAnnotationState(recipe.activate());
-      // Call again incase the recipe was marked
-      // inactive by the recursive call
-      recipe.activate();
-      return;
-    }
+    visible, editing, key, recipeName,
+  }: SetAnnotationStateArgs) {
     if (visible) {
       annotationModes.visible = visible;
     }
     if (editing) {
       annotationModes.editing = editing;
       _selectKey(key);
-      selectTrack(selectedTrackId.value, true);
-      recipes.forEach((r) => r.deactivate());
+      handleSelectTrack(selectedTrackId.value, true);
     }
+    recipes.forEach((r) => {
+      if (recipeName !== r.name) {
+        r.deactivate();
+      }
+    });
   }
+
+  /* Subscribe to recipe activation events */
+  recipes.forEach((r) => r.bus.$on('activate', handleSetAnnotationState));
+  /* Unsubscribe before unmount */
+  onBeforeUnmount(() => {
+    recipes.forEach((r) => r.bus.$off('activate', handleSetAnnotationState));
+  });
 
   return {
     editingMode,
