@@ -4,7 +4,6 @@ import re
 import urllib
 from typing import Dict, Tuple
 
-from dacite import Config, from_dict
 from girder.api import access
 from girder.api.describe import Description, autoDescribeRoute
 from girder.api.rest import (
@@ -295,9 +294,7 @@ class ViameDetection(Resource):
         for track_id in delete:
             track_dict.pop(str(track_id), None)
         for track_id, track in upsert.items():
-            validated: models.Track = from_dict(
-                models.Track, track, config=Config(cast=[Tuple])
-            )
+            validated: models.Track = models.Track(**track)
             track_dict[str(track_id)] = validated.dict(exclude_none=True)
 
         upserted_len = len(upsert.keys())

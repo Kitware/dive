@@ -9,7 +9,6 @@ import yaml
 from boiler import models
 from boiler.definitions import ActorType
 from boiler.serialization import kpf
-from dacite import Config, from_dict
 from girder.models.file import File
 
 from viame_server.serializers.models import Feature, Track
