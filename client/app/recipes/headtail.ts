@@ -147,6 +147,7 @@ export default class HeadTail implements Recipe {
 
   activate() {
     this.active.value = true;
+    this.icon.value = 'mdi-fish';
     this.bus.$emit('activate', {
       editing: 'LineString' as EditAnnotationTypes,
       key: HeadTailLineKey,
@@ -165,13 +166,15 @@ export default class HeadTail implements Recipe {
         handler: () => {
           this.startWithHead = true;
           this.activate();
+          this.icon.value = 'mdi-alpha-h-box-outline';
         },
       },
       {
         bind: 't',
         handler: () => {
-          this.startWithHead = true;
+          this.startWithHead = false;
           this.activate();
+          this.icon.value = 'mdi-alpha-t-box-outline';
         },
       },
     ];
