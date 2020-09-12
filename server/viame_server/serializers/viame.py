@@ -225,12 +225,12 @@ def export_tracks_as_csv(
                                     for item in sublist
                                 ]
                                 columns.append(
-                                    f"(poly) {' '.join(map(lambda x: str(int(x)), coordinates))}"
+                                    f"(poly) {' '.join(map(lambda x: str(round(x)), coordinates))}"
                                 )
                             if 'Point' == geoJSONFeature.geometry.type:
                                 coordinates = geoJSONFeature.geometry.coordinates
                                 columns.append(
-                                    f"(kp) {geoJSONFeature.properties['key']} {int(coordinates[0])} {int(coordinates[1])}"
+                                    f"(kp) {geoJSONFeature.properties['key']} {round(coordinates[0])} {round(coordinates[1])}"
                                 )
                             # TODO: support for multiple GeoJSON Objects of the same type once the CSV supports it
 

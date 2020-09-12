@@ -7,6 +7,7 @@ import { EditAnnotationTypes } from 'vue-media-annotator/layers/EditAnnotationLa
 import { Mousetrap } from 'vue-media-annotator/types';
 
 export const HeadTailLineKey = 'HeadTails';
+export const HeadTailPolyKey = '';
 export const HeadPointKey = 'head';
 export const TailPointKey = 'tail';
 const EmptyResponse: UpdateResponse = { data: {}, union: [], unionWithoutBounds: [] };
@@ -16,7 +17,7 @@ export default class HeadTail implements Recipe {
 
   name: string;
 
-  startWithHead: boolean;
+  private startWithHead: boolean;
 
   bus: Vue;
 
@@ -33,14 +34,49 @@ export default class HeadTail implements Recipe {
     this.icon = ref('mdi-fish');
   }
 
-  static findBounds(ls: GeoJSON.LineString): GeoJSON.Polygon[] {
+  private static findBounds(ls: GeoJSON.LineString): GeoJSON.Polygon[] {
+    // Coords = [ Vec A, Vec B ]
+    const coords = ls.coordinates;
+    if (coords.length === 2) {
+      // vec = B - A
+      const vec = [
+        coords[1][0] - coords[0][0],
+        coords[1][1] - coords[0][1],
+      ];
+      // perpendicular vector
+      const vecPerp = [
+        -1 * vec[1],
+        vec[0],
+      ];
+      // polypoints in terms of C and CPerp
+      const polyPoints = [
+        [0, -0.2],
+        [0, 0.2],
+        [1.1, 0.4],
+        [1.1, -0.4],
+        [0, -0.2],
+      ];
+      return [{
+        type: 'Polygon',
+        coordinates: [
+          polyPoints.map((p) => ([
+            coords[0][0] + (p[0] * vec[0]) + (p[1] * vecPerp[0]),
+            coords[0][1] + (p[0] * vec[1]) + (p[1] * vecPerp[1]),
+          ])),
+        ],
+      }];
+    }
+    // If only 1 point is available so far
     return [{
       type: 'Polygon',
-      coordinates: [ls.coordinates],
+      coordinates: coords.map((p) => ([
+        p.map((c) => c + 10),
+        p.map((c) => c - 10),
+      ])),
     }];
   }
 
-  static remove(frameNum: number, track: Track, index: number) {
+  private static remove(frameNum: number, track: Track, index: number) {
     track.removeFeatureGeometry(frameNum, {
       key: HeadTailLineKey,
       type: 'LineString',
@@ -59,8 +95,8 @@ export default class HeadTail implements Recipe {
     }
   }
 
-  static makeGeom(ls: GeoJSON.LineString) {
-    const headFeature: GeoJSON.Feature<GeoJSON.Point> = {
+  private static makeGeom(ls: GeoJSON.LineString, startWithHead: boolean) {
+    const firstFeature: GeoJSON.Feature<GeoJSON.Point> = {
       type: 'Feature',
       geometry: {
         type: 'Point',
@@ -71,11 +107,12 @@ export default class HeadTail implements Recipe {
       },
       properties: {},
     };
-    const ret: Record<string, GeoJSON.Feature<GeoJSON.Point|GeoJSON.LineString>[]> = {
-      [HeadPointKey]: [headFeature],
-    };
+    const ret: Record<string,
+      GeoJSON.Feature<GeoJSON.Point | GeoJSON.LineString | GeoJSON.Polygon>[]> = {
+        [startWithHead ? HeadPointKey : TailPointKey]: [firstFeature],
+      };
     if (ls.coordinates.length === 2) {
-      const tailFeature: GeoJSON.Feature<GeoJSON.Point> = {
+      const secondFeature: GeoJSON.Feature<GeoJSON.Point> = {
         type: 'Feature',
         geometry: {
           type: 'Point',
@@ -86,12 +123,20 @@ export default class HeadTail implements Recipe {
         },
         properties: {},
       };
+      if (!startWithHead) {
+        ls.coordinates.reverse();
+      }
       const headTailLine: GeoJSON.Feature<GeoJSON.LineString> = {
         type: 'Feature',
         geometry: ls,
         properties: {},
       };
-      ret[TailPointKey] = [tailFeature];
+      ret[HeadTailPolyKey] = [{
+        type: 'Feature',
+        geometry: HeadTail.findBounds(ls)[0],
+        properties: {},
+      }];
+      ret[startWithHead ? TailPointKey : HeadPointKey] = [secondFeature];
       ret[HeadTailLineKey] = [headTailLine];
     }
     return ret;
@@ -117,7 +162,7 @@ export default class HeadTail implements Recipe {
           // this.active.value = false;
           return {
             ...EmptyResponse,
-            data: HeadTail.makeGeom(geom),
+            data: HeadTail.makeGeom(geom, this.startWithHead),
             newSelectedKey: HeadTailLineKey,
             union: HeadTail.findBounds(geom),
           } as UpdateResponse;
@@ -126,7 +171,7 @@ export default class HeadTail implements Recipe {
           // Only the head placed so far
           return {
             ...EmptyResponse,
-            data: HeadTail.makeGeom(geom),
+            data: HeadTail.makeGeom(geom, this.startWithHead),
             union: HeadTail.findBounds(geom),
           };
         }
@@ -137,7 +182,7 @@ export default class HeadTail implements Recipe {
        */
         return {
           ...EmptyResponse,
-          data: HeadTail.makeGeom(linestring.geometry),
+          data: HeadTail.makeGeom(linestring.geometry, true),
           union: HeadTail.findBounds(linestring.geometry),
         };
       }
@@ -148,6 +193,7 @@ export default class HeadTail implements Recipe {
   activate() {
     this.active.value = true;
     this.icon.value = 'mdi-fish';
+    this.startWithHead = true;
     this.bus.$emit('activate', {
       editing: 'LineString' as EditAnnotationTypes,
       key: HeadTailLineKey,
@@ -159,24 +205,22 @@ export default class HeadTail implements Recipe {
     this.active.value = false;
   }
 
+  private headfirst() {
+    this.activate();
+    this.startWithHead = true;
+    this.icon.value = 'mdi-fish';
+  }
+
+  private tailfirst() {
+    this.activate();
+    this.startWithHead = false;
+    this.icon.value = 'mdi-alpha-t-box-outline';
+  }
+
   mousetrap(): Mousetrap[] {
     return [
-      {
-        bind: 'h',
-        handler: () => {
-          this.startWithHead = true;
-          this.activate();
-          this.icon.value = 'mdi-alpha-h-box-outline';
-        },
-      },
-      {
-        bind: 't',
-        handler: () => {
-          this.startWithHead = false;
-          this.activate();
-          this.icon.value = 'mdi-alpha-t-box-outline';
-        },
-      },
+      { bind: 'h', handler: () => this.headfirst() },
+      { bind: 't', handler: () => this.tailfirst() },
     ];
   }
 }

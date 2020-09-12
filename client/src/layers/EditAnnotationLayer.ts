@@ -139,7 +139,6 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
         && (e.handle.handle.index * divisor) !== this.hoverHandleIndex) {
         this.hoverHandleIndex = e.handle.handle.index * divisor;
       }
-      console.log(e.handle.handle.selected);
       if (!e.handle.handle.selected) {
         this.hoverHandleIndex = -1;
       }
