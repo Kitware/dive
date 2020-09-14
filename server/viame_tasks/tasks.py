@@ -220,8 +220,14 @@ def train_pipeline(
                 if err:
                     self.job_manager.write(err)
 
-            if process.returncode:
-                # Not sure what else to do for now
+            training_results_path = training_output_path / "category_models"
+
+            # Get all files/folders in directory
+            training_output = list(training_results_path.glob("*"))
+            if process.returncode or not training_output:
+                self.job_manager.write(
+                    "Training output failed or didn't produce results, discarding..."
+                )
                 return
 
             timestamp = datetime.utcnow().replace(microsecond=0).isoformat()
@@ -234,10 +240,10 @@ def train_pipeline(
             # Trained_ prefix is added to conform with existing pipeline names
             # This is the name that will appear in the client (with trained_ removed)
             trained_model_folder_name = f"trained_{pipeline_name}"
-            training_results = training_output_path / trained_model_folder_name
+            named_training_output = training_output_path / trained_model_folder_name
 
             # Move the original folder to our new folder
-            shutil.move(str(training_output_path / "category_models"), training_results)
+            shutil.move(str(training_results_path), named_training_output)
 
             # If `_trained_pipeline_folder()` returns `None`, the results of this
             # training job will be uploaded to Girder, but will not be runnable as
@@ -245,12 +251,12 @@ def train_pipeline(
             trained_pipeline_folder = _trained_pipeline_folder()
             if trained_pipeline_folder:
                 shutil.copytree(
-                    training_results,
+                    named_training_output,
                     trained_pipeline_folder / trained_model_folder_name,
                 )
 
             # Rename this folder so that it appears properly in girder
-            shutil.move(str(training_results), girder_output_folder)
+            shutil.move(str(named_training_output), girder_output_folder)
             self.girder_client._uploadFolderRecursive(
                 girder_output_folder, results_folder["_id"], "folder"
             )
