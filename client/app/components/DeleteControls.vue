@@ -52,7 +52,7 @@ export default Vue.extend({
       :disabled="disabled"
       @click="deleteSelected"
     >
-      <pre class="mr-1 text-body-2">q: del</pre>
+      <pre class="mr-1 text-body-2">del</pre>
       <span v-if="selectedFeatureHandle.value >= 0">
         point {{ selectedFeatureHandle.value }}
       </span>
