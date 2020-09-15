@@ -27,7 +27,7 @@ import ConfidenceFilter from 'app/components/ConfidenceFilter.vue';
 import UserGuideButton from 'app/components/UserGuideButton.vue';
 import Export from 'app/components/Export.vue';
 import RunPipelineMenu from 'app/components/RunPipelineMenu.vue';
-import FeatureHandleControls from 'app/components/FeatureHandleControls.vue';
+import DeleteControls from 'app/components/DeleteControls.vue';
 import { Annotator } from 'app/use/useModeManager';
 import { getPathFromLocation } from 'app/utils';
 import {
@@ -43,8 +43,8 @@ import Sidebar from './Sidebar.vue';
 export default defineComponent({
   components: {
     ControlsContainer,
+    DeleteControls,
     Export,
-    FeatureHandleControls,
     Sidebar,
     LayerManager,
     VideoAnnotator,
@@ -248,6 +248,7 @@ export default defineComponent({
       pendingSaveCount,
       playbackComponent,
       selectedTrackId,
+      selectedKey,
       videoUrl,
       /* methods used locally */
       addTrack,
@@ -266,6 +267,7 @@ export default defineComponent({
       },
       featureHandleControlsProps: {
         selectedFeatureHandle,
+        editingMode,
       },
       modeEditorProps: {
         recipes,
@@ -334,10 +336,10 @@ export default defineComponent({
           class="shrink px-6"
           @set-annotation-state="handler.setAnnotationState"
         />
-        <feature-handle-controls
+        <delete-controls
           v-bind="featureHandleControlsProps"
           @delete-point="handler.removePoint"
-          @delete-annotation="handler.removeAnnotation"
+          @delete-annotation="handler.removeAnnotation(frame, selectedKey, $event)"
         />
         <v-spacer />
       </template>

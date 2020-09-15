@@ -109,7 +109,11 @@ export default function useModeManager({
   }
 
   function handleSelectFeatureHandle(i: number, key = '') {
-    selectedFeatureHandle.value = i;
+    if (i !== selectedFeatureHandle.value) {
+      selectedFeatureHandle.value = i;
+    } else {
+      selectedFeatureHandle.value = -1;
+    }
     _selectKey(key);
   }
 
@@ -198,6 +202,8 @@ export default function useModeManager({
       newType: undefined as EditAnnotationTypes | undefined,
       // If the selected key should change
       newSelectedKey: undefined as string | undefined,
+      // If the recipe has completed
+      done: [] as (boolean|undefined)[],
     };
 
     if (selectedTrackId.value !== null) {
@@ -223,6 +229,7 @@ export default function useModeManager({
           // Collect unions
           update.union.push(...changes.union);
           update.unionWithoutBounds.push(...changes.unionWithoutBounds);
+          update.done.push(changes.done);
           // Prevent more than 1 recipe from changing a given mode/key
           if (changes.newType) {
             if (update.newType) {
@@ -279,8 +286,10 @@ export default function useModeManager({
               properties: { key: key_ },
             }))));
 
-          // Only perform "initialization" after the first shape
-          if (eventType === 'editing') {
+          // Only perform "initialization" after the first shape.
+          // Treat this as a completed annotation if eventType is editing
+          // Or none of the recieps reported that they were unfinished.
+          if (eventType === 'editing' || update.done.every((v) => v !== false)) {
             // If it is a new track and we have newTrack Settings
             if (newTrackMode && newDetectionMode) {
               newTrackSettingsAfterLogic(track);
@@ -330,16 +339,12 @@ export default function useModeManager({
   }
 
   function handleRemoveAnnotation(frameNum: number, key = '', type: '' | GeoJSON.GeoJsonGeometryTypes) {
-    if (selectedTrackId.value !== null && selectedFeatureHandle.value !== -1) {
+    if (selectedTrackId.value !== null) {
       const track = trackMap.get(selectedTrackId.value);
       if (track) {
-        // Determines if we are creating a new Detection
-        const { features } = track.canInterpolate(frame.value);
-        const [real] = features;
-        if (!real) return false;
-        // TODO: This can be changed when we have selection of annotations by key/type
-        const geoJSONType = type !== '' ? type : annotationModes.editing;
-        track.removeFeatureGeometry(frameNum, { key, type: geoJSONType });
+        track.removeFeatureGeometry(frameNum, { key, type });
+        /* If any recipes are active, remove the geometry they added */
+        recipes.forEach((r) => r.active.value && r.delete(frameNum, track));
         return true;
       }
     }

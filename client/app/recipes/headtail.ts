@@ -7,7 +7,6 @@ import { EditAnnotationTypes } from 'vue-media-annotator/layers/EditAnnotationLa
 import { Mousetrap } from 'vue-media-annotator/types';
 
 export const HeadTailLineKey = 'HeadTails';
-export const HeadTailPolyKey = '';
 export const HeadPointKey = 'head';
 export const TailPointKey = 'tail';
 const EmptyResponse: UpdateResponse = { data: {}, union: [], unionWithoutBounds: [] };
@@ -31,7 +30,7 @@ export default class HeadTail implements Recipe {
     this.active = ref(false);
     this.name = 'HeadTail';
     this.toggleable = ref(true);
-    this.icon = ref('mdi-fish');
+    this.icon = ref('mdi-vector-line');
   }
 
   private static findBounds(ls: GeoJSON.LineString): GeoJSON.Polygon[] {
@@ -131,11 +130,6 @@ export default class HeadTail implements Recipe {
         geometry: ls,
         properties: {},
       };
-      ret[HeadTailPolyKey] = [{
-        type: 'Feature',
-        geometry: HeadTail.findBounds(ls)[0],
-        properties: {},
-      }];
       ret[startWithHead ? TailPointKey : HeadPointKey] = [secondFeature];
       ret[HeadTailLineKey] = [headTailLine];
     }
@@ -164,6 +158,7 @@ export default class HeadTail implements Recipe {
             ...EmptyResponse,
             data: HeadTail.makeGeom(geom, this.startWithHead),
             newSelectedKey: HeadTailLineKey,
+            done: true,
             union: HeadTail.findBounds(geom),
           } as UpdateResponse;
         }
@@ -173,6 +168,7 @@ export default class HeadTail implements Recipe {
             ...EmptyResponse,
             data: HeadTail.makeGeom(geom, this.startWithHead),
             union: HeadTail.findBounds(geom),
+            done: false,
           };
         }
       }
@@ -184,15 +180,23 @@ export default class HeadTail implements Recipe {
           ...EmptyResponse,
           data: HeadTail.makeGeom(linestring.geometry, true),
           union: HeadTail.findBounds(linestring.geometry),
+          done: true,
         };
       }
     }
     return EmptyResponse;
   }
 
+  // eslint-disable-next-line class-methods-use-this
+  delete(frame: number, t: Track) {
+    t.removeFeatureGeometry(frame, { type: 'Point', key: HeadPointKey });
+    t.removeFeatureGeometry(frame, { type: 'Point', key: TailPointKey });
+    t.removeFeatureGeometry(frame, { type: 'LineString', key: HeadTailLineKey });
+  }
+
   activate() {
     this.active.value = true;
-    this.icon.value = 'mdi-fish';
+    this.icon.value = 'mdi-vector-line';
     this.startWithHead = true;
     this.bus.$emit('activate', {
       editing: 'LineString' as EditAnnotationTypes,
@@ -208,7 +212,7 @@ export default class HeadTail implements Recipe {
   private headfirst() {
     this.activate();
     this.startWithHead = true;
-    this.icon.value = 'mdi-fish';
+    this.icon.value = 'mdi-vector-line';
   }
 
   private tailfirst() {

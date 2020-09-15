@@ -82,9 +82,18 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
         (e: GeoEvent) => this.hoverEditHandle(e));
       this.featureLayer.geoOn(geo.event.mouseclick, (e: GeoEvent) => {
         if (e.buttonsDown.left && this.hoverHandleIndex !== -1) {
-          this.selectedHandleIndex = this.hoverHandleIndex;
+          const newIndex = this.hoverHandleIndex;
+          // Click features like a toggle: unselect if it's clicked twice.
+          if (newIndex === this.selectedHandleIndex) {
+            this.selectedHandleIndex = -1;
+          } else {
+            this.selectedHandleIndex = newIndex;
+          }
+          let divisor = 1;
+          if (this.type === 'Polygon' && this.selectedHandleIndex >= 0) {
+            divisor = 2;
+          }
           setTimeout(() => this.redraw(), 0); //Redraw timeout to update the selected handle
-          const divisor = this.type === 'LineString' ? 1 : 2; // used for polygon because edge handles
           if (this.type !== 'rectangle') {
             this.bus.$emit('update:selectedIndex',
               this.selectedHandleIndex / divisor, this.type, this.selectedKey);
@@ -437,8 +446,16 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
           }
           return 8;
         },
-        fillOpacity: 0.25,
-        strokeColor: () => {
+        fillOpacity: (_: EditHandleStyle, index: number) => {
+          if (index === this.selectedHandleIndex) {
+            return 1;
+          }
+          return 0.25;
+        },
+        strokeColor: (_: EditHandleStyle, index: number) => {
+          if (index === this.selectedHandleIndex) {
+            return '#FF0000';
+          }
           if (this.trackType) {
             return this.typeStyling.value.color(this.trackType);
           }
@@ -446,7 +463,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
         },
         fillColor: (_data: EditHandleStyle, index: number) => {
           if (index === this.selectedHandleIndex) {
-            return '#00FF00';
+            return '#FF0000';
           }
           if (this.trackType) {
             return this.typeStyling.value.color(this.trackType);

@@ -19,7 +19,7 @@ export interface UpdateResponse {
   >;
   union: GeoJSON.Polygon[];
   unionWithoutBounds: GeoJSON.Polygon[];
-  newMode?: 'editing' | 'creation';
+  done?: boolean;
   newType?: EditAnnotationTypes;
   newSelectedKey?: string;
 }
@@ -37,6 +37,7 @@ interface Recipe {
     data: GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.LineString | GeoJSON.Point>[],
     key?: string,
   ) => Readonly<UpdateResponse>;
+  delete: (frame: number, t: Track) => void;
   activate: () => unknown;
   mousetrap: () => Mousetrap[];
   deactivate: () => void;
