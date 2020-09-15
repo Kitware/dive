@@ -398,12 +398,12 @@ export default defineComponent({
           :is="annotatorType"
           v-if="imageData.length || videoUrl"
           ref="playbackComponent"
-          class="playback-component"
           v-mousetrap="[
             { bind: 'n', handler: () => handler.addTrack(frame) },
             { bind: 'r', handler: () => playbackComponent.resetZoom() },
             { bind: 'esc', handler: () => handler.selectTrack(null, false)}
           ]"
+          class="playback-component"
           :image-data="imageData"
           :video-url="videoUrl"
           :frame-rate="frameRate"

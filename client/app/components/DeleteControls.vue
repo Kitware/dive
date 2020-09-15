@@ -2,7 +2,6 @@
 import Vue, { PropType } from 'vue';
 import { Ref } from '@vue/composition-api';
 import { EditAnnotationTypes } from 'vue-media-annotator/layers/EditAnnotationLayer';
-import Track, { TrackId } from 'vue-media-annotator/track';
 
 export default Vue.extend({
   name: 'DeleteControls',

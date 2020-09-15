@@ -8,7 +8,6 @@ import {
   Ref,
   watch,
 } from '@vue/composition-api';
-import { GeoEvent } from 'geojs';
 
 import { Annotator } from 'vue-media-annotator/components/annotators/annotatorType';
 import RectangleLayer from 'vue-media-annotator/layers/AnnotationLayers/RectangleLayer';

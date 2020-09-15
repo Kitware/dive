@@ -2,7 +2,7 @@ import { ref, Ref } from '@vue/composition-api';
 import Vue from 'vue';
 
 import Track from 'vue-media-annotator/track';
-import Recipe, { UpdateResponse } from 'vue-media-annotator/recipe';
+import Recipe from 'vue-media-annotator/recipe';
 
 const EmptyResponse = { data: {}, union: [], unionWithoutBounds: [] };
 
