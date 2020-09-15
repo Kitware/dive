@@ -77,8 +77,8 @@ export default defineComponent({
     } = useSave(datasetId);
 
     const recipes = [
-      new HeadTail(),
       new PolygonBase(),
+      new HeadTail(),
     ];
 
     const {
@@ -339,7 +339,7 @@ export default defineComponent({
         <delete-controls
           v-bind="featureHandleControlsProps"
           @delete-point="handler.removePoint"
-          @delete-annotation="handler.removeAnnotation(frame, selectedKey, $event)"
+          @delete-annotation="handler.removeAnnotation"
         />
         <v-spacer />
       </template>

@@ -1,11 +1,9 @@
 import {
   computed, Ref, reactive, ref, onBeforeUnmount,
 } from '@vue/composition-api';
-import { cloneDeep, uniq, flatMapDeep } from 'lodash';
-import Track, { TrackId, Feature } from 'vue-media-annotator/track';
-import {
-  RectBounds, removePoint, updateBounds,
-} from 'vue-media-annotator/utils';
+import { uniq, flatMapDeep } from 'lodash';
+import Track, { TrackId } from 'vue-media-annotator/track';
+import { RectBounds, updateBounds } from 'vue-media-annotator/utils';
 import { EditAnnotationTypes } from 'vue-media-annotator/layers/EditAnnotationLayer';
 
 import Recipe from 'vue-media-annotator/recipe';
@@ -305,50 +303,39 @@ export default function useModeManager({
     }
   }
 
-  /**
-   * Removes the selectedIndex point for the selected Polygon/line
-   */
-  function handleRemovePoint(type: '' | GeoJSON.GeoJsonGeometryTypes = '') {
+  /* If any recipes are active, allow them to remove a point */
+  function handleRemovePoint() {
     if (selectedTrackId.value !== null && selectedFeatureHandle.value !== -1) {
       const track = trackMap.get(selectedTrackId.value);
       if (track) {
-        // Determines if we are creating a new Detection
-        const { features } = track.canInterpolate(frame.value);
-        const [real] = features;
-        if (!real) return;
-        const geoJSONType = type !== '' ? type : annotationModes.editing;
-        const geoJsonFeatures = track.getFeatureGeometry(frame.value, {
-          type: geoJSONType,
-          key: selectedKey.value,
+        recipes.forEach((r) => {
+          if (r.active.value) {
+            r.deletePoint(
+              frame.value,
+              track,
+              selectedFeatureHandle.value,
+              selectedKey.value,
+              annotationModes.editing,
+            );
+          }
         });
-        if (geoJsonFeatures.length === 0) return;
-        //could operate directly on the polygon memory, but small enough to copy and edit
-        const clone = cloneDeep(geoJsonFeatures[0]);
-        // if (selectedKey.value === 'HeadTails') {
-        //   removeHeadTails(frame.value, track, selectedFeatureHandle.value);
-        //   handleSelectFeatureHandle(-1);
-        if (removePoint(clone, selectedFeatureHandle.value)) {
-          track.setFeature({
-            frame: frame.value,
-            // bounds: findBounds(clone),
-          }, [clone]);
-        }
       }
     }
     handleSelectFeatureHandle(-1);
   }
 
-  function handleRemoveAnnotation(frameNum: number, key = '', type: '' | GeoJSON.GeoJsonGeometryTypes) {
+  /* If any recipes are active, remove the geometry they added */
+  function handleRemoveAnnotation() {
     if (selectedTrackId.value !== null) {
       const track = trackMap.get(selectedTrackId.value);
       if (track) {
-        track.removeFeatureGeometry(frameNum, { key, type });
-        /* If any recipes are active, remove the geometry they added */
-        recipes.forEach((r) => r.active.value && r.delete(frameNum, track));
-        return true;
+        recipes.forEach((r) => {
+          if (r.active.value) {
+            r.delete(frame.value, track, selectedKey.value, annotationModes.editing);
+          }
+        });
       }
     }
-    return false;
   }
 
   function handleRemoveTrack(trackId: TrackId) {

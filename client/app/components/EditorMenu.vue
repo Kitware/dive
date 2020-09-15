@@ -55,20 +55,6 @@ export default Vue.extend({
             this.$emit('set-annotation-state', { editing: 'rectangle' });
           },
         },
-        {
-          id: 'Polygon',
-          icon: 'mdi-vector-polygon',
-          active: this.editingTrack.value && em === 'Polygon',
-          mousetrap: [{
-            bind: '2',
-            handler: () => {
-              this.$emit('set-annotation-state', { editing: 'Polygon' });
-            },
-          }],
-          click: () => {
-            this.$emit('set-annotation-state', { editing: 'Polygon' });
-          },
-        },
         /* Include recipes as editing modes if they're toggleable */
         ...this.recipes.filter((r) => r.toggleable.value).map((r, i) => ({
           id: r.name,
@@ -77,7 +63,7 @@ export default Vue.extend({
           click: () => r.activate(),
           mousetrap: [
             {
-              bind: (i + 3).toString(),
+              bind: (i + 2).toString(),
               handler: () => r.activate(),
             },
             ...r.mousetrap(),

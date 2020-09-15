@@ -35,9 +35,9 @@ export default Vue.extend({
         throw new Error('Cannot delete while disabled!');
       }
       if (this.selectedFeatureHandle.value >= 0) {
-        this.$emit('delete-point', this.selectedFeatureHandle.value);
+        this.$emit('delete-point');
       } else {
-        this.$emit('delete-annotation', this.editingMode.value);
+        this.$emit('delete-annotation');
       }
     },
   },

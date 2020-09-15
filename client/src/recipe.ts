@@ -37,7 +37,19 @@ interface Recipe {
     data: GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.LineString | GeoJSON.Point>[],
     key?: string,
   ) => Readonly<UpdateResponse>;
-  delete: (frame: number, t: Track) => void;
+  delete: (
+    frame: number,
+    t: Track,
+    key: string,
+    mode: EditAnnotationTypes,
+  ) => void;
+  deletePoint: (
+    frame: number,
+    t: Track,
+    index: number,
+    key: string,
+    mode: EditAnnotationTypes,
+  ) => void;
   activate: () => unknown;
   mousetrap: () => Mousetrap[];
   deactivate: () => void;

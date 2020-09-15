@@ -188,10 +188,24 @@ export default class HeadTail implements Recipe {
   }
 
   // eslint-disable-next-line class-methods-use-this
-  delete(frame: number, t: Track) {
-    t.removeFeatureGeometry(frame, { type: 'Point', key: HeadPointKey });
-    t.removeFeatureGeometry(frame, { type: 'Point', key: TailPointKey });
-    t.removeFeatureGeometry(frame, { type: 'LineString', key: HeadTailLineKey });
+  delete(frame: number, track: Track, key: string, type: EditAnnotationTypes) {
+    if (key === HeadTailLineKey && type === 'LineString') {
+      track.removeFeatureGeometry(frame, { type: 'Point', key: HeadPointKey });
+      track.removeFeatureGeometry(frame, { type: 'Point', key: TailPointKey });
+      track.removeFeatureGeometry(frame, { type: 'LineString', key: HeadTailLineKey });
+    }
+  }
+
+  // eslint-disable-next-line class-methods-use-this
+  deletePoint(frame: number, track: Track, idx: number, key: string, type: EditAnnotationTypes) {
+    if (key === HeadTailLineKey && type === 'LineString') {
+      track.removeFeatureGeometry(frame, { type: 'LineString', key: HeadTailLineKey });
+      if (idx === 0) {
+        track.removeFeatureGeometry(frame, { type: 'Point', key: HeadPointKey });
+      } else {
+        track.removeFeatureGeometry(frame, { type: 'Point', key: TailPointKey });
+      }
+    }
   }
 
   activate() {
