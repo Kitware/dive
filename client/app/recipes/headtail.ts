@@ -150,10 +150,31 @@ export default class HeadTail implements Recipe {
       /**
        * IF the recipe is active, we are creating a new headtail
        */
-        const geom = linestring.geometry;
+        let geom = linestring.geometry;
+        const head = track.getFeatureGeometry(frameNum, { type: 'Point', key: HeadPointKey });
+        const tail = track.getFeatureGeometry(frameNum, { type: 'Point', key: TailPointKey });
+        if (head.length !== tail.length) {
+          // If one point exists but not the other
+          if (head.length > 0) {
+            this.startWithHead = true;
+            this.icon.value = 'mdi-vector-line';
+          } else {
+            this.startWithHead = false;
+            this.icon.value = 'mdi-alpha-t-box-outline';
+          }
+          geom = {
+            type: 'LineString',
+            coordinates: [
+              this.startWithHead
+                ? head[0].geometry.coordinates
+                : tail[0].geometry.coordinates,
+              geom.coordinates[geom.coordinates.length - 1],
+            ],
+            properties: {},
+          } as GeoJSON.LineString;
+        }
         if (geom.coordinates.length === 2) {
           // Both head and tail placed, replace them.
-          // this.active.value = false;
           return {
             ...EmptyResponse,
             data: HeadTail.makeGeom(geom, this.startWithHead),

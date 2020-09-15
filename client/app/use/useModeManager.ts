@@ -378,12 +378,12 @@ export default function useModeManager({
       annotationModes.editing = editing;
       _selectKey(key);
       handleSelectTrack(selectedTrackId.value, true);
+      recipes.forEach((r) => {
+        if (recipeName !== r.name) {
+          r.deactivate();
+        }
+      });
     }
-    recipes.forEach((r) => {
-      if (recipeName !== r.name) {
-        r.deactivate();
-      }
-    });
   }
 
   /* Subscribe to recipe activation events */
