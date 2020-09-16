@@ -339,6 +339,12 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
           this.selectedKey,
           this.skipNextFunc(),
         );
+      } else if (e.annotation.state() === 'done' && this.getMode() === 'disabled') {
+        //This syncs the programs mode with geoJS's internal mode state
+        //and disregards if swapping edit mode
+        if (typeMapper.get(this.type) === e.annotation.type()) {
+          this.bus.$emit('editing-annotation-sync', false);
+        }
       }
     }
   }
@@ -348,6 +354,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
    * @param e geo.event
    */
   handleEditAction(e: GeoEvent) {
+    console.log(`editAction: ${e.action} state: ${e.annotation.state()}`);
     if (this.featureLayer === e.annotation.layer()) {
       if (e.action === geo.event.actionup) {
         // This will commit the change to the current annotation on mouse up while editing

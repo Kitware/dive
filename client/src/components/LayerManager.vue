@@ -234,6 +234,14 @@ export default defineComponent({
       }
     };
 
+
+    //Sync of internal geoJS state with the application
+    editAnnotationLayer.bus.$on('editing-annotation-sync', (editing: boolean) => {
+      if (!editing) {
+        editAnnotationLayer.disable();
+      }
+      emit('select-track', props.selectedTrackId.value, editing);
+    });
     rectAnnotationLayer.bus.$on('annotation-clicked', Clicked);
     rectAnnotationLayer.bus.$on('annotation-right-clicked', Clicked);
     polyAnnotationLayer.bus.$on('annotation-clicked', Clicked);
