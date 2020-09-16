@@ -96,7 +96,9 @@ def _parse_row(row: List[str]) -> Tuple[Dict, Dict, Dict, List]:
         )
         if tail_regex:
             head_tail.insert(1, [float(tail_regex[1]), float(tail_regex[2])])
-            create_geoJSONFeature(features, 'Point', head_tail[len(head_tail) - 1 ], 'tail')
+            create_geoJSONFeature(
+                features, 'Point', head_tail[len(head_tail) - 1], 'tail'
+            )
         atr_regex = re.match(r"^\(atr\) (.*?)\s(.+)", row[j])
         if atr_regex:
             attributes[atr_regex[1]] = _deduceType(atr_regex[2])
