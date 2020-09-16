@@ -3,7 +3,6 @@ VIAME Fish format deserializer
 """
 import csv
 import io
-import json
 import re
 from typing import Any, Dict, List, Mapping, Optional, Tuple, Union
 
@@ -43,6 +42,33 @@ def _deduceType(value: str) -> Union[bool, float, str]:
         return value
 
 
+def create_geoJSONFeature(features: Feature, type: str, coords: List[float], key=''):
+    feature = {}
+    if "geometry" not in features:
+        features["geometry"] = {"type": "FeatureCollection", "features": []}
+    else:  # check for existing type/key pairs
+        if features["geometry"]["features"]:
+            for subfeature in features["geometry"]["features"]:
+                if (
+                    subfeature["geometry"]["type"] == type
+                    and subfeature["properties"]["key"] == key
+                ):
+                    feature = subfeature
+                    break
+    if "geometry" not in feature:
+        feature = {
+            "type": "Feature",
+            "properties": {"key": key},
+            "geometry": {"type": type},
+        }
+    if "Polygon" == type:
+        feature["geometry"]['coordinates'] = [coords]
+    elif type in ["LineString", "Point"]:
+        feature['geometry']['coordinates'] = coords
+
+    features['geometry']['features'].append(feature)
+
+
 def _parse_row(row: List[str]) -> Tuple[Dict, Dict, Dict, List]:
     """
     parse a single CSV line into its composite track and detection parts
@@ -55,27 +81,38 @@ def _parse_row(row: List[str]) -> Tuple[Dict, Dict, Dict, List]:
         for i in range(9, len(row), 2)
         if i + 1 < len(row) and row[i] and row[i + 1] and not row[i].startswith("(")
     ]
-    start = len(row) - 1 if len(row) % 2 == 0 else len(row) - 2
+    head_tail = []
+    start = 9 + len(confidence_pairs) * 2
 
     for j in range(start, len(row)):
-        if row[j].startswith("(kp)"):
-            if "head" in row[j]:
-                groups = re.match(r"\(kp\) head ([0-9]+) ([0-9]+)", row[j])
-                if groups:
-                    features["head"] = (groups[1], groups[2])
-            elif "tail" in row[j]:
-                groups = re.match(r"\(kp\) tail ([0-9]+) ([0-9]+)", row[j])
-                if groups:
-                    features["tail"] = (groups[1], groups[2])
-        if row[j].startswith("(atr)"):
-            groups = re.match(r"\(atr\) (.+) (.+)", row[j])
-            if groups:
-                attributes[groups[1]] = _deduceType(groups[2])
-        if row[j].startswith("(trk-atr)"):
-            groups = re.match(r"\(trk-atr\) (.+) (.+)", row[j])
-            if groups:
-                track_attributes[groups[1]] = _deduceType(groups[2])
+        head_regex = re.match(
+            r"^\(kp\) head ([0-9]+\.*[0-9]*) ([0-9]+\.*[0-9]*)", row[j]
+        )
+        if head_regex:
+            head_tail.insert(0, [float(head_regex[1]), float(head_regex[2])])
+            create_geoJSONFeature(features, 'Point', head_tail[0], 'head')
+        tail_regex = re.match(
+            r"^\(kp\) tail ([0-9]+\.*[0-9]*) ([0-9]+\.*[0-9]*)", row[j]
+        )
+        if tail_regex:
+            head_tail.insert(1, [float(tail_regex[1]), float(tail_regex[2])])
+            create_geoJSONFeature(
+                features, 'Point', head_tail[len(head_tail) - 1], 'tail'
+            )
+        atr_regex = re.match(r"^\(atr\) (.*?)\s(.+)", row[j])
+        if atr_regex:
+            attributes[atr_regex[1]] = _deduceType(atr_regex[2])
+        trk_regex = re.match(r"^\(trk-atr\) (.*?)\s(.+)", row[j])
+        if trk_regex:
+            track_attributes[trk_regex[1]] = _deduceType(trk_regex[2])
+        poly_regex = re.match(r"^(\(poly\)) ((?:[0-9]+\.*[0-9]*\s*)+)", row[j])
+        if poly_regex:
+            temp = [float(x) for x in poly_regex[2].split()]
+            coords = list(zip(temp[::2], temp[1::2]))
+            create_geoJSONFeature(features, 'Polygon', coords)
 
+    if len(head_tail) == 2:
+        create_geoJSONFeature(features, 'LineString', head_tail, 'HeadTails')
     return features, attributes, track_attributes, confidence_pairs
 
 
@@ -121,7 +158,7 @@ def load_csv_as_tracks(rows: List[str]) -> Dict[str, dict]:
         track.features.append(feature)
         track.confidencePairs = confidence_pairs
 
-        for (key, val) in track_attributes:
+        for (key, val) in track_attributes.items():
             track.attributes[key] = val
 
     return {trackId: track.dict(exclude_none=True) for trackId, track in tracks.items()}
@@ -167,14 +204,6 @@ def export_tracks_as_csv(
                     for pair in sorted_confidence_pairs:
                         columns.extend(list(pair))
 
-                    if feature.head and feature.tail:
-                        columns.extend(
-                            [
-                                f"(kp) head {feature.head[0]} {feature.head[1]}",
-                                f"(kp) tail {feature.tail[0]} {feature.tail[1]}",
-                            ]
-                        )
-
                     if feature.attributes:
                         for key, val in feature.attributes.items():
                             columns.append(f"(atr) {key} {valueToString(val)}")
@@ -182,6 +211,30 @@ def export_tracks_as_csv(
                     if track.attributes:
                         for key, val in track.attributes.items():
                             columns.append(f"(trk-atr) {key} {valueToString(val)}")
+
+                    if (
+                        feature.geometry
+                        and "FeatureCollection" == feature.geometry.type
+                    ):
+                        for geoJSONFeature in feature.geometry.features:
+                            if 'Polygon' == geoJSONFeature.geometry.type:
+                                # Coordinates need to be flattened out from their list of tuples
+                                coordinates = [
+                                    item
+                                    for sublist in geoJSONFeature.geometry.coordinates[
+                                        0
+                                    ]
+                                    for item in sublist
+                                ]
+                                columns.append(
+                                    f"(poly) {' '.join(map(lambda x: str(round(x)), coordinates))}"
+                                )
+                            if 'Point' == geoJSONFeature.geometry.type:
+                                coordinates = geoJSONFeature.geometry.coordinates
+                                columns.append(
+                                    f"(kp) {geoJSONFeature.properties['key']} {round(coordinates[0])} {round(coordinates[1])}"
+                                )
+                            # TODO: support for multiple GeoJSON Objects of the same type once the CSV supports it
 
                     writer.writerow(columns)
                     yield csvFile.getvalue()

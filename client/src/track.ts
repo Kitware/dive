@@ -8,9 +8,11 @@ import {
   listRemove,
 } from 'vue-media-annotator/listUtils';
 
+export type InterpolateFeatures = [Feature | null, Feature | null, Feature | null];
 export type ConfidencePair = [string, number];
 export type TrackId = number;
-export type TrackSupportedFeature = GeoJSON.Point | GeoJSON.Polygon;
+export type TrackSupportedFeature = (
+  GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString | GeoJSON.Point);
 export interface StringKeyObject {
   [key: string]: unknown;
 }
@@ -174,7 +176,7 @@ export default class Track {
 
   /** Determine if a hypothetical feature at frame should enable interpolation */
   canInterpolate(frame: number): {
-    features: [Feature | null, Feature | null, Feature | null];
+    features: InterpolateFeatures;
     interpolate: boolean;
   } {
     const [real, lower, upper] = this.getFeature(frame);
@@ -242,7 +244,11 @@ export default class Track {
           const typeMatch = item.geometry.type === geo.geometry.type;
           return keyMatch && typeMatch;
         });
-      fg.features.splice(i, 1, geo);
+      if (i >= 0) {
+        fg.features.splice(i, 1, geo);
+      } else {
+        fg.features.push(geo);
+      }
     });
     if (fg.features.length) {
       this.features[feature.frame].geometry = fg;
@@ -254,9 +260,9 @@ export default class Track {
 
   /* Get features by properties.key, geometry.type, or both */
   getFeatureGeometry(frame: number, { key, type }:
-    { key?: string; type?: GeoJSON.GeoJsonGeometryTypes }) {
+    { key?: string; type?: GeoJSON.GeoJsonGeometryTypes | '' | 'rectangle' }) {
     const feature = this.features[frame];
-    if (!feature.geometry) {
+    if (!feature || !feature.geometry) {
       return [];
     }
     return feature.geometry.features.filter((item) => {
@@ -265,6 +271,26 @@ export default class Track {
       return matchesKey && matchesType;
     });
   }
+
+  removeFeatureGeometry(frame: number, { key, type }:
+    { key?: string; type?: GeoJSON.GeoJsonGeometryTypes | '' | 'rectangle' }) {
+    const feature = this.features[frame];
+    if (!feature.geometry) {
+      return false;
+    }
+    const index = feature.geometry.features.findIndex((item) => {
+      const matchesKey = !key || item.properties?.key === key;
+      const matchesType = !type || item.geometry.type === type;
+      return matchesKey && matchesType;
+    });
+    if (index !== -1) {
+      feature.geometry.features.splice(index, 1);
+      this.notify('feature', feature);
+      return true;
+    }
+    return false;
+  }
+
 
   setFeatureAttribute(frame: number, name: string, value: unknown) {
     if (this.features[frame]) {

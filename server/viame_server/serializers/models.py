@@ -5,7 +5,8 @@ from pydantic import BaseModel, Field
 
 class GeoJSONGeometry(BaseModel):
     type: str
-    coordinates: Union[List[List[float]], List[List[List[float]]]]
+    # support point, line, or polygon,
+    coordinates: Union[List[float], List[List[float]], List[List[List[float]]]]
 
 
 class GeoJSONFeature(BaseModel):

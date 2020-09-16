@@ -17,6 +17,9 @@ import VideoAnnotator from 'vue-media-annotator/components/annotators/VideoAnnot
 import ImageAnnotator from 'vue-media-annotator/components/annotators/ImageAnnotator.vue';
 import LayerManager from 'vue-media-annotator/components/LayerManager.vue';
 
+import PolygonBase from 'app/recipes/polygonbase';
+import HeadTail from 'app/recipes/headtail';
+
 import { getDetections } from 'app/api/viameDetection.service';
 import NavigationTitle from 'app/components/NavigationTitle.vue';
 import EditorMenu from 'app/components/EditorMenu.vue';
@@ -24,11 +27,10 @@ import ConfidenceFilter from 'app/components/ConfidenceFilter.vue';
 import UserGuideButton from 'app/components/UserGuideButton.vue';
 import Export from 'app/components/Export.vue';
 import RunPipelineMenu from 'app/components/RunPipelineMenu.vue';
-import FeatureHandleControls from 'app/components/FeatureHandleControls.vue';
+import DeleteControls from 'app/components/DeleteControls.vue';
 import { Annotator } from 'app/use/useModeManager';
 import { getPathFromLocation } from 'app/utils';
 import {
-  useFeaturePointing,
   useGirderDataset,
   useModeManager,
   useSave,
@@ -41,8 +43,8 @@ import Sidebar from './Sidebar.vue';
 export default defineComponent({
   components: {
     ControlsContainer,
+    DeleteControls,
     Export,
-    FeatureHandleControls,
     Sidebar,
     LayerManager,
     VideoAnnotator,
@@ -70,10 +72,14 @@ export default defineComponent({
     const { datasetId } = props;
     const playbackComponent = ref({} as Annotator);
     const frame = ref(0); // the currently displayed frame number
-
     const {
       save: saveToServer, markChangesPending, pendingSaveCount,
     } = useSave(datasetId);
+
+    const recipes = [
+      new PolygonBase(),
+      new HeadTail(),
+    ];
 
     const {
       typeStyling,
@@ -147,14 +153,6 @@ export default defineComponent({
       tracks: filteredTracks,
     });
 
-    const {
-      featurePointing,
-      featurePointingTarget,
-      toggleFeaturePointing,
-      featurePointed,
-      deleteFeaturePoints,
-    } = useFeaturePointing({ selectedTrackId, trackMap });
-
     const { lineChartData } = useLineChart({
       enabledTracks, typeStyling, allTypes,
     });
@@ -171,7 +169,9 @@ export default defineComponent({
       handler,
       editingMode,
       visibleModes,
+      selectedKey,
     } = useModeManager({
+      recipes,
       selectedTrackId,
       editingTrack,
       frame,
@@ -184,7 +184,6 @@ export default defineComponent({
       addTrack,
       removeTrack,
     });
-
 
     async function splitTracks(trackId: TrackId | undefined, _frame: number) {
       if (typeof trackId === 'number') {
@@ -209,18 +208,18 @@ export default defineComponent({
           return;
         }
         const wasEditing = editingTrack.value;
-        selectTrack(null);
+        handler.selectTrack(null);
         tsRemoveTrack(trackId);
         insertTrack(newtracks[0]);
         insertTrack(newtracks[1]);
-        selectTrack(newtracks[1].trackId, wasEditing);
+        handler.selectTrack(newtracks[1].trackId, wasEditing);
       }
     }
 
     function save() {
       // If editing the track, disable editing mode before save
       if (editingTrack.value) {
-        selectTrack(selectedTrackId.value, false);
+        handler.selectTrack(selectedTrackId.value, false);
       }
       saveToServer({
         customTypeStyling: getTypeStyles(allTypes),
@@ -249,16 +248,14 @@ export default defineComponent({
       pendingSaveCount,
       playbackComponent,
       selectedTrackId,
+      selectedKey,
       videoUrl,
       /* methods used locally */
       addTrack,
-      deleteFeaturePoints,
-      featurePointed,
+      markChangesPending,
       save,
       saveThreshold,
-      selectTrack,
       splitTracks,
-      toggleFeaturePointing,
       updateNewTrackSettings,
       updateTypeStyle,
       updateTypeName,
@@ -270,8 +267,10 @@ export default defineComponent({
       },
       featureHandleControlsProps: {
         selectedFeatureHandle,
+        editingMode,
       },
       modeEditorProps: {
+        recipes,
         editingMode,
         visibleModes,
         editingTrack,
@@ -290,8 +289,6 @@ export default defineComponent({
       },
       layerProps: {
         editingMode,
-        featurePointing,
-        featurePointingTarget,
         intervalTree,
         selectedTrackId,
         stateStyling,
@@ -299,6 +296,7 @@ export default defineComponent({
         tracks: enabledTracks,
         typeStyling,
         visibleModes,
+        selectedKey,
       },
     };
   },
@@ -320,6 +318,9 @@ export default defineComponent({
           Data
           <v-icon>mdi-database</v-icon>
         </v-tab>
+        <v-tab to="/settings">
+          Settings<v-icon>mdi-settings</v-icon>
+        </v-tab>
       </v-tabs>
       <span
         v-if="dataset"
@@ -328,15 +329,20 @@ export default defineComponent({
         {{ dataset.name }}
       </span>
       <v-spacer />
-      <feature-handle-controls
-        v-bind="featureHandleControlsProps"
-        @delete-point="handler.removePoint"
-      />
-      <editor-menu
-        v-bind="modeEditorProps"
-        class="shrink px-6"
-        @set-annotaiton-state="handler.setAnnotationState"
-      />
+      <template #extension>
+        <span>Viewer/Edit Controls</span>
+        <editor-menu
+          v-bind="modeEditorProps"
+          class="shrink px-6"
+          @set-annotation-state="handler.setAnnotationState"
+        />
+        <delete-controls
+          v-bind="featureHandleControlsProps"
+          @delete-point="handler.removePoint"
+          @delete-annotation="handler.removeAnnotation"
+        />
+        <v-spacer />
+      </template>
       <run-pipeline-menu
         v-if="dataset"
         :selected="[dataset]"
@@ -393,19 +399,14 @@ export default defineComponent({
           v-if="imageData.length || videoUrl"
           ref="playbackComponent"
           v-mousetrap="[
-            { bind: 'g', handler: () => toggleFeaturePointing('head') },
-            { bind: 'h', handler: () => toggleFeaturePointing('head') },
             { bind: 'n', handler: () => handler.addTrack(frame) },
-            { bind: 't', handler: () => toggleFeaturePointing('tail') },
-            { bind: 'y', handler: () => toggleFeaturePointing('tail') },
-            { bind: 'q', handler: () => deleteFeaturePoints(frame) },
             { bind: 'r', handler: () => playbackComponent.resetZoom() },
             { bind: 'esc', handler: () => handler.selectTrack(null, false)}
           ]"
+          class="playback-component"
           :image-data="imageData"
           :video-url="videoUrl"
           :frame-rate="frameRate"
-          class="playback-component"
           @frame-update="frame = $event"
         >
           <template slot="control">
@@ -413,55 +414,13 @@ export default defineComponent({
           </template>
           <layer-manager
             v-bind="layerProps"
-            @feature-point-updated="featurePointed"
             @select-track="handler.selectTrack"
             @select-feature-handle="handler.selectFeatureHandle"
             @update-rect-bounds="handler.updateRectBounds"
-            @update-polygon="handler.updatePolygon"
+            @update-geojson="handler.updateGeoJSON"
           />
         </component>
-        <v-menu
-          v-if="selectedTrackId"
-          class="z-index: 100;"
-          offset-y
-        >
-          <template v-slot:activator="{ on }">
-            <v-btn
-              class="selection-menu-button"
-              icon
-              v-on="on"
-            >
-              <v-icon>mdi-dots-horizontal</v-icon>
-            </v-btn>
-          </template>
-          <v-list>
-            <v-list-item @click="toggleFeaturePointing('head')">
-              <v-list-item-title>
-                Add feature points, starting with head (g key)
-              </v-list-item-title>
-            </v-list-item>
-            <v-list-item @click="toggleFeaturePointing('tail')">
-              <v-list-item-title>
-                Add feature points, starting with tail (t key)
-              </v-list-item-title>
-            </v-list-item>
-            <v-list-item @click="deleteFeaturePoints(frame)">
-              <v-list-item-title>
-                Delete both feature points for current frame (q key)
-              </v-list-item-title>
-            </v-list-item>
-          </v-list>
-        </v-menu>
       </v-col>
     </v-row>
   </v-content>
 </template>
-
-<style lang="scss" scoped>
-.selection-menu-button {
-  position: absolute;
-  right: 0;
-  top: 0;
-  z-index: 1;
-}
-</style>
