@@ -174,7 +174,7 @@ export default defineComponent({
 
 <style scoped>
 .sidebar {
-  max-height: calc(100vh - 64px);
+  max-height: calc(100vh - 128px);
 }
 
 .wrapper {
