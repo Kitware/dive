@@ -32,7 +32,7 @@ export interface BaseLayerParams {
     typeStyling: Ref<TypeStyling>;
 }
 
-export default abstract class BaseLayer<D> extends Vue {
+export default abstract class BaseLayer<D> {
     formattedData: D[];
 
     annotator: Annotator;
@@ -48,13 +48,13 @@ export default abstract class BaseLayer<D> extends Vue {
 
     selectedIndex: number[]; // sparse array
 
+    bus: Vue;
 
     constructor({
       annotator,
       stateStyling,
       typeStyling,
     }: BaseLayerParams) {
-      super();
       this.annotator = annotator;
       this.stateStyling = stateStyling;
       this.typeStyling = typeStyling;
@@ -62,6 +62,7 @@ export default abstract class BaseLayer<D> extends Vue {
       this.style = {};
       this.featureLayer = null;
       this.selectedIndex = [];
+      this.bus = new Vue();
       this.initialize();
     }
 

@@ -8,6 +8,7 @@ import {
   listRemove,
 } from 'vue-media-annotator/listUtils';
 
+export type InterpolateFeatures = [Feature | null, Feature | null, Feature | null];
 export type ConfidencePair = [string, number];
 export type TrackId = number;
 export type TrackSupportedFeature = (
@@ -175,7 +176,7 @@ export default class Track {
 
   /** Determine if a hypothetical feature at frame should enable interpolation */
   canInterpolate(frame: number): {
-    features: [Feature | null, Feature | null, Feature | null];
+    features: InterpolateFeatures;
     interpolate: boolean;
   } {
     const [real, lower, upper] = this.getFeature(frame);

@@ -50,107 +50,68 @@ function boundToGeojson(bounds: RectBounds): GeoJSON.Polygon {
   };
 }
 
-/**
- *  Removing a point for a Line is different than a polygon
- * @param data
- */
 function removePoint(
-  data:
-  GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.LineString | GeoJSON.Point>, index: number,
-) {
+  data: GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.LineString | GeoJSON.Point>, index: number,
+): boolean {
   if (data.geometry.type === 'Polygon') {
-    if (data.geometry.coordinates[0].length > 3) {
-      data.geometry.coordinates[0].splice(index, 1);
+    const coords = data.geometry.coordinates[0];
+    const second = coords[1];
+    // Polygons must have 3 points, but the first and last are always the same
+    if (coords.length > 4) {
+      if (index === 0 || index === coords.length - 1) {
+        // Replace the last point with the second,
+        // the first is about to be removed
+        // A B C D A --> B C D B
+        coords.splice(coords.length - 1, 1, second);
+      }
+      coords.splice(index, 1);
       return true;
     }
     console.warn('Polygons must have at least 3 points');
     return false;
   }
-  if (data.geometry.coordinates.length > 2) { //Handling a Line
-    data.geometry.coordinates.splice(index, 1);
-    return true;
-  }
-  if (data.geometry.type === 'LineString' && data.geometry.coordinates.length === 2) {
-    console.warn('Lines must have at least 2 points');
-    return false;
-  }
-  return true;
+  return false;
 }
 
-
-function findBounds(
-  data: GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.LineString | GeoJSON.Point>,
-): RectBounds {
-  let coords;
-  if (data.geometry.type === 'Polygon') {
-    // eslint-disable-next-line prefer-destructuring
-    coords = data.geometry.coordinates[0];
-  } else if (data.geometry.type === 'LineString') {
-    coords = data.geometry.coordinates;
+function updateBounds(
+  oldBounds: RectBounds | undefined,
+  union: GeoJSON.Polygon[],
+  unionNoBounds: GeoJSON.Polygon[],
+): RectBounds | undefined {
+  if (!oldBounds && union.length === 0 && unionNoBounds.length === 0) {
+    // nothing to do, skip bounds update
+    return undefined;
   }
   const limits = {
     xLow: Infinity,
-    xHigh: -Infinity,
     yLow: Infinity,
+    xHigh: -Infinity,
     yHigh: -Infinity,
   };
-  if (data.geometry.type === 'Point') {
-    return [
-      data.geometry.coordinates[0],
-      data.geometry.coordinates[1],
-      data.geometry.coordinates[0],
-      data.geometry.coordinates[1],
-    ];
+  if (oldBounds && unionNoBounds.length === 0) {
+    [
+      limits.xLow,
+      limits.yLow,
+      limits.xHigh,
+      limits.yHigh,
+    ] = oldBounds;
   }
-  if (coords) {
-    coords.forEach(([xCoord, yCoord]) => {
-      limits.xLow = Math.min(xCoord, limits.xLow);
-      limits.xHigh = Math.max(xCoord, limits.xHigh);
-      limits.yLow = Math.min(yCoord, limits.yLow);
-      limits.yHigh = Math.max(yCoord, limits.yHigh);
+  union.concat(unionNoBounds).forEach((poly) => {
+    poly.coordinates.forEach((posarr) => {
+      posarr.forEach((pos) => {
+        limits.xLow = Math.min(limits.xLow, pos[0]);
+        limits.xHigh = Math.max(limits.xHigh, pos[0]);
+        limits.yLow = Math.min(limits.yLow, pos[1]);
+        limits.yHigh = Math.max(limits.yHigh, pos[1]);
+      });
     });
-  }
-
-  //We want to update the bounds with a buffer of like 5-10% if it is a line String
-  if (data.geometry.type === 'LineString') {
-    const buffer = 0.10;
-    const height = limits.yHigh - limits.yLow;
-    const width = limits.xHigh - limits.xLow;
-    limits.xLow -= width * buffer;
-    limits.xHigh += width * buffer;
-    limits.yLow -= height * buffer;
-    limits.yHigh += height * buffer;
-  }
-  //Now we create some bounds from our 4 points
+  });
   return [limits.xLow, limits.yLow, limits.xHigh, limits.yHigh];
-}
-/**
- * If the bounds should be updated based on the type of the new item and the size changes
- */
-function updateBounds(
-  oldBounds: RectBounds | undefined,
-  newBounds: RectBounds,
-  newData: GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.LineString | GeoJSON.Point>,
-) {
-  //Polygons will always update the bounds or if there are no oldBounds
-  if (newData.geometry.type === 'Polygon' || oldBounds === undefined) {
-    return newBounds;
-  }
-  //If we have a line string we return the larger item
-  if (newData.geometry.type === 'LineString' || newData.geometry.type === 'Point') {
-    const outBounds = oldBounds;
-    outBounds[0] = Math.min(oldBounds[0], newBounds[0]);
-    outBounds[1] = Math.min(oldBounds[1], newBounds[1]);
-    outBounds[2] = Math.max(oldBounds[2], newBounds[2]);
-    outBounds[3] = Math.max(oldBounds[3], newBounds[3]);
-    return outBounds;
-  }
-  return oldBounds;
 }
 
 export {
   boundToGeojson,
-  findBounds,
+  // findBounds,
   updateBounds,
   geojsonToBound,
   updateSubset,

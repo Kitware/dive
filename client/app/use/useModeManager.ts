@@ -1,22 +1,27 @@
 import {
-  computed, Ref, reactive, ref,
+  computed, Ref, reactive, ref, onBeforeUnmount,
 } from '@vue/composition-api';
-import { cloneDeep, uniq } from 'lodash';
+import { uniq, flatMapDeep } from 'lodash';
 import Track, { TrackId } from 'vue-media-annotator/track';
-import {
-  RectBounds, findBounds, removePoint, updateBounds,
-} from 'vue-media-annotator/utils';
+import { RectBounds, updateBounds } from 'vue-media-annotator/utils';
 import { EditAnnotationTypes } from 'vue-media-annotator/layers/EditAnnotationLayer';
 
+import Recipe from 'vue-media-annotator/recipe';
 import { NewTrackSettings } from './useSettings';
 
+type SupportedFeature = GeoJSON.Feature<GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString>;
 export interface Annotator {
   seek(frame: number): void;
   resetZoom(): void;
   nextFrame(): void;
 }
 
-
+interface SetAnnotationStateArgs {
+  visible?: EditAnnotationTypes[];
+  editing?: EditAnnotationTypes;
+  key?: string;
+  recipeName?: string;
+}
 /**
  * The point of this composition function is to define and manage the transition betwee
  * different UI states within the program.  States and state transitions can be modified
@@ -31,33 +36,25 @@ export default function useModeManager({
   trackMap,
   playbackComponent,
   newTrackSettings,
+  recipes,
   selectTrack,
   getTrack,
   selectNextTrack,
   addTrack,
   removeTrack,
-  removeHeadTails,
-  updateHeadTails,
 }: {
-    selectedTrackId: Ref<TrackId | null>;
-    editingTrack: Ref<boolean>;
-    frame: Ref<number>;
-    trackMap: Map<TrackId, Track>;
-    playbackComponent: Ref<Annotator>;
-    newTrackSettings: NewTrackSettings;
-    selectTrack: (trackId: TrackId | null, edit: boolean) => void;
-    getTrack: (trackId: TrackId) => Track;
-    selectNextTrack: (delta?: number) => TrackId | null;
-    addTrack: (frame: number, defaultType: string) => Track;
-    removeTrack: (trackId: TrackId) => void;
-    removeHeadTails: (frameNum: number, track: Track, index: number) => void;
-    updateHeadTails: (
-      frameNum: number,
-      track: Track,
-      interpolate: boolean,
-      key: string,
-      data: GeoJSON.Feature<GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString>,
-    ) => void;
+  selectedTrackId: Ref<TrackId | null>;
+  editingTrack: Ref<boolean>;
+  frame: Ref<number>;
+  trackMap: Map<TrackId, Track>;
+  playbackComponent: Ref<Annotator>;
+  newTrackSettings: NewTrackSettings;
+  recipes: Recipe[];
+  selectTrack: (trackId: TrackId | null, edit: boolean) => void;
+  getTrack: (trackId: TrackId) => Track;
+  selectNextTrack: (delta?: number) => TrackId | null;
+  addTrack: (frame: number, defaultType: string) => Track;
+  removeTrack: (trackId: TrackId) => void;
 }) {
   let newTrackMode = false;
   let newDetectionMode = false;
@@ -70,7 +67,7 @@ export default function useModeManager({
   // but the meaning of this value varies based on the editing mode.  When in
   // polygon edit mode, this corresponds to a polygon point.  Ditto in line mode.
   const selectedFeatureHandle = ref(-1);
-  //The Key of the selected type, for now mostly '' but is used for HeadTails Processing
+  //The Key of the selected type, for now mostly ''
   const selectedKey = ref('');
   // which type is currently being edited, if any
   const editingMode = computed(() => editingTrack.value && annotationModes.editing);
@@ -78,6 +75,19 @@ export default function useModeManager({
   const visibleModes = computed(() => (
     uniq(annotationModes.visible.concat(editingMode.value || []))
   ));
+
+  /**
+   * Figure out if a new feature should enable interpolation
+   * based on current state and the result of canInterolate.
+   */
+  function _shouldInterpolate(interpolate: boolean) {
+    const interpolateTrack = newTrackMode
+      ? newTrackSettings.modeSettings.Track.interpolate
+      : interpolate;
+    return (newDetectionMode && !newTrackMode)
+      ? false
+      : interpolateTrack;
+  }
 
   function seekNearest(track: Track) {
     // Seek to the nearest point in the track.
@@ -88,15 +98,21 @@ export default function useModeManager({
     }
   }
 
-  function handleSelectKey(key: string | '') {
-    selectedKey.value = key;
+  function _selectKey(key: string | undefined) {
+    if (typeof key === 'string') {
+      selectedKey.value = key;
+    } else {
+      selectedKey.value = '';
+    }
   }
 
   function handleSelectFeatureHandle(i: number, key = '') {
-    selectedFeatureHandle.value = i;
-    if (key !== '') {
-      handleSelectKey(key);
+    if (i !== selectedFeatureHandle.value) {
+      selectedFeatureHandle.value = i;
+    } else {
+      selectedFeatureHandle.value = -1;
     }
+    _selectKey(key);
   }
 
   function handleSelectTrack(trackId: TrackId | null, edit = false) {
@@ -104,6 +120,10 @@ export default function useModeManager({
     if (newTrackMode && !edit) {
       newTrackMode = false;
     }
+    // TODO remove this hack when full linestring support is added.
+    // if (edit && annotationModes.editing === 'LineString') {
+    //   annotationModes.editing = 'rectangle';
+    // }
   }
 
   function handleAddTrack() {
@@ -142,15 +162,11 @@ export default function useModeManager({
         if (!real || real.bounds === undefined) {
           newDetectionMode = true;
         }
-        const interpolateTrack = newTrackMode
-          ? newTrackSettings.modeSettings.Track.interpolate
-          : interpolate;
         track.setFeature({
           frame: frameNum,
           bounds,
           keyframe: true,
-          interpolate: (newDetectionMode && !newTrackMode)
-            ? false : interpolateTrack,
+          interpolate: _shouldInterpolate(interpolate),
         });
         //If it is a new track and we have newTrack Settings
         if (newTrackMode && newDetectionMode) {
@@ -161,132 +177,165 @@ export default function useModeManager({
     }
   }
 
-
-  //Creation of head or tail points
-  function handleFeaturePointing(key: 'head' | 'tail') {
-    if (selectedTrackId.value !== null) {
-      handleSelectKey(key);
-      annotationModes.editing = 'Point';
-      selectTrack(selectedTrackId.value, true);
-    }
-  }
-
-  const headTailReservedKeys = ['head', 'tail', 'HeadTails'];
-
   function handleUpdateGeoJSON(
+    eventType: 'in-progress' | 'editing',
     frameNum: number,
-    data: GeoJSON.Feature<GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString>,
-    key: string,
+    // Type alias this
+    data: SupportedFeature,
+    key?: string,
+    preventInterrupt?: () => void,
   ) {
+    /**
+     * Declare aggregate update collector. Each recipe
+     * will have the opportunity to modify this object.
+     */
+    const update = {
+      // Geometry data to be applied to the feature
+      geoJsonFeatureRecord: {} as Record<string, SupportedFeature[]>,
+      // Ploygons to be unioned with existing bounds (update)
+      union: [] as GeoJSON.Polygon[],
+      // Polygons to be unioned without existing bounds (overwrite)
+      unionWithoutBounds: [] as GeoJSON.Polygon[],
+      // If the editor mode should change types
+      newType: undefined as EditAnnotationTypes | undefined,
+      // If the selected key should change
+      newSelectedKey: undefined as string | undefined,
+      // If the recipe has completed
+      done: [] as (boolean|undefined)[],
+    };
+
     if (selectedTrackId.value !== null) {
       const track = trackMap.get(selectedTrackId.value);
       if (track) {
-      // Determines if we are creating a new Detection
+        // newDetectionMode is true if there's no keyframe on frameNum
         const { features, interpolate } = track.canInterpolate(frameNum);
         const [real] = features;
         if (!real || real.bounds === undefined) {
           newDetectionMode = true;
         }
-        const interpolateTrack = newTrackMode
-          ? newTrackSettings.modeSettings.Track.interpolate
-          : interpolate;
-        const interpolateSetting = (newDetectionMode && !newTrackMode)
-          ? false : interpolateTrack;
-        if (headTailReservedKeys.includes(key)) {
-          updateHeadTails(frameNum, track, interpolateSetting, key, data);
-        }
 
-        //Update bounds based on type and condition of the updated bounds
-        let oldBounds;
-        if (real) {
-          oldBounds = real.bounds;
-        }
-        const newbounds = findBounds(data);
-        const updatedBounds = updateBounds(oldBounds, newbounds, data);
+        // Give each recipe the opportunity to make changes
+        recipes.forEach((recipe) => {
+          const changes = recipe.update(eventType, frameNum, track, [data], key);
+          // Prevent key conflicts among recipes
+          Object.keys(changes.data).forEach((key_) => {
+            if (key_ in update.geoJsonFeatureRecord) {
+              throw new Error(`Recipe ${recipe.name} tried to overwrite key ${key_} when it was already set`);
+            }
+          });
+          Object.assign(update.geoJsonFeatureRecord, changes.data);
+          // Collect unions
+          update.union.push(...changes.union);
+          update.unionWithoutBounds.push(...changes.unionWithoutBounds);
+          update.done.push(changes.done);
+          // Prevent more than 1 recipe from changing a given mode/key
+          if (changes.newType) {
+            if (update.newType) {
+              throw new Error(`Recipe ${recipe.name} tried to modify type when it was already set`);
+            }
+            update.newType = changes.newType;
+          }
+          if (changes.newSelectedKey) {
+            if (update.newSelectedKey) {
+              throw new Error(`Recipe ${recipe.name} tried to modify selectedKey when it was already set`);
+            }
+            update.newSelectedKey = changes.newSelectedKey;
+          }
+        });
 
-        const feature = {
-          frame: frameNum,
-          keyframe: true,
-          bounds: updatedBounds,
-          interpolate: (newDetectionMode && !newTrackMode)
-            ? false : interpolateTrack,
-        };
-        // TODO: update to only work with polygon changes, not line changes
-        track.setFeature(
-          feature,
-          [{
-            type: data.type,
-            geometry: data.geometry,
-            properties: {
-              key,
-            },
-          }],
+        // somethingChanged indicates whether there will need to be a redraw
+        // of the geometry currently displayed
+        const somethingChanged = (
+          update.union.length !== 0
+          || update.unionWithoutBounds.length !== 0
+          || Object.keys(update.geoJsonFeatureRecord).length !== 0
         );
 
-        //If we are creating a point, we swap back to rectangle once done
-        //we also check if we need to make the line
-        if (data.geometry.type === 'Point' && annotationModes.editing === 'Point') {
-          handleSelectKey('');
-          annotationModes.editing = 'rectangle';
-          selectTrack(selectedTrackId.value, false);
+        // If a drawable changed, but we aren't changing modes
+        // prevent an interrupt within EditAnnotationLayer
+        if (
+          somethingChanged
+          && !update.newSelectedKey
+          && !update.newType
+          && preventInterrupt
+        ) {
+          preventInterrupt();
+        } else {
+          // Otherwise, one of these state changes will trigger an interrupt.
+          if (update.newSelectedKey) {
+            selectedKey.value = update.newSelectedKey;
+          }
+          if (update.newType) {
+            annotationModes.editing = update.newType;
+            recipes.forEach((r) => r.deactivate());
+          }
         }
-        //If it is a new track and we have newTrack Settings
-        if (newTrackMode && newDetectionMode) {
-          newTrackSettingsAfterLogic(track);
-        }
-        newDetectionMode = false;
-      }
-    }
-  }
-
-  /**
-   * Removes the selectedIndex point for the selected Polygon/line
-   */
-  function handleRemovePoint(type: '' | GeoJSON.GeoJsonGeometryTypes = '') {
-    if (selectedTrackId.value !== null && selectedFeatureHandle.value !== -1) {
-      const track = trackMap.get(selectedTrackId.value);
-      if (track) {
-        // Determines if we are creating a new Detection
-        const { features } = track.canInterpolate(frame.value);
-        const [real] = features;
-        if (!real) return;
-        const geoJSONType = type !== '' ? type : annotationModes.editing;
-        const geoJsonFeatures = track.getFeatureGeometry(frame.value, {
-          type: geoJSONType,
-          key: selectedKey.value,
-        });
-        if (geoJsonFeatures.length === 0) return;
-        //could operate directly on the polygon memory, but small enough to copy and edit
-        const clone = cloneDeep(geoJsonFeatures[0]);
-        if (selectedKey.value === 'HeadTails') {
-          removeHeadTails(frame.value, track, selectedFeatureHandle.value);
-          handleSelectFeatureHandle(-1);
-        } else if (removePoint(clone, selectedFeatureHandle.value)) {
+        // Update the state of the track in the trackstore.
+        if (somethingChanged) {
           track.setFeature({
-            frame: frame.value,
-            bounds: findBounds(clone),
-          }, [clone]);
-          handleSelectFeatureHandle(-1);
+            frame: frameNum,
+            keyframe: true,
+            bounds: updateBounds(real?.bounds, update.union, update.unionWithoutBounds),
+            interpolate,
+          }, flatMapDeep(update.geoJsonFeatureRecord,
+            (geomlist, key_) => geomlist.map((geom) => ({
+              type: geom.type,
+              geometry: geom.geometry,
+              properties: { key: key_ },
+            }))));
+
+          // Only perform "initialization" after the first shape.
+          // Treat this as a completed annotation if eventType is editing
+          // Or none of the recieps reported that they were unfinished.
+          if (eventType === 'editing' || update.done.every((v) => v !== false)) {
+            // If it is a new track and we have newTrack Settings
+            if (newTrackMode && newDetectionMode) {
+              newTrackSettingsAfterLogic(track);
+            }
+            newDetectionMode = false;
+          }
         }
+      } else {
+        throw new Error(`${selectedTrackId.value} missing from trackMap`);
       }
+    } else {
+      throw new Error('Cannot call handleUpdateGeojson without a selected Track ID');
     }
   }
 
-  function handleRemoveAnnotation(frameNum: number, key = '', type: '' | GeoJSON.GeoJsonGeometryTypes) {
+  /* If any recipes are active, allow them to remove a point */
+  function handleRemovePoint() {
     if (selectedTrackId.value !== null && selectedFeatureHandle.value !== -1) {
       const track = trackMap.get(selectedTrackId.value);
       if (track) {
-        // Determines if we are creating a new Detection
-        const { features } = track.canInterpolate(frame.value);
-        const [real] = features;
-        if (!real) return false;
-        // TODO: This can be changed when we have selection of annotations by key/type
-        const geoJSONType = type !== '' ? type : annotationModes.editing;
-        track.removeFeatureGeometry(frameNum, { key, type: geoJSONType });
-        return true;
+        recipes.forEach((r) => {
+          if (r.active.value) {
+            r.deletePoint(
+              frame.value,
+              track,
+              selectedFeatureHandle.value,
+              selectedKey.value,
+              annotationModes.editing,
+            );
+          }
+        });
       }
     }
-    return false;
+    handleSelectFeatureHandle(-1);
+  }
+
+  /* If any recipes are active, remove the geometry they added */
+  function handleRemoveAnnotation() {
+    if (selectedTrackId.value !== null) {
+      const track = trackMap.get(selectedTrackId.value);
+      if (track) {
+        recipes.forEach((r) => {
+          if (r.active.value) {
+            r.delete(frame.value, track, selectedKey.value, annotationModes.editing);
+          }
+        });
+      }
+    }
   }
 
   function handleRemoveTrack(trackId: TrackId) {
@@ -319,13 +368,30 @@ export default function useModeManager({
     }
   }
 
-  function handleSetAnnotationState({ visible, editing }: {
-    visible?: EditAnnotationTypes[];
-    editing?: EditAnnotationTypes;
-  }) {
-    if (visible) annotationModes.visible = visible;
-    if (editing) annotationModes.editing = editing;
+  function handleSetAnnotationState({
+    visible, editing, key, recipeName,
+  }: SetAnnotationStateArgs) {
+    if (visible) {
+      annotationModes.visible = visible;
+    }
+    if (editing) {
+      annotationModes.editing = editing;
+      _selectKey(key);
+      handleSelectTrack(selectedTrackId.value, true);
+      recipes.forEach((r) => {
+        if (recipeName !== r.name) {
+          r.deactivate();
+        }
+      });
+    }
   }
+
+  /* Subscribe to recipe activation events */
+  recipes.forEach((r) => r.bus.$on('activate', handleSetAnnotationState));
+  /* Unsubscribe before unmount */
+  onBeforeUnmount(() => {
+    recipes.forEach((r) => r.bus.$off('activate', handleSetAnnotationState));
+  });
 
   return {
     editingMode,
@@ -333,7 +399,6 @@ export default function useModeManager({
     selectedFeatureHandle,
     selectedKey,
     handler: {
-      handleFeaturePointing,
       selectTrack: handleSelectTrack,
       trackEdit: handleTrackEdit,
       trackTypeChange: handleTrackTypeChange,
@@ -344,7 +409,6 @@ export default function useModeManager({
       trackClick: handleTrackClick,
       removeTrack: handleRemoveTrack,
       removePoint: handleRemovePoint,
-      selectKey: handleSelectKey,
       removeAnnotation: handleRemoveAnnotation,
       selectFeatureHandle: handleSelectFeatureHandle,
       setAnnotationState: handleSetAnnotationState,

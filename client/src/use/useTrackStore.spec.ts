@@ -29,7 +29,7 @@ describe('useTrackStore', () => {
 
   it('can insert and delete single-frame detections', () => {
     const ts = useTrackStore({ markChangesPending: () => null });
-    const t0 = ts.addTrack(0, 'foo');
+    ts.addTrack(0, 'foo');
     const t1 = ts.addTrack(0, 'bar');
     expect(Array.from(ts.trackMap.keys()).length).toBe(2);
 
