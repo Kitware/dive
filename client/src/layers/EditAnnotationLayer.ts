@@ -81,7 +81,11 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
       this.featureLayer.geoOn(geo.event.annotation.select_edit_handle,
         (e: GeoEvent) => this.hoverEditHandle(e));
       this.featureLayer.geoOn(geo.event.mouseclick, (e: GeoEvent) => {
-        if (e.buttonsDown.left && this.hoverHandleIndex !== -1) {
+        //Used to sync clicks that kick out of editing mode with application
+        if ((e.buttonsDown.left || e.buttonsDown.right)
+          && this.getMode() === 'disabled' && this.featureLayer.annotations()[0]) {
+          this.bus.$emit('editing-annotation-sync', false);
+        } else if (e.buttonsDown.left) {
           const newIndex = this.hoverHandleIndex;
           // Click features like a toggle: unselect if it's clicked twice.
           if (newIndex === this.selectedHandleIndex) {
@@ -151,6 +155,8 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
       if (!e.handle.handle.selected) {
         this.hoverHandleIndex = -1;
       }
+    } else if (e.enable && e.handle.handle.type === 'center') {
+      this.hoverHandleIndex = -1;
     }
   }
 
@@ -339,12 +345,6 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
           this.selectedKey,
           this.skipNextFunc(),
         );
-      } else if (e.annotation.state() === 'done' && this.getMode() === 'disabled') {
-        //This syncs the programs mode with geoJS's internal mode state
-        //and disregards if swapping edit mode
-        if (typeMapper.get(this.type) === e.annotation.type()) {
-          this.bus.$emit('editing-annotation-sync', false);
-        }
       }
     }
   }
@@ -354,7 +354,6 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
    * @param e geo.event
    */
   handleEditAction(e: GeoEvent) {
-    console.log(`editAction: ${e.action} state: ${e.annotation.state()}`);
     if (this.featureLayer === e.annotation.layer()) {
       if (e.action === geo.event.actionup) {
         // This will commit the change to the current annotation on mouse up while editing
