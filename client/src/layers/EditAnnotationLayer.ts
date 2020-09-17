@@ -88,6 +88,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
         (e: GeoEvent) => this.hoverEditHandle(e));
       this.featureLayer.geoOn(geo.event.mouseclick, (e: GeoEvent) => {
         //Used to sync clicks that kick out of editing mode with application
+        //This prevents that pseudo Edit state when left clicking on a object in edit mode
         if (!this.disableModeSync && (e.buttonsDown.left)
           && this.getMode() === 'disabled' && this.featureLayer.annotations()[0]) {
           this.bus.$emit('editing-annotation-sync', false);
