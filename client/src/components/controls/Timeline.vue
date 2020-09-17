@@ -158,13 +158,17 @@ export default {
       this.updateAxis();
     },
     emitSeek(e) {
-      const frame = Math.round(
-        ((e.clientX - (this.$refs.workarea.getBoundingClientRect().left + 20))
+      const leftBounds = (this.$refs.workarea.getBoundingClientRect().left + this.margin);
+      const rightBounds = (this.$refs.workarea.getBoundingClientRect().right - this.margin);
+      if (e.clientX > leftBounds && e.clientX < rightBounds) {
+        const frame = Math.round(
+          ((e.clientX - leftBounds)
           / (this.clientWidth - this.margin))
           * (this.endFrame - this.startFrame)
           + this.startFrame,
-      );
-      this.$emit('seek', frame);
+        );
+        this.$emit('seek', frame);
+      }
     },
     workareaMouseup(e) {
       if (this.dragging) {
