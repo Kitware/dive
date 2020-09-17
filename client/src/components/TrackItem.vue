@@ -176,12 +176,23 @@ export default {
         :color="color"
         @change="$emit('change', $event)"
       />
-      <div
-        class="trackNumber pl-0 pr-2"
-        @click.self="$emit('click')"
+      <v-tooltip
+        open-delay="200"
+        bottom
+        max-width="200"
+        :disabled="trackId.toString().length < 8"
       >
-        {{ trackId }}
-      </div>
+        <template #activator="{ on }">
+          <div
+            class="trackNumber pl-0 pr-2"
+            v-on="on"
+            @click.self="$emit('click')"
+          >
+            {{ trackId }}
+          </div>
+        </template>
+        <span> {{ trackId }} </span>
+      </v-tooltip>
       <v-spacer />
       <input
         ref="typeInputBox"
@@ -286,6 +297,10 @@ export default {
 
   .trackNumber {
     font-family: monospace;
+    max-width: 80px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
     &:hover {
       cursor: pointer;
       font-weight: bolder;
@@ -296,7 +311,7 @@ export default {
     border: 1px solid rgb(255, 255, 255, 0.15);
     border-radius: 4px;
     padding: 0 6px;
-    width: 160px;
+    width: 135px;
     color: white;
   }
 }

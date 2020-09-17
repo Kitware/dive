@@ -131,7 +131,7 @@ export default {
     },
     rendered() {},
     resetZoom() {
-      this.geoViewer.zoom(-1);
+      this.geoViewer.zoom(this.geoViewer.zoomRange().origMin);
       this.geoViewer.center({ x: 0, y: 0 });
     },
   },

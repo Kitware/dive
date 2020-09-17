@@ -187,7 +187,7 @@ export default defineComponent({
 }
 
 .typelist {
-  min-height: 100px;
+  min-height: 150px;
 }
 
 .swap-button {
