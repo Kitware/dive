@@ -68,9 +68,6 @@ export default {
           isViameFolder: selected.meta && selected.meta.annotate,
         };
       }
-      if (selected.length > 1) {
-        return null;
-      }
       if (this.locationIsViameFolder) {
         return {
           title: this.location.name,
