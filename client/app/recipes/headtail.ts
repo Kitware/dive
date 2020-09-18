@@ -51,7 +51,7 @@ export default class HeadTail implements Recipe {
       const polyPoints = [
         [-0.1, -0.3],
         [-0.1, 0.3],
-        [1.1, 0.3],
+        [1.1, -0.3],
         [1.1, 0.3],
         [-0.1, -0.3],
       ];
