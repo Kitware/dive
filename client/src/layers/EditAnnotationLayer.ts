@@ -45,9 +45,9 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
 
   hoverHandleIndex: number;
 
-  disableModeSync: boolean;
+  disableModeSync: boolean; //Disables fallthrough mouse clicks when ending an annotation
 
-  leftButtonCheckTimeout: number;
+  leftButtonCheckTimeout: number; //Fallthough mouse down when ending lineStrings
 
   /* in-progress events only emitted for lines and polygons */
   shapeInProgress: GeoJSON.LineString | GeoJSON.Polygon | null;
@@ -269,6 +269,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
     if (this.skipNextExternalUpdate === false) {
       // disable resets things before we load a new/different shape or mode
       this.disable();
+      //TODO: Find a better way to track mouse up after placing a point or completing geometry
       //For line drawings and the actions of any recipes we want
       if (this.annotator.geoViewer.interactor().mouse().buttons.left) {
         this.formattedData = this.formatData(frameData);
