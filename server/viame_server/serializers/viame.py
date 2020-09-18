@@ -198,7 +198,7 @@ def export_tracks_as_csv(
                         feature.fishLength or -1,
                     ]
 
-                    if filenames:
+                    if filenames and feature.frame < len(filenames):
                         columns[1] = filenames[feature.frame]
 
                     for pair in sorted_confidence_pairs:
