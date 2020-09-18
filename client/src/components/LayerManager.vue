@@ -257,6 +257,17 @@ export default defineComponent({
       } else {
         emit('update-geojson', mode, frameNumber.value, data, key, cb);
       }
+      //We update the current layer if not in progress so it jumps back into edit mode
+      if (mode !== 'in-progress') {
+        updateLayers(
+          frameNumber.value,
+          props.editingMode.value,
+          props.selectedTrackId.value,
+          props.tracks.value,
+          props.visibleModes.value,
+          props.selectedKey.value,
+        );
+      }
     });
     editAnnotationLayer.bus.$on('update:selectedIndex',
       (index: number, _type: EditAnnotationTypes, key = '') => emit('select-feature-handle', index, key));

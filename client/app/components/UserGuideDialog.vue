@@ -41,10 +41,7 @@ export default {
               name: 'Edit Track', icon: 'mdi-mouse', actions: ['Right Click Mouse'], description: 'Right click a track to enter Edit Mode',
             },
             {
-              name: 'Add Head/Tail', icon: 'mdi-keyboard', actions: ['H or G Key - Head', 'T or Y Key - Tail'], description: 'While a track is selected add head/tail annotations',
-            },
-            {
-              name: 'Delete Head/Tail', icon: 'mdi-keyboard', actions: ['Q Key'], description: 'While a track is selected add head/tail annotations',
+              name: 'Add Head/Tail', icon: 'mdi-keyboard', actions: ['H Key - Head', 'T Key - Tail'], description: 'While a track is selected add head/tail annotations',
             },
           ],
         },

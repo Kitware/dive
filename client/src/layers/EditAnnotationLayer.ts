@@ -45,6 +45,10 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
 
   hoverHandleIndex: number;
 
+  disableModeSync: boolean; //Disables fallthrough mouse clicks when ending an annotation
+
+  leftButtonCheckTimeout: number; //Fallthough mouse down when ending lineStrings
+
   /* in-progress events only emitted for lines and polygons */
   shapeInProgress: GeoJSON.LineString | GeoJSON.Polygon | null;
 
@@ -57,6 +61,8 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
     this.selectedHandleIndex = -1;
     this.hoverHandleIndex = -1;
     this.shapeInProgress = null;
+    this.disableModeSync = false;
+    this.leftButtonCheckTimeout = -1;
 
     //Only initialize once, prevents recreating Layer each edit
     this.initialize();
@@ -82,7 +88,8 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
         (e: GeoEvent) => this.hoverEditHandle(e));
       this.featureLayer.geoOn(geo.event.mouseclick, (e: GeoEvent) => {
         //Used to sync clicks that kick out of editing mode with application
-        if ((e.buttonsDown.left || e.buttonsDown.right)
+        //This prevents that pseudo Edit state when left clicking on a object in edit mode
+        if (!this.disableModeSync && (e.buttonsDown.left)
           && this.getMode() === 'disabled' && this.featureLayer.annotations()[0]) {
           this.bus.$emit('editing-annotation-sync', false);
         } else if (e.buttonsDown.left) {
@@ -103,6 +110,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
               this.selectedHandleIndex / divisor, this.type, this.selectedKey);
           }
         }
+        this.disableModeSync = false;
       });
       this.featureLayer.geoOn(geo.event.actiondown, (e: GeoEvent) => this.setShapeInProgress(e));
     }
@@ -261,7 +269,15 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
     if (this.skipNextExternalUpdate === false) {
       // disable resets things before we load a new/different shape or mode
       this.disable();
-      this.formattedData = this.formatData(frameData);
+      //TODO: Find a better way to track mouse up after placing a point or completing geometry
+      //For line drawings and the actions of any recipes we want
+      if (this.annotator.geoViewer.interactor().mouse().buttons.left) {
+        this.formattedData = this.formatData(frameData);
+        this.leftButtonCheckTimeout = setTimeout(() => this.changeData(frameData), 20);
+      } else {
+        clearTimeout(this.leftButtonCheckTimeout);
+        this.formattedData = this.formatData(frameData);
+      }
     } else {
       // prevent was called and it has prevented this update.
       // disable the skip for next time.
@@ -337,6 +353,8 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
         this.formattedData = [e.annotation.geojson()];
         // The new annotation is in a state without styling, so apply local stypes
         this.applyStylesToAnnotations();
+        //This makes sure the click for the end point doesn't kick us out of the mode
+        this.disableModeSync = true;
         this.bus.$emit(
           'update:geojson',
           'editing',
