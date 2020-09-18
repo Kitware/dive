@@ -252,6 +252,8 @@ class ViameDetection(Resource):
     )
     def get_detection(self, folder):
         file = self._load_detections(folder)
+        if file is None:
+            return {}
         if "csv" in file["exts"]:
             return getTrackData(file)
         return File().download(file, contentDisposition="inline")
