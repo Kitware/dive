@@ -2,6 +2,7 @@
 import Vue from 'vue';
 import CompositionApi from '@vue/composition-api';
 import Track, { TrackData } from 'vue-media-annotator/track';
+import { RectBounds } from './utils';
 
 Vue.use(CompositionApi);
 
@@ -38,15 +39,17 @@ describe('Track', () => {
       begin: 0,
       end: 0,
     });
-    track.setFeature({
+    const feature = {
       frame: 1,
-      bounds: [1, 2, 3, 4],
-    });
+      bounds: [1, 2, 3, 4] as RectBounds,
+      keyframe: true,
+    };
+    track.setFeature(feature);
     const f0 = track.getFeature(0);
     const f1 = track.getFeature(1);
-    expect(f0).toStrictEqual([null, null, null]);
-    expect(f1[0]).not.toBeNull();
-    expect(track.begin).toBe(0);
+    expect(f0).toStrictEqual([null, feature, null]);
+    expect(f1).toStrictEqual([feature, feature, feature]);
+    expect(track.begin).toBe(1);
     expect(track.end).toBe(1);
   });
 });
