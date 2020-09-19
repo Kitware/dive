@@ -31,4 +31,22 @@ describe('Track', () => {
     expect(t.end).toBe(100);
     expect(t.confidencePairs).toHaveLength(2);
   });
+
+  it('should correct its begin and end based on setFeature', () => {
+    const track = new Track(0, {
+      meta: {},
+      begin: 0,
+      end: 0,
+    });
+    track.setFeature({
+      frame: 1,
+      bounds: [1, 2, 3, 4],
+    });
+    const f0 = track.getFeature(0);
+    const f1 = track.getFeature(1);
+    expect(f0).toStrictEqual([null, null, null]);
+    expect(f1[0]).not.toBeNull();
+    expect(track.begin).toBe(0);
+    expect(track.end).toBe(1);
+  });
 });
