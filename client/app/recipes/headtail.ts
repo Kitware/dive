@@ -49,11 +49,11 @@ export default class HeadTail implements Recipe {
       ];
       // polypoints in terms of C and CPerp
       const polyPoints = [
-        [0, -0.2],
-        [0, 0.2],
-        [1.1, 0.4],
-        [1.1, -0.4],
-        [0, -0.2],
+        [-0.1, -0.3],
+        [-0.1, 0.3],
+        [1.1, -0.3],
+        [1.1, 0.3],
+        [-0.1, -0.3],
       ];
       return [{
         type: 'Polygon',
