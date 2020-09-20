@@ -88,7 +88,7 @@ export default Vue.extend({
           Mode:
         </v-col>
         <v-col>
-          <v-combobox
+          <v-select
             v-model="newTrackSettings.value.mode"
             class="ml-0 pa-0"
             x-small
