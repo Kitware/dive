@@ -104,7 +104,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
           if (this.type === 'Polygon' && this.selectedHandleIndex >= 0) {
             divisor = 2;
           }
-          setTimeout(() => this.redraw(), 0); //Redraw timeout to update the selected handle
+          window.setTimeout(() => this.redraw(), 0); //Redraw timeout to update the selected handle
           if (this.type !== 'rectangle') {
             this.bus.$emit('update:selectedIndex',
               this.selectedHandleIndex / divisor, this.type, this.selectedKey);
@@ -273,7 +273,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
       //For line drawings and the actions of any recipes we want
       if (this.annotator.geoViewer.interactor().mouse().buttons.left) {
         this.formattedData = this.formatData(frameData);
-        this.leftButtonCheckTimeout = setTimeout(() => this.changeData(frameData), 20);
+        this.leftButtonCheckTimeout = window.setTimeout(() => this.changeData(frameData), 20);
       } else {
         clearTimeout(this.leftButtonCheckTimeout);
         this.formattedData = this.formatData(frameData);
