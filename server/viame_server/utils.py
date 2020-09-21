@@ -72,7 +72,7 @@ def load_pipelines(pipeline_paths):
 
     pipelist = []
     if main_pipeline_path is not None:
-        allowed = r"^detector_.+|tracker_.+"
+        allowed = r"^detector_.+|^tracker_.+|^generate_.+"
         disallowed = r".*local.*|detector_svm_models.pipe|tracker_svm_models.pipe"
         pipelist.extend(
             [
