@@ -263,7 +263,7 @@ export default class Track {
       if (feature.frame !== this.begin) {
         this.maybeShrinkBounds(this.begin);
       } else if (feature.frame !== this.end) {
-        this.maybeExpandBounds(this.end);
+        this.maybeShrinkBounds(this.end);
       }
     }
     this.notify('feature', f);
