@@ -23,7 +23,11 @@ export default function useSave(datasetId: string) {
       pendingChangeMap.delete.clear();
     }
     if (datasetMeta) {
-      await setMetadataForFolder(datasetId, datasetMeta);
+      try {
+        await setMetadataForFolder(datasetId, datasetMeta);
+      } catch (err) {
+        console.warn(err);
+      }
     }
     pendingSaveCount.value = 0;
   }
