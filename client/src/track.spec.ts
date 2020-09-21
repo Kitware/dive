@@ -52,4 +52,25 @@ describe('Track', () => {
     expect(track.begin).toBe(1);
     expect(track.end).toBe(1);
   });
+  it('should correctly reset begin and end on firstFeature', () => {
+    const track = new Track(0, {
+      meta: {},
+      begin: 8,
+      end: 8,
+    });
+    const feature = {
+      frame: 3,
+      bounds: [1, 2, 3, 4] as RectBounds,
+      keyframe: true,
+    };
+    track.setFeature(feature);
+    const f2 = track.getFeature(2);
+    const f3 = track.getFeature(3);
+    const f4 = track.getFeature(4);
+    expect(f2).toStrictEqual([null, feature, null]);
+    expect(f3).toStrictEqual([feature, feature, feature]);
+    expect(f4).toStrictEqual([null, null, feature]);
+    expect(track.begin).toBe(3);
+    expect(track.end).toBe(3);
+  });
 });
