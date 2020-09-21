@@ -281,7 +281,7 @@ class ViameDetection(Resource):
             model=Folder,
             paramType="query",
             required=True,
-            level=AccessType.READ,
+            level=AccessType.WRITE,
         )
         .jsonParam(
             "tracks", "upsert and delete tracks", paramType="body", requireObject=True
