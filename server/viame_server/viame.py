@@ -71,7 +71,7 @@ class Viame(Resource):
             model=Folder,
             paramType="query",
             required=True,
-            level=AccessType.READ,
+            level=AccessType.WRITE,
         )
         .param(
             "pipeline",
@@ -109,7 +109,7 @@ class Viame(Resource):
             model=Folder,
             paramType="query",
             required=True,
-            level=AccessType.READ,
+            level=AccessType.WRITE,
         )
         .param(
             "pipelineName",
