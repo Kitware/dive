@@ -45,16 +45,28 @@ export default {
       const config = this.selectedTrainingConfig;
       const pipelineName = this.trainingOutputName;
 
-      await runTraining(folder, pipelineName, config);
+      try {
+        await runTraining(folder, pipelineName, config);
 
-      this.menuOpen = false;
-      this.trainingOutputName = null;
-      this.selectedTrainingConfig = this.defaultTrainingConfig;
-      this.$snackbar({
-        text: `Started training on folder ${folder.name}`,
-        timeout: 2000,
-        immediate: true,
-      });
+        this.menuOpen = false;
+        this.trainingOutputName = null;
+        this.selectedTrainingConfig = this.defaultTrainingConfig;
+        this.$snackbar({
+          text: `Started training on folder ${folder.name}`,
+          timeout: 2000,
+          immediate: true,
+        });
+      } catch (err) {
+        let text = 'Unable to run training';
+        if (err.response && err.response.status === 403) {
+          text = 'You do not have permission to run training on the selected resource(s).';
+        }
+        this.$prompt({
+          title: 'Training Failed',
+          text,
+          positiveButton: 'OK',
+        });
+      }
     },
   },
 };
