@@ -254,6 +254,18 @@ export default class Track {
       this.features[feature.frame].geometry = fg;
     }
     this.maybeExpandBounds(feature.frame);
+    if (this.featureIndex.length === 1) {
+      /**
+       * If this is the very first feature, it may be necessary
+       * to shrink the bounds if the first feature was added on a different frame
+       * than the track was created on
+       */
+      if (feature.frame !== this.begin) {
+        this.maybeShrinkBounds(this.begin);
+      } else if (feature.frame !== this.end) {
+        this.maybeShrinkBounds(this.end);
+      }
+    }
     this.notify('feature', f);
     return this.features[feature.frame];
   }
@@ -330,9 +342,9 @@ export default class Track {
     // Then see if we are outside the track bounds
     if (frame < this.begin || frame > this.end) {
       if (frame <= this.begin) {
-        return [null, null, this.features[this.begin]];
+        return [null, this.features[this.begin], null];
       }
-      return [null, this.features[this.end], null];
+      return [null, null, this.features[this.end]];
     }
     // Then try to interpolate
     const position = binarySearch(this.featureIndex, frame);
