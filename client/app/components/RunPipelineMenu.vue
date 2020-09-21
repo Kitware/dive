@@ -35,20 +35,32 @@ export default {
 
     async runPipelineOnSelectedItem(pipeline) {
       const clips = this.selectedEligibleClips;
-      await Promise.all(
-        this.selectedEligibleClips.map((item) => runPipeline(item._id, pipeline)),
-      );
-      this.$snackbar({
-        text: `Started pipeline on ${clips.length} clip${
-          clips.length ? 's' : ''
-        }`,
-        timeout: 6000,
-        immediate: true,
-        button: 'View',
-        callback: () => {
-          this.$router.push({ name: 'jobs' });
-        },
-      });
+      try {
+        await Promise.all(
+          this.selectedEligibleClips.map((item) => runPipeline(item._id, pipeline)),
+        );
+        this.$snackbar({
+          text: `Started pipeline on ${clips.length} clip${
+            clips.length ? 's' : ''
+          }`,
+          timeout: 6000,
+          immediate: true,
+          button: 'View',
+          callback: () => {
+            this.$router.push({ name: 'jobs' });
+          },
+        });
+      } catch (err) {
+        let text = 'Unable to run pipeline';
+        if (err.response && err.response.status === 403) {
+          text = 'You do not have permission to run pipelines on the selected resource(s).';
+        }
+        this.$prompt({
+          title: 'Pipeline Failed',
+          text,
+          positiveButton: 'OK',
+        });
+      }
     },
     pipeTypeDisplay(pipeType) {
       switch (pipeType) {
