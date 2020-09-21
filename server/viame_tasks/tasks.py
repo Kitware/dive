@@ -5,6 +5,7 @@ import shutil
 from pathlib import Path
 from subprocess import PIPE, Popen
 from datetime import datetime
+from GPUtil import getGPUs
 
 from girder_worker.app import app
 from viame_tasks.utils import (
@@ -15,8 +16,25 @@ from viame_tasks.utils import (
 from typing import Dict, List
 
 
+def get_gpu_environment() -> Dict[str, str]:
+    """Get environment variables for using CUDA enabled GPUs."""
+    env = os.environ.copy()
+
+    gpu_uuid = env.get("WORKER_GPU_UUID")
+    gpus = [gpu.id for gpu in getGPUs() if gpu.uuid == gpu_uuid]
+
+    # Only set this env var if WORKER_GPU_UUID was supplied,
+    # and it matches an installed GPU
+    if gpus:
+        env["CUDA_VISIBLE_DEVICES"] = str(gpus[0])
+
+    return env
+
+
 class Config:
     def __init__(self):
+        self.gpu_process_env = get_gpu_environment()
+
         self.pipeline_base_path = os.environ.get(
             'VIAME_PIPELINES_PATH', '/opt/noaa/viame/configs/pipelines/'
         )
@@ -25,10 +43,10 @@ class Config:
         )
 
 
-# TODO: Need to test with runnable viameweb
 @app.task(bind=True)
 def run_pipeline(self, input_path, output_folder, pipeline, input_type):
     conf = Config()
+
     # Delete is false because the file needs to exist for kwiver to write to
     # removed at the bottom of the function
     with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as temp:
@@ -96,7 +114,14 @@ def run_pipeline(self, input_path, output_folder, pipeline, input_type):
 
     cmd = " ".join(command)
     print('Running command:', cmd)
-    process = Popen(cmd, stderr=PIPE, stdout=PIPE, shell=True, executable='/bin/bash')
+    process = Popen(
+        cmd,
+        stderr=PIPE,
+        stdout=PIPE,
+        shell=True,
+        executable='/bin/bash',
+        env=conf.gpu_process_env,
+    )
     stdout, stderr = process.communicate()
     if process.returncode > 0:
         raise RuntimeError(
@@ -184,6 +209,7 @@ def train_pipeline(
                 shell=True,
                 executable='/bin/bash',
                 cwd=training_output_path,
+                env=conf.gpu_process_env,
             )
             while process.poll() is None:
                 out = process.stdout.read() if process.stdout else None
@@ -194,21 +220,30 @@ def train_pipeline(
                 if err:
                     self.job_manager.write(err)
 
-            if process.returncode:
-                # Not sure what else to do for now
+            training_results_path = training_output_path / "category_models"
+
+            # Get all files/folders in directory
+            training_output = list(training_results_path.glob("*"))
+            if process.returncode or not training_output:
+                self.job_manager.write(
+                    "Training output failed or didn't produce results, discarding..."
+                )
                 return
 
             timestamp = datetime.utcnow().replace(microsecond=0).isoformat()
 
-            # Trained_ prefix is added to conform with existing pipeline names
-            trained_model_folder_name = f"trained_{pipeline_name}"
+            # This is the name of the folder that is uploaded to the
+            # "Training Results" girder folder
             girder_output_folder_name = f"{pipeline_name} {timestamp}"
-            training_results = training_output_path / trained_model_folder_name
+            girder_output_folder = training_output_path / girder_output_folder_name
 
-            # Rename the original folder with our new folder name
-            shutil.move(
-                str(training_output_path / "category_models"), training_results,
-            )
+            # Trained_ prefix is added to conform with existing pipeline names
+            # This is the name that will appear in the client (with trained_ removed)
+            trained_model_folder_name = f"trained_{pipeline_name}"
+            named_training_output = training_output_path / trained_model_folder_name
+
+            # Move the original folder to our new folder
+            shutil.move(str(training_results_path), named_training_output)
 
             # If `_trained_pipeline_folder()` returns `None`, the results of this
             # training job will be uploaded to Girder, but will not be runnable as
@@ -216,13 +251,14 @@ def train_pipeline(
             trained_pipeline_folder = _trained_pipeline_folder()
             if trained_pipeline_folder:
                 shutil.copytree(
-                    training_results,
+                    named_training_output,
                     trained_pipeline_folder / trained_model_folder_name,
                 )
 
-            training_results.rename(girder_output_folder_name)
+            # Rename this folder so that it appears properly in girder
+            shutil.move(str(named_training_output), girder_output_folder)
             self.girder_client._uploadFolderRecursive(
-                training_results, results_folder["_id"], "folder"
+                girder_output_folder, results_folder["_id"], "folder"
             )
 
 
@@ -276,9 +312,7 @@ def convert_video(self, path, folderId, auxiliaryFolderId):
     output = str(stdout) + "\n" + str(stderr)
     self.job_manager.write(output)
     new_file = self.girder_client.uploadFileToFolder(folderId, output_path)
-    self.girder_client.addMetadataToItem(
-        new_file['itemId'], {"codec": "h264"},
-    )
+    self.girder_client.addMetadataToItem(new_file['itemId'], {"codec": "h264"})
     self.girder_client.addMetadataToFolder(
         folderId,
         {
@@ -322,7 +356,9 @@ def convert_images(self, folderId):
             new_item_path = dest_dir / ".".join([*item["name"].split(".")[:-1], "png"])
 
             process = Popen(
-                ["ffmpeg", "-i", item_path, new_item_path], stdout=PIPE, stderr=PIPE,
+                ["ffmpeg", "-i", item_path, new_item_path],
+                stdout=PIPE,
+                stderr=PIPE,
             )
             stdout, stderr = process.communicate()
 

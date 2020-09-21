@@ -86,13 +86,20 @@ class Viame(Resource):
         token = Token().createToken(user=user, days=1)
         move_existing_result_to_auxiliary_folder(folder, user)
         input_type = folder["meta"]["type"]
-        return run_pipeline.delay(
-            GetPathFromFolderId(str(folder["_id"])),
-            str(folder["_id"]),
-            pipeline,
-            input_type,
-            girder_job_title=("Running {} on {}".format(pipeline, str(folder["name"]))),
-            girder_client_token=str(token["_id"]),
+
+        return run_pipeline.apply_async(
+            queue="pipelines",
+            kwargs=dict(
+                input_path=GetPathFromFolderId(str(folder["_id"])),
+                output_folder=str(folder["_id"]),
+                pipeline=pipeline,
+                input_type=input_type,
+                girder_job_title=(
+                    "Running {} on {}".format(pipeline, str(folder["name"]))
+                ),
+                girder_client_token=str(token["_id"]),
+                girder_job_type="pipelines",
+            ),
         )
 
     @access.user
@@ -141,14 +148,18 @@ class Viame(Resource):
         # Currently assumes all images are in the root folder
         training_data = list(Folder().childItems(folder))
 
-        return train_pipeline.delay(
-            results_folder=results_folder,
-            training_data=training_data,
-            groundtruth=detection,
-            pipeline_name=pipelineName,
-            config=config,
-            girder_client_token=str(upload_token["_id"]),
-            girder_job_title=(f"Running training on folder: {str(folder['name'])}"),
+        return train_pipeline.apply_async(
+            queue="training",
+            kwargs=dict(
+                results_folder=results_folder,
+                training_data=training_data,
+                groundtruth=detection,
+                pipeline_name=pipelineName,
+                config=config,
+                girder_client_token=str(upload_token["_id"]),
+                girder_job_title=(f"Running training on folder: {str(folder['name'])}"),
+                girder_job_type="training",
+            ),
         )
 
     @access.user
@@ -238,9 +249,9 @@ class Viame(Resource):
 
             for item in videoItems:
                 convert_video.delay(
-                    GetPathFromItemId(str(item["_id"])),
-                    str(item["folderId"]),
-                    auxiliary["_id"],
+                    path=GetPathFromItemId(str(item["_id"])),
+                    folderId=str(item["folderId"]),
+                    auxiliaryFolderId=auxiliary["_id"],
                     girder_job_title=(
                         "Converting {} to a web friendly format".format(
                             str(item["_id"])
@@ -259,12 +270,13 @@ class Viame(Resource):
 
             if imageItems.count() > safeImageItems.count():
                 convert_images.delay(
-                    folder["_id"],
+                    folderId=folder["_id"],
                     girder_client_token=str(token["_id"]),
                     girder_job_title=(
                         f"Converting {folder['_id']} to a web friendly format",
                     ),
                 )
+
             elif imageItems.count() > 0:
                 folder["meta"]["annotate"] = True
 
@@ -286,7 +298,7 @@ class Viame(Resource):
         csvItems = Folder().childItems(
             folder,
             filters={"lowerName": {"$regex": csvRegex}},
-            sort=[("created", pymongo.DESCENDING,)],
+            sort=[("created", pymongo.DESCENDING)],
         )
         if csvItems.count() >= 1:
             file = Item().childFiles(csvItems.next())[0]
@@ -345,5 +357,5 @@ class Viame(Resource):
         return Folder().childItems(
             folder,
             filters={"lowerName": {"$regex": safeImageRegex}},
-            sort=[("lowerName", pymongo.ASCENDING,)],
+            sort=[("lowerName", pymongo.ASCENDING)],
         )
