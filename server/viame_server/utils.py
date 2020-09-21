@@ -4,9 +4,9 @@ import re
 from datetime import datetime
 from pathlib import Path
 
+from girder.models.file import File
 from girder.models.folder import Folder
 from girder.models.item import Item
-from girder.models.file import File
 from girder.models.upload import Upload
 from girder.models.assetstore import Assetstore
 
@@ -178,6 +178,18 @@ def csv_detection_file(folder, detection_item, user):
 
 def itemIsWebsafeVideo(item: Item) -> bool:
     return item.get("meta", {}).get("codec") == "h264"
+
+
+def getTrackData(file: File) -> Dict[str, dict]:
+    if file is None:
+        return {}
+    if "csv" in file["exts"]:
+        return viame.load_csv_as_tracks(
+            b"".join(list(File().download(file, headers=False)()))
+            .decode("utf-8")
+            .splitlines()
+        )
+    return json.loads(b"".join(list(File().download(file, headers=False)())).decode())
 
 
 def saveTracks(folder, tracks, user):

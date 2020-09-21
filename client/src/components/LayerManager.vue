@@ -10,10 +10,13 @@ import {
 } from '@vue/composition-api';
 
 import { Annotator } from 'vue-media-annotator/components/annotators/annotatorType';
-import AnnotationLayer from 'vue-media-annotator/layers/AnnotationLayer';
+import RectangleLayer from 'vue-media-annotator/layers/AnnotationLayers/RectangleLayer';
+import PolygonLayer from 'vue-media-annotator/layers/AnnotationLayers/PolygonLayer';
+import PointLayer from 'vue-media-annotator/layers/AnnotationLayers/PointLayer';
+import LineLayer from 'vue-media-annotator/layers/AnnotationLayers/LineLayer';
+
 import EditAnnotationLayer, { EditAnnotationTypes } from 'vue-media-annotator/layers/EditAnnotationLayer';
 import { FrameDataTrack } from 'vue-media-annotator/layers/LayerTypes';
-import MarkerLayer from 'vue-media-annotator/layers/MarkerLayer';
 import TextLayer from 'vue-media-annotator/layers/TextLayer';
 import Track, { TrackId } from 'vue-media-annotator/track';
 import { geojsonToBound } from 'vue-media-annotator/utils';
@@ -50,10 +53,6 @@ export default defineComponent({
       type: Object as PropType<StateStyles>,
       required: true,
     },
-    featurePointing: {
-      type: Object as PropType<Ref<boolean>>,
-      required: true,
-    },
     editingMode: {
       type: Object as PropType<Ref<false|EditAnnotationTypes>>,
       required: true,
@@ -62,24 +61,38 @@ export default defineComponent({
       type: Object as PropType<Ref<EditAnnotationTypes[]>>,
       required: true,
     },
+    selectedKey: {
+      type: Object as PropType<Ref<string>>,
+      required: true,
+    },
   },
 
   setup(props, { emit }) {
     const annotator = inject('annotator') as Annotator;
     const frameNumber = computed(() => annotator.frame);
 
-    const rectAnnotationLayer = new AnnotationLayer({
+    const rectAnnotationLayer = new RectangleLayer({
       annotator,
       stateStyling: props.stateStyling,
       typeStyling: props.typeStyling,
-      type: 'rectangle',
     });
-    const polyAnnotationLayer = new AnnotationLayer({
+    const polyAnnotationLayer = new PolygonLayer({
       annotator,
       stateStyling: props.stateStyling,
       typeStyling: props.typeStyling,
-      type: 'polygon',
     });
+
+    const lineLayer = new LineLayer({
+      annotator,
+      stateStyling: props.stateStyling,
+      typeStyling: props.typeStyling,
+    });
+    const pointLayer = new PointLayer({
+      annotator,
+      stateStyling: props.stateStyling,
+      typeStyling: props.typeStyling,
+    });
+
 
     const textLayer = new TextLayer({
       annotator,
@@ -94,36 +107,17 @@ export default defineComponent({
       type: 'rectangle',
     });
 
-    const markerEditLayer = new EditAnnotationLayer({
-      annotator,
-      stateStyling: props.stateStyling,
-      typeStyling: props.typeStyling,
-      type: 'point',
-    });
-
-    const markerLayer = new MarkerLayer({
-      annotator,
-      stateStyling: props.stateStyling,
-      typeStyling: props.typeStyling,
-    });
-
     function updateLayers(
       frame: number,
       editingTrack: false | EditAnnotationTypes,
       selectedTrackId: TrackId,
       tracks: Track[],
-      featurePointing: boolean,
       visibleModes: EditAnnotationTypes[],
+      selectedKey: string,
     ) {
-      // intervalTree requires custom search because 0 is treated as false by default
-      const currentFrameIds: TrackId[] = props.intervalTree.search(
-        [frame, frame],
-        (value) => (value !== null ? value : null),
-      );
-
-      if (editingTrack) {
-        editAnnotationLayer.setType(editingTrack);
-      }
+      const currentFrameIds: TrackId[] = props.intervalTree
+        .search([frame, frame])
+        .map((str: string) => parseInt(str, 10));
 
       const frameData = [] as FrameDataTrack[];
       const editingTracks = [] as FrameDataTrack[];
@@ -143,7 +137,7 @@ export default defineComponent({
               confidencePairs: track.getType(),
             };
             frameData.push(trackFrame);
-            if (frameData[frameData.length - 1].selected && (editingTrack || featurePointing)) {
+            if (frameData[frameData.length - 1].selected && (editingTrack)) {
               editingTracks.push(trackFrame);
             }
           }
@@ -152,18 +146,23 @@ export default defineComponent({
 
       if (visibleModes.includes('rectangle')) {
         //We modify rects opacity/thickness if polygons are visible or not
-        rectAnnotationLayer.setDrawingOther(visibleModes.includes('polygon'));
+        rectAnnotationLayer.setDrawingOther(visibleModes.includes('Polygon'));
         rectAnnotationLayer.changeData(frameData);
       } else {
         rectAnnotationLayer.disable();
       }
-      if (visibleModes.includes('polygon')) {
+      if (visibleModes.includes('Polygon')) {
         polyAnnotationLayer.setDrawingOther(visibleModes.includes('rectangle'));
         polyAnnotationLayer.changeData(frameData);
       } else {
         polyAnnotationLayer.disable();
       }
-      markerLayer.changeData(frameData);
+      if (visibleModes.includes('LineString')) {
+        lineLayer.changeData(frameData);
+      } else {
+        lineLayer.disable();
+      }
+      pointLayer.changeData(frameData);
       if (visibleModes.length) {
         textLayer.changeData(frameData);
       } else {
@@ -171,7 +170,7 @@ export default defineComponent({
       }
 
       if (selectedTrackId !== null) {
-        if ((editingTrack || featurePointing) && !currentFrameIds.includes(selectedTrackId)) {
+        if ((editingTrack) && !currentFrameIds.includes(selectedTrackId)) {
           const editTrack = props.trackMap.get(selectedTrackId);
           if (editTrack === undefined) {
             throw new Error(`trackMap missing trackid ${selectedTrackId}`);
@@ -189,22 +188,14 @@ export default defineComponent({
         }
         if (editingTracks.length) {
           if (editingTrack) {
+            editAnnotationLayer.setType(editingTrack);
+            editAnnotationLayer.setKey(selectedKey);
             editAnnotationLayer.changeData(editingTracks);
-            emit('editingModeChanged', editAnnotationLayer.getMode());
-          }
-          if (featurePointing) {
-            // Marker shouldn't be edited when creating a new track
-            const hasBounds = editingTracks.filter((item) => item.features && item.features.bounds);
-            if (!editingTrack || (editingTrack && hasBounds.length)) {
-              markerEditLayer.changeData([]);
-            }
           }
         } else {
-          markerEditLayer.disable();
           editAnnotationLayer.disable();
         }
       } else {
-        markerEditLayer.disable();
         editAnnotationLayer.disable();
       }
     }
@@ -214,8 +205,8 @@ export default defineComponent({
       props.editingMode.value,
       props.selectedTrackId.value,
       props.tracks.value,
-      props.featurePointing.value,
       props.visibleModes.value,
+      props.selectedKey.value,
     );
 
     watch([
@@ -223,7 +214,6 @@ export default defineComponent({
       props.editingMode,
       props.tracks,
       props.selectedTrackId,
-      props.featurePointing,
       props.visibleModes,
     ], () => {
       updateLayers(
@@ -231,44 +221,56 @@ export default defineComponent({
         props.editingMode.value,
         props.selectedTrackId.value,
         props.tracks.value,
-        props.featurePointing.value,
         props.visibleModes.value,
+        props.selectedKey.value,
       );
     });
 
     const Clicked = (trackId: number, editing: boolean) => {
       //So we only want to pass the click whjen not in creation mode or editing mode for features
-      const creationMode = editAnnotationLayer.getMode() === 'creation';
-      const editingPolyorLine = (props.editingMode.value && (
-        props.editingMode.value === 'polygon' || props.editingMode.value === 'line'));
-      if (!props.featurePointing.value && !(editingPolyorLine && creationMode)) {
+      if (editAnnotationLayer.getMode() !== 'creation') {
         editAnnotationLayer.disable();
         emit('select-track', trackId, editing);
       }
     };
-    rectAnnotationLayer.$on('annotation-clicked', Clicked);
-    rectAnnotationLayer.$on('annotation-right-clicked', Clicked);
-    polyAnnotationLayer.$on('annotation-clicked', Clicked);
-    polyAnnotationLayer.$on('annotation-right-clicked', Clicked);
 
-    editAnnotationLayer.$on('update:geojson',
-      (data: GeoJSON.Feature<GeoJSON.Polygon>, type: string) => {
-        if (type === 'rectangle') {
-          const bounds = geojsonToBound(data);
-          emit('update-rect-bounds', frameNumber.value, bounds);
-        } else if (type === 'polygon') {
-          emit('update-polygon', frameNumber.value, data);
-        }
-      });
 
-    //Selecting an index so it can be removed
-    editAnnotationLayer.$on('update:selectedIndex', (index: number) => {
-      emit('select-feature-handle', index);
+    //Sync of internal geoJS state with the application
+    editAnnotationLayer.bus.$on('editing-annotation-sync', (editing: boolean) => {
+      emit('select-track', props.selectedTrackId.value, editing);
     });
-
-    markerEditLayer.$on('update:geojson', (data: GeoJSON.Feature<GeoJSON.Point>) => {
-      emit('feature-point-updated', frameNumber.value, data);
+    rectAnnotationLayer.bus.$on('annotation-clicked', Clicked);
+    rectAnnotationLayer.bus.$on('annotation-right-clicked', Clicked);
+    polyAnnotationLayer.bus.$on('annotation-clicked', Clicked);
+    polyAnnotationLayer.bus.$on('annotation-right-clicked', Clicked);
+    editAnnotationLayer.bus.$on('update:geojson', (
+      mode: 'in-progress' | 'editing',
+      data: GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.LineString | GeoJSON.Point>,
+      type: string,
+      key = '',
+      cb: () => void,
+    ) => {
+      if (type === 'rectangle') {
+        const bounds = geojsonToBound(data as GeoJSON.Feature<GeoJSON.Polygon>);
+        cb();
+        emit('update-rect-bounds', frameNumber.value, bounds);
+      } else {
+        emit('update-geojson', mode, frameNumber.value, data, key, cb);
+      }
+      //We update the current layer if not in progress so it jumps back into edit mode
+      if (mode !== 'in-progress') {
+        updateLayers(
+          frameNumber.value,
+          props.editingMode.value,
+          props.selectedTrackId.value,
+          props.tracks.value,
+          props.visibleModes.value,
+          props.selectedKey.value,
+        );
+      }
     });
+    editAnnotationLayer.bus.$on('update:selectedIndex',
+      (index: number, _type: EditAnnotationTypes, key = '') => emit('select-feature-handle', index, key));
   },
 });
 </script>

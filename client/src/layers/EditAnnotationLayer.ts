@@ -4,7 +4,7 @@ import BaseLayer, { BaseLayerParams, LayerStyle } from 'vue-media-annotator/laye
 import { boundToGeojson } from 'vue-media-annotator/utils';
 import geo, { GeoEvent } from 'geojs';
 
-export type EditAnnotationTypes = 'point' | 'rectangle' | 'polygon' | 'line';
+export type EditAnnotationTypes = 'Point' | 'rectangle' | 'Polygon' | 'LineString';
 interface EditAnnotationLayerParams {
   type: EditAnnotationTypes;
 }
@@ -17,6 +17,12 @@ interface EditHandleStyle {
   editHandle: boolean;
 }
 
+const typeMapper = new Map([
+  ['LineString', 'line'],
+  ['Polygon', 'polygon'],
+  ['Point', 'point'],
+  ['rectangle', 'rectangle'],
+]);
 /**
  * This class is used to edit annotations within the viewer
  * It will do and display different things based on it either being in
@@ -25,25 +31,39 @@ interface EditHandleStyle {
  * emits 'update:geojson' when data is changed
  */
 export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
-  changed: boolean;
+  skipNextExternalUpdate: boolean;
 
-  mode: 'editing' | 'creation';
+  _mode: 'editing' | 'creation';
 
   type: EditAnnotationTypes;
 
   trackType?: string;
 
+  selectedKey?: string;
+
   selectedHandleIndex: number;
 
   hoverHandleIndex: number;
 
+  disableModeSync: boolean; //Disables fallthrough mouse clicks when ending an annotation
+
+  leftButtonCheckTimeout: number; //Fallthough mouse down when ending lineStrings
+
+  /* in-progress events only emitted for lines and polygons */
+  shapeInProgress: GeoJSON.LineString | GeoJSON.Polygon | null;
+
   constructor(params: BaseLayerParams & EditAnnotationLayerParams) {
     super(params);
-    this.changed = false;
-    this.mode = 'editing';
+    this.skipNextExternalUpdate = false;
+    this._mode = 'editing';
+    this.selectedKey = '';
     this.type = params.type;
     this.selectedHandleIndex = -1;
     this.hoverHandleIndex = -1;
+    this.shapeInProgress = null;
+    this.disableModeSync = false;
+    this.leftButtonCheckTimeout = -1;
+
     //Only initialize once, prevents recreating Layer each edit
     this.initialize();
   }
@@ -67,30 +87,84 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
       this.featureLayer.geoOn(geo.event.annotation.select_edit_handle,
         (e: GeoEvent) => this.hoverEditHandle(e));
       this.featureLayer.geoOn(geo.event.mouseclick, (e: GeoEvent) => {
-        if (e.buttonsDown.left && this.hoverHandleIndex !== -1) {
-          this.selectedHandleIndex = this.hoverHandleIndex;
-          setTimeout(() => this.redraw(), 0); //Redraw timeout to update the selected handle
-          const divisor = 2.0; // used for polygon because edge handles
+        //Used to sync clicks that kick out of editing mode with application
+        //This prevents that pseudo Edit state when left clicking on a object in edit mode
+        if (!this.disableModeSync && (e.buttonsDown.left)
+          && this.getMode() === 'disabled' && this.featureLayer.annotations()[0]) {
+          this.bus.$emit('editing-annotation-sync', false);
+        } else if (e.buttonsDown.left) {
+          const newIndex = this.hoverHandleIndex;
+          // Click features like a toggle: unselect if it's clicked twice.
+          if (newIndex === this.selectedHandleIndex) {
+            this.selectedHandleIndex = -1;
+          } else {
+            this.selectedHandleIndex = newIndex;
+          }
+          let divisor = 1;
+          if (this.type === 'Polygon' && this.selectedHandleIndex >= 0) {
+            divisor = 2;
+          }
+          window.setTimeout(() => this.redraw(), 0); //Redraw timeout to update the selected handle
           if (this.type !== 'rectangle') {
-            this.$emit('update:selectedIndex', this.selectedHandleIndex / divisor);
+            this.bus.$emit('update:selectedIndex',
+              this.selectedHandleIndex / divisor, this.type, this.selectedKey);
           }
         }
+        this.disableModeSync = false;
       });
+      this.featureLayer.geoOn(geo.event.actiondown, (e: GeoEvent) => this.setShapeInProgress(e));
+    }
+  }
+
+  skipNextFunc() {
+    return () => { this.skipNextExternalUpdate = true; };
+  }
+
+  /**
+   * Listen to mousedown events and build a replica of the in-progress annotation
+   * shape that GeoJS is keeps internally.  Emit the shape as update:in-progress-geojson
+   */
+  setShapeInProgress(e: GeoEvent) {
+    if (this.getMode() === 'creation' && ['LineString', 'Polygon'].includes(this.type)) {
+      if (this.shapeInProgress === null) {
+        // Initialize a new in-progress shape
+        this.shapeInProgress = {
+          type: this.type as ('Polygon' | 'LineString'),
+          coordinates: this.type === 'Polygon' ? [[]] : [],
+        };
+      }
+      // Update the coordinates of the existing shape
+      const newPoint: GeoJSON.Position = [Math.round(e.mouse.geo.x), Math.round(e.mouse.geo.y)];
+      if (this.type === 'Polygon') {
+        const coords = this.shapeInProgress?.coordinates as GeoJSON.Position[][];
+        // Magic 0: there can only be a single polygon in progress at a time
+        coords[0].push(newPoint);
+      } else {
+        const coords = this.shapeInProgress?.coordinates as GeoJSON.Position[];
+        coords.push(newPoint);
+      }
+      this.bus.$emit('update:geojson', 'in-progress', {
+        type: 'Feature',
+        geometry: this.shapeInProgress,
+        properties: {},
+      }, this.type, this.selectedKey, this.skipNextFunc());
+    } else if (this.shapeInProgress) {
+      this.shapeInProgress = null;
     }
   }
 
   hoverEditHandle(e: GeoEvent) {
-    let divisor = 2; //For Polygons we skip over edge handles (midpoints)
-    if (this.type === 'line') {
-      divisor = 1;
-    }
-    if (e.enable) {
+    const divisor = this.type === 'LineString' ? 1 : 2; //For Polygons we skip over edge handles (midpoints)
+    if (e.enable && e.handle.handle.type === 'vertex') {
       if (e.handle.handle.selected
         && (e.handle.handle.index * divisor) !== this.hoverHandleIndex) {
         this.hoverHandleIndex = e.handle.handle.index * divisor;
-      } if (!e.handle.handle.selected) {
+      }
+      if (!e.handle.handle.selected) {
         this.hoverHandleIndex = -1;
       }
+    } else if (e.enable && e.handle.handle.type === 'center') {
+      this.hoverHandleIndex = -1;
     }
   }
 
@@ -112,11 +186,44 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
     this.type = type;
   }
 
+  setKey(key: string) {
+    if (typeof key === 'string') {
+      this.selectedKey = key;
+    } else {
+      throw new Error(`${key} is invalid`);
+    }
+  }
+
   /**
    * Provides whether the user is creating a new annotation or editing one
    */
-  getMode(): 'creation' | 'editing' {
-    return this.mode;
+  getMode(): 'creation' | 'editing' | 'disabled' {
+    const layermode = this.featureLayer.mode();
+    return layermode ? this._mode : 'disabled';
+  }
+
+  /**
+   * Change the layer mode
+   */
+  setMode(
+    mode: EditAnnotationTypes | null,
+    geom?: GeoJSON.Feature,
+  ) {
+    if (mode !== null) {
+      let newLayerMode: string;
+      if (geom) {
+        this._mode = 'editing';
+        newLayerMode = 'edit';
+      } else if (typeMapper.has(mode)) {
+        this._mode = 'creation';
+        newLayerMode = typeMapper.get(mode) as string;
+      } else {
+        throw new Error(`No such mode ${mode}`);
+      }
+      this.featureLayer.mode(newLayerMode, geom);
+    } else {
+      this.featureLayer.mode(null);
+    }
   }
 
   /**
@@ -124,26 +231,57 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
    */
   disable() {
     if (this.featureLayer) {
-      this.featureLayer.removeAllAnnotations();
-      this.featureLayer.mode(null);
+      this.skipNextExternalUpdate = false;
+      this.setMode(null);
+      this.featureLayer.removeAllAnnotations(false);
+      this.shapeInProgress = null;
       if (this.selectedHandleIndex !== -1) {
         this.selectedHandleIndex = -1;
         this.hoverHandleIndex = -1;
-        this.$emit('update:selectedIndex', this.selectedHandleIndex);
+        this.bus.$emit('update:selectedIndex', this.selectedHandleIndex, this.type, this.selectedKey);
       }
     }
   }
 
+  /**
+   * retrieves geoJSON data based on the key and type
+   * @param frameData
+   */
+  getGeoJSONData(track: FrameDataTrack) {
+    let geoJSONData;
+    if (track && track.features && track.features.geometry) {
+      track.features.geometry.features.forEach((feature) => {
+        if (feature.geometry
+            && feature.geometry.type.toLowerCase() === this.type.toLowerCase()) {
+          if (feature.properties && feature.properties.key !== 'undefined') {
+            if (feature.properties.key === this.selectedKey) {
+              geoJSONData = feature.geometry;
+            }
+          }
+        }
+      });
+    }
+    return geoJSONData;
+  }
+
   /** overrides default function to disable and clear anotations before drawing again */
-  changeData(frameData: FrameDataTrack[]) {
-    /* An edited annotation calls updateLayers immediately.  This will
-      prevent it from updating so the geoJS editor can handle the state.
-    */
-    if (this.changed) {
-      this.changed = false;
-    } else {
+  async changeData(frameData: FrameDataTrack[]) {
+    if (this.skipNextExternalUpdate === false) {
+      // disable resets things before we load a new/different shape or mode
       this.disable();
-      this.formattedData = this.formatData(frameData);
+      //TODO: Find a better way to track mouse up after placing a point or completing geometry
+      //For line drawings and the actions of any recipes we want
+      if (this.annotator.geoViewer.interactor().mouse().buttons.left) {
+        this.formattedData = this.formatData(frameData);
+        this.leftButtonCheckTimeout = window.setTimeout(() => this.changeData(frameData), 20);
+      } else {
+        clearTimeout(this.leftButtonCheckTimeout);
+        this.formattedData = this.formatData(frameData);
+      }
+    } else {
+      // prevent was called and it has prevented this update.
+      // disable the skip for next time.
+      this.skipNextExternalUpdate = false;
     }
     this.redraw();
   }
@@ -155,26 +293,25 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
   formatData(frameData: FrameDataTrack[]) {
     this.selectedHandleIndex = -1;
     this.hoverHandleIndex = -1;
-    this.$emit('update:selectedIndex', this.selectedHandleIndex);
+    this.bus.$emit('update:selectedIndex', this.selectedHandleIndex, this.type, this.selectedKey);
     if (frameData.length > 0) {
       const track = frameData[0];
       if (track.features && track.features.bounds) {
-        let geoJSONData: GeoJSON.Point | GeoJSON.Polygon | undefined;
+        let geoJSONData: GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString | undefined;
         if (this.type === 'rectangle') {
           geoJSONData = boundToGeojson(track.features.bounds);
-        } else if (this.type === 'polygon') {
+        } else {
           // TODO: this assumes only one polygon
-          geoJSONData = track.features.geometry?.features?.[0]?.geometry;
+          geoJSONData = this.getGeoJSONData(track);
         }
-        if (!geoJSONData) {
-          this.mode = 'creation';
-          this.featureLayer.mode(this.type);
+        if (!geoJSONData || this.type === 'Point') {
+          this.setMode(this.type);
         } else {
           const geojsonFeature: GeoJSON.Feature = {
             type: 'Feature',
             geometry: geoJSONData,
             properties: {
-              annotationType: this.type,
+              annotationType: typeMapper.get(this.type),
             },
           };
 
@@ -184,10 +321,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
 
           this.featureLayer.geojson(geojsonFeature);
           const annotation = this.applyStylesToAnnotations();
-          if (this.type) {
-            this.mode = 'editing';
-            this.featureLayer.mode('edit', annotation);
-          }
+          this.setMode(this.type, annotation);
           return [geojsonFeature];
         }
       }
@@ -202,8 +336,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
       );
     } else {
       // point or rectangle mode for the editor
-      this.mode = 'creation';
-      this.featureLayer.mode(this.type);
+      this.setMode(this.type);
     }
     return [];
   }
@@ -216,13 +349,20 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
   handleEditStateChange(e: GeoEvent) {
     if (this.featureLayer === e.annotation.layer()) {
       if (e.annotation.state() === 'done' && this.formattedData.length === 0) {
-        //geoJS insists on calling done multiple times, this will prevent that
+        // geoJS insists on calling done multiple times, this will prevent that
         this.formattedData = [e.annotation.geojson()];
-        //The new annotation is in a state without styling, so apply local stypes
+        // The new annotation is in a state without styling, so apply local stypes
         this.applyStylesToAnnotations();
-        // State doesn't change at the end of editing so this will
-        // swap into edit mode once geoJS is done
-        setTimeout(() => this.$emit('update:geojson', this.formattedData[0], this.type), 0);
+        //This makes sure the click for the end point doesn't kick us out of the mode
+        this.disableModeSync = true;
+        this.bus.$emit(
+          'update:geojson',
+          'editing',
+          this.formattedData[0],
+          this.type,
+          this.selectedKey,
+          this.skipNextFunc(),
+        );
       }
     }
   }
@@ -236,7 +376,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
       if (e.action === geo.event.actionup) {
         // This will commit the change to the current annotation on mouse up while editing
         if (e.annotation.state() === 'edit') {
-          const newGeojson: GeoJSON.Feature<GeoJSON.Point|GeoJSON.Polygon> = (
+          const newGeojson: GeoJSON.Feature<GeoJSON.Point|GeoJSON.Polygon|GeoJSON.LineString> = (
             e.annotation.geojson()
           );
           if (this.formattedData.length > 0) {
@@ -252,9 +392,14 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
               type: 'Feature',
             }];
           }
-          // must ALWAYS emit a polygon or point
-          this.changed = true;
-          this.$emit('update:geojson', this.formattedData[0], this.type);
+          this.bus.$emit(
+            'update:geojson',
+            'editing',
+            this.formattedData[0],
+            this.type,
+            this.selectedKey,
+            this.skipNextFunc(),
+          );
         }
       }
     }
@@ -276,7 +421,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
    */
   createStyle(): LayerStyle<GeoJSON.Feature> {
     const baseStyle = super.createStyle();
-    if (this.type === 'rectangle' || this.type === 'polygon') {
+    if (this.type === 'rectangle' || this.type === 'Polygon' || this.type === 'LineString') {
       return {
         ...baseStyle,
         fill: false,
@@ -307,15 +452,16 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
         },
       };
     }
-    if (this.type === 'point') {
+    if (this.type === 'Point') {
       return {
         handles: false,
       };
     }
-    if (this.type === 'polygon') {
+    if (this.type === 'Polygon' || this.type === 'LineString') {
       return {
         handles: {
           rotate: false,
+          edge: this.type !== 'LineString',
         },
         fill: true,
         radius: (handle: EditHandleStyle): number => {
@@ -324,8 +470,16 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
           }
           return 8;
         },
-        fillOpacity: 0.25,
-        strokeColor: () => {
+        fillOpacity: (_: EditHandleStyle, index: number) => {
+          if (index === this.selectedHandleIndex) {
+            return 1;
+          }
+          return 0.25;
+        },
+        strokeColor: (_: EditHandleStyle, index: number) => {
+          if (index === this.selectedHandleIndex) {
+            return '#FF0000';
+          }
           if (this.trackType) {
             return this.typeStyling.value.color(this.trackType);
           }
@@ -333,7 +487,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
         },
         fillColor: (_data: EditHandleStyle, index: number) => {
           if (index === this.selectedHandleIndex) {
-            return '#00FF00';
+            return '#FF0000';
           }
           if (this.trackType) {
             return this.typeStyling.value.color(this.trackType);
@@ -354,14 +508,14 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
    * from the annotation.  NOTE: this will not remove styling from handles
    */
   highlightStyle() {
-    if (this.type === 'rectangle' || this.type === 'polygon') {
+    if (this.type === 'rectangle' || this.type === 'Polygon') {
       return {
         handles: {
           rotate: false,
         },
       };
     }
-    if (this.type === 'point') {
+    if (this.type === 'Point') {
       return {
         stroke: false,
       };

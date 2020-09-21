@@ -50,27 +50,70 @@ function boundToGeojson(bounds: RectBounds): GeoJSON.Polygon {
   };
 }
 
-function findBounds(polygon: GeoJSON.Polygon): RectBounds {
-  const coords = polygon.coordinates[0];
+function removePoint(
+  data: GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.LineString | GeoJSON.Point>, index: number,
+): boolean {
+  if (data.geometry.type === 'Polygon') {
+    const coords = data.geometry.coordinates[0];
+    const second = coords[1];
+    // Polygons must have 3 points, but the first and last are always the same
+    if (coords.length > 4) {
+      if (index === 0 || index === coords.length - 1) {
+        // Replace the last point with the second,
+        // the first is about to be removed
+        // A B C D A --> B C D B
+        coords.splice(coords.length - 1, 1, second);
+      }
+      coords.splice(index, 1);
+      return true;
+    }
+    console.warn('Polygons must have at least 3 points');
+    return false;
+  }
+  return false;
+}
+
+function updateBounds(
+  oldBounds: RectBounds | undefined,
+  union: GeoJSON.Polygon[],
+  unionNoBounds: GeoJSON.Polygon[],
+): RectBounds | undefined {
+  if (!oldBounds && union.length === 0 && unionNoBounds.length === 0) {
+    // nothing to do, skip bounds update
+    return undefined;
+  }
   const limits = {
     xLow: Infinity,
-    xHigh: -Infinity,
     yLow: Infinity,
+    xHigh: -Infinity,
     yHigh: -Infinity,
   };
-  coords.forEach(([xCoord, yCoord]) => {
-    limits.xLow = Math.min(xCoord, limits.xLow);
-    limits.xHigh = Math.max(xCoord, limits.xHigh);
-    limits.yLow = Math.min(yCoord, limits.yLow);
-    limits.yHigh = Math.max(yCoord, limits.yHigh);
+  if (oldBounds && unionNoBounds.length === 0) {
+    [
+      limits.xLow,
+      limits.yLow,
+      limits.xHigh,
+      limits.yHigh,
+    ] = oldBounds;
+  }
+  union.concat(unionNoBounds).forEach((poly) => {
+    poly.coordinates.forEach((posarr) => {
+      posarr.forEach((pos) => {
+        limits.xLow = Math.min(limits.xLow, pos[0]);
+        limits.xHigh = Math.max(limits.xHigh, pos[0]);
+        limits.yLow = Math.min(limits.yLow, pos[1]);
+        limits.yHigh = Math.max(limits.yHigh, pos[1]);
+      });
+    });
   });
-  //Now we create some bounds from our 4 points
   return [limits.xLow, limits.yLow, limits.xHigh, limits.yHigh];
 }
 
 export {
   boundToGeojson,
-  findBounds,
+  // findBounds,
+  updateBounds,
   geojsonToBound,
   updateSubset,
+  removePoint,
 };

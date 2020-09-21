@@ -23,6 +23,7 @@ export default {
 <template>
   <div>
     <v-slider
+      dense
       :min="0"
       :max="1"
       :step="0.01"

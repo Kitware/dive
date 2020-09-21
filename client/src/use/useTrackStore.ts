@@ -3,7 +3,7 @@ import Track, { TrackId } from 'vue-media-annotator/track';
 import IntervalTree from '@flatten-js/interval-tree';
 
 interface UseTrackStoreParams {
-  markChangesPending: () => void;
+  markChangesPending: (type: 'upsert' | 'delete', track?: Track) => void;
 }
 
 /**
@@ -58,17 +58,17 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
   ): void {
     if (event === 'bounds') {
       const oldInterval = oldValue as [number, number];
-      intervalTree.remove(oldInterval, track.trackId);
-      intervalTree.insert([track.begin, track.end], track.trackId);
+      intervalTree.remove(oldInterval, track.trackId.toString());
+      intervalTree.insert([track.begin, track.end], track.trackId.toString());
     }
     canary.value += 1;
-    markChangesPending();
+    markChangesPending('upsert', track);
   }
 
   function insertTrack(track: Track) {
     track.bus.$on('notify', onChange);
     trackMap.set(track.trackId, track);
-    intervalTree.insert([track.begin, track.end], track.trackId);
+    intervalTree.insert([track.begin, track.end], track.trackId.toString());
     trackIds.value.push(track.trackId);
   }
 
@@ -79,7 +79,7 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
       confidencePairs: [[defaultType, 1]],
     });
     insertTrack(track);
-    markChangesPending();
+    markChangesPending('upsert', track);
     return track;
   }
 
@@ -89,7 +89,7 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
     }
     const track = getTrack(trackId);
     const range = [track.begin, track.end];
-    if (!intervalTree.remove(range, trackId)) {
+    if (!intervalTree.remove(range, trackId.toString())) {
       throw new Error(`TrackId ${trackId} with range ${range} not found in tree.`);
     }
     track.bus.$off(); // remove all event listeners
@@ -99,7 +99,7 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
       throw new Error(`TrackId ${trackId} not found in trackIds.`);
     }
     trackIds.value.splice(listIndex, 1);
-    markChangesPending();
+    markChangesPending('delete', track);
   }
 
   /*

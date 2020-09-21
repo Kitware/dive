@@ -174,7 +174,7 @@ export default defineComponent({
 
 <style scoped>
 .sidebar {
-  max-height: calc(100vh - 64px);
+  max-height: calc(100vh - 128px);
 }
 
 .wrapper {
@@ -187,7 +187,7 @@ export default defineComponent({
 }
 
 .typelist {
-  min-height: 100px;
+  min-height: 150px;
 }
 
 .swap-button {

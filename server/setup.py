@@ -6,13 +6,13 @@ from setuptools import find_packages, setup
 requirements = [
     "cheroot>=8.4.5",  # https://github.com/cherrypy/cheroot/issues/312
     "girder==3.1.0",
+    "diva-boiler",
     "girder_jobs==3.0.3",
     "girder_worker==0.6.0",
     "girder_worker_utils==0.8.5",
+    "pydantic",
     "pysnooper",
-    "dacite",
     "typing_extensions",
-    "diva-boiler",
     "gputil",
 ]
 

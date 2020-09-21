@@ -63,7 +63,10 @@ export default {
           or email <a href="mailto:viame-web@kitware.com">viame-web@kitware.com</a>
         </div>
       </v-alert>
-      <GirderAuth :register="true" />
+      <GirderAuth
+        register
+        forgot-password-url="/girder#?dialog=resetpassword"
+      />
     </v-dialog>
   </v-container>
 </template>

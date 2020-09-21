@@ -58,7 +58,7 @@ export default Vue.extend({
     },
     selectedTrack() {
       const trackId = this.selectedTrackId.value;
-      if (trackId) {
+      if (trackId !== null) {
         const track = getTrack(this.trackMap, trackId);
         return {
           trackId: track.trackId,
@@ -71,7 +71,7 @@ export default Vue.extend({
     selectedDetection() {
       const trackId = this.selectedTrackId.value;
       const frame = this.frame.value;
-      if (trackId) {
+      if (trackId !== null) {
         const track = getTrack(this.trackMap, trackId);
         const [feature] = track.getFeature(frame);
         return feature;

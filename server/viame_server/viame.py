@@ -1,4 +1,3 @@
-import re
 import pymongo
 
 from girder.api import access
@@ -18,11 +17,11 @@ from viame_tasks.tasks import (
 
 from .model.attribute import Attribute
 from .serializers import meva as meva_serializer
-from .serializers import viame as viame_serializer
 from .transforms import GetPathFromFolderId, GetPathFromItemId
 from .utils import (
     csvRegex,
     get_or_create_auxiliary_folder,
+    getTrackData,
     imageRegex,
     move_existing_result_to_auxiliary_folder,
     load_pipelines,
@@ -302,7 +301,7 @@ class Viame(Resource):
         )
         if csvItems.count() >= 1:
             file = Item().childFiles(csvItems.next())[0]
-            json_output = viame_serializer.load_csv_as_tracks(file)
+            json_output = getTrackData(file)
             saveTracks(folder, json_output, user)
             csvItems.rewind()
             for item in csvItems:
