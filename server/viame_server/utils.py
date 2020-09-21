@@ -3,17 +3,16 @@ import json
 import re
 from datetime import datetime
 from pathlib import Path
+from typing import Dict, List
 
+from girder.models.assetstore import Assetstore
 from girder.models.file import File
 from girder.models.folder import Folder
 from girder.models.item import Item
 from girder.models.upload import Upload
-from girder.models.assetstore import Assetstore
+from typing_extensions import TypedDict
 
 from viame_server.serializers import viame
-
-from typing import List, Dict
-from typing_extensions import TypedDict
 
 ImageSequenceType = "image-sequence"
 VideoType = "video"

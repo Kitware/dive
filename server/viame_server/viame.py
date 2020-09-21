@@ -1,5 +1,4 @@
 import pymongo
-
 from girder.api import access
 from girder.api.describe import Description, autoDescribeRoute, describeRoute
 from girder.api.rest import Resource
@@ -19,17 +18,17 @@ from .model.attribute import Attribute
 from .serializers import meva as meva_serializer
 from .transforms import GetPathFromFolderId, GetPathFromItemId
 from .utils import (
+    csv_detection_file,
     csvRegex,
     get_or_create_auxiliary_folder,
     getTrackData,
     imageRegex,
-    move_existing_result_to_auxiliary_folder,
     load_pipelines,
     load_training_configurations,
-    csv_detection_file,
-    training_output_folder,
+    move_existing_result_to_auxiliary_folder,
     safeImageRegex,
     saveTracks,
+    training_output_folder,
     videoRegex,
     ymlRegex,
 )

@@ -4,11 +4,7 @@ from typing import Dict, List
 
 from girder.api import access
 from girder.api.describe import Description, autoDescribeRoute
-from girder.api.rest import (
-    Resource,
-    setContentDisposition,
-    setResponseHeader,
-)
+from girder.api.rest import Resource, setContentDisposition, setResponseHeader
 from girder.constants import AccessType, TokenScope
 from girder.models.file import File
 from girder.models.folder import Folder

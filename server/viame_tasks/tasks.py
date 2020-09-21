@@ -1,19 +1,17 @@
 import json
 import os
-import tempfile
 import shutil
+import tempfile
+from datetime import datetime
 from pathlib import Path
 from subprocess import PIPE, Popen
-from datetime import datetime
-from GPUtil import getGPUs
+from typing import Dict, List
 
 from girder_worker.app import app
-from viame_tasks.utils import (
-    organize_folder_for_training,
-    trained_pipeline_folder as _trained_pipeline_folder,
-)
+from GPUtil import getGPUs
 
-from typing import Dict, List
+from viame_tasks.utils import organize_folder_for_training
+from viame_tasks.utils import trained_pipeline_folder as _trained_pipeline_folder
 
 
 def get_gpu_environment() -> Dict[str, str]:

@@ -1,8 +1,7 @@
-import shutil
 import os
-
-from tempfile import mktemp
+import shutil
 from pathlib import Path
+from tempfile import mktemp
 
 
 def trained_pipeline_folder():

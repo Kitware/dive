@@ -4,7 +4,7 @@ VIAME Fish format deserializer
 import csv
 import io
 import re
-from typing import Dict, List, Tuple, Union, Generator
+from typing import Dict, Generator, List, Tuple, Union
 
 from viame_server.serializers.models import Feature, Track, interpolate
 

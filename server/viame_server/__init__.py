@@ -1,6 +1,7 @@
 import os
 import sys
 from pathlib import Path
+from typing import Optional, Tuple
 
 from girder import events, plugin
 from girder.models.setting import Setting
@@ -9,8 +10,6 @@ from .client_webroot import ClientWebroot
 from .event import check_existing_annotations
 from .viame import Viame
 from .viame_detection import ViameDetection
-
-from typing import Tuple, Optional
 
 env_pipelines_path = os.getenv("VIAME_PIPELINES_PATH")
 env_trained_pipelines_path = os.getenv("VIAME_TRAINED_PIPELINES_PATH")
