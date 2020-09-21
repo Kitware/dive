@@ -56,8 +56,7 @@ export default function useModeManager({
   addTrack: (frame: number, defaultType: string) => Track;
   removeTrack: (trackId: TrackId) => void;
 }) {
-  let newTrackMode = false;
-  let newDetectionMode = false;
+  let creating = false;
 
   const annotationModes = reactive({
     visible: ['rectangle', 'Polygon', 'LineString'] as EditAnnotationTypes[],
@@ -80,11 +79,15 @@ export default function useModeManager({
    * Figure out if a new feature should enable interpolation
    * based on current state and the result of canInterolate.
    */
-  function _shouldInterpolate(interpolate: boolean) {
-    const interpolateTrack = newTrackMode
+  function _shouldInterpolate(canInterpolate: boolean) {
+    // if this is a track, then whether to interpolate
+    // is determined by newTrackSettings (if new track)
+    // or canInterpolate (if existing track)
+    const interpolateTrack = creating
       ? newTrackSettings.modeSettings.Track.interpolate
-      : interpolate;
-    return (newDetectionMode && !newTrackMode)
+      : canInterpolate;
+    // if detection, interpolate is always false
+    return newTrackSettings.mode === 'Detection'
       ? false
       : interpolateTrack;
   }
@@ -117,19 +120,13 @@ export default function useModeManager({
 
   function handleSelectTrack(trackId: TrackId | null, edit = false) {
     selectTrack(trackId, edit);
-    if (newTrackMode && !edit) {
-      newTrackMode = false;
-    }
-    // TODO remove this hack when full linestring support is added.
-    // if (edit && annotationModes.editing === 'LineString') {
-    //   annotationModes.editing = 'rectangle';
-    // }
+    creating = false;
   }
 
-  function handleAddTrack() {
+  function handleAddTrackOrDetection() {
     // Handles adding a new track with the NewTrack Settings
     selectTrack(addTrack(frame.value, newTrackSettings.type).trackId, true);
-    newTrackMode = true;
+    creating = true;
   }
 
   function handleTrackTypeChange({ trackId, value }: { trackId: TrackId; value: string }) {
@@ -138,18 +135,23 @@ export default function useModeManager({
 
   function newTrackSettingsAfterLogic(addedTrack: Track) {
     // Default settings which are updated by the CreationMode component
-    // Not making them reactive, and eventually will probably be in localStorage
-    if (addedTrack && newTrackSettings !== null) {
-      if (newTrackSettings.mode === 'Track' && newTrackSettings.modeSettings.Track.autoAdvanceFrame) {
-        playbackComponent.value.nextFrame();
-      } else if (newTrackSettings.mode === 'Detection') {
-        if (newTrackSettings.modeSettings.Detection.continuous) {
-          handleAddTrack();
-        } else { //Exit editing mode for the added track
-          selectTrack(addedTrack.trackId, false);
+    let newCreatingValue = false; // by default, disable creating at the end of this function
+    if (creating) {
+      if (addedTrack && newTrackSettings !== null) {
+        if (newTrackSettings.mode === 'Track' && newTrackSettings.modeSettings.Track.autoAdvanceFrame) {
+          playbackComponent.value.nextFrame();
+          newCreatingValue = true;
+        } else if (newTrackSettings.mode === 'Detection') {
+          if (newTrackSettings.modeSettings.Detection.continuous) {
+            handleAddTrackOrDetection();
+            newCreatingValue = true; // don't disable creating mode
+          } else { //Exit editing mode for the added track
+            selectTrack(addedTrack.trackId, false);
+          }
         }
       }
     }
+    creating = newCreatingValue;
   }
 
   function handleUpdateRectBounds(frameNum: number, bounds: RectBounds) {
@@ -157,22 +159,15 @@ export default function useModeManager({
       const track = trackMap.get(selectedTrackId.value);
       if (track) {
         // Determines if we are creating a new Detection
-        const { features, interpolate } = track.canInterpolate(frameNum);
-        const [real] = features;
-        if (!real || real.bounds === undefined) {
-          newDetectionMode = true;
-        }
+        const { interpolate } = track.canInterpolate(frameNum);
+
         track.setFeature({
           frame: frameNum,
           bounds,
           keyframe: true,
           interpolate: _shouldInterpolate(interpolate),
         });
-        //If it is a new track and we have newTrack Settings
-        if (newTrackMode && newDetectionMode) {
-          newTrackSettingsAfterLogic(track);
-        }
-        newDetectionMode = false;
+        newTrackSettingsAfterLogic(track);
       }
     }
   }
@@ -210,9 +205,6 @@ export default function useModeManager({
         // newDetectionMode is true if there's no keyframe on frameNum
         const { features, interpolate } = track.canInterpolate(frameNum);
         const [real] = features;
-        if (!real || real.bounds === undefined) {
-          newDetectionMode = true;
-        }
 
         // Give each recipe the opportunity to make changes
         recipes.forEach((recipe) => {
@@ -288,11 +280,7 @@ export default function useModeManager({
           // Treat this as a completed annotation if eventType is editing
           // Or none of the recieps reported that they were unfinished.
           if (eventType === 'editing' || update.done.every((v) => v !== false)) {
-            // If it is a new track and we have newTrack Settings
-            if (newTrackMode && newDetectionMode) {
-              newTrackSettingsAfterLogic(track);
-            }
-            newDetectionMode = false;
+            newTrackSettingsAfterLogic(track);
           }
         }
       } else {
@@ -402,7 +390,7 @@ export default function useModeManager({
       selectTrack: handleSelectTrack,
       trackEdit: handleTrackEdit,
       trackTypeChange: handleTrackTypeChange,
-      addTrack: handleAddTrack,
+      addTrack: handleAddTrackOrDetection,
       updateRectBounds: handleUpdateRectBounds,
       updateGeoJSON: handleUpdateGeoJSON,
       selectNext: handleSelectNext,
