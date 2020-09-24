@@ -109,6 +109,28 @@ function updateBounds(
   return [limits.xLow, limits.yLow, limits.xHigh, limits.yHigh];
 }
 
+function reOrdergeoJSON(coords: GeoJSON.Position[]) {
+  const x1 = coords[0][0] < coords[2][0] ? coords[0][0] : coords[2][0];
+  const x2 = coords[0][0] < coords[2][0] ? coords[2][0] : coords[0][0];
+  const y1 = coords[0][1] < coords[2][1] ? coords[0][1] : coords[2][1];
+  const y2 = coords[0][1] < coords[1][1] ? coords[2][1] : coords[0][1];
+  return [
+    [x1, y2],
+    [x1, y1],
+    [x2, y1],
+    [x2, y2],
+    [x1, y2],
+  ];
+}
+
+function reOrderBounds(bounds: RectBounds) {
+  const x1 = bounds[0] < bounds[2] ? bounds[0] : bounds[2];
+  const x2 = bounds[0] < bounds[2] ? bounds[2] : bounds[0];
+  const y1 = bounds[1] < bounds[3] ? bounds[1] : bounds[3];
+  const y2 = bounds[1] < bounds[3] ? bounds[3] : bounds[1];
+  return [x1, y1, x2, y2];
+}
+
 export {
   boundToGeojson,
   // findBounds,
@@ -116,4 +138,6 @@ export {
   geojsonToBound,
   updateSubset,
   removePoint,
+  reOrderBounds,
+  reOrdergeoJSON,
 };

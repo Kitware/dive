@@ -1,8 +1,9 @@
 /*eslint class-methods-use-this: "off"*/
 import { FrameDataTrack } from 'vue-media-annotator/layers/LayerTypes';
 import BaseLayer, { BaseLayerParams, LayerStyle } from 'vue-media-annotator/layers/BaseLayer';
-import { boundToGeojson } from 'vue-media-annotator/utils';
+import { boundToGeojson, reOrdergeoJSON } from 'vue-media-annotator/utils';
 import geo, { GeoEvent } from 'geojs';
+import { axisLeft, thresholdScott } from 'd3';
 
 export type EditAnnotationTypes = 'Point' | 'rectangle' | 'Polygon' | 'LineString';
 interface EditAnnotationLayerParams {
@@ -23,6 +24,19 @@ const typeMapper = new Map([
   ['Point', 'point'],
   ['rectangle', 'rectangle'],
 ]);
+
+const rectVertex = [
+  'sw-resize',
+  'nw-resize',
+  'ne-resize',
+  'se-resize',
+];
+const rectEdge = [
+  'w-resize',
+  'n-resize',
+  'e-resize',
+  's-resize',
+];
 /**
  * This class is used to edit annotations within the viewer
  * It will do and display different things based on it either being in
@@ -166,7 +180,31 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
     } else if (e.enable && e.handle.handle.type === 'center') {
       this.hoverHandleIndex = -1;
     }
+    if (e.enable) {
+      if (this.type === 'rectangle') {
+        if (e.handle.handle.type === 'vertex') {
+          this.annotator.$emit('set-cursor', rectVertex[e.handle.handle.index]);
+        } else if (e.handle.handle.type === 'edge') {
+          this.annotator.$emit('set-cursor', rectEdge[e.handle.handle.index]);
+        }
+      } else if (this.type === 'Polygon') {
+        if (e.handle.handle.type === 'vertex') {
+          this.annotator.$emit('set-cursor', 'grab');
+        } else if (e.handle.handle.type === 'edge') {
+          this.annotator.$emit('set-cursor', 'copy');
+        }
+      }
+      if (e.handle.handle.type === 'center') {
+        this.annotator.$emit('set-cursor', 'move');
+      } else if (e.handle.handle.type === 'resize') {
+        this.annotator.$emit('set-cursor', 'nwse-resize');
+      }
+    } else if (this.mode !== 'creation') {
+      this.annotator.$emit('set-cursor', 'default');
+    }
+    this.storedHandle = e.handle;
   }
+
 
   applyStylesToAnnotations() {
     const annotation = this.featureLayer.annotations()[0];
@@ -214,9 +252,11 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
       if (geom) {
         this._mode = 'editing';
         newLayerMode = 'edit';
+        this.annotator.$emit('set-cursor', 'default');
       } else if (typeMapper.has(mode)) {
         this._mode = 'creation';
         newLayerMode = typeMapper.get(mode) as string;
+        this.annotator.$emit('set-cursor', 'crosshair');
       } else {
         throw new Error(`No such mode ${mode}`);
       }
@@ -240,6 +280,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
         this.hoverHandleIndex = -1;
         this.bus.$emit('update:selectedIndex', this.selectedHandleIndex, this.type, this.selectedKey);
       }
+      this.annotator.$emit('set-cursor', 'default');
     }
   }
 
@@ -272,17 +313,29 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
       //TODO: Find a better way to track mouse up after placing a point or completing geometry
       //For line drawings and the actions of any recipes we want
       if (this.annotator.geoViewer.interactor().mouse().buttons.left) {
-        this.formattedData = this.formatData(frameData);
         this.leftButtonCheckTimeout = window.setTimeout(() => this.changeData(frameData), 20);
       } else {
         clearTimeout(this.leftButtonCheckTimeout);
         this.formattedData = this.formatData(frameData);
+        console.log('mousemove');
+        if (this.featureLayer.annotations().length && this.storedHandle) {
+          this.featureLayer.geoTrigger(geo.event.select_edit_handle,
+            {
+              annotation: this.featureLayer.annotations()[0],
+              handle: this.storedHandle,
+              enable: true,
+            });
+          this.storedHandle = false;
+        }
+        // eslint-disable-next-line max-len
+        this.annotator.geoViewer.onIdle(() => this.annotator.geoViewer.interactor().retriggerMouseMove());
       }
     } else {
       // prevent was called and it has prevented this update.
       // disable the skip for next time.
       this.skipNextExternalUpdate = false;
     }
+
     this.redraw();
   }
 
@@ -380,6 +433,11 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
             e.annotation.geojson()
           );
           if (this.formattedData.length > 0) {
+            if (this.type === 'rectangle') {
+              newGeojson.geometry.coordinates[0] = reOrdergeoJSON(
+                newGeojson.geometry.coordinates[0] as GeoJSON.Position[],
+              );
+            }
             // update existing feature
             this.formattedData[0].geometry = newGeojson.geometry;
           } else {

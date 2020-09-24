@@ -238,6 +238,7 @@ export default {
 <template>
   <div
     class="video-annotator"
+    :style="{cursor: cursor }"
   >
     <div
       ref="container"
