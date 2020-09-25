@@ -110,10 +110,16 @@ function updateBounds(
 }
 
 function reOrdergeoJSON(coords: GeoJSON.Position[]) {
-  const x1 = coords[0][0] < coords[2][0] ? coords[0][0] : coords[2][0];
-  const x2 = coords[0][0] < coords[2][0] ? coords[2][0] : coords[0][0];
-  const y1 = coords[0][1] < coords[2][1] ? coords[0][1] : coords[2][1];
-  const y2 = coords[0][1] < coords[1][1] ? coords[2][1] : coords[0][1];
+  let x1 = Infinity;
+  let x2 = -Infinity;
+  let y1 = Infinity;
+  let y2 = -Infinity;
+  coords.forEach((coord) => {
+    x1 = Math.min(x1, coord[0]);
+    x2 = Math.max(x2, coord[0]);
+    y1 = Math.min(y1, coord[1]);
+    y2 = Math.max(y2, coord[1]);
+  });
   return [
     [x1, y2],
     [x1, y1],

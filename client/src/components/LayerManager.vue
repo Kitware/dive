@@ -244,7 +244,7 @@ export default defineComponent({
     polyAnnotationLayer.bus.$on('annotation-clicked', Clicked);
     polyAnnotationLayer.bus.$on('annotation-right-clicked', Clicked);
     editAnnotationLayer.bus.$on('update:geojson', (
-      mode: 'in-progress' | 'editing',
+      mode: 'in-progress' | 'editing' | 'creation',
       data: GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.LineString | GeoJSON.Point>,
       type: string,
       key = '',
@@ -258,7 +258,7 @@ export default defineComponent({
         emit('update-geojson', mode, frameNumber.value, data, key, cb);
       }
       //We update the current layer if not in progress so it jumps back into edit mode
-      if (mode !== 'in-progress') {
+      if (mode === 'creation') {
         updateLayers(
           frameNumber.value,
           props.editingMode.value,

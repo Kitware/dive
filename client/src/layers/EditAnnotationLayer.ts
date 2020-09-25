@@ -3,7 +3,6 @@ import { FrameDataTrack } from 'vue-media-annotator/layers/LayerTypes';
 import BaseLayer, { BaseLayerParams, LayerStyle } from 'vue-media-annotator/layers/BaseLayer';
 import { boundToGeojson, reOrdergeoJSON } from 'vue-media-annotator/utils';
 import geo, { GeoEvent } from 'geojs';
-import { axisLeft, thresholdScott } from 'd3';
 
 export type EditAnnotationTypes = 'Point' | 'rectangle' | 'Polygon' | 'LineString';
 interface EditAnnotationLayerParams {
@@ -202,7 +201,6 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
     } else if (this.mode !== 'creation') {
       this.annotator.$emit('set-cursor', 'default');
     }
-    this.storedHandle = e.handle;
   }
 
 
@@ -317,18 +315,6 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
       } else {
         clearTimeout(this.leftButtonCheckTimeout);
         this.formattedData = this.formatData(frameData);
-        console.log('mousemove');
-        if (this.featureLayer.annotations().length && this.storedHandle) {
-          this.featureLayer.geoTrigger(geo.event.select_edit_handle,
-            {
-              annotation: this.featureLayer.annotations()[0],
-              handle: this.storedHandle,
-              enable: true,
-            });
-          this.storedHandle = false;
-        }
-        // eslint-disable-next-line max-len
-        this.annotator.geoViewer.onIdle(() => this.annotator.geoViewer.interactor().retriggerMouseMove());
       }
     } else {
       // prevent was called and it has prevented this update.
@@ -403,14 +389,22 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
     if (this.featureLayer === e.annotation.layer()) {
       if (e.annotation.state() === 'done' && this.formattedData.length === 0) {
         // geoJS insists on calling done multiple times, this will prevent that
-        this.formattedData = [e.annotation.geojson()];
+        const geoJSONData = [e.annotation.geojson()];
+        if (this.type === 'rectangle') {
+          geoJSONData[0].geometry.coordinates[0] = reOrdergeoJSON(
+            geoJSONData[0].geometry.coordinates[0] as GeoJSON.Position[],
+          );
+          console.log(e.annotation.features());
+        }
+        this.formattedData = geoJSONData;
         // The new annotation is in a state without styling, so apply local stypes
         this.applyStylesToAnnotations();
         //This makes sure the click for the end point doesn't kick us out of the mode
         this.disableModeSync = true;
+
         this.bus.$emit(
           'update:geojson',
-          'editing',
+          this.getMode(),
           this.formattedData[0],
           this.type,
           this.selectedKey,
@@ -437,6 +431,10 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
               newGeojson.geometry.coordinates[0] = reOrdergeoJSON(
                 newGeojson.geometry.coordinates[0] as GeoJSON.Position[],
               );
+              const newCoords: [number, number][] = newGeojson.geometry.coordinates[0];
+              const remap = newCoords.map((coord) => ({ x: coord[0], y: -coord[1] }));
+              e.annotation.options('corners', remap.slice(0, 4));
+              setTimeout(() => this.annotator.geoViewer.interactor().retriggerMouseMove(), 0);
             }
             // update existing feature
             this.formattedData[0].geometry = newGeojson.geometry;
@@ -452,7 +450,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
           }
           this.bus.$emit(
             'update:geojson',
-            'editing',
+            this.getMode(),
             this.formattedData[0],
             this.type,
             this.selectedKey,
