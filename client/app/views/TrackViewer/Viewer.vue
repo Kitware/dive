@@ -13,6 +13,7 @@ import {
   useTrackStore,
   useEventChart,
 } from 'vue-media-annotator/use';
+import { provideAnnotator } from 'vue-media-annotator/provides';
 import VideoAnnotator from 'vue-media-annotator/components/annotators/VideoAnnotator.vue';
 import ImageAnnotator from 'vue-media-annotator/components/annotators/ImageAnnotator.vue';
 import LayerManager from 'vue-media-annotator/components/LayerManager.vue';
@@ -235,6 +236,22 @@ export default defineComponent({
     const dataPath = computed(() => (
       getPathFromLocation(ctx.root.$store.state.Location.location)));
 
+    provideAnnotator(
+      allTypes,
+      checkedTrackIds,
+      checkedTypes,
+      editingMode,
+      frame,
+      intervalTree,
+      trackMap,
+      filteredTracks,
+      typeStyling,
+      selectedKey,
+      selectedTrackId,
+      stateStyling,
+      visibleModes,
+    );
+
     return {
       /* props use locally */
       annotatorType,
@@ -286,17 +303,6 @@ export default defineComponent({
         editingTrack,
         newTrackSettings: clientSettings.newTrackSettings,
         typeStyling,
-      },
-      layerProps: {
-        editingMode,
-        intervalTree,
-        selectedTrackId,
-        stateStyling,
-        trackMap,
-        tracks: enabledTracks,
-        typeStyling,
-        visibleModes,
-        selectedKey,
       },
     };
   },
@@ -375,7 +381,7 @@ export default defineComponent({
     >
       <sidebar
         v-bind="sidebarProps"
-        @track-add="handler.addTrack(frame)"
+        @track-add="handler.addTrack"
         @track-remove="handler.removeTrack"
         @track-click="handler.trackClick"
         @track-edit="handler.trackEdit"
@@ -399,7 +405,7 @@ export default defineComponent({
           v-if="imageData.length || videoUrl"
           ref="playbackComponent"
           v-mousetrap="[
-            { bind: 'n', handler: () => handler.addTrack(frame) },
+            { bind: 'n', handler: () => handler.addTrack },
             { bind: 'r', handler: () => playbackComponent.resetZoom() },
             { bind: 'esc', handler: () => handler.selectTrack(null, false)}
           ]"
@@ -416,7 +422,6 @@ export default defineComponent({
             />
           </template>
           <layer-manager
-            v-bind="layerProps"
             @select-track="handler.selectTrack"
             @select-feature-handle="handler.selectFeatureHandle"
             @update-rect-bounds="handler.updateRectBounds"

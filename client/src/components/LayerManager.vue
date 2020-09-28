@@ -1,11 +1,8 @@
 <script lang="ts">
-import IntervalTree from '@flatten-js/interval-tree';
 import {
   defineComponent,
   computed,
-  PropType,
   inject,
-  Ref,
   watch,
 } from '@vue/composition-api';
 
@@ -20,7 +17,18 @@ import { FrameDataTrack } from 'vue-media-annotator/layers/LayerTypes';
 import TextLayer from 'vue-media-annotator/layers/TextLayer';
 import Track, { TrackId } from 'vue-media-annotator/track';
 import { geojsonToBound } from 'vue-media-annotator/utils';
-import { StateStyles, TypeStyling } from 'vue-media-annotator/use/useStyling';
+
+import {
+  useIntervalTree,
+  useTrackMap,
+  useTracks,
+  useSelectedTrackId,
+  useTypeStyling,
+  useEditingMode,
+  useVisibleModes,
+  useSelectedKey,
+  useStateStyles,
+} from 'vue-media-annotator/provides';
 
 /** LayerManager is a component intended to be used as a child of an Annotator.
  *  It provides logic for switching which layers are visible, but more importantly
@@ -28,94 +36,65 @@ import { StateStyles, TypeStyling } from 'vue-media-annotator/use/useStyling';
  *  LayerManager emits high-level events when track features get selected or updated.
  */
 export default defineComponent({
-  props: {
-    trackMap: {
-      type: Map as PropType<Map<TrackId, Track>>,
-      required: true,
-    },
-    tracks: {
-      type: Object as PropType<Ref<Track[]>>,
-      required: true,
-    },
-    intervalTree: {
-      type: Object as PropType<IntervalTree>,
-      required: true,
-    },
-    selectedTrackId: {
-      type: Object as PropType<Ref<TrackId>>,
-      required: true,
-    },
-    typeStyling: {
-      type: Object as PropType<Ref<TypeStyling>>,
-      required: true,
-    },
-    stateStyling: {
-      type: Object as PropType<StateStyles>,
-      required: true,
-    },
-    editingMode: {
-      type: Object as PropType<Ref<false|EditAnnotationTypes>>,
-      required: true,
-    },
-    visibleModes: {
-      type: Object as PropType<Ref<EditAnnotationTypes[]>>,
-      required: true,
-    },
-    selectedKey: {
-      type: Object as PropType<Ref<string>>,
-      required: true,
-    },
-  },
-
   setup(props, { emit }) {
+    const intervalTree = useIntervalTree();
+    const trackMap = useTrackMap();
+    const tracksRef = useTracks();
+    const selectedTrackIdRef = useSelectedTrackId();
+    const typeStylingRef = useTypeStyling();
+    const editingModeRef = useEditingMode();
+    const visibleModesRef = useVisibleModes();
+    const selectedKeyRef = useSelectedKey();
+    const stateStyling = useStateStyles();
+
     const annotator = inject('annotator') as Annotator;
-    const frameNumber = computed(() => annotator.frame);
+    const frameNUmberRef = computed(() => annotator.frame);
 
     const rectAnnotationLayer = new RectangleLayer({
       annotator,
-      stateStyling: props.stateStyling,
-      typeStyling: props.typeStyling,
+      stateStyling,
+      typeStyling: typeStylingRef,
     });
     const polyAnnotationLayer = new PolygonLayer({
       annotator,
-      stateStyling: props.stateStyling,
-      typeStyling: props.typeStyling,
+      stateStyling,
+      typeStyling: typeStylingRef,
     });
 
     const lineLayer = new LineLayer({
       annotator,
-      stateStyling: props.stateStyling,
-      typeStyling: props.typeStyling,
+      stateStyling,
+      typeStyling: typeStylingRef,
     });
     const pointLayer = new PointLayer({
       annotator,
-      stateStyling: props.stateStyling,
-      typeStyling: props.typeStyling,
+      stateStyling,
+      typeStyling: typeStylingRef,
     });
 
 
     const textLayer = new TextLayer({
       annotator,
-      stateStyling: props.stateStyling,
-      typeStyling: props.typeStyling,
+      stateStyling,
+      typeStyling: typeStylingRef,
     });
 
     const editAnnotationLayer = new EditAnnotationLayer({
       annotator,
-      stateStyling: props.stateStyling,
-      typeStyling: props.typeStyling,
+      stateStyling,
+      typeStyling: typeStylingRef,
       type: 'rectangle',
     });
 
     function updateLayers(
       frame: number,
       editingTrack: false | EditAnnotationTypes,
-      selectedTrackId: TrackId,
-      tracks: Track[],
-      visibleModes: EditAnnotationTypes[],
+      selectedTrackId: TrackId | null,
+      tracks: readonly Track[],
+      visibleModes: readonly EditAnnotationTypes[],
       selectedKey: string,
     ) {
-      const currentFrameIds: TrackId[] = props.intervalTree
+      const currentFrameIds: TrackId[] = intervalTree
         .search([frame, frame])
         .map((str: string) => parseInt(str, 10));
 
@@ -123,7 +102,7 @@ export default defineComponent({
       const editingTracks = [] as FrameDataTrack[];
       currentFrameIds.forEach(
         (trackId: TrackId) => {
-          const track = props.trackMap.get(trackId);
+          const track = trackMap.get(trackId);
           if (track === undefined) {
             throw new Error(`TrackID ${trackId} not found in map`);
           }
@@ -171,7 +150,7 @@ export default defineComponent({
 
       if (selectedTrackId !== null) {
         if ((editingTrack) && !currentFrameIds.includes(selectedTrackId)) {
-          const editTrack = props.trackMap.get(selectedTrackId);
+          const editTrack = trackMap.get(selectedTrackId);
           if (editTrack === undefined) {
             throw new Error(`trackMap missing trackid ${selectedTrackId}`);
           }
@@ -201,28 +180,28 @@ export default defineComponent({
     }
 
     updateLayers(
-      frameNumber.value,
-      props.editingMode.value,
-      props.selectedTrackId.value,
-      props.tracks.value,
-      props.visibleModes.value,
-      props.selectedKey.value,
+      frameNUmberRef.value,
+      editingModeRef.value,
+      selectedTrackIdRef.value,
+      tracksRef.value,
+      visibleModesRef.value,
+      selectedKeyRef.value,
     );
 
     watch([
-      frameNumber,
-      props.editingMode,
-      props.tracks,
-      props.selectedTrackId,
-      props.visibleModes,
+      frameNUmberRef,
+      editingModeRef,
+      tracksRef,
+      selectedTrackIdRef,
+      visibleModesRef,
     ], () => {
       updateLayers(
-        frameNumber.value,
-        props.editingMode.value,
-        props.selectedTrackId.value,
-        props.tracks.value,
-        props.visibleModes.value,
-        props.selectedKey.value,
+        frameNUmberRef.value,
+        editingModeRef.value,
+        selectedTrackIdRef.value,
+        tracksRef.value,
+        visibleModesRef.value,
+        selectedKeyRef.value,
       );
     });
 
@@ -237,7 +216,7 @@ export default defineComponent({
 
     //Sync of internal geoJS state with the application
     editAnnotationLayer.bus.$on('editing-annotation-sync', (editing: boolean) => {
-      emit('select-track', props.selectedTrackId.value, editing);
+      emit('select-track', selectedTrackIdRef.value, editing);
     });
     rectAnnotationLayer.bus.$on('annotation-clicked', Clicked);
     rectAnnotationLayer.bus.$on('annotation-right-clicked', Clicked);
@@ -253,19 +232,19 @@ export default defineComponent({
       if (type === 'rectangle') {
         const bounds = geojsonToBound(data as GeoJSON.Feature<GeoJSON.Polygon>);
         cb();
-        emit('update-rect-bounds', frameNumber.value, bounds);
+        emit('update-rect-bounds', frameNUmberRef.value, bounds);
       } else {
-        emit('update-geojson', mode, frameNumber.value, data, key, cb);
+        emit('update-geojson', mode, frameNUmberRef.value, data, key, cb);
       }
       //We update the current layer if not in progress so it jumps back into edit mode
       if (mode !== 'in-progress') {
         updateLayers(
-          frameNumber.value,
-          props.editingMode.value,
-          props.selectedTrackId.value,
-          props.tracks.value,
-          props.visibleModes.value,
-          props.selectedKey.value,
+          frameNUmberRef.value,
+          editingModeRef.value,
+          selectedTrackIdRef.value,
+          tracksRef.value,
+          visibleModesRef.value,
+          selectedKeyRef.value,
         );
       }
     });
