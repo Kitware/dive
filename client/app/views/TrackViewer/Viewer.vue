@@ -130,6 +130,8 @@ export default defineComponent({
       enabledTracks,
       populateConfidenceFilters,
       updateTypeName,
+      updateCheckedTypes,
+      updateCheckedTrackId,
     } = useTrackFilters({ sortedTracks });
 
     Promise.all([
@@ -241,6 +243,7 @@ export default defineComponent({
       checkedTrackIds,
       checkedTypes,
       editingMode,
+      enabledTracks,
       frame,
       intervalTree,
       trackMap,
@@ -253,64 +256,47 @@ export default defineComponent({
     );
 
     return {
-      /* props use locally */
+      /* props */
       annotatorType,
       confidenceThreshold,
+      dataPath,
       dataset,
+      editingTrack,
+      editingMode,
+      eventChartData,
       frame,
       frameRate,
       getPathFromLocation,
       imageData,
-      dataPath,
+      lineChartData,
+      newTrackSettings: clientSettings.newTrackSettings,
       pendingSaveCount,
       playbackComponent,
+      recipes,
+      selectedFeatureHandle,
       selectedTrackId,
       selectedKey,
       videoUrl,
-      /* methods used locally */
+      visibleModes,
+      /* methods */
       addTrack,
+      handler,
       markChangesPending,
       save,
       saveThreshold,
       splitTracks,
+      updateCheckedTrackId,
+      updateCheckedTypes,
       updateNewTrackSettings,
       updateTypeStyle,
       updateTypeName,
-      handler,
-      /* props for sub-components */
-      controlsContainerProps: {
-        lineChartData,
-        eventChartData,
-      },
-      featureHandleControlsProps: {
-        selectedFeatureHandle,
-        editingMode,
-      },
-      modeEditorProps: {
-        recipes,
-        editingMode,
-        visibleModes,
-        editingTrack,
-      },
-      sidebarProps: {
-        trackMap,
-        filteredTracks,
-        frame,
-        allTypes,
-        checkedTypes,
-        checkedTrackIds,
-        selectedTrackId,
-        editingTrack,
-        newTrackSettings: clientSettings.newTrackSettings,
-        typeStyling,
-      },
     };
   },
 });
 </script>
 
 <template>
-  <v-content
+  <v-main
     class="viewer"
   >
     <v-app-bar app>
@@ -338,12 +324,12 @@ export default defineComponent({
       <template #extension>
         <span>Viewer/Edit Controls</span>
         <editor-menu
-          v-bind="modeEditorProps"
+          v-bind="{ editingMode, visibleModes, editingTrack, recipes }"
           class="shrink px-6"
           @set-annotation-state="handler.setAnnotationState"
         />
         <delete-controls
-          v-bind="featureHandleControlsProps"
+          v-bind="{ editingMode, selectedFeatureHandle }"
           @delete-point="handler.removePoint"
           @delete-annotation="handler.removeAnnotation"
         />
@@ -380,10 +366,11 @@ export default defineComponent({
       style="min-width: 700px;"
     >
       <sidebar
-        v-bind="sidebarProps"
+        v-bind="{ newTrackSettings }"
         @track-add="handler.addTrack"
         @track-remove="handler.removeTrack"
         @track-click="handler.trackClick"
+        @track-checked="updateCheckedTrackId"
         @track-edit="handler.trackEdit"
         @track-next="handler.selectNext(1)"
         @track-previous="handler.selectNext(-1)"
@@ -393,6 +380,7 @@ export default defineComponent({
         @track-seek="playbackComponent.seek($event)"
         @update-type-style="updateTypeStyle($event)"
         @update-type-name="updateTypeName($event)"
+        @update-checked-types="updateCheckedTypes($event)"
       >
         <ConfidenceFilter
           :confidence.sync="confidenceThreshold"
@@ -409,15 +397,13 @@ export default defineComponent({
             { bind: 'r', handler: () => playbackComponent.resetZoom() },
             { bind: 'esc', handler: () => handler.selectTrack(null, false)}
           ]"
+          v-bind="{ imageData, videoUrl, frameRate }"
           class="playback-component"
-          :image-data="imageData"
-          :video-url="videoUrl"
-          :frame-rate="frameRate"
           @frame-update="frame = $event"
         >
           <template slot="control">
             <controls-container
-              v-bind="controlsContainerProps"
+              v-bind="{ lineChartData, eventChartData }"
               @select-track="handler.selectTrack"
             />
           </template>
@@ -430,5 +416,5 @@ export default defineComponent({
         </component>
       </v-col>
     </v-row>
-  </v-content>
+  </v-main>
 </template>

@@ -1,7 +1,6 @@
 <script lang="ts">
 import { flatten } from 'lodash';
 import Vue, { PropType } from 'vue';
-import { Ref } from '@vue/composition-api';
 
 import { Mousetrap } from 'vue-media-annotator/types';
 import { EditAnnotationTypes } from 'vue-media-annotator/layers/EditAnnotationLayer';
@@ -20,15 +19,15 @@ export default Vue.extend({
   name: 'EditorMenu',
   props: {
     editingTrack: {
-      type: Object as PropType<Ref<boolean>>,
+      type: Boolean,
       required: true,
     },
     visibleModes: {
-      type: Object as PropType<Ref<EditAnnotationTypes[]>>,
+      type: Array as PropType<EditAnnotationTypes[]>,
       required: true,
     },
     editingMode: {
-      type: Object as PropType<Ref<EditAnnotationTypes>>,
+      type: [Object, Boolean] as PropType<false | EditAnnotationTypes>,
       required: true,
     },
     recipes: {
@@ -39,12 +38,12 @@ export default Vue.extend({
 
   computed: {
     editButtons(): ButtonData[] {
-      const em = this.editingMode.value;
+      const em = this.editingMode;
       return [
         {
           id: 'rectangle',
           icon: 'mdi-vector-square',
-          active: this.editingTrack.value && em === 'rectangle',
+          active: this.editingTrack && em === 'rectangle',
           mousetrap: [{
             bind: '1',
             handler: () => {
@@ -59,7 +58,7 @@ export default Vue.extend({
         ...this.recipes.filter((r) => r.toggleable.value).map((r, i) => ({
           id: r.name,
           icon: r.icon.value || 'mdi-pencil',
-          active: this.editingTrack.value && r.active.value,
+          active: this.editingTrack && r.active.value,
           click: () => r.activate(),
           mousetrap: [
             {
@@ -104,17 +103,17 @@ export default Vue.extend({
 
   methods: {
     isVisible(mode: EditAnnotationTypes) {
-      return this.visibleModes.value.includes(mode);
+      return this.visibleModes.includes(mode);
     },
 
     toggleVisible(mode: EditAnnotationTypes) {
       if (this.isVisible(mode)) {
         this.$emit('set-annotation-state', {
-          visible: this.visibleModes.value.filter((m) => m !== mode),
+          visible: this.visibleModes.filter((m) => m !== mode),
         });
       } else {
         this.$emit('set-annotation-state', {
-          visible: this.visibleModes.value.concat([mode]),
+          visible: this.visibleModes.concat([mode]),
         });
       }
     },
@@ -150,7 +149,7 @@ export default Vue.extend({
       <span
         :class="[
           'ml-8', 'mr-1', 'px-3', 'py-1',
-          'modechip', editingTrack.value ? 'primary' : ''
+          'modechip', editingTrack ? 'primary' : ''
         ]"
       >
         <v-icon class="pr-1">

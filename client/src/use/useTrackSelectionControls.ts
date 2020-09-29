@@ -36,6 +36,7 @@ export default function useTrackSelectionControls(
     //Return null if no other conditions are met
     return null;
   }
+
   return {
     selectedTrackId,
     editingTrack,

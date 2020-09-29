@@ -19,9 +19,9 @@ import Track, { TrackId } from 'vue-media-annotator/track';
 import { geojsonToBound } from 'vue-media-annotator/utils';
 
 import {
+  useEnabledTracks,
   useIntervalTree,
   useTrackMap,
-  useTracks,
   useSelectedTrackId,
   useTypeStyling,
   useEditingMode,
@@ -39,7 +39,7 @@ export default defineComponent({
   setup(props, { emit }) {
     const intervalTree = useIntervalTree();
     const trackMap = useTrackMap();
-    const tracksRef = useTracks();
+    const tracksRef = useEnabledTracks();
     const selectedTrackIdRef = useSelectedTrackId();
     const typeStylingRef = useTypeStyling();
     const editingModeRef = useEditingMode();
@@ -48,7 +48,7 @@ export default defineComponent({
     const stateStyling = useStateStyles();
 
     const annotator = inject('annotator') as Annotator;
-    const frameNUmberRef = computed(() => annotator.frame);
+    const frameNumberRef = computed(() => annotator.frame);
 
     const rectAnnotationLayer = new RectangleLayer({
       annotator,
@@ -180,7 +180,7 @@ export default defineComponent({
     }
 
     updateLayers(
-      frameNUmberRef.value,
+      frameNumberRef.value,
       editingModeRef.value,
       selectedTrackIdRef.value,
       tracksRef.value,
@@ -189,14 +189,15 @@ export default defineComponent({
     );
 
     watch([
-      frameNUmberRef,
+      frameNumberRef,
       editingModeRef,
       tracksRef,
       selectedTrackIdRef,
       visibleModesRef,
+      typeStylingRef,
     ], () => {
       updateLayers(
-        frameNUmberRef.value,
+        frameNumberRef.value,
         editingModeRef.value,
         selectedTrackIdRef.value,
         tracksRef.value,
@@ -232,14 +233,14 @@ export default defineComponent({
       if (type === 'rectangle') {
         const bounds = geojsonToBound(data as GeoJSON.Feature<GeoJSON.Polygon>);
         cb();
-        emit('update-rect-bounds', frameNUmberRef.value, bounds);
+        emit('update-rect-bounds', frameNumberRef.value, bounds);
       } else {
-        emit('update-geojson', mode, frameNUmberRef.value, data, key, cb);
+        emit('update-geojson', mode, frameNumberRef.value, data, key, cb);
       }
       //We update the current layer if not in progress so it jumps back into edit mode
       if (mode !== 'in-progress') {
         updateLayers(
-          frameNUmberRef.value,
+          frameNumberRef.value,
           editingModeRef.value,
           selectedTrackIdRef.value,
           tracksRef.value,

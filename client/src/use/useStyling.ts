@@ -1,9 +1,9 @@
-import Vue from 'vue';
 import {
-  inject, ref, Ref, computed,
+  inject, ref, Ref, computed, set as VueSet,
 } from '@vue/composition-api';
 import * as d3 from 'd3';
 import { Vuetify } from 'vuetify';
+import { noop } from 'lodash';
 
 interface Style {
   strokeWidth: number;
@@ -84,6 +84,13 @@ function generateColors(numColors: number) {
 
 export default function useStyling({ markChangesPending }: UseStylingParams) {
   const vuetify = inject('vuetify') as Vuetify;
+
+  /**
+   * Revision counter should be watched for re-rendering based on customStyles
+   * because we're using geojs's styling functions, which will not be invoked until render,
+   * so we can't use deep watching to trigger re-render (chicken and egg).
+   */
+  const customStylesRevisionCounter = ref(1);
   const customStyles = ref({} as Record<string, CustomStyle>);
   if (!vuetify) {
     throw new Error('Missing vuetify provide/inject');
@@ -110,9 +117,7 @@ export default function useStyling({ markChangesPending }: UseStylingParams) {
     fill: false,
   };
   const stateStyling: StateStyles = { standard, selected, disabled };
-  //Generate Colors for the types.
   const typeColors = generateColors(10);
-
 
   function populateTypeStyles(styles?: Record<string, CustomStyle>) {
     if (styles) {
@@ -123,18 +128,22 @@ export default function useStyling({ markChangesPending }: UseStylingParams) {
   function updateTypeStyle(args: UpdateStylingArgs) {
     const { type } = args;
     if (!customStyles.value[type]) {
-      Vue.set(customStyles.value, type, {});
+      VueSet(customStyles.value, type, {});
     }
     Object.entries(args).forEach(([key, value]) => {
       if (value !== undefined) {
-        Vue.set(customStyles.value[type], key, value);
+        VueSet(customStyles.value[type], key, value);
       }
     });
+    customStylesRevisionCounter.value += 1;
     markChangesPending();
   }
 
   const ordinalColorMapper = d3.scaleOrdinal<string>().range(typeColors);
+
   const typeStyling = computed(() => {
+    // establish dependency on revision counter
+    if (customStylesRevisionCounter.value) noop();
     const _customStyles = customStyles.value;
     return {
       color: (type: string) => {

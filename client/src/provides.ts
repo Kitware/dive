@@ -1,16 +1,14 @@
 import IntervalTree from '@flatten-js/interval-tree';
 import { provide, inject, Ref } from '@vue/composition-api';
+import { StateStyles, TypeStyling } from 'vue-media-annotator/use/useStyling';
 import { EditAnnotationTypes } from './layers/EditAnnotationLayer';
 import Track, { TrackId } from './track';
-import { TypeStyling } from './use/useStyling';
-import { StateStyles } from 'vue-media-annotator/use/useStyling';
+
 
 /**
  * Provides declares the dependencies that a consumer must provide before
  * constructing an AnnotationLayer of any kind
- */
-
-/**
+ *
  * Type definitions are read only because injectors may mutate internal state,
  * but should never overwrite or delete the injected object.
  */
@@ -23,6 +21,9 @@ type CheckedTrackIdsType = Readonly<Ref<readonly TrackId[]>>;
 
 const CheckedTypesSymbol = Symbol('checkedTypes');
 type CheckedTypesType = Readonly<Ref<readonly string[]>>;
+
+const EnabledTracksSymbol = Symbol('enabledTracks');
+type EnabledTracksType = Readonly<Ref<readonly Track[]>>;
 
 const EditingModeSymbol = Symbol('editingMode');
 type EditingModeType = Readonly<Ref<false | EditAnnotationTypes>>;
@@ -71,6 +72,7 @@ function provideAnnotator(
   checkedTrackIds: CheckedTrackIdsType,
   checkedTypes: CheckedTypesType,
   editingMode: EditingModeType,
+  enabledTracks: EnabledTracksType,
   frame: FrameType,
   intervalTree: IntervalTreeType,
   trackMap: TrackMapType,
@@ -84,6 +86,7 @@ function provideAnnotator(
   provide(AllTypesSymbol, allTypes);
   provide(CheckedTrackIdsSymbol, checkedTrackIds);
   provide(CheckedTypesSymbol, checkedTypes);
+  provide(EnabledTracksSymbol, enabledTracks);
   provide(EditingModeSymbol, editingMode);
   provide(FrameSymbol, frame);
   provide(IntervalTreeSymbol, intervalTree);
@@ -106,6 +109,10 @@ function useCheckedTrackIds() {
 
 function useCheckedTypes() {
   return _use<CheckedTypesType>(CheckedTypesSymbol);
+}
+
+function useEnabledTracks() {
+  return _use<EnabledTracksType>(EnabledTracksSymbol);
 }
 
 function useEditingMode() {
@@ -149,23 +156,11 @@ function useVisibleModes() {
 }
 
 export {
-  /*
-  AllTypesSymbol,
-  CheckedTrackIdsSymbol,
-  CheckedTypesSymbol,
-  EditingModeSymbol,
-  FrameSymbol,
-  TrackMapSymbol,
-  TracksSymbol,
-  TypeStylingSymbol,
-  SelectedKeySymbol,
-  SelectedTrackIdSymbol,
-  VisibleModesSymbol,
-  */
   provideAnnotator,
   useAllTypes,
   useCheckedTrackIds,
   useCheckedTypes,
+  useEnabledTracks,
   useEditingMode,
   useIntervalTree,
   useFrame,

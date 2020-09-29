@@ -1,137 +1,122 @@
 <script lang="ts">
-import Vue, { PropType } from 'vue';
-import { Ref } from '@vue/composition-api';
+import Vue from 'vue';
+import {
+  defineComponent, reactive, computed, ref, Ref, watch,
+} from '@vue/composition-api';
 import TrackItem from 'vue-media-annotator/components/TrackItem.vue';
 import Track, { TrackId } from 'vue-media-annotator/track';
+import {
+  useAllTypes,
+  useCheckedTrackIds,
+  useEditingMode,
+  useSelectedTrackId,
+  useTrackMap,
+  useTracks,
+  useTypeStyling,
+} from 'vue-media-annotator/provides';
 
 interface VirtualListItem {
   track: Track;
-  selectedTrackId: number;
-  checkedTrackIds: number[];
+  selectedTrackId: number | null;
+  checkedTrackIds: readonly number[];
   editingTrack: boolean;
-  allTypes: string[];
+  allTypes: readonly string[];
 }
 
-export default Vue.extend({
-  name: 'TrackList',
-
-  components: { TrackItem },
-
+export default defineComponent({
   props: {
-    trackMap: {
-      type: Map as PropType<Map<TrackId, Track>>,
-      required: true,
-    },
-    filteredTracks: {
-      type: Object as PropType<Ref<Track[]>>,
-      required: true,
-    },
-    allTypes: {
-      type: Object as PropType<Ref<Array<string>>>,
-      required: true,
-    },
-    checkedTypes: {
-      type: Object as PropType<Ref<Array<string>>>,
-      required: true,
-    },
-    checkedTrackIds: {
-      type: Object as PropType<Ref<Array<TrackId>>>,
-      required: true,
-    },
-    selectedTrackId: {
-      type: Object as PropType<Ref<TrackId>>,
-      required: true,
-    },
-    editingTrack: {
-      type: Object as PropType<Ref<boolean>>,
-      required: true,
-    },
-    frame: {
-      type: Object as PropType<Ref<number>>,
-      required: true,
-    },
-    typeStyling: {
-      type: Object as PropType<Ref<{ color: (t: string) => string }>>,
-      required: true,
-    },
     newTrackMode: {
-      type: String as PropType<'detection'|'track'>,
+      type: String,
       required: true,
     },
     newTrackType: {
-      type: String as PropType<string>,
+      type: String,
       required: true,
+    },
+    hotkeysDisabled: {
+      type: Boolean,
+      required: true,
+    },
+    height: {
+      type: Number,
+      default: 420,
     },
   },
 
-  data: () => ({
-    itemHeight: 70, // in pixels
-    settingsActive: false,
-  }),
+  components: { TrackItem },
 
-  computed: {
-    virtualListItems(): VirtualListItem[] {
-      const selectedTrackId = this.selectedTrackId.value;
-      const checkedTrackIds = this.checkedTrackIds.value;
-      const editingTrack = this.editingTrack.value;
-      const allTypes = this.allTypes.value;
-      return this.filteredTracks.value.map((track) => ({
+  setup(props, { emit }) {
+    const allTypesRef = useAllTypes();
+    const checkedTrackIdsRef = useCheckedTrackIds();
+    const editingModeRef = useEditingMode();
+    const selectedTrackIdRef = useSelectedTrackId();
+    const trackMap = useTrackMap();
+    const tracksRef = useTracks();
+    const typeStylingRef = useTypeStyling();
+
+    const data = reactive({
+      itemHeight: 70, // in pixelx
+      settingsActive: false,
+    });
+    const virtualList = ref(null as null | Vue);
+
+    const virtualListItems: Ref<readonly VirtualListItem[]> = computed(() => {
+      const selectedTrackId = selectedTrackIdRef.value;
+      const checkedTrackIds = checkedTrackIdsRef.value;
+      const editingMode = editingModeRef.value;
+      const allTypes = allTypesRef.value;
+      return tracksRef.value.map((track) => ({
         track,
         selectedTrackId,
         checkedTrackIds,
-        editingTrack,
+        editingTrack: !!editingMode,
         allTypes,
       }));
-    },
+    });
 
-    newTrackColor(): string {
-      if (this.newTrackType !== 'unknown') {
-        return this.typeStyling.value.color(this.newTrackType);
+    const newTrackColor: Ref<string> = computed(() => {
+      if (props.newTrackType !== 'unknown') {
+        return typeStylingRef.value.color(props.newTrackType);
       }
       // Return default color
       return '';
-    },
-  },
+    });
 
-  watch: {
-    // because Vue typescript definitions are broke and don't recognize
-    // the `this` context inside watcher handers
-    'selectedTrackId.value': 'scrollToTrack',
-    'filteredTracks.value': 'scrollToSelectedTrack',
-  },
-
-
-  methods: {
-    scrollToTrack(trackId: TrackId): void {
-      const virtualList = (this.$refs.virtualList as Vue).$el;
-      const track = this.trackMap.get(trackId);
-      if (track) {
-        const offset = this.filteredTracks.value.indexOf(track);
-        if (offset === -1) {
-          virtualList.scrollTop = 0;
-        } else {
-          // try to show the selected track as the third track in the list
-          virtualList.scrollTop = (offset * this.itemHeight) - (2 * this.itemHeight);
+    function scrollToTrack(trackId: TrackId | null): void {
+      if (trackId !== null && virtualList.value !== null) {
+        const track = trackMap.get(trackId);
+        if (track) {
+          const offset = tracksRef.value.indexOf(track);
+          if (offset === -1) {
+            virtualList.value.$el.scrollTop = 0;
+          } else {
+            // try to show the selected track as the third track in the list
+            virtualList.value.$el.scrollTop = (offset * data.itemHeight) - (2 * data.itemHeight);
+          }
         }
       }
-    },
+    }
 
-    scrollToSelectedTrack(): void {
-      this.$nextTick(() => this.scrollToTrack(this.selectedTrackId.value));
-    },
+    function scrollToSelectedTrack(): void {
+      Vue.nextTick(() => scrollToTrack(selectedTrackIdRef.value));
+    }
 
-    scrollPreventDefault(element: HTMLElement, keyEvent: KeyboardEvent, direction: 'up' | 'down'): void {
-      if (element === (this.$refs.virtualList as Vue).$el) {
+    function scrollPreventDefault(
+      element: HTMLElement,
+      keyEvent: KeyboardEvent,
+      direction: 'up' | 'down',
+    ): void {
+      if (virtualList.value !== null && element === virtualList.value.$el) {
         if (direction === 'up') {
-          this.$emit('track-previous');
+          emit('track-previous');
         } else if (direction === 'down') {
-          this.$emit('track-next');
+          emit('track-next');
         }
         keyEvent.preventDefault();
       }
-    },
+    }
 
-    getItemProps(item: VirtualListItem) {
+    function getItemProps(item: VirtualListItem) {
       const type = item.track.getType();
       const trackType = type ? type[0] : '';
       const selected = item.selectedTrackId === item.track.trackId;
@@ -141,11 +126,63 @@ export default Vue.extend({
         inputValue: item.checkedTrackIds.indexOf(item.track.trackId) >= 0,
         selected,
         editing: selected && item.editingTrack,
-        color: this.typeStyling.value.color(trackType),
+        color: typeStylingRef.value.color(trackType),
         types: item.allTypes,
-        frame: this.frame,
       };
-    },
+    }
+
+    watch(selectedTrackIdRef, scrollToTrack);
+    watch(tracksRef, scrollToSelectedTrack);
+
+    const mouseTrap = computed(() => {
+      const disabled = props.hotkeysDisabled;
+      return [
+        {
+          bind: 'up',
+          handler: (el: HTMLElement, event: KeyboardEvent) => {
+            scrollPreventDefault(el, event, 'up');
+          },
+          disabled,
+        },
+        {
+          bind: 'down',
+          handler: (el: HTMLElement, event: KeyboardEvent) => {
+            scrollPreventDefault(el, event, 'down');
+          },
+          disabled,
+        },
+        {
+          bind: 'enter',
+          handler: () => emit('track-click', selectedTrackIdRef.value),
+          disabled,
+        },
+        {
+          bind: 'del',
+          handler: () => {
+            if (selectedTrackIdRef.value !== null) {
+              emit('track-remove', selectedTrackIdRef.value);
+            }
+          },
+          disabled,
+        },
+        {
+          bind: 'x',
+          handler: () => emit('track-split', selectedTrackIdRef.value),
+          disabled,
+        },
+      ];
+    });
+
+    return {
+      allTypes: allTypesRef,
+      data,
+      getItemProps,
+      mouseTrap,
+      newTrackColor,
+      tracks: tracksRef,
+      virtualListItems,
+      virtualList,
+    };
   },
 });
 </script>
@@ -155,18 +192,18 @@ export default Vue.extend({
     <v-subheader class="flex-grow-1 trackHeader">
       <v-container>
         <v-row align="center">
-          Tracks ({{ filteredTracks.value.length }})
+          Tracks ({{ tracks.length }})
           <v-spacer />
           <div>
             <v-btn
               icon
               small
               class="mr-2"
-              @click="settingsActive = !settingsActive"
+              @click="data.settingsActive = !data.settingsActive"
             >
               <v-icon
                 small
-                :color="settingsActive ? 'accent' : 'default'"
+                :color="data.settingsActive ? 'accent' : 'default'"
               >
                 mdi-settings
               </v-icon>
@@ -197,7 +234,7 @@ export default Vue.extend({
         <v-row>
           <v-expand-transition>
             <slot
-              v-if="settingsActive"
+              v-if="data.settingsActive"
               name="settings"
             />
           </v-expand-transition>
@@ -206,7 +243,7 @@ export default Vue.extend({
     </v-subheader>
     <datalist id="allTypesOptions">
       <option
-        v-for="type in allTypes.value"
+        v-for="type in allTypes"
         :key="type"
         :value="type"
       >
@@ -215,23 +252,11 @@ export default Vue.extend({
     </datalist>
     <v-virtual-scroll
       ref="virtualList"
-      v-mousetrap="[
-        { bind: 'up', handler: (el, event) => scrollPreventDefault(el, event, 'up'),
-          disabled: $prompt.visible() },
-        { bind: 'down', handler: (el, event) => scrollPreventDefault(el, event, 'down'),
-          disabled: $prompt.visible() },
-        { bind: 'enter', handler: () => $emit('track-click', selectedTrackId.value),
-          disabled: $prompt.visible()},
-        { bind: 'del', handler: () =>
-            selectedTrackId.value !== null && $emit('track-remove', selectedTrackId.value),
-          disabled: $prompt.visible()},
-        { bind: 'x', handler: () => $emit('track-split', selectedTrackId.value),
-          disabled: $prompt.visible()}
-      ]"
+      v-mousetrap="mouseTrap"
       class="tracks"
       :items="virtualListItems"
-      :item-height="itemHeight"
-      :height="420"
+      :item-height="data.itemHeight"
+      :height="height"
       bench="1"
     >
       <template #default="{ item }">
