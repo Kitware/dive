@@ -2,6 +2,8 @@ import Vue from 'vue';
 import VueGtag from 'vue-gtag';
 import VueCompositionApi from '@vue/composition-api';
 import NotificationBus from '@girder/components/src/utils/notifications';
+import { init as SentryInit } from '@sentry/browser';
+import { Vue as SentryVue } from '@sentry/integrations';
 
 import snackbarService from 'app/vue-utilities/snackbar-service';
 import promptService from 'app/vue-utilities/prompt-service';
@@ -20,6 +22,14 @@ Vue.use(promptService(vuetify));
 Vue.use(vMousetrap);
 Vue.use(VueGtag, {
   config: { id: process.env.VUE_APP_GTAG },
+});
+
+SentryInit({
+  dsn: process.env.VUE_APP_SENTRY_DSN,
+  integrations: [
+    new SentryVue({ Vue, logErrors: true }),
+  ],
+  release: process.env.VUE_APP_GIT_HASH,
 });
 
 const notificationBus = new NotificationBus(girderRest);

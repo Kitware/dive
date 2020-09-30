@@ -20,6 +20,8 @@
     "@flatten-js/interval-tree": "^1.0.11",
     "@girder/components": "^2.2.4",
     "@mdi/font": "^3.9.97",
+    "@sentry/browser": "^5.24.2",
+    "@sentry/integrations": "^5.24.2",
     "@types/mousetrap": "^1.6.3",
     "@vue/composition-api": "^0.5.0",
     "axios": "^0.19.2",
