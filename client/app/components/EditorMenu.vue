@@ -27,7 +27,7 @@ export default Vue.extend({
       required: true,
     },
     editingMode: {
-      type: [Object, Boolean] as PropType<false | EditAnnotationTypes>,
+      type: [String, Boolean] as PropType<false | EditAnnotationTypes>,
       required: true,
     },
     recipes: {

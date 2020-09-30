@@ -108,7 +108,6 @@ export default function useFilteredTracks(
   }
 
   function updateCheckedTrackId({ trackId, value }: { trackId: TrackId; value: boolean }) {
-    console.log('here', trackId, value);
     if (value) {
       checkedTrackIds.value.push(trackId);
     } else {

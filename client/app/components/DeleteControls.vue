@@ -11,7 +11,7 @@ export default Vue.extend({
       required: true,
     },
     editingMode: {
-      type: [Object, Boolean] as PropType<EditAnnotationTypes | boolean>,
+      type: [String, Boolean] as PropType<EditAnnotationTypes | boolean>,
       required: true,
     },
   },
