@@ -179,14 +179,21 @@ export default defineComponent({
       }
     }
 
-    updateLayers(
-      frameNumberRef.value,
-      editingModeRef.value,
-      selectedTrackIdRef.value,
-      tracksRef.value,
-      visibleModesRef.value,
-      selectedKeyRef.value,
-    );
+    /**
+     * TODO: for some reason, GeoJS requires us to initialize
+     * by calling the render function twice.  This is a bug.
+     * https://github.com/VIAME/VIAME-Web/issues/365
+     */
+    [1, 2].forEach(() => {
+      updateLayers(
+        frameNumberRef.value,
+        editingModeRef.value,
+        selectedTrackIdRef.value,
+        tracksRef.value,
+        visibleModesRef.value,
+        selectedKeyRef.value,
+      );
+    });
 
     watch([
       frameNumberRef,

@@ -61,6 +61,23 @@ The major benefits of the `src/use` style are:
 * sanity.  All this logic and state is technically contained in a single component.
 * typescript adoption.  Typescript will be easier to incrementally adopt.
 
+### src/provides
+
+Provides a common, typed interface for components and composition functions to access singleton state like `trackMap`, `selectedTrackId`, and many others.
+
+This pattern has similar trade-offs to Vuex; It makes component re-use with different state more difficult.  The provide/inject style using typed functions provides similar type safety and DRY advantages while allowing downstream library consumers to wrap and customize state, such as with chained computed properties.
+
+``` typescript
+/* Example consumer */
+provide(...state); // downstream provides a collection of refs and other state expected by the library.
+
+/* Example librarty component */
+import { useSelectedTrackId } from 'vue-media-annotator/provides';
+const selectedTrackIdRef = useSelectedTrackId();
+```
+
+This style guarantees matching types are passed through provide and inject without having to replicate the type definition through possibly many layers of `props:{}` type definitions, and automatically wraps with `readonly` to prevent short-circut updates.
+
 ## Tests
 
 Note that `tsconfig.spec.json` is an exact copy of `tsconfig.json` but the `target` and `module` are changed such that babel is not required for jest to execute tests.

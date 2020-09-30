@@ -1,9 +1,9 @@
 import IntervalTree from '@flatten-js/interval-tree';
 import { provide, inject, Ref } from '@vue/composition-api';
-import { StateStyles, TypeStyling } from 'vue-media-annotator/use/useStyling';
+
+import { StateStyles, TypeStyling } from './use/useStyling';
 import { EditAnnotationTypes } from './layers/EditAnnotationLayer';
 import Track, { TrackId } from './track';
-
 
 /**
  * Provides declares the dependencies that a consumer must provide before
