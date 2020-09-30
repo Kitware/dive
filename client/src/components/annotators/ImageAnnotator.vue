@@ -239,7 +239,16 @@ export default {
   <div
     class="video-annotator"
     :style="{cursor: cursor }"
+    @mousemove="handleMouseMove"
+    @mouseleave="handleMouseLeave"
+    @mouseover="handleMouseEnter"
   >
+    <div
+      ref="imageCursor"
+      class="imageCursor"
+    >
+      <v-icon> {{ imageCursor }} </v-icon>
+    </div>
     <div
       ref="container"
       class="playback-container"

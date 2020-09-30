@@ -198,7 +198,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
       } else if (e.handle.handle.type === 'resize') {
         this.annotator.$emit('set-cursor', 'nwse-resize');
       }
-    } else if (this.mode !== 'creation') {
+    } else if (this._mode !== 'creation') {
       this.annotator.$emit('set-cursor', 'default');
     }
   }
@@ -264,6 +264,14 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
     }
   }
 
+  calculateCursorImage() {
+    if (this.getMode() === 'editing') {
+      this.annotator.$emit('set-image-cursor', 'mdi-pencil');
+    } else if (this.getMode() === 'creation') {
+      this.annotator.$emit('set-image-cursor', `mdi-vector-${typeMapper.get(this.type)}`);
+    }
+  }
+
   /**
    * Removes the current annotation and resets the mode when completed editing
    */
@@ -279,6 +287,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
         this.bus.$emit('update:selectedIndex', this.selectedHandleIndex, this.type, this.selectedKey);
       }
       this.annotator.$emit('set-cursor', 'default');
+      this.annotator.$emit('set-image-cursor', '');
     }
   }
 
@@ -322,6 +331,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
       this.skipNextExternalUpdate = false;
     }
 
+    this.calculateCursorImage();
     this.redraw();
   }
 
@@ -394,7 +404,6 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
           geoJSONData[0].geometry.coordinates[0] = reOrdergeoJSON(
             geoJSONData[0].geometry.coordinates[0] as GeoJSON.Position[],
           );
-          console.log(e.annotation.features());
         }
         this.formattedData = geoJSONData;
         // The new annotation is in a state without styling, so apply local stypes
@@ -428,12 +437,15 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
           );
           if (this.formattedData.length > 0) {
             if (this.type === 'rectangle') {
+              /* Updating the corners for the proper cursor icons
+              Also allows for regrabbing of the handle */
               newGeojson.geometry.coordinates[0] = reOrdergeoJSON(
                 newGeojson.geometry.coordinates[0] as GeoJSON.Position[],
               );
-              const newCoords: [number, number][] = newGeojson.geometry.coordinates[0];
-              const remap = newCoords.map((coord) => ({ x: coord[0], y: -coord[1] }));
-              e.annotation.options('corners', remap.slice(0, 4));
+              //Grabs the coordinates with the 'map' coordinate system
+              const remap = e.annotation.coordinates(null).slice(0, 4);
+              e.annotation.options('corners', remap);
+              //This will retrigger highlighting of the current handle after releasing the mouse
               setTimeout(() => this.annotator.geoViewer.interactor().retriggerMouseMove(), 0);
             }
             // update existing feature

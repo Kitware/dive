@@ -113,6 +113,7 @@ export default {
   <div
     v-resize="onResize"
     class="video-annotator"
+    :style="{cursor: cursor }"
   >
     <div
       ref="container"

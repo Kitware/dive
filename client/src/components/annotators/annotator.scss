@@ -28,6 +28,9 @@
   .geojs-map.annotation-input {
     cursor: inherit;
   }
-
+}
+.imageCursor {
+  z-index: 10;
+  position: absolute;
 }
 
