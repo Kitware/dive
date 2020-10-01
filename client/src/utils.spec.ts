@@ -1,5 +1,5 @@
 /// <reference types="jest" />
-import { updateSubset } from 'vue-media-annotator/utils';
+import { updateSubset } from './utils';
 
 describe('updateSubset', () => {
   it('should return null for identical sets', () => {

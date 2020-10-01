@@ -3,8 +3,8 @@ import Vue from 'vue';
 import {
   defineComponent, reactive, computed, ref, Ref, watch,
 } from '@vue/composition-api';
-import TrackItem from 'vue-media-annotator/components/TrackItem.vue';
-import Track, { TrackId } from 'vue-media-annotator/track';
+
+import Track, { TrackId } from '../track';
 import {
   useAllTypes,
   useCheckedTrackIds,
@@ -13,7 +13,8 @@ import {
   useTrackMap,
   useTracks,
   useTypeStyling,
-} from 'vue-media-annotator/provides';
+} from '../provides';
+import TrackItem from './TrackItem.vue';
 
 interface VirtualListItem {
   track: Track;

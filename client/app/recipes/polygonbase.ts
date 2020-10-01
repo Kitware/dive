@@ -5,7 +5,7 @@ import Vue from 'vue';
 import { removePoint } from 'vue-media-annotator/utils';
 import Track from 'vue-media-annotator/track';
 import Recipe from 'vue-media-annotator/recipe';
-import { EditAnnotationTypes } from 'vue-media-annotator/layers/EditAnnotationLayer';
+import { EditAnnotationTypes } from 'vue-media-annotator/layers';
 
 const EmptyResponse = { data: {}, union: [], unionWithoutBounds: [] };
 

@@ -1,4 +1,4 @@
-import { Feature } from 'vue-media-annotator/track';
+import { Feature } from '../track';
 
 export interface FrameDataTrack {
   selected: boolean;

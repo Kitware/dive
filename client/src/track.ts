@@ -1,12 +1,12 @@
 import Vue from 'vue';
 import { Ref, ref } from '@vue/composition-api';
-import { RectBounds } from 'vue-media-annotator/utils';
+import { RectBounds } from './utils';
 import {
   binarySearch,
   listInsert,
   getSurroundingElements,
   listRemove,
-} from 'vue-media-annotator/listUtils';
+} from './listUtils';
 
 export type InterpolateFeatures = [Feature | null, Feature | null, Feature | null];
 export type ConfidencePair = [string, number];
