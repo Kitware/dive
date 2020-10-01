@@ -31,6 +31,7 @@
     "lodash": "^4.17.19",
     "mousetrap": "^1.6.5",
     "vue": "^2.6.10",
+    "vue-gtag": "^1.9.1",
     "vue-router": "^3.0.3",
     "vuetify": "^v2.3.0-beta.7",
     "vuex": "^3.0.1"
