@@ -238,10 +238,6 @@ export default {
 <template>
   <div
     class="video-annotator"
-    :style="{cursor: cursor }"
-    @mousemove="handleMouseMove"
-    @mouseleave="handleMouseLeave"
-    @mouseover="handleMouseEnter"
   >
     <div
       ref="imageCursor"
@@ -252,6 +248,10 @@ export default {
     <div
       ref="container"
       class="playback-container"
+      :style="{cursor: cursor }"
+      @mousemove="handleMouseMove"
+      @mouseleave="handleMouseLeave"
+      @mouseover="handleMouseEnter"
     >
       {{ rendered() }}
       <div class="loadingSpinnerContainer">

@@ -268,6 +268,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
     if (this.getMode() === 'editing') {
       this.annotator.$emit('set-image-cursor', 'mdi-pencil');
     } else if (this.getMode() === 'creation') {
+      // TODO:  we may want to make this more generic or utilize the icons from editMenu
       this.annotator.$emit('set-image-cursor', `mdi-vector-${typeMapper.get(this.type)}`);
     }
   }
@@ -330,7 +331,6 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
       // disable the skip for next time.
       this.skipNextExternalUpdate = false;
     }
-
     this.calculateCursorImage();
     this.redraw();
   }
@@ -442,9 +442,14 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
               newGeojson.geometry.coordinates[0] = reOrdergeoJSON(
                 newGeojson.geometry.coordinates[0] as GeoJSON.Position[],
               );
-              //Grabs the coordinates with the 'map' coordinate system
-              const remap = e.annotation.coordinates(null).slice(0, 4);
-              e.annotation.options('corners', remap);
+              // The corners need to update for the indexes to update
+              // coordinates are in a different system than display
+              const coords = newGeojson.geometry.coordinates[0].map(
+                (coord) => ({ x: coord[0], y: coord[1] }),
+              );
+              // only use the 4 coords instead of 5
+              const remapped = this.annotator.geoViewer.worldToGcs(coords.splice(0, 4));
+              e.annotation.options('corners', remapped);
               //This will retrigger highlighting of the current handle after releasing the mouse
               setTimeout(() => this.annotator.geoViewer.interactor().retriggerMouseMove(), 0);
             }

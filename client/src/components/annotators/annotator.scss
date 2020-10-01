@@ -30,7 +30,7 @@
   }
 }
 .imageCursor {
-  z-index: 10;
+  z-index: 10; //So it will be above the annotator layers
   position: absolute;
 }
 

@@ -257,7 +257,7 @@ export default defineComponent({
       } else {
         emit('update-geojson', mode, frameNumber.value, data, key, cb);
       }
-      //We update the current layer if not in progress so it jumps back into edit mode
+      //We update the current layer if in creation mode so it jumps back into edit mode
       if (mode === 'creation') {
         updateLayers(
           frameNumber.value,
