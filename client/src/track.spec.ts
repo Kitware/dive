@@ -83,7 +83,7 @@ describe('Track', () => {
       meta: {},
       begin: 1,
       end: 1,
-      features: features,
+      features,
       confidencePairs: [['foo', 1]],
     })).toThrowError();
   });

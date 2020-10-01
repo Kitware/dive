@@ -100,7 +100,7 @@ export default class Track {
     this.features = features; // NON-reactive sparse array
     this.featureIndex = [];
     this.revision = ref(1);
-    this.sanityCheckFeatures(features);
+    Track.sanityCheckFeatures(features);
     this.repopulateInterpolatedFrames(features);
     this.begin = begin;
     this.end = end;
@@ -111,12 +111,20 @@ export default class Track {
     return (this.end - this.begin) + 1;
   }
 
-  private sanityCheckFeatures(features: Feature[]) {
+  /**
+   * Test the first element in the feature array.  Its index should match
+   * its frame number.  Otherwise, the constructor was called with a
+   * dense array, which is incorrect.
+   */
+  private static sanityCheckFeatures(features: Feature[]) {
     const breakException = Symbol('breakException');
     try {
       features.forEach((f, i) => {
         if (f.frame !== i) {
-          throw new Error('features must be initialized with sparse array');
+          throw new Error(
+            'features must be initialized with sparse array.'
+            + 'Use Track.fromJson() if you want to initialize with features.',
+          );
         }
         throw breakException;
       });
@@ -133,7 +141,7 @@ export default class Track {
         this.featureIndex.push(f.frame);
       }
       if (!!f.keyframe !== !!f.bounds) {
-        throw new Error('keyframe must not XOR bounds')
+        throw new Error('keyframe must not XOR bounds');
       }
     });
   }
