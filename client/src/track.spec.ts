@@ -52,6 +52,7 @@ describe('Track', () => {
     expect(track.begin).toBe(1);
     expect(track.end).toBe(1);
   });
+
   it('should correctly reset begin and end on firstFeature', () => {
     const track = new Track(0, {
       meta: {},
@@ -72,5 +73,18 @@ describe('Track', () => {
     expect(f4).toStrictEqual([null, null, feature]);
     expect(track.begin).toBe(3);
     expect(track.end).toBe(3);
+  });
+
+  it('should fail to initialize with non-sparse array', () => {
+    const features = [
+      { frame: 1, bounds: [1, 2, 3, 4] as RectBounds, keyframe: true },
+    ];
+    expect(() => new Track(1, {
+      meta: {},
+      begin: 1,
+      end: 1,
+      features,
+      confidencePairs: [['foo', 1]],
+    })).toThrowError();
   });
 });
