@@ -32,7 +32,11 @@ export default function useGirderDataset() {
   const frameRate = computed(() => {
     if (dataset.value?.meta.fps) {
       if (typeof dataset.value.meta.fps === 'string') {
-        return parseInt(dataset.value.meta.fps, 10);
+        const parsed = parseInt(dataset.value.meta.fps, 10);
+        if (Number.isNaN(parsed)) {
+          throw new Error(`Cannot parse fps=${dataset.value.meta.fps} as integer`);
+        }
+        return parsed;
       }
     }
     return defaultFrameRate;

@@ -153,7 +153,11 @@ export default defineComponent({
         },
         {
           bind: 'enter',
-          handler: () => emit('track-click', selectedTrackIdRef.value),
+          handler: () => {
+            if (selectedTrackIdRef.value !== null) {
+              emit('track-click', selectedTrackIdRef.value);
+            }
+          },
           disabled,
         },
         {
