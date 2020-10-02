@@ -421,7 +421,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
         this.bus.$emit(
           'update:geojson',
           'editing',
-          this.getMode(),
+          this.getMode() === 'creation',
           this.formattedData[0],
           this.type,
           this.selectedKey,
