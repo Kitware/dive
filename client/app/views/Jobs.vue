@@ -9,10 +9,10 @@ export default {
 </script>
 
 <template>
-  <v-content>
+  <v-main>
     <NavigationBar />
     <v-container>
       <JobList />
     </v-container>
-  </v-content>
+  </v-main>
 </template>

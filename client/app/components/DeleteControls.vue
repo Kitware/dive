@@ -1,6 +1,5 @@
 <script lang="ts">
 import Vue, { PropType } from 'vue';
-import { Ref } from '@vue/composition-api';
 import { EditAnnotationTypes } from 'vue-media-annotator/layers/EditAnnotationLayer';
 
 export default Vue.extend({
@@ -8,21 +7,21 @@ export default Vue.extend({
 
   props: {
     selectedFeatureHandle: {
-      type: Object as PropType<Ref<number>>,
+      type: Number,
       required: true,
     },
     editingMode: {
-      type: Object as PropType<Ref<EditAnnotationTypes | boolean>>,
+      type: [String, Boolean] as PropType<EditAnnotationTypes | boolean>,
       required: true,
     },
   },
 
   computed: {
     disabled(): boolean {
-      if (this.selectedFeatureHandle.value < 0 && this.editingMode.value === false) {
+      if (this.selectedFeatureHandle < 0 && this.editingMode === false) {
         return true;
       }
-      if (this.editingMode.value === 'rectangle') {
+      if (this.editingMode === 'rectangle') {
         return true; // deleting rectangle is unsupported
       }
       return false;
@@ -34,7 +33,7 @@ export default Vue.extend({
       if (this.disabled) {
         throw new Error('Cannot delete while disabled!');
       }
-      if (this.selectedFeatureHandle.value >= 0) {
+      if (this.selectedFeatureHandle >= 0) {
         this.$emit('delete-point');
       } else {
         this.$emit('delete-annotation');
@@ -53,11 +52,11 @@ export default Vue.extend({
       @click="deleteSelected"
     >
       <pre class="mr-1 text-body-2">del</pre>
-      <span v-if="selectedFeatureHandle.value >= 0">
-        point {{ selectedFeatureHandle.value }}
+      <span v-if="selectedFeatureHandle >= 0">
+        point {{ selectedFeatureHandle }}
       </span>
-      <span v-else-if="editingMode.value">
-        {{ editingMode.value }}
+      <span v-else-if="editingMode">
+        {{ editingMode }}
       </span>
       <span v-else>unselected</span>
       <v-icon

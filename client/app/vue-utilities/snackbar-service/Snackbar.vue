@@ -34,7 +34,7 @@ export default {
     text: '',
     button: '',
     callback: null,
-    timeout: 0,
+    timeout: -1,
     options: { left: true },
   }),
   methods: {

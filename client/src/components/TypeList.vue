@@ -1,27 +1,12 @@
 <script lang="ts">
-import { PropType, Ref } from '@vue/composition-api';
-import Vue from 'vue';
-import { TypeStyling } from '../use/useStyling';
+import { defineComponent, reactive } from '@vue/composition-api';
+import { useCheckedTypes, useAllTypes, useTypeStyling } from '../provides';
 
-export default Vue.extend({
+export default defineComponent({
   name: 'TypeList',
 
-  props: {
-    checkedTypes: {
-      type: Object as PropType<Ref<string[]>>,
-      required: true,
-    },
-    allTypes: {
-      type: Object as PropType<Ref<string[]>>,
-      required: true,
-    },
-    typeStyling: {
-      type: Object as PropType<Ref<TypeStyling>>,
-      required: true,
-    },
-  },
-  data() {
-    return {
+  setup(props, { emit }) {
+    const data = reactive({
       showPicker: false,
       selectedColor: '',
       selectedType: '',
@@ -31,41 +16,47 @@ export default Vue.extend({
       editingFill: false,
       editingOpacity: 1.0,
       valid: true,
-    };
-  },
-  methods: {
-    clickEdit(type: string) {
-      this.selectedType = type;
-      this.editingType = this.selectedType;
-      this.showPicker = true;
-      this.editingColor = this.typeStyling.value.color(type);
-      this.editingThickness = this.typeStyling.value.strokeWidth(type);
-      this.editingFill = this.typeStyling.value.fill(type);
-      this.editingOpacity = this.typeStyling.value.opacity(type);
-    },
-    acceptChanges() {
-      this.showPicker = false;
-      if (this.editingType !== this.selectedType) {
-        this.$emit('update-type-name', { currentType: this.selectedType, newType: this.editingType });
+    });
+    const checkedTypesRef = useCheckedTypes();
+    const allTypesRef = useAllTypes();
+    const typeStylingRef = useTypeStyling();
+
+    function clickEdit(type: string) {
+      data.selectedType = type;
+      data.editingType = data.selectedType;
+      data.showPicker = true;
+      data.editingColor = typeStylingRef.value.color(type);
+      data.editingThickness = typeStylingRef.value.strokeWidth(type);
+      data.editingFill = typeStylingRef.value.fill(type);
+      data.editingOpacity = typeStylingRef.value.opacity(type);
+    }
+
+    function acceptChanges() {
+      data.showPicker = false;
+      if (data.editingType !== data.selectedType) {
+        emit('update-type-name', {
+          currentType: data.selectedType,
+          newType: data.editingType,
+        });
       }
-      this.$emit('update-type-style', {
-        type: this.editingType,
-        color: this.editingColor,
-        strokeWidth: this.editingThickness,
-        fill: this.editingFill,
-        opacity: this.editingOpacity,
+      emit('update-type-style', {
+        type: data.editingType,
+        color: data.editingColor,
+        strokeWidth: data.editingThickness,
+        fill: data.editingFill,
+        opacity: data.editingOpacity,
       });
-      this.colorRefresh();
-    },
-    /**
-     * Causes the color to refresh for annotations and events by toggling an item
-     */
-    colorRefresh() {
-      const val = this.checkedTypes.value.pop();
-      if (val) {
-        this.checkedTypes.value.push(val); // Causes a color refresh
-      }
-    },
+    }
+
+    return {
+      allTypesRef,
+      checkedTypesRef,
+      data,
+      typeStylingRef,
+      /* methods */
+      acceptChanges,
+      clickEdit,
+    };
   },
 });
 </script>
@@ -78,20 +69,21 @@ export default Vue.extend({
     <div class="overflow-y-auto">
       <v-container class="py-2">
         <v-row
-          v-for="type in allTypes.value"
+          v-for="type in allTypesRef"
           :key="type"
           class="hover-show-parent"
         >
           <v-col class="d-flex flex-row align-center py-0">
             <v-checkbox
-              v-model="checkedTypes.value"
+              :input-value="checkedTypesRef"
               :value="type"
-              :color="typeStyling.value.color(type)"
+              :color="typeStylingRef.color(type)"
               :label="type"
               dense
               shrink
               hide-details
               class="my-1 type-checkbox"
+              @change="$emit('update-checked-types', $event)"
             />
             <v-spacer />
             <v-tooltip
@@ -120,7 +112,7 @@ export default Vue.extend({
       </v-container>
     </div>
     <v-dialog
-      v-model="showPicker"
+      v-model="data.showPicker"
       width="350"
     >
       <div
@@ -133,7 +125,7 @@ export default Vue.extend({
           <v-card-subtitle class="my-0 py-0">
             <v-container class="py-0">
               <v-row>
-                {{ selectedType }}
+                {{ data.selectedType }}
                 <v-spacer />
                 <v-btn
                   icon
@@ -150,11 +142,11 @@ export default Vue.extend({
             </v-container>
           </v-card-subtitle>
           <v-card-text>
-            <v-form v-model="valid">
+            <v-form v-model="data.valid">
               <v-row>
                 <v-col>
                   <v-text-field
-                    v-model="editingType"
+                    v-model="data.editingType"
                     label="Type Name"
                     hide-details
                   />
@@ -163,7 +155,7 @@ export default Vue.extend({
               <v-row class="align-center">
                 <v-col>
                   <v-text-field
-                    v-model="editingThickness"
+                    v-model="data.editingThickness"
                     type="number"
                     :rules="[
                       val => val >= 0 || 'Must be >= 0'
@@ -175,7 +167,7 @@ export default Vue.extend({
                 </v-col>
                 <v-col>
                   <v-checkbox
-                    v-model="editingFill"
+                    v-model="data.editingFill"
                     label="Fill"
                     dense
                     shrink
@@ -187,8 +179,8 @@ export default Vue.extend({
               <v-row>
                 <v-col>
                   <v-slider
-                    v-model="editingOpacity"
-                    :label="`${parseFloat(editingOpacity).toFixed(2)}`"
+                    v-model="data.editingOpacity"
+                    :label="`${data.editingOpacity.toFixed(2)}`"
                     min="0.0"
                     max="1.0"
                     step="0.01"
@@ -205,7 +197,7 @@ export default Vue.extend({
               >
                 <v-col class="mx-2">
                   <v-color-picker
-                    v-model="editingColor"
+                    v-model="data.editingColor"
                     hide-inputs
                   />
                 </v-col>
@@ -217,14 +209,14 @@ export default Vue.extend({
             <v-btn
               depressed=""
               text
-              @click="showPicker = false"
+              @click="data.showPicker = false"
             >
               Cancel
             </v-btn>
             <v-btn
               color="primary"
               depressed
-              :disabled="!valid"
+              :disabled="!data.valid"
               @click="acceptChanges"
             >
               Save
