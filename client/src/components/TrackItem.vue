@@ -1,7 +1,12 @@
-<script>
+<script lang="ts">
+import {
+  defineComponent, computed, watch, reactive, PropType, toRef, ref,
+} from '@vue/composition-api';
 import TooltipBtn from 'vue-media-annotator/components/TooltipButton.vue';
+import { useFrame } from 'vue-media-annotator/provides';
+import Track from 'vue-media-annotator/track';
 
-export default {
+export default defineComponent({
   name: 'TrackItem',
 
   components: { TooltipBtn },
@@ -11,16 +16,8 @@ export default {
       type: String,
       required: true,
     },
-    types: {
-      type: Array,
-      required: true,
-    },
-    frame: {
-      type: Object,
-      required: true,
-    },
     track: {
-      type: Object,
+      type: Object as PropType<Track>,
       required: true,
     },
     inputValue: {
@@ -41,47 +38,27 @@ export default {
     },
   },
 
-  data() {
-    return {
-      value: this.trackType,
+  setup(props, { root, emit }) {
+    const vuetify = root.$vuetify;
+    const frameRef = useFrame();
+    const trackTypeRef = toRef(props, 'trackType');
+    const typeInputBoxRef = ref(undefined as undefined | HTMLInputElement);
+    const data = reactive({
+      trackTypeValue: props.trackType,
       skipOnFocus: false,
-    };
-  },
-  computed: {
-    isTrack() {
-      return this.track.length > 1 || this.feature.shouldInterpolate;
-    },
-    trackId() {
-      return this.track.trackId;
-    },
-    /**
-     * Sets styling for the selected track
-     * Sets the background accent color to have a slight
-     * opacity so it isn't overwhelming
-     */
-    style() {
-      if (this.selected) {
-        return {
-          'background-color': `${this.$vuetify.theme.themes.dark.accentBackground}`,
-        };
-      }
-      return {};
-    },
-    /**
-     * Use of revision is safe because it will only create
-     * a dependency when selected is true.
-     */
-    feature() {
-      if (this.track.revision.value) {
-        const { features, interpolate } = this.track.canInterpolate(this.frame.value);
+    });
+
+    /* Use of revision is safe because it will only create a dependency when track is selected */
+    const feature = computed(() => {
+      if (props.track.revision.value) {
+        const { features, interpolate } = props.track.canInterpolate(frameRef.value);
         const [real, lower, upper] = features;
         return {
           real,
           lower,
           upper,
-          // Upper an lower are always going to be keyframes
-          targetKeyframe: real?.isKeyframe ? real : (lower || upper),
           shouldInterpolate: interpolate,
+          targetKeyframe: real?.keyframe ? real : (lower || upper),
           isKeyframe: real?.keyframe,
         };
       }
@@ -93,70 +70,108 @@ export default {
         shouldInterpolate: false,
         isKeyframe: false,
       };
-    },
-  },
-  watch: {
-    trackType(val) {
-      this.value = val;
-    },
-  },
-  methods: {
-    focusType() {
-      if (this.selected) {
-        this.skipOnFocus = true;
-        this.$refs.typeInputBox.focus();
-        this.$refs.typeInputBox.select();
+    });
+
+    /* isTrack distinguishes between track and detection */
+    const isTrack = computed(() => props.track.length > 1 || feature.value.shouldInterpolate);
+
+    /* Sets styling for the selected track */
+    const style = computed(() => {
+      if (props.selected) {
+        return {
+          'background-color': `${vuetify.theme.themes.dark.accentBackground}`,
+        };
       }
-    },
-    blurType(e) {
-      e.target.blur();
-    },
-    onBlur() {
-      if (this.value === '') {
-        this.value = this.trackType;
-      } else if (this.value !== this.trackType) {
-        this.$emit('type-change', this.value);
+      return {};
+    });
+
+    /* Update internal model if external prop changes */
+    watch(trackTypeRef, (val) => { data.trackTypeValue = val; });
+
+    function focusType() {
+      if (props.selected && typeInputBoxRef.value !== undefined) {
+        data.skipOnFocus = true;
+        typeInputBoxRef.value.focus();
+        typeInputBoxRef.value.select();
       }
-    },
-    onFocus() {
-      if (!this.skipOnFocus) {
-        this.value = '';
+    }
+
+    function blurType(e: InputEvent) {
+      (e.target as HTMLInputElement).blur();
+    }
+
+    function onBlur() {
+      if (data.trackTypeValue === '') {
+        data.trackTypeValue = props.trackType;
+      } else if (data.trackTypeValue !== props.trackType) {
+        emit('type-change', data.trackTypeValue);
       }
-      this.skipOnFocus = false;
-    },
-    toggleKeyframe() {
-      if (this.feature.real && !this.feature.isKeyframe) {
-        this.track.setFeature({
-          ...this.feature.real,
-          frame: this.frame.value,
+    }
+
+    function onFocus() {
+      if (!data.skipOnFocus) {
+        data.trackTypeValue = '';
+      }
+      data.skipOnFocus = false;
+    }
+
+    function toggleKeyframe() {
+      const f = feature.value;
+      if (f.real && f.isKeyframe) {
+        props.track.setFeature({
+          ...f.real,
+          frame: frameRef.value,
           keyframe: true,
         });
       } else {
-        this.track.deleteFeature(this.frame.value);
+        props.track.deleteFeature(frameRef.value);
       }
-    },
-    toggleInterpolation() {
-      if (this.feature.targetKeyframe) {
-        this.track.setFeature({
-          ...this.feature.targetKeyframe,
-          interpolate: !this.feature.shouldInterpolate,
+    }
+
+    function toggleInterpolation() {
+      const f = feature.value;
+      if (f.targetKeyframe) {
+        props.track.setFeature({
+          ...f.targetKeyframe,
+          interpolate: !f.shouldInterpolate,
         });
       }
-    },
-    gotoNext() {
-      const nextFrame = this.track.getNextKeyframe(this.frame.value + 1);
+    }
+
+    function gotoNext() {
+      const nextFrame = props.track.getNextKeyframe(frameRef.value + 1);
       if (nextFrame !== undefined) {
-        this.$emit('seek', nextFrame);
+        emit('seek', nextFrame);
       }
-    },
-    gotoPrevious() {
-      const previousFrame = this.track.getPreviousKeyframe(this.frame.value - 1);
+    }
+
+    function gotoPrevious() {
+      const previousFrame = props.track.getPreviousKeyframe(frameRef.value - 1);
       if (previousFrame !== undefined) {
-        this.$emit('seek', previousFrame);
+        emit('seek', previousFrame);
       }
-    },
+    }
+
+    return {
+      /* data */
+      data,
+      feature,
+      isTrack,
+      style,
+      typeInputBox: typeInputBoxRef,
+      frame: frameRef,
+      /* methods */
+      blurType,
+      focusType,
+      gotoNext,
+      gotoPrevious,
+      onBlur,
+      onFocus,
+      toggleInterpolation,
+      toggleKeyframe,
+    };
   },
-};
+});
 </script>
 
 <template>
@@ -180,7 +195,7 @@ export default {
         open-delay="200"
         bottom
         max-width="200"
-        :disabled="trackId.toString().length < 8"
+        :disabled="track.trackId.toString().length < 8"
       >
         <template #activator="{ on }">
           <div
@@ -188,15 +203,15 @@ export default {
             v-on="on"
             @click.self="$emit('click')"
           >
-            {{ trackId }}
+            {{ track.trackId }}
           </div>
         </template>
-        <span> {{ trackId }} </span>
+        <span> {{ track.trackId }} </span>
       </v-tooltip>
       <v-spacer />
       <input
-        ref="typeInputBox"
-        v-model="value"
+        ref="typeInputBoxRef"
+        v-model="data.trackTypeValue"
         type="text"
         list="allTypesOptions"
         class="input-box"
@@ -207,9 +222,7 @@ export default {
         @keydown.down="value=''"
       >
     </v-row>
-    <v-row
-      class="px-3 py-1 justify-center item-row flex-nowrap"
-    >
+    <v-row class="px-3 py-1 justify-center item-row flex-nowrap">
       <v-spacer v-if="!isTrack" />
       <template v-if="selected">
         <tooltip-btn
@@ -221,7 +234,7 @@ export default {
 
         <tooltip-btn
           v-if="isTrack"
-          :disabled="!track.canSplit(frame.value)"
+          :disabled="!track.canSplit(frame)"
           icon="mdi-call-split"
           tooltip-text="Split Track"
           @click="$emit('split')"

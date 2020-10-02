@@ -1,6 +1,5 @@
 <script lang="ts">
 import Vue, { PropType } from 'vue';
-import { Ref } from '@vue/composition-api';
 import { cloneDeep } from 'lodash';
 import { NewTrackSettings } from 'app/use/useSettings';
 
@@ -9,11 +8,11 @@ export default Vue.extend({
 
   props: {
     allTypes: {
-      type: Object as PropType<Ref<Array<string>>>,
+      type: Array as PropType<Array<string>>,
       required: true,
     },
     newTrackSettings: {
-      type: Object as PropType<Ref<NewTrackSettings>>,
+      type: Object as PropType<NewTrackSettings>,
       required: true,
     },
   },
@@ -35,14 +34,14 @@ export default Vue.extend({
   computed: {
     typeList() {
       // Add unknown as the default type to the typeList
-      return ['unknown'].concat(this.allTypes.value);
+      return ['unknown'].concat(this.allTypes);
     },
   },
   methods: {
     /** Reduces the number of update functions utilizing Vuex by indicating the target type */
     saveTypeSettings(event: 'Track' | 'Detection', target: 'mode' | 'type') {
       // Copy the newTrackSettings for modification
-      const copy: NewTrackSettings = cloneDeep(this.newTrackSettings.value);
+      const copy: NewTrackSettings = cloneDeep(this.newTrackSettings);
       copy[target] = event; // Modify the value
       this.$emit('update-new-track-settings', copy);
     },
@@ -52,14 +51,14 @@ export default Vue.extend({
      */
     saveTrackSubSettings(event: true | null, target: 'autoAdvanceFrame' | 'interpolate') {
       // Copy the newTrackSettings for modification
-      const copy: NewTrackSettings = cloneDeep(this.newTrackSettings.value);
+      const copy: NewTrackSettings = cloneDeep(this.newTrackSettings);
       const modeSettings = copy.modeSettings.Track;
       modeSettings[target] = !!event; // Modify the value
       this.$emit('update-new-track-settings', copy);
     },
     saveDetectionSubSettings(event: true | null, target: 'continuous') {
       // Copy the newTrackSettings for modification
-      const copy: NewTrackSettings = cloneDeep(this.newTrackSettings.value);
+      const copy: NewTrackSettings = cloneDeep(this.newTrackSettings);
       const modeSettings = copy.modeSettings.Detection;
       modeSettings[target] = !!event; // Modify the value
       this.$emit('update-new-track-settings', copy);
@@ -89,7 +88,7 @@ export default Vue.extend({
         </v-col>
         <v-col>
           <v-select
-            v-model="newTrackSettings.value.mode"
+            v-model="newTrackSettings.mode"
             class="ml-0 pa-0"
             x-small
             :items="modes"
@@ -111,7 +110,7 @@ export default Vue.extend({
                 mdi-help
               </v-icon>
             </template>
-            <span>{{ help.mode[newTrackSettings.value.mode] }}</span>
+            <span>{{ help.mode[newTrackSettings.mode] }}</span>
           </v-tooltip>
         </v-col>
       </v-row>
@@ -127,7 +126,7 @@ export default Vue.extend({
         </v-col>
         <v-col>
           <v-combobox
-            :value="newTrackSettings.value.type"
+            :value="newTrackSettings.type"
             class="ml-0 pa-0"
             x-small
             :items="typeList"
@@ -154,12 +153,12 @@ export default Vue.extend({
         </v-col>
       </v-row>
       <v-row
-        v-if="newTrackSettings.value.mode==='Track'"
+        v-if="newTrackSettings.mode==='Track'"
       >
         <v-col class="py-1">
           <v-switch
             :input-value="
-              newTrackSettings.value.modeSettings.Track.autoAdvanceFrame"
+              newTrackSettings.modeSettings.Track.autoAdvanceFrame"
             class="my-0 ml-1 pt-0"
             dense
             label="Advance Frame"
@@ -189,7 +188,7 @@ export default Vue.extend({
         <v-col class="py-1">
           <v-switch
             :input-value="
-              newTrackSettings.value.modeSettings.Track.interpolate"
+              newTrackSettings.modeSettings.Track.interpolate"
             class="my-0 ml-1 pt-0"
             dense
             label="Interpolate"
@@ -218,11 +217,11 @@ export default Vue.extend({
         </v-col>
       </v-row>
       <v-row
-        v-if="newTrackSettings.value.mode==='Detection'"
+        v-if="newTrackSettings.mode==='Detection'"
       >
         <v-col>
           <v-switch
-            :input-value="newTrackSettings.value.modeSettings.Detection.continuous"
+            :input-value="newTrackSettings.modeSettings.Detection.continuous"
             class="my-0 ml-1 pt-0"
             dense
             label="Continuous"

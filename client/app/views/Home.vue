@@ -144,7 +144,7 @@ export default {
 </script>
 
 <template>
-  <v-content>
+  <v-main>
     <NavigationBar />
     <v-progress-linear
       :indeterminate="loading"
@@ -236,7 +236,7 @@ export default {
         </v-col>
       </v-row>
     </v-container>
-  </v-content>
+  </v-main>
 </template>
 
 <style lang='scss'>

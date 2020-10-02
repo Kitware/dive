@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  defineComponent, ref, PropType, Ref,
+  defineComponent, ref, PropType,
 } from '@vue/composition-api';
 import Controls from 'vue-media-annotator/components/controls/Controls.vue';
 import TimelineWrapper from 'vue-media-annotator/components/controls/TimelineWrapper.vue';
@@ -21,11 +21,11 @@ export default defineComponent({
 
   props: {
     lineChartData: {
-      type: Object as PropType<Ref<unknown>>,
+      type: Array as PropType<unknown[]>,
       required: true,
     },
     eventChartData: {
-      type: Object as PropType<Ref<unknown>>,
+      type: Object as PropType<unknown>,
       required: true,
     },
   },
@@ -119,7 +119,7 @@ export default defineComponent({
               :start-frame="startFrame"
               :end-frame="endFrame"
               :max-frame="childMaxFrame"
-              :data="lineChartData.value"
+              :data="lineChartData"
               :client-width="clientWidth"
               :client-height="clientHeight"
               :margin="margin"
@@ -129,7 +129,7 @@ export default defineComponent({
               :start-frame="startFrame"
               :end-frame="endFrame"
               :max-frame="childMaxFrame"
-              :data="eventChartData.value"
+              :data="eventChartData"
               :client-width="clientWidth"
               :margin="margin"
               @select-track="$emit('select-track', $event)"
