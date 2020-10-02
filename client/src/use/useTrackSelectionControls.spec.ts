@@ -1,8 +1,8 @@
 /// <reference types="jest" />
 import Vue from 'vue';
 import CompositionApi, { computed } from '@vue/composition-api';
-import useTrackSelectionControls from 'vue-media-annotator/use/useTrackSelectionControls';
-import Track from 'vue-media-annotator/track';
+import Track from '../track';
+import useTrackSelectionControls from './useTrackSelectionControls';
 
 Vue.use(CompositionApi);
 

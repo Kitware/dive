@@ -1,5 +1,5 @@
-import BaseLayer, { LayerStyle } from 'vue-media-annotator/layers/BaseLayer';
-import { FrameDataTrack } from 'vue-media-annotator/layers/LayerTypes';
+import BaseLayer, { LayerStyle } from './BaseLayer';
+import { FrameDataTrack } from './LayerTypes';
 
 interface TextData {
   selected: boolean;

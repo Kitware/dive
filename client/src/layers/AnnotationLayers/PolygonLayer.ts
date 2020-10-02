@@ -1,7 +1,8 @@
 /* eslint-disable class-methods-use-this */
-import BaseLayer, { LayerStyle, BaseLayerParams } from 'vue-media-annotator/layers/BaseLayer';
 import geo, { GeoEvent } from 'geojs';
-import { FrameDataTrack } from 'vue-media-annotator/layers/LayerTypes';
+
+import BaseLayer, { LayerStyle, BaseLayerParams } from '../BaseLayer';
+import { FrameDataTrack } from '../LayerTypes';
 
 interface PolyGeoJSData{
   trackId: number;

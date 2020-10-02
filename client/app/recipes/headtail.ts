@@ -3,7 +3,7 @@ import Vue from 'vue';
 
 import Track from 'vue-media-annotator/track';
 import Recipe, { UpdateResponse } from 'vue-media-annotator/recipe';
-import { EditAnnotationTypes } from 'vue-media-annotator/layers/EditAnnotationLayer';
+import { EditAnnotationTypes } from 'vue-media-annotator/layers';
 import { Mousetrap } from 'vue-media-annotator/types';
 
 export const HeadTailLineKey = 'HeadTails';

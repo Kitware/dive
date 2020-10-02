@@ -1,5 +1,5 @@
 import { computed, Ref } from '@vue/composition-api';
-import Track from 'vue-media-annotator/track';
+import Track from '../track';
 import { TypeStyling } from './useStyling';
 
 interface UseLineChartParams {

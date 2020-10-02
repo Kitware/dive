@@ -1,6 +1,6 @@
 import { ref, Ref, computed } from '@vue/composition-api';
-import Track, { TrackId } from 'vue-media-annotator/track';
 import IntervalTree from '@flatten-js/interval-tree';
+import Track, { TrackId } from '../track';
 
 interface UseTrackStoreParams {
   markChangesPending: (type: 'upsert' | 'delete', track?: Track) => void;

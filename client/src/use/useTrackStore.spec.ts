@@ -1,7 +1,7 @@
 /// <reference types="jest" />
 import Vue from 'vue';
 import CompositionApi, { watchEffect } from '@vue/composition-api';
-import useTrackStore from 'vue-media-annotator/use/useTrackStore';
+import useTrackStore from './useTrackStore';
 
 Vue.use(CompositionApi);
 
