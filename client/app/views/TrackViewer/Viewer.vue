@@ -13,6 +13,7 @@ import {
   useTrackStore,
   useEventChart,
 } from 'vue-media-annotator/use';
+import { provideAnnotator } from 'vue-media-annotator/provides';
 import VideoAnnotator from 'vue-media-annotator/components/annotators/VideoAnnotator.vue';
 import ImageAnnotator from 'vue-media-annotator/components/annotators/ImageAnnotator.vue';
 import LayerManager from 'vue-media-annotator/components/LayerManager.vue';
@@ -129,6 +130,8 @@ export default defineComponent({
       enabledTracks,
       populateConfidenceFilters,
       updateTypeName,
+      updateCheckedTypes,
+      updateCheckedTrackId,
     } = useTrackFilters({ sortedTracks });
 
     Promise.all([
@@ -235,76 +238,65 @@ export default defineComponent({
     const dataPath = computed(() => (
       getPathFromLocation(ctx.root.$store.state.Location.location)));
 
+    provideAnnotator(
+      allTypes,
+      checkedTrackIds,
+      checkedTypes,
+      editingMode,
+      enabledTracks,
+      frame,
+      intervalTree,
+      trackMap,
+      filteredTracks,
+      typeStyling,
+      selectedKey,
+      selectedTrackId,
+      stateStyling,
+      visibleModes,
+    );
+
     return {
-      /* props use locally */
+      /* props */
       annotatorType,
       confidenceThreshold,
+      dataPath,
       dataset,
+      editingTrack,
+      editingMode,
+      eventChartData,
       frame,
       frameRate,
       getPathFromLocation,
       imageData,
-      dataPath,
+      lineChartData,
+      newTrackSettings: clientSettings.newTrackSettings,
       pendingSaveCount,
       playbackComponent,
+      recipes,
+      selectedFeatureHandle,
       selectedTrackId,
       selectedKey,
       videoUrl,
-      /* methods used locally */
+      visibleModes,
+      /* methods */
       addTrack,
+      handler,
       markChangesPending,
       save,
       saveThreshold,
       splitTracks,
+      updateCheckedTrackId,
+      updateCheckedTypes,
       updateNewTrackSettings,
       updateTypeStyle,
       updateTypeName,
-      handler,
-      /* props for sub-components */
-      controlsContainerProps: {
-        lineChartData,
-        eventChartData,
-      },
-      featureHandleControlsProps: {
-        selectedFeatureHandle,
-        editingMode,
-      },
-      modeEditorProps: {
-        recipes,
-        editingMode,
-        visibleModes,
-        editingTrack,
-      },
-      sidebarProps: {
-        trackMap,
-        filteredTracks,
-        frame,
-        allTypes,
-        checkedTypes,
-        checkedTrackIds,
-        selectedTrackId,
-        editingTrack,
-        newTrackSettings: clientSettings.newTrackSettings,
-        typeStyling,
-      },
-      layerProps: {
-        editingMode,
-        intervalTree,
-        selectedTrackId,
-        stateStyling,
-        trackMap,
-        tracks: enabledTracks,
-        typeStyling,
-        visibleModes,
-        selectedKey,
-      },
     };
   },
 });
 </script>
 
 <template>
-  <v-content
+  <v-main
     class="viewer"
   >
     <v-app-bar app>
@@ -332,12 +324,12 @@ export default defineComponent({
       <template #extension>
         <span>Viewer/Edit Controls</span>
         <editor-menu
-          v-bind="modeEditorProps"
+          v-bind="{ editingMode, visibleModes, editingTrack, recipes }"
           class="shrink px-6"
           @set-annotation-state="handler.setAnnotationState"
         />
         <delete-controls
-          v-bind="featureHandleControlsProps"
+          v-bind="{ editingMode, selectedFeatureHandle }"
           @delete-point="handler.removePoint"
           @delete-annotation="handler.removeAnnotation"
         />
@@ -374,10 +366,11 @@ export default defineComponent({
       style="min-width: 700px;"
     >
       <sidebar
-        v-bind="sidebarProps"
-        @track-add="handler.addTrack(frame)"
+        v-bind="{ newTrackSettings }"
+        @track-add="handler.addTrack"
         @track-remove="handler.removeTrack"
         @track-click="handler.trackClick"
+        @track-checked="updateCheckedTrackId"
         @track-edit="handler.trackEdit"
         @track-next="handler.selectNext(1)"
         @track-previous="handler.selectNext(-1)"
@@ -387,6 +380,7 @@ export default defineComponent({
         @track-seek="playbackComponent.seek($event)"
         @update-type-style="updateTypeStyle($event)"
         @update-type-name="updateTypeName($event)"
+        @update-checked-types="updateCheckedTypes($event)"
       >
         <ConfidenceFilter
           :confidence.sync="confidenceThreshold"
@@ -399,24 +393,21 @@ export default defineComponent({
           v-if="imageData.length || videoUrl"
           ref="playbackComponent"
           v-mousetrap="[
-            { bind: 'n', handler: () => handler.addTrack(frame) },
+            { bind: 'n', handler: () => handler.addTrack },
             { bind: 'r', handler: () => playbackComponent.resetZoom() },
             { bind: 'esc', handler: () => handler.selectTrack(null, false)}
           ]"
+          v-bind="{ imageData, videoUrl, frameRate }"
           class="playback-component"
-          :image-data="imageData"
-          :video-url="videoUrl"
-          :frame-rate="frameRate"
           @frame-update="frame = $event"
         >
           <template slot="control">
             <controls-container
-              v-bind="controlsContainerProps"
+              v-bind="{ lineChartData, eventChartData }"
               @select-track="handler.selectTrack"
             />
           </template>
           <layer-manager
-            v-bind="layerProps"
             @select-track="handler.selectTrack"
             @select-feature-handle="handler.selectFeatureHandle"
             @update-rect-bounds="handler.updateRectBounds"
@@ -425,5 +416,5 @@ export default defineComponent({
         </component>
       </v-col>
     </v-row>
-  </v-content>
+  </v-main>
 </template>

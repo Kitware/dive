@@ -103,6 +103,19 @@ export default function useFilteredTracks(
     }
   }
 
+  function updateCheckedTypes(types: string[]) {
+    checkedTypes.value = types;
+  }
+
+  function updateCheckedTrackId({ trackId, value }: { trackId: TrackId; value: boolean }) {
+    if (value) {
+      checkedTrackIds.value.push(trackId);
+    } else {
+      const i = checkedTrackIds.value.indexOf(trackId);
+      checkedTrackIds.value.splice(i, 1);
+    }
+  }
+
   return {
     checkedTrackIds,
     checkedTypes,
@@ -112,6 +125,8 @@ export default function useFilteredTracks(
     filteredTracks,
     enabledTracks,
     populateConfidenceFilters,
+    updateCheckedTrackId,
+    updateCheckedTypes,
     updateTypeName,
   };
 }

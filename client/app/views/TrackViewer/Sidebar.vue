@@ -4,13 +4,11 @@ import {
   reactive,
   toRefs,
   PropType,
-  Ref,
 } from '@vue/composition-api';
 
 import TypeList from 'vue-media-annotator/components/TypeList.vue';
 import TrackList from 'vue-media-annotator/components/TrackList.vue';
-import Track, { TrackId } from 'vue-media-annotator/track';
-import { TypeStyling } from 'vue-media-annotator/use/useStyling';
+import { useAllTypes } from 'vue-media-annotator/provides';
 
 import { NewTrackSettings } from 'app/use/useSettings';
 import AttributesPanel from 'app/components/AttributesPanel.vue';
@@ -18,44 +16,8 @@ import CreationMode from 'app/components/CreationMode.vue';
 
 export default defineComponent({
   props: {
-    trackMap: {
-      type: Map as PropType<Map<TrackId, Track>>,
-      required: true,
-    },
-    filteredTracks: {
-      type: Object as PropType<Ref<Array<Track>>>,
-      required: true,
-    },
-    frame: {
-      type: Object as PropType<Ref<number>>,
-      required: true,
-    },
-    allTypes: {
-      type: Object as PropType<Ref<Array<string>>>,
-      required: true,
-    },
-    checkedTypes: {
-      type: Object as PropType<Ref<Array<string>>>,
-      required: true,
-    },
-    checkedTrackIds: {
-      type: Object as PropType<Ref<Array<TrackId>>>,
-      required: true,
-    },
-    selectedTrackId: {
-      type: Object as PropType<Ref<TrackId>>,
-      required: true,
-    },
-    editingTrack: {
-      type: Object as PropType<Ref<boolean>>,
-      required: true,
-    },
-    typeStyling: {
-      type: Object as PropType<Ref<TypeStyling>>,
-      required: true,
-    },
     newTrackSettings: {
-      type: Object as PropType<Ref<NewTrackSettings>>,
+      type: Object as PropType<NewTrackSettings>,
       required: true,
     },
     width: {
@@ -71,7 +33,8 @@ export default defineComponent({
     TrackList,
   },
 
-  setup(props) {
+  setup() {
+    const allTypesRef = useAllTypes();
     const data = reactive({
       currentTab: 'tracks' as 'tracks' | 'attributes',
     });
@@ -84,20 +47,9 @@ export default defineComponent({
       }
     }
 
-    function handleTrackChecked({ trackId, value }: { trackId: TrackId; value: boolean }) {
-      if (value) {
-        props.checkedTrackIds.value.push(trackId);
-      } else {
-        const i = props.checkedTrackIds.value.indexOf(trackId);
-        props.checkedTrackIds.value.splice(i, 1);
-      }
-    }
-
     return {
+      allTypesRef,
       swapTabs,
-      trackListProps: props,
-      typeListProps: props,
-      handleTrackChecked,
       ...toRefs(data),
     };
   },
@@ -128,23 +80,23 @@ export default defineComponent({
         class="wrapper d-flex flex-column"
       >
         <type-list
-          v-bind="trackListProps"
           class="flex-shrink-1 flex-grow-1 typelist"
           @update-type-name="$emit('update-type-name',$event)"
           @update-type-style="$emit('update-type-style',$event)"
+          @update-checked-types="$emit('update-checked-types', $event)"
         />
         <slot />
         <v-spacer />
         <v-divider />
         <track-list
           class="flex-grow-0 flex-shrink-0"
-          v-bind="trackListProps"
-          :new-track-mode="newTrackSettings.value.mode"
-          :new-track-type="newTrackSettings.value.type"
+          :new-track-mode="newTrackSettings.mode"
+          :new-track-type="newTrackSettings.type"
+          :hotkeys-disabled="$prompt.visible()"
           @track-remove="$emit('track-remove', $event)"
           @track-add="$emit('track-add')"
           @track-click="$emit('track-click', $event)"
-          @track-checked="handleTrackChecked"
+          @track-checked="$emit('track-checked', $event)"
           @track-edit="$emit('track-edit', $event)"
           @track-type-change="$emit('track-type-change', $event)"
           @track-previous="$emit('track-previous')"
@@ -154,7 +106,7 @@ export default defineComponent({
         >
           <template slot="settings">
             <creation-mode
-              :all-types="allTypes"
+              :all-types="allTypesRef"
               :new-track-settings="newTrackSettings"
               @update-new-track-settings="$emit('update-new-track-settings',$event)"
             />
@@ -166,7 +118,7 @@ export default defineComponent({
         key="attributes"
         class="wrapper d-flex"
       >
-        <attributes-panel v-bind="{ trackMap, selectedTrackId, frame }" />
+        <attributes-panel />
       </div>
     </v-slide-x-transition>
   </v-card>

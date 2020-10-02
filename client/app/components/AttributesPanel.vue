@@ -1,13 +1,15 @@
 <script lang="ts">
-import { Ref } from '@vue/composition-api';
-import Vue, { PropType } from 'vue';
+import {
+  computed, defineComponent, onBeforeMount, ref,
+} from '@vue/composition-api';
 
+import { useSelectedTrackId, useFrame, useTrackMap } from 'vue-media-annotator/provides';
 import Track, { TrackId, Feature } from 'vue-media-annotator/track';
 
-import { getAttributes, Attribute } from 'app/api/viame.service';
+import { Attribute, getAttributes } from 'app/api/viame.service';
 import AttributeInput from 'app/components/AttributeInput.vue';
 
-function getTrack(trackMap: Map<TrackId, Track>, trackId: TrackId): Track {
+function getTrack(trackMap: Readonly<Map<TrackId, Track>>, trackId: TrackId): Track {
   const track = trackMap.get(trackId);
   if (track === undefined) {
     throw new Error(`Track ${trackId} missing from map`);
@@ -15,91 +17,73 @@ function getTrack(trackMap: Map<TrackId, Track>, trackId: TrackId): Track {
   return track;
 }
 
-export default Vue.extend({
+export default defineComponent({
   components: {
     AttributeInput,
   },
 
-  props: {
-    trackMap: {
-      type: Map as PropType<Map<TrackId, Track>>,
-      required: true,
-    },
-    selectedTrackId: {
-      type: Object as PropType<Ref<TrackId>>,
-      required: true,
-    },
-    frame: {
-      type: Object as PropType<Ref<number>>,
-      required: true,
-    },
-  },
-
-  data: () => ({
-    attributes: [] as Attribute[],
-  }),
-
-  computed: {
-    trackAttributes() {
-      if (!this.attributes) {
-        return [];
-      }
-      return this.attributes.filter(
-        (attribute) => attribute.belongs === 'track',
-      );
-    },
-    detectionAttributes() {
-      if (!this.attributes) {
-        return [];
-      }
-      return this.attributes.filter(
-        (attribute) => attribute.belongs === 'detection',
-      );
-    },
-    selectedTrack() {
-      const trackId = this.selectedTrackId.value;
-      if (trackId !== null) {
-        const track = getTrack(this.trackMap, trackId);
-        return {
-          trackId: track.trackId,
-          confidencePairs: track.confidencePairs,
-          attributes: track.attributes,
-        };
+  setup() {
+    const attributes = ref([] as Attribute[]);
+    const trackMap = useTrackMap();
+    const frameRef = useFrame();
+    const selectedTrackIdRef = useSelectedTrackId();
+    const trackAttributes = computed(() => attributes.value.filter(
+      (a) => a.belongs === 'track',
+    ));
+    const detectionAttributes = computed(() => attributes.value.filter(
+      (a) => a.belongs === 'detection',
+    ));
+    const selectedTrack = computed(() => {
+      if (selectedTrackIdRef.value !== null) {
+        return getTrack(trackMap, selectedTrackIdRef.value);
       }
       return null;
-    },
-    selectedDetection() {
-      const trackId = this.selectedTrackId.value;
-      const frame = this.frame.value;
-      if (trackId !== null) {
-        const track = getTrack(this.trackMap, trackId);
-        const [feature] = track.getFeature(frame);
-        return feature;
+    });
+    const selectedDetection = computed(() => {
+      const t = selectedTrack.value;
+      if (t !== null) {
+        const [real] = t.getFeature(frameRef.value);
+        return real;
       }
       return null;
-    },
-  },
+    });
 
-  async created() {
-    this.attributes = await getAttributes();
-  },
-
-  methods: {
-    updateTrackAttribute(
-      trackId: TrackId,
+    function updateTrackAttribute(
+      trackId: TrackId | null,
       { name, value }: { name: string; value: unknown },
     ) {
-      const track = getTrack(this.trackMap, trackId);
+      if (trackId === null) return;
+      const track = getTrack(trackMap, trackId);
       track.setAttribute(name, value);
-    },
-    updateFeatureAttribute(
-      trackId: TrackId,
-      oldFeature: Feature,
+    }
+
+    function updateFeatureAttribute(
+      trackId: TrackId | null,
+      oldFeature: Feature | null,
       { name, value }: { name: string; value: unknown },
     ) {
-      const track = getTrack(this.trackMap, trackId);
+      if (trackId === null) return;
+      if (oldFeature === null) return;
+      const track = getTrack(trackMap, trackId);
       track.setFeatureAttribute(oldFeature.frame, name, value);
-    },
+    }
+
+    onBeforeMount(async () => {
+      attributes.value = await getAttributes();
+    });
+
+    return {
+      selectedTrackIdRef,
+      /* Attributes */
+      detectionAttributes,
+      trackAttributes,
+      /* Selected */
+      selectedDetection,
+      selectedTrack,
+      /* Update functions */
+      updateFeatureAttribute,
+      updateTrackAttribute,
+    };
   },
 });
 </script>
@@ -154,11 +138,11 @@ export default Vue.extend({
             :name="attribute.name"
             :values="attribute.values ? attribute.values : null"
             :value="
-              selectedTrack.trackAttributes
-                ? selectedTrack.trackAttributes[attribute.name]
+              selectedTrack
+                ? selectedTrack.attributes[attribute.name]
                 : undefined
             "
-            @change="updateTrackAttribute(selectedTrackId.value, $event)"
+            @change="updateTrackAttribute(selectedTrackIdRef, $event)"
           />
         </div>
       </template>
@@ -177,9 +161,6 @@ export default Vue.extend({
           style="line-height:22px;"
         >
           <div>Frame: {{ selectedDetection.frame }}</div>
-          <div v-if="selectedDetection.confidence">
-            Confidence: {{ selectedDetection.confidence }}
-          </div>
           <div v-if="selectedDetection.fishLength">
             Fish length: {{ selectedDetection.fishLength }}
           </div>
@@ -190,11 +171,11 @@ export default Vue.extend({
             :name="attribute.name"
             :values="attribute.values ? attribute.values : null"
             :value="
-              selectedDetection.attributes
+              (selectedDetection && selectedDetection.attributes)
                 ? selectedDetection.attributes[attribute.name]
                 : undefined
             "
-            @change="updateFeatureAttribute(selectedTrackId.value, selectedDetection, $event)"
+            @change="updateFeatureAttribute(selectedTrackIdRef, selectedDetection, $event)"
           />
         </div>
       </template>
