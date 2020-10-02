@@ -24,8 +24,9 @@ const typeMapper = new Map([
   ['rectangle', 'rectangle'],
 ]);
 /**
- * correct matching of drag handle to cursor direction relies on strict ordering of 
- * vertices within the GeoJSON coordinate list using utils.reOrdergeoJSON() and utils.reOrderBounds()
+ * correct matching of drag handle to cursor direction relies on strict ordering of
+ * vertices within the GeoJSON coordinate list using utils.reOrdergeoJSON()
+ * and utils.reOrderBounds()
  */
 const rectVertex = [
   'sw-resize',
@@ -400,8 +401,8 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
    */
   handleEditStateChange(e: GeoEvent) {
     if (this.featureLayer === e.annotation.layer()) {
-      if (e.annotation.state() === 'done' && this.formattedData.length === 0) {
-        // geoJS insists on calling done multiple times, this will prevent that
+      // Only calls this once on completion of an annotation
+      if (e.annotation.state() === 'done' && this.getMode() === 'creation') {
         const geoJSONData = [e.annotation.geojson()];
         if (this.type === 'rectangle') {
           geoJSONData[0].geometry.coordinates[0] = reOrdergeoJSON(

@@ -242,6 +242,7 @@ export default defineComponent({
         cb();
         emit('update-rect-bounds', frameNumberRef.value, bounds);
       } else {
+        console.log(`Emitting: ${mode}`);
         emit('update-geojson', mode, frameNumberRef.value, data, key, cb);
       }
       //We update the current layer if in creation mode so it jumps back into edit mode
