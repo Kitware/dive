@@ -123,14 +123,18 @@ export default function useModeManager({
     creating = false;
   }
 
-  function handleAddTrackOrDetection() {
+  function handleAddTrackOrDetection(): TrackId {
     // Handles adding a new track with the NewTrack Settings
-    selectTrack(addTrack(frame.value, newTrackSettings.type).trackId, true);
+    const newTrackId = addTrack(frame.value, newTrackSettings.type).trackId;
+    selectTrack(newTrackId, true);
     creating = true;
+    return newTrackId;
   }
 
-  function handleTrackTypeChange({ trackId, value }: { trackId: TrackId; value: string }) {
-    getTrack(trackId).setType(value);
+  function handleTrackTypeChange(trackId: TrackId | null, value: string) {
+    if (trackId !== null) {
+      getTrack(trackId).setType(value);
+    }
   }
 
   function newTrackSettingsAfterLogic(addedTrack: Track) {
@@ -326,13 +330,15 @@ export default function useModeManager({
     }
   }
 
-  function handleRemoveTrack(trackId: TrackId) {
-    // if removed track was selected, unselect before remove
-    if (selectedTrackId.value === trackId) {
-      const newTrack = selectNextTrack(1) !== null ? selectNextTrack(1) : selectNextTrack(-1);
-      selectTrack(newTrack, false);
+  function handleRemoveTrack(trackId: TrackId | null) {
+    if (trackId !== null) {
+      // if removed track was selected, unselect before remove
+      if (selectedTrackId.value === trackId) {
+        const newTrack = selectNextTrack(1) !== null ? selectNextTrack(1) : selectNextTrack(-1);
+        selectTrack(newTrack, false);
+      }
+      removeTrack(trackId);
     }
-    removeTrack(trackId);
   }
 
   /** Toggle editing mode for track */
@@ -387,14 +393,14 @@ export default function useModeManager({
     selectedFeatureHandle,
     selectedKey,
     handler: {
-      selectTrack: handleSelectTrack,
+      trackAdd: handleAddTrackOrDetection,
       trackEdit: handleTrackEdit,
+      trackSeek: handleTrackClick,
+      trackSelect: handleSelectTrack,
+      trackSelectNext: handleSelectNext,
       trackTypeChange: handleTrackTypeChange,
-      addTrack: handleAddTrackOrDetection,
       updateRectBounds: handleUpdateRectBounds,
       updateGeoJSON: handleUpdateGeoJSON,
-      selectNext: handleSelectNext,
-      trackClick: handleTrackClick,
       removeTrack: handleRemoveTrack,
       removePoint: handleRemovePoint,
       removeAnnotation: handleRemoveAnnotation,
