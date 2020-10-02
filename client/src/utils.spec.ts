@@ -1,5 +1,5 @@
 /// <reference types="jest" />
-import { updateSubset } from 'vue-media-annotator/utils';
+import { reOrderBounds, reOrdergeoJSON, updateSubset } from 'vue-media-annotator/utils';
 
 describe('updateSubset', () => {
   it('should return null for identical sets', () => {
@@ -28,5 +28,24 @@ describe('updateSubset', () => {
     const newsuper = [2, 3, 4];
     const sub = [100, 10000, 1];
     expect(updateSubset(oldsuper, newsuper, sub)).toEqual([100, 10000, 2]);
+  });
+  it('should reorder rect bounds to the same default orientation', () => {
+    // Data should be formatted: xmin, ymin, xmax, ymax
+    const rectBounds = [0, 5, 20, 30];
+    expect(reOrderBounds([20, 30, 0, 5])).toEqual(rectBounds);
+    expect(reOrderBounds([0, 30, 20, 5])).toEqual(rectBounds);
+    expect(reOrderBounds([0, 5, 20, 30])).toEqual(rectBounds);
+  });
+  it('should reorder geoJSON rectangle no matter the order of the vertices', () => {
+    const ll = [0, 0];
+    const ul = [0, 5];
+    const ur = [10, 5];
+    const lr = [10, 0];
+    //GeoJSON expects data like UL, LL, LR, UR, UL
+    const rectBounds = [ul, ll, lr, ur, ul];
+    expect(reOrdergeoJSON([ll, ul, ur, lr, ll])).toEqual(rectBounds);
+    expect(reOrdergeoJSON([ul, ll, lr, ur, ul])).toEqual(rectBounds);
+    expect(reOrdergeoJSON([ur, lr, ll, ul, ll])).toEqual(rectBounds);
+    expect(reOrdergeoJSON([ll, ul, ur, lr, ll])).toEqual(rectBounds);
   });
 });

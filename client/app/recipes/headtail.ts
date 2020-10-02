@@ -137,7 +137,7 @@ export default class HeadTail implements Recipe {
   }
 
   update(
-    mode: 'in-progress' | 'editing' | 'creation',
+    mode: 'in-progress' | 'editing',
     frameNum: number,
     track: Track,
     data: GeoJSON.Feature<GeoJSON.LineString | GeoJSON.Polygon | GeoJSON.Point>[],
@@ -193,7 +193,7 @@ export default class HeadTail implements Recipe {
           };
         }
       }
-      if (key === HeadTailLineKey && mode !== 'in-progress') {
+      if (key === HeadTailLineKey && mode === 'editing') {
       /**
        * IF recipe isn't active, but the key matches, we are editing
        */

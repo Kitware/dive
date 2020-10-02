@@ -160,11 +160,16 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
         const coords = this.shapeInProgress?.coordinates as GeoJSON.Position[];
         coords.push(newPoint);
       }
-      this.bus.$emit('update:geojson', 'in-progress', {
-        type: 'Feature',
-        geometry: this.shapeInProgress,
-        properties: {},
-      }, this.type, this.selectedKey, this.skipNextFunc());
+      this.bus.$emit(
+        'update:geojson',
+        'in-progress',
+        false, // Geometry isn't complete
+        {
+          type: 'Feature',
+          geometry: this.shapeInProgress,
+          properties: {},
+        }, this.type, this.selectedKey, this.skipNextFunc(),
+      );
     } else if (this.shapeInProgress) {
       this.shapeInProgress = null;
     }
@@ -190,19 +195,17 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
         } else if (e.handle.handle.type === 'edge') {
           this.annotator.$emit('set-cursor', rectEdge[e.handle.handle.index]);
         }
-      } else if (this.type === 'Polygon') {
-        if (e.handle.handle.type === 'vertex') {
-          this.annotator.$emit('set-cursor', 'grab');
-        } else if (e.handle.handle.type === 'edge') {
-          this.annotator.$emit('set-cursor', 'copy');
-        }
+      } else if (e.handle.handle.type === 'vertex') {
+        this.annotator.$emit('set-cursor', 'grab');
+      } else if (e.handle.handle.type === 'edge') {
+        this.annotator.$emit('set-cursor', 'copy');
       }
       if (e.handle.handle.type === 'center') {
         this.annotator.$emit('set-cursor', 'move');
       } else if (e.handle.handle.type === 'resize') {
         this.annotator.$emit('set-cursor', 'nwse-resize');
       }
-    } else if (this._mode !== 'creation') {
+    } else if (this.getMode() !== 'creation') {
       this.annotator.$emit('set-cursor', 'default');
     }
   }
@@ -417,6 +420,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
 
         this.bus.$emit(
           'update:geojson',
+          'editing',
           this.getMode(),
           this.formattedData[0],
           this.type,
@@ -471,7 +475,8 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
           }
           this.bus.$emit(
             'update:geojson',
-            this.getMode(),
+            'editing',
+            this.getMode() === 'creation',
             this.formattedData[0],
             this.type,
             this.selectedKey,

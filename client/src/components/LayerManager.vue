@@ -231,7 +231,8 @@ export default defineComponent({
     polyAnnotationLayer.bus.$on('annotation-clicked', Clicked);
     polyAnnotationLayer.bus.$on('annotation-right-clicked', Clicked);
     editAnnotationLayer.bus.$on('update:geojson', (
-      mode: 'in-progress' | 'editing' | 'creation',
+      mode: 'in-progress' | 'editing',
+      geometryCompleteEvent: boolean,
       data: GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.LineString | GeoJSON.Point>,
       type: string,
       key = '',
@@ -242,11 +243,10 @@ export default defineComponent({
         cb();
         emit('update-rect-bounds', frameNumberRef.value, bounds);
       } else {
-        console.log(`Emitting: ${mode}`);
         emit('update-geojson', mode, frameNumberRef.value, data, key, cb);
       }
-      //We update the current layer if in creation mode so it jumps back into edit mode
-      if (mode === 'creation') {
+      // Jump into edit mode if we completed a new shape
+      if (geometryCompleteEvent) {
         updateLayers(
           frameNumberRef.value,
           editingModeRef.value,

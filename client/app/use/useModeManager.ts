@@ -173,7 +173,7 @@ export default function useModeManager({
   }
 
   function handleUpdateGeoJSON(
-    eventType: 'in-progress' | 'editing' | 'creation',
+    eventType: 'in-progress' | 'editing',
     frameNum: number,
     // Type alias this
     data: SupportedFeature,
@@ -279,7 +279,7 @@ export default function useModeManager({
           // Only perform "initialization" after the first shape.
           // Treat this as a completed annotation if eventType is editing
           // Or none of the recieps reported that they were unfinished.
-          if (eventType === 'editing' || eventType === 'creation' || update.done.every((v) => v !== false)) {
+          if (eventType === 'editing' || update.done.every((v) => v !== false)) {
             newTrackSettingsAfterLogic(track);
           }
         }

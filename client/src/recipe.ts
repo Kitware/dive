@@ -31,7 +31,7 @@ interface Recipe {
   toggleable: Ref<boolean>;
   bus: Vue;
   update: (
-    mode: 'in-progress' | 'editing' | 'creation',
+    mode: 'in-progress' | 'editing',
     frameNum: number,
     track: Track,
     data: GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.LineString | GeoJSON.Point>[],

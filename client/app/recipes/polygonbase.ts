@@ -29,13 +29,13 @@ export default class PolygonBoundsExpand implements Recipe {
   }
 
   update(
-    mode: 'in-progress' | 'editing' | 'creation',
+    mode: 'in-progress' | 'editing',
     frameNum: number,
     track: Track,
     data: GeoJSON.Feature<GeoJSON.LineString | GeoJSON.Polygon | GeoJSON.Point>[],
     key?: string,
   ) {
-    if (data.length === 1 && mode !== 'in-progress' && this.active.value) {
+    if (data.length === 1 && mode === 'editing' && this.active.value) {
       const poly = data[0].geometry;
       if (poly.type === 'Polygon') {
         return {
