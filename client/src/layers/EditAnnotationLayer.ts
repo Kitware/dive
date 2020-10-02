@@ -23,7 +23,10 @@ const typeMapper = new Map([
   ['Point', 'point'],
   ['rectangle', 'rectangle'],
 ]);
-
+/**
+ * correct matching of drag handle to cursor direction relies on strict ordering of 
+ * vertices within the GeoJSON coordinate list using utils.reOrdergeoJSON() and utils.reOrderBounds()
+ */
 const rectVertex = [
   'sw-resize',
   'nw-resize',
