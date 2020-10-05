@@ -78,6 +78,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
       this.featureLayer = this.annotator.geoViewer.createLayer('annotation', {
         clickToEdit: true,
         showLabels: false,
+        continuousPointProximity: false,
       });
       // For these we need to use an anonymous function to prevent geoJS from erroring
       this.featureLayer.geoOn(geo.event.annotation.edit_action,
@@ -144,11 +145,19 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
         const coords = this.shapeInProgress?.coordinates as GeoJSON.Position[];
         coords.push(newPoint);
       }
-      this.bus.$emit('update:geojson', 'in-progress', {
-        type: 'Feature',
-        geometry: this.shapeInProgress,
-        properties: {},
-      }, this.type, this.selectedKey, this.skipNextFunc());
+      this.bus.$emit(
+        'update:geojson',
+        'in-progress',
+        false, // Geometry isn't complete
+        {
+          type: 'Feature',
+          geometry: this.shapeInProgress,
+          properties: {},
+        }, this.type, this.selectedKey, this.skipNextFunc(),
+      );
+      // triggers a mouse up while editing to make it seem like a point was placed
+      window.setTimeout(() => this.annotator.geoViewer.interactor().simulateEvent('mouseup',
+        { map: { x: e.mouse.geo.x, y: e.mouse.geo.y }, button: 'left' }), 0);
     } else if (this.shapeInProgress) {
       this.shapeInProgress = null;
     }
