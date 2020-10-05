@@ -113,10 +113,21 @@ export default {
   <div
     v-resize="onResize"
     class="video-annotator"
+    :style="{cursor: cursor }"
   >
+    <div
+      ref="imageCursor"
+      class="imageCursor"
+    >
+      <v-icon> {{ imageCursor }} </v-icon>
+    </div>
     <div
       ref="container"
       class="playback-container"
+      :style="{cursor: cursor }"
+      @mousemove="handleMouseMove"
+      @mouseleave="handleMouseLeave"
+      @mouseover="handleMouseEnter"
     >
       {{ rendered() }}
     </div>

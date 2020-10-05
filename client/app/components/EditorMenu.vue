@@ -162,6 +162,7 @@ export default Vue.extend({
       <v-btn
         v-for="button in editButtons"
         :key="button.id + 'view'"
+        :disabled="!editingMode"
         :outlined="!button.active"
         :color="button.active ? 'primary' : ''"
         class="mx-1"
