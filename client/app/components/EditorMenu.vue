@@ -3,7 +3,7 @@ import { flatten } from 'lodash';
 import Vue, { PropType } from 'vue';
 
 import { Mousetrap } from 'vue-media-annotator/types';
-import { EditAnnotationTypes } from 'vue-media-annotator/layers/EditAnnotationLayer';
+import { EditAnnotationTypes } from 'vue-media-annotator/layers';
 import Recipe from 'vue-media-annotator/recipe';
 
 interface ButtonData {

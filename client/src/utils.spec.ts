@@ -1,5 +1,5 @@
 /// <reference types="jest" />
-import { reOrderBounds, reOrdergeoJSON, updateSubset } from 'vue-media-annotator/utils';
+import { updateSubset, reOrdergeoJSON, reOrderBounds } from './utils';
 
 describe('updateSubset', () => {
   it('should return null for identical sets', () => {

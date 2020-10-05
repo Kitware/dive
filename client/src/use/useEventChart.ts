@@ -1,8 +1,7 @@
 
 import { computed, Ref } from '@vue/composition-api';
-import Track, { TrackId } from 'vue-media-annotator/track';
+import Track, { TrackId } from '../track';
 import { TypeStyling } from './useStyling';
-
 
 interface EventChartParams {
   enabledTracks: Readonly<Ref<readonly Track[]>>;

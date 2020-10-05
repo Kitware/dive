@@ -4,7 +4,7 @@ import {
 import { uniq, flatMapDeep } from 'lodash';
 import Track, { TrackId } from 'vue-media-annotator/track';
 import { RectBounds, updateBounds } from 'vue-media-annotator/utils';
-import { EditAnnotationTypes } from 'vue-media-annotator/layers/EditAnnotationLayer';
+import { EditAnnotationTypes } from 'vue-media-annotator/layers';
 
 import Recipe from 'vue-media-annotator/recipe';
 import { NewTrackSettings } from './useSettings';

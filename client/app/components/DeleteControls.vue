@@ -1,6 +1,6 @@
 <script lang="ts">
 import Vue, { PropType } from 'vue';
-import { EditAnnotationTypes } from 'vue-media-annotator/layers/EditAnnotationLayer';
+import { EditAnnotationTypes } from 'vue-media-annotator/layers/';
 
 export default Vue.extend({
   name: 'DeleteControls',

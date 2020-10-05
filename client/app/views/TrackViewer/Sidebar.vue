@@ -6,8 +6,7 @@ import {
   PropType,
 } from '@vue/composition-api';
 
-import TypeList from 'vue-media-annotator/components/TypeList.vue';
-import TrackList from 'vue-media-annotator/components/TrackList.vue';
+import { TypeList, TrackList } from 'vue-media-annotator/components';
 import { useAllTypes } from 'vue-media-annotator/provides';
 
 import { NewTrackSettings } from 'app/use/useSettings';

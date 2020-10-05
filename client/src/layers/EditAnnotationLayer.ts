@@ -1,8 +1,8 @@
 /*eslint class-methods-use-this: "off"*/
-import { FrameDataTrack } from 'vue-media-annotator/layers/LayerTypes';
-import BaseLayer, { BaseLayerParams, LayerStyle } from 'vue-media-annotator/layers/BaseLayer';
-import { boundToGeojson, reOrdergeoJSON } from 'vue-media-annotator/utils';
 import geo, { GeoEvent } from 'geojs';
+import { boundToGeojson, reOrdergeoJSON } from '../utils';
+import { FrameDataTrack } from './LayerTypes';
+import BaseLayer, { BaseLayerParams, LayerStyle } from './BaseLayer';
 
 export type EditAnnotationTypes = 'Point' | 'rectangle' | 'Polygon' | 'LineString';
 interface EditAnnotationLayerParams {

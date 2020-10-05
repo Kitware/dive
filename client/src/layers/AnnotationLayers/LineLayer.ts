@@ -1,7 +1,8 @@
 /* eslint-disable class-methods-use-this */
-import BaseLayer, { LayerStyle, BaseLayerParams } from 'vue-media-annotator/layers/BaseLayer';
-import { FrameDataTrack } from 'vue-media-annotator/layers/LayerTypes';
 import { cloneDeep } from 'lodash';
+
+import BaseLayer, { LayerStyle, BaseLayerParams } from '../BaseLayer';
+import { FrameDataTrack } from '../LayerTypes';
 
 interface LineGeoJSData{
   trackId: number;

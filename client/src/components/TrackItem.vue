@@ -2,9 +2,9 @@
 import {
   defineComponent, computed, watch, reactive, PropType, toRef, ref,
 } from '@vue/composition-api';
-import TooltipBtn from 'vue-media-annotator/components/TooltipButton.vue';
-import { useFrame } from 'vue-media-annotator/provides';
-import Track from 'vue-media-annotator/track';
+import TooltipBtn from './TooltipButton.vue';
+import { useFrame } from '../provides';
+import Track from '../track';
 
 export default defineComponent({
   name: 'TrackItem',

@@ -2,12 +2,13 @@
 import {
   defineComponent, ref, PropType,
 } from '@vue/composition-api';
-import Controls from 'vue-media-annotator/components/controls/Controls.vue';
-import TimelineWrapper from 'vue-media-annotator/components/controls/TimelineWrapper.vue';
-import Timeline from 'vue-media-annotator/components/controls/Timeline.vue';
-import LineChart from 'vue-media-annotator/components/controls/LineChart.vue';
-import EventChart from 'vue-media-annotator/components/controls/EventChart.vue';
-import TooltipBtn from 'vue-media-annotator/components/TooltipButton.vue';
+import {
+  Controls,
+  EventChart,
+  LineChart,
+  Timeline,
+  TimelineWrapper,
+} from 'vue-media-annotator/components';
 
 export default defineComponent({
   components: {
@@ -16,7 +17,6 @@ export default defineComponent({
     LineChart,
     Timeline,
     TimelineWrapper,
-    TooltipBtn,
   },
 
   props: {

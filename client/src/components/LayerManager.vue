@@ -6,17 +6,17 @@ import {
   watch,
 } from '@vue/composition-api';
 
-import { Annotator } from 'vue-media-annotator/components/annotators/annotatorType';
-import RectangleLayer from 'vue-media-annotator/layers/AnnotationLayers/RectangleLayer';
-import PolygonLayer from 'vue-media-annotator/layers/AnnotationLayers/PolygonLayer';
-import PointLayer from 'vue-media-annotator/layers/AnnotationLayers/PointLayer';
-import LineLayer from 'vue-media-annotator/layers/AnnotationLayers/LineLayer';
+import { Annotator } from './annotators/annotatorType';
+import RectangleLayer from '../layers/AnnotationLayers/RectangleLayer';
+import PolygonLayer from '../layers/AnnotationLayers/PolygonLayer';
+import PointLayer from '../layers/AnnotationLayers/PointLayer';
+import LineLayer from '../layers/AnnotationLayers/LineLayer';
 
-import EditAnnotationLayer, { EditAnnotationTypes } from 'vue-media-annotator/layers/EditAnnotationLayer';
-import { FrameDataTrack } from 'vue-media-annotator/layers/LayerTypes';
-import TextLayer from 'vue-media-annotator/layers/TextLayer';
-import Track, { TrackId } from 'vue-media-annotator/track';
-import { geojsonToBound } from 'vue-media-annotator/utils';
+import EditAnnotationLayer, { EditAnnotationTypes } from '../layers/EditAnnotationLayer';
+import { FrameDataTrack } from '../layers/LayerTypes';
+import TextLayer from '../layers/TextLayer';
+import Track, { TrackId } from '../track';
+import { geojsonToBound } from '../utils';
 
 import {
   useEnabledTracks,
@@ -28,7 +28,7 @@ import {
   useVisibleModes,
   useSelectedKey,
   useStateStyles,
-} from 'vue-media-annotator/provides';
+} from '../provides';
 
 /** LayerManager is a component intended to be used as a child of an Annotator.
  *  It provides logic for switching which layers are visible, but more importantly

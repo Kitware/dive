@@ -14,9 +14,11 @@ import {
   useEventChart,
 } from 'vue-media-annotator/use';
 import { provideAnnotator } from 'vue-media-annotator/provides';
-import VideoAnnotator from 'vue-media-annotator/components/annotators/VideoAnnotator.vue';
-import ImageAnnotator from 'vue-media-annotator/components/annotators/ImageAnnotator.vue';
-import LayerManager from 'vue-media-annotator/components/LayerManager.vue';
+import {
+  ImageAnnotator,
+  VideoAnnotator,
+  LayerManager,
+} from 'vue-media-annotator/components';
 
 import PolygonBase from 'app/recipes/polygonbase';
 import HeadTail from 'app/recipes/headtail';

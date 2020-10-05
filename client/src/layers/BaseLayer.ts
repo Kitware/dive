@@ -1,9 +1,10 @@
 /*eslint class-methods-use-this: "off"*/
-import { Annotator } from 'vue-media-annotator/components/annotators/annotatorType';
-import { FrameDataTrack } from 'vue-media-annotator/layers/LayerTypes';
-import { StateStyles, TypeStyling } from 'vue-media-annotator/use/useStyling';
 import Vue from 'vue';
 import { Ref } from '@vue/composition-api';
+
+import { Annotator } from '../components/annotators/annotatorType';
+import { StateStyles, TypeStyling } from '../use/useStyling';
+import { FrameDataTrack } from './LayerTypes';
 
 // eslint-disable-next-line max-len
 export type StyleFunction<T, D> = T | ((point: [number, number], index: number, data: D) => T | undefined);
