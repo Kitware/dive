@@ -151,8 +151,12 @@ export default {
       this.$refs.imageCursor.style.display = 'block';
     },
     handleMouseMove(evt) {
-      this.$refs.imageCursor.style.left = `${evt.offsetX + 10}px`;
-      this.$refs.imageCursor.style.top = `${evt.offsetY - 15}px`;
+      this.offsetX = evt.clientX + 10;
+      this.offsetY = evt.clientY - 25;
+      window.requestAnimationFrame(this.updateHTMLCursor);
+    },
+    updateHTMLCursor() {
+      this.$refs.imageCursor.style.transform = `translate(${this.offsetX}px,${this.offsetY}px)`;
     },
   },
 };
