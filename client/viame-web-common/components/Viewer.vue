@@ -103,7 +103,7 @@ export default defineComponent({
 
 
     async function navigateAway() {
-      let result = false;
+      let result = true;
       if (pendingSaveCount.value > 0) {
         result = await prompt({
           title: 'Save Items',
