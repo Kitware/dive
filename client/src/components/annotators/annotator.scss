@@ -25,5 +25,16 @@
     -ms-transform: translate(-50%, -50%);
     transform: translate(-50%, -50%);
   }
+  .geojs-map.annotation-input {
+    cursor: inherit;
+  }
+}
+.imageCursor {
+  z-index: 10; //So it will be above the annotator layers
+  position: fixed;
+  backface-visibility: hidden;
+  top: 0;
+  left: 0;
+  pointer-events: none;
 }
 

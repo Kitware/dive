@@ -1,7 +1,6 @@
 /*eslint class-methods-use-this: "off"*/
 import geo, { GeoEvent } from 'geojs';
-
-import { boundToGeojson } from '../utils';
+import { boundToGeojson, reOrdergeoJSON } from '../utils';
 import { FrameDataTrack } from './LayerTypes';
 import BaseLayer, { BaseLayerParams, LayerStyle } from './BaseLayer';
 
@@ -24,6 +23,23 @@ const typeMapper = new Map([
   ['Point', 'point'],
   ['rectangle', 'rectangle'],
 ]);
+/**
+ * correct matching of drag handle to cursor direction relies on strict ordering of
+ * vertices within the GeoJSON coordinate list using utils.reOrdergeoJSON()
+ * and utils.reOrderBounds()
+ */
+const rectVertex = [
+  'sw-resize',
+  'nw-resize',
+  'ne-resize',
+  'se-resize',
+];
+const rectEdge = [
+  'w-resize',
+  'n-resize',
+  'e-resize',
+  's-resize',
+];
 /**
  * This class is used to edit annotations within the viewer
  * It will do and display different things based on it either being in
@@ -176,7 +192,28 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
     } else if (e.enable && e.handle.handle.type === 'center') {
       this.hoverHandleIndex = -1;
     }
+    if (e.enable) {
+      if (this.type === 'rectangle') {
+        if (e.handle.handle.type === 'vertex') {
+          this.annotator.$emit('set-cursor', rectVertex[e.handle.handle.index]);
+        } else if (e.handle.handle.type === 'edge') {
+          this.annotator.$emit('set-cursor', rectEdge[e.handle.handle.index]);
+        }
+      } else if (e.handle.handle.type === 'vertex') {
+        this.annotator.$emit('set-cursor', 'grab');
+      } else if (e.handle.handle.type === 'edge') {
+        this.annotator.$emit('set-cursor', 'copy');
+      }
+      if (e.handle.handle.type === 'center') {
+        this.annotator.$emit('set-cursor', 'move');
+      } else if (e.handle.handle.type === 'resize') {
+        this.annotator.$emit('set-cursor', 'nwse-resize');
+      }
+    } else if (this.getMode() !== 'creation') {
+      this.annotator.$emit('set-cursor', 'default');
+    }
   }
+
 
   applyStylesToAnnotations() {
     const annotation = this.featureLayer.annotations()[0];
@@ -224,15 +261,26 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
       if (geom) {
         this._mode = 'editing';
         newLayerMode = 'edit';
+        this.annotator.$emit('set-cursor', 'default');
       } else if (typeMapper.has(mode)) {
         this._mode = 'creation';
         newLayerMode = typeMapper.get(mode) as string;
+        this.annotator.$emit('set-cursor', 'crosshair');
       } else {
         throw new Error(`No such mode ${mode}`);
       }
       this.featureLayer.mode(newLayerMode, geom);
     } else {
       this.featureLayer.mode(null);
+    }
+  }
+
+  calculateCursorImage() {
+    if (this.getMode() === 'editing') {
+      this.annotator.$emit('set-image-cursor', 'mdi-pencil');
+    } else if (this.getMode() === 'creation') {
+      // TODO:  we may want to make this more generic or utilize the icons from editMenu
+      this.annotator.$emit('set-image-cursor', `mdi-vector-${typeMapper.get(this.type)}`);
     }
   }
 
@@ -250,6 +298,8 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
         this.hoverHandleIndex = -1;
         this.bus.$emit('update:selectedIndex', this.selectedHandleIndex, this.type, this.selectedKey);
       }
+      this.annotator.$emit('set-cursor', 'default');
+      this.annotator.$emit('set-image-cursor', '');
     }
   }
 
@@ -282,7 +332,6 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
       //TODO: Find a better way to track mouse up after placing a point or completing geometry
       //For line drawings and the actions of any recipes we want
       if (this.annotator.geoViewer.interactor().mouse().buttons.left) {
-        this.formattedData = this.formatData(frameData);
         this.leftButtonCheckTimeout = window.setTimeout(() => this.changeData(frameData), 20);
       } else {
         clearTimeout(this.leftButtonCheckTimeout);
@@ -293,6 +342,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
       // disable the skip for next time.
       this.skipNextExternalUpdate = false;
     }
+    this.calculateCursorImage();
     this.redraw();
   }
 
@@ -358,16 +408,24 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
    */
   handleEditStateChange(e: GeoEvent) {
     if (this.featureLayer === e.annotation.layer()) {
-      if (e.annotation.state() === 'done' && this.formattedData.length === 0) {
-        // geoJS insists on calling done multiple times, this will prevent that
-        this.formattedData = [e.annotation.geojson()];
+      // Only calls this once on completion of an annotation
+      if (e.annotation.state() === 'done' && this.getMode() === 'creation') {
+        const geoJSONData = [e.annotation.geojson()];
+        if (this.type === 'rectangle') {
+          geoJSONData[0].geometry.coordinates[0] = reOrdergeoJSON(
+            geoJSONData[0].geometry.coordinates[0] as GeoJSON.Position[],
+          );
+        }
+        this.formattedData = geoJSONData;
         // The new annotation is in a state without styling, so apply local stypes
         this.applyStylesToAnnotations();
         //This makes sure the click for the end point doesn't kick us out of the mode
         this.disableModeSync = true;
+
         this.bus.$emit(
           'update:geojson',
           'editing',
+          this.getMode() === 'creation',
           this.formattedData[0],
           this.type,
           this.selectedKey,
@@ -390,6 +448,23 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
             e.annotation.geojson()
           );
           if (this.formattedData.length > 0) {
+            if (this.type === 'rectangle') {
+              /* Updating the corners for the proper cursor icons
+              Also allows for regrabbing of the handle */
+              newGeojson.geometry.coordinates[0] = reOrdergeoJSON(
+                newGeojson.geometry.coordinates[0] as GeoJSON.Position[],
+              );
+              // The corners need to update for the indexes to update
+              // coordinates are in a different system than display
+              const coords = newGeojson.geometry.coordinates[0].map(
+                (coord) => ({ x: coord[0], y: coord[1] }),
+              );
+              // only use the 4 coords instead of 5
+              const remapped = this.annotator.geoViewer.worldToGcs(coords.splice(0, 4));
+              e.annotation.options('corners', remapped);
+              //This will retrigger highlighting of the current handle after releasing the mouse
+              setTimeout(() => this.annotator.geoViewer.interactor().retriggerMouseMove(), 0);
+            }
             // update existing feature
             this.formattedData[0].geometry = newGeojson.geometry;
           } else {
@@ -405,6 +480,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
           this.bus.$emit(
             'update:geojson',
             'editing',
+            this.getMode() === 'creation',
             this.formattedData[0],
             this.type,
             this.selectedKey,

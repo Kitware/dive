@@ -18,7 +18,7 @@ export default class PolygonLayer extends BaseLayer<PolyGeoJSData> {
 
     constructor(params: BaseLayerParams) {
       super(params);
-      this.drawingOther = false;
+      this.drawingOther = true; // Initialized to true in case polygons aren't supported
       //Only initialize once, prevents recreating Layer each edit
       this.initialize();
     }

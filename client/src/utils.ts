@@ -109,6 +109,43 @@ function updateBounds(
   return [limits.xLow, limits.yLow, limits.xHigh, limits.yHigh];
 }
 
+/**
+ * This will take the current geoJSON Coordinates for a rectangle and reorder it
+ * to keep the vertices index the same with respect to how geoJS uses it
+ * Example: UL, LL, LR, UR, UL
+ */
+function reOrdergeoJSON(coords: GeoJSON.Position[]) {
+  let x1 = Infinity;
+  let x2 = -Infinity;
+  let y1 = Infinity;
+  let y2 = -Infinity;
+  coords.forEach((coord) => {
+    x1 = Math.min(x1, coord[0]);
+    x2 = Math.max(x2, coord[0]);
+    y1 = Math.min(y1, coord[1]);
+    y2 = Math.max(y2, coord[1]);
+  });
+  return [
+    [x1, y2],
+    [x1, y1],
+    [x2, y1],
+    [x2, y2],
+    [x1, y2],
+  ];
+}
+
+/**
+ * Reorients RectBounds by reording to prevent mirroring across the x or y axis
+ * Example: xmin, ymin, xmax, ymax
+ */
+function reOrderBounds(bounds: RectBounds) {
+  const x1 = bounds[0] < bounds[2] ? bounds[0] : bounds[2];
+  const x2 = bounds[0] < bounds[2] ? bounds[2] : bounds[0];
+  const y1 = bounds[1] < bounds[3] ? bounds[1] : bounds[3];
+  const y2 = bounds[1] < bounds[3] ? bounds[3] : bounds[1];
+  return [x1, y1, x2, y2];
+}
+
 export {
   boundToGeojson,
   // findBounds,
@@ -116,4 +153,6 @@ export {
   geojsonToBound,
   updateSubset,
   removePoint,
+  reOrderBounds,
+  reOrdergeoJSON,
 };

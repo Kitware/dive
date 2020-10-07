@@ -34,6 +34,8 @@ export default {
       maxFrame: 0,
       syncedFrame: 0,
       observer: null,
+      cursor: 'default',
+      imageCursor: '',
     };
   },
   created() {
@@ -43,6 +45,8 @@ export default {
     this.provided.$on('pause', this.pause);
     this.provided.$on('seek', this.seek);
     this.provided.$on('reset-zoom', this.resetZoom);
+    this.provided.$on('set-cursor', this.setCursor);
+    this.provided.$on('set-image-cursor', this.setImageCursor);
     this.emitFrame();
     this.emitFrame = throttle(this.emitFrame, 200);
   },
@@ -62,6 +66,12 @@ export default {
     }
   },
   methods: {
+    setCursor(newCursor) {
+      this.cursor = `${newCursor}`;
+    },
+    setImageCursor(newCursor) {
+      this.imageCursor = `${newCursor}`;
+    },
     baseInit() {
       const params = geo.util.pixelCoordinateParams(
         this.$refs.container,
@@ -133,6 +143,20 @@ export default {
     resetZoom() {
       this.geoViewer.zoom(this.geoViewer.zoomRange().origMin);
       this.geoViewer.center({ x: 0, y: 0 });
+    },
+    handleMouseLeave() {
+      this.$refs.imageCursor.style.display = 'none';
+    },
+    handleMouseEnter() {
+      this.$refs.imageCursor.style.display = 'block';
+    },
+    handleMouseMove(evt) {
+      this.offsetX = evt.clientX + 10;
+      this.offsetY = evt.clientY - 25;
+      window.requestAnimationFrame(this.updateHTMLCursor);
+    },
+    updateHTMLCursor() {
+      this.$refs.imageCursor.style.transform = `translate(${this.offsetX}px,${this.offsetY}px)`;
     },
   },
 };
