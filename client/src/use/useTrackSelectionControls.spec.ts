@@ -1,17 +1,17 @@
 /// <reference types="jest" />
 import Vue from 'vue';
-import CompositionApi, { ref, Ref } from '@vue/composition-api';
-import useTrackSelectionControls from 'vue-media-annotator/use/useTrackSelectionControls';
-import Track from 'vue-media-annotator/track';
+import CompositionApi, { computed } from '@vue/composition-api';
+import Track from '../track';
+import useTrackSelectionControls from './useTrackSelectionControls';
 
 Vue.use(CompositionApi);
 
-const tracks: Ref<readonly Track[]> = ref([
+const tracks = computed(() => ([
   new Track(0, {}),
   new Track(2, {}),
   new Track(200, {}),
   new Track(1000, {}),
-]);
+]));
 
 describe('useTrackSelectionControls', () => {
   it('can select individual tracks', () => {

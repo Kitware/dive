@@ -240,8 +240,18 @@ export default {
     class="video-annotator"
   >
     <div
+      ref="imageCursor"
+      class="imageCursor"
+    >
+      <v-icon> {{ imageCursor }} </v-icon>
+    </div>
+    <div
       ref="container"
       class="playback-container"
+      :style="{cursor: cursor }"
+      @mousemove="handleMouseMove"
+      @mouseleave="handleMouseLeave"
+      @mouseover="handleMouseEnter"
     >
       {{ rendered() }}
       <div class="loadingSpinnerContainer">

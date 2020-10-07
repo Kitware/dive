@@ -1,8 +1,8 @@
 import {
   ref, computed, Ref, watch,
 } from '@vue/composition-api';
-import Track, { TrackId } from 'vue-media-annotator/track';
-import { updateSubset } from 'vue-media-annotator/utils';
+import Track, { TrackId } from '../track';
+import { updateSubset } from '../utils';
 
 /* Provide track filtering controls on tracks loaded from useTrackStore. */
 export default function useFilteredTracks(
@@ -103,6 +103,19 @@ export default function useFilteredTracks(
     }
   }
 
+  function updateCheckedTypes(types: string[]) {
+    checkedTypes.value = types;
+  }
+
+  function updateCheckedTrackId({ trackId, value }: { trackId: TrackId; value: boolean }) {
+    if (value) {
+      checkedTrackIds.value.push(trackId);
+    } else {
+      const i = checkedTrackIds.value.indexOf(trackId);
+      checkedTrackIds.value.splice(i, 1);
+    }
+  }
+
   return {
     checkedTrackIds,
     checkedTypes,
@@ -112,6 +125,8 @@ export default function useFilteredTracks(
     filteredTracks,
     enabledTracks,
     populateConfidenceFilters,
+    updateCheckedTrackId,
+    updateCheckedTypes,
     updateTypeName,
   };
 }

@@ -1,7 +1,8 @@
 /* eslint-disable class-methods-use-this */
-import BaseLayer, { LayerStyle, BaseLayerParams } from 'vue-media-annotator/layers/BaseLayer';
 import geo, { GeoEvent } from 'geojs';
-import { FrameDataTrack } from 'vue-media-annotator/layers/LayerTypes';
+
+import BaseLayer, { LayerStyle, BaseLayerParams } from '../BaseLayer';
+import { FrameDataTrack } from '../LayerTypes';
 
 interface PolyGeoJSData{
   trackId: number;
@@ -17,7 +18,7 @@ export default class PolygonLayer extends BaseLayer<PolyGeoJSData> {
 
     constructor(params: BaseLayerParams) {
       super(params);
-      this.drawingOther = false;
+      this.drawingOther = true; // Initialized to true in case polygons aren't supported
       //Only initialize once, prevents recreating Layer each edit
       this.initialize();
     }

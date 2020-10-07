@@ -1,8 +1,9 @@
 /* eslint-disable class-methods-use-this */
-import BaseLayer, { LayerStyle, BaseLayerParams } from 'vue-media-annotator/layers/BaseLayer';
-import { boundToGeojson } from 'vue-media-annotator/utils';
 import geo, { GeoEvent } from 'geojs';
-import { FrameDataTrack } from 'vue-media-annotator/layers/LayerTypes';
+
+import { boundToGeojson } from '../../utils';
+import BaseLayer, { LayerStyle, BaseLayerParams } from '../BaseLayer';
+import { FrameDataTrack } from '../LayerTypes';
 
 interface RectGeoJSData{
   trackId: number;

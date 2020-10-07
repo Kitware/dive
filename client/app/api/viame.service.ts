@@ -9,6 +9,7 @@ interface GirderModel {
 interface Attribute {
   belongs: 'track' | 'detection';
   datatype: 'text' | 'number' | 'boolean';
+  values?: string[];
   name: string;
   _id: string;
 }

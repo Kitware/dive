@@ -1,4 +1,5 @@
 import Vue from 'vue';
+import VueGtag from 'vue-gtag';
 import VueCompositionApi from '@vue/composition-api';
 import NotificationBus from '@girder/components/src/utils/notifications';
 import { init as SentryInit } from '@sentry/browser';
@@ -19,6 +20,9 @@ Vue.use(VueCompositionApi);
 Vue.use(snackbarService(vuetify));
 Vue.use(promptService(vuetify));
 Vue.use(vMousetrap);
+Vue.use(VueGtag, {
+  config: { id: process.env.VUE_APP_GTAG },
+});
 
 SentryInit({
   dsn: process.env.VUE_APP_SENTRY_DSN,

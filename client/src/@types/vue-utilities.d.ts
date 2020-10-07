@@ -9,12 +9,12 @@ interface PromptParams {
 }
 
 interface SnackBarParams{
-    text: string;
-    title?: string;
-    button: string;
-    callback?: () => void;
-    timeout?: number;
-    immediate?: boolean;
+  text: string;
+  title?: string;
+  button: string;
+  callback?: () => void;
+  timeout?: number;
+  immediate?: boolean;
 }
 interface SnackBarMethods {
   setOptions: ({
@@ -26,7 +26,11 @@ interface SnackBarMethods {
 declare module 'vue/types/vue' {
   interface Vue {
     $promptAttach(): Vue;
-    $prompt(arg: PromptParams): Promise<unknown>;
+    $prompt: {
+      (arg: PromptParams): Promise<boolean>;
+      visible: () => boolean;
+      hide: () => void;
+    };
     $snackbarAttach(): Vue;
     $snackbar: ((arg: SnackBarParams) => Promise<unknown>) & SnackBarMethods;
   }

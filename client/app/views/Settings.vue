@@ -9,10 +9,10 @@ export default {
 </script>
 
 <template>
-  <v-content>
+  <v-main>
     <NavigationBar />
     <v-container>
       <AttributeSettings />
     </v-container>
-  </v-content>
+  </v-main>
 </template>

@@ -1,5 +1,5 @@
 import { ref, Ref } from '@vue/composition-api';
-import Track, { TrackId } from 'vue-media-annotator/track';
+import Track, { TrackId } from '../track';
 
 /* Maintain references to the selected Track, selected detection,
  * editing state, etc.
@@ -36,6 +36,7 @@ export default function useTrackSelectionControls(
     //Return null if no other conditions are met
     return null;
   }
+
   return {
     selectedTrackId,
     editingTrack,
