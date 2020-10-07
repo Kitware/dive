@@ -83,6 +83,7 @@ export default defineComponent({
           @update-type-name="$emit('update-type-name',$event)"
           @update-type-style="$emit('update-type-style',$event)"
           @update-checked-types="$emit('update-checked-types', $event)"
+          @delete-type-tracks="$emit('delete-type-tracks', $event)"
         />
         <slot />
         <v-spacer />

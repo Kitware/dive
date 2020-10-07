@@ -5,7 +5,9 @@ import { useCheckedTypes, useAllTypes, useTypeStyling } from '../provides';
 export default defineComponent({
   name: 'TypeList',
 
-  setup(props, { emit }) {
+  setup(props, { emit, root }) {
+    const prompt = root.$prompt;
+
     const data = reactive({
       showPicker: false,
       selectedColor: '',
@@ -29,6 +31,17 @@ export default defineComponent({
       data.editingThickness = typeStylingRef.value.strokeWidth(type);
       data.editingFill = typeStylingRef.value.fill(type);
       data.editingOpacity = typeStylingRef.value.opacity(type);
+    }
+
+    async function clickDelete(type: string) {
+      const result = await prompt({
+        title: 'Confirm',
+        text: `Do you want to delete all tracks of type: ${type}`,
+        confirm: true,
+      });
+      if (result) {
+        emit('delete-type-tracks', { type });
+      }
     }
 
     function acceptChanges() {
@@ -56,6 +69,7 @@ export default defineComponent({
       /* methods */
       acceptChanges,
       clickEdit,
+      clickDelete,
     };
   },
 });
@@ -92,11 +106,11 @@ export default defineComponent({
             >
               <template #activator="{ on }">
                 <v-btn
-                  class="mr-1 hover-show-child"
+                  class="hover-show-child"
                   icon
                   small
                   v-on="on"
-                  @click="clickEdit(type)"
+                  @click="clickDelete(type)"
                 >
                   <v-icon
                     small
@@ -106,6 +120,28 @@ export default defineComponent({
                 </v-btn>
               </template>
               <span>Edit</span>
+            </v-tooltip>
+            <v-tooltip
+              open-delay="100"
+              bottom
+            >
+              <template #activator="{ on }">
+                <v-btn
+                  class="hover-show-child"
+                  icon
+                  small
+                  v-on="on"
+                  @click="clickDelete(type)"
+                >
+                  <v-icon
+                    small
+                    color="error"
+                  >
+                    mdi-delete
+                  </v-icon>
+                </v-btn>
+              </template>
+              <span>Delete</span>
             </v-tooltip>
           </v-col>
         </v-row>

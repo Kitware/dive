@@ -65,6 +65,21 @@ export default defineComponent({
       required: true,
     },
   },
+  async beforeRouteLeave(to, from, next) {
+    let result = true;
+    if (this.pendingSaveCount > 0) {
+      result = await this.prompt({
+        title: 'Save Items',
+        text: 'There is unsaved data, would you like to continue anyways?',
+        confirm: true,
+      });
+    }
+    if (!result) {
+      next(result);
+    } else {
+      next();
+    }
+  },
 
   setup(props, ctx) {
     // TODO: eventually we will have to migrate away from this style
@@ -132,9 +147,10 @@ export default defineComponent({
       enabledTracks,
       populateConfidenceFilters,
       updateTypeName,
+      removeTypeTracks,
       updateCheckedTypes,
       updateCheckedTrackId,
-    } = useTrackFilters({ sortedTracks });
+    } = useTrackFilters({ sortedTracks, removeTrack });
 
     Promise.all([
       loadDataset(datasetId),
@@ -292,6 +308,8 @@ export default defineComponent({
       updateNewTrackSettings,
       updateTypeStyle,
       updateTypeName,
+      removeTypeTracks,
+      prompt,
     };
   },
 });
@@ -383,6 +401,7 @@ export default defineComponent({
         @update-type-style="updateTypeStyle($event)"
         @update-type-name="updateTypeName($event)"
         @update-checked-types="updateCheckedTypes($event)"
+        @delete-type-tracks="removeTypeTracks($event)"
       >
         <ConfidenceFilter
           :confidence.sync="confidenceThreshold"
