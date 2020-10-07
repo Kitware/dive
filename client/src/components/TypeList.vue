@@ -6,8 +6,10 @@ import {
 
 export default defineComponent({
   name: 'TypeList',
-  setup(_props, { root }) {
+
+  setup(props, { emit, root }) {
     const prompt = root.$prompt;
+
     const data = reactive({
       showPicker: false,
       selectedColor: '',
@@ -188,7 +190,7 @@ export default defineComponent({
                   icon
                   small
                   v-on="on"
-                  @click="clickEdit(type)"
+                  @click="clickDelete(type)"
                 >
                   <v-icon
                     small
@@ -198,6 +200,28 @@ export default defineComponent({
                 </v-btn>
               </template>
               <span>Edit</span>
+            </v-tooltip>
+            <v-tooltip
+              open-delay="100"
+              bottom
+            >
+              <template #activator="{ on }">
+                <v-btn
+                  class="hover-show-child"
+                  icon
+                  small
+                  v-on="on"
+                  @click="clickDelete(type)"
+                >
+                  <v-icon
+                    small
+                    color="error"
+                  >
+                    mdi-delete
+                  </v-icon>
+                </v-btn>
+              </template>
+              <span>Delete</span>
             </v-tooltip>
           </v-col>
         </v-row>
