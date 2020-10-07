@@ -68,7 +68,6 @@ class Viame(Resource):
     def run_pipeline_task(self, folder, pipeline):
         user = self.getCurrentUser()
         token = Token().createToken(user=user, days=1)
-        move_existing_result_to_auxiliary_folder(folder, user)
         input_type = folder["meta"]["type"]
         return run_pipeline.delay(
             GetPathFromFolderId(str(folder["_id"])),
