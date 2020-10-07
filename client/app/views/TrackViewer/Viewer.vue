@@ -66,21 +66,19 @@ export default defineComponent({
     },
   },
   async beforeRouteLeave(to, from, next) {
-    let result = true;
-    if (this.pendingSaveCount > 0) {
-      result = await this.prompt({
-        title: 'Save Items',
-        text: 'There is unsaved data, would you like to continue anyways?',
-        confirm: true,
-      });
-    }
-    if (!result) {
-      next(result);
+    if (!await this.navigateAway()) {
+      next(false);
     } else {
       next();
     }
   },
+  beforeMount() {
+    window.addEventListener('beforeunload', this.preventNav);
+  },
 
+  beforeDestroy() {
+    window.removeEventListener('beforeunload', this.preventNav);
+  },
   setup(props, ctx) {
     // TODO: eventually we will have to migrate away from this style
     // and use the new plugin pattern:
@@ -94,6 +92,24 @@ export default defineComponent({
       save: saveToServer, markChangesPending, pendingSaveCount,
     } = useSave(datasetId);
 
+
+    async function navigateAway() {
+      let result = false;
+      if (pendingSaveCount.value > 0) {
+        result = await prompt({
+          title: 'Save Items',
+          text: 'There is unsaved data, would you like to continue anyways?',
+          confirm: true,
+        });
+      }
+      return result;
+    }
+    async function preventNav(event: BeforeUnloadEvent) {
+      if (!pendingSaveCount.value) return;
+      event.preventDefault();
+      // eslint-disable-next-line no-param-reassign
+      event.returnValue = '';
+    }
     const recipes = [
       new PolygonBase(),
       new HeadTail(),
@@ -309,7 +325,9 @@ export default defineComponent({
       updateTypeStyle,
       updateTypeName,
       removeTypeTracks,
-      prompt,
+      // For Navigation Guarding
+      navigateAway,
+      preventNav,
     };
   },
 });
