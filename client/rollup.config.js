@@ -22,13 +22,13 @@ export default [
     external,
     input: './src/index.ts',
     output: {
-      dir: './dist/',
+      dir: './lib/',
       format: 'esm',
       name: 'vue-media-annotator',
     },
     plugins: [
       // clear out dist before build
-      cleaner({ targets: ['dist'] }),
+      cleaner({ targets: ['lib'] }),
       typescript({
         clean,
         tsconfig,
@@ -65,7 +65,7 @@ export default [
       scss(),
     ],
     output: {
-      file: './dist/components.js',
+      file: './lib/components.js',
       format: 'esm',
     },
   },

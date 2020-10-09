@@ -1,6 +1,6 @@
 {
   "name": "vue-media-annotator",
-  "version": "0.2.0",
+  "version": "1.0.0-beta.1",
   "scripts": {
     "serve": "vue-cli-service serve app/main.ts",
     "build": "vue-cli-service build app/main.ts",
@@ -12,10 +12,10 @@
     "@types/jest": "^25.2.3"
   },
   "files": [
-    "/dist/"
+    "/lib/"
   ],
-  "main": "dist/index.js",
-  "types": "dist/types/index.d.ts",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
   "dependencies": {
     "@flatten-js/interval-tree": "^1.0.11",
     "@girder/components": "^2.2.4",
