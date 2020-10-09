@@ -18,12 +18,12 @@ def read_and_close_process_outputs(
     process.wait()
     if stdout_file is not None:
         stdout_file.seek(0)
-        stdout = str(stdout_file.read())
+        stdout = stdout_file.read().decode()
         stdout_file.close()
 
     if stderr_file is not None:
         stderr_file.seek(0)
-        stderr = str(stderr_file.read())
+        stderr = stderr_file.read().decode()
         stderr_file.close()
 
     return (stdout, stderr)

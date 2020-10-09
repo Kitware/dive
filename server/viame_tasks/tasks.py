@@ -328,7 +328,7 @@ def convert_video(self, path, folderId, auxiliaryFolderId):
         process, process_log_file, process_err_file
     )
 
-    output = str(stdout) + "\n" + str(stderr)
+    output = stdout + "\n" + stderr
     self.job_manager.write(output)
     new_file = self.girder_client.uploadFileToFolder(folderId, output_path)
     self.girder_client.addMetadataToItem(new_file['itemId'], {"codec": "h264"})
