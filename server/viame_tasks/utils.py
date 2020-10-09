@@ -1,10 +1,9 @@
 import os
 import shutil
 from pathlib import Path
-from tempfile import mktemp
 from subprocess import Popen
-
-from typing import Optional, Tuple, IO
+from tempfile import mktemp
+from typing import IO, Optional, Tuple
 
 
 def read_and_close_process_outputs(

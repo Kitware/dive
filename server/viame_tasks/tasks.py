@@ -11,10 +11,10 @@ from girder_worker.app import app
 from GPUtil import getGPUs
 
 from viame_tasks.utils import (
-    organize_folder_for_training,
-    read_and_close_process_outputs,
-    trained_pipeline_folder as _trained_pipeline_folder,
+  organize_folder_for_training,
+  read_and_close_process_outputs,
 )
+from viame_tasks.utils import trained_pipeline_folder as _trained_pipeline_folder
 
 
 def get_gpu_environment() -> Dict[str, str]:
