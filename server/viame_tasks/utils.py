@@ -2,6 +2,31 @@ import os
 import shutil
 from pathlib import Path
 from tempfile import mktemp
+from subprocess import Popen
+
+from typing import Optional, Tuple, IO
+
+
+def read_and_close_process_outputs(
+    process: Popen,
+    stdout_file: Optional[IO] = None,
+    stderr_file: Optional[IO] = None,
+) -> Tuple[str, str]:
+    stdout: str = ""
+    stderr: str = ""
+
+    process.wait()
+    if stdout_file is not None:
+        stdout_file.seek(0)
+        stdout = str(stdout_file.read())
+        stdout_file.close()
+
+    if stderr_file is not None:
+        stderr_file.seek(0)
+        stderr = str(stderr_file.read())
+        stderr_file.close()
+
+    return (stdout, stderr)
 
 
 def trained_pipeline_folder():

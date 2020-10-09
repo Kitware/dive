@@ -4,14 +4,17 @@ import shutil
 import tempfile
 from datetime import datetime
 from pathlib import Path
-from subprocess import PIPE, Popen
+from subprocess import DEVNULL, Popen
 from typing import Dict, List
 
 from girder_worker.app import app
 from GPUtil import getGPUs
 
-from viame_tasks.utils import organize_folder_for_training
-from viame_tasks.utils import trained_pipeline_folder as _trained_pipeline_folder
+from viame_tasks.utils import (
+    organize_folder_for_training,
+    read_and_close_process_outputs,
+    trained_pipeline_folder as _trained_pipeline_folder,
+)
 
 
 def get_gpu_environment() -> Dict[str, str]:
@@ -112,23 +115,30 @@ def run_pipeline(self, input_path, output_folder, pipeline, input_type):
 
     cmd = " ".join(command)
     print('Running command:', cmd)
+
+    process_log_file = tempfile.TemporaryFile()
+    process_err_file = tempfile.TemporaryFile()
+
     process = Popen(
         cmd,
-        stderr=PIPE,
-        stdout=PIPE,
+        stderr=process_err_file,
+        stdout=process_log_file,
         shell=True,
         executable='/bin/bash',
         env=conf.gpu_process_env,
     )
-    stdout, stderr = process.communicate()
+
+    stdout, stderr = read_and_close_process_outputs(
+        process, process_log_file, process_err_file
+    )
     if process.returncode > 0:
         raise RuntimeError(
             'Pipeline exited with nonzero status code {}: {}'.format(
-                process.returncode, str(stderr)
+                process.returncode, stderr
             )
         )
     else:
-        self.job_manager.write(str(stdout) + "\n" + str(stderr))
+        self.job_manager.write(stdout + "\n" + stderr)
 
     if os.path.getsize(track_output_path) > 0:
         output_path = track_output_path
@@ -190,8 +200,6 @@ def train_pipeline(
         # Completely separate directory from `root_data_dir`
         with tempfile.TemporaryDirectory() as _training_output_path:
             training_output_path = Path(_training_output_path)
-
-            # Call viame_train_detector
             command = [
                 f". {conf.viame_install_path}/setup_viame.sh &&",
                 str(training_executable),
@@ -200,23 +208,25 @@ def train_pipeline(
                 "-c",
                 str(config_file),
             ]
+
+            process_log_file = tempfile.TemporaryFile()
+            process_err_file = tempfile.TemporaryFile()
+
+            # Call viame_train_detector
             process = Popen(
                 " ".join(command),
-                stdout=PIPE,
-                stderr=PIPE,
+                stdout=process_log_file,
+                stderr=process_err_file,
                 shell=True,
                 executable='/bin/bash',
                 cwd=training_output_path,
                 env=conf.gpu_process_env,
             )
-            while process.poll() is None:
-                out = process.stdout.read() if process.stdout else None
-                err = process.stderr.read() if process.stderr else None
 
-                if out:
-                    self.job_manager.write(out)
-                if err:
-                    self.job_manager.write(err)
+            stdout, stderr = read_and_close_process_outputs(
+                process, process_log_file, process_err_file
+            )
+            self.job_manager.write(stdout + "\n" + stderr)
 
             training_results_path = training_output_path / "category_models"
 
@@ -279,15 +289,22 @@ def convert_video(self, path, folderId, auxiliaryFolderId):
         "-show_streams",
         file_name,
     ]
-    process = Popen(command, stderr=PIPE, stdout=PIPE)
-    stdout = process.communicate()[0]
-    jsoninfo = json.loads(stdout.decode('utf-8'))
-    videostream = list(
-        filter(lambda x: x["codec_type"] == "video", jsoninfo["streams"])
-    )
-    if len(videostream) != 1:
-        raise Exception('Expected 1 video stream, found {}'.format(len(videostream)))
 
+    with tempfile.TemporaryFile() as process_log_file:
+        process = Popen(command, stderr=DEVNULL, stdout=process_log_file)
+        stdout, _ = read_and_close_process_outputs(process, process_log_file)
+
+        jsoninfo = json.loads(stdout)
+        videostream = list(
+            filter(lambda x: x["codec_type"] == "video", jsoninfo["streams"])
+        )
+        if len(videostream) != 1:
+            raise Exception(
+                'Expected 1 video stream, found {}'.format(len(videostream))
+            )
+
+    process_log_file = tempfile.TemporaryFile()
+    process_err_file = tempfile.TemporaryFile()
     process = Popen(
         [
             "ffmpeg",
@@ -303,10 +320,14 @@ def convert_video(self, path, folderId, auxiliaryFolderId):
             "copy",
             output_path,
         ],
-        stderr=PIPE,
-        stdout=PIPE,
+        stdout=process_log_file,
+        stderr=process_err_file,
     )
-    stdout, stderr = process.communicate()
+
+    stdout, stderr = read_and_close_process_outputs(
+        process, process_log_file, process_err_file
+    )
+
     output = str(stdout) + "\n" + str(stderr)
     self.job_manager.write(output)
     new_file = self.girder_client.uploadFileToFolder(folderId, output_path)
@@ -353,18 +374,23 @@ def convert_images(self, folderId):
             item_path = dest_dir / item["name"]
             new_item_path = dest_dir / ".".join([*item["name"].split(".")[:-1], "png"])
 
+            process_log_file = tempfile.TemporaryFile()
+            process_err_file = tempfile.TemporaryFile()
             process = Popen(
                 ["ffmpeg", "-i", item_path, new_item_path],
-                stdout=PIPE,
-                stderr=PIPE,
+                stdout=process_log_file,
+                stderr=process_err_file,
             )
-            stdout, stderr = process.communicate()
+
+            stdout, stderr = read_and_close_process_outputs(
+                process, process_log_file, process_err_file
+            )
 
             output = ""
             if len(stdout):
-                output = f"{stdout.decode()}\n"
+                output = f"{stdout}\n"
             if len(stderr):
-                output = f"{output}{stderr.decode()}\n"
+                output = f"{output}{stderr}\n"
 
             self.job_manager.write(output)
 
