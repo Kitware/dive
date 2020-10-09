@@ -61,10 +61,8 @@ export default [
           ],
         },
       }),
-      vue({ css: false }),
-      scss({
-        output: 'dist/component-style.css',
-      }),
+      vue(),
+      scss(),
     ],
     output: {
       file: './dist/components.js',
