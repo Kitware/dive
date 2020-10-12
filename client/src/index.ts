@@ -5,7 +5,6 @@ import * as utils from './utils';
 
 import * as use from './use';
 import * as layers from './layers';
-// import * as components from './components';
 
 export {
   listUtils,
