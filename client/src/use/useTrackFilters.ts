@@ -15,7 +15,7 @@ export default function useFilteredTracks(
   /* Track IDs explicitly checked "ON" by the user */
   const checkedTrackIds = ref(sortedTracks.value.map((t) => t.trackId));
   /* The confidence threshold to test confidecePairs against */
-  const confidenceFilters = ref({ default: 0.5 } as Record<string, number>);
+  const confidenceFilters = ref({ default: 0.1 } as Record<string, number>);
 
   /**
    * TODO: update

@@ -434,7 +434,7 @@ export default defineComponent({
           v-mousetrap="[
             { bind: 'n', handler: () => handler.addTrack },
             { bind: 'r', handler: () => playbackComponent.resetZoom() },
-            { bind: 'esc', handler: () => handler.selectTrack(null, false)}
+            { bind: 'esc', handler: () => handler.escapeMode()}
           ]"
           v-bind="{ imageData, videoUrl, frameRate }"
           class="playback-component"
