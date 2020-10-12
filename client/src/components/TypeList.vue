@@ -201,28 +201,6 @@ export default defineComponent({
               </template>
               <span>Edit</span>
             </v-tooltip>
-            <v-tooltip
-              open-delay="100"
-              bottom
-            >
-              <template #activator="{ on }">
-                <v-btn
-                  class="hover-show-child"
-                  icon
-                  small
-                  v-on="on"
-                  @click="clickDelete(type)"
-                >
-                  <v-icon
-                    small
-                    color="error"
-                  >
-                    mdi-delete
-                  </v-icon>
-                </v-btn>
-              </template>
-              <span>Delete</span>
-            </v-tooltip>
           </v-col>
         </v-row>
       </v-container>

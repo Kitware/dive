@@ -286,6 +286,29 @@ export default defineComponent({
               </template>
               <span>Default Type: {{ newTrackType }}</span>
             </v-tooltip>
+            <v-tooltip
+              open-delay="100"
+              bottom
+            >
+              <template #activator="{ on }">
+                <v-btn
+                  class="hover-show-child"
+                  :disabled="tracks.length === 0"
+                  icon
+                  small
+                  v-on="on"
+                  @click="multiDelete()"
+                >
+                  <v-icon
+                    small
+                    color="error"
+                  >
+                    mdi-delete
+                  </v-icon>
+                </v-btn>
+              </template>
+              <span>Delete visible items</span>
+            </v-tooltip>
           </div>
         </v-row>
         <v-row>
