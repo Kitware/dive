@@ -5,6 +5,7 @@ import PolygonLayer from './AnnotationLayers/PolygonLayer';
 import RectangleLayer from './AnnotationLayers/RectangleLayer';
 import TextLayer from './TextLayer';
 
+type VisibleAnnotationTypes = EditAnnotationTypes | 'text';
 export {
   EditAnnotationLayer,
   EditAnnotationTypes,
@@ -13,4 +14,5 @@ export {
   PolygonLayer,
   RectangleLayer,
   TextLayer,
+  VisibleAnnotationTypes,
 };

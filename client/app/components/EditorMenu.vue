@@ -3,13 +3,13 @@ import { flatten } from 'lodash';
 import Vue, { PropType } from 'vue';
 
 import { Mousetrap } from 'vue-media-annotator/types';
-import { EditAnnotationTypes } from 'vue-media-annotator/layers';
+import { EditAnnotationTypes, VisibleAnnotationTypes } from 'vue-media-annotator/layers';
 import Recipe from 'vue-media-annotator/recipe';
 
 interface ButtonData {
   id: string;
   icon: string;
-  type?: EditAnnotationTypes | 'text';
+  type?: VisibleAnnotationTypes;
   active: boolean;
   mousetrap?: Mousetrap[];
   click: () => void;
@@ -23,7 +23,7 @@ export default Vue.extend({
       required: true,
     },
     visibleModes: {
-      type: Array as PropType<(EditAnnotationTypes | 'text')[]>,
+      type: Array as PropType<(VisibleAnnotationTypes)[]>,
       required: true,
     },
     editingMode: {
@@ -110,11 +110,11 @@ export default Vue.extend({
   },
 
   methods: {
-    isVisible(mode: EditAnnotationTypes | 'text') {
+    isVisible(mode: VisibleAnnotationTypes) {
       return this.visibleModes.includes(mode);
     },
 
-    toggleVisible(mode: EditAnnotationTypes | 'text') {
+    toggleVisible(mode: VisibleAnnotationTypes) {
       if (this.isVisible(mode)) {
         this.$emit('set-annotation-state', {
           visible: this.visibleModes.filter((m) => m !== mode),

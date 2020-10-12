@@ -4,6 +4,7 @@ import { provide, inject, Ref } from '@vue/composition-api';
 import { StateStyles, TypeStyling } from './use/useStyling';
 import { EditAnnotationTypes } from './layers/EditAnnotationLayer';
 import Track, { TrackId } from './track';
+import { VisibleAnnotationTypes } from './layers';
 
 /**
  * Provides declares the dependencies that a consumer must provide before
@@ -53,7 +54,7 @@ const StateStylesSymbol = Symbol('stateStyles');
 type StateStylesType = Readonly<StateStyles>;
 
 const VisibleModesSymbol = Symbol('visibleModes');
-type VisibleModesType = Readonly<Ref<readonly (EditAnnotationTypes | 'text')[]>>;
+type VisibleModesType = Readonly<Ref<readonly VisibleAnnotationTypes[]>>;
 
 function _handleMissing(s: symbol): Error {
   return new Error(`Missing provided object for symbol ${s.toString()}: must provideAnnotator()`);

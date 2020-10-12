@@ -30,6 +30,7 @@ import {
   useStateStyles,
 } from '../provides';
 
+
 /** LayerManager is a component intended to be used as a child of an Annotator.
  *  It provides logic for switching which layers are visible, but more importantly
  *  it maps Track objects into their respective layer representations.
@@ -91,7 +92,7 @@ export default defineComponent({
       editingTrack: false | EditAnnotationTypes,
       selectedTrackId: TrackId | null,
       tracks: readonly Track[],
-      visibleModes: readonly (EditAnnotationTypes | 'text')[],
+      visibleModes: readonly VisibleAnnotationTypes[],
       selectedKey: string,
     ) {
       const currentFrameIds: TrackId[] = intervalTree

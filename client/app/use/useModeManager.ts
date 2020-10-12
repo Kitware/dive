@@ -4,7 +4,7 @@ import {
 import { uniq, flatMapDeep } from 'lodash';
 import Track, { TrackId } from 'vue-media-annotator/track';
 import { RectBounds, updateBounds } from 'vue-media-annotator/utils';
-import { EditAnnotationTypes } from 'vue-media-annotator/layers';
+import { EditAnnotationTypes, VisibleAnnotationTypes } from 'vue-media-annotator/layers';
 
 import Recipe from 'vue-media-annotator/recipe';
 import { NewTrackSettings } from './useSettings';
@@ -17,7 +17,7 @@ export interface Annotator {
 }
 
 interface SetAnnotationStateArgs {
-  visible?: (EditAnnotationTypes | 'text')[];
+  visible?: VisibleAnnotationTypes[];
   editing?: EditAnnotationTypes;
   key?: string;
   recipeName?: string;
@@ -59,7 +59,7 @@ export default function useModeManager({
   let creating = false;
 
   const annotationModes = reactive({
-    visible: ['rectangle', 'Polygon', 'LineString', 'text'] as (EditAnnotationTypes | 'text')[],
+    visible: ['rectangle', 'Polygon', 'LineString', 'text'] as VisibleAnnotationTypes[],
     editing: 'rectangle' as EditAnnotationTypes,
   });
   // selectedFeatureHandle could arguably belong in useTrackSelectionControls,
