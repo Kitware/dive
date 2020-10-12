@@ -35,14 +35,15 @@ export default defineComponent({
 
     async function clickDelete() {
       const typeDisplay: string[] = [];
+      const text = ['Do you want to delete all tracks of following types:'];
       checkedTypesRef.value.forEach((item) => {
         typeDisplay.push(item);
+        text.push(item.toString());
       });
 
-      const typeString = typeDisplay.join(', ');
       const result = await prompt({
         title: 'Confirm',
-        text: `Do you want to delete all tracks of following types: \n${typeString}`,
+        text,
         confirm: true,
       });
       if (result) {

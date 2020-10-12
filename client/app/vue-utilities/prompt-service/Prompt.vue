@@ -67,7 +67,15 @@ export default {
       >
         {{ title }}
       </v-card-title>
-      <v-card-text>
+      <v-card-text v-if="Array.isArray(text)">
+        <div
+          v-for="(item,key) in text"
+          :key="key"
+        >
+          {{ item }}
+        </div>
+      </v-card-text>
+      <v-card-text v-else>
         {{ text }}
       </v-card-text>
       <v-card-actions>

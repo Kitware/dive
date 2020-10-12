@@ -139,16 +139,17 @@ export default defineComponent({
 
     async function multiDelete() {
       const tracksDisplayed: number[] = [];
+      const text = ['Do you want to delete the following tracks:'];
       virtualListItems.value.forEach((item) => {
         if (item.checkedTrackIds.includes(item.track.trackId)) {
           tracksDisplayed.push(item.track.trackId);
+          text.push(item.track.trackId.toString());
         }
       });
 
-      const typeString = tracksDisplayed.join(', ');
       const result = await prompt({
         title: 'Confirm',
-        text: `Do you want to delete the following tracks: \n${typeString}`,
+        text,
         confirm: true,
       });
       if (result) {
