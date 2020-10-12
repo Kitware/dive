@@ -23,7 +23,7 @@ import {
 import PolygonBase from 'viame-web-common/recipes/polygonbase';
 import HeadTail from 'viame-web-common/recipes/headtail';
 
-import { getDetections } from 'viame-web-common/api/viameDetection.service';
+
 import NavigationTitle from 'viame-web-common/components/NavigationTitle.vue';
 import EditorMenu from 'viame-web-common/components/EditorMenu.vue';
 import ConfidenceFilter from 'viame-web-common/components/ConfidenceFilter.vue';
@@ -59,14 +59,8 @@ export default defineComponent({
     EditorMenu,
   },
 
-  props: {
-    datasetId: {
-      type: String,
-      required: true,
-    },
-  },
 
-  setup(props, ctx) {
+  setup(_, ctx) {
     // TODO: eventually we will have to migrate away from this style
     // and use the new plugin pattern:
     // https://vue-composition-api-rfc.netlify.com/#plugin-development
@@ -113,14 +107,6 @@ export default defineComponent({
       removeTrack: tsRemoveTrack,
     } = useTrackStore({ markChangesPending });
 
-    async function loadTracks(datasetFolderId: string) {
-      const data = await getDetections(datasetFolderId, 'track_json');
-      if (data !== null) {
-        Object.values(data).forEach(
-          (trackData) => insertTrack(Track.fromJSON(trackData)),
-        );
-      }
-    }
 
     const {
       checkedTrackIds,

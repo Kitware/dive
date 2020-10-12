@@ -38,13 +38,12 @@
   },
   "include": [
     "viame-web-common/**/*.ts",
-    "viame-web-common/**/*.tsx",
     "viame-web-common/**/*.vue",
+    "platform/*/**.vue",
+    "platform/*/**.ts",
     "src/**/*.ts",
-    "src/**/*.tsx",
     "src/**/*.vue",
     "tests/**/*.ts",
-    "tests/**/*.tsx",
   ],
   "exclude": [
     "node_modules"
