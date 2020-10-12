@@ -49,6 +49,7 @@ export default Vue.extend({
       color="error"
       depressed
       :disabled="disabled"
+      small
       @click="deleteSelected"
     >
       <pre class="mr-1 text-body-2">del</pre>

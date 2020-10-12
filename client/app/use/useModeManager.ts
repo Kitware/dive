@@ -17,7 +17,7 @@ export interface Annotator {
 }
 
 interface SetAnnotationStateArgs {
-  visible?: EditAnnotationTypes[];
+  visible?: (EditAnnotationTypes | 'text')[];
   editing?: EditAnnotationTypes;
   key?: string;
   recipeName?: string;
@@ -59,7 +59,7 @@ export default function useModeManager({
   let creating = false;
 
   const annotationModes = reactive({
-    visible: ['rectangle', 'Polygon', 'LineString'] as EditAnnotationTypes[],
+    visible: ['rectangle', 'Polygon', 'LineString', 'text'] as (EditAnnotationTypes | 'text')[],
     editing: 'rectangle' as EditAnnotationTypes,
   });
   // selectedFeatureHandle could arguably belong in useTrackSelectionControls,

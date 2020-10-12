@@ -53,7 +53,7 @@ const StateStylesSymbol = Symbol('stateStyles');
 type StateStylesType = Readonly<StateStyles>;
 
 const VisibleModesSymbol = Symbol('visibleModes');
-type VisibleModesType = Readonly<Ref<readonly EditAnnotationTypes[]>>;
+type VisibleModesType = Readonly<Ref<readonly (EditAnnotationTypes | 'text')[]>>;
 
 function _handleMissing(s: symbol): Error {
   return new Error(`Missing provided object for symbol ${s.toString()}: must provideAnnotator()`);

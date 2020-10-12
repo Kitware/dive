@@ -91,7 +91,7 @@ export default defineComponent({
       editingTrack: false | EditAnnotationTypes,
       selectedTrackId: TrackId | null,
       tracks: readonly Track[],
-      visibleModes: readonly EditAnnotationTypes[],
+      visibleModes: readonly (EditAnnotationTypes | 'text')[],
       selectedKey: string,
     ) {
       const currentFrameIds: TrackId[] = intervalTree
@@ -142,7 +142,7 @@ export default defineComponent({
         lineLayer.disable();
       }
       pointLayer.changeData(frameData);
-      if (visibleModes.length) {
+      if (visibleModes.includes('text')) {
         textLayer.changeData(frameData);
       } else {
         textLayer.disable();
