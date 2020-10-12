@@ -101,10 +101,10 @@ export default function useFilteredTracks(
     });
   }
 
-  function removeTypeTracks({ type }: {type: string}) {
+  function removeTypeTracks({ type }: {type: string[]}) {
     sortedTracks.value.forEach((track) => {
       track.confidencePairs.forEach(([name]) => {
-        if (name === type) {
+        if (type.includes(name)) {
           removeTrack(track.trackId);
         }
       });

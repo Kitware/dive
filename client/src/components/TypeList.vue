@@ -1,5 +1,5 @@
 <script lang="ts">
-import { defineComponent, reactive } from '@vue/composition-api';
+import { computed, defineComponent, reactive } from '@vue/composition-api';
 import { useCheckedTypes, useAllTypes, useTypeStyling } from '../provides';
 
 export default defineComponent({
@@ -33,14 +33,20 @@ export default defineComponent({
       data.editingOpacity = typeStylingRef.value.opacity(type);
     }
 
-    async function clickDelete(type: string) {
+    async function clickDelete() {
+      const typeDisplay: string[] = [];
+      checkedTypesRef.value.forEach((item) => {
+        typeDisplay.push(item);
+      });
+
+      const typeString = typeDisplay.join(', ');
       const result = await prompt({
         title: 'Confirm',
-        text: `Do you want to delete all tracks of type: ${type}`,
+        text: `Do you want to delete all tracks of following types: \n${typeString}`,
         confirm: true,
       });
       if (result) {
-        emit('delete-type-tracks', { type });
+        emit('delete-type-tracks', { type: checkedTypesRef.value });
       }
     }
 
@@ -61,6 +67,24 @@ export default defineComponent({
       });
     }
 
+    const headCheckState = computed(() => {
+      if (checkedTypesRef.value.length === allTypesRef.value.length) {
+        return 1;
+      } if (checkedTypesRef.value.length === 0) {
+        return 0;
+      }
+      return -1;
+    });
+
+    function headCheckClicked() {
+      if (headCheckState.value === 0) {
+        emit('update-checked-types', allTypesRef.value);
+        return;
+      }
+      emit('update-checked-types', []);
+    }
+
+
     return {
       allTypesRef,
       checkedTypesRef,
@@ -70,6 +94,8 @@ export default defineComponent({
       acceptChanges,
       clickEdit,
       clickDelete,
+      headCheckState,
+      headCheckClicked,
     };
   },
 });
@@ -80,6 +106,50 @@ export default defineComponent({
     <v-subheader class="flex-shrink-0">
       Type Filter
     </v-subheader>
+    <v-container
+      dense
+      class="py-0"
+    >
+      <v-row style="border: 1px solid white">
+        <v-col class="d-flex flex-row align-center py-0">
+          <v-checkbox
+            :input-value="headCheckState !== -1 ? headCheckState : false"
+            :indeterminate="headCheckState === -1"
+            dense
+            shrink
+            hide-details
+            color="white"
+            class="my-1 type-checkbox"
+            @change="headCheckClicked"
+          />
+          <b>Visibility</b>
+          <v-spacer />
+          <v-tooltip
+            open-delay="100"
+            bottom
+          >
+            <template #activator="{ on }">
+              <v-btn
+                class="hover-show-child"
+                :disabled="checkedTypesRef.length === 0"
+                icon
+                small
+                v-on="on"
+                @click="clickDelete()"
+              >
+                <v-icon
+                  small
+                  color="error"
+                >
+                  mdi-delete
+                </v-icon>
+              </v-btn>
+            </template>
+            <span>Delete visible items</span>
+          </v-tooltip>
+        </v-col>
+      </v-row>
+    </v-container>
     <div class="overflow-y-auto">
       <v-container class="py-2">
         <v-row
@@ -120,28 +190,6 @@ export default defineComponent({
                 </v-btn>
               </template>
               <span>Edit</span>
-            </v-tooltip>
-            <v-tooltip
-              open-delay="100"
-              bottom
-            >
-              <template #activator="{ on }">
-                <v-btn
-                  class="hover-show-child"
-                  icon
-                  small
-                  v-on="on"
-                  @click="clickDelete(type)"
-                >
-                  <v-icon
-                    small
-                    color="error"
-                  >
-                    mdi-delete
-                  </v-icon>
-                </v-btn>
-              </template>
-              <span>Delete</span>
             </v-tooltip>
           </v-col>
         </v-row>

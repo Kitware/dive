@@ -46,7 +46,8 @@ export default defineComponent({
 
   components: { TrackItem },
 
-  setup(props, { emit }) {
+  setup(props, { emit, root }) {
+    const prompt = root.$prompt;
     const allTypesRef = useAllTypes();
     const checkedTrackIdsRef = useCheckedTrackIds();
     const editingModeRef = useEditingMode();
@@ -135,6 +136,26 @@ export default defineComponent({
     watch(selectedTrackIdRef, scrollToTrack);
     watch(tracksRef, scrollToSelectedTrack);
 
+
+    async function multiDelete() {
+      const tracksDisplayed: number[] = [];
+      virtualListItems.value.forEach((item) => {
+        if (item.checkedTrackIds.includes(item.track.trackId)) {
+          tracksDisplayed.push(item.track.trackId);
+        }
+      });
+
+      const typeString = tracksDisplayed.join(', ');
+      const result = await prompt({
+        title: 'Confirm',
+        text: `Do you want to delete the following tracks: \n${typeString}`,
+        confirm: true,
+      });
+      if (result) {
+        emit('track-remove', tracksDisplayed);
+      }
+    }
+
     const mouseTrap = computed(() => {
       const disabled = props.hotkeysDisabled;
       return [
@@ -165,7 +186,7 @@ export default defineComponent({
           bind: 'del',
           handler: () => {
             if (selectedTrackIdRef.value !== null) {
-              emit('track-remove', selectedTrackIdRef.value);
+              emit('track-remove', [selectedTrackIdRef.value]);
             }
           },
           disabled,
@@ -187,6 +208,7 @@ export default defineComponent({
       tracks: tracksRef,
       virtualListItems,
       virtualList,
+      multiDelete,
     };
   },
 });
@@ -194,7 +216,7 @@ export default defineComponent({
 
 <template>
   <div class="d-flex flex-column">
-    <v-subheader class="flex-grow-1 trackHeader">
+    <v-subheader class="flex-grow-1 trackHeader px-1">
       <v-container>
         <v-row align="center">
           Tracks ({{ tracks.length }})
@@ -234,6 +256,29 @@ export default defineComponent({
               </template>
               <span>Default Type: {{ newTrackType }}</span>
             </v-tooltip>
+            <v-tooltip
+              open-delay="100"
+              bottom
+            >
+              <template #activator="{ on }">
+                <v-btn
+                  class="hover-show-child"
+                  :disabled="tracks.length === 0"
+                  icon
+                  small
+                  v-on="on"
+                  @click="multiDelete()"
+                >
+                  <v-icon
+                    small
+                    color="error"
+                  >
+                    mdi-delete
+                  </v-icon>
+                </v-btn>
+              </template>
+              <span>Delete visible items</span>
+            </v-tooltip>
           </div>
         </v-row>
         <v-row>
@@ -269,7 +314,7 @@ export default defineComponent({
           v-bind="getItemProps(item)"
           @change="$emit('track-checked', { trackId: item.track.trackId, value: $event })"
           @type-change="$emit('track-type-change', { trackId: item.track.trackId, value: $event })"
-          @delete="$emit('track-remove', item.track.trackId)"
+          @delete="$emit('track-remove', [item.track.trackId])"
           @click="$emit('track-click', item.track.trackId)"
           @edit="$emit('track-edit', item.track.trackId)"
           @split="$emit('track-split', item.track.trackId)"

@@ -326,13 +326,16 @@ export default function useModeManager({
     }
   }
 
-  function handleRemoveTrack(trackId: TrackId) {
-    // if removed track was selected, unselect before remove
-    if (selectedTrackId.value === trackId) {
-      const newTrack = selectNextTrack(1) !== null ? selectNextTrack(1) : selectNextTrack(-1);
-      selectTrack(newTrack, false);
+  function handleRemoveTrack(trackIds: TrackId[]) {
+    trackIds.forEach((trackId) => {
+      removeTrack(trackId);
+    });
+    if (selectedTrackId.value !== null) {
+      if (trackIds.includes(selectedTrackId.value)) {
+        const newTrack = selectNextTrack(1) !== null ? selectNextTrack(1) : selectNextTrack(-1);
+        selectTrack(newTrack, false);
+      }
     }
-    removeTrack(trackId);
   }
 
   /** Toggle editing mode for track */
