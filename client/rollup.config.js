@@ -53,11 +53,11 @@ export default [
             'src/**/*.tsx',
             /**
              * TODO: DANGER: this line should not be needed
-             * nothing from app/ ends up in the built artifact.
-             * nothing from app/ is imported from src/components/index.js
+             * nothing from viame-web-common/ ends up in the built artifact.
+             * nothing from viame-web-common/ is imported from src/components/index.js
              * ...but the build fails without it.
              */
-            'app/**/*.ts',
+            'viame-web-common/**/*.ts',
           ],
         },
       }),

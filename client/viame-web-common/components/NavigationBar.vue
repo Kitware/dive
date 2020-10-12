@@ -2,9 +2,9 @@
 import { mapState } from 'vuex';
 import { all } from '@girder/components/src/components/Job/status';
 
-import NavigationTitle from 'app/components/NavigationTitle.vue';
-import UserGuideButton from 'app/components/UserGuideButton.vue';
-import { getPathFromLocation } from 'app/utils';
+import NavigationTitle from 'viame-web-common/components/NavigationTitle.vue';
+import UserGuideButton from 'viame-web-common/components/UserGuideButton.vue';
+import { getPathFromLocation } from 'viame-web-common/utils';
 
 export default {
   name: 'GenericNavigationBar',

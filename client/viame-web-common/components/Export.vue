@@ -1,6 +1,6 @@
 <script>
-import { getExportUrls } from 'app/api/viameDetection.service';
-import { MediaTypes } from 'app/constants';
+import { getExportUrls } from 'viame-web-common/api/viameDetection.service';
+import { MediaTypes } from 'viame-web-common/constants';
 
 export default {
   props: {

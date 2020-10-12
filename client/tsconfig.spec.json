@@ -1,51 +1,10 @@
 {
+  "extends": "./tsconfig.json",
   "compilerOptions": {
+    /* Jest requires es5, not sure why */
     "target": "es5",
-    "module": "commonjs",
-    "strict": true,
-    "jsx": "preserve",
-    "importHelpers": true,
-    "moduleResolution": "node",
-    "allowJs": true,
-    "outDir": "./dist",
-    "esModuleInterop": true,
-    "allowSyntheticDefaultImports": true,
-    "sourceMap": true,
-    "baseUrl": ".",
-    "types": [
-      "vuetify",
-      "webpack-env"
-    ],
-    "paths": {
-      "vue-media-annotator/*": [
-        "src/*"
-      ],
-      "app/*": [
-        "app/*"
-      ]
-    },
-    "lib": [
-      "esnext",
-      "dom",
-      "dom.iterable",
-      "scripthost"
-    ],
-    "typeRoots": [
-      "src/@types",
-      "./node_modules/@types",
-      "./node_modules/vuetify/types"
-    ]
   },
   "include": [
-    "app/**/*.ts",
-    "app/**/*.vue",
-    "src/**/*.ts",
-    "src/**/*.tsx",
-    "src/**/*.vue",
     "tests/**/*.ts",
-    "tests/**/*.tsx",
-  ],
-  "exclude": [
-    "node_modules"
   ]
 }

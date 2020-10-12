@@ -1,12 +1,12 @@
 import Vue from 'vue';
 import Router from 'vue-router';
 
-import girderRest from 'app/plugins/girder';
-import Viewer from 'app/views/TrackViewer/Viewer.vue';
-import Home from 'app/views/Home.vue';
-import Jobs from 'app/views/Jobs.vue';
-import Login from 'app/views/Login.vue';
-import Settings from 'app/views/Settings.vue';
+import girderRest from 'viame-web-common/plugins/girder';
+import Viewer from 'viame-web-common/views/TrackViewer/Viewer.vue';
+import Home from 'viame-web-common/views/Home.vue';
+import Jobs from 'viame-web-common/views/Jobs.vue';
+import Login from 'viame-web-common/views/Login.vue';
+import Settings from 'viame-web-common/views/Settings.vue';
 
 Vue.use(Router);
 

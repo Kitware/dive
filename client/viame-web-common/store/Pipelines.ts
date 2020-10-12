@@ -1,5 +1,5 @@
 import { Module } from 'vuex';
-import { getPipelineList, Category } from 'app/api/viame.service';
+import { getPipelineList, Category } from 'viame-web-common/api/viame.service';
 
 export interface PipelineState {
     pipelines: null | Record<string, Category>;

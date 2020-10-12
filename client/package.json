@@ -2,11 +2,11 @@
   "name": "vue-media-annotator",
   "version": "1.0.0-beta.1",
   "scripts": {
-    "serve": "vue-cli-service serve app/main.ts",
-    "build": "vue-cli-service build app/main.ts",
+    "serve": "vue-cli-service serve viame-web-common/main.ts",
+    "build": "vue-cli-service build viame-web-common/main.ts",
     "build:lib": "rollup -c",
-    "lint": "vue-cli-service lint src/ app/",
-    "test": "vue-cli-service test:unit src/ app/"
+    "lint": "vue-cli-service lint src/ viame-web-common/",
+    "test": "vue-cli-service test:unit src/ viame-web-common/"
   },
   "resolutions": {
     "@types/jest": "^25.2.3"
@@ -81,7 +81,7 @@
     "verbose": true,
     "moduleNameMapper": {
       "^vue-media-annotator/(.*)$": "<rootDir>/src/$1",
-      "^app/(.*)$": "<rootDir>/app/$1",
+      "^viame-web-common/(.*)$": "<rootDir>/viame-web-common/$1",
       "\\.css$": "<rootDir>/test/stub.js"
     },
     "transform": {

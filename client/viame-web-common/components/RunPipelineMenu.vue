@@ -1,6 +1,6 @@
 <script>
 import { mapActions, mapState } from 'vuex';
-import { runPipeline } from 'app/api/viame.service';
+import { runPipeline } from 'viame-web-common/api/viame.service';
 
 export default {
   props: {

@@ -20,8 +20,8 @@
       "vue-media-annotator/*": [
         "src/*"
       ],
-      "app/*": [
-        "app/*"
+      "viame-web-common/*": [
+        "viame-web-common/*"
       ]
     },
     "lib": [
@@ -37,9 +37,9 @@
     ]
   },
   "include": [
-    "app/**/*.ts",
-    "app/**/*.tsx",
-    "app/**/*.vue",
+    "viame-web-common/**/*.ts",
+    "viame-web-common/**/*.tsx",
+    "viame-web-common/**/*.vue",
     "src/**/*.ts",
     "src/**/*.tsx",
     "src/**/*.vue",

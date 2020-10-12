@@ -1,7 +1,7 @@
 <script lang="ts">
 import Vue, { PropType } from 'vue';
 import { cloneDeep } from 'lodash';
-import { NewTrackSettings } from 'app/use/useSettings';
+import { NewTrackSettings } from 'viame-web-common/use/useSettings';
 
 export default Vue.extend({
   name: 'CreationMode',

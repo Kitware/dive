@@ -4,10 +4,10 @@ import {
 } from '@vue/composition-api';
 import { CustomStyle } from 'vue-media-annotator/use/useStyling';
 
-import { getFolder, getItemDownloadUri } from 'app/api/girder.service';
-import { getValidWebImages } from 'app/api/viame.service';
-import { getClipMeta } from 'app/api/viameDetection.service';
-import { ImageSequenceType, VideoType } from 'app/constants';
+import { getFolder, getItemDownloadUri } from 'viame-web-common/api/girder.service';
+import { getValidWebImages } from 'viame-web-common/api/viame.service';
+import { getClipMeta } from 'viame-web-common/api/viameDetection.service';
+import { ImageSequenceType, VideoType } from 'viame-web-common/constants';
 
 const defaultFrameRate = 30;
 

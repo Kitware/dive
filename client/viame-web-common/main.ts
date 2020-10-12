@@ -5,11 +5,11 @@ import NotificationBus from '@girder/components/src/utils/notifications';
 import { init as SentryInit } from '@sentry/browser';
 import { Vue as SentryVue } from '@sentry/integrations';
 
-import snackbarService from 'app/vue-utilities/snackbar-service';
-import promptService from 'app/vue-utilities/prompt-service';
-import vMousetrap from 'app/vue-utilities/v-mousetrap';
-import vuetify from 'app/plugins/vuetify';
-import girderRest from 'app/plugins/girder';
+import snackbarService from 'viame-web-common/vue-utilities/snackbar-service';
+import promptService from 'viame-web-common/vue-utilities/prompt-service';
+import vMousetrap from 'viame-web-common/vue-utilities/v-mousetrap';
+import vuetify from 'viame-web-common/plugins/vuetify';
+import girderRest from 'viame-web-common/plugins/girder';
 
 import App from './App.vue';
 import router from './router';

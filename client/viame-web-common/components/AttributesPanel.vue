@@ -6,8 +6,8 @@ import {
 import { useSelectedTrackId, useFrame, useTrackMap } from 'vue-media-annotator/provides';
 import Track, { TrackId, Feature } from 'vue-media-annotator/track';
 
-import { Attribute, getAttributes } from 'app/api/viame.service';
-import AttributeInput from 'app/components/AttributeInput.vue';
+import { Attribute, getAttributes } from 'viame-web-common/api/viame.service';
+import AttributeInput from 'viame-web-common/components/AttributeInput.vue';
 
 function getTrack(trackMap: Readonly<Map<TrackId, Track>>, trackId: TrackId): Track {
   const track = trackMap.get(trackId);

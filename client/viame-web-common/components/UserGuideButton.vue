@@ -1,5 +1,5 @@
 <script>
-import UserGuideDialog from 'app/components/UserGuideDialog.vue';
+import UserGuideDialog from 'viame-web-common/components/UserGuideDialog.vue';
 
 export default {
   components: {

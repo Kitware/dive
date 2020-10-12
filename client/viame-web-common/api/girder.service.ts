@@ -1,6 +1,6 @@
 import { GirderModel } from '@girder/components/src';
 
-import girderRest from 'app/plugins/girder';
+import girderRest from 'viame-web-common/plugins/girder';
 
 async function getItemsInFolder(folderId: string, limit: number) {
   const { data: items } = await girderRest.get('item', {

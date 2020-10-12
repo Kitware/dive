@@ -1,4 +1,4 @@
-import girderRest from 'app/plugins/girder';
+import girderRest from 'viame-web-common/plugins/girder';
 
 interface GirderModel {
   _id: string;

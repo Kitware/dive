@@ -9,9 +9,9 @@ import {
 import { TypeList, TrackList } from 'vue-media-annotator/components';
 import { useAllTypes } from 'vue-media-annotator/provides';
 
-import { NewTrackSettings } from 'app/use/useSettings';
-import AttributesPanel from 'app/components/AttributesPanel.vue';
-import CreationMode from 'app/components/CreationMode.vue';
+import { NewTrackSettings } from 'viame-web-common/use/useSettings';
+import AttributesPanel from 'viame-web-common/components/AttributesPanel.vue';
+import CreationMode from 'viame-web-common/components/CreationMode.vue';
 
 export default defineComponent({
   props: {

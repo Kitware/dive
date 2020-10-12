@@ -3,12 +3,12 @@ import { mapMutations } from 'vuex';
 import { FileManager } from '@girder/components/src/components/Snippet';
 import { getLocationType } from '@girder/components/src/utils';
 
-import { deleteResources } from 'app/api/viame.service';
-import Export from 'app/components/Export.vue';
-import NavigationBar from 'app/components/NavigationBar.vue';
-import RunPipelineMenu from 'app/components/RunPipelineMenu.vue';
-import Upload from 'app/components/Upload.vue';
-import { getPathFromLocation, getLocationFromRoute } from 'app/utils';
+import { deleteResources } from 'viame-web-common/api/viame.service';
+import Export from 'viame-web-common/components/Export.vue';
+import NavigationBar from 'viame-web-common/components/NavigationBar.vue';
+import RunPipelineMenu from 'viame-web-common/components/RunPipelineMenu.vue';
+import Upload from 'viame-web-common/components/Upload.vue';
+import { getPathFromLocation, getLocationFromRoute } from 'viame-web-common/utils';
 
 export default {
   name: 'Home',

@@ -20,25 +20,25 @@ import {
   LayerManager,
 } from 'vue-media-annotator/components';
 
-import PolygonBase from 'app/recipes/polygonbase';
-import HeadTail from 'app/recipes/headtail';
+import PolygonBase from 'viame-web-common/recipes/polygonbase';
+import HeadTail from 'viame-web-common/recipes/headtail';
 
-import { getDetections } from 'app/api/viameDetection.service';
-import NavigationTitle from 'app/components/NavigationTitle.vue';
-import EditorMenu from 'app/components/EditorMenu.vue';
-import ConfidenceFilter from 'app/components/ConfidenceFilter.vue';
-import UserGuideButton from 'app/components/UserGuideButton.vue';
-import Export from 'app/components/Export.vue';
-import RunPipelineMenu from 'app/components/RunPipelineMenu.vue';
-import DeleteControls from 'app/components/DeleteControls.vue';
-import { Annotator } from 'app/use/useModeManager';
-import { getPathFromLocation } from 'app/utils';
+import { getDetections } from 'viame-web-common/api/viameDetection.service';
+import NavigationTitle from 'viame-web-common/components/NavigationTitle.vue';
+import EditorMenu from 'viame-web-common/components/EditorMenu.vue';
+import ConfidenceFilter from 'viame-web-common/components/ConfidenceFilter.vue';
+import UserGuideButton from 'viame-web-common/components/UserGuideButton.vue';
+import Export from 'viame-web-common/components/Export.vue';
+import RunPipelineMenu from 'viame-web-common/components/RunPipelineMenu.vue';
+import DeleteControls from 'viame-web-common/components/DeleteControls.vue';
+import { Annotator } from 'viame-web-common/use/useModeManager';
+import { getPathFromLocation } from 'viame-web-common/utils';
 import {
   useGirderDataset,
   useModeManager,
   useSave,
   useSettings,
-} from 'app/use';
+} from 'viame-web-common/use';
 
 import ControlsContainer from './ControlsContainer.vue';
 import Sidebar from './Sidebar.vue';

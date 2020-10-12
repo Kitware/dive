@@ -1,8 +1,8 @@
 import { ref } from '@vue/composition-api';
 import Track, { TrackId } from 'vue-media-annotator/track';
 
-import { saveDetections } from 'app/api/viameDetection.service';
-import { setMetadataForFolder } from 'app/api/viame.service';
+import { saveDetections } from 'viame-web-common/api/viameDetection.service';
+import { setMetadataForFolder } from 'viame-web-common/api/viame.service';
 
 export default function useSave(datasetId: string) {
   const pendingSaveCount = ref(0);
