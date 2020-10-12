@@ -321,7 +321,7 @@ export default defineComponent({
     }
   }
   .input-box {
-    border: 1px solid rgb(255, 255, 255, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.15);
     border-radius: 4px;
     padding: 0 6px;
     width: 135px;
