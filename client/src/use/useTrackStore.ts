@@ -83,7 +83,7 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
     return track;
   }
 
-  function removeTrack(trackId: TrackId): void {
+  function removeTrack(trackId: TrackId | null): void {
     if (trackId === null) {
       return;
     }
