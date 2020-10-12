@@ -123,6 +123,21 @@ export default function useModeManager({
     creating = false;
   }
 
+  //Handles deselection or hitting escape including while editing
+  function handleEscapeMode() {
+    if (selectedTrackId.value !== null) {
+      const track = trackMap.get(selectedTrackId.value);
+      if (track && track.begin === track.end) {
+        const features = track.getFeature(track.begin);
+        // If no features exist we remove the empty track
+        if (!features.filter((item) => item !== null).length) {
+          removeTrack(selectedTrackId.value);
+        }
+      }
+    }
+    handleSelectTrack(null, false);
+  }
+
   function handleAddTrackOrDetection() {
     // Handles adding a new track with the NewTrack Settings
     selectTrack(addTrack(frame.value, newTrackSettings.type).trackId, true);
@@ -394,6 +409,7 @@ export default function useModeManager({
       updateRectBounds: handleUpdateRectBounds,
       updateGeoJSON: handleUpdateGeoJSON,
       selectNext: handleSelectNext,
+      escapeMode: handleEscapeMode,
       trackClick: handleTrackClick,
       removeTrack: handleRemoveTrack,
       removePoint: handleRemovePoint,
