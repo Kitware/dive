@@ -15,5 +15,4 @@ export {
 
   use,
   layers,
-  // components,
 };
