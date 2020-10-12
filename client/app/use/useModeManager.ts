@@ -123,6 +123,21 @@ export default function useModeManager({
     creating = false;
   }
 
+  //Handles deselection or hitting escape including while editing
+  function handleEscapeMode() {
+    if (selectedTrackId.value !== null) {
+      const track = trackMap.get(selectedTrackId.value);
+      if (track && track.begin === track.end) {
+        const features = track.getFeature(track.begin);
+        // If no features exist we remove the empty track
+        if (!features.filter((item) => item !== null).length) {
+          removeTrack(selectedTrackId.value);
+        }
+      }
+    }
+    handleSelectTrack(null, false);
+  }
+
   function handleAddTrackOrDetection(): TrackId {
     // Handles adding a new track with the NewTrack Settings
     const newTrackId = addTrack(frame.value, newTrackSettings.type).trackId;
@@ -394,6 +409,7 @@ export default function useModeManager({
     selectedKey,
     handler: {
       trackAdd: handleAddTrackOrDetection,
+      trackAbort: handleEscapeMode,
       trackEdit: handleTrackEdit,
       trackSeek: handleTrackClick,
       trackSelect: handleSelectTrack,

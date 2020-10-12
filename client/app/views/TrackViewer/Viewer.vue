@@ -387,9 +387,9 @@ export default defineComponent({
           v-if="imageData.length || videoUrl"
           ref="playbackComponent"
           v-mousetrap="[
-            { bind: 'n', handler: () => handler.trackAdd },
+            { bind: 'n', handler: () => handler.trackAdd() },
             { bind: 'r', handler: () => playbackComponent.resetZoom() },
-            { bind: 'esc', handler: () => handler.trackSelect(null, false)}
+            { bind: 'esc', handler: () => handler.trackAbort() },
           ]"
           v-bind="{ imageData, videoUrl, frameRate }"
           class="playback-component"
