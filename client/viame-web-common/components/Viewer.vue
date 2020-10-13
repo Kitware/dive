@@ -1,9 +1,7 @@
 <script lang="ts">
-import {
-  computed,
-  defineComponent,
-  ref,
-} from '@vue/composition-api';
+import { computed, defineComponent, ref } from '@vue/composition-api';
+
+/* VUE MEDIA ANNOTATOR */
 import Track, { TrackId } from 'vue-media-annotator/track';
 import {
   useLineChart,
@@ -20,10 +18,9 @@ import {
   LayerManager,
 } from 'vue-media-annotator/components';
 
+/* VIAME WEB COMMON */
 import PolygonBase from 'viame-web-common/recipes/polygonbase';
 import HeadTail from 'viame-web-common/recipes/headtail';
-
-
 import NavigationTitle from 'viame-web-common/components/NavigationTitle.vue';
 import EditorMenu from 'viame-web-common/components/EditorMenu.vue';
 import ConfidenceFilter from 'viame-web-common/components/ConfidenceFilter.vue';
@@ -31,17 +28,35 @@ import UserGuideButton from 'viame-web-common/components/UserGuideButton.vue';
 import Export from 'viame-web-common/components/Export.vue';
 import RunPipelineMenu from 'viame-web-common/components/RunPipelineMenu.vue';
 import DeleteControls from 'viame-web-common/components/DeleteControls.vue';
+import ControlsContainer from 'viame-web-common/components/ControlsContainer.vue';
+import Sidebar from 'viame-web-common/components/Sidebar.vue';
 import { Annotator } from 'viame-web-common/use/useModeManager';
 import { getPathFromLocation } from 'viame-web-common/utils';
 import {
-  useGirderDataset,
   useModeManager,
   useSave,
   useSettings,
 } from 'viame-web-common/use';
+import { useApi, useDatasetId } from 'viame-web-common/apispec';
 
-import ControlsContainer from './ControlsContainer.vue';
-import Sidebar from './Sidebar.vue';
+interface FrameImage {
+  url: string;
+  filename: string;
+}
+
+/**
+ * TODO: These props are subject to change.
+ * They're based on some state that had to be refactored,
+ * and exist as the minimal delta between was we had and what
+ * we needed.  This does not represent the
+ * ideal interface.
+ */
+interface ViewerProps {
+  frameRate: number;
+  annotatorType: 'VideoAnnotator' | 'ImageAnnotator';
+  imageData: FrameImage[];
+  videoUrl: string;
+}
 
 export default defineComponent({
   components: {
@@ -59,19 +74,24 @@ export default defineComponent({
     EditorMenu,
   },
 
+  // TODO: remove this in vue 3
+  props: ['frameRate', 'annotatorType', 'imageData', 'videoUrl'],
 
-  setup(_, ctx) {
+  setup(props: ViewerProps, ctx) {
     // TODO: eventually we will have to migrate away from this style
     // and use the new plugin pattern:
     // https://vue-composition-api-rfc.netlify.com/#plugin-development
     const prompt = ctx.root.$prompt;
-
-    const { datasetId } = props;
     const playbackComponent = ref({} as Annotator);
     const frame = ref(0); // the currently displayed frame number
+    const { loadDetections, loadMetadata } = useApi();
+    const datasetId = useDatasetId();
+
     const {
-      save: saveToServer, markChangesPending, pendingSaveCount,
-    } = useSave(datasetId);
+      save: saveToServer,
+      markChangesPending,
+      pendingSaveCount,
+    } = useSave();
 
     const recipes = [
       new PolygonBase(),
@@ -87,15 +107,6 @@ export default defineComponent({
     } = useStyling({ markChangesPending });
 
     const {
-      dataset,
-      frameRate,
-      annotatorType,
-      imageData,
-      videoUrl,
-      loadDataset,
-    } = useGirderDataset();
-
-    const {
       trackMap,
       sortedTracks,
       intervalTree,
@@ -107,6 +118,14 @@ export default defineComponent({
       removeTrack: tsRemoveTrack,
     } = useTrackStore({ markChangesPending });
 
+    async function loadTracks() {
+      const data = await loadDetections(datasetId.value);
+      if (data !== null) {
+        Object.values(data).forEach(
+          (trackData) => insertTrack(Track.fromJSON(trackData)),
+        );
+      }
+    }
 
     const {
       checkedTrackIds,
@@ -123,16 +142,12 @@ export default defineComponent({
     } = useTrackFilters({ sortedTracks });
 
     Promise.all([
-      loadDataset(datasetId),
-      loadTracks(datasetId),
-    ]).then(([ds]) => {
+      loadMetadata(datasetId.value),
+      loadTracks(),
+    ]).then(([meta]) => {
       // tasks to run after dataset and tracks have loaded
-      populateTypeStyles(ds.meta.customTypeStyling);
-      populateConfidenceFilters(ds.meta.confidenceFilters);
-      ctx.root.$store.commit('Location/setLocation', {
-        _id: ds.parentId,
-        _modelType: ds.parentCollection,
-      });
+      populateTypeStyles(meta.customTypeStyling);
+      populateConfidenceFilters(meta.confidenceFilters);
     });
 
     const {
@@ -255,7 +270,6 @@ export default defineComponent({
 
     return {
       /* props */
-      annotatorType,
       confidenceThreshold,
       dataPath,
       dataset,
@@ -263,9 +277,7 @@ export default defineComponent({
       editingMode,
       eventChartData,
       frame,
-      frameRate,
       getPathFromLocation,
-      imageData,
       lineChartData,
       newTrackSettings: clientSettings.newTrackSettings,
       pendingSaveCount,
@@ -274,7 +286,6 @@ export default defineComponent({
       selectedFeatureHandle,
       selectedTrackId,
       selectedKey,
-      videoUrl,
       visibleModes,
       /* methods */
       handler: globalHandler,
@@ -288,9 +299,7 @@ export default defineComponent({
 </script>
 
 <template>
-  <v-main
-    class="viewer"
-  >
+  <v-main class="viewer">
     <v-app-bar app>
       <navigation-title />
       <v-tabs
@@ -332,7 +341,7 @@ export default defineComponent({
         :selected="[dataset]"
       />
       <span class="ml-2">
-        <export :folder-id="datasetId" />
+        <export />
       </span>
       <user-guide-button annotating />
       <v-badge

@@ -1,21 +1,21 @@
 import { ref } from '@vue/composition-api';
 import Track, { TrackId } from 'vue-media-annotator/track';
+import { useApi, useDatasetId, DatasetMetaMutable } from 'viame-web-common/apispec';
 
-import { saveDetections } from 'viame-web-common/api/viameDetection.service';
-import { setMetadataForFolder } from 'viame-web-common/api/viame.service';
-
-export default function useSave(datasetId: string) {
+export default function useSave() {
   const pendingSaveCount = ref(0);
   const pendingChangeMap = {
     upsert: new Map<TrackId, Track>(),
     delete: new Set<TrackId>(),
   };
+  const datasetId = useDatasetId();
+  const { saveDetections, saveMetadata } = useApi();
 
   async function save(
-    datasetMeta?: object,
+    datasetMeta?: DatasetMetaMutable,
   ) {
     if (pendingChangeMap.upsert.size || pendingChangeMap.delete.size) {
-      await saveDetections(datasetId, {
+      await saveDetections(datasetId.value, {
         upsert: pendingChangeMap.upsert,
         delete: Array.from(pendingChangeMap.delete),
       });
@@ -23,7 +23,7 @@ export default function useSave(datasetId: string) {
       pendingChangeMap.delete.clear();
     }
     if (datasetMeta) {
-      await setMetadataForFolder(datasetId, datasetMeta);
+      await saveMetadata(datasetId.value, datasetMeta);
     }
     pendingSaveCount.value = 0;
   }

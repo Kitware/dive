@@ -1,4 +1,4 @@
-import girderRest from 'viame-web-common/plugins/girder';
+import girderRest from '../plugins/girder';
 
 interface GirderModel {
   _id: string;
@@ -86,7 +86,7 @@ function runPipeline(itemId: string, pipeline: string) {
   );
 }
 
-function setMetadataForFolder(folderId: string, metadata: object) {
+function saveMetadata(folderId: string, metadata: object) {
   return girderRest.put(
     `/folder/${folderId}/metadata?allowNull=true`,
     metadata,
@@ -119,7 +119,7 @@ export {
   makeViameFolder,
   postProcess,
   runPipeline,
-  setMetadataForFolder,
+  saveMetadata,
   validateUploadGroup,
   getValidWebImages,
 };

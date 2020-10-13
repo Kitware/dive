@@ -2,22 +2,18 @@ import { GirderModel } from '@girder/components/src';
 import {
   ref, computed, watchEffect,
 } from '@vue/composition-api';
-import { CustomStyle } from 'vue-media-annotator/use/useStyling';
 
-import { getFolder, getItemDownloadUri } from 'viame-web-common/api/girder.service';
-import { getValidWebImages } from 'viame-web-common/api/viame.service';
-import { getClipMeta } from 'viame-web-common/api/viameDetection.service';
 import { ImageSequenceType, VideoType } from 'viame-web-common/constants';
+
+import { getFolder, getItemDownloadUri } from './api/girder.service';
+import { getValidWebImages } from './api/viame.service';
+import { getClipMeta } from './api/viameDetection.service';
+import { DatasetMeta } from 'viame-web-common/apispec';
 
 const defaultFrameRate = 30;
 
 interface VIAMEDataset extends GirderModel {
-  meta: {
-    type: 'video' | 'image-sequence';
-    fps: number | string;
-    customTypeStyling?: Record<string, CustomStyle>;
-    confidenceFilters?: Record<string, number>;
-  };
+  meta: DatasetMeta;
 }
 
 interface FrameImage {

@@ -1,29 +1,81 @@
 <script lang="ts">
-import { defineComponent } from '@vue/composition-api';
+import { defineComponent, toRef } from '@vue/composition-api';
 
-import { getDetections } from '../api/viameDetection.service';
+import Viewer from 'viame-web-common/components/Viewer.vue';
+import { provideApi } from 'viame-web-common/apispec';
+
+import {
+  getAttributes,
+  getPipelineList,
+  runPipeline,
+  saveMetadata,
+} from '../api/viame.service';
+import {
+  getDetections,
+  getExportUrls,
+  saveDetections,
+} from '../api/viameDetection.service';
+import useGirderDataset from '../useGirderDataset';
+
+interface Props {
+  datasetId: string;
+}
+
 /**
  * ViewerLoader is responsible for loading
  * data from girder.
  */
 export default defineComponent({
-  props: {
-    datasetId: {
-      type: String,
-      required: true,
-    },
-  },
+  components: { Viewer },
 
-  setup(props) {
+  // TODO: remove in vue 3
+  props: ['datasetId'],
 
-    async function loadTracks(datasetFolderId: string) {
-      const data = await getDetections(datasetFolderId, 'track_json');
-      if (data !== null) {
-        Object.values(data).forEach(
-          (trackData) => insertTrack(Track.fromJSON(trackData)),
-        );
-      }
+  setup(props: Props, { root }) {
+    const {
+      frameRate,
+      annotatorType,
+      imageData,
+      videoUrl,
+      loadDataset,
+    } = useGirderDataset();
+
+    /* intercept dataset load to set store location */
+    async function loadMetadata(id: string) {
+      const ds = await loadDataset(id);
+      root.$store.commit('Location/setLocation', {
+        _id: ds.parentId,
+        _modelType: ds.parentCollection,
+      });
+      return ds.meta;
     }
+
+    provideApi({
+      getAttributes,
+      getPipelineList,
+      runPipeline,
+      saveMetadata,
+      getExportUrls,
+      loadDetections: (id: string) => getDetections(id, 'track_json'),
+      saveDetections,
+      loadMetadata,
+    }, toRef(props, 'datasetId'));
+
+    return {
+      frameRate,
+      annotatorType,
+      imageData,
+      videoUrl,
+    };
   },
 })
 </script>
+
+<template>
+  <Viewer
+    :frame-rate="frameRate"
+    :annotator-type="annotatorType"
+    :image-data="imageData"
+    :video-url="videoUrl"
+  />
+</template>

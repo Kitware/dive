@@ -1,6 +1,5 @@
 import Track, { TrackData, TrackId } from 'vue-media-annotator/track';
-
-import girderRest from 'viame-web-common/plugins/girder';
+import girderRest from '../plugins/girder';
 
 interface ExportUrlsResponse {
   mediaType: string;
