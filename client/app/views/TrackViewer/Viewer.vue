@@ -190,7 +190,7 @@ export default defineComponent({
       removeTrack,
     });
 
-    async function splitTracks(trackId: TrackId | undefined, _frame: number) {
+    async function trackSplit(trackId: TrackId | null, _frame: number) {
       if (typeof trackId === 'number') {
         const track = getTrack(trackId);
         let newtracks: [Track, Track];
@@ -213,18 +213,18 @@ export default defineComponent({
           return;
         }
         const wasEditing = editingTrack.value;
-        handler.selectTrack(null);
+        handler.trackSelect(null);
         tsRemoveTrack(trackId);
         insertTrack(newtracks[0]);
         insertTrack(newtracks[1]);
-        handler.selectTrack(newtracks[1].trackId, wasEditing);
+        handler.trackSelect(newtracks[1].trackId, wasEditing);
       }
     }
 
     function save() {
       // If editing the track, disable editing mode before save
       if (editingTrack.value) {
-        handler.selectTrack(selectedTrackId.value, false);
+        handler.trackSelect(selectedTrackId.value, false);
       }
       saveToServer({
         customTypeStyling: getTypeStyles(allTypes),
@@ -240,6 +240,15 @@ export default defineComponent({
     const dataPath = computed(() => (
       getPathFromLocation(ctx.root.$store.state.Location.location)));
 
+    const globalHandler = {
+      ...handler,
+      setCheckedTypes: updateCheckedTypes,
+      trackSplit,
+      trackEnable: updateCheckedTrackId,
+      updateTypeName,
+      updateTypeStyle,
+    };
+
     provideAnnotator(
       allTypes,
       checkedTrackIds,
@@ -247,6 +256,7 @@ export default defineComponent({
       editingMode,
       enabledTracks,
       frame,
+      globalHandler,
       intervalTree,
       trackMap,
       filteredTracks,
@@ -281,17 +291,11 @@ export default defineComponent({
       videoUrl,
       visibleModes,
       /* methods */
-      addTrack,
-      handler,
+      handler: globalHandler,
       markChangesPending,
       save,
       saveThreshold,
-      splitTracks,
-      updateCheckedTrackId,
-      updateCheckedTypes,
       updateNewTrackSettings,
-      updateTypeStyle,
-      updateTypeName,
     };
   },
 });
@@ -369,20 +373,8 @@ export default defineComponent({
     >
       <sidebar
         v-bind="{ newTrackSettings }"
-        @track-add="handler.addTrack"
-        @track-remove="handler.removeTrack"
-        @track-click="handler.trackClick"
-        @track-checked="updateCheckedTrackId"
-        @track-edit="handler.trackEdit"
-        @track-next="handler.selectNext(1)"
-        @track-previous="handler.selectNext(-1)"
-        @track-type-change="handler.trackTypeChange($event)"
         @update-new-track-settings="updateNewTrackSettings($event)"
-        @track-split="splitTracks($event, frame)"
         @track-seek="playbackComponent.seek($event)"
-        @update-type-style="updateTypeStyle($event)"
-        @update-type-name="updateTypeName($event)"
-        @update-checked-types="updateCheckedTypes($event)"
       >
         <ConfidenceFilter
           :confidence.sync="confidenceThreshold"
@@ -395,9 +387,9 @@ export default defineComponent({
           v-if="imageData.length || videoUrl"
           ref="playbackComponent"
           v-mousetrap="[
-            { bind: 'n', handler: () => handler.addTrack },
+            { bind: 'n', handler: () => handler.trackAdd() },
             { bind: 'r', handler: () => playbackComponent.resetZoom() },
-            { bind: 'esc', handler: () => handler.escapeMode()}
+            { bind: 'esc', handler: () => handler.trackAbort() },
           ]"
           v-bind="{ imageData, videoUrl, frameRate }"
           class="playback-component"
@@ -406,15 +398,10 @@ export default defineComponent({
           <template slot="control">
             <controls-container
               v-bind="{ lineChartData, eventChartData }"
-              @select-track="handler.selectTrack"
+              @select-track="handler.trackSelect"
             />
           </template>
-          <layer-manager
-            @select-track="handler.selectTrack"
-            @select-feature-handle="handler.selectFeatureHandle"
-            @update-rect-bounds="handler.updateRectBounds"
-            @update-geojson="handler.updateGeoJSON"
-          />
+          <layer-manager />
         </component>
       </v-col>
     </v-row>
