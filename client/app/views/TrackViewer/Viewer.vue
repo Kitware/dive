@@ -3,6 +3,7 @@ import {
   computed,
   defineComponent,
   ref,
+  onBeforeUnmount,
 } from '@vue/composition-api';
 import Track, { TrackId } from 'vue-media-annotator/track';
 import {
@@ -65,19 +66,13 @@ export default defineComponent({
       required: true,
     },
   },
+  // TODO: This will require an import from vue-router for Vue3 compatibility
   async beforeRouteLeave(to, from, next) {
-    if (!await this.navigateAway()) {
+    if (!(await this.navigateAway())) {
       next(false);
     } else {
       next();
     }
-  },
-  beforeMount() {
-    window.addEventListener('beforeunload', this.preventNav);
-  },
-
-  beforeDestroy() {
-    window.removeEventListener('beforeunload', this.preventNav);
   },
   setup(props, ctx) {
     // TODO: eventually we will have to migrate away from this style
@@ -93,7 +88,17 @@ export default defineComponent({
     } = useSave(datasetId);
 
 
-    async function navigateAway() {
+    async function preventNav(event: BeforeUnloadEvent) {
+      if (pendingSaveCount.value === 0) return;
+      event.preventDefault();
+      // eslint-disable-next-line no-param-reassign
+      event.returnValue = '';
+    }
+    window.addEventListener('beforeunload', preventNav);
+    onBeforeUnmount(() => {
+      window.removeEventListener('beforeunload', preventNav);
+    });
+    async function navigateAway(): Promise<boolean> {
       let result = true;
       if (pendingSaveCount.value > 0) {
         result = await prompt({
@@ -103,12 +108,6 @@ export default defineComponent({
         });
       }
       return result;
-    }
-    async function preventNav(event: BeforeUnloadEvent) {
-      if (!pendingSaveCount.value) return;
-      event.preventDefault();
-      // eslint-disable-next-line no-param-reassign
-      event.returnValue = '';
     }
     const recipes = [
       new PolygonBase(),
@@ -279,6 +278,7 @@ export default defineComponent({
       trackEnable: updateCheckedTrackId,
       updateTypeName,
       updateTypeStyle,
+      removeTypeTracks,
     };
 
     provideAnnotator(
@@ -333,7 +333,6 @@ export default defineComponent({
       removeTypeTracks,
       // For Navigation Guarding
       navigateAway,
-      preventNav,
     };
   },
 });

@@ -152,13 +152,13 @@ export default defineComponent({
         }
       });
 
-      const result = await prompt({
-        title: 'Confirm',
-        text,
-        confirm: true,
-      });
-      if (result) {
-        emit('track-remove', tracksDisplayed);
+      // const result = await prompt({
+      //   title: 'Confirm',
+      //   text,
+      //   confirm: true,
+      // });
+      if (true) {
+        removeTrack(tracksDisplayed);
       }
     }
 
@@ -182,7 +182,9 @@ export default defineComponent({
         {
           bind: 'del',
           handler: () => {
-            removeTrack(selectedTrackIdRef.value);
+            if (selectedTrackIdRef.value !== null) {
+              removeTrack([selectedTrackIdRef.value]);
+            }
           },
           disabled,
         },

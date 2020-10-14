@@ -1,12 +1,11 @@
 <script lang="ts">
-import { defineComponent, reactive } from '@vue/composition-api';
+import { computed, defineComponent, reactive } from '@vue/composition-api';
 import {
   useCheckedTypes, useAllTypes, useTypeStyling, useHandler,
 } from '../provides';
 
 export default defineComponent({
   name: 'TypeList',
-
   setup() {
     const data = reactive({
       showPicker: false,
@@ -26,6 +25,7 @@ export default defineComponent({
       updateTypeName,
       updateTypeStyle,
       setCheckedTypes,
+      removeTypeTracks,
     } = useHandler();
 
     function clickEdit(type: string) {
@@ -46,13 +46,13 @@ export default defineComponent({
         text.push(item.toString());
       });
 
-      const result = await prompt({
-        title: 'Confirm',
-        text,
-        confirm: true,
-      });
-      if (result) {
-        emit('delete-type-tracks', { type: checkedTypesRef.value });
+      // const result = await prompt({
+      //   title: 'Confirm',
+      //   text,
+      //   confirm: true,
+      // });
+      if (true) {
+        removeTypeTracks([...checkedTypesRef.value]);
       }
     }
 
@@ -84,10 +84,10 @@ export default defineComponent({
 
     function headCheckClicked() {
       if (headCheckState.value === 0) {
-        emit('update-checked-types', allTypesRef.value);
+        setCheckedTypes([...allTypesRef.value]);
         return;
       }
-      emit('update-checked-types', []);
+      setCheckedTypes([]);
     }
 
 
