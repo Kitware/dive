@@ -22,7 +22,7 @@ async function getExportUrls(
   })).data;
 }
 
-async function getDetections(folderId: string, formatting = 'track_json') {
+async function loadDetections(folderId: string, formatting = 'track_json') {
   const { data } = await girderRest.get('viame_detection', {
     params: { folderId, formatting },
   });
@@ -59,6 +59,6 @@ async function getClipMeta(folderId: string) {
 export {
   getClipMeta,
   getExportUrls,
-  getDetections,
+  loadDetections,
   saveDetections,
 };

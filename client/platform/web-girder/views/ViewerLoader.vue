@@ -1,21 +1,8 @@
 <script lang="ts">
 import { computed, defineComponent, toRef } from '@vue/composition-api';
-
 import Viewer from 'viame-web-common/components/Viewer.vue';
-import { provideApi } from 'viame-web-common/apispec';
 
-import {
-  getAttributes,
-  getPipelineList,
-  runPipeline,
-  saveMetadata,
-} from '../api/viame.service';
-import {
-  getDetections as loadDetections,
-  saveDetections,
-} from '../api/viameDetection.service';
 import { getPathFromLocation } from '../utils';
-import useGirderDataset from '../useGirderDataset';
 import Export from './Export.vue';
 
 /**
@@ -33,37 +20,11 @@ export default defineComponent({
   },
 
   setup(props, { root }) {
-    const {
-      frameRate,
-      annotatorType,
-      imageData,
-      videoUrl,
-      loadDataset,
-      dataset,
-    } = useGirderDataset();
-
-    /* intercept dataset load to set store location */
-    async function loadMetadata(id: string) {
-      const ds = await loadDataset(id);
-      root.$store.commit('Location/setLocation', {
-        _id: ds.parentId,
-        _modelType: ds.parentCollection,
-      });
-      return ds.meta;
-    }
-
-    provideApi(
-      {
-        getAttributes,
-        getPipelineList,
-        runPipeline,
-        loadDetections,
-        saveDetections,
-        loadMetadata,
-        saveMetadata,
-      },
-      toRef(props, 'datasetId'),
-    );
+    const dataset = toRef(root.$store.state.Dataset, 'dataset');
+    const frameRate = toRef(root.$store.getters, 'Dataset/frameRate');
+    const annotatorType = toRef(root.$store.getters, 'Dataset/annotatorType');
+    const imageData = toRef(root.$store.state.Dataset, 'imageData');
+    const videoUrl = toRef(root.$store.state.Dataset, 'videoUrl');
 
     const dataPath = computed(() => (
       getPathFromLocation(root.$store.state.Location.location)));
@@ -86,6 +47,7 @@ export default defineComponent({
     :annotator-type="annotatorType"
     :image-data="imageData"
     :video-url="videoUrl"
+    :dataset-id="datasetId"
   >
     <template #title>
       <v-tabs

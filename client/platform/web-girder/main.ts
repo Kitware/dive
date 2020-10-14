@@ -9,6 +9,7 @@ import snackbarService from 'viame-web-common/vue-utilities/snackbar-service';
 import promptService from 'viame-web-common/vue-utilities/prompt-service';
 import vMousetrap from 'viame-web-common/vue-utilities/v-mousetrap';
 
+
 import vuetify from './plugins/vuetify';
 import girderRest from './plugins/girder';
 import App from './App.vue';

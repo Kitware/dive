@@ -1,28 +1,29 @@
-<script>
+<script lang="ts">
+import {
+  defineComponent, reactive, toRefs, onBeforeUnmount,
+} from '@vue/composition-api';
 import { Authentication as GirderAuth } from '@girder/components/src/components';
+import { useGirderRest } from '../plugins/girder';
 
-export default {
+export default defineComponent({
   name: 'Login',
   components: {
     GirderAuth,
   },
-  inject: ['girderRest'],
-  data() {
-    return {
+  setup(_, { root }) {
+    const data = reactive({
       form: 'login',
       userDialog: true,
-    };
+    });
+    const girderRest = useGirderRest();
+    function onLogin() {
+      root.$router.push('/');
+    }
+    girderRest.$on('login', onLogin);
+    onBeforeUnmount(() => girderRest.$off('login', onLogin));
+    return toRefs(data);
   },
-  watch: {
-    'girderRest.user': {
-      handler(user) {
-        if (user) {
-          this.$router.push('/');
-        }
-      },
-    },
-  },
-};
+});
 </script>
 
 <template>

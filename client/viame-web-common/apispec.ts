@@ -1,11 +1,10 @@
-import { provide, Ref } from '@vue/composition-api';
+import { provide } from '@vue/composition-api';
 
 import { use } from 'vue-media-annotator/provides';
 import Track, { TrackData, TrackId } from 'vue-media-annotator/track';
 import { CustomStyle } from 'vue-media-annotator/use/useStyling';
 
 const ApiSymbol = Symbol('api');
-const DatasetIdSymbol = Symbol('datasetId');
 
 interface Attribute {
   belongs: 'track' | 'detection';
@@ -60,15 +59,9 @@ interface Api {
  * provideApi specifies an implementation of the data persistence interface
  * for use in vue-web-common
  * @param api an api implementation
- * @param datasetId an arbitrary string identifier for the active dataset
  */
-function provideApi(api: Api, datasetId: Ref<string>) {
+function provideApi(api: Api) {
   provide(ApiSymbol, api);
-  provide(DatasetIdSymbol, datasetId);
-}
-
-function useDatasetId() {
-  return use<Readonly<Ref<string>>>(DatasetIdSymbol);
 }
 
 function useApi() {
@@ -85,5 +78,4 @@ export {
   SaveDetectionsArgs,
   provideApi,
   useApi,
-  useDatasetId,
 };

@@ -1,14 +1,13 @@
-import { ref } from '@vue/composition-api';
+import { ref, Ref } from '@vue/composition-api';
 import Track, { TrackId } from 'vue-media-annotator/track';
-import { useApi, useDatasetId, DatasetMetaMutable } from 'viame-web-common/apispec';
+import { useApi, DatasetMetaMutable } from 'viame-web-common/apispec';
 
-export default function useSave() {
+export default function useSave(datasetId: Ref<Readonly<string>>) {
   const pendingSaveCount = ref(0);
   const pendingChangeMap = {
     upsert: new Map<TrackId, Track>(),
     delete: new Set<TrackId>(),
   };
-  const datasetId = useDatasetId();
   const { saveDetections, saveMetadata } = useApi();
 
   async function save(

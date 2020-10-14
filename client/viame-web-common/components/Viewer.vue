@@ -1,5 +1,7 @@
 <script lang="ts">
-import { defineComponent, ref, PropType } from '@vue/composition-api';
+import {
+  defineComponent, ref, PropType, toRef,
+} from '@vue/composition-api';
 
 /* VUE MEDIA ANNOTATOR */
 import Track, { TrackId } from 'vue-media-annotator/track';
@@ -35,7 +37,7 @@ import {
   useSave,
   useSettings,
 } from 'viame-web-common/use';
-import { useApi, useDatasetId } from 'viame-web-common/apispec';
+import { useApi } from 'viame-web-common/apispec';
 
 interface FrameImage {
   url: string;
@@ -59,12 +61,16 @@ export default defineComponent({
 
   // TODO: remove this in vue 3
   props: {
+    datasetId: {
+      type: String,
+      required: true,
+    },
     frameRate: {
       type: Number,
       required: true,
     },
     annotatorType: {
-      type: String as PropType<'VideoAnnotator' | 'ImageAnnotator'>,
+      type: String as PropType<'VideoAnnotator' | 'ImageAnnotator' | ''>,
       required: true,
     },
     imageData: {
@@ -85,13 +91,12 @@ export default defineComponent({
     const playbackComponent = ref({} as Annotator);
     const frame = ref(0); // the currently displayed frame number
     const { loadDetections, loadMetadata } = useApi();
-    const datasetId = useDatasetId();
 
     const {
       save: saveToServer,
       markChangesPending,
       pendingSaveCount,
-    } = useSave();
+    } = useSave(toRef(props, 'datasetId'));
 
     const recipes = [
       new PolygonBase(),
@@ -118,8 +123,8 @@ export default defineComponent({
       removeTrack: tsRemoveTrack,
     } = useTrackStore({ markChangesPending });
 
-    async function loadTracks() {
-      const data = await loadDetections(datasetId.value);
+    async function loadTracks(datasetId: string) {
+      const data = await loadDetections(datasetId);
       if (data !== null) {
         Object.values(data).forEach(
           (trackData) => insertTrack(Track.fromJSON(trackData)),
@@ -142,8 +147,8 @@ export default defineComponent({
     } = useTrackFilters({ sortedTracks });
 
     Promise.all([
-      loadMetadata(datasetId.value),
-      loadTracks(),
+      loadMetadata(props.datasetId),
+      loadTracks(props.datasetId),
     ]).then(([meta]) => {
       // tasks to run after dataset and tracks have loaded
       populateTypeStyles(meta.customTypeStyling);

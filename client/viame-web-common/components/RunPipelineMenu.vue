@@ -1,7 +1,8 @@
 <script lang="ts">
-import { defineComponent, computed, PropType } from '@vue/composition-api';
-import { useApi } from 'viame-web-common/apispec';
-import usePipelines from 'viame-web-common/use/usePipelines';
+import {
+  defineComponent, computed, PropType, ref, onBeforeMount,
+} from '@vue/composition-api';
+import { Pipelines, useApi } from 'viame-web-common/apispec';
 
 export default defineComponent({
   props: {
@@ -16,8 +17,31 @@ export default defineComponent({
   },
 
   setup(props, { root }) {
-    const pipelines = usePipelines();
-    const { runPipeline } = useApi();
+    const { runPipeline, getPipelineList } = useApi();
+    const unsortedPipelines = ref({} as Pipelines);
+    onBeforeMount(async () => {
+      unsortedPipelines.value = await getPipelineList();
+    });
+
+    const pipelines = computed(() => {
+      const sortedPipelines = {} as Pipelines;
+      Object.entries(unsortedPipelines.value).forEach(([name, category]) => {
+        category.pipes.sort((a, b) => {
+          const aName = a.name.toLowerCase();
+          const bName = b.name.toLowerCase();
+          if (aName > bName) {
+            return 1;
+          }
+          if (aName < bName) {
+            return -1;
+          }
+          return 0;
+        });
+        sortedPipelines[name] = category;
+      });
+      return sortedPipelines;
+    });
+
     const pipelinesNotRunnable = computed(() => (
       props.selectedDatasetIds.length > 1 || pipelines.value === null
     ));

@@ -62,20 +62,10 @@ export default {
         if (selected._modelType !== 'folder') {
           return null;
         }
-        return {
-          title: selected.name,
-          folderId: selected._id,
-          folderType: selected.meta && selected.meta.type,
-          isViameFolder: selected.meta && selected.meta.annotate,
-        };
+        return selected._id;
       }
       if (this.locationIsViameFolder) {
-        return {
-          title: this.location.name,
-          folderId: this.location._id,
-          folderType: this.location.meta.type,
-          isViameFolder: true,
-        };
+        return this.location._id;
       }
       return null;
     },
@@ -178,7 +168,7 @@ export default {
               />
               <export
                 v-if="exportTarget"
-                v-bind="exportTarget"
+                :dataset-id="exportTarget"
                 small
               />
               <v-btn

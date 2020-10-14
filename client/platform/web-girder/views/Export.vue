@@ -25,7 +25,7 @@ export default {
   asyncComputed: {
     async exportUrls() {
       if (this.menuOpen) {
-        return getExportUrls(this.folderId, this.excludeFiltered);
+        return getExportUrls(this.datasetId, this.excludeFiltered);
       }
       return null;
     },
