@@ -3,12 +3,13 @@ import { mapMutations } from 'vuex';
 import { FileManager } from '@girder/components/src/components/Snippet';
 import { getLocationType } from '@girder/components/src/utils';
 
-import { deleteResources } from 'viame-web-common/api/viame.service';
-import Export from 'viame-web-common/components/Export.vue';
 import NavigationBar from 'viame-web-common/components/NavigationBar.vue';
 import RunPipelineMenu from 'viame-web-common/components/RunPipelineMenu.vue';
 import Upload from 'viame-web-common/components/Upload.vue';
-import { getPathFromLocation, getLocationFromRoute } from 'viame-web-common/utils';
+
+import { getPathFromLocation, getLocationFromRoute } from '../utils';
+import { deleteResources } from '../api/viame.service';
+import Export from './Export.vue';
 
 export default {
   name: 'Home',
@@ -80,6 +81,11 @@ export default {
     },
     locationIsViameFolder() {
       return !!(this.location && this.location.meta && this.location.meta.annotate);
+    },
+    selectedViameFolders() {
+      return this.selected.filter(
+        ({ _modelType, meta }) => _modelType === 'folder' && meta && meta.annotate,
+      );
     },
   },
   watch: {

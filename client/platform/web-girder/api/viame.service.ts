@@ -1,24 +1,6 @@
+import { GirderModel } from '@girder/components/src';
+import { Attribute, Pipelines } from 'viame-web-common/apispec';
 import girderRest from '../plugins/girder';
-
-interface GirderModel {
-  _id: string;
-  _modelType: 'folder' | 'item' | 'file' | 'user';
-  name: string;
-}
-
-interface Attribute {
-  belongs: 'track' | 'detection';
-  datatype: 'text' | 'number' | 'boolean';
-  values?: string[];
-  name: string;
-  _id: string;
-}
-
-interface Pipe {
-  name: string;
-  pipe: string;
-  type: string;
-}
 
 interface ValidationResponse {
   ok: boolean;
@@ -26,11 +8,6 @@ interface ValidationResponse {
   media: string[];
   annotations: string[];
   message: string;
-}
-
-export interface Category {
-  description: string;
-  pipes: [Pipe];
 }
 
 function makeViameFolder({
@@ -76,8 +53,9 @@ async function getAttributes(): Promise<Attribute[]> {
   return data as Attribute[];
 }
 
-function getPipelineList() {
-  return girderRest.get<Record<string, Category>>('viame/pipelines');
+async function getPipelineList() {
+  const { data } = await girderRest.get<Pipelines>('viame/pipelines');
+  return data;
 }
 
 function runPipeline(itemId: string, pipeline: string) {
@@ -111,8 +89,6 @@ async function getValidWebImages(folderId: string) {
 
 
 export {
-  Attribute,
-  GirderModel,
   deleteResources,
   getAttributes,
   getPipelineList,

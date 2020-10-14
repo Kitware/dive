@@ -15,14 +15,6 @@ interface Attribute {
   _id: string;
 }
 
-interface ExportUrlsResponse {
-  mediaType: string;
-  exportAllUrl: string;
-  exportMediaUrl: string;
-  exportDetectionsUrl: string;
-  currentThresholds: Record<string, number>;
-}
-
 interface Pipe {
   name: string;
   pipe: string;
@@ -31,8 +23,10 @@ interface Pipe {
 
 interface Category {
   description: string;
-  pipes: [Pipe];
+  pipes: Pipe[];
 }
+
+type Pipelines = Record<string, Category>;
 
 interface SaveDetectionsArgs {
   delete: TrackId[];
@@ -51,8 +45,8 @@ interface DatasetMeta extends DatasetMetaMutable {
 
 interface Api {
   getAttributes(): Promise<Attribute[]>;
-  getExportUrls(datasetId: string, excludeBelowThreshold: boolean): Promise<ExportUrlsResponse>;
-  getPipelineList(): Promise<Record<string, Category>>;
+
+  getPipelineList(): Promise<Pipelines>;
   runPipeline(itemId: string, pipeline: string): Promise<unknown>;  
 
   loadDetections(datasetId: string): Promise<{ [key: string]: TrackData }>;
@@ -84,10 +78,10 @@ function useApi() {
 export { 
   Api,
   Attribute,
-  Category,
   DatasetMeta,
   DatasetMetaMutable,
   Pipe,
+  Pipelines,
   SaveDetectionsArgs,
   provideApi,
   useApi,

@@ -1,11 +1,12 @@
-<script>
-import { mapActions, mapState } from 'vuex';
-import { runPipeline } from 'viame-web-common/api/viame.service';
+<script lang="ts">
+import { defineComponent, computed, PropType } from '@vue/composition-api';
+import { useApi } from 'viame-web-common/apispec';
+import usePipelines from 'viame-web-common/use/usePipelines';
 
-export default {
+export default defineComponent({
   props: {
-    selected: {
-      type: Array,
+    selectedDatasetIds: {
+      type: Array as PropType<string[]>,
       default: () => [],
     },
     small: {
@@ -14,53 +15,46 @@ export default {
     },
   },
 
-  computed: {
-    ...mapState('Pipelines', ['pipelines']),
-    selectedEligibleClips() {
-      return this.selected.filter(
-        ({ _modelType, meta }) => _modelType === 'folder' && meta && meta.annotate,
-      );
-    },
-    pipelinesNotRunnable() {
-      return this.selectedEligibleClips.length < 1 || this.pipelines === null;
-    },
-  },
+  setup(props, { root }) {
+    const pipelines = usePipelines();
+    const { runPipeline } = useApi();
+    const pipelinesNotRunnable = computed(() => {
+      return props.selectedDatasetIds.length > 1 || pipelines.value === null;
+    });
 
-  created() {
-    this.fetchPipelines();
-  },
-
-  methods: {
-    ...mapActions('Pipelines', ['fetchPipelines']),
-
-    async runPipelineOnSelectedItem(pipeline) {
-      const clips = this.selectedEligibleClips;
+    async function runPipelineOnSelectedItem(pipename: string) {
       await Promise.all(
-        this.selectedEligibleClips.map((item) => runPipeline(item._id, pipeline)),
+        props.selectedDatasetIds.map((id) => runPipeline(id, pipename)),
       );
-      this.$snackbar({
-        text: `Started pipeline on ${clips.length} clip${
-          clips.length ? 's' : ''
+      root.$snackbar({
+        text: `Started pipeline on ${props.selectedDatasetIds.length} clip${
+          props.selectedDatasetIds.length ? 's' : ''
         }`,
         timeout: 6000,
         immediate: true,
         button: 'View',
         callback: () => {
-          this.$router.push({ name: 'jobs' });
+          root.$router.push({ name: 'jobs' });
         },
       });
-    },
-    pipeTypeDisplay(pipeType) {
+    }
+
+    function pipeTypeDisplay(pipeType: string) {
       switch (pipeType) {
         case 'generate':
           return 'utility';
-
         default:
           return `${pipeType}s`;
       }
-    },
+    }
+
+    return {
+      pipelinesNotRunnable,
+      pipeTypeDisplay,
+      runPipelineOnSelectedItem,
+    };
   },
-};
+});
 </script>
 
 <template>

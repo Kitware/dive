@@ -238,9 +238,6 @@ export default defineComponent({
       });
     }
 
-    const dataPath = computed(() => (
-      getPathFromLocation(ctx.root.$store.state.Location.location)));
-
     const globalHandler = {
       ...handler,
       setCheckedTypes: updateCheckedTypes,
@@ -271,8 +268,6 @@ export default defineComponent({
     return {
       /* props */
       confidenceThreshold,
-      dataPath,
-      dataset,
       editingTrack,
       editingMode,
       eventChartData,
@@ -302,25 +297,7 @@ export default defineComponent({
   <v-main class="viewer">
     <v-app-bar app>
       <navigation-title />
-      <v-tabs
-        icons-and-text
-        hide-slider
-        style="flex-basis:0; flex-grow:0;"
-      >
-        <v-tab :to="dataPath">
-          Data
-          <v-icon>mdi-database</v-icon>
-        </v-tab>
-        <v-tab to="/settings">
-          Settings<v-icon>mdi-settings</v-icon>
-        </v-tab>
-      </v-tabs>
-      <span
-        v-if="dataset"
-        class="title pl-3"
-      >
-        {{ dataset.name }}
-      </span>
+      <slot name="title" />
       <v-spacer />
       <template #extension>
         <span>Viewer/Edit Controls</span>
@@ -336,10 +313,7 @@ export default defineComponent({
         />
         <v-spacer />
       </template>
-      <run-pipeline-menu
-        v-if="dataset"
-        :selected="[dataset]"
-      />
+      <slot name="toolbar-right" />
       <span class="ml-2">
         <export />
       </span>

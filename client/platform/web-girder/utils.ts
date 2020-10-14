@@ -1,9 +1,9 @@
 import { AxiosError } from 'axios';
+import { GirderModel } from '@girder/components/src';
 // eslint-disable-next-line @typescript-eslint/ban-ts-ignore
 // @ts-ignore
 import { isRootLocation } from '@girder/components/src/utils/locationHelpers';
-import { getFolder } from 'viame-web-common/api/girder.service';
-import { GirderModel } from 'viame-web-common/api/viame.service';
+import { getFolder } from './api/girder.service';
 
 interface Location {
   type?: 'collections' | 'users' | 'root';

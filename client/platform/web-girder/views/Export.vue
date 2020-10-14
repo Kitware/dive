@@ -1,10 +1,10 @@
 <script>
-import { getExportUrls } from 'viame-web-common/api/viameDetection.service';
 import { MediaTypes } from 'viame-web-common/constants';
+import { getExportUrls } from '../api/viameDetection.service';
 
 export default {
   props: {
-    folderId: {
+    datasetId: {
       type: String,
       required: true,
     },
