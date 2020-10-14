@@ -102,7 +102,17 @@ export default defineComponent({
     } = useSave(toRef(props, 'datasetId'));
 
 
-    async function navigateAway() {
+    async function preventNav(event: BeforeUnloadEvent) {
+      if (pendingSaveCount.value === 0) return;
+      event.preventDefault();
+      // eslint-disable-next-line no-param-reassign
+      event.returnValue = '';
+    }
+    window.addEventListener('beforeunload', preventNav);
+    onBeforeUnmount(() => {
+      window.removeEventListener('beforeunload', preventNav);
+    });
+    async function navigateAway(): Promise<boolean> {
       let result = true;
       if (pendingSaveCount.value > 0) {
         result = await prompt({
@@ -112,12 +122,6 @@ export default defineComponent({
         });
       }
       return result;
-    }
-    async function preventNav(event: BeforeUnloadEvent) {
-      if (!pendingSaveCount.value) return;
-      event.preventDefault();
-      // eslint-disable-next-line no-param-reassign
-      event.returnValue = '';
     }
     const recipes = [
       new PolygonBase(),
