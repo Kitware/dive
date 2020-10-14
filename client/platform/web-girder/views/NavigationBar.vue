@@ -40,6 +40,9 @@ export default {
     onLogout() {
       this.$router.push({ name: 'login' });
     },
+    logout() {
+      this.girderRest.logout();
+    },
     handleNotification({ data: job }) {
       const jobStatus = all();
       const jobId = job._id;
@@ -104,7 +107,7 @@ export default {
     <user-guide-button />
     <v-btn
       text
-      @click="girderRest.logout()"
+      @click="logout"
     >
       Logout
     </v-btn>

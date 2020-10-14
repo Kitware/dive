@@ -1,5 +1,5 @@
 import { Module } from 'vuex';
-import { GirderModel } from 'viame-web-common/api/viame.service';
+import { GirderModel } from '@girder/components/src';
 
 export interface LocationState {
     location: null | GirderModel;

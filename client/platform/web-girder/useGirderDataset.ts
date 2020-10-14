@@ -5,10 +5,10 @@ import {
 
 import { ImageSequenceType, VideoType } from 'viame-web-common/constants';
 
+import { DatasetMeta } from 'viame-web-common/apispec';
 import { getFolder, getItemDownloadUri } from './api/girder.service';
 import { getValidWebImages } from './api/viame.service';
 import { getClipMeta } from './api/viameDetection.service';
-import { DatasetMeta } from 'viame-web-common/apispec';
 
 const defaultFrameRate = 30;
 

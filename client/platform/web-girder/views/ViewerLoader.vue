@@ -12,9 +12,9 @@ import {
 } from '../api/viame.service';
 import {
   getDetections as loadDetections,
-  getExportUrls,
   saveDetections,
 } from '../api/viameDetection.service';
+import { getPathFromLocation } from '../utils';
 import useGirderDataset from '../useGirderDataset';
 import Export from './Export.vue';
 
@@ -66,9 +66,10 @@ export default defineComponent({
     );
 
     const dataPath = computed(() => (
-      getPathFromLocation(ctx.root.$store.state.Location.location)));
+      getPathFromLocation(root.$store.state.Location.location)));
 
     return {
+      dataPath,
       dataset,
       frameRate,
       annotatorType,
@@ -76,7 +77,7 @@ export default defineComponent({
       videoUrl,
     };
   },
-})
+});
 </script>
 
 <template>

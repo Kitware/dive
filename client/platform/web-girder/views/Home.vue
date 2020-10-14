@@ -173,7 +173,7 @@ export default {
           >
             <template #headerwidget>
               <run-pipeline-menu
-                :selected="(locationIsViameFolder ? [location] : selected)"
+                :selected="(locationIsViameFolder ? [location] : selectedViameFolders)"
                 small
               />
               <export

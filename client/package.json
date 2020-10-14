@@ -2,10 +2,10 @@
   "name": "vue-media-annotator",
   "version": "1.0.0-beta.1",
   "scripts": {
-    "serve": "vue-cli-service serve viame-web-common/main.ts",
+    "serve": "vue-cli-service serve platform/web-girder/main.ts",
     "build:web": "vue-cli-service build platform/web-girder/main.ts",
     "build:lib": "rollup -c",
-    "lint": "vue-cli-service lint src/ viame-web-common/",
+    "lint": "vue-cli-service lint src/ viame-web-common/ platform/",
     "test": "vue-cli-service test:unit src/ viame-web-common/"
   },
   "resolutions": {
