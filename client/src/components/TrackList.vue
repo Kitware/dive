@@ -9,6 +9,8 @@ import {
   useAllTypes,
   useCheckedTrackIds,
   useEditingMode,
+  useFrame,
+  useHandler,
   useSelectedTrackId,
   useTrackMap,
   useTracks,
@@ -46,8 +48,7 @@ export default defineComponent({
 
   components: { TrackItem },
 
-  setup(props, { emit, root }) {
-    const prompt = root.$prompt;
+  setup(props) {
     const allTypesRef = useAllTypes();
     const checkedTrackIdsRef = useCheckedTrackIds();
     const editingModeRef = useEditingMode();
@@ -55,6 +56,10 @@ export default defineComponent({
     const trackMap = useTrackMap();
     const tracksRef = useTracks();
     const typeStylingRef = useTypeStyling();
+    const frameRef = useFrame();
+    const {
+      trackSelectNext, trackSplit, removeTrack, trackAdd,
+    } = useHandler();
 
     const data = reactive({
       itemHeight: 70, // in pixelx
@@ -110,9 +115,9 @@ export default defineComponent({
     ): void {
       if (virtualList.value !== null && element === virtualList.value.$el) {
         if (direction === 'up') {
-          emit('track-previous');
+          trackSelectNext(-1);
         } else if (direction === 'down') {
-          emit('track-next');
+          trackSelectNext(1);
         }
         keyEvent.preventDefault();
       }
@@ -175,26 +180,15 @@ export default defineComponent({
           disabled,
         },
         {
-          bind: 'enter',
-          handler: () => {
-            if (selectedTrackIdRef.value !== null) {
-              emit('track-click', selectedTrackIdRef.value);
-            }
-          },
-          disabled,
-        },
-        {
           bind: 'del',
           handler: () => {
-            if (selectedTrackIdRef.value !== null) {
-              emit('track-remove', [selectedTrackIdRef.value]);
-            }
+            removeTrack(selectedTrackIdRef.value);
           },
           disabled,
         },
         {
           bind: 'x',
-          handler: () => emit('track-split', selectedTrackIdRef.value),
+          handler: () => trackSplit(selectedTrackIdRef.value, frameRef.value),
           disabled,
         },
       ];
@@ -207,6 +201,7 @@ export default defineComponent({
       mouseTrap,
       newTrackColor,
       tracks: tracksRef,
+      trackAdd,
       virtualListItems,
       virtualList,
       multiDelete,
@@ -247,7 +242,7 @@ export default defineComponent({
                   x-small
                   :color="newTrackColor"
                   v-on="on"
-                  @click="$emit('track-add')"
+                  @click="trackAdd"
                 >
                   <v-icon small>
                     mdi-plus
@@ -313,12 +308,6 @@ export default defineComponent({
       <template #default="{ item }">
         <track-item
           v-bind="getItemProps(item)"
-          @change="$emit('track-checked', { trackId: item.track.trackId, value: $event })"
-          @type-change="$emit('track-type-change', { trackId: item.track.trackId, value: $event })"
-          @delete="$emit('track-remove', [item.track.trackId])"
-          @click="$emit('track-click', item.track.trackId)"
-          @edit="$emit('track-edit', item.track.trackId)"
-          @split="$emit('track-split', item.track.trackId)"
           @seek="$emit('track-seek', $event)"
         />
       </template>

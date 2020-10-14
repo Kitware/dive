@@ -31,13 +31,6 @@ export interface TypeStyling {
   opacity: (type: string) => number;
 }
 
-interface UpdateStylingArgs {
-  type: string;
-  color?: string;
-  strokeWidth?: number;
-  opacity?: number;
-  fill?: boolean;
-}
 interface UseStylingParams {
   markChangesPending: () => void;
 }
@@ -125,7 +118,13 @@ export default function useStyling({ markChangesPending }: UseStylingParams) {
     }
   }
 
-  function updateTypeStyle(args: UpdateStylingArgs) {
+  function updateTypeStyle(args: {
+    type: string;
+    color?: string;
+    strokeWidth?: number;
+    opacity?: number;
+    fill?: boolean;
+  }) {
     const { type } = args;
     if (!customStyles.value[type]) {
       VueSet(customStyles.value, type, {});

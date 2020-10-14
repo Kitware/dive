@@ -78,13 +78,7 @@ export default defineComponent({
         key="type-tracks"
         class="wrapper d-flex flex-column"
       >
-        <type-list
-          class="flex-shrink-1 flex-grow-1 typelist"
-          @update-type-name="$emit('update-type-name',$event)"
-          @update-type-style="$emit('update-type-style',$event)"
-          @update-checked-types="$emit('update-checked-types', $event)"
-          @delete-type-tracks="$emit('delete-type-tracks', $event)"
-        />
+        <type-list class="flex-shrink-1 flex-grow-1 typelist" />
         <slot />
         <v-spacer />
         <v-divider />
@@ -93,15 +87,6 @@ export default defineComponent({
           :new-track-mode="newTrackSettings.mode"
           :new-track-type="newTrackSettings.type"
           :hotkeys-disabled="$prompt.visible()"
-          @track-remove="$emit('track-remove', $event)"
-          @track-add="$emit('track-add')"
-          @track-click="$emit('track-click', $event)"
-          @track-checked="$emit('track-checked', $event)"
-          @track-edit="$emit('track-edit', $event)"
-          @track-type-change="$emit('track-type-change', $event)"
-          @track-previous="$emit('track-previous')"
-          @track-next="$emit('track-next')"
-          @track-split="$emit('track-split', $event)"
           @track-seek="$emit('track-seek', $event)"
         >
           <template slot="settings">

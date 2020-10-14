@@ -1,13 +1,13 @@
 <script lang="ts">
-import { computed, defineComponent, reactive } from '@vue/composition-api';
-import { useCheckedTypes, useAllTypes, useTypeStyling } from '../provides';
+import { defineComponent, reactive } from '@vue/composition-api';
+import {
+  useCheckedTypes, useAllTypes, useTypeStyling, useHandler,
+} from '../provides';
 
 export default defineComponent({
   name: 'TypeList',
 
-  setup(props, { emit, root }) {
-    const prompt = root.$prompt;
-
+  setup() {
     const data = reactive({
       showPicker: false,
       selectedColor: '',
@@ -22,6 +22,11 @@ export default defineComponent({
     const checkedTypesRef = useCheckedTypes();
     const allTypesRef = useAllTypes();
     const typeStylingRef = useTypeStyling();
+    const {
+      updateTypeName,
+      updateTypeStyle,
+      setCheckedTypes,
+    } = useHandler();
 
     function clickEdit(type: string) {
       data.selectedType = type;
@@ -54,12 +59,12 @@ export default defineComponent({
     function acceptChanges() {
       data.showPicker = false;
       if (data.editingType !== data.selectedType) {
-        emit('update-type-name', {
+        updateTypeName({
           currentType: data.selectedType,
           newType: data.editingType,
         });
       }
-      emit('update-type-style', {
+      updateTypeStyle({
         type: data.editingType,
         color: data.editingColor,
         strokeWidth: data.editingThickness,
@@ -97,6 +102,7 @@ export default defineComponent({
       clickDelete,
       headCheckState,
       headCheckClicked,
+      setCheckedTypes,
     };
   },
 });
@@ -168,7 +174,7 @@ export default defineComponent({
               shrink
               hide-details
               class="my-1 type-checkbox"
-              @change="$emit('update-checked-types', $event)"
+              @change="setCheckedTypes"
             />
             <v-spacer />
             <v-tooltip

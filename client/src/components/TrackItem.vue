@@ -3,7 +3,7 @@ import {
   defineComponent, computed, watch, reactive, PropType, toRef, ref,
 } from '@vue/composition-api';
 import TooltipBtn from './TooltipButton.vue';
-import { useFrame } from '../provides';
+import { useFrame, useHandler } from '../provides';
 import Track from '../track';
 
 export default defineComponent({
@@ -41,6 +41,7 @@ export default defineComponent({
   setup(props, { root, emit }) {
     const vuetify = root.$vuetify;
     const frameRef = useFrame();
+    const handler = useHandler();
     const trackTypeRef = toRef(props, 'trackType');
     const typeInputBoxRef = ref(undefined as undefined | HTMLInputElement);
     const data = reactive({
@@ -104,7 +105,7 @@ export default defineComponent({
       if (data.trackTypeValue === '') {
         data.trackTypeValue = props.trackType;
       } else if (data.trackTypeValue !== props.trackType) {
-        emit('type-change', data.trackTypeValue);
+        handler.trackTypeChange(props.track.trackId, data.trackTypeValue);
       }
     }
 
@@ -165,6 +166,7 @@ export default defineComponent({
       focusType,
       gotoNext,
       gotoPrevious,
+      handler,
       onBlur,
       onFocus,
       toggleInterpolation,
@@ -189,7 +191,7 @@ export default defineComponent({
         hide-details
         :input-value="inputValue"
         :color="color"
-        @change="$emit('change', $event)"
+        @change="handler.trackEnable(track.trackId, $event)"
       />
       <v-tooltip
         open-delay="200"
@@ -201,7 +203,7 @@ export default defineComponent({
           <div
             class="trackNumber pl-0 pr-2"
             v-on="on"
-            @click.self="$emit('click')"
+            @click.self="handler.trackSeek(track.trackId)"
           >
             {{ track.trackId }}
           </div>
@@ -229,7 +231,7 @@ export default defineComponent({
           color="error"
           icon="mdi-delete"
           :tooltip-text="`Delete ${isTrack ? 'Track' : 'Detection'}`"
-          @click="$emit('delete')"
+          @click="handler.removeTrack(track.trackId)"
         />
 
         <tooltip-btn
@@ -237,7 +239,7 @@ export default defineComponent({
           :disabled="!track.canSplit(frame)"
           icon="mdi-call-split"
           tooltip-text="Split Track"
-          @click="$emit('split')"
+          @click="handler.trackSplit(track.trackId, frame)"
         />
 
         <tooltip-btn
@@ -296,7 +298,7 @@ export default defineComponent({
         :icon="(editing) ? 'mdi-pencil-box' : 'mdi-pencil-box-outline'"
         tooltip-text="Toggle edit mode"
         :disabled="!inputValue"
-        @click="$emit('edit')"
+        @click="handler.trackEdit(track.trackId)"
       />
     </v-row>
   </div>

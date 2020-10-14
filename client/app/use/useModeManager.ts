@@ -138,14 +138,18 @@ export default function useModeManager({
     handleSelectTrack(null, false);
   }
 
-  function handleAddTrackOrDetection() {
+  function handleAddTrackOrDetection(): TrackId {
     // Handles adding a new track with the NewTrack Settings
-    selectTrack(addTrack(frame.value, newTrackSettings.type).trackId, true);
+    const newTrackId = addTrack(frame.value, newTrackSettings.type).trackId;
+    selectTrack(newTrackId, true);
     creating = true;
+    return newTrackId;
   }
 
-  function handleTrackTypeChange({ trackId, value }: { trackId: TrackId; value: string }) {
-    getTrack(trackId).setType(value);
+  function handleTrackTypeChange(trackId: TrackId | null, value: string) {
+    if (trackId !== null) {
+      getTrack(trackId).setType(value);
+    }
   }
 
   function newTrackSettingsAfterLogic(addedTrack: Track) {
@@ -405,15 +409,15 @@ export default function useModeManager({
     selectedFeatureHandle,
     selectedKey,
     handler: {
-      selectTrack: handleSelectTrack,
+      trackAdd: handleAddTrackOrDetection,
+      trackAbort: handleEscapeMode,
       trackEdit: handleTrackEdit,
+      trackSeek: handleTrackClick,
+      trackSelect: handleSelectTrack,
+      trackSelectNext: handleSelectNext,
       trackTypeChange: handleTrackTypeChange,
-      addTrack: handleAddTrackOrDetection,
       updateRectBounds: handleUpdateRectBounds,
       updateGeoJSON: handleUpdateGeoJSON,
-      selectNext: handleSelectNext,
-      escapeMode: handleEscapeMode,
-      trackClick: handleTrackClick,
       removeTrack: handleRemoveTrack,
       removePoint: handleRemovePoint,
       removeAnnotation: handleRemoveAnnotation,

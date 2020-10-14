@@ -121,7 +121,7 @@ export default function useFilteredTracks(
     checkedTypes.value = types;
   }
 
-  function updateCheckedTrackId({ trackId, value }: { trackId: TrackId; value: boolean }) {
+  function updateCheckedTrackId(trackId: TrackId, value: boolean) {
     if (value) {
       checkedTrackIds.value.push(trackId);
     } else {
