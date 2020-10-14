@@ -3,8 +3,6 @@
   "compilerOptions": {
     /* Jest requires es5, not sure why */
     "target": "es5",
+    "module": "commonjs",
   },
-  "include": [
-    "tests/**/*.ts",
-  ]
 }
