@@ -1,6 +1,7 @@
 <script>
-import NavigationBar from 'viame-web-common/components/NavigationBar.vue';
 import JobList from '@girder/components/src/components/Job/JobList.vue';
+
+import NavigationBar from './NavigationBar.vue';
 
 export default {
   name: 'Jobs',

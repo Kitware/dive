@@ -18,9 +18,9 @@ export default defineComponent({
   setup(props, { root }) {
     const pipelines = usePipelines();
     const { runPipeline } = useApi();
-    const pipelinesNotRunnable = computed(() => {
-      return props.selectedDatasetIds.length > 1 || pipelines.value === null;
-    });
+    const pipelinesNotRunnable = computed(() => (
+      props.selectedDatasetIds.length > 1 || pipelines.value === null
+    ));
 
     async function runPipelineOnSelectedItem(pipename: string) {
       await Promise.all(

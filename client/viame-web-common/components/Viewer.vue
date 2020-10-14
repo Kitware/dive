@@ -1,5 +1,5 @@
 <script lang="ts">
-import { computed, defineComponent, ref } from '@vue/composition-api';
+import { defineComponent, ref } from '@vue/composition-api';
 
 /* VUE MEDIA ANNOTATOR */
 import Track, { TrackId } from 'vue-media-annotator/track';
@@ -25,13 +25,11 @@ import NavigationTitle from 'viame-web-common/components/NavigationTitle.vue';
 import EditorMenu from 'viame-web-common/components/EditorMenu.vue';
 import ConfidenceFilter from 'viame-web-common/components/ConfidenceFilter.vue';
 import UserGuideButton from 'viame-web-common/components/UserGuideButton.vue';
-import Export from 'viame-web-common/components/Export.vue';
 import RunPipelineMenu from 'viame-web-common/components/RunPipelineMenu.vue';
 import DeleteControls from 'viame-web-common/components/DeleteControls.vue';
 import ControlsContainer from 'viame-web-common/components/ControlsContainer.vue';
 import Sidebar from 'viame-web-common/components/Sidebar.vue';
 import { Annotator } from 'viame-web-common/use/useModeManager';
-import { getPathFromLocation } from 'viame-web-common/utils';
 import {
   useModeManager,
   useSave,
@@ -62,7 +60,6 @@ export default defineComponent({
   components: {
     ControlsContainer,
     DeleteControls,
-    Export,
     Sidebar,
     LayerManager,
     VideoAnnotator,
@@ -272,7 +269,6 @@ export default defineComponent({
       editingMode,
       eventChartData,
       frame,
-      getPathFromLocation,
       lineChartData,
       newTrackSettings: clientSettings.newTrackSettings,
       pendingSaveCount,
@@ -313,10 +309,7 @@ export default defineComponent({
         />
         <v-spacer />
       </template>
-      <slot name="toolbar-right" />
-      <span class="ml-2">
-        <export />
-      </span>
+      <slot name="title-right" />
       <user-guide-button annotating />
       <v-badge
         overlap

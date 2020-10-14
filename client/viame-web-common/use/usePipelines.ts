@@ -24,5 +24,5 @@ export default function usePipelines() {
     pipelines.value = pls;
   });
 
-  return { pipelines }; 
+  return pipelines;
 }

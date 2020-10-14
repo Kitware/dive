@@ -4,7 +4,8 @@ import { all } from '@girder/components/src/components/Job/status';
 
 import NavigationTitle from 'viame-web-common/components/NavigationTitle.vue';
 import UserGuideButton from 'viame-web-common/components/UserGuideButton.vue';
-import { getPathFromLocation } from 'viame-web-common/utils';
+
+import { getPathFromLocation } from '../utils';
 
 export default {
   name: 'GenericNavigationBar',

@@ -6,7 +6,7 @@ import {
 import { useSelectedTrackId, useFrame, useTrackMap } from 'vue-media-annotator/provides';
 import Track, { TrackId, Feature } from 'vue-media-annotator/track';
 
-import { Attribute, getAttributes } from 'viame-web-common/api/viame.service';
+import { useApi, Attribute } from 'viame-web-common/apispec';
 import AttributeInput from 'viame-web-common/components/AttributeInput.vue';
 
 function getTrack(trackMap: Readonly<Map<TrackId, Track>>, trackId: TrackId): Track {
@@ -27,6 +27,7 @@ export default defineComponent({
     const trackMap = useTrackMap();
     const frameRef = useFrame();
     const selectedTrackIdRef = useSelectedTrackId();
+    const { getAttributes } = useApi();
     const trackAttributes = computed(() => attributes.value.filter(
       (a) => a.belongs === 'track',
     ));

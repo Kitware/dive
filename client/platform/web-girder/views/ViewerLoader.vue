@@ -16,13 +16,14 @@ import {
   saveDetections,
 } from '../api/viameDetection.service';
 import useGirderDataset from '../useGirderDataset';
+import Export from './Export.vue';
 
 /**
  * ViewerLoader is responsible for loading
  * data from girder.
  */
 export default defineComponent({
-  components: { Viewer },
+  components: { Viewer, Export },
 
   props: {
     datasetId: {
@@ -105,6 +106,12 @@ export default defineComponent({
       >
         {{ dataset.name }}
       </span>
+    </template>
+    <template #title-rigth>
+      <export
+        v-if="dataset !== null"
+        :dataset-id="dataset._id"
+      />
     </template>
   </Viewer>
 </template>

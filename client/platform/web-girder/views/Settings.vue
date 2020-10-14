@@ -1,6 +1,6 @@
 <script>
-import NavigationBar from 'viame-web-common/components/NavigationBar.vue';
 import AttributeSettings from 'viame-web-common/components/AttributeSettings.vue';
+import NavigationBar from './NavigationBar.vue';
 
 export default {
   name: 'Config',

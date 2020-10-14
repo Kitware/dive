@@ -47,7 +47,7 @@ interface Api {
   getAttributes(): Promise<Attribute[]>;
 
   getPipelineList(): Promise<Pipelines>;
-  runPipeline(itemId: string, pipeline: string): Promise<unknown>;  
+  runPipeline(itemId: string, pipeline: string): Promise<unknown>;
 
   loadDetections(datasetId: string): Promise<{ [key: string]: TrackData }>;
   saveDetections(datasetId: string, args: SaveDetectionsArgs): Promise<unknown>;
@@ -75,7 +75,7 @@ function useApi() {
   return use<Readonly<Api>>(ApiSymbol);
 }
 
-export { 
+export {
   Api,
   Attribute,
   DatasetMeta,
