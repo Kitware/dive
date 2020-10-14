@@ -49,6 +49,7 @@ export default defineComponent({
     }
 
     return {
+      pipelines,
       pipelinesNotRunnable,
       pipeTypeDisplay,
       runPipelineOnSelectedItem,

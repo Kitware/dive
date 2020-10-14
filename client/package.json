@@ -3,7 +3,7 @@
   "version": "1.0.0-beta.1",
   "scripts": {
     "serve": "vue-cli-service serve viame-web-common/main.ts",
-    "build": "vue-cli-service build viame-web-common/main.ts",
+    "build:web": "vue-cli-service build platform/web-girder/main.ts",
     "build:lib": "rollup -c",
     "lint": "vue-cli-service lint src/ viame-web-common/",
     "test": "vue-cli-service test:unit src/ viame-web-common/"

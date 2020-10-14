@@ -1,5 +1,5 @@
 <script lang="ts">
-import { defineComponent, ref } from '@vue/composition-api';
+import { defineComponent, ref, PropType } from '@vue/composition-api';
 
 /* VUE MEDIA ANNOTATOR */
 import Track, { TrackId } from 'vue-media-annotator/track';
@@ -42,20 +42,6 @@ interface FrameImage {
   filename: string;
 }
 
-/**
- * TODO: These props are subject to change.
- * They're based on some state that had to be refactored,
- * and exist as the minimal delta between was we had and what
- * we needed.  This does not represent the
- * ideal interface.
- */
-interface ViewerProps {
-  frameRate: number;
-  annotatorType: 'VideoAnnotator' | 'ImageAnnotator';
-  imageData: FrameImage[];
-  videoUrl: string;
-}
-
 export default defineComponent({
   components: {
     ControlsContainer,
@@ -72,9 +58,26 @@ export default defineComponent({
   },
 
   // TODO: remove this in vue 3
-  props: ['frameRate', 'annotatorType', 'imageData', 'videoUrl'],
+  props: {
+    frameRate: {
+      type: Number,
+      required: true,
+    },
+    annotatorType: {
+      type: String as PropType<'VideoAnnotator' | 'ImageAnnotator'>,
+      required: true,
+    },
+    imageData: {
+      type: Array as PropType<FrameImage[]>,
+      required: true,
+    },
+    videoUrl: {
+      type: String,
+      required: true,
+    },
+  },
 
-  setup(props: ViewerProps, ctx) {
+  setup(props, ctx) {
     // TODO: eventually we will have to migrate away from this style
     // and use the new plugin pattern:
     // https://vue-composition-api-rfc.netlify.com/#plugin-development
