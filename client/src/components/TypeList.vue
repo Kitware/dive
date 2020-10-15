@@ -6,7 +6,9 @@ import {
 
 export default defineComponent({
   name: 'TypeList',
-  setup() {
+  setup(_props, ctx) {
+    console.log(ctx);
+    const prompt = ctx.root.$prompt;
     const data = reactive({
       showPicker: false,
       selectedColor: '',
@@ -46,12 +48,12 @@ export default defineComponent({
         text.push(item.toString());
       });
 
-      // const result = await prompt({
-      //   title: 'Confirm',
-      //   text,
-      //   confirm: true,
-      // });
-      if (true) {
+      const result = await prompt({
+        title: 'Confirm',
+        text,
+        confirm: true,
+      });
+      if (result) {
         removeTypeTracks([...checkedTypesRef.value]);
       }
     }

@@ -48,7 +48,8 @@ export default defineComponent({
 
   components: { TrackItem },
 
-  setup(props) {
+  setup(props, { root }) {
+    const prompt = root.$prompt;
     const allTypesRef = useAllTypes();
     const checkedTrackIdsRef = useCheckedTrackIds();
     const editingModeRef = useEditingMode();
@@ -152,12 +153,12 @@ export default defineComponent({
         }
       });
 
-      // const result = await prompt({
-      //   title: 'Confirm',
-      //   text,
-      //   confirm: true,
-      // });
-      if (true) {
+      const result = await prompt({
+        title: 'Confirm',
+        text,
+        confirm: true,
+      });
+      if (result) {
         removeTrack(tracksDisplayed);
       }
     }
