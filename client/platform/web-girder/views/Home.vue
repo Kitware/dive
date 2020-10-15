@@ -72,10 +72,13 @@ export default {
     locationIsViameFolder() {
       return !!(this.location && this.location.meta && this.location.meta.annotate);
     },
-    selectedViameFolders() {
+    selectedViameFolderIds() {
       return this.selected.filter(
         ({ _modelType, meta }) => _modelType === 'folder' && meta && meta.annotate,
-      );
+      ).map(({ _id }) => _id);
+    },
+    runPipelineInputs() {
+      return this.locationIsViameFolder ? [this.location._id] : this.selectedViameFolderIds;
     },
   },
   watch: {
@@ -163,7 +166,7 @@ export default {
           >
             <template #headerwidget>
               <run-pipeline-menu
-                :selected="(locationIsViameFolder ? [location] : selectedViameFolders)"
+                :selected-dataset-ids="runPipelineInputs"
                 small
               />
               <export

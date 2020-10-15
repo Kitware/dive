@@ -70,7 +70,7 @@ export default defineComponent({
         {{ dataset.name }}
       </span>
     </template>
-    <template #title-rigth>
+    <template #title-right>
       <export
         v-if="dataset !== null"
         :dataset-id="dataset._id"
