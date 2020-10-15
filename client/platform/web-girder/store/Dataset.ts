@@ -2,7 +2,7 @@ import { GirderModel } from '@girder/components/src';
 import { Module } from 'vuex';
 
 import { ImageSequenceType, VideoType } from 'viame-web-common/constants';
-import { DatasetMeta } from 'viame-web-common/apispec';
+import { DatasetMeta, FrameImage } from 'viame-web-common/apispec';
 
 import { getFolder, getItemDownloadUri } from '../api/girder.service';
 import { getValidWebImages } from '../api/viame.service';
@@ -10,11 +10,6 @@ import { getClipMeta } from '../api/viameDetection.service';
 
 export interface VIAMEDataset extends GirderModel {
   meta: DatasetMeta;
-}
-
-interface FrameImage {
-  url: string;
-  filename: string;
 }
 
 const defaultFrameRate = 30;
