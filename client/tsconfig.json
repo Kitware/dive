@@ -20,11 +20,12 @@
       "vue-media-annotator/*": [
         "src/*"
       ],
-      "app/*": [
-        "app/*"
+      "viame-web-common/*": [
+        "viame-web-common/*"
       ]
     },
     "lib": [
+      "ES2017.Object",
       "esnext",
       "dom",
       "dom.iterable",
@@ -37,14 +38,13 @@
     ]
   },
   "include": [
-    "app/**/*.ts",
-    "app/**/*.tsx",
-    "app/**/*.vue",
+    "viame-web-common/**/*.ts",
+    "viame-web-common/**/*.vue",
+    "platform/*/**.vue",
+    "platform/*/**.ts",
     "src/**/*.ts",
-    "src/**/*.tsx",
     "src/**/*.vue",
     "tests/**/*.ts",
-    "tests/**/*.tsx",
   ],
   "exclude": [
     "node_modules"

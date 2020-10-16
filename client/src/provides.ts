@@ -117,7 +117,7 @@ function _handleMissing(s: symbol): Error {
   return new Error(`Missing provided object for symbol ${s.toString()}: must provideAnnotator()`);
 }
 
-function _use<T>(s: symbol) {
+function use<T>(s: symbol) {
   const v = inject<T>(s);
   if (v === undefined) {
     throw _handleMissing(s);
@@ -160,67 +160,68 @@ function provideAnnotator(
 }
 
 function useAllTypes() {
-  return _use<AllTypesType>(AllTypesSymbol);
+  return use<AllTypesType>(AllTypesSymbol);
 }
 
 function useCheckedTrackIds() {
-  return _use<CheckedTrackIdsType>(CheckedTrackIdsSymbol);
+  return use<CheckedTrackIdsType>(CheckedTrackIdsSymbol);
 }
 
 function useCheckedTypes() {
-  return _use<CheckedTypesType>(CheckedTypesSymbol);
+  return use<CheckedTypesType>(CheckedTypesSymbol);
 }
 
 function useEnabledTracks() {
-  return _use<EnabledTracksType>(EnabledTracksSymbol);
+  return use<EnabledTracksType>(EnabledTracksSymbol);
 }
 
 function useEditingMode() {
-  return _use<EditingModeType>(EditingModeSymbol);
+  return use<EditingModeType>(EditingModeSymbol);
 }
 
 function useFrame() {
-  return _use<FrameType>(FrameSymbol);
+  return use<FrameType>(FrameSymbol);
 }
 
 function useHandler() {
-  return _use<Handler>(HandlerSymbol);
+  return use<Handler>(HandlerSymbol);
 }
 
 function useIntervalTree() {
-  return _use<IntervalTreeType>(IntervalTreeSymbol);
+  return use<IntervalTreeType>(IntervalTreeSymbol);
 }
 
 function useTrackMap() {
-  return _use<TrackMapType>(TrackMapSymbol);
+  return use<TrackMapType>(TrackMapSymbol);
 }
 
 function useTracks() {
-  return _use<TracksType>(TracksSymbol);
+  return use<TracksType>(TracksSymbol);
 }
 
 function useTypeStyling() {
-  return _use<TypeStylingType>(TypeStylingSymbol);
+  return use<TypeStylingType>(TypeStylingSymbol);
 }
 
 function useSelectedKey() {
-  return _use<SelectedKeyType>(SelectedKeySymbol);
+  return use<SelectedKeyType>(SelectedKeySymbol);
 }
 
 function useSelectedTrackId() {
-  return _use<SelectedTrackIdType>(SelectedTrackIdSymbol);
+  return use<SelectedTrackIdType>(SelectedTrackIdSymbol);
 }
 
 function useStateStyles() {
-  return _use<StateStylesType>(StateStylesSymbol);
+  return use<StateStylesType>(StateStylesSymbol);
 }
 
 function useVisibleModes() {
-  return _use<VisibleModesType>(VisibleModesSymbol);
+  return use<VisibleModesType>(VisibleModesSymbol);
 }
 
 export {
   provideAnnotator,
+  use,
   useAllTypes,
   useCheckedTrackIds,
   useCheckedTypes,

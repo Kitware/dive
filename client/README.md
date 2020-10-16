@@ -15,7 +15,10 @@ yarn
 yarn serve
 
 # build for production
-yarn build
+yarn build:web
+
+# build vue-media-server library
+yarn build:lib
 
 # lint
 yarn lint
