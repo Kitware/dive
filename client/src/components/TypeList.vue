@@ -7,7 +7,6 @@ import {
 export default defineComponent({
   name: 'TypeList',
   setup(_props, ctx) {
-    console.log(ctx);
     const prompt = ctx.root.$prompt;
     const data = reactive({
       showPicker: false,
