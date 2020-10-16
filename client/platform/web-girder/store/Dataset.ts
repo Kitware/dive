@@ -58,7 +58,7 @@ const datasetModule: Module<DatasetState, never> = {
     },
   },
   mutations: {
-    setDataset(state, { dataset, imageData, videoUrl }: {
+    set(state, { dataset, imageData, videoUrl }: {
       dataset: VIAMEDataset;
       imageData: FrameImage[];
       videoUrl: string;
@@ -94,7 +94,7 @@ const datasetModule: Module<DatasetState, never> = {
       } else {
         throw new Error(`Unable to load media for dataset type: ${dataset.meta.type}`);
       }
-      commit('setDataset', { dataset, imageData, videoUrl });
+      commit('set', { dataset, imageData, videoUrl });
       commit('Location/setLocation', {
         _id: dataset.parentId,
         _modelType: dataset.parentCollection,

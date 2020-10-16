@@ -1,6 +1,7 @@
 <script lang="ts">
 import { computed, defineComponent, toRef } from '@vue/composition-api';
 import Viewer from 'viame-web-common/components/Viewer.vue';
+import RunPipelineMenu from 'viame-web-common/components/RunPipelineMenu.vue';
 
 import { getPathFromLocation } from '../utils';
 import Export from './Export.vue';
@@ -10,7 +11,7 @@ import Export from './Export.vue';
  * data from girder.
  */
 export default defineComponent({
-  components: { Viewer, Export },
+  components: { Export, RunPipelineMenu, Viewer },
 
   props: {
     datasetId: {
@@ -25,9 +26,9 @@ export default defineComponent({
     const annotatorType = toRef(root.$store.getters, 'Dataset/annotatorType');
     const imageData = toRef(root.$store.state.Dataset, 'imageData');
     const videoUrl = toRef(root.$store.state.Dataset, 'videoUrl');
-
+    const location = toRef(root.$store.state.Location, 'location');
     const dataPath = computed(() => (
-      getPathFromLocation(root.$store.state.Location.location)));
+      getPathFromLocation(location.value)));
 
     return {
       dataPath,
@@ -71,10 +72,8 @@ export default defineComponent({
       </span>
     </template>
     <template #title-right>
-      <export
-        v-if="dataset !== null"
-        :dataset-id="dataset._id"
-      />
+      <RunPipelineMenu :selected-dataset-ids="[datasetId]" />
+      <Export :dataset-id="datasetId" />
     </template>
   </Viewer>
 </template>

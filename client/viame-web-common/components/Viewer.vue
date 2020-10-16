@@ -91,6 +91,10 @@ export default defineComponent({
     const playbackComponent = ref({} as Annotator);
     const frame = ref(0); // the currently displayed frame number
     const { loadDetections, loadMetadata } = useApi();
+    // Loaded flag prevents annotator window from populating
+    // with stale data from props, for example if a persistent store
+    // like vuex is used to drive them.
+    const loaded = ref(false);
 
     const {
       save: saveToServer,
@@ -153,6 +157,7 @@ export default defineComponent({
       // tasks to run after dataset and tracks have loaded
       populateTypeStyles(meta.customTypeStyling);
       populateConfidenceFilters(meta.confidenceFilters);
+      loaded.value = true;
     });
 
     const {
@@ -278,6 +283,7 @@ export default defineComponent({
       eventChartData,
       frame,
       lineChartData,
+      loaded,
       newTrackSettings: clientSettings.newTrackSettings,
       pendingSaveCount,
       playbackComponent,
@@ -354,7 +360,7 @@ export default defineComponent({
       <v-col style="position: relative">
         <component
           :is="annotatorType"
-          v-if="imageData.length || videoUrl"
+          v-if="(imageData.length || videoUrl) && loaded"
           ref="playbackComponent"
           v-mousetrap="[
             { bind: 'n', handler: () => handler.trackAdd() },
