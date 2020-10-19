@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  defineComponent, ref, PropType, toRef, onBeforeUnmount,
+  defineComponent, ref, PropType, toRef,
 } from '@vue/composition-api';
 
 /* VUE MEDIA ANNOTATOR */
@@ -81,11 +81,6 @@ export default defineComponent({
       type: String,
       required: true,
     },
-  },
-  // TODO: This will require an import from vue-router for Vue3 compatibility
-  async beforeRouteLeave(to, from, next) {
-    await this.navigateAway();
-    next();
   },
   setup(props, ctx) {
     // TODO: eventually we will have to migrate away from this style
@@ -237,12 +232,12 @@ export default defineComponent({
       }
     }
 
-    function save() {
+    async function save() {
       // If editing the track, disable editing mode before save
       if (editingTrack.value) {
         handler.trackSelect(selectedTrackId.value, false);
       }
-      saveToServer({
+      await saveToServer({
         customTypeStyling: getTypeStyles(allTypes),
       });
     }
@@ -253,29 +248,25 @@ export default defineComponent({
       });
     }
 
-    //Router Navigation
-    async function preventNav(event: BeforeUnloadEvent) {
+    // Navigation Guards used by parent component
+    async function warnBrowserExit(event: BeforeUnloadEvent) {
       if (pendingSaveCount.value === 0) return;
       event.preventDefault();
       // eslint-disable-next-line no-param-reassign
       event.returnValue = '';
     }
-    window.addEventListener('beforeunload', preventNav);
-    onBeforeUnmount(() => {
-      window.removeEventListener('beforeunload', preventNav);
-    });
-    async function navigateAway(): Promise<boolean> {
+    async function navigateAwayGuard(): Promise<boolean> {
       let result = true;
       if (pendingSaveCount.value > 0) {
         result = await prompt({
           title: 'Save Items',
-          text: 'There is unsaved data, would you like to continue anyways?',
+          text: 'There is unsaved data, what would you like to do?',
           positiveButton: 'Save',
           negativeButton: 'Discard',
           confirm: true,
         });
         if (result) {
-          save();
+          await save();
         }
       }
       return result;
@@ -336,7 +327,8 @@ export default defineComponent({
       updateTypeName,
       removeTypeTracks,
       // For Navigation Guarding
-      navigateAway,
+      navigateAwayGuard,
+      warnBrowserExit,
     };
   },
 });
