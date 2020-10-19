@@ -141,6 +141,7 @@ export default defineComponent({
       confidenceThreshold,
       confidenceFilters,
       allTypes,
+      usedTypes,
       filteredTracks,
       enabledTracks,
       populateConfidenceFilters,
@@ -296,6 +297,7 @@ export default defineComponent({
 
     provideAnnotator(
       allTypes,
+      usedTypes,
       checkedTrackIds,
       checkedTypes,
       editingMode,

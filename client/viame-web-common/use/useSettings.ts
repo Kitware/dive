@@ -17,6 +17,11 @@ export interface NewTrackSettings {
   };
 }
 
+export interface TypeSettings {
+  viewUnused: boolean;
+  lockTypes: boolean;
+}
+
 export default function useSettings(allTypes: Ref<Readonly<string[]>>) {
   const clientSettings = reactive({
     newTrackSettings: {
@@ -32,6 +37,10 @@ export default function useSettings(allTypes: Ref<Readonly<string[]>>) {
         },
       },
     },
+    typeSettings: {
+      viewUnUsed: false,
+      lockTypes: false,
+    },
   });
 
   function saveSettings() {
@@ -45,6 +54,14 @@ export default function useSettings(allTypes: Ref<Readonly<string[]>>) {
     saveSettings();
   }
 
+  function updateTypeSettings(updatedTypeSettings: TypeSettings) {
+    clientSettings.typeSettings = merge(
+      clientSettings.typeSettings, updatedTypeSettings,
+    );
+    saveSettings();
+  }
+
+
   // If a type is deleted, reset the default new track type to unknown
   watch(allTypes, (newval) => {
     if (newval.indexOf(clientSettings.newTrackSettings.type) === -1) {
@@ -57,7 +74,8 @@ export default function useSettings(allTypes: Ref<Readonly<string[]>>) {
   if (storedSettings) {
     const defaultSettings = JSON.parse(storedSettings);
     updateNewTrackSettings(defaultSettings.newTrackSettings);
+    updateTypeSettings(defaultSettings.typeSettings);
   }
 
-  return { clientSettings: toRefs(clientSettings), updateNewTrackSettings };
+  return { clientSettings: toRefs(clientSettings), updateNewTrackSettings, updateTypeSettings };
 }

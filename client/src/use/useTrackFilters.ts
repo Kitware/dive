@@ -16,6 +16,7 @@ export default function useFilteredTracks(
   const checkedTrackIds = ref(sortedTracks.value.map((t) => t.trackId));
   /* The confidence threshold to test confidecePairs against */
   const confidenceFilters = ref({ default: 0.1 } as Record<string, number>);
+  const defaultTypes: Ref<string[]> = ref([]);
 
   /**
    * TODO: update
@@ -37,9 +38,21 @@ export default function useFilteredTracks(
         typeSet.add(name);
       });
     });
+    defaultTypes.value.forEach((type) => {
+      typeSet.add(type);
+    });
     return Array.from(typeSet);
   });
 
+  const usedTypes = computed(() => {
+    const typeSet = new Set<string>();
+    sortedTracks.value.forEach((track) => {
+      track.confidencePairs.forEach(([name]) => {
+        typeSet.add(name);
+      });
+    });
+    return Array.from(typeSet);
+  });
   /* Categorical types checked "ON" by the user */
   const checkedTypes = ref(Array.from(allTypes.value));
 
@@ -82,7 +95,7 @@ export default function useFilteredTracks(
   });
 
   let oldCheckedtypes: string[] = [];
-  watch(allTypes, (newval) => {
+  watch(usedTypes, (newval) => {
     const newArr = updateSubset(oldCheckedtypes, newval, checkedTypes.value);
     if (newArr !== null) {
       oldCheckedtypes = Array.from(newval);
@@ -90,6 +103,18 @@ export default function useFilteredTracks(
     }
   });
 
+  function importTypes(types: string[]) {
+    types.forEach((type) => {
+      if (!defaultTypes.value.includes(type)) {
+        defaultTypes.value.push(type);
+      }
+    });
+  }
+  function deleteType(type: string) {
+    if (defaultTypes.value.includes(type)) {
+      defaultTypes.value.splice(defaultTypes.value.indexOf(type), 1);
+    }
+  }
   function updateTypeName({ currentType, newType }: {currentType: string; newType: string}) {
     //Go through the entire list and replace the oldType with the new Type
     sortedTracks.value.forEach((track) => {
@@ -99,6 +124,9 @@ export default function useFilteredTracks(
         }
       });
     });
+    if (defaultTypes.value.includes(currentType)) {
+      defaultTypes.value[defaultTypes.value.indexOf(currentType)] = newType;
+    }
   }
 
   function removeTypeTracks(type: string[]) {
@@ -136,6 +164,7 @@ export default function useFilteredTracks(
     confidenceThreshold: defaultConfidenceThreshold,
     confidenceFilters,
     allTypes,
+    usedTypes,
     filteredTracks,
     enabledTracks,
     populateConfidenceFilters,

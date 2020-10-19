@@ -18,6 +18,9 @@ import { RectBounds } from './utils';
 const AllTypesSymbol = Symbol('allTypes');
 type AllTypesType = Readonly<Ref<readonly string[]>>;
 
+const UsedTypesSymbol = Symbol('usedTypes');
+type UsedTypesType = Readonly<Ref<readonly string[]>>;
+
 const CheckedTrackIdsSymbol = Symbol('checkedTrackIds');
 type CheckedTrackIdsType = Readonly<Ref<readonly TrackId[]>>;
 
@@ -130,6 +133,7 @@ function use<T>(s: symbol) {
 
 function provideAnnotator(
   allTypes: AllTypesType,
+  usedTypes: UsedTypesType,
   checkedTrackIds: CheckedTrackIdsType,
   checkedTypes: CheckedTypesType,
   editingMode: EditingModeType,
@@ -146,6 +150,7 @@ function provideAnnotator(
   visibleModes: VisibleModesType,
 ) {
   provide(AllTypesSymbol, allTypes);
+  provide(UsedTypesSymbol, usedTypes);
   provide(CheckedTrackIdsSymbol, checkedTrackIds);
   provide(CheckedTypesSymbol, checkedTypes);
   provide(EnabledTracksSymbol, enabledTracks);
