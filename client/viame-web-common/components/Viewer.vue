@@ -159,6 +159,9 @@ export default defineComponent({
     ]).then(([meta]) => {
       // tasks to run after dataset and tracks have loaded
       populateTypeStyles(meta.customTypeStyling);
+      if (meta.customTypeStyling) {
+        importTypes(Object.keys(meta.customTypeStyling));
+      }
       populateConfidenceFilters(meta.confidenceFilters);
       loaded.value = true;
     });

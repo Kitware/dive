@@ -134,6 +134,7 @@ export default defineComponent({
       acceptChanges,
       clickEdit,
       clickDeleteType,
+      clickDelete,
       headCheckState,
       headCheckClicked,
       setCheckedTypes,
