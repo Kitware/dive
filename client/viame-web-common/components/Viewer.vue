@@ -84,11 +84,8 @@ export default defineComponent({
   },
   // TODO: This will require an import from vue-router for Vue3 compatibility
   async beforeRouteLeave(to, from, next) {
-    if (!(await this.navigateAway())) {
-      next(false);
-    } else {
-      next();
-    }
+    await this.navigateAway();
+    next();
   },
   setup(props, ctx) {
     // TODO: eventually we will have to migrate away from this style
@@ -109,28 +106,6 @@ export default defineComponent({
       pendingSaveCount,
     } = useSave(toRef(props, 'datasetId'));
 
-
-    async function preventNav(event: BeforeUnloadEvent) {
-      if (pendingSaveCount.value === 0) return;
-      event.preventDefault();
-      // eslint-disable-next-line no-param-reassign
-      event.returnValue = '';
-    }
-    window.addEventListener('beforeunload', preventNav);
-    onBeforeUnmount(() => {
-      window.removeEventListener('beforeunload', preventNav);
-    });
-    async function navigateAway(): Promise<boolean> {
-      let result = true;
-      if (pendingSaveCount.value > 0) {
-        result = await prompt({
-          title: 'Save Items',
-          text: 'There is unsaved data, would you like to continue anyways?',
-          confirm: true,
-        });
-      }
-      return result;
-    }
     const recipes = [
       new PolygonBase(),
       new HeadTail(),
@@ -276,6 +251,34 @@ export default defineComponent({
       saveToServer({
         confidenceFilters: confidenceFilters.value,
       });
+    }
+
+    //Router Navigation
+    async function preventNav(event: BeforeUnloadEvent) {
+      if (pendingSaveCount.value === 0) return;
+      event.preventDefault();
+      // eslint-disable-next-line no-param-reassign
+      event.returnValue = '';
+    }
+    window.addEventListener('beforeunload', preventNav);
+    onBeforeUnmount(() => {
+      window.removeEventListener('beforeunload', preventNav);
+    });
+    async function navigateAway(): Promise<boolean> {
+      let result = true;
+      if (pendingSaveCount.value > 0) {
+        result = await prompt({
+          title: 'Save Items',
+          text: 'There is unsaved data, would you like to continue anyways?',
+          positiveButton: 'Save',
+          negativeButton: 'Discard',
+          confirm: true,
+        });
+        if (result) {
+          save();
+        }
+      }
+      return result;
     }
 
     const globalHandler = {

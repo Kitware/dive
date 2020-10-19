@@ -146,12 +146,20 @@ export default defineComponent({
     async function multiDelete() {
       const tracksDisplayed: number[] = [];
       const text = ['Do you want to delete the following tracks:'];
+      let count = 0;
+      const limit = 20;
       virtualListItems.value.forEach((item) => {
         if (item.checkedTrackIds.includes(item.track.trackId)) {
-          tracksDisplayed.push(item.track.trackId);
-          text.push(item.track.trackId.toString());
+          if (count < limit) {
+            tracksDisplayed.push(item.track.trackId);
+            text.push(item.track.trackId.toString());
+          }
+          count += 1;
         }
       });
+      if (count >= limit) {
+        text.push(`And ${count - limit} more tracks...`);
+      }
 
       const result = await prompt({
         title: 'Confirm',
