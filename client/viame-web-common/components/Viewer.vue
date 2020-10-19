@@ -101,28 +101,6 @@ export default defineComponent({
       pendingSaveCount,
     } = useSave(toRef(props, 'datasetId'));
 
-
-    async function preventNav(event: BeforeUnloadEvent) {
-      if (pendingSaveCount.value === 0) return;
-      event.preventDefault();
-      // eslint-disable-next-line no-param-reassign
-      event.returnValue = '';
-    }
-    window.addEventListener('beforeunload', preventNav);
-    onBeforeUnmount(() => {
-      window.removeEventListener('beforeunload', preventNav);
-    });
-    async function navigateAway(): Promise<boolean> {
-      let result = true;
-      if (pendingSaveCount.value > 0) {
-        result = await prompt({
-          title: 'Save Items',
-          text: 'There is unsaved data, would you like to continue anyways?',
-          confirm: true,
-        });
-      }
-      return result;
-    }
     const recipes = [
       new PolygonBase(),
       new HeadTail(),
