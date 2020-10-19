@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  defineComponent, ref, PropType, toRef, onBeforeUnmount,
+  defineComponent, ref, PropType, toRef,
 } from '@vue/composition-api';
 
 /* VUE MEDIA ANNOTATOR */
