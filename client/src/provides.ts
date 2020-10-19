@@ -106,6 +106,8 @@ export interface Handler {
   setCheckedTypes(types: string[]): void;
   /* set checked type strings */
   removeTypeTracks(types: string[]): void;
+  /* removes an individual type */
+  deleteType(types: string): void;
   /* Change type name */
   updateTypeName({ currentType, newType }: { currentType: string; newType: string }): void;
   /* change styles */
@@ -170,6 +172,9 @@ function provideAnnotator(
 function useAllTypes() {
   return use<AllTypesType>(AllTypesSymbol);
 }
+function useUsedTypes() {
+  return use<UsedTypesType>(UsedTypesSymbol);
+}
 
 function useCheckedTrackIds() {
   return use<CheckedTrackIdsType>(CheckedTrackIdsSymbol);
@@ -231,6 +236,7 @@ export {
   provideAnnotator,
   use,
   useAllTypes,
+  useUsedTypes,
   useCheckedTrackIds,
   useCheckedTypes,
   useEnabledTracks,

@@ -141,12 +141,14 @@ export default defineComponent({
       confidenceThreshold,
       confidenceFilters,
       allTypes,
+      importTypes,
       usedTypes,
       filteredTracks,
       enabledTracks,
       populateConfidenceFilters,
       updateTypeName,
       removeTypeTracks,
+      deleteType,
       updateCheckedTypes,
       updateCheckedTrackId,
     } = useTrackFilters({ sortedTracks, removeTrack });
@@ -178,7 +180,7 @@ export default defineComponent({
       enabledTracks, selectedTrackId, typeStyling,
     });
 
-    const { clientSettings, updateNewTrackSettings } = useSettings(allTypes);
+    const { clientSettings, updateNewTrackSettings, updateTypeSettings } = useSettings(allTypes);
 
     // Provides wrappers for actions to integrate with settings
     const {
@@ -293,6 +295,7 @@ export default defineComponent({
       updateTypeName,
       updateTypeStyle,
       removeTypeTracks,
+      deleteType,
     };
 
     provideAnnotator(
@@ -324,6 +327,7 @@ export default defineComponent({
       lineChartData,
       loaded,
       newTrackSettings: clientSettings.newTrackSettings,
+      typeSettings: clientSettings.typeSettings,
       pendingSaveCount,
       playbackComponent,
       recipes,
@@ -337,9 +341,11 @@ export default defineComponent({
       save,
       saveThreshold,
       updateNewTrackSettings,
+      updateTypeSettings,
       updateTypeStyle,
       updateTypeName,
       removeTypeTracks,
+      importTypes,
       // For Navigation Guarding
       navigateAwayGuard,
       warnBrowserExit,
@@ -393,8 +399,10 @@ export default defineComponent({
       style="min-width: 700px;"
     >
       <sidebar
-        v-bind="{ newTrackSettings }"
+        v-bind="{ newTrackSettings, typeSettings }"
         @update-new-track-settings="updateNewTrackSettings($event)"
+        @update-type-settings="updateTypeSettings($event)"
+        @import-types="importTypes($event)"
         @track-seek="playbackComponent.seek($event)"
       >
         <ConfidenceFilter

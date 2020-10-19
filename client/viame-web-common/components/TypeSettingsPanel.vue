@@ -4,7 +4,7 @@ import { cloneDeep } from 'lodash';
 import { TypeSettings } from 'viame-web-common/use/useSettings';
 
 export default Vue.extend({
-  name: 'TypeSettings',
+  name: 'TypeSettingsPanel',
 
   props: {
     allTypes: {
@@ -40,19 +40,20 @@ export default Vue.extend({
       const types = this.importTypes.split('\n');
       this.$emit('import-types', types);
       this.importDialog = false;
+      this.importTypes = '';
     },
   },
 });
 </script>
 
 <template>
-  <div class="mb-2">
+  <v-container>
     <v-card
       outlined
-      class="pa-2 pb-0 mt-3"
+      class="pa-2 pb-0 mt-3 type-settings"
     >
-      <div class="subheading">
-        Type Settings
+      <div>
+        Track Settings:
       </div>
       <v-row
         align="end"
@@ -60,11 +61,10 @@ export default Vue.extend({
       >
         <v-col>
           <v-btn
-            class="ml-0 pa-0"
-            x-small
             dense
+            small
             hide-details
-            @change="importDialog = true"
+            @click="importDialog = true"
           >
             Import
           </v-btn>
@@ -91,18 +91,12 @@ export default Vue.extend({
         align="end"
         dense
       >
-        <v-col
-          class="mx-2"
-          cols="3"
-        >
-          View Unused:
-        </v-col>
         <v-col>
-          <v-checkbox
+          <v-switch
             v-model="typeSettings.viewUnUsed"
-            class="ml-0 pa-0"
-            x-small
+            class="my-0 ml-1 pt-0"
             dense
+            label="View Unused"
             hide-details
             @change="saveTypeSettings($event, 'viewUnused')"
           />
@@ -129,17 +123,11 @@ export default Vue.extend({
         align="end"
         dense
       >
-        <v-col
-          class="mx-2"
-          cols="3"
-        >
-          Lock Types:
-        </v-col>
         <v-col>
-          <v-checkbox
+          <v-switch
             :value="typeSettings.lockTypes"
-            class="ml-0 pa-0"
-            x-small
+            label="Lock Types"
+            class="my-0 ml-1 pt-0"
             dense
             hide-details
             @change="saveTypeSettings($event, 'lockTypes')"
@@ -192,17 +180,24 @@ export default Vue.extend({
           </v-card-subtitle>
           <v-card-text>
             {{ importInstructions }}
-            <v-form v-model="data.valid">
+            <v-form>
               <v-row class="align-center">
                 <v-col>
                   <v-textarea
                     v-model="importTypes"
+                    outlined
                     no-resize
                     rows="10"
                   />
                 </v-col>
               </v-row>
             </v-form>
+            <v-alert
+              text
+              color="error"
+            >
+              Note:  You will have to check 'View Unused' in the settings to see new empty types
+            </v-alert>
           </v-card-text>
           <v-card-actions>
             <v-spacer />
@@ -224,5 +219,13 @@ export default Vue.extend({
         </v-card>
       </div>
     </v-dialog>
-  </div>
+  </v-container>
 </template>
+
+<style scoped lang='scss'>
+.type-settings {
+ font-size: 0.875rem !important;
+}
+
+
+</style>

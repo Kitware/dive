@@ -9,14 +9,19 @@ import {
 import { TypeList, TrackList } from 'vue-media-annotator/components';
 import { useAllTypes } from 'vue-media-annotator/provides';
 
-import { NewTrackSettings } from 'viame-web-common/use/useSettings';
+import { NewTrackSettings, TypeSettings } from 'viame-web-common/use/useSettings';
 import AttributesPanel from 'viame-web-common/components/AttributesPanel.vue';
 import CreationMode from 'viame-web-common/components/CreationMode.vue';
+import TypeSettingsPanel from 'viame-web-common/components/TypeSettingsPanel.vue';
 
 export default defineComponent({
   props: {
     newTrackSettings: {
       type: Object as PropType<NewTrackSettings>,
+      required: true,
+    },
+    typeSettings: {
+      type: Object as PropType<TypeSettings>,
       required: true,
     },
     width: {
@@ -30,6 +35,7 @@ export default defineComponent({
     CreationMode,
     TypeList,
     TrackList,
+    TypeSettingsPanel,
   },
 
   setup() {
@@ -78,7 +84,19 @@ export default defineComponent({
         key="type-tracks"
         class="wrapper d-flex flex-column"
       >
-        <type-list class="flex-shrink-1 flex-grow-1 typelist" />
+        <type-list
+          :view-unused="typeSettings.viewUnUsed"
+          class="flex-shrink-1 flex-grow-1 typelist"
+        >
+          <template slot="settings">
+            <type-settings-panel
+              :all-types="allTypesRef"
+              :type-settings="typeSettings"
+              @update-type-settings="$emit('update-type-settings',$event)"
+              @import-types="$emit('import-types',$event)"
+            />
+          </template>
+        </type-list>
         <slot />
         <v-spacer />
         <v-divider />
