@@ -81,7 +81,6 @@ export default defineComponent({
 
     /* isTrack distinguishes between track and detection */
     const isTrack = computed(() => props.track.length > 1 || feature.value.shouldInterpolate);
-    const isLocked = computed(() => props.lockTypes);
 
     /* Sets styling for the selected track */
     const style = computed(() => {
@@ -183,7 +182,6 @@ export default defineComponent({
       data,
       feature,
       isTrack,
-      isLocked,
       style,
       typeInputBox: typeInputBoxRef,
       frame: frameRef,
@@ -253,7 +251,7 @@ export default defineComponent({
         @blur="onBlur"
       >
       <v-tooltip
-        v-if="isLocked"
+        v-if="lockTypes"
         v-model="data.inputError"
         top
         close-delay="300"

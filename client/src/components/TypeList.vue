@@ -371,7 +371,6 @@ export default defineComponent({
                 </div>
               </template>
               <span
-                v-if="usedTypesRef.includes(data.selectedType)"
                 class="ma-0 pa-1"
               >
                 Only empty types can be deleted!!
