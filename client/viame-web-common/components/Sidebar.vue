@@ -85,7 +85,7 @@ export default defineComponent({
         class="wrapper d-flex flex-column"
       >
         <type-list
-          :view-unused="typeSettings.viewUnUsed"
+          :view-un-used="typeSettings.viewUnUsed"
           class="flex-shrink-1 flex-grow-1 typelist"
         >
           <template slot="settings">
@@ -104,6 +104,7 @@ export default defineComponent({
           class="flex-grow-0 flex-shrink-0"
           :new-track-mode="newTrackSettings.mode"
           :new-track-type="newTrackSettings.type"
+          :lock-types="typeSettings.lockTypes"
           :hotkeys-disabled="$prompt.visible()"
           @track-seek="$emit('track-seek', $event)"
         >
@@ -142,7 +143,7 @@ export default defineComponent({
 }
 
 .typelist {
-  min-height: 150px;
+  min-height: 250px;
 }
 
 .swap-button {

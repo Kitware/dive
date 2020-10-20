@@ -30,7 +30,7 @@ export default Vue.extend({
   }),
   methods: {
     /** Reduces the number of update functions utilizing Vuex by indicating the target type */
-    saveTypeSettings(event: boolean, target: 'viewUnused' | 'lockTypes') {
+    saveTypeSettings(event: boolean, target: 'viewUnUsed' | 'lockTypes') {
       const copy: TypeSettings = cloneDeep(this.typeSettings);
       copy[target] = event; // Modify the value
       this.$emit('update-type-settings', copy);
@@ -63,9 +63,13 @@ export default Vue.extend({
           <v-btn
             dense
             small
+            outlined
             hide-details
             @click="importDialog = true"
           >
+            <v-icon small>
+              mdi-plus
+            </v-icon>
             Import
           </v-btn>
         </v-col>
@@ -98,7 +102,7 @@ export default Vue.extend({
             dense
             label="View Unused"
             hide-details
-            @change="saveTypeSettings($event, 'viewUnused')"
+            @change="saveTypeSettings($event, 'viewUnUsed')"
           />
         </v-col>
         <v-col cols="2">
@@ -125,7 +129,7 @@ export default Vue.extend({
       >
         <v-col>
           <v-switch
-            :value="typeSettings.lockTypes"
+            v-model="typeSettings.lockTypes"
             label="Lock Types"
             class="my-0 ml-1 pt-0"
             dense

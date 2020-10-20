@@ -3,7 +3,7 @@ import {
   defineComponent, computed, watch, reactive, PropType, toRef, ref,
 } from '@vue/composition-api';
 import TooltipBtn from './TooltipButton.vue';
-import { useFrame, useHandler } from '../provides';
+import { useFrame, useHandler, useAllTypes } from '../provides';
 import Track from '../track';
 
 export default defineComponent({
@@ -36,17 +36,23 @@ export default defineComponent({
       type: String,
       required: true,
     },
+    lockTypes: {
+      type: Boolean,
+      default: false,
+    },
   },
 
   setup(props, { root, emit }) {
     const vuetify = root.$vuetify;
     const frameRef = useFrame();
     const handler = useHandler();
+    const allTypesRef = useAllTypes();
     const trackTypeRef = toRef(props, 'trackType');
     const typeInputBoxRef = ref(undefined as undefined | HTMLInputElement);
     const data = reactive({
       trackTypeValue: props.trackType,
       skipOnFocus: false,
+      inputError: false,
     });
 
     /* Use of revision is safe because it will only create a dependency when track is selected */
@@ -75,6 +81,7 @@ export default defineComponent({
 
     /* isTrack distinguishes between track and detection */
     const isTrack = computed(() => props.track.length > 1 || feature.value.shouldInterpolate);
+    const isLocked = computed(() => props.lockTypes);
 
     /* Sets styling for the selected track */
     const style = computed(() => {
@@ -101,11 +108,28 @@ export default defineComponent({
       (e.target as HTMLInputElement).blur();
     }
 
+    function confirmType(type: string) {
+      if (props.lockTypes) {
+        if (!allTypesRef.value.includes(type)) {
+          //Not validated to one of the types Produce response
+          data.inputError = true;
+          return;
+        }
+      }
+      data.trackTypeValue = type;
+      data.inputError = false;
+      handler.trackTypeChange(props.track.trackId, data.trackTypeValue);
+    }
+    function typeChange(event: Event) {
+      if (event && event.target) {
+        confirmType((event.target as HTMLInputElement).value);
+      }
+    }
     function onBlur() {
       if (data.trackTypeValue === '') {
         data.trackTypeValue = props.trackType;
       } else if (data.trackTypeValue !== props.trackType) {
-        handler.trackTypeChange(props.track.trackId, data.trackTypeValue);
+        confirmType(data.trackTypeValue);
       }
     }
 
@@ -153,11 +177,13 @@ export default defineComponent({
       }
     }
 
+
     return {
       /* data */
       data,
       feature,
       isTrack,
+      isLocked,
       style,
       typeInputBox: typeInputBoxRef,
       frame: frameRef,
@@ -171,6 +197,7 @@ export default defineComponent({
       onFocus,
       toggleInterpolation,
       toggleKeyframe,
+      typeChange,
     };
   },
 });
@@ -225,6 +252,26 @@ export default defineComponent({
         @focus="onFocus"
         @blur="onBlur"
       >
+      <v-tooltip
+        v-if="isLocked"
+        v-model="data.inputError"
+        top
+        close-delay="300"
+        color="error"
+      >
+        <template #activator="{ on }">
+          <v-icon
+            small
+            :color="data.inputError? 'red' : 'white'"
+            v-on="on"
+          >
+            mdi-lock
+          </v-icon>
+        </template>
+        <span>
+          Type is locked only choose one of the types from the list
+        </span>
+      </v-tooltip>
     </v-row>
     <v-row class="px-3 py-1 justify-center item-row flex-nowrap">
       <v-spacer v-if="!isTrack" />

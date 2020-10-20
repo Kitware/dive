@@ -18,7 +18,7 @@ export interface NewTrackSettings {
 }
 
 export interface TypeSettings {
-  viewUnused: boolean;
+  viewUnUsed: boolean;
   lockTypes: boolean;
 }
 

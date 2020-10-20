@@ -7,7 +7,7 @@ import {
 
 export default defineComponent({
   props: {
-    viewUnused: {
+    viewUnUsed: {
       type: Boolean,
       default: false,
     },
@@ -42,7 +42,7 @@ export default defineComponent({
     } = useHandler();
 
     const visibleTypes = computed(() => {
-      if (props.viewUnused) {
+      if (props.viewUnUsed) {
         return allTypesRef.value;
       }
       return usedTypesRef.value;
@@ -355,6 +355,7 @@ export default defineComponent({
             <v-tooltip
               open-delay="100"
               bottom
+              color="error"
             >
               <template #activator="{ on }">
                 <div v-on="on">
@@ -363,19 +364,18 @@ export default defineComponent({
                     :disabled="usedTypesRef.includes(data.selectedType)"
                     small
                     color="error"
-                    @click="clickDeleteType()"
+                    @click="clickDeleteType(data.selectedType)"
                   >
                     Delete Type
                   </v-btn>
                 </div>
               </template>
-              <v-alert
+              <span
                 v-if="usedTypesRef.includes(data.selectedType)"
                 class="ma-0 pa-1"
-                color="error"
               >
                 Only empty types can be deleted!!
-              </v-alert>
+              </span>
             </v-tooltip>
             <v-spacer />
             <v-btn
