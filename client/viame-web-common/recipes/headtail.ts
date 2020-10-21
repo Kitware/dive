@@ -11,6 +11,23 @@ export const HeadPointKey = 'head';
 export const TailPointKey = 'tail';
 const EmptyResponse: UpdateResponse = { data: {}, union: [], unionWithoutBounds: [] };
 
+/* Standard 10% padding */
+// const PaddingVector10Percent: [number, number][] = [
+//   [-0.1, -0.1],
+//   [-0.1, 0.1],
+//   [1.1, -0.1],
+//   [1.1, 0.1],
+//   [-0.1, -0.1],
+// ];
+/* No padding */
+const PaddingVectorZero: [number, number][] = [
+  [0, 0],
+  [0, 0],
+  [1, 0],
+  [1, 0],
+  [0, 0],
+];
+
 export default class HeadTail implements Recipe {
   active: Ref<boolean>;
 
@@ -33,7 +50,14 @@ export default class HeadTail implements Recipe {
     this.icon = ref('mdi-vector-line');
   }
 
-  private static findBounds(ls: GeoJSON.LineString): GeoJSON.Polygon[] {
+  /**
+   * findBounds computes a padding polygon around the linestring given paddingVector
+   * @param ls Linestring
+   * @param paddingVector polypoints in terms of C and CPerp
+   */
+  private static findBounds(
+    ls: GeoJSON.LineString, paddingVector: [number, number][],
+  ): GeoJSON.Polygon[] {
     // Coords = [ Vec A, Vec B ]
     const coords = ls.coordinates;
     if (coords.length === 2) {
@@ -47,18 +71,13 @@ export default class HeadTail implements Recipe {
         -1 * vec[1],
         vec[0],
       ];
-      // polypoints in terms of C and CPerp
-      const polyPoints = [
-        [-0.1, -0.3],
-        [-0.1, 0.3],
-        [1.1, -0.3],
-        [1.1, 0.3],
-        [-0.1, -0.3],
-      ];
+      if (paddingVector.length !== 5) {
+        throw new Error('Padding vector must have length 5');
+      }
       return [{
         type: 'Polygon',
         coordinates: [
-          polyPoints.map((p) => ([
+          paddingVector.map((p) => ([
             coords[0][0] + (p[0] * vec[0]) + (p[1] * vecPerp[0]),
             coords[0][1] + (p[0] * vec[1]) + (p[1] * vecPerp[1]),
           ])),
@@ -69,29 +88,10 @@ export default class HeadTail implements Recipe {
     return [{
       type: 'Polygon',
       coordinates: coords.map((p) => ([
-        p.map((c) => c + 10),
-        p.map((c) => c - 10),
+        p.map((c) => c + 5),
+        p.map((c) => c - 5),
       ])),
     }];
-  }
-
-  private static remove(frameNum: number, track: Track, index: number) {
-    track.removeFeatureGeometry(frameNum, {
-      key: HeadTailLineKey,
-      type: 'LineString',
-    });
-    if (index === -1 || index === 0) {
-      track.removeFeatureGeometry(frameNum, {
-        key: HeadPointKey,
-        type: 'Point',
-      });
-    }
-    if (index === -1 || index === 1) {
-      track.removeFeatureGeometry(frameNum, {
-        key: TailPointKey,
-        type: 'Point',
-      });
-    }
   }
 
   private static makeGeom(ls: GeoJSON.LineString, startWithHead: boolean) {
@@ -153,6 +153,7 @@ export default class HeadTail implements Recipe {
         let geom = linestring.geometry;
         const head = track.getFeatureGeometry(frameNum, { type: 'Point', key: HeadPointKey });
         const tail = track.getFeatureGeometry(frameNum, { type: 'Point', key: TailPointKey });
+
         if (head.length !== tail.length) {
           // If one point exists but not the other
           if (head.length > 0) {
@@ -180,7 +181,7 @@ export default class HeadTail implements Recipe {
             data: HeadTail.makeGeom(geom, this.startWithHead),
             newSelectedKey: HeadTailLineKey,
             done: true,
-            union: HeadTail.findBounds(geom),
+            union: HeadTail.findBounds(geom, PaddingVectorZero),
           } as UpdateResponse;
         }
         if (geom.coordinates.length === 1) {
@@ -188,7 +189,7 @@ export default class HeadTail implements Recipe {
           return {
             ...EmptyResponse,
             data: HeadTail.makeGeom(geom, this.startWithHead),
-            union: HeadTail.findBounds(geom),
+            union: HeadTail.findBounds(geom, PaddingVectorZero),
             done: false,
           };
         }
@@ -200,7 +201,7 @@ export default class HeadTail implements Recipe {
         return {
           ...EmptyResponse,
           data: HeadTail.makeGeom(linestring.geometry, true),
-          union: HeadTail.findBounds(linestring.geometry),
+          union: HeadTail.findBounds(linestring.geometry, PaddingVectorZero),
           done: true,
         };
       }
