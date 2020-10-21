@@ -64,8 +64,9 @@ function runPipeline(itemId: string, pipeline: string) {
   );
 }
 
-function getTrainingConfigurations(): Promise<TrainingConfigs> {
-  return girderRest.get('/viame/training_configs');
+async function getTrainingConfigurations(): Promise<TrainingConfigs> {
+  const { data } = await girderRest.get('/viame/training_configs');
+  return data;
 }
 
 function runTraining(folderId: string, pipelineName: string, config: string) {

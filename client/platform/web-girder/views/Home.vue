@@ -79,7 +79,7 @@ export default {
         ({ _modelType, meta }) => _modelType === 'folder' && meta && meta.annotate,
       ).map(({ _id }) => _id);
     },
-    runPipelineInputs() {
+    locationInputs() {
       return this.locationIsViameFolder ? [this.location._id] : this.selectedViameFolderIds;
     },
   },
@@ -168,11 +168,11 @@ export default {
           >
             <template #headerwidget>
               <run-training-menu
-                :selected="(locationIsViameFolder ? [location] : selected)"
+                :selected-dataset-ids="locationInputs"
                 small
               />
               <run-pipeline-menu
-                :selected-dataset-ids="runPipelineInputs"
+                :selected-dataset-ids="locationInputs"
                 small
               />
               <export
