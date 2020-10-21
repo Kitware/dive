@@ -1,11 +1,15 @@
-<script>
-import { useApi } from 'viame-web-common/apispec';
+<script lang="ts">
+import {
+  defineComponent, computed, PropType, ref, onBeforeMount,
+} from '@vue/composition-api';
 
-const { getTrainingConfigurations, runTraining } = useApi();
-export default {
+import { useApi, TrainingConfigs } from 'viame-web-common/apispec';
+
+
+export default defineComponent({
   props: {
-    selected: {
-      type: Array,
+    selectedDatasetIds: {
+      type: Array as PropType<string[]>,
       default: () => [],
     },
     small: {
@@ -13,64 +17,70 @@ export default {
       default: false,
     },
   },
-  data() {
-    return {
-      trainingConfigurations: [],
-      selectedTrainingConfig: null,
-      defaultTrainingConfig: null,
-      trainingOutputName: null,
-      menuOpen: false,
-    };
-  },
-  computed: {
-    selectedEligibleClips() {
-      return this.selected.filter(
-        ({ _modelType, meta }) => _modelType === 'folder' && meta && meta.annotate,
-      );
-    },
-    trainingDisabled() {
-      return this.selectedEligibleClips.length !== 1;
-    },
-  },
 
-  async created() {
-    const resp = await getTrainingConfigurations();
-    this.trainingConfigurations = resp.data.configs;
-    this.defaultTrainingConfig = resp.data.default;
-    this.selectedTrainingConfig = resp.data.default;
-  },
+  setup(props, { root }) {
+    const { getTrainingConfigurations, runTraining } = useApi();
 
-  methods: {
-    async runTrainingOnFolder() {
-      const folder = this.selected[0];
-      const config = this.selectedTrainingConfig;
-      const pipelineName = this.trainingOutputName;
+    const trainingConfigurations = ref<TrainingConfigs | null>(null);
+    const selectedTrainingConfig = ref<string | null>(null);
+
+    onBeforeMount(async () => {
+      const resp = await getTrainingConfigurations();
+
+      trainingConfigurations.value = resp;
+      selectedTrainingConfig.value = resp.default;
+    });
+
+    const trainingOutputName = ref<string | null>(null);
+    const menuOpen = ref(false);
+
+    const trainingDisabled = computed(() => props.selectedDatasetIds.length !== 1);
+
+    async function runTrainingOnFolder() {
+      const folder = props.selectedDatasetIds[0];
+      const configs = trainingConfigurations.value;
+      const selectedConfig = selectedTrainingConfig.value;
+      const pipelineName = trainingOutputName.value;
+
+      if (pipelineName == null || configs === null || selectedConfig === null) { return; }
 
       try {
-        await runTraining(folder, pipelineName, config);
+        await runTraining(folder, pipelineName, selectedConfig);
 
-        this.menuOpen = false;
-        this.trainingOutputName = null;
-        this.selectedTrainingConfig = this.defaultTrainingConfig;
-        this.$snackbar({
-          text: `Started training on folder ${folder.name}`,
+        menuOpen.value = false;
+        trainingOutputName.value = null;
+        selectedTrainingConfig.value = configs.default;
+
+        root.$snackbar({
+          text: 'Training started',
           timeout: 2000,
           immediate: true,
+          button: 'View',
         });
       } catch (err) {
         let text = 'Unable to run training';
         if (err.response && err.response.status === 403) {
           text = 'You do not have permission to run training on the selected resource(s).';
         }
-        this.$prompt({
+
+        root.$prompt({
           title: 'Training Failed',
           text,
           positiveButton: 'OK',
         });
       }
-    },
+    }
+
+    return {
+      trainingConfigurations,
+      selectedTrainingConfig,
+      trainingOutputName,
+      menuOpen,
+      trainingDisabled,
+      runTrainingOnFolder,
+    };
   },
-};
+});
 </script>
 
 <template>
@@ -134,7 +144,7 @@ export default {
           outlined
           class="mx-2"
           label="Configuration File"
-          :items="trainingConfigurations"
+          :items="trainingConfigurations.configs"
         />
         <v-btn
           depressed
