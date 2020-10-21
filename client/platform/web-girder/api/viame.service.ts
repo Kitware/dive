@@ -65,7 +65,7 @@ function runPipeline(itemId: string, pipeline: string) {
 }
 
 async function getTrainingConfigurations(): Promise<TrainingConfigs> {
-  const { data } = await girderRest.get('/viame/training_configs');
+  const { data } = await girderRest.get<TrainingConfigs>('/viame/training_configs');
   return data;
 }
 
