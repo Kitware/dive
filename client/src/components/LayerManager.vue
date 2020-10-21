@@ -20,6 +20,7 @@ import { geojsonToBound } from '../utils';
 
 import {
   useEnabledTracks,
+  useHandler,
   useIntervalTree,
   useTrackMap,
   useSelectedTrackId,
@@ -36,7 +37,8 @@ import {
  *  LayerManager emits high-level events when track features get selected or updated.
  */
 export default defineComponent({
-  setup(props, { emit }) {
+  setup() {
+    const handler = useHandler();
     const intervalTree = useIntervalTree();
     const trackMap = useTrackMap();
     const tracksRef = useEnabledTracks();
@@ -217,14 +219,14 @@ export default defineComponent({
       //So we only want to pass the click whjen not in creation mode or editing mode for features
       if (editAnnotationLayer.getMode() !== 'creation') {
         editAnnotationLayer.disable();
-        emit('select-track', trackId, editing);
+        handler.trackSelect(trackId, editing);
       }
     };
 
 
     //Sync of internal geoJS state with the application
     editAnnotationLayer.bus.$on('editing-annotation-sync', (editing: boolean) => {
-      emit('select-track', selectedTrackIdRef.value, editing);
+      handler.trackSelect(selectedTrackIdRef.value, editing);
     });
     rectAnnotationLayer.bus.$on('annotation-clicked', Clicked);
     rectAnnotationLayer.bus.$on('annotation-right-clicked', Clicked);
@@ -241,9 +243,9 @@ export default defineComponent({
       if (type === 'rectangle') {
         const bounds = geojsonToBound(data as GeoJSON.Feature<GeoJSON.Polygon>);
         cb();
-        emit('update-rect-bounds', frameNumberRef.value, bounds);
+        handler.updateRectBounds(frameNumberRef.value, bounds);
       } else {
-        emit('update-geojson', mode, frameNumberRef.value, data, key, cb);
+        handler.updateGeoJSON(mode, frameNumberRef.value, data, key, cb);
       }
       // Jump into edit mode if we completed a new shape
       if (geometryCompleteEvent) {
@@ -258,7 +260,7 @@ export default defineComponent({
       }
     });
     editAnnotationLayer.bus.$on('update:selectedIndex',
-      (index: number, _type: EditAnnotationTypes, key = '') => emit('select-feature-handle', index, key));
+      (index: number, _type: EditAnnotationTypes, key = '') => handler.selectFeatureHandle(index, key));
   },
 });
 </script>

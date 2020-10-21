@@ -8,7 +8,7 @@ declare module '@girder/components/src' {
     _modelType: 'item' | 'folder' | 'file' | 'user';
     parentCollection?: string;
     parentId?: string;
-    meta: { [key: string]: unknown };
+    meta: unknown;
   }
 
   interface GirderRestClientParams {

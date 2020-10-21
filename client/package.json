@@ -1,20 +1,21 @@
 {
   "name": "vue-media-annotator",
-  "version": "0.2.0",
+  "version": "1.0.0-beta.1",
   "scripts": {
-    "serve": "rimraf -rf ./node_modules/.cache/vue-loader && vue-cli-service serve app/main.ts",
-    "build": "vue-cli-service build app/main.ts",
-    "lint": "vue-cli-service lint src/ app/",
-    "test": "vue-cli-service test:unit src/ app/"
+    "serve": "vue-cli-service serve platform/web-girder/main.ts",
+    "build:web": "vue-cli-service build platform/web-girder/main.ts",
+    "build:lib": "rollup -c",
+    "lint": "vue-cli-service lint src/ viame-web-common/ platform/",
+    "test": "vue-cli-service test:unit src/ viame-web-common/"
   },
   "resolutions": {
     "@types/jest": "^25.2.3"
   },
   "files": [
-    "/src/",
-    "/babel.config.js",
-    "/vue.config.js"
+    "/lib/"
   ],
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
   "dependencies": {
     "@flatten-js/interval-tree": "^1.0.11",
     "@girder/components": "^2.2.4",
@@ -29,7 +30,7 @@
     "geojs": "^0.20.0",
     "lodash": "^4.17.19",
     "mousetrap": "^1.6.5",
-    "vue": "^2.6.10",
+    "vue": "^2.6.12",
     "vue-gtag": "^1.9.1",
     "vue-router": "^3.0.3",
     "vuetify": "^v2.3.10",
@@ -62,20 +63,25 @@
     "git-describe": "^4.0.4",
     "jest": "^26.0.1",
     "jest-transform-stub": "^2.0.0",
+    "rollup": "^2.29.0",
+    "rollup-plugin-cleaner": "^1.0.0",
+    "rollup-plugin-scss": "^2.6.1",
+    "rollup-plugin-typescript2": "^0.27.3",
+    "rollup-plugin-vue": "^5.1.9",
     "sass": "^1.26.3",
     "sass-loader": "^8.0.2",
     "ts-jest": "^26.0.0",
     "typescript": "~3.8.3",
     "vue-cli-plugin-vuetify": "^2.0.5",
     "vue-jest": "^3.0.5",
-    "vue-template-compiler": "^2.6.10",
+    "vue-template-compiler": "^2.6.12",
     "vuetify-loader": "^1.4.3"
   },
   "jest": {
     "verbose": true,
     "moduleNameMapper": {
       "^vue-media-annotator/(.*)$": "<rootDir>/src/$1",
-      "^app/(.*)$": "<rootDir>/app/$1",
+      "^viame-web-common/(.*)$": "<rootDir>/viame-web-common/$1",
       "\\.css$": "<rootDir>/test/stub.js"
     },
     "transform": {

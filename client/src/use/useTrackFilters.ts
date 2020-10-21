@@ -11,7 +11,7 @@ export default function useFilteredTracks(
   /* Track IDs explicitly checked "ON" by the user */
   const checkedTrackIds = ref(sortedTracks.value.map((t) => t.trackId));
   /* The confidence threshold to test confidecePairs against */
-  const confidenceFilters = ref({ default: 0.5 } as Record<string, number>);
+  const confidenceFilters = ref({ default: 0.1 } as Record<string, number>);
 
   /**
    * TODO: update
@@ -107,7 +107,7 @@ export default function useFilteredTracks(
     checkedTypes.value = types;
   }
 
-  function updateCheckedTrackId({ trackId, value }: { trackId: TrackId; value: boolean }) {
+  function updateCheckedTrackId(trackId: TrackId, value: boolean) {
     if (value) {
       checkedTrackIds.value.push(trackId);
     } else {
