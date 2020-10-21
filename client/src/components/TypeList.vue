@@ -6,8 +6,8 @@ import {
 
 export default defineComponent({
   name: 'TypeList',
-  setup(_props, ctx) {
-    const prompt = ctx.root.$prompt;
+  setup(_props, { root }) {
+    const prompt = root.$prompt;
     const data = reactive({
       showPicker: false,
       selectedColor: '',
@@ -118,7 +118,7 @@ export default defineComponent({
       dense
       class="py-0"
     >
-      <v-row style="border: 1px solid white">
+      <v-row class="border-highlight">
         <v-col class="d-flex flex-row align-center py-0">
           <v-checkbox
             :input-value="headCheckState !== -1 ? headCheckState : false"
@@ -188,7 +188,7 @@ export default defineComponent({
                   icon
                   small
                   v-on="on"
-                  @click="clickDelete(type)"
+                  @click="clickEdit(type)"
                 >
                   <v-icon
                     small
@@ -321,6 +321,11 @@ export default defineComponent({
 </template>
 
 <style scoped lang='scss'>
+.border-highlight {
+   border-bottom: 1px solid gray;
+   border-top: 1px solid gray;
+ }
+
 .type-checkbox {
   max-width: 80%;
   overflow-wrap: anywhere;

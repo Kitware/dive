@@ -151,9 +151,9 @@ export default defineComponent({
       virtualListItems.value.forEach((item) => {
         if (item.checkedTrackIds.includes(item.track.trackId)) {
           if (count < limit) {
-            tracksDisplayed.push(item.track.trackId);
             text.push(item.track.trackId.toString());
           }
+          tracksDisplayed.push(item.track.trackId);
           count += 1;
         }
       });
@@ -241,38 +241,16 @@ export default defineComponent({
               >
                 mdi-settings
               </v-icon>
-            </v-btn>
-            <v-tooltip
-              open-delay="200"
-              bottom
-              max-width="200"
-            >
-              <template #activator="{ on }">
-                <v-btn
-                  outlined
-                  x-small
-                  :color="newTrackColor"
-                  v-on="on"
-                  @click="trackAdd"
-                >
-                  <v-icon small>
-                    mdi-plus
-                  </v-icon>
-                  {{ newTrackMode }}
-                </v-btn>
-              </template>
-              <span>Default Type: {{ newTrackType }}</span>
-            </v-tooltip>
-            <v-tooltip
+            </v-btn> <v-tooltip
               open-delay="100"
               bottom
             >
               <template #activator="{ on }">
                 <v-btn
-                  class="hover-show-child"
                   :disabled="tracks.length === 0"
                   icon
                   small
+                  class="mr-2"
                   v-on="on"
                   @click="multiDelete()"
                 >
@@ -285,6 +263,28 @@ export default defineComponent({
                 </v-btn>
               </template>
               <span>Delete visible items</span>
+            </v-tooltip>
+            <v-tooltip
+              open-delay="200"
+              bottom
+              max-width="200"
+            >
+              <template #activator="{ on }">
+                <v-btn
+                  outlined
+                  x-small
+                  class="mr-2"
+                  :color="newTrackColor"
+                  v-on="on"
+                  @click="trackAdd"
+                >
+                  <v-icon small>
+                    mdi-plus
+                  </v-icon>
+                  {{ newTrackMode }}
+                </v-btn>
+              </template>
+              <span>Default Type: {{ newTrackType }}</span>
             </v-tooltip>
           </div>
         </v-row>
