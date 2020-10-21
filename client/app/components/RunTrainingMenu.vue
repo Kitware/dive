@@ -75,7 +75,7 @@ export default {
 <template>
   <v-menu
     v-model="menuOpen"
-    max-width="320"
+    max-width="500"
     offset-y
     :close-on-content-click="false"
   >
@@ -105,7 +105,7 @@ export default {
 
     <template>
       <v-card v-if="trainingConfigurations">
-        <v-card-title>
+        <v-card-title class="pb-1">
           Run Training
         </v-card-title>
 
@@ -113,6 +113,14 @@ export default {
           Specify the name of the resulting pipeline
           and configuration file to use for training.
         </v-card-text>
+
+        <v-alert
+          dense
+          type="warning"
+        >
+          This instance is updated on Sunday at 2AM EST.
+          If your training job is running at that time it may be restarted/killed.
+        </v-alert>
 
         <v-text-field
           v-model="trainingOutputName"

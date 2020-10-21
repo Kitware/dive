@@ -44,7 +44,7 @@ class Config:
         )
 
 
-@app.task(bind=True)
+@app.task(bind=True, acks_late=True)
 def run_pipeline(self, input_path, output_folder, pipeline, input_type):
     conf = Config()
 
@@ -155,7 +155,7 @@ def run_pipeline(self, input_path, output_folder, pipeline, input_type):
     os.remove(detector_output_path)
 
 
-@app.task(bind=True)
+@app.task(bind=True, acks_late=True)
 def train_pipeline(
     self,
     results_folder: Dict,
@@ -270,7 +270,7 @@ def train_pipeline(
             )
 
 
-@app.task(bind=True)
+@app.task(bind=True, acks_late=True)
 def convert_video(self, path, folderId, auxiliaryFolderId):
     # Delete is true, so the tempfile is deleted when the block closes.
     # We are only using this to get a name, and recreating it below.
@@ -343,7 +343,7 @@ def convert_video(self, path, folderId, auxiliaryFolderId):
     os.remove(output_path)
 
 
-@app.task(bind=True)
+@app.task(bind=True, acks_late=True)
 def convert_images(self, folderId):
     """
     Ensures that all images in a folder are in a web friendly format (png or jpeg).
