@@ -1,7 +1,8 @@
 <script>
+import Vue from 'vue';
 import annotator from './annotator';
 
-export default {
+export default Vue.extend({
   name: 'ImageAnnotator',
 
   mixins: [annotator],
@@ -232,7 +233,7 @@ export default {
       return true;
     },
   },
-};
+});
 </script>
 
 <template>

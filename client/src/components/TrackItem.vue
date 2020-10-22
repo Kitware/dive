@@ -214,14 +214,16 @@ export default defineComponent({
       <input
         ref="typeInputBoxRef"
         v-model="data.trackTypeValue"
+        v-mousetrap="[
+          { bind: 'escape', handler: (_, e) => blurType(e) },
+          { bind: 'enter', handler: (_, e) => blurType(e) },
+          { bind: 'down', handler: () => { data.trackTypeValue = ''; }},
+        ]"
         type="text"
         list="allTypesOptions"
         class="input-box"
         @focus="onFocus"
         @blur="onBlur"
-        @keydown.esc="blurType"
-        @keydown.enter="blurType"
-        @keydown.down="value=''"
       >
     </v-row>
     <v-row class="px-3 py-1 justify-center item-row flex-nowrap">

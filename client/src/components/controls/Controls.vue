@@ -1,5 +1,7 @@
 <script>
-export default {
+import Vue from 'vue';
+
+export default Vue.extend({
   name: 'Control',
   inject: ['annotator'],
   data() {
@@ -44,7 +46,7 @@ export default {
       this.annotator.$emit('next-frame');
     },
   },
-};
+});
 </script>
 
 <template>
