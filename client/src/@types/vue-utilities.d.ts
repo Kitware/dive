@@ -2,7 +2,7 @@ import Vue from 'vue';
 
 interface PromptParams {
   title: string;
-  text: string;
+  text: string | string[];
   positiveButton?: string;
   negativeButton?: string;
   confirm?: boolean;

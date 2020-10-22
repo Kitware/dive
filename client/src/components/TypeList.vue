@@ -1,13 +1,13 @@
 <script lang="ts">
-import { defineComponent, reactive } from '@vue/composition-api';
+import { computed, defineComponent, reactive } from '@vue/composition-api';
 import {
   useCheckedTypes, useAllTypes, useTypeStyling, useHandler,
 } from '../provides';
 
 export default defineComponent({
   name: 'TypeList',
-
-  setup() {
+  setup(_props, { root }) {
+    const prompt = root.$prompt;
     const data = reactive({
       showPicker: false,
       selectedColor: '',
@@ -26,6 +26,7 @@ export default defineComponent({
       updateTypeName,
       updateTypeStyle,
       setCheckedTypes,
+      removeTypeTracks,
     } = useHandler();
 
     function clickEdit(type: string) {
@@ -36,6 +37,24 @@ export default defineComponent({
       data.editingThickness = typeStylingRef.value.strokeWidth(type);
       data.editingFill = typeStylingRef.value.fill(type);
       data.editingOpacity = typeStylingRef.value.opacity(type);
+    }
+
+    async function clickDelete() {
+      const typeDisplay: string[] = [];
+      const text = ['Do you want to delete all tracks of following types:'];
+      checkedTypesRef.value.forEach((item) => {
+        typeDisplay.push(item);
+        text.push(item.toString());
+      });
+
+      const result = await prompt({
+        title: 'Confirm',
+        text,
+        confirm: true,
+      });
+      if (result) {
+        removeTypeTracks([...checkedTypesRef.value]);
+      }
     }
 
     function acceptChanges() {
@@ -55,6 +74,24 @@ export default defineComponent({
       });
     }
 
+    const headCheckState = computed(() => {
+      if (checkedTypesRef.value.length === allTypesRef.value.length) {
+        return 1;
+      } if (checkedTypesRef.value.length === 0) {
+        return 0;
+      }
+      return -1;
+    });
+
+    function headCheckClicked() {
+      if (headCheckState.value === 0) {
+        setCheckedTypes([...allTypesRef.value]);
+        return;
+      }
+      setCheckedTypes([]);
+    }
+
+
     return {
       allTypesRef,
       checkedTypesRef,
@@ -63,6 +100,9 @@ export default defineComponent({
       /* methods */
       acceptChanges,
       clickEdit,
+      clickDelete,
+      headCheckState,
+      headCheckClicked,
       setCheckedTypes,
     };
   },
@@ -74,6 +114,50 @@ export default defineComponent({
     <v-subheader class="flex-shrink-0">
       Type Filter
     </v-subheader>
+    <v-container
+      dense
+      class="py-0"
+    >
+      <v-row class="border-highlight">
+        <v-col class="d-flex flex-row align-center py-0">
+          <v-checkbox
+            :input-value="headCheckState !== -1 ? headCheckState : false"
+            :indeterminate="headCheckState === -1"
+            dense
+            shrink
+            hide-details
+            color="white"
+            class="my-1 type-checkbox"
+            @change="headCheckClicked"
+          />
+          <b>Visibility</b>
+          <v-spacer />
+          <v-tooltip
+            open-delay="100"
+            bottom
+          >
+            <template #activator="{ on }">
+              <v-btn
+                class="hover-show-child"
+                :disabled="checkedTypesRef.length === 0"
+                icon
+                small
+                v-on="on"
+                @click="clickDelete()"
+              >
+                <v-icon
+                  small
+                  color="error"
+                >
+                  mdi-delete
+                </v-icon>
+              </v-btn>
+            </template>
+            <span>Delete visible items</span>
+          </v-tooltip>
+        </v-col>
+      </v-row>
+    </v-container>
     <div class="overflow-y-auto">
       <v-container class="py-2">
         <v-row
@@ -100,7 +184,7 @@ export default defineComponent({
             >
               <template #activator="{ on }">
                 <v-btn
-                  class="mr-1 hover-show-child"
+                  class="hover-show-child"
                   icon
                   small
                   v-on="on"
@@ -237,6 +321,11 @@ export default defineComponent({
 </template>
 
 <style scoped lang='scss'>
+.border-highlight {
+   border-bottom: 1px solid gray;
+   border-top: 1px solid gray;
+ }
+
 .type-checkbox {
   max-width: 80%;
   overflow-wrap: anywhere;
