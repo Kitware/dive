@@ -4,6 +4,7 @@ import { FileManager } from '@girder/components/src/components/Snippet';
 import { getLocationType } from '@girder/components/src/utils';
 
 import RunPipelineMenu from 'viame-web-common/components/RunPipelineMenu.vue';
+import RunTrainingMenu from 'viame-web-common/components/RunTrainingMenu.vue';
 
 import { getPathFromLocation, getLocationFromRoute } from '../utils';
 import { deleteResources } from '../api/viame.service';
@@ -19,6 +20,7 @@ export default {
     Upload,
     NavigationBar,
     RunPipelineMenu,
+    RunTrainingMenu,
   },
   inject: ['notificationBus'],
   data: () => ({
@@ -77,7 +79,7 @@ export default {
         ({ _modelType, meta }) => _modelType === 'folder' && meta && meta.annotate,
       ).map(({ _id }) => _id);
     },
-    runPipelineInputs() {
+    locationInputs() {
       return this.locationIsViameFolder ? [this.location._id] : this.selectedViameFolderIds;
     },
   },
@@ -165,8 +167,12 @@ export default {
             @dragover.native="dragover"
           >
             <template #headerwidget>
+              <run-training-menu
+                :selected-dataset-ids="locationInputs"
+                small
+              />
               <run-pipeline-menu
-                :selected-dataset-ids="runPipelineInputs"
+                :selected-dataset-ids="locationInputs"
                 small
               />
               <export

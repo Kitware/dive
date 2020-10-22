@@ -1,33 +1,23 @@
-import io
 import json
-import re
 import urllib
-from typing import Dict, Tuple
+from typing import Dict, List
 
 from girder.api import access
 from girder.api.describe import Description, autoDescribeRoute
-from girder.api.rest import (
-    Resource,
-    setContentDisposition,
-    setRawResponse,
-    setResponseHeader,
-)
+from girder.api.rest import Resource, setContentDisposition, setResponseHeader
 from girder.constants import AccessType, TokenScope
-from girder.exceptions import RestException
 from girder.models.file import File
 from girder.models.folder import Folder
 from girder.models.item import Item
-from girder.models.upload import Upload
 from girder.utility import ziputil
 
-from viame_server.serializers import meva, models, viame
+from viame_server.serializers import models, viame
 from viame_server.utils import (
     ImageMimeTypes,
     ImageSequenceType,
     VideoMimeTypes,
     VideoType,
     getTrackData,
-    move_existing_result_to_auxiliary_folder,
     safeImageRegex,
     saveTracks,
 )
@@ -281,7 +271,7 @@ class ViameDetection(Resource):
             model=Folder,
             paramType="query",
             required=True,
-            level=AccessType.READ,
+            level=AccessType.WRITE,
         )
         .jsonParam(
             "tracks", "upsert and delete tracks", paramType="body", requireObject=True
