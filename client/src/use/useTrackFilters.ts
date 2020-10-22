@@ -6,7 +6,11 @@ import { updateSubset } from '../utils';
 
 /* Provide track filtering controls on tracks loaded from useTrackStore. */
 export default function useFilteredTracks(
-  { sortedTracks }: { sortedTracks: Readonly<Ref<readonly Track[]>> },
+  { sortedTracks, removeTrack }:
+  {
+    sortedTracks: Readonly<Ref<readonly Track[]>>;
+    removeTrack: (trackId: TrackId) => void;
+  },
 ) {
   /* Track IDs explicitly checked "ON" by the user */
   const checkedTrackIds = ref(sortedTracks.value.map((t) => t.trackId));
@@ -97,6 +101,16 @@ export default function useFilteredTracks(
     });
   }
 
+  function removeTypeTracks(type: string[]) {
+    sortedTracks.value.forEach((track) => {
+      track.confidencePairs.forEach(([name]) => {
+        if (type.includes(name)) {
+          removeTrack(track.trackId);
+        }
+      });
+    });
+  }
+
   function populateConfidenceFilters(val?: Record<string, number>) {
     if (val) {
       confidenceFilters.value = val;
@@ -128,5 +142,6 @@ export default function useFilteredTracks(
     updateCheckedTrackId,
     updateCheckedTypes,
     updateTypeName,
+    removeTypeTracks,
   };
 }

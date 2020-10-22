@@ -3,13 +3,13 @@ import { flatten } from 'lodash';
 import Vue, { PropType } from 'vue';
 
 import { Mousetrap } from 'vue-media-annotator/types';
-import { EditAnnotationTypes } from 'vue-media-annotator/layers';
+import { EditAnnotationTypes, VisibleAnnotationTypes } from 'vue-media-annotator/layers';
 import Recipe from 'vue-media-annotator/recipe';
 
 interface ButtonData {
   id: string;
   icon: string;
-  type?: EditAnnotationTypes;
+  type?: VisibleAnnotationTypes;
   active: boolean;
   mousetrap?: Mousetrap[];
   click: () => void;
@@ -23,7 +23,7 @@ export default Vue.extend({
       required: true,
     },
     visibleModes: {
-      type: Array as PropType<EditAnnotationTypes[]>,
+      type: Array as PropType<(VisibleAnnotationTypes)[]>,
       required: true,
     },
     editingMode: {
@@ -94,6 +94,14 @@ export default Vue.extend({
           icon: 'mdi-vector-line',
           click: () => this.toggleVisible('LineString'),
         },
+        {
+          id: 'text',
+          type: 'text',
+          active: this.isVisible('text'),
+          icon: 'mdi-format-text',
+          click: () => this.toggleVisible('text'),
+        },
+
       ];
     },
     mousetrap(): Mousetrap[] {
@@ -102,11 +110,11 @@ export default Vue.extend({
   },
 
   methods: {
-    isVisible(mode: EditAnnotationTypes) {
+    isVisible(mode: VisibleAnnotationTypes) {
       return this.visibleModes.includes(mode);
     },
 
-    toggleVisible(mode: EditAnnotationTypes) {
+    toggleVisible(mode: VisibleAnnotationTypes) {
       if (this.isVisible(mode)) {
         this.$emit('set-annotation-state', {
           visible: this.visibleModes.filter((m) => m !== mode),
@@ -142,6 +150,7 @@ export default Vue.extend({
         :outlined="!button.active"
         :color="button.active ? 'grey darken-2' : ''"
         class="mx-1"
+        small
         @click="button.click"
       >
         <v-icon>{{ button.icon }}</v-icon>
@@ -166,6 +175,7 @@ export default Vue.extend({
         :outlined="!button.active"
         :color="button.active ? 'primary' : ''"
         class="mx-1"
+        small
         @click="button.click"
       >
         <pre v-if="button.mousetrap">{{ button.mousetrap[0].bind }}:</pre>

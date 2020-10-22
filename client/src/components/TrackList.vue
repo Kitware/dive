@@ -48,7 +48,8 @@ export default defineComponent({
 
   components: { TrackItem },
 
-  setup(props) {
+  setup(props, { root }) {
+    const prompt = root.$prompt;
     const allTypesRef = useAllTypes();
     const checkedTrackIdsRef = useCheckedTrackIds();
     const editingModeRef = useEditingMode();
@@ -141,6 +142,35 @@ export default defineComponent({
     watch(selectedTrackIdRef, scrollToTrack);
     watch(tracksRef, scrollToSelectedTrack);
 
+
+    async function multiDelete() {
+      const tracksDisplayed: number[] = [];
+      const text = ['Do you want to delete the following tracks:'];
+      let count = 0;
+      const limit = 20;
+      virtualListItems.value.forEach((item) => {
+        if (item.checkedTrackIds.includes(item.track.trackId)) {
+          if (count < limit) {
+            text.push(item.track.trackId.toString());
+          }
+          tracksDisplayed.push(item.track.trackId);
+          count += 1;
+        }
+      });
+      if (count >= limit) {
+        text.push(`And ${count - limit} more tracks...`);
+      }
+
+      const result = await prompt({
+        title: 'Confirm',
+        text,
+        confirm: true,
+      });
+      if (result) {
+        removeTrack(tracksDisplayed);
+      }
+    }
+
     const mouseTrap = computed(() => {
       const disabled = props.hotkeysDisabled;
       return [
@@ -161,7 +191,9 @@ export default defineComponent({
         {
           bind: 'del',
           handler: () => {
-            removeTrack(selectedTrackIdRef.value);
+            if (selectedTrackIdRef.value !== null) {
+              removeTrack([selectedTrackIdRef.value]);
+            }
           },
           disabled,
         },
@@ -183,6 +215,7 @@ export default defineComponent({
       trackAdd,
       virtualListItems,
       virtualList,
+      multiDelete,
     };
   },
 });
@@ -190,7 +223,7 @@ export default defineComponent({
 
 <template>
   <div class="d-flex flex-column">
-    <v-subheader class="flex-grow-1 trackHeader">
+    <v-subheader class="flex-grow-1 trackHeader px-1">
       <v-container>
         <v-row align="center">
           Tracks ({{ tracks.length }})
@@ -208,7 +241,29 @@ export default defineComponent({
               >
                 mdi-settings
               </v-icon>
-            </v-btn>
+            </v-btn> <v-tooltip
+              open-delay="100"
+              bottom
+            >
+              <template #activator="{ on }">
+                <v-btn
+                  :disabled="tracks.length === 0"
+                  icon
+                  small
+                  class="mr-2"
+                  v-on="on"
+                  @click="multiDelete()"
+                >
+                  <v-icon
+                    small
+                    color="error"
+                  >
+                    mdi-delete
+                  </v-icon>
+                </v-btn>
+              </template>
+              <span>Delete visible items</span>
+            </v-tooltip>
             <v-tooltip
               open-delay="200"
               bottom
@@ -218,6 +273,7 @@ export default defineComponent({
                 <v-btn
                   outlined
                   x-small
+                  class="mr-2"
                   :color="newTrackColor"
                   v-on="on"
                   @click="trackAdd"
