@@ -18,7 +18,7 @@ jobs:
         node-version: '10.x'
     - run: yarn install
     - run: yarn lint
-    - run: npx vtc --workspace . --srcDir src/
+    - run: yarn lint:templates
     - run: yarn test
     - run: yarn build:web
     - run: yarn build:lib

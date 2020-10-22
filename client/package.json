@@ -6,6 +6,7 @@
     "build:web": "vue-cli-service build platform/web-girder/main.ts",
     "build:lib": "rollup -c",
     "lint": "vue-cli-service lint src/ viame-web-common/ platform/",
+    "lint:templates": "vtc --workspace . --srcDir src/",
     "test": "vue-cli-service test:unit src/ viame-web-common/"
   },
   "resolutions": {
