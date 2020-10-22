@@ -1,4 +1,5 @@
 <script>
+import Vue from 'vue';
 import { throttle, debounce, sortBy } from 'lodash';
 import * as d3 from 'd3';
 
@@ -11,7 +12,7 @@ function intersect(range1, range2) {
   return [max[0], min[1] < max[1] ? min[1] : max[1]];
 }
 
-export default {
+export default Vue.extend({
   name: 'EventChart',
   props: {
     startFrame: {
@@ -49,6 +50,18 @@ export default {
     };
   },
   computed: {
+    tooltipComputed() {
+      if (this.tooltip !== null) {
+        return {
+          style: {
+            left: `${this.tooltip.left + 15}px`,
+            top: `${this.tooltip.top + 15}px`,
+          },
+          ...this.tooltip,
+        };
+      }
+      return null;
+    },
     barData() {
       const sorted = sortBy(this.data.values, (data) => data.range[0]);
       const bars = [];
@@ -252,7 +265,7 @@ export default {
       };
     },
   },
-};
+});
 </script>
 
 <template>
@@ -267,11 +280,11 @@ export default {
       @mousedown="mousedown"
     />
     <div
-      v-if="tooltip"
+      v-if="tooltipComputed"
       class="tooltip"
-      :style="{ left: tooltip.left + 15 + 'px', top: tooltip.top + 5 + 'px' }"
+      :style="tooltipComputed.style"
     >
-      {{ tooltip.content }}
+      {{ tooltipComputed.content }}
     </div>
   </div>
 </template>
