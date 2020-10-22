@@ -25,6 +25,11 @@ interface Category {
   pipes: Pipe[];
 }
 
+export interface TrainingConfigs {
+  configs: string[];
+  default: string;
+}
+
 type Pipelines = Record<string, Category>;
 
 interface SaveDetectionsArgs {
@@ -47,6 +52,9 @@ interface Api {
 
   getPipelineList(): Promise<Pipelines>;
   runPipeline(itemId: string, pipeline: string): Promise<unknown>;
+
+  getTrainingConfigurations(): Promise<TrainingConfigs>;
+  runTraining(folderId: string, pipelineName: string, config: string): Promise<unknown>;
 
   loadDetections(datasetId: string): Promise<{ [key: string]: TrackData }>;
   saveDetections(datasetId: string, args: SaveDetectionsArgs): Promise<unknown>;
