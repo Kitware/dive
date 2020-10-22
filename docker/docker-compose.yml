@@ -1,4 +1,28 @@
 ## Use this to start the girder/ girder-worker ecosystem
+
+# Use YAML anchors for the common config between both workers
+x-worker: &base-worker
+  runtime: ${WORKER_RUNTIME}
+  ipc: host
+  build:
+    context: ../
+    dockerfile: docker/girder_worker.Dockerfile
+  image: kitware/viame-worker:${TAG:-latest}
+  volumes:
+    # Exposes pipeline directory to girder so it can see what pipelines are available.
+    - pipelines:${VIAME_PIPELINES_PATH}:ro
+    - trained-pipelines:${VIAME_TRAINED_PIPELINES_PATH}
+  depends_on:
+    girder:
+        condition: service_healthy
+    rabbit:
+        condition: service_started
+  environment:
+    - VIAME_PIPELINES_PATH=${VIAME_PIPELINES_PATH}
+    - VIAME_TRAINED_PIPELINES_PATH=${VIAME_TRAINED_PIPELINES_PATH}
+    - CELERY_BROKER_URL=amqp://guest:guest@rabbit/
+    - BROKER_CONNECTION_TIMEOUT=2
+
 version: "2.4"
 services:
 
@@ -15,15 +39,20 @@ services:
       context: ../
       dockerfile: docker/girder.Dockerfile
     image: kitware/viame-web:${TAG:-latest}
+    healthcheck:
+        test: ["CMD", "curl", "-f", "http://localhost:8080"]
+        interval: 5s
+        timeout: 5s
+        retries: 5
     depends_on:
       - mongo
-      - girder_worker
     ports:
       - "8010:8080"
     volumes:
       - girder_assetstore:/home/assetstore
       # Mount pipeline directory from girder_worker
       - pipelines:${VIAME_PIPELINES_PATH}:ro
+      - trained-pipelines:${VIAME_TRAINED_PIPELINES_PATH}:ro
       - type: bind
         source: ${PUBLIC_DATA_PATH}
         target: /data/public
@@ -32,29 +61,38 @@ services:
           nocopy: true
     environment:
       - VIAME_PIPELINES_PATH=${VIAME_PIPELINES_PATH}
+      - VIAME_TRAINED_PIPELINES_PATH=${VIAME_TRAINED_PIPELINES_PATH}
       - GIRDER_MONGO_URI=mongodb://mongo:27017/girder
       - GIRDER_ADMIN_USER=${GIRDER_ADMIN_USER}
       - GIRDER_ADMIN_PASS=${GIRDER_ADMIN_PASS}
       - CELERY_BROKER_URL=amqp://guest:guest@rabbit/
       - BROKER_CONNECTION_TIMEOUT=2
 
-  girder_worker:
-    runtime: ${WORKER_RUNTIME}
-    build:
-      context: ../
-      dockerfile: docker/girder_worker.Dockerfile
-    image: kitware/viame-worker:${TAG:-latest}
-    volumes:
-      # Exposes pipeline directory to girder so it can see what pipelines are available.
-      - pipelines:${VIAME_PIPELINES_PATH}:ro
-    depends_on:
-      - rabbit
+  # Worker for misc non gpu-bound tasks
+  girder_worker_default:
+    # Merge base-worker object with this config
+    << : *base-worker
     environment:
-      - VIAME_PIPELINES_PATH=${VIAME_PIPELINES_PATH}
-      - CELERY_BROKER_URL=amqp://guest:guest@rabbit/
-      - BROKER_CONNECTION_TIMEOUT=2
+      - WORKER_WATCHING_QUEUES=celery
+
+  girder_worker_pipelines:
+    # Merge base-worker object with this config
+    << : *base-worker
+    environment:
+      - WORKER_WATCHING_QUEUES=pipelines
+      - WORKER_CONCURRENCY=${PIPELINE_WORKER_CONCURRENCY:-1}
+      - WORKER_GPU_UUID=${PIPELINE_GPU_UUID}
+
+  girder_worker_training:
+    # Merge base-worker object with this config
+    << : *base-worker
+    environment:
+      - WORKER_WATCHING_QUEUES=training
+      - WORKER_CONCURRENCY=${TRAINING_WORKER_CONCURRENCY:-1}
+      - WORKER_GPU_UUID=${TRAINING_GPU_UUID}
 
 volumes:
   pipelines:
+  trained-pipelines:
   mongo_db:
   girder_assetstore:

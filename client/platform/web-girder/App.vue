@@ -12,6 +12,8 @@ import {
   getAttributes,
   getPipelineList,
   runPipeline,
+  getTrainingConfigurations,
+  runTraining,
   saveMetadata,
 } from './api/viame.service';
 import {
@@ -32,6 +34,8 @@ export default defineComponent({
       getAttributes,
       getPipelineList,
       runPipeline,
+      getTrainingConfigurations,
+      runTraining,
       loadDetections,
       saveDetections,
       loadMetadata,
