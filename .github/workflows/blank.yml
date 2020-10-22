@@ -19,7 +19,8 @@ jobs:
     - run: yarn install
     - run: yarn lint
     - run: yarn test
-    - run: yarn build
+    - run: yarn build:web
+    - run: yarn build:lib
 
   test-server:
     defaults:

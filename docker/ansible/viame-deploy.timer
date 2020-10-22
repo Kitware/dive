@@ -3,8 +3,6 @@ Description=Run the Viame deploy every Sunday and Thursday at 2 AM
 
 [Timer]
 OnCalendar=Sun 02:00 America/New_York
-OnCalendar=Thu 02:00 America/New_York
-Persistent=true
 
 [Install]
 WantedBy=timers.target
