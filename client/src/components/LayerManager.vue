@@ -17,6 +17,7 @@ import { FrameDataTrack } from '../layers/LayerTypes';
 import TextLayer from '../layers/TextLayer';
 import Track, { TrackId } from '../track';
 import { geojsonToBound } from '../utils';
+import { VisibleAnnotationTypes } from '../layers';
 
 import {
   useEnabledTracks,
@@ -30,6 +31,7 @@ import {
   useSelectedKey,
   useStateStyles,
 } from '../provides';
+
 
 /** LayerManager is a component intended to be used as a child of an Annotator.
  *  It provides logic for switching which layers are visible, but more importantly
@@ -93,7 +95,7 @@ export default defineComponent({
       editingTrack: false | EditAnnotationTypes,
       selectedTrackId: TrackId | null,
       tracks: readonly Track[],
-      visibleModes: readonly EditAnnotationTypes[],
+      visibleModes: readonly VisibleAnnotationTypes[],
       selectedKey: string,
     ) {
       const currentFrameIds: TrackId[] = intervalTree
@@ -144,7 +146,7 @@ export default defineComponent({
         lineLayer.disable();
       }
       pointLayer.changeData(frameData);
-      if (visibleModes.length) {
+      if (visibleModes.includes('text')) {
         textLayer.changeData(frameData);
       } else {
         textLayer.disable();

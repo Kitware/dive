@@ -4,6 +4,7 @@ import { provide, inject, Ref } from '@vue/composition-api';
 import { StateStyles, TypeStyling } from './use/useStyling';
 import { EditAnnotationTypes } from './layers/EditAnnotationLayer';
 import Track, { TrackId } from './track';
+import { VisibleAnnotationTypes } from './layers';
 import { RectBounds } from './utils';
 
 /**
@@ -54,7 +55,7 @@ const StateStylesSymbol = Symbol('stateStyles');
 type StateStylesType = Readonly<StateStyles>;
 
 const VisibleModesSymbol = Symbol('visibleModes');
-type VisibleModesType = Readonly<Ref<readonly EditAnnotationTypes[]>>;
+type VisibleModesType = Readonly<Ref<readonly VisibleAnnotationTypes[]>>;
 
 /**
  * Handler interface describes all global events mutations
@@ -91,7 +92,7 @@ export interface Handler {
     preventInterrupt?: () => void,
   ): void;
   /* Remove a whole track */
-  removeTrack(trackId: (TrackId | null)): void;
+  removeTrack(trackIds: TrackId[]): void;
   /* Remove a single point from selected track's geometry by selected index */
   removePoint(): void;
   /* Remove an entire annotation from selected track by selected key */
@@ -100,6 +101,8 @@ export interface Handler {
   selectFeatureHandle(i: number, key: string): void;
   /* set checked type strings */
   setCheckedTypes(types: string[]): void;
+  /* set checked type strings */
+  removeTypeTracks(types: string[]): void;
   /* Change type name */
   updateTypeName({ currentType, newType }: { currentType: string; newType: string }): void;
   /* change styles */

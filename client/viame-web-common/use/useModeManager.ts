@@ -4,7 +4,7 @@ import {
 import { uniq, flatMapDeep } from 'lodash';
 import Track, { TrackId } from 'vue-media-annotator/track';
 import { RectBounds, updateBounds } from 'vue-media-annotator/utils';
-import { EditAnnotationTypes } from 'vue-media-annotator/layers';
+import { EditAnnotationTypes, VisibleAnnotationTypes } from 'vue-media-annotator/layers';
 
 import Recipe from 'vue-media-annotator/recipe';
 import { NewTrackSettings } from './useSettings';
@@ -17,7 +17,7 @@ export interface Annotator {
 }
 
 interface SetAnnotationStateArgs {
-  visible?: EditAnnotationTypes[];
+  visible?: VisibleAnnotationTypes[];
   editing?: EditAnnotationTypes;
   key?: string;
   recipeName?: string;
@@ -59,7 +59,7 @@ export default function useModeManager({
   let creating = false;
 
   const annotationModes = reactive({
-    visible: ['rectangle', 'Polygon', 'LineString'] as EditAnnotationTypes[],
+    visible: ['rectangle', 'Polygon', 'LineString', 'text'] as VisibleAnnotationTypes[],
     editing: 'rectangle' as EditAnnotationTypes,
   });
   // selectedFeatureHandle could arguably belong in useTrackSelectionControls,
@@ -345,14 +345,15 @@ export default function useModeManager({
     }
   }
 
-  function handleRemoveTrack(trackId: TrackId | null) {
-    if (trackId !== null) {
-      // if removed track was selected, unselect before remove
-      if (selectedTrackId.value === trackId) {
+  function handleRemoveTrack(trackIds: TrackId[]) {
+    trackIds.forEach((trackId) => {
+      removeTrack(trackId);
+    });
+    if (selectedTrackId.value !== null) {
+      if (trackIds.includes(selectedTrackId.value)) {
         const newTrack = selectNextTrack(1) !== null ? selectNextTrack(1) : selectNextTrack(-1);
         selectTrack(newTrack, false);
       }
-      removeTrack(trackId);
     }
   }
 

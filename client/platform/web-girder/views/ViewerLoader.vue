@@ -1,11 +1,21 @@
 <script lang="ts">
-import { computed, defineComponent, toRef } from '@vue/composition-api';
+import {
+  computed, defineComponent, onBeforeUnmount, onMounted, ref, toRef,
+} from '@vue/composition-api';
 import Viewer from 'viame-web-common/components/Viewer.vue';
 import RunPipelineMenu from 'viame-web-common/components/RunPipelineMenu.vue';
 
 import { getPathFromLocation } from '../utils';
 import Export from './Export.vue';
 
+
+// TODO:  Needed for refs to work in composition API Plugin, Vue3 will change it
+// https://github.com/vuejs/composition-api/blob/master/README.md - $refs section
+declare module '@vue/composition-api' {
+  interface SetupContext {
+    readonly refs: { [key: string]: Vue | Element | Vue[] | Element[] };
+  }
+}
 /**
  * ViewerLoader is responsible for loading
  * data from girder.
@@ -19,8 +29,12 @@ export default defineComponent({
       required: true,
     },
   },
-
-  setup(props, { root }) {
+  // TODO: This will require an import from vue-router for Vue3 compatibility
+  async beforeRouteLeave(to, from, next) {
+    await this.viewerRef.navigateAwayGuard();
+    next();
+  },
+  setup(props, { root, refs }) {
     const dataset = toRef(root.$store.state.Dataset, 'dataset');
     const frameRate = toRef(root.$store.getters, 'Dataset/frameRate');
     const annotatorType = toRef(root.$store.getters, 'Dataset/annotatorType');
@@ -30,6 +44,16 @@ export default defineComponent({
     const dataPath = computed(() => (
       getPathFromLocation(location.value)));
 
+    const viewerRef = ref();
+    onMounted(() => {
+      viewerRef.value = refs.viewer;
+      window.addEventListener('beforeunload', viewerRef.value.warnBrowserExit);
+    });
+    onBeforeUnmount(() => {
+      window.removeEventListener('beforeunload', viewerRef.value.warnBrowserExit);
+    });
+
+
     return {
       dataPath,
       dataset,
@@ -37,6 +61,7 @@ export default defineComponent({
       annotatorType,
       imageData,
       videoUrl,
+      viewerRef,
     };
   },
 });
@@ -44,6 +69,7 @@ export default defineComponent({
 
 <template>
   <Viewer
+    ref="viewer"
     :frame-rate="frameRate"
     :annotator-type="annotatorType"
     :image-data="imageData"

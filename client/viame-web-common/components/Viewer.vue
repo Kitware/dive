@@ -82,7 +82,6 @@ export default defineComponent({
       required: true,
     },
   },
-
   setup(props, ctx) {
     // TODO: eventually we will have to migrate away from this style
     // and use the new plugin pattern:
@@ -146,9 +145,10 @@ export default defineComponent({
       enabledTracks,
       populateConfidenceFilters,
       updateTypeName,
+      removeTypeTracks,
       updateCheckedTypes,
       updateCheckedTrackId,
-    } = useTrackFilters({ sortedTracks });
+    } = useTrackFilters({ sortedTracks, removeTrack });
 
     Promise.all([
       loadMetadata(props.datasetId),
@@ -260,6 +260,30 @@ export default defineComponent({
       });
     }
 
+    // Navigation Guards used by parent component
+    async function warnBrowserExit(event: BeforeUnloadEvent) {
+      if (pendingSaveCount.value === 0) return;
+      event.preventDefault();
+      // eslint-disable-next-line no-param-reassign
+      event.returnValue = '';
+    }
+    async function navigateAwayGuard(): Promise<boolean> {
+      let result = true;
+      if (pendingSaveCount.value > 0) {
+        result = await prompt({
+          title: 'Save Items',
+          text: 'There is unsaved data, what would you like to do?',
+          positiveButton: 'Save',
+          negativeButton: 'Discard',
+          confirm: true,
+        });
+        if (result) {
+          await save();
+        }
+      }
+      return result;
+    }
+
     const globalHandler = {
       ...handler,
       setCheckedTypes: updateCheckedTypes,
@@ -267,6 +291,7 @@ export default defineComponent({
       trackEnable: updateCheckedTrackId,
       updateTypeName,
       updateTypeStyle,
+      removeTypeTracks,
     };
 
     provideAnnotator(
@@ -310,6 +335,12 @@ export default defineComponent({
       save,
       saveThreshold,
       updateNewTrackSettings,
+      updateTypeStyle,
+      updateTypeName,
+      removeTypeTracks,
+      // For Navigation Guarding
+      navigateAwayGuard,
+      warnBrowserExit,
     };
   },
 });
