@@ -31,25 +31,29 @@ export default defineComponent({
       selectedTrainingConfig.value = resp.default;
     });
 
+    const trainingDisabled = computed(() => props.selectedDatasetIds.length !== 1);
     const trainingOutputName = ref<string | null>(null);
     const menuOpen = ref(false);
 
-    const trainingDisabled = computed(() => props.selectedDatasetIds.length !== 1);
-
     async function runTrainingOnFolder() {
-      const folder = props.selectedDatasetIds[0];
-      const configs = trainingConfigurations.value;
-      const selectedConfig = selectedTrainingConfig.value;
-      const pipelineName = trainingOutputName.value;
+      if (!trainingConfigurations.value || !selectedTrainingConfig.value) {
+        throw new Error('Training Configurations not found.');
+      }
 
-      if (pipelineName == null || configs === null || selectedConfig === null) { return; }
+      if (trainingDisabled.value || !trainingOutputName.value) {
+        return;
+      }
 
       try {
-        await runTraining(folder, pipelineName, selectedConfig);
+        await runTraining(
+          props.selectedDatasetIds[0],
+          trainingOutputName.value,
+          selectedTrainingConfig.value,
+        );
 
         menuOpen.value = false;
         trainingOutputName.value = null;
-        selectedTrainingConfig.value = configs.default;
+        selectedTrainingConfig.value = trainingConfigurations.value.default;
 
         root.$snackbar({
           text: 'Training started',
