@@ -12,6 +12,8 @@ requirements = [
     "girder_worker_utils==0.8.5",
     "pydantic",
     "pysnooper",
+    "typing_extensions",
+    "gputil",
 ]
 
 setup(

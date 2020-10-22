@@ -237,9 +237,21 @@ export default defineComponent({
       if (editingTrack.value) {
         handler.trackSelect(selectedTrackId.value, false);
       }
-      await saveToServer({
-        customTypeStyling: getTypeStyles(allTypes),
-      });
+      try {
+        await saveToServer({
+          customTypeStyling: getTypeStyles(allTypes),
+        });
+      } catch (err) {
+        let text = 'Unable to Save Data';
+        if (err.response && err.response.status === 403) {
+          text = 'You do not have permission to Save Data to this Folder.';
+        }
+        await prompt({
+          title: 'Error while Saving Data',
+          text,
+          positiveButton: 'OK',
+        });
+      }
     }
 
     function saveThreshold() {
