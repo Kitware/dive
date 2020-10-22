@@ -1,5 +1,5 @@
 import { GirderModel } from '@girder/components/src';
-import { Attribute, Pipelines } from 'viame-web-common/apispec';
+import { Attribute, Pipelines, TrainingConfigs } from 'viame-web-common/apispec';
 import girderRest from '../plugins/girder';
 
 interface ValidationResponse {
@@ -64,6 +64,15 @@ function runPipeline(itemId: string, pipeline: string) {
   );
 }
 
+async function getTrainingConfigurations(): Promise<TrainingConfigs> {
+  const { data } = await girderRest.get<TrainingConfigs>('/viame/training_configs');
+  return data;
+}
+
+function runTraining(folderId: string, pipelineName: string, config: string) {
+  return girderRest.post('/viame/train', null, { params: { folderId, pipelineName, config } });
+}
+
 function saveMetadata(folderId: string, metadata: object) {
   return girderRest.put(
     `/folder/${folderId}/metadata?allowNull=true`,
@@ -95,6 +104,8 @@ export {
   makeViameFolder,
   postProcess,
   runPipeline,
+  getTrainingConfigurations,
+  runTraining,
   saveMetadata,
   validateUploadGroup,
   getValidWebImages,

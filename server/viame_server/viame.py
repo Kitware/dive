@@ -3,38 +3,47 @@ from girder.api import access
 from girder.api.describe import Description, autoDescribeRoute, describeRoute
 from girder.api.rest import Resource
 from girder.constants import AccessType
-from girder.exceptions import RestException
-from girder.models.file import File
 from girder.models.folder import Folder
 from girder.models.item import Item
 from girder.models.token import Token
 
-from viame_tasks.tasks import convert_images, convert_video, run_pipeline
+from viame_tasks.tasks import (
+    convert_images,
+    convert_video,
+    run_pipeline,
+    train_pipeline,
+)
 
 from .model.attribute import Attribute
 from .serializers import meva as meva_serializer
-from .serializers import viame as viame_serializer
 from .transforms import GetPathFromFolderId, GetPathFromItemId
 from .utils import (
+    csv_detection_file,
     csvRegex,
     get_or_create_auxiliary_folder,
     getTrackData,
     imageRegex,
+    load_pipelines,
+    load_training_configurations,
     move_existing_result_to_auxiliary_folder,
     safeImageRegex,
     saveTracks,
+    training_output_folder,
     videoRegex,
     ymlRegex,
 )
 
 
 class Viame(Resource):
-    def __init__(self, pipelines=[]):
+    def __init__(self, pipeline_paths=()):
         super(Viame, self).__init__()
         self.resourceName = "viame"
-        self.pipelines = pipelines
+        self.pipeline_paths = pipeline_paths
+
         self.route("GET", ("pipelines",), self.get_pipelines)
         self.route("POST", ("pipeline",), self.run_pipeline_task)
+        self.route("GET", ("training_configs",), self.get_training_configs)
+        self.route("POST", ("train",), self.run_training)
         self.route("POST", ("postprocess", ":id"), self.postprocess)
         self.route("POST", ("attribute",), self.create_attribute)
         self.route("GET", ("attribute",), self.get_attributes)
@@ -46,7 +55,12 @@ class Viame(Resource):
     @access.user
     @describeRoute(Description("Get available pipelines"))
     def get_pipelines(self, params):
-        return self.pipelines
+        return load_pipelines(self.pipeline_paths)
+
+    @access.user
+    @describeRoute(Description("Get available training configurations."))
+    def get_training_configs(self, params):
+        return load_training_configurations(self.pipeline_paths)
 
     @access.user
     @autoDescribeRoute(
@@ -57,7 +71,7 @@ class Viame(Resource):
             model=Folder,
             paramType="query",
             required=True,
-            level=AccessType.READ,
+            level=AccessType.WRITE,
         )
         .param(
             "pipeline",
@@ -70,13 +84,80 @@ class Viame(Resource):
         token = Token().createToken(user=user, days=1)
         move_existing_result_to_auxiliary_folder(folder, user)
         input_type = folder["meta"]["type"]
-        return run_pipeline.delay(
-            GetPathFromFolderId(str(folder["_id"])),
-            str(folder["_id"]),
-            pipeline,
-            input_type,
-            girder_job_title=("Running {} on {}".format(pipeline, str(folder["name"]))),
-            girder_client_token=str(token["_id"]),
+
+        return run_pipeline.apply_async(
+            queue="pipelines",
+            kwargs=dict(
+                input_path=GetPathFromFolderId(str(folder["_id"])),
+                output_folder=str(folder["_id"]),
+                pipeline=pipeline,
+                input_type=input_type,
+                girder_job_title=(
+                    "Running {} on {}".format(pipeline, str(folder["name"]))
+                ),
+                girder_client_token=str(token["_id"]),
+                girder_job_type="pipelines",
+            ),
+        )
+
+    @access.user
+    @autoDescribeRoute(
+        Description("Run training on a folder")
+        .modelParam(
+            "folderId",
+            description="The folder containing the training data",
+            model=Folder,
+            paramType="query",
+            required=True,
+            level=AccessType.WRITE,
+        )
+        .param(
+            "pipelineName",
+            description="The name of the resulting pipeline",
+            paramType="query",
+            required=True,
+        )
+        .param(
+            "config",
+            description="The configuration to use for training",
+            paramType="query",
+            required=True,
+        )
+    )
+    def run_training(self, folder, pipelineName, config):
+        user = self.getCurrentUser()
+        upload_token = self.getCurrentToken()
+        # move_existing_result_to_auxiliary_folder(folder, user)
+
+        detections = list(
+            Item().find({"meta.detection": str(folder["_id"])}).sort([("created", -1)])
+        )
+        detection = detections[0] if detections else None
+
+        if not detection:
+            raise Exception(f"No detections for folder {folder['name']}")
+
+        # Ensure detection has a csv format
+        csv_detection_file(folder, detection, user)
+
+        # Ensure the folder to upload results to exists
+        results_folder = training_output_folder(folder, user)
+
+        # Currently assumes all images are in the root folder
+        training_data = list(Folder().childItems(folder))
+
+        return train_pipeline.apply_async(
+            queue="training",
+            kwargs=dict(
+                results_folder=results_folder,
+                training_data=training_data,
+                groundtruth=detection,
+                pipeline_name=pipelineName,
+                config=config,
+                girder_client_token=str(upload_token["_id"]),
+                girder_job_title=(f"Running training on folder: {str(folder['name'])}"),
+                girder_job_type="training",
+            ),
         )
 
     @access.user
@@ -166,9 +247,9 @@ class Viame(Resource):
 
             for item in videoItems:
                 convert_video.delay(
-                    GetPathFromItemId(str(item["_id"])),
-                    str(item["folderId"]),
-                    auxiliary["_id"],
+                    path=GetPathFromItemId(str(item["_id"])),
+                    folderId=str(item["folderId"]),
+                    auxiliaryFolderId=auxiliary["_id"],
                     girder_job_title=(
                         "Converting {} to a web friendly format".format(
                             str(item["_id"])
@@ -187,10 +268,13 @@ class Viame(Resource):
 
             if imageItems.count() > safeImageItems.count():
                 convert_images.delay(
-                    folder["_id"],
+                    folderId=folder["_id"],
                     girder_client_token=str(token["_id"]),
-                    girder_job_title=f"Converting {folder['_id']} to a web friendly format",
+                    girder_job_title=(
+                        f"Converting {folder['_id']} to a web friendly format",
+                    ),
                 )
+
             elif imageItems.count() > 0:
                 folder["meta"]["annotate"] = True
 
