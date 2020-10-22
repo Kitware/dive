@@ -4,9 +4,7 @@ VIAME Fish format deserializer
 import csv
 import io
 import re
-from typing import Any, Dict, List, Mapping, Optional, Tuple, Union
-
-from girder.models.file import File
+from typing import Dict, Generator, List, Tuple, Union
 
 from viame_server.serializers.models import Feature, Track, interpolate
 
@@ -19,7 +17,7 @@ def valueToString(value):
     return str(value)
 
 
-def row_info(row: List[str]) -> Tuple[int, str, int, List[float], float]:
+def row_info(row: List[str]) -> Tuple[int, str, int, List[int], float]:
     trackId = int(row[0])
     filename = str(row[1])
     frame = int(row[2])
@@ -166,7 +164,7 @@ def load_csv_as_tracks(rows: List[str]) -> Dict[str, dict]:
 
 def export_tracks_as_csv(
     track_dict, excludeBelowThreshold=False, thresholds={}, filenames=None
-) -> str:
+) -> Generator[str, None, None]:
     """Export track json to a CSV format."""
     csvFile = io.StringIO()
     writer = csv.writer(csvFile)
