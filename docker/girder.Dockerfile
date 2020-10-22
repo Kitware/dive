@@ -7,7 +7,7 @@ RUN yarn --frozen-lockfile
 # Build
 COPY .git/ /app/.git/
 COPY client/ /app/
-RUN yarn build
+RUN yarn build:web
 
 
 FROM girder/girder as runtime
