@@ -18,6 +18,7 @@ jobs:
         node-version: '10.x'
     - run: yarn install
     - run: yarn lint
+    - run: yarn lint:templates
     - run: yarn test
     - run: yarn build:web
     - run: yarn build:lib

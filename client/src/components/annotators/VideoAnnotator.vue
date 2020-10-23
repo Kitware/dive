@@ -1,7 +1,8 @@
 <script>
+import Vue from 'vue';
 import annotator from './annotator';
 
-export default {
+export default Vue.extend({
   name: 'VideoAnnotator',
 
   mixins: [annotator],
@@ -106,7 +107,7 @@ export default {
       }
     },
   },
-};
+});
 </script>
 
 <template>

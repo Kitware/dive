@@ -1,8 +1,9 @@
 <script>
+import Vue from 'vue';
 import { throttle } from 'lodash';
 import * as d3 from 'd3';
 
-export default {
+export default Vue.extend({
   name: 'LineChart',
   props: {
     startFrame: {
@@ -149,7 +150,7 @@ export default {
       this.path.attr('d', (d) => this.line(d.values));
     },
   },
-};
+});
 </script>
 
 <template>
