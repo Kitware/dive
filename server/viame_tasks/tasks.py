@@ -255,36 +255,16 @@ def train_pipeline(
                 )
             else:
                 manager.updateStatus(JobStatus.PUSHING_OUTPUT)
-            timestamp = datetime.utcnow().replace(microsecond=0).isoformat()
 
             # This is the name of the folder that is uploaded to the
             # "Training Results" girder folder
-            girder_output_folder_name = f"{pipeline_name} {timestamp}"
-            girder_output_folder = training_output_path / girder_output_folder_name
-
-            # Trained_ prefix is added to conform with existing pipeline names
-            # This is the name that will appear in the client (with trained_ removed)
-            trained_model_folder_name = f"trained_{pipeline_name}"
-            named_training_output = training_output_path / trained_model_folder_name
-
-            # Move the original folder to our new folder
-            shutil.move(str(training_results_path), named_training_output)
-
-            # If `_trained_pipeline_folder()` returns `None`, the results of this
-            # training job will be uploaded to Girder, but will not be runnable as
-            # a normal pipeline through the client
-            trained_pipeline_folder = _trained_pipeline_folder()
-            if trained_pipeline_folder:
-                shutil.copytree(
-                    named_training_output,
-                    trained_pipeline_folder / trained_model_folder_name,
-                )
-
-            # Rename this folder so that it appears properly in girder
-            shutil.move(str(named_training_output), girder_output_folder)
-            gc._uploadFolderRecursive(
-                girder_output_folder, results_folder["_id"], "folder"
+            girder_output_folder = gc.createFolder(
+                results_folder["_id"],
+                pipeline_name,
+                metadata={"trained_pipeline": True},
             )
+
+            gc.upload(f"{training_results_path}/*", girder_output_folder["_id"])
 
     if self.canceled:
         manager.updateStatus(JobStatus.CANCELED)

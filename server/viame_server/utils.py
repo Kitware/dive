@@ -1,9 +1,12 @@
+import copy
 import io
 import json
+import os
 import re
+import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional, Tuple
 
 from girder.models.assetstore import Assetstore
 from girder.models.file import File
@@ -47,7 +50,15 @@ VideoMimeTypes = {
     "video/x-msvideo",
 }
 
+
+AllowedStaticPipelines = r"^detector_.+|^tracker_.+|^generate_.+"
+DisallowedStaticPipelines = (
+    r".*local.*|detector_svm_models.pipe|tracker_svm_models.pipe"
+)
+
 TrainingOutputFolderName = "Training Results"
+TrainedPipelineMarker = "trained_pipeline"
+TrainedPipelineCategory = "trained"
 DefaultTrainingConfiguration = "train_netharn_cascade.viame_csv.conf"
 
 
@@ -62,32 +73,41 @@ class PipelineDescription(TypedDict):
     pipe: str
 
 
-class PipelineDict(TypedDict):
+class PipelineCategory(TypedDict):
     pipes: List[PipelineDescription]
     description: str
 
 
-def load_pipelines(pipeline_paths):
-    main_pipeline_path, trained_pipeline_path = pipeline_paths
+Pipelines = Dict[str, PipelineCategory]
 
-    pipelist = []
-    if main_pipeline_path is not None:
-        allowed = r"^detector_.+|^tracker_.+|^generate_.+"
-        disallowed = r".*local.*|detector_svm_models.pipe|tracker_svm_models.pipe"
-        pipelist.extend(
-            [
-                path.name
-                for path in main_pipeline_path.glob("./*.pipe")
-                if re.match(allowed, path.name) and not re.match(disallowed, path.name)
-            ]
+
+def get_static_pipelines_path() -> Path:
+    pipeline_path = None
+
+    env_pipelines_path = os.getenv("VIAME_PIPELINES_PATH")
+    if env_pipelines_path is None:
+        raise Exception(
+            "No pipeline path specified. "
+            "Please set the VIAME_PIPELINES_PATH environment variable.",
         )
 
-    if trained_pipeline_path is not None:
-        pipelist.extend(
-            [path.name for path in trained_pipeline_path.iterdir() if path.is_dir()]
-        )
+    pipeline_path = Path(env_pipelines_path)
+    if not pipeline_path.exists():
+        raise Exception("Specified pipeline path does not exist!")
 
-    pipedict: Dict[str, PipelineDict] = {}
+    return pipeline_path
+
+
+def load_static_pipelines() -> Pipelines:
+    static_pipelines_path = get_static_pipelines_path()
+    pipedict: Pipelines = {}
+    pipelist = [
+        path.name
+        for path in static_pipelines_path.glob("./*.pipe")
+        if re.match(AllowedStaticPipelines, path.name)
+        and not re.match(DisallowedStaticPipelines, path.name)
+    ]
+
     for pipe in pipelist:
         pipe_type, *nameparts = pipe.replace(".pipe", "").split("_")
         pipe_info: PipelineDescription = {
@@ -104,10 +124,30 @@ def load_pipelines(pipeline_paths):
     return pipedict
 
 
-def load_training_configurations(pipeline_paths) -> TrainingConfigurationDescription:
-    main_pipeline_path: Path
-    main_pipeline_path, _ = pipeline_paths
+def load_pipelines(static_pipelines: Pipelines) -> Pipelines:
+    """Add any additional dynamic pipelines to the existing static pipeline list."""
+    pipelines = copy.deepcopy(static_pipelines)
+    trained_pipeline_folders = Folder().find({f"meta.{TrainedPipelineMarker}": True})
 
+    if TrainedPipelineCategory not in pipelines:
+        pipelines[TrainedPipelineCategory] = {"pipes": [], "description": ""}
+
+    pipelines[TrainedPipelineCategory]["pipes"].extend(
+        [
+            {
+                "name": folder["name"],
+                "type": TrainedPipelineCategory,
+                "pipe": "detector.pipe",
+            }
+            for folder in trained_pipeline_folders
+        ]
+    )
+
+    return pipelines
+
+
+def load_training_configurations() -> TrainingConfigurationDescription:
+    main_pipeline_path = get_static_pipelines_path()
     configurations = [path.name for path in main_pipeline_path.glob("./*.conf")]
 
     return {

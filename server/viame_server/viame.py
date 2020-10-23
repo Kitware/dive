@@ -24,6 +24,7 @@ from .utils import (
     getTrackData,
     imageRegex,
     load_pipelines,
+    load_static_pipelines,
     load_training_configurations,
     move_existing_result_to_auxiliary_folder,
     safeImageRegex,
@@ -35,10 +36,10 @@ from .utils import (
 
 
 class Viame(Resource):
-    def __init__(self, pipeline_paths=()):
+    def __init__(self):
         super(Viame, self).__init__()
         self.resourceName = "viame"
-        self.pipeline_paths = pipeline_paths
+        self.static_pipelines = load_static_pipelines()
 
         self.route("GET", ("pipelines",), self.get_pipelines)
         self.route("POST", ("pipeline",), self.run_pipeline_task)
@@ -55,12 +56,12 @@ class Viame(Resource):
     @access.user
     @describeRoute(Description("Get available pipelines"))
     def get_pipelines(self, params):
-        return load_pipelines(self.pipeline_paths)
+        return load_pipelines(self.static_pipelines)
 
     @access.user
     @describeRoute(Description("Get available training configurations."))
     def get_training_configs(self, params):
-        return load_training_configurations(self.pipeline_paths)
+        return load_training_configurations()
 
     @access.user
     @autoDescribeRoute(
