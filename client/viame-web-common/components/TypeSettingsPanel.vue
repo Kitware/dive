@@ -163,25 +163,19 @@ export default Vue.extend({
         <v-card>
           <v-card-title>
             Import Types
+            <v-spacer />
+            <v-btn
+              icon
+              small
+              @click="importDialog = false"
+            >
+              <v-icon
+                small
+              >
+                mdi-close
+              </v-icon>
+            </v-btn>
           </v-card-title>
-          <v-card-subtitle class="my-0 py-0">
-            <v-container class="py-0">
-              <v-row>
-                <v-spacer />
-                <v-btn
-                  icon
-                  small
-                  @click="importDialog = false"
-                >
-                  <v-icon
-                    small
-                  >
-                    mdi-exit
-                  </v-icon>
-                </v-btn>
-              </v-row>
-            </v-container>
-          </v-card-subtitle>
           <v-card-text>
             {{ importInstructions }}
             <v-form>

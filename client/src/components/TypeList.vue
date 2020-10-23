@@ -152,7 +152,10 @@ export default defineComponent({
       dense
       class="py-0"
     >
-      <v-row class="border-highlight">
+      <v-row
+        class="border-highlight"
+        align="center"
+      >
         <v-col class="d-flex flex-row align-center py-0">
           <v-checkbox
             :input-value="headCheckState !== -1 ? headCheckState : false"
@@ -164,7 +167,7 @@ export default defineComponent({
             class="my-1 type-checkbox"
             @change="headCheckClicked"
           />
-          <b>Visibility</b>
+          <b class="mt-1">Visibility</b>
           <v-spacer />
           <v-btn
             icon
@@ -268,23 +271,24 @@ export default defineComponent({
         <v-card>
           <v-card-title>
             Editing Type
+            <v-spacer />
+            <v-btn
+              icon
+              small
+              color="white"
+              @click="data.showPicker = false"
+            >
+              <v-icon
+                small
+              >
+                mdi-close
+              </v-icon>
+            </v-btn>
           </v-card-title>
           <v-card-subtitle class="my-0 py-0">
             <v-container class="py-0">
               <v-row>
                 {{ data.selectedType }}
-                <v-spacer />
-                <v-btn
-                  icon
-                  small
-                  @click="showPicker = false"
-                >
-                  <v-icon
-                    small
-                  >
-                    mdi-exit
-                  </v-icon>
-                </v-btn>
               </v-row>
             </v-container>
           </v-card-subtitle>
@@ -355,7 +359,7 @@ export default defineComponent({
             <v-tooltip
               open-delay="100"
               bottom
-              color="error"
+              :color="usedTypesRef.includes(data.selectedType) ? 'error' : ''"
             >
               <template #activator="{ on }">
                 <div v-on="on">
