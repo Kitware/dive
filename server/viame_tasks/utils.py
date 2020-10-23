@@ -40,20 +40,6 @@ def read_and_close_process_outputs(
     return (stdout, stderr)
 
 
-def trained_pipeline_folder():
-    """
-    Returns the folder designated for trained pipeline output.
-
-    Folder is created if it does not already exist.
-    """
-    folder = os.environ.get("VIAME_TRAINED_PIPELINES_PATH", None)
-    if not folder:
-        print("Environment Variable VIAME_TRAINED_PIPELINES_PATH not set!")
-        return None
-
-    return Path(folder)
-
-
 def organize_folder_for_training(
     root_training_dir: Path, data_dir: Path, downloaded_groundtruth: Path
 ):
