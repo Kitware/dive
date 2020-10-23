@@ -233,7 +233,7 @@ export default defineComponent({
           color="error"
           icon="mdi-delete"
           :tooltip-text="`Delete ${isTrack ? 'Track' : 'Detection'}`"
-          @click="handler.removeTrack(track.trackId)"
+          @click="handler.removeTrack([track.trackId])"
         />
 
         <tooltip-btn
