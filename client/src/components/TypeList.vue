@@ -14,7 +14,7 @@ export default defineComponent({
   },
   name: 'TypeList',
 
-  setup(props, { emit, root }) {
+  setup(props, { root }) {
     const prompt = root.$prompt;
 
     const data = reactive({
