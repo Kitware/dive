@@ -172,5 +172,7 @@ export default function useFilteredTracks(
     updateCheckedTypes,
     updateTypeName,
     removeTypeTracks,
+    importTypes,
+    deleteType,
   };
 }
