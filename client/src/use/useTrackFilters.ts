@@ -111,7 +111,6 @@ export default function useFilteredTracks(
     });
   }
   function deleteType(type: string) {
-    console.log(`deleting type: ${type}`);
     if (defaultTypes.value.includes(type)) {
       defaultTypes.value.splice(defaultTypes.value.indexOf(type), 1);
     }
