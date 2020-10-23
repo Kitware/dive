@@ -110,7 +110,7 @@ export default defineComponent({
     function confirmType(type: string) {
       if (props.lockTypes) {
         if (!allTypesRef.value.includes(type)) {
-          //Not validated to one of the types Produce response
+          //Not validated to one of the types Produce error response
           data.inputError = true;
           return;
         }
@@ -238,15 +238,16 @@ export default defineComponent({
       <v-spacer />
       <input
         ref="typeInputBoxRef"
-        v-model="data.trackTypeValue"
         v-mousetrap="[
           { bind: 'escape', handler: (_, e) => blurType(e) },
           { bind: 'enter', handler: (_, e) => blurType(e) },
           { bind: 'down', handler: () => { data.trackTypeValue = ''; }},
         ]"
+        :value="data.trackTypeValue"
         type="text"
         list="allTypesOptions"
         class="input-box"
+        @change="typeChange"
         @focus="onFocus"
         @blur="onBlur"
       >
