@@ -6,10 +6,11 @@ import { updateSubset } from '../utils';
 
 /* Provide track filtering controls on tracks loaded from useTrackStore. */
 export default function useFilteredTracks(
-  { sortedTracks, removeTrack }:
+  { sortedTracks, removeTrack, markChangesPending }:
   {
     sortedTracks: Readonly<Ref<readonly Track[]>>;
     removeTrack: (trackId: TrackId) => void;
+    markChangesPending: () => void;
   },
 ) {
   /* Track IDs explicitly checked "ON" by the user */
@@ -103,17 +104,21 @@ export default function useFilteredTracks(
     }
   });
 
-  function importTypes(types: string[]) {
+  function importTypes(types: string[], userInteraction = true) {
     types.forEach((type) => {
       if (!defaultTypes.value.includes(type)) {
         defaultTypes.value.push(type);
       }
     });
+    if (userInteraction) {
+      markChangesPending();
+    }
   }
   function deleteType(type: string) {
     if (defaultTypes.value.includes(type)) {
       defaultTypes.value.splice(defaultTypes.value.indexOf(type), 1);
     }
+    markChangesPending();
   }
   function updateTypeName({ currentType, newType }: {currentType: string; newType: string}) {
     //Go through the entire list and replace the oldType with the new Type
@@ -127,6 +132,7 @@ export default function useFilteredTracks(
     if (defaultTypes.value.includes(currentType)) {
       defaultTypes.value[defaultTypes.value.indexOf(currentType)] = newType;
     }
+    markChangesPending();
   }
 
   function removeTypeTracks(type: string[]) {

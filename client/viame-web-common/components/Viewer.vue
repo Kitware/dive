@@ -151,7 +151,7 @@ export default defineComponent({
       deleteType,
       updateCheckedTypes,
       updateCheckedTrackId,
-    } = useTrackFilters({ sortedTracks, removeTrack });
+    } = useTrackFilters({ sortedTracks, removeTrack, markChangesPending });
 
     Promise.all([
       loadMetadata(props.datasetId),
@@ -160,7 +160,7 @@ export default defineComponent({
       // tasks to run after dataset and tracks have loaded
       populateTypeStyles(meta.customTypeStyling);
       if (meta.customTypeStyling) {
-        importTypes(Object.keys(meta.customTypeStyling));
+        importTypes(Object.keys(meta.customTypeStyling), false);
       }
       populateConfidenceFilters(meta.confidenceFilters);
       loaded.value = true;
