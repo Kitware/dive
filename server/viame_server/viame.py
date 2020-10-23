@@ -14,24 +14,21 @@ from viame_tasks.tasks import (
     train_pipeline,
 )
 
+from .constants import csvRegex, imageRegex, safeImageRegex, videoRegex, ymlRegex
 from .model.attribute import Attribute
+from .pipelines import load_pipelines, load_static_pipelines
 from .serializers import meva as meva_serializer
+from .training import (
+    csv_detection_file,
+    load_training_configurations,
+    training_output_folder,
+)
 from .transforms import GetPathFromFolderId, GetPathFromItemId
 from .utils import (
-    csv_detection_file,
-    csvRegex,
     get_or_create_auxiliary_folder,
     getTrackData,
-    imageRegex,
-    load_pipelines,
-    load_static_pipelines,
-    load_training_configurations,
     move_existing_result_to_auxiliary_folder,
-    safeImageRegex,
     saveTracks,
-    training_output_folder,
-    videoRegex,
-    ymlRegex,
 )
 
 
