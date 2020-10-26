@@ -26,6 +26,15 @@ class PipelineDescription(TypedDict):
     folderId: Optional[str]
 
 
+class PipelineJob(TypedDict):
+    """Describes the parameters for running a pipeline on a dataset."""
+
+    pipeline: PipelineDescription
+    input_folder: str
+    input_type: str
+    output_folder: str
+
+
 class PipelineCategory(TypedDict):
     pipes: List[PipelineDescription]
     description: str
