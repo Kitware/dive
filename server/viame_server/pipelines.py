@@ -1,6 +1,6 @@
 import copy
 import re
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from girder.models.folder import Folder
 from typing_extensions import TypedDict
@@ -15,9 +15,15 @@ DisallowedStaticPipelines = (
 
 
 class PipelineDescription(TypedDict):
+    """Describes a pipeline for running on datasets."""
+
     name: str
     type: str
     pipe: str
+
+    # If the pipeline is stored in girder, this is
+    # the ID of the folder containing the pipeline,
+    folderId: Optional[str]
 
 
 class PipelineCategory(TypedDict):
@@ -46,6 +52,7 @@ def load_static_pipelines() -> Pipelines:
             "name": " ".join(nameparts),
             "type": pipe_type,
             "pipe": pipe,
+            "folderId": None,
         }
 
         if pipe_type in pipedict:
@@ -64,6 +71,7 @@ def load_pipelines(static_pipelines: Pipelines) -> Pipelines:
             "name": folder["name"],
             "type": TrainedPipelineCategory,
             "pipe": "detector.pipe",
+            "folderId": str(folder["_id"]),
         }
         for folder in Folder().find({f"meta.{TrainedPipelineMarker}": True})
     ]

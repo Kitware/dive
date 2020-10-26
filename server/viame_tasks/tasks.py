@@ -17,7 +17,6 @@ from viame_tasks.utils import (
     organize_folder_for_training,
     read_and_close_process_outputs,
 )
-from viame_tasks.utils import trained_pipeline_folder as _trained_pipeline_folder
 
 
 def get_gpu_environment() -> Dict[str, str]:
@@ -73,15 +72,17 @@ def run_pipeline(self: Task, input_path, output_folder, pipeline, input_type):
     if len(filtered_directory_files) == 0:
         raise ValueError('No media files found in {}'.format(input_path))
 
-    # Handle spaces in pipeline names
-    pipeline = pipeline.replace(" ", r"\ ")
-
-    # Handle trained pipelines
-    trained_pipeline_folder = _trained_pipeline_folder()
-    if pipeline.startswith("trained_") and trained_pipeline_folder:
-        pipeline_path = os.path.join(trained_pipeline_folder, pipeline, "detector.pipe")
+    trained_pipeline_folder = Path(tempfile.mkdtemp())
+    if pipeline["type"] == "trained":
+        self.girder_client.downloadFolderRecursive(
+            pipeline["folderId"], str(trained_pipeline_folder)
+        )
+        pipeline_path = str(trained_pipeline_folder / pipeline["pipe"])
     else:
-        pipeline_path = os.path.join(conf.pipeline_base_path, pipeline)
+        pipeline_path = os.path.join(conf.pipeline_base_path, pipeline["pipe"])
+
+    # Handle spaces in pipeline names
+    pipeline_path = pipeline_path.replace(" ", r"\ ")
 
     if input_type == 'video':
         input_file = os.path.join(input_path, filtered_directory_files[0])
@@ -161,6 +162,7 @@ def run_pipeline(self: Task, input_path, output_folder, pipeline, input_type):
 
     os.remove(track_output_path)
     os.remove(detector_output_path)
+    os.remove(trained_pipeline_folder)
 
     if self.canceled:
         manager.updateStatus(JobStatus.CANCELED)

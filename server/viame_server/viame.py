@@ -16,7 +16,7 @@ from viame_tasks.tasks import (
 
 from .constants import csvRegex, imageRegex, safeImageRegex, videoRegex, ymlRegex
 from .model.attribute import Attribute
-from .pipelines import load_pipelines, load_static_pipelines
+from .pipelines import load_pipelines, load_static_pipelines, PipelineDescription
 from .serializers import meva as meva_serializer
 from .training import (
     csv_detection_file,
@@ -71,13 +71,16 @@ class Viame(Resource):
             required=True,
             level=AccessType.WRITE,
         )
-        .param(
-            "pipeline",
-            "Pipeline to run against the video",
-            default="detector_simple_hough.pipe",
-        )
+        .jsonParam("pipeline", "The pipeline to run on the dataset", required=True)
     )
-    def run_pipeline_task(self, folder, pipeline):
+    def run_pipeline_task(self, folder, pipeline: PipelineDescription):
+        """
+        Run a pipeline on a dataset.
+
+        :param folder: The girder folder containing the dataset to run on.
+        :param pipeline: The pipeline to run the dataset on.
+        """
+
         user = self.getCurrentUser()
         token = Token().createToken(user=user, days=14)
         move_existing_result_to_auxiliary_folder(folder, user)
@@ -90,9 +93,7 @@ class Viame(Resource):
                 output_folder=str(folder["_id"]),
                 pipeline=pipeline,
                 input_type=input_type,
-                girder_job_title=(
-                    "Running {} on {}".format(pipeline, str(folder["name"]))
-                ),
+                girder_job_title=f"Running {pipeline['name']} on {str(folder['name'])}",
                 girder_client_token=str(token["_id"]),
                 girder_job_type="pipelines",
             ),

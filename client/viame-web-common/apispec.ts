@@ -62,7 +62,7 @@ interface Api {
   deleteAttribute(data: Attribute): Promise<unknown>;
 
   getPipelineList(): Promise<Pipelines>;
-  runPipeline(itemId: string, pipeline: string): Promise<unknown>;
+  runPipeline(itemId: string, pipeline: Pipe): Promise<unknown>;
 
   getTrainingConfigurations(): Promise<TrainingConfigs>;
   runTraining(folderId: string, pipelineName: string, config: string): Promise<unknown>;

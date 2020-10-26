@@ -1,4 +1,3 @@
-import os
 import shutil
 from pathlib import Path
 from subprocess import Popen, TimeoutExpired
