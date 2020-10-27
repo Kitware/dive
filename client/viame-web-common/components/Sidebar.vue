@@ -85,7 +85,7 @@ export default defineComponent({
         class="wrapper d-flex flex-column"
       >
         <type-list
-          :view-un-used="typeSettings.viewUnUsed"
+          :show-empty-types="typeSettings.showEmptyTypes"
           class="flex-shrink-1 flex-grow-1 typelist"
         >
           <template slot="settings">

@@ -21,7 +21,7 @@ export default Vue.extend({
     itemHeight: 45, // in pixels
     help: {
       import: 'Import multiple Types',
-      viewUnUsed: 'View types that are not used currently.',
+      showEmptyTypes: 'View types that are not used currently.',
       lockTypes: 'Only allows the use of defined types.',
     },
     importInstructions: 'Please provide a list of types (separated by a new line) that you would like to import',
@@ -30,14 +30,14 @@ export default Vue.extend({
   }),
   methods: {
     /** Reduces the number of update functions utilizing Vuex by indicating the target type */
-    saveTypeSettings(event: boolean, target: 'viewUnUsed' | 'lockTypes') {
+    saveTypeSettings(event: boolean, target: 'showEmptyTypes' | 'lockTypes') {
       const copy: TypeSettings = cloneDeep(this.typeSettings);
       copy[target] = event; // Modify the value
       this.$emit('update-type-settings', copy);
     },
     confirmImport() {
       // Go through the importTypes and create types for importing
-      const types = this.importTypes.split('\n');
+      const types = this.importTypes.split('\n').filter((item) => item.length);
       this.$emit('import-types', types);
       this.importDialog = false;
       this.importTypes = '';
@@ -70,7 +70,7 @@ export default Vue.extend({
             <v-icon small>
               mdi-plus
             </v-icon>
-            Import
+            Types
           </v-btn>
         </v-col>
         <v-col cols="2">
@@ -97,12 +97,12 @@ export default Vue.extend({
       >
         <v-col>
           <v-switch
-            v-model="typeSettings.viewUnUsed"
+            v-model="typeSettings.showEmptyTypes"
             class="my-0 ml-1 pt-0"
             dense
             label="View Unused"
             hide-details
-            @change="saveTypeSettings($event, 'viewUnUsed')"
+            @change="saveTypeSettings($event, 'showEmptyTypes')"
           />
         </v-col>
         <v-col cols="2">
@@ -119,7 +119,7 @@ export default Vue.extend({
                 mdi-help
               </v-icon>
             </template>
-            <span>{{ help.viewUnUsed }}</span>
+            <span>{{ help.showEmptyTypes }}</span>
           </v-tooltip>
         </v-col>
       </v-row>
@@ -162,7 +162,7 @@ export default Vue.extend({
       <div>
         <v-card>
           <v-card-title>
-            Import Types
+            Types
             <v-spacer />
             <v-btn
               icon
@@ -211,7 +211,7 @@ export default Vue.extend({
               depressed
               @click="confirmImport"
             >
-              Import
+              Add
             </v-btn>
           </v-card-actions>
         </v-card>

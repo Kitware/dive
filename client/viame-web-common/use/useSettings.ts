@@ -18,7 +18,7 @@ export interface NewTrackSettings {
 }
 
 export interface TypeSettings {
-  viewUnUsed: boolean;
+  showEmptyTypes: boolean;
   lockTypes: boolean;
 }
 
@@ -38,7 +38,7 @@ export default function useSettings(allTypes: Ref<Readonly<string[]>>) {
       },
     },
     typeSettings: {
-      viewUnUsed: false,
+      showEmptyTypes: false,
       lockTypes: false,
     },
   });

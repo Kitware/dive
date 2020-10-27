@@ -107,28 +107,11 @@ export default defineComponent({
       (e.target as HTMLInputElement).blur();
     }
 
-    function confirmType(type: string) {
-      if (props.lockTypes) {
-        if (!allTypesRef.value.includes(type)) {
-          //Not validated to one of the types Produce error response
-          data.inputError = true;
-          return;
-        }
-      }
-      data.trackTypeValue = type;
-      data.inputError = false;
-      handler.trackTypeChange(props.track.trackId, data.trackTypeValue);
-    }
-    function typeChange(event: Event) {
-      if (event && event.target) {
-        confirmType((event.target as HTMLInputElement).value);
-      }
-    }
     function onBlur() {
       if (data.trackTypeValue === '') {
         data.trackTypeValue = props.trackType;
       } else if (data.trackTypeValue !== props.trackType) {
-        confirmType(data.trackTypeValue);
+        handler.trackTypeChange(props.track.trackId, data.trackTypeValue);
       }
     }
 
@@ -176,7 +159,6 @@ export default defineComponent({
       }
     }
 
-
     return {
       /* data */
       data,
@@ -185,6 +167,7 @@ export default defineComponent({
       style,
       typeInputBox: typeInputBoxRef,
       frame: frameRef,
+      allTypes: allTypesRef,
       /* methods */
       blurType,
       focusType,
@@ -195,7 +178,6 @@ export default defineComponent({
       onFocus,
       toggleInterpolation,
       toggleKeyframe,
-      typeChange,
     };
   },
 });
@@ -236,41 +218,34 @@ export default defineComponent({
         <span> {{ track.trackId }} </span>
       </v-tooltip>
       <v-spacer />
+      <select
+        v-if="lockTypes"
+        v-model="data.trackTypeValue"
+        class="select-input"
+      >
+        <option
+          v-for="item in allTypes"
+          :key="item"
+        >
+          {{ item }}
+        </option>
+      </select>
       <input
+        v-else-if="!lockTypes"
         ref="typeInputBoxRef"
-        v-mousetrap="[
-          { bind: 'escape', handler: (_, e) => blurType(e) },
-          { bind: 'enter', handler: (_, e) => blurType(e) },
-          { bind: 'down', handler: () => { data.trackTypeValue = ''; }},
-        ]"
-        :value="data.trackTypeValue"
+        v-model="data.trackTypeValue"
         type="text"
         list="allTypesOptions"
         class="input-box"
-        @change="typeChange"
         @focus="onFocus"
         @blur="onBlur"
       >
-      <v-tooltip
+      <v-icon
         v-if="lockTypes"
-        v-model="data.inputError"
-        top
-        close-delay="300"
-        color="error"
+        small
       >
-        <template #activator="{ on }">
-          <v-icon
-            small
-            :color="data.inputError? 'red' : 'white'"
-            v-on="on"
-          >
-            mdi-lock
-          </v-icon>
-        </template>
-        <span>
-          Type is locked only choose one of the types from the list
-        </span>
-      </v-tooltip>
+        mdi-lock
+      </v-icon>
     </v-row>
     <v-row class="px-3 py-1 justify-center item-row flex-nowrap">
       <v-spacer v-if="!isTrack" />
@@ -376,6 +351,15 @@ export default defineComponent({
     padding: 0 6px;
     width: 135px;
     color: white;
+  }
+  .select-input {
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 4px;
+    padding: 0 6px;
+    width: 135px;
+    color: white;
+    background-color: #1e1e1e;
+    appearance: menulist-button;
   }
 }
 </style>

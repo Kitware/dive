@@ -7,7 +7,7 @@ import {
 
 export default defineComponent({
   props: {
-    viewUnUsed: {
+    showEmptyTypes: {
       type: Boolean,
       default: false,
     },
@@ -42,7 +42,7 @@ export default defineComponent({
     } = useHandler();
 
     const visibleTypes = computed(() => {
-      if (props.viewUnUsed) {
+      if (props.showEmptyTypes) {
         return allTypesRef.value;
       }
       return usedTypesRef.value;
@@ -377,7 +377,7 @@ export default defineComponent({
               <span
                 class="ma-0 pa-1"
               >
-                Only empty types can be deleted!!
+                Only types without any annotations can be deleted.
               </span>
             </v-tooltip>
             <v-spacer />
