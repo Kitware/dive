@@ -4,7 +4,8 @@ import fs from 'fs';
 import mime from 'mime-types';
 import path from 'path';
 import {
-  Attribute, DatasetMeta, DatasetMetaMutable, FrameImage, Pipelines, SaveDetectionsArgs,
+  Attribute, DatasetMeta, DatasetMetaMutable, FrameImage,
+  Pipelines, SaveDetectionsArgs, TrainingConfigs,
 } from 'viame-web-common/apispec';
 // eslint-disable-next-line
 import { ipcRenderer, remote } from 'electron';
@@ -58,6 +59,15 @@ async function loadDetections(datasetId: string) {
 async function saveDetections(datasetId: string, args: SaveDetectionsArgs) {
   return Promise.resolve();
 }
+// eslint-disable-next-line
+async function getTrainingConfigurations(): Promise<TrainingConfigs> {
+  return Promise.resolve({ configs: [], default: '' });
+}
+// eslint-disable-next-line
+async function runTraining(folderId: string, pipelineName: string, config: string): Promise<unknown> {
+  return Promise.resolve();
+}
+
 
 async function loadMetadata(datasetId: string): Promise<DesktopDataset> {
   let datasetType = undefined as 'video' | 'image-sequence' | undefined;
@@ -117,6 +127,8 @@ export {
   getAttributes,
   getPipelineList,
   runPipeline,
+  getTrainingConfigurations,
+  runTraining,
   loadDetections,
   openFromDisk,
   saveDetections,

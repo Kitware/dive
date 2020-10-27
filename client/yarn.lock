@@ -2647,6 +2647,24 @@
     semver "^6.1.0"
     strip-ansi "^6.0.0"
 
+"@vue/cli-shared-utils@^4.5.6":
+  version "4.5.8"
+  resolved "https://registry.yarnpkg.com/@vue/cli-shared-utils/-/cli-shared-utils-4.5.8.tgz#d454306aaa510e666a34b144afc81830fc23acc9"
+  integrity sha512-pa6oenhBO/5HeDLRSokiwVN01gROACEDy3ESXWuPmragOREGNmmFKtkPHlqeYavGEX6LFp7f0VK3uMX6UYS5mQ==
+  dependencies:
+    "@hapi/joi" "^15.0.1"
+    chalk "^2.4.2"
+    execa "^1.0.0"
+    launch-editor "^2.2.1"
+    lru-cache "^5.1.1"
+    node-ipc "^9.1.1"
+    open "^6.3.0"
+    ora "^3.4.0"
+    read-pkg "^5.1.1"
+    request "^2.88.2"
+    semver "^6.1.0"
+    strip-ansi "^6.0.0"
+
 "@vue/component-compiler-utils@^3.0.0", "@vue/component-compiler-utils@^3.1.2":
   version "3.2.0"
   resolved "https://registry.yarnpkg.com/@vue/component-compiler-utils/-/component-compiler-utils-3.2.0.tgz#8f85182ceed28e9b3c75313de669f83166d11e5d"
@@ -16210,11 +16228,11 @@ vue-async-computed@^3.4.1:
   resolved "https://registry.yarnpkg.com/vue-async-computed/-/vue-async-computed-3.8.2.tgz#d5dff221b62f95ad2f98ce9e7bbea5a067ec8b9a"
   integrity sha512-If5roOhp/x0WWd0TWRD77YsuFoiIw3MbkcRlIB/FE3TqQCPje52eQp5CV5NN/7B0VAyPuGX5JQa+rc9AOcGAYw==
 
-vue-cli-plugin-electron-builder@^2.0.0-rc.4:
+"vue-cli-plugin-electron-builder@git+https://github.com/subdavis/vue-cli-plugin-electron-builder":
   version "2.0.0-rc.4"
-  resolved "https://registry.yarnpkg.com/vue-cli-plugin-electron-builder/-/vue-cli-plugin-electron-builder-2.0.0-rc.4.tgz#c819279e00fe6771912f5f0468ee26f279750a5b"
-  integrity sha512-yA/MUY8t/OiCnNea0zyVhFuewd+g/mGTc7MNbE/e/sb9XjBsEW517CD5KhLIu5/uItmvmMOpjLSTDILqE2RJFA==
+  resolved "git+https://github.com/subdavis/vue-cli-plugin-electron-builder#dc667aa80592ffd46748a38210b0c6482978c6fc"
   dependencies:
+    "@vue/cli-shared-utils" "^4.5.6"
     chokidar "^3.0.2"
     electron-builder "^22.2.0"
     execa "^4.0.0"
@@ -17063,6 +17081,14 @@ yargs-parser@^18.1.1:
   dependencies:
     camelcase "^5.0.0"
     decamelize "^1.2.0"
+
+yargs-parser@^2.4.0:
+  version "2.4.1"
+  resolved "https://registry.yarnpkg.com/yargs-parser/-/yargs-parser-2.4.1.tgz#85568de3cf150ff49fa51825f03a8c880ddcc5c4"
+  integrity sha1-hVaN488VD/SfpRgl8DqMiA3cxcQ=
+  dependencies:
+    camelcase "^3.0.0"
+    lodash.assign "^4.0.6"
 
 yargs-parser@^20.0.0:
   version "20.2.1"

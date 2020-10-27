@@ -61,7 +61,7 @@ const server = http.createServer(withErrorHandler((req, res) => {
       return res.end();
     }
     pump(fs.createReadStream(path), res);
-    return res.end();
+    return null;
   }
 
   const range = ranges[0];
@@ -71,7 +71,7 @@ const server = http.createServer(withErrorHandler((req, res) => {
   res.setHeader('Content-Range', `bytes ${range.start}-${range.end}/${filestat.size}`);
   if (req.method === 'HEAD') return res.end();
   pump(fs.createReadStream(path, range), res);
-  return res.end();
+  return null;
 }));
 
 export default server;

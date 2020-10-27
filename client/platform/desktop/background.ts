@@ -36,6 +36,7 @@ function createWindow() {
       nodeIntegration: (process.env
         .ELECTRON_NODE_INTEGRATION as unknown) as boolean,
       plugins: true,
+      enableRemoteModule: true,
     },
   });
 
