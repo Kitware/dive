@@ -103,7 +103,7 @@ export default defineComponent({
       }
     }
 
-    function blurType(e: InputEvent) {
+    function blurType(e: KeyboardEvent) {
       (e.target as HTMLInputElement).blur();
     }
 
@@ -159,13 +159,27 @@ export default defineComponent({
       }
     }
 
+    function onInputKeyEvent(e: KeyboardEvent) {
+      switch (e.code) {
+        case 'Escape':
+        case 'Enter':
+          blurType(e);
+          break;
+        case 'ArrowDown':
+          data.trackTypeValue = '';
+          break;
+        default:
+          break;
+      }
+    }
+
     return {
       /* data */
       data,
       feature,
       isTrack,
       style,
-      typeInputBox: typeInputBoxRef,
+      typeInputBoxRef,
       frame: frameRef,
       allTypes: allTypesRef,
       /* methods */
@@ -176,6 +190,7 @@ export default defineComponent({
       handler,
       onBlur,
       onFocus,
+      onInputKeyEvent,
       toggleInterpolation,
       toggleKeyframe,
     };
@@ -239,6 +254,7 @@ export default defineComponent({
         class="input-box"
         @focus="onFocus"
         @blur="onBlur"
+        @keydown="onInputKeyEvent"
       >
       <v-icon
         v-if="lockTypes"
