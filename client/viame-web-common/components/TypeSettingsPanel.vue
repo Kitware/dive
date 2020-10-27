@@ -100,7 +100,7 @@ export default Vue.extend({
             v-model="typeSettings.showEmptyTypes"
             class="my-0 ml-1 pt-0"
             dense
-            label="View Unused"
+            label="Show Empty"
             hide-details
             @change="saveTypeSettings($event, 'showEmptyTypes')"
           />

@@ -99,7 +99,9 @@ export default defineComponent({
       if (props.selected && typeInputBoxRef.value !== undefined) {
         data.skipOnFocus = true;
         typeInputBoxRef.value.focus();
-        typeInputBoxRef.value.select();
+        if (!props.lockTypes) {
+          typeInputBoxRef.value.select();
+        }
       }
     }
 
@@ -107,11 +109,14 @@ export default defineComponent({
       (e.target as HTMLInputElement).blur();
     }
 
-    function onBlur() {
+    function onBlur(e: KeyboardEvent) {
       if (data.trackTypeValue === '') {
         data.trackTypeValue = props.trackType;
       } else if (data.trackTypeValue !== props.trackType) {
         handler.trackTypeChange(props.track.trackId, data.trackTypeValue);
+      }
+      if (props.lockTypes) {
+        blurType(e);
       }
     }
 
@@ -235,18 +240,23 @@ export default defineComponent({
       <v-spacer />
       <select
         v-if="lockTypes"
+        ref="typeInputBoxRef"
         v-model="data.trackTypeValue"
-        class="select-input"
+        class="input-box select-input"
+        @focus="onFocus"
+        @change="onBlur"
+        @keydown="onInputKeyEvent"
       >
         <option
           v-for="item in allTypes"
           :key="item"
+          :value="item"
         >
           {{ item }}
         </option>
       </select>
       <input
-        v-else-if="!lockTypes"
+        v-else
         ref="typeInputBoxRef"
         v-model="data.trackTypeValue"
         type="text"
@@ -369,13 +379,9 @@ export default defineComponent({
     color: white;
   }
   .select-input {
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    border-radius: 4px;
-    padding: 0 6px;
-    width: 135px;
-    color: white;
+    width: 120px;
     background-color: #1e1e1e;
-    appearance: menulist-button;
+    appearance: menulist;
   }
 }
 </style>
