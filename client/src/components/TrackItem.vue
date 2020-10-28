@@ -129,7 +129,7 @@ export default defineComponent({
 
     function toggleKeyframe() {
       const f = feature.value;
-      if (f.real && f.isKeyframe) {
+      if (f.real && !f.isKeyframe) {
         props.track.setFeature({
           ...f.real,
           frame: frameRef.value,
