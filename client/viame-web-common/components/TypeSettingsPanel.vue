@@ -47,19 +47,16 @@ export default Vue.extend({
 </script>
 
 <template>
-  <v-container>
+  <v-container class="px-1">
     <v-card
       outlined
-      class="pa-2 pb-0 mt-3 type-settings"
+      class="px-2 pb-0 mx-0 mt-3 type-settings"
     >
       <div>
-        Track Settings:
+        Type Settings
       </div>
-      <v-row
-        align="end"
-        dense
-      >
-        <v-col>
+      <v-row>
+        <v-col class="py-1">
           <v-btn
             dense
             small
@@ -73,7 +70,11 @@ export default Vue.extend({
             Types
           </v-btn>
         </v-col>
-        <v-col cols="2">
+        <v-col
+          cols="2"
+          class="py-1"
+          align="right"
+        >
           <v-tooltip
             open-delay="200"
             bottom
@@ -91,11 +92,8 @@ export default Vue.extend({
           </v-tooltip>
         </v-col>
       </v-row>
-      <v-row
-        align="end"
-        dense
-      >
-        <v-col>
+      <v-row>
+        <v-col class="py-1">
           <v-switch
             v-model="typeSettings.showEmptyTypes"
             class="my-0 ml-1 pt-0"
@@ -105,7 +103,11 @@ export default Vue.extend({
             @change="saveTypeSettings($event, 'showEmptyTypes')"
           />
         </v-col>
-        <v-col cols="2">
+        <v-col
+          cols="2"
+          class="py-1"
+          align="right"
+        >
           <v-tooltip
             open-delay="200"
             bottom
@@ -123,11 +125,8 @@ export default Vue.extend({
           </v-tooltip>
         </v-col>
       </v-row>
-      <v-row
-        align="end"
-        dense
-      >
-        <v-col>
+      <v-row>
+        <v-col class="py-1">
           <v-switch
             v-model="typeSettings.lockTypes"
             label="Lock Types"
@@ -137,7 +136,11 @@ export default Vue.extend({
             @change="saveTypeSettings($event, 'lockTypes')"
           />
         </v-col>
-        <v-col cols="2">
+        <v-col
+          cols="2"
+          class="py-1"
+          align="right"
+        >
           <v-tooltip
             open-delay="200"
             bottom

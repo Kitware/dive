@@ -81,12 +81,12 @@ export default Vue.extend({
         dense
       >
         <v-col
-          class="mx-2"
-          cols="3"
+          class="mx-2 py-1"
+          cols="2"
         >
           Mode:
         </v-col>
-        <v-col>
+        <v-col class="py-1">
           <v-select
             v-model="newTrackSettings.mode"
             class="ml-0 pa-0"
@@ -96,7 +96,11 @@ export default Vue.extend({
             hide-details
           />
         </v-col>
-        <v-col cols="2">
+        <v-col
+          cols="2"
+          class="py-1"
+          align="right"
+        >
           <v-tooltip
             open-delay="200"
             bottom
@@ -119,12 +123,12 @@ export default Vue.extend({
         dense
       >
         <v-col
-          class="mx-2"
-          cols="3"
+          class="mx-2 py-1"
+          cols="2"
         >
           Type:
         </v-col>
-        <v-col>
+        <v-col class="py-1">
           <v-combobox
             :value="newTrackSettings.type"
             class="ml-0 pa-0"
@@ -135,7 +139,11 @@ export default Vue.extend({
             @change="saveTypeSettings($event, 'type')"
           />
         </v-col>
-        <v-col cols="2">
+        <v-col
+          cols="2"
+          class="py-1"
+          align="right"
+        >
           <v-tooltip
             open-delay="200"
             bottom
@@ -169,6 +177,7 @@ export default Vue.extend({
         <v-col
           cols="2"
           class="py-1"
+          align="right"
         >
           <v-tooltip
             open-delay="200"
@@ -199,6 +208,7 @@ export default Vue.extend({
         <v-col
           cols="2"
           class="py-1"
+          align="right"
         >
           <v-tooltip
             open-delay="200"
