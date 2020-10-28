@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  defineComponent, ref, PropType, toRef,
+  defineComponent, ref, toRef, computed,
 } from '@vue/composition-api';
 
 /* VUE MEDIA ANNOTATOR */
@@ -37,12 +37,7 @@ import {
   useSave,
   useSettings,
 } from 'viame-web-common/use';
-import { useApi } from 'viame-web-common/apispec';
-
-interface FrameImage {
-  url: string;
-  filename: string;
-}
+import { useApi, FrameImage } from 'viame-web-common/apispec';
 
 export default defineComponent({
   components: {
@@ -65,22 +60,6 @@ export default defineComponent({
       type: String,
       required: true,
     },
-    frameRate: {
-      type: Number,
-      required: true,
-    },
-    annotatorType: {
-      type: String as PropType<'VideoAnnotator' | 'ImageAnnotator' | ''>,
-      required: true,
-    },
-    imageData: {
-      type: Array as PropType<FrameImage[]>,
-      required: true,
-    },
-    videoUrl: {
-      type: String,
-      required: true,
-    },
   },
   setup(props, ctx) {
     // TODO: eventually we will have to migrate away from this style
@@ -88,12 +67,39 @@ export default defineComponent({
     // https://vue-composition-api-rfc.netlify.com/#plugin-development
     const prompt = ctx.root.$prompt;
     const playbackComponent = ref({} as Annotator);
+    const fps = ref(10 as string | number);
+    const imageData = ref([] as FrameImage[]);
+    const videoUrl = ref(undefined as undefined | string);
     const frame = ref(0); // the currently displayed frame number
     const { loadDetections, loadMetadata } = useApi();
     // Loaded flag prevents annotator window from populating
     // with stale data from props, for example if a persistent store
     // like vuex is used to drive them.
     const loaded = ref(false);
+    const annotatorType = computed(() => {
+      if (imageData.value.length) {
+        return 'ImageAnnotator';
+      }
+      if (videoUrl.value !== undefined && videoUrl.value.length) {
+        return 'VideoAnnotator';
+      }
+      return '';
+    });
+    const frameRate = computed(() => {
+      if (fps.value) {
+        if (typeof fps.value === 'string') {
+          const parsed = parseInt(fps.value, 10);
+          if (Number.isNaN(parsed)) {
+            throw new Error(`Cannot parse fps=${fps.value} as integer`);
+          }
+          return parsed;
+        }
+        if (typeof fps.value === 'number') {
+          return fps.value;
+        }
+      }
+      return 10;
+    });
 
     const {
       save: saveToServer,
@@ -164,6 +170,9 @@ export default defineComponent({
       }
       populateConfidenceFilters(meta.confidenceFilters);
       loaded.value = true;
+      fps.value = meta.fps;
+      imageData.value = meta.imageData;
+      videoUrl.value = meta.videoUrl;
     });
 
     const {
@@ -278,14 +287,11 @@ export default defineComponent({
       if (pendingSaveCount.value > 0) {
         result = await prompt({
           title: 'Save Items',
-          text: 'There is unsaved data, what would you like to do?',
-          positiveButton: 'Save',
-          negativeButton: 'Discard',
+          text: 'There is unsaved data, would you like to continue or cancel and save?',
+          positiveButton: 'Discard and Leave',
+          negativeButton: 'Don\'t Leave',
           confirm: true,
         });
-        if (result) {
-          await save();
-        }
       }
       return result;
     }
@@ -302,31 +308,36 @@ export default defineComponent({
     };
 
     provideAnnotator(
-      allTypes,
-      usedTypes,
-      checkedTrackIds,
-      checkedTypes,
-      editingMode,
-      enabledTracks,
-      frame,
+      {
+        allTypes,
+        usedTypes,
+        checkedTrackIds,
+        checkedTypes,
+        editingMode,
+        enabledTracks,
+        frame,
+        intervalTree,
+        trackMap,
+        tracks: filteredTracks,
+        typeStyling,
+        selectedKey,
+        selectedTrackId,
+        stateStyles: stateStyling,
+        visibleModes,
+      },
       globalHandler,
-      intervalTree,
-      trackMap,
-      filteredTracks,
-      typeStyling,
-      selectedKey,
-      selectedTrackId,
-      stateStyling,
-      visibleModes,
     );
 
     return {
       /* props */
+      annotatorType,
       confidenceThreshold,
       editingTrack,
       editingMode,
       eventChartData,
       frame,
+      frameRate,
+      imageData,
       lineChartData,
       loaded,
       newTrackSettings: clientSettings.newTrackSettings,
@@ -337,6 +348,7 @@ export default defineComponent({
       selectedFeatureHandle,
       selectedTrackId,
       selectedKey,
+      videoUrl,
       visibleModes,
       /* methods */
       handler: globalHandler,
@@ -421,7 +433,7 @@ export default defineComponent({
           v-mousetrap="[
             { bind: 'n', handler: () => handler.trackAdd() },
             { bind: 'r', handler: () => playbackComponent.resetZoom() },
-            { bind: 'esc', handler: () => handler.trackAbort() },
+            { bind: 'esssc', handler: () => handler.trackAbort() },
           ]"
           v-bind="{ imageData, videoUrl, frameRate }"
           class="playback-component"

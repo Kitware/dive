@@ -12,6 +12,10 @@ export default defineComponent({
   components: { TooltipBtn },
 
   props: {
+    singleDisplay: {
+      type: Boolean,
+      default: false,
+    },
     trackType: {
       type: String,
       required: true,
@@ -84,7 +88,7 @@ export default defineComponent({
 
     /* Sets styling for the selected track */
     const style = computed(() => {
-      if (props.selected) {
+      if (props.selected && !props.singleDisplay) {
         return {
           'background-color': `${vuetify.theme.themes.dark.accentBackground}`,
         };
@@ -129,7 +133,7 @@ export default defineComponent({
 
     function toggleKeyframe() {
       const f = feature.value;
-      if (f.real && f.isKeyframe) {
+      if (f.real && !f.isKeyframe) {
         props.track.setFeature({
           ...f.real,
           frame: frameRef.value,

@@ -31,8 +31,9 @@ export default defineComponent({
   },
   // TODO: This will require an import from vue-router for Vue3 compatibility
   async beforeRouteLeave(to, from, next) {
-    await this.viewerRef.navigateAwayGuard();
-    next();
+    if (await this.viewerRef.navigateAwayGuard()) {
+      next();
+    }
   },
   setup(props, { root, refs }) {
     const dataset = toRef(root.$store.state.Dataset, 'dataset');

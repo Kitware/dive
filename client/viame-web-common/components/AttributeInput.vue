@@ -47,29 +47,32 @@ export default Vue.extend({
   <div>
     <v-combobox
       v-if="datatype === 'text'"
-      :label="name"
+      :label="datatype"
       :value="value"
       :items="['', ...values]"
       autocomplete="off"
+      dense
       @change="change"
     />
     <v-text-field
       v-else-if="datatype === 'number'"
-      :label="name"
+      :label="datatype"
       :value="value"
       type="number"
       autocomplete="off"
+      dense
       @change="change"
     />
     <v-select
       v-else-if="datatype === 'boolean'"
-      :label="name"
+      :label="datatype"
       :value="value"
       :items="[
         { text: '', value: undefined },
         { text: 'true', value: true },
         { text: 'false', value: false }
       ]"
+      dense
       @change="change"
     />
   </div>

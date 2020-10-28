@@ -10,6 +10,7 @@ interface ValidationResponse {
   message: string;
 }
 
+
 function makeViameFolder({
   folderId, name, fps, type,
 }: {
@@ -52,6 +53,23 @@ async function getAttributes(): Promise<Attribute[]> {
   const { data } = await girderRest.get('/viame/attribute');
   return data as Attribute[];
 }
+function setAttribute({ addNew, data }:
+   {addNew: boolean | undefined; data: Attribute}): Promise<Attribute[]> {
+  if (addNew) {
+    return girderRest.post('/viame/attribute', data);
+  }
+  return girderRest.put(
+    `/viame/attribute/${data._id}`,
+    data,
+  );
+}
+
+function deleteAttribute(data: Attribute): Promise<Attribute> {
+  return girderRest.delete(
+    `/viame/attribute/${data._id}`,
+  );
+}
+
 
 async function getPipelineList() {
   const { data } = await girderRest.get<Pipelines>('viame/pipelines');
@@ -100,6 +118,8 @@ async function getValidWebImages(folderId: string) {
 export {
   deleteResources,
   getAttributes,
+  setAttribute,
+  deleteAttribute,
   getPipelineList,
   makeViameFolder,
   postProcess,

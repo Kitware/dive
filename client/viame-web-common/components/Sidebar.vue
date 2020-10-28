@@ -11,6 +11,7 @@ import { useAllTypes } from 'vue-media-annotator/provides';
 
 import { NewTrackSettings, TypeSettings } from 'viame-web-common/use/useSettings';
 import AttributesPanel from 'viame-web-common/components/AttributesPanel.vue';
+import OldAttributesPanel from 'viame-web-common/components/OldAttributesPanel.vue';
 import CreationMode from 'viame-web-common/components/CreationMode.vue';
 import TypeSettingsPanel from 'viame-web-common/components/TypeSettingsPanel.vue';
 
@@ -32,6 +33,7 @@ export default defineComponent({
 
   components: {
     AttributesPanel,
+    OldAttributesPanel,
     CreationMode,
     TypeList,
     TrackList,
@@ -122,7 +124,10 @@ export default defineComponent({
         key="attributes"
         class="wrapper d-flex"
       >
-        <attributes-panel />
+        <attributes-panel
+          :lock-types="typeSettings.lockTypes"
+          @track-seek="$emit('track-seek', $event)"
+        />
       </div>
     </v-slide-x-transition>
   </v-card>

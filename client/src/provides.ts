@@ -1,5 +1,7 @@
 import IntervalTree from '@flatten-js/interval-tree';
-import { provide, inject, Ref } from '@vue/composition-api';
+import {
+  provide, inject, ref, Ref,
+} from '@vue/composition-api';
 
 import { StateStyles, TypeStyling } from './use/useStyling';
 import { EditAnnotationTypes } from './layers/EditAnnotationLayer';
@@ -8,9 +10,6 @@ import { VisibleAnnotationTypes } from './layers';
 import { RectBounds } from './utils';
 
 /**
- * Provides declares the dependencies that a consumer must provide before
- * constructing an AnnotationLayer of any kind
- *
  * Type definitions are read only because injectors may mutate internal state,
  * but should never overwrite or delete the injected object.
  */
@@ -121,6 +120,126 @@ export interface Handler {
 }
 const HandlerSymbol = Symbol('handler');
 
+/**
+ * Make a trivial noop handler. Useful if you only intend to
+ * override some small number of values.
+ * @param handle callbacl for all handler methods
+ */
+function dummyHandler(handle: (name: string, args: unknown[]) => void): Handler {
+  return {
+    trackSeek(...args) { handle('trackSeek', args); },
+    trackEdit(...args) { handle('trackEdit', args); },
+    trackEnable(...args) { handle('trackEnable', args); },
+    trackSelect(...args) { handle('trackSelect', args); },
+    trackSelectNext(...args) { handle('trackSelectNext', args); },
+    trackSplit(...args) { handle('trackSplit', args); },
+    trackTypeChange(...args) { handle('trackTypeChange', args); },
+    trackAdd(...args) { handle('trackAdd', args); return 0; },
+    updateRectBounds(...args) { handle('updateRectBounds', args); },
+    updateGeoJSON(...args) { handle('updateGeoJSON', args); },
+    removeTrack(...args) { handle('removeTrack', args); },
+    removePoint(...args) { handle('removePoint', args); },
+    removeAnnotation(...args) { handle('removeAnnotation', args); },
+    selectFeatureHandle(...args) { handle('selectFeatureHandle', args); },
+    setCheckedTypes(...args) { handle('setCheckedTypes', args); },
+    removeTypeTracks(...args) { handle('removeTypeTracks', args); },
+    deleteType(...args) { handle('deleteType', args); },
+    updateTypeName(...args) { handle('updateTypeName', args); },
+    updateTypeStyle(...args) { handle('updateTypeStyle', args); },
+  };
+}
+
+/**
+ * State interface describes the reactive properties that should be provided
+ * by a vue-media-annotator consumer.
+ *
+ * Implementations of most of this state is provided via src/use, but some
+ * you will need to construct on your own.
+ */
+export interface State {
+  allTypes: AllTypesType;
+  usedTypes: UsedTypesType;
+  checkedTrackIds: CheckedTrackIdsType;
+  checkedTypes: CheckedTypesType;
+  editingMode: EditingModeType;
+  enabledTracks: EnabledTracksType;
+  frame: FrameType;
+  intervalTree: IntervalTreeType;
+  trackMap: TrackMapType;
+  tracks: TracksType;
+  typeStyling: TypeStylingType;
+  selectedKey: SelectedKeyType;
+  selectedTrackId: SelectedTrackIdType;
+  stateStyles: StateStylesType;
+  visibleModes: VisibleModesType;
+}
+
+/**
+ * make a trivial state store. Useful if you only
+ * intend to override some small number of values.
+ */
+function dummyState(): State {
+  const style = {
+    strokeWidth: 2,
+    opacity: 1,
+    color: 'white',
+    fill: false,
+  };
+  return {
+    allTypes: ref([]),
+    usedTypes: ref([]),
+    checkedTrackIds: ref([]),
+    checkedTypes: ref([]),
+    editingMode: ref(false),
+    enabledTracks: ref([]),
+    frame: ref(0),
+    intervalTree: new IntervalTree(),
+    trackMap: new Map<TrackId, Track>(),
+    tracks: ref([]),
+    typeStyling: ref({
+      color() { return style.color; },
+      strokeWidth() { return style.strokeWidth; },
+      opacity() { return style.opacity; },
+      fill() { return style.fill; },
+    }),
+    selectedKey: ref(''),
+    selectedTrackId: ref(null),
+    stateStyles: {
+      disabled: style,
+      selected: style,
+      standard: style,
+    },
+    visibleModes: ref(['rectangle', 'text'] as VisibleAnnotationTypes[]),
+  };
+}
+
+/**
+ * Provide global state and handler for a single instance
+ * of vue-media-annotator.  Multiple annotator windows
+ * are currently not supported.
+ *
+ * @param {State} state
+ * @param {Hander} handler
+ */
+function provideAnnotator(state: State, handler: Handler) {
+  provide(AllTypesSymbol, state.allTypes);
+  provide(UsedTypesSymbol, state.usedTypes);
+  provide(CheckedTrackIdsSymbol, state.checkedTrackIds);
+  provide(CheckedTypesSymbol, state.checkedTypes);
+  provide(EnabledTracksSymbol, state.enabledTracks);
+  provide(EditingModeSymbol, state.editingMode);
+  provide(FrameSymbol, state.frame);
+  provide(IntervalTreeSymbol, state.intervalTree);
+  provide(TrackMapSymbol, state.trackMap);
+  provide(TracksSymbol, state.tracks);
+  provide(TypeStylingSymbol, state.typeStyling);
+  provide(SelectedKeySymbol, state.selectedKey);
+  provide(SelectedTrackIdSymbol, state.selectedTrackId);
+  provide(StateStylesSymbol, state.stateStyles);
+  provide(VisibleModesSymbol, state.visibleModes);
+  provide(HandlerSymbol, handler);
+}
+
 function _handleMissing(s: symbol): Error {
   return new Error(`Missing provided object for symbol ${s.toString()}: must provideAnnotator()`);
 }
@@ -131,42 +250,6 @@ function use<T>(s: symbol) {
     throw _handleMissing(s);
   }
   return v;
-}
-
-function provideAnnotator(
-  allTypes: AllTypesType,
-  usedTypes: UsedTypesType,
-  checkedTrackIds: CheckedTrackIdsType,
-  checkedTypes: CheckedTypesType,
-  editingMode: EditingModeType,
-  enabledTracks: EnabledTracksType,
-  frame: FrameType,
-  handler: Handler,
-  intervalTree: IntervalTreeType,
-  trackMap: TrackMapType,
-  tracks: TracksType,
-  typeStyling: TypeStylingType,
-  selectedKey: SelectedKeyType,
-  selectedTrackId: SelectedTrackIdType,
-  stateStyles: StateStylesType,
-  visibleModes: VisibleModesType,
-) {
-  provide(AllTypesSymbol, allTypes);
-  provide(UsedTypesSymbol, usedTypes);
-  provide(CheckedTrackIdsSymbol, checkedTrackIds);
-  provide(CheckedTypesSymbol, checkedTypes);
-  provide(EnabledTracksSymbol, enabledTracks);
-  provide(EditingModeSymbol, editingMode);
-  provide(FrameSymbol, frame);
-  provide(IntervalTreeSymbol, intervalTree);
-  provide(TrackMapSymbol, trackMap);
-  provide(TracksSymbol, tracks);
-  provide(TypeStylingSymbol, typeStyling);
-  provide(SelectedKeySymbol, selectedKey);
-  provide(SelectedTrackIdSymbol, selectedTrackId);
-  provide(StateStylesSymbol, stateStyles);
-  provide(VisibleModesSymbol, visibleModes);
-  provide(HandlerSymbol, handler);
 }
 
 function useAllTypes() {
@@ -233,6 +316,8 @@ function useVisibleModes() {
 }
 
 export {
+  dummyHandler,
+  dummyState,
   provideAnnotator,
   use,
   useAllTypes,

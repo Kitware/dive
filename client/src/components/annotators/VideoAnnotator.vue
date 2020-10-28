@@ -12,6 +12,10 @@ export default Vue.extend({
       type: String,
       required: true,
     },
+    videoPlayerAttributes: {
+      type: Object,
+      default: () => ({}),
+    },
   },
 
   computed: {
@@ -25,6 +29,9 @@ export default Vue.extend({
     this.video = video;
     video.preload = 'auto';
     video.src = this.videoUrl;
+    Object.entries(this.videoPlayerAttributes).forEach(([key, val]) => {
+      this.video[key] = val;
+    });
     video.onloadedmetadata = () => {
       video.onloadedmetadata = null;
       this.width = video.videoWidth;

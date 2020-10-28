@@ -9,10 +9,14 @@ We recommend running VIAME Web with docker-compose. Clone this repository and co
 > **Note:** Pipeline runner requires [Nividia-Docker2 (deprecated)](https://github.com/nvidia/nvidia-docker/wiki/Installation-(version-2.0)) because GPU support for docker-compose has [not yet landed](https://github.com/docker/compose/issues/6691)
 
 ``` bash
+# Change to correct directory
+cd docker/
+
 # Pull pre-built images
-docker-compose -f docker/docker-compose.yml pull
+docker-compose pull
+
 # Bring the services up
-docker-compose -f docker/docker-compose.yml up
+docker-compose up
 ```
 
 VIAME server will be running at http://localhost:8010/
@@ -20,7 +24,8 @@ VIAME server will be running at http://localhost:8010/
 You can run the data viewer without needing GPU support as well
 
 ``` bash
-docker-compose -f docker/docker-compose.yml up girder
+cd docker
+docker-compose up girder
 ```
 
 ## Images
@@ -62,5 +67,6 @@ This image contains a celery worker to run VIAME pipelines and transcoding jobs.
 > **Note:** In order to build images yourself, the `.git` folder must exist, so you must `git clone` from source control.  A release archive zip can be used too, but only to run pre-built images from a container registry.
 
 ``` bash
-docker-compose -f docker/docker-compose.yml build
+cd docker
+docker-compose build
 ```

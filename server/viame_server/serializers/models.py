@@ -64,7 +64,7 @@ def interpolate(a: Feature, b: Feature) -> List[Feature]:
         delta = frame / frame_range
         inverse_delta = 1 - delta
         bounds: List[float] = [
-            round((abox * delta) + (bbox * inverse_delta))
+            round((abox * inverse_delta) + (bbox * delta))
             for (abox, bbox) in zip(a.bounds, b.bounds)
         ]
         feature_list.append(
