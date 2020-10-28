@@ -25,8 +25,16 @@ module.exports = {
   pluginOptions: {
     electronBuilder: {
       mainProcessFile: 'platform/desktop/background.ts',
+      // https://github.com/nklayman/vue-cli-plugin-electron-builder/pull/1088
       renderProcessFile: 'platform/desktop/main.ts',
-      builderOptions: {},
+      builderOptions: {
+        // extraMetadata will be merged with package.json in args to electron-builder
+        extraMetadata: {
+          // https://github.com/nklayman/vue-cli-plugin-electron-builder/issues/188
+          // https://github.com/electron-userland/electron-builder/issues/2592
+          main: 'background.js',
+        },
+      },
       /**
        * Node Integration is needed for this app,
        * so we will have to be careful with RCE

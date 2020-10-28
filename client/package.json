@@ -7,9 +7,9 @@
 >>>>>>> 42cd42e... add electron
   "scripts": {
     "serve": "vue-cli-service serve platform/web-girder/main.ts",
-    "serve:desktop": "vue-cli-service electron:serve",
+    "serve:electron": "vue-cli-service electron:serve",
     "build:web": "vue-cli-service build platform/web-girder/main.ts",
-    "build:desktop": "vue-cli-service electron:build",
+    "build:electron": "vue-cli-service electron:build",
     "build:lib": "rollup -c",
     "lint": "vue-cli-service lint src/ viame-web-common/ platform/",
     "lint:templates": "vtc --workspace . --srcDir src/",

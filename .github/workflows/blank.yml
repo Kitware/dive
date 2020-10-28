@@ -22,6 +22,7 @@ jobs:
     - run: yarn test
     - run: yarn build:web
     - run: yarn build:lib
+    - run: yarn build:electron
 
   test-server:
     defaults:
