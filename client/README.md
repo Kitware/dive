@@ -26,6 +26,10 @@ yarn lint
 
 See [this issue](https://github.com/vuejs/vue-cli/issues/3065) for details on why our `yarn serve` command is weird.
 
+## Publishing
+
+Create a new release tagged `X.X.X` through github.
+
 ## Architecture
 
 ### src/components/annotators
