@@ -51,20 +51,19 @@ def run_pipeline(self: Task, params):
     conf = Config()
     manager: JobManager = self.job_manager
 
+    # Extract params
     pipeline = params["pipeline"]
     input_folder = params["input_folder"]
     input_type = params["input_type"]
     output_folder = params["output_folder"]
 
+    # Create temporary files/folders, removed at the end of the function
     input_path = Path(tempfile.mkdtemp())
-    self.girder_client.downloadFolderRecursive(input_folder, input_path)
+    trained_pipeline_folder = Path(tempfile.mkdtemp())
+    detector_output_path = tempfile.NamedTemporaryFile(suffix=".csv", delete=False).name
+    track_output_path = tempfile.NamedTemporaryFile(suffix=".csv", delete=False).name
 
-    # Delete is false because the file needs to exist for kwiver to write to
-    # removed at the bottom of the function
-    with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as temp:
-        detector_output_path = temp.name
-    with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as temp:
-        track_output_path = temp.name
+    self.girder_client.downloadFolderRecursive(input_folder, input_path)
 
     # get a list of the input media
     # TODO: better filtering that only allows files of valid types
@@ -81,7 +80,6 @@ def run_pipeline(self: Task, params):
     if len(filtered_directory_files) == 0:
         raise ValueError('No media files found in {}'.format(input_path))
 
-    trained_pipeline_folder = Path(tempfile.mkdtemp())
     if pipeline["type"] == "trained":
         self.girder_client.downloadFolderRecursive(
             pipeline["folderId"], str(trained_pipeline_folder)
