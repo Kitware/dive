@@ -1,6 +1,6 @@
 {
   "name": "vue-media-annotator",
-  "version": "1.0.0-beta.1",
+  "version": "1.0.2",
   "scripts": {
     "serve": "vue-cli-service serve platform/web-girder/main.ts",
     "build:web": "vue-cli-service build platform/web-girder/main.ts",
