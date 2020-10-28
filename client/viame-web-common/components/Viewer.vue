@@ -141,14 +141,17 @@ export default defineComponent({
       confidenceThreshold,
       confidenceFilters,
       allTypes,
+      importTypes,
+      usedTypes,
       filteredTracks,
       enabledTracks,
       populateConfidenceFilters,
       updateTypeName,
       removeTypeTracks,
+      deleteType,
       updateCheckedTypes,
       updateCheckedTrackId,
-    } = useTrackFilters({ sortedTracks, removeTrack });
+    } = useTrackFilters({ sortedTracks, removeTrack, markChangesPending });
 
     Promise.all([
       loadMetadata(props.datasetId),
@@ -156,6 +159,9 @@ export default defineComponent({
     ]).then(([meta]) => {
       // tasks to run after dataset and tracks have loaded
       populateTypeStyles(meta.customTypeStyling);
+      if (meta.customTypeStyling) {
+        importTypes(Object.keys(meta.customTypeStyling), false);
+      }
       populateConfidenceFilters(meta.confidenceFilters);
       loaded.value = true;
     });
@@ -177,7 +183,7 @@ export default defineComponent({
       enabledTracks, selectedTrackId, typeStyling,
     });
 
-    const { clientSettings, updateNewTrackSettings } = useSettings(allTypes);
+    const { clientSettings, updateNewTrackSettings, updateTypeSettings } = useSettings(allTypes);
 
     // Provides wrappers for actions to integrate with settings
     const {
@@ -292,10 +298,12 @@ export default defineComponent({
       updateTypeName,
       updateTypeStyle,
       removeTypeTracks,
+      deleteType,
     };
 
     provideAnnotator(
       allTypes,
+      usedTypes,
       checkedTrackIds,
       checkedTypes,
       editingMode,
@@ -322,6 +330,7 @@ export default defineComponent({
       lineChartData,
       loaded,
       newTrackSettings: clientSettings.newTrackSettings,
+      typeSettings: clientSettings.typeSettings,
       pendingSaveCount,
       playbackComponent,
       recipes,
@@ -335,9 +344,11 @@ export default defineComponent({
       save,
       saveThreshold,
       updateNewTrackSettings,
+      updateTypeSettings,
       updateTypeStyle,
       updateTypeName,
       removeTypeTracks,
+      importTypes,
       // For Navigation Guarding
       navigateAwayGuard,
       warnBrowserExit,
@@ -391,8 +402,10 @@ export default defineComponent({
       style="min-width: 700px;"
     >
       <sidebar
-        v-bind="{ newTrackSettings }"
+        v-bind="{ newTrackSettings, typeSettings }"
         @update-new-track-settings="updateNewTrackSettings($event)"
+        @update-type-settings="updateTypeSettings($event)"
+        @import-types="importTypes($event)"
         @track-seek="playbackComponent.seek($event)"
       >
         <ConfidenceFilter
