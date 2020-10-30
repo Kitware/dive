@@ -1,13 +1,22 @@
 <script lang="ts">
 import { computed, defineComponent, reactive } from '@vue/composition-api';
 import {
-  useCheckedTypes, useAllTypes, useTypeStyling, useHandler,
+  useCheckedTypes, useAllTypes, useTypeStyling, useHandler, useUsedTypes,
 } from '../provides';
 
+
 export default defineComponent({
+  props: {
+    showEmptyTypes: {
+      type: Boolean,
+      default: false,
+    },
+  },
   name: 'TypeList',
-  setup(_props, { root }) {
+
+  setup(props, { root }) {
     const prompt = root.$prompt;
+
     const data = reactive({
       showPicker: false,
       selectedColor: '',
@@ -18,17 +27,26 @@ export default defineComponent({
       editingFill: false,
       editingOpacity: 1.0,
       valid: true,
+      settingsActive: false,
     });
     const checkedTypesRef = useCheckedTypes();
     const allTypesRef = useAllTypes();
+    const usedTypesRef = useUsedTypes();
     const typeStylingRef = useTypeStyling();
     const {
       updateTypeName,
       updateTypeStyle,
       setCheckedTypes,
       removeTypeTracks,
+      deleteType,
     } = useHandler();
 
+    const visibleTypes = computed(() => {
+      if (props.showEmptyTypes) {
+        return allTypesRef.value;
+      }
+      return usedTypesRef.value;
+    });
     function clickEdit(type: string) {
       data.selectedType = type;
       data.editingType = data.selectedType;
@@ -57,6 +75,20 @@ export default defineComponent({
       }
     }
 
+    async function clickDeleteType(type: string) {
+      const text = `Do you want to delete this empty Type: ${type}`;
+
+      const result = await prompt({
+        title: 'Confirm',
+        text,
+        confirm: true,
+      });
+      if (result) {
+        deleteType(type);
+        data.showPicker = false;
+      }
+    }
+
     function acceptChanges() {
       data.showPicker = false;
       if (data.editingType !== data.selectedType) {
@@ -75,7 +107,7 @@ export default defineComponent({
     }
 
     const headCheckState = computed(() => {
-      if (checkedTypesRef.value.length === allTypesRef.value.length) {
+      if (checkedTypesRef.value.length === visibleTypes.value.length) {
         return 1;
       } if (checkedTypesRef.value.length === 0) {
         return 0;
@@ -85,7 +117,7 @@ export default defineComponent({
 
     function headCheckClicked() {
       if (headCheckState.value === 0) {
-        setCheckedTypes([...allTypesRef.value]);
+        setCheckedTypes([...visibleTypes.value]);
         return;
       }
       setCheckedTypes([]);
@@ -93,13 +125,15 @@ export default defineComponent({
 
 
     return {
-      allTypesRef,
+      visibleTypes,
+      usedTypesRef,
       checkedTypesRef,
       data,
       typeStylingRef,
       /* methods */
       acceptChanges,
       clickEdit,
+      clickDeleteType,
       clickDelete,
       headCheckState,
       headCheckClicked,
@@ -118,7 +152,10 @@ export default defineComponent({
       dense
       class="py-0"
     >
-      <v-row class="border-highlight">
+      <v-row
+        class="border-highlight"
+        align="center"
+      >
         <v-col class="d-flex flex-row align-center py-0">
           <v-checkbox
             :input-value="headCheckState !== -1 ? headCheckState : false"
@@ -130,8 +167,21 @@ export default defineComponent({
             class="my-1 type-checkbox"
             @change="headCheckClicked"
           />
-          <b>Visibility</b>
+          <b class="mt-1">Visibility</b>
           <v-spacer />
+          <v-btn
+            icon
+            small
+            class="mr-2"
+            @click="data.settingsActive = !data.settingsActive"
+          >
+            <v-icon
+              small
+              :color="data.settingsActive ? 'accent' : 'default'"
+            >
+              mdi-settings
+            </v-icon>
+          </v-btn>
           <v-tooltip
             open-delay="100"
             bottom
@@ -157,11 +207,19 @@ export default defineComponent({
           </v-tooltip>
         </v-col>
       </v-row>
+      <v-row>
+        <v-expand-transition>
+          <slot
+            v-if="data.settingsActive"
+            name="settings"
+          />
+        </v-expand-transition>
+      </v-row>
     </v-container>
     <div class="overflow-y-auto">
       <v-container class="py-2">
         <v-row
-          v-for="type in allTypesRef"
+          v-for="type in visibleTypes"
           :key="type"
           class="hover-show-parent"
         >
@@ -213,23 +271,24 @@ export default defineComponent({
         <v-card>
           <v-card-title>
             Editing Type
+            <v-spacer />
+            <v-btn
+              icon
+              small
+              color="white"
+              @click="data.showPicker = false"
+            >
+              <v-icon
+                small
+              >
+                mdi-close
+              </v-icon>
+            </v-btn>
           </v-card-title>
           <v-card-subtitle class="my-0 py-0">
             <v-container class="py-0">
               <v-row>
                 {{ data.selectedType }}
-                <v-spacer />
-                <v-btn
-                  icon
-                  small
-                  @click="showPicker = false"
-                >
-                  <v-icon
-                    small
-                  >
-                    mdi-exit
-                  </v-icon>
-                </v-btn>
               </v-row>
             </v-container>
           </v-card-subtitle>
@@ -296,7 +355,31 @@ export default defineComponent({
               </v-row>
             </v-form>
           </v-card-text>
-          <v-card-actions>
+          <v-card-actions class="">
+            <v-tooltip
+              open-delay="100"
+              bottom
+              :color="usedTypesRef.includes(data.selectedType) ? 'error' : ''"
+            >
+              <template #activator="{ on }">
+                <div v-on="on">
+                  <v-btn
+                    class="hover-show-child"
+                    :disabled="usedTypesRef.includes(data.selectedType)"
+                    small
+                    color="error"
+                    @click="clickDeleteType(data.selectedType)"
+                  >
+                    Delete Type
+                  </v-btn>
+                </div>
+              </template>
+              <span
+                class="ma-0 pa-1"
+              >
+                Only types without any annotations can be deleted.
+              </span>
+            </v-tooltip>
             <v-spacer />
             <v-btn
               depressed=""

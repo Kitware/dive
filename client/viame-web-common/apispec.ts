@@ -37,6 +37,11 @@ interface SaveDetectionsArgs {
   upsert: Map<TrackId, Track>;
 }
 
+interface FrameImage {
+  url: string;
+  filename: string;
+}
+
 interface DatasetMetaMutable {
   customTypeStyling?: Record<string, CustomStyle>;
   confidenceFilters?: Record<string, number>;
@@ -45,6 +50,8 @@ interface DatasetMetaMutable {
 interface DatasetMeta extends DatasetMetaMutable {
   type: Readonly<'video' | 'image-sequence'>;
   fps: Readonly<number | string>;
+  imageData: FrameImage[];
+  videoUrl: string | undefined;
 }
 
 interface Api {
@@ -81,6 +88,7 @@ export {
   Attribute,
   DatasetMeta,
   DatasetMetaMutable,
+  FrameImage,
   Pipe,
   Pipelines,
   SaveDetectionsArgs,

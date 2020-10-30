@@ -1,5 +1,7 @@
 <script>
-export default {
+import Vue from 'vue';
+
+export default Vue.extend({
   name: 'TimelineWrapper',
   inject: ['annotator'],
   methods: {
@@ -7,7 +9,7 @@ export default {
       this.annotator.$emit('seek', frame);
     },
   },
-};
+});
 </script>
 
 <template>

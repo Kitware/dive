@@ -36,6 +36,10 @@ export default defineComponent({
       type: String,
       required: true,
     },
+    lockTypes: {
+      type: Boolean,
+      default: false,
+    },
     hotkeysDisabled: {
       type: Boolean,
       required: true,
@@ -319,6 +323,7 @@ export default defineComponent({
       <template #default="{ item }">
         <track-item
           v-bind="getItemProps(item)"
+          :lock-types="lockTypes"
           @seek="$emit('track-seek', $event)"
         />
       </template>

@@ -26,6 +26,10 @@ yarn lint
 
 See [this issue](https://github.com/vuejs/vue-cli/issues/3065) for details on why our `yarn serve` command is weird.
 
+## Publishing
+
+Create a new release tagged `X.X.X` through github.
+
 ## Architecture
 
 ### src/components/annotators
@@ -84,3 +88,32 @@ This style guarantees matching types are passed through provide and inject witho
 ## Tests
 
 Note that `tsconfig.spec.json` is an exact copy of `tsconfig.json` but the `target` and `module` are changed such that babel is not required for jest to execute tests.
+
+## Typescript vue-media-annotator library
+
+Parts of the annotator in `src/` can be included from an external annotator library.  Requires `@vue/composition-api`.
+
+``` bash
+npm install vue-media-annotator
+```
+
+Now include the parts you want.
+
+``` js
+import {
+  providers,
+  use,
+  Track,
+  components,
+} from 'vue-media-annotator/lib';
+
+const {
+  VideoAnnotator, LayerManager, Controls, TimelineWrapper, Timeline, LineChart,
+} = components;
+```
+
+> **Note** that you must abandon `vuetify-loader` in order to use this lib.  It relies on vuetify's components to be registered with the global context, which doesn't happen with an a-la-carte installation.
+
+> **Note** you can clone this repo, use `yarn link`, and `yarn link vue-media-annotator` in your own project to modify the source library as you go.  You'll have to `yarn build:lib` after changes, and you must `mv node_modeles/ node_modules.old/` in order to prevent your consumer app from using this project's `node_modules` libs instead of yours.  This could cause problems like multiple instances of vue or composition api.
+
+The above problems are known and we are working to solve them.

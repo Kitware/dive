@@ -3,7 +3,7 @@ import {
   defineComponent, computed, watch, reactive, PropType, toRef, ref,
 } from '@vue/composition-api';
 import TooltipBtn from './TooltipButton.vue';
-import { useFrame, useHandler } from '../provides';
+import { useFrame, useHandler, useAllTypes } from '../provides';
 import Track from '../track';
 
 export default defineComponent({
@@ -36,17 +36,23 @@ export default defineComponent({
       type: String,
       required: true,
     },
+    lockTypes: {
+      type: Boolean,
+      default: false,
+    },
   },
 
   setup(props, { root, emit }) {
     const vuetify = root.$vuetify;
     const frameRef = useFrame();
     const handler = useHandler();
+    const allTypesRef = useAllTypes();
     const trackTypeRef = toRef(props, 'trackType');
     const typeInputBoxRef = ref(undefined as undefined | HTMLInputElement);
     const data = reactive({
       trackTypeValue: props.trackType,
       skipOnFocus: false,
+      inputError: false,
     });
 
     /* Use of revision is safe because it will only create a dependency when track is selected */
@@ -93,19 +99,24 @@ export default defineComponent({
       if (props.selected && typeInputBoxRef.value !== undefined) {
         data.skipOnFocus = true;
         typeInputBoxRef.value.focus();
-        typeInputBoxRef.value.select();
+        if (!props.lockTypes) {
+          typeInputBoxRef.value.select();
+        }
       }
     }
 
-    function blurType(e: InputEvent) {
+    function blurType(e: KeyboardEvent) {
       (e.target as HTMLInputElement).blur();
     }
 
-    function onBlur() {
+    function onBlur(e: KeyboardEvent) {
       if (data.trackTypeValue === '') {
         data.trackTypeValue = props.trackType;
       } else if (data.trackTypeValue !== props.trackType) {
         handler.trackTypeChange(props.track.trackId, data.trackTypeValue);
+      }
+      if (props.lockTypes) {
+        blurType(e);
       }
     }
 
@@ -118,7 +129,7 @@ export default defineComponent({
 
     function toggleKeyframe() {
       const f = feature.value;
-      if (f.real && f.isKeyframe) {
+      if (f.real && !f.isKeyframe) {
         props.track.setFeature({
           ...f.real,
           frame: frameRef.value,
@@ -153,14 +164,29 @@ export default defineComponent({
       }
     }
 
+    function onInputKeyEvent(e: KeyboardEvent) {
+      switch (e.code) {
+        case 'Escape':
+        case 'Enter':
+          blurType(e);
+          break;
+        case 'ArrowDown':
+          data.trackTypeValue = '';
+          break;
+        default:
+          break;
+      }
+    }
+
     return {
       /* data */
       data,
       feature,
       isTrack,
       style,
-      typeInputBox: typeInputBoxRef,
+      typeInputBoxRef,
       frame: frameRef,
+      allTypes: allTypesRef,
       /* methods */
       blurType,
       focusType,
@@ -169,6 +195,7 @@ export default defineComponent({
       handler,
       onBlur,
       onFocus,
+      onInputKeyEvent,
       toggleInterpolation,
       toggleKeyframe,
     };
@@ -211,7 +238,25 @@ export default defineComponent({
         <span> {{ track.trackId }} </span>
       </v-tooltip>
       <v-spacer />
+      <select
+        v-if="lockTypes"
+        ref="typeInputBoxRef"
+        v-model="data.trackTypeValue"
+        class="input-box select-input"
+        @focus="onFocus"
+        @change="onBlur"
+        @keydown="onInputKeyEvent"
+      >
+        <option
+          v-for="item in allTypes"
+          :key="item"
+          :value="item"
+        >
+          {{ item }}
+        </option>
+      </select>
       <input
+        v-else
         ref="typeInputBoxRef"
         v-model="data.trackTypeValue"
         type="text"
@@ -219,10 +264,14 @@ export default defineComponent({
         class="input-box"
         @focus="onFocus"
         @blur="onBlur"
-        @keydown.esc="blurType"
-        @keydown.enter="blurType"
-        @keydown.down="value=''"
+        @keydown="onInputKeyEvent"
       >
+      <v-icon
+        v-if="lockTypes"
+        small
+      >
+        mdi-lock
+      </v-icon>
     </v-row>
     <v-row class="px-3 py-1 justify-center item-row flex-nowrap">
       <v-spacer v-if="!isTrack" />
@@ -231,7 +280,7 @@ export default defineComponent({
           color="error"
           icon="mdi-delete"
           :tooltip-text="`Delete ${isTrack ? 'Track' : 'Detection'}`"
-          @click="handler.removeTrack(track.trackId)"
+          @click="handler.removeTrack([track.trackId])"
         />
 
         <tooltip-btn
@@ -328,6 +377,11 @@ export default defineComponent({
     padding: 0 6px;
     width: 135px;
     color: white;
+  }
+  .select-input {
+    width: 120px;
+    background-color: #1e1e1e;
+    appearance: menulist;
   }
 }
 </style>

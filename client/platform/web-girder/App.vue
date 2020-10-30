@@ -26,8 +26,8 @@ export default defineComponent({
   components: {},
   setup(_, { root }) {
     async function loadMetadata(datasetId: string): Promise<DatasetMeta> {
-      const ds: VIAMEDataset = await root.$store.dispatch('Dataset/load', datasetId);
-      return ds.meta;
+      const dataset: VIAMEDataset = await root.$store.dispatch('Dataset/load', datasetId);
+      return dataset.meta;
     }
 
     provideApi({
