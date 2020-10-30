@@ -26,7 +26,7 @@ module.exports = {
     electronBuilder: {
       mainProcessFile: 'platform/desktop/background.ts',
       // https://github.com/nklayman/vue-cli-plugin-electron-builder/pull/1088
-      renderProcessFile: 'platform/desktop/main.ts',
+      rendererProcessFile: 'platform/desktop/main.ts',
       builderOptions: {
         // extraMetadata will be merged with package.json in args to electron-builder
         extraMetadata: {

@@ -77,7 +77,7 @@ async function loadMetadata(datasetId: string): Promise<DesktopDataset> {
 
   function processFile(abspath: string) {
     const basename = path.basename(abspath);
-    const abspathuri = `http://localhost:${mediaServerInfo.port}${abspath}`;
+    const abspathuri = `http://localhost:${mediaServerInfo.port}/api/media?path=${abspath}`;
     const mimetype = mime.lookup(abspath);
     if (mimetype && websafeVideoTypes.includes(mimetype)) {
       datasetType = 'video';

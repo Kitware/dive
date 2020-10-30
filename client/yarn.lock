@@ -16228,9 +16228,10 @@ vue-async-computed@^3.4.1:
   resolved "https://registry.yarnpkg.com/vue-async-computed/-/vue-async-computed-3.8.2.tgz#d5dff221b62f95ad2f98ce9e7bbea5a067ec8b9a"
   integrity sha512-If5roOhp/x0WWd0TWRD77YsuFoiIw3MbkcRlIB/FE3TqQCPje52eQp5CV5NN/7B0VAyPuGX5JQa+rc9AOcGAYw==
 
-"vue-cli-plugin-electron-builder@git+https://github.com/subdavis/vue-cli-plugin-electron-builder":
-  version "2.0.0-rc.4"
-  resolved "git+https://github.com/subdavis/vue-cli-plugin-electron-builder#dc667aa80592ffd46748a38210b0c6482978c6fc"
+vue-cli-plugin-electron-builder@^2.0.0-beta.5:
+  version "2.0.0-rc.5"
+  resolved "https://registry.yarnpkg.com/vue-cli-plugin-electron-builder/-/vue-cli-plugin-electron-builder-2.0.0-rc.5.tgz#87cd8d09877f5f3ae339abc0bedc47d7d2b733ac"
+  integrity sha512-l1/BkwxMDgDSz3fW+KPM3mdVu6ItR6jGhqR6xGhTHxre3dH9XCEfpT+esZp6wxex9trUJzlL+wMmzm79dYKl0A==
   dependencies:
     "@vue/cli-shared-utils" "^4.5.6"
     chokidar "^3.0.2"

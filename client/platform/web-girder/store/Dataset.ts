@@ -16,16 +16,12 @@ const defaultFrameRate = 30;
 
 interface DatasetState {
   dataset: VIAMEDataset | null;
-  imageData: FrameImage[];
-  videoUrl: string;
 }
 
 const datasetModule: Module<DatasetState, never> = {
   namespaced: true,
   state: {
     dataset: null,
-    imageData: [],
-    videoUrl: '',
   },
   getters: {
     frameRate(state): number {
@@ -53,14 +49,8 @@ const datasetModule: Module<DatasetState, never> = {
     },
   },
   mutations: {
-    set(state, { dataset, imageData, videoUrl }: {
-      dataset: VIAMEDataset;
-      imageData: FrameImage[];
-      videoUrl: string;
-    }) {
+    set(state, { dataset }: { dataset: VIAMEDataset }) {
       state.dataset = dataset;
-      state.imageData = imageData;
-      state.videoUrl = videoUrl;
     },
   },
   actions: {
@@ -89,7 +79,10 @@ const datasetModule: Module<DatasetState, never> = {
       } else {
         throw new Error(`Unable to load media for dataset type: ${dataset.meta.type}`);
       }
-      commit('set', { dataset, imageData, videoUrl });
+      // These aren't part of the native girder meta, must derive them
+      dataset.meta.videoUrl = videoUrl;
+      dataset.meta.imageData = imageData;
+      commit('set', { dataset });
       commit('Location/setLocation', {
         _id: dataset.parentId,
         _modelType: dataset.parentCollection,

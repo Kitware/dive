@@ -1,10 +1,6 @@
 {
   "name": "vue-media-annotator",
-<<<<<<< HEAD
   "version": "1.0.3",
-=======
-  "version": "1.0.1",
->>>>>>> 42cd42e... add electron
   "scripts": {
     "serve": "vue-cli-service serve platform/web-girder/main.ts",
     "serve:electron": "vue-cli-service electron:serve",
@@ -91,7 +87,7 @@
     "sass-loader": "^8.0.2",
     "ts-jest": "^26.0.0",
     "typescript": "~3.8.3",
-    "vue-cli-plugin-electron-builder": "git+https://github.com/subdavis/vue-cli-plugin-electron-builder",
+    "vue-cli-plugin-electron-builder": "^2.0.0-beta.5",
     "vue-cli-plugin-vuetify": "^2.0.5",
     "vue-jest": "^3.0.5",
     "vue-template-compiler": "^2.6.12",

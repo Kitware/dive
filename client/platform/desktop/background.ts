@@ -7,7 +7,7 @@ import { createProtocol } from 'vue-cli-plugin-electron-builder/lib';
 // eslint-disable-next-line import/no-extraneous-dependencies
 import installExtension, { VUEJS_DEVTOOLS } from 'electron-devtools-installer';
 
-import server from './api/mediaserver';
+import server from './backend/server';
 
 app.commandLine.appendSwitch('no-sandbox');
 // To support a broader number of systems.
