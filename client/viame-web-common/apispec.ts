@@ -6,6 +6,8 @@ import { CustomStyle } from 'vue-media-annotator/use/useStyling';
 
 const ApiSymbol = Symbol('api');
 
+type DatasetType = 'image-sequence' | 'video';
+
 interface Attribute {
   belongs: 'track' | 'detection';
   datatype: 'text' | 'number' | 'boolean';
@@ -48,7 +50,7 @@ interface DatasetMetaMutable {
 }
 
 interface DatasetMeta extends DatasetMetaMutable {
-  type: Readonly<'video' | 'image-sequence'>;
+  type: Readonly<DatasetType>;
   fps: Readonly<number | string>;
   imageData: FrameImage[];
   videoUrl: string | undefined;
@@ -88,6 +90,7 @@ export {
   Attribute,
   DatasetMeta,
   DatasetMetaMutable,
+  DatasetType,
   FrameImage,
   Pipe,
   Pipelines,
