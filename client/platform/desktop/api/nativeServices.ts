@@ -17,8 +17,9 @@ import { SaveDetectionsArgs, DatasetType } from 'viame-web-common/apispec';
 
 // Match examples:
 // result_09-14-2020_14:49:05.json
+// result_<ANYTHING>.json
 // result.json
-const JsonFileName = /^result(_\d\d-\d\d-\d\d\d\d_\d\d:\d\d:\d\d)?\.json$/;
+const JsonFileName = /^result(_.*)?\.json$/;
 const CsvFileName = /^viame-annotations.csv$/;
 const AuxFolderName = 'auxiliary';
 
@@ -60,7 +61,7 @@ async function getDatasetBase(datasetId: string): Promise<{
   } else if (stat.isFile()) {
     datasetType = 'video';
   } else {
-    throw new Error('Symlinks not supported');
+    throw new Error('Only regular files and directories are supported');
   }
 
   let datasetFolderPath = datasetId;

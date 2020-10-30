@@ -4,6 +4,8 @@ import Install, { ref, computed } from '@vue/composition-api';
 import { Api } from 'viame-web-common/apispec';
 import * as api from '../api/main';
 
+const RecentsKey = 'desktop.recent';
+
 // TODO remove this: this won't be necessary in Vue 3
 Vue.use(Install);
 
@@ -14,7 +16,7 @@ function getDataset(id: string) {
 }
 
 function getRecents(): string[] {
-  const arrStr = window.localStorage.getItem('recent');
+  const arrStr = window.localStorage.getItem(RecentsKey);
   let returnVal = [] as string[];
   try {
     if (arrStr) {
@@ -33,7 +35,7 @@ function setRecents(id: string) {
   let recents = getRecents();
   recents.push(id);
   recents = uniq(recents);
-  window.localStorage.setItem('recent', JSON.stringify(recents));
+  window.localStorage.setItem(RecentsKey, JSON.stringify(recents));
 }
 
 function setDataset(id: string, ds: api.DesktopDataset) {
