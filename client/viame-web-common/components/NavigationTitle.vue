@@ -16,7 +16,9 @@ export default {
       bottom
     >
       <template #activator="{ on }">
-        <span v-on="on">VIAME</span>
+        <span v-on="on">
+          <slot>VIAME</slot>
+        </span>
       </template>
       <span>{{ version }}</span>
     </v-tooltip>

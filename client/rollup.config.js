@@ -17,56 +17,29 @@ const external = [
   'vue',
 ];
 
-export default [
-  {
-    external,
-    input: './src/index.ts',
-    output: {
-      dir: './lib/',
-      format: 'esm',
-      name: 'vue-media-annotator',
-    },
-    plugins: [
-      // clear out dist before build
-      cleaner({ targets: ['lib'] }),
-      typescript({
-        clean,
-        tsconfig,
-        useTsconfigDeclarationDir: true,
-      }),
-    ],
+export default {
+  external,
+  input: './src/index.ts',
+  output: {
+    dir: './lib/',
+    format: 'esm',
+    name: 'vue-media-annotator',
   },
-  {
-    external,
-    input: './src/components/index.js',
-    plugins: [
-      typescript({
-        // don't use build cache
-        clean,
-        tsconfig,
-        tsconfigOverride: {
-          compilerOptions: {
-            declaration: false,
-          },
-          include: [
-            'src/**/*.ts',
-            'src/**/*.tsx',
-            /**
-             * TODO: DANGER: this line should not be needed
-             * nothing from viame-web-common/ ends up in the built artifact.
-             * nothing from viame-web-common/ is imported from src/components/index.js
-             * ...but the build fails without it.
-             */
-            'viame-web-common/**/*.ts',
-          ],
-        },
-      }),
-      vue(),
-      scss(),
-    ],
-    output: {
-      file: './lib/components.js',
-      format: 'esm',
-    },
-  },
-];
+  plugins: [
+    // clear out dist before build
+    cleaner({ targets: ['lib'] }),
+    typescript({
+      clean,
+      tsconfig,
+      useTsconfigDeclarationDir: true,
+      tsconfigOverride: {
+        include: [
+          'src/**/*.ts',
+          'src/**/*.tsx',
+        ],
+      },
+    }),
+    vue(),
+    scss(),
+  ],
+};
