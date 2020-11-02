@@ -40,6 +40,10 @@ export interface DesktopDataset {
 
 const mediaServerInfo: AddressInfo = ipcRenderer.sendSync('info');
 
+async function nvidiaSmi(): Promise<Record<string, any>> {
+  return ipcRenderer.invoke('nvidia-smi');
+}
+
 async function openFromDisk() {
   const results = await remote.dialog.showOpenDialog({
     properties: ['openFile', 'openDirectory'],
@@ -123,6 +127,7 @@ async function saveMetadata(datasetId: string, metadata: DatasetMetaMutable) {
 }
 
 export {
+  /* Standard common APIs */
   getAttributes,
   getPipelineList,
   runPipeline,
@@ -133,4 +138,6 @@ export {
   saveDetections,
   loadMetadata,
   saveMetadata,
+  /* Nonstandard APIs */
+  nvidiaSmi,
 };

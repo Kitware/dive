@@ -1,13 +1,12 @@
 // eslint-disable-next-line import/no-extraneous-dependencies
-import {
-  app, protocol, BrowserWindow, ipcMain,
-} from 'electron';
+import { app, protocol, BrowserWindow } from 'electron';
 // eslint-disable-next-line import/no-extraneous-dependencies
 import { createProtocol } from 'vue-cli-plugin-electron-builder/lib';
 // eslint-disable-next-line import/no-extraneous-dependencies
 import installExtension, { VUEJS_DEVTOOLS } from 'electron-devtools-installer';
 
 import server from './backend/server';
+import ipcListen from './backend/ipcService';
 
 app.commandLine.appendSwitch('no-sandbox');
 // To support a broader number of systems.
@@ -23,6 +22,11 @@ let win: BrowserWindow | null;
 protocol.registerSchemesAsPrivileged([
   { scheme: 'app', privileges: { secure: true, standard: true } },
 ]);
+
+function cleanup() {
+  server.close();
+  app.quit();
+}
 
 function createWindow() {
   // Create the browser window.
@@ -55,6 +59,7 @@ function createWindow() {
   win.on('closed', () => {
     win = null;
   });
+
   server.listen(0, () => {
     let address = server.address();
     let port = 0;
@@ -64,19 +69,15 @@ function createWindow() {
     }
     console.error(`Server listening on ${address}:${port}`);
   });
+  ipcListen();
 }
-
-ipcMain.on('info', (event) => {
-  // eslint-disable-next-line no-param-reassign
-  event.returnValue = server.address();
-});
 
 // Quit when all windows are closed.
 app.on('window-all-closed', () => {
   // On macOS it is common for applications and their menu bar
   // to stay active until the user quits explicitly with Cmd + Q
   if (process.platform !== 'darwin') {
-    app.quit();
+    cleanup();
   }
 });
 
@@ -108,12 +109,12 @@ if (isDevelopment) {
   if (process.platform === 'win32') {
     process.on('message', (data) => {
       if (data === 'graceful-exit') {
-        app.quit();
+        cleanup();
       }
     });
   } else {
     process.on('SIGTERM', () => {
-      app.quit();
+      cleanup();
     });
   }
 }
