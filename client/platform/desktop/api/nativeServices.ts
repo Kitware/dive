@@ -12,6 +12,7 @@ import npath from 'path';
 // eslint-disable-next-line import/no-extraneous-dependencies
 import fs from 'fs-extra';
 import moment from 'moment';
+
 import { TrackData } from 'vue-media-annotator/track';
 import { SaveDetectionsArgs, DatasetType } from 'viame-web-common/apispec';
 
@@ -148,6 +149,7 @@ async function saveDetections(datasetId: string, args: SaveDetectionsArgs) {
 }
 
 export {
+  getDatasetBase,
   loadDetections,
   saveDetections,
 };

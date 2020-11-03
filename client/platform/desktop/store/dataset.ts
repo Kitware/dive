@@ -1,3 +1,5 @@
+import path from 'path';
+
 import Vue from 'vue';
 import { uniq } from 'lodash';
 import Install, { ref, computed } from '@vue/composition-api';
@@ -15,14 +17,14 @@ function getDataset(id: string) {
   return computed(() => dsmap.value[id]);
 }
 
-function getRecents(): string[] {
-  const arrStr = window.localStorage.getItem(RecentsKey);
-  let returnVal = [] as string[];
+function getRecents(): path.ParsedPath[] {
+  const arr = window.localStorage.getItem(RecentsKey);
+  let returnVal = [] as path.ParsedPath[];
   try {
-    if (arrStr) {
-      const maybeArr = JSON.parse(arrStr);
+    if (arr) {
+      const maybeArr = JSON.parse(arr);
       if (maybeArr.length) {
-        returnVal = maybeArr as string[];
+        returnVal = maybeArr.map((p: string) => path.parse(p));
       }
     }
   } catch (err) {
@@ -32,10 +34,11 @@ function getRecents(): string[] {
 }
 
 function setRecents(id: string) {
-  let recents = getRecents();
-  recents.push(id);
-  recents = uniq(recents);
-  window.localStorage.setItem(RecentsKey, JSON.stringify(recents));
+  const recents = getRecents();
+  recents.splice(0, 0, path.parse(id)); // verify that it's a valid path
+  let recentsStrings = recents.map((r) => path.join(r.dir, r.base));
+  recentsStrings = uniq(recentsStrings);
+  window.localStorage.setItem(RecentsKey, JSON.stringify(recentsStrings));
 }
 
 function setDataset(id: string, ds: api.DesktopDataset) {

@@ -96,6 +96,7 @@
     "vue-template-compiler": "^2.6.12",
     "vue-type-check": "^1.0.0",
     "vuetify-loader": "^1.4.3",
+    "xml-js": "^1.6.11",
     "xml2json": "^0.12.0"
   },
   "jest": {

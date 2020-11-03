@@ -1,21 +1,24 @@
 import { AddressInfo } from 'net';
 import path from 'path';
 
-// eslint-disable-next-line
-import { ipcRenderer, remote } from 'electron';
+// eslint-disable-next-line import/no-extraneous-dependencies
+import { ipcRenderer, remote, FileFilter } from 'electron';
 // eslint-disable-next-line import/no-extraneous-dependencies
 import fs from 'fs-extra';
 // eslint-disable-next-line import/no-extraneous-dependencies
 import mime from 'mime-types';
 
 import {
-  Attribute, DatasetMeta, DatasetMetaMutable, FrameImage,
+  Attribute, DatasetMeta,
+  DatasetMetaMutable,
+  DatasetType, FrameImage,
   Pipelines, TrainingConfigs,
 } from 'viame-web-common/apispec';
 
 // TODO: disable node integration in renderer
 // https://nklayman.github.io/vue-cli-plugin-electron-builder/guide/security.html
 import { loadDetections, saveDetections } from './nativeServices';
+import { Settings, getSettings } from '../store/settings';
 
 const websafeVideoTypes = [
   'video/mp4',
@@ -33,37 +36,66 @@ const websafeImageTypes = [
 ];
 
 export interface DesktopDataset {
+  name: string;
+  basePath: string;
   root: string;
   videoPath?: string;
   meta: DatasetMeta;
 }
 
-const mediaServerInfo: AddressInfo = ipcRenderer.sendSync('info');
+function getDefaultSettings(): Promise<Settings> {
+  return ipcRenderer.invoke('default-settings');
+}
 
-async function nvidiaSmi(): Promise<Record<string, any>> {
+function mediaServerInfo(): Promise<AddressInfo> {
+  return ipcRenderer.invoke('info');
+}
+
+function nvidiaSmi(): Promise<Record<string, unknown>> {
   return ipcRenderer.invoke('nvidia-smi');
 }
 
-async function openFromDisk() {
+function openLink(url: string): Promise<void> {
+  return ipcRenderer.invoke('open-link-in-browser', url);
+}
+
+function validateSettings(settings: Settings): Promise<string | boolean> {
+  return ipcRenderer.invoke('validate-settings', settings);
+}
+
+async function openFromDisk(datasetType: DatasetType) {
+  let filters: FileFilter[] = [];
+  if (datasetType === 'video') {
+    filters = [
+      { name: 'Videos', extensions: websafeVideoTypes.map((str) => str.split('/')[1]) },
+    ];
+  }
   const results = await remote.dialog.showOpenDialog({
-    properties: ['openFile', 'openDirectory'],
+    properties: [datasetType === 'video' ? 'openFile' : 'openDirectory'],
+    filters,
   });
   return results;
 }
+
 async function getAttributes() {
   return Promise.resolve([] as Attribute[]);
 }
-async function getPipelineList() {
-  return Promise.resolve({} as Pipelines);
+
+async function getPipelineList(): Promise<Pipelines> {
+  const defaultSettings = await getDefaultSettings();
+  return ipcRenderer.invoke('get-pipeline-list', getSettings(defaultSettings));
 }
+
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function runPipeline(itemId: string, pipeline: string) {
   return Promise.resolve();
 }
+
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function getTrainingConfigurations(): Promise<TrainingConfigs> {
   return Promise.resolve({ configs: [], default: '' });
 }
+
 async function runTraining(
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   folderId: string, pipelineName: string, config: string,
@@ -76,10 +108,11 @@ async function loadMetadata(datasetId: string): Promise<DesktopDataset> {
   let videoUrl = '';
   let videoPath = '';
   const imageData = [] as FrameImage[];
+  const serverInfo = await mediaServerInfo();
 
   function processFile(abspath: string) {
     const basename = path.basename(abspath);
-    const abspathuri = `http://localhost:${mediaServerInfo.port}/api/media?path=${abspath}`;
+    const abspathuri = `http://localhost:${serverInfo.port}/api/media?path=${abspath}`;
     const mimetype = mime.lookup(abspath);
     if (mimetype && websafeVideoTypes.includes(mimetype)) {
       datasetType = 'video';
@@ -110,6 +143,8 @@ async function loadMetadata(datasetId: string): Promise<DesktopDataset> {
   }
 
   return Promise.resolve({
+    name: path.basename(datasetId),
+    basePath: path.dirname(datasetId),
     root: datasetId,
     videoPath,
     meta: {
@@ -134,10 +169,13 @@ export {
   getTrainingConfigurations,
   runTraining,
   loadDetections,
-  openFromDisk,
   saveDetections,
   loadMetadata,
   saveMetadata,
   /* Nonstandard APIs */
+  openFromDisk,
+  openLink,
   nvidiaSmi,
+  validateSettings,
+  getDefaultSettings,
 };
