@@ -93,6 +93,8 @@ export default defineComponent({
             throw new Error(`Cannot parse fps=${fps.value} as integer`);
           }
           return parsed;
+        } if (typeof fps.value === 'number') {
+          return fps.value;
         }
       }
       return 10;
