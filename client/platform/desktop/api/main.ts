@@ -15,10 +15,11 @@ import {
   Pipelines, TrainingConfigs,
 } from 'viame-web-common/apispec';
 
+import { Settings, getSettings } from 'platform/desktop/store/settings';
+
 // TODO: disable node integration in renderer
 // https://nklayman.github.io/vue-cli-plugin-electron-builder/guide/security.html
 import { loadDetections, saveDetections } from './nativeServices';
-import { Settings, getSettings } from '../store/settings';
 
 const websafeVideoTypes = [
   'video/mp4',

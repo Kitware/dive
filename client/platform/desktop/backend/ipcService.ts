@@ -1,57 +1,31 @@
-import { spawn } from 'child_process';
 // eslint-disable-next-line import/no-extraneous-dependencies
-import { ipcMain, shell } from 'electron';
-// eslint-disable-next-line import/no-extraneous-dependencies
-import { xml2json } from 'xml-js';
-import { Settings } from '../store/settings';
+import { ipcMain } from 'electron';
 
+import { Settings } from '../store/settings';
 import server from './server';
 import linux from './platforms/linux';
-
-// Based on https://github.com/chrisallenlane/node-nvidia-smi
-async function nvidiaSmi(): Promise<unknown> {
-  return new Promise((resolve) => {
-    const smi = spawn('nvidia-smi', ['-q', '-x']);
-    let result = '';
-    smi.stdout.on('data', (chunk) => {
-      result = result.concat(chunk.toString('utf-8'));
-    });
-    smi.on('close', (code) => {
-      let jsonStr = 'null'; // parses to null
-      if (code === 0) {
-        jsonStr = xml2json(result, { compact: true });
-      }
-      resolve({
-        output: JSON.parse(jsonStr),
-        code,
-        error: result,
-      });
-    });
-    smi.on('error', (err) => {
-      resolve({
-        output: null,
-        code: -1,
-        error: err,
-      });
-    });
-  });
-}
-
-async function openLink(url: string) {
-  shell.openExternal(url);
-}
+import common from './platforms/common';
 
 export default function register() {
   ipcMain.handle('info', () => {
     const addr = server.address();
     return addr;
   });
+
+  /**
+   * Platform-agnostic methods
+   */
+
   ipcMain.handle('nvidia-smi', async () => {
-    const ret = await nvidiaSmi();
+    const ret = await common.nvidiaSmi();
+    return ret;
+  });
+  ipcMain.handle('get-pipeline-list', async (_, settings: Settings) => {
+    const ret = await common.getPipelineList(settings);
     return ret;
   });
   ipcMain.handle('open-link-in-browser', (_, url: string) => {
-    openLink(url);
+    common.openLink(url);
   });
 
   /**
@@ -64,10 +38,6 @@ export default function register() {
   });
   ipcMain.handle('validate-settings', async (_, settings: Settings) => {
     const ret = await linux.validateViamePath(settings);
-    return ret;
-  });
-  ipcMain.handle('get-pipeline-list', async (_, settings: Settings) => {
-    const ret = await linux.getPipelineList(settings);
     return ret;
   });
 }

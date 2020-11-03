@@ -7,6 +7,7 @@ Vue.use(Install);
 interface Settings {
   version: number;
   viamePath: string;
+  dataPath: string;
 }
 
 const SettingsCurrentVersion = 1;

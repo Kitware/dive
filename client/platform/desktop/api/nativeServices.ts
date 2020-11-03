@@ -14,15 +14,11 @@ import fs from 'fs-extra';
 import moment from 'moment';
 
 import { TrackData } from 'vue-media-annotator/track';
-import { SaveDetectionsArgs, DatasetType } from 'viame-web-common/apispec';
+import { SaveDetectionsArgs } from 'viame-web-common/apispec';
 
-// Match examples:
-// result_09-14-2020_14:49:05.json
-// result_<ANYTHING>.json
-// result.json
-const JsonFileName = /^result(_.*)?\.json$/;
+import common from '../backend/platforms/common';
+
 const CsvFileName = /^viame-annotations.csv$/;
-const AuxFolderName = 'auxiliary';
 
 /**
  * @param path a known, existing path
@@ -44,54 +40,9 @@ async function loadCSVAnnotations(path: string): Promise<Record<string, TrackDat
   return {};
 }
 
-async function getDatasetBase(datasetId: string): Promise<{
-  datasetType: DatasetType;
-  basePath: string;
-  jsonFile: string | null;
-  directoryContents: string[];
-}> {
-  let datasetType: DatasetType = 'image-sequence';
-  const exists = fs.existsSync(datasetId);
-  if (!exists) {
-    throw new Error(`No dataset exists with path ${datasetId}`);
-  }
-  const stat = await fs.stat(datasetId);
-
-  if (stat.isDirectory()) {
-    datasetType = 'image-sequence';
-  } else if (stat.isFile()) {
-    datasetType = 'video';
-  } else {
-    throw new Error('Only regular files and directories are supported');
-  }
-
-  let datasetFolderPath = datasetId;
-  if (datasetType === 'video') {
-    // get parent folder, since videos reference a file directly
-    datasetFolderPath = npath.dirname(datasetId);
-  }
-
-  const contents = await fs.readdir(datasetFolderPath);
-  const jsonFileCandidates = contents.filter((v) => JsonFileName.test(v));
-  let jsonFile = null;
-
-  if (jsonFileCandidates.length > 1) {
-    throw new Error('Too many matches for json annotation file!');
-  } else if (jsonFileCandidates.length === 1) {
-    [jsonFile] = jsonFileCandidates;
-  }
-
-  return {
-    datasetType,
-    basePath: datasetFolderPath,
-    jsonFile,
-    directoryContents: contents,
-  };
-}
-
 async function loadDetections(datasetId: string, ignoreCSV = false) {
   const empty = Promise.resolve({} as { [key: string]: TrackData });
-  const base = await getDatasetBase(datasetId);
+  const base = await common.getDatasetBase(datasetId);
 
   /* First, look for a JSON file */
   if (base.jsonFile) {
@@ -115,9 +66,9 @@ async function loadDetections(datasetId: string, ignoreCSV = false) {
 }
 
 async function saveDetections(datasetId: string, args: SaveDetectionsArgs) {
-  const time = moment().format('MM-DD-YYYY_HH:MM:SS');
+  const time = moment().format('MM-DD-YYYY_HH-MM-SS');
   const newFileName = `result_${time}.json`;
-  const base = await getDatasetBase(datasetId);
+  const base = await common.getDatasetBase(datasetId);
 
   // TODO: Validate SaveDetectionArgs
 
@@ -128,11 +79,7 @@ async function saveDetections(datasetId: string, args: SaveDetectionsArgs) {
     existing[trackId.toString()] = track.serialize();
   });
 
-  /* Create auxillar directory if none exists */
-  const auxFolderPath = npath.join(base.basePath, AuxFolderName);
-  if (!fs.existsSync(auxFolderPath)) {
-    await fs.mkdir(auxFolderPath);
-  }
+  const auxFolderPath = await common.getAuxFolder(base.basePath);
 
   /* Move old file if it exists */
   if (base.jsonFile) {
@@ -149,7 +96,6 @@ async function saveDetections(datasetId: string, args: SaveDetectionsArgs) {
 }
 
 export {
-  getDatasetBase,
   loadDetections,
   saveDetections,
 };

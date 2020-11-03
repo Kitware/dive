@@ -6,49 +6,17 @@ import { spawn } from 'child_process';
 // eslint-disable-next-line import/no-extraneous-dependencies
 import fs from 'fs-extra';
 
-import { Pipelines } from 'viame-web-common/apispec';
-
-import { Settings, SettingsCurrentVersion } from '../../store/settings';
-import { getDatasetBase } from '../../api/nativeServices';
+import { Settings, SettingsCurrentVersion } from 'platform/desktop/store/settings';
+import common from './common';
 
 const DefaultSettings: Settings = {
   // The current settings schema config
   version: SettingsCurrentVersion,
   // A path to the VIAME base install
   viamePath: '/opt/noaa/viame',
+  // Path to a user data folder
+  dataPath: '~/viamedata',
 };
-
-async function getPipelineList(settings: Settings): Promise<Pipelines> {
-  const pipelinePath = path.join(settings.viamePath, 'configs/pipelines');
-  const allowedPatterns = /^detector_.+|^tracker_.+|^generate_.+/;
-  const disallowedPatterns = /.*local.*|detector_svm_models.pipe|tracker_svm_models.pipe/;
-  const exists = await fs.pathExists(pipelinePath);
-  if (!exists) return {};
-  let pipes = await fs.readdir(pipelinePath);
-  pipes = pipes.filter((p) => p.match(allowedPatterns) && !p.match(disallowedPatterns));
-
-  /* TODO: fetch trained pipelines */
-  const ret: Pipelines = {};
-  pipes.forEach((p) => {
-    const parts = p.replace('.pipe', '').split('_');
-    const pipeType = parts[0];
-    const pipeName = parts.slice(1).join(' ');
-    const pipeInfo = {
-      name: pipeName,
-      type: pipeType,
-      pipe: p,
-    };
-    if (pipeType in ret) {
-      ret[pipeType].pipes.push(pipeInfo);
-    } else {
-      ret[pipeType] = {
-        pipes: [pipeInfo],
-        description: '',
-      };
-    }
-  });
-  return ret;
-}
 
 async function validateViamePath(settings: Settings): Promise<true | string> {
   const setupScriptPath = path.join(settings.viamePath, 'setup_viame.sh');
@@ -101,6 +69,13 @@ async function validateViamePath(settings: Settings): Promise<true | string> {
 //   f"-s track_writer:file_name={track_output_path}",
 // ]
 
+/**
+ * Fashioned as a node.js implementation of viame_tasks.tasks.run_pipeline
+ *
+ * @param p dataset path absolute
+ * @param pipeline pipeline file basename
+ * @param settings global settings
+ */
 async function runPipeline(p: string, pipeline: string, settings: Settings) {
   const isValid = await validateViamePath(settings);
   if (isValid !== true) {
@@ -108,7 +83,7 @@ async function runPipeline(p: string, pipeline: string, settings: Settings) {
   }
   const setupScriptPath = path.join(settings.viamePath, 'setup_viame.sh');
   const pipelinePath = path.join(settings.viamePath, 'configs/pipelines', pipeline);
-  const datasetInfo = await getDatasetBase(p);
+  const datasetInfo = await common.getDatasetBase(p);
 
   let command: string[] = [];
   if (datasetInfo.datasetType === 'video') {
@@ -120,6 +95,12 @@ async function runPipeline(p: string, pipeline: string, settings: Settings) {
       `-s input:video_filename=${p}`,
       '-s detector_writer:file_name',
     ];
+  } else if (datasetInfo.datasetType === 'image-sequence') {
+    // command = [
+    //   `source ${setupScriptPath} &&`,
+    //   'kwiver runner',
+    //   `-p ${pipelinePath}`,
+    // ]
   }
   return Promise.resolve(command);
 }
@@ -127,6 +108,5 @@ async function runPipeline(p: string, pipeline: string, settings: Settings) {
 export default {
   DefaultSettings,
   validateViamePath,
-  getPipelineList,
   runPipeline,
 };
