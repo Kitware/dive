@@ -8,6 +8,7 @@ import { nvidiaSmi, validateSettings, getDefaultSettings } from '../api/main';
 
 import BrowserLink from './BrowserLink.vue';
 import NavigationBar from './NavigationBar.vue';
+import { NvidiaSmiReply } from '../backend/platforms/common';
 
 export default defineComponent({
   components: {
@@ -16,33 +17,33 @@ export default defineComponent({
   },
   setup() {
     // null values indicate initialization has not completed
-    const smi = ref(null as unknown);
-    const smiCode = ref(null as number | null);
+    const smi = ref(null as NvidiaSmiReply | null);
     const { arch, platform, version } = process;
     const settings = ref(null as Settings | null);
     const settingsAreValid = ref(true as boolean | string);
+    const gitHash = process.env.VUE_APP_GIT_HASH;
 
     onBeforeMount(async () => {
       settings.value = await getSettings(await getDefaultSettings());
       settingsAreValid.value = await validateSettings(settings.value);
-      const { output, code } = await nvidiaSmi();
-      smi.value = output;
-      smiCode.value = code;
+      smi.value = await nvidiaSmi();
     });
 
     async function save() {
-      settingsAreValid.value = await validateSettings(settings.value);
-      setSettings(settings.value);
+      if (settings.value !== null) {
+        settingsAreValid.value = await validateSettings(settings.value);
+        setSettings(settings.value);
+      }
     }
 
     return {
       arch,
+      gitHash,
       platform,
       save,
       settings,
       settingsAreValid,
       smi,
-      smiCode,
       version,
     };
   },
@@ -81,13 +82,13 @@ export default defineComponent({
           Warnings are intended to help with debugging.
         </v-card-subtitle>
         <v-alert
-          v-if="smiCode !== null"
+          v-if="smi !== null"
           dense
           text
-          :type="smi ? 'success' : 'warning'"
+          :type="smi.code === 0 ? 'success' : 'warning'"
           class="mx-4"
         >
-          <span v-if="smi">You are using a supported GPU configuration</span>
+          <span v-if="smi.code === 0">You are using a supported GPU configuration</span>
           <span v-else>
             Could not reliably determine your GPU compatibility:  nvidia-smi not found.
           </span>
@@ -106,16 +107,48 @@ export default defineComponent({
           </span>
         </v-alert>
         <v-card-text>
+          <div>
+            Build Version:
+            <browser-link
+              :href="`https://github.com/VIAME/VIAME-Web`"
+              display="inline"
+            >
+              {{ gitHash }}
+            </browser-link>
+          </div>
           <div>Architecture: {{ arch }}</div>
           <div>Platform: {{ platform }}</div>
           <div>Node Version: {{ version }}</div>
-          <template v-if="smi">
-            <div>NVIDIA Driver Version: {{ smi['nvidia_smi_log']['driver_version']['_text'] }}</div>
-            <div>CUDA Version: {{ smi['nvidia_smi_log']['cuda_version']['_text'] }}</div>
-            <div>Detected GPUs: {{ smi['nvidia_smi_log']['attached_gpus']['_text'] }}</div>
+          <template v-if="smi !== null && smi.output !== null">
+            <div>
+              NVIDIA Driver Version:
+              {{ smi.output.nvidia_smi_log.driver_version._text }}
+            </div>
+            <div>
+              CUDA Version:
+              {{ smi.output.nvidia_smi_log.cuda_version._text }}
+            </div>
+            <div>
+              Detected GPUs:
+              {{ smi.output.nvidia_smi_log.attached_gpus._text }}
+            </div>
           </template>
         </v-card-text>
       </v-card>
+      <div class="d-flex flex-row justify-end">
+        <browser-link
+          href="https://github.com/VIAME/VIAME-Web/issues/new?labels=bug&template=bug-report.md&title=%5BBUG%5D"
+          class="ma-2"
+        >
+          🐛 Report a bug
+        </browser-link>
+        <browser-link
+          href="https://github.com/VIAME/VIAME-Web/issues/new?labels=enhancement&template=feature-request.md&title=%5BFEATURE%5D"
+          class="ma-2"
+        >
+          🚧 Feature Request
+        </browser-link>
+      </div>
     </v-container>
   </v-main>
 </template>

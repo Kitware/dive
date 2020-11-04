@@ -6,7 +6,7 @@ import { spawn } from 'child_process';
 // eslint-disable-next-line import/no-extraneous-dependencies
 import fs from 'fs-extra';
 
-import { Settings, SettingsCurrentVersion } from 'platform/desktop/store/settings';
+import { Settings, SettingsCurrentVersion } from '../../store/settings';
 import common from './common';
 
 const DefaultSettings: Settings = {

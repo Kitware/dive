@@ -21,6 +21,22 @@ const JobFolderName = 'job_runs';
 // result.json
 const JsonFileName = /^result(_.*)?\.json$/;
 
+interface NvidiaSmiTextRecord {
+  _text: string;
+}
+
+export interface NvidiaSmiReply {
+  output: {
+    nvidia_smi_log: {
+      driver_version: NvidiaSmiTextRecord;
+      cuda_version: NvidiaSmiTextRecord;
+      attached_gpus: NvidiaSmiTextRecord;
+    };
+  } | null;
+  code: number;
+  error: string;
+}
+
 export interface JobCreatedReply {
   // The name of the pipe or job being run
   pipeline: string;
@@ -143,7 +159,9 @@ async function getAuxFolder(baseDir: string): Promise<string> {
  */
 async function createKwiverRunWorkingDir(datasetName: string, baseDir: string, pipeline: string) {
   const jobFolderPath = npath.join(baseDir, JobFolderName);
-  const safeDatasetName = datasetName.replaceAll(/[\.\s/]+/g, '_');
+  // eslint won't recognize \. as valid escape
+  // eslint-disable-next-line no-useless-escape
+  const safeDatasetName = datasetName.replace(/[\.\s/]+/g, '_');
   const runFolderName = moment().format(`[${safeDatasetName}_${pipeline}]_MM-DD-yy_hh-mm-ss`);
   const runFolderPath = npath.join(jobFolderPath, runFolderName);
   if (!fs.existsSync(jobFolderPath)) {
@@ -154,7 +172,7 @@ async function createKwiverRunWorkingDir(datasetName: string, baseDir: string, p
 }
 
 // Based on https://github.com/chrisallenlane/node-nvidia-smi
-async function nvidiaSmi(): Promise<unknown> {
+async function nvidiaSmi(): Promise<NvidiaSmiReply> {
   return new Promise((resolve) => {
     const smi = spawn('nvidia-smi', ['-q', '-x']);
     let result = '';
@@ -176,7 +194,7 @@ async function nvidiaSmi(): Promise<unknown> {
       resolve({
         output: null,
         code: -1,
-        error: err,
+        error: err.message,
       });
     });
   });

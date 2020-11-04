@@ -15,11 +15,12 @@ import {
   Pipelines, TrainingConfigs,
 } from 'viame-web-common/apispec';
 
-import { Settings, getSettings } from 'platform/desktop/store/settings';
+import { Settings, getSettings } from '../store/settings';
 
 // TODO: disable node integration in renderer
 // https://nklayman.github.io/vue-cli-plugin-electron-builder/guide/security.html
 import { loadDetections, saveDetections } from './nativeServices';
+import { NvidiaSmiReply } from '../backend/platforms/common';
 
 const websafeVideoTypes = [
   'video/mp4',
@@ -52,7 +53,7 @@ function mediaServerInfo(): Promise<AddressInfo> {
   return ipcRenderer.invoke('info');
 }
 
-function nvidiaSmi(): Promise<Record<string, unknown>> {
+function nvidiaSmi(): Promise<NvidiaSmiReply> {
   return ipcRenderer.invoke('nvidia-smi');
 }
 
