@@ -110,7 +110,11 @@
       "ts-jest": {
         "tsConfig": "tsconfig.spec.json"
       }
-    }
+    },
+    "modulePathIgnorePatterns": [
+      "<rootDir>/dist/",
+      "<rootDir>/dist_electron/"
+    ]
   },
   "eslintConfig": {
     "root": true,

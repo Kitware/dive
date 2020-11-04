@@ -20,8 +20,15 @@ yarn build:web
 # build vue-media-server library
 yarn build:lib
 
+# build electron
+yarn build:electron
+
 # lint
 yarn lint
+yarn lint:templates
+
+# Local verification of all tests, linting, builds
+./checkbuild.sh
 ```
 
 See [this issue](https://github.com/vuejs/vue-cli/issues/3065) for details on why our `yarn serve` command is weird.
