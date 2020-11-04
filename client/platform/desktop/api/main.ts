@@ -15,6 +15,8 @@ import {
   Pipelines, TrainingConfigs,
 } from 'viame-web-common/apispec';
 
+import { Settings, getSettings } from 'platform/desktop/store/settings';
+
 // TODO: disable node integration in renderer
 // https://nklayman.github.io/vue-cli-plugin-electron-builder/guide/security.html
 import { loadDetections, saveDetections } from './nativeServices';
@@ -42,12 +44,24 @@ export interface DesktopDataset {
   meta: DatasetMeta;
 }
 
+function getDefaultSettings(): Promise<Settings> {
+  return ipcRenderer.invoke('default-settings');
+}
+
 function mediaServerInfo(): Promise<AddressInfo> {
   return ipcRenderer.invoke('info');
 }
 
+function nvidiaSmi(): Promise<Record<string, unknown>> {
+  return ipcRenderer.invoke('nvidia-smi');
+}
+
 function openLink(url: string): Promise<void> {
   return ipcRenderer.invoke('open-link-in-browser', url);
+}
+
+function validateSettings(settings: Settings): Promise<string | boolean> {
+  return ipcRenderer.invoke('validate-settings', settings);
 }
 
 async function openFromDisk(datasetType: DatasetType) {
@@ -69,7 +83,8 @@ async function getAttributes() {
 }
 
 async function getPipelineList(): Promise<Pipelines> {
-  return Promise.resolve({});
+  const defaultSettings = await getDefaultSettings();
+  return ipcRenderer.invoke('get-pipeline-list', getSettings(defaultSettings));
 }
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -161,4 +176,7 @@ export {
   /* Nonstandard APIs */
   openFromDisk,
   openLink,
+  nvidiaSmi,
+  validateSettings,
+  getDefaultSettings,
 };

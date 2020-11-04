@@ -3,6 +3,7 @@ import { ipcMain } from 'electron';
 
 import { Settings } from '../store/settings';
 import server from './server';
+import linux from './platforms/linux';
 import common from './platforms/common';
 
 export default function register() {
@@ -15,11 +16,28 @@ export default function register() {
    * Platform-agnostic methods
    */
 
+  ipcMain.handle('nvidia-smi', async () => {
+    const ret = await common.nvidiaSmi();
+    return ret;
+  });
   ipcMain.handle('get-pipeline-list', async (_, settings: Settings) => {
     const ret = await common.getPipelineList(settings);
     return ret;
   });
   ipcMain.handle('open-link-in-browser', (_, url: string) => {
     common.openLink(url);
+  });
+
+  /**
+   * TODO: replace linux defaults with some kind of platform switching logic
+   */
+
+  ipcMain.handle('default-settings', async () => {
+    const defaults = linux.DefaultSettings;
+    return defaults;
+  });
+  ipcMain.handle('validate-settings', async (_, settings: Settings) => {
+    const ret = await linux.validateViamePath(settings);
+    return ret;
   });
 }
