@@ -1,0 +1,8 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    /* Jest requires es5, not sure why */
+    "target": "ES2017",
+    "module": "commonjs",
+  },
+}

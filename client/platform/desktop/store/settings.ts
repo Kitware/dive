@@ -1,53 +1,62 @@
 import Vue from 'vue';
-import Install from '@vue/composition-api';
+import Install, { ref } from '@vue/composition-api';
+// eslint-disable-next-line import/no-extraneous-dependencies
+import { ipcRenderer } from 'electron';
+
+import { Settings } from '../constants';
 
 // TODO remove this: this won't be necessary in Vue 3
 Vue.use(Install);
 
-interface Settings {
-  version: number;
-  viamePath: string;
-  dataPath: string;
+const SettingsKey = 'desktop.settings';
+
+const settings = ref({} as Settings);
+
+function getDefaultSettings(): Promise<Settings> {
+  return ipcRenderer.invoke('default-settings');
 }
 
-const SettingsCurrentVersion = 1;
-const SettingsKey = 'desktop.settings';
+function validateSettings(s: Settings): Promise<string | boolean> {
+  return ipcRenderer.invoke('validate-settings', s);
+}
 
 // Type Guard https://www.typescriptlang.org/docs/handbook/advanced-types.html
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function isSettings(settings: any): settings is Settings {
-  if (!settings.version || typeof settings.version !== 'number') {
+function isSettings(s: any): s is Settings {
+  if (!s.version || typeof s.version !== 'number') {
     return false;
   }
-  if (!settings.viamePath || typeof settings.viamePath !== 'string') {
+  if (!s.viamePath || typeof s.viamePath !== 'string') {
     return false;
   }
   return true;
 }
 
-function getSettings(defaults: Settings): Settings {
+async function init() {
   const settingsStr = window.localStorage.getItem(SettingsKey);
+  let settingsvalue = await getDefaultSettings();
   try {
     if (settingsStr) {
       const maybeSettings = JSON.parse(settingsStr);
       if (isSettings(maybeSettings)) {
-        return maybeSettings;
+        settingsvalue = maybeSettings;
       }
-      return defaults;
     }
-  } catch (err) {
-    return defaults;
+  } catch {
+    // pass
   }
-  return defaults;
+  settings.value = settingsvalue;
 }
 
-async function setSettings(settings: Settings) {
-  window.localStorage.setItem(SettingsKey, JSON.stringify(settings));
+async function setSettings(s: Settings) {
+  window.localStorage.setItem(SettingsKey, JSON.stringify(s));
 }
+
+// Will be initialized on first import
+init();
 
 export {
-  Settings,
-  SettingsCurrentVersion,
-  getSettings,
+  settings,
   setSettings,
+  validateSettings,
 };

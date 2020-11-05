@@ -3,12 +3,13 @@ import {
   defineComponent, onBeforeMount, ref,
 } from '@vue/composition-api';
 
-import { getSettings, setSettings, Settings } from '../store/settings';
-import { nvidiaSmi, validateSettings, getDefaultSettings } from '../api/main';
+import { NvidiaSmiReply } from '../constants';
+
+import { settings, setSettings, validateSettings } from '../store/settings';
+import { nvidiaSmi } from '../api/main';
 
 import BrowserLink from './BrowserLink.vue';
 import NavigationBar from './NavigationBar.vue';
-import { NvidiaSmiReply } from '../backend/platforms/common';
 
 export default defineComponent({
   components: {
@@ -18,21 +19,20 @@ export default defineComponent({
   setup() {
     // null values indicate initialization has not completed
     const smi = ref(null as NvidiaSmiReply | null);
+    const localSettings = settings;
     const { arch, platform, version } = process;
-    const settings = ref(null as Settings | null);
     const settingsAreValid = ref(true as boolean | string);
     const gitHash = process.env.VUE_APP_GIT_HASH;
 
     onBeforeMount(async () => {
-      settings.value = await getSettings(await getDefaultSettings());
-      settingsAreValid.value = await validateSettings(settings.value);
+      settingsAreValid.value = await validateSettings(localSettings.value);
       smi.value = await nvidiaSmi();
     });
 
     async function save() {
       if (settings.value !== null) {
-        settingsAreValid.value = await validateSettings(settings.value);
-        setSettings(settings.value);
+        settingsAreValid.value = await validateSettings(localSettings.value);
+        setSettings(localSettings.value);
       }
     }
 
@@ -41,7 +41,7 @@ export default defineComponent({
       gitHash,
       platform,
       save,
-      settings,
+      localSettings,
       settingsAreValid,
       smi,
       version,
@@ -54,11 +54,11 @@ export default defineComponent({
   <v-main>
     <navigation-bar />
     <v-container>
-      <v-card v-if="settings">
+      <v-card>
         <v-card-title>Settings</v-card-title>
         <v-card-text>
           <v-text-field
-            v-model="settings.viamePath"
+            v-model="localSettings.viamePath"
             label="VIAME Install Base Path"
             hint="download from https://viametoolkit.com"
             dense
@@ -85,10 +85,12 @@ export default defineComponent({
           v-if="smi !== null"
           dense
           text
-          :type="smi.code === 0 ? 'success' : 'warning'"
+          :type="smi.exitCode === 0 ? 'success' : 'warning'"
           class="mx-4"
         >
-          <span v-if="smi.code === 0">You are using a supported GPU configuration</span>
+          <span v-if="smi.exitCode === 0">
+            You are using a supported GPU configuration
+          </span>
           <span v-else>
             Could not reliably determine your GPU compatibility:  nvidia-smi not found.
           </span>

@@ -1,7 +1,8 @@
 // eslint-disable-next-line import/no-extraneous-dependencies
 import { ipcMain } from 'electron';
 
-import { Settings } from '../store/settings';
+import { DesktopJobUpdate, RunPipeline, Settings } from '../constants';
+
 import server from './server';
 import linux from './platforms/linux';
 import common from './platforms/common';
@@ -39,5 +40,11 @@ export default function register() {
   ipcMain.handle('validate-settings', async (_, settings: Settings) => {
     const ret = await linux.validateViamePath(settings);
     return ret;
+  });
+  ipcMain.handle('run-pipeline', async (event, args: RunPipeline) => {
+    const updater = (update: DesktopJobUpdate) => {
+      event.sender.send('job-update', update);
+    };
+    return linux.runPipeline(args, updater);
   });
 }

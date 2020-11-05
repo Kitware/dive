@@ -3,11 +3,13 @@ import { defineComponent } from '@vue/composition-api';
 
 import Viewer from 'viame-web-common/components/Viewer.vue';
 import RunPipelineMenu from 'viame-web-common/components/RunPipelineMenu.vue';
+import JobTab from './JobTab.vue';
 
 import { getDataset } from '../store/dataset';
 
 export default defineComponent({
   components: {
+    JobTab,
     RunPipelineMenu,
     Viewer,
   },
@@ -39,6 +41,7 @@ export default defineComponent({
         <v-tab to="/settings">
           Settings<v-icon>mdi-settings</v-icon>
         </v-tab>
+        <job-tab />
       </v-tabs>
       <span
         v-if="dataset"

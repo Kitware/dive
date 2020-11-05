@@ -21,6 +21,7 @@ module.exports = {
     config.resolve.symlinks(false);
     config.resolve.alias.set('viame-web-common', path.resolve(__dirname, 'viame-web-common'));
     config.resolve.alias.set('vue-media-annotator', path.resolve(__dirname, 'src'));
+    config.resolve.alias.set('platform', path.resolve(__dirname, 'platform'));
   },
   pluginOptions: {
     electronBuilder: {

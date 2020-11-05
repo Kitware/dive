@@ -8,10 +8,13 @@ import { spawn } from 'child_process';
 // eslint-disable-next-line import/no-extraneous-dependencies
 import { shell } from 'electron';
 // eslint-disable-next-line import/no-extraneous-dependencies
+import mime from 'mime-types';
+// eslint-disable-next-line import/no-extraneous-dependencies
 import { xml2json } from 'xml-js';
 import moment from 'moment';
 import { DatasetType, Pipelines } from 'viame-web-common/apispec';
-import { Settings } from 'platform/desktop/store/settings';
+
+import { Settings, NvidiaSmiReply, websafeImageTypes } from '../../constants';
 
 const AuxFolderName = 'auxiliary';
 const JobFolderName = 'job_runs';
@@ -21,51 +24,12 @@ const JobFolderName = 'job_runs';
 // result.json
 const JsonFileName = /^result(_.*)?\.json$/;
 
-interface NvidiaSmiTextRecord {
-  _text: string;
-}
-
-export interface NvidiaSmiReply {
-  output: {
-    nvidia_smi_log: {
-      driver_version: NvidiaSmiTextRecord;
-      cuda_version: NvidiaSmiTextRecord;
-      attached_gpus: NvidiaSmiTextRecord;
-    };
-  } | null;
-  code: number;
-  error: string;
-}
-
-export interface JobCreatedReply {
-  // The name of the pipe or job being run
-  pipeline: string;
-  // A unique identifier for the job
-  jobName: string;
-  // The pid of the process spawned
-  pid: number;
-  // The working directory of the job's output
-  workingDir: string;
-  // If exitCode is set, the job exited already
-  exitCode?: number;
-}
-
-export interface JobUpdateReply {
-  // Matches JobCreated identifier
-  jobName: string;
-  // Originating pid
-  pid: number;
-  // Update Body
-  body: string;
-  // If exitCode is set, the job exited already
-  exitCode?: number;
-}
-
 async function getDatasetBase(datasetId: string): Promise<{
   datasetType: DatasetType;
   basePath: string;
   name: string;
   jsonFile: string | null;
+  imageFiles: string[];
   directoryContents: string[];
 }> {
   let datasetType: DatasetType = 'image-sequence';
@@ -93,6 +57,15 @@ async function getDatasetBase(datasetId: string): Promise<{
   const jsonFileCandidates = contents.filter((v) => JsonFileName.test(v));
   let jsonFile = null;
 
+  const imageFiles = contents.filter((filename) => {
+    const abspath = npath.join(datasetFolderPath, filename);
+    const mimetype = mime.lookup(abspath);
+    if (mimetype && websafeImageTypes.includes(mimetype)) {
+      return true;
+    }
+    return false;
+  });
+
   if (jsonFileCandidates.length > 1) {
     throw new Error('Too many matches for json annotation file!');
   } else if (jsonFileCandidates.length === 1) {
@@ -103,6 +76,7 @@ async function getDatasetBase(datasetId: string): Promise<{
     datasetType,
     basePath: datasetFolderPath,
     jsonFile,
+    imageFiles,
     name: npath.parse(datasetId).name,
     directoryContents: contents,
   };
@@ -179,21 +153,21 @@ async function nvidiaSmi(): Promise<NvidiaSmiReply> {
     smi.stdout.on('data', (chunk) => {
       result = result.concat(chunk.toString('utf-8'));
     });
-    smi.on('close', (code) => {
+    smi.on('close', (exitCode) => {
       let jsonStr = 'null'; // parses to null
-      if (code === 0) {
+      if (exitCode === 0) {
         jsonStr = xml2json(result, { compact: true });
       }
       resolve({
         output: JSON.parse(jsonStr),
-        code,
+        exitCode,
         error: result,
       });
     });
     smi.on('error', (err) => {
       resolve({
         output: null,
-        code: -1,
+        exitCode: -1,
         error: err.message,
       });
     });

@@ -1,12 +1,16 @@
 /**
  * VIAME process manager for linux platform
  */
-import path from 'path';
+import npath from 'path';
 import { spawn } from 'child_process';
 // eslint-disable-next-line import/no-extraneous-dependencies
 import fs from 'fs-extra';
 
-import { Settings, SettingsCurrentVersion } from '../../store/settings';
+import {
+  Settings, SettingsCurrentVersion,
+  DesktopJob, DesktopJobUpdate, RunPipeline,
+} from '../../constants';
+
 import common from './common';
 
 const DefaultSettings: Settings = {
@@ -19,7 +23,7 @@ const DefaultSettings: Settings = {
 };
 
 async function validateViamePath(settings: Settings): Promise<true | string> {
-  const setupScriptPath = path.join(settings.viamePath, 'setup_viame.sh');
+  const setupScriptPath = npath.join(settings.viamePath, 'setup_viame.sh');
   const setupExists = await fs.pathExists(setupScriptPath);
   if (!setupExists) {
     return `${setupScriptPath} does not exist`;
@@ -40,69 +44,117 @@ async function validateViamePath(settings: Settings): Promise<true | string> {
   });
 }
 
-// command = [
-//   f"cd {conf.viame_install_path} &&",
-//   ". ./setup_viame.sh &&",
-//   "kwiver runner",
-//   "-s input:video_reader:type=vidl_ffmpeg",
-//   f"-p {pipeline_path}",
-//   f"-s input:video_filename={input_file}",
-//   f"-s detector_writer:file_name={detector_output_path}",
-//   f"-s track_writer:file_name={track_output_path}",
-// ]
-// elif input_type == 'image-sequence':
-// with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as temp2:
-//   temp2.writelines(
-//       (
-//           (os.path.join(input_path, file_name) + "\n").encode()
-//           for file_name in sorted(filtered_directory_files)
-//       )
-//   )
-//   image_list_file = temp2.name
-// command = [
-//   f"cd {conf.viame_install_path} &&",
-//   ". ./setup_viame.sh &&",
-//   "kwiver runner",
-//   f"-p {pipeline_path}",
-//   f"-s input:video_filename={image_list_file}",
-//   f"-s detector_writer:file_name={detector_output_path}",
-//   f"-s track_writer:file_name={track_output_path}",
-// ]
-
 /**
  * Fashioned as a node.js implementation of viame_tasks.tasks.run_pipeline
  *
- * @param p dataset path absolute
+ * @param datasetIdPath dataset path absolute
  * @param pipeline pipeline file basename
  * @param settings global settings
  */
-async function runPipeline(p: string, pipeline: string, settings: Settings) {
+async function runPipeline(
+  runPipelineArgs: RunPipeline,
+  updater: (msg: DesktopJobUpdate) => void,
+): Promise<DesktopJob> {
+  const { settings, datasetId, pipelineName } = runPipelineArgs;
   const isValid = await validateViamePath(settings);
   if (isValid !== true) {
     throw new Error(isValid);
   }
-  const setupScriptPath = path.join(settings.viamePath, 'setup_viame.sh');
-  const pipelinePath = path.join(settings.viamePath, 'configs/pipelines', pipeline);
-  const datasetInfo = await common.getDatasetBase(p);
+
+  const setupScriptPath = npath.join(settings.viamePath, 'setup_viame.sh');
+  const pipelinePath = npath.join(settings.viamePath, 'configs/pipelines', pipelineName);
+  const datasetInfo = await common.getDatasetBase(datasetId);
+  const auxPath = await common.getAuxFolder(datasetInfo.basePath);
+  const jobWorkDir = await common.createKwiverRunWorkingDir(
+    datasetInfo.name, auxPath, pipelineName,
+  );
+
+  const detectorOutput = npath.join(jobWorkDir, 'detector_output.csv');
+  const trackOutput = npath.join(jobWorkDir, 'track_output.csv');
+  const joblog = npath.join(jobWorkDir, 'runlog.txt');
 
   let command: string[] = [];
   if (datasetInfo.datasetType === 'video') {
     command = [
       `source ${setupScriptPath} &&`,
       'kwiver runner',
-      '-s input:video_reader:type-vidl_ffmpeg',
+      '-s input:video_reader:type=vidl_ffmpeg',
       `-p ${pipelinePath}`,
-      `-s input:video_filename=${p}`,
-      '-s detector_writer:file_name',
+      `-s input:video_filename=${datasetId}`,
+      `-s detector_writer:file_name=${detectorOutput}`,
+      `-s track_writer:file_name=${trackOutput}`,
+      `| tee ${joblog}`,
     ];
   } else if (datasetInfo.datasetType === 'image-sequence') {
-    // command = [
-    //   `source ${setupScriptPath} &&`,
-    //   'kwiver runner',
-    //   `-p ${pipelinePath}`,
-    // ]
+    // Create frame image manifest
+    const manifestFile = npath.join(jobWorkDir, 'image-manifest.txt');
+    // map image file names to absolute paths
+    const fileData = datasetInfo.imageFiles
+      .map((f) => npath.join(datasetInfo.basePath, f))
+      .join('\n');
+    await fs.writeFile(manifestFile, fileData);
+    command = [
+      `source ${setupScriptPath} &&`,
+      'kwiver runner',
+      `-p "${pipelinePath}"`,
+      `-s input:video_filename="${manifestFile}"`,
+      `-s detector_writer:file_name="${detectorOutput}"`,
+      `-s track_writer:file_name="${trackOutput}"`,
+      `| tee "${joblog}"`,
+    ];
   }
-  return Promise.resolve(command);
+
+  const job = spawn(command.join(' '), {
+    shell: '/bin/bash',
+    cwd: jobWorkDir,
+  });
+
+  const jobBase: DesktopJob = {
+    key: `pipeline_${job.pid}_${jobWorkDir}`,
+    jobType: 'pipeline',
+    pid: job.pid,
+    pipelineName,
+    workingDir: jobWorkDir,
+    datasetIds: [datasetId],
+    exitCode: job.exitCode,
+    startTime: new Date(),
+  };
+
+  const processChunk = (chunk: Buffer) => chunk
+    .toString('utf-8')
+    .split('\n')
+    .filter((a) => a);
+
+  job.stdout.on('data', (chunk: Buffer) => {
+    // eslint-disable-next-line no-console
+    console.debug(chunk.toString('utf-8'));
+    updater({
+      ...jobBase,
+      body: processChunk(chunk),
+    });
+  });
+
+  job.stderr.on('data', (chunk: Buffer) => {
+    // eslint-disable-next-line no-console
+    console.log(chunk.toString('utf-8'));
+    updater({
+      ...jobBase,
+      body: processChunk(chunk),
+    });
+  });
+
+  job.on('exit', (code) => {
+    // eslint-disable-next-line no-console
+    console.log('exited', code);
+    updater({
+      ...jobBase,
+      body: [''],
+      exitCode: code,
+      endTime: new Date(),
+    });
+  });
+
+  return jobBase;
 }
 
 export default {

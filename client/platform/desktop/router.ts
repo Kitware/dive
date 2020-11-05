@@ -1,6 +1,8 @@
+import { json } from 'd3';
 import Vue from 'vue';
 import Router from 'vue-router';
 
+import Jobs from './components/Jobs.vue';
 import Recent from './components/Recent.vue';
 import Settings from './components/Settings.vue';
 import ViewerLoader from './components/ViewerLoader.vue';
@@ -18,6 +20,11 @@ export default new Router({
       path: '/settings',
       name: 'settings',
       component: Settings,
+    },
+    {
+      path: '/jobs',
+      name: 'jobs',
+      component: Jobs,
     },
     {
       path: '/viewer/:path',
