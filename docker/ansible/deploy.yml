@@ -14,7 +14,7 @@
 
     - name: Pull Latest Viame Docker Image
       docker_image:
-        name: kitware/viame:gpu-all-models-latest
+        name: kitware/viame:gpu-algorithms-latest
         source: pull
         force_source: yes
 
