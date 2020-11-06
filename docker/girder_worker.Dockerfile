@@ -1,6 +1,11 @@
-FROM kitware/viame:gpu-all-models-latest
-# expects VIAME install at /opt/noaa/viame/
-# expects VIAME pipelines at /opt/noaa/viame/configs/pipelines/
+FROM kitware/viame:gpu-algorithms-latest
+
+# VIAME install at /opt/noaa/viame/
+# VIAME pipelines at /opt/noaa/viame/configs/pipelines/
+
+# Download addons
+RUN /opt/noaa/viame/bin/download_viame_addons.sh
+RUN /opt/noaa/viame/bin/filter_non_web_pipelines.sh
 
 ENV CELERY_BROKER_URL amqp://guest:guest@rabbit/
 ENV BROKER_CONNECTION_TIMEOUT 2
