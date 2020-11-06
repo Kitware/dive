@@ -1,15 +1,23 @@
-import { TrackData } from 'vue-media-annotator/track';
-import fs from 'fs';
+import { AddressInfo } from 'net';
+import path from 'path';
+
+// eslint-disable-next-line import/no-extraneous-dependencies
+import { ipcRenderer, remote, FileFilter } from 'electron';
+// eslint-disable-next-line import/no-extraneous-dependencies
+import fs from 'fs-extra';
 // eslint-disable-next-line import/no-extraneous-dependencies
 import mime from 'mime-types';
-import path from 'path';
+
 import {
-  Attribute, DatasetMeta, DatasetMetaMutable, FrameImage,
-  Pipelines, SaveDetectionsArgs, TrainingConfigs,
+  Attribute, DatasetMeta,
+  DatasetMetaMutable,
+  DatasetType, FrameImage,
+  Pipelines, TrainingConfigs,
 } from 'viame-web-common/apispec';
-// eslint-disable-next-line
-import { ipcRenderer, remote } from 'electron';
-import { AddressInfo } from 'net';
+
+// TODO: disable node integration in renderer
+// https://nklayman.github.io/vue-cli-plugin-electron-builder/guide/security.html
+import { loadDetections, saveDetections } from './nativeServices';
 
 const websafeVideoTypes = [
   'video/mp4',
@@ -27,16 +35,31 @@ const websafeImageTypes = [
 ];
 
 export interface DesktopDataset {
+  name: string;
+  basePath: string;
   root: string;
   videoPath?: string;
   meta: DatasetMeta;
 }
 
-const mediaServerInfo: AddressInfo = ipcRenderer.sendSync('info');
+function mediaServerInfo(): Promise<AddressInfo> {
+  return ipcRenderer.invoke('info');
+}
 
-async function openFromDisk() {
+function openLink(url: string): Promise<void> {
+  return ipcRenderer.invoke('open-link-in-browser', url);
+}
+
+async function openFromDisk(datasetType: DatasetType) {
+  let filters: FileFilter[] = [];
+  if (datasetType === 'video') {
+    filters = [
+      { name: 'Videos', extensions: websafeVideoTypes.map((str) => str.split('/')[1]) },
+    ];
+  }
   const results = await remote.dialog.showOpenDialog({
-    properties: ['openFile', 'openDirectory'],
+    properties: [datasetType === 'video' ? 'openFile' : 'openDirectory'],
+    filters,
   });
   return results;
 }
@@ -44,40 +67,38 @@ async function openFromDisk() {
 async function getAttributes() {
   return Promise.resolve([] as Attribute[]);
 }
-async function getPipelineList() {
-  return Promise.resolve({} as Pipelines);
+
+async function getPipelineList(): Promise<Pipelines> {
+  return Promise.resolve({});
 }
-// eslint-disable-next-line
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function runPipeline(itemId: string, pipeline: string) {
   return Promise.resolve();
 }
-// eslint-disable-next-line
-async function loadDetections(datasetId: string) {
-  return Promise.resolve({} as { [key: string]: TrackData });
-}
-// eslint-disable-next-line
-async function saveDetections(datasetId: string, args: SaveDetectionsArgs) {
-  return Promise.resolve();
-}
-// eslint-disable-next-line
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function getTrainingConfigurations(): Promise<TrainingConfigs> {
   return Promise.resolve({ configs: [], default: '' });
 }
-// eslint-disable-next-line
-async function runTraining(folderId: string, pipelineName: string, config: string): Promise<unknown> {
+
+async function runTraining(
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  folderId: string, pipelineName: string, config: string,
+): Promise<unknown> {
   return Promise.resolve();
 }
-
 
 async function loadMetadata(datasetId: string): Promise<DesktopDataset> {
   let datasetType = undefined as 'video' | 'image-sequence' | undefined;
   let videoUrl = '';
   let videoPath = '';
   const imageData = [] as FrameImage[];
+  const serverInfo = await mediaServerInfo();
 
   function processFile(abspath: string) {
     const basename = path.basename(abspath);
-    const abspathuri = `http://localhost:${mediaServerInfo.port}/api/media?path=${abspath}`;
+    const abspathuri = `http://localhost:${serverInfo.port}/api/media?path=${abspath}`;
     const mimetype = mime.lookup(abspath);
     if (mimetype && websafeVideoTypes.includes(mimetype)) {
       datasetType = 'video';
@@ -92,10 +113,10 @@ async function loadMetadata(datasetId: string): Promise<DesktopDataset> {
     }
   }
 
-  const info = fs.statSync(datasetId);
+  const info = await fs.stat(datasetId);
 
   if (info.isDirectory()) {
-    const contents = fs.readdirSync(datasetId);
+    const contents = await fs.readdir(datasetId);
     for (let i = 0; i < contents.length; i += 1) {
       processFile(path.join(datasetId, contents[i]));
     }
@@ -108,6 +129,8 @@ async function loadMetadata(datasetId: string): Promise<DesktopDataset> {
   }
 
   return Promise.resolve({
+    name: path.basename(datasetId),
+    basePath: path.dirname(datasetId),
     root: datasetId,
     videoPath,
     meta: {
@@ -118,20 +141,24 @@ async function loadMetadata(datasetId: string): Promise<DesktopDataset> {
     },
   });
 }
+
 // eslint-disable-next-line
 async function saveMetadata(datasetId: string, metadata: DatasetMetaMutable) {
   return Promise.resolve();
 }
 
 export {
+  /* Standard common APIs */
   getAttributes,
   getPipelineList,
   runPipeline,
   getTrainingConfigurations,
   runTraining,
   loadDetections,
-  openFromDisk,
   saveDetections,
   loadMetadata,
   saveMetadata,
+  /* Nonstandard APIs */
+  openFromDisk,
+  openLink,
 };

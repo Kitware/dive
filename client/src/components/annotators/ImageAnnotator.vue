@@ -35,8 +35,8 @@ export default Vue.extend({
     this.imgs = new Array(this.imageData.length);
     this.filename = this.imageData[this.frame].filename;
     this.pendingImgs = new Set();
-    this.cacheImages();
     if (this.imgs.length) {
+      this.loadFrame(0);
       const img = this.imgs[0];
       img.onload = () => {
         img.onload = null;
@@ -44,6 +44,7 @@ export default Vue.extend({
         this.height = img.naturalHeight;
         img.cached = true;
         this.init();
+        this.cacheImages();
       };
     }
   },

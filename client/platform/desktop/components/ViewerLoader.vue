@@ -1,14 +1,16 @@
 <script lang="ts">
 import { defineComponent } from '@vue/composition-api';
+
 import Viewer from 'viame-web-common/components/Viewer.vue';
+import RunPipelineMenu from 'viame-web-common/components/RunPipelineMenu.vue';
 
 import { getDataset } from '../store/dataset';
-/**
- * ViewerLoader is responsible for loading
- * data from girder.
- */
+
 export default defineComponent({
-  components: { Viewer },
+  components: {
+    RunPipelineMenu,
+    Viewer,
+  },
   props: {
     path: {
       type: String,
@@ -42,8 +44,11 @@ export default defineComponent({
         v-if="dataset"
         class="title pl-3"
       >
-        {{ dataset.videoPath || dataset.root }}
+        {{ dataset.name }}
       </span>
+    </template>
+    <template #title-right>
+      <RunPipelineMenu :selected-dataset-ids="[path]" />
     </template>
   </Viewer>
 </template>

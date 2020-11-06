@@ -33,6 +33,7 @@
     "d3": "^5.12.0",
     "geojs": "^0.20.0",
     "lodash": "^4.17.19",
+    "moment": "^2.29.1",
     "mousetrap": "^1.6.5",
     "vue": "^2.6.12",
     "vue-gtag": "^1.9.1",
@@ -52,6 +53,7 @@
     "@types/pump": "^1.1.0",
     "@types/range-parser": "^1.2.3",
     "@types/request": "^2.48.5",
+    "@types/xml2json": "^0.11.3",
     "@typescript-eslint/eslint-plugin": "^2.33.0",
     "@typescript-eslint/parser": "^2.33.0",
     "@vue/cli-plugin-babel": "~4.3.1",
@@ -71,6 +73,7 @@
     "eslint-import-resolver-typescript": "^2.2.0",
     "eslint-plugin-import": "^2.20.2",
     "eslint-plugin-vue": "^6.2.2",
+    "fs-extra": "^9.0.1",
     "git-describe": "^4.0.4",
     "jest": "^26.0.1",
     "jest-transform-stub": "^2.0.0",
@@ -92,7 +95,9 @@
     "vue-jest": "^3.0.5",
     "vue-template-compiler": "^2.6.12",
     "vue-type-check": "^1.0.0",
-    "vuetify-loader": "^1.4.3"
+    "vuetify-loader": "^1.4.3",
+    "xml-js": "^1.6.11",
+    "xml2json": "^0.12.0"
   },
   "jest": {
     "verbose": true,
@@ -110,7 +115,11 @@
       "ts-jest": {
         "tsConfig": "tsconfig.spec.json"
       }
-    }
+    },
+    "modulePathIgnorePatterns": [
+      "<rootDir>/dist/",
+      "<rootDir>/dist_electron/"
+    ]
   },
   "eslintConfig": {
     "root": true,
