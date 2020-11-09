@@ -133,7 +133,7 @@ export default defineComponent({
           dense
           type="warning"
         >
-          This instance is updated on Sunday at 2AM EST.
+          This instance is updated on Thursday at 2AM EST.
           If your training job is running at that time it may be restarted/killed.
         </v-alert>
 
