@@ -256,12 +256,12 @@ async function parseFile(path: string): Promise<TrackData[]> {
   return parse(stream);
 }
 
-function serialize(data: TrackData[]): string[] {
-  return [];
-}
+// function serialize(data: TrackData[]): string[] {
+//   return [];
+// }
 
 export {
   parse,
   parseFile,
-  serialize,
+  // serialize,
 };
