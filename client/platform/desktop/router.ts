@@ -1,4 +1,3 @@
-import { json } from 'd3';
 import Vue from 'vue';
 import Router from 'vue-router';
 

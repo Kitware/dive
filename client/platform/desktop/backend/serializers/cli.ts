@@ -1,13 +1,21 @@
-#!/usr/bin/env ts-node-script
+#!/usr/bin/env node
+/// <reference types="../../../node_modules/@types/geojson" />
+
+/**
+ * Command-line entrypoints into serializers and other tooling.
+ * See README.md for usage
+ */
 
 // eslint-disable-next-line import/no-extraneous-dependencies
 import yargs from 'yargs';
+
 import { parseFile } from './viame';
 
-/**
- * Command line entrypoints to run these serializers
- * directly from console
- */
+async function parseViameFile(file: string) {
+  const tracks = await parseFile(file);
+  // eslint-disable-next-line no-console
+  console.log(JSON.stringify(tracks));
+}
 
 const { argv } = yargs
   .command('viame [file]', 'Parse VIAME CSV', (y) => {
@@ -19,6 +27,5 @@ const { argv } = yargs
   .help();
 
 if (argv._.includes('viame')) {
-  console.log(argv);
-  parseFile(argv.file as string);
+  parseViameFile(argv.file as string);
 }

@@ -19,8 +19,8 @@ export default defineComponent({
     const clockDriverInterval = setInterval(() => {
       clockDriver.value += 1;
     }, 1000);
-
     onBeforeUnmount(() => clearInterval(clockDriverInterval));
+
     return {
       clockDriver,
       recentHistory,
@@ -46,10 +46,18 @@ export default defineComponent({
             <v-card
               v-for="job in recentHistory"
               :key="job.job.key"
-              class="py-3 pr-5 mb-4"
+              class=" mb-4"
               min-width="100%"
             >
-              <v-row no-gutters>
+              <v-progress-linear
+                :color="job.job.exitCode === 0 ? 'success' : 'primary'"
+                :indeterminate="job.job.exitCode === null"
+                :value="100"
+              />
+              <v-row
+                no-gutters
+                class="pt-3"
+              >
                 <v-col cols="1">
                   <div class="mt-2 d-flex flex-row justify-center">
                     <v-icon
@@ -63,10 +71,15 @@ export default defineComponent({
                     >
                       mdi-check-circle
                     </v-icon>
-                    <v-icon v-else color="error">mdi-close</v-icon>
+                    <v-icon
+                      v-else
+                      color="error"
+                    >
+                      mdi-close
+                    </v-icon>
                   </div>
                 </v-col>
-                <v-col cols=8>
+                <v-col cols="8">
                   <v-card-title class="primary--text text--lighten-3 text-decoration-none pt-0">
                     {{ job.datasets[0].name }}
                   </v-card-title>
@@ -105,7 +118,10 @@ export default defineComponent({
                     class="mb-2 primary--text text--lighten-3 text-decoration-none"
                     @click="visibleOutput = job.job.key"
                   >
-                    <v-icon color="primary lighten-3" class="pr-2">
+                    <v-icon
+                      color="primary lighten-3"
+                      class="pr-2"
+                    >
                       mdi-console
                     </v-icon> View Output
                   </v-btn>
@@ -113,7 +129,7 @@ export default defineComponent({
               </v-row>
               <v-row
                 v-if="visibleOutput === job.job.key"
-                class="mx-4 mr-0"
+                class="pa-3"
                 no-gutters
               >
                 <v-card

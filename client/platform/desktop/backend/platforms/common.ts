@@ -12,9 +12,11 @@ import mime from 'mime-types';
 // eslint-disable-next-line import/no-extraneous-dependencies
 import { xml2json } from 'xml-js';
 import moment from 'moment';
-import { DatasetType, Pipelines } from 'viame-web-common/apispec';
+import { TrackData } from 'vue-media-annotator/track';
+import { DatasetType, Pipelines, SaveDetectionsArgs } from 'viame-web-common/apispec';
 
 import { Settings, NvidiaSmiReply, websafeImageTypes } from '../../constants';
+import * as viameSerializers from '../serializers/viame';
 
 const AuxFolderName = 'auxiliary';
 const JobFolderName = 'job_runs';
@@ -23,6 +25,7 @@ const JobFolderName = 'job_runs';
 // result_<ANYTHING>.json
 // result.json
 const JsonFileName = /^result(_.*)?\.json$/;
+const CsvFileName = /^.*\.csv$/;
 
 async function getDatasetBase(datasetId: string): Promise<{
   datasetType: DatasetType;
@@ -82,6 +85,55 @@ async function getDatasetBase(datasetId: string): Promise<{
   };
 }
 
+/**
+ * Load annotations from JSON
+ * @param path a known, existing path
+ */
+async function loadJsonAnnotations(path: string): Promise<Record<string, TrackData>> {
+  const rawBuffer = await fs.readFile(path, 'utf-8');
+  const annotationData = JSON.parse(rawBuffer);
+  // TODO: validate json schema
+  return annotationData as Record<string, TrackData>;
+}
+
+/**
+ * Load detections from disk in priority order
+ * @param datasetId path
+ * @param ignoreCSV ignore CSV files if found
+ */
+async function loadDetections(datasetId: string, ignoreCSV = false):
+  Promise<{ [key: string]: TrackData }> {
+  const data = {} as { [key: string]: TrackData };
+  const base = await getDatasetBase(datasetId);
+
+  /* First, look for a JSON file */
+  if (base.jsonFile) {
+    const annotations = loadJsonAnnotations(npath.join(base.basePath, base.jsonFile));
+    return annotations;
+  }
+
+  if (ignoreCSV) {
+    return Promise.resolve(data);
+  }
+
+  /* Then, look for a CSV */
+  const csvFileCandidates = base.directoryContents.filter((v) => CsvFileName.test(v));
+  if (csvFileCandidates.length === 1) {
+    const tracks = await viameSerializers.parseFile(
+      npath.join(base.basePath, csvFileCandidates[0]),
+    );
+    tracks.forEach((t) => { data[t.trackId.toString()] = t; });
+    return data;
+  }
+
+  /* return empty by default */
+  return Promise.resolve(data);
+}
+
+/**
+ * Get all runnable pipelines
+ * @param settings app settings
+ */
 async function getPipelineList(settings: Settings): Promise<Pipelines> {
   const pipelinePath = npath.join(settings.viamePath, 'configs/pipelines');
   const allowedPatterns = /^detector_.+|^tracker_.+|^generate_.+/;
@@ -174,6 +226,72 @@ async function nvidiaSmi(): Promise<NvidiaSmiReply> {
   });
 }
 
+/**
+ * Save pre-serialized tracks to disk
+ * @param datasetId path
+ * @param trackData json serialized track object
+ */
+async function saveSerialized(
+  datasetId: string,
+  trackData: Record<string, TrackData>,
+) {
+  const time = moment().format('MM-DD-YYYY_HH-MM-SS');
+  const newFileName = `result_${time}.json`;
+  const base = await getDatasetBase(datasetId);
+
+  const auxFolderPath = await getAuxFolder(base.basePath);
+
+  /* Move old file if it exists */
+  if (base.jsonFile) {
+    await fs.move(
+      npath.join(base.basePath, base.jsonFile),
+      npath.join(auxFolderPath, base.jsonFile),
+    );
+  }
+
+  const serialized = JSON.stringify(trackData);
+
+  /* Save new file */
+  await fs.writeFile(npath.join(base.basePath, newFileName), serialized);
+}
+
+/**
+ * Save detections to json file in aux
+ * @param datasetId path
+ * @param args save args
+ */
+async function saveDetections(datasetId: string, args: SaveDetectionsArgs) {
+  /* Update existing track file */
+  const existing = await loadDetections(datasetId, true);
+  args.delete.forEach((trackId) => delete existing[trackId.toString()]);
+  args.upsert.forEach((track, trackId) => {
+    existing[trackId.toString()] = track.serialize();
+  });
+  return saveSerialized(datasetId, existing);
+}
+
+/**
+ * Postprocess possible annotation files
+ * @param paths paths to input annotation files
+ * @param datasetId dataset id path
+ */
+async function postprocess(paths: string[], datasetId: string) {
+  for (let i = 0; i < paths.length; i += 1) {
+    const path = paths[i];
+    const stat = fs.statSync(path);
+    if (stat.size > 0) {
+      // Attempt to process the file
+      // eslint-disable-next-line no-await-in-loop
+      const tracks = await viameSerializers.parseFile(path);
+      const data = {} as Record<string, TrackData>;
+      tracks.forEach((t) => { data[t.trackId.toString()] = t; });
+      // eslint-disable-next-line no-await-in-loop
+      await saveSerialized(datasetId, data);
+      break; // there will only be 1
+    }
+  }
+}
+
 async function openLink(url: string) {
   shell.openExternal(url);
 }
@@ -185,4 +303,7 @@ export default {
   createKwiverRunWorkingDir,
   getDatasetBase,
   getPipelineList,
+  loadDetections,
+  saveDetections,
+  postprocess,
 };

@@ -12,10 +12,18 @@ Vue.use(Install);
 
 const dsmap = ref({} as Record<string, DesktopDataset>);
 
+/**
+ * Return reactive variable that will update
+ * if properties of the dataset change
+ * @param id dataset id path
+ */
 function getDataset(id: string) {
   return computed(() => dsmap.value[id]);
 }
 
+/**
+ * Load recent datasets from localstorage
+ */
 function getRecents(): path.ParsedPath[] {
   const arr = window.localStorage.getItem(RecentsKey);
   let returnVal = [] as path.ParsedPath[];
@@ -32,6 +40,10 @@ function getRecents(): path.ParsedPath[] {
   return returnVal;
 }
 
+/**
+ * Add ID to recent datasets
+ * @param id dataset id path
+ */
 function setRecents(id: string) {
   const recents = getRecents();
   recents.splice(0, 0, path.parse(id)); // verify that it's a valid path
@@ -40,6 +52,12 @@ function setRecents(id: string) {
   window.localStorage.setItem(RecentsKey, JSON.stringify(recentsStrings));
 }
 
+/**
+ * Set properties of in-memory dataset,
+ * and persist ID to recents
+ * @param id dataset id path
+ * @param ds properties
+ */
 function setDataset(id: string, ds: DesktopDataset) {
   Vue.set(dsmap.value, id, ds);
   setRecents(id);

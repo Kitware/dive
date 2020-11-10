@@ -48,8 +48,6 @@ function createWindow() {
   if (process.env.IS_ELECTRON) {
     // Load the url of the dev server if in development mode
     win.loadURL(process.env.WEBPACK_DEV_SERVER_URL as string);
-    // win.loadURL(`file:/${__dirname}/index.html`);
-
     if (!process.env.IS_TEST) win.webContents.openDevTools();
   } else {
     createProtocol('app');

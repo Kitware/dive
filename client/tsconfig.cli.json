@@ -4,5 +4,9 @@
     /* Jest requires es5, not sure why */
     "target": "ES2017",
     "module": "commonjs",
+    "outDir": "./bin",
   },
+  "include": [
+    "platform/desktop/backend/serializers/cli.ts",
+  ],
 }

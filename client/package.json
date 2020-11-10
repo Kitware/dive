@@ -7,6 +7,7 @@
     "build:web": "vue-cli-service build platform/web-girder/main.ts",
     "build:electron": "vue-cli-service electron:build",
     "build:lib": "rollup -c",
+    "build:cli": "tsc -p tsconfig.cli.json",
     "lint": "vue-cli-service lint src/ viame-web-common/ platform/",
     "lint:templates": "vtc --workspace . --srcDir src/",
     "test": "vue-cli-service test:unit src/ viame-web-common/",
@@ -16,8 +17,12 @@
     "@types/jest": "^25.2.3"
   },
   "files": [
+    "/bin/",
     "/lib/"
   ],
+  "bin": {
+    "viamecli": "./bin/platform/desktop/backend/serializers/cli.js"
+  },
   "main": "lib/index.js",
   "types": "lib/types/index.d.ts",
   "dependencies": {

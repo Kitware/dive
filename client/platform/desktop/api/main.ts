@@ -15,14 +15,14 @@ import {
   Pipelines, TrainingConfigs,
 } from 'viame-web-common/apispec';
 
+import common from '../backend/platforms/common';
 import {
   DesktopJob, NvidiaSmiReply, RunPipeline,
   websafeImageTypes, websafeVideoTypes,
   DesktopDataset, Settings,
 } from '../constants';
-// TODO: disable node integration in renderer
-// https://nklayman.github.io/vue-cli-plugin-electron-builder/guide/security.html
-import { loadDetections, saveDetections } from './nativeServices';
+
+const { loadDetections, saveDetections } = common;
 
 function mediaServerInfo(): Promise<AddressInfo> {
   return ipcRenderer.invoke('info');
@@ -56,16 +56,6 @@ async function getAttributes() {
 
 async function getPipelineList(settings: Settings): Promise<Pipelines> {
   return ipcRenderer.invoke('get-pipeline-list', settings);
-}
-
-async function runPipeline(itemId: string, pipeline: string, settings: Settings) {
-  const args: RunPipeline = {
-    pipelineName: pipeline,
-    datasetId: itemId,
-    settings,
-  };
-  const job: DesktopJob = await ipcRenderer.invoke('run-pipeline', args);
-  return job;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -137,6 +127,16 @@ async function loadMetadata(datasetId: string): Promise<DesktopDataset> {
 // eslint-disable-next-line
 async function saveMetadata(datasetId: string, metadata: DatasetMetaMutable) {
   return Promise.resolve();
+}
+
+async function runPipeline(itemId: string, pipeline: string, settings: Settings) {
+  const args: RunPipeline = {
+    pipelineName: pipeline,
+    datasetId: itemId,
+    settings,
+  };
+  const job: DesktopJob = await ipcRenderer.invoke('run-pipeline', args);
+  return job;
 }
 
 export {

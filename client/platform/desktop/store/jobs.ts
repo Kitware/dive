@@ -18,9 +18,9 @@ interface DesktopJobHistory {
   datasets: DesktopDataset[];
 }
 
-// const JobsKey = 'desktop.jobs';
 const jobHistory: Ref<Record<string, DesktopJobHistory>> = ref({});
 const recentHistory = computed(() => Object.values(jobHistory.value));
+const runningJobs = computed(() => recentHistory.value.filter((v) => v.job.exitCode === null));
 
 function getOrCreateHistory(args: DesktopJob, datasets?: DesktopDataset[]): DesktopJobHistory {
   let existing = jobHistory.value[args.key];
@@ -56,4 +56,5 @@ export {
   getOrCreateHistory,
   jobHistory,
   recentHistory,
+  runningJobs,
 };

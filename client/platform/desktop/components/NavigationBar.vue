@@ -8,11 +8,13 @@ export default defineComponent({
   components: { NavigationTitle, JobTab },
 });
 </script>
+
 <template>
   <v-app-bar app>
     <NavigationTitle>VIAME</NavigationTitle>
     <v-tabs
       icons-and-text
+      style="flex-basis:0; flex-grow:0;"
       color="accent"
     >
       <v-tab

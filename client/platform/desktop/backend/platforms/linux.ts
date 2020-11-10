@@ -143,9 +143,15 @@ async function runPipeline(
     });
   });
 
-  job.on('exit', (code) => {
+  job.on('exit', async (code) => {
     // eslint-disable-next-line no-console
-    console.log('exited', code);
+    if (code === 0) {
+      try {
+        await common.postprocess([detectorOutput, trackOutput], datasetId);
+      } catch (err) {
+        console.error(err);
+      }
+    }
     updater({
       ...jobBase,
       body: [''],
