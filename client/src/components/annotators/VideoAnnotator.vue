@@ -12,6 +12,10 @@ export default Vue.extend({
       type: String,
       required: true,
     },
+    muted: {
+      type: Boolean,
+      default: false,
+    },
   },
 
   computed: {
@@ -25,6 +29,7 @@ export default Vue.extend({
     this.video = video;
     video.preload = 'auto';
     video.src = this.videoUrl;
+    video.muted = this.muted;
     video.onloadedmetadata = () => {
       video.onloadedmetadata = null;
       this.width = video.videoWidth;
