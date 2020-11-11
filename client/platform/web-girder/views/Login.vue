@@ -53,7 +53,7 @@ export default defineComponent({
           outlined
           class="my-4"
         >
-          VIAME Web is automatically updated at 2AM EST/EDT Sundays and Thursdays.
+          VIAME Web is automatically updated at 2AM EST/EDT on Thursdays.
           Downtime is typically less than 10 minutes.
         </v-alert>
         <div>
