@@ -1,4 +1,4 @@
-# VIAME Web Frontent
+# VIAME Web Frontend
 
 This directory contains the code for both
 
