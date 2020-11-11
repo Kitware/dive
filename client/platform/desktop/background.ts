@@ -1,8 +1,5 @@
-// eslint-disable-next-line import/no-extraneous-dependencies
 import { app, protocol, BrowserWindow } from 'electron';
-// eslint-disable-next-line import/no-extraneous-dependencies
 import { createProtocol } from 'vue-cli-plugin-electron-builder/lib';
-// eslint-disable-next-line import/no-extraneous-dependencies
 import installExtension, { VUEJS_DEVTOOLS } from 'electron-devtools-installer';
 
 import server from './backend/server';

@@ -6,7 +6,6 @@
  * See README.md for usage
  */
 
-// eslint-disable-next-line import/no-extraneous-dependencies
 import yargs from 'yargs';
 
 import { parseFile } from './viame';

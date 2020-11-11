@@ -1,4 +1,3 @@
-// eslint-disable-next-line import/no-extraneous-dependencies
 import { ipcMain } from 'electron';
 
 import { DesktopJobUpdate, RunPipeline, Settings } from '../constants';

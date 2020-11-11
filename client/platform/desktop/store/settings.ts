@@ -1,6 +1,5 @@
 import Vue from 'vue';
 import Install, { ref } from '@vue/composition-api';
-// eslint-disable-next-line import/no-extraneous-dependencies
 import { ipcRenderer } from 'electron';
 
 import { Settings } from '../constants';

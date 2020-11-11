@@ -2,14 +2,10 @@
  * Common native implementations
  */
 import npath from 'path';
-// eslint-disable-next-line import/no-extraneous-dependencies
 import fs from 'fs-extra';
 import { spawn } from 'child_process';
-// eslint-disable-next-line import/no-extraneous-dependencies
 import { shell } from 'electron';
-// eslint-disable-next-line import/no-extraneous-dependencies
 import mime from 'mime-types';
-// eslint-disable-next-line import/no-extraneous-dependencies
 import { xml2json } from 'xml-js';
 import moment from 'moment';
 import { TrackData } from 'vue-media-annotator/track';
@@ -272,14 +268,18 @@ async function saveDetections(datasetId: string, args: SaveDetectionsArgs) {
 
 /**
  * Postprocess possible annotation files
- * @param paths paths to input annotation files
+ * @param paths paths to input annotation files in descending priority order.
+ *              Only the first successful input will be loaded.
  * @param datasetId dataset id path
  */
 async function postprocess(paths: string[], datasetId: string) {
   for (let i = 0; i < paths.length; i += 1) {
     const path = paths[i];
-    const stat = fs.statSync(path);
-    if (stat.size > 0) {
+    if (!fs.existsSync(path)) {
+      // eslint-disable-next-line no-continue
+      continue;
+    }
+    if (fs.statSync(path).size > 0) {
       // Attempt to process the file
       // eslint-disable-next-line no-await-in-loop
       const tracks = await viameSerializers.parseFile(path);
@@ -287,7 +287,7 @@ async function postprocess(paths: string[], datasetId: string) {
       tracks.forEach((t) => { data[t.trackId.toString()] = t; });
       // eslint-disable-next-line no-await-in-loop
       await saveSerialized(datasetId, data);
-      break; // there will only be 1
+      break; // Exit on first successful detection load
     }
   }
 }

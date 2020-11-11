@@ -3,7 +3,6 @@
  */
 import npath from 'path';
 import { spawn } from 'child_process';
-// eslint-disable-next-line import/no-extraneous-dependencies
 import fs from 'fs-extra';
 
 import {
@@ -147,7 +146,7 @@ async function runPipeline(
     // eslint-disable-next-line no-console
     if (code === 0) {
       try {
-        await common.postprocess([detectorOutput, trackOutput], datasetId);
+        await common.postprocess([trackOutput, detectorOutput], datasetId);
       } catch (err) {
         console.error(err);
       }

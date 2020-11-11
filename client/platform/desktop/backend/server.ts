@@ -1,8 +1,5 @@
-// eslint-disable-next-line import/no-extraneous-dependencies
 import mime from 'mime-types';
-// eslint-disable-next-line import/no-extraneous-dependencies
 import pump from 'pump';
-// eslint-disable-next-line import/no-extraneous-dependencies
 import rangeParser from 'range-parser';
 import http from 'http';
 import fs from 'fs';

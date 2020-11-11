@@ -6,13 +6,13 @@ export const websafeVideoTypes = [
 ];
 
 export const websafeImageTypes = [
-  'image/apng',
-  'image/bmp',
+  // 'image/apng',
+  // 'image/bmp',
   'image/gif',
   'image/jpeg',
   'image/png',
-  'image/svg+xml',
-  'image/webp',
+  // 'image/svg+xml',
+  // 'image/webp',
 ];
 
 export const SettingsCurrentVersion = 1;

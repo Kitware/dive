@@ -3,9 +3,7 @@
  * viame_server.serializers.viame python module
  */
 
-// eslint-disable-next-line import/no-extraneous-dependencies
 import csvparser from 'csv-parse';
-// eslint-disable-next-line import/no-extraneous-dependencies
 import fs from 'fs-extra';
 import { pipeline } from 'stream';
 
@@ -24,7 +22,7 @@ const PolyRegex = /^(\(poly\)) ((?:[0-9]+\.*[0-9]*\s*)+)/g;
 function getCaptureGroups(regexp: RegExp, str: string) {
   const array = [...str.matchAll(regexp)];
   if (array.length) {
-    return array[1].slice(1);
+    return array[0];
   }
   return null;
 }
@@ -105,7 +103,7 @@ function _parseRow(row: string[]) {
   const cpStarti = 9; // Confidence pairs start at i=9
   const confidencePairs: ConfidencePair[] = row
     .slice(cpStarti, row.length)
-    .map((value, j) => {
+    .map((_, j) => {
       if (j % 2 !== 0) {
         // Filter out ODDs
         return ['', 0] as ConfidencePair;
@@ -123,14 +121,14 @@ function _parseRow(row: string[]) {
     /* Head */
     const head = getCaptureGroups(HeadRegex, value);
     if (head !== null) {
-      headTail[0] = [parseFloat(head[0]), parseFloat(head[1])];
+      headTail[0] = [parseFloat(head[1]), parseFloat(head[2])];
       geoFeatureCollection.features.push(_createGeoJsonFeature('Point', [headTail[0]], 'head'));
     }
 
     /* Tail */
     const tail = getCaptureGroups(TailRegex, value);
     if (tail !== null) {
-      headTail[1] = [parseFloat(tail[0]), parseFloat(tail[1])];
+      headTail[1] = [parseFloat(tail[1]), parseFloat(tail[2])];
       geoFeatureCollection.features.push(_createGeoJsonFeature('Point', [headTail[1]], 'tail'));
     }
 
@@ -150,9 +148,17 @@ function _parseRow(row: string[]) {
     /* Polygon */
     const poly = getCaptureGroups(PolyRegex, value);
     if (poly !== null) {
-      throw new Error('Polygon unsupported');
-      // const coords =
-      // geoFeatureCollection.features.push(_createGeoJsonFeature('LineString', ))
+      const coords: number[][] = [];
+      const polyList = poly[2].split(' ');
+      polyList.forEach((coord, j) => {
+        if (j % 2 === 0) {
+          // Filter out ODDs
+          if (polyList[j + 1]) {
+            coords.push([parseFloat(coord), parseFloat(polyList[j + 1])]);
+          }
+        }
+      });
+      geoFeatureCollection.features.push(_createGeoJsonFeature('Polygon', coords));
     }
   });
 

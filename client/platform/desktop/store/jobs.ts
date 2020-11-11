@@ -1,7 +1,6 @@
 /**
  * Job Manager
  */
-// eslint-disable-next-line import/no-extraneous-dependencies
 import { ipcRenderer } from 'electron';
 import Vue from 'vue';
 import Install, {
