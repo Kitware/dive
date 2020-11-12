@@ -14,6 +14,8 @@ requirements = [
     "pysnooper",
     "typing_extensions",
     "gputil",
+    # botocore requirement conflict
+    "urllib3<1.26",
 ]
 
 setup(
