@@ -308,22 +308,24 @@ export default defineComponent({
     };
 
     provideAnnotator(
-      allTypes,
-      usedTypes,
-      checkedTrackIds,
-      checkedTypes,
-      editingMode,
-      enabledTracks,
-      frame,
+      {
+        allTypes,
+        usedTypes,
+        checkedTrackIds,
+        checkedTypes,
+        editingMode,
+        enabledTracks,
+        frame,
+        intervalTree,
+        trackMap,
+        tracks: filteredTracks,
+        typeStyling,
+        selectedKey,
+        selectedTrackId,
+        stateStyles: stateStyling,
+        visibleModes,
+      },
       globalHandler,
-      intervalTree,
-      trackMap,
-      filteredTracks,
-      typeStyling,
-      selectedKey,
-      selectedTrackId,
-      stateStyling,
-      visibleModes,
     );
 
     return {
