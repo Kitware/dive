@@ -288,8 +288,8 @@ export default defineComponent({
         result = await prompt({
           title: 'Save Items',
           text: 'There is unsaved data, would you like to continue or cancel and save?',
-          positiveButton: 'Continue',
-          negativeButton: 'Cancel',
+          positiveButton: 'Discard and Leave',
+          negativeButton: 'Don\'t Leave',
           confirm: true,
         });
       }
