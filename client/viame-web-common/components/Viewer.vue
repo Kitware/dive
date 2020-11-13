@@ -287,14 +287,11 @@ export default defineComponent({
       if (pendingSaveCount.value > 0) {
         result = await prompt({
           title: 'Save Items',
-          text: 'There is unsaved data, what would you like to do?',
-          positiveButton: 'Save',
-          negativeButton: 'Discard',
+          text: 'There is unsaved data, would you like to continue or cancel and save?',
+          positiveButton: 'Continue',
+          negativeButton: 'Cancel',
           confirm: true,
         });
-        if (result) {
-          await save();
-        }
       }
       return result;
     }

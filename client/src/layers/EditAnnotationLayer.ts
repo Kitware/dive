@@ -276,9 +276,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
   }
 
   calculateCursorImage() {
-    if (this.getMode() === 'editing') {
-      this.annotator.$emit('set-image-cursor', 'mdi-pencil');
-    } else if (this.getMode() === 'creation') {
+    if (this.getMode() === 'creation') {
       // TODO:  we may want to make this more generic or utilize the icons from editMenu
       this.annotator.$emit('set-image-cursor', `mdi-vector-${typeMapper.get(this.type)}`);
     }
