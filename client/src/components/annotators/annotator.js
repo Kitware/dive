@@ -95,10 +95,10 @@ export default {
         // The action below is needed to have GeoJS use the proper handler
         // with cancelOnMove for right clicks
         {
-          action: 'geo_action_select',
+          action: geo.geo_action.select,
           input: { right: true },
           name: 'button edit',
-          owner: 'geo.MapIteractor',
+          owner: 'geo.MapInteractor',
         },
         interactorOpts.actions[2],
         interactorOpts.actions[6],

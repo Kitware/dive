@@ -71,7 +71,7 @@ export default defineComponent({
         case 'trained':
           return 'trained';
         case 'generate':
-          return 'utility';
+          return 'utilities';
         default:
           return `${pipeType}s`;
       }
