@@ -95,16 +95,19 @@ export default {
         // The action below is needed to have GeoJS use the proper handler
         // with cancelOnMove for right clicks
         {
-          action: 'geo_action_select',
+          action: geo.geo_action.select,
           input: { right: true },
           name: 'button edit',
-          owner: 'geo.MapIteractor',
+          owner: 'geo.MapInteractor',
         },
         interactorOpts.actions[2],
         interactorOpts.actions[6],
         interactorOpts.actions[7],
         interactorOpts.actions[8],
+        interactorOpts.actions[9],
       ];
+      // Set > 2pi to disable rotation
+      interactorOpts.zoomrotateMinimumRotation = 7;
       interactorOpts.zoomAnimation = {
         enabled: false,
       };

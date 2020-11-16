@@ -287,14 +287,11 @@ export default defineComponent({
       if (pendingSaveCount.value > 0) {
         result = await prompt({
           title: 'Save Items',
-          text: 'There is unsaved data, what would you like to do?',
-          positiveButton: 'Save',
-          negativeButton: 'Discard',
+          text: 'There is unsaved data, would you like to continue or cancel and save?',
+          positiveButton: 'Discard and Leave',
+          negativeButton: 'Don\'t Leave',
           confirm: true,
         });
-        if (result) {
-          await save();
-        }
       }
       return result;
     }
@@ -311,22 +308,24 @@ export default defineComponent({
     };
 
     provideAnnotator(
-      allTypes,
-      usedTypes,
-      checkedTrackIds,
-      checkedTypes,
-      editingMode,
-      enabledTracks,
-      frame,
+      {
+        allTypes,
+        usedTypes,
+        checkedTrackIds,
+        checkedTypes,
+        editingMode,
+        enabledTracks,
+        frame,
+        intervalTree,
+        trackMap,
+        tracks: filteredTracks,
+        typeStyling,
+        selectedKey,
+        selectedTrackId,
+        stateStyles: stateStyling,
+        visibleModes,
+      },
       globalHandler,
-      intervalTree,
-      trackMap,
-      filteredTracks,
-      typeStyling,
-      selectedKey,
-      selectedTrackId,
-      stateStyling,
-      visibleModes,
     );
 
     return {

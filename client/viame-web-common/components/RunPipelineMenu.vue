@@ -43,10 +43,13 @@ export default defineComponent({
     });
 
     const pipelinesNotRunnable = computed(() => (
-      props.selectedDatasetIds.length > 1 || pipelines.value === null
+      props.selectedDatasetIds.length < 1 || pipelines.value === null
     ));
 
     async function runPipelineOnSelectedItem(pipename: string) {
+      if (props.selectedDatasetIds.length === 0) {
+        throw new Error('No selected datasets to run on');
+      }
       await Promise.all(
         props.selectedDatasetIds.map((id) => runPipeline(id, pipename)),
       );
@@ -68,7 +71,7 @@ export default defineComponent({
         case 'trained':
           return 'trained';
         case 'generate':
-          return 'utility';
+          return 'utilities';
         default:
           return `${pipeType}s`;
       }
