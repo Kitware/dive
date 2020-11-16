@@ -23,7 +23,7 @@ jobs:
         # Specifies the registry, this field is required!
         registry-url: https://registry.npmjs.org/
     - run: yarn install --frozen-lockfile
-    # set up git since we will later push to the repo
+    # set up git because yarn publish creates a commit
     - run: git config --global user.name "GitHub Bot"
     - run: git config --global user.email "viame-web@kitware.com"
     # Run some sanity checks
@@ -32,12 +32,9 @@ jobs:
     - run: yarn test
     # Build and publish
     - run: yarn build:lib
+    - run: yarn build:electron
+    - run: yarn build:cli
     - run: yarn publish --new-version ${{ github.event.release.tag_name }}
       env:
         # Use a token to publish to NPM.  Must configure this!
         NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-    # push the version changes to GitHub
-    - run: git push
-      env:
-        # The secret is passed automatically. Nothing to configure.
-        github-token: ${{ secrets.GITHUB_TOKEN }}

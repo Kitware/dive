@@ -29,6 +29,11 @@ yarn lint:templates
 
 # Local verification of all tests, linting, builds
 ./checkbuild.sh
+
+# Parser CLI tools
+yarn serialize viame /path/to/viame.csv
+# output to file, suppress yarn's stdout
+yarn --silent serialize viame /path/to/viame.csv > tracks.json
 ```
 
 See [this issue](https://github.com/vuejs/vue-cli/issues/3065) for details on why our `yarn serve` command is weird.

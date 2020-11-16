@@ -3,20 +3,27 @@ import path from 'path';
 import Vue from 'vue';
 import { uniq } from 'lodash';
 import Install, { ref, computed } from '@vue/composition-api';
-import { Api } from 'viame-web-common/apispec';
-import * as api from '../api/main';
+import { DesktopDataset } from '../constants';
 
 const RecentsKey = 'desktop.recent';
 
 // TODO remove this: this won't be necessary in Vue 3
 Vue.use(Install);
 
-const dsmap = ref({} as Record<string, api.DesktopDataset>);
+const dsmap = ref({} as Record<string, DesktopDataset>);
 
+/**
+ * Return reactive variable that will update
+ * if properties of the dataset change
+ * @param id dataset id path
+ */
 function getDataset(id: string) {
   return computed(() => dsmap.value[id]);
 }
 
+/**
+ * Load recent datasets from localstorage
+ */
 function getRecents(): path.ParsedPath[] {
   const arr = window.localStorage.getItem(RecentsKey);
   let returnVal = [] as path.ParsedPath[];
@@ -33,6 +40,10 @@ function getRecents(): path.ParsedPath[] {
   return returnVal;
 }
 
+/**
+ * Add ID to recent datasets
+ * @param id dataset id path
+ */
 function setRecents(id: string) {
   const recents = getRecents();
   recents.splice(0, 0, path.parse(id)); // verify that it's a valid path
@@ -41,29 +52,19 @@ function setRecents(id: string) {
   window.localStorage.setItem(RecentsKey, JSON.stringify(recentsStrings));
 }
 
-function setDataset(id: string, ds: api.DesktopDataset) {
+/**
+ * Set properties of in-memory dataset,
+ * and persist ID to recents
+ * @param id dataset id path
+ * @param ds properties
+ */
+function setDataset(id: string, ds: DesktopDataset) {
   Vue.set(dsmap.value, id, ds);
   setRecents(id);
-}
-
-/**
- * Returns wrapped API to update store
- */
-function observe(): Api {
-  async function loadMetadata(datasetId: string) {
-    const ds = await api.loadMetadata(datasetId);
-    setDataset(datasetId, ds);
-    return ds.meta;
-  }
-  return {
-    ...api,
-    loadMetadata,
-  };
 }
 
 export {
   getDataset,
   setDataset,
   getRecents,
-  observe,
 };

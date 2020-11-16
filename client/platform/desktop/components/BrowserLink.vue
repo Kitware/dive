@@ -1,5 +1,5 @@
 <script lang="ts">
-import { defineComponent } from '@vue/composition-api';
+import { defineComponent, PropType } from '@vue/composition-api';
 
 import { openLink } from '../api/main';
 
@@ -8,6 +8,10 @@ export default defineComponent({
     href: {
       type: String,
       required: true,
+    },
+    display: {
+      type: String as PropType<'block'|'inline'>,
+      default: 'block',
     },
   },
   setup(props) {
@@ -22,6 +26,7 @@ export default defineComponent({
 <template>
   <span
     class="link"
+    :style="{ display }"
     @click="open"
   >
     <slot />
@@ -30,7 +35,6 @@ export default defineComponent({
 
 <style scoped>
 .link {
-  display: block;
   color: var(--v-primary-lighten3);
   cursor: pointer;
 }
