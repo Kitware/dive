@@ -53,11 +53,11 @@ function _deduceType(value: string): boolean | number | string {
   if (value === 'false') {
     return false;
   }
-  try {
-    return parseFloat(value);
-  } catch {
-    return value;
+  const float = parseFloat(value);
+  if (!Number.isNaN(float)) {
+    return float;
   }
+  return value;
 }
 
 /**
