@@ -11,7 +11,6 @@ import { useAllTypes } from 'vue-media-annotator/provides';
 
 import { NewTrackSettings, TypeSettings } from 'viame-web-common/use/useSettings';
 import AttributesPanel from 'viame-web-common/components/AttributesPanel.vue';
-import OldAttributesPanel from 'viame-web-common/components/OldAttributesPanel.vue';
 import CreationMode from 'viame-web-common/components/CreationMode.vue';
 import TypeSettingsPanel from 'viame-web-common/components/TypeSettingsPanel.vue';
 
@@ -33,7 +32,6 @@ export default defineComponent({
 
   components: {
     AttributesPanel,
-    OldAttributesPanel,
     CreationMode,
     TypeList,
     TrackList,
