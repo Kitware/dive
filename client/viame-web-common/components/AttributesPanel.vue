@@ -150,7 +150,9 @@ export default defineComponent({
     function confidencePairsAdd() {
       //TODO:  Ability to add and edit confidence Pairs
     }
-    async function saveAttribtueHandler(saveData: {addNew: boolean|undefined; data: Attribute}) {
+    async function saveAttribtueHandler(saveData: {
+      addNew: boolean | undefined; data: Attribute;
+    }) {
       editingError.value = null;
       try {
         await setAttribute(saveData);
@@ -257,21 +259,26 @@ export default defineComponent({
         :lock-types="lockTypes"
         @seek="$emit('track-seek', $event)"
       />
-      <v-subheader class="border-highlight">
-        <v-row>
+
+      <!-- CONFIDENCE PAIRS -->
+      <div class="border-highlight">
+        <v-row
+          no-gutters
+          class="align-center"
+        >
           <b>Confidence Pairs:</b>
           <v-spacer />
           <v-tooltip
-            v-if="activeSettings.confidencePairs"
             open-delay="200"
             bottom
             max-width="200"
           >
             <template #activator="{ on }">
               <v-btn
+                disabled
                 outlined
                 x-small
-                class="mr-2"
+                class="my-1"
                 v-on="on"
                 @click="confidencePairsAdd"
               >
@@ -283,35 +290,12 @@ export default defineComponent({
             </template>
             <span>Add a new Confidence Pair</span>
           </v-tooltip>
-          <v-tooltip
-            open-delay="200"
-            bottom
-            max-width="200"
-          >
-            <template #activator="{ on }">
-              <v-btn
-                v-if="activeSettings.confidencePairs"
-                small
-                icon
-                class="pb-2 ml-2"
-                :color="activeSettings.confidencePairs ? 'accent': ''"
-                v-on="on"
-                @click="toggleActiveSettings('confidencePairs')"
-              >
-                <v-icon
-                  small
-                >
-                  mdi-pencil
-                </v-icon>
-              </v-btn>
-            </template>
-            <span>Edit ConfidencePairs</span>
-          </v-tooltip>
         </v-row>
-      </v-subheader>
+      </div>
+
       <v-row
         dense
-        class="scroll-section confidence"
+        class="scroll-section confidence shrink"
       >
         <v-col dense>
           <v-row
@@ -342,12 +326,16 @@ export default defineComponent({
           </v-row>
         </v-col>
       </v-row>
-      <v-subheader class="border-highlight">
-        <v-row>
+
+      <!-- TRACK ATTRIBUTES -->
+      <div class="border-highlight">
+        <v-row
+          no-gutters
+          class="align-center"
+        >
           <b>Track Attributes:</b>
           <v-spacer />
           <v-tooltip
-            v-if="activeSettings.trackAttributes"
             open-delay="200"
             bottom
             max-width="200"
@@ -356,7 +344,6 @@ export default defineComponent({
               <v-btn
                 outlined
                 x-small
-                class="mr-2"
                 v-on="on"
                 @click="trackAttributeAdd"
               >
@@ -377,22 +364,21 @@ export default defineComponent({
               <v-btn
                 small
                 icon
-                class="pb-2 ml-2"
+                class="ml-2"
                 :color="activeSettings.trackAttributes ? 'accent': ''"
                 v-on="on"
                 @click="toggleActiveSettings('trackAttributes')"
               >
-                <v-icon
-                  small
-                >
-                  mdi-pencil
+                <v-icon small>
+                  mdi-eye
                 </v-icon>
               </v-btn>
             </template>
-            <span>Edit Attributes</span>
+            <span>Show/Hide un-used</span>
           </v-tooltip>
         </v-row>
-      </v-subheader>
+      </div>
+
       <v-row
         class="ma-0 scroll-section"
         dense
@@ -413,9 +399,7 @@ export default defineComponent({
               dense
               align="center"
             >
-              <v-col
-                class="attribute-name"
-              >
+              <v-col class="attribute-name">
                 {{ attribute.name }}:
               </v-col>
               <v-col class="px-1">
@@ -432,9 +416,7 @@ export default defineComponent({
                   @change="updateTrackAttribute(selectedTrackIdRef, $event)"
                   @click.stop.prevent=""
                 />
-                <div
-                  v-else
-                >
+                <div v-else>
                   <div
                     v-if="editIndividual != attribute"
                     class="attribute-item-value"
@@ -457,7 +439,8 @@ export default defineComponent({
                     />
 
                   </div>
-                </div></v-col>
+                </div>
+              </v-col>
               <v-col
                 v-if="activeSettings.trackAttributes"
                 cols="1"
@@ -467,9 +450,7 @@ export default defineComponent({
                   small
                   @click="editAttribute(attribute)"
                 >
-                  <v-icon
-                    small
-                  >
+                  <v-icon small>
                     mdi-settings
                   </v-icon>
                 </v-btn>
@@ -483,78 +464,75 @@ export default defineComponent({
           </div>
         </v-col>
       </v-row>
-      <v-subheader
+
+      <!-- DETECTION ATTRIBUTES -->
+      <div
         v-if="selectedDetection"
         class="border-highlight"
-        style="height:65px; min-height:65px"
       >
-        <v-container
-          dense
-          class="px-0 my-2"
+        <v-row
+          class="align-center"
+          no-gutters
         >
-          <v-row>
-            <b>Detection Attributes:</b>
-            <v-spacer />
-            <v-tooltip
-              v-if="activeSettings.detectionAttributes"
-              open-delay="200"
-              bottom
-              max-width="200"
-            >
-              <template #activator="{ on }">
-                <v-btn
-                  outlined
-                  x-small
-                  class="mr-2"
-                  v-on="on"
-                  @click="detectionAttributeAdd"
-                >
-                  <v-icon small>
-                    mdi-plus
-                  </v-icon>
-                  Attribute
-                </v-btn>
-              </template>
-              <span>Add a new Detection Attribute</span>
-            </v-tooltip>
-            <v-tooltip
-              open-delay="200"
-              bottom
-              max-width="200"
-            >
-              <template #activator="{ on }">
-                <v-btn
-                  small
-                  icon
-                  class="pb-2 ml-2"
-                  :color="activeSettings.detectionAttributes ? 'accent': ''"
-                  v-on="on"
-                  @click="toggleActiveSettings('detectionAttributes')"
-                >
-                  <v-icon
-                    small
-                  >
-                    mdi-pencil
-                  </v-icon>
-                </v-btn>
-              </template>
-              <span>Edit Attributes</span>
-            </v-tooltip>
-          </v-row>
-          <v-row
-            class="mt-0 pt-0"
-            style="font-size:0.75em"
+          <b>Detection Attributes:</b>
+          <v-spacer />
+          <v-tooltip
+            open-delay="200"
+            bottom
+            max-width="200"
           >
-            {{ `Frame: ${selectedDetection.frame}` }}
-          </v-row>
-        </v-container>
-      </v-subheader>
+            <template #activator="{ on }">
+              <v-btn
+                outlined
+                x-small
+                v-on="on"
+                @click="detectionAttributeAdd"
+              >
+                <v-icon small>
+                  mdi-plus
+                </v-icon>
+                Attribute
+              </v-btn>
+            </template>
+            <span>Add a new Detection Attribute</span>
+          </v-tooltip>
+          <v-tooltip
+            open-delay="200"
+            bottom
+            max-width="200"
+          >
+            <template #activator="{ on }">
+              <v-btn
+                small
+                icon
+                class="ml-2"
+                :color="activeSettings.detectionAttributes ? 'accent': ''"
+                v-on="on"
+                @click="toggleActiveSettings('detectionAttributes')"
+              >
+                <v-icon small>
+                  mdi-eye
+                </v-icon>
+              </v-btn>
+            </template>
+            <span>Show/Hide un-used</span>
+          </v-tooltip>
+        </v-row>
+        <v-row
+          no-gutters
+          class="text-caption"
+        >
+          {{ `Frame: ${selectedDetection.frame}` }}
+        </v-row>
+      </div>
+
       <v-subheader
         v-else
         class="border-highlight"
       >
         No detection selected
       </v-subheader>
+
       <v-row
         v-if="selectedDetection"
         class="ma-0 scroll-section"
@@ -592,9 +570,7 @@ export default defineComponent({
                   @change="updateFeatureAttribute(
                     selectedTrackIdRef, selectedDetection, $event)"
                 />
-                <div
-                  v-else
-                >
+                <div v-else>
                   <div
                     v-if="editIndividual != attribute"
                     class="attribute-item-value"
@@ -616,7 +592,8 @@ export default defineComponent({
                         selectedTrackIdRef, selectedDetection, $event)"
                     />
                   </div>
-                </div></v-col>
+                </div>
+              </v-col>
               <v-col
                 v-if="activeSettings.detectionAttributes"
                 cols="1"
@@ -626,9 +603,7 @@ export default defineComponent({
                   small
                   @click="editAttribute(attribute)"
                 >
-                  <v-icon
-                    small
-                  >
+                  <v-icon small>
                     mdi-settings
                   </v-icon>
                 </v-btn>
@@ -663,23 +638,23 @@ export default defineComponent({
   }
 }
 .attribute-name {
-  font-size:.8em;
-  max-width:50%
+  font-size: 0.8em;
+  max-width: 50%;
 }
 .border-highlight {
-   border-top: 1px solid gray;
-   border-bottom: 1px solid gray;
-   color: white;
-   font-weight: bold;
-   font-size: .90em;
-   min-height: 45px;
- }
- .scroll-section {
-   overflow-y: auto;
-   overflow-x: hidden;
- }
- .confidence {
-     min-height: 40px;
-
-   }
+  border-top: 1px solid gray;
+  border-bottom: 1px solid gray;
+  color: white;
+  font-weight: bold;
+  font-size: 0.9em;
+  padding: 4px 10px;
+  background-color: #272727;
+}
+.scroll-section {
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+.confidence {
+  min-height: 40px;
+}
 </style>
