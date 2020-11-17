@@ -64,6 +64,7 @@ export default defineComponent({
 <template>
   <v-card
     :width="width"
+    tile
     class="sidebar d-flex flex-column overflow-hidden"
     style="z-index:1;"
   >
@@ -133,7 +134,7 @@ export default defineComponent({
 
 <style scoped>
 .sidebar {
-  max-height: calc(100vh - 128px);
+  max-height: calc(100vh - 112px);
 }
 
 .wrapper {
