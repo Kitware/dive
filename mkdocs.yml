@@ -1,0 +1,29 @@
+
+site_name: VIAME Web
+site_url: https://viame.github.io/viame-web
+site_description: Documentation for Viame Web
+site_author: Kitware
+
+repo_url: https://github.com/VIAME/VIAME-Web
+
+theme:
+  name: material
+  highlightjs: true
+
+nav:
+  - Home: index.md
+  - Getting Started: Getting-Started.md
+  - Annotation Quickstart: Annotation-QuickStart.md
+  - User Interface Guide:
+    - Introduction: Annotation-User-Interface-Overview.md
+    - Navigation Bar: UI-Navigation-Bar.md
+    - Edit Bar: UI-Edit-Bar.md
+    - Annotation View: UI-Annotation-View.md
+    - Type List: UI-Type-List.md
+    - Track List: UI-Track-List.md
+    - Sharing: Sharing.md
+    - Interpolation: Interpolation.md
+    - Downloading Data: Downloading-Data.md
+    - Attributes: Attributes.md
+  - Concepts and Definitions: Definitions.md
+  - Mouse and Keyboard Shortcuts: Mouse-Keyboard-Shortcuts.md
