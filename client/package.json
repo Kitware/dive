@@ -27,7 +27,7 @@
   "types": "lib/types/index.d.ts",
   "dependencies": {
     "@flatten-js/interval-tree": "^1.0.11",
-    "@girder/components": "^2.2.4",
+    "@girder/components": "^2.2.8",
     "@mdi/font": "^3.9.97",
     "@sentry/browser": "^5.24.2",
     "@sentry/integrations": "^5.24.2",
@@ -44,7 +44,7 @@
     "vue": "^2.6.12",
     "vue-gtag": "^1.9.1",
     "vue-router": "^3.0.3",
-    "vuetify": "^v2.3.10",
+    "vuetify": "^2.3.10",
     "vuex": "^3.0.1"
   },
   "devDependencies": {
