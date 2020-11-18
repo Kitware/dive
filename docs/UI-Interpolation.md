@@ -7,15 +7,19 @@ See the Annotation Quickstart for a quick overview of enabling and using interpo
 Interpolation will be enabled on new tracks by default.  If it isn't enabled it can be found under the "+Track Settings".
 Interpolation editing for existing tracks will only be enabled on tracks that span more than one frame.
 
-### Basics
-Interpolation is done by creating a detection then moving the current frame forward in time and placing the detection in a new spot.  Each time the detection is edited or moved it becomes a "locked" keyframe meaning it is used in the interpolation.
-Interpolated Frame that is being edited has no name associated with it and has a light highlight for the bounds:
-![Placeholder](images/InterpolatedEditing.png|Interpolated Editing)
+## Basics
 
-### Track Interpolation Controls
+Interpolation is done by creating a detection then moving the current frame forward in time and placing the detection in a new spot.  Each time the detection is edited or moved it becomes a "locked" keyframe meaning it is used in the interpolation.
+
+Interpolated Frame that is being edited has no name associated with it and has a light highlight for the bounds:
+
+![Interpolated Editing](images/InterpolatedEditing.png)
+
+## Track Interpolation Controls
+
 If the selected track spans more than one frame there will be interpolation controls available.
 
-![Placeholder](images/CreationMode/InterpolateTrackSettings.png|Interpolated Settings)
+![Interpolated Settings](images/CreationMode/InterpolateTrackSettings.png)
 * Delete - Delete the entire track
 * Split - Splits tracks that span more than one frame into two new tracks
 * Star [KeyFrame] - Represents if the current frame is a keyframe or not.  Filled in means it is a keyframe
@@ -26,16 +30,17 @@ If the selected track spans more than one frame there will be interpolation cont
 * Last Frame - '>>'
 * Edit Toggle - will toggle the currently selected track edit mode
 
-### Event Viewer
+## Event Viewer
+
 The event viewer provides a quick and concise view of an interpolated track.
 * Keyframes - represented by solid individual markers in the track
 * Interpolated Ranges - represented by a thin cyan line joining keyframes
 * Blank Ranges - areas absent of keyframes and interpolated ranges.
-![Placeholder](images/Timeline/EventViewerInterpolatedTrack.png|Interpolated EventViewer)
 
-### Interpolated Extensive Demo
+![Interpolated EventViewer](images/Timeline/EventViewerInterpolatedTrack.png)
+
+## Interpolated Extensive Demo
+
 Below is a longer demo showing creation of interpolated tracks as well as converting some areas to Blank ranges which contain no annotations.
-![Placeholder](/videos/CreationModes/CreationModeInterpolation.gif|Interpolated Demo)
 
-
-
+![Interpolated Demo](/videos/CreationModes/CreationModeInterpolation.gif)

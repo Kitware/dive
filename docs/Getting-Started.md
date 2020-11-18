@@ -3,7 +3,7 @@
 A user account is required to store data and run pipelines on viame.kitware.com.
 
 1. Visit https://viame.kitware.com
-2. Click **Register**
+1. Click **Register**
 
 ## Uploading data
 

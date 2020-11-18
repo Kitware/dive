@@ -1,13 +1,14 @@
-## Track List
-<img src="https://raw.githubusercontent.com/wiki/VIAME/VIAME-Webimages/UIView/TrackListHighlight.png" width="400px">
+# Track List
 
-![Placeholder](images/TrackList.png| TrackList)
+![Track List Highlighted](images/UIView/TrackListHighlight.png)
+
+![Track List](images/TrackList.png)
 
  The tracklist allows for selecting and editing tracks that currently not filtered by the TypeList.  The tracklist will present two different options depending on the Track that is selected.
 
 **Single Detection** - A track that spans a single frame.
 
-![Placeholder](images/TrackListSelectedDetection.png| TrackList Selected Detection)
+![Track List Selected Detection](images/TrackListSelectedDetection.png)
 
 * **Delete Detection** - Delete the detection
 * **Go to Frame** - Goes to the first frame of the detection
@@ -15,7 +16,7 @@
 
 **Multiple Frame Track** - A track that spans multiple frames and has more options
 
-![Placeholder](images/TrackListSelectedTrack.png| TrackList Selected Track)
+![Track List Selected Track](images/TrackListSelectedTrack.png)
 
 * **Delete Track** - Delete the entire Track
 * **Split Track** - Splits the track on the current Frame

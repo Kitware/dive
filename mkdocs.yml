@@ -9,11 +9,17 @@ repo_url: https://github.com/VIAME/VIAME-Web
 theme:
   name: material
   highlightjs: true
+  icon:
+    logo: fontawesome/solid/fish
+
+markdown_extensions:
+  - admonition
 
 nav:
   - Home: index.md
   - Getting Started: Getting-Started.md
   - Annotation Quickstart: Annotation-QuickStart.md
+  - Pipeline Docs: Pipeline-Documentation.md
   - User Interface Guide:
     - Introduction: Annotation-User-Interface-Overview.md
     - Navigation Bar: UI-Navigation-Bar.md
@@ -21,9 +27,13 @@ nav:
     - Annotation View: UI-Annotation-View.md
     - Type List: UI-Type-List.md
     - Track List: UI-Track-List.md
-    - Sharing: Sharing.md
-    - Interpolation: Interpolation.md
-    - Downloading Data: Downloading-Data.md
+    - Sharing: UI-Sharing.md
+    - Interpolation: UI-Interpolation.md
+    - Downloading Data: UI-Downloading-Data.md
     - Attributes: Attributes.md
   - Concepts and Definitions: Definitions.md
   - Mouse and Keyboard Shortcuts: Mouse-Keyboard-Shortcuts.md
+
+google_analytics:
+  - UA-6042509-43
+  - auto

@@ -1,6 +1,8 @@
 # Home
 
-* **VIAME Web is automatically updated and down for 10 minutes on 2 am EST/EDT Sundays**
+!!! info
+    **VIAME Web is automatically updated and down for 10 minutes on 2 am EST/EDT Sundays**
+
 * For problems, feature requests, etc. please email `viame-web@kitware.com`
 * To move data to the global collection from your personal folder, email `viame-web@kitware.com`
 

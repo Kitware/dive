@@ -5,7 +5,7 @@
 [Track Annotations](#track-annotations) - How to quickly create track annotations for a video or image sequence
 
 * [Interpolation Mode](#interpolation-mode) - fastest and easiest way to generate track annotations
-* [Advance Frame](#advance-frame) - This mode keeps you editing the same track while automatically advancing the frame each time a detection is drawn.  In most cases the interpolation mode will be preferred.
+* [Advance Frame Mode](#advance-frame) - This mode keeps you editing the same track while automatically advancing the frame each time a detection is drawn.  In most cases the interpolation mode will be preferred.
 
 [Polygon Annotations](#polygon-annotations)
 
@@ -34,7 +34,7 @@ The Demo below shows how to use Detection mode to quickly create numerous detect
 
 ## Track Annotations
 
-### Interpolation-Mode
+### Interpolation Mode
 
 1. Next to the "+Track" button click the Settings Icon to open the Creation Settings
 1. From the dropdown make sure that “Track” mode is selected.
@@ -130,20 +130,20 @@ While every track is required to have a bounding box a polygon can be added as w
 
 [In-Depth Mouse/Keyboard Shortcuts](Mouse-Keyboard-Shortcuts.md)
 
-| control | description |
-|--|--|
-| Left Click | select track/detection |
-| Right Click | toggle edit mode |
-| Scroll Wheel | zoom |
-| Mouse Drag | pan |
-| `shift` + drag | select area to zoom |
-| `Left Arrow` or `d` | previous frame |
-| `Right Arrow` or `f` | next frame |
-| `Up Arrow` | select previous track in list |
-| `Down Arrow` | select next track in list |
-| `Delete` | delete currently selected track/detection |
-| `N` | create new track or detection |
-| `space` | play/pause |
-| `enter` | go to first frame of selected
-| `H` | Create Head annotation |
-| `T` | Create Tail annotation |
+| control              | description                               |
+| -------------------- | ----------------------------------------- |
+| Left Click           | select track/detection                    |
+| Right Click          | toggle edit mode                          |
+| Scroll Wheel         | zoom                                      |
+| Mouse Drag           | pan                                       |
+| `shift` + drag       | select area to zoom                       |
+| `Left Arrow` or `d`  | previous frame                            |
+| `Right Arrow` or `f` | next frame                                |
+| `Up Arrow`           | select previous track in list             |
+| `Down Arrow`         | select next track in list                 |
+| `Delete`             | delete currently selected track/detection |
+| `N`                  | create new track or detection             |
+| `space`              | play/pause                                |
+| `enter`              | go to first frame of selected             |
+| `H`                  | Create Head annotation                    |
+| `T`                  | Create Tail annotation                    |

@@ -1,8 +1,8 @@
-## TimeLine
+# TimeLine
 
-<img src="https://raw.githubusercontent.com/wiki/VIAME/VIAME-Webimages/UIView/TimelineHighlight.png" width="400px">
+![Timeline Highlighed](images/UIView/TimelineHighlight.png)
 
-![Placeholder](images/Timeline/TimelineView.png| TimelineView)
+![Timeline View](images/Timeline/TimelineView.png)
 
 The Timeline view provides an ability to quickly see data across the length of the video/image-sequence. Above it are standard video controls for controlling playback.  Additionally a "Left Click" anywhere within the timeline will automatically seek to that frame.  The current frame in the timeline is represented by a vertical cyan bar.
 
@@ -10,29 +10,29 @@ Switching between the different modes can be done by clicking on the text either
 
 On the right side of the Timeline is a button used to recenter the camera on the annotation.
 
-### Event View 
+## Event View 
 
-![Placeholder](images/Timeline/EventViewerDefault.png| EventViewer)
+![Event Viewer](images/Timeline/EventViewerDefault.png)
 
 The default event viewer shows a representation of the start/stop frames for the tracks filtered by the TypeList.  The Tracks are presented using their corresponding type colors.
 When hovering over any Track the TrackID will display.  Clicking on that track will select the track and transition the current frame to that frame.
 
 **Single Frame Detections** - Single frame detections are presented as single frames with spaces between.
 
-![Placeholder](images/Timeline/EventViewerSingleFrameDetections.png| EventViewer Single Frame Detections)
+![Event Viewer Single Frame Detection](images/Timeline/EventViewerSingleFrameDetections.png)
 
 
 **Selected Track View** - A selected track will be cyan and will cause the other tracks to fade out.
 
-![Placeholder](images/Timeline/EventViewerSelectedTrack.png| EventViewer Selected Track)
+![Event Viewer Selected Track](images/Timeline/EventViewerSelectedTrack.png)
 
 **Selected Interpolated Track** - A selected track which has keyframes and interpolation will show the areas of interpolation, the keyframes and the track.
 
-![Placeholder](images/Timeline/EventViewerInterpolatedTrack.png| EventViewer Interpolated Track)
+![Event Viewer Interpolated Track](images/Timeline/EventViewerInterpolatedTrack.png)
 
 
-### Detection Count
+## Detection Count
 
-![Placeholder](images/Timeline/TimelineView.png| TimelineView)
+![Timeline View](images/Timeline/TimelineView.png)
 
 This provides a count of the types over the duration of the track.  This is updated in realtime with the confidence slider so it can be used to filter out higher densities of types as well as get an indication of the number of the types visible at any one time.

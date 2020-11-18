@@ -17,18 +17,18 @@ Current capabilities of VIAME Web include:
 
 ### Controls
 
-| control | description |
-|--|--|
-| `f` or `right arrow` | skip forward 1 frame |
-| `d` or `left arrow` | skip backward 1 frame |
-| `h` | toggle annotate head position mode |
-| `t` | toggle annotate tail position mode |
-| `space` | play/pause |
-| mouse scroll | zoom |
-| mouse drag | pan |
-| `shift` + drag | select area to zoom |
-| left-click | select/de-select track |
-| right-click | toggle track edit mode |
+| control              | description                        |
+| -------------------- | ---------------------------------- |
+| `f` or `right arrow` | skip forward 1 frame               |
+| `d` or `left arrow`  | skip backward 1 frame              |
+| `h`                  | toggle annotate head position mode |
+| `t`                  | toggle annotate tail position mode |
+| `space`              | play/pause                         |
+| mouse scroll         | zoom                               |
+| mouse drag           | pan                                |
+| `shift` + drag       | select area to zoom                |
+| left-click           | select/de-select track             |
+| right-click          | toggle track edit mode             |
 
 ### Register for an account
 
