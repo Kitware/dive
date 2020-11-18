@@ -206,5 +206,7 @@ test_tuple = [
 
 @pytest.mark.parametrize("input,expected", test_tuple)
 def test_write_csv(input: Dict[str, dict], expected: List[str]):
-    for i, line in enumerate(viame.export_tracks_as_csv(input, filenames=filenames)):
+    for i, line in enumerate(
+        viame.export_tracks_as_csv(input, filenames=filenames, header=False)
+    ):
         assert line.strip(' ').rstrip() == expected[i]
