@@ -2,11 +2,34 @@
 VIAME Fish format deserializer
 """
 import csv
+import datetime
 import io
 import re
 from typing import Dict, Generator, List, Tuple, Union
 
 from viame_server.serializers.models import Feature, Track, interpolate
+
+
+def writeHeader(writer: '_csv._writer'):
+    writer.writerow(
+        [
+            "# 1: Detection or Track-id",
+            "2: Video or Image Identifier",
+            "3: Unique Frame Identifier",
+            "4-7: Img-bbox(TL_x",
+            "TL_y",
+            "BR_x",
+            "BR_y)",
+            "8: Detection or Length Confidence",
+            "9: Target Length (0 or -1 if invalid)",
+            "10-11+: Repeated Species",
+            "Confidence Pairs or Attributes",
+        ]
+    )
+
+    writer.writerow(
+        [f'# Written on {datetime.datetime.now().ctime()} by: viame_web_csv_writer']
+    )
 
 
 def valueToString(value):
@@ -163,11 +186,18 @@ def load_csv_as_tracks(rows: List[str]) -> Dict[str, dict]:
 
 
 def export_tracks_as_csv(
-    track_dict, excludeBelowThreshold=False, thresholds={}, filenames=None
+    track_dict,
+    excludeBelowThreshold=False,
+    thresholds={},
+    filenames=None,
+    fps=None,
+    header=True,
 ) -> Generator[str, None, None]:
     """Export track json to a CSV format."""
     csvFile = io.StringIO()
     writer = csv.writer(csvFile)
+    if header:
+        writeHeader(writer)
     for t in track_dict.values():
         track = Track(**t)
         if (not excludeBelowThreshold) or track.exceeds_thresholds(thresholds):
@@ -196,7 +226,13 @@ def export_tracks_as_csv(
                         feature.fishLength or -1,
                     ]
 
-                    if filenames and feature.frame < len(filenames):
+                    # If FPS is set, column 2 will be video timestamp
+                    if fps is not None and fps > 0:
+                        columns[1] = datetime.datetime.utcfromtimestamp(
+                            feature.frame / fps
+                        ).strftime(r'%H:%M:%S.%f')
+                    # else if filenames is set, column 2 will be image file name
+                    elif filenames and feature.frame < len(filenames):
                         columns[1] = filenames[feature.frame]
 
                     for pair in sorted_confidence_pairs:
@@ -233,7 +269,7 @@ def export_tracks_as_csv(
                                     f"(kp) {geoJSONFeature.properties['key']} {round(coordinates[0])} {round(coordinates[1])}"
                                 )
                             # TODO: support for multiple GeoJSON Objects of the same type once the CSV supports it
-
+                    print(columns)
                     writer.writerow(columns)
                     yield csvFile.getvalue()
                     csvFile.seek(0)

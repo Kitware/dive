@@ -92,19 +92,29 @@ class ViameDetection(Resource):
 
         filename = ".".join([file["name"].split(".")[:-1][0], "csv"])
 
-        imageFiles = [
-            f['name']
-            for f in Folder()
-            .childItems(folder, filters={"lowerName": {"$regex": safeImageRegex}})
-            .sort("lowerName")
-        ]
+        foldermeta = folder.get('meta', {})
+        fps = None
+        imageFiles = None
+        source_type = foldermeta.get('type', None)
+        if source_type == VideoType:
+            fps = foldermeta.get('fps', None)
+        elif source_type == ImageSequenceType:
+            imageFiles = [
+                f['name']
+                for f in Folder()
+                .childItems(folder, filters={"lowerName": {"$regex": safeImageRegex}})
+                .sort("lowerName")
+            ]
         thresholds = folder.get("meta", {}).get("confidenceFilters", {})
-
         track_dict = getTrackData(file)
 
         def downloadGenerator():
             for data in viame.export_tracks_as_csv(
-                track_dict, excludeBelowThreshold, thresholds, imageFiles
+                track_dict,
+                excludeBelowThreshold,
+                thresholds=thresholds,
+                filenames=imageFiles,
+                fps=fps,
             ):
                 yield data
 
