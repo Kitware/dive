@@ -8,10 +8,6 @@ import { Attribute } from 'viame-web-common/apispec';
 export default defineComponent({
   name: 'AttributeSettings',
   props: {
-    show: {
-      type: Boolean,
-      default: false,
-    },
     selectedAttribute: {
       type: Object as PropType<Attribute>,
       required: true,
@@ -104,93 +100,88 @@ export default defineComponent({
 </script>
 
 <template>
-  <v-dialog
-    v-model="show"
-    max-width="350"
-  >
-    <v-card class="attribute-settings">
-      <v-card-title class="pb-0">
-        Attributes
-        <v-card-text>
-          <v-alert
-            v-if="error"
-            type="error"
-          >
-            {{ error }}
-          </v-alert>
-          <v-form ref="form">
-            <v-text-field
-              v-model="name"
-              label="Name"
-              :rules="[v => !!v || 'Name is required', v => !v.includes(' ') || 'No spaces']"
-              required
-            />
-            <v-select
-              v-model="datatype"
-              style="max-width: 220px;"
-              :items="[
-                { text: 'Boolean', value: 'boolean' },
-                { text: 'Number', value: 'number' },
-                { text: 'Text', value: 'text' }
-              ]"
-              label="Datatype"
-            />
-            <v-textarea
-              v-if="datatype === 'text'"
-              v-model="textValues"
-              style="max-width: 250px;"
-              label="Predefined values"
-              hint="Line separated values"
-              outlined
-              auto-grow
-              row-height="30"
-            />
-          </v-form>
-          <v-card-actions>
-            <v-row>
-              <v-tooltip
-                open-delay="100"
-                bottom
+  <v-card class="attribute-settings">
+    <v-card-title class="pb-0">
+      Attributes
+      <v-card-text>
+        <v-alert
+          v-if="error"
+          type="error"
+        >
+          {{ error }}
+        </v-alert>
+        <v-form ref="form">
+          <v-text-field
+            v-model="name"
+            label="Name"
+            :rules="[v => !!v || 'Name is required', v => !v.includes(' ') || 'No spaces']"
+            required
+          />
+          <v-select
+            v-model="datatype"
+            style="max-width: 220px;"
+            :items="[
+              { text: 'Boolean', value: 'boolean' },
+              { text: 'Number', value: 'number' },
+              { text: 'Text', value: 'text' }
+            ]"
+            label="Datatype"
+          />
+          <v-textarea
+            v-if="datatype === 'text'"
+            v-model="textValues"
+            style="max-width: 250px;"
+            label="Predefined values"
+            hint="Line separated values"
+            outlined
+            auto-grow
+            row-height="30"
+          />
+        </v-form>
+        <v-card-actions>
+          <v-row>
+            <v-tooltip
+              open-delay="100"
+              bottom
+            >
+              <template #activator="{ on }">
+                <div v-on="on">
+                  <v-btn
+                    class="hover-show-child"
+                    color="error"
+                    :disabled="!selectedAttribute._id.length"
+                    @click.prevent="deleteAttribute"
+                  >
+                    Delete
+                  </v-btn>
+                </div>
+              </template>
+              <span
+                class="ma-0 pa-1"
               >
-                <template #activator="{ on }">
-                  <div v-on="on">
-                    <v-btn
-                      class="hover-show-child"
-                      color="error"
-                      :disabled="!selectedAttribute._id.length"
-                      @click.prevent="deleteAttribute"
-                    >
-                      Delete
-                    </v-btn>
-                  </div>
-                </template>
-                <span
-                  class="ma-0 pa-1"
-                >
-                  Deletion of Attribute
-                </span>
-              </v-tooltip>
-              <v-spacer />
-              <v-btn
-                text
-                class="mr-2"
-                @click="$emit('close')"
-              >
-                Cancel
-              </v-btn>
-              <v-btn
-                color="primary"
-                :disabled="!name || name.includes(' ')"
-                @click.prevent="submit"
-              >
-                Save
-              </v-btn>
-            </v-row>
-          </v-card-actions>
-        </v-card-text>
-      </v-card-title>
-    </v-card>
-  </v-dialog>
+                Deletion of Attribute
+              </span>
+            </v-tooltip>
+            <v-spacer />
+            <v-btn
+              text
+              class="mr-2"
+              @click="$emit('close')"
+            >
+              Cancel
+            </v-btn>
+            <v-btn
+              color="primary"
+              :disabled="!name || name.includes(' ')"
+              @click.prevent="submit"
+            >
+              Save
+            </v-btn>
+          </v-row>
+        </v-card-actions>
+      </v-card-text>
+    </v-card-title>
+  </v-card>
 </template>
 
 <style lang="scss">

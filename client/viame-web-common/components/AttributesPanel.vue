@@ -94,7 +94,8 @@ export default defineComponent({
       // Only reset if not clicking on a v-input object
       if (editIndividual.value) {
         const path = event.composedPath() as HTMLElement[];
-        if (path.find((item: HTMLElement) => item.classList && item.classList.contains('v-input'))) {
+        const inputs = ['INPUT', 'SELECT'];
+        if (path.find((item: HTMLElement) => ((item.classList && item.classList.contains('v-input')) || inputs.includes(item.nodeName)))) {
           return;
         }
         editIndividual.value = null;
@@ -395,7 +396,7 @@ export default defineComponent({
               v-if="
                 activeSettings.trackAttributes ||
                   selectedTrack.attributes[attribute.name] !== undefined"
-              class="ma-0"
+              class="ma-0 flex-nowrap"
               dense
               align="center"
             >
@@ -618,20 +619,26 @@ export default defineComponent({
         </v-col>
       </v-row>
     </template>
-    <attribute-editor
-      v-if="editingAttribute != null"
-      :show="editingAttribute != null"
-      :selected-attribute="editingAttribute"
-      :error="editingError"
-      @close="closeEditor"
-      @save="saveAttribtueHandler"
-      @delete="deleteAttributeHandler"
-    />
+    <v-dialog
+      :value="editingAttribute != null"
+      max-width="350"
+    >
+      <attribute-editor
+        v-if="editingAttribute != null"
+        :selected-attribute="editingAttribute"
+        :error="editingError"
+        @close="closeEditor"
+        @save="saveAttribtueHandler"
+        @delete="deleteAttributeHandler"
+      />
+    </v-dialog>
   </v-card>
 </template>
 
 <style lang="scss" scoped>
 .attribute-item-value {
+  max-width: 80%;
+  margin: 0px;
   &:hover {
     cursor: pointer;
     font-weight: bold;
@@ -640,6 +647,7 @@ export default defineComponent({
 .attribute-name {
   font-size: 0.8em;
   max-width: 50%;
+  min-width: 50%;
 }
 .border-highlight {
   border-top: 1px solid gray;
