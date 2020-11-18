@@ -30,7 +30,7 @@
 
 The Demo below shows how to use Detection mode to quickly create numerous detections of the same type.
 
-![Detection Mode Demo](/videos/CreationModes/CreationModeDetection.gif)
+![Detection Mode Demo](videos/CreationModes/CreationModeDetection.gif)
 
 ## Track Annotations
 
@@ -52,7 +52,7 @@ The Demo below shows how to use Detection mode to quickly create numerous detect
 
 The Demo below shows how to use Interpolation mode to quickly crate tracks for objects through a video/image-sequence.
 
-![Detection Mode Demo](/videos/CreationModes/CreationModeInterpolation.gif)
+![Detection Mode Demo](videos/CreationModes/CreationModeInterpolation.gif)
 
 ### Advance Frame
 
@@ -68,7 +68,7 @@ The Demo below shows how to use Interpolation mode to quickly crate tracks for o
 
 The Demo below shows how to use AdvanceFrame mode to travel through the video while creating annotations.
 
-![Detection Mode Demo](/videos/CreationModes/CreationModeAdvanceFrame.gif)
+![Detection Mode Demo](videos/CreationModes/CreationModeAdvanceFrame.gif)
 
 ## Head Tail Annotations
 
@@ -102,7 +102,7 @@ Notes:
 
 ## Fish Head Tail Demo
 
-![Head Tail Annotation Demo](/videos/HeadTailAnnotation.gif)
+![Head Tail Annotation Demo](videos/HeadTailAnnotation.gif)
 
 ## Polygon Annotations
 
@@ -124,7 +124,7 @@ While every track is required to have a bounding box a polygon can be added as w
 
 ## Polygon Demo
 
-![Polygon Demo](/videos/CreationModes/PolygonAnnotation.gif)
+![Polygon Demo](videos/CreationModes/PolygonAnnotation.gif)
 
 ## Important Keyboard and Mouse Shortcuts
 

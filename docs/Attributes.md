@@ -27,7 +27,7 @@ Attributes are properties that can be assigned to an entire track or a single de
 
 ## Adding or Editing Attribute Demo
 
-![Create Attributes](/videos/Attributes/CreateAttributes.gif)
+![Create Attributes](videos/Attributes/CreateAttributes.gif)
 
 ## Setting Attributes on Tracks/Detections
 
@@ -49,4 +49,4 @@ Attributes are properties that can be assigned to an entire track or a single de
 
 ## Applying Attributes Demo
 
-![Applying Attributes Demo](/videos/Attributes/ApplyingAttributes.gif)
+![Applying Attributes Demo](videos/Attributes/ApplyingAttributes.gif)

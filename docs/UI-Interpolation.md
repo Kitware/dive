@@ -20,6 +20,7 @@ Interpolated Frame that is being edited has no name associated with it and has a
 If the selected track spans more than one frame there will be interpolation controls available.
 
 ![Interpolated Settings](images/CreationMode/InterpolateTrackSettings.png)
+
 * Delete - Delete the entire track
 * Split - Splits tracks that span more than one frame into two new tracks
 * Star [KeyFrame] - Represents if the current frame is a keyframe or not.  Filled in means it is a keyframe
@@ -33,6 +34,7 @@ If the selected track spans more than one frame there will be interpolation cont
 ## Event Viewer
 
 The event viewer provides a quick and concise view of an interpolated track.
+
 * Keyframes - represented by solid individual markers in the track
 * Interpolated Ranges - represented by a thin cyan line joining keyframes
 * Blank Ranges - areas absent of keyframes and interpolated ranges.
@@ -43,4 +45,4 @@ The event viewer provides a quick and concise view of an interpolated track.
 
 Below is a longer demo showing creation of interpolated tracks as well as converting some areas to Blank ranges which contain no annotations.
 
-![Interpolated Demo](/videos/CreationModes/CreationModeInterpolation.gif)
+![Interpolated Demo](videos/CreationModes/CreationModeInterpolation.gif)
