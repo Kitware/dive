@@ -193,7 +193,17 @@ def export_tracks_as_csv(
     fps=None,
     header=True,
 ) -> Generator[str, None, None]:
-    """Export track json to a CSV format."""
+    """Export track json to a CSV format.
+    :exlcudeBelowThreshold: omit tracks below a certain confidence.  Requires thresholds.
+
+    :thresholds: key/value paris with threshold values
+
+    :filenames: list of string file names.  filenames[n] should be the image at frame n
+
+    :fps: if FPS is set, column 2 will be video timestamp derived from (frame / fps)
+
+    :header: include or omit header
+    """
     csvFile = io.StringIO()
     writer = csv.writer(csvFile)
     if header:
@@ -269,7 +279,7 @@ def export_tracks_as_csv(
                                     f"(kp) {geoJSONFeature.properties['key']} {round(coordinates[0])} {round(coordinates[1])}"
                                 )
                             # TODO: support for multiple GeoJSON Objects of the same type once the CSV supports it
-                    print(columns)
+
                     writer.writerow(columns)
                     yield csvFile.getvalue()
                     csvFile.seek(0)
