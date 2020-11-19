@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/// <reference types="../../../node_modules/@types/geojson" />
+/// <reference types="@types/geojson" />
 
 /**
  * Command-line entrypoints into serializers and other tooling.
