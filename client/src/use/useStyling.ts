@@ -1,8 +1,9 @@
+import type Vuetify from 'vuetify';
+
 import {
   inject, ref, Ref, computed, set as VueSet,
 } from '@vue/composition-api';
 import * as d3 from 'd3';
-import { Vuetify } from 'vuetify';
 import { noop } from 'lodash';
 
 interface Style {
@@ -17,6 +18,7 @@ export interface StateStyles {
   selected: Style;
   disabled: Style;
 }
+
 export interface CustomStyle {
   color?: string;
   strokeWidth?: number;
