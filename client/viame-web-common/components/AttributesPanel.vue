@@ -1,10 +1,21 @@
 <script lang="ts">
 import {
-  computed, defineComponent, onBeforeMount, reactive, Ref, ref,
+  computed,
+  defineComponent,
+  onBeforeMount,
+  reactive,
+  Ref,
+  ref,
 } from '@vue/composition-api';
 
 import {
-  useSelectedTrackId, useFrame, useTrackMap, useEditingMode, useTypeStyling, useAllTypes,
+  useSelectedTrackId,
+  useFrame,
+  useTrackMap,
+  useEditingMode,
+  useTypeStyling,
+  useAllTypes,
+  useHandler,
 } from 'vue-media-annotator/provides';
 import Track, { TrackId, Feature } from 'vue-media-annotator/track';
 import TrackItem from 'vue-media-annotator/components/TrackItem.vue';
@@ -13,7 +24,10 @@ import { useApi, Attribute } from 'viame-web-common/apispec';
 import AttributeInput from 'viame-web-common/components/AttributeInput.vue';
 import AttributeEditor from 'viame-web-common/components/AttributeEditor.vue';
 
-function getTrack(trackMap: Readonly<Map<TrackId, Track>>, trackId: TrackId): Track {
+function getTrack(
+  trackMap: Readonly<Map<TrackId, Track>>,
+  trackId: TrackId,
+): Track {
   const track = trackMap.get(trackId);
   if (track === undefined) {
     throw new Error(`Track ${trackId} missing from map`);
@@ -36,9 +50,13 @@ export default defineComponent({
       type: Number,
       default: 300,
     },
+    hotkeysDisabled: {
+      type: Boolean,
+      required: true,
+    },
 
   },
-  setup() {
+  setup(props) {
     const attributes = ref([] as Attribute[]);
     const editingAttribute: Ref<Attribute | null> = ref(null);
     const editingError: Ref<string | null> = ref(null);
@@ -46,6 +64,8 @@ export default defineComponent({
     const editingModeRef = useEditingMode();
     const typeStylingRef = useTypeStyling();
     const allTypesRef = useAllTypes();
+    const { trackSelectNext, trackSplit, removeTrack } = useHandler();
+
     //Edit/Set single value by clicking
     const editIndividual: Ref<Attribute | null> = ref(null);
 
@@ -58,12 +78,8 @@ export default defineComponent({
     const frameRef = useFrame();
     const selectedTrackIdRef = useSelectedTrackId();
     const { getAttributes, setAttribute, deleteAttribute } = useApi();
-    const trackAttributes = computed(() => attributes.value.filter(
-      (a) => a.belongs === 'track',
-    ));
-    const detectionAttributes = computed(() => attributes.value.filter(
-      (a) => a.belongs === 'detection',
-    ));
+    const trackAttributes = computed(() => attributes.value.filter((a) => a.belongs === 'track'));
+    const detectionAttributes = computed(() => attributes.value.filter((a) => a.belongs === 'detection'));
     const selectedTrack = computed(() => {
       if (selectedTrackIdRef.value !== null) {
         return getTrack(trackMap, selectedTrackIdRef.value);
@@ -79,13 +95,19 @@ export default defineComponent({
       }
       return null;
     });
-    const activeTrackAttributesCount = computed(() => trackAttributes.value.filter(
-      (a) => selectedTrack.value && selectedTrack.value.attributes[a.name] !== undefined,
-    ).length);
-    const activeDetectionAttributesCount = computed(() => detectionAttributes.value.filter(
-      (a) => selectedDetection.value && selectedDetection.value.attributes
-        && selectedDetection.value.attributes[a.name] !== undefined,
-    ).length);
+    const activeTrackAttributesCount = computed(
+      () => trackAttributes.value.filter(
+        (a) => selectedTrack.value
+            && selectedTrack.value.attributes[a.name] !== undefined,
+      ).length,
+    );
+    const activeDetectionAttributesCount = computed(
+      () => detectionAttributes.value.filter(
+        (a) => selectedDetection.value
+            && selectedDetection.value.attributes
+            && selectedDetection.value.attributes[a.name] !== undefined,
+      ).length,
+    );
 
     function setEditIndividual(attribute: Attribute | null) {
       editIndividual.value = attribute;
@@ -95,13 +117,17 @@ export default defineComponent({
       if (editIndividual.value) {
         const path = event.composedPath() as HTMLElement[];
         const inputs = ['INPUT', 'SELECT'];
-        if (path.find((item: HTMLElement) => ((item.classList && item.classList.contains('v-input')) || inputs.includes(item.nodeName)))) {
+        if (
+          path.find(
+            (item: HTMLElement) => (item.classList && item.classList.contains('v-input'))
+              || inputs.includes(item.nodeName),
+          )
+        ) {
           return;
         }
         editIndividual.value = null;
       }
     }
-
 
     function updateTrackAttribute(
       trackId: TrackId | null,
@@ -152,7 +178,8 @@ export default defineComponent({
       //TODO:  Ability to add and edit confidence Pairs
     }
     async function saveAttribtueHandler(saveData: {
-      addNew: boolean | undefined; data: Attribute;
+      addNew: boolean | undefined;
+      data: Attribute;
     }) {
       editingError.value = null;
       try {
@@ -184,6 +211,40 @@ export default defineComponent({
         attributes.value = await getAttributes();
       }
     }
+
+    const mouseTrap = computed(() => {
+      const disabled = props.hotkeysDisabled;
+      return [
+        {
+          bind: 'up',
+          handler: () => {
+            trackSelectNext(-1);
+          },
+          disabled,
+        },
+        {
+          bind: 'down',
+          handler: () => {
+            trackSelectNext(1);
+          },
+          disabled,
+        },
+        {
+          bind: 'del',
+          handler: () => {
+            if (selectedTrackIdRef.value !== null) {
+              removeTrack([selectedTrackIdRef.value]);
+            }
+          },
+          disabled,
+        },
+        {
+          bind: 'x',
+          handler: () => trackSplit(selectedTrackIdRef.value, frameRef.value),
+          disabled,
+        },
+      ];
+    });
 
     onBeforeMount(async () => {
       attributes.value = await getAttributes();
@@ -220,6 +281,7 @@ export default defineComponent({
       allTypesRef,
       setEditIndividual,
       resetEditIndividual,
+      mouseTrap,
     };
   },
 });
@@ -228,6 +290,7 @@ export default defineComponent({
 <template>
   <v-card
     ref="card"
+    v-mousetrap="mouseTrap"
     :width="width"
     class="d-flex flex-column overflow-hidden"
     @click.native="resetEditIndividual"
@@ -304,17 +367,13 @@ export default defineComponent({
             :key="index"
             class="ml-1"
             dense
-            style="font-size:.8em"
+            style="font-size: 0.8em"
           >
             <v-col cols="1">
               <div
+                class="type-color-box"
                 :style="{
-                  marginTop:'5px',
-                  minWidth:'10px',
-                  maxWidth:'10px',
-                  minHeight:'10px',
-                  maxHeight:'10px',
-                  backgroundColor:typeStylingRef.color(pair[0])
+                  backgroundColor: typeStylingRef.color(pair[0]),
                 }"
               />
             </v-col>
@@ -366,7 +425,7 @@ export default defineComponent({
                 small
                 icon
                 class="ml-2"
-                :color="activeSettings.trackAttributes ? 'accent': ''"
+                :color="activeSettings.trackAttributes ? 'accent' : ''"
                 v-on="on"
                 @click="toggleActiveSettings('trackAttributes')"
               >
@@ -385,7 +444,7 @@ export default defineComponent({
         dense
       >
         <v-col
-          v-if="activeSettings.trackAttributes ||activeTrackAttributesCount"
+          v-if="activeSettings.trackAttributes || activeTrackAttributesCount"
           class="pa-2"
         >
           <span
@@ -395,14 +454,13 @@ export default defineComponent({
             <v-row
               v-if="
                 activeSettings.trackAttributes ||
-                  selectedTrack.attributes[attribute.name] !== undefined"
+                  selectedTrack.attributes[attribute.name] !== undefined
+              "
               class="ma-0 flex-nowrap"
               dense
               align="center"
             >
-              <v-col class="attribute-name">
-                {{ attribute.name }}:
-              </v-col>
+              <v-col class="attribute-name"> {{ attribute.name }}: </v-col>
               <v-col class="px-1">
                 <AttributeInput
                   v-if="activeSettings.trackAttributes"
@@ -435,10 +493,10 @@ export default defineComponent({
                           ? selectedTrack.attributes[attribute.name]
                           : undefined
                       "
+                      focus
                       @change="updateTrackAttribute(selectedTrackIdRef, $event)"
                       @click.stop.prevent=""
                     />
-
                   </div>
                 </div>
               </v-col>
@@ -451,16 +509,14 @@ export default defineComponent({
                   small
                   @click="editAttribute(attribute)"
                 >
-                  <v-icon small>
-                    mdi-settings
-                  </v-icon>
+                  <v-icon small> mdi-settings </v-icon>
                 </v-btn>
               </v-col>
             </v-row>
           </span>
         </v-col>
         <v-col v-else>
-          <div style="font-size:.75em">
+          <div style="font-size: 0.75em">
             No Track Attributes Set
           </div>
         </v-col>
@@ -507,7 +563,7 @@ export default defineComponent({
                 small
                 icon
                 class="ml-2"
-                :color="activeSettings.detectionAttributes ? 'accent': ''"
+                :color="activeSettings.detectionAttributes ? 'accent' : ''"
                 v-on="on"
                 @click="toggleActiveSettings('detectionAttributes')"
               >
@@ -540,7 +596,9 @@ export default defineComponent({
         dense
       >
         <v-col
-          v-if="activeSettings.detectionAttributes || activeDetectionAttributesCount"
+          v-if="
+            activeSettings.detectionAttributes || activeDetectionAttributesCount
+          "
           class="pa-2"
         >
           <span
@@ -548,15 +606,15 @@ export default defineComponent({
             :key="i"
           >
             <v-row
-              v-if="activeSettings.detectionAttributes
-                || selectedDetection.attributes[attribute.name] !== undefined"
+              v-if="
+                activeSettings.detectionAttributes ||
+                  selectedDetection.attributes[attribute.name] !== undefined
+              "
               class="ma-0"
               dense
               align="center"
             >
-              <v-col class="attribute-name">
-                {{ attribute.name }}:
-              </v-col>
+              <v-col class="attribute-name"> {{ attribute.name }}: </v-col>
               <v-col class="px-1">
                 <AttributeInput
                   v-if="activeSettings.detectionAttributes"
@@ -568,8 +626,13 @@ export default defineComponent({
                       ? selectedDetection.attributes[attribute.name]
                       : undefined
                   "
-                  @change="updateFeatureAttribute(
-                    selectedTrackIdRef, selectedDetection, $event)"
+                  @change="
+                    updateFeatureAttribute(
+                      selectedTrackIdRef,
+                      selectedDetection,
+                      $event
+                    )
+                  "
                 />
                 <div v-else>
                   <div
@@ -589,8 +652,14 @@ export default defineComponent({
                           ? selectedDetection.attributes[attribute.name]
                           : undefined
                       "
-                      @change="updateFeatureAttribute(
-                        selectedTrackIdRef, selectedDetection, $event)"
+                      focus
+                      @change="
+                        updateFeatureAttribute(
+                          selectedTrackIdRef,
+                          selectedDetection,
+                          $event
+                        )
+                      "
                     />
                   </div>
                 </div>
@@ -604,16 +673,14 @@ export default defineComponent({
                   small
                   @click="editAttribute(attribute)"
                 >
-                  <v-icon small>
-                    mdi-settings
-                  </v-icon>
+                  <v-icon small> mdi-settings </v-icon>
                 </v-btn>
               </v-col>
             </v-row>
           </span>
         </v-col>
         <v-col v-else>
-          <div style="font-size:.75em">
+          <div style="font-size: 0.75em">
             No detection selected
           </div>
         </v-col>
@@ -664,5 +731,12 @@ export default defineComponent({
 }
 .confidence {
   min-height: 40px;
+}
+.type-color-box {
+  margin-top: 5px;
+  min-width: 10px;
+  max-width: 10px;
+  min-height: 10px;
+  max-height: 10px;
 }
 </style>

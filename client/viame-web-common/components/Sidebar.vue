@@ -125,6 +125,7 @@ export default defineComponent({
       >
         <attributes-panel
           :lock-types="typeSettings.lockTypes"
+          :hotkeys-disabled="$prompt.visible()"
           @track-seek="$emit('track-seek', $event)"
         />
       </div>

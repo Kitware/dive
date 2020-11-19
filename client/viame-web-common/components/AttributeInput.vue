@@ -19,10 +19,16 @@ export default Vue.extend({
       type: Array,
       default: () => [],
     },
+    focus: {
+      type: Boolean,
+      default: false,
+    },
   },
   data() {
     return {
       htmlElements: true,
+      tempVal: null,
+      skipOnFocus: false,
       boolOpts: [{ text: '', value: undefined },
         { text: 'true', value: true },
         { text: 'false', value: false },
@@ -30,9 +36,18 @@ export default Vue.extend({
 
     };
   },
-
   computed: {
     foo() { return this.value; },
+  },
+  mounted() {
+    this.tempVal = this.value;
+    if (this.focus && this.$refs.inputBoxRef) {
+      this.$refs.inputBoxRef.focus();
+      if (this.$refs.inputBoxRef.select) {
+        console.log('SELECTING');
+        this.$nextTick(() => this.$refs.inputBoxRef.focus());
+      }
+    }
   },
 
   methods: {
@@ -44,11 +59,30 @@ export default Vue.extend({
         this.changeVuetify(newval.target.value);
       }
     },
+    blurType(e: KeyboardEvent) {
+      (e.target as HTMLInputElement).blur();
+    },
+    onFocus() {
+      if (!this.skipOnFocus) {
+        this.tempVal = null;
+      }
+    },
+    onInputKeyEvent(e: KeyboardEvent) {
+      switch (e.code) {
+        case 'Escape':
+        case 'Enter':
+          this.blurType(e);
+          break;
+        default:
+          break;
+      }
+    },
     changeVuetify(newval: string | boolean | number | undefined): void {
       const { name } = this;
       let value;
       switch (newval) {
         case '':
+        case ' ':
         case undefined:
           value = undefined;
           break;
@@ -98,10 +132,10 @@ export default Vue.extend({
     <div v-else>
       <datalist
         v-if="datatype === 'text'"
-        id="optionsList"
+        :id="`optionsList_${_uid}`"
       >
         <option
-          v-for="type in values"
+          v-for="type in [' ', ...values]"
           :key="type"
           :value="type"
         >
@@ -111,27 +145,33 @@ export default Vue.extend({
 
       <input
         v-if="datatype === 'text'"
+        ref="inputBoxRef"
+        v-model="tempVal"
         type="text"
-        list="allTypesOptions"
+        :list="`optionsList_${_uid}`"
         class="input-box"
-        :value="value"
         @change="change"
+        @focus="onFocus"
+        @keydown="onInputKeyEvent"
       >
       <input
         v-else-if="datatype === 'number'"
+        ref="inputBoxRef"
         :label="datatype"
         :value="value"
         class="input-box"
         type="number"
         @change="change"
+        @keydown="onInputKeyEvent"
       >
       <select
         v-else-if="datatype === 'boolean'"
+        ref="inputBoxRef"
         :label="datatype"
         :value="value"
         class="input-box select-input"
-
         @change="change"
+        @keydown="onInputKeyEvent"
       >
         <option
           v-for="(item,index) in boolOpts"
