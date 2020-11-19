@@ -1,8 +1,5 @@
-// eslint-disable-next-line import/no-extraneous-dependencies
 import { app, protocol, BrowserWindow } from 'electron';
-// eslint-disable-next-line import/no-extraneous-dependencies
 import { createProtocol } from 'vue-cli-plugin-electron-builder/lib';
-// eslint-disable-next-line import/no-extraneous-dependencies
 import installExtension, { VUEJS_DEVTOOLS } from 'electron-devtools-installer';
 
 import server from './backend/server';
@@ -33,6 +30,7 @@ function createWindow() {
   win = new BrowserWindow({
     width: 800,
     height: 600,
+    autoHideMenuBar: true,
     webPreferences: {
       // Use pluginOptions.nodeIntegration, leave this alone
       // See nklayman.github.io/vue-cli-plugin-electron-builder/guide/security.html
@@ -47,8 +45,6 @@ function createWindow() {
   if (process.env.IS_ELECTRON) {
     // Load the url of the dev server if in development mode
     win.loadURL(process.env.WEBPACK_DEV_SERVER_URL as string);
-    // win.loadURL(`file:/${__dirname}/index.html`);
-
     if (!process.env.IS_TEST) win.webContents.openDevTools();
   } else {
     createProtocol('app');

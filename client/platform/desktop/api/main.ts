@@ -1,49 +1,32 @@
 import { AddressInfo } from 'net';
 import path from 'path';
 
-// eslint-disable-next-line import/no-extraneous-dependencies
 import { ipcRenderer, remote, FileFilter } from 'electron';
-// eslint-disable-next-line import/no-extraneous-dependencies
 import fs from 'fs-extra';
-// eslint-disable-next-line import/no-extraneous-dependencies
 import mime from 'mime-types';
 
 import {
-  Attribute, DatasetMeta,
+  Attribute,
   DatasetMetaMutable,
   DatasetType, FrameImage,
   Pipelines, TrainingConfigs,
 } from 'viame-web-common/apispec';
 
-// TODO: disable node integration in renderer
-// https://nklayman.github.io/vue-cli-plugin-electron-builder/guide/security.html
-import { loadDetections, saveDetections } from './nativeServices';
+import common from '../backend/platforms/common';
+import {
+  DesktopJob, NvidiaSmiReply, RunPipeline,
+  websafeImageTypes, websafeVideoTypes,
+  DesktopDataset, Settings,
+} from '../constants';
 
-const websafeVideoTypes = [
-  'video/mp4',
-  'video/webm',
-];
-
-const websafeImageTypes = [
-  'image/apng',
-  'image/bmp',
-  'image/gif',
-  'image/jpeg',
-  'image/png',
-  'image/svg+xml',
-  'image/webp',
-];
-
-export interface DesktopDataset {
-  name: string;
-  basePath: string;
-  root: string;
-  videoPath?: string;
-  meta: DatasetMeta;
-}
+const { loadDetections, saveDetections } = common;
 
 function mediaServerInfo(): Promise<AddressInfo> {
   return ipcRenderer.invoke('info');
+}
+
+function nvidiaSmi(): Promise<NvidiaSmiReply> {
+  return ipcRenderer.invoke('nvidia-smi');
 }
 
 function openLink(url: string): Promise<void> {
@@ -78,8 +61,8 @@ async function deleteAttribute(data: Attribute) {
   return Promise.resolve([] as Attribute[]);
 }
 
-async function getPipelineList(): Promise<Pipelines> {
-  return Promise.resolve({});
+async function getPipelineList(settings: Settings): Promise<Pipelines> {
+  return ipcRenderer.invoke('get-pipeline-list', settings);
 }
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -103,6 +86,7 @@ async function loadMetadata(datasetId: string): Promise<DesktopDataset> {
   let datasetType = undefined as 'video' | 'image-sequence' | undefined;
   let videoUrl = '';
   let videoPath = '';
+  let basePath = datasetId; // default to image-sequence type basepath
   const imageData = [] as FrameImage[];
   const serverInfo = await mediaServerInfo();
 
@@ -112,6 +96,7 @@ async function loadMetadata(datasetId: string): Promise<DesktopDataset> {
     const mimetype = mime.lookup(abspath);
     if (mimetype && websafeVideoTypes.includes(mimetype)) {
       datasetType = 'video';
+      basePath = path.dirname(datasetId); // parent directory of video;
       videoPath = abspath;
       videoUrl = abspathuri;
     } else if (mimetype && websafeImageTypes.includes(mimetype)) {
@@ -140,8 +125,7 @@ async function loadMetadata(datasetId: string): Promise<DesktopDataset> {
 
   return Promise.resolve({
     name: path.basename(datasetId),
-    basePath: path.dirname(datasetId),
-    root: datasetId,
+    basePath,
     videoPath,
     meta: {
       type: datasetType,
@@ -155,6 +139,16 @@ async function loadMetadata(datasetId: string): Promise<DesktopDataset> {
 // eslint-disable-next-line
 async function saveMetadata(datasetId: string, metadata: DatasetMetaMutable) {
   return Promise.resolve();
+}
+
+async function runPipeline(itemId: string, pipeline: string, settings: Settings) {
+  const args: RunPipeline = {
+    pipelineName: pipeline,
+    datasetId: itemId,
+    settings,
+  };
+  const job: DesktopJob = await ipcRenderer.invoke('run-pipeline', args);
+  return job;
 }
 
 export {
@@ -173,4 +167,5 @@ export {
   /* Nonstandard APIs */
   openFromDisk,
   openLink,
+  nvidiaSmi,
 };
