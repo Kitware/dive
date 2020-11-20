@@ -6,6 +6,8 @@ set -e # exit immediately on fail
 # CI Checks locally in parallel to verify that a commit will pass
 # in much less time than CI would take.
 
+yarn install --frozen-lockfile
+
 yarn test &
 yarn lint &
 yarn lint:templates &
