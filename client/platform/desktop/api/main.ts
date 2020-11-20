@@ -66,11 +66,6 @@ async function getPipelineList(settings: Settings): Promise<Pipelines> {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-async function runPipeline(itemId: string, pipeline: string) {
-  return Promise.resolve();
-}
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function getTrainingConfigurations(): Promise<TrainingConfigs> {
   return Promise.resolve({ configs: [], default: '' });
 }

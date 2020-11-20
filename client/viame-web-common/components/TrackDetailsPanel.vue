@@ -23,6 +23,7 @@ import TrackItem from 'vue-media-annotator/components/TrackItem.vue';
 import { useApi, Attribute } from 'viame-web-common/apispec';
 import AttributeInput from 'viame-web-common/components/AttributeInput.vue';
 import AttributeEditor from 'viame-web-common/components/AttributeEditor.vue';
+import AttributeSubsection from 'viame-web-common/components/AttributesSubsection.vue';
 
 function getTrack(
   trackMap: Readonly<Map<TrackId, Track>>,
@@ -40,6 +41,7 @@ export default defineComponent({
     AttributeInput,
     TrackItem,
     AttributeEditor,
+    AttributeSubsection,
   },
   props: {
     lockTypes: {
@@ -78,36 +80,12 @@ export default defineComponent({
     const frameRef = useFrame();
     const selectedTrackIdRef = useSelectedTrackId();
     const { getAttributes, setAttribute, deleteAttribute } = useApi();
-    const trackAttributes = computed(() => attributes.value.filter((a) => a.belongs === 'track'));
-    const detectionAttributes = computed(() => attributes.value.filter((a) => a.belongs === 'detection'));
     const selectedTrack = computed(() => {
       if (selectedTrackIdRef.value !== null) {
         return getTrack(trackMap, selectedTrackIdRef.value);
       }
       return null;
     });
-
-    const selectedDetection = computed(() => {
-      const t = selectedTrack.value;
-      if (t !== null) {
-        const [real] = t.getFeature(frameRef.value);
-        return real;
-      }
-      return null;
-    });
-    const activeTrackAttributesCount = computed(
-      () => trackAttributes.value.filter(
-        (a) => selectedTrack.value
-            && selectedTrack.value.attributes[a.name] !== undefined,
-      ).length,
-    );
-    const activeDetectionAttributesCount = computed(
-      () => detectionAttributes.value.filter(
-        (a) => selectedDetection.value
-            && selectedDetection.value.attributes
-            && selectedDetection.value.attributes[a.name] !== undefined,
-      ).length,
-    );
 
     function setEditIndividual(attribute: Attribute | null) {
       editIndividual.value = attribute;
@@ -129,50 +107,24 @@ export default defineComponent({
       }
     }
 
-    function updateTrackAttribute(
-      trackId: TrackId | null,
-      { name, value }: { name: string; value: unknown },
-    ) {
-      if (trackId === null) return;
-      const track = getTrack(trackMap, trackId);
-      track.setAttribute(name, value);
-    }
-
-    function updateFeatureAttribute(
-      trackId: TrackId | null,
-      oldFeature: Feature | null,
-      { name, value }: { name: string; value: unknown },
-    ) {
-      if (trackId === null) return;
-      if (oldFeature === null) return;
-      const track = getTrack(trackMap, trackId);
-      track.setFeatureAttribute(oldFeature.frame, name, value);
-    }
-
     async function closeEditor() {
       editingAttribute.value = null;
       editingError.value = null;
       attributes.value = await getAttributes();
     }
 
-    function trackAttributeAdd() {
+    function addAttribute(type: 'Track' | 'Detection') {
+      //TS doesn't understand
+      const belongs = type.toLowerCase() as 'track' | 'detection';
       editingAttribute.value = {
-        belongs: 'track',
+        belongs,
         datatype: 'text',
-        name: 'NewTrackAttribute',
+        name: `New${type}Attribute`,
         _id: '',
       };
     }
     function editAttribute(attribute: Attribute) {
       editingAttribute.value = attribute;
-    }
-    function detectionAttributeAdd() {
-      editingAttribute.value = {
-        belongs: 'detection',
-        datatype: 'text',
-        name: 'NewDetecitonAttribute',
-        _id: '',
-      };
     }
     function confidencePairsAdd() {
       //TODO:  Ability to add and edit confidence Pairs
@@ -200,15 +152,6 @@ export default defineComponent({
       }
       if (!editingError.value) {
         closeEditor();
-      }
-    }
-
-    async function toggleActiveSettings(
-      type: 'confidencePairs' | 'trackAttributes' | 'detectionAttributes',
-    ) {
-      activeSettings[type] = !activeSettings[type];
-      if (!activeSettings[type]) {
-        attributes.value = await getAttributes();
       }
     }
 
@@ -253,11 +196,8 @@ export default defineComponent({
     return {
       selectedTrackIdRef,
       /* Attributes */
-      detectionAttributes,
-      trackAttributes,
+      attributes,
       activeSettings,
-      activeTrackAttributesCount,
-      activeDetectionAttributesCount,
       /* Editing */
       editingAttribute,
       saveAttribtueHandler,
@@ -265,16 +205,11 @@ export default defineComponent({
       editingError,
       editIndividual,
       /* Selected */
-      selectedDetection,
       selectedTrack,
       /* Update functions */
       closeEditor,
       editAttribute,
-      toggleActiveSettings,
-      updateFeatureAttribute,
-      updateTrackAttribute,
-      trackAttributeAdd,
-      detectionAttributeAdd,
+      addAttribute,
       confidencePairsAdd,
       editingModeRef,
       typeStylingRef,
@@ -386,305 +321,22 @@ export default defineComponent({
           </v-row>
         </v-col>
       </v-row>
-
-      <!-- TRACK ATTRIBUTES -->
-      <div class="border-highlight">
-        <v-row
-          no-gutters
-          class="align-center"
-        >
-          <b>Track Attributes:</b>
-          <v-spacer />
-          <v-tooltip
-            open-delay="200"
-            bottom
-            max-width="200"
-          >
-            <template #activator="{ on }">
-              <v-btn
-                outlined
-                x-small
-                v-on="on"
-                @click="trackAttributeAdd"
-              >
-                <v-icon small>
-                  mdi-plus
-                </v-icon>
-                Attribute
-              </v-btn>
-            </template>
-            <span>Add a new Track Attribute</span>
-          </v-tooltip>
-          <v-tooltip
-            open-delay="200"
-            bottom
-            max-width="200"
-          >
-            <template #activator="{ on }">
-              <v-btn
-                small
-                icon
-                class="ml-2"
-                :color="activeSettings.trackAttributes ? 'accent' : ''"
-                v-on="on"
-                @click="toggleActiveSettings('trackAttributes')"
-              >
-                <v-icon small>
-                  mdi-eye
-                </v-icon>
-              </v-btn>
-            </template>
-            <span>Show/Hide un-used</span>
-          </v-tooltip>
-        </v-row>
-      </div>
-
-      <v-row
-        class="ma-0 scroll-section"
-        dense
-      >
-        <v-col
-          v-if="activeSettings.trackAttributes || activeTrackAttributesCount"
-          class="pa-2"
-        >
-          <span
-            v-for="(attribute, i) of trackAttributes"
-            :key="i"
-          >
-            <v-row
-              v-if="
-                activeSettings.trackAttributes ||
-                  selectedTrack.attributes[attribute.name] !== undefined
-              "
-              class="ma-0 flex-nowrap"
-              dense
-              align="center"
-            >
-              <v-col class="attribute-name"> {{ attribute.name }}: </v-col>
-              <v-col class="px-1">
-                <AttributeInput
-                  v-if="activeSettings.trackAttributes"
-                  :datatype="attribute.datatype"
-                  :name="attribute.name"
-                  :values="attribute.values ? attribute.values : null"
-                  :value="
-                    selectedTrack
-                      ? selectedTrack.attributes[attribute.name]
-                      : undefined
-                  "
-                  @change="updateTrackAttribute(selectedTrackIdRef, $event)"
-                  @click.stop.prevent=""
-                />
-                <div v-else>
-                  <div
-                    v-if="editIndividual != attribute"
-                    class="attribute-item-value"
-                    @click.stop="setEditIndividual(attribute)"
-                  >
-                    {{ selectedTrack.attributes[attribute.name] }}
-                  </div>
-                  <div v-else>
-                    <AttributeInput
-                      :datatype="attribute.datatype"
-                      :name="attribute.name"
-                      :values="attribute.values ? attribute.values : null"
-                      :value="
-                        selectedTrack
-                          ? selectedTrack.attributes[attribute.name]
-                          : undefined
-                      "
-                      focus
-                      @change="updateTrackAttribute(selectedTrackIdRef, $event)"
-                      @click.stop.prevent=""
-                    />
-                  </div>
-                </div>
-              </v-col>
-              <v-col
-                v-if="activeSettings.trackAttributes"
-                cols="1"
-              >
-                <v-btn
-                  icon
-                  small
-                  @click="editAttribute(attribute)"
-                >
-                  <v-icon small> mdi-settings </v-icon>
-                </v-btn>
-              </v-col>
-            </v-row>
-          </span>
-        </v-col>
-        <v-col v-else>
-          <div style="font-size: 0.75em">
-            No Track Attributes Set
-          </div>
-        </v-col>
-      </v-row>
-
-      <!-- DETECTION ATTRIBUTES -->
-      <div
-        v-if="selectedDetection"
-        class="border-highlight"
-      >
-        <v-row
-          class="align-center"
-          no-gutters
-        >
-          <b>Detection Attributes:</b>
-          <v-spacer />
-          <v-tooltip
-            open-delay="200"
-            bottom
-            max-width="200"
-          >
-            <template #activator="{ on }">
-              <v-btn
-                outlined
-                x-small
-                v-on="on"
-                @click="detectionAttributeAdd"
-              >
-                <v-icon small>
-                  mdi-plus
-                </v-icon>
-                Attribute
-              </v-btn>
-            </template>
-            <span>Add a new Detection Attribute</span>
-          </v-tooltip>
-          <v-tooltip
-            open-delay="200"
-            bottom
-            max-width="200"
-          >
-            <template #activator="{ on }">
-              <v-btn
-                small
-                icon
-                class="ml-2"
-                :color="activeSettings.detectionAttributes ? 'accent' : ''"
-                v-on="on"
-                @click="toggleActiveSettings('detectionAttributes')"
-              >
-                <v-icon small>
-                  mdi-eye
-                </v-icon>
-              </v-btn>
-            </template>
-            <span>Show/Hide un-used</span>
-          </v-tooltip>
-        </v-row>
-        <v-row
-          no-gutters
-          class="text-caption"
-        >
-          {{ `Frame: ${selectedDetection.frame}` }}
-        </v-row>
-      </div>
-
-      <v-subheader
-        v-else
-        class="border-highlight"
-      >
-        No detection selected
-      </v-subheader>
-
-      <v-row
-        v-if="selectedDetection"
-        class="ma-0 scroll-section"
-        dense
-      >
-        <v-col
-          v-if="
-            activeSettings.detectionAttributes || activeDetectionAttributesCount
-          "
-          class="pa-2"
-        >
-          <span
-            v-for="(attribute, i) of detectionAttributes"
-            :key="i"
-          >
-            <v-row
-              v-if="
-                activeSettings.detectionAttributes ||
-                  selectedDetection.attributes[attribute.name] !== undefined
-              "
-              class="ma-0"
-              dense
-              align="center"
-            >
-              <v-col class="attribute-name"> {{ attribute.name }}: </v-col>
-              <v-col class="px-1">
-                <AttributeInput
-                  v-if="activeSettings.detectionAttributes"
-                  :datatype="attribute.datatype"
-                  :name="attribute.name"
-                  :values="attribute.values ? attribute.values : null"
-                  :value="
-                    selectedDetection && selectedDetection.attributes
-                      ? selectedDetection.attributes[attribute.name]
-                      : undefined
-                  "
-                  @change="
-                    updateFeatureAttribute(
-                      selectedTrackIdRef,
-                      selectedDetection,
-                      $event
-                    )
-                  "
-                />
-                <div v-else>
-                  <div
-                    v-if="editIndividual != attribute"
-                    class="attribute-item-value"
-                    @click.stop="setEditIndividual(attribute)"
-                  >
-                    {{ selectedDetection.attributes[attribute.name] }}
-                  </div>
-                  <div v-else>
-                    <AttributeInput
-                      :datatype="attribute.datatype"
-                      :name="attribute.name"
-                      :values="attribute.values ? attribute.values : null"
-                      :value="
-                        selectedDetection && selectedDetection.attributes
-                          ? selectedDetection.attributes[attribute.name]
-                          : undefined
-                      "
-                      focus
-                      @change="
-                        updateFeatureAttribute(
-                          selectedTrackIdRef,
-                          selectedDetection,
-                          $event
-                        )
-                      "
-                    />
-                  </div>
-                </div>
-              </v-col>
-              <v-col
-                v-if="activeSettings.detectionAttributes"
-                cols="1"
-              >
-                <v-btn
-                  icon
-                  small
-                  @click="editAttribute(attribute)"
-                >
-                  <v-icon small> mdi-settings </v-icon>
-                </v-btn>
-              </v-col>
-            </v-row>
-          </span>
-        </v-col>
-        <v-col v-else>
-          <div style="font-size: 0.75em">
-            No detection selected
-          </div>
-        </v-col>
-      </v-row>
+      <attribute-subsection
+        mode="Track"
+        :attributes="attributes"
+        :edit-individual="editIndividual"
+        @edit-attribute="editAttribute($event)"
+        @set-edit-individual="setEditIndividual($event)"
+        @add-attribute="addAttribute"
+      />
+      <attribute-subsection
+        mode="Detection"
+        :attributes="attributes"
+        :edit-individual="editIndividual"
+        @edit-attribute="editAttribute($event)"
+        @set-edit-individual="setEditIndividual($event)"
+        @add-attribute="addAttribute"
+      />
     </template>
     <v-dialog
       :value="editingAttribute != null"
