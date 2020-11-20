@@ -11,7 +11,7 @@ import {
   useFrame,
   useTrackMap,
 } from 'vue-media-annotator/provides';
-import Track, { TrackId, Feature } from 'vue-media-annotator/track';
+import Track, { TrackId } from 'vue-media-annotator/track';
 import AttributeInput from 'viame-web-common/components/AttributeInput.vue';
 
 
@@ -72,6 +72,10 @@ export default defineComponent({
       return null;
     });
 
+    const filteredFullAttributes = computed(() => Object.values(props.attributes).filter(
+      (attribute: Attribute) => attribute.belongs === props.mode.toLowerCase(),
+    ));
+
     const activeAttributesCount = computed(
       () => props.attributes.filter(
         (a) => selectedAttributes.value
@@ -110,6 +114,7 @@ export default defineComponent({
       frameRef,
       activeAttributesCount,
       selectedAttributes,
+      filteredFullAttributes,
       activeSettings,
       //functions
       toggleActiveSettings,
@@ -123,7 +128,7 @@ export default defineComponent({
 </script>
 
 <template>
-  <div>
+  <span>
     <div
       v-if="selectedAttributes"
       class="border-highlight"
@@ -204,7 +209,7 @@ export default defineComponent({
         class="pa-2"
       >
         <span
-          v-for="(attribute, i) of attributes"
+          v-for="(attribute, i) of filteredFullAttributes"
           :key="i"
         >
           <v-row
@@ -276,7 +281,7 @@ export default defineComponent({
         </div>
       </v-col>
     </v-row>
-  </div>
+  </span>
 </template>
 
 <style scoped lang="scss">
