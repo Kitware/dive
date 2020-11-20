@@ -128,7 +128,7 @@ export default defineComponent({
 </script>
 
 <template>
-  <span>
+  <span class="d-flex flex-column overflow-hidden">
     <div
       v-if="selectedAttributes"
       class="border-highlight"
@@ -310,15 +310,5 @@ export default defineComponent({
 .scroll-section {
   overflow-y: auto;
   overflow-x: hidden;
-}
-.confidence {
-  min-height: 40px;
-}
-.type-color-box {
-  margin-top: 5px;
-  min-width: 10px;
-  max-width: 10px;
-  min-height: 10px;
-  max-height: 10px;
 }
 </style>
