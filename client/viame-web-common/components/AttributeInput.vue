@@ -65,9 +65,9 @@ export default defineComponent({
 
     function change(event: InputEvent): void {
       const target = event.target as HTMLInputElement;
+      const { name } = props;
       if (target && target.value) {
         const newval = target.value;
-        const { name } = props;
         let value;
         switch (newval) {
           case '':
@@ -79,6 +79,8 @@ export default defineComponent({
             value = newval;
         }
         emit('change', { name, value });
+      } else {
+        emit('change', { name, value: undefined });
       }
     }
     return {

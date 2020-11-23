@@ -206,7 +206,7 @@ export default defineComponent({
         v-if="
           activeSettings || activeAttributesCount
         "
-        class="pa-2"
+        class="pa-0"
       >
         <span
           v-for="(attribute, i) of filteredFullAttributes"
@@ -266,7 +266,7 @@ export default defineComponent({
             >
               <v-btn
                 icon
-                small
+                x-small
                 @click="editAttribute(attribute)"
               >
                 <v-icon small> mdi-settings </v-icon>
