@@ -30,7 +30,7 @@ export default defineComponent({
     },
   },
   setup(props, { emit }) {
-    const tempVal = ref(null as null | boolean | number | string);
+    const tempVal = ref(props.value as null | boolean | number | string);
     const inputBoxRef = ref(undefined as undefined | HTMLInputElement);
     const boolOpts = [
       { text: '', value: undefined },
