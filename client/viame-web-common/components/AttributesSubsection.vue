@@ -9,27 +9,16 @@ import { Attribute } from 'viame-web-common/apispec';
 import {
   useSelectedTrackId,
   useFrame,
-  useTrackMap,
+  useGetTrack,
 } from 'vue-media-annotator/provides';
-import Track, { TrackId } from 'vue-media-annotator/track';
 import AttributeInput from 'viame-web-common/components/AttributeInput.vue';
-
-
-function getTrack(
-  trackMap: Readonly<Map<TrackId, Track>>,
-  trackId: TrackId,
-): Track {
-  const track = trackMap.get(trackId);
-  if (track === undefined) {
-    throw new Error(`Track ${trackId} missing from map`);
-  }
-  return track;
-}
+import PanelSubsection from 'viame-web-common/components/PanelSubsection.vue';
 
 
 export default defineComponent({
   components: {
     AttributeInput,
+    PanelSubsection,
   },
   props: {
     attributes: {
@@ -48,19 +37,19 @@ export default defineComponent({
   setup(props, { emit }) {
     const frameRef = useFrame();
     const selectedTrackIdRef = useSelectedTrackId();
-    const trackMap = useTrackMap();
+    const getTrack = useGetTrack();
     const activeSettings = ref(false);
 
     const selectedTrack = computed(() => {
       if (selectedTrackIdRef.value !== null) {
-        return getTrack(trackMap, selectedTrackIdRef.value);
+        return getTrack(selectedTrackIdRef.value);
       }
       return null;
     });
 
     const selectedAttributes = computed(() => {
       const t = selectedTrack.value;
-      if (t !== null) {
+      if (t !== undefined && t !== null) {
         if (props.mode === 'Track') {
           return t;
         }
@@ -90,11 +79,13 @@ export default defineComponent({
 
     function updateAttribute({ name, value }: { name: string; value: unknown }) {
       if (selectedTrackIdRef.value) {
-        const track = getTrack(trackMap, selectedTrackIdRef.value);
-        if (props.mode === 'Track') {
-          track.setAttribute(name, value);
-        } else if (props.mode === 'Detection' && frameRef.value !== undefined) {
-          track.setFeatureAttribute(frameRef.value, name, value);
+        const track = getTrack(selectedTrackIdRef.value);
+        if (track !== undefined) {
+          if (props.mode === 'Track') {
+            track.setAttribute(name, value);
+          } else if (props.mode === 'Detection' && frameRef.value !== undefined) {
+            track.setFeatureAttribute(frameRef.value, name, value);
+          }
         }
       }
     }
@@ -128,10 +119,10 @@ export default defineComponent({
 </script>
 
 <template>
-  <span class="d-flex flex-column overflow-hidden">
-    <div
+  <panel-subsection>
+    <template
       v-if="selectedAttributes"
-      class="border-highlight"
+      slot="header"
     >
       <v-row
         class="align-center"
@@ -188,19 +179,18 @@ export default defineComponent({
       >
         {{ `Frame: ${frameRef}` }}
       </v-row>
-    </div>
+    </template>
 
     <v-subheader
       v-else
       class="border-highlight"
     >
-      No detection selected
+      No detection attributes set
     </v-subheader>
 
-    <v-row
+    <template
       v-if="selectedAttributes"
-      class="ma-0 scroll-section"
-      dense
+      slot="scroll-section"
     >
       <v-col
         v-if="
@@ -280,8 +270,8 @@ export default defineComponent({
           No {{ mode }} selected
         </div>
       </v-col>
-    </v-row>
-  </span>
+    </template>
+  </panel-subsection>
 </template>
 
 <style scoped lang="scss">
@@ -297,18 +287,5 @@ export default defineComponent({
   font-size: 0.8em;
   max-width: 50%;
   min-width: 50%;
-}
-.border-highlight {
-  border-top: 1px solid gray;
-  border-bottom: 1px solid gray;
-  color: white;
-  font-weight: bold;
-  font-size: 0.9em;
-  padding: 4px 10px;
-  background-color: #272727;
-}
-.scroll-section {
-  overflow-y: auto;
-  overflow-x: hidden;
 }
 </style>

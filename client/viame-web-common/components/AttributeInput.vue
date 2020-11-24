@@ -17,7 +17,7 @@ export default defineComponent({
       default: null,
     },
     datatype: {
-      type: String,
+      type: String as PropType<'boolean'|'number'|'text'>,
       required: true,
     },
     values: {
@@ -50,6 +50,8 @@ export default defineComponent({
     function onFocus() {
       if (props.values && props.values.length) {
         tempVal.value = null;
+      } else if (props.values && !props.values.length && inputBoxRef.value) {
+        inputBoxRef.value.select();
       }
     }
     function onInputKeyEvent(e: KeyboardEvent) {
@@ -67,18 +69,7 @@ export default defineComponent({
       const target = event.target as HTMLInputElement;
       const { name } = props;
       if (target && target.value) {
-        const newval = target.value;
-        let value;
-        switch (newval) {
-          case '':
-          case ' ':
-          case undefined:
-            value = undefined;
-            break;
-          default:
-            value = newval;
-        }
-        emit('change', { name, value });
+        emit('change', { name, value: target.value.trim() });
       } else {
         emit('change', { name, value: undefined });
       }
@@ -165,5 +156,4 @@ export default defineComponent({
     background-color: #1e1e1e;
     appearance: menulist;
   }
-
 </style>

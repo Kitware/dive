@@ -44,6 +44,9 @@ type TrackMapType = Readonly<Map<TrackId, Track>>;
 const TracksSymbol = Symbol('tracks');
 type TracksType = Readonly<Ref<readonly Track[]>>;
 
+const GetTrackSymbol = Symbol('GetTrack');
+type GetTrackType = (trackId: number) => Track | undefined;
+
 const TypeStylingSymbol = Symbol('typeStyling');
 type TypeStylingType = Readonly<Ref<TypeStyling>>;
 
@@ -167,6 +170,7 @@ export interface State {
   intervalTree: IntervalTreeType;
   trackMap: TrackMapType;
   tracks: TracksType;
+  getTrack: GetTrackType;
   typeStyling: TypeStylingType;
   selectedKey: SelectedKeyType;
   selectedTrackId: SelectedTrackIdType;
@@ -196,6 +200,7 @@ function dummyState(): State {
     intervalTree: new IntervalTree(),
     trackMap: new Map<TrackId, Track>(),
     tracks: ref([]),
+    getTrack: () => undefined,
     typeStyling: ref({
       color() { return style.color; },
       strokeWidth() { return style.strokeWidth; },
@@ -232,6 +237,7 @@ function provideAnnotator(state: State, handler: Handler) {
   provide(IntervalTreeSymbol, state.intervalTree);
   provide(TrackMapSymbol, state.trackMap);
   provide(TracksSymbol, state.tracks);
+  provide(GetTrackSymbol, state.getTrack);
   provide(TypeStylingSymbol, state.typeStyling);
   provide(SelectedKeySymbol, state.selectedKey);
   provide(SelectedTrackIdSymbol, state.selectedTrackId);
@@ -295,6 +301,10 @@ function useTracks() {
   return use<TracksType>(TracksSymbol);
 }
 
+function useGetTrack() {
+  return use<GetTrackType>(GetTrackSymbol);
+}
+
 function useTypeStyling() {
   return use<TypeStylingType>(TypeStylingSymbol);
 }
@@ -331,6 +341,7 @@ export {
   useFrame,
   useTrackMap,
   useTracks,
+  useGetTrack,
   useTypeStyling,
   useSelectedKey,
   useSelectedTrackId,

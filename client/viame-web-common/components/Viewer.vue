@@ -319,6 +319,7 @@ export default defineComponent({
         intervalTree,
         trackMap,
         tracks: filteredTracks,
+        getTrack,
         typeStyling,
         selectedKey,
         selectedTrackId,

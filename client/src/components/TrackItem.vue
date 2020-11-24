@@ -12,7 +12,7 @@ export default defineComponent({
   components: { TooltipBtn },
 
   props: {
-    singleDisplay: {
+    solo: {
       type: Boolean,
       default: false,
     },
@@ -88,7 +88,7 @@ export default defineComponent({
 
     /* Sets styling for the selected track */
     const style = computed(() => {
-      if (props.selected && !props.singleDisplay) {
+      if (props.selected && !props.solo) {
         return {
           'background-color': `${vuetify.theme.themes.dark.accentBackground}`,
         };
@@ -217,7 +217,7 @@ export default defineComponent({
   >
     <v-row class="px-3 pt-2 justify-center item-row">
       <div
-        v-if="singleDisplay"
+        v-if="solo"
         class="type-color-box"
         :style="{
           backgroundColor: color,

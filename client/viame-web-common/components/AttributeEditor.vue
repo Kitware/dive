@@ -21,22 +21,20 @@ export default defineComponent({
     const name: Ref<string> = ref(props.selectedAttribute.name);
     const belongs: Ref<string> = ref(props.selectedAttribute.belongs);
     const datatype: Ref<string> = ref(props.selectedAttribute.datatype);
-    const values: Ref<string[]> = ref(
-      props.selectedAttribute.values ? props.selectedAttribute.values : [],
-    );
-    const addNew = ref(!props.selectedAttribute._id.length);
+    let values: string[] = props.selectedAttribute.values ? props.selectedAttribute.values : [];
+    let addNew = !props.selectedAttribute._id.length;
 
     const form: Ref<HTMLFormElement | null> = ref(null);
 
     const textValues = computed({
       get: () => {
-        if (values.value) {
-          return values.value.join('\n');
+        if (values) {
+          return values.join('\n');
         }
         return '';
       },
       set: (newval) => {
-        values.value = newval.split('\n');
+        values = newval.split('\n');
       },
 
     });
@@ -45,11 +43,11 @@ export default defineComponent({
       name.value = '';
       belongs.value = 'track';
       datatype.value = 'number';
-      values.value = [];
+      values = [];
     }
     function add() {
       setDefaultValue();
-      addNew.value = true;
+      addNew = true;
       if (form.value) {
         form.value.resetValidation();
       }
@@ -64,11 +62,11 @@ export default defineComponent({
         name: name.value,
         belongs: belongs.value,
         datatype: datatype.value,
-        values: datatype.value === 'text' && values.value ? values.value : [],
+        values: datatype.value === 'text' && values ? values : [],
         _id: props.selectedAttribute._id,
       };
 
-      emit('save', { addNew: addNew.value, data: content });
+      emit('save', { addNew, data: content });
     }
 
     async function deleteAttribute() {

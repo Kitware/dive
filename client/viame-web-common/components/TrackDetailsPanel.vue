@@ -3,7 +3,6 @@ import {
   computed,
   defineComponent,
   onBeforeMount,
-  reactive,
   Ref,
   ref,
 } from '@vue/composition-api';
@@ -11,30 +10,20 @@ import {
 import {
   useSelectedTrackId,
   useFrame,
-  useTrackMap,
   useEditingMode,
   useTypeStyling,
   useAllTypes,
   useHandler,
+  useGetTrack,
 } from 'vue-media-annotator/provides';
-import Track, { TrackId, Feature } from 'vue-media-annotator/track';
 import TrackItem from 'vue-media-annotator/components/TrackItem.vue';
 
 import { useApi, Attribute } from 'viame-web-common/apispec';
 import AttributeInput from 'viame-web-common/components/AttributeInput.vue';
 import AttributeEditor from 'viame-web-common/components/AttributeEditor.vue';
 import AttributeSubsection from 'viame-web-common/components/AttributesSubsection.vue';
+import ConfidenceSubsection from 'viame-web-common/components/ConfidenceSubsection.vue';
 
-function getTrack(
-  trackMap: Readonly<Map<TrackId, Track>>,
-  trackId: TrackId,
-): Track {
-  const track = trackMap.get(trackId);
-  if (track === undefined) {
-    throw new Error(`Track ${trackId} missing from map`);
-  }
-  return track;
-}
 
 export default defineComponent({
   components: {
@@ -42,6 +31,7 @@ export default defineComponent({
     TrackItem,
     AttributeEditor,
     AttributeSubsection,
+    ConfidenceSubsection,
   },
   props: {
     lockTypes: {
@@ -62,7 +52,7 @@ export default defineComponent({
     const attributes = ref([] as Attribute[]);
     const editingAttribute: Ref<Attribute | null> = ref(null);
     const editingError: Ref<string | null> = ref(null);
-    const trackMap = useTrackMap();
+    const getTrack = useGetTrack();
     const editingModeRef = useEditingMode();
     const typeStylingRef = useTypeStyling();
     const allTypesRef = useAllTypes();
@@ -71,18 +61,13 @@ export default defineComponent({
     //Edit/Set single value by clicking
     const editIndividual: Ref<Attribute | null> = ref(null);
 
-    const activeSettings = reactive({
-      confidencePairs: false,
-      trackAttributes: false,
-      detectionAttributes: false,
-    });
 
     const frameRef = useFrame();
     const selectedTrackIdRef = useSelectedTrackId();
     const { getAttributes, setAttribute, deleteAttribute } = useApi();
     const selectedTrack = computed(() => {
       if (selectedTrackIdRef.value !== null) {
-        return getTrack(trackMap, selectedTrackIdRef.value);
+        return getTrack(selectedTrackIdRef.value);
       }
       return null;
     });
@@ -126,14 +111,17 @@ export default defineComponent({
     function editAttribute(attribute: Attribute) {
       editingAttribute.value = attribute;
     }
-    function confidencePairsAdd() {
-      //TODO:  Ability to add and edit confidence Pairs
-    }
     async function saveAttribtueHandler(saveData: {
       addNew: boolean | undefined;
       data: Attribute;
     }) {
       editingError.value = null;
+      if (attributes.value.some((attribute) => (
+        attribute.name === saveData.data.name && attribute.belongs === saveData.data.belongs))) {
+        editingError.value = 'Attribute with that name exists';
+        return;
+      }
+
       try {
         await setAttribute(saveData);
       } catch (err) {
@@ -197,7 +185,6 @@ export default defineComponent({
       selectedTrackIdRef,
       /* Attributes */
       attributes,
-      activeSettings,
       /* Editing */
       editingAttribute,
       saveAttribtueHandler,
@@ -210,7 +197,6 @@ export default defineComponent({
       closeEditor,
       editAttribute,
       addAttribute,
-      confidencePairsAdd,
       editingModeRef,
       typeStylingRef,
       allTypesRef,
@@ -235,7 +221,7 @@ export default defineComponent({
       v-if="!selectedTrack"
       class="ml-4 body-2"
     >
-      No track selected
+      No track attributes set
     </div>
     <template v-else>
       <datalist id="allTypesOptions">
@@ -248,7 +234,7 @@ export default defineComponent({
         </option>
       </datalist>
       <track-item
-        :single-display="true"
+        :solo="true"
         :track="selectedTrack"
         :track-type="selectedTrack.confidencePairs[0][0]"
         :selected="true"
@@ -259,68 +245,9 @@ export default defineComponent({
         @seek="$emit('track-seek', $event)"
       />
 
-      <!-- CONFIDENCE PAIRS -->
-      <div class="border-highlight">
-        <v-row
-          no-gutters
-          class="align-center"
-        >
-          <b>Confidence Pairs:</b>
-          <v-spacer />
-          <v-tooltip
-            open-delay="200"
-            bottom
-            max-width="200"
-          >
-            <template #activator="{ on }">
-              <v-btn
-                disabled
-                outlined
-                x-small
-                class="my-1"
-                v-on="on"
-                @click="confidencePairsAdd"
-              >
-                <v-icon small>
-                  mdi-plus
-                </v-icon>
-                Pair
-              </v-btn>
-            </template>
-            <span>Add a new Confidence Pair</span>
-          </v-tooltip>
-        </v-row>
-      </div>
-
-      <v-row
-        dense
-        class="scroll-section confidence shrink"
-      >
-        <v-col dense>
-          <v-row
-            v-for="(pair, index) in selectedTrack.confidencePairs"
-            :key="index"
-            class="ml-1"
-            dense
-            style="font-size: 0.8em"
-          >
-            <v-col cols="1">
-              <div
-                class="type-color-box"
-                :style="{
-                  backgroundColor: typeStylingRef.color(pair[0]),
-                }"
-              />
-            </v-col>
-            <v-col>
-              {{ pair[0] }}
-            </v-col>
-            <v-col>
-              {{ pair[1].toFixed(2) }}
-            </v-col>
-          </v-row>
-        </v-col>
-      </v-row>
+      <confidence-subsection
+        :confidence-pairs="selectedTrack.confidencePairs"
+      />
       <attribute-subsection
         mode="Track"
         :attributes="attributes"
@@ -353,42 +280,3 @@ export default defineComponent({
     </v-dialog>
   </v-card>
 </template>
-
-<style lang="scss" scoped>
-.attribute-item-value {
-  max-width: 80%;
-  margin: 0px;
-  &:hover {
-    cursor: pointer;
-    font-weight: bold;
-  }
-}
-.attribute-name {
-  font-size: 0.8em;
-  max-width: 50%;
-  min-width: 50%;
-}
-.border-highlight {
-  border-top: 1px solid gray;
-  border-bottom: 1px solid gray;
-  color: white;
-  font-weight: bold;
-  font-size: 0.9em;
-  padding: 4px 10px;
-  background-color: #272727;
-}
-.scroll-section {
-  overflow-y: auto;
-  overflow-x: hidden;
-}
-.confidence {
-  min-height: 40px;
-}
-.type-color-box {
-  margin-top: 5px;
-  min-width: 10px;
-  max-width: 10px;
-  min-height: 10px;
-  max-height: 10px;
-}
-</style>
