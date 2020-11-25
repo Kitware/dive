@@ -148,9 +148,12 @@ def _parse_row_for_tracks(row: List[str]) -> Tuple[Feature, Dict, Dict, List]:
         fishLength=fishLength if fishLength > 0 else None,
         **head_tail_feature,
     )
+    sorted_confidence_pairs = sorted(
+        confidence_pairs, key=lambda item: item[1], reverse=True
+    )
 
     # Pass the rest of the unchanged info through as well
-    return feature, attributes, track_attributes, confidence_pairs
+    return feature, attributes, track_attributes, sorted_confidence_pairs
 
 
 def load_csv_as_tracks(rows: List[str]) -> Dict[str, dict]:
@@ -213,7 +216,7 @@ def export_tracks_as_csv(
         if (not excludeBelowThreshold) or track.exceeds_thresholds(thresholds):
 
             sorted_confidence_pairs = sorted(
-                track.confidencePairs, key=lambda item: item[1]
+                track.confidencePairs, key=lambda item: item[1], reverse=True
             )
 
             for index, keyframe in enumerate(track.features):
@@ -232,7 +235,7 @@ def export_tracks_as_csv(
                         "",
                         feature.frame,
                         *feature.bounds,
-                        sorted_confidence_pairs[-1][1],
+                        sorted_confidence_pairs[0][1],
                         feature.fishLength or -1,
                     ]
 
