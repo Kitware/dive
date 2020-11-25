@@ -114,7 +114,8 @@ function _parseRow(row: string[]) {
       }
       return ['', 0] as ConfidencePair;
     })
-    .filter((val) => val[0] !== '');
+    .filter((val) => val[0] !== '')
+    .sort((a, b) => b[1] - a[1]);
   const headTail: [number, number][] = [];
   const start = 9 + (confidencePairs.length * 2);
   row.slice(start).forEach((value) => {
