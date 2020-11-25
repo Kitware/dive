@@ -102,8 +102,11 @@ def _parse_row(row: List[str]) -> Tuple[Dict, Dict, Dict, List]:
         for i in range(9, len(row), 2)
         if i + 1 < len(row) and row[i] and row[i + 1] and not row[i].startswith("(")
     ]
+    sorted_confidence_pairs = sorted(
+        confidence_pairs, key=lambda item: item[1], reverse=True
+    )
     head_tail = []
-    start = 9 + len(confidence_pairs) * 2
+    start = 9 + len(sorted_confidence_pairs) * 2
 
     for j in range(start, len(row)):
         head_regex = re.match(
@@ -134,7 +137,7 @@ def _parse_row(row: List[str]) -> Tuple[Dict, Dict, Dict, List]:
 
     if len(head_tail) == 2:
         create_geoJSONFeature(features, 'LineString', head_tail, 'HeadTails')
-    return features, attributes, track_attributes, confidence_pairs
+    return features, attributes, track_attributes, sorted_confidence_pairs
 
 
 def _parse_row_for_tracks(row: List[str]) -> Tuple[Feature, Dict, Dict, List]:
@@ -213,7 +216,7 @@ def export_tracks_as_csv(
         if (not excludeBelowThreshold) or track.exceeds_thresholds(thresholds):
 
             sorted_confidence_pairs = sorted(
-                track.confidencePairs, key=lambda item: item[1]
+                track.confidencePairs, key=lambda item: item[1], reverse=True
             )
 
             for index, keyframe in enumerate(track.features):
@@ -232,7 +235,7 @@ def export_tracks_as_csv(
                         "",
                         feature.frame,
                         *feature.bounds,
-                        sorted_confidence_pairs[-1][1],
+                        sorted_confidence_pairs[0][1],
                         feature.fishLength or -1,
                     ]
 
