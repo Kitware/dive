@@ -29,7 +29,8 @@ export default function useEventChart({
     enabledTracks.value.forEach((track) => {
       const { confidencePairs } = track;
       if (confidencePairs.length) {
-        const trackType = confidencePairs[0][0];
+        const type = track.getType();
+        const trackType = type ? type[0] : '';
         values.push({
           trackId: track.trackId,
           name: `Track ${track.trackId}`,

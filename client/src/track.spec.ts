@@ -87,4 +87,38 @@ describe('Track', () => {
       confidencePairs: [['foo', 1]],
     })).toThrowError();
   });
+
+  it('should properly change currentConfidencePair and return updated type', () => {
+    const itrack: TrackData = {
+      attributes: {},
+      begin: 0,
+      end: 100,
+      confidencePairs: [
+        ['foo', 1],
+        ['bar', 0.9],
+      ],
+      features: [
+        {
+          frame: 0,
+          bounds: [1, 2, 3, 4],
+          head: [1, 2],
+        },
+      ],
+      meta: {},
+      trackId: 1,
+    };
+    const t = Track.fromJSON(itrack);
+    expect(t.getType()).toEqual(['foo', 1]);
+    expect(t.currentConfidencePair).toBe(0);
+    t.setCurrentConfidencePair(1);
+    expect(t.getType()).toEqual(['bar', 0.9]);
+    expect(t.currentConfidencePair).toBe(1);
+    t.setCurrentConfidencePair(20);
+    expect(t.currentConfidencePair).toBe(1);
+    t.setType('newType');
+    expect(t.getType()).toEqual(['newType', 1]);
+    expect(t.currentConfidencePair).toBe(0);
+    t.setType('lowType', 0.25);
+    expect(t.getType()).toEqual(['lowType', 0.25]);
+  });
 });

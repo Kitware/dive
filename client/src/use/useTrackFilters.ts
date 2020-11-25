@@ -63,9 +63,13 @@ export default function useFilteredTracks(
     const confidenceThresh = defaultConfidenceThreshold.value;
     return sortedTracks.value.filter((track) => {
       const confidencePairsAboveThreshold = track.confidencePairs
-        .some(([confkey, confval]) => (
-          confval >= confidenceThresh && checkedSet.has(confkey)
-        ));
+        .some(([confkey, confval], index) => {
+          if (confval >= confidenceThresh && checkedSet.has(confkey)) {
+            track.setCurrentConfidencePair(index);
+            return true;
+          }
+          return false;
+        });
       return (
         /* include tracks where at least 1 confidence pair is above
          * the threshold and part of the checked type set */
