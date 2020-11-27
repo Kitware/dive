@@ -5,6 +5,7 @@
     "name": "Kitware, Inc.",
     "email": "viame-web@kitware.com"
   },
+  "description": "VIAME Web annotation platform",
   "homepage": "https://github.com/VIAME/VIAME-Web",
   "scripts": {
     "serve": "vue-cli-service serve platform/web-girder/main.ts",
