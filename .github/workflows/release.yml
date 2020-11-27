@@ -4,52 +4,18 @@ on:
     types: [published]
 
 jobs:
-  release:
-    defaults:
-      run:
-        working-directory: client
-    name: Release to NPM
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v2
-      with:
-        # "ref" specifies the branch to check out.
-        # "github.event.release.target_commitish" is a global variable and specifies the branch the release targeted
-        ref: ${{ github.event.release.target_commitish }}
-    - name: Use Node 10
-      uses: actions/setup-node@v1
-      with:
-        node-version: '10.x'
-        # Specifies the registry, this field is required!
-        registry-url: https://registry.npmjs.org/
-    - run: yarn install --frozen-lockfile
-    # set up git because yarn publish creates a commit
-    - run: git config --global user.name "GitHub Bot"
-    - run: git config --global user.email "viame-web@kitware.com"
-    # Run some sanity checks
-    - run: yarn lint
-    # - run: yarn lint:templates
-    # - run: yarn test
-    # Build and publish
-    # - run: yarn build:lib
-    - run: yarn build:electron
-    # - run: yarn build:cli
-    # - run: yarn publish --new-version ${{ github.event.release.tag_name }}
-    #   env:
-    #     # Use a token to publish to NPM.  Must configure this!
-    #     NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
   platform_release:
     defaults:
       run:
         working-directory: client
-    name: Build Desktop for multiple platforms
+    name: Build all packages for multiple platforms
     runs-on: ${{ matrix.config.os }}
     strategy:
       matrix:
         config:
           - os: windows-latest
           - os: macos-latest
+          - os: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
       with:
@@ -63,11 +29,24 @@ jobs:
         # Specifies the registry, this field is required!
         registry-url: https://registry.npmjs.org/
     - run: yarn install --frozen-lockfile
+    - run: git config --global user.name "GitHub Bot"
+    - run: git config --global user.email "viame-web@kitware.com"
+    - run: yarn lint
+    - run: yarn lint:templates
+    - run: yarn test
+    - run: yarn build:lib
     - run: yarn build:electron
+    - run: yarn build:cli
+    # - name: Publish to NPM
+    #   run: yarn publish --new-version ${{ github.event.release.tag_name }}
+    #   if: ${{ matrix.config.os == 'ubuntu-latest' }}
+    #   env:
+    #     # Use a token to publish to NPM.  Must configure this!
+    #     NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
     # push the version changes to GitHub
     - name: Upload Release Asset
       uses: alexellis/upload-assets@0.2.3
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        asset_paths: '["dist_electron/VIAME-Dive.*"]'
+        asset_paths: '["dist_electron/VIAME-Dive*"]'
