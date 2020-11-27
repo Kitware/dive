@@ -43,11 +43,11 @@ module.exports = {
         },
         linux: {
           target: ["AppImage", "snap", "tar.gz"],
-          artifactName: "VIAME-Dive.${version}.${ext}",
+          artifactName: "VIAME-Dive-${version}.${ext}",
         },
         win: {
           target: ["nsis", "portable", "msi", "zip"],
-          artifactName: "VIAME-Dive.${version}.${ext}",
+          artifactName: "VIAME-Dive-${version}.${ext}",
         },
       },
       chainWebpackMainProcess: chainWebpack,
