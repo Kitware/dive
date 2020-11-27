@@ -28,13 +28,46 @@ jobs:
     - run: git config --global user.email "viame-web@kitware.com"
     # Run some sanity checks
     - run: yarn lint
-    - run: yarn lint:templates
-    - run: yarn test
+    # - run: yarn lint:templates
+    # - run: yarn test
     # Build and publish
-    - run: yarn build:lib
+    # - run: yarn build:lib
     - run: yarn build:electron
-    - run: yarn build:cli
-    - run: yarn publish --new-version ${{ github.event.release.tag_name }}
+    # - run: yarn build:cli
+    # - run: yarn publish --new-version ${{ github.event.release.tag_name }}
+    #   env:
+    #     # Use a token to publish to NPM.  Must configure this!
+    #     NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  platform_release:
+    defaults:
+      run:
+        working-directory: client
+    name: Build Desktop for multiple platforms
+    runs-on: ${{ matrix.config.os }}
+    strategy:
+      matrix:
+        config:
+          - os: windows-latest
+          - os: macos-latest
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        # "ref" specifies the branch to check out.
+        # "github.event.release.target_commitish" is a global variable and specifies the branch the release targeted
+        ref: ${{ github.event.release.target_commitish }}
+    - name: Use Node 14
+      uses: actions/setup-node@v1
+      with:
+        node-version: '14.x'
+        # Specifies the registry, this field is required!
+        registry-url: https://registry.npmjs.org/
+    - run: yarn install --frozen-lockfile
+    - run: yarn build:electron
+    # push the version changes to GitHub
+    - name: Upload Release Asset
+      uses: alexellis/upload-assets@0.2.3
       env:
-        # Use a token to publish to NPM.  Must configure this!
-        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        asset_path: '["dist_electron/VIAME-Dive.*"]'
