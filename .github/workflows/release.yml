@@ -49,4 +49,4 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        asset_paths: '["./dist_electron/VIAME-Dive*", "./client/dist_electron/VIAME-Dive*"]'
+        asset_paths: '["./client/dist_electron/VIAME-Dive*"]'
