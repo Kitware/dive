@@ -22,6 +22,8 @@ test_tuple = [
             "4,5.png,5,10,10,20,20,1,-1,type1,0.89,type2,0.65,(poly) 1 2.34 3 4 5 6 7 8.08 9 10",
             # Track and Frame Attr testing
             "5,6.png,6,10,10,20,20,1,-1,type1,0.89,(atr) attrNAME spaced attr name,(trk-atr) booleanAttr true",
+            # Multiple ConfidencePair Sorting Test
+            "6,4.png,4,10,10,20,20,1,-1,type2,0.65,type1,0.89,type3,0.24",
         ],
         {
             "0": {
@@ -193,6 +195,21 @@ test_tuple = [
                 ],
                 "begin": 6,
                 "end": 6,
+            },
+            "6": {
+                "trackId": 6,
+                "attributes": {},
+                "confidencePairs": [["type1", 0.89], ["type2", 0.65], ["type3", 0.24]],
+                "features": [
+                    {
+                        "frame": 4,
+                        "bounds": [10, 10, 20, 20],
+                        "keyframe": True,
+                        "interpolate": False,
+                    },
+                ],
+                "begin": 4,
+                "end": 4,
             },
         },
     ),
