@@ -14,8 +14,8 @@ jobs:
       matrix:
         config:
           - os: windows-latest
-          # - os: macos-latest
-          # - os: ubuntu-latest
+          - os: macos-latest
+          - os: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
       with:
@@ -37,12 +37,12 @@ jobs:
     - run: yarn build:lib
     - run: yarn build:electron
     - run: yarn build:cli
-    # - name: Publish to NPM
-    #   run: yarn publish --new-version ${{ github.event.release.tag_name }}
-    #   if: ${{ matrix.config.os == 'ubuntu-latest' }}
-    #   env:
-    #     # Use a token to publish to NPM.  Must configure this!
-    #     NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+    - name: Publish to NPM
+      run: yarn publish --new-version ${{ github.event.release.tag_name }}
+      if: ${{ matrix.config.os == 'ubuntu-latest' }}
+      env:
+        # Use a token to publish to NPM.  Must configure this!
+        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
     # push the version changes to GitHub
     - name: Upload Release Asset
       uses: alexellis/upload-assets@0.2.3
