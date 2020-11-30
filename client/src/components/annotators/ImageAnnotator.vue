@@ -81,7 +81,12 @@ export default Vue.extend({
       this.frame = frame;
       this.syncedFrame = frame;
       this.emitFrame();
-      this.cacheImages();
+      const imgs = await this.cacheImages();
+      // reset dimensions of map from new image
+      const img = await imgs[this.frame];
+      this.width = img.naturalWidth;
+      this.height = img.naturalHeight;
+      this.resetMapDimensions();
       this.quadFeature
         .data([
           {
@@ -153,7 +158,7 @@ export default Vue.extend({
         await this.loadFrame(frame);
       }
       // Cache a new range of images based on current frame
-      this.cacheNewRange(min, max);
+      return this.cacheNewRange(min, max);
     },
     /**
      * Wraps loading of a single frame in a promise, used to gurantee frame loads
@@ -181,40 +186,48 @@ export default Vue.extend({
      * @param {int} max upper bound frame number for caching
      */
     cacheNewRange(min, max) {
+      const frameImages = [];
       for (let i = this.frame; i <= max; i += 1) {
-        this.cacheFrame(i);
+        frameImages[i] = this.cacheFrame(i);
         const minusFrame = this.frame - (i - this.frame);
         if (minusFrame >= min) {
           this.cacheFrame(minusFrame);
         }
       }
+      return frameImages;
     },
     /**
      * Adds a single frame to the pendingImgs array for loading and assigns it to the master
      * imgs list. Once the image is loaded it is removed from the pendingImgs
      * @param {int} i the image to cache if it isn't already assigned
+     * @returns {Array<Promise<Array<imgage>>>} loaded images
      */
     cacheFrame(i) {
+      let p = Promise.resolve(this.imgs[i]);
       if (!this.imgs[i]) {
         const img = new Image();
         img.crossOrigin = 'Anonymous';
         this.imgs[i] = img;
         const imageAndFrame = [img, i];
         this.pendingImgs.add(imageAndFrame);
-        img.onload = () => {
-          this.pendingImgs.delete(imageAndFrame);
-          img.onload = null;
-          img.cached = true;
-          // If we are trying to play and waiting for loaded frames we check the cache again
-          if (this.playing && this.loadingVideo) {
-            if (this.checkCached(this.playCache)) {
-              this.loadingVideo = false;
-              this.syncWithVideo();
+        p = new Promise((resolve) => {
+          img.onload = () => {
+            this.pendingImgs.delete(imageAndFrame);
+            img.onload = null;
+            img.cached = true;
+            // If we are trying to play and waiting for loaded frames we check the cache again
+            if (this.playing && this.loadingVideo) {
+              if (this.checkCached(this.playCache)) {
+                this.loadingVideo = false;
+                this.syncWithVideo();
+              }
             }
-          }
-        };
+            resolve(img);
+          };
+        });
         this.loadImageFunc(this.imageData[i], img);
       }
+      return p;
     },
     /**
      * Checks to see if there is enough cached images to play for X seconds
