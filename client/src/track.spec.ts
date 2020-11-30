@@ -88,7 +88,7 @@ describe('Track', () => {
     })).toThrowError();
   });
 
-  it('should properly change currentConfidencePair and return updated type', () => {
+  it('Indexing Types', () => {
     const itrack: TrackData = {
       attributes: {},
       begin: 0,
@@ -109,15 +109,13 @@ describe('Track', () => {
     };
     const t = Track.fromJSON(itrack);
     expect(t.getType()).toEqual(['foo', 1]);
-    expect(t.currentConfidencePair).toBe(0);
-    t.setCurrentConfidencePair(1);
-    expect(t.getType()).toEqual(['bar', 0.9]);
-    expect(t.currentConfidencePair).toBe(1);
-    t.setCurrentConfidencePair(20);
-    expect(t.currentConfidencePair).toBe(1);
+    expect(t.getType(1)).toEqual(['bar', 0.9]);
+    expect(t.getType(0)).toEqual(['foo', 1.0]);
+    expect(t.getType(-1)).toEqual(['foo', 1.0]);
     t.setType('newType');
     expect(t.getType()).toEqual(['newType', 1]);
-    expect(t.currentConfidencePair).toBe(0);
+    // Testing type out of range
+    expect(t.getType(1)).toEqual(['newType', 1]);
     t.setType('lowType', 0.25);
     expect(t.getType()).toEqual(['lowType', 0.25]);
   });

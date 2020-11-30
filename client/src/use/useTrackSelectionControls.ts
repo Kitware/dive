@@ -1,16 +1,18 @@
-import { ref, Ref } from '@vue/composition-api';
-import Track, { TrackId } from '../track';
-
+import { computed, ref, Ref } from '@vue/composition-api';
+import { FilteredTrack } from 'vue-media-annotator/use/useTrackFilters';
+import { TrackId } from '../track';
 /* Maintain references to the selected Track, selected detection,
  * editing state, etc.
  */
 export default function useTrackSelectionControls(
-  { tracks }: {tracks: Readonly<Ref<readonly Track[]>>},
+  { filteredTracks }: {filteredTracks: Readonly<Ref<readonly FilteredTrack[]>>},
 ) {
   // the currently selected Track
   const selectedTrackId = ref(null as TrackId | null);
   // boolean whether or not selectedTrackId is also being edited.
   const editingTrack = ref(false);
+
+  const tracks = computed(() => filteredTracks.value.map((filtered) => filtered.track));
 
   function selectTrack(trackId: TrackId | null, edit = false) {
     selectedTrackId.value = trackId;

@@ -85,8 +85,6 @@ export default class Track {
 
   bus: Vue;
 
-  currentConfidencePair: number;
-
   constructor(trackId: TrackId, {
     meta = {},
     begin = Infinity,
@@ -107,7 +105,6 @@ export default class Track {
     this.begin = begin;
     this.end = end;
     this.confidencePairs = confidencePairs;
-    this.currentConfidencePair = 0;
   }
 
   get length() {
@@ -343,26 +340,20 @@ export default class Track {
     }
   }
 
-  getType(): [string, number] | null {
+  getType(index = 0): [string, number] | null {
     if (this.confidencePairs.length > 0) {
-      if (this.confidencePairs[this.currentConfidencePair]) {
-        return this.confidencePairs[this.currentConfidencePair];
+      if (this.confidencePairs[index]) {
+        return this.confidencePairs[index];
       }
       return this.confidencePairs[0];
     }
     return null;
   }
 
-  setCurrentConfidencePair(index: number) {
-    if (index >= 0 && index < this.confidencePairs.length) {
-      this.currentConfidencePair = index;
-    }
-  }
 
   setType(trackType: string, confidenceVal = 1) {
     const old = this.confidencePairs;
     this.confidencePairs = [[trackType, confidenceVal]];
-    this.currentConfidencePair = 0;
     this.notify('confidencePairs', old);
   }
 

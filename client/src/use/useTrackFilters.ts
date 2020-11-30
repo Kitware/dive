@@ -4,6 +4,12 @@ import {
 import Track, { TrackId } from '../track';
 import { updateSubset } from '../utils';
 
+export interface FilteredTrack {
+    track: Track;
+    context: {
+      confidencePairIndex: number;
+    };
+}
 /* Provide track filtering controls on tracks loaded from useTrackStore. */
 export default function useFilteredTracks(
   { sortedTracks, removeTrack, markChangesPending }:
@@ -61,28 +67,27 @@ export default function useFilteredTracks(
   const filteredTracks = computed(() => {
     const checkedSet = new Set(checkedTypes.value);
     const confidenceThresh = defaultConfidenceThreshold.value;
-    return sortedTracks.value.filter((track) => {
-      const confidencePairsAboveThreshold = track.confidencePairs
-        .some(([confkey, confval], index) => {
-          if (confval >= confidenceThresh && checkedSet.has(confkey)) {
-            track.setCurrentConfidencePair(index);
-            return true;
-          }
-          return false;
-        });
-      return (
+    const resultsArr: FilteredTrack[] = [];
+    sortedTracks.value.forEach((track) => {
+      const confidencePairIndex = track.confidencePairs
+        .findIndex(([confkey, confval]) => confval >= confidenceThresh && checkedSet.has(confkey));
         /* include tracks where at least 1 confidence pair is above
          * the threshold and part of the checked type set */
-        confidencePairsAboveThreshold
-        /* include tracks with no confidence pairs */
-        || track.confidencePairs.length === 0
-      );
+      if (confidencePairIndex !== -1 || track.confidencePairs.length === 0) {
+        resultsArr.push({
+          track,
+          context: {
+            confidencePairIndex,
+          },
+        });
+      }
     });
+    return resultsArr;
   });
 
   const enabledTracks = computed(() => {
     const checkedSet = new Set(checkedTrackIds.value);
-    return filteredTracks.value.filter((track) => checkedSet.has(track.trackId));
+    return filteredTracks.value.filter((filtered) => checkedSet.has(filtered.track.trackId));
   });
 
   // because vue watchers don't behave properly, and it's better to not have

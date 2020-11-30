@@ -1,10 +1,11 @@
 
 import { computed, Ref } from '@vue/composition-api';
-import Track, { TrackId } from '../track';
+import { FilteredTrack } from 'vue-media-annotator/use/useTrackFilters';
+import { TrackId } from '../track';
 import { TypeStyling } from './useStyling';
 
 interface EventChartParams {
-  enabledTracks: Readonly<Ref<readonly Track[]>>;
+  enabledTracks: Readonly<Ref<readonly FilteredTrack[]>>;
   selectedTrackId: Ref<TrackId | null>;
   typeStyling: Ref<TypeStyling>;
 }
@@ -26,10 +27,11 @@ export default function useEventChart({
     const mapfunc = typeStyling.value.color;
     const selectedTrackIdValue = selectedTrackId.value;
     /* use forEach rather than filter().map() to save an interation */
-    enabledTracks.value.forEach((track) => {
+    enabledTracks.value.forEach((filtered) => {
+      const { track } = filtered;
       const { confidencePairs } = track;
       if (confidencePairs.length) {
-        const type = track.getType();
+        const type = track.getType(filtered.context.confidencePairIndex);
         const trackType = type ? type[0] : '';
         values.push({
           trackId: track.trackId,

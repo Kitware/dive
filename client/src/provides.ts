@@ -8,6 +8,7 @@ import { EditAnnotationTypes } from './layers/EditAnnotationLayer';
 import Track, { TrackId } from './track';
 import { VisibleAnnotationTypes } from './layers';
 import { RectBounds } from './utils';
+import { FilteredTrack } from './use/useTrackFilters';
 
 /**
  * Type definitions are read only because injectors may mutate internal state,
@@ -27,7 +28,7 @@ const CheckedTypesSymbol = Symbol('checkedTypes');
 type CheckedTypesType = Readonly<Ref<readonly string[]>>;
 
 const EnabledTracksSymbol = Symbol('enabledTracks');
-type EnabledTracksType = Readonly<Ref<readonly Track[]>>;
+type EnabledTracksType = Readonly<Ref<readonly FilteredTrack[]>>;
 
 const EditingModeSymbol = Symbol('editingMode');
 type EditingModeType = Readonly<Ref<false | EditAnnotationTypes>>;
@@ -42,7 +43,7 @@ const TrackMapSymbol = Symbol('trackMap');
 type TrackMapType = Readonly<Map<TrackId, Track>>;
 
 const TracksSymbol = Symbol('tracks');
-type TracksType = Readonly<Ref<readonly Track[]>>;
+type FilteredTracksType = Readonly<Ref<readonly FilteredTrack[]>>;
 
 const TypeStylingSymbol = Symbol('typeStyling');
 type TypeStylingType = Readonly<Ref<TypeStyling>>;
@@ -166,7 +167,7 @@ export interface State {
   frame: FrameType;
   intervalTree: IntervalTreeType;
   trackMap: TrackMapType;
-  tracks: TracksType;
+  filteredTracks: FilteredTracksType;
   typeStyling: TypeStylingType;
   selectedKey: SelectedKeyType;
   selectedTrackId: SelectedTrackIdType;
@@ -195,7 +196,7 @@ function dummyState(): State {
     frame: ref(0),
     intervalTree: new IntervalTree(),
     trackMap: new Map<TrackId, Track>(),
-    tracks: ref([]),
+    filteredTracks: ref([]),
     typeStyling: ref({
       color() { return style.color; },
       strokeWidth() { return style.strokeWidth; },
@@ -231,7 +232,7 @@ function provideAnnotator(state: State, handler: Handler) {
   provide(FrameSymbol, state.frame);
   provide(IntervalTreeSymbol, state.intervalTree);
   provide(TrackMapSymbol, state.trackMap);
-  provide(TracksSymbol, state.tracks);
+  provide(TracksSymbol, state.filteredTracks);
   provide(TypeStylingSymbol, state.typeStyling);
   provide(SelectedKeySymbol, state.selectedKey);
   provide(SelectedTrackIdSymbol, state.selectedTrackId);
@@ -291,8 +292,8 @@ function useTrackMap() {
   return use<TrackMapType>(TrackMapSymbol);
 }
 
-function useTracks() {
-  return use<TracksType>(TracksSymbol);
+function useFilteredTracks() {
+  return use<FilteredTracksType>(TracksSymbol);
 }
 
 function useTypeStyling() {
@@ -330,7 +331,7 @@ export {
   useIntervalTree,
   useFrame,
   useTrackMap,
-  useTracks,
+  useFilteredTracks,
   useTypeStyling,
   useSelectedKey,
   useSelectedTrackId,

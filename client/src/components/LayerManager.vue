@@ -6,6 +6,7 @@ import {
   watch,
 } from '@vue/composition-api';
 
+import { FilteredTrack } from 'vue-media-annotator/use/useTrackFilters';
 import { Annotator } from './annotators/annotatorType';
 import RectangleLayer from '../layers/AnnotationLayers/RectangleLayer';
 import PolygonLayer from '../layers/AnnotationLayers/PolygonLayer';
@@ -15,7 +16,7 @@ import LineLayer from '../layers/AnnotationLayers/LineLayer';
 import EditAnnotationLayer, { EditAnnotationTypes } from '../layers/EditAnnotationLayer';
 import { FrameDataTrack } from '../layers/LayerTypes';
 import TextLayer from '../layers/TextLayer';
-import Track, { TrackId } from '../track';
+import { TrackId } from '../track';
 import { geojsonToBound } from '../utils';
 import { VisibleAnnotationTypes } from '../layers';
 
@@ -43,7 +44,7 @@ export default defineComponent({
     const handler = useHandler();
     const intervalTree = useIntervalTree();
     const trackMap = useTrackMap();
-    const tracksRef = useEnabledTracks();
+    const filteredTracksRef = useEnabledTracks();
     const selectedTrackIdRef = useSelectedTrackId();
     const typeStylingRef = useTypeStyling();
     const editingModeRef = useEditingMode();
@@ -94,7 +95,7 @@ export default defineComponent({
       frame: number,
       editingTrack: false | EditAnnotationTypes,
       selectedTrackId: TrackId | null,
-      tracks: readonly Track[],
+      filteredTracks: readonly FilteredTrack[],
       visibleModes: readonly VisibleAnnotationTypes[],
       selectedKey: string,
     ) {
@@ -110,14 +111,19 @@ export default defineComponent({
           if (track === undefined) {
             throw new Error(`TrackID ${trackId} not found in map`);
           }
-          if (tracks.includes(track)) {
+          const filteredIndex = filteredTracks.findIndex(
+            (filtered) => filtered.track.trackId === track.trackId,
+          );
+          if (filteredIndex !== -1) {
             const [features] = track.getFeature(frame);
             const trackFrame = {
               selected: (selectedTrackId === track.trackId),
               editing: editingTrack,
               trackId: track.trackId,
               features,
-              confidencePairs: track.getType(),
+              confidencePairs: track.getType(
+                filteredTracks[filteredIndex].context.confidencePairIndex,
+              ),
             };
             frameData.push(trackFrame);
             if (frameData[frameData.length - 1].selected && (editingTrack)) {
@@ -193,7 +199,7 @@ export default defineComponent({
         frameNumberRef.value,
         editingModeRef.value,
         selectedTrackIdRef.value,
-        tracksRef.value,
+        filteredTracksRef.value,
         visibleModesRef.value,
         selectedKeyRef.value,
       );
@@ -202,7 +208,7 @@ export default defineComponent({
     watch([
       frameNumberRef,
       editingModeRef,
-      tracksRef,
+      filteredTracksRef,
       selectedTrackIdRef,
       visibleModesRef,
       typeStylingRef,
@@ -211,7 +217,7 @@ export default defineComponent({
         frameNumberRef.value,
         editingModeRef.value,
         selectedTrackIdRef.value,
-        tracksRef.value,
+        filteredTracksRef.value,
         visibleModesRef.value,
         selectedKeyRef.value,
       );
@@ -255,7 +261,7 @@ export default defineComponent({
           frameNumberRef.value,
           editingModeRef.value,
           selectedTrackIdRef.value,
-          tracksRef.value,
+          filteredTracksRef.value,
           visibleModesRef.value,
           selectedKeyRef.value,
         );
