@@ -103,7 +103,7 @@ export default {
         this.height,
       );
       this.geoViewer = geo.map(params.map);
-      this.setMapRange();
+      this.resetMapDimensions();
       this.geoViewer.zoomRange({
         min: this.geoViewer.zoomRange().origMin,
         max: this.geoViewer.zoomRange().max + 3,
