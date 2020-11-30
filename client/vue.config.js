@@ -48,7 +48,7 @@ module.exports = {
         win: {
           target: ["nsis", "portable", "msi", "zip"],
           artifactName: "VIAME-Dive-${version}.${ext}",
-          icon: 'viame-web-common/assets/windows-icon.ico',
+          icon: 'viame-web-common/assets/windows.ico',
         },
       },
       chainWebpackMainProcess: chainWebpack,
