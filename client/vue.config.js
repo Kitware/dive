@@ -30,12 +30,25 @@ module.exports = {
       mainProcessFile: 'platform/desktop/background.ts',
       // https://github.com/nklayman/vue-cli-plugin-electron-builder/pull/1088
       rendererProcessFile: 'platform/desktop/main.ts',
+      // https://www.electron.build/configuration/configuration
       builderOptions: {
+        appId: "com.kitware.viame",
+        productName: "VIAME-Dive",
+        copyright: "Copyright © 2020 Kitware, Inc.",
         // extraMetadata will be merged with package.json in args to electron-builder
         extraMetadata: {
           // https://github.com/nklayman/vue-cli-plugin-electron-builder/issues/188
           // https://github.com/electron-userland/electron-builder/issues/2592
           main: 'background.js',
+        },
+        linux: {
+          target: ["AppImage", "snap", "tar.gz"],
+          artifactName: "VIAME-Dive-${version}.${ext}",
+        },
+        win: {
+          target: ["nsis", "portable", "msi", "zip"],
+          artifactName: "VIAME-Dive-${version}.${ext}",
+          icon: 'viame-web-common/assets/windows.ico',
         },
       },
       chainWebpackMainProcess: chainWebpack,
