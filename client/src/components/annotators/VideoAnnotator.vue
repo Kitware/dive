@@ -57,6 +57,7 @@ export default Vue.extend({
           },
         ])
         .draw();
+      this.seek(0);
       this.ready = true;
     },
 
