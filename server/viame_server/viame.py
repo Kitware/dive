@@ -126,8 +126,7 @@ class Viame(Resource):
     )
     def run_training(self, folder, pipelineName, config):
         user = self.getCurrentUser()
-        upload_token = self.getCurrentToken()
-        # move_existing_result_to_auxiliary_folder(folder, user)
+        token = Token().createToken(user=user, days=14)
 
         detections = list(
             Item().find({"meta.detection": str(folder["_id"])}).sort([("created", -1)])
@@ -154,7 +153,7 @@ class Viame(Resource):
                 groundtruth=detection,
                 pipeline_name=pipelineName,
                 config=config,
-                girder_client_token=str(upload_token["_id"]),
+                girder_client_token=str(token["_id"]),
                 girder_job_title=(f"Running training on folder: {str(folder['name'])}"),
                 girder_job_type="training",
             ),
