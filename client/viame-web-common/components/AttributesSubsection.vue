@@ -9,8 +9,9 @@ import { Attribute } from 'viame-web-common/apispec';
 import {
   useSelectedTrackId,
   useFrame,
-  useGetTrack,
+  useTrackMap,
 } from 'vue-media-annotator/provides';
+import { getTrack } from 'vue-media-annotator/use/useTrackStore';
 import AttributeInput from 'viame-web-common/components/AttributeInput.vue';
 import PanelSubsection from 'viame-web-common/components/PanelSubsection.vue';
 
@@ -37,12 +38,12 @@ export default defineComponent({
   setup(props, { emit }) {
     const frameRef = useFrame();
     const selectedTrackIdRef = useSelectedTrackId();
-    const getTrack = useGetTrack();
+    const trackMap = useTrackMap();
     const activeSettings = ref(false);
 
     const selectedTrack = computed(() => {
       if (selectedTrackIdRef.value !== null) {
-        return getTrack(selectedTrackIdRef.value);
+        return getTrack(trackMap, selectedTrackIdRef.value);
       }
       return null;
     });
@@ -79,7 +80,7 @@ export default defineComponent({
 
     function updateAttribute({ name, value }: { name: string; value: unknown }) {
       if (selectedTrackIdRef.value) {
-        const track = getTrack(selectedTrackIdRef.value);
+        const track = getTrack(trackMap, selectedTrackIdRef.value);
         if (track !== undefined) {
           if (props.mode === 'Track') {
             track.setAttribute(name, value);

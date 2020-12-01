@@ -14,8 +14,9 @@ import {
   useTypeStyling,
   useAllTypes,
   useHandler,
-  useGetTrack,
+  useTrackMap,
 } from 'vue-media-annotator/provides';
+import { getTrack } from 'vue-media-annotator/use/useTrackStore';
 import TrackItem from 'vue-media-annotator/components/TrackItem.vue';
 
 import { useApi, Attribute } from 'viame-web-common/apispec';
@@ -52,10 +53,10 @@ export default defineComponent({
     const attributes = ref([] as Attribute[]);
     const editingAttribute: Ref<Attribute | null> = ref(null);
     const editingError: Ref<string | null> = ref(null);
-    const getTrack = useGetTrack();
     const editingModeRef = useEditingMode();
     const typeStylingRef = useTypeStyling();
     const allTypesRef = useAllTypes();
+    const trackMap = useTrackMap();
     const { trackSelectNext, trackSplit, removeTrack } = useHandler();
 
     //Edit/Set single value by clicking
@@ -67,7 +68,7 @@ export default defineComponent({
     const { getAttributes, setAttribute, deleteAttribute } = useApi();
     const selectedTrack = computed(() => {
       if (selectedTrackIdRef.value !== null) {
-        return getTrack(selectedTrackIdRef.value);
+        return getTrack(trackMap, selectedTrackIdRef.value);
       }
       return null;
     });
