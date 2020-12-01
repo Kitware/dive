@@ -3,3 +3,4 @@
 *.ico -text
 *.jpg -text
 *.png -text
+*.gif -text
