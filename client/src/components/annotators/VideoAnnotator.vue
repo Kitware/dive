@@ -57,6 +57,8 @@ export default Vue.extend({
           },
         ])
         .draw();
+      // Force the first frame to load on slow networks.
+      // See https://github.com/VIAME/VIAME-Web/issues/447 for more details.
       this.seek(0);
       this.ready = true;
     },
