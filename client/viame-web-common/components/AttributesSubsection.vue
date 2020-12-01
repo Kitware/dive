@@ -79,7 +79,7 @@ export default defineComponent({
     }
 
     function updateAttribute({ name, value }: { name: string; value: unknown }) {
-      if (selectedTrackIdRef.value) {
+      if (selectedTrackIdRef.value !== null) {
         const track = getTrack(trackMap, selectedTrackIdRef.value);
         if (track !== undefined) {
           if (props.mode === 'Track') {

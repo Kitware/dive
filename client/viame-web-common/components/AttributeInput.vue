@@ -4,6 +4,7 @@ import {
   ref,
   PropType,
   onMounted,
+  watch,
 } from '@vue/composition-api';
 
 export default defineComponent({
@@ -37,7 +38,11 @@ export default defineComponent({
       { text: 'true', value: true },
       { text: 'false', value: false },
     ];
-    tempVal.value = props.value;
+    if (props.datatype === 'text') {
+      watch(() => props.value, (newVal) => {
+        tempVal.value = newVal;
+      });
+    }
     onMounted(() => {
       if (props.focus && inputBoxRef.value) {
         inputBoxRef.value.focus();
