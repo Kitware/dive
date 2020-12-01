@@ -222,7 +222,7 @@ export default defineComponent({
       v-if="!selectedTrack"
       class="ml-4 body-2"
     >
-      No track attributes set
+      No Track selected
     </div>
     <template v-else>
       <datalist id="allTypesOptions">
@@ -269,6 +269,7 @@ export default defineComponent({
     <v-dialog
       :value="editingAttribute != null"
       max-width="350"
+      @click:outside="closeEditor"
     >
       <attribute-editor
         v-if="editingAttribute != null"

@@ -48,15 +48,18 @@ export default defineComponent({
       return null;
     });
 
+    // Using Revision to nudge the attributes after updating them
     const selectedAttributes = computed(() => {
-      const t = selectedTrack.value;
-      if (t !== undefined && t !== null) {
-        if (props.mode === 'Track') {
-          return t;
-        }
-        if (props.mode === 'Detection') {
-          const [real] = t.getFeature(frameRef.value);
-          return real;
+      if (selectedTrack.value && selectedTrack.value.revision.value) {
+        const t = selectedTrack.value;
+        if (t !== undefined && t !== null) {
+          if (props.mode === 'Track') {
+            return t;
+          }
+          if (props.mode === 'Detection') {
+            const [real] = t.getFeature(frameRef.value);
+            return real;
+          }
         }
       }
       return null;
@@ -182,13 +185,6 @@ export default defineComponent({
       </v-row>
     </template>
 
-    <v-subheader
-      v-else
-      class="border-highlight"
-    >
-      No detection attributes set
-    </v-subheader>
-
     <template
       v-if="selectedAttributes"
       slot="scroll-section"
@@ -268,7 +264,7 @@ export default defineComponent({
       </v-col>
       <v-col v-else>
         <div style="font-size: 0.75em">
-          No {{ mode }} selected
+          No {{ mode }} attributes set
         </div>
       </v-col>
     </template>
