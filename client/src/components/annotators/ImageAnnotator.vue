@@ -217,18 +217,11 @@ export default Vue.extend({
         const imageAndFrame = [img, i];
         this.pendingImgs.add(imageAndFrame);
         p = new Promise((resolve) => {
-<<<<<<< HEAD
           img.onload = (evt) => {
             this.pendingImgs.delete(imageAndFrame);
             img.onload = null;
             img.cached = true;
             img.frame = i;
-=======
-          img.onload = () => {
-            this.pendingImgs.delete(imageAndFrame);
-            img.onload = null;
-            img.cached = true;
->>>>>>> a9841e4... Multiresolution support
             // If we are trying to play and waiting for loaded frames we check the cache again
             if (this.playing && this.loadingVideo) {
               if (this.checkCached(this.playCache)) {
