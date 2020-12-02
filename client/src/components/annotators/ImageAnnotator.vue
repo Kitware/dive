@@ -206,7 +206,7 @@ export default Vue.extend({
      * Adds a single frame to the pendingImgs array for loading and assigns it to the master
      * imgs list. Once the image is loaded it is removed from the pendingImgs
      * @param {int} i the image to cache if it isn't already assigned
-     * @returns {Array<Promise<Array<imgage>>>} loaded images
+     * @returns {Array<Promise<Array<image>>>} loaded images
      */
     cacheFrame(i) {
       let p = Promise.resolve(this.imgs[i]);
