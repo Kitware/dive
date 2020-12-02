@@ -217,7 +217,7 @@ export default Vue.extend({
         const imageAndFrame = [img, i];
         this.pendingImgs.add(imageAndFrame);
         p = new Promise((resolve) => {
-          img.onload = (evt) => {
+          img.onload = () => {
             this.pendingImgs.delete(imageAndFrame);
             img.onload = null;
             img.cached = true;
