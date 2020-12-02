@@ -93,6 +93,8 @@ export default {
         bottom: params.map.maxBounds.bottom,
       });
       this.geoViewer.zoomRange(params.map);
+      this.geoViewer.zoom(this.geoViewer.zoomRange().origMin);
+      this.geoViewer.center({ x: 0, y: 0 });
     },
     baseInit() {
       const params = geo.util.pixelCoordinateParams(

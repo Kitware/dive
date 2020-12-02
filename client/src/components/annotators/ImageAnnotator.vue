@@ -54,19 +54,10 @@ export default Vue.extend({
       this.quadFeatureLayer = this.geoViewer.createLayer('feature', {
         features: ['quad'],
       });
-      this.quadFeature = this.quadFeatureLayer
-        .createFeature('quad')
-        .data([
-          {
-            ul: { x: 0, y: 0 },
-            lr: { x: this.width, y: this.height },
-            image: this.imgs[this.frame],
-          },
-        ])
-        .draw();
+      this.quadFeature = this.quadFeatureLayer.createFeature('quad');
+      this.drawImage(this.imgs[this.frame]);
       this.ready = true;
     },
-
     async play() {
       try {
         this.playing = true;
@@ -75,29 +66,43 @@ export default Vue.extend({
         console.error(ex);
       }
     },
-
-    async seek(frame) {
-      this.lastFrame = this.frame;
-      this.frame = frame;
-      this.syncedFrame = frame;
-      this.emitFrame();
-      const imgs = await this.cacheImages();
-      // reset dimensions of map from new image
-      const img = await imgs[this.frame];
-      this.width = img.naturalWidth;
-      this.height = img.naturalHeight;
-      this.resetMapDimensions();
+    drawImage(img) {
+      if ((img.naturalWidth !== this.width) || (img.naturalHeight !== this.height)) {
+        this.width = img.naturalWidth;
+        this.height = img.naturalHeight;
+        this.resetMapDimensions();
+      }
       this.quadFeature
         .data([
           {
             ul: { x: 0, y: 0 },
             lr: { x: this.width, y: this.height },
-            image: this.imgs[frame],
+            image: img,
           },
         ])
         .draw();
     },
-
+    async seek(newFrame) {
+      this.lastFrame = this.frame;
+      this.frame = newFrame;
+      this.syncedFrame = newFrame;
+      this.emitFrame();
+      const imgsPromise = this.cacheImages();
+      const img = this.imgs[newFrame];
+      if (img.cached) {
+        // if image is already loaded, draw it now
+        this.drawImage(img);
+      } else {
+        // else wait for it to load
+        const imgs = await imgsPromise;
+        const loadedImg = await imgs[newFrame];
+        if (loadedImg !== undefined && loadedImg.frame === this.frame) {
+          // if the image exists ()
+          // and the seek hasn't changed since the image completed loading, draw it.
+          this.drawImage(loadedImg);
+        }
+      }
+    },
     pause() {
       this.playing = false;
       this.loadingVideo = false;
@@ -174,6 +179,7 @@ export default Vue.extend({
         img.onload = () => {
           img.onload = null;
           img.cached = true;
+          img.frame = frame;
           resolve(frame);
         };
         this.loadImageFunc(this.imageData[frame], img);
@@ -211,10 +217,11 @@ export default Vue.extend({
         const imageAndFrame = [img, i];
         this.pendingImgs.add(imageAndFrame);
         p = new Promise((resolve) => {
-          img.onload = () => {
+          img.onload = (evt) => {
             this.pendingImgs.delete(imageAndFrame);
             img.onload = null;
             img.cached = true;
+            img.frame = i;
             // If we are trying to play and waiting for loaded frames we check the cache again
             if (this.playing && this.loadingVideo) {
               if (this.checkCached(this.playCache)) {
