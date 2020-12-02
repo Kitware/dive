@@ -121,9 +121,10 @@ export default defineComponent({
               editing: editingTrack,
               trackId: track.trackId,
               features,
-              confidencePairs: track.getType(
+              trackType: track.getType(
                 filteredTracks[filteredIndex].context.confidencePairIndex,
               ),
+              confidencePairs: track.confidencePairs,
             };
             frameData.push(trackFrame);
             if (frameData[frameData.length - 1].selected && (editingTrack)) {
@@ -161,9 +162,14 @@ export default defineComponent({
       if (selectedTrackId !== null) {
         if ((editingTrack) && !currentFrameIds.includes(selectedTrackId)) {
           const editTrack = trackMap.get(selectedTrackId);
+
           if (editTrack === undefined) {
             throw new Error(`trackMap missing trackid ${selectedTrackId}`);
           }
+          const filteredIndex = filteredTracks.findIndex(
+            (filtered) => filtered.track.trackId === editTrack.trackId,
+          );
+
           const [real, lower, upper] = editTrack.getFeature(frame);
           const features = real || lower || upper;
           const trackFrame = {
@@ -171,7 +177,10 @@ export default defineComponent({
             editing: true,
             trackId: editTrack.trackId,
             features: (features && features.interpolate) ? features : null,
-            confidencePairs: editTrack.getType(),
+            trackType: editTrack.getType(
+              filteredTracks[filteredIndex].context.confidencePairIndex,
+            ),
+            confidencePairs: editTrack.confidencePairs,
           };
           editingTracks.push(trackFrame);
         }
