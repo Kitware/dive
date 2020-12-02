@@ -72,6 +72,30 @@ export default {
     setImageCursor(newCursor) {
       this.imageCursor = `${newCursor}`;
     },
+    resetMapDimensions() {
+      this.geoViewer.bounds({
+        left: 0,
+        top: 0,
+        bottom: this.height,
+        right: this.width,
+      });
+      const params = geo.util.pixelCoordinateParams(
+        this.$refs.container,
+        this.width,
+        this.height,
+        this.width,
+        this.height,
+      );
+      this.geoViewer.maxBounds({
+        left: 0,
+        top: 0,
+        right: params.map.maxBounds.right,
+        bottom: params.map.maxBounds.bottom,
+      });
+      this.geoViewer.zoomRange(params.map);
+      this.geoViewer.zoom(this.geoViewer.zoomRange().origMin);
+      this.geoViewer.center({ x: 0, y: 0 });
+    },
     baseInit() {
       const params = geo.util.pixelCoordinateParams(
         this.$refs.container,
@@ -81,6 +105,7 @@ export default {
         this.height,
       );
       this.geoViewer = geo.map(params.map);
+      this.resetMapDimensions();
       this.geoViewer.zoomRange({
         min: this.geoViewer.zoomRange().origMin,
         max: this.geoViewer.zoomRange().max + 3,
@@ -117,6 +142,7 @@ export default {
       interactorOpts.wheelScaleY = 0.2;
       this.geoViewer.interactor().options(interactorOpts);
     },
+
     prevFrame() {
       const targetFrame = this.frame - 1;
       if (targetFrame >= 0) {
