@@ -144,13 +144,16 @@ export default function useFilteredTracks(
     markChangesPending();
   }
 
-  function removeTypeTracks(type: string[]) {
-    sortedTracks.value.forEach((track) => {
-      track.confidencePairs.forEach(([name]) => {
-        if (type.includes(name)) {
-          removeTrack(track.trackId);
+  function removeTypeTracks(types: string[]) {
+    filteredTracks.value.forEach((filtered) => {
+      const filteredType = filtered.track.getType(filtered.context.confidencePairIndex);
+      if (filteredType && types.includes(filteredType[0])) {
+        //Remove the type from the track if multiple types exist
+        const newConfidencePairs = filtered.track.removeTypes(types);
+        if (newConfidencePairs.length === 0) {
+          removeTrack(filtered.track.trackId);
         }
-      });
+      }
     });
   }
 

@@ -350,6 +350,17 @@ export default class Track {
     return null;
   }
 
+  removeTypes(types: string[]) {
+    if (this.confidencePairs.length > 0) {
+      const old = this.confidencePairs;
+      this.confidencePairs = this.confidencePairs.filter(
+        ([type]) => !types.includes(type),
+      );
+      this.notify('confidencePairs', old);
+    }
+    return this.confidencePairs;
+  }
+
 
   setType(trackType: string, confidenceVal = 1) {
     const old = this.confidencePairs;
