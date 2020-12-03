@@ -73,12 +73,13 @@ def organize_folder_for_training(
     labels = set()
     with open(groundtruth, 'r') as groundtruth_infile:
         for line in groundtruth_infile.readlines():
-            row = [c.strip() for c in line.split(",")]
+            if not line.strip().startswith('#'):
+                row = [c.strip() for c in line.split(",")]
 
-            # Confidence pairs start at the 9th index
-            # 9th index is label, 10th is confidence, 11th is another label, etc.
-            for label in row[9::2]:
-                labels.add(label)
+                # Confidence pairs start at the 9th index
+                # 9th index is label, 10th is confidence, 11th is another label, etc.
+                for label in row[9::2]:
+                    labels.add(label)
 
     with open(root_training_dir / "labels.txt", "w") as labels_file:
         label_lines = [f"{label}\n" for label in labels]
