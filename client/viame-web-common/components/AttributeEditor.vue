@@ -123,7 +123,6 @@ export default defineComponent({
           />
           <v-select
             v-model="datatype"
-            style="max-width: 220px;"
             :items="[
               { text: 'Boolean', value: 'boolean' },
               { text: 'Number', value: 'number' },
@@ -134,7 +133,6 @@ export default defineComponent({
           <v-textarea
             v-if="datatype === 'text'"
             v-model="textValues"
-            style="max-width: 250px;"
             label="Predefined values"
             hint="Line separated values"
             outlined
