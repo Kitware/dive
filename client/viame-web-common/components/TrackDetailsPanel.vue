@@ -270,6 +270,7 @@ export default defineComponent({
       :value="editingAttribute != null"
       max-width="350"
       @click:outside="closeEditor"
+      @keydown.esc.stop="closeEditor"
     >
       <attribute-editor
         v-if="editingAttribute != null"
