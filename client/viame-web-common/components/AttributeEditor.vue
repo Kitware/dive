@@ -103,10 +103,16 @@ export default defineComponent({
       Attributes
       <v-card-text>
         <v-alert
-          v-if="error"
-          type="error"
+          v-if="error || !addNew"
+          :type="error ? 'error' : 'info'"
         >
-          {{ error }}
+          <div style="word-break: break-word;">
+            {{
+              error ? error :
+              'Changes to Attribute Datatypes or Names do not effect \
+               currently set attributes on tracks.'
+            }}
+          </div>
         </v-alert>
         <v-form ref="form">
           <v-text-field

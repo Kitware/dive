@@ -118,7 +118,9 @@ export default defineComponent({
     }) {
       editingError.value = null;
       if (attributes.value.some((attribute) => (
-        attribute.name === saveData.data.name && attribute.belongs === saveData.data.belongs))) {
+        attribute.name === saveData.data.name
+        && attribute.belongs === saveData.data.belongs
+        && attribute._id !== saveData.data._id))) {
         editingError.value = 'Attribute with that name exists';
         return;
       }
@@ -268,7 +270,7 @@ export default defineComponent({
     </template>
     <v-dialog
       :value="editingAttribute != null"
-      max-width="350"
+      max-width="550"
       @click:outside="closeEditor"
       @keydown.esc.stop="closeEditor"
     >
