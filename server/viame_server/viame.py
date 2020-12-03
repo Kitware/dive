@@ -81,7 +81,7 @@ class Viame(Resource):
     )
     def run_pipeline_task(self, folder, pipeline):
         user = self.getCurrentUser()
-        token = Token().createToken(user=user, days=1)
+        token = Token().createToken(user=user, days=14)
         move_existing_result_to_auxiliary_folder(folder, user)
         input_type = folder["meta"]["type"]
 
@@ -238,7 +238,7 @@ class Viame(Resource):
         auxiliary = get_or_create_auxiliary_folder(folder, user)
 
         if not skipJobs:
-            token = Token().createToken(user=user, days=1)
+            token = Token().createToken(user=user, days=2)
             # transcode VIDEO if necessary
             videoItems = Folder().childItems(
                 folder, filters={"lowerName": {"$regex": videoRegex}}
