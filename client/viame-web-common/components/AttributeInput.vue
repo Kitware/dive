@@ -73,8 +73,9 @@ export default defineComponent({
     function change(event: InputEvent): void {
       const target = event.target as HTMLInputElement;
       const { name } = props;
-      if (target && target.value) {
-        emit('change', { name, value: target.value.trim() });
+      const value = target.value.trim();
+      if (value) {
+        emit('change', { name, value });
       } else {
         emit('change', { name, value: undefined });
       }
