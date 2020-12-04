@@ -3,6 +3,7 @@ import {
 } from '@vue/composition-api';
 import { uniq, flatMapDeep } from 'lodash';
 import Track, { TrackId } from 'vue-media-annotator/track';
+import { getTrack } from 'vue-media-annotator/use/useTrackStore';
 import { RectBounds, updateBounds } from 'vue-media-annotator/utils';
 import { EditAnnotationTypes, VisibleAnnotationTypes } from 'vue-media-annotator/layers';
 
@@ -38,7 +39,6 @@ export default function useModeManager({
   newTrackSettings,
   recipes,
   selectTrack,
-  getTrack,
   selectNextTrack,
   addTrack,
   removeTrack,
@@ -51,7 +51,6 @@ export default function useModeManager({
   newTrackSettings: NewTrackSettings;
   recipes: Recipe[];
   selectTrack: (trackId: TrackId | null, edit: boolean) => void;
-  getTrack: (trackId: TrackId) => Track;
   selectNextTrack: (delta?: number) => TrackId | null;
   addTrack: (frame: number, defaultType: string) => Track;
   removeTrack: (trackId: TrackId) => void;
@@ -148,7 +147,7 @@ export default function useModeManager({
 
   function handleTrackTypeChange(trackId: TrackId | null, value: string) {
     if (trackId !== null) {
-      getTrack(trackId).setType(value);
+      getTrack(trackMap, trackId).setType(value);
     }
   }
 
@@ -359,13 +358,13 @@ export default function useModeManager({
 
   /** Toggle editing mode for track */
   function handleTrackEdit(trackId: TrackId) {
-    const track = getTrack(trackId);
+    const track = getTrack(trackMap, trackId);
     seekNearest(track);
     selectTrack(trackId, trackId === selectedTrackId.value ? (!editingTrack.value) : true);
   }
 
   function handleTrackClick(trackId: TrackId) {
-    const track = getTrack(trackId);
+    const track = getTrack(trackMap, trackId);
     seekNearest(track);
     selectTrack(trackId, editingTrack.value);
   }
@@ -374,7 +373,7 @@ export default function useModeManager({
     const newTrack = selectNextTrack(delta);
     if (newTrack !== null) {
       selectTrack(newTrack, false);
-      seekNearest(getTrack(newTrack));
+      seekNearest(getTrack(trackMap, newTrack));
     }
   }
 

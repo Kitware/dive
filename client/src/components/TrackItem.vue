@@ -12,6 +12,10 @@ export default defineComponent({
   components: { TooltipBtn },
 
   props: {
+    solo: {
+      type: Boolean,
+      default: false,
+    },
     trackType: {
       type: String,
       required: true,
@@ -84,7 +88,7 @@ export default defineComponent({
 
     /* Sets styling for the selected track */
     const style = computed(() => {
-      if (props.selected) {
+      if (props.selected && !props.solo) {
         return {
           'background-color': `${vuetify.theme.themes.dark.accentBackground}`,
         };
@@ -212,7 +216,16 @@ export default defineComponent({
     :style="style"
   >
     <v-row class="px-3 pt-2 justify-center item-row">
+      <div
+        v-if="solo"
+        class="type-color-box"
+        :style="{
+          backgroundColor: color,
+        }"
+      />
+
       <v-checkbox
+        v-else
         class="my-0 ml-1 pt-0"
         dense
         hide-details
@@ -383,5 +396,14 @@ export default defineComponent({
     background-color: #1e1e1e;
     appearance: menulist;
   }
+  .type-color-box {
+  margin: 7px;
+  margin-top: 4px;
+  min-width: 15px;
+  max-width: 15px;
+  min-height: 15px;
+  max-height: 15px;
+}
+
 }
 </style>

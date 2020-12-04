@@ -1,7 +1,7 @@
 /// <reference types="jest" />
 import Vue from 'vue';
 import CompositionApi, { watchEffect } from '@vue/composition-api';
-import useTrackStore from './useTrackStore';
+import useTrackStore, { getTrack } from './useTrackStore';
 
 Vue.use(CompositionApi);
 
@@ -50,9 +50,9 @@ describe('useTrackStore', () => {
   it('throws an error when you access a track that is missing', () => {
     const markChangesPending = () => null;
     const ts = useTrackStore({ markChangesPending });
-    expect(() => ts.getTrack(0)).toThrow('TrackId 0 not found in trackMap.');
+    expect(() => getTrack(ts.trackMap, 0)).toThrow('TrackId 0 not found in trackMap.');
     ts.addTrack(1000, 'foo');
-    expect(ts.getTrack(0)).toBeTruthy();
+    expect(getTrack(ts.trackMap, 0)).toBeTruthy();
   });
 
   it('updates a reactive list when member tracks change', async () => {

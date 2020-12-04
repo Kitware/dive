@@ -10,6 +10,8 @@ import { DatasetMeta, provideApi } from 'viame-web-common/apispec';
 import { VIAMEDataset } from './store/Dataset';
 import {
   getAttributes,
+  setAttribute,
+  deleteAttribute,
   getPipelineList,
   runPipeline,
   getTrainingConfigurations,
@@ -32,6 +34,8 @@ export default defineComponent({
 
     provideApi({
       getAttributes,
+      setAttribute,
+      deleteAttribute,
       getPipelineList,
       runPipeline,
       getTrainingConfigurations,
