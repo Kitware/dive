@@ -320,7 +320,7 @@ def convert_video(self: Task, path, folderId, auxiliaryFolderId):
         if self.canceled:
             manager.updateStatus(JobStatus.CANCELED)
             return
-        if not process.returncode > 0:
+        if process.returncode > 0:
             raise RuntimeError(
                 'could not execute ffprobe {}: {}'.format(process.returncode, stderr)
             )
@@ -356,7 +356,7 @@ def convert_video(self: Task, path, folderId, auxiliaryFolderId):
     )
 
     stdout, stderr = read_and_close_process_outputs(
-        process, process_log_file, process_err_file
+        process, self, process_log_file, process_err_file
     )
 
     output = stdout + "\n" + stderr
@@ -425,7 +425,7 @@ def convert_images(self: Task, folderId):
             )
 
             stdout, stderr = read_and_close_process_outputs(
-                process, process_log_file, process_err_file
+                process, self, process_log_file, process_err_file
             )
 
             if self.canceled:
