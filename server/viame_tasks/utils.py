@@ -17,7 +17,7 @@ def read_and_close_process_outputs(
     stdout: str = ""
     stderr: str = ""
 
-    while not task.canceled:
+    while not task.canceled and process.poll() is None:
         try:
             process.wait(timeout=20)
         except TimeoutExpired:
