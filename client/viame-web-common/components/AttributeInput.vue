@@ -50,7 +50,12 @@ export default defineComponent({
     });
 
     function blurType(e: KeyboardEvent) {
-      (e.target as HTMLInputElement).blur();
+      const target = (e.target as HTMLInputElement);
+      // Datalist needs to reset if we blur on no input
+      if (props.values && props.values.length && target.value === '') {
+        tempVal.value = props.value;
+      }
+      target.blur();
     }
     function onFocus() {
       if (props.values && props.values.length) {
