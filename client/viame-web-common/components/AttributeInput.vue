@@ -84,6 +84,7 @@ export default defineComponent({
       } else {
         emit('change', { name, value: undefined });
       }
+      target.blur();
     }
     return {
       inputBoxRef,
