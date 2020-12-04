@@ -1,20 +1,32 @@
 import os
 import shutil
 from pathlib import Path
-from subprocess import Popen
+from subprocess import Popen, TimeoutExpired
 from tempfile import mktemp
 from typing import IO, Optional, Tuple
+
+from girder_worker.task import Task
 
 
 def read_and_close_process_outputs(
     process: Popen,
+    task: Task,
     stdout_file: Optional[IO] = None,
     stderr_file: Optional[IO] = None,
 ) -> Tuple[str, str]:
     stdout: str = ""
     stderr: str = ""
 
-    process.wait()
+    while not task.canceled:
+        try:
+            process.wait(timeout=20)
+        except TimeoutExpired:
+            pass
+
+    if task.canceled:
+        process.kill()
+        return ("", "")
+
     if stdout_file is not None:
         stdout_file.seek(0)
         stdout = stdout_file.read().decode()
