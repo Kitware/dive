@@ -3,15 +3,13 @@
  */
 import npath from 'path';
 import fs from 'fs-extra';
-import { spawn } from 'child_process';
 import { shell } from 'electron';
 import mime from 'mime-types';
-import { xml2json } from 'xml-js';
 import moment from 'moment';
 import { TrackData } from 'vue-media-annotator/track';
 import { DatasetType, Pipelines, SaveDetectionsArgs } from 'viame-web-common/apispec';
 
-import { Settings, NvidiaSmiReply, websafeImageTypes } from '../../constants';
+import { Settings, websafeImageTypes } from '../../constants';
 import * as viameSerializers from '../serializers/viame';
 
 const AuxFolderName = 'auxiliary';
@@ -193,35 +191,6 @@ async function createKwiverRunWorkingDir(datasetName: string, baseDir: string, p
   return runFolderPath;
 }
 
-// Based on https://github.com/chrisallenlane/node-nvidia-smi
-async function nvidiaSmi(): Promise<NvidiaSmiReply> {
-  return new Promise((resolve) => {
-    const smi = spawn('nvidia-smi', ['-q', '-x']);
-    let result = '';
-    smi.stdout.on('data', (chunk) => {
-      result = result.concat(chunk.toString('utf-8'));
-    });
-    smi.on('close', (exitCode) => {
-      let jsonStr = 'null'; // parses to null
-      if (exitCode === 0) {
-        jsonStr = xml2json(result, { compact: true });
-      }
-      resolve({
-        output: JSON.parse(jsonStr),
-        exitCode,
-        error: result,
-      });
-    });
-    smi.on('error', (err) => {
-      resolve({
-        output: null,
-        exitCode: -1,
-        error: err.message,
-      });
-    });
-  });
-}
-
 /**
  * Save pre-serialized tracks to disk
  * @param datasetId path
@@ -297,7 +266,6 @@ async function openLink(url: string) {
 }
 
 export default {
-  nvidiaSmi,
   openLink,
   getAuxFolder,
   createKwiverRunWorkingDir,

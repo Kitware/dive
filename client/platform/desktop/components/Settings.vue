@@ -3,6 +3,7 @@ import {
   defineComponent, onBeforeMount, ref,
 } from '@vue/composition-api';
 
+import { remote } from 'electron';
 import { NvidiaSmiReply } from '../constants';
 
 import { settings, setSettings, validateSettings } from '../store/settings';
@@ -29,8 +30,19 @@ export default defineComponent({
       smi.value = await nvidiaSmi();
     });
 
+    async function openPath() {
+      const result = await remote.dialog.showOpenDialog({
+        properties: ['openDirectory'],
+        defaultPath: localSettings.value.viamePath,
+      });
+      if (!result.canceled) {
+        [localSettings.value.viamePath] = result.filePaths;
+      }
+    }
+
     async function save() {
       if (settings.value !== null) {
+        settingsAreValid.value = false;
         settingsAreValid.value = await validateSettings(localSettings.value);
         setSettings(localSettings.value);
       }
@@ -45,6 +57,7 @@ export default defineComponent({
       settingsAreValid,
       smi,
       version,
+      openPath,
     };
   },
 });
@@ -57,13 +70,32 @@ export default defineComponent({
       <v-card>
         <v-card-title>Settings</v-card-title>
         <v-card-text>
-          <v-text-field
-            v-model="localSettings.viamePath"
-            label="VIAME Install Base Path"
-            hint="download from https://viametoolkit.com"
-            dense
-            persistent-hint
-          />
+          <v-row>
+            <v-col cols="9">
+              <v-text-field
+                v-model="localSettings.viamePath"
+                label="VIAME Install Base Path"
+                hint="download from https://viametoolkit.com"
+                dense
+                persistent-hint
+              />
+            </v-col>
+            <v-col>
+              <v-btn
+                large
+                block
+                color="primary"
+                class="mb-6"
+                @click="openPath()"
+              >
+                Open
+                <v-icon class="ml-2">
+                  mdi-folder-open
+                </v-icon>
+              </v-btn>
+            </v-col>
+            <v-row />
+          </v-row>
         </v-card-text>
         <v-card-text>
           <v-btn
@@ -82,13 +114,19 @@ export default defineComponent({
           Warnings are intended to help with debugging.
         </v-card-subtitle>
         <v-alert
-          v-if="smi !== null"
           dense
           text
-          :type="smi.exitCode === 0 ? 'success' : 'warning'"
+          :type="smi === null ? 'info' : smi.exitCode === 0 ? 'success' : 'warning'"
           class="mx-4"
         >
-          <span v-if="smi.exitCode === 0">
+          <span v-if="smi === null">
+            Checking GPU compatibility:
+            <v-progress-linear
+              indeterminate
+              color="yellow darken-2"
+            />
+          </span>
+          <span v-else-if="smi.exitCode === 0">
             You are using a supported GPU configuration
           </span>
           <span v-else>
@@ -99,9 +137,17 @@ export default defineComponent({
           dense
           text
           class="mx-4"
-          :type="settingsAreValid === true ? 'success' : 'warning'"
+          :type="settingsAreValid ===
+            false ? 'info' : settingsAreValid === true ? 'success' : 'warning'"
         >
-          <span v-if="settingsAreValid === true">
+          <span v-if="settingsAreValid === false ">
+            Checking for Kwiver
+            <v-progress-linear
+              indeterminate
+              color="yellow darken-2"
+            />
+          </span>
+          <span v-else-if="settingsAreValid === true">
             Kwiver initialization succeeded
           </span>
           <span v-else>

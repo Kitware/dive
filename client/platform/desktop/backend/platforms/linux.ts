@@ -4,10 +4,12 @@
 import npath from 'path';
 import { spawn } from 'child_process';
 import fs from 'fs-extra';
+import { xml2json } from 'xml-js';
 
 import {
   Settings, SettingsCurrentVersion,
   DesktopJob, DesktopJobUpdate, RunPipeline,
+  NvidiaSmiReply,
 } from '../../constants';
 
 import common from './common';
@@ -161,9 +163,39 @@ async function runPipeline(
 
   return jobBase;
 }
+// Based on https://github.com/chrisallenlane/node-nvidia-smi
+async function nvidiaSmi(): Promise<NvidiaSmiReply> {
+  return new Promise((resolve) => {
+    const smi = spawn('nvidia-smi', ['-q', '-x']);
+    let result = '';
+    smi.stdout.on('data', (chunk) => {
+      result = result.concat(chunk.toString('utf-8'));
+    });
+    smi.on('close', (exitCode) => {
+      let jsonStr = 'null'; // parses to null
+      if (exitCode === 0) {
+        jsonStr = xml2json(result, { compact: true });
+      }
+      resolve({
+        output: JSON.parse(jsonStr),
+        exitCode,
+        error: result,
+      });
+    });
+    smi.on('error', (err) => {
+      resolve({
+        output: null,
+        exitCode: -1,
+        error: err.message,
+      });
+    });
+  });
+}
+
 
 export default {
   DefaultSettings,
   validateViamePath,
   runPipeline,
+  nvidiaSmi,
 };
