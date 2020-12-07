@@ -184,7 +184,7 @@ def run_pipeline(self: Task, params):
 def train_pipeline(
     self: Task,
     results_folder: Dict,
-    training_data: List[Dict],
+    source_folder: Dict,
     groundtruth: Dict,
     pipeline_name: str,
     config: str,
@@ -201,6 +201,9 @@ def train_pipeline(
     conf = Config()
     gc: GirderClient = self.girder_client
     manager: JobManager = self.job_manager
+
+    # Generator of items
+    training_data = gc.listItem(source_folder["_id"])
 
     viame_install_path = Path(conf.viame_install_path)
     pipeline_base_path = Path(conf.pipeline_base_path)
@@ -274,7 +277,10 @@ def train_pipeline(
             girder_output_folder = gc.createFolder(
                 results_folder["_id"],
                 pipeline_name,
-                metadata={"trained_pipeline": True},
+                metadata={
+                    "trained_pipeline": True,
+                    "trained_on": str(source_folder["_id"]),
+                },
             )
 
             gc.upload(f"{training_results_path}/*", girder_output_folder["_id"])

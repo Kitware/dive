@@ -149,14 +149,11 @@ class Viame(Resource):
         # Ensure the folder to upload results to exists
         results_folder = training_output_folder(user)
 
-        # Currently assumes all images are in the root folder
-        training_data = list(Folder().childItems(folder))
-
         return train_pipeline.apply_async(
             queue="training",
             kwargs=dict(
                 results_folder=results_folder,
-                training_data=training_data,
+                source_folder=folder,
                 groundtruth=detection,
                 pipeline_name=pipelineName,
                 config=config,
