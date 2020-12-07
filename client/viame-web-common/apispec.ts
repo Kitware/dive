@@ -58,6 +58,8 @@ interface DatasetMeta extends DatasetMetaMutable {
 
 interface Api {
   getAttributes(): Promise<Attribute[]>;
+  setAttribute({ addNew, data }: {addNew: boolean | undefined; data: Attribute}): Promise<unknown>;
+  deleteAttribute(data: Attribute): Promise<unknown>;
 
   getPipelineList(): Promise<Pipelines>;
   runPipeline(itemId: string, pipeline: string): Promise<unknown>;

@@ -52,6 +52,8 @@ export default {
             this.runningJobIds.push(jobId);
           }
           break;
+        case jobStatus.CANCELED.value:
+          // fall through
         case jobStatus.SUCCESS.value:
           // fall through
         case jobStatus.ERROR.value:

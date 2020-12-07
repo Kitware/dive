@@ -7,7 +7,10 @@ from pathlib import Path
 from subprocess import DEVNULL, Popen
 from typing import Dict, List
 
+from girder_client import GirderClient
 from girder_worker.app import app
+from girder_worker.task import Task
+from girder_worker.utils import JobManager, JobStatus
 from GPUtil import getGPUs
 
 from viame_tasks.utils import (
@@ -45,9 +48,9 @@ class Config:
 
 
 @app.task(bind=True, acks_late=True)
-def run_pipeline(self, input_path, output_folder, pipeline, input_type):
+def run_pipeline(self: Task, input_path, output_folder, pipeline, input_type):
     conf = Config()
-
+    manager: JobManager = self.job_manager
     # Delete is false because the file needs to exist for kwiver to write to
     # removed at the bottom of the function
     with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as temp:
@@ -129,8 +132,12 @@ def run_pipeline(self, input_path, output_folder, pipeline, input_type):
     )
 
     stdout, stderr = read_and_close_process_outputs(
-        process, process_log_file, process_err_file
+        process, self, process_log_file, process_err_file
     )
+    if self.canceled:
+        manager.updateStatus(JobStatus.CANCELED)
+        return
+
     if process.returncode > 0:
         raise RuntimeError(
             'Pipeline exited with nonzero status code {}: {}'.format(
@@ -138,26 +145,31 @@ def run_pipeline(self, input_path, output_folder, pipeline, input_type):
             )
         )
     else:
-        self.job_manager.write(stdout + "\n" + stderr)
+        manager.write(stdout + "\n" + stderr)
 
     if os.path.getsize(track_output_path) > 0:
         output_path = track_output_path
     else:
         output_path = detector_output_path
-
+    manager.updateStatus(JobStatus.PUSHING_OUTPUT)
     newfile = self.girder_client.uploadFileToFolder(output_folder, output_path)
 
     self.girder_client.addMetadataToItem(newfile["itemId"], {"pipeline": pipeline})
     self.girder_client.post(
         f'viame/postprocess/{output_folder}', data={"skipJobs": True}
     )
+
     os.remove(track_output_path)
     os.remove(detector_output_path)
+
+    if self.canceled:
+        manager.updateStatus(JobStatus.CANCELED)
+        return
 
 
 @app.task(bind=True, acks_late=True)
 def train_pipeline(
-    self,
+    self: Task,
     results_folder: Dict,
     training_data: List[Dict],
     groundtruth: Dict,
@@ -174,7 +186,8 @@ def train_pipeline(
     :param pipeline_name: The base name of the resulting pipeline.
     """
     conf = Config()
-    gc = self.girder_client
+    gc: GirderClient = self.girder_client
+    manager: JobManager = self.job_manager
 
     viame_install_path = Path(conf.viame_install_path)
     pipeline_base_path = Path(conf.pipeline_base_path)
@@ -185,6 +198,7 @@ def train_pipeline(
 
     # root_data_dir is the directory passed to `viame_train_detector`
     with tempfile.TemporaryDirectory() as _temp_dir_string:
+        manager.updateStatus(JobStatus.FETCHING_INPUT)
         root_data_dir = Path(_temp_dir_string)
         download_path = Path(tempfile.mkdtemp(dir=root_data_dir))
 
@@ -212,6 +226,7 @@ def train_pipeline(
             process_log_file = tempfile.TemporaryFile()
             process_err_file = tempfile.TemporaryFile()
 
+            manager.updateStatus(JobStatus.RUNNING)
             # Call viame_train_detector
             process = Popen(
                 " ".join(command),
@@ -224,20 +239,22 @@ def train_pipeline(
             )
 
             stdout, stderr = read_and_close_process_outputs(
-                process, process_log_file, process_err_file
+                process, self, process_log_file, process_err_file
             )
-            self.job_manager.write(stdout + "\n" + stderr)
-
+            manager.write(stdout + "\n" + stderr)
+            if self.canceled:
+                manager.updateStatus(JobStatus.CANCELED)
+                return
             training_results_path = training_output_path / "category_models"
 
             # Get all files/folders in directory
             training_output = list(training_results_path.glob("*"))
             if process.returncode or not training_output:
-                self.job_manager.write(
+                raise RuntimeError(
                     "Training output failed or didn't produce results, discarding..."
                 )
-                return
-
+            else:
+                manager.updateStatus(JobStatus.PUSHING_OUTPUT)
             timestamp = datetime.utcnow().replace(microsecond=0).isoformat()
 
             # This is the name of the folder that is uploaded to the
@@ -265,17 +282,24 @@ def train_pipeline(
 
             # Rename this folder so that it appears properly in girder
             shutil.move(str(named_training_output), girder_output_folder)
-            self.girder_client._uploadFolderRecursive(
+            gc._uploadFolderRecursive(
                 girder_output_folder, results_folder["_id"], "folder"
             )
 
+    if self.canceled:
+        manager.updateStatus(JobStatus.CANCELED)
+        return
+
 
 @app.task(bind=True, acks_late=True)
-def convert_video(self, path, folderId, auxiliaryFolderId):
+def convert_video(self: Task, path, folderId, auxiliaryFolderId):
     # Delete is true, so the tempfile is deleted when the block closes.
     # We are only using this to get a name, and recreating it below.
     with tempfile.NamedTemporaryFile(suffix=".mp4", delete=True) as temp:
         output_path = temp.name
+
+    gc: GirderClient = self.girder_client
+    manager: JobManager = self.job_manager
 
     # Extract metadata
     file_name = os.path.join(path, os.listdir(path)[0])
@@ -292,7 +316,14 @@ def convert_video(self, path, folderId, auxiliaryFolderId):
 
     with tempfile.TemporaryFile() as process_log_file:
         process = Popen(command, stderr=DEVNULL, stdout=process_log_file)
-        stdout, _ = read_and_close_process_outputs(process, process_log_file)
+        stdout, stderr = read_and_close_process_outputs(process, self, process_log_file)
+        if self.canceled:
+            manager.updateStatus(JobStatus.CANCELED)
+            return
+        if process.returncode > 0:
+            raise RuntimeError(
+                'could not execute ffprobe {}: {}'.format(process.returncode, stderr)
+            )
 
         jsoninfo = json.loads(stdout)
         videostream = list(
@@ -325,26 +356,36 @@ def convert_video(self, path, folderId, auxiliaryFolderId):
     )
 
     stdout, stderr = read_and_close_process_outputs(
-        process, process_log_file, process_err_file
+        process, self, process_log_file, process_err_file
     )
 
     output = stdout + "\n" + stderr
-    self.job_manager.write(output)
-    new_file = self.girder_client.uploadFileToFolder(folderId, output_path)
-    self.girder_client.addMetadataToItem(new_file['itemId'], {"codec": "h264"})
-    self.girder_client.addMetadataToFolder(
-        folderId,
-        {
-            "fps": 5,  # TODO: current time system doesn't allow for non-int framerates
-            "annotate": True,  # mark the parent folder as able to annotate.
-            "ffprobe_info": videostream[0],
-        },
-    )
+    manager.write(output)
+    if self.canceled:
+        manager.updateStatus(JobStatus.CANCELED)
+        return
+    if process.returncode == 0:
+        manager.updateStatus(JobStatus.PUSHING_OUTPUT)
+        new_file = gc.uploadFileToFolder(folderId, output_path)
+        gc.addMetadataToItem(new_file['itemId'], {"codec": "h264"})
+        gc.addMetadataToFolder(
+            folderId,
+            {
+                "fps": 5,  # TODO: current time system doesn't allow for non-int framerates
+                "annotate": True,  # mark the parent folder as able to annotate.
+                "ffprobe_info": videostream[0],
+            },
+        )
+
     os.remove(output_path)
+
+    if self.canceled:
+        manager.updateStatus(JobStatus.CANCELED)
+        return
 
 
 @app.task(bind=True, acks_late=True)
-def convert_images(self, folderId):
+def convert_images(self: Task, folderId):
     """
     Ensures that all images in a folder are in a web friendly format (png or jpeg).
 
@@ -353,7 +394,8 @@ def convert_images(self, folderId):
 
     Returns the number of images successfully converted.
     """
-    gc = self.girder_client
+    gc: GirderClient = self.girder_client
+    manager: JobManager = self.job_manager
 
     items = gc.listItem(folderId)
     skip_item = (
@@ -383,8 +425,12 @@ def convert_images(self, folderId):
             )
 
             stdout, stderr = read_and_close_process_outputs(
-                process, process_log_file, process_err_file
+                process, self, process_log_file, process_err_file
             )
+
+            if self.canceled:
+                manager.updateStatus(JobStatus.CANCELED)
+                return
 
             output = ""
             if len(stdout):
@@ -392,16 +438,19 @@ def convert_images(self, folderId):
             if len(stderr):
                 output = f"{output}{stderr}\n"
 
-            self.job_manager.write(output)
+            manager.write(output)
 
             if process.returncode == 0:
                 gc.uploadFileToFolder(folderId, new_item_path)
                 gc.delete(f"item/{item['_id']}")
                 count += 1
 
-    self.girder_client.addMetadataToFolder(
+    gc.addMetadataToFolder(
         str(folderId),
         {"annotate": True},  # mark the parent folder as able to annotate.
     )
 
+    if self.canceled:
+        manager.updateStatus(JobStatus.CANCELED)
+        return
     return count

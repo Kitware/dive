@@ -51,6 +51,16 @@ async function getAttributes() {
   return Promise.resolve([] as Attribute[]);
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+async function setAttribute({ addNew, data }: {addNew: boolean | undefined; data: Attribute}) {
+  return Promise.resolve();
+}
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+async function deleteAttribute(data: Attribute) {
+  return Promise.resolve([] as Attribute[]);
+}
+
 async function getPipelineList(settings: Settings): Promise<Pipelines> {
   return ipcRenderer.invoke('get-pipeline-list', settings);
 }
@@ -139,6 +149,8 @@ async function runPipeline(itemId: string, pipeline: string, settings: Settings)
 export {
   /* Standard common APIs */
   getAttributes,
+  setAttribute,
+  deleteAttribute,
   getPipelineList,
   runPipeline,
   getTrainingConfigurations,

@@ -6,6 +6,16 @@ interface UseTrackStoreParams {
   markChangesPending: (type: 'upsert' | 'delete', track?: Track) => void;
 }
 
+export function getTrack(
+  trackMap: Readonly<Map<TrackId, Track>>, trackId: Readonly<TrackId>,
+): Track {
+  const track = trackMap.get(trackId);
+  if (track === undefined) {
+    throw new Error(`TrackId ${trackId} not found in trackMap.`);
+  }
+  return track;
+}
+
 /**
  * TrackStore performs operations on a collection of tracks, such as
  * add and remove.  Operations on individual tracks, such as setting
@@ -36,14 +46,6 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
 
   function _depend(): number {
     return canary.value;
-  }
-
-  function getTrack(trackId: TrackId): Track {
-    const track = trackMap.get(trackId);
-    if (track === undefined) {
-      throw new Error(`TrackId ${trackId} not found in trackMap.`);
-    }
-    return track;
   }
 
   function getNewTrackId() {
@@ -87,7 +89,7 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
     if (trackId === null) {
       return;
     }
-    const track = getTrack(trackId);
+    const track = getTrack(trackMap, trackId);
     const range = [track.begin, track.end];
     if (!intervalTree.remove(range, trackId.toString())) {
       throw new Error(`TrackId ${trackId} with range ${range} not found in tree.`);
@@ -108,7 +110,7 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
    */
   async function removeTracksBelowConfidence(thresh: number) {
     trackIds.value.forEach((trackId) => {
-      const track = getTrack(trackId);
+      const track = getTrack(trackMap, trackId);
       const confidence = track.getType();
       if (confidence !== null && confidence[1] < thresh) {
         removeTrack(trackId);
@@ -119,7 +121,7 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
   const sortedTracks = computed(() => {
     _depend();
     return trackIds.value
-      .map((trackId) => getTrack(trackId))
+      .map((trackId) => getTrack(trackMap, trackId))
       .sort((a, b) => a.begin - b.begin);
   });
 
@@ -129,7 +131,6 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
     intervalTree,
     addTrack,
     insertTrack,
-    getTrack,
     getNewTrackId,
     removeTrack,
     removeTracksBelowConfidence,

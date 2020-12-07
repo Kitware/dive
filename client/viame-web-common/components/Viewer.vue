@@ -13,6 +13,7 @@ import {
   useTrackStore,
   useEventChart,
 } from 'vue-media-annotator/use';
+import { getTrack } from 'vue-media-annotator/use/useTrackStore';
 import { provideAnnotator } from 'vue-media-annotator/provides';
 import {
   ImageAnnotator,
@@ -126,7 +127,6 @@ export default defineComponent({
       intervalTree,
       addTrack,
       insertTrack,
-      getTrack,
       removeTrack,
       getNewTrackId,
       removeTrack: tsRemoveTrack,
@@ -210,7 +210,6 @@ export default defineComponent({
       playbackComponent,
       newTrackSettings: clientSettings.newTrackSettings.value,
       selectTrack,
-      getTrack,
       selectNextTrack,
       addTrack,
       removeTrack,
@@ -218,7 +217,7 @@ export default defineComponent({
 
     async function trackSplit(trackId: TrackId | null, _frame: number) {
       if (typeof trackId === 'number') {
-        const track = getTrack(trackId);
+        const track = getTrack(trackMap, trackId);
         let newtracks: [Track, Track];
         try {
           newtracks = track.split(_frame, getNewTrackId(), getNewTrackId() + 1);
