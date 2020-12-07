@@ -8,10 +8,11 @@ from girder.models.item import Item
 from girder.models.upload import Upload
 from typing_extensions import TypedDict
 
+from viame_server.constants import ViameDataFolderName
 from viame_server.pipelines import get_static_pipelines_path
 from viame_server.serializers import viame
 
-TrainingOutputFolderName = "Training Results"
+TrainingOutputFolderName = "VIAME Training Results"
 DefaultTrainingConfiguration = "train_netharn_cascade.viame_csv.conf"
 
 
@@ -32,10 +33,26 @@ def load_training_configurations() -> TrainingConfigurationDescription:
     }
 
 
-def training_output_folder(folder, user):
-    """Ensure that `folder` has a "Training Output" folder"""
+def training_output_folder(user):
+    """Ensure that the user has a training results folder."""
+
+    viameFolder = Folder().createFolder(
+        user,
+        ViameDataFolderName,
+        description="VIAME data storage.",
+        parentType="user",
+        public=False,
+        creator=user,
+        reuseExisting=True,
+    )
+
     return Folder().createFolder(
-        folder, TrainingOutputFolderName, creator=user, reuseExisting=True
+        viameFolder,
+        TrainingOutputFolderName,
+        description="Results from VIAME model training are placed here.",
+        public=False,
+        creator=user,
+        reuseExisting=True,
     )
 
 

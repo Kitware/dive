@@ -147,7 +147,7 @@ class Viame(Resource):
         csv_detection_file(folder, detection, user)
 
         # Ensure the folder to upload results to exists
-        results_folder = training_output_folder(folder, user)
+        results_folder = training_output_folder(user)
 
         # Currently assumes all images are in the root folder
         training_data = list(Folder().childItems(folder))

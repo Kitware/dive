@@ -36,3 +36,7 @@ VideoMimeTypes = {
 
 TrainedPipelineMarker = "trained_pipeline"
 TrainedPipelineCategory = "trained"
+
+# The name of the folder where any user specific data should be stored
+# (created as a folder of that user)
+ViameDataFolderName = "VIAME"
