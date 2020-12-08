@@ -6,16 +6,12 @@ import Track, { TrackId } from 'vue-media-annotator/track';
 import { getTrack } from 'vue-media-annotator/use/useTrackStore';
 import { RectBounds, updateBounds } from 'vue-media-annotator/utils';
 import { EditAnnotationTypes, VisibleAnnotationTypes } from 'vue-media-annotator/layers';
+import { MediaController } from 'vue-media-annotator/components/annotators/mediaControllerType';
 
 import Recipe from 'vue-media-annotator/recipe';
 import { NewTrackSettings } from './useSettings';
 
 type SupportedFeature = GeoJSON.Feature<GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString>;
-export interface Annotator {
-  seek(frame: number): void;
-  resetZoom(): void;
-  nextFrame(): void;
-}
 
 interface SetAnnotationStateArgs {
   visible?: VisibleAnnotationTypes[];
@@ -35,7 +31,7 @@ export default function useModeManager({
   editingTrack,
   frame,
   trackMap,
-  playbackComponent,
+  mediaController,
   newTrackSettings,
   recipes,
   selectTrack,
@@ -47,7 +43,7 @@ export default function useModeManager({
   editingTrack: Ref<boolean>;
   frame: Ref<number>;
   trackMap: Map<TrackId, Track>;
-  playbackComponent: Ref<Annotator>;
+  mediaController: Ref<MediaController>;
   newTrackSettings: NewTrackSettings;
   recipes: Recipe[];
   selectTrack: (trackId: TrackId | null, edit: boolean) => void;
@@ -94,9 +90,9 @@ export default function useModeManager({
   function seekNearest(track: Track) {
     // Seek to the nearest point in the track.
     if (frame.value < track.begin) {
-      playbackComponent.value.seek(track.begin);
+      mediaController.value.seek(track.begin);
     } else if (frame.value > track.end) {
-      playbackComponent.value.seek(track.end);
+      mediaController.value.seek(track.end);
     }
   }
 
@@ -157,7 +153,7 @@ export default function useModeManager({
     if (creating) {
       if (addedTrack && newTrackSettings !== null) {
         if (newTrackSettings.mode === 'Track' && newTrackSettings.modeSettings.Track.autoAdvanceFrame) {
-          playbackComponent.value.nextFrame();
+          mediaController.value.nextFrame();
           newCreatingValue = true;
         } else if (newTrackSettings.mode === 'Detection') {
           if (newTrackSettings.modeSettings.Detection.continuous) {

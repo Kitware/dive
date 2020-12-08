@@ -16,6 +16,10 @@ export default Vue.extend({
       type: Object,
       default: () => ({}),
     },
+    frameRate: {
+      type: Number,
+      required: true,
+    },
   },
 
   computed: {

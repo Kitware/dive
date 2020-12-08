@@ -22,7 +22,7 @@ export default class LineLayer extends BaseLayer<LineGeoJSData> {
   }
 
   initialize() {
-    const layer = this.annotator.geoViewer.createLayer('feature', {
+    const layer = this.annotator.geoViewerRef.value.createLayer('feature', {
       features: ['point', 'line'],
     });
     this.featureLayer = layer

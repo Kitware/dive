@@ -1,12 +1,7 @@
 <script lang="ts">
-import {
-  defineComponent,
-  computed,
-  inject,
-  watch,
-} from '@vue/composition-api';
+import { defineComponent, watch } from '@vue/composition-api';
 
-import { Annotator } from './annotators/annotatorType';
+import { injectMediaController } from './annotators/useMediaController';
 import RectangleLayer from '../layers/AnnotationLayers/RectangleLayer';
 import PolygonLayer from '../layers/AnnotationLayers/PolygonLayer';
 import PointLayer from '../layers/AnnotationLayers/PointLayer';
@@ -51,8 +46,8 @@ export default defineComponent({
     const selectedKeyRef = useSelectedKey();
     const stateStyling = useStateStyles();
 
-    const annotator = inject('annotator') as Annotator;
-    const frameNumberRef = computed(() => annotator.frame);
+    const annotator = injectMediaController();
+    const frameNumberRef = annotator.frame;
 
     const rectAnnotationLayer = new RectangleLayer({
       annotator,
