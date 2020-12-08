@@ -1,3 +1,4 @@
+// Reference used because of https://github.com/Microsoft/TypeScript/issues/28502
 /// <reference types="resize-observer-browser" />
 import geo from 'geojs';
 import { throttle } from 'lodash';

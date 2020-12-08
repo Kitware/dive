@@ -1,8 +1,10 @@
 import type { Ref } from '@vue/composition-api';
 
 /**
- * MediaController is for interfacing with time and a select few
- * other properties of a GeoJS map and media source.
+ * MediaController provides an interface for time and a few
+ * other properties of the annotator window.
+ *
+ * See components/annotators/README.md for docs.
  */
 export interface MediaController {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
