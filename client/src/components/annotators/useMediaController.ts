@@ -1,5 +1,6 @@
 /// <reference types="resize-observer-browser" />
 import geo from 'geojs';
+import { throttle } from 'lodash';
 import {
   ref, reactive, onMounted, onBeforeUnmount, provide, toRef, Ref,
 } from '@vue/composition-api';
@@ -13,7 +14,9 @@ export function injectMediaController() {
   return use<MediaController>(MediaControllerSymbol);
 }
 
-export default function useAnnotator() {
+export default function useAnnotator({ emit }: {
+  emit(name: string, val: unknown): void;
+}) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const geoViewerRef: Ref<any> = ref(undefined);
   const containerRef: Ref<HTMLElement | undefined> = ref(undefined);
@@ -30,6 +33,10 @@ export default function useAnnotator() {
     cursor: 'default',
     imageCursor: '',
   });
+
+  const emitFrame = throttle(() => {
+    emit('frame-update', data.frame);
+  }, 200);
 
   function onResize() {
     if (geoViewerRef.value === undefined || containerRef.value === undefined) {
@@ -197,6 +204,7 @@ export default function useAnnotator() {
       setCursor,
       setImageCursor,
     } as MediaController;
+
     provide(MediaControllerSymbol, mediaController);
 
     return {
@@ -209,6 +217,7 @@ export default function useAnnotator() {
   return {
     containerRef,
     data,
+    emitFrame,
     geoViewerRef,
     imageCursorRef,
     initialize,

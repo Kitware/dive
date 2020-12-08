@@ -1,11 +1,9 @@
-<script>
-import Vue from 'vue';
-import annotator from './annotator';
+<script lang="ts">
+import { defineComponent, PropType } from '@vue/composition-api';
+import useMediaController from './useMediaController';
 
-export default Vue.extend({
+export default defineComponent({
   name: 'VideoAnnotator',
-
-  mixins: [annotator],
 
   props: {
     videoUrl: {
@@ -13,7 +11,7 @@ export default Vue.extend({
       required: true,
     },
     videoPlayerAttributes: {
-      type: Object,
+      type: Object as PropType<{ [key: string]: string }>,
       default: () => ({}),
     },
     frameRate: {
@@ -22,104 +20,98 @@ export default Vue.extend({
     },
   },
 
-  computed: {
-    isLastFrame() {
-      return this.playing;
-    },
-  },
+  setup(props, { emit }) {
+    const common = useMediaController({ emit });
+    const { data } = common;
 
-  created() {
-    const video = document.createElement('video');
-    this.video = video;
-    video.preload = 'auto';
-    video.src = this.videoUrl;
-    Object.entries(this.videoPlayerAttributes).forEach(([key, val]) => {
-      this.video[key] = val;
-    });
+    function makeVideo() {
+      const video = document.createElement('video');
+      video.preload = 'auto';
+      video.src = props.videoUrl;
+      Object.assign(video, props.videoPlayerAttributes);
+      return video;
+    }
+    const video = makeVideo();
+
+    function syncWithVideo() {
+      if (data.playing) {
+        data.frame = Math.round(video.currentTime * props.frameRate);
+        data.syncedFrame = data.frame;
+        common.geoViewerRef.value.scheduleAnimationFrame(syncWithVideo);
+      }
+    }
+
+    function pendingUpdate() {
+      data.syncedFrame = Math.round(video.currentTime * props.frameRate);
+    }
+
+    async function play() {
+      try {
+        await video.play();
+        data.playing = true;
+        syncWithVideo();
+      } catch (ex) {
+        console.error(ex);
+      }
+    }
+
+    async function seek(frame: number) {
+      video.currentTime = frame / props.frameRate;
+      data.frame = Math.round(video.currentTime * props.frameRate);
+      common.emitFrame();
+      // TODO: what's going on here?
+      video.removeEventListener('seeked', pendingUpdate);
+      video.addEventListener('seeked', pendingUpdate);
+    }
+
+    function pause() {
+      video.pause();
+      data.playing = false;
+    }
+
+    const {
+      cursorHandler,
+      initializeViewer,
+      mediaController,
+    } = common.initialize({ seek, play, pause });
+
+    /**
+     * Initialize the Quad feature layer once
+     * video metadata has been fetched.
+     */
     video.onloadedmetadata = () => {
       video.onloadedmetadata = null;
-      this.width = video.videoWidth;
-      this.height = video.videoHeight;
-      this.maxFrame = this.frameRate * video.duration;
-      this.init();
-    };
-    video.addEventListener('pause', this.videoPaused);
-  },
-  methods: {
-    init() {
-      this.baseInit(); // Mixin method
-      this.quadFeatureLayer = this.geoViewer.createLayer('feature', {
+      const width = video.videoWidth;
+      const height = video.videoHeight;
+      data.maxFrame = props.frameRate * video.duration;
+      initializeViewer(width, height);
+      const quadFeatureLayer = common.geoViewerRef.value.createLayer('feature', {
         features: ['quad.video'],
       });
-      this.quadFeatureLayer
+      quadFeatureLayer
         .createFeature('quad')
         .data([
           {
             ul: { x: 0, y: 0 },
-            lr: { x: this.width, y: this.height },
-            video: this.video,
+            lr: { x: width, y: height },
+            video,
           },
         ])
         .draw();
       // Force the first frame to load on slow networks.
       // See https://github.com/VIAME/VIAME-Web/issues/447 for more details.
-      this.seek(0);
-      this.ready = true;
-    },
+      seek(0);
+      data.ready = true;
+    };
 
-    async play() {
-      try {
-        await this.video.play();
-        this.playing = true;
-        this.syncWithVideo();
-      } catch (ex) {
-        console.error(ex);
-      }
-    },
-
-    async seek(frame) {
-      this.video.currentTime = frame / this.frameRate;
-      this.frame = Math.round(this.video.currentTime * this.frameRate);
-      this.emitFrame();
-      this.video.removeEventListener('seeked', this.pendingUpdate);
-      this.video.addEventListener('seeked', this.pendingUpdate);
-    },
-
-    pendingUpdate() {
-      this.syncedFrame = Math.round(this.video.currentTime * this.frameRate);
-    },
-
-    pause() {
-      this.video.pause();
-      this.playing = false;
-    },
-
-    videoPaused() {
-      if (this.video.currentTime === this.video.duration) {
-        this.frame = 0;
-        this.syncedFrame = 0;
-        this.pause();
-      }
-    },
-
-    onResize() {
-      if (!this.geoViewer) {
-        return;
-      }
-      const size = this.$refs.container.getBoundingClientRect();
-      const mapSize = this.geoViewer.size();
-      if (size.width !== mapSize.width || size.height !== mapSize.height) {
-        this.geoViewer.size(size);
-      }
-    },
-
-    syncWithVideo() {
-      if (this.playing) {
-        this.frame = Math.round(this.video.currentTime * this.frameRate);
-        this.syncedFrame = this.frame;
-        this.geoViewer.scheduleAnimationFrame(this.syncWithVideo);
-      }
-    },
+    return {
+      data,
+      imageCursorRef: common.imageCursorRef,
+      containerRef: common.containerRef,
+      onResize: common.onResize,
+      cursorHandler,
+      mediaController,
+    };
   },
 });
 </script>
@@ -128,26 +120,23 @@ export default Vue.extend({
   <div
     v-resize="onResize"
     class="video-annotator"
-    :style="{cursor: cursor }"
+    :style="{ cursor: data.cursor }"
   >
     <div
-      ref="imageCursor"
+      ref="imageCursorRef"
       class="imageCursor"
     >
-      <v-icon> {{ imageCursor }} </v-icon>
+      <v-icon> {{ data.imageCursor }} </v-icon>
     </div>
     <div
-      ref="container"
+      ref="containerRef"
       class="playback-container"
-      :style="{cursor: cursor }"
-      @mousemove="handleMouseMove"
-      @mouseleave="handleMouseLeave"
-      @mouseover="handleMouseEnter"
-    >
-      {{ rendered() }}
-    </div>
+      @mousemove="cursorHandler.handleMouseMove"
+      @mouseleave="cursorHandler.handleMouseLeave"
+      @mouseover="cursorHandler.handleMouseEnter"
+    />
     <slot name="control" />
-    <slot v-if="ready" />
+    <slot v-if="data.ready" />
   </div>
 </template>
 

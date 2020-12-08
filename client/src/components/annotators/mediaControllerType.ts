@@ -1,6 +1,9 @@
 import type { Ref } from '@vue/composition-api';
-import type { CombinedVueInstance, Vue } from 'vue/types/vue';
 
+/**
+ * MediaController is for interfacing with time and a select few
+ * other properties of a GeoJS map and media source.
+ */
 export interface MediaController {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   geoViewerRef: Ref<any>;

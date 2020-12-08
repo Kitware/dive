@@ -1,6 +1,5 @@
 <script lang="ts">
 import { defineComponent, ref, PropType } from '@vue/composition-api';
-import { throttle } from 'lodash';
 import useMediaController from './useMediaController';
 
 export interface ImageDataItem {
@@ -36,7 +35,7 @@ export default defineComponent({
 
   setup(props, { emit }) {
     const loadingVideo = ref(false);
-    const common = useMediaController();
+    const common = useMediaController({ emit });
     const { data } = common;
     data.maxFrame = props.imageData.length - 1;
 
@@ -53,10 +52,6 @@ export default defineComponent({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       quadFeature: undefined as any,
     };
-
-    const emitFrame = throttle(() => {
-      emit('frame-update', data.frame);
-    }, 200);
 
     /**
      * expectFrame when you know local.imgs[i] should not be undefined
@@ -172,7 +167,7 @@ export default defineComponent({
       local.lastFrame = data.frame;
       data.frame = newFrame;
       data.syncedFrame = newFrame;
-      emitFrame();
+      common.emitFrame();
       cacheImages();
       const imgInternal = expectFrame(newFrame);
       drawImage(imgInternal.image);
@@ -215,7 +210,7 @@ export default defineComponent({
           data.frame -= 1;
           // sync the annotations with the loading frame
           data.syncedFrame = data.frame;
-          emitFrame();
+          common.emitFrame();
           loadingVideo.value = true;
           return;
         }
