@@ -11,7 +11,7 @@ interface ImageDataItemInternal extends ImageDataItem {
   image: HTMLImageElement;
   cached: boolean; // true if onloadPromise has resolved
   frame: number; // frame number this image belongs to
-  onloadPromise: Promise<ImageDataItemInternal>;
+  onloadPromise: Promise<boolean>;
 }
 
 function loadImageFunc(imageDataItem: ImageDataItem, img: HTMLImageElement) {
@@ -34,7 +34,8 @@ export default defineComponent({
   },
 
   setup(props, { emit }) {
-    const loadingVideo = ref(true);
+    const loadingVideo = ref(false);
+    const loadingImage = ref(true);
     const common = useMediaController({ emit });
     const { data } = common;
     data.maxFrame = props.imageData.length - 1;
@@ -107,13 +108,14 @@ export default defineComponent({
           frame: i,
           image: img,
           cached: false,
-          onloadPromise: new Promise<ImageDataItemInternal>((resolve) => {
+          onloadPromise: new Promise<boolean>((resolve, reject) => {
             img.onload = () => {
               const imgInternal = expectFrame(i);
               pendingImgs.delete(imgInternal);
               imgInternal.cached = true;
-              resolve(imgInternal);
+              resolve(true);
             };
+            img.onerror = () => resolve(false);
           }),
         };
         imgs[i] = newImgInternal;
@@ -183,22 +185,35 @@ export default defineComponent({
       const imgInternal = expectFrame(newFrame);
       drawImage(imgInternal.image);
       if (!imgInternal.cached) {
-        loadingVideo.value = true;
+        loadingImage.value = true;
         // else wait for it to load
         await imgInternal.onloadPromise;
         if (imgInternal.frame === data.frame) {
-          loadingVideo.value = false;
+          loadingImage.value = false;
           // if the seek hasn't changed since the image completed loading, draw it.
           drawImage(imgInternal.image);
         }
       } else {
-        loadingVideo.value = false;
+        loadingImage.value = false;
       }
     }
 
     function pause() {
       data.playing = false;
       loadingVideo.value = false;
+    }
+
+    /**
+     * Checks to see if there are enough cached images to play for X seconds.
+     * @param frame start frame to look for.
+     * @param seconds num seconds to look for cache
+     * @returns Promise to await for caching.
+     */
+    function checkCached(frame: number, seconds: number) {
+      const upper = Math.min(frame + (seconds * props.frameRate), data.maxFrame);
+      return local.imgs.slice(frame, upper)
+        .filter((img) => img?.cached === false)
+        .map((img) => img?.onloadPromise);
     }
 
     /**
@@ -218,8 +233,9 @@ export default defineComponent({
         const nextImage = expectFrame(nextFrame);
         if (!nextImage.cached) {
           // Prevents advancing the frame while playing if the current image is not loaded
-          loadingVideo.value = true; // next seek() will unset loading state
-          await nextImage.onloadPromise;
+          loadingVideo.value = true;
+          await Promise.all(checkCached(nextFrame, local.playCache));
+          loadingVideo.value = false;
           // A user interaction (pause, seek) could have happened during load.
           // Restart syncWithVideo() logic on same frame.  MUST return here to
           // prevent duplicating the loop.
@@ -249,7 +265,6 @@ export default defineComponent({
     if (local.imgs.length) {
       const imgInternal = cacheFrame(0);
       imgInternal.onloadPromise.then(() => {
-        loadingVideo.value = false;
         initializeViewer(imgInternal.image.naturalWidth, imgInternal.image.naturalHeight);
         const quadFeatureLayer = common.geoViewerRef.value.createLayer('feature', {
           features: ['quad'],
@@ -263,6 +278,7 @@ export default defineComponent({
     return {
       data,
       loadingVideo,
+      loadingImage,
       imageCursorRef: common.imageCursorRef,
       containerRef: common.containerRef,
       onResize: common.onResize,
@@ -293,7 +309,7 @@ export default defineComponent({
     >
       <div class="loadingSpinnerContainer">
         <v-progress-circular
-          v-if="loadingVideo"
+          v-if="loadingVideo || loadingImage"
           class="loadingSpinner"
           indeterminate
           size="100"
