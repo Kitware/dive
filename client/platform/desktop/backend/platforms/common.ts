@@ -3,15 +3,13 @@
  */
 import npath from 'path';
 import fs from 'fs-extra';
-import { spawn } from 'child_process';
 import { shell } from 'electron';
 import mime from 'mime-types';
-import { xml2json } from 'xml-js';
 import moment from 'moment';
 import { TrackData } from 'vue-media-annotator/track';
 import { DatasetType, Pipelines, SaveDetectionsArgs } from 'viame-web-common/apispec';
 
-import { Settings, NvidiaSmiReply, websafeImageTypes } from '../../constants';
+import { Settings, websafeImageTypes } from '../../constants';
 import * as viameSerializers from '../serializers/viame';
 
 const AuxFolderName = 'auxiliary';

@@ -25,7 +25,8 @@ const DefaultSettings: Settings = {
 };
 
 let programFiles = 'C:\\Program Files';
-// There exists no app.getPath('programfiles') so we need to check the variable for the default location
+// There exists no app.getPath('programfiles') so we need to
+// check the variable for the default location
 async function initialize() {
   const environmentVarPath = spawn('cmd.exe', ['/c', 'echo %PROGRAMFILES%'], { shell: true });
   environmentVarPath.stdout.on('data', (data) => {
@@ -184,7 +185,8 @@ async function runPipeline(
   return jobBase;
 }
 
-// Note this is the most recent location for the nvidia-smi it doesn't guarantee that the system doesn't have a relevant GPU
+// Note: this is the most recent location for the nvidia-smi
+// it doesn't guarantee that the system doesn't have a relevant GPU
 async function nvidiaSmi(): Promise<NvidiaSmiReply> {
   return new Promise((resolve) => {
     const smi = spawn(`"${programFiles}\\NVIDIA Corporation\\NVSMI\\nvidia-smi.exe"`, ['-q', '-x'], { shell: true });
