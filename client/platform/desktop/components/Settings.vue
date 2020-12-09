@@ -33,6 +33,7 @@ export default defineComponent({
     async function openPath() {
       const result = await remote.dialog.showOpenDialog({
         properties: ['openDirectory'],
+        defaultPath: localSettings.value.viamePath,
       });
       if (!result.canceled) {
         [localSettings.value.viamePath] = result.filePaths;
