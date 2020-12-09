@@ -13,15 +13,11 @@ from viame_tasks.tasks import (
     run_pipeline,
     train_pipeline,
 )
+from viame_utils.types import PipelineDescription, PipelineJob
 
 from .constants import csvRegex, imageRegex, safeImageRegex, videoRegex, ymlRegex
 from .model.attribute import Attribute
-from .pipelines import (
-    PipelineDescription,
-    PipelineJob,
-    load_pipelines,
-    load_static_pipelines,
-)
+from .pipelines import load_pipelines, load_static_pipelines
 from .serializers import meva as meva_serializer
 from .training import (
     csv_detection_file,

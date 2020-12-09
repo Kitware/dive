@@ -2,10 +2,9 @@ import json
 import os
 import shutil
 import tempfile
-from datetime import datetime
 from pathlib import Path
 from subprocess import DEVNULL, Popen
-from typing import Dict, List
+from typing import Dict
 
 from girder_client import GirderClient
 from girder_worker.app import app
@@ -17,6 +16,7 @@ from viame_tasks.utils import (
     organize_folder_for_training,
     read_and_close_process_outputs,
 )
+from viame_utils.types import PipelineJob
 
 
 def get_gpu_environment() -> Dict[str, str]:
@@ -47,7 +47,7 @@ class Config:
 
 
 @app.task(bind=True, acks_late=True)
-def run_pipeline(self: Task, params):
+def run_pipeline(self: Task, params: PipelineJob):
     conf = Config()
     manager: JobManager = self.job_manager
 

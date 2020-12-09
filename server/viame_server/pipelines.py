@@ -1,43 +1,17 @@
 import copy
 import re
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 from girder.models.folder import Folder
-from typing_extensions import TypedDict
 
 from viame_server.constants import TrainedPipelineCategory, TrainedPipelineMarker
 from viame_server.utils import get_static_pipelines_path
+from viame_utils.types import PipelineCategory, PipelineDescription
 
 AllowedStaticPipelines = r"^detector_.+|^tracker_.+|^generate_.+"
 DisallowedStaticPipelines = (
     r".*local.*|detector_svm_models.pipe|tracker_svm_models.pipe"
 )
-
-
-class PipelineDescription(TypedDict):
-    """Describes a pipeline for running on datasets."""
-
-    name: str
-    type: str
-    pipe: str
-
-    # If the pipeline is stored in girder, this is
-    # the ID of the folder containing the pipeline,
-    folderId: Optional[str]
-
-
-class PipelineJob(TypedDict):
-    """Describes the parameters for running a pipeline on a dataset."""
-
-    pipeline: PipelineDescription
-    input_folder: str
-    input_type: str
-    output_folder: str
-
-
-class PipelineCategory(TypedDict):
-    pipes: List[PipelineDescription]
-    description: str
 
 
 Pipelines = Dict[str, PipelineCategory]
