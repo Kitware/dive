@@ -161,7 +161,7 @@ export default defineComponent({
               <v-list>
                 <v-list-item
                   v-for="(pipeline) in pipelines[pipeType].pipes"
-                  :key="pipeline.pipe"
+                  :key="`${pipeline.name}-${pipeline.pipe}`"
                   @click="runPipelineOnSelectedItem(pipeline)"
                 >
                   <v-list-item-title>
