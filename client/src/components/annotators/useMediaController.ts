@@ -15,7 +15,7 @@ export function injectMediaController() {
   return use<MediaController>(MediaControllerSymbol);
 }
 
-export default function useAnnotator({ emit }: {
+export default function useMediaController({ emit }: {
   emit(name: string, val: unknown): void;
 }) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

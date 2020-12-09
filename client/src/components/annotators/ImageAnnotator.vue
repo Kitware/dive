@@ -34,7 +34,7 @@ export default defineComponent({
   },
 
   setup(props, { emit }) {
-    const loadingVideo = ref(false);
+    const loadingVideo = ref(true);
     const common = useMediaController({ emit });
     const { data } = common;
     data.maxFrame = props.imageData.length - 1;
@@ -68,7 +68,15 @@ export default defineComponent({
      * Draw image to the GeoJS map, and update the map dimensions if they have changed.
      */
     function drawImage(img: HTMLImageElement) {
-      if ((img.naturalWidth !== local.width) || (img.naturalHeight !== local.height)) {
+      if (
+        img.naturalWidth > 0
+        && img.naturalHeight > 0
+        && ((img.naturalWidth !== local.width) || (img.naturalHeight !== local.height))
+      ) {
+        /**
+         * Only update dimensions if the image has loaded
+         * AND the dimensions have changed
+         */
         local.width = img.naturalWidth;
         local.height = img.naturalHeight;
         common.resetMapDimensions(local.width, local.height);
@@ -163,7 +171,10 @@ export default defineComponent({
       cacheNewRange(min, max);
     }
 
-    async function seek(newFrame: number) {
+    async function seek(f: number) {
+      let newFrame = f;
+      if (f < 0) newFrame = 0;
+      if (f > data.maxFrame) newFrame = data.maxFrame;
       local.lastFrame = data.frame;
       data.frame = newFrame;
       data.syncedFrame = newFrame;
@@ -180,6 +191,8 @@ export default defineComponent({
           // if the seek hasn't changed since the image completed loading, draw it.
           drawImage(imgInternal.image);
         }
+      } else {
+        loadingVideo.value = false;
       }
     }
 
@@ -193,36 +206,35 @@ export default defineComponent({
      * Image playback is based on framerate but will pause and wait for images to load
      * if the currently accessed image is not loaded during playback.
      */
-    function syncWithVideo() {
+    async function syncWithVideo(nextFrame: number): Promise<void> {
       if (data.playing) {
-        data.frame += 1;
-        data.syncedFrame += 1;
-        if (data.frame > data.maxFrame) {
-          pause();
-          data.frame = data.maxFrame;
-          data.syncedFrame = data.maxFrame;
-          return;
+        if (nextFrame > data.maxFrame) {
+          return pause();
         }
-        const imgInternal = expectFrame(data.frame);
-        // Prevents advancing the frame while playing if the current image is not loaded
-        if (!imgInternal.cached || loadingVideo.value) {
-          // returns to a loaded image
-          data.frame -= 1;
-          // sync the annotations with the loading frame
-          data.syncedFrame = data.frame;
-          common.emitFrame();
-          loadingVideo.value = true;
-          return;
+        // expectFrame is safe here because, even though this frame may never have been
+        // seeked before, it is at MOST 1 frame away from a frame that has.
+        // So the correct behavior of this function implicitly requires that seek()
+        // always trigger caching for surrounding frames.
+        const nextImage = expectFrame(nextFrame);
+        if (!nextImage.cached) {
+          // Prevents advancing the frame while playing if the current image is not loaded
+          loadingVideo.value = true; // next seek() will unset loading state
+          await nextImage.onloadPromise;
+          // A user interaction (pause, seek) could have happened during load.
+          // Restart syncWithVideo() logic on same frame.  MUST return here to
+          // prevent duplicating the loop.
+          return syncWithVideo(data.frame + 1);
         }
-        seek(data.frame);
-        setTimeout(syncWithVideo, 1000 / props.frameRate);
+        seek(nextFrame);
+        setTimeout(() => syncWithVideo(data.frame + 1), 1000 / props.frameRate);
       }
+      return undefined;
     }
 
     async function play() {
       try {
         data.playing = true;
-        syncWithVideo();
+        syncWithVideo(data.frame + 1);
       } catch (ex) {
         console.error(ex);
       }
@@ -237,6 +249,7 @@ export default defineComponent({
     if (local.imgs.length) {
       const imgInternal = cacheFrame(0);
       imgInternal.onloadPromise.then(() => {
+        loadingVideo.value = false;
         initializeViewer(imgInternal.image.naturalWidth, imgInternal.image.naturalHeight);
         const quadFeatureLayer = common.geoViewerRef.value.createLayer('feature', {
           features: ['quad'],
