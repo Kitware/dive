@@ -31,8 +31,6 @@ export default function register() {
 
   // defaults to linux if win32 doesn't exist
   const currentPlatform = OS.platform() === 'win32' ? win32 : linux;
-  // Initialize windows to check environment variables for %PROGRAMFILES% as
-  // it could be on another drive letter
   if (OS.platform() === 'win32') {
     win32.initialize();
   }
