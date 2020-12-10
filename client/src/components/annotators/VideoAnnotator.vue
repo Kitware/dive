@@ -21,8 +21,8 @@ export default defineComponent({
   },
 
   setup(props, { emit }) {
-    const common = useMediaController({ emit });
-    const { data } = common;
+    const commonMedia = useMediaController({ emit });
+    const { data } = commonMedia;
 
     function makeVideo() {
       const video = document.createElement('video');
@@ -37,12 +37,8 @@ export default defineComponent({
       if (data.playing) {
         data.frame = Math.round(video.currentTime * props.frameRate);
         data.syncedFrame = data.frame;
-        common.geoViewerRef.value.scheduleAnimationFrame(syncWithVideo);
+        commonMedia.geoViewerRef.value.scheduleAnimationFrame(syncWithVideo);
       }
-    }
-
-    function pendingUpdate() {
-      data.syncedFrame = Math.round(video.currentTime * props.frameRate);
     }
 
     async function play() {
@@ -58,10 +54,7 @@ export default defineComponent({
     async function seek(frame: number) {
       video.currentTime = frame / props.frameRate;
       data.frame = Math.round(video.currentTime * props.frameRate);
-      common.emitFrame();
-      // TODO: what's going on here?
-      video.removeEventListener('seeked', pendingUpdate);
-      video.addEventListener('seeked', pendingUpdate);
+      commonMedia.emitFrame();
     }
 
     function pause() {
@@ -72,20 +65,19 @@ export default defineComponent({
     const {
       cursorHandler,
       initializeViewer,
-      mediaController,
-    } = common.initialize({ seek, play, pause });
+    } = commonMedia.initialize({ seek, play, pause });
 
     /**
      * Initialize the Quad feature layer once
      * video metadata has been fetched.
      */
-    video.onloadedmetadata = () => {
-      video.onloadedmetadata = null;
+    function loadedMetadata() {
+      video.removeEventListener('loadedmetadata', loadedMetadata);
       const width = video.videoWidth;
       const height = video.videoHeight;
       data.maxFrame = props.frameRate * video.duration;
       initializeViewer(width, height);
-      const quadFeatureLayer = common.geoViewerRef.value.createLayer('feature', {
+      const quadFeatureLayer = commonMedia.geoViewerRef.value.createLayer('feature', {
         features: ['quad.video'],
       });
       quadFeatureLayer
@@ -102,15 +94,21 @@ export default defineComponent({
       // See https://github.com/VIAME/VIAME-Web/issues/447 for more details.
       seek(0);
       data.ready = true;
-    };
+    }
+
+    function pendingUpdate() {
+      data.syncedFrame = Math.round(video.currentTime * props.frameRate);
+    }
+
+    video.addEventListener('loadedmetadata', loadedMetadata);
+    video.addEventListener('seeked', pendingUpdate);
 
     return {
       data,
-      imageCursorRef: common.imageCursorRef,
-      containerRef: common.containerRef,
-      onResize: common.onResize,
+      imageCursorRef: commonMedia.imageCursorRef,
+      containerRef: commonMedia.containerRef,
+      onResize: commonMedia.onResize,
       cursorHandler,
-      mediaController,
     };
   },
 });

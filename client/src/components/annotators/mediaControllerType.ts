@@ -13,6 +13,7 @@ export interface MediaController {
   frame: Ref<number>;
   filename: Ref<string>;
   maxFrame: Ref<number>;
+  /** @deprecated may be removed in a future release */
   syncedFrame: Ref<number>;
   prevFrame(): void;
   nextFrame(): void;

@@ -1,5 +1,7 @@
 <script lang="ts">
-import { defineComponent, ref, PropType } from '@vue/composition-api';
+import {
+  defineComponent, ref, onUnmounted, PropType,
+} from '@vue/composition-api';
 import useMediaController from './useMediaController';
 
 export interface ImageDataItem {
@@ -36,8 +38,8 @@ export default defineComponent({
   setup(props, { emit }) {
     const loadingVideo = ref(false);
     const loadingImage = ref(true);
-    const common = useMediaController({ emit });
-    const { data } = common;
+    const commonMedia = useMediaController({ emit });
+    const { data } = commonMedia;
     data.maxFrame = props.imageData.length - 1;
 
     // Below are configuration settings we can set until we decide on good numbers to utilize.
@@ -53,6 +55,21 @@ export default defineComponent({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       quadFeature: undefined as any,
     };
+
+    function forceUnload(imgInternal: ImageDataItemInternal) {
+      // Removal from list indicates we are no longer attempting to load this image
+      local.imgs[imgInternal.frame] = undefined;
+      // unset src to cancel outstanding load request
+      // eslint-disable-next-line no-param-reassign
+      imgInternal.image.src = '';
+      local.pendingImgs.delete(imgInternal);
+    }
+
+    /**
+     * When the component is unmounted, cancel all outstanding
+     * requests for image load.
+     */
+    onUnmounted(() => Array.from(local.pendingImgs).forEach(forceUnload));
 
     /**
      * expectFrame when you know local.imgs[i] should not be undefined
@@ -80,7 +97,7 @@ export default defineComponent({
          */
         local.width = img.naturalWidth;
         local.height = img.naturalHeight;
-        common.resetMapDimensions(local.width, local.height);
+        commonMedia.resetMapDimensions(local.width, local.height);
       }
       local.quadFeature
         .data([
@@ -108,7 +125,7 @@ export default defineComponent({
           frame: i,
           image: img,
           cached: false,
-          onloadPromise: new Promise<boolean>((resolve, reject) => {
+          onloadPromise: new Promise<boolean>((resolve) => {
             img.onload = () => {
               const imgInternal = expectFrame(i);
               pendingImgs.delete(imgInternal);
@@ -156,14 +173,12 @@ export default defineComponent({
       local.pendingImgs.forEach((imgInternal) => {
         // the current loading cache needs to be wiped out if we seek forward, backwards or
         // if we are out of the current range of the cache
-        if (imgInternal.frame < min || imgInternal.frame > max || frameDiff > 1 || prevFrame
-        || (!data.playing && frameDiff === 1)) {
-          // Removal from list indicates "we are no longer attempting to load this image"
-          local.imgs[imgInternal.frame] = undefined;
-          // unset src to cancel outstanding load request
-          // eslint-disable-next-line no-param-reassign
-          imgInternal.image.src = '';
-          local.pendingImgs.delete(imgInternal);
+        if (imgInternal.frame < min
+          || imgInternal.frame > max
+          || frameDiff > 1 || prevFrame
+          || (!data.playing && frameDiff === 1)
+        ) {
+          forceUnload(imgInternal);
         }
       });
       let result = true;
@@ -188,7 +203,7 @@ export default defineComponent({
         return;
       }
 
-      common.emitFrame();
+      commonMedia.emitFrame();
       cacheImages();
       const imgInternal = expectFrame(newFrame);
       drawImage(imgInternal.image);
@@ -268,13 +283,13 @@ export default defineComponent({
       cursorHandler,
       initializeViewer,
       mediaController,
-    } = common.initialize({ seek, play, pause });
+    } = commonMedia.initialize({ seek, play, pause });
 
     if (local.imgs.length) {
       const imgInternal = cacheFrame(0);
       imgInternal.onloadPromise.then(() => {
         initializeViewer(imgInternal.image.naturalWidth, imgInternal.image.naturalHeight);
-        const quadFeatureLayer = common.geoViewerRef.value.createLayer('feature', {
+        const quadFeatureLayer = commonMedia.geoViewerRef.value.createLayer('feature', {
           features: ['quad'],
         });
         local.quadFeature = quadFeatureLayer.createFeature('quad');
@@ -287,9 +302,9 @@ export default defineComponent({
       data,
       loadingVideo,
       loadingImage,
-      imageCursorRef: common.imageCursorRef,
-      containerRef: common.containerRef,
-      onResize: common.onResize,
+      imageCursorRef: commonMedia.imageCursorRef,
+      containerRef: commonMedia.containerRef,
+      onResize: commonMedia.onResize,
       cursorHandler,
       mediaController,
     };
