@@ -9,13 +9,6 @@ import { getPathFromLocation } from '../utils';
 import Export from './Export.vue';
 
 
-// TODO:  Needed for refs to work in composition API Plugin, Vue3 will change it
-// https://github.com/vuejs/composition-api/blob/master/README.md - $refs section
-declare module '@vue/composition-api' {
-  interface SetupContext {
-    readonly refs: { [key: string]: Vue | Element | Vue[] | Element[] };
-  }
-}
 /**
  * ViewerLoader is responsible for loading
  * data from girder.
