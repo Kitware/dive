@@ -47,7 +47,7 @@ export default defineComponent({
       frontBackRatio: 0.9, // 90% forward frames, 10% backward frames when caching
       imgs: new Array<ImageDataItemInternal | undefined>(props.imageData.length),
       pendingImgs: new Set<ImageDataItemInternal>(),
-      lastFrame: 0,
+      lastFrame: -1,
       width: 0,
       height: 0,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -156,7 +156,8 @@ export default defineComponent({
       local.pendingImgs.forEach((imgInternal) => {
         // the current loading cache needs to be wiped out if we seek forward, backwards or
         // if we are out of the current range of the cache
-        if (imgInternal.frame < min || imgInternal.frame > max || frameDiff > 1 || prevFrame) {
+        if (imgInternal.frame < min || imgInternal.frame > max || frameDiff > 1 || prevFrame
+        || (!data.playing && frameDiff === 1)) {
           // Removal from list indicates "we are no longer attempting to load this image"
           local.imgs[imgInternal.frame] = undefined;
           // unset src to cancel outstanding load request
@@ -165,12 +166,15 @@ export default defineComponent({
           local.pendingImgs.delete(imgInternal);
         }
       });
+      let result = true;
       // if not playing we want the seeked to frame immediately and prevent caching until loaded
       if (!data.playing && !local.imgs[data.frame] && data.frame > 0) {
-        await cacheFrame(data.frame)?.onloadPromise;
+        result = await cacheFrame(data.frame)?.onloadPromise;
       }
       // Cache a new range of images based on current frame
-      cacheNewRange(min, max);
+      if (result) {
+        cacheNewRange(min, max);
+      }
     }
 
     async function seek(f: number) {
@@ -180,6 +184,10 @@ export default defineComponent({
       local.lastFrame = data.frame;
       data.frame = newFrame;
       data.syncedFrame = newFrame;
+      if (data.frame !== 0 && local.lastFrame === data.frame) {
+        return;
+      }
+
       common.emitFrame();
       cacheImages();
       const imgInternal = expectFrame(newFrame);
