@@ -1,5 +1,6 @@
-import { ipcMain } from 'electron';
 import OS from 'os';
+
+import { ipcMain } from 'electron';
 import { DesktopJobUpdate, RunPipeline, Settings } from '../constants';
 
 import server from './server';
