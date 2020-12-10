@@ -185,33 +185,59 @@ async function runPipeline(
   return jobBase;
 }
 
+function checkDefaultNvidiaSmi(
+  resolve: (value?: NvidiaSmiReply | PromiseLike<NvidiaSmiReply> | undefined) => void,
+) {
+  const smi = spawn(`"${programFiles}\\NVIDIA Corporation\\NVSMI\\nvidia-smi.exe"`, ['-q', '-x'], { shell: true });
+  let result = '';
+  smi.stdout.on('data', (chunk) => {
+    result = result.concat(chunk.toString('utf-8'));
+  });
+
+  smi.on('close', (exitCode) => {
+    let jsonStr = 'null'; // parses to null
+    if (exitCode === 0) {
+      jsonStr = xml2json(result, { compact: true });
+    }
+    resolve({
+      output: JSON.parse(jsonStr),
+      exitCode,
+      error: result,
+    });
+  });
+  smi.on('error', (err) => {
+    resolve({
+      output: null,
+      exitCode: -1,
+      error: err.message,
+    });
+  });
+}
 // Note: this is the most recent location for the nvidia-smi
 // it doesn't guarantee that the system doesn't have a relevant GPU
 async function nvidiaSmi(): Promise<NvidiaSmiReply> {
   return new Promise((resolve) => {
-    const smi = spawn(`"${programFiles}\\NVIDIA Corporation\\NVSMI\\nvidia-smi.exe"`, ['-q', '-x'], { shell: true });
+    const pathsmi = spawn('"nvidia-smi.exe"', ['-q', '-x'], { shell: true });
     let result = '';
-    smi.stdout.on('data', (chunk) => {
+    pathsmi.on('data', (chunk) => {
       result = result.concat(chunk.toString('utf-8'));
     });
 
-    smi.on('close', (exitCode) => {
+    pathsmi.on('close', (exitCode) => {
       let jsonStr = 'null'; // parses to null
       if (exitCode === 0) {
         jsonStr = xml2json(result, { compact: true });
+        resolve({
+          output: JSON.parse(jsonStr),
+          exitCode,
+          error: result,
+        });
+      } else {
+        checkDefaultNvidiaSmi(resolve);
       }
-      resolve({
-        output: JSON.parse(jsonStr),
-        exitCode,
-        error: result,
-      });
     });
-    smi.on('error', (err) => {
-      resolve({
-        output: null,
-        exitCode: -1,
-        error: err.message,
-      });
+    pathsmi.on('error', () => {
+      checkDefaultNvidiaSmi(resolve);
     });
   });
 }
