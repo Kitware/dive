@@ -42,7 +42,7 @@ export default defineComponent({
 
     async function save() {
       if (settings.value !== null) {
-        settingsAreValid.value = 'Checking for Kwiver';
+        settingsAreValid.value = false;
         settingsAreValid.value = await validateSettings(localSettings.value);
         setSettings(localSettings.value);
       }
@@ -71,25 +71,29 @@ export default defineComponent({
         <v-card-title>Settings</v-card-title>
         <v-card-text>
           <v-row>
-            <v-text-field
-              v-model="localSettings.viamePath"
-              label="VIAME Install Base Path"
-              hint="download from https://viametoolkit.com"
-              dense
-              persistent-hint
-            />
-            <v-btn
-              large
-              block
-              color="primary"
-              class="mb-6"
-              @click="openPath()"
-            >
-              Open
-              <v-icon class="ml-2">
-                mdi-folder-open
-              </v-icon>
-            </v-btn>
+            <v-col cols="9">
+              <v-text-field
+                v-model="localSettings.viamePath"
+                label="VIAME Install Base Path"
+                hint="download from https://viametoolkit.com"
+                dense
+                persistent-hint
+              />
+            </v-col>
+            <v-col>
+              <v-btn
+                large
+                block
+                color="primary"
+                class="mb-6"
+                @click="openPath()"
+              >
+                Open
+                <v-icon class="ml-2">
+                  mdi-folder-open
+                </v-icon>
+              </v-btn>
+            </v-col>
             <v-row />
           </v-row>
         </v-card-text>
@@ -134,9 +138,9 @@ export default defineComponent({
           text
           class="mx-4"
           :type="settingsAreValid ===
-            'Checking for Kwiver' ? 'info' : settingsAreValid === true ? 'success' : 'warning'"
+            false ? 'info' : settingsAreValid === true ? 'success' : 'warning'"
         >
-          <span v-if="settingsAreValid === 'Checking for Kwiver' ">
+          <span v-if="settingsAreValid === false ">
             Checking for Kwiver
             <v-progress-linear
               indeterminate
