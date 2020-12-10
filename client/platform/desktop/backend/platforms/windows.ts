@@ -217,9 +217,10 @@ function checkDefaultNvidiaSmi(
 // it doesn't guarantee that the system doesn't have a relevant GPU
 async function nvidiaSmi(): Promise<NvidiaSmiReply> {
   return new Promise((resolve) => {
-    const pathsmi = spawn('"nvidia-smi.exe"', ['-q', '-x'], { shell: true });
+    const pathsmi = spawn('nvidia-smi', ['-q', '-x'], { shell: true });
     let result = '';
-    pathsmi.on('data', (chunk) => {
+    pathsmi.stdout.on('data', (chunk) => {
+      console.log(chunk.toString('utf-8'));
       result = result.concat(chunk.toString('utf-8'));
     });
 
