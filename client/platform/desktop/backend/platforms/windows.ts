@@ -1,9 +1,9 @@
 /**
  * VIAME process manager for windows platform
  */
-import { app } from 'electron';
 import npath from 'path';
 import { spawn } from 'child_process';
+import { app } from 'electron';
 import fs from 'fs-extra';
 import { xml2json } from 'xml-js';
 
