@@ -1,5 +1,5 @@
 <script lang="ts">
-import { defineComponent, watch } from '@vue/composition-api';
+import { defineComponent, watch, PropType } from '@vue/composition-api';
 
 import { injectMediaController } from './annotators/useMediaController';
 import RectangleLayer from '../layers/AnnotationLayers/RectangleLayer';
@@ -9,7 +9,7 @@ import LineLayer from '../layers/AnnotationLayers/LineLayer';
 
 import EditAnnotationLayer, { EditAnnotationTypes } from '../layers/EditAnnotationLayer';
 import { FrameDataTrack } from '../layers/LayerTypes';
-import TextLayer from '../layers/TextLayer';
+import TextLayer, { FormatTextRow } from '../layers/TextLayer';
 import Track, { TrackId } from '../track';
 import { geojsonToBound } from '../utils';
 import { VisibleAnnotationTypes } from '../layers';
@@ -27,14 +27,19 @@ import {
   useStateStyles,
 } from '../provides';
 
-
 /** LayerManager is a component intended to be used as a child of an Annotator.
  *  It provides logic for switching which layers are visible, but more importantly
  *  it maps Track objects into their respective layer representations.
  *  LayerManager emits high-level events when track features get selected or updated.
  */
 export default defineComponent({
-  setup() {
+  props: {
+    formatTextRow: {
+      type: Function as PropType<FormatTextRow | undefined>,
+      default: undefined,
+    },
+  },
+  setup(props) {
     const handler = useHandler();
     const intervalTree = useIntervalTree();
     const trackMap = useTrackMap();
@@ -76,6 +81,7 @@ export default defineComponent({
       annotator,
       stateStyling,
       typeStyling: typeStylingRef,
+      formatter: props.formatTextRow,
     });
 
     const editAnnotationLayer = new EditAnnotationLayer({
