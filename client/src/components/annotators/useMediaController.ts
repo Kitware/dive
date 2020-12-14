@@ -51,8 +51,12 @@ export default function useMediaController({ emit }: {
   }
 
   function resetZoom() {
-    geoViewerRef.value.zoom(geoViewerRef.value.zoomRange().origMin);
-    geoViewerRef.value.center({ x: 0, y: 0 });
+    const zoomAndCenter = geoViewerRef.value.zoomAndCenterFromBounds(
+      geoViewerRef.value.maxBounds(), 0,
+    );
+    geoViewerRef.value.zoom(zoomAndCenter.zoom);
+
+    geoViewerRef.value.center(zoomAndCenter.center);
   }
 
   function resetMapDimensions(width: number, height: number) {
@@ -75,8 +79,11 @@ export default function useMediaController({ emit }: {
       // do not set a "zoom out" limit so that 1x(map size) is always min.
       min: -Infinity,
       // 4x zoom max
-      max: 4,
+      max: Infinity,
     });
+    geoViewerRef.value.clampBoundsX(false);
+    geoViewerRef.value.clampBoundsY(false);
+    geoViewerRef.value.clampZoom(false);
     resetZoom();
   }
 
