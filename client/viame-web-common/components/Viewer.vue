@@ -459,6 +459,19 @@ export default defineComponent({
           </template>
           <layer-manager />
         </component>
+        <div
+          v-else
+          class="d-flex justify-center align-center fill-height"
+        >
+          <v-progress-circular
+            indeterminate
+            size="100"
+            width="15"
+            color="light-blue"
+          >
+            Loading
+          </v-progress-circular>
+        </div>
       </v-col>
     </v-row>
   </v-main>
