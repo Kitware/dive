@@ -2,6 +2,8 @@ from typing import List, Optional
 
 from typing_extensions import TypedDict
 
+__all__ = ["PipelineDescription", "PipelineJob", "PipelineCategory"]
+
 
 class PipelineDescription(TypedDict):
     """Describes a pipeline for running on datasets."""
