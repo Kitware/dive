@@ -13,7 +13,7 @@ export interface TextData {
   offsetX?: number;
 }
 
-export type FormatTextRow = (track: FrameDataTrack) => TextData | null;
+export type FormatTextRow = (track: FrameDataTrack) => TextData[] | null;
 
 interface TextLayerParams {
   formatter?: FormatTextRow;
@@ -22,13 +22,13 @@ interface TextLayerParams {
 /**
  * @returns value or null.  null indicates that the text should not be displayed.
  */
-function defaultFormatter(track: FrameDataTrack): TextData | null {
+function defaultFormatter(track: FrameDataTrack): TextData[] | null {
   if (track.features && track.features.bounds) {
     const { bounds } = track.features;
     if (bounds && track.confidencePairs !== null) {
       const type = track.confidencePairs[0];
       const confidence = track.confidencePairs[1];
-      return {
+      return [{
         selected: track.selected,
         editing: track.editing,
         type,
@@ -36,7 +36,7 @@ function defaultFormatter(track: FrameDataTrack): TextData | null {
         text: `${type}: ${confidence.toFixed(2)}`,
         x: bounds[2],
         y: bounds[1],
-      };
+      }];
     }
   }
   return null;
@@ -66,7 +66,7 @@ export default class TextLayer extends BaseLayer<TextData> {
     frameData.forEach((track: FrameDataTrack) => {
       const formatted = this.formatter(track);
       if (formatted !== null) {
-        arr.push(formatted);
+        arr.push(...formatted);
       }
     });
     return arr;
