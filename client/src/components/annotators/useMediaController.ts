@@ -71,7 +71,12 @@ export default function useMediaController({ emit }: {
       right: params.map.maxBounds.right,
       bottom: params.map.maxBounds.bottom,
     });
-    geoViewerRef.value.zoomRange(params.map);
+    geoViewerRef.value.zoomRange({
+      // do not set a "zoom out" limit so that 1x(map size) is always min.
+      min: -Infinity,
+      // 4x zoom max
+      max: 4,
+    });
     resetZoom();
   }
 
@@ -116,10 +121,6 @@ export default function useMediaController({ emit }: {
       );
       geoViewerRef.value = geo.map(params.map);
       resetMapDimensions(width, height);
-      geoViewerRef.value.zoomRange({
-        min: geoViewerRef.value.zoomRange().origMin,
-        max: geoViewerRef.value.zoomRange().max + 3,
-      });
       const interactorOpts = geoViewerRef.value.interactor().options();
       interactorOpts.keyboard.focusHighlight = false;
       interactorOpts.keyboard.actions = {};

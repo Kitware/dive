@@ -36,12 +36,12 @@ export default defineComponent({
     <v-container>
       <v-col>
         <v-row>
-          <v-col cols="8">
+          <v-col md="8" sm="6">
             <h1 class="text-h3 mb-4 font-weight-light">
-              VIAME Annotation Tool
+              Dive Annotation Tool
             </h1>
             <h3>Useful Links</h3>
-            <browser-link href="https://github.com/VIAME/VIAME-Web/wiki">
+            <browser-link href="https://viame.github.io/VIAME-Web/">
               User Guide
             </browser-link>
             <browser-link href="https://viame.kitware.com/#/collection/5e4c256ca0fc86aa03120c34">
@@ -51,7 +51,7 @@ export default defineComponent({
               viametoolkit.org
             </browser-link>
           </v-col>
-          <v-col cols="4">
+          <v-col md="4" sm="6">
             <v-btn
               large
               block
