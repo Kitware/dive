@@ -24,7 +24,7 @@ export default class PolygonLayer extends BaseLayer<PolyGeoJSData> {
     }
 
     initialize() {
-      const layer = this.annotator.geoViewer.createLayer('feature', {
+      const layer = this.annotator.geoViewerRef.value.createLayer('feature', {
         features: ['polygon'],
       });
       this.featureLayer = layer

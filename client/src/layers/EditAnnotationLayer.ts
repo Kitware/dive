@@ -91,7 +91,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
    */
   initialize() {
     if (!this.featureLayer && this.type) {
-      this.featureLayer = this.annotator.geoViewer.createLayer('annotation', {
+      this.featureLayer = this.annotator.geoViewerRef.value.createLayer('annotation', {
         clickToEdit: true,
         showLabels: false,
         continuousPointProximity: false,
@@ -172,7 +172,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
         }, this.type, this.selectedKey, this.skipNextFunc(),
       );
       // triggers a mouse up while editing to make it seem like a point was placed
-      window.setTimeout(() => this.annotator.geoViewer.interactor().simulateEvent('mouseup',
+      window.setTimeout(() => this.annotator.geoViewerRef.value.interactor().simulateEvent('mouseup',
         { map: { x: e.mouse.geo.x, y: e.mouse.geo.y }, button: 'left' }), 0);
     } else if (this.shapeInProgress) {
       this.shapeInProgress = null;
@@ -195,22 +195,22 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
     if (e.enable) {
       if (this.type === 'rectangle') {
         if (e.handle.handle.type === 'vertex') {
-          this.annotator.$emit('set-cursor', rectVertex[e.handle.handle.index]);
+          this.annotator.setCursor(rectVertex[e.handle.handle.index]);
         } else if (e.handle.handle.type === 'edge') {
-          this.annotator.$emit('set-cursor', rectEdge[e.handle.handle.index]);
+          this.annotator.setCursor(rectEdge[e.handle.handle.index]);
         }
       } else if (e.handle.handle.type === 'vertex') {
-        this.annotator.$emit('set-cursor', 'grab');
+        this.annotator.setCursor('grab');
       } else if (e.handle.handle.type === 'edge') {
-        this.annotator.$emit('set-cursor', 'copy');
+        this.annotator.setCursor('copy');
       }
       if (e.handle.handle.type === 'center') {
-        this.annotator.$emit('set-cursor', 'move');
+        this.annotator.setCursor('move');
       } else if (e.handle.handle.type === 'resize') {
-        this.annotator.$emit('set-cursor', 'nwse-resize');
+        this.annotator.setCursor('nwse-resize');
       }
     } else if (this.getMode() !== 'creation') {
-      this.annotator.$emit('set-cursor', 'default');
+      this.annotator.setCursor('default');
     }
   }
 
@@ -261,11 +261,11 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
       if (geom) {
         this._mode = 'editing';
         newLayerMode = 'edit';
-        this.annotator.$emit('set-cursor', 'default');
+        this.annotator.setCursor('default');
       } else if (typeMapper.has(mode)) {
         this._mode = 'creation';
         newLayerMode = typeMapper.get(mode) as string;
-        this.annotator.$emit('set-cursor', 'crosshair');
+        this.annotator.setCursor('crosshair');
       } else {
         throw new Error(`No such mode ${mode}`);
       }
@@ -278,7 +278,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
   calculateCursorImage() {
     if (this.getMode() === 'creation') {
       // TODO:  we may want to make this more generic or utilize the icons from editMenu
-      this.annotator.$emit('set-image-cursor', `mdi-vector-${typeMapper.get(this.type)}`);
+      this.annotator.setImageCursor(`mdi-vector-${typeMapper.get(this.type)}`);
     }
   }
 
@@ -296,8 +296,8 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
         this.hoverHandleIndex = -1;
         this.bus.$emit('update:selectedIndex', this.selectedHandleIndex, this.type, this.selectedKey);
       }
-      this.annotator.$emit('set-cursor', 'default');
-      this.annotator.$emit('set-image-cursor', '');
+      this.annotator.setCursor('default');
+      this.annotator.setImageCursor('');
     }
   }
 
@@ -329,7 +329,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
       this.disable();
       //TODO: Find a better way to track mouse up after placing a point or completing geometry
       //For line drawings and the actions of any recipes we want
-      if (this.annotator.geoViewer.interactor().mouse().buttons.left) {
+      if (this.annotator.geoViewerRef.value.interactor().mouse().buttons.left) {
         this.leftButtonCheckTimeout = window.setTimeout(() => this.changeData(frameData), 20);
       } else {
         clearTimeout(this.leftButtonCheckTimeout);
@@ -458,10 +458,11 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
                 (coord) => ({ x: coord[0], y: coord[1] }),
               );
               // only use the 4 coords instead of 5
-              const remapped = this.annotator.geoViewer.worldToGcs(coords.splice(0, 4));
+              const remapped = this.annotator.geoViewerRef.value.worldToGcs(coords.splice(0, 4));
               e.annotation.options('corners', remapped);
               //This will retrigger highlighting of the current handle after releasing the mouse
-              setTimeout(() => this.annotator.geoViewer.interactor().retriggerMouseMove(), 0);
+              setTimeout(() => this.annotator.geoViewerRef
+                .value.interactor().retriggerMouseMove(), 0);
             }
             // update existing feature
             this.formattedData[0].geometry = newGeojson.geometry;

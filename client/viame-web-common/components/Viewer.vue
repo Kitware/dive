@@ -2,6 +2,7 @@
 import {
   defineComponent, ref, toRef, computed,
 } from '@vue/composition-api';
+import type { Vue } from 'vue/types/vue';
 
 /* VUE MEDIA ANNOTATOR */
 import Track, { TrackId } from 'vue-media-annotator/track';
@@ -20,6 +21,7 @@ import {
   VideoAnnotator,
   LayerManager,
 } from 'vue-media-annotator/components';
+import { MediaController } from 'vue-media-annotator/components/annotators/mediaControllerType';
 
 /* VIAME WEB COMMON */
 import PolygonBase from 'viame-web-common/recipes/polygonbase';
@@ -32,7 +34,7 @@ import RunPipelineMenu from 'viame-web-common/components/RunPipelineMenu.vue';
 import DeleteControls from 'viame-web-common/components/DeleteControls.vue';
 import ControlsContainer from 'viame-web-common/components/ControlsContainer.vue';
 import Sidebar from 'viame-web-common/components/Sidebar.vue';
-import { Annotator } from 'viame-web-common/use/useModeManager';
+
 import {
   useModeManager,
   useSave,
@@ -67,7 +69,17 @@ export default defineComponent({
     // and use the new plugin pattern:
     // https://vue-composition-api-rfc.netlify.com/#plugin-development
     const prompt = ctx.root.$prompt;
-    const playbackComponent = ref({} as Annotator);
+    const playbackComponent = ref(undefined as Vue | undefined);
+    const mediaController = computed(() => {
+      if (playbackComponent.value) {
+        // TODO: Bug in composition-api types incorrectly organizes the static members of a Vue
+        // instance when using typeof ImageAnnotator, so we can't use the "real" type here
+        // eslint-disable-next-line @typescript-eslint/ban-ts-ignore
+        // @ts-ignore
+        return playbackComponent.value.mediaController as MediaController;
+      }
+      return {} as MediaController;
+    });
     const fps = ref(10 as string | number);
     const imageData = ref([] as FrameImage[]);
     const videoUrl = ref(undefined as undefined | string);
@@ -207,7 +219,7 @@ export default defineComponent({
       editingTrack,
       frame,
       trackMap,
-      playbackComponent,
+      mediaController,
       newTrackSettings: clientSettings.newTrackSettings.value,
       selectTrack,
       selectNextTrack,
@@ -339,6 +351,7 @@ export default defineComponent({
       imageData,
       lineChartData,
       loaded,
+      mediaController,
       newTrackSettings: clientSettings.newTrackSettings,
       typeSettings: clientSettings.typeSettings,
       pendingSaveCount,
@@ -417,7 +430,7 @@ export default defineComponent({
         @update-new-track-settings="updateNewTrackSettings($event)"
         @update-type-settings="updateTypeSettings($event)"
         @import-types="importTypes($event)"
-        @track-seek="playbackComponent.seek($event)"
+        @track-seek="mediaController.seek($event)"
       >
         <ConfidenceFilter
           :confidence.sync="confidenceThreshold"
@@ -431,7 +444,7 @@ export default defineComponent({
           ref="playbackComponent"
           v-mousetrap="[
             { bind: 'n', handler: () => handler.trackAdd() },
-            { bind: 'r', handler: () => playbackComponent.resetZoom() },
+            { bind: 'r', handler: () => mediaController.resetZoom() },
             { bind: 'esc', handler: () => handler.trackAbort() },
           ]"
           v-bind="{ imageData, videoUrl, frameRate }"

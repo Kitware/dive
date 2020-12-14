@@ -15,7 +15,7 @@ interface TextData {
 
 export default class TextLayer extends BaseLayer<TextData> {
   initialize() {
-    const layer = this.annotator.geoViewer.createLayer('feature', {
+    const layer = this.annotator.geoViewerRef.value.createLayer('feature', {
       features: ['text'],
     });
     this.featureLayer = layer
