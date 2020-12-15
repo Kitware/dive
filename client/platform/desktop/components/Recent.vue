@@ -36,7 +36,10 @@ export default defineComponent({
     <v-container>
       <v-col>
         <v-row>
-          <v-col md="8" sm="6">
+          <v-col
+            md="8"
+            sm="6"
+          >
             <h1 class="text-h3 mb-4 font-weight-light">
               Dive Annotation Tool
             </h1>
@@ -51,7 +54,10 @@ export default defineComponent({
               viametoolkit.org
             </browser-link>
           </v-col>
-          <v-col md="4" sm="6">
+          <v-col
+            md="4"
+            sm="6"
+          >
             <v-btn
               large
               block
