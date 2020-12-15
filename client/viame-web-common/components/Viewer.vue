@@ -69,6 +69,7 @@ export default defineComponent({
     // and use the new plugin pattern:
     // https://vue-composition-api-rfc.netlify.com/#plugin-development
     const prompt = ctx.root.$prompt;
+    const loadError = ref('');
     const playbackComponent = ref(undefined as Vue | undefined);
     const mediaController = computed(() => {
       if (playbackComponent.value) {
@@ -145,11 +146,16 @@ export default defineComponent({
     } = useTrackStore({ markChangesPending });
 
     async function loadTracks(datasetId: string) {
-      const data = await loadDetections(datasetId);
-      if (data !== null) {
-        Object.values(data).forEach(
-          (trackData) => insertTrack(Track.fromJSON(trackData)),
-        );
+      try {
+        const data = await loadDetections(datasetId);
+        if (data !== null) {
+          Object.values(data).forEach(
+            (trackData) => insertTrack(Track.fromJSON(trackData)),
+          );
+        }
+      } catch (err) {
+        loadError.value = err;
+        throw err;
       }
     }
 
@@ -351,6 +357,7 @@ export default defineComponent({
       imageData,
       lineChartData,
       loaded,
+      loadError,
       mediaController,
       newTrackSettings: clientSettings.newTrackSettings,
       typeSettings: clientSettings.typeSettings,
@@ -463,7 +470,17 @@ export default defineComponent({
           v-else
           class="d-flex justify-center align-center fill-height"
         >
+          <v-alert
+            v-if="loadError"
+            type="error"
+            prominent
+          >
+            <p class="ma-2">
+              {{ loadError }}
+            </p>
+          </v-alert>
           <v-progress-circular
+            v-else
             indeterminate
             size="100"
             width="15"

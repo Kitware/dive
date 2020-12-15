@@ -61,12 +61,17 @@ async function getDatasetBase(datasetId: string): Promise<{
     return false;
   });
 
-  const jsonFileCandidates = await contents
-    .filter((name) => JsonFileName.test(name))
-    .filter(async (name) => {
-      const statResult = await fs.stat(npath.join(datasetFolderPath, name));
-      return statResult.isFile();
-    });
+  const jsonFileCandidates: string[] = [];
+  await Promise.all(contents.map(async (name) => {
+    if (JsonFileName.test(name)) {
+      const fullPath = npath.join(datasetFolderPath, name);
+      const statResult = await fs.stat(fullPath);
+      if (statResult.isFile()) {
+        jsonFileCandidates.push(name);
+      }
+    }
+  }));
+
   let jsonFile = null;
   if (jsonFileCandidates.length > 1) {
     throw new Error('Too many matches for json annotation file!');
