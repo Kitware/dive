@@ -30,7 +30,7 @@ Additional documentation will be available in the future for users.
 
 ## Documentation
 
-* [Client User Guide](https://github.com/VIAME/VIAME-Web/wiki)
+* [Client User Guide](https://viame.github.io/VIAME-Web/)
 * [Client Development Docs](client/README.md)
 * [Docker Getting Started Guide](docker/README.md)
 

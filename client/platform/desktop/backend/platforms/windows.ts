@@ -220,6 +220,7 @@ async function nvidiaSmi(): Promise<NvidiaSmiReply> {
     const pathsmi = spawn('nvidia-smi', ['-q', '-x'], { shell: true });
     let result = '';
     pathsmi.stdout.on('data', (chunk) => {
+      // eslint-disable-next-line no-console
       console.log(chunk.toString('utf-8'));
       result = result.concat(chunk.toString('utf-8'));
     });
