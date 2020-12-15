@@ -54,7 +54,7 @@ class Viame(Resource):
     @access.user
     @describeRoute(Description("Get available pipelines"))
     def get_pipelines(self, params):
-        return load_pipelines(self.static_pipelines)
+        return load_pipelines(self.static_pipelines, self.getCurrentUser())
 
     @access.user
     @describeRoute(Description("Get available training configurations."))

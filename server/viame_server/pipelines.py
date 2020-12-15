@@ -1,6 +1,6 @@
 import copy
 import re
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from girder.models.folder import Folder
 
@@ -46,8 +46,10 @@ def load_static_pipelines() -> Pipelines:
     return pipedict
 
 
-def load_pipelines(static_pipelines: Pipelines) -> Pipelines:
-    """Add any additional dynamic pipelines to the existing static pipeline list."""
+def load_pipelines(
+    static_pipelines: Pipelines, user: Optional[Dict] = None
+) -> Pipelines:
+    """Add any additional dynamic pipelines to the existing pipeline list."""
     pipelines = copy.deepcopy(static_pipelines)
     trained_pipelines: List[PipelineDescription] = [
         {
@@ -56,7 +58,10 @@ def load_pipelines(static_pipelines: Pipelines) -> Pipelines:
             "pipe": "detector.pipe",
             "folderId": str(folder["_id"]),
         }
-        for folder in Folder().find({f"meta.{TrainedPipelineMarker}": True})
+        for folder in Folder().findWithPermissions(
+            query={f"meta.{TrainedPipelineMarker}": True},
+            user=user,
+        )
     ]
 
     if not len(trained_pipelines):
