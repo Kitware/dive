@@ -32,9 +32,9 @@ module.exports = {
       rendererProcessFile: 'platform/desktop/main.ts',
       // https://www.electron.build/configuration/configuration
       builderOptions: {
-        appId: "com.kitware.viame",
-        productName: "VIAME-Dive",
-        copyright: "Copyright © 2020 Kitware, Inc.",
+        appId: 'com.kitware.viame',
+        productName: 'DIVE-Desktop',
+        copyright: 'Copyright © 2020 Kitware, Inc.',
         // extraMetadata will be merged with package.json in args to electron-builder
         extraMetadata: {
           // https://github.com/nklayman/vue-cli-plugin-electron-builder/issues/188
@@ -42,12 +42,14 @@ module.exports = {
           main: 'background.js',
         },
         linux: {
-          target: ["AppImage", "snap", "tar.gz"],
-          artifactName: "VIAME-Dive-${version}.${ext}",
+          target: ['AppImage', 'snap', 'tar.gz'],
+          // eslint-disable-next-line no-template-curly-in-string
+          artifactName: 'DIVE-Desktop-${version}.${ext}',
         },
         win: {
-          target: ["nsis", "portable", "msi", "zip"],
-          artifactName: "VIAME-Dive-${version}.${ext}",
+          target: ['nsis', 'portable', 'msi', 'zip'],
+          // eslint-disable-next-line no-template-curly-in-string
+          artifactName: 'DIVE-Desktop-${version}.${ext}',
           icon: 'viame-web-common/assets/windows.ico',
         },
       },

@@ -41,7 +41,7 @@ export default defineComponent({
             sm="6"
           >
             <h1 class="text-h3 mb-4 font-weight-light">
-              Dive Annotation Tool
+              DIVE Annotation Tool
             </h1>
             <h3>Useful Links</h3>
             <browser-link href="https://viame.github.io/VIAME-Web/">
