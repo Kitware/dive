@@ -33,6 +33,12 @@ export default function useMediaController({ emit }: {
     observer: null,
     cursor: 'default',
     imageCursor: '',
+    originalBounds: {
+      left: 0,
+      top: 0,
+      bottom: 1,
+      right: 1,
+    },
   });
 
   const emitFrame = throttle(() => {
@@ -51,11 +57,14 @@ export default function useMediaController({ emit }: {
   }
 
   function resetZoom() {
-    geoViewerRef.value.zoom(geoViewerRef.value.zoomRange().origMin);
-    geoViewerRef.value.center({ x: 0, y: 0 });
+    const zoomAndCenter = geoViewerRef.value.zoomAndCenterFromBounds(
+      data.originalBounds, 0,
+    );
+    geoViewerRef.value.zoom(zoomAndCenter.zoom);
+    geoViewerRef.value.center(zoomAndCenter.center);
   }
 
-  function resetMapDimensions(width: number, height: number) {
+  function resetMapDimensions(width: number, height: number, margin = 0.3) {
     geoViewerRef.value.bounds({
       left: 0,
       top: 0,
@@ -65,13 +74,23 @@ export default function useMediaController({ emit }: {
     const params = geo.util.pixelCoordinateParams(
       containerRef.value, width, height, width, height,
     );
+    const { right, bottom } = params.map.maxBounds;
+    data.originalBounds = params.map.maxBounds;
     geoViewerRef.value.maxBounds({
-      left: 0,
-      top: 0,
-      right: params.map.maxBounds.right,
-      bottom: params.map.maxBounds.bottom,
+      left: 0 - (right * margin),
+      top: 0 - (bottom * margin),
+      right: right * (1 + margin),
+      bottom: bottom * (1 + margin),
     });
-    geoViewerRef.value.zoomRange(params.map);
+    geoViewerRef.value.zoomRange({
+      // do not set a min limit so that bounds clamping determines min
+      min: -Infinity,
+      // 4x zoom max
+      max: 4,
+    });
+    geoViewerRef.value.clampBoundsX(true);
+    geoViewerRef.value.clampBoundsY(true);
+    geoViewerRef.value.clampZoom(true);
     resetZoom();
   }
 
@@ -116,10 +135,6 @@ export default function useMediaController({ emit }: {
       );
       geoViewerRef.value = geo.map(params.map);
       resetMapDimensions(width, height);
-      geoViewerRef.value.zoomRange({
-        min: geoViewerRef.value.zoomRange().origMin,
-        max: geoViewerRef.value.zoomRange().max + 3,
-      });
       const interactorOpts = geoViewerRef.value.interactor().options();
       interactorOpts.keyboard.focusHighlight = false;
       interactorOpts.keyboard.actions = {};
