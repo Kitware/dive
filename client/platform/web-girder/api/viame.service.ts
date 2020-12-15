@@ -1,5 +1,7 @@
 import { GirderModel } from '@girder/components/src';
-import { Attribute, Pipelines, TrainingConfigs } from 'viame-web-common/apispec';
+import {
+  Attribute, Pipe, Pipelines, TrainingConfigs,
+} from 'viame-web-common/apispec';
 import girderRest from '../plugins/girder';
 
 interface ValidationResponse {
@@ -76,10 +78,13 @@ async function getPipelineList() {
   return data;
 }
 
-function runPipeline(itemId: string, pipeline: string) {
-  return girderRest.post(
-    `/viame/pipeline?folderId=${itemId}&pipeline=${pipeline}`,
-  );
+function runPipeline(itemId: string, pipeline: Pipe) {
+  return girderRest.post('/viame/pipeline', null, {
+    params: {
+      folderId: itemId,
+      pipeline,
+    },
+  });
 }
 
 async function getTrainingConfigurations(): Promise<TrainingConfigs> {

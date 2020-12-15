@@ -1,13 +1,14 @@
-<script>
-import Vue from 'vue';
+<script lang="ts">
+import { defineComponent } from '@vue/composition-api';
+import { injectMediaController } from '../annotators/useMediaController';
 
-export default Vue.extend({
+export default defineComponent({
   name: 'TimelineWrapper',
-  inject: ['annotator'],
-  methods: {
-    seek(frame) {
-      this.annotator.$emit('seek', frame);
-    },
+
+  setup() {
+    return {
+      mediaController: injectMediaController(),
+    };
   },
 });
 </script>
@@ -15,9 +16,9 @@ export default Vue.extend({
 <template>
   <div>
     <slot
-      :maxFrame="annotator.maxFrame"
-      :frame="annotator.frame"
-      :seek="seek"
+      :maxFrame="mediaController.maxFrame.value"
+      :frame="mediaController.frame.value"
+      :seek="mediaController.seek"
     />
   </div>
 </template>

@@ -2,7 +2,6 @@ import json
 import os
 import shutil
 import tempfile
-from datetime import datetime
 from pathlib import Path
 from subprocess import DEVNULL, Popen
 from typing import Dict, List
@@ -17,7 +16,7 @@ from viame_tasks.utils import (
     organize_folder_for_training,
     read_and_close_process_outputs,
 )
-from viame_tasks.utils import trained_pipeline_folder as _trained_pipeline_folder
+from viame_utils.types import PipelineJob
 
 
 def get_gpu_environment() -> Dict[str, str]:
@@ -48,15 +47,23 @@ class Config:
 
 
 @app.task(bind=True, acks_late=True)
-def run_pipeline(self: Task, input_path, output_folder, pipeline, input_type):
+def run_pipeline(self: Task, params: PipelineJob):
     conf = Config()
     manager: JobManager = self.job_manager
-    # Delete is false because the file needs to exist for kwiver to write to
-    # removed at the bottom of the function
-    with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as temp:
-        detector_output_path = temp.name
-    with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as temp:
-        track_output_path = temp.name
+
+    # Extract params
+    pipeline = params["pipeline"]
+    input_folder = params["input_folder"]
+    input_type = params["input_type"]
+    output_folder = params["output_folder"]
+
+    # Create temporary files/folders, removed at the end of the function
+    input_path = Path(tempfile.mkdtemp())
+    trained_pipeline_folder = Path(tempfile.mkdtemp())
+    detector_output_path = tempfile.NamedTemporaryFile(suffix=".csv", delete=False).name
+    track_output_path = tempfile.NamedTemporaryFile(suffix=".csv", delete=False).name
+
+    self.girder_client.downloadFolderRecursive(input_folder, input_path)
 
     # get a list of the input media
     # TODO: better filtering that only allows files of valid types
@@ -73,15 +80,16 @@ def run_pipeline(self: Task, input_path, output_folder, pipeline, input_type):
     if len(filtered_directory_files) == 0:
         raise ValueError('No media files found in {}'.format(input_path))
 
-    # Handle spaces in pipeline names
-    pipeline = pipeline.replace(" ", r"\ ")
-
-    # Handle trained pipelines
-    trained_pipeline_folder = _trained_pipeline_folder()
-    if pipeline.startswith("trained_") and trained_pipeline_folder:
-        pipeline_path = os.path.join(trained_pipeline_folder, pipeline, "detector.pipe")
+    if pipeline["type"] == "trained":
+        self.girder_client.downloadFolderRecursive(
+            pipeline["folderId"], str(trained_pipeline_folder)
+        )
+        pipeline_path = str(trained_pipeline_folder / pipeline["pipe"])
     else:
-        pipeline_path = os.path.join(conf.pipeline_base_path, pipeline)
+        pipeline_path = os.path.join(conf.pipeline_base_path, pipeline["pipe"])
+
+    # Handle spaces in pipeline names
+    pipeline_path = pipeline_path.replace(" ", r"\ ")
 
     if input_type == 'video':
         input_file = os.path.join(input_path, filtered_directory_files[0])
@@ -159,8 +167,13 @@ def run_pipeline(self: Task, input_path, output_folder, pipeline, input_type):
         f'viame/postprocess/{output_folder}', data={"skipJobs": True}
     )
 
+    # Files
     os.remove(track_output_path)
     os.remove(detector_output_path)
+
+    # Folders
+    shutil.rmtree(input_path, ignore_errors=True)
+    shutil.rmtree(trained_pipeline_folder, ignore_errors=True)
 
     if self.canceled:
         manager.updateStatus(JobStatus.CANCELED)
@@ -171,23 +184,24 @@ def run_pipeline(self: Task, input_path, output_folder, pipeline, input_type):
 def train_pipeline(
     self: Task,
     results_folder: Dict,
-    training_data: List[Dict],
-    groundtruth: Dict,
+    source_folder_list: List[Dict],
+    groundtruth_list: List[Dict],
     pipeline_name: str,
     config: str,
 ):
     """
     Train a pipeline by making a call to viame_train_detector
 
-    :param source_folder: The Girder Folder to pull training data from
+    :param source_folder_list: The Girder Folder to pull training data from
     :param results_folder: The Girder Folder to place the results of training into
-    :param groundtruth: The relative path to either the file containing detections,
+    :param groundtruth_list: The relative path to either the file containing detections,
         or the folder containing that file.
     :param pipeline_name: The base name of the resulting pipeline.
     """
     conf = Config()
     gc: GirderClient = self.girder_client
     manager: JobManager = self.job_manager
+
 
     viame_install_path = Path(conf.viame_install_path)
     pipeline_base_path = Path(conf.pipeline_base_path)
@@ -196,20 +210,33 @@ def train_pipeline(
 
     pipeline_name = pipeline_name.replace(" ", "_")
 
+    if len(source_folder_list) != len(groundtruth_list):
+        raise Exception("Ground truth doesn't exist for all folders")
+
     # root_data_dir is the directory passed to `viame_train_detector`
     with tempfile.TemporaryDirectory() as _temp_dir_string:
         manager.updateStatus(JobStatus.FETCHING_INPUT)
         root_data_dir = Path(_temp_dir_string)
-        download_path = Path(tempfile.mkdtemp(dir=root_data_dir))
 
-        # Download data onto server
-        gc.downloadItem(str(groundtruth["_id"]), download_path)
-        for item in training_data:
-            gc.downloadItem(str(item["_id"]), download_path)
+        # Generator of items
+        for index in range(len(source_folder_list)):
+            source_folder = source_folder_list[index]
+            groundtruth = groundtruth_list[index]
+            with tempfile.TemporaryDirectory() as _sub_dir_string:
+                manager.updateStatus(JobStatus.FETCHING_INPUT)
+                sub_data_dir = Path(_sub_dir_string)
+                download_path = Path(tempfile.mkdtemp(dir=sub_data_dir))
 
-        # Organize data
-        groundtruth_path = download_path / groundtruth["name"]
-        organize_folder_for_training(root_data_dir, download_path, groundtruth_path)
+                training_data = gc.listItem(source_folder["_id"])
+
+                # Download data onto server
+                gc.downloadItem(str(groundtruth["_id"]), download_path)
+                for item in training_data:
+                    gc.downloadItem(str(item["_id"]), download_path)
+
+                # Organize data
+                groundtruth_path = download_path / groundtruth["name"]
+                organize_folder_for_training(root_data_dir, download_path, groundtruth_path)
 
         # Completely separate directory from `root_data_dir`
         with tempfile.TemporaryDirectory() as _training_output_path:
@@ -255,36 +282,19 @@ def train_pipeline(
                 )
             else:
                 manager.updateStatus(JobStatus.PUSHING_OUTPUT)
-            timestamp = datetime.utcnow().replace(microsecond=0).isoformat()
 
             # This is the name of the folder that is uploaded to the
             # "Training Results" girder folder
-            girder_output_folder_name = f"{pipeline_name} {timestamp}"
-            girder_output_folder = training_output_path / girder_output_folder_name
-
-            # Trained_ prefix is added to conform with existing pipeline names
-            # This is the name that will appear in the client (with trained_ removed)
-            trained_model_folder_name = f"trained_{pipeline_name}"
-            named_training_output = training_output_path / trained_model_folder_name
-
-            # Move the original folder to our new folder
-            shutil.move(str(training_results_path), named_training_output)
-
-            # If `_trained_pipeline_folder()` returns `None`, the results of this
-            # training job will be uploaded to Girder, but will not be runnable as
-            # a normal pipeline through the client
-            trained_pipeline_folder = _trained_pipeline_folder()
-            if trained_pipeline_folder:
-                shutil.copytree(
-                    named_training_output,
-                    trained_pipeline_folder / trained_model_folder_name,
-                )
-
-            # Rename this folder so that it appears properly in girder
-            shutil.move(str(named_training_output), girder_output_folder)
-            gc._uploadFolderRecursive(
-                girder_output_folder, results_folder["_id"], "folder"
+            girder_output_folder = gc.createFolder(
+                results_folder["_id"],
+                pipeline_name,
+                metadata={
+                    "trained_pipeline": True,
+                    "trained_on": str(source_folder["_id"]),
+                },
             )
+
+            gc.upload(f"{training_results_path}/*", girder_output_folder["_id"])
 
     if self.canceled:
         manager.updateStatus(JobStatus.CANCELED)
