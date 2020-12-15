@@ -65,7 +65,7 @@ interface Api {
   runPipeline(itemId: string, pipeline: string): Promise<unknown>;
 
   getTrainingConfigurations(): Promise<TrainingConfigs>;
-  runTraining(folderId: string, pipelineName: string, config: string): Promise<unknown>;
+  runTraining(folderIds: string[], pipelineName: string, config: string): Promise<unknown>;
 
   loadDetections(datasetId: string): Promise<{ [key: string]: TrackData }>;
   saveDetections(datasetId: string, args: SaveDetectionsArgs): Promise<unknown>;
