@@ -9,6 +9,7 @@ import {
   Attribute,
   DatasetMetaMutable,
   DatasetType, FrameImage,
+  Pipe,
   Pipelines, TrainingConfigs,
 } from 'viame-web-common/apispec';
 
@@ -136,9 +137,9 @@ async function saveMetadata(datasetId: string, metadata: DatasetMetaMutable) {
   return Promise.resolve();
 }
 
-async function runPipeline(itemId: string, pipeline: string, settings: Settings) {
+async function runPipeline(itemId: string, pipeline: Pipe, settings: Settings) {
   const args: RunPipeline = {
-    pipelineName: pipeline,
+    pipelineName: pipeline.name,
     datasetId: itemId,
     settings,
   };

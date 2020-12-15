@@ -1,7 +1,7 @@
 from girder.models.folder import Folder
 from girder.models.item import Item
 
-from viame_server.utils import ImageSequenceType, csvRegex
+from viame_server.constants import ImageSequenceType, csvRegex
 
 
 def check_existing_annotations(event):
