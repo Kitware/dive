@@ -12,6 +12,9 @@ We recommend running VIAME Web with docker-compose. Clone this repository and co
 # Change to correct directory
 cd docker/
 
+# Initiate the .env file
+cp .env.default .env
+
 # Pull pre-built images
 docker-compose pull
 
@@ -25,6 +28,7 @@ You can run the data viewer without needing GPU support as well
 
 ``` bash
 cd docker
+cp .env.default .env
 docker-compose up girder
 ```
 
@@ -68,5 +72,6 @@ This image contains a celery worker to run VIAME pipelines and transcoding jobs.
 
 ``` bash
 cd docker
+cp .env.default .env
 docker-compose build
 ```
