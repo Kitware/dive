@@ -31,7 +31,7 @@ export default defineComponent({
       selectedTrainingConfig.value = resp.default;
     });
 
-    const trainingDisabled = computed(() => props.selectedDatasetIds.length >= 1);
+    const trainingDisabled = computed(() => props.selectedDatasetIds.length === 0);
     const trainingOutputName = ref<string | null>(null);
     const menuOpen = ref(false);
 

@@ -93,7 +93,7 @@ async function getTrainingConfigurations(): Promise<TrainingConfigs> {
 }
 
 function runTraining(folderIds: string[], pipelineName: string, config: string) {
-  return girderRest.post('/viame/train', null, { params: { folderIds, pipelineName, config } });
+  return girderRest.post('/viame/train', folderIds, { params: { pipelineName, config } });
 }
 
 function saveMetadata(folderId: string, metadata: object) {

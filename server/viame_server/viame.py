@@ -108,8 +108,7 @@ class Viame(Resource):
         Description("Run training on a folder")
         .jsonParam(
             "folderIds",
-            description="Array container folderIds",
-            requireObject=True,
+            description="Array of folderIds to run training on",
             paramType="body"
         )
         .param(
@@ -125,16 +124,23 @@ class Viame(Resource):
             required=True,
         )
     )
-    def run_training(self, folders, pipelineName, config):
+    def run_training(self, folderIds, pipelineName, config):
         user = self.getCurrentUser()
         token = Token().createToken(user=user, days=14)
 
-        delection_list = []
+        detection_list = []
         folder_list = []
-        for folderId in folders:
-            folder = Folder().findOne({"_id": folderId})
+        folder_names = []
+        if folderIds is None or len(folderIds) == 0:
+            raise Exception("No folderIds in param")
+
+        for folderId in folderIds:
+            folder = Folder().load(folderId, level=AccessType.READ, user=user)
+            if folder is None:
+                raise Exception(f"Cannot access folder {folderId}")
+            folder_names.append(folder['name'])
             detections = list(
-                Item().find({"meta.detection": str(folder["_id"])}).sort([("created", -1)])
+                Item().find({"meta.detection": str(folderId)}).sort([("created", -1)])
             )
             detection = detections[0] if detections else None
 
@@ -158,7 +164,7 @@ class Viame(Resource):
                 pipeline_name=pipelineName,
                 config=config,
                 girder_client_token=str(token["_id"]),
-                girder_job_title=(f"Running training on folder: {str(folder['name'])}"),
+                girder_job_title=(f"Running training on folder: {', '.join(folder_names)}"),
                 girder_job_type="training",
             ),
         )
