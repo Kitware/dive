@@ -7,7 +7,7 @@ import { shell } from 'electron';
 import mime from 'mime-types';
 import moment from 'moment';
 import { TrackData } from 'vue-media-annotator/track';
-import { DatasetType, Pipelines, SaveDetectionsArgs } from 'viame-web-common/apispec';
+import { DatasetType, Pipelines, DatasetSchema, SaveDetectionsArgs } from 'viame-web-common/apispec';
 
 import { Settings, websafeImageTypes } from '../../constants';
 import * as viameSerializers from '../serializers/viame';
@@ -259,6 +259,10 @@ async function postprocess(paths: string[], datasetId: string) {
       break; // Exit on first successful detection load
     }
   }
+}
+
+async function loadDataset(): Promise<DatasetSchema> {
+
 }
 
 async function openLink(url: string) {

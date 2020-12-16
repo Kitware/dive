@@ -49,14 +49,32 @@ interface DatasetMetaMutable {
   confidenceFilters?: Record<string, number>;
 }
 
-interface DatasetMeta extends DatasetMetaMutable {
+export interface DatasetMeta extends DatasetMetaMutable {
   type: Readonly<DatasetType>;
   fps: Readonly<number | string>;
   imageData: FrameImage[];
   videoUrl: string | undefined;
 }
 
+
+/**
+ * DatasetSchema is a structure that describes everything about
+ * media that could be opened in DIVE.  This schema is JSON
+ * serializable (no maps, sets, or classes in the tree)
+ */
+export interface DatasetSchema {
+  version: number;
+  // TODO: in a future version attributes will be part of the dataset schema
+  // attributes: Attribute[];
+  meta: DatasetMeta;
+  tracks: { [key: string]: TrackData };
+}
+
 interface Api {
+  loadDataset(): Promise<DatasetSchema>;
+  /**
+   * @deprecated soon attributes will come from loadDataset()
+   */
   getAttributes(): Promise<Attribute[]>;
   setAttribute({ addNew, data }: {addNew: boolean | undefined; data: Attribute}): Promise<unknown>;
   deleteAttribute(data: Attribute): Promise<unknown>;
@@ -67,10 +85,7 @@ interface Api {
   getTrainingConfigurations(): Promise<TrainingConfigs>;
   runTraining(folderId: string, pipelineName: string, config: string): Promise<unknown>;
 
-  loadDetections(datasetId: string): Promise<{ [key: string]: TrackData }>;
   saveDetections(datasetId: string, args: SaveDetectionsArgs): Promise<unknown>;
-
-  loadMetadata(datasetId: string): Promise<DatasetMeta>;
   saveMetadata(datasetId: string, metadata: DatasetMetaMutable): Promise<unknown>;
 }
 
