@@ -109,7 +109,7 @@ class Viame(Resource):
         .jsonParam(
             "folderIds",
             description="Array of folderIds to run training on",
-            paramType="body"
+            paramType="body",
         )
         .param(
             "pipelineName",
@@ -164,7 +164,9 @@ class Viame(Resource):
                 pipeline_name=pipelineName,
                 config=config,
                 girder_client_token=str(token["_id"]),
-                girder_job_title=(f"Running training on folder: {', '.join(folder_names)}"),
+                girder_job_title=(
+                    f"Running training on folder: {', '.join(folder_names)}"
+                ),
                 girder_job_type="training",
             ),
         )

@@ -223,8 +223,6 @@ def train_pipeline(
             source_folder = source_folder_list[index]
             groundtruth = groundtruth_list[index]
             download_path = Path(tempfile.mkdtemp(dir=root_data_dir))
-            print(download_path)
-
             training_data = gc.listItem(source_folder["_id"])
             trained_on_list.append(str(source_folder["_id"]))
 
