@@ -126,7 +126,7 @@ export default defineComponent({
         <v-card-text class="pb-0">
           Choose a pipeline type. Check the
           <a
-            href="https://github.com/VIAME/VIAME-Web/wiki/Pipeline-Documentation"
+            href="https://viame.github.io/VIAME-Web/Pipeline-Documentation/"
             target="_blank"
           >docs</a>
           for more information about these options.

@@ -14,7 +14,7 @@ export default {
   data() {
     return {
       dialog: false,
-      userGuideLink: 'https://github.com/VIAME/VIAME-Web/wiki',
+      userGuideLink: 'https://viame.github.io/VIAME-Web/',
     };
   },
 };

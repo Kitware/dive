@@ -51,8 +51,6 @@ async function getDatasetBase(datasetId: string): Promise<{
   }
 
   const contents = await fs.readdir(datasetFolderPath);
-  const jsonFileCandidates = contents.filter((v) => JsonFileName.test(v));
-  let jsonFile = null;
 
   const imageFiles = contents.filter((filename) => {
     const abspath = npath.join(datasetFolderPath, filename);
@@ -63,6 +61,18 @@ async function getDatasetBase(datasetId: string): Promise<{
     return false;
   });
 
+  const jsonFileCandidates: string[] = [];
+  await Promise.all(contents.map(async (name) => {
+    if (JsonFileName.test(name)) {
+      const fullPath = npath.join(datasetFolderPath, name);
+      const statResult = await fs.stat(fullPath);
+      if (statResult.isFile()) {
+        jsonFileCandidates.push(name);
+      }
+    }
+  }));
+
+  let jsonFile = null;
   if (jsonFileCandidates.length > 1) {
     throw new Error('Too many matches for json annotation file!');
   } else if (jsonFileCandidates.length === 1) {
