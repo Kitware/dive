@@ -1,6 +1,7 @@
 <script lang="ts">
 import { defineComponent, watch, PropType } from '@vue/composition-api';
 
+import { FilteredTrack } from 'vue-media-annotator/use/useTrackFilters';
 import { injectMediaController } from './annotators/useMediaController';
 import RectangleLayer from '../layers/AnnotationLayers/RectangleLayer';
 import PolygonLayer from '../layers/AnnotationLayers/PolygonLayer';
