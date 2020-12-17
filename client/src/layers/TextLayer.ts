@@ -26,18 +26,27 @@ interface TextLayerParams {
 function defaultFormatter(track: FrameDataTrack): TextData[] | null {
   if (track.features && track.features.bounds) {
     const { bounds } = track.features;
+
     if (bounds && track.confidencePairs !== null) {
-      const type = track.confidencePairs[0];
-      const confidence = track.confidencePairs[1];
-      return [{
-        selected: track.selected,
-        editing: track.editing,
-        type,
-        confidence,
-        text: `${type}: ${confidence.toFixed(2)}`,
-        x: bounds[2],
-        y: bounds[1],
-      }];
+      const lineHeight = 25;
+      let currentHeight = bounds[1] - lineHeight * (track.confidencePairs.length - 1);
+      const arr: TextData[] = [];
+      track.confidencePairs.forEach((pair) => {
+        const type = pair[0];
+        const confidence = pair[1];
+        arr.push({
+          selected: track.selected,
+          editing: track.editing,
+          type,
+          confidence,
+          text: `${type}: ${confidence.toFixed(2)}`,
+          x: bounds[2],
+          y: currentHeight,
+          currentPair: track.trackType === pair,
+        });
+        currentHeight += lineHeight;
+      });
+      return arr;
     }
   }
   return null;
