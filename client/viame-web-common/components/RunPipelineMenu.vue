@@ -2,7 +2,7 @@
 import {
   defineComponent, computed, PropType, ref, onBeforeMount,
 } from '@vue/composition-api';
-import { Pipelines, useApi } from 'viame-web-common/apispec';
+import { Pipelines, Pipe, useApi } from 'viame-web-common/apispec';
 
 export default defineComponent({
   props: {
@@ -46,12 +46,13 @@ export default defineComponent({
       props.selectedDatasetIds.length < 1 || pipelines.value === null
     ));
 
-    async function runPipelineOnSelectedItem(pipename: string) {
+    async function runPipelineOnSelectedItem(pipeline: Pipe) {
       if (props.selectedDatasetIds.length === 0) {
         throw new Error('No selected datasets to run on');
       }
+
       await Promise.all(
-        props.selectedDatasetIds.map((id) => runPipeline(id, pipename)),
+        props.selectedDatasetIds.map((id) => runPipeline(id, pipeline)),
       );
       root.$snackbar({
         text: `Started pipeline on ${props.selectedDatasetIds.length} clip${
@@ -125,7 +126,7 @@ export default defineComponent({
         <v-card-text class="pb-0">
           Choose a pipeline type. Check the
           <a
-            href="https://github.com/VIAME/VIAME-Web/wiki/Pipeline-Documentation"
+            href="https://viame.github.io/VIAME-Web/Pipeline-Documentation/"
             target="_blank"
           >docs</a>
           for more information about these options.
@@ -159,12 +160,12 @@ export default defineComponent({
 
               <v-list>
                 <v-list-item
-                  v-for="({ name, pipe }) in pipelines[pipeType].pipes"
-                  :key="pipe"
-                  @click="runPipelineOnSelectedItem(pipe)"
+                  v-for="(pipeline) in pipelines[pipeType].pipes"
+                  :key="`${pipeline.name}-${pipeline.pipe}`"
+                  @click="runPipelineOnSelectedItem(pipeline)"
                 >
                   <v-list-item-title>
-                    {{ name }}
+                    {{ pipeline.name }}
                   </v-list-item-title>
                 </v-list-item>
               </v-list>

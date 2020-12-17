@@ -116,6 +116,9 @@ export default defineComponent({
       Vue.nextTick(() => scrollToTrack(selectedTrackIdRef.value));
     }
 
+    //If we mount with selected we scroll to it automatically
+    scrollToSelectedTrack();
+
     function scrollPreventDefault(
       element: HTMLElement,
       keyEvent: KeyboardEvent,

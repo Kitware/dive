@@ -1,5 +1,7 @@
 import { GirderModel } from '@girder/components/src';
-import { Attribute, Pipelines, TrainingConfigs } from 'viame-web-common/apispec';
+import {
+  Attribute, Pipe, Pipelines, TrainingConfigs,
+} from 'viame-web-common/apispec';
 import girderRest from '../plugins/girder';
 
 interface ValidationResponse {
@@ -9,6 +11,7 @@ interface ValidationResponse {
   annotations: string[];
   message: string;
 }
+
 
 function makeViameFolder({
   folderId, name, fps, type,
@@ -52,16 +55,36 @@ async function getAttributes(): Promise<Attribute[]> {
   const { data } = await girderRest.get('/viame/attribute');
   return data as Attribute[];
 }
+function setAttribute({ addNew, data }:
+   {addNew: boolean | undefined; data: Attribute}): Promise<Attribute[]> {
+  if (addNew) {
+    return girderRest.post('/viame/attribute', data);
+  }
+  return girderRest.put(
+    `/viame/attribute/${data._id}`,
+    data,
+  );
+}
+
+function deleteAttribute(data: Attribute): Promise<Attribute> {
+  return girderRest.delete(
+    `/viame/attribute/${data._id}`,
+  );
+}
+
 
 async function getPipelineList() {
   const { data } = await girderRest.get<Pipelines>('viame/pipelines');
   return data;
 }
 
-function runPipeline(itemId: string, pipeline: string) {
-  return girderRest.post(
-    `/viame/pipeline?folderId=${itemId}&pipeline=${pipeline}`,
-  );
+function runPipeline(itemId: string, pipeline: Pipe) {
+  return girderRest.post('/viame/pipeline', null, {
+    params: {
+      folderId: itemId,
+      pipeline,
+    },
+  });
 }
 
 async function getTrainingConfigurations(): Promise<TrainingConfigs> {
@@ -100,6 +123,8 @@ async function getValidWebImages(folderId: string) {
 export {
   deleteResources,
   getAttributes,
+  setAttribute,
+  deleteAttribute,
   getPipelineList,
   makeViameFolder,
   postProcess,

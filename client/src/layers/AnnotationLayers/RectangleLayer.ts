@@ -26,7 +26,7 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
     }
 
     initialize() {
-      const layer = this.annotator.geoViewer.createLayer('feature', {
+      const layer = this.annotator.geoViewerRef.value.createLayer('feature', {
         features: ['polygon'],
       });
       this.featureLayer = layer

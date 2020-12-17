@@ -1,238 +1,313 @@
-<script>
-import Vue from 'vue';
-import annotator from './annotator';
+<script lang="ts">
+import {
+  defineComponent, ref, onUnmounted, PropType,
+} from '@vue/composition-api';
+import useMediaController from './useMediaController';
 
-export default Vue.extend({
+export interface ImageDataItem {
+  url: string;
+  filename: string;
+}
+
+interface ImageDataItemInternal extends ImageDataItem {
+  image: HTMLImageElement;
+  cached: boolean; // true if onloadPromise has resolved
+  frame: number; // frame number this image belongs to
+  onloadPromise: Promise<boolean>;
+}
+
+function loadImageFunc(imageDataItem: ImageDataItem, img: HTMLImageElement) {
+  // eslint-disable-next-line no-param-reassign
+  img.src = imageDataItem.url;
+}
+
+export default defineComponent({
   name: 'ImageAnnotator',
-
-  mixins: [annotator],
 
   props: {
     imageData: {
-      type: Array,
+      type: Array as PropType<ImageDataItem[]>,
       required: true,
     },
-    loadImageFunc: {
-      type: Function,
-      default: async (imageDataItem, img) => {
-        // eslint-disable-next-line no-param-reassign
-        img.src = imageDataItem.url;
-      },
+    frameRate: {
+      type: Number,
+      required: true,
     },
   },
-  data() {
-    return {
-      loadingVideo: false,
-    };
-  },
-  created() {
+
+  setup(props, { emit }) {
+    const loadingVideo = ref(false);
+    const loadingImage = ref(true);
+    const commonMedia = useMediaController({ emit });
+    const { data } = commonMedia;
+    data.maxFrame = props.imageData.length - 1;
+
     // Below are configuration settings we can set until we decide on good numbers to utilize.
-    this.playCache = 1; // seconds required to be fully cached before playback
-    this.cacheSeconds = 6; // seconds to cache from the current frame
-    this.frontBackRatio = 0.90; // 90% forward frames, 10% backward frames when caching
+    const local = {
+      playCache: 1, // seconds required to be fully cached before playback
+      cacheSeconds: 6, // seconds to cache from the current frame
+      frontBackRatio: 0.9, // 90% forward frames, 10% backward frames when caching
+      imgs: new Array<ImageDataItemInternal | undefined>(props.imageData.length),
+      pendingImgs: new Set<ImageDataItemInternal>(),
+      lastFrame: -1,
+      width: 0,
+      height: 0,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      quadFeature: undefined as any,
+    };
 
-    this.maxFrame = this.imageData.length - 1;
-    this.imgs = new Array(this.imageData.length);
-    this.filename = this.imageData[this.frame].filename;
-    this.pendingImgs = new Set();
-    if (this.imgs.length) {
-      this.loadFrame(0);
-      const img = this.imgs[0];
-      img.onload = () => {
-        img.onload = null;
-        this.width = img.naturalWidth;
-        this.height = img.naturalHeight;
-        img.cached = true;
-        this.init();
-        this.cacheImages();
-      };
+    function forceUnload(imgInternal: ImageDataItemInternal) {
+      // Removal from list indicates we are no longer attempting to load this image
+      local.imgs[imgInternal.frame] = undefined;
+      // unset src to cancel outstanding load request
+      // eslint-disable-next-line no-param-reassign
+      imgInternal.image.src = '';
+      local.pendingImgs.delete(imgInternal);
     }
-  },
-  methods: {
-    init() {
-      this.baseInit(); // Mixin method
-      this.quadFeatureLayer = this.geoViewer.createLayer('feature', {
-        features: ['quad'],
-      });
-      this.quadFeature = this.quadFeatureLayer
-        .createFeature('quad')
+
+    /**
+     * When the component is unmounted, cancel all outstanding
+     * requests for image load.
+     */
+    onUnmounted(() => Array.from(local.pendingImgs).forEach(forceUnload));
+
+    /**
+     * expectFrame when you know local.imgs[i] should not be undefined
+     */
+    function expectFrame(i: number) {
+      const imgInternal = local.imgs[i];
+      if (!imgInternal) {
+        throw new Error(`imgs ${i} was undefined after assignment.`);
+      }
+      return imgInternal;
+    }
+
+    /**
+     * Draw image to the GeoJS map, and update the map dimensions if they have changed.
+     */
+    function drawImage(img: HTMLImageElement) {
+      if (
+        img.naturalWidth > 0
+        && img.naturalHeight > 0
+        && ((img.naturalWidth !== local.width) || (img.naturalHeight !== local.height))
+      ) {
+        /**
+         * Only update dimensions if the image has loaded
+         * AND the dimensions have changed
+         */
+        local.width = img.naturalWidth;
+        local.height = img.naturalHeight;
+        commonMedia.resetMapDimensions(local.width, local.height);
+      }
+      local.quadFeature
         .data([
           {
             ul: { x: 0, y: 0 },
-            lr: { x: this.width, y: this.height },
-            image: this.imgs[this.frame],
+            lr: { x: local.width, y: local.height },
+            image: img,
           },
         ])
         .draw();
-      this.ready = true;
-    },
+    }
 
-    async play() {
-      try {
-        this.playing = true;
-        this.syncWithVideo();
-      } catch (ex) {
-        console.error(ex);
-      }
-    },
-
-    async seek(frame) {
-      this.lastFrame = this.frame;
-      this.frame = frame;
-      this.syncedFrame = frame;
-      this.emitFrame();
-      this.cacheImages();
-      this.quadFeature
-        .data([
-          {
-            ul: { x: 0, y: 0 },
-            lr: { x: this.width, y: this.height },
-            image: this.imgs[frame],
-          },
-        ])
-        .draw();
-    },
-
-    pause() {
-      this.playing = false;
-      this.loadingVideo = false;
-    },
     /**
-     * Handles playback of the image sequence
-     * Image playback is based on framerate but will pause and wait for images to load
-     * if the currently accessed image is not loaded during playback.
+     * Adds a single frame to the pendingImgs array for loading and assigns it to the master
+     * imgs list. Once the image is loaded it is removed from the pendingImgs
+     * @param {int} i the image to cache if it isn't already assigned
      */
-    syncWithVideo() {
-      if (this.playing) {
-        this.frame += 1;
-        this.syncedFrame += 1;
-        if (this.frame > this.maxFrame) {
-          this.pause();
-          this.frame = this.maxFrame;
-          this.syncedFrame = this.maxFrame;
-          return;
-        }
-        // Prevents advancing the frame while playing if the current image is not loaded
-        if (!this.imgs[this.frame].cached || this.loadingVideo) {
-          this.frame -= 1; // returns to a loaded image
-          // sync the annotations with the loading frame
-          this.syncedFrame = this.frame;
-          this.emitFrame();
-          this.loadingVideo = true;
-
-          return;
-        }
-        this.seek(this.frame);
-        setTimeout(this.syncWithVideo, 1000 / this.frameRate);
-      }
-    },
-    /**
-     * Begins loading a set of images around the current frame.  If the image is not playing
-     * it will give priority tothe currently loaded frame
-     */
-    async cacheImages() {
-      const { frame } = this;
-      const { imgs } = this;
-      const cachedFrames = this.cacheSeconds * this.frameRate;
-      const min = Math.floor(Math.max(0, frame - cachedFrames * (1 - this.frontBackRatio)));
-      const max = Math.ceil(Math.min(frame + this.frontBackRatio * cachedFrames, this.maxFrame));
-      const frameDiff = Math.abs(this.frame - this.lastFrame);
-      const prevFrame = (this.frame < this.lastFrame);
-      this.pendingImgs.forEach((imageAndFrame) => {
-        // the current loading cache needs to be wiped out if we seek forward, backwards or
-        // if we are out of the current range of the cache
-        if (imageAndFrame[1] < min || imageAndFrame[1] > max || frameDiff > 1 || prevFrame) {
-          imgs[imageAndFrame[1]] = null;
-          // eslint-disable-next-line no-param-reassign
-          imageAndFrame[0].src = '';
-          this.pendingImgs.delete(imageAndFrame);
-        }
-      });
-      // if not playing we want the seeked to frame immediately and prevent caching until loaded
-      if (!this.playing && !imgs[frame] && frame > 0) {
-        await this.loadFrame(frame);
-      }
-      // Cache a new range of images based on current frame
-      this.cacheNewRange(min, max);
-    },
-    /**
-     * Wraps loading of a single frame in a promise, used to gurantee frame loads
-     * before execution of caching.
-     * @param {int} frame number to be loaded
-     * @returns {Promise} resolves when the image from the frame is loaded
-     */
-    loadFrame(frame) {
-      return new Promise((resolve) => {
+    function cacheFrame(i: number): ImageDataItemInternal {
+      const { imgs, pendingImgs } = local;
+      if (!imgs[i]) {
         const img = new Image();
         img.crossOrigin = 'Anonymous';
-        this.imgs[frame] = img;
-        img.onload = () => {
-          img.onload = null;
-          img.cached = true;
-          resolve(frame);
+        const newImgInternal = {
+          ...props.imageData[i],
+          frame: i,
+          image: img,
+          cached: false,
+          onloadPromise: new Promise<boolean>((resolve) => {
+            img.onload = () => {
+              const imgInternal = expectFrame(i);
+              pendingImgs.delete(imgInternal);
+              imgInternal.cached = true;
+              resolve(true);
+            };
+            img.onerror = () => resolve(false);
+          }),
         };
-        this.loadImageFunc(this.imageData[frame], img);
-      });
-    },
+        imgs[i] = newImgInternal;
+        pendingImgs.add(newImgInternal);
+        loadImageFunc(newImgInternal, img);
+      }
+      return expectFrame(i);
+    }
+
     /**
      * Caches a new range of frames to load in a forward->back pattern from the current frame
      * This allows for easily seeking backwards after seeking initially
      * @param {int} min lower bound frame number for caching
      * @param {int} max upper bound frame number for caching
      */
-    cacheNewRange(min, max) {
-      for (let i = this.frame; i <= max; i += 1) {
-        this.cacheFrame(i);
-        const minusFrame = this.frame - (i - this.frame);
+    function cacheNewRange(min: number, max: number) {
+      for (let i = data.frame; i <= max; i += 1) {
+        cacheFrame(i);
+        const minusFrame = data.frame - (i - data.frame);
         if (minusFrame >= min) {
-          this.cacheFrame(minusFrame);
+          cacheFrame(minusFrame);
         }
       }
-    },
+    }
+
     /**
-     * Adds a single frame to the pendingImgs array for loading and assigns it to the master
-     * imgs list. Once the image is loaded it is removed from the pendingImgs
-     * @param {int} i the image to cache if it isn't already assigned
+     * Begins loading a set of images around the current frame.  If the image is not playing
+     * it will give priority tothe currently loaded frame
      */
-    cacheFrame(i) {
-      if (!this.imgs[i]) {
-        const img = new Image();
-        img.crossOrigin = 'Anonymous';
-        this.imgs[i] = img;
-        const imageAndFrame = [img, i];
-        this.pendingImgs.add(imageAndFrame);
-        img.onload = () => {
-          this.pendingImgs.delete(imageAndFrame);
-          img.onload = null;
-          img.cached = true;
-          // If we are trying to play and waiting for loaded frames we check the cache again
-          if (this.playing && this.loadingVideo) {
-            if (this.checkCached(this.playCache)) {
-              this.loadingVideo = false;
-              this.syncWithVideo();
-            }
-          }
-        };
-        this.loadImageFunc(this.imageData[i], img);
-      }
-    },
-    /**
-     * Checks to see if there is enough cached images to play for X seconds
-     * @param {int} seconds the number of seconds to look for the cache
-     * @returns {boolean} true if the cache is valid for the next X seconds,
-     * otherwise false.
-     */
-    checkCached(seconds) {
-      const { frame } = this;
-      const max = Math.min(frame + seconds * this.frameRate, this.maxFrame);
-      // Lets work our way in from both sides for faster checking
-      for (let i = frame; i <= frame + (max - frame) / 2; i += 1) {
-        if (!(this.imgs[i].cached && this.imgs[max - (i - frame)].cached)) {
-          return false;
+    async function cacheImages() {
+      const cachedFrames = local.cacheSeconds * props.frameRate;
+      const min = Math.floor(Math.max(0, data.frame - cachedFrames * (1 - local.frontBackRatio)));
+      const max = Math.ceil(
+        Math.min(data.frame + local.frontBackRatio * cachedFrames, data.maxFrame),
+      );
+      const frameDiff = Math.abs(data.frame - local.lastFrame);
+      const prevFrame = (data.frame < local.lastFrame);
+      local.pendingImgs.forEach((imgInternal) => {
+        // the current loading cache needs to be wiped out if we seek forward, backwards or
+        // if we are out of the current range of the cache
+        if (imgInternal.frame < min
+          || imgInternal.frame > max
+          || frameDiff > 1 || prevFrame
+          || (!data.playing && frameDiff === 1)
+        ) {
+          forceUnload(imgInternal);
         }
+      });
+      let result = true;
+      // if not playing we want the seeked to frame immediately and prevent caching until loaded
+      if (!data.playing && !local.imgs[data.frame] && data.frame > 0) {
+        result = await cacheFrame(data.frame)?.onloadPromise;
       }
-      return true;
-    },
+      // Cache a new range of images based on current frame
+      if (result) {
+        cacheNewRange(min, max);
+      }
+    }
+
+    async function seek(f: number) {
+      let newFrame = f;
+      if (f < 0) newFrame = 0;
+      if (f > data.maxFrame) newFrame = data.maxFrame;
+      local.lastFrame = data.frame;
+      data.frame = newFrame;
+      data.syncedFrame = newFrame;
+      if (data.frame !== 0 && local.lastFrame === data.frame) {
+        return;
+      }
+
+      commonMedia.emitFrame();
+      cacheImages();
+      const imgInternal = expectFrame(newFrame);
+      drawImage(imgInternal.image);
+      if (!imgInternal.cached) {
+        loadingImage.value = true;
+        // else wait for it to load
+        await imgInternal.onloadPromise;
+        if (imgInternal.frame === data.frame) {
+          loadingImage.value = false;
+          // if the seek hasn't changed since the image completed loading, draw it.
+          drawImage(imgInternal.image);
+        }
+      } else {
+        loadingImage.value = false;
+      }
+    }
+
+    function pause() {
+      data.playing = false;
+      loadingVideo.value = false;
+    }
+
+    /**
+     * Checks to see if there are enough cached images to play for X seconds.
+     * @param frame start frame to look for.
+     * @param seconds num seconds to look for cache
+     * @returns Promise to await for caching.
+     */
+    function checkCached(frame: number, seconds: number) {
+      const upper = Math.min(frame + (seconds * props.frameRate), data.maxFrame);
+      return local.imgs.slice(frame, upper)
+        .filter((img) => img?.cached === false)
+        .map((img) => img?.onloadPromise);
+    }
+
+    /**
+     * Handles playback of the image sequence
+     * Image playback is based on framerate but will pause and wait for images to load
+     * if the currently accessed image is not loaded during playback.
+     */
+    async function syncWithVideo(nextFrame: number): Promise<void> {
+      if (data.playing) {
+        if (nextFrame > data.maxFrame) {
+          return pause();
+        }
+        // expectFrame is safe here because, even though this frame may never have been
+        // seeked before, it is at MOST 1 frame away from a frame that has.
+        // So the correct behavior of this function implicitly requires that seek()
+        // always trigger caching for surrounding frames.
+        const nextImage = expectFrame(nextFrame);
+        if (!nextImage.cached) {
+          // Prevents advancing the frame while playing if the current image is not loaded
+          loadingVideo.value = true;
+          await Promise.all(checkCached(nextFrame, local.playCache));
+          loadingVideo.value = false;
+          // A user interaction (pause, seek) could have happened during load.
+          // Restart syncWithVideo() logic on same frame.  MUST return here to
+          // prevent duplicating the loop.
+          return syncWithVideo(data.frame + 1);
+        }
+        seek(nextFrame);
+        setTimeout(() => syncWithVideo(data.frame + 1), 1000 / props.frameRate);
+      }
+      return undefined;
+    }
+
+    async function play() {
+      try {
+        data.playing = true;
+        syncWithVideo(data.frame + 1);
+      } catch (ex) {
+        console.error(ex);
+      }
+    }
+
+    const {
+      cursorHandler,
+      initializeViewer,
+      mediaController,
+    } = commonMedia.initialize({ seek, play, pause });
+
+    if (local.imgs.length) {
+      const imgInternal = cacheFrame(0);
+      imgInternal.onloadPromise.then(() => {
+        initializeViewer(imgInternal.image.naturalWidth, imgInternal.image.naturalHeight);
+        const quadFeatureLayer = commonMedia.geoViewerRef.value.createLayer('feature', {
+          features: ['quad'],
+        });
+        local.quadFeature = quadFeatureLayer.createFeature('quad');
+        seek(0);
+        data.ready = true;
+      });
+    }
+
+    return {
+      data,
+      loadingVideo,
+      loadingImage,
+      imageCursorRef: commonMedia.imageCursorRef,
+      containerRef: commonMedia.containerRef,
+      onResize: commonMedia.onResize,
+      cursorHandler,
+      mediaController,
+    };
   },
 });
 </script>
@@ -242,23 +317,22 @@ export default Vue.extend({
     class="video-annotator"
   >
     <div
-      ref="imageCursor"
+      ref="imageCursorRef"
       class="imageCursor"
     >
-      <v-icon> {{ imageCursor }} </v-icon>
+      <v-icon> {{ data.imageCursor }} </v-icon>
     </div>
     <div
-      ref="container"
+      ref="containerRef"
       class="playback-container"
-      :style="{cursor: cursor }"
-      @mousemove="handleMouseMove"
-      @mouseleave="handleMouseLeave"
-      @mouseover="handleMouseEnter"
+      :style="{ cursor: data.cursor }"
+      @mousemove="cursorHandler.handleMouseMove"
+      @mouseleave="cursorHandler.handleMouseLeave"
+      @mouseover="cursorHandler.handleMouseEnter"
     >
-      {{ rendered() }}
       <div class="loadingSpinnerContainer">
         <v-progress-circular
-          v-if="loadingVideo"
+          v-if="loadingVideo || loadingImage"
           class="loadingSpinner"
           indeterminate
           size="100"
@@ -274,7 +348,7 @@ export default Vue.extend({
       name="control"
       @resize="onResize"
     />
-    <slot v-if="ready" />
+    <slot v-if="data.ready" />
   </div>
 </template>
 

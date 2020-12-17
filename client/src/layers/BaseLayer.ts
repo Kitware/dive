@@ -2,7 +2,7 @@
 import Vue from 'vue';
 import { Ref } from '@vue/composition-api';
 
-import { Annotator } from '../components/annotators/annotatorType';
+import { MediaController } from '../components/annotators/mediaControllerType';
 import { StateStyles, TypeStyling } from '../use/useStyling';
 import { FrameDataTrack } from './LayerTypes';
 
@@ -29,7 +29,7 @@ export interface LayerStyle<D> {
 
 export interface BaseLayerParams {
     frameData?: FrameDataTrack;
-    annotator: Annotator;
+    annotator: MediaController;
     stateStyling: StateStyles;
     typeStyling: Ref<TypeStyling>;
 }
@@ -37,7 +37,7 @@ export interface BaseLayerParams {
 export default abstract class BaseLayer<D> {
     formattedData: D[];
 
-    annotator: Annotator;
+    annotator: MediaController;
 
     stateStyling: StateStyles;
 

@@ -1,9 +1,11 @@
-import { ipcMain } from 'electron';
+import OS from 'os';
 
+import { ipcMain } from 'electron';
 import { DesktopJobUpdate, RunPipeline, Settings } from '../constants';
 
 import server from './server';
 import linux from './platforms/linux';
+import win32 from './platforms/windows';
 import common from './platforms/common';
 
 export default function register() {
@@ -16,10 +18,6 @@ export default function register() {
    * Platform-agnostic methods
    */
 
-  ipcMain.handle('nvidia-smi', async () => {
-    const ret = await common.nvidiaSmi();
-    return ret;
-  });
   ipcMain.handle('get-pipeline-list', async (_, settings: Settings) => {
     const ret = await common.getPipelineList(settings);
     return ret;
@@ -29,21 +27,31 @@ export default function register() {
   });
 
   /**
-   * TODO: replace linux defaults with some kind of platform switching logic
+   * Platform-dependent methods
    */
 
+  // defaults to linux if win32 doesn't exist
+  const currentPlatform = OS.platform() === 'win32' ? win32 : linux;
+  if (OS.platform() === 'win32') {
+    win32.initialize();
+  }
+  ipcMain.handle('nvidia-smi', async () => {
+    const ret = await currentPlatform.nvidiaSmi();
+    return ret;
+  });
+
   ipcMain.handle('default-settings', async () => {
-    const defaults = linux.DefaultSettings;
+    const defaults = currentPlatform.DefaultSettings;
     return defaults;
   });
   ipcMain.handle('validate-settings', async (_, settings: Settings) => {
-    const ret = await linux.validateViamePath(settings);
+    const ret = await currentPlatform.validateViamePath(settings);
     return ret;
   });
   ipcMain.handle('run-pipeline', async (event, args: RunPipeline) => {
     const updater = (update: DesktopJobUpdate) => {
       event.sender.send('job-update', update);
     };
-    return linux.runPipeline(args, updater);
+    return currentPlatform.runPipeline(args, updater);
   });
 }

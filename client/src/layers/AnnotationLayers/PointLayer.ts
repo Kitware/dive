@@ -13,7 +13,7 @@ interface PointGeoJSData {
 
 export default class PointLayer extends BaseLayer<PointGeoJSData> {
   initialize() {
-    const layer = this.annotator.geoViewer.createLayer('feature', {
+    const layer = this.annotator.geoViewerRef.value.createLayer('feature', {
       features: ['point'],
     });
     this.featureLayer = layer.createFeature('point');

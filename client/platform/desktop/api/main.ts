@@ -9,6 +9,7 @@ import {
   Attribute,
   DatasetMetaMutable,
   DatasetType, FrameImage,
+  Pipe,
   Pipelines, TrainingConfigs,
 } from 'viame-web-common/apispec';
 
@@ -48,6 +49,16 @@ async function openFromDisk(datasetType: DatasetType) {
 }
 
 async function getAttributes() {
+  return Promise.resolve([] as Attribute[]);
+}
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+async function setAttribute({ addNew, data }: {addNew: boolean | undefined; data: Attribute}) {
+  return Promise.resolve();
+}
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+async function deleteAttribute(data: Attribute) {
   return Promise.resolve([] as Attribute[]);
 }
 
@@ -126,9 +137,9 @@ async function saveMetadata(datasetId: string, metadata: DatasetMetaMutable) {
   return Promise.resolve();
 }
 
-async function runPipeline(itemId: string, pipeline: string, settings: Settings) {
+async function runPipeline(itemId: string, pipeline: Pipe, settings: Settings) {
   const args: RunPipeline = {
-    pipelineName: pipeline,
+    pipelineName: pipeline.name,
     datasetId: itemId,
     settings,
   };
@@ -139,6 +150,8 @@ async function runPipeline(itemId: string, pipeline: string, settings: Settings)
 export {
   /* Standard common APIs */
   getAttributes,
+  setAttribute,
+  deleteAttribute,
   getPipelineList,
   runPipeline,
   getTrainingConfigurations,

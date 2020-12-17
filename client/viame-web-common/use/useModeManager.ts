@@ -3,18 +3,15 @@ import {
 } from '@vue/composition-api';
 import { uniq, flatMapDeep } from 'lodash';
 import Track, { TrackId } from 'vue-media-annotator/track';
+import { getTrack } from 'vue-media-annotator/use/useTrackStore';
 import { RectBounds, updateBounds } from 'vue-media-annotator/utils';
 import { EditAnnotationTypes, VisibleAnnotationTypes } from 'vue-media-annotator/layers';
+import { MediaController } from 'vue-media-annotator/components/annotators/mediaControllerType';
 
 import Recipe from 'vue-media-annotator/recipe';
 import { NewTrackSettings } from './useSettings';
 
 type SupportedFeature = GeoJSON.Feature<GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString>;
-export interface Annotator {
-  seek(frame: number): void;
-  resetZoom(): void;
-  nextFrame(): void;
-}
 
 interface SetAnnotationStateArgs {
   visible?: VisibleAnnotationTypes[];
@@ -34,11 +31,10 @@ export default function useModeManager({
   editingTrack,
   frame,
   trackMap,
-  playbackComponent,
+  mediaController,
   newTrackSettings,
   recipes,
   selectTrack,
-  getTrack,
   selectNextTrack,
   addTrack,
   removeTrack,
@@ -47,11 +43,10 @@ export default function useModeManager({
   editingTrack: Ref<boolean>;
   frame: Ref<number>;
   trackMap: Map<TrackId, Track>;
-  playbackComponent: Ref<Annotator>;
+  mediaController: Ref<MediaController>;
   newTrackSettings: NewTrackSettings;
   recipes: Recipe[];
   selectTrack: (trackId: TrackId | null, edit: boolean) => void;
-  getTrack: (trackId: TrackId) => Track;
   selectNextTrack: (delta?: number) => TrackId | null;
   addTrack: (frame: number, defaultType: string) => Track;
   removeTrack: (trackId: TrackId) => void;
@@ -95,9 +90,9 @@ export default function useModeManager({
   function seekNearest(track: Track) {
     // Seek to the nearest point in the track.
     if (frame.value < track.begin) {
-      playbackComponent.value.seek(track.begin);
+      mediaController.value.seek(track.begin);
     } else if (frame.value > track.end) {
-      playbackComponent.value.seek(track.end);
+      mediaController.value.seek(track.end);
     }
   }
 
@@ -148,7 +143,7 @@ export default function useModeManager({
 
   function handleTrackTypeChange(trackId: TrackId | null, value: string) {
     if (trackId !== null) {
-      getTrack(trackId).setType(value);
+      getTrack(trackMap, trackId).setType(value);
     }
   }
 
@@ -158,7 +153,7 @@ export default function useModeManager({
     if (creating) {
       if (addedTrack && newTrackSettings !== null) {
         if (newTrackSettings.mode === 'Track' && newTrackSettings.modeSettings.Track.autoAdvanceFrame) {
-          playbackComponent.value.nextFrame();
+          mediaController.value.nextFrame();
           newCreatingValue = true;
         } else if (newTrackSettings.mode === 'Detection') {
           if (newTrackSettings.modeSettings.Detection.continuous) {
@@ -359,13 +354,13 @@ export default function useModeManager({
 
   /** Toggle editing mode for track */
   function handleTrackEdit(trackId: TrackId) {
-    const track = getTrack(trackId);
+    const track = getTrack(trackMap, trackId);
     seekNearest(track);
     selectTrack(trackId, trackId === selectedTrackId.value ? (!editingTrack.value) : true);
   }
 
   function handleTrackClick(trackId: TrackId) {
-    const track = getTrack(trackId);
+    const track = getTrack(trackMap, trackId);
     seekNearest(track);
     selectTrack(trackId, editingTrack.value);
   }
@@ -374,7 +369,7 @@ export default function useModeManager({
     const newTrack = selectNextTrack(delta);
     if (newTrack !== null) {
       selectTrack(newTrack, false);
-      seekNearest(getTrack(newTrack));
+      seekNearest(getTrack(trackMap, newTrack));
     }
   }
 

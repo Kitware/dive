@@ -13,32 +13,31 @@ from viame_tasks.tasks import (
     run_pipeline,
     train_pipeline,
 )
+from viame_utils.types import PipelineDescription, PipelineJob
 
+from .constants import csvRegex, imageRegex, safeImageRegex, videoRegex, ymlRegex
 from .model.attribute import Attribute
+from .pipelines import load_pipelines, load_static_pipelines
 from .serializers import meva as meva_serializer
+from .training import (
+    csv_detection_file,
+    load_training_configurations,
+    training_output_folder,
+)
 from .transforms import GetPathFromFolderId, GetPathFromItemId
 from .utils import (
-    csv_detection_file,
-    csvRegex,
     get_or_create_auxiliary_folder,
     getTrackData,
-    imageRegex,
-    load_pipelines,
-    load_training_configurations,
     move_existing_result_to_auxiliary_folder,
-    safeImageRegex,
     saveTracks,
-    training_output_folder,
-    videoRegex,
-    ymlRegex,
 )
 
 
 class Viame(Resource):
-    def __init__(self, pipeline_paths=()):
+    def __init__(self):
         super(Viame, self).__init__()
         self.resourceName = "viame"
-        self.pipeline_paths = pipeline_paths
+        self.static_pipelines = None
 
         self.route("GET", ("pipelines",), self.get_pipelines)
         self.route("POST", ("pipeline",), self.run_pipeline_task)
@@ -55,12 +54,14 @@ class Viame(Resource):
     @access.user
     @describeRoute(Description("Get available pipelines"))
     def get_pipelines(self, params):
-        return load_pipelines(self.pipeline_paths)
+        if self.static_pipelines is None:
+            self.static_pipelines = load_static_pipelines()
+        return load_pipelines(self.static_pipelines, self.getCurrentUser())
 
     @access.user
     @describeRoute(Description("Get available training configurations."))
     def get_training_configs(self, params):
-        return load_training_configurations(self.pipeline_paths)
+        return load_training_configurations()
 
     @access.user
     @autoDescribeRoute(
@@ -73,28 +74,32 @@ class Viame(Resource):
             required=True,
             level=AccessType.WRITE,
         )
-        .param(
-            "pipeline",
-            "Pipeline to run against the video",
-            default="detector_simple_hough.pipe",
-        )
+        .jsonParam("pipeline", "The pipeline to run on the dataset", required=True)
     )
-    def run_pipeline_task(self, folder, pipeline):
+    def run_pipeline_task(self, folder, pipeline: PipelineDescription):
+        """
+        Run a pipeline on a dataset.
+
+        :param folder: The girder folder containing the dataset to run on.
+        :param pipeline: The pipeline to run the dataset on.
+        """
+
         user = self.getCurrentUser()
-        token = Token().createToken(user=user, days=1)
+        token = Token().createToken(user=user, days=14)
         move_existing_result_to_auxiliary_folder(folder, user)
-        input_type = folder["meta"]["type"]
+
+        params: PipelineJob = {
+            "input_folder": str(folder["_id"]),
+            "input_type": folder["meta"]["type"],
+            "output_folder": str(folder["_id"]),
+            "pipeline": pipeline,
+        }
 
         return run_pipeline.apply_async(
             queue="pipelines",
             kwargs=dict(
-                input_path=GetPathFromFolderId(str(folder["_id"])),
-                output_folder=str(folder["_id"]),
-                pipeline=pipeline,
-                input_type=input_type,
-                girder_job_title=(
-                    "Running {} on {}".format(pipeline, str(folder["name"]))
-                ),
+                params=params,
+                girder_job_title=f"Running {pipeline['name']} on {str(folder['name'])}",
                 girder_client_token=str(token["_id"]),
                 girder_job_type="pipelines",
             ),
@@ -140,16 +145,13 @@ class Viame(Resource):
         csv_detection_file(folder, detection, user)
 
         # Ensure the folder to upload results to exists
-        results_folder = training_output_folder(folder, user)
-
-        # Currently assumes all images are in the root folder
-        training_data = list(Folder().childItems(folder))
+        results_folder = training_output_folder(user)
 
         return train_pipeline.apply_async(
             queue="training",
             kwargs=dict(
                 results_folder=results_folder,
-                training_data=training_data,
+                source_folder=folder,
                 groundtruth=detection,
                 pipeline_name=pipelineName,
                 config=config,
@@ -238,7 +240,7 @@ class Viame(Resource):
         auxiliary = get_or_create_auxiliary_folder(folder, user)
 
         if not skipJobs:
-            token = Token().createToken(user=user, days=1)
+            token = Token().createToken(user=user, days=2)
             # transcode VIDEO if necessary
             videoItems = Folder().childItems(
                 folder, filters={"lowerName": {"$regex": videoRegex}}
