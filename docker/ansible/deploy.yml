@@ -50,7 +50,7 @@
     - name: Remove pipelines volume
       when: not build.failed and build.changed
       docker_volume:
-        name: viame_web_pipelines
+        name: docker_pipelines
         state: absent
 
     - name: Start Service

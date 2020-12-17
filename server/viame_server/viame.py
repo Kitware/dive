@@ -37,7 +37,7 @@ class Viame(Resource):
     def __init__(self):
         super(Viame, self).__init__()
         self.resourceName = "viame"
-        self.static_pipelines = load_static_pipelines()
+        self.static_pipelines = None
 
         self.route("GET", ("pipelines",), self.get_pipelines)
         self.route("POST", ("pipeline",), self.run_pipeline_task)
@@ -54,6 +54,8 @@ class Viame(Resource):
     @access.user
     @describeRoute(Description("Get available pipelines"))
     def get_pipelines(self, params):
+        if self.static_pipelines is None:
+            self.static_pipelines = load_static_pipelines()
         return load_pipelines(self.static_pipelines, self.getCurrentUser())
 
     @access.user
