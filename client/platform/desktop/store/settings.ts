@@ -45,10 +45,13 @@ async function init() {
     // pass
   }
   settings.value = settingsvalue;
+
+  ipcRenderer.send('update-settings', settings.value);
 }
 
 async function setSettings(s: Settings) {
   window.localStorage.setItem(SettingsKey, JSON.stringify(s));
+  ipcRenderer.send('update-settings', settings.value);
 }
 
 // Will be initialized on first import

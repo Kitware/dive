@@ -7,103 +7,151 @@ import { shell } from 'electron';
 import mime from 'mime-types';
 import moment from 'moment';
 import { TrackData } from 'vue-media-annotator/track';
-import { DatasetType, Pipelines, DatasetSchema, SaveDetectionsArgs } from 'viame-web-common/apispec';
+import {
+  DatasetType, Pipelines, DatasetSchema, SaveDetectionsArgs, FrameImage,
+} from 'viame-web-common/apispec';
 
-import { Settings, websafeImageTypes } from '../../constants';
-import * as viameSerializers from '../serializers/viame';
+import {
+  JsonMeta, Settings, websafeImageTypes, websafeVideoTypes, JsonMetaCurrentVersion, DesktopDataset,
+} from 'platform/desktop/constants';
+import * as viameSerializers from 'platform/desktop/backend/serializers/viame';
 
+import { cleanString, makeid } from './utils';
+
+const ProjectsFolderName = 'DIVE_Projects';
+const TrainedPipelinesFolderName = 'DIVE_Trained_Pipelines';
 const AuxFolderName = 'auxiliary';
 const JobFolderName = 'job_runs';
-// Match examples:
-// result_09-14-2020_14-49-05.json
-// result_<ANYTHING>.json
-// result.json
+
 const JsonFileName = /^result(_.*)?\.json$/;
+const JsonMetaFileName = 'meta.json';
 const CsvFileName = /^.*\.csv$/;
 
-async function getDatasetBase(datasetId: string): Promise<{
-  datasetType: DatasetType;
-  basePath: string;
-  name: string;
-  jsonFile: string | null;
-  imageFiles: string[];
-  directoryContents: string[];
-}> {
-  let datasetType: DatasetType = 'image-sequence';
-  const exists = fs.existsSync(datasetId);
-  if (!exists) {
-    throw new Error(`No dataset exists with path ${datasetId}`);
+/**
+ * getProjectDir returns filepaths to required 
+ * @param settings user settings
+ * @param datasetId dataset id string
+ */
+function getProjectDir(settings: Settings, datasetId: string) {
+  const basePath = npath.join(settings.dataPath, ProjectsFolderName, datasetId);
+  if (!fs.pathExists(basePath)) {
+    throw new Error(`missing project directory ${basePath}`);
   }
-  const stat = await fs.stat(datasetId);
-
-  if (stat.isDirectory()) {
-    datasetType = 'image-sequence';
-  } else if (stat.isFile()) {
-    datasetType = 'video';
-  } else {
-    throw new Error('Only regular files and directories are supported');
+  const auxPath = npath.join(basePath, AuxFolderName);
+  if (!fs.pathExists()) {
+    throw new Error(`missing project aux path ${auxPath}`);
   }
-
-  let datasetFolderPath = datasetId;
-  if (datasetType === 'video') {
-    // get parent folder, since videos reference a file directly
-    datasetFolderPath = npath.dirname(datasetId);
+  const metaPath = npath.join(basePath, JsonMetaFileName);
+  if (!fs.pathExists(metaPath)) {
+    throw new Error(`missing metadata json file ${metaPath}`);
   }
-
-  const contents = await fs.readdir(datasetFolderPath);
-  const jsonFileCandidates = contents.filter((v) => JsonFileName.test(v));
-  let jsonFile = null;
-
-  const imageFiles = contents.filter((filename) => {
-    const abspath = npath.join(datasetFolderPath, filename);
-    const mimetype = mime.lookup(abspath);
-    if (mimetype && websafeImageTypes.includes(mimetype)) {
-      return true;
-    }
-    return false;
-  });
-
-  if (jsonFileCandidates.length > 1) {
-    throw new Error('Too many matches for json annotation file!');
-  } else if (jsonFileCandidates.length === 1) {
-    [jsonFile] = jsonFileCandidates;
-  }
-
+  let tracksPath =
   return {
-    datasetType,
-    basePath: datasetFolderPath,
-    jsonFile,
-    imageFiles,
-    name: npath.parse(datasetId).name,
-    directoryContents: contents,
+    basePath,
+    metaPath,
+    auxPath,
+  }
+}
+
+/**
+ * loadMetadata combines information from JsonFile and directory structure
+ * to produce a DatasetSchema compliant interface
+ * @param jsonFile
+ * @param directoryData
+ */
+async function _loadMetadata(jsonFile: JsonFileSchema, directoryData: DirectoryData): Promise<DesktopDataset> {
+  let videoUrl = '';
+  let videoPath = '';
+  const imageData = [] as FrameImage[];
+  const serverInfo = await mediaServerInfo();
+
+  function processFile(abspath: string) {
+    const basename = npath.basename(abspath);
+    const abspathuri = `http://localhost:${serverInfo.port}/api/media?path=${abspath}`;
+    const mimetype = mime.lookup(abspath);
+    if (mimetype && websafeVideoTypes.includes(mimetype)) {
+      datasetType = 'video';
+      basePath = path.dirname(datasetId); // parent directory of video;
+      videoPath = abspath;
+      videoUrl = abspathuri;
+    } else if (mimetype && websafeImageTypes.includes(mimetype)) {
+      datasetType = 'image-sequence';
+      imageData.push({
+        url: abspathuri,
+        filename: basename,
+      });
+    }
+  }
+
+  const info = await fs.stat(datasetId);
+
+  if (info.isDirectory()) {
+    const contents = await fs.readdir(datasetId);
+    for (let i = 0; i < contents.length; i += 1) {
+      processFile(path.join(datasetId, contents[i]));
+    }
+  } else {
+    processFile(datasetId);
+  }
+
+  if (datasetType === undefined) {
+    throw new Error(`Cannot open dataset ${datasetId}: No images or video found`);
+  }
+
+  return Promise.resolve({
+    name: npath.basename(datasetId),
+    basePath,
+    videoPath,
+    meta: {
+      type: datasetType,
+      fps: 10,
+      imageData: datasetType === 'image-sequence' ? imageData : [],
+      videoUrl: datasetType === 'video' ? videoUrl : undefined,
+    },
+  });
+}
+
+/**
+ * loadJsonFile processes dataset information from json
+ * @param path a known, existing path
+ */
+async function _loadJsonMeta(settings: Settings, datasetId: string): Promise<JsonMeta> {
+  const metaFile = npath.join(settings.dataPath, ProjectsFolderName)
+  const rawBuffer = await fs.readFile(path, 'utf-8');
+  const annotationData = JSON.parse(rawBuffer);
+
+  /**
+   * Check if this file meets the current schema version
+   */
+  if ('version' in annotationData) {
+    const { version } = annotationData;
+    if (version === CurrentSchemaVersion) {
+      return annotationData as JsonFileSchema;
+    }
+    // TODO: schema migration for older schema versions
+  }
+  /**
+   * DEPRECATED schema file with only tracks found, migrate
+   * to latest schema version.
+   */
+  return {
+    version: CurrentSchemaVersion,
+    tracks: annotationData as { [key: string]: TrackData },
+    meta: defaultMetadata,
   };
 }
 
 /**
- * Load annotations from JSON
- * @param path a known, existing path
- */
-async function loadJsonAnnotations(path: string): Promise<Record<string, TrackData>> {
-  const rawBuffer = await fs.readFile(path, 'utf-8');
-  const annotationData = JSON.parse(rawBuffer);
-  // TODO: validate json schema
-  return annotationData as Record<string, TrackData>;
-}
-
-/**
  * Load detections from disk in priority order
- * @param datasetId path
+ * @param datasetId user data folder name
  * @param ignoreCSV ignore CSV files if found
  */
-async function loadDetections(datasetId: string, ignoreCSV = false):
-  Promise<{ [key: string]: TrackData }> {
-  const data = {} as { [key: string]: TrackData };
-  const base = await getDatasetBase(datasetId);
+async function loadDataset(datasetId: string, ignoreCSV = false): Promise<DesktopDataset> {
+  const meta =
 
   /* First, look for a JSON file */
   if (base.jsonFile) {
-    const annotations = loadJsonAnnotations(npath.join(base.basePath, base.jsonFile));
-    return annotations;
+    jsonData = await _loadJsonMeta(npath.join(base.basePath, base.jsonFile), defaultMetadata);
   }
 
   if (ignoreCSV) {
@@ -120,8 +168,11 @@ async function loadDetections(datasetId: string, ignoreCSV = false):
     return data;
   }
 
-  /* return empty by default */
-  return Promise.resolve(data);
+  const ds: DatasetSchema = {
+    meta: {},
+    tracks: {},
+    version: CurrentSchemaVersion,
+  };
 }
 
 /**
@@ -261,9 +312,84 @@ async function postprocess(paths: string[], datasetId: string) {
   }
 }
 
-async function loadDataset(): Promise<DatasetSchema> {
-
+async function _initializeAppDataDir(settings: Settings) {
+  await fs.ensureDir(settings.dataPath);
+  await fs.ensureDir(npath.join(settings.dataPath, ProjectsFolderName));
+  await fs.ensureDir(npath.join(settings.dataPath, TrainedPipelinesFolderName));
 }
+
+async function _initializeProjectDir(settings: Settings, jsonMeta: JsonMeta) {
+  const projectDir = npath.join(settings.dataPath, ProjectsFolderName, jsonMeta.id);
+  await _initializeAppDataDir(settings);
+  await fs.ensureDir(projectDir);
+}
+
+/**
+ * importMedia takes in a path and locates as much information as possible
+ * about the dataset using only the directory structure.
+ * @param datasetId string path
+ */
+async function importMedia(settings: Settings, path: string): Promise<JsonMeta> {
+  let datasetType: DatasetType = 'image-sequence';
+  const exists = fs.existsSync(path);
+  if (!exists) {
+    throw new Error(`No dataset exists with path ${path}`);
+  }
+  const stat = await fs.stat(path);
+
+  if (stat.isDirectory()) {
+    datasetType = 'image-sequence';
+  } else if (stat.isFile()) {
+    datasetType = 'video';
+  } else {
+    throw new Error('Only regular files and directories are supported');
+  }
+
+  let datasetFolderPath = path;
+  if (datasetType === 'video') {
+    // get parent folder, since videos reference a file directly
+    datasetFolderPath = npath.dirname(path);
+  }
+
+  const contents = await fs.readdir(datasetFolderPath);
+  const jsonFileCandidates = contents.filter((v) => JsonFileName.test(v));
+  let jsonFile = null;
+
+  const imageFiles = contents.filter((filename) => {
+    const abspath = npath.join(datasetFolderPath, filename);
+    const mimetype = mime.lookup(abspath);
+    if (mimetype && websafeImageTypes.includes(mimetype)) {
+      return true;
+    }
+    return false;
+  });
+
+  if (jsonFileCandidates.length > 1) {
+    throw new Error('Too many matches for json annotation file!');
+  } else if (jsonFileCandidates.length === 1) {
+    [jsonFile] = jsonFileCandidates;
+  }
+
+  // TODO: parse meta.json if you find it
+  // TODO: parse FPS from CSV if it exists
+
+  const dsName = npath.parse(path).name;
+  const dsId = `${cleanString(dsName).substr(0, 20)}_${makeid(10)}`;
+  const jsonMeta: JsonMeta = {
+    version: JsonMetaCurrentVersion,
+    type: datasetType,
+    id: dsId,
+    fps: 5, // TODO
+    originalMediaAbsolutePath: path,
+    imageFiles,
+    name: dsName,
+  };
+
+  await _initializeProjectDir(settings, jsonMeta);
+
+  postprocess()
+}
+
 
 async function openLink(url: string) {
   shell.openExternal(url);
@@ -273,7 +399,6 @@ export default {
   openLink,
   getAuxFolder,
   createKwiverRunWorkingDir,
-  getDatasetBase,
   getPipelineList,
   loadDetections,
   saveDetections,

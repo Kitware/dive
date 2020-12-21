@@ -47,6 +47,21 @@ router.register('/api', withErrorHandler((req, res) => {
   res.end();
 }));
 
+router.register('/api/dataset', withErrorHandler((req, res) => {
+  const { url } = req;
+  if (!url) {
+    throw new Error('Impossible scenario, req.url was empty');
+  }
+  const parsedurl = parser.parse(url, true);
+  let datasetId = parsedurl.query ? parsedurl.query.datasetId : undefined;
+
+  if (datasetId === undefined || Array.isArray(datasetId)) {
+    return fail(res, 404, `Invalid dataset ID: ${datasetId}`);
+  }
+
+  datasetId = decodeURI(datasetId);
+}));
+
 router.register('/api/media', withErrorHandler((req, res) => {
   const { url } = req;
   if (!url) {

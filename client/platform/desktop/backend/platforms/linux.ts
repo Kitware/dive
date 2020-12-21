@@ -53,10 +53,11 @@ async function validateViamePath(settings: Settings): Promise<true | string> {
  * @param settings global settings
  */
 async function runPipeline(
+  settings: Settings,
   runPipelineArgs: RunPipeline,
   updater: (msg: DesktopJobUpdate) => void,
 ): Promise<DesktopJob> {
-  const { settings, datasetId, pipelineName } = runPipelineArgs;
+  const { datasetId, pipelineName } = runPipelineArgs;
   const isValid = await validateViamePath(settings);
   if (isValid !== true) {
     throw new Error(isValid);

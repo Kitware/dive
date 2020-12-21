@@ -1,4 +1,6 @@
-import { DatasetMeta } from 'viame-web-common/apispec';
+import type {
+  DatasetMeta, DatasetMetaMutable, DatasetSchema, DatasetType,
+} from 'viame-web-common/apispec';
 
 export const websafeVideoTypes = [
   'video/mp4',
@@ -15,7 +17,9 @@ export const websafeImageTypes = [
   // 'image/webp',
 ];
 
+export const JsonMetaCurrentVersion = 1;
 export const SettingsCurrentVersion = 1;
+
 export interface Settings {
   // version a schema version
   version: number;
@@ -25,15 +29,32 @@ export interface Settings {
   dataPath: string;
 }
 
-export interface DesktopDataset {
-  // name filename (for video) or folder name (for images)
+/**
+ * JsonMetadata is a SUBSET of DatasetMeta contained within
+ * the JsonFileSchema.  The remaining parts of DatasetMeta must
+ * be calculated at load time.
+ */
+export interface JsonMeta extends DatasetMetaMutable {
+  // version used to manage schema migrations
+  version: number;
+  // immutable dataset type
+  type: DatasetType;
+  // immutable datset identifier
+  id: string;
+  // this will become mutable in the future.
+  fps: number;
+  // the original name derived from media path
   name: string;
-  // basePath path of dataset working directory
-  basePath: string;
-  // vidoPath path of single video file
-  videoPath?: string;
-  // meta DatasetMeta
-  meta: DatasetMeta;
+  // may point to media outside the project folder
+  originalMediaAbsolutePath: string;
+  // points to media inside the project folder
+  transcodedMediaRelativePath?: string;
+  // ordered image filenames IF this is an image dataset
+  imageFiles: string[];
+}
+
+export interface DesktopDataset extends DatasetSchema {
+  meta: JsonMeta & DatasetMeta; // JsonMeta satisfies DatasetMeta
 }
 
 interface NvidiaSmiTextRecord {
@@ -84,5 +105,4 @@ export interface DesktopJobUpdate extends DesktopJob {
 export interface RunPipeline {
   datasetId: string;
   pipelineName: string;
-  settings: Settings;
 }

@@ -4,8 +4,6 @@ import { use } from 'vue-media-annotator/provides';
 import Track, { TrackData, TrackId } from 'vue-media-annotator/track';
 import { CustomStyle } from 'vue-media-annotator/use/useStyling';
 
-const ApiSymbol = Symbol('api');
-
 type DatasetType = 'image-sequence' | 'video';
 
 interface Attribute {
@@ -27,7 +25,7 @@ interface Category {
   pipes: Pipe[];
 }
 
-export interface TrainingConfigs {
+interface TrainingConfigs {
   configs: string[];
   default: string;
 }
@@ -44,26 +42,27 @@ interface FrameImage {
   filename: string;
 }
 
+/**
+ * The parts of metadata a user should be able to modify.
+ */
 interface DatasetMetaMutable {
   customTypeStyling?: Record<string, CustomStyle>;
   confidenceFilters?: Record<string, number>;
 }
 
-export interface DatasetMeta extends DatasetMetaMutable {
-  type: Readonly<DatasetType>;
-  fps: Readonly<number | string>;
+interface DatasetMeta extends DatasetMetaMutable {
   imageData: FrameImage[];
   videoUrl: string | undefined;
+  type: Readonly<DatasetType>;
+  fps: Readonly<number | string>; // this will become mutable in the future.
 }
-
 
 /**
  * DatasetSchema is a structure that describes everything about
  * media that could be opened in DIVE.  This schema is JSON
  * serializable (no maps, sets, or classes in the tree)
  */
-export interface DatasetSchema {
-  version: number;
+interface DatasetSchema {
   // TODO: in a future version attributes will be part of the dataset schema
   // attributes: Attribute[];
   meta: DatasetMeta;
@@ -89,6 +88,8 @@ interface Api {
   saveMetadata(datasetId: string, metadata: DatasetMetaMutable): Promise<unknown>;
 }
 
+const ApiSymbol = Symbol('api');
+
 /**
  * provideApi specifies an implementation of the data persistence interface
  * for use in vue-web-common
@@ -103,15 +104,20 @@ function useApi() {
 }
 
 export {
+  provideApi,
+  useApi,
+};
+
+export type {
   Api,
   Attribute,
   DatasetMeta,
   DatasetMetaMutable,
+  DatasetSchema,
   DatasetType,
   FrameImage,
   Pipe,
   Pipelines,
   SaveDetectionsArgs,
-  provideApi,
-  useApi,
+  TrainingConfigs,
 };

@@ -1,30 +1,23 @@
-import { AddressInfo } from 'net';
-import path from 'path';
+import type { FileFilter } from 'electron';
 
-import { ipcRenderer, remote, FileFilter } from 'electron';
-import fs from 'fs-extra';
-import mime from 'mime-types';
+import { ipcRenderer, remote } from 'electron';
 
 import {
   Attribute,
   DatasetMetaMutable,
-  DatasetType, FrameImage,
-  Pipe,
-  Pipelines, TrainingConfigs,
+  DatasetType, Pipelines, TrainingConfigs,
 } from 'viame-web-common/apispec';
 
 import common from '../backend/platforms/common';
 import {
   DesktopJob, NvidiaSmiReply, RunPipeline,
-  websafeImageTypes, websafeVideoTypes,
-  DesktopDataset, Settings,
+  websafeVideoTypes, Settings,
 } from '../constants';
+
 
 const { loadDetections, saveDetections } = common;
 
-function mediaServerInfo(): Promise<AddressInfo> {
-  return ipcRenderer.invoke('info');
-}
+
 
 function nvidiaSmi(): Promise<NvidiaSmiReply> {
   return ipcRenderer.invoke('nvidia-smi');
@@ -78,68 +71,14 @@ async function runTraining(
   return Promise.resolve();
 }
 
-async function loadMetadata(datasetId: string): Promise<DesktopDataset> {
-  let datasetType = undefined as 'video' | 'image-sequence' | undefined;
-  let videoUrl = '';
-  let videoPath = '';
-  let basePath = datasetId; // default to image-sequence type basepath
-  const imageData = [] as FrameImage[];
-  const serverInfo = await mediaServerInfo();
-
-  function processFile(abspath: string) {
-    const basename = path.basename(abspath);
-    const abspathuri = `http://localhost:${serverInfo.port}/api/media?path=${abspath}`;
-    const mimetype = mime.lookup(abspath);
-    if (mimetype && websafeVideoTypes.includes(mimetype)) {
-      datasetType = 'video';
-      basePath = path.dirname(datasetId); // parent directory of video;
-      videoPath = abspath;
-      videoUrl = abspathuri;
-    } else if (mimetype && websafeImageTypes.includes(mimetype)) {
-      datasetType = 'image-sequence';
-      imageData.push({
-        url: abspathuri,
-        filename: basename,
-      });
-    }
-  }
-
-  const info = await fs.stat(datasetId);
-
-  if (info.isDirectory()) {
-    const contents = await fs.readdir(datasetId);
-    for (let i = 0; i < contents.length; i += 1) {
-      processFile(path.join(datasetId, contents[i]));
-    }
-  } else {
-    processFile(datasetId);
-  }
-
-  if (datasetType === undefined) {
-    throw new Error(`Cannot open dataset ${datasetId}: No images or video found`);
-  }
-
-  return Promise.resolve({
-    name: path.basename(datasetId),
-    basePath,
-    videoPath,
-    meta: {
-      type: datasetType,
-      fps: 10,
-      imageData: datasetType === 'image-sequence' ? imageData : [],
-      videoUrl: datasetType === 'video' ? videoUrl : undefined,
-    },
-  });
-}
-
 // eslint-disable-next-line
 async function saveMetadata(datasetId: string, metadata: DatasetMetaMutable) {
   return Promise.resolve();
 }
 
-async function runPipeline(itemId: string, pipeline: Pipe, settings: Settings) {
+async function runPipeline(itemId: string, pipeline: string, settings: Settings) {
   const args: RunPipeline = {
-    pipelineName: pipeline.name,
+    pipelineName: pipeline,
     datasetId: itemId,
     settings,
   };
@@ -158,7 +97,6 @@ export {
   runTraining,
   loadDetections,
   saveDetections,
-  loadMetadata,
   saveMetadata,
   /* Nonstandard APIs */
   openFromDisk,

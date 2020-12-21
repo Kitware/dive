@@ -1,4 +1,4 @@
-import { Api, Pipe } from 'viame-web-common/apispec';
+import { Api } from 'viame-web-common/apispec';
 import * as api from '../api/main';
 
 import { settings } from './settings';
@@ -19,7 +19,7 @@ export default function wrap(): Api {
     return api.getPipelineList(settings.value);
   }
 
-  async function runPipeline(itemId: string, pipeline: Pipe) {
+  async function runPipeline(itemId: string, pipeline: string) {
     const job = await api.runPipeline(itemId, pipeline, settings.value);
     const datasets = job.datasetIds.map(((id) => getDataset(id).value));
     getOrCreateHistory(job, datasets);
@@ -27,7 +27,6 @@ export default function wrap(): Api {
 
   return {
     ...api,
-    loadMetadata,
     getPipelineList,
     runPipeline,
   };
