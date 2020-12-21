@@ -64,6 +64,7 @@ async function _loadMetadata(jsonFile: JsonFileSchema, directoryData: DirectoryD
   let videoPath = '';
   const imageData = [] as FrameImage[];
   const serverInfo = await mediaServerInfo();
+  const contents = await fs.readdir(datasetFolderPath);
 
   function processFile(abspath: string) {
     const basename = npath.basename(abspath);
@@ -92,6 +93,24 @@ async function _loadMetadata(jsonFile: JsonFileSchema, directoryData: DirectoryD
     }
   } else {
     processFile(datasetId);
+  }
+
+  const jsonFileCandidates: string[] = [];
+  await Promise.all(contents.map(async (name) => {
+    if (JsonFileName.test(name)) {
+      const fullPath = npath.join(datasetFolderPath, name);
+      const statResult = await fs.stat(fullPath);
+      if (statResult.isFile()) {
+        jsonFileCandidates.push(name);
+      }
+    }
+  }));
+
+  let jsonFile = null;
+  if (jsonFileCandidates.length > 1) {
+    throw new Error('Too many matches for json annotation file!');
+  } else if (jsonFileCandidates.length === 1) {
+    [jsonFile] = jsonFileCandidates;
   }
 
   if (datasetType === undefined) {
