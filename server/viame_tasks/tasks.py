@@ -213,6 +213,7 @@ def train_pipeline(
         raise Exception("Ground truth doesn't exist for all folders")
 
     trained_on_list = []
+    input_groundtruth_list = []
     # root_data_dir is the directory passed to `viame_train_detector`
     with tempfile.TemporaryDirectory() as _temp_dir_string:
         manager.updateStatus(JobStatus.FETCHING_INPUT)
@@ -233,7 +234,19 @@ def train_pipeline(
 
             # Organize data
             groundtruth_path = download_path / groundtruth["name"]
-            organize_folder_for_training(root_data_dir, download_path, groundtruth_path)
+            groundtruth_file = organize_folder_for_training(
+                root_data_dir, download_path, groundtruth_path
+            )
+            input_groundtruth_list.append([download_path, groundtruth_file])
+
+        input_folder_file_list = root_data_dir / "input_folder_list.txt"
+        ground_truth_file_list = root_data_dir / "input_truth_list.txt"
+        with open(input_folder_file_list, "w+") as data_list:
+            folder_paths = [f"{item[0]}\n" for item in input_groundtruth_list]
+            data_list.writelines(folder_paths)
+        with open(ground_truth_file_list, "w+") as truth_list:
+            truth_paths = [f"{item[1]}\n" for item in input_groundtruth_list]
+            truth_list.writelines(truth_paths)
 
         # Completely separate directory from `root_data_dir`
         with tempfile.TemporaryDirectory() as _training_output_path:
@@ -241,15 +254,17 @@ def train_pipeline(
             command = [
                 f". {conf.viame_install_path}/setup_viame.sh &&",
                 str(training_executable),
-                "-i",
-                str(root_data_dir),
+                "-il",
+                str(input_folder_file_list),
+                "-it",
+                str(ground_truth_file_list),
                 "-c",
                 str(config_file),
+                "--no-query",
             ]
 
             process_log_file = tempfile.TemporaryFile()
             process_err_file = tempfile.TemporaryFile()
-            print(" ".join(command))
             manager.updateStatus(JobStatus.RUNNING)
             # Call viame_train_detector
             process = Popen(

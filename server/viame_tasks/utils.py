@@ -66,18 +66,4 @@ def organize_folder_for_training(
     groundtruth = data_dir / "groundtruth.csv"
     shutil.move(str(downloaded_groundtruth), groundtruth)
 
-    # Generate labels.txt
-    labels = set()
-    with open(groundtruth, 'r') as groundtruth_infile:
-        for line in groundtruth_infile.readlines():
-            if not line.strip().startswith('#'):
-                row = [c.strip() for c in line.split(",")]
-
-                # Confidence pairs start at the 9th index
-                # 9th index is label, 10th is confidence, 11th is another label, etc.
-                for label in row[9::2]:
-                    labels.add(label)
-
-    with open(root_training_dir / "labels.txt", "a+") as labels_file:
-        label_lines = [f"{label}\n" for label in labels]
-        labels_file.writelines(label_lines)
+    return groundtruth
