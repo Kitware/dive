@@ -74,6 +74,7 @@ def run_pipeline(self: Task, params: PipelineJob):
         is_directory = os.path.isdir(full_file_path)
         if (not is_directory) and (
             not os.path.splitext(file_name)[1].lower() == '.csv'
+            and (not os.path.splitext(file_name)[1].lower() == '.json')
         ):
             filtered_directory_files.append(file_name)
 
@@ -92,7 +93,19 @@ def run_pipeline(self: Task, params: PipelineJob):
     pipeline_path = pipeline_path.replace(" ", r"\ ")
 
     if input_type == 'video':
+        # Preserving default behavior incase new stuff fails
         input_file = os.path.join(input_path, filtered_directory_files[0])
+        # filter files for source video file
+        # TODO: Update this to  use validVideoTypes or prefilter before tasks.py and provide
+        # a list of mediate Ids for download instead of the recursive folder (could get in trouble with that)
+        folder_contents = self.girder_client.listItem(input_folder)
+        for item in folder_contents:
+            file_name = os.path.join(input_path, item.get("name"))
+            if item.get("meta", {}).get("codec") is None and (
+                not os.path.splitext(file_name)[1].lower() == '.json'
+                and (not os.path.splitext(file_name)[1].lower() == '.csv')
+            ):
+                input_file = file_name
         command = [
             f"cd {conf.viame_install_path} &&",
             ". ./setup_viame.sh &&",
