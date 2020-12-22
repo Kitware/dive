@@ -219,13 +219,14 @@ def train_pipeline(
         manager.updateStatus(JobStatus.FETCHING_INPUT)
         root_data_dir = Path(_temp_dir_string)
 
-        # Generator of items
         for index in range(len(source_folder_list)):
             source_folder = source_folder_list[index]
             groundtruth = groundtruth_list[index]
-            download_path = Path(tempfile.mkdtemp(dir=root_data_dir))
-            training_data = gc.listItem(source_folder["_id"])
+            download_path = Path(tempfile.mkdtemp(dir=root_data_dir)
             trained_on_list.append(str(source_folder["_id"]))
+
+            # Generator of items
+            training_data = gc.listItem(source_folder["_id"])
 
             # Download data onto server
             gc.downloadItem(str(groundtruth["_id"]), download_path)
