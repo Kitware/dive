@@ -4,7 +4,7 @@ import shutil
 import tempfile
 from pathlib import Path
 from subprocess import DEVNULL, Popen
-from typing import Dict
+from typing import Dict, List
 
 from girder_client import GirderClient
 from girder_worker.app import app
@@ -184,26 +184,23 @@ def run_pipeline(self: Task, params: PipelineJob):
 def train_pipeline(
     self: Task,
     results_folder: Dict,
-    source_folder: Dict,
-    groundtruth: Dict,
+    source_folder_list: List[Dict],
+    groundtruth_list: List[Dict],
     pipeline_name: str,
     config: str,
 ):
     """
     Train a pipeline by making a call to viame_train_detector
 
-    :param source_folder: The Girder Folder to pull training data from
+    :param source_folder_list: The Girder Folders to pull training data from
     :param results_folder: The Girder Folder to place the results of training into
-    :param groundtruth: The relative path to either the file containing detections,
-        or the folder containing that file.
+    :param groundtruth_list: A list of relative paths to either a file containing detections,
+        or a folder containing that file.
     :param pipeline_name: The base name of the resulting pipeline.
     """
     conf = Config()
     gc: GirderClient = self.girder_client
     manager: JobManager = self.job_manager
-
-    # Generator of items
-    training_data = gc.listItem(source_folder["_id"])
 
     viame_install_path = Path(conf.viame_install_path)
     pipeline_base_path = Path(conf.pipeline_base_path)
@@ -212,20 +209,47 @@ def train_pipeline(
 
     pipeline_name = pipeline_name.replace(" ", "_")
 
+    if len(source_folder_list) != len(groundtruth_list):
+        raise Exception("Ground truth doesn't exist for all folders")
+
+    # List of folderIds used for training
+    trained_on_list: List[str] = []
+    # List of[input folder / ground truth file] pairs for creating input lists
+    input_groundtruth_list: List[[Path, Path]] = []
     # root_data_dir is the directory passed to `viame_train_detector`
     with tempfile.TemporaryDirectory() as _temp_dir_string:
         manager.updateStatus(JobStatus.FETCHING_INPUT)
         root_data_dir = Path(_temp_dir_string)
-        download_path = Path(tempfile.mkdtemp(dir=root_data_dir))
 
-        # Download data onto server
-        gc.downloadItem(str(groundtruth["_id"]), download_path)
-        for item in training_data:
-            gc.downloadItem(str(item["_id"]), download_path)
+        for index in range(len(source_folder_list)):
+            source_folder = source_folder_list[index]
+            groundtruth = groundtruth_list[index]
+            download_path = Path(tempfile.mkdtemp(dir=root_data_dir))
+            trained_on_list.append(str(source_folder["_id"]))
 
-        # Organize data
-        groundtruth_path = download_path / groundtruth["name"]
-        organize_folder_for_training(root_data_dir, download_path, groundtruth_path)
+            # Generator of items
+            training_data = gc.listItem(source_folder["_id"])
+
+            # Download data onto server
+            gc.downloadItem(str(groundtruth["_id"]), download_path)
+            for item in training_data:
+                gc.downloadItem(str(item["_id"]), download_path)
+
+            # Organize data
+            groundtruth_path = download_path / groundtruth["name"]
+            groundtruth_file = organize_folder_for_training(
+                root_data_dir, download_path, groundtruth_path
+            )
+            input_groundtruth_list.append([download_path, groundtruth_file])
+
+        input_folder_file_list = root_data_dir / "input_folder_list.txt"
+        ground_truth_file_list = root_data_dir / "input_truth_list.txt"
+        with open(input_folder_file_list, "w+") as data_list:
+            folder_paths = [f"{item[0]}\n" for item in input_groundtruth_list]
+            data_list.writelines(folder_paths)
+        with open(ground_truth_file_list, "w+") as truth_list:
+            truth_paths = [f"{item[1]}\n" for item in input_groundtruth_list]
+            truth_list.writelines(truth_paths)
 
         # Completely separate directory from `root_data_dir`
         with tempfile.TemporaryDirectory() as _training_output_path:
@@ -233,15 +257,17 @@ def train_pipeline(
             command = [
                 f". {conf.viame_install_path}/setup_viame.sh &&",
                 str(training_executable),
-                "-i",
-                str(root_data_dir),
+                "-il",
+                str(input_folder_file_list),
+                "-it",
+                str(ground_truth_file_list),
                 "-c",
                 str(config_file),
+                "--no-query",
             ]
 
             process_log_file = tempfile.TemporaryFile()
             process_err_file = tempfile.TemporaryFile()
-
             manager.updateStatus(JobStatus.RUNNING)
             # Call viame_train_detector
             process = Popen(
@@ -279,7 +305,7 @@ def train_pipeline(
                 pipeline_name,
                 metadata={
                     "trained_pipeline": True,
-                    "trained_on": str(source_folder["_id"]),
+                    "trained_on": trained_on_list,
                 },
             )
 

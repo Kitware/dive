@@ -73,7 +73,7 @@ async function getTrainingConfigurations(): Promise<TrainingConfigs> {
 
 async function runTraining(
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  folderId: string, pipelineName: string, config: string,
+  folderIds: string[], pipelineName: string, config: string,
 ): Promise<unknown> {
   return Promise.resolve();
 }
