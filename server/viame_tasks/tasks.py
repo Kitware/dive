@@ -194,8 +194,8 @@ def train_pipeline(
 
     :param source_folder_list: The Girder Folders to pull training data from
     :param results_folder: The Girder Folder to place the results of training into
-    :param groundtruth_list: The relative path to either the file containing detections,
-        or the folder containing that file.
+    :param groundtruth_list: A list of relative paths to either a file containing detections,
+        or a folder containing that file.
     :param pipeline_name: The base name of the resulting pipeline.
     """
     conf = Config()
