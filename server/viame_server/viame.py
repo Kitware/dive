@@ -108,13 +108,10 @@ class Viame(Resource):
     @access.user
     @autoDescribeRoute(
         Description("Run training on a folder")
-        .modelParam(
-            "folderId",
-            description="The folder containing the training data",
-            model=Folder,
-            paramType="query",
-            required=True,
-            level=AccessType.WRITE,
+        .jsonParam(
+            "folderIds",
+            description="Array of folderIds to run training on",
+            paramType="body",
         )
         .param(
             "pipelineName",
@@ -129,20 +126,33 @@ class Viame(Resource):
             required=True,
         )
     )
-    def run_training(self, folder, pipelineName, config):
+    def run_training(self, folderIds, pipelineName, config):
         user = self.getCurrentUser()
         token = Token().createToken(user=user, days=14)
 
-        detections = list(
-            Item().find({"meta.detection": str(folder["_id"])}).sort([("created", -1)])
-        )
-        detection = detections[0] if detections else None
+        detection_list = []
+        folder_list = []
+        folder_names = []
+        if folderIds is None or len(folderIds) == 0:
+            raise Exception("No folderIds in param")
 
-        if not detection:
-            raise Exception(f"No detections for folder {folder['name']}")
+        for folderId in folderIds:
+            folder = Folder().load(folderId, level=AccessType.READ, user=user)
+            if folder is None:
+                raise Exception(f"Cannot access folder {folderId}")
+            folder_names.append(folder['name'])
+            detections = list(
+                Item().find({"meta.detection": str(folderId)}).sort([("created", -1)])
+            )
+            detection = detections[0] if detections else None
 
-        # Ensure detection has a csv format
-        csv_detection_file(folder, detection, user)
+            if not detection:
+                raise Exception(f"No detections for folder {folder['name']}")
+
+            # Ensure detection has a csv format
+            csv_detection_file(folder, detection, user)
+            detection_list.append(detection)
+            folder_list.append(folder)
 
         # Ensure the folder to upload results to exists
         results_folder = training_output_folder(user)
@@ -151,12 +161,14 @@ class Viame(Resource):
             queue="training",
             kwargs=dict(
                 results_folder=results_folder,
-                source_folder=folder,
-                groundtruth=detection,
+                source_folder_list=folder_list,
+                groundtruth_list=detection_list,
                 pipeline_name=pipelineName,
                 config=config,
                 girder_client_token=str(token["_id"]),
-                girder_job_title=(f"Running training on folder: {str(folder['name'])}"),
+                girder_job_title=(
+                    f"Running training on folder: {', '.join(folder_names)}"
+                ),
                 girder_job_type="training",
             ),
         )
