@@ -13,9 +13,9 @@ from girder_worker.utils import JobManager, JobStatus
 from GPUtil import getGPUs
 
 from viame_tasks.utils import (
+    get_source_video,
     organize_folder_for_training,
     read_and_close_process_outputs,
-    get_source_video,
 )
 from viame_utils.types import PipelineJob
 

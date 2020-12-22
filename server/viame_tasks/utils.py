@@ -1,6 +1,5 @@
-import shutil
 import os
-
+import shutil
 from pathlib import Path
 from subprocess import Popen, TimeoutExpired
 from tempfile import mktemp
