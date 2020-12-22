@@ -15,6 +15,7 @@ from GPUtil import getGPUs
 from viame_tasks.utils import (
     organize_folder_for_training,
     read_and_close_process_outputs,
+    get_source_video,
 )
 from viame_utils.types import PipelineJob
 
@@ -93,19 +94,14 @@ def run_pipeline(self: Task, params: PipelineJob):
     pipeline_path = pipeline_path.replace(" ", r"\ ")
 
     if input_type == 'video':
-        # Preserving default behavior incase new stuff fails
-        input_file = os.path.join(input_path, filtered_directory_files[0])
         # filter files for source video file
         # TODO: Update this to  use validVideoTypes or prefilter before tasks.py and provide
-        # a list of mediate Ids for download instead of the recursive folder (could get in trouble with that)
-        folder_contents = self.girder_client.listItem(input_folder)
-        for item in folder_contents:
-            file_name = os.path.join(input_path, item.get("name"))
-            if item.get("meta", {}).get("codec") is None and (
-                not os.path.splitext(file_name)[1].lower() == '.json'
-                and (not os.path.splitext(file_name)[1].lower() == '.csv')
-            ):
-                input_file = file_name
+        # a list of media Ids for download instead of the recursive folder (could get in trouble with that)
+        input_file = get_source_video(input_path, input_folder, self.girder_client)
+        # Preserving default behavior incase new stuff fails
+        if input_file is None:
+            input_file = os.path.join(input_path, filtered_directory_files[0])
+
         command = [
             f"cd {conf.viame_install_path} &&",
             ". ./setup_viame.sh &&",
@@ -253,6 +249,12 @@ def train_pipeline(
             groundtruth_file = organize_folder_for_training(
                 root_data_dir, download_path, groundtruth_path
             )
+            # We point to file if video
+            if source_folder.get("meta", {}).get("type") == "video":
+                video_file = get_source_video(download_path, source_folder["_id"], gc)
+                if video_file is not None:
+                    download_path = video_file
+
             input_groundtruth_list.append([download_path, groundtruth_file])
 
         input_folder_file_list = root_data_dir / "input_folder_list.txt"
