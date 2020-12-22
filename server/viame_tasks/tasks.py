@@ -192,7 +192,7 @@ def train_pipeline(
     """
     Train a pipeline by making a call to viame_train_detector
 
-    :param source_folder_list: The Girder Folder to pull training data from
+    :param source_folder_list: The Girder Folders to pull training data from
     :param results_folder: The Girder Folder to place the results of training into
     :param groundtruth_list: The relative path to either the file containing detections,
         or the folder containing that file.
