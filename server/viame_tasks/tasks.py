@@ -212,8 +212,10 @@ def train_pipeline(
     if len(source_folder_list) != len(groundtruth_list):
         raise Exception("Ground truth doesn't exist for all folders")
 
-    trained_on_list = []
-    input_groundtruth_list = []
+    # List of folderIds used for training
+    trained_on_list: List[str] = []
+    # List of[input folder / ground truth file] pairs for creating input lists
+    input_groundtruth_list: List[[Path, Path]] = []
     # root_data_dir is the directory passed to `viame_train_detector`
     with tempfile.TemporaryDirectory() as _temp_dir_string:
         manager.updateStatus(JobStatus.FETCHING_INPUT)
@@ -222,7 +224,7 @@ def train_pipeline(
         for index in range(len(source_folder_list)):
             source_folder = source_folder_list[index]
             groundtruth = groundtruth_list[index]
-            download_path = Path(tempfile.mkdtemp(dir=root_data_dir)
+            download_path = Path(tempfile.mkdtemp(dir=root_data_dir))
             trained_on_list.append(str(source_folder["_id"]))
 
             # Generator of items
