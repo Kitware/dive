@@ -76,7 +76,6 @@ def get_source_video(input_path: Path, folderId: str, girder_client):
     for item in folder_contents:
         file_name = os.path.join(input_path, item.get("name"))
         extension = os.path.splitext(file_name)[1].lower()
-        print(extension)
         if item.get("meta", {}).get("codec") is None and extension in validVideoFormats:
             return file_name
     return None

@@ -96,7 +96,7 @@ def run_pipeline(self: Task, params: PipelineJob):
     if input_type == 'video':
         # filter files for source video file
         # TODO: Update this to  use validVideoTypes or prefilter before tasks.py and provide
-        # a list of media Ids for download instead of the recursive folder (could get in trouble with that)
+        # a list of media Ids for download instead of the recursive folder
         input_file = get_source_video(input_path, input_folder, self.girder_client)
         # Preserving default behavior incase new stuff fails
         if input_file is None:
@@ -249,7 +249,7 @@ def train_pipeline(
             groundtruth_file = organize_folder_for_training(
                 root_data_dir, download_path, groundtruth_path
             )
-            # We point to file if video
+            # We point to file if is a video
             if source_folder.get("meta", {}).get("type") == "video":
                 video_file = get_source_video(download_path, source_folder["_id"], gc)
                 if video_file is not None:
@@ -284,6 +284,8 @@ def train_pipeline(
             process_log_file = tempfile.TemporaryFile()
             process_err_file = tempfile.TemporaryFile()
             manager.updateStatus(JobStatus.RUNNING)
+            cmd = " ".join(command)
+            print('Running command:', cmd)
             # Call viame_train_detector
             process = Popen(
                 " ".join(command),
