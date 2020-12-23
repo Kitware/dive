@@ -95,8 +95,6 @@ def run_pipeline(self: Task, params: PipelineJob):
 
     if input_type == 'video':
         # filter files for source video file
-        # TODO: Update this to  use validVideoTypes or prefilter before tasks.py and provide
-        # a list of media Ids for download instead of the recursive folder
         input_file = get_source_video(input_path, input_folder, self.girder_client)
         # Preserving default behavior incase new stuff fails
         if input_file is None:

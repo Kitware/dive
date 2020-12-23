@@ -219,6 +219,8 @@ def export_tracks_as_csv(
         metadata = None
         if fps is not None:
             metadata = {"fps": fps}
+            # TODO: REMOVE THIS RESET ONCE FIXED IN THE MAIN CONTAINER
+            # It is only here to enable training to work on videos because of a timestamp issue
             fps = None
         writeHeader(writer, metadata=metadata)
     for t in track_dict.values():

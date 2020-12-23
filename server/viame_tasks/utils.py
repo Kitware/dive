@@ -7,6 +7,9 @@ from typing import IO, Optional, Tuple
 
 from girder_worker.task import Task
 
+# TODO: Move viame_server.constants into a shared area like viame_utils to share constants
+validVideoFormats = [".mp4", ".avi", ".mov", ".mpg"]
+
 
 def read_and_close_process_outputs(
     process: Popen,
@@ -71,7 +74,6 @@ def organize_folder_for_training(
 
 
 def get_source_video(input_path: Path, folderId: str, girder_client):
-    validVideoFormats = [".mp4", ".avi", ".mov", ".mpg"]
     folder_contents = girder_client.listItem(folderId)
     for item in folder_contents:
         file_name = os.path.join(input_path, item.get("name"))
