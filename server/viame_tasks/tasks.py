@@ -13,7 +13,7 @@ from girder_worker.utils import JobManager, JobStatus
 from GPUtil import getGPUs
 
 from viame_tasks.utils import (
-    get_source_video,
+    get_source_video_filename,
     organize_folder_for_training,
     read_and_close_process_outputs,
 )
@@ -95,10 +95,13 @@ def run_pipeline(self: Task, params: PipelineJob):
 
     if input_type == 'video':
         # filter files for source video file
-        input_file = get_source_video(input_path, input_folder, self.girder_client)
+        source_video = get_source_video_filename(input_folder, self.girder_client)
         # Preserving default behavior incase new stuff fails
-        if input_file is None:
-            input_file = os.path.join(input_path, filtered_directory_files[0])
+        if source_video is None:
+            raise Exception(
+                'Error finding valid video file in folder: {}'.format(input_folder)
+            )
+        input_file = os.path.join(input_path, source_video)
 
         command = [
             f"cd {conf.viame_install_path} &&",
@@ -249,9 +252,14 @@ def train_pipeline(
             )
             # We point to file if is a video
             if source_folder.get("meta", {}).get("type") == "video":
-                video_file = get_source_video(download_path, source_folder["_id"], gc)
-                if video_file is not None:
-                    download_path = video_file
+                video_file = get_source_video_filename(source_folder["_id"], gc)
+                if video_file is None:
+                    raise Exception(
+                        'Error finding valid video file in folder: {}'.format(
+                            source_folder["_id"]
+                        )
+                    )
+                download_path = download_path / video_file
 
             input_groundtruth_list.append([download_path, groundtruth_file])
 
@@ -332,7 +340,7 @@ def train_pipeline(
 
 
 @app.task(bind=True, acks_late=True)
-def convert_video(self: Task, path, folderId, auxiliaryFolderId):
+def convert_video(self: Task, path, folderId, auxiliaryFolderId, itemId):
     # Delete is true, so the tempfile is deleted when the block closes.
     # We are only using this to get a name, and recreating it below.
     with tempfile.NamedTemporaryFile(suffix=".mp4", delete=True) as temp:
@@ -408,6 +416,7 @@ def convert_video(self: Task, path, folderId, auxiliaryFolderId):
         manager.updateStatus(JobStatus.PUSHING_OUTPUT)
         new_file = gc.uploadFileToFolder(folderId, output_path)
         gc.addMetadataToItem(new_file['itemId'], {"codec": "h264"})
+        gc.addMetadataToItem(itemId, {"source_video": True})
         gc.addMetadataToFolder(
             folderId,
             {

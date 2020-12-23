@@ -10,7 +10,7 @@ from typing import Dict, Generator, List, Tuple, Union
 from viame_server.serializers.models import Feature, Track, interpolate
 
 
-def writeHeader(writer: '_csv._writer', metadata: Dict = None):
+def writeHeader(writer: '_csv._writer', metadata: Dict):
     writer.writerow(
         [
             "# 1: Detection or Track-id",
@@ -26,12 +26,11 @@ def writeHeader(writer: '_csv._writer', metadata: Dict = None):
             "Confidence Pairs or Attributes",
         ]
     )
-    if metadata is not None:
-        metadata_list = []
-        for (key, value) in metadata.items():
-            metadata_list.append(f" {key}: {value}")
-        metadata_str = ",".join(metadata_list)
-        writer.writerow([f'# metadata -{metadata_str}'])
+    metadata_list = []
+    for (key, value) in metadata.items():
+        metadata_list.append(f" {key}: {value}")
+    metadata_str = ",".join(metadata_list)
+    writer.writerow([f'# metadata -{metadata_str}'])
 
     writer.writerow(
         [f'# Written on {datetime.datetime.now().ctime()} by: viame_web_csv_writer']
@@ -222,7 +221,7 @@ def export_tracks_as_csv(
             # TODO: REMOVE THIS RESET ONCE FIXED IN THE MAIN CONTAINER
             # It is only here to enable training to work on videos because of a timestamp issue
             fps = None
-        writeHeader(writer, metadata=metadata)
+        writeHeader(writer, metadata)
     for t in track_dict.values():
         track = Track(**t)
         if (not excludeBelowThreshold) or track.exceeds_thresholds(thresholds):
