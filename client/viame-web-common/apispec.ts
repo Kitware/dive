@@ -5,6 +5,7 @@ import Track, { TrackData, TrackId } from 'vue-media-annotator/track';
 import { CustomStyle } from 'vue-media-annotator/use/useStyling';
 
 type DatasetType = 'image-sequence' | 'video';
+type MultiTrackRecord = Record<string, TrackData>;
 
 interface Attribute {
   belongs: 'track' | 'detection';
@@ -66,7 +67,7 @@ interface DatasetSchema {
   // TODO: in a future version attributes will be part of the dataset schema
   // attributes: Attribute[];
   meta: DatasetMeta;
-  tracks: { [key: string]: TrackData };
+  tracks: MultiTrackRecord;
 }
 
 interface Api {
@@ -116,6 +117,7 @@ export type {
   DatasetSchema,
   DatasetType,
   FrameImage,
+  MultiTrackRecord,
   Pipe,
   Pipelines,
   SaveDetectionsArgs,

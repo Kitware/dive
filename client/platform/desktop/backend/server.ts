@@ -1,4 +1,5 @@
 import mime from 'mime-types';
+import { AddressInfo } from 'net';
 import pump from 'pump';
 import rangeParser from 'range-parser';
 import http from 'http';
@@ -128,5 +129,16 @@ const server = http.createServer((req, res) => {
   const handler = router.route(req);
   handler.process(req, res);
 });
+
+/**
+ * makeMediaUrl gets a URL for the given file path
+ */
+export function makeMediaUrl(filepath: string) {
+  const addr = server.address() as AddressInfo | null;
+  if (!addr) {
+    throw new Error('server has not initialized yet');
+  }
+  return `http://localhost:${addr.port}/api/media?path=${filepath}`;
+}
 
 export default server;

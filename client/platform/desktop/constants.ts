@@ -17,6 +17,11 @@ export const websafeImageTypes = [
   // 'image/webp',
 ];
 
+export const otherSupportedImageTypes = [
+  'image/avif',
+  'image/tiff',
+];
+
 export const JsonMetaCurrentVersion = 1;
 export const SettingsCurrentVersion = 1;
 
@@ -37,20 +42,37 @@ export interface Settings {
 export interface JsonMeta extends DatasetMetaMutable {
   // version used to manage schema migrations
   version: number;
+
   // immutable dataset type
   type: DatasetType;
+
   // immutable datset identifier
   id: string;
+
   // this will become mutable in the future.
   fps: number;
+
   // the original name derived from media path
   name: string;
-  // may point to media outside the project folder
-  originalMediaAbsolutePath: string;
-  // points to media inside the project folder
-  transcodedMediaRelativePath?: string;
+
+  // absolute base path on disk where dataset was imported from
+  originalBasePath: string;
+
+  // video file path
+  // relateive to originalBasePath
+  originalVideoFile: string;
+
+  // output of web safe transcoding
+  // relative to project path
+  transcodedVideoFile?: string;
+
   // ordered image filenames IF this is an image dataset
-  imageFiles: string[];
+  // relative to originalBasePath
+  originalImageFiles: string[];
+
+  // ordered image filenames of transcoded images
+  // relative to project path
+  transcodedImageFiles: string[];
 }
 
 export interface DesktopDataset extends DatasetSchema {
