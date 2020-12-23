@@ -416,7 +416,13 @@ def convert_video(self: Task, path, folderId, auxiliaryFolderId, itemId):
         manager.updateStatus(JobStatus.PUSHING_OUTPUT)
         new_file = gc.uploadFileToFolder(folderId, output_path)
         gc.addMetadataToItem(new_file['itemId'], {"codec": "h264"})
-        gc.addMetadataToItem(itemId, {"source_video": True})
+        gc.addMetadataToItem(
+            itemId,
+            {
+                "source_video": True,
+                "codec": videostream[0]["codec_name"],
+            },
+        )
         gc.addMetadataToFolder(
             folderId,
             {
