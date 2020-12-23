@@ -216,9 +216,9 @@ def export_tracks_as_csv(
     csvFile = io.StringIO()
     writer = csv.writer(csvFile)
     if header:
-        metadata = None
+        metadata = {}
         if fps is not None:
-            metadata = {"fps": fps}
+            metadata["fps"] = fps
             # TODO: REMOVE THIS RESET ONCE FIXED IN THE MAIN CONTAINER
             # It is only here to enable training to work on videos because of a timestamp issue
             fps = None
