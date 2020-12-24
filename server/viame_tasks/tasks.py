@@ -13,6 +13,7 @@ from girder_worker.utils import JobManager, JobStatus
 from GPUtil import getGPUs
 
 from viame_tasks.utils import (
+    get_source_video_filename,
     organize_folder_for_training,
     read_and_close_process_outputs,
 )
@@ -74,6 +75,7 @@ def run_pipeline(self: Task, params: PipelineJob):
         is_directory = os.path.isdir(full_file_path)
         if (not is_directory) and (
             not os.path.splitext(file_name)[1].lower() == '.csv'
+            and (not os.path.splitext(file_name)[1].lower() == '.json')
         ):
             filtered_directory_files.append(file_name)
 
@@ -92,7 +94,15 @@ def run_pipeline(self: Task, params: PipelineJob):
     pipeline_path = pipeline_path.replace(" ", r"\ ")
 
     if input_type == 'video':
-        input_file = os.path.join(input_path, filtered_directory_files[0])
+        # filter files for source video file
+        source_video = get_source_video_filename(input_folder, self.girder_client)
+        # Preserving default behavior incase new stuff fails
+        if source_video is None:
+            raise Exception(
+                'Error finding valid video file in folder: {}'.format(input_folder)
+            )
+        input_file = os.path.join(input_path, source_video)
+
         command = [
             f"cd {conf.viame_install_path} &&",
             ". ./setup_viame.sh &&",
@@ -240,6 +250,17 @@ def train_pipeline(
             groundtruth_file = organize_folder_for_training(
                 root_data_dir, download_path, groundtruth_path
             )
+            # We point to file if is a video
+            if source_folder.get("meta", {}).get("type") == "video":
+                video_file = get_source_video_filename(source_folder["_id"], gc)
+                if video_file is None:
+                    raise Exception(
+                        'Error finding valid video file in folder: {}'.format(
+                            source_folder["_id"]
+                        )
+                    )
+                download_path = download_path / video_file
+
             input_groundtruth_list.append([download_path, groundtruth_file])
 
         input_folder_file_list = root_data_dir / "input_folder_list.txt"
@@ -269,6 +290,8 @@ def train_pipeline(
             process_log_file = tempfile.TemporaryFile()
             process_err_file = tempfile.TemporaryFile()
             manager.updateStatus(JobStatus.RUNNING)
+            cmd = " ".join(command)
+            print('Running command:', cmd)
             # Call viame_train_detector
             process = Popen(
                 " ".join(command),
@@ -317,7 +340,7 @@ def train_pipeline(
 
 
 @app.task(bind=True, acks_late=True)
-def convert_video(self: Task, path, folderId, auxiliaryFolderId):
+def convert_video(self: Task, path, folderId, auxiliaryFolderId, itemId):
     # Delete is true, so the tempfile is deleted when the block closes.
     # We are only using this to get a name, and recreating it below.
     with tempfile.NamedTemporaryFile(suffix=".mp4", delete=True) as temp:
@@ -393,6 +416,13 @@ def convert_video(self: Task, path, folderId, auxiliaryFolderId):
         manager.updateStatus(JobStatus.PUSHING_OUTPUT)
         new_file = gc.uploadFileToFolder(folderId, output_path)
         gc.addMetadataToItem(new_file['itemId'], {"codec": "h264"})
+        gc.addMetadataToItem(
+            itemId,
+            {
+                "source_video": True,
+                "codec": videostream[0]["codec_name"],
+            },
+        )
         gc.addMetadataToFolder(
             folderId,
             {

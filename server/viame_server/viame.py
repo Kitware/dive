@@ -263,6 +263,7 @@ class Viame(Resource):
                     path=GetPathFromItemId(str(item["_id"])),
                     folderId=str(item["folderId"]),
                     auxiliaryFolderId=auxiliary["_id"],
+                    itemId=str(item["_id"]),
                     girder_job_title=(
                         "Converting {} to a web friendly format".format(
                             str(item["_id"])
