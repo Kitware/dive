@@ -33,7 +33,7 @@ SentryInit({
   release: process.env.VUE_APP_GIT_HASH,
 });
 
-const notificationBus = new NotificationBus(girderRest);
+const notificationBus = new NotificationBus(girderRest, { useEventSource: true });
 notificationBus.connect();
 
 girderRest.fetchUser().then(() => {
