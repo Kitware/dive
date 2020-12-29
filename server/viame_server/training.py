@@ -8,7 +8,12 @@ from girder.models.item import Item
 from girder.models.upload import Upload
 from typing_extensions import TypedDict
 
-from viame_server.constants import ViameDataFolderName
+from viame_server.constants import (
+    ImageSequenceType,
+    ViameDataFolderName,
+    VideoType,
+    safeImageRegex,
+)
 from viame_server.pipelines import get_static_pipelines_path
 from viame_server.serializers import viame
 
@@ -72,12 +77,30 @@ def csv_detection_file(folder, detection_item, user):
         b"".join(list(File().download(file, headers=False)())).decode()
     )
 
+    foldermeta = folder.get('meta', {})
+    fps = None
+    imageFiles = None
+    source_type = foldermeta.get('type', None)
+    if source_type == VideoType:
+        fps = foldermeta.get('fps', None)
+    elif source_type == ImageSequenceType:
+        imageFiles = [
+            f['name']
+            for f in Folder()
+            .childItems(folder, filters={"lowerName": {"$regex": safeImageRegex}})
+            .sort("lowerName")
+        ]
+
     thresholds = folder.get("meta", {}).get("confidenceFilters", {})
     csv_string = "".join(
         (
             line
             for line in viame.export_tracks_as_csv(
-                track_dict, excludeBelowThreshold=True, thresholds=thresholds
+                track_dict,
+                excludeBelowThreshold=True,
+                thresholds=thresholds,
+                filenames=imageFiles,
+                fps=fps,
             )
         )
     )

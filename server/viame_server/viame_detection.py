@@ -46,6 +46,7 @@ class ViameDetection(Resource):
             {
                 'folderId': folder['_id'],
                 'meta.codec': 'h264',
+                'meta.source_video': {'$exists': False},
             }
         )
         if item:

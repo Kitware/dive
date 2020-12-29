@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  defineComponent, ref, toRef, computed,
+  defineComponent, ref, toRef, computed, Ref,
 } from '@vue/composition-api';
 import type { Vue } from 'vue/types/vue';
 
@@ -40,7 +40,7 @@ import {
   useSave,
   useSettings,
 } from 'viame-web-common/use';
-import { useApi, FrameImage } from 'viame-web-common/apispec';
+import { useApi, FrameImage, DatasetType } from 'viame-web-common/apispec';
 
 export default defineComponent({
   components: {
@@ -83,6 +83,7 @@ export default defineComponent({
     });
     const fps = ref(10 as string | number);
     const imageData = ref([] as FrameImage[]);
+    const datasetType: Ref<DatasetType> = ref('image-sequence');
     const videoUrl = ref(undefined as undefined | string);
     const frame = ref(0); // the currently displayed frame number
     const { loadDataset } = useApi();
@@ -90,15 +91,6 @@ export default defineComponent({
     // with stale data from props, for example if a persistent store
     // like vuex is used to drive them.
     const loaded = ref(false);
-    const annotatorType = computed(() => {
-      if (imageData.value.length) {
-        return 'ImageAnnotator';
-      }
-      if (videoUrl.value !== undefined && videoUrl.value.length) {
-        return 'VideoAnnotator';
-      }
-      return '';
-    });
     const frameRate = computed(() => {
       if (fps.value) {
         if (typeof fps.value === 'string') {
@@ -326,6 +318,7 @@ export default defineComponent({
       fps.value = ds.meta.fps;
       imageData.value = ds.meta.imageData;
       videoUrl.value = ds.meta.videoUrl;
+      datasetType.value = ds.meta.type;
       /* populate tracks */
       Object.values(ds.tracks).forEach(
         (trackData) => insertTrack(Track.fromJSON(trackData)),
@@ -339,8 +332,8 @@ export default defineComponent({
 
     return {
       /* props */
-      annotatorType,
       confidenceThreshold,
+      datasetType,
       editingTrack,
       editingMode,
       eventChartData,
@@ -438,7 +431,7 @@ export default defineComponent({
       </sidebar>
       <v-col style="position: relative">
         <component
-          :is="annotatorType"
+          :is="datasetType === 'image-sequence' ? 'image-annotator' : 'video-annotator'"
           v-if="(imageData.length || videoUrl) && loaded"
           ref="playbackComponent"
           v-mousetrap="[
@@ -452,7 +445,7 @@ export default defineComponent({
         >
           <template slot="control">
             <controls-container
-              v-bind="{ lineChartData, eventChartData }"
+              v-bind="{ lineChartData, eventChartData, imageData, datasetType }"
               @select-track="handler.trackSelect"
             />
           </template>

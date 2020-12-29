@@ -4,6 +4,7 @@ from subprocess import Popen, TimeoutExpired
 from tempfile import mktemp
 from typing import IO, Optional, Tuple
 
+from girder_client import GirderClient
 from girder_worker.task import Task
 
 
@@ -66,18 +67,27 @@ def organize_folder_for_training(
     groundtruth = data_dir / "groundtruth.csv"
     shutil.move(str(downloaded_groundtruth), groundtruth)
 
-    # Generate labels.txt
-    labels = set()
-    with open(groundtruth, 'r') as groundtruth_infile:
-        for line in groundtruth_infile.readlines():
-            if not line.strip().startswith('#'):
-                row = [c.strip() for c in line.split(",")]
+    return groundtruth
 
-                # Confidence pairs start at the 9th index
-                # 9th index is label, 10th is confidence, 11th is another label, etc.
-                for label in row[9::2]:
-                    labels.add(label)
 
-    with open(root_training_dir / "labels.txt", "w") as labels_file:
-        label_lines = [f"{label}\n" for label in labels]
-        labels_file.writelines(label_lines)
+def get_source_video_filename(folderId: str, girder_client: GirderClient):
+    """
+    Searches a folderId for source videos that are compatible with training/pipelines
+    Will look for {"source_video":True} metadata first, then fall back to the converted video
+    indicated by  {"codec":"h264"}
+    If neither found it will return None
+
+    :folderId: Current path to wehere the items sit
+
+    :girder_client: girder_client used to request the data
+    """
+
+    folder_contents = girder_client.listItem(folderId)
+    backup_converted_file = None
+    for item in folder_contents:
+        file_name = item.get("name")
+        if item.get("meta", {}).get("source_video") is True:
+            return file_name
+        if item.get("meta", {}).get("codec") == "h264":
+            backup_converted_file = file_name
+    return backup_converted_file
