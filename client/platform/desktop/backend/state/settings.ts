@@ -1,10 +1,10 @@
 import type { Settings } from 'platform/desktop/constants';
 
-let settings: Settings;
+let settings: Settings | undefined;
 
 function get(): Settings {
   if (settings === undefined) {
-    throw new Error('Settings has not been initialized!');
+    throw new Error('settings has not been initialized.');
   }
   return settings;
 }

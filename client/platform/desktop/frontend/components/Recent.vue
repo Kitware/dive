@@ -4,8 +4,7 @@ import { defineComponent } from '@vue/composition-api';
 
 import { DatasetType } from 'viame-web-common/apispec';
 
-import { openFromDisk } from '../api/main';
-import { importMedia } from '../store';
+import { openFromDisk, importMedia } from '../api';
 import { getRecents } from '../store/dataset';
 import BrowserLink from './BrowserLink.vue';
 import NavigationBar from './NavigationBar.vue';

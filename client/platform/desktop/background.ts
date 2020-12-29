@@ -1,10 +1,10 @@
 import {
-  app, protocol, screen, BrowserWindow,
+  app, protocol, screen, BrowserWindow, session,
 } from 'electron';
 import { createProtocol } from 'vue-cli-plugin-electron-builder/lib';
 import installExtension, { VUEJS_DEVTOOLS } from 'electron-devtools-installer';
 
-import server from './backend/server';
+import { listen, close } from './backend/server';
 import ipcListen from './backend/ipcService';
 
 app.commandLine.appendSwitch('no-sandbox');
@@ -23,12 +23,21 @@ protocol.registerSchemesAsPrivileged([
 ]);
 
 function cleanup() {
-  server.close();
+  close();
   app.quit();
 }
 
 function createWindow() {
   const size = screen.getPrimaryDisplay().workAreaSize;
+  // set a strict content security policy
+  session.defaultSession.webRequest.onHeadersReceived((details, cb) => {
+    cb({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': ['script-src \'self\'; frame-src \'none\';'],
+      },
+    });
+  });
   // Create the browser window.
   win = new BrowserWindow({
     width: Math.min(size.width, 1300),
@@ -58,7 +67,7 @@ function createWindow() {
     win = null;
   });
 
-  server.listen(0, () => {
+  listen((server) => {
     let address = server.address();
     let port = 0;
     if (typeof address === 'object' && address !== null) {

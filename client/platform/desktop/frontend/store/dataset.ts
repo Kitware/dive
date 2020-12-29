@@ -1,7 +1,7 @@
 import Vue from 'vue';
 import { uniqBy } from 'lodash';
 import Install, { ref, computed } from '@vue/composition-api';
-import { DesktopDataset, JsonMeta } from '../constants';
+import { DesktopDataset, JsonMeta } from 'platform/desktop/constants';
 
 const RecentsKey = 'desktop.recent';
 

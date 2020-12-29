@@ -4,10 +4,10 @@ import {
 } from '@vue/composition-api';
 
 import { remote } from 'electron';
-import { NvidiaSmiReply } from '../constants';
+import { NvidiaSmiReply } from 'platform/desktop/constants';
 
 import { settings, setSettings, validateSettings } from '../store/settings';
-import { nvidiaSmi } from '../api/main';
+import { nvidiaSmi } from '../api';
 
 import BrowserLink from './BrowserLink.vue';
 import NavigationBar from './NavigationBar.vue';

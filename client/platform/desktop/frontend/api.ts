@@ -1,19 +1,16 @@
-import { AddressInfo } from 'net';
 import type { FileFilter } from 'electron';
 
+import axios, { AxiosInstance } from 'axios';
 import { ipcRenderer, remote } from 'electron';
 
 import type {
-  Attribute, DatasetType, Pipe, Pipelines, TrainingConfigs,
+  Attribute, DatasetMetaMutable, DatasetType, Pipe, Pipelines, SaveDetectionsArgs, TrainingConfigs,
 } from 'viame-web-common/apispec';
 
 import {
-  DesktopJob, NvidiaSmiReply, RunPipeline, websafeVideoTypes,
+  DesktopDataset,
+  DesktopJob, JsonMeta, NvidiaSmiReply, RunPipeline, websafeVideoTypes,
 } from 'platform/desktop/constants';
-
-function mediaServerInfo(): Promise<AddressInfo> {
-  return ipcRenderer.invoke('server-info');
-}
 
 function nvidiaSmi(): Promise<NvidiaSmiReply> {
   return ipcRenderer.invoke('nvidia-smi');
@@ -21,6 +18,20 @@ function nvidiaSmi(): Promise<NvidiaSmiReply> {
 
 function openLink(url: string): Promise<void> {
   return ipcRenderer.invoke('open-link-in-browser', url);
+}
+
+/**
+ * Initialize an axios client instance given the server
+ * address details fetched from backend over ipc
+ */
+let _axiosClient: AxiosInstance; // do not use elsewhere
+async function getClient(): Promise<AxiosInstance> {
+  if (_axiosClient === undefined) {
+    const addr = await ipcRenderer.invoke('server-info');
+    const baseURL = `http://${addr.address}:${addr.port}/api`;
+    _axiosClient = axios.create({ baseURL });
+  }
+  return _axiosClient;
 }
 
 async function openFromDisk(datasetType: DatasetType) {
@@ -35,6 +46,30 @@ async function openFromDisk(datasetType: DatasetType) {
     filters,
   });
   return results;
+}
+
+async function loadDataset(id: string) {
+  const client = await getClient();
+  const { data } = await client.get<DesktopDataset>(`dataset/${id}`);
+  return data;
+}
+
+async function saveMetadata(id: string, args: DatasetMetaMutable) {
+  const client = await getClient();
+  return client.post(`dataset/${id}/meta`, args);
+}
+
+async function saveDetections(id: string, args: SaveDetectionsArgs) {
+  const client = await getClient();
+  return client.post(`dataset/${id}/detections`, args);
+}
+
+async function importMedia(path: string): Promise<JsonMeta> {
+  const client = await getClient();
+  const { data } = await client.post<JsonMeta>('import', undefined, {
+    params: { path },
+  });
+  return data;
 }
 
 async function getAttributes() {
@@ -77,7 +112,8 @@ async function runPipeline(itemId: string, pipeline: Pipe) {
 }
 
 export {
-  /* Standard common APIs */
+  /* Standard Specification APIs */
+  loadDataset,
   getAttributes,
   setAttribute,
   deleteAttribute,
@@ -85,9 +121,11 @@ export {
   runPipeline,
   getTrainingConfigurations,
   runTraining,
+  saveMetadata,
+  saveDetections,
   /* Nonstandard APIs */
+  importMedia,
   openFromDisk,
   openLink,
   nvidiaSmi,
-  mediaServerInfo,
 };

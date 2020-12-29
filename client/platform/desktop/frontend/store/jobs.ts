@@ -6,7 +6,7 @@ import Vue from 'vue';
 import Install, {
   ref, Ref, set, computed,
 } from '@vue/composition-api';
-import { DesktopDataset, DesktopJob, DesktopJobUpdate } from '../constants';
+import { DesktopDataset, DesktopJob, DesktopJobUpdate } from 'platform/desktop/constants';
 
 // TODO remove this: this won't be necessary in Vue 3
 Vue.use(Install);

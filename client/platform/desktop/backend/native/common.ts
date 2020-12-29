@@ -1,7 +1,6 @@
 /**
  * Common native implementations
  */
-import { AddressInfo } from 'net';
 import npath from 'path';
 import fs from 'fs-extra';
 import { shell } from 'electron';
@@ -17,7 +16,6 @@ import {
 } from 'platform/desktop/constants';
 import * as viameSerializers from 'platform/desktop/backend/serializers/viame';
 
-import { makeMediaUrl } from '../server';
 import { cleanString, makeid } from './utils';
 
 const ProjectsFolderName = 'DIVE_Projects';
@@ -124,12 +122,11 @@ async function _loadJsonTracks(tracksAbsPath: string): Promise<MultiTrackRecord>
 
 /**
  * loadDataset load detections and meta from disk
- * @param settings user settings
- * @param datasetId user data folder name
- * @param addr server address TODO REMOVE THIS
  */
 async function loadDataset(
-  settings: Settings, datasetId: string, addr: AddressInfo,
+  settings: Settings,
+  datasetId: string,
+  makeMediaUrl: (path: string) => string,
 ): Promise<DesktopDataset> {
   const projectDirData = await getValidatedProjectDir(settings, datasetId);
   const projectMetaData = await loadMetadata(projectDirData.metaFileAbsPath);
@@ -142,15 +139,15 @@ async function loadDataset(
     /* If the video has been transcoded, use that video */
     if (projectMetaData.transcodedVideoFile) {
       const video = npath.join(projectDirData.basePath, projectMetaData.transcodedVideoFile);
-      videoUrl = makeMediaUrl(video, addr);
+      videoUrl = makeMediaUrl(video);
     } else {
       const video = npath.join(projectMetaData.originalBasePath, projectMetaData.originalVideoFile);
-      videoUrl = makeMediaUrl(video, addr);
+      videoUrl = makeMediaUrl(video);
     }
   } else if (projectMetaData.type === 'image-sequence') {
     /* TODO: if images were transcoded, use them */
     imageData = projectMetaData.originalImageFiles.map((filename: string) => ({
-      url: makeMediaUrl(npath.join(projectMetaData.originalBasePath, filename), addr),
+      url: makeMediaUrl(npath.join(projectMetaData.originalBasePath, filename)),
       filename,
     }));
   } else {

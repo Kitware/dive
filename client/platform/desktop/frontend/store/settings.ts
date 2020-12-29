@@ -1,8 +1,7 @@
 import Vue from 'vue';
 import Install, { ref } from '@vue/composition-api';
 import { ipcRenderer } from 'electron';
-
-import { Settings } from '../constants';
+import { Settings } from 'platform/desktop/constants';
 
 // TODO remove this: this won't be necessary in Vue 3
 Vue.use(Install);
