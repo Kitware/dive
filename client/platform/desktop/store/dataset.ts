@@ -1,9 +1,7 @@
-import path from 'path';
-
 import Vue from 'vue';
-import { uniq } from 'lodash';
+import { uniqBy } from 'lodash';
 import Install, { ref, computed } from '@vue/composition-api';
-import { DesktopDataset } from '../constants';
+import { DesktopDataset, JsonMeta } from '../constants';
 
 const RecentsKey = 'desktop.recent';
 
@@ -24,31 +22,29 @@ function getDataset(id: string) {
 /**
  * Load recent datasets from localstorage
  */
-function getRecents(): path.ParsedPath[] {
+function getRecents(): JsonMeta[] {
   const arr = window.localStorage.getItem(RecentsKey);
-  let returnVal = [] as path.ParsedPath[];
   try {
     if (arr) {
       const maybeArr = JSON.parse(arr);
       if (maybeArr.length) {
-        returnVal = maybeArr.map((p: string) => path.parse(p));
+        return maybeArr;
       }
     }
   } catch (err) {
-    return returnVal;
+    return [];
   }
-  return returnVal;
+  return [];
 }
 
 /**
  * Add ID to recent datasets
  * @param id dataset id path
  */
-function setRecents(id: string) {
+function setRecents(meta: JsonMeta) {
   const recents = getRecents();
-  recents.splice(0, 0, path.parse(id)); // verify that it's a valid path
-  let recentsStrings = recents.map((r) => path.join(r.dir, r.base));
-  recentsStrings = uniq(recentsStrings);
+  recents.splice(0, 0, meta); // verify that it's a valid path
+  const recentsStrings = uniqBy(recents, ({ id }) => id);
   window.localStorage.setItem(RecentsKey, JSON.stringify(recentsStrings));
 }
 
@@ -60,11 +56,12 @@ function setRecents(id: string) {
  */
 function setDataset(id: string, ds: DesktopDataset) {
   Vue.set(dsmap.value, id, ds);
-  setRecents(id);
+  setRecents(ds.meta);
 }
 
 export {
   getDataset,
   setDataset,
   getRecents,
+  RecentsKey,
 };

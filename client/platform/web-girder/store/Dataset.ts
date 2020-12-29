@@ -8,14 +8,17 @@ import { getFolder, getItemDownloadUri } from '../api/girder.service';
 import { getValidWebImages } from '../api/viame.service';
 import { getClipMeta } from '../api/viameDetection.service';
 
-export interface VIAMEDataset extends GirderModel {
-  meta: DatasetMeta;
+export interface GirderDataset extends GirderModel {
+  meta: {
+    ffprobe_info?: Record<string, string>;
+    annotate: boolean;
+  } & DatasetMeta;
 }
 
 const defaultFrameRate = 30;
 
 interface DatasetState {
-  dataset: VIAMEDataset | null;
+  dataset: GirderDataset | null;
 }
 
 const datasetModule: Module<DatasetState, never> = {
@@ -49,13 +52,13 @@ const datasetModule: Module<DatasetState, never> = {
     },
   },
   mutations: {
-    set(state, { dataset }: { dataset: VIAMEDataset }) {
+    set(state, { dataset }: { dataset: GirderDataset }) {
       state.dataset = dataset;
     },
   },
   actions: {
-    async load({ commit }, datasetId: string): Promise<VIAMEDataset> {
-      const dataset = await getFolder(datasetId) as VIAMEDataset;
+    async load({ commit }, datasetId: string): Promise<GirderDataset> {
+      const dataset = await getFolder(datasetId) as GirderDataset;
       let videoUrl = '';
       let imageData = [] as FrameImage[];
 

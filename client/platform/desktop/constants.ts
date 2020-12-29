@@ -1,5 +1,5 @@
 import type {
-  DatasetMeta, DatasetMetaMutable, DatasetSchema, DatasetType,
+  DatasetMeta, DatasetMetaMutable, DatasetSchema, DatasetType, Pipe,
 } from 'viame-web-common/apispec';
 
 export const websafeVideoTypes = [
@@ -17,7 +17,7 @@ export const websafeImageTypes = [
   // 'image/webp',
 ];
 
-export const otherSupportedImageTypes = [
+export const otherImageTypes = [
   'image/avif',
   'image/tiff',
 ];
@@ -35,9 +35,9 @@ export interface Settings {
 }
 
 /**
- * JsonMetadata is a SUBSET of DatasetMeta contained within
+ * JsonMeta is a SUBSET of DatasetMeta contained within
  * the JsonFileSchema.  The remaining parts of DatasetMeta must
- * be calculated at load time.
+ * be generated at load time.
  */
 export interface JsonMeta extends DatasetMetaMutable {
   // version used to manage schema migrations
@@ -72,11 +72,15 @@ export interface JsonMeta extends DatasetMetaMutable {
 
   // ordered image filenames of transcoded images
   // relative to project path
-  transcodedImageFiles: string[];
+  transcodedImageFiles?: string[];
+
+  // If the dataset required transcoding, specify the job
+  // key that ran transcoding
+  transcodingJobKey?: string;
 }
 
 export interface DesktopDataset extends DatasetSchema {
-  meta: JsonMeta & DatasetMeta; // JsonMeta satisfies DatasetMeta
+  meta: JsonMeta & DatasetMeta;
 }
 
 interface NvidiaSmiTextRecord {
@@ -103,8 +107,8 @@ export interface DesktopJob {
   key: string;
   // jobType identify type of job
   jobType: 'pipeline' | 'training';
-  // pipelineName of the pipe or job being run
-  pipelineName: string;
+  // pipe
+  pipeline: Pipe;
   // datasetIds of the involved datasets
   datasetIds: string[];
   // pid of the process spawned
@@ -126,5 +130,5 @@ export interface DesktopJobUpdate extends DesktopJob {
 
 export interface RunPipeline {
   datasetId: string;
-  pipelineName: string;
+  pipeline: Pipe;
 }

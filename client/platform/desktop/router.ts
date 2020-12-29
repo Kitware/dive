@@ -26,7 +26,7 @@ export default new Router({
       component: Jobs,
     },
     {
-      path: '/viewer/:path',
+      path: '/viewer/:id',
       name: 'viewer',
       component: ViewerLoader,
       props: true,

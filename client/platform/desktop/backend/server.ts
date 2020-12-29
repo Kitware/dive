@@ -37,7 +37,6 @@ const withErrorHandler = (handler: http.RequestListener): http.RequestListener =
   try {
     return handler(req, res);
   } catch (err) {
-    console.error('BAD');
     return fail(res, 500, 'Server error');
   }
 };
@@ -46,21 +45,6 @@ router.register('/api', withErrorHandler((req, res) => {
   res.writeHead(200, { 'Content-Type': 'text/plain' });
   res.write('ELECTRON_BACKEND');
   res.end();
-}));
-
-router.register('/api/dataset', withErrorHandler((req, res) => {
-  const { url } = req;
-  if (!url) {
-    throw new Error('Impossible scenario, req.url was empty');
-  }
-  const parsedurl = parser.parse(url, true);
-  let datasetId = parsedurl.query ? parsedurl.query.datasetId : undefined;
-
-  if (datasetId === undefined || Array.isArray(datasetId)) {
-    return fail(res, 404, `Invalid dataset ID: ${datasetId}`);
-  }
-
-  datasetId = decodeURI(datasetId);
 }));
 
 router.register('/api/media', withErrorHandler((req, res) => {
@@ -132,12 +116,14 @@ const server = http.createServer((req, res) => {
 
 /**
  * makeMediaUrl gets a URL for the given file path
+ * TODO: this will move to the backend, and should be called
+ * directly on the server
  */
-export function makeMediaUrl(filepath: string) {
-  const addr = server.address() as AddressInfo | null;
-  if (!addr) {
-    throw new Error('server has not initialized yet');
-  }
+export function makeMediaUrl(filepath: string, addr: AddressInfo): string {
+  // const addr = server.address() as AddressInfo | null;
+  // if (!addr) {
+  //   throw new Error('server has not initialized yet');
+  // }
   return `http://localhost:${addr.port}/api/media?path=${filepath}`;
 }
 

@@ -5,6 +5,7 @@ import { defineComponent } from '@vue/composition-api';
 import { DatasetType } from 'viame-web-common/apispec';
 
 import { openFromDisk } from '../api/main';
+import { importMedia } from '../store';
 import { getRecents } from '../store/dataset';
 import BrowserLink from './BrowserLink.vue';
 import NavigationBar from './NavigationBar.vue';
@@ -19,9 +20,10 @@ export default defineComponent({
     async function open(dstype: DatasetType) {
       const ret = await openFromDisk(dstype);
       if (!ret.canceled) {
+        const meta = await importMedia(ret.filePaths[0]);
         root.$router.push({
           name: 'viewer',
-          params: { path: ret.filePaths[0] },
+          params: { id: meta.id },
         });
       }
     }
@@ -93,7 +95,7 @@ export default defineComponent({
             </h2>
             <div
               v-for="recent in recents"
-              :key="recent.dir + recent.base"
+              :key="recent.id"
               class="pa-1"
             >
               <h3 class="text-body-1">
@@ -101,15 +103,23 @@ export default defineComponent({
                   class="pr-2"
                   color="primary lighten-2"
                 >
-                  {{ recent.ext ? 'mdi-file-video' : 'mdi-folder-open' }}
+                  {{
+                    (recent.type === 'video')
+                      ? 'mdi-file-video'
+                      : (recent.originalImageFiles.length > 1)
+                        ? 'mdi-image-multiple'
+                        : 'mdi-image'
+                  }}
                 </v-icon>
                 <router-link
-                  :to="{ name: 'viewer', params: { path: join(recent.dir, recent.base) } }"
+                  :to="{ name: 'viewer', params: { id: recent.id } }"
                   class="primary--text text--lighten-3 text-decoration-none"
                 >
-                  {{ recent.base }}
+                  {{ recent.name }}
                 </router-link>
-                <span class="grey--text px-4">{{ recent.dir }}</span>
+                <span class="grey--text px-4">
+                  {{ recent.originalBasePath }}
+                </span>
               </h3>
             </div>
           </v-card>

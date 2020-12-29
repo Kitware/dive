@@ -71,7 +71,7 @@ interface DatasetSchema {
 }
 
 interface Api {
-  loadDataset(): Promise<DatasetSchema>;
+  loadDataset(datasetId: string): Promise<DatasetSchema>;
   /**
    * @deprecated soon attributes will come from loadDataset()
    */

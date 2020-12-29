@@ -6,8 +6,8 @@
 
 <script lang="ts">
 import { defineComponent } from '@vue/composition-api';
-import { DatasetMeta, provideApi } from 'viame-web-common/apispec';
-import { VIAMEDataset } from './store/Dataset';
+import { DatasetSchema, provideApi } from 'viame-web-common/apispec';
+import { GirderDataset } from './store/Dataset';
 import {
   getAttributes,
   setAttribute,
@@ -27,9 +27,13 @@ export default defineComponent({
   name: 'App',
   components: {},
   setup(_, { root }) {
-    async function loadMetadata(datasetId: string): Promise<DatasetMeta> {
-      const dataset: VIAMEDataset = await root.$store.dispatch('Dataset/load', datasetId);
-      return dataset.meta;
+    async function loadDataset(datasetId: string): Promise<DatasetSchema> {
+      const dataset: GirderDataset = await root.$store.dispatch('Dataset/load', datasetId);
+      const detections = await loadDetections(datasetId);
+      return {
+        meta: dataset.meta,
+        tracks: detections,
+      };
     }
 
     provideApi({
@@ -40,9 +44,8 @@ export default defineComponent({
       runPipeline,
       getTrainingConfigurations,
       runTraining,
-      loadDetections,
+      loadDataset,
       saveDetections,
-      loadMetadata,
       saveMetadata,
     });
   },

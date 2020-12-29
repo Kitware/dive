@@ -1,23 +1,19 @@
+import { AddressInfo } from 'net';
 import type { FileFilter } from 'electron';
 
 import { ipcRenderer, remote } from 'electron';
 
-import {
-  Attribute,
-  DatasetMetaMutable,
-  DatasetType, Pipelines, TrainingConfigs,
+import type {
+  Attribute, DatasetType, Pipe, Pipelines, TrainingConfigs,
 } from 'viame-web-common/apispec';
 
-import common from '../backend/platforms/common';
 import {
-  DesktopJob, NvidiaSmiReply, RunPipeline,
-  websafeVideoTypes, Settings,
-} from '../constants';
+  DesktopJob, NvidiaSmiReply, RunPipeline, websafeVideoTypes,
+} from 'platform/desktop/constants';
 
-
-const { loadDetections, saveDetections } = common;
-
-
+function mediaServerInfo(): Promise<AddressInfo> {
+  return ipcRenderer.invoke('server-info');
+}
 
 function nvidiaSmi(): Promise<NvidiaSmiReply> {
   return ipcRenderer.invoke('nvidia-smi');
@@ -55,8 +51,8 @@ async function deleteAttribute(data: Attribute) {
   return Promise.resolve([] as Attribute[]);
 }
 
-async function getPipelineList(settings: Settings): Promise<Pipelines> {
-  return ipcRenderer.invoke('get-pipeline-list', settings);
+async function getPipelineList(): Promise<Pipelines> {
+  return ipcRenderer.invoke('get-pipeline-list');
 }
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -71,16 +67,10 @@ async function runTraining(
   return Promise.resolve();
 }
 
-// eslint-disable-next-line
-async function saveMetadata(datasetId: string, metadata: DatasetMetaMutable) {
-  return Promise.resolve();
-}
-
-async function runPipeline(itemId: string, pipeline: string, settings: Settings) {
+async function runPipeline(itemId: string, pipeline: Pipe) {
   const args: RunPipeline = {
-    pipelineName: pipeline,
+    pipeline,
     datasetId: itemId,
-    settings,
   };
   const job: DesktopJob = await ipcRenderer.invoke('run-pipeline', args);
   return job;
@@ -95,11 +85,9 @@ export {
   runPipeline,
   getTrainingConfigurations,
   runTraining,
-  loadDetections,
-  saveDetections,
-  saveMetadata,
   /* Nonstandard APIs */
   openFromDisk,
   openLink,
   nvidiaSmi,
+  mediaServerInfo,
 };

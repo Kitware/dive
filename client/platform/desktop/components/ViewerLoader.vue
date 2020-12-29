@@ -14,20 +14,20 @@ export default defineComponent({
     Viewer,
   },
   props: {
-    path: {
+    id: {
       type: String,
       required: true,
     },
   },
   setup(props) {
-    const dataset = getDataset(props.path);
+    const dataset = getDataset(props.id);
     return { dataset };
   },
 });
 </script>
 
 <template>
-  <Viewer :dataset-id="path">
+  <Viewer :dataset-id="id">
     <template #title>
       <v-tabs
         icons-and-text
@@ -47,11 +47,11 @@ export default defineComponent({
         v-if="dataset"
         class="title pl-3"
       >
-        {{ dataset.name }}
+        {{ dataset.meta.name }}
       </span>
     </template>
     <template #title-right>
-      <RunPipelineMenu :selected-dataset-ids="[path]" />
+      <RunPipelineMenu :selected-dataset-ids="[id]" />
     </template>
   </Viewer>
 </template>

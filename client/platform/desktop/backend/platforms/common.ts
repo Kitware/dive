@@ -1,31 +1,30 @@
 /**
  * Common native implementations
  */
+import { AddressInfo } from 'net';
 import npath from 'path';
 import fs from 'fs-extra';
 import { shell } from 'electron';
 import mime from 'mime-types';
 import moment from 'moment';
-import type { TrackData } from 'vue-media-annotator/track';
 import {
-  DatasetType, MultiTrackRecord, Pipelines, SaveDetectionsArgs, FrameImage,
+  DatasetType, MultiTrackRecord, Pipelines, SaveDetectionsArgs, FrameImage, DatasetMetaMutable,
 } from 'viame-web-common/apispec';
 
 import {
-  JsonMeta, Settings, websafeImageTypes, websafeVideoTypes, JsonMetaCurrentVersion, DesktopDataset, otherImageTypes,
+  websafeImageTypes, websafeVideoTypes, otherImageTypes,
+  JsonMeta, Settings, JsonMetaCurrentVersion, DesktopDataset,
 } from 'platform/desktop/constants';
 import * as viameSerializers from 'platform/desktop/backend/serializers/viame';
 
 import { makeMediaUrl } from '../server';
 import { cleanString, makeid } from './utils';
-import { number } from 'yargs';
 
 const ProjectsFolderName = 'DIVE_Projects';
-const TrainedPipelinesFolderName = 'DIVE_Trained_Pipelines';
+const JobsFolderName = 'DIVE_Jobs';
 const AuxFolderName = 'auxiliary';
-const JobFolderName = 'job_runs';
 
-const JsonFileName = /^result(_.*)?\.json$/;
+const JsonTrackFileName = /^result(_.*)?\.json$/;
 const JsonMetaFileName = 'meta.json';
 const CsvFileName = /^.*\.csv$/;
 
@@ -38,7 +37,7 @@ async function _findJsonTrackFile(basePath: string): Promise<string | null> {
   const contents = await fs.readdir(basePath);
   const jsonFileCandidates: string[] = [];
   await Promise.all(contents.map(async (name) => {
-    if (JsonFileName.test(name)) {
+    if (JsonTrackFileName.test(name)) {
       const fullPath = npath.join(basePath, name);
       const statResult = await fs.stat(fullPath);
       if (statResult.isFile()) {
@@ -47,7 +46,7 @@ async function _findJsonTrackFile(basePath: string): Promise<string | null> {
     }
   }));
   if (jsonFileCandidates.length > 1) {
-    throw new Error(`too many matches for json annotation file in ${basePath}`);
+    throw new Error(`too many matches for json annotation file in ${basePath}.  cannot determine correct choice.  please verify only 1 json annotation file exists.`);
   } else if (jsonFileCandidates.length === 1) {
     return jsonFileCandidates[0];
   }
@@ -55,38 +54,38 @@ async function _findJsonTrackFile(basePath: string): Promise<string | null> {
 }
 
 /**
- * _getProjectDir returns filepaths to required members of a dataset project directory.
- *
- * REQUIRED members: meta.json, results*.json
- *
- * OPTIONAL members: aux/ will be created if none exists
- *
- * @param settings user settings
- * @param datasetId dataset id string
+ * getProjectDir returns filepaths to required members of a dataset project directory.
  */
-async function _getProjectDir(settings: Settings, datasetId: string) {
+function getProjectDir(settings: Settings, datasetId: string) {
   const basePath = npath.join(settings.dataPath, ProjectsFolderName, datasetId);
-  if (!fs.pathExistsSync(basePath)) {
-    throw new Error(`missing project directory ${basePath}`);
-  }
-
   const auxDirAbsPath = npath.join(basePath, AuxFolderName);
-  fs.ensureDirSync(auxDirAbsPath);
-
   const metaFileAbsPath = npath.join(basePath, JsonMetaFileName);
-  if (!fs.pathExists(metaFileAbsPath)) {
-    throw new Error(`missing metadata json file ${metaFileAbsPath}`);
-  }
-
-  const trackFileAbsPath = await _findJsonTrackFile(basePath);
-  if (trackFileAbsPath === null) {
-    throw new Error(`missing track json file in ${basePath}`);
-  }
-
   return {
     auxDirAbsPath,
     basePath,
     metaFileAbsPath,
+  };
+}
+
+/**
+ * REQUIRED members: meta.json, results*.json
+ * OPTIONAL members: aux/ will be created if none exists
+ */
+async function getValidatedProjectDir(settings: Settings, datasetId: string) {
+  const projectInfo = getProjectDir(settings, datasetId);
+  fs.ensureDirSync(projectInfo.auxDirAbsPath);
+  if (!fs.pathExistsSync(projectInfo.basePath)) {
+    throw new Error(`missing project directory ${projectInfo.basePath}`);
+  }
+  if (!fs.pathExists(projectInfo.metaFileAbsPath)) {
+    throw new Error(`missing metadata json file ${projectInfo.metaFileAbsPath}`);
+  }
+  const trackFileAbsPath = await _findJsonTrackFile(projectInfo.basePath);
+  if (trackFileAbsPath === null) {
+    throw new Error(`missing track json file in ${projectInfo.basePath}`);
+  }
+  return {
+    ...projectInfo,
     trackFileAbsPath,
   };
 }
@@ -95,7 +94,7 @@ async function _getProjectDir(settings: Settings, datasetId: string) {
  * _loadJsonMeta processes dataset information from json
  * @param metaPath a known, existing path
  */
-async function _loadJsonMeta(metaAbsPath: string): Promise<JsonMeta> {
+async function loadMetadata(metaAbsPath: string): Promise<JsonMeta> {
   const rawBuffer = await fs.readFile(metaAbsPath, 'utf-8');
   const metaJson = JSON.parse(rawBuffer);
   /* check if this file meets the current schema version */
@@ -127,10 +126,13 @@ async function _loadJsonTracks(tracksAbsPath: string): Promise<MultiTrackRecord>
  * loadDataset load detections and meta from disk
  * @param settings user settings
  * @param datasetId user data folder name
+ * @param addr server address TODO REMOVE THIS
  */
-async function loadDataset(settings: Settings, datasetId: string): Promise<DesktopDataset> {
-  const projectDirData = await _getProjectDir(settings, datasetId);
-  const projectMetaData = await _loadJsonMeta(projectDirData.metaFileAbsPath);
+async function loadDataset(
+  settings: Settings, datasetId: string, addr: AddressInfo,
+): Promise<DesktopDataset> {
+  const projectDirData = await getValidatedProjectDir(settings, datasetId);
+  const projectMetaData = await loadMetadata(projectDirData.metaFileAbsPath);
 
   let videoUrl = '';
   let imageData = [] as FrameImage[];
@@ -139,18 +141,16 @@ async function loadDataset(settings: Settings, datasetId: string): Promise<Deskt
   if (projectMetaData.type === 'video') {
     /* If the video has been transcoded, use that video */
     if (projectMetaData.transcodedVideoFile) {
-      videoUrl = makeMediaUrl(
-        npath.join(projectDirData.basePath, projectMetaData.transcodedVideoFile),
-      );
+      const video = npath.join(projectDirData.basePath, projectMetaData.transcodedVideoFile);
+      videoUrl = makeMediaUrl(video, addr);
     } else {
-      videoUrl = makeMediaUrl(
-        npath.join(projectMetaData.originalBasePath, projectMetaData.originalVideoFile),
-      );
+      const video = npath.join(projectMetaData.originalBasePath, projectMetaData.originalVideoFile);
+      videoUrl = makeMediaUrl(video, addr);
     }
   } else if (projectMetaData.type === 'image-sequence') {
     /* TODO: if images were transcoded, use them */
     imageData = projectMetaData.originalImageFiles.map((filename: string) => ({
-      url: makeMediaUrl(npath.join(projectMetaData.originalBasePath, filename)),
+      url: makeMediaUrl(npath.join(projectMetaData.originalBasePath, filename), addr),
       filename,
     }));
   } else {
@@ -204,27 +204,20 @@ async function getPipelineList(settings: Settings): Promise<Pipelines> {
 }
 
 /**
- * Create aux directory if none exists
- * @param baseDir parent
- */
-async function getAuxFolder(baseDir: string): Promise<string> {
-  const auxFolderPath = npath.join(baseDir, AuxFolderName);
-  if (!fs.existsSync(auxFolderPath)) {
-    await fs.mkdir(auxFolderPath);
-  }
-  return auxFolderPath;
-}
-
-/**
  * Create `job_runs/{runfoldername}` folder, usually inside an aux folder
  * @param baseDir parent
  * @param pipeline name
  */
-async function createKwiverRunWorkingDir(datasetName: string, baseDir: string, pipeline: string) {
-  const jobFolderPath = npath.join(baseDir, JobFolderName);
+async function createKwiverRunWorkingDir(
+  settings: Settings, jsonMetaList: JsonMeta[], pipeline: string,
+) {
+  if (jsonMetaList.length === 0) {
+    throw new Error('At least 1 jsonMeta item must be provided');
+  }
+  const jobFolderPath = npath.join(settings.dataPath, JobsFolderName);
   // eslint won't recognize \. as valid escape
   // eslint-disable-next-line no-useless-escape
-  const safeDatasetName = datasetName.replace(/[\.\s/]+/g, '_');
+  const safeDatasetName = jsonMetaList[0].name.replace(/[\.\s/]+/g, '_');
   const runFolderName = moment().format(`[${safeDatasetName}_${pipeline}]_MM-DD-yy_hh-mm-ss`);
   const runFolderPath = npath.join(jobFolderPath, runFolderName);
   if (!fs.existsSync(jobFolderPath)) {
@@ -236,60 +229,84 @@ async function createKwiverRunWorkingDir(datasetName: string, baseDir: string, p
 
 /**
  * _saveSerialized save pre-serialized tracks to disk
- * @param trackData json serialized track object
  */
 async function _saveSerialized(
+  settings: Settings,
   datasetId: string,
   trackData: MultiTrackRecord,
 ) {
-  const time = moment().format('MM-DD-YYYY_HH-MM-SS');
+  const time = moment().format('MM-DD-YYYY_hh-mm-ss');
   const newFileName = `result_${time}.json`;
-  const base = await getDatasetBase(datasetId);
+  const projectInfo = getProjectDir(settings, datasetId);
 
-  const auxFolderPath = await getAuxFolder(base.basePath);
-
-  /* Move old file if it exists */
-  if (base.jsonFile) {
+  try {
+    const validatedInfo = await getValidatedProjectDir(settings, datasetId);
     await fs.move(
-      npath.join(base.basePath, base.jsonFile),
-      npath.join(auxFolderPath, base.jsonFile),
+      validatedInfo.trackFileAbsPath,
+      npath.join(
+        validatedInfo.auxDirAbsPath,
+        npath.basename(validatedInfo.trackFileAbsPath),
+      ),
     );
+  } catch (err) {
+    // Some part of the project dir didn't exist
   }
-
   const serialized = JSON.stringify(trackData);
-
-  /* Save new file */
-  await fs.writeFile(npath.join(base.basePath, newFileName), serialized);
+  await fs.writeFile(npath.join(projectInfo.basePath, newFileName), serialized);
 }
 
 /**
  * Save detections to json file in aux
- * @param datasetId path
- * @param args save args
  */
 async function saveDetections(settings: Settings, datasetId: string, args: SaveDetectionsArgs) {
   /* Update existing track file */
-  const projectDirInfo = await _getProjectDir(settings, datasetId);
+  const projectDirInfo = await getValidatedProjectDir(settings, datasetId);
   const existing = await _loadJsonTracks(projectDirInfo.trackFileAbsPath);
   args.delete.forEach((trackId) => delete existing[trackId.toString()]);
   args.upsert.forEach((track, trackId) => {
     existing[trackId.toString()] = track.serialize();
   });
-  return _saveSerialized(datasetId, existing);
+  return _saveSerialized(settings, datasetId, existing);
+}
+
+/**
+ * _saveAsJson saves directly to disk
+ */
+async function _saveAsJson(absPath: string, data: unknown) {
+  const serialized = JSON.stringify(data, null, 2);
+  await fs.writeFile(absPath, serialized);
+}
+
+async function saveMetadata(settings: Settings, datasetId: string, args: DatasetMetaMutable) {
+  const projectDirInfo = await getValidatedProjectDir(settings, datasetId);
+  const existing = await loadMetadata(projectDirInfo.metaFileAbsPath);
+  if (args.confidenceFilters) {
+    existing.confidenceFilters = args.confidenceFilters;
+  }
+  if (args.customTypeStyling) {
+    existing.customTypeStyling = args.customTypeStyling;
+  }
+  _saveAsJson(projectDirInfo.metaFileAbsPath, existing);
 }
 
 /**
  * processOtherAnnotationFiles imports data from external annotation formats
+ * given a list of candidate file paths.
  *
- * Only VIAME CSV is currently supported.
+ * SUPPORTED FORMATS:
+ * VIAME CSV
  *
  * @param paths paths to possible input annotation files
  * @param datasetId dataset id path
  */
 async function processOtherAnnotationFiles(
-  absPaths: string[], datasetId: string,
-): Promise<{ fps?: number }> {
+  settings: Settings,
+  datasetId: string,
+  absPaths: string[],
+): Promise<{ fps?: number; processedFiles: string[] }> {
   const fps = undefined;
+  const processedFiles = []; // which files were processed to generate the detections
+
   for (let i = 0; i < absPaths.length; i += 1) {
     const path = absPaths[i];
     if (!fs.existsSync(path)) {
@@ -300,27 +317,28 @@ async function processOtherAnnotationFiles(
       // Attempt to process the file
       // eslint-disable-next-line no-await-in-loop
       const tracks = await viameSerializers.parseFile(path);
-      const data = {} as Record<string, TrackData>;
+      const data: MultiTrackRecord = {};
       tracks.forEach((t) => { data[t.trackId.toString()] = t; });
       // eslint-disable-next-line no-await-in-loop
-      await _saveSerialized(datasetId, data);
+      await _saveSerialized(settings, datasetId, data);
+      processedFiles.push(path);
       break; // Exit on first successful detection load
     }
   }
-  return { fps };
+  return { fps, processedFiles };
 }
 
 async function _initializeAppDataDir(settings: Settings) {
   await fs.ensureDir(settings.dataPath);
   await fs.ensureDir(npath.join(settings.dataPath, ProjectsFolderName));
-  await fs.ensureDir(npath.join(settings.dataPath, TrainedPipelinesFolderName));
+  await fs.ensureDir(npath.join(settings.dataPath, JobsFolderName));
 }
 
 /**
  * Intialize a new project directory
  * @returns absolute path to new project dcirectory
  */
-async function _initializeProjectDir(settings: Settings, jsonMeta: JsonMeta): string {
+async function _initializeProjectDir(settings: Settings, jsonMeta: JsonMeta): Promise<string> {
   const projectDir = npath.join(settings.dataPath, ProjectsFolderName, jsonMeta.id);
   await _initializeAppDataDir(settings);
   await fs.ensureDir(projectDir);
@@ -334,7 +352,7 @@ async function _initializeProjectDir(settings: Settings, jsonMeta: JsonMeta): st
  * @param path path to import dir/file
  * @returns datasetId
  */
-async function importMedia(settings: Settings, path: string): Promise<string> {
+async function importMedia(settings: Settings, path: string): Promise<JsonMeta> {
   let datasetType: DatasetType;
 
   const exists = fs.existsSync(path);
@@ -353,21 +371,32 @@ async function importMedia(settings: Settings, path: string): Promise<string> {
 
   const dsName = npath.parse(path).name;
   const dsId = `${cleanString(dsName).substr(0, 20)}_${makeid(10)}`;
-  let datasetFolderPath = path;
+
+  const jsonMeta: JsonMeta = {
+    version: JsonMetaCurrentVersion,
+    type: datasetType,
+    id: dsId,
+    fps: 5, // TODO
+    originalBasePath: path,
+    originalVideoFile: '',
+    originalImageFiles: [],
+    transcodedVideoFile: '', // TODO: this is empty (see above)
+    transcodedImageFiles: [], // TODO: this is empty
+    name: dsName,
+  };
+
+  /* TODO: Look for an EXISTING meta.json file to override the above */
+
   if (datasetType === 'video') {
     // get parent folder, since videos reference a file directly
-    datasetFolderPath = npath.dirname(path);
+    jsonMeta.originalBasePath = npath.dirname(path);
   }
 
-  let imageFiles: string[] = [];
-  const transcodedImageFiles: string[] = []; // TODO: unused
-  let videoFile = '';
-  const transcodedVideoFile = ''; // TODO: unused
-  const contents = await fs.readdir(datasetFolderPath);
+  const contents = await fs.readdir(jsonMeta.originalBasePath);
 
   /* Extract and validate media from import path */
-  if (datasetType === 'video') {
-    videoFile = npath.basename(path);
+  if (jsonMeta.type === 'video') {
+    jsonMeta.originalVideoFile = npath.basename(path);
     const mimetype = mime.lookup(path);
     if (mimetype) {
       if (websafeImageTypes.includes(mimetype) || otherImageTypes.includes(mimetype)) {
@@ -376,64 +405,69 @@ async function importMedia(settings: Settings, path: string): Promise<string> {
         /* TODO: Kick off video inspection and maybe transcode */
       }
     } else {
-      throw new Error(`Could not determine video MIME type for ${path}`);
+      throw new Error(`could not determine video MIME type for ${path}`);
     }
   } else if (datasetType === 'image-sequence') {
-    imageFiles = contents.filter((filename) => {
-      const abspath = npath.join(datasetFolderPath, filename);
+    jsonMeta.originalImageFiles = contents.filter((filename) => {
+      const abspath = npath.join(jsonMeta.originalBasePath, filename);
       const mimetype = mime.lookup(abspath);
       /* TODO: support transcoding of non-web-safe image types */
       return !!(mimetype && websafeImageTypes.includes(mimetype));
     });
+    if (jsonMeta.originalImageFiles.length === 0) {
+      throw new Error(`no images found in ${path}`);
+    }
   } else {
-    throw new Error('Only video and image-sequence types are supported');
+    throw new Error('only video and image-sequence types are supported');
   }
 
-
-  // TODO: parse FPS from CSV if it exists
-
-  const jsonMeta: JsonMeta = {
-    version: JsonMetaCurrentVersion,
-    type: datasetType,
-    id: dsId,
-    fps: 5, // TODO
-    originalMediaAbsolutePath: path,
-    imageFiles,
-    name: dsName,
-  };
-
   const projectDirAbsPath = await _initializeProjectDir(settings, jsonMeta);
+  await _saveAsJson(npath.join(projectDirAbsPath, JsonMetaFileName), jsonMeta);
 
-  /* Look for JSON track file */
-  const trackFileAbsPath = await _findJsonTrackFile(datasetFolderPath);
+  let foundDetections = false;
+
+  /* Look for JSON track file as first priority */
+  const trackFileAbsPath = await _findJsonTrackFile(jsonMeta.originalBasePath);
   if (trackFileAbsPath !== null) {
     /* Move the track file into the new project directory */
     await fs.move(
       trackFileAbsPath,
       npath.join(projectDirAbsPath, npath.basename(trackFileAbsPath)),
     );
-  /* Look for other supported annotation types */
-  } else {
+    foundDetections = true;
+  }
+  /* Look for other types of annotation files as a second priority */
+  if (!foundDetections) {
     const csvFileCandidates = contents
       .filter((v) => CsvFileName.test(v))
-      .map((filename) => npath.join(datasetFolderPath, filename));
-    const { fps } = await processOtherAnnotationFiles(csvFileCandidates, dsId);
-    
+      .map((filename) => npath.join(jsonMeta.originalBasePath, filename));
+    const { fps, processedFiles } = await processOtherAnnotationFiles(
+      settings, dsId, csvFileCandidates,
+    );
+    if (fps) jsonMeta.fps = fps;
+    foundDetections = processedFiles.length > 0;
+  }
+  /* Finally create an empty file as fallback */
+  if (!foundDetections) {
+    await _saveSerialized(settings, dsId, {});
   }
 
+  return jsonMeta;
 }
-
 
 async function openLink(url: string) {
   shell.openExternal(url);
 }
 
 export default {
-  openLink,
-  getAuxFolder,
   createKwiverRunWorkingDir,
   getPipelineList,
-  loadDetections,
+  getProjectDir,
+  importMedia,
+  loadDataset,
+  loadMetadata,
+  openLink,
+  processOtherAnnotationFiles,
   saveDetections,
-  postprocess,
+  saveMetadata,
 };

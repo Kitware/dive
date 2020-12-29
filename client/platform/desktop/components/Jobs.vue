@@ -81,12 +81,12 @@ export default defineComponent({
                 </v-col>
                 <v-col cols="8">
                   <v-card-title class="primary--text text--lighten-3 text-decoration-none pt-0">
-                    {{ job.datasets[0].name }}
+                    {{ job.datasets[0].meta.name }}
                   </v-card-title>
                   <v-card-subtitle>
-                    [pipe] {{ job.job.pipelineName }}
+                    [pipe] {{ job.job.pipeline.name }}
                     <br>[pid] {{ job.job.pid }}
-                    <br>[path] {{ job.datasets[0].basePath }}
+                    <br>[path] {{ job.datasets[0].meta.originalBasePath }}
                   </v-card-subtitle>
                 </v-col>
                 <v-col cols="3">

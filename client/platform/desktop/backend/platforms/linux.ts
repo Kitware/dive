@@ -10,7 +10,7 @@ import {
   Settings, SettingsCurrentVersion,
   DesktopJob, DesktopJobUpdate, RunPipeline,
   NvidiaSmiReply,
-} from '../../constants';
+} from 'platform/desktop/constants';
 
 import common from './common';
 
@@ -57,42 +57,41 @@ async function runPipeline(
   runPipelineArgs: RunPipeline,
   updater: (msg: DesktopJobUpdate) => void,
 ): Promise<DesktopJob> {
-  const { datasetId, pipelineName } = runPipelineArgs;
+  const { datasetId, pipeline } = runPipelineArgs;
   const isValid = await validateViamePath(settings);
   if (isValid !== true) {
     throw new Error(isValid);
   }
 
   const setupScriptPath = npath.join(settings.viamePath, 'setup_viame.sh');
-  const pipelinePath = npath.join(settings.viamePath, 'configs/pipelines', pipelineName);
-  const datasetInfo = await common.getDatasetBase(datasetId);
-  const auxPath = await common.getAuxFolder(datasetInfo.basePath);
-  const jobWorkDir = await common.createKwiverRunWorkingDir(
-    datasetInfo.name, auxPath, pipelineName,
-  );
+  const pipelinePath = npath.join(settings.viamePath, 'configs/pipelines', pipeline.pipe);
+  const projectInfo = await common.getProjectDir(settings, datasetId);
+  const meta = await common.loadMetadata(projectInfo.metaFileAbsPath);
+  const jobWorkDir = await common.createKwiverRunWorkingDir(settings, [meta], pipeline.name);
 
   const detectorOutput = npath.join(jobWorkDir, 'detector_output.csv');
   const trackOutput = npath.join(jobWorkDir, 'track_output.csv');
   const joblog = npath.join(jobWorkDir, 'runlog.txt');
 
   let command: string[] = [];
-  if (datasetInfo.datasetType === 'video') {
+  if (meta.type === 'video') {
+    const videoAbsPath = npath.join(meta.originalBasePath, meta.originalVideoFile);
     command = [
       `source ${setupScriptPath} &&`,
       'kwiver runner',
       '-s input:video_reader:type=vidl_ffmpeg',
       `-p ${pipelinePath}`,
-      `-s input:video_filename=${datasetId}`,
+      `-s input:video_filename=${videoAbsPath}`,
       `-s detector_writer:file_name=${detectorOutput}`,
       `-s track_writer:file_name=${trackOutput}`,
       `| tee ${joblog}`,
     ];
-  } else if (datasetInfo.datasetType === 'image-sequence') {
+  } else if (meta.type === 'image-sequence') {
     // Create frame image manifest
     const manifestFile = npath.join(jobWorkDir, 'image-manifest.txt');
     // map image file names to absolute paths
-    const fileData = datasetInfo.imageFiles
-      .map((f) => npath.join(datasetInfo.basePath, f))
+    const fileData = meta.originalImageFiles
+      .map((f) => npath.join(meta.originalBasePath, f))
       .join('\n');
     await fs.writeFile(manifestFile, fileData);
     command = [
@@ -115,7 +114,7 @@ async function runPipeline(
     key: `pipeline_${job.pid}_${jobWorkDir}`,
     jobType: 'pipeline',
     pid: job.pid,
-    pipelineName,
+    pipeline,
     workingDir: jobWorkDir,
     datasetIds: [datasetId],
     exitCode: job.exitCode,
@@ -149,7 +148,9 @@ async function runPipeline(
     // eslint-disable-next-line no-console
     if (code === 0) {
       try {
-        await common.postprocess([trackOutput, detectorOutput], datasetId);
+        await common.processOtherAnnotationFiles(
+          settings, datasetId, [trackOutput, detectorOutput],
+        );
       } catch (err) {
         console.error(err);
       }

@@ -30,13 +30,13 @@ export default defineComponent({
       smi.value = await nvidiaSmi();
     });
 
-    async function openPath() {
+    async function openPath(name: 'viamePath' | 'dataPath') {
       const result = await remote.dialog.showOpenDialog({
         properties: ['openDirectory'],
-        defaultPath: localSettings.value.viamePath,
+        defaultPath: localSettings.value[name],
       });
       if (!result.canceled) {
-        [localSettings.value.viamePath] = result.filePaths;
+        [localSettings.value[name]] = result.filePaths;
       }
     }
 
@@ -86,15 +86,39 @@ export default defineComponent({
                 block
                 color="primary"
                 class="mb-6"
-                @click="openPath()"
+                @click="openPath('viamePath')"
               >
-                Open
+                Choose
                 <v-icon class="ml-2">
                   mdi-folder-open
                 </v-icon>
               </v-btn>
             </v-col>
-            <v-row />
+          </v-row>
+          <v-row>
+            <v-col cols="9">
+              <v-text-field
+                v-model="localSettings.dataPath"
+                label="Project Data Storage Path"
+                hint="project annotation and metadata goes here."
+                dense
+                persistent-hint
+              />
+            </v-col>
+            <v-col>
+              <v-btn
+                large
+                block
+                color="primary"
+                class="mb-6"
+                @click="openPath('dataPath')"
+              >
+                Choose
+                <v-icon class="ml-2">
+                  mdi-folder-open
+                </v-icon>
+              </v-btn>
+            </v-col>
           </v-row>
         </v-card-text>
         <v-card-text>
