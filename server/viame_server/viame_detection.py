@@ -289,17 +289,17 @@ class ViameDetection(Resource):
     )
     def save_detection(self, folder, tracks):
         user = self.getCurrentUser()
-        upsert: Dict[str, dict] = tracks.get('upsert', {})
+        upsert: List[dict] = tracks.get('upsert', [])
         delete: List[str] = tracks.get('delete', [])
         track_dict = getTrackData(self._load_detections(folder))
 
         for track_id in delete:
             track_dict.pop(str(track_id), None)
-        for track_id, track in upsert.items():
+        for track in upsert:
             validated: models.Track = models.Track(**track)
-            track_dict[str(track_id)] = validated.dict(exclude_none=True)
+            track_dict[str(validated.trackId)] = validated.dict(exclude_none=True)
 
-        upserted_len = len(upsert.keys())
+        upserted_len = len(upsert)
         deleted_len = len(delete)
 
         if upserted_len or deleted_len:

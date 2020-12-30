@@ -4,6 +4,7 @@ import { defineComponent, ref, onBeforeUnmount } from '@vue/composition-api';
 import BrowserLink from './BrowserLink.vue';
 import NavigationBar from './NavigationBar.vue';
 
+import { datasets } from '../store/dataset';
 import { recentHistory } from '../store/jobs';
 
 export default defineComponent({
@@ -23,6 +24,7 @@ export default defineComponent({
 
     return {
       clockDriver,
+      datasets,
       recentHistory,
       moment,
       utc,
@@ -81,12 +83,12 @@ export default defineComponent({
                 </v-col>
                 <v-col cols="8">
                   <v-card-title class="primary--text text--lighten-3 text-decoration-none pt-0">
-                    {{ job.datasets[0].meta.name }}
+                    {{ datasets[job.datasets[0]].name }}
                   </v-card-title>
                   <v-card-subtitle>
                     [pipe] {{ job.job.pipeline.name }}
                     <br>[pid] {{ job.job.pid }}
-                    <br>[path] {{ job.datasets[0].meta.originalBasePath }}
+                    <br>[path] {{ datasets[job.datasets[0]].originalBasePath }}
                   </v-card-subtitle>
                 </v-col>
                 <v-col cols="3">

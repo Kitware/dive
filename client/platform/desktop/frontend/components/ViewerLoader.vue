@@ -47,7 +47,7 @@ export default defineComponent({
         v-if="dataset"
         class="title pl-3"
       >
-        {{ dataset.meta.name }}
+        {{ dataset.name }}
       </span>
     </template>
     <template #title-right>

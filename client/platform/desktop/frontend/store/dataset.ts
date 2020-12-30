@@ -1,14 +1,14 @@
 import Vue from 'vue';
 import { uniqBy } from 'lodash';
 import Install, { ref, computed } from '@vue/composition-api';
-import { DesktopDataset, JsonMeta } from 'platform/desktop/constants';
+import { JsonMeta } from 'platform/desktop/constants';
 
 const RecentsKey = 'desktop.recent';
 
 // TODO remove this: this won't be necessary in Vue 3
 Vue.use(Install);
 
-const dsmap = ref({} as Record<string, DesktopDataset>);
+const datasets = ref({} as Record<string, JsonMeta>);
 
 /**
  * Return reactive variable that will update
@@ -16,7 +16,7 @@ const dsmap = ref({} as Record<string, DesktopDataset>);
  * @param id dataset id path
  */
 function getDataset(id: string) {
-  return computed(() => dsmap.value[id]);
+  return computed(() => datasets.value[id]);
 }
 
 /**
@@ -42,26 +42,17 @@ function getRecents(): JsonMeta[] {
  * @param id dataset id path
  */
 function setRecents(meta: JsonMeta) {
+  Vue.set(datasets.value, meta.id, meta);
   const recents = getRecents();
   recents.splice(0, 0, meta); // verify that it's a valid path
   const recentsStrings = uniqBy(recents, ({ id }) => id);
   window.localStorage.setItem(RecentsKey, JSON.stringify(recentsStrings));
 }
 
-/**
- * Set properties of in-memory dataset,
- * and persist ID to recents
- * @param id dataset id path
- * @param ds properties
- */
-function setDataset(id: string, ds: DesktopDataset) {
-  Vue.set(dsmap.value, id, ds);
-  setRecents(ds.meta);
-}
-
 export {
+  datasets,
   getDataset,
-  setDataset,
   getRecents,
+  setRecents,
   RecentsKey,
 };

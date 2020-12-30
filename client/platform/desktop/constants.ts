@@ -1,5 +1,5 @@
 import type {
-  DatasetMeta, DatasetMetaMutable, DatasetSchema, DatasetType, Pipe,
+  DatasetMeta, DatasetMetaMutable, DatasetType, Pipe,
 } from 'viame-web-common/apispec';
 
 export const websafeVideoTypes = [
@@ -79,9 +79,7 @@ export interface JsonMeta extends DatasetMetaMutable {
   transcodingJobKey?: string;
 }
 
-export interface DesktopDataset extends DatasetSchema {
-  meta: JsonMeta & DatasetMeta;
-}
+export type DesktopMetadata = DatasetMeta & JsonMeta;
 
 interface NvidiaSmiTextRecord {
   _text: string;

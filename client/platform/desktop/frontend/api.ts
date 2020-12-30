@@ -4,35 +4,17 @@ import axios, { AxiosInstance } from 'axios';
 import { ipcRenderer, remote } from 'electron';
 
 import type {
-  Attribute, DatasetMetaMutable, DatasetType, Pipe, Pipelines, SaveDetectionsArgs, TrainingConfigs,
+  Attribute, DatasetMetaMutable, DatasetType,
+  Pipe, Pipelines, SaveDetectionsArgs, TrainingConfigs,
 } from 'viame-web-common/apispec';
 
 import {
-  DesktopDataset,
-  DesktopJob, JsonMeta, NvidiaSmiReply, RunPipeline, websafeVideoTypes,
+  DesktopJob, DesktopMetadata, JsonMeta, NvidiaSmiReply, RunPipeline, websafeVideoTypes,
 } from 'platform/desktop/constants';
 
-function nvidiaSmi(): Promise<NvidiaSmiReply> {
-  return ipcRenderer.invoke('nvidia-smi');
-}
-
-function openLink(url: string): Promise<void> {
-  return ipcRenderer.invoke('open-link-in-browser', url);
-}
-
 /**
- * Initialize an axios client instance given the server
- * address details fetched from backend over ipc
+ * Native functions that run entirely in the renderer
  */
-let _axiosClient: AxiosInstance; // do not use elsewhere
-async function getClient(): Promise<AxiosInstance> {
-  if (_axiosClient === undefined) {
-    const addr = await ipcRenderer.invoke('server-info');
-    const baseURL = `http://${addr.address}:${addr.port}/api`;
-    _axiosClient = axios.create({ baseURL });
-  }
-  return _axiosClient;
-}
 
 async function openFromDisk(datasetType: DatasetType) {
   let filters: FileFilter[] = [];
@@ -48,9 +30,52 @@ async function openFromDisk(datasetType: DatasetType) {
   return results;
 }
 
-async function loadDataset(id: string) {
+/**
+ * IPC api for small-body messages
+ */
+
+function nvidiaSmi(): Promise<NvidiaSmiReply> {
+  return ipcRenderer.invoke('nvidia-smi');
+}
+
+function openLink(url: string): Promise<void> {
+  return ipcRenderer.invoke('open-link-in-browser', url);
+}
+
+async function getPipelineList(): Promise<Pipelines> {
+  return ipcRenderer.invoke('get-pipeline-list');
+}
+
+async function runPipeline(itemId: string, pipeline: Pipe) {
+  const args: RunPipeline = {
+    pipeline,
+    datasetId: itemId,
+  };
+  const job: DesktopJob = await ipcRenderer.invoke('run-pipeline', args);
+  return job;
+}
+
+/**
+ * REST api for larger-body messages
+ */
+
+/**
+ * Initialize an axios client instance given the server
+ * address details fetched from backend over ipc
+ */
+let _axiosClient: AxiosInstance; // do not use elsewhere
+async function getClient(): Promise<AxiosInstance> {
+  if (_axiosClient === undefined) {
+    const addr = await ipcRenderer.invoke('server-info');
+    const baseURL = `http://${addr.address}:${addr.port}/api`;
+    _axiosClient = axios.create({ baseURL });
+  }
+  return _axiosClient;
+}
+
+async function loadMetadata(id: string) {
   const client = await getClient();
-  const { data } = await client.get<DesktopDataset>(`dataset/${id}`);
+  const { data } = await client.get<DesktopMetadata>(`dataset/${id}/meta`);
   return data;
 }
 
@@ -72,6 +97,10 @@ async function importMedia(path: string): Promise<JsonMeta> {
   return data;
 }
 
+/**
+ * Unimplemented sections of the API
+ */
+
 async function getAttributes() {
   return Promise.resolve([] as Attribute[]);
 }
@@ -86,10 +115,6 @@ async function deleteAttribute(data: Attribute) {
   return Promise.resolve([] as Attribute[]);
 }
 
-async function getPipelineList(): Promise<Pipelines> {
-  return ipcRenderer.invoke('get-pipeline-list');
-}
-
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function getTrainingConfigurations(): Promise<TrainingConfigs> {
   return Promise.resolve({ configs: [], default: '' });
@@ -102,18 +127,9 @@ async function runTraining(
   return Promise.resolve();
 }
 
-async function runPipeline(itemId: string, pipeline: Pipe) {
-  const args: RunPipeline = {
-    pipeline,
-    datasetId: itemId,
-  };
-  const job: DesktopJob = await ipcRenderer.invoke('run-pipeline', args);
-  return job;
-}
-
 export {
   /* Standard Specification APIs */
-  loadDataset,
+  loadMetadata,
   getAttributes,
   setAttribute,
   deleteAttribute,

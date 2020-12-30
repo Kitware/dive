@@ -12,7 +12,7 @@ import {
 
 import {
   websafeImageTypes, websafeVideoTypes, otherImageTypes,
-  JsonMeta, Settings, JsonMetaCurrentVersion, DesktopDataset,
+  JsonMeta, Settings, JsonMetaCurrentVersion, DesktopMetadata,
 } from 'platform/desktop/constants';
 import * as viameSerializers from 'platform/desktop/backend/serializers/viame';
 
@@ -89,10 +89,10 @@ async function getValidatedProjectDir(settings: Settings, datasetId: string) {
 }
 
 /**
- * _loadJsonMeta processes dataset information from json
+ * loadJsonMeta processes dataset information from json
  * @param metaPath a known, existing path
  */
-async function loadMetadata(metaAbsPath: string): Promise<JsonMeta> {
+async function loadJsonMetadata(metaAbsPath: string): Promise<JsonMeta> {
   const rawBuffer = await fs.readFile(metaAbsPath, 'utf-8');
   const metaJson = JSON.parse(rawBuffer);
   /* check if this file meets the current schema version */
@@ -120,16 +120,13 @@ async function _loadJsonTracks(tracksAbsPath: string): Promise<MultiTrackRecord>
   return annotationData;
 }
 
-/**
- * loadDataset load detections and meta from disk
- */
-async function loadDataset(
+async function loadMetadata(
   settings: Settings,
   datasetId: string,
   makeMediaUrl: (path: string) => string,
-): Promise<DesktopDataset> {
+): Promise<DesktopMetadata> {
   const projectDirData = await getValidatedProjectDir(settings, datasetId);
-  const projectMetaData = await loadMetadata(projectDirData.metaFileAbsPath);
+  const projectMetaData = await loadJsonMetadata(projectDirData.metaFileAbsPath);
 
   let videoUrl = '';
   let imageData = [] as FrameImage[];
@@ -155,13 +152,15 @@ async function loadDataset(
   }
 
   return {
-    meta: {
-      ...projectMetaData,
-      videoUrl,
-      imageData,
-    },
-    tracks: await _loadJsonTracks(projectDirData.trackFileAbsPath),
+    ...projectMetaData,
+    videoUrl,
+    imageData,
   };
+}
+
+async function loadDetections(settings: Settings, datasetId: string) {
+  const projectDirData = await getValidatedProjectDir(settings, datasetId);
+  return _loadJsonTracks(projectDirData.trackFileAbsPath);
 }
 
 /**
@@ -260,8 +259,8 @@ async function saveDetections(settings: Settings, datasetId: string, args: SaveD
   const projectDirInfo = await getValidatedProjectDir(settings, datasetId);
   const existing = await _loadJsonTracks(projectDirInfo.trackFileAbsPath);
   args.delete.forEach((trackId) => delete existing[trackId.toString()]);
-  args.upsert.forEach((track, trackId) => {
-    existing[trackId.toString()] = track.serialize();
+  args.upsert.forEach((track) => {
+    existing[track.trackId.toString()] = track;
   });
   return _saveSerialized(settings, datasetId, existing);
 }
@@ -276,7 +275,7 @@ async function _saveAsJson(absPath: string, data: unknown) {
 
 async function saveMetadata(settings: Settings, datasetId: string, args: DatasetMetaMutable) {
   const projectDirInfo = await getValidatedProjectDir(settings, datasetId);
-  const existing = await loadMetadata(projectDirInfo.metaFileAbsPath);
+  const existing = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
   if (args.confidenceFilters) {
     existing.confidenceFilters = args.confidenceFilters;
   }
@@ -461,8 +460,9 @@ export default {
   getPipelineList,
   getProjectDir,
   importMedia,
-  loadDataset,
   loadMetadata,
+  loadJsonMetadata,
+  loadDetections,
   openLink,
   processOtherAnnotationFiles,
   saveDetections,

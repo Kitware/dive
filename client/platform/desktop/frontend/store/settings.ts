@@ -37,7 +37,12 @@ async function init() {
     if (settingsStr) {
       const maybeSettings = JSON.parse(settingsStr);
       if (isSettings(maybeSettings)) {
-        settingsvalue = maybeSettings;
+        settingsvalue = {
+          // Populate from defaults to include any missing properties
+          ...settingsvalue,
+          // Overwrite with explicitly persisted settings
+          ...maybeSettings,
+        };
       }
     }
   } catch {

@@ -1,6 +1,7 @@
 /**
  * VIAME process manager for linux platform
  */
+import os from 'os';
 import npath from 'path';
 import { spawn } from 'child_process';
 import fs from 'fs-extra';
@@ -20,7 +21,7 @@ const DefaultSettings: Settings = {
   // A path to the VIAME base install
   viamePath: '/opt/noaa/viame',
   // Path to a user data folder
-  dataPath: '~/viamedata',
+  dataPath: npath.join(os.homedir(), 'VIAME_DATA'),
 };
 
 async function validateViamePath(settings: Settings): Promise<true | string> {
@@ -66,7 +67,7 @@ async function runPipeline(
   const setupScriptPath = npath.join(settings.viamePath, 'setup_viame.sh');
   const pipelinePath = npath.join(settings.viamePath, 'configs/pipelines', pipeline.pipe);
   const projectInfo = await common.getProjectDir(settings, datasetId);
-  const meta = await common.loadMetadata(projectInfo.metaFileAbsPath);
+  const meta = await common.loadJsonMetadata(projectInfo.metaFileAbsPath);
   const jobWorkDir = await common.createKwiverRunWorkingDir(settings, [meta], pipeline.name);
 
   const detectorOutput = npath.join(jobWorkDir, 'detector_output.csv');

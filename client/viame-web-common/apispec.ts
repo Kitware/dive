@@ -1,7 +1,7 @@
 import { provide } from '@vue/composition-api';
 
 import { use } from 'vue-media-annotator/provides';
-import Track, { TrackData, TrackId } from 'vue-media-annotator/track';
+import { TrackData, TrackId } from 'vue-media-annotator/track';
 import { CustomStyle } from 'vue-media-annotator/use/useStyling';
 
 type DatasetType = 'image-sequence' | 'video';
@@ -35,7 +35,7 @@ type Pipelines = Record<string, Category>;
 
 interface SaveDetectionsArgs {
   delete: TrackId[];
-  upsert: Map<TrackId, Track>;
+  upsert: TrackData[];
 }
 
 interface FrameImage {
@@ -58,22 +58,9 @@ interface DatasetMeta extends DatasetMetaMutable {
   fps: Readonly<number | string>; // this will become mutable in the future.
 }
 
-/**
- * DatasetSchema is a structure that describes everything about
- * media that could be opened in DIVE.  This schema is JSON
- * serializable (no maps, sets, or classes in the tree)
- */
-interface DatasetSchema {
-  // TODO: in a future version attributes will be part of the dataset schema
-  // attributes: Attribute[];
-  meta: DatasetMeta;
-  tracks: MultiTrackRecord;
-}
-
 interface Api {
-  loadDataset(datasetId: string): Promise<DatasetSchema>;
   /**
-   * @deprecated soon attributes will come from loadDataset()
+   * @deprecated soon attributes will come from loadMetadata()
    */
   getAttributes(): Promise<Attribute[]>;
   setAttribute({ addNew, data }: {addNew: boolean | undefined; data: Attribute}): Promise<unknown>;
@@ -84,6 +71,9 @@ interface Api {
 
   getTrainingConfigurations(): Promise<TrainingConfigs>;
   runTraining(folderIds: string[], pipelineName: string, config: string): Promise<unknown>;
+
+  loadMetadata(datasetId: string): Promise<DatasetMeta>;
+  loadDetections(datasetId: string): Promise<MultiTrackRecord>;
 
   saveDetections(datasetId: string, args: SaveDetectionsArgs): Promise<unknown>;
   saveMetadata(datasetId: string, metadata: DatasetMetaMutable): Promise<unknown>;
@@ -114,7 +104,6 @@ export type {
   Attribute,
   DatasetMeta,
   DatasetMetaMutable,
-  DatasetSchema,
   DatasetType,
   FrameImage,
   MultiTrackRecord,

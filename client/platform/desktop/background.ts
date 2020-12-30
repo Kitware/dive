@@ -30,14 +30,14 @@ function cleanup() {
 function createWindow() {
   const size = screen.getPrimaryDisplay().workAreaSize;
   // set a strict content security policy
-  session.defaultSession.webRequest.onHeadersReceived((details, cb) => {
-    cb({
-      responseHeaders: {
-        ...details.responseHeaders,
-        'Content-Security-Policy': ['script-src \'self\'; frame-src \'none\';'],
-      },
-    });
-  });
+  // session.defaultSession.webRequest.onHeadersReceived((details, cb) => {
+  //   cb({
+  //     responseHeaders: {
+  //       ...details.responseHeaders,
+  //       'Content-Security-Policy': ['script-src \'self\'; frame-src \'none\';'],
+  //     },
+  //   });
+  // });
   // Create the browser window.
   win = new BrowserWindow({
     width: Math.min(size.width, 1300),

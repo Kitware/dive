@@ -86,7 +86,7 @@ export default defineComponent({
     const datasetType: Ref<DatasetType> = ref('image-sequence');
     const videoUrl = ref(undefined as undefined | string);
     const frame = ref(0); // the currently displayed frame number
-    const { loadDataset } = useApi();
+    const { loadDetections, loadMetadata } = useApi();
     // Loaded flag prevents annotator window from populating
     // with stale data from props, for example if a persistent store
     // like vuex is used to drive them.
@@ -307,25 +307,28 @@ export default defineComponent({
       globalHandler,
     );
 
-    /* trigger dataset load */
-    loadDataset(props.datasetId).then((ds) => {
-      /* populate state from meta */
-      populateTypeStyles(ds.meta.customTypeStyling);
-      if (ds.meta.customTypeStyling) {
-        importTypes(Object.keys(ds.meta.customTypeStyling), false);
-      }
-      populateConfidenceFilters(ds.meta.confidenceFilters);
-      fps.value = ds.meta.fps;
-      imageData.value = ds.meta.imageData;
-      videoUrl.value = ds.meta.videoUrl;
-      datasetType.value = ds.meta.type;
-      /* populate tracks */
-      Object.values(ds.tracks).forEach(
-        (trackData) => insertTrack(Track.fromJSON(trackData)),
-      );
-      /* done */
+    /** Trigger data load */
+    Promise.all([
+      loadMetadata(props.datasetId).then((meta) => {
+        populateTypeStyles(meta.customTypeStyling);
+        if (meta.customTypeStyling) {
+          importTypes(Object.keys(meta.customTypeStyling), false);
+        }
+        populateConfidenceFilters(meta.confidenceFilters);
+        fps.value = meta.fps;
+        imageData.value = meta.imageData;
+        videoUrl.value = meta.videoUrl;
+        datasetType.value = meta.type;
+      }),
+      loadDetections(props.datasetId).then((tracks) => {
+        Object.values(tracks).forEach(
+          (trackData) => insertTrack(Track.fromJSON(trackData)),
+        );
+      }),
+    ]).then(() => {
       loaded.value = true;
     }).catch((err) => {
+      loaded.value = false;
       loadError.value = err;
       throw err;
     });
