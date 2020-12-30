@@ -75,7 +75,7 @@ async function getValidatedProjectDir(settings: Settings, datasetId: string) {
   if (!fs.pathExistsSync(projectInfo.basePath)) {
     throw new Error(`missing project directory ${projectInfo.basePath}`);
   }
-  if (!fs.pathExists(projectInfo.metaFileAbsPath)) {
+  if (!fs.pathExistsSync(projectInfo.metaFileAbsPath)) {
     throw new Error(`missing metadata json file ${projectInfo.metaFileAbsPath}`);
   }
   const trackFileAbsPath = await _findJsonTrackFile(projectInfo.basePath);
@@ -399,6 +399,8 @@ async function importMedia(settings: Settings, path: string): Promise<JsonMeta> 
         throw new Error('User chose image file for video import option');
       } else if (websafeVideoTypes.includes(mimetype)) {
         /* TODO: Kick off video inspection and maybe transcode */
+      } else {
+        throw new Error(`unsupported MIME type for video ${mimetype}`);
       }
     } else {
       throw new Error(`could not determine video MIME type for ${path}`);
@@ -459,6 +461,7 @@ export default {
   createKwiverRunWorkingDir,
   getPipelineList,
   getProjectDir,
+  getValidatedProjectDir,
   importMedia,
   loadMetadata,
   loadJsonMetadata,

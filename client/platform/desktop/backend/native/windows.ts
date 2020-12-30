@@ -80,7 +80,7 @@ async function runPipeline(
 
   const setupScriptPath = npath.join(settings.viamePath, 'setup_viame.bat');
   const pipelinePath = npath.join(settings.viamePath, 'configs/pipelines', pipeline.pipe);
-  const projectInfo = await common.getProjectDir(settings, datasetId);
+  const projectInfo = await common.getValidatedProjectDir(settings, datasetId);
   const meta = await common.loadJsonMetadata(projectInfo.metaFileAbsPath);
   const jobWorkDir = await common.createKwiverRunWorkingDir(
     settings, [meta], pipeline.name,

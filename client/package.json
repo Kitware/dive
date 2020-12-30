@@ -16,7 +16,7 @@
     "build:cli": "tsc -p tsconfig.cli.json",
     "lint": "vue-cli-service lint src/ viame-web-common/ platform/",
     "lint:templates": "vtc --workspace . --srcDir src/",
-    "test": "vue-cli-service test:unit src/ viame-web-common/",
+    "test": "vue-cli-service test:unit src/ viame-web-common/ platform/",
     "serialize": "ts-node --project tsconfig.cli.json platform/desktop/backend/serializers/cli.ts"
   },
   "resolutions": {
@@ -65,6 +65,7 @@
     "@types/jest": "^25.2.3",
     "@types/lodash": "^4.14.151",
     "@types/mime-types": "^2.1.0",
+    "@types/mock-fs": "^4.13.0",
     "@types/node": "^14.0.5",
     "@types/pump": "^1.1.0",
     "@types/range-parser": "^1.2.3",
@@ -99,6 +100,7 @@
     "jest": "^26.0.1",
     "jest-transform-stub": "^2.0.0",
     "mime-types": "^2.1.27",
+    "mock-fs": "^4.13.0",
     "pump": "^3.0.0",
     "range-parser": "^1.2.1",
     "request": "^2.88.2",
@@ -127,6 +129,7 @@
     "moduleNameMapper": {
       "^vue-media-annotator/(.*)$": "<rootDir>/src/$1",
       "^viame-web-common/(.*)$": "<rootDir>/viame-web-common/$1",
+      "^platform/(.*)$": "<rootDir>/platform/$1",
       "\\.css$": "<rootDir>/test/stub.js"
     },
     "transform": {

@@ -20,7 +20,13 @@ const PolyRegex = /^(\(poly\)) ((?:[0-9]+\.*[0-9]*\s*)+)/g;
 
 // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/matchAll
 function getCaptureGroups(regexp: RegExp, str: string) {
-  const array = [...str.matchAll(regexp)];
+  const iterable = str.matchAll(regexp);
+  const array = [];
+  let v = iterable.next();
+  while (!v.done) {
+    array.push(v.value);
+    v = iterable.next();
+  }
   if (array.length) {
     return array[0];
   }
