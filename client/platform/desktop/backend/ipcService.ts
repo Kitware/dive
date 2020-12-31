@@ -34,10 +34,6 @@ export default function register() {
   ipcMain.on('update-settings', async (_, s: Settings) => {
     settings.set(s);
   });
-  ipcMain.handle('import-media', async (_, path: string) => {
-    const ret = await common.importMedia(settings.get(), path);
-    return ret;
-  });
 
   /**
    * Platform-dependent methods

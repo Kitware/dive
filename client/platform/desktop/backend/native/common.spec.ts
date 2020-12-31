@@ -98,6 +98,11 @@ mockfs({
       'otherfile.txt': '',
       nomime: '',
     },
+    annotationFail: {
+      'video1.mp4': '',
+      'file1.csv': '',
+      'file2.csv': '',
+    },
   },
   '/home/user/viamedata': {
     // eslint-disable-next-line @typescript-eslint/camelcase
@@ -205,6 +210,7 @@ describe('native.common', () => {
       type: 'image-sequence',
       fps: 100,
       name: 'myproject1_name',
+      createdAt: (new Date()).toString(),
       originalBasePath: '/foo/bar/baz',
       id: 'myproject1',
       originalImageFiles: [],
@@ -234,7 +240,7 @@ describe('native.common', () => {
     expect(meta.originalBasePath).toBe('/home/user/data/videoSuccess');
   });
 
-  it('importMedia various failture modes', async () => {
+  it('importMedia various failure modes', async () => {
     await expect(common.importMedia(settings, '/fake/path'))
       .rejects.toThrow('file or directory not found');
     await expect(common.importMedia(settings, '/home/user/data/imageSuccess/foo.png'))
@@ -245,6 +251,8 @@ describe('native.common', () => {
       .rejects.toThrow('unsupported MIME type');
     await expect(common.importMedia(settings, '/home/user/data/videoSuccess/nomime'))
       .rejects.toThrow('could not determine video MIME');
+    await expect(common.importMedia(settings, '/home/user/data/annotationFail/video1.mp4'))
+      .rejects.toThrow('too many CSV');
   });
 });
 

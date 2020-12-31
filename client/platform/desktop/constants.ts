@@ -55,6 +55,9 @@ export interface JsonMeta extends DatasetMetaMutable {
   // the original name derived from media path
   name: string;
 
+  // the import time of the dataset
+  createdAt: string;
+
   // absolute base path on disk where dataset was imported from
   originalBasePath: string;
 

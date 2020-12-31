@@ -311,14 +311,19 @@ async function processOtherAnnotationFiles(
     }
     if (fs.statSync(path).size > 0) {
       // Attempt to process the file
-      // eslint-disable-next-line no-await-in-loop
-      const tracks = await viameSerializers.parseFile(path);
-      const data: MultiTrackRecord = {};
-      tracks.forEach((t) => { data[t.trackId.toString()] = t; });
-      // eslint-disable-next-line no-await-in-loop
-      await _saveSerialized(settings, datasetId, data);
-      processedFiles.push(path);
-      break; // Exit on first successful detection load
+      try {
+        // eslint-disable-next-line no-await-in-loop
+        const tracks = await viameSerializers.parseFile(path);
+        const data: MultiTrackRecord = {};
+        tracks.forEach((t) => { data[t.trackId.toString()] = t; });
+        // eslint-disable-next-line no-await-in-loop
+        await _saveSerialized(settings, datasetId, data);
+        processedFiles.push(path);
+        break; // Exit on first successful detection load
+      } catch (err) {
+        // eslint-disable-next-line no-continue
+        continue;
+      }
     }
   }
   return { fps, processedFiles };
@@ -375,6 +380,7 @@ async function importMedia(settings: Settings, path: string): Promise<JsonMeta> 
     fps: 5, // TODO
     originalBasePath: path,
     originalVideoFile: '',
+    createdAt: (new Date()).toString(),
     originalImageFiles: [],
     transcodedVideoFile: '', // TODO: this is empty (see above)
     transcodedImageFiles: [], // TODO: this is empty
@@ -428,7 +434,7 @@ async function importMedia(settings: Settings, path: string): Promise<JsonMeta> 
   const trackFileAbsPath = await _findJsonTrackFile(jsonMeta.originalBasePath);
   if (trackFileAbsPath !== null) {
     /* Move the track file into the new project directory */
-    await fs.move(
+    await fs.copy(
       trackFileAbsPath,
       npath.join(projectDirAbsPath, npath.basename(trackFileAbsPath)),
     );
@@ -439,6 +445,9 @@ async function importMedia(settings: Settings, path: string): Promise<JsonMeta> 
     const csvFileCandidates = contents
       .filter((v) => CsvFileName.test(v))
       .map((filename) => npath.join(jsonMeta.originalBasePath, filename));
+    if (csvFileCandidates.length > 1) {
+      throw new Error(`too many CSV files found in ${jsonMeta.originalBasePath}, expected at most 1`);
+    }
     const { fps, processedFiles } = await processOtherAnnotationFiles(
       settings, dsId, csvFileCandidates,
     );

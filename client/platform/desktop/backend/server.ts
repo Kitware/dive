@@ -149,7 +149,17 @@ apirouter.get('/media', (req, res) => {
   return null;
 });
 
-app.use(cors({ origin: 'http://localhost:8080' }));
+if (process.env.NODE_ENV === 'development') {
+  /**
+   * CORS * is dangerous and should be disabled in production.
+   * In prod, the app is loaded from file:/// which is not limited
+   * to same-origin policy like pages loaded via http.
+   *
+   * NOTE: process.env.NODE_ENV doesn't work in production
+   * You cannot check the inverse i.e. !== 'production'
+  */
+  app.use(cors({ origin: '*' }));
+}
 app.use(bodyparser.json());
 app.use('/api', apirouter);
 
