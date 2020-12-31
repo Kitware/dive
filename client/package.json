@@ -15,7 +15,7 @@
     "build:lib": "rollup -c",
     "build:cli": "tsc -b tsconfig.cli.json && tsc-alias -p tsconfig.cli.json",
     "dev:cli": "tsc -w -p tsconfig.cli.json & tsc-alias -w -p tsconfig.cli.json",
-    "divecli": "node ./bin/platform/desktop/backend/serializers/cli.js",
+    "divecli": "node ./bin/platform/desktop/backend/cli.js",
     "lint": "vue-cli-service lint src/ viame-web-common/ platform/",
     "lint:templates": "vtc --workspace . --srcDir src/",
     "test": "vue-cli-service test:unit src/ viame-web-common/ platform/"
@@ -28,7 +28,7 @@
     "/lib/"
   ],
   "bin": {
-    "divecli": "./bin/platform/desktop/backend/serializers/cli.js"
+    "divecli": "./bin/platform/desktop/backend/cli.js"
   },
   "main": "lib/index.js",
   "types": "lib/types/index.d.ts",

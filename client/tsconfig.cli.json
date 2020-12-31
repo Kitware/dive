@@ -8,9 +8,10 @@
     "declarationDir": "./bin/types"
   },
   "include": [
+    "platform/desktop/constants.ts",
     "platform/desktop/backend/serializers/*.ts",
-    "platform/desktop/backend/serializers/*.ts",
-    "platform/desktop/backend/common/*.ts",
+    "platform/desktop/backend/cli.ts",
+    "platform/desktop/backend/native/*.ts",
     "viame-web-common/apispec.ts",
     "src/@types/*.ts",
     "src/track.ts",

@@ -2,6 +2,7 @@ import Vue from 'vue';
 import { uniqBy } from 'lodash';
 import Install, { ref, computed } from '@vue/composition-api';
 import { JsonMeta } from 'platform/desktop/constants';
+import { FrameImage } from 'viame-web-common/apispec';
 
 const RecentsKey = 'desktop.recent';
 
@@ -49,10 +50,36 @@ function setRecents(meta: JsonMeta) {
   window.localStorage.setItem(RecentsKey, JSON.stringify(recentsStrings));
 }
 
+function listDatasets({ limit = 10, offset = 0, sort = 'name' }: {
+  limit: number; offset: number; sort: 'name' | 'id' | 'fps' | 'createdAt';
+}) {
+  const recents = getRecents();
+  const meta = recents.slice(offset, offset + limit).map((m) => ({
+    ...m,
+    imageData: [] as FrameImage[],
+    videoUrl: undefined,
+  })).sort((a, b) => {
+    const left = a[sort];
+    const right = b[sort];
+    if (typeof left === 'string' && typeof right === 'string') {
+      return left.localeCompare(right);
+    }
+    if (typeof left === 'number' && typeof right === 'number') {
+      return left - right;
+    }
+    throw new Error('cannot compare these types');
+  });
+  return Promise.resolve({
+    items: meta,
+    total: recents.length,
+  });
+}
+
 export {
   datasets,
   getDataset,
   getRecents,
+  listDatasets,
   setRecents,
   RecentsKey,
 };

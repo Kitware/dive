@@ -9,7 +9,8 @@ import type {
 } from 'viame-web-common/apispec';
 
 import {
-  DesktopJob, DesktopMetadata, JsonMeta, NvidiaSmiReply, RunPipeline, websafeVideoTypes,
+  DesktopJob, DesktopMetadata, JsonMeta, NvidiaSmiReply,
+  RunPipeline, RunTraining, websafeVideoTypes,
 } from 'platform/desktop/constants';
 
 /**
@@ -46,13 +47,27 @@ async function getPipelineList(): Promise<Pipelines> {
   return ipcRenderer.invoke('get-pipeline-list');
 }
 
-async function runPipeline(itemId: string, pipeline: Pipe) {
+async function getTrainingConfigurations(): Promise<TrainingConfigs> {
+  return ipcRenderer.invoke('get-training-configs');
+}
+
+async function runPipeline(itemId: string, pipeline: Pipe): Promise<DesktopJob> {
   const args: RunPipeline = {
     pipeline,
     datasetId: itemId,
   };
-  const job: DesktopJob = await ipcRenderer.invoke('run-pipeline', args);
-  return job;
+  return ipcRenderer.invoke('run-pipeline', args);
+}
+
+async function runTraining(
+  folderIds: string[], pipelineName: string, config: string,
+): Promise<DesktopJob> {
+  const args: RunTraining = {
+    datasetIds: folderIds,
+    pipelineName,
+    trainingConfig: config,
+  };
+  return ipcRenderer.invoke('run-training', args);
 }
 
 /**
@@ -113,18 +128,6 @@ async function setAttribute({ addNew, data }: {addNew: boolean | undefined; data
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function deleteAttribute(data: Attribute) {
   return Promise.resolve([] as Attribute[]);
-}
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-async function getTrainingConfigurations(): Promise<TrainingConfigs> {
-  return Promise.resolve({ configs: [], default: '' });
-}
-
-async function runTraining(
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  folderIds: string[], pipelineName: string, config: string,
-): Promise<unknown> {
-  return Promise.resolve();
 }
 
 export {

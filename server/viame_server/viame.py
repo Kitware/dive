@@ -39,6 +39,7 @@ class Viame(Resource):
         self.resourceName = "viame"
         self.static_pipelines = None
 
+        self.route("GET", ("dataset",), self.list_datasets)
         self.route("GET", ("pipelines",), self.get_pipelines)
         self.route("POST", ("pipeline",), self.run_pipeline_task)
         self.route("GET", ("training_configs",), self.get_training_configs)
@@ -50,6 +51,18 @@ class Viame(Resource):
         self.route("POST", ("validate_files",), self.validate_files)
         self.route("DELETE", ("attribute", ":id"), self.delete_attribute)
         self.route("GET", ("valid_images",), self.get_valid_images)
+
+    @access.user
+    @autoDescribeRoute(Description("List datasets").pagingParams(defaultSort="name"))
+    def list_datasets(self, limit, offset, sort):
+        return Folder().findWithPermissions(
+            {"meta.annotate": True},
+            offset=offset,
+            limit=limit,
+            sort=sort,
+            level=AccessType.READ,
+            user=self.getCurrentUser(),
+        )
 
     @access.user
     @describeRoute(Description("Get available pipelines"))

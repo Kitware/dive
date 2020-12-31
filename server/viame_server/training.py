@@ -30,7 +30,7 @@ def load_training_configurations() -> TrainingConfigurationDescription:
     """Load existing training configs."""
 
     main_pipeline_path = get_static_pipelines_path()
-    configurations = [path.name for path in main_pipeline_path.glob("./*.conf")]
+    configurations = sorted([path.name for path in main_pipeline_path.glob("./*.conf")])
 
     return {
         "configs": configurations,

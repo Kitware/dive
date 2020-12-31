@@ -59,7 +59,7 @@ export default defineComponent({
 
   // TODO: remove this in vue 3
   props: {
-    datasetId: {
+    id: {
       type: String,
       required: true,
     },
@@ -111,7 +111,7 @@ export default defineComponent({
       save: saveToServer,
       markChangesPending,
       pendingSaveCount,
-    } = useSave(toRef(props, 'datasetId'));
+    } = useSave(toRef(props, 'id'));
 
     const recipes = [
       new PolygonBase(),
@@ -313,7 +313,7 @@ export default defineComponent({
 
     /** Trigger data load */
     Promise.all([
-      loadMetadata(props.datasetId).then((meta) => {
+      loadMetadata(props.id).then((meta) => {
         populateTypeStyles(meta.customTypeStyling);
         if (meta.customTypeStyling) {
           importTypes(Object.keys(meta.customTypeStyling), false);
@@ -324,7 +324,7 @@ export default defineComponent({
         videoUrl.value = meta.videoUrl;
         datasetType.value = meta.type;
       }),
-      loadDetections(props.datasetId).then((tracks) => {
+      loadDetections(props.id).then((tracks) => {
         Object.values(tracks).forEach(
           (trackData) => insertTrack(Track.fromJSON(trackData)),
         );
