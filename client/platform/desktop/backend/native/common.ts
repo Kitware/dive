@@ -54,6 +54,7 @@ async function _findJsonTrackFile(basePath: string): Promise<string | null> {
   return null;
 }
 
+// TODO:  REMOVE THIS ONCE WE DECIDE ON A BETTER WAY TO IMPLEMENT
 function ffprobe(settings: Settings, file: string): FFProbeResults {
   const setupScriptPath = npath.join(settings.viamePath, 'setup_viame.sh');
   const currentPlatform = OS.platform() === 'win32' ? '\\bin\\ffprobe.exe' : '/bin/ffprobe';
