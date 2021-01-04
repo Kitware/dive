@@ -4,7 +4,7 @@ import {
 import { createProtocol } from 'vue-cli-plugin-electron-builder/lib';
 import installExtension, { VUEJS_DEVTOOLS } from 'electron-devtools-installer';
 
-import server from './backend/server';
+import { listen, close } from './backend/server';
 import ipcListen from './backend/ipcService';
 
 app.commandLine.appendSwitch('no-sandbox');
@@ -23,7 +23,7 @@ protocol.registerSchemesAsPrivileged([
 ]);
 
 function cleanup() {
-  server.close();
+  close();
   app.quit();
 }
 
@@ -38,8 +38,7 @@ function createWindow() {
       // Use pluginOptions.nodeIntegration, leave this alone
       // See nklayman.github.io/vue-cli-plugin-electron-builder/guide/security.html
       // #node-integration for more info
-      nodeIntegration: (process.env
-        .ELECTRON_NODE_INTEGRATION as unknown) as boolean,
+      nodeIntegration: (!!process.env.ELECTRON_NODE_INTEGRATION),
       plugins: true,
       enableRemoteModule: true,
     },
@@ -59,7 +58,7 @@ function createWindow() {
     win = null;
   });
 
-  server.listen(0, () => {
+  listen((server) => {
     let address = server.address();
     let port = 0;
     if (typeof address === 'object' && address !== null) {

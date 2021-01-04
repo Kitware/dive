@@ -1,4 +1,6 @@
-import { DatasetMeta } from 'viame-web-common/apispec';
+import type {
+  DatasetMeta, DatasetMetaMutable, DatasetType, Pipe,
+} from 'viame-web-common/apispec';
 
 export const websafeVideoTypes = [
   'video/mp4',
@@ -15,7 +17,14 @@ export const websafeImageTypes = [
   // 'image/webp',
 ];
 
+export const otherImageTypes = [
+  'image/avif',
+  'image/tiff',
+];
+
+export const JsonMetaCurrentVersion = 1;
 export const SettingsCurrentVersion = 1;
+
 export interface Settings {
   // version a schema version
   version: number;
@@ -25,16 +34,55 @@ export interface Settings {
   dataPath: string;
 }
 
-export interface DesktopDataset {
-  // name filename (for video) or folder name (for images)
+/**
+ * JsonMeta is a SUBSET of DatasetMeta contained within
+ * the JsonFileSchema.  The remaining parts of DatasetMeta must
+ * be generated at load time.
+ */
+export interface JsonMeta extends DatasetMetaMutable {
+  // version used to manage schema migrations
+  version: number;
+
+  // immutable dataset type
+  type: DatasetType;
+
+  // immutable datset identifier
+  id: string;
+
+  // this will become mutable in the future.
+  fps: number;
+
+  // the original name derived from media path
   name: string;
-  // basePath path of dataset working directory
-  basePath: string;
-  // vidoPath path of single video file
-  videoPath?: string;
-  // meta DatasetMeta
-  meta: DatasetMeta;
+
+  // the import time of the dataset
+  createdAt: string;
+
+  // absolute base path on disk where dataset was imported from
+  originalBasePath: string;
+
+  // video file path
+  // relateive to originalBasePath
+  originalVideoFile: string;
+
+  // output of web safe transcoding
+  // relative to project path
+  transcodedVideoFile?: string;
+
+  // ordered image filenames IF this is an image dataset
+  // relative to originalBasePath
+  originalImageFiles: string[];
+
+  // ordered image filenames of transcoded images
+  // relative to project path
+  transcodedImageFiles?: string[];
+
+  // If the dataset required transcoding, specify the job
+  // key that ran transcoding
+  transcodingJobKey?: string;
 }
+
+export type DesktopMetadata = DatasetMeta & JsonMeta;
 
 interface NvidiaSmiTextRecord {
   _text: string;
@@ -60,8 +108,8 @@ export interface DesktopJob {
   key: string;
   // jobType identify type of job
   jobType: 'pipeline' | 'training';
-  // pipelineName of the pipe or job being run
-  pipelineName: string;
+  // pipe
+  pipeline: Pipe;
   // datasetIds of the involved datasets
   datasetIds: string[];
   // pid of the process spawned
@@ -83,6 +131,5 @@ export interface DesktopJobUpdate extends DesktopJob {
 
 export interface RunPipeline {
   datasetId: string;
-  pipelineName: string;
-  settings: Settings;
+  pipeline: Pipe;
 }

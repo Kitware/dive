@@ -137,20 +137,6 @@ export default defineComponent({
       removeTrack: tsRemoveTrack,
     } = useTrackStore({ markChangesPending });
 
-    async function loadTracks(datasetId: string) {
-      try {
-        const data = await loadDetections(datasetId);
-        if (data !== null) {
-          Object.values(data).forEach(
-            (trackData) => insertTrack(Track.fromJSON(trackData)),
-          );
-        }
-      } catch (err) {
-        loadError.value = err;
-        throw err;
-      }
-    }
-
     const {
       checkedTrackIds,
       checkedTypes,
@@ -168,23 +154,6 @@ export default defineComponent({
       updateCheckedTypes,
       updateCheckedTrackId,
     } = useTrackFilters({ sortedTracks, removeTrack, markChangesPending });
-
-    Promise.all([
-      loadMetadata(props.datasetId),
-      loadTracks(props.datasetId),
-    ]).then(([meta]) => {
-      // tasks to run after dataset and tracks have loaded
-      populateTypeStyles(meta.customTypeStyling);
-      if (meta.customTypeStyling) {
-        importTypes(Object.keys(meta.customTypeStyling), false);
-      }
-      populateConfidenceFilters(meta.confidenceFilters);
-      loaded.value = true;
-      fps.value = meta.fps;
-      imageData.value = meta.imageData;
-      videoUrl.value = meta.videoUrl;
-      datasetType.value = meta.type;
-    });
 
     const {
       selectedTrackId,
@@ -337,6 +306,32 @@ export default defineComponent({
       },
       globalHandler,
     );
+
+    /** Trigger data load */
+    Promise.all([
+      loadMetadata(props.datasetId).then((meta) => {
+        populateTypeStyles(meta.customTypeStyling);
+        if (meta.customTypeStyling) {
+          importTypes(Object.keys(meta.customTypeStyling), false);
+        }
+        populateConfidenceFilters(meta.confidenceFilters);
+        fps.value = meta.fps;
+        imageData.value = meta.imageData;
+        videoUrl.value = meta.videoUrl;
+        datasetType.value = meta.type;
+      }),
+      loadDetections(props.datasetId).then((tracks) => {
+        Object.values(tracks).forEach(
+          (trackData) => insertTrack(Track.fromJSON(trackData)),
+        );
+      }),
+    ]).then(() => {
+      loaded.value = true;
+    }).catch((err) => {
+      loaded.value = false;
+      loadError.value = err;
+      throw err;
+    });
 
     return {
       /* props */

@@ -6,7 +6,7 @@ import Vue from 'vue';
 import Install, {
   ref, Ref, set, computed,
 } from '@vue/composition-api';
-import { DesktopDataset, DesktopJob, DesktopJobUpdate } from '../constants';
+import { DesktopJob, DesktopJobUpdate } from 'platform/desktop/constants';
 
 // TODO remove this: this won't be necessary in Vue 3
 Vue.use(Install);
@@ -14,14 +14,14 @@ Vue.use(Install);
 interface DesktopJobHistory {
   job: DesktopJob;
   logs: string[];
-  datasets: DesktopDataset[];
+  datasets: string[];
 }
 
 const jobHistory: Ref<Record<string, DesktopJobHistory>> = ref({});
 const recentHistory = computed(() => Object.values(jobHistory.value));
 const runningJobs = computed(() => recentHistory.value.filter((v) => v.job.exitCode === null));
 
-function getOrCreateHistory(args: DesktopJob, datasets?: DesktopDataset[]): DesktopJobHistory {
+function getOrCreateHistory(args: DesktopJob, datasets?: string[]): DesktopJobHistory {
   let existing = jobHistory.value[args.key];
   if (!existing) {
     set<DesktopJobHistory>(jobHistory.value, args.key, {

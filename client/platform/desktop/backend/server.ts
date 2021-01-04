@@ -1,11 +1,21 @@
+import type { AddressInfo } from 'net';
+import http from 'http';
+
+import cors from 'cors';
 import mime from 'mime-types';
 import pump from 'pump';
+import express from 'express';
+import bodyparser from 'body-parser';
 import rangeParser from 'range-parser';
-import http from 'http';
-import fs from 'fs';
-import parser from 'url';
+import fs from 'fs-extra';
+import { SaveDetectionsArgs } from 'viame-web-common/apispec';
 
-import router from './router';
+import settings from './state/settings';
+import common from './native/common';
+
+const app = express();
+const apirouter = express.Router();
+let server: http.Server;
 
 // Only support certain MIME types.
 const supportedMediaTypes = [
@@ -24,70 +34,99 @@ const supportedMediaTypes = [
   'image/webp',
 ];
 
-function fail(res: http.ServerResponse, code: number, message = '') {
-  // eslint-disable-next-line no-param-reassign
-  res.statusCode = code;
-  res.write(message);
-  res.end();
+function makeMediaUrl(filepath: string): string {
+  const addr = server.address() as AddressInfo | null;
+  if (!addr) {
+    throw new Error('server has not initialized yet');
+  }
+  return `http://${addr.address}:${addr.port}/api/media?path=${filepath}`;
 }
 
-/* Global error handler middleware. */
-const withErrorHandler = (handler: http.RequestListener): http.RequestListener => (req, res) => {
+function fail(res: express.Response, code: number, message: string) {
+  return res.status(code).json({ message }).end();
+}
+
+apirouter.get('/', (_, res) => {
+  res.send('Electron REST backend.');
+});
+
+/* LOAD metadata */
+apirouter.get('/dataset/:id/meta', async (req, res) => {
   try {
-    return handler(req, res);
+    const ds = await common.loadMetadata(settings.get(), req.params.id, makeMediaUrl);
+    res.json(ds);
   } catch (err) {
-    console.error('BAD');
-    return fail(res, 500, 'Server error');
+    fail(res, 500, err);
   }
-};
+});
 
-router.register('/api', withErrorHandler((req, res) => {
-  res.writeHead(200, { 'Content-Type': 'text/plain' });
-  res.write('ELECTRON_BACKEND');
-  res.end();
-}));
-
-router.register('/api/media', withErrorHandler((req, res) => {
-  const { url } = req;
-  if (!url) {
-    throw new Error('Impossible scenario, req.url was empty');
+/* SAVE metadata */
+apirouter.post('/dataset/:id/meta', async (req, res) => {
+  try {
+    await common.saveMetadata(settings.get(), req.params.id, req.body);
+    res.status(200);
+  } catch (err) {
+    fail(res, 500, err);
   }
+});
 
-  const parsedurl = parser.parse(url, true);
-  let path = parsedurl.query ? parsedurl.query.path : undefined;
-
-  if (path === undefined || Array.isArray(path)) {
-    return fail(res, 404, `Invalid path: ${path}`);
+/* SAVE detections */
+apirouter.post('/dataset/:id/detections', async (req, res) => {
+  try {
+    const args = req.body as SaveDetectionsArgs;
+    await common.saveDetections(settings.get(), req.params.id, args);
+    return res.status(200);
+  } catch (err) {
+    console.error(err);
+    return fail(res, 500, err);
+    throw err;
   }
+});
 
-  path = decodeURI(path);
-  let filestat;
+/* IMPORT dataset */
+apirouter.post('/import', async (req, res) => {
+  const { path } = req.query;
+  if (!path || Array.isArray(path)) {
+    return fail(res, 400, `Invalid path: ${path}`);
+  }
+  try {
+    const meta = await common.importMedia(settings.get(), path.toString());
+    return res.json(meta);
+  } catch (err) {
+    return fail(res, 500, err);
+  }
+});
+
+/* STREAM media */
+apirouter.get('/media', (req, res) => {
+  let { path } = req.query;
+  if (!path || Array.isArray(path)) {
+    return fail(res, 400, `Invalid path: ${path}`);
+  }
+  path = path.toString();
+
+  let filestat: fs.Stats;
   try {
     filestat = fs.statSync(path);
     if (!filestat.isFile()) {
       return fail(res, 404, `Invalid file for path: ${path}`);
     }
   } catch (err) {
-    return fail(res, 404);
+    return fail(res, 404, `No such path ${path}`);
   }
 
-  const type = mime.lookup(path);
-  if (type === false) {
+  const mimetype = mime.lookup(path);
+  if (mimetype === false) {
     return fail(res, 400, `Mime lookup failed for path: ${path}`);
   }
-
-  if (!supportedMediaTypes.includes(type)) {
-    return fail(res, 400, 'Cannot request that mime type');
+  if (!supportedMediaTypes.includes(mimetype)) {
+    return fail(res, 400, 'Cannot request this mime type');
   }
 
   const ranges = req.headers.range && rangeParser(filestat.size, req.headers.range);
   if (ranges === -1 || ranges === -2) {
     return fail(res, 400, `Range parse failed: ${req.headers.range}`);
   }
-
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Accept-Ranges', 'bytes');
-  res.setHeader('Content-Type', type);
 
   if (ranges === undefined || ranges === '') {
     res.setHeader('Content-Length', filestat.size);
@@ -100,18 +139,43 @@ router.register('/api/media', withErrorHandler((req, res) => {
 
   const range = ranges[0];
   // eslint-disable-next-line no-param-reassign
-  res.statusCode = 206;
+  res.status(206);
   res.setHeader('Content-Length', range.end - range.start + 1);
   res.setHeader('Content-Range', `bytes ${range.start}-${range.end}/${filestat.size}`);
-  if (req.method === 'HEAD') return res.end();
+  if (req.method === 'HEAD') {
+    return res.end();
+  }
   pump(fs.createReadStream(path, range), res);
   return null;
-}));
-
-// We need a server which relies on our router
-const server = http.createServer((req, res) => {
-  const handler = router.route(req);
-  handler.process(req, res);
 });
 
-export default server;
+if (process.env.NODE_ENV === 'development') {
+  /**
+   * CORS * is dangerous and should be disabled in production.
+   * In prod, the app is loaded from file:/// which is not limited
+   * to same-origin policy like pages loaded via http.
+   *
+   * NOTE: process.env.NODE_ENV doesn't work in production
+   * You cannot check the inverse i.e. !== 'production'
+  */
+  app.use(cors({ origin: '*' }));
+}
+app.use(bodyparser.json());
+app.use('/api', apirouter);
+
+/* Singleton listen function will only create a server once */
+function listen(callback: (server: http.Server) => void) {
+  if (!server) {
+    server = app.listen(0, 'localhost', () => callback(server));
+  } else {
+    callback(server);
+  }
+}
+
+function close() {
+  if (server) {
+    server.close();
+  }
+}
+
+export { listen, close };

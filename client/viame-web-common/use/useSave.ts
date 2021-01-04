@@ -15,7 +15,7 @@ export default function useSave(datasetId: Ref<Readonly<string>>) {
   ) {
     if (pendingChangeMap.upsert.size || pendingChangeMap.delete.size) {
       await saveDetections(datasetId.value, {
-        upsert: pendingChangeMap.upsert,
+        upsert: Array.from(pendingChangeMap.upsert).map((pair) => pair[1].serialize()),
         delete: Array.from(pendingChangeMap.delete),
       });
       pendingChangeMap.upsert.clear();

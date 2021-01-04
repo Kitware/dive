@@ -1,8 +1,9 @@
 /**
- * VIAME process manager for linux platform
+ * VIAME process manager for windows platform
  */
 import npath from 'path';
 import { spawn } from 'child_process';
+import { app } from 'electron';
 import fs from 'fs-extra';
 import { xml2json } from 'xml-js';
 
@@ -10,7 +11,7 @@ import {
   Settings, SettingsCurrentVersion,
   DesktopJob, DesktopJobUpdate, RunPipeline,
   NvidiaSmiReply,
-} from '../../constants';
+} from 'platform/desktop/constants';
 
 import common from './common';
 
@@ -18,21 +19,35 @@ const DefaultSettings: Settings = {
   // The current settings schema config
   version: SettingsCurrentVersion,
   // A path to the VIAME base install
-  viamePath: '/opt/noaa/viame',
+  viamePath: 'C:\\Program Files\\VIAME',
   // Path to a user data folder
-  dataPath: '~/viamedata',
+  dataPath: app.getPath('home'),
 };
 
+let programFiles = 'C:\\Program Files';
+// There exists no app.getPath('programfiles') so we need to
+// check the variable for the default location
+async function initialize() {
+  const environmentVarPath = spawn('cmd.exe', ['/c', 'echo %PROGRAMFILES%'], { shell: true });
+  environmentVarPath.stdout.on('data', (data) => {
+    const trimmed = data.toString().trim();
+    programFiles = trimmed;
+    DefaultSettings.viamePath = `${trimmed}\\VIAME`;
+  });
+}
+
 async function validateViamePath(settings: Settings): Promise<true | string> {
-  const setupScriptPath = npath.join(settings.viamePath, 'setup_viame.sh');
+  const setupScriptPath = npath.join(settings.viamePath, 'setup_viame.bat');
   const setupExists = await fs.pathExists(setupScriptPath);
   if (!setupExists) {
     return `${setupScriptPath} does not exist`;
   }
 
+  const modifiedCommand = `"${setupScriptPath.replace(/\\/g, '\\')}"`;
   const kwiverExistsOnPath = spawn(
-    `source ${setupScriptPath} && which kwiver`,
-    { shell: '/bin/bash' },
+    `${modifiedCommand} && kwiver.exe help`, {
+      shell: true,
+    },
   );
   return new Promise((resolve) => {
     kwiverExistsOnPath.on('exit', (code) => {
@@ -53,60 +68,61 @@ async function validateViamePath(settings: Settings): Promise<true | string> {
  * @param settings global settings
  */
 async function runPipeline(
+  settings: Settings,
   runPipelineArgs: RunPipeline,
   updater: (msg: DesktopJobUpdate) => void,
 ): Promise<DesktopJob> {
-  const { settings, datasetId, pipelineName } = runPipelineArgs;
+  const { datasetId, pipeline } = runPipelineArgs;
   const isValid = await validateViamePath(settings);
   if (isValid !== true) {
     throw new Error(isValid);
   }
 
-  const setupScriptPath = npath.join(settings.viamePath, 'setup_viame.sh');
-  const pipelinePath = npath.join(settings.viamePath, 'configs/pipelines', pipelineName);
-  const datasetInfo = await common.getDatasetBase(datasetId);
-  const auxPath = await common.getAuxFolder(datasetInfo.basePath);
+  const setupScriptPath = npath.join(settings.viamePath, 'setup_viame.bat');
+  const pipelinePath = npath.join(settings.viamePath, 'configs/pipelines', pipeline.pipe);
+  const projectInfo = await common.getValidatedProjectDir(settings, datasetId);
+  const meta = await common.loadJsonMetadata(projectInfo.metaFileAbsPath);
   const jobWorkDir = await common.createKwiverRunWorkingDir(
-    datasetInfo.name, auxPath, pipelineName,
+    settings, [meta], pipeline.name,
   );
 
   const detectorOutput = npath.join(jobWorkDir, 'detector_output.csv');
   const trackOutput = npath.join(jobWorkDir, 'track_output.csv');
   const joblog = npath.join(jobWorkDir, 'runlog.txt');
 
+  const modifiedCommand = `"${setupScriptPath.replace(/\\/g, '\\')}"`;
+
   let command: string[] = [];
-  if (datasetInfo.datasetType === 'video') {
+  if (meta.type === 'video') {
     command = [
-      `source ${setupScriptPath} &&`,
-      'kwiver runner',
+      `${modifiedCommand} &&`,
+      'kwiver.exe runner',
       '-s input:video_reader:type=vidl_ffmpeg',
       `-p ${pipelinePath}`,
       `-s input:video_filename=${datasetId}`,
       `-s detector_writer:file_name=${detectorOutput}`,
       `-s track_writer:file_name=${trackOutput}`,
-      `| tee ${joblog}`,
     ];
-  } else if (datasetInfo.datasetType === 'image-sequence') {
+  } else if (meta.type === 'image-sequence') {
     // Create frame image manifest
     const manifestFile = npath.join(jobWorkDir, 'image-manifest.txt');
     // map image file names to absolute paths
-    const fileData = datasetInfo.imageFiles
-      .map((f) => npath.join(datasetInfo.basePath, f))
+    const fileData = meta.originalImageFiles
+      .map((f) => npath.join(projectInfo.basePath, f))
       .join('\n');
     await fs.writeFile(manifestFile, fileData);
     command = [
-      `source ${setupScriptPath} &&`,
-      'kwiver runner',
+      `${modifiedCommand} &&`,
+      'kwiver.exe runner',
       `-p "${pipelinePath}"`,
       `-s input:video_filename="${manifestFile}"`,
       `-s detector_writer:file_name="${detectorOutput}"`,
       `-s track_writer:file_name="${trackOutput}"`,
-      `| tee "${joblog}"`,
     ];
   }
 
   const job = spawn(command.join(' '), {
-    shell: '/bin/bash',
+    shell: true,
     cwd: jobWorkDir,
   });
 
@@ -114,7 +130,7 @@ async function runPipeline(
     key: `pipeline_${job.pid}_${jobWorkDir}`,
     jobType: 'pipeline',
     pid: job.pid,
-    pipelineName,
+    pipeline,
     workingDir: jobWorkDir,
     datasetIds: [datasetId],
     exitCode: job.exitCode,
@@ -128,10 +144,14 @@ async function runPipeline(
 
   job.stdout.on('data', (chunk: Buffer) => {
     // eslint-disable-next-line no-console
-    console.debug(chunk.toString('utf-8'));
+    console.log(chunk.toString('utf-8'));
     updater({
       ...jobBase,
       body: processChunk(chunk),
+    });
+    // No way in windows to display and log stdout at same time without 3rd party tools
+    fs.appendFile(joblog, chunk.toString('utf-8'), (err) => {
+      if (err) throw err;
     });
   });
 
@@ -142,13 +162,17 @@ async function runPipeline(
       ...jobBase,
       body: processChunk(chunk),
     });
+    fs.appendFile(joblog, chunk.toString('utf-8'), (err) => {
+      if (err) throw err;
+    });
   });
 
   job.on('exit', async (code) => {
-    // eslint-disable-next-line no-console
     if (code === 0) {
       try {
-        await common.postprocess([trackOutput, detectorOutput], datasetId);
+        await common.processOtherAnnotationFiles(
+          settings, datasetId, [trackOutput, detectorOutput],
+        );
       } catch (err) {
         console.error(err);
       }
@@ -163,39 +187,68 @@ async function runPipeline(
 
   return jobBase;
 }
-// Based on https://github.com/chrisallenlane/node-nvidia-smi
-async function nvidiaSmi(): Promise<NvidiaSmiReply> {
-  return new Promise((resolve) => {
-    const smi = spawn('nvidia-smi', ['-q', '-x']);
-    let result = '';
-    smi.stdout.on('data', (chunk) => {
-      result = result.concat(chunk.toString('utf-8'));
+
+function checkDefaultNvidiaSmi(resolve: (value: NvidiaSmiReply) => void) {
+  const smi = spawn(`"${programFiles}\\NVIDIA Corporation\\NVSMI\\nvidia-smi.exe"`, ['-q', '-x'], { shell: true });
+  let result = '';
+  smi.stdout.on('data', (chunk) => {
+    result = result.concat(chunk.toString('utf-8'));
+  });
+
+  smi.on('close', (exitCode) => {
+    let jsonStr = 'null'; // parses to null
+    if (exitCode === 0) {
+      jsonStr = xml2json(result, { compact: true });
+    }
+    resolve({
+      output: JSON.parse(jsonStr),
+      exitCode,
+      error: result,
     });
-    smi.on('close', (exitCode) => {
-      let jsonStr = 'null'; // parses to null
-      if (exitCode === 0) {
-        jsonStr = xml2json(result, { compact: true });
-      }
-      resolve({
-        output: JSON.parse(jsonStr),
-        exitCode,
-        error: result,
-      });
-    });
-    smi.on('error', (err) => {
-      resolve({
-        output: null,
-        exitCode: -1,
-        error: err.message,
-      });
+  });
+  smi.on('error', (err) => {
+    resolve({
+      output: null,
+      exitCode: -1,
+      error: err.message,
     });
   });
 }
+// Note: this is the most recent location for the nvidia-smi
+// it doesn't guarantee that the system doesn't have a relevant GPU
+async function nvidiaSmi(): Promise<NvidiaSmiReply> {
+  return new Promise((resolve) => {
+    const pathsmi = spawn('nvidia-smi', ['-q', '-x'], { shell: true });
+    let result = '';
+    pathsmi.stdout.on('data', (chunk) => {
+      // eslint-disable-next-line no-console
+      console.log(chunk.toString('utf-8'));
+      result = result.concat(chunk.toString('utf-8'));
+    });
 
+    pathsmi.on('close', (exitCode) => {
+      let jsonStr = 'null'; // parses to null
+      if (exitCode === 0) {
+        jsonStr = xml2json(result, { compact: true });
+        resolve({
+          output: JSON.parse(jsonStr),
+          exitCode,
+          error: result,
+        });
+      } else {
+        checkDefaultNvidiaSmi(resolve);
+      }
+    });
+    pathsmi.on('error', () => {
+      checkDefaultNvidiaSmi(resolve);
+    });
+  });
+}
 
 export default {
   DefaultSettings,
   validateViamePath,
   runPipeline,
   nvidiaSmi,
+  initialize,
 };
