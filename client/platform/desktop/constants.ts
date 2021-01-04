@@ -7,6 +7,11 @@ export const websafeVideoTypes = [
   'video/webm',
 ];
 
+export const otherVideoTypes = [
+  'video/quicktime',
+  'video/x-msvideo',
+];
+
 export const websafeImageTypes = [
   // 'image/apng',
   // 'image/bmp',
@@ -128,6 +133,14 @@ export interface DesktopJobUpdate extends DesktopJob {
   // body contents of update payload
   body: string[];
 }
+
+export interface FFProbeResults {
+  streams?: [{
+    codec_type?: string;
+    codec_name?: string;
+  }];
+}
+
 
 export interface RunPipeline {
   datasetId: string;

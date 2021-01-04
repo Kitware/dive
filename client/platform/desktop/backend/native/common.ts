@@ -1,6 +1,10 @@
+import OS from 'os';
+import { spawnSync } from 'child_process';
+
 /**
  * Common native implementations
  */
+
 import npath from 'path';
 import fs from 'fs-extra';
 import { shell } from 'electron';
@@ -11,11 +15,10 @@ import {
 } from 'viame-web-common/apispec';
 
 import {
-  websafeImageTypes, websafeVideoTypes, otherImageTypes,
-  JsonMeta, Settings, JsonMetaCurrentVersion, DesktopMetadata,
+  websafeImageTypes, websafeVideoTypes, otherImageTypes, otherVideoTypes,
+  JsonMeta, Settings, JsonMetaCurrentVersion, DesktopMetadata, FFProbeResults,
 } from 'platform/desktop/constants';
 import * as viameSerializers from 'platform/desktop/backend/serializers/viame';
-
 import { cleanString, makeid } from './utils';
 
 const ProjectsFolderName = 'DIVE_Projects';
@@ -49,6 +52,36 @@ async function _findJsonTrackFile(basePath: string): Promise<string | null> {
     return jsonFileCandidates[0];
   }
   return null;
+}
+
+function ffprobe(settings: Settings, file: string): FFProbeResults {
+  const setupScriptPath = npath.join(settings.viamePath, 'setup_viame.sh');
+  const currentPlatform = OS.platform() === 'win32' ? '\\bin\\ffprobe.exe' : '/bin/ffprobe';
+
+  const ffprobePath = `"${settings.viamePath}${currentPlatform}"`;
+  console.log(`Starting ffprobe of file ${file}`);
+  const command = [
+    `source ${setupScriptPath} &&`,
+    `${ffprobePath}`,
+    '-print_format',
+    'json',
+    '-v',
+    'quiet',
+    '-show_format',
+    '-show_streams',
+    file,
+  ];
+  console.log(command.join(' '));
+  const result = spawnSync(command.join(' '),
+    { shell: '/bin/bash' });
+  console.log(result);
+  console.log(result.error);
+  if (result.error) {
+    throw result.error;
+  }
+  console.log(result.stderr.toString('utf-8'));
+  console.log(result.stdout.toString('utf-8'));
+  return JSON.parse(result.stdout.toString('utf-8'));
 }
 
 /**
@@ -403,8 +436,18 @@ async function importMedia(settings: Settings, path: string): Promise<JsonMeta> 
     if (mimetype) {
       if (websafeImageTypes.includes(mimetype) || otherImageTypes.includes(mimetype)) {
         throw new Error('User chose image file for video import option');
-      } else if (websafeVideoTypes.includes(mimetype)) {
+      } else if (websafeVideoTypes.includes(mimetype) || otherVideoTypes.includes(mimetype)) {
         /* TODO: Kick off video inspection and maybe transcode */
+        console.log(`checking ffprobe of file ${path}`);
+        const ffprobeJSON = ffprobe(settings, path);
+        console.log(ffprobeJSON);
+        if (ffprobeJSON && ffprobeJSON.streams) {
+          console.log(ffprobeJSON);
+          const websafe = ffprobeJSON.streams.filter((el) => el.codec_name === 'h264' && el.codec_type === 'video');
+          if (!websafe.length || true) {
+            console.log(websafe);
+          }
+        }
       } else {
         throw new Error(`unsupported MIME type for video ${mimetype}`);
       }
