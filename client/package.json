@@ -40,7 +40,7 @@
     "@types/mousetrap": "^1.6.3",
     "@types/source-map": "0.5.2",
     "@vue/composition-api": "^1.0.0-beta.18",
-    "axios": "^0.19.2",
+    "axios": "^0.21.1",
     "core-js": "^3.6.4",
     "d3": "^5.12.0",
     "geojs": "^0.20.0",
