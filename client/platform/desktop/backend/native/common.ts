@@ -9,12 +9,12 @@ import moment from 'moment';
 import {
   DatasetType, MultiTrackRecord, Pipelines, SaveDetectionsArgs, FrameImage, DatasetMetaMutable,
 } from 'viame-web-common/apispec';
+import * as viameSerializers from 'platform/desktop/backend/serializers/viame';
 
 import {
   websafeImageTypes, websafeVideoTypes, otherImageTypes,
   JsonMeta, Settings, JsonMetaCurrentVersion, DesktopMetadata,
 } from 'platform/desktop/constants';
-import * as viameSerializers from 'platform/desktop/backend/serializers/viame';
 
 import { cleanString, makeid } from './utils';
 
@@ -107,10 +107,10 @@ async function loadJsonMetadata(metaAbsPath: string): Promise<JsonMeta> {
 }
 
 /**
- * _loadJsonTracks load from file
+ * loadJsonTracks load from file
  * @param tracksPath a known, existing path
  */
-async function _loadJsonTracks(tracksAbsPath: string): Promise<MultiTrackRecord> {
+async function loadJsonTracks(tracksAbsPath: string): Promise<MultiTrackRecord> {
   const rawBuffer = await fs.readFile(tracksAbsPath, 'utf-8');
   const annotationData = JSON.parse(rawBuffer) as MultiTrackRecord;
   // TODO: somehow verify the schema of this file
@@ -160,7 +160,7 @@ async function loadMetadata(
 
 async function loadDetections(settings: Settings, datasetId: string) {
   const projectDirData = await getValidatedProjectDir(settings, datasetId);
-  return _loadJsonTracks(projectDirData.trackFileAbsPath);
+  return loadJsonTracks(projectDirData.trackFileAbsPath);
 }
 
 /**
@@ -257,7 +257,7 @@ async function _saveSerialized(
 async function saveDetections(settings: Settings, datasetId: string, args: SaveDetectionsArgs) {
   /* Update existing track file */
   const projectDirInfo = await getValidatedProjectDir(settings, datasetId);
-  const existing = await _loadJsonTracks(projectDirInfo.trackFileAbsPath);
+  const existing = await loadJsonTracks(projectDirInfo.trackFileAbsPath);
   args.delete.forEach((trackId) => delete existing[trackId.toString()]);
   args.upsert.forEach((track) => {
     existing[track.trackId.toString()] = track;
@@ -466,7 +466,7 @@ async function openLink(url: string) {
   shell.openExternal(url);
 }
 
-export default {
+export {
   createKwiverRunWorkingDir,
   getPipelineList,
   getProjectDir,
@@ -474,6 +474,7 @@ export default {
   importMedia,
   loadMetadata,
   loadJsonMetadata,
+  loadJsonTracks,
   loadDetections,
   openLink,
   processOtherAnnotationFiles,

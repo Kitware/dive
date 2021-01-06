@@ -6,7 +6,7 @@ import { Console } from 'console';
 
 import type { JsonMeta, Settings } from 'platform/desktop/constants';
 
-import common from './common';
+import * as common from './common';
 
 const pipelines = {
   'classify_detections_svm.pipe': '',

@@ -33,7 +33,9 @@ def writeHeader(writer: '_csv._writer', metadata: Dict):
     writer.writerow([f'# metadata -{metadata_str}'])
 
     writer.writerow(
-        [f'# Written on {datetime.datetime.now().ctime()} by: viame_web_csv_writer']
+        [
+            f'# Written on {datetime.datetime.now().ctime()} by: viame_web_csv_writer:python'
+        ]
     )
 
 

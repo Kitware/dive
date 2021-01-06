@@ -73,6 +73,7 @@ describe('useTrackStore', () => {
     called = false;
 
     track.setFeature({
+      keyframe: true,
       frame: 0,
     });
     await Vue.nextTick();

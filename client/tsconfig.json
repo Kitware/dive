@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "target": "esnext",
+    "target": "es2018",
     "module": "esnext",
     "strict": true,
     "jsx": "preserve",
@@ -22,7 +22,10 @@
       ],
       "viame-web-common/*": [
         "viame-web-common/*"
-      ]
+      ],
+      "platform": [
+        "platform/*"
+      ],
     },
     "lib": [
       "ES2017.Object",
