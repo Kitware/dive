@@ -27,7 +27,7 @@ function getOrCreateHistory(args: DesktopJob, datasets?: string[]): DesktopJobHi
     set<DesktopJobHistory>(jobHistory.value, args.key, {
       job: args,
       logs: [],
-      datasets: datasets || [],
+      datasets: datasets || args.datasetIds || [],
     });
     existing = jobHistory.value[args.key];
   }
@@ -43,17 +43,36 @@ function updateHistory(args: DesktopJobUpdate) {
   existing.job.endTime = args.endTime;
 }
 
+const conversionJob: Ref<Record<string, boolean>> = ref({});
+
+function setOrGetConversionJob(datasetId: string, status?: boolean) {
+  let existing = conversionJob.value[datasetId];
+  if (!existing) {
+    existing = conversionJob.value[datasetId];
+  }
+  if (status !== undefined) {
+    set(conversionJob.value, datasetId, status);
+  }
+  return existing;
+}
+
+
 function init() {
   ipcRenderer.on('job-update', (event, args: DesktopJobUpdate) => {
     updateHistory(args);
+    if (args.jobType === 'conversion') {
+      setOrGetConversionJob(args.datasetIds[0], !args.endTime);
+    }
   });
 }
 
 init();
+
 
 export {
   getOrCreateHistory,
   jobHistory,
   recentHistory,
   runningJobs,
+  setOrGetConversionJob,
 };

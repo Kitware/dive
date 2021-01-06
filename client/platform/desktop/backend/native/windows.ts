@@ -2,7 +2,7 @@
  * VIAME process manager for windows platform
  */
 import npath from 'path';
-import { spawn } from 'child_process';
+import { spawn, spawnSync } from 'child_process';
 import { app } from 'electron';
 import fs from 'fs-extra';
 import { xml2json } from 'xml-js';
@@ -11,8 +11,12 @@ import {
   Settings, SettingsCurrentVersion,
   DesktopJob, DesktopJobUpdate, RunPipeline,
   NvidiaSmiReply,
+  FFProbeResults,
+  JsonMeta,
+  DesktopJobUpdater,
 } from 'platform/desktop/constants';
 
+import { DatasetType } from 'viame-web-common/apispec';
 import common from './common';
 
 const DefaultSettings: Settings = {
@@ -245,10 +249,120 @@ async function nvidiaSmi(): Promise<NvidiaSmiReply> {
   });
 }
 
+function checkMedia(settings: Settings, file: string): boolean {
+  const setupScriptPath = npath.join(settings.viamePath, 'setup_viame.bat');
+
+  const modifiedCommand = `"${setupScriptPath.replace(/\\/g, '\\')}"`;
+
+  const ffprobePath = `"${settings.viamePath}\\bin\\ffprobe.exe"`;
+  const ffprobeModified = `"${ffprobePath.replace(/\\/g, '\\')}"`;
+  console.log(`Starting ffprobe of file ${file}`);
+  const command = [
+    `${modifiedCommand} &&`,
+    `${ffprobeModified}`,
+    '-print_format',
+    'json',
+    '-v',
+    'quiet',
+    '-show_format',
+    '-show_streams',
+    file,
+  ];
+  const result = spawnSync(command.join(' '),
+    { shell: true });
+  if (result.error) {
+    throw result.error;
+  }
+
+  const ffprobeJSON: FFProbeResults = JSON.parse(result.stdout.toString('utf-8'));
+  if (ffprobeJSON && ffprobeJSON.streams) {
+    console.log(ffprobeJSON);
+    const websafe = ffprobeJSON.streams.filter((el) => el.codec_name === 'h264' && el.codec_type === 'video');
+
+    return !!websafe.length;
+  }
+  return false;
+}
+
+function convertMedia(settings: Settings,
+  meta: JsonMeta,
+  mediaList: [string, string][],
+  type: DatasetType,
+  updater: DesktopJobUpdater): DesktopJob {
+  //const joblog = npath.join(jobWorkDir, 'runlog.txt');
+
+  const setupScriptPath = npath.join(settings.viamePath, 'setup_viame.bat');
+  const ffmpegPath = `"${settings.viamePath}\\bin\\ffmpeg.exe"`;
+
+  const modifiedCommand = `"${setupScriptPath.replace(/\\/g, '\\')}"`;
+  const ffmpegModified = `"${ffmpegPath.replace(/\\/g, '\\')}"`;
+
+  const commands: string[] = [`${modifiedCommand} &&`];
+  if (type === 'video' && mediaList[0]) {
+    commands.push(`${ffmpegModified} -i "${mediaList[0][0]}" -c:v libx264 -preset slow -crf 26 -c:a copy "${mediaList[0][1]}"`);
+  }
+
+  //commands.push(`| tee "${joblog}"`);
+
+  const job = spawn(commands.join(' &&'), {
+    shell: true,
+  });
+
+  const jobBase: DesktopJob = {
+    key: `convert_${job.pid}_${meta.originalBasePath}`,
+    pid: job.pid,
+    jobType: 'conversion',
+    workingDir: meta.originalBasePath || DefaultSettings.dataPath,
+    datasetIds: [meta.id],
+    exitCode: job.exitCode,
+    startTime: new Date(),
+  };
+
+  const processChunk = (chunk: Buffer) => chunk
+    .toString('utf-8')
+    .split('\n')
+    .filter((a) => a);
+
+  job.stdout.on('data', (chunk: Buffer) => {
+    // eslint-disable-next-line no-console
+    console.log(chunk.toString('utf-8'));
+    updater({
+      ...jobBase,
+      body: processChunk(chunk),
+    });
+  });
+
+  job.stderr.on('data', (chunk: Buffer) => {
+    // eslint-disable-next-line no-console
+    console.log(chunk.toString('utf-8'));
+    updater({
+      ...jobBase,
+      body: processChunk(chunk),
+    });
+  });
+
+  job.on('exit', async (code) => {
+    console.log('On Exit');
+    console.log(code);
+    if (code !== 0) {
+      console.error('Error with running conversion');
+    }
+    updater({
+      ...jobBase,
+      body: [''],
+      exitCode: code,
+      endTime: new Date(),
+    });
+  });
+  return jobBase;
+}
+
 export default {
   DefaultSettings,
   validateViamePath,
   runPipeline,
   nvidiaSmi,
   initialize,
+  checkMedia,
+  convertMedia,
 };

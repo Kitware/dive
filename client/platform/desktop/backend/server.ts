@@ -83,19 +83,6 @@ apirouter.post('/dataset/:id/detections', async (req, res) => {
   }
 });
 
-/* IMPORT dataset */
-apirouter.post('/import', async (req, res) => {
-  const { path } = req.query;
-  if (!path || Array.isArray(path)) {
-    return fail(res, 400, `Invalid path: ${path}`);
-  }
-  try {
-    const meta = await common.importMedia(settings.get(), path.toString());
-    return res.json(meta);
-  } catch (err) {
-    return fail(res, 500, err);
-  }
-});
 
 /* STREAM media */
 apirouter.get('/media', (req, res) => {

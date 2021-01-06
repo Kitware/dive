@@ -47,6 +47,18 @@ export default function register() {
     const defaults = currentPlatform.DefaultSettings;
     return defaults;
   });
+
+  ipcMain.handle('import-media', async (event, path: string) => {
+    const updater = (update: DesktopJobUpdate) => {
+      event.sender.send('job-update', update);
+    };
+    const ret = await common.importMedia(settings.get(), path, updater, {
+      checkMedia: currentPlatform.checkMedia,
+      convertMedia: currentPlatform.convertMedia,
+    });
+    return ret;
+  });
+
   ipcMain.handle('validate-settings', async (_, s: Settings) => {
     const ret = await currentPlatform.validateViamePath(s);
     return ret;

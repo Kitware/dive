@@ -1,6 +1,3 @@
-import OS from 'os';
-import { spawnSync } from 'child_process';
-
 /**
  * Common native implementations
  */
@@ -16,7 +13,7 @@ import {
 
 import {
   websafeImageTypes, websafeVideoTypes, otherImageTypes, otherVideoTypes,
-  JsonMeta, Settings, JsonMetaCurrentVersion, DesktopMetadata, FFProbeResults,
+  JsonMeta, Settings, JsonMetaCurrentVersion, DesktopMetadata, DesktopJobUpdater, ConvertMedia,
 } from 'platform/desktop/constants';
 import * as viameSerializers from 'platform/desktop/backend/serializers/viame';
 import { cleanString, makeid } from './utils';
@@ -52,37 +49,6 @@ async function _findJsonTrackFile(basePath: string): Promise<string | null> {
     return jsonFileCandidates[0];
   }
   return null;
-}
-
-// TODO:  REMOVE THIS ONCE WE DECIDE ON A BETTER WAY TO IMPLEMENT
-function ffprobe(settings: Settings, file: string): FFProbeResults {
-  const setupScriptPath = npath.join(settings.viamePath, 'setup_viame.sh');
-  const currentPlatform = OS.platform() === 'win32' ? '\\bin\\ffprobe.exe' : '/bin/ffprobe';
-
-  const ffprobePath = `"${settings.viamePath}${currentPlatform}"`;
-  console.log(`Starting ffprobe of file ${file}`);
-  const command = [
-    `source ${setupScriptPath} &&`,
-    `${ffprobePath}`,
-    '-print_format',
-    'json',
-    '-v',
-    'quiet',
-    '-show_format',
-    '-show_streams',
-    file,
-  ];
-  console.log(command.join(' '));
-  const result = spawnSync(command.join(' '),
-    { shell: '/bin/bash' });
-  console.log(result);
-  console.log(result.error);
-  if (result.error) {
-    throw result.error;
-  }
-  console.log(result.stderr.toString('utf-8'));
-  console.log(result.stdout.toString('utf-8'));
-  return JSON.parse(result.stdout.toString('utf-8'));
 }
 
 /**
@@ -387,7 +353,12 @@ async function _initializeProjectDir(settings: Settings, jsonMeta: JsonMeta): Pr
  * @param path path to import dir/file
  * @returns datasetId
  */
-async function importMedia(settings: Settings, path: string): Promise<JsonMeta> {
+async function importMedia(settings: Settings, path: string,
+  updater: DesktopJobUpdater,
+  { checkMedia, convertMedia }: {
+  checkMedia: (settings: Settings, path: string) => boolean;
+  convertMedia: ConvertMedia;
+}): Promise<JsonMeta> {
   let datasetType: DatasetType;
 
   const exists = fs.existsSync(path);
@@ -430,6 +401,7 @@ async function importMedia(settings: Settings, path: string): Promise<JsonMeta> 
 
   const contents = await fs.readdir(jsonMeta.originalBasePath);
 
+  let mediaConvertList: string[] = [];
   /* Extract and validate media from import path */
   if (jsonMeta.type === 'video') {
     jsonMeta.originalVideoFile = npath.basename(path);
@@ -439,15 +411,8 @@ async function importMedia(settings: Settings, path: string): Promise<JsonMeta> 
         throw new Error('User chose image file for video import option');
       } else if (websafeVideoTypes.includes(mimetype) || otherVideoTypes.includes(mimetype)) {
         /* TODO: Kick off video inspection and maybe transcode */
-        console.log(`checking ffprobe of file ${path}`);
-        const ffprobeJSON = ffprobe(settings, path);
-        console.log(ffprobeJSON);
-        if (ffprobeJSON && ffprobeJSON.streams) {
-          console.log(ffprobeJSON);
-          const websafe = ffprobeJSON.streams.filter((el) => el.codec_name === 'h264' && el.codec_type === 'video');
-          if (!websafe.length || true) {
-            console.log(websafe);
-          }
+        if (!checkMedia(settings, path) || otherVideoTypes.includes(mimetype)) {
+          mediaConvertList.push(path);
         }
       } else {
         throw new Error(`unsupported MIME type for video ${mimetype}`);
@@ -456,20 +421,61 @@ async function importMedia(settings: Settings, path: string): Promise<JsonMeta> 
       throw new Error(`could not determine video MIME type for ${path}`);
     }
   } else if (datasetType === 'image-sequence') {
-    jsonMeta.originalImageFiles = contents.filter((filename) => {
+    const tempConvertList: string[] = [];
+    let convertAny = false; //If we have to convert one image we convert all for organization
+    contents.forEach((filename) => {
       const abspath = npath.join(jsonMeta.originalBasePath, filename);
       const mimetype = mime.lookup(abspath);
       /* TODO: support transcoding of non-web-safe image types */
-      return !!(mimetype && websafeImageTypes.includes(mimetype));
+      if (mimetype && (websafeImageTypes.includes(mimetype)
+      || otherImageTypes.includes(mimetype))) {
+        jsonMeta.originalImageFiles.push(filename);
+        tempConvertList.push(abspath);
+        if (otherImageTypes.includes(mimetype)) {
+          convertAny = true;
+        }
+      }
     });
     if (jsonMeta.originalImageFiles.length === 0) {
       throw new Error(`no images found in ${path}`);
+    }
+    if (convertAny) {
+      mediaConvertList = tempConvertList;
     }
   } else {
     throw new Error('only video and image-sequence types are supported');
   }
 
   const projectDirAbsPath = await _initializeProjectDir(settings, jsonMeta);
+
+  //Now we will kick off any conversions that are necessary
+  let jobBase = null;
+  if (mediaConvertList.length) {
+    const srcDstList: [string, string][] = [];
+    const extension = datasetType === 'video' ? '.mp4' : '.png';
+    mediaConvertList.forEach((item) => {
+      const destLoc = item.replace(jsonMeta.originalBasePath, projectDirAbsPath);
+      const destExt = destLoc.replace(npath.extname(item), extension);
+      if (datasetType === 'video') {
+        jsonMeta.transcodedVideoFile = npath.basename(destExt);
+      } else if (datasetType === 'image-sequence') {
+        if (!jsonMeta.transcodedImageFiles) {
+          jsonMeta.transcodedImageFiles = [];
+        }
+        jsonMeta.transcodedImageFiles.push(npath.basename(destExt));
+      }
+      srcDstList.push([item, destExt]);
+    });
+    jobBase = convertMedia(
+      settings,
+      jsonMeta,
+      srcDstList,
+      datasetType,
+      updater,
+    );
+    jsonMeta.transcodingJobKey = jobBase.pid;
+  }
+
   await _saveAsJson(npath.join(projectDirAbsPath, JsonMetaFileName), jsonMeta);
 
   let foundDetections = false;
@@ -506,6 +512,20 @@ async function importMedia(settings: Settings, path: string): Promise<JsonMeta> 
   return jsonMeta;
 }
 
+/**
+ * After media conversion we need to remove the transcodingKey and add the new files to the list
+ */
+async function completeConversion(
+  settings: Settings, datasetId: string, transcodingJobKey: number,
+) {
+  const projectDirInfo = await getValidatedProjectDir(settings, datasetId);
+  const existing = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
+  if (existing.transcodingJobKey === transcodingJobKey) {
+    existing.transcodingJobKey = undefined;
+  }
+  _saveAsJson(projectDirInfo.metaFileAbsPath, existing);
+}
+
 async function openLink(url: string) {
   shell.openExternal(url);
 }
@@ -523,4 +543,5 @@ export default {
   processOtherAnnotationFiles,
   saveDetections,
   saveMetadata,
+  completeConversion,
 };

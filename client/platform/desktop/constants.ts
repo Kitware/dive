@@ -12,6 +12,14 @@ export const otherVideoTypes = [
   'video/x-msvideo',
 ];
 
+export const fileVideoTypes = [
+  'mp4',
+  'webm',
+  'avi',
+  'mov',
+  'wmv',
+];
+
 export const websafeImageTypes = [
   // 'image/apng',
   // 'image/bmp',
@@ -84,7 +92,7 @@ export interface JsonMeta extends DatasetMetaMutable {
 
   // If the dataset required transcoding, specify the job
   // key that ran transcoding
-  transcodingJobKey?: string;
+  transcodingJobKey?: number;
 }
 
 export type DesktopMetadata = DatasetMeta & JsonMeta;
@@ -112,9 +120,9 @@ export interface DesktopJob {
   // key unique identifier for this job
   key: string;
   // jobType identify type of job
-  jobType: 'pipeline' | 'training';
+  jobType: 'pipeline' | 'training' | 'conversion';
   // pipe
-  pipeline: Pipe;
+  pipeline?: Pipe;
   // datasetIds of the involved datasets
   datasetIds: string[];
   // pid of the process spawned
@@ -134,6 +142,8 @@ export interface DesktopJobUpdate extends DesktopJob {
   body: string[];
 }
 
+export type DesktopJobUpdater = (msg: DesktopJobUpdate) => void;
+
 export interface FFProbeResults {
   streams?: [{
     codec_type?: string;
@@ -141,6 +151,12 @@ export interface FFProbeResults {
   }];
 }
 
+export type ConvertMedia =
+(settings: Settings,
+  meta: JsonMeta,
+  mediaList: [string, string][],
+  type: DatasetType,
+  updater: DesktopJobUpdater) => DesktopJob;
 
 export interface RunPipeline {
   datasetId: string;

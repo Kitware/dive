@@ -85,7 +85,7 @@ export default defineComponent({
                   <v-card-title class="primary--text text--lighten-3 text-decoration-none pt-0">
                     {{ datasets[job.datasets[0]].name }}
                   </v-card-title>
-                  <v-card-subtitle>
+                  <v-card-subtitle v-if="job.job.pipeline">
                     [pipe] {{ job.job.pipeline.name }}
                     <br>[pid] {{ job.job.pid }}
                     <br>[path] {{ datasets[job.datasets[0]].originalBasePath }}

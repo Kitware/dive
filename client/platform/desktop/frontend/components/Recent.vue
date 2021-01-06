@@ -1,13 +1,14 @@
 <script lang="ts">
 import { join } from 'path';
-import { defineComponent } from '@vue/composition-api';
+import { defineComponent, ref } from '@vue/composition-api';
 
 import { DatasetType } from 'viame-web-common/apispec';
 
-import { openFromDisk, importMedia } from '../api';
-import { getRecents } from '../store/dataset';
+import { openFromDisk, importMedia, loadMetadata } from '../api';
+import { getRecents, setRecents } from '../store/dataset';
 import BrowserLink from './BrowserLink.vue';
 import NavigationBar from './NavigationBar.vue';
+import { setOrGetConversionJob } from '../store/jobs';
 
 export default defineComponent({
   components: {
@@ -15,18 +16,27 @@ export default defineComponent({
     NavigationBar,
   },
   setup(_, { root }) {
-    const recents = getRecents().splice(0, 20);
+    const recents = ref(getRecents().splice(0, 20));
     async function open(dstype: DatasetType) {
       const ret = await openFromDisk(dstype);
       if (!ret.canceled) {
         const meta = await importMedia(ret.filePaths[0]);
-        root.$router.push({
-          name: 'viewer',
-          params: { id: meta.id },
-        });
+        if (!meta.transcodingJobKey) {
+          root.$router.push({
+            name: 'viewer',
+            params: { id: meta.id },
+          });
+        } else {
+          const recentsMeta = await loadMetadata(meta.id);
+          setRecents(recentsMeta);
+          recents.value = getRecents().splice(0, 20);
+        }
       }
     }
-    return { open, recents, join };
+
+    return {
+      open, recents, join, setOrGetConversionJob,
+    };
   },
 });
 </script>
@@ -110,7 +120,19 @@ export default defineComponent({
                         : 'mdi-image'
                   }}
                 </v-icon>
+                <span v-if="setOrGetConversionJob(recent.id)">
+                  <span class="primary--text text--darken-1 text-decoration-none">
+                    {{ recent.name }}
+                  </span>
+                  <span>
+                    Converting
+                    <v-icon>
+                      mdi-spin mdi-sync
+                    </v-icon>
+                  </span>
+                </span>
                 <router-link
+                  v-else
                   :to="{ name: 'viewer', params: { id: recent.id } }"
                   class="primary--text text--lighten-3 text-decoration-none"
                 >

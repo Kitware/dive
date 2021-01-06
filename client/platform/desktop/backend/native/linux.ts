@@ -3,7 +3,7 @@
  */
 import os from 'os';
 import npath from 'path';
-import { spawn } from 'child_process';
+import { spawn, spawnSync } from 'child_process';
 import fs from 'fs-extra';
 import { xml2json } from 'xml-js';
 
@@ -11,8 +11,12 @@ import {
   Settings, SettingsCurrentVersion,
   DesktopJob, DesktopJobUpdate, RunPipeline,
   NvidiaSmiReply,
+  FFProbeResults,
+  DesktopJobUpdater,
+  JsonMeta,
 } from 'platform/desktop/constants';
 
+import { DatasetType } from 'viame-web-common/apispec';
 import common from './common';
 
 const DefaultSettings: Settings = {
@@ -195,10 +199,114 @@ async function nvidiaSmi(): Promise<NvidiaSmiReply> {
   });
 }
 
+function checkMedia(settings: Settings, file: string): boolean {
+  const setupScriptPath = npath.join(settings.viamePath, 'setup_viame.sh');
+  const ffprobePath = `"${settings.viamePath}/bin/ffprobe"`;
+  const command = [
+    `source ${setupScriptPath} &&`,
+    `${ffprobePath}`,
+    '-print_format',
+    'json',
+    '-v',
+    'quiet',
+    '-show_format',
+    '-show_streams',
+    file,
+  ];
+  const result = spawnSync(command.join(' '),
+    { shell: '/bin/bash' });
+  if (result.error) {
+    throw result.error;
+  }
+  const ffprobeJSON: FFProbeResults = JSON.parse(result.stdout.toString('utf-8'));
+  if (ffprobeJSON && ffprobeJSON.streams) {
+    console.log(ffprobeJSON);
+    const websafe = ffprobeJSON.streams.filter((el) => (el.codec_name === 'h264' && el.codec_type === 'video'));
+
+    return !!websafe.length;
+  }
+  return false;
+}
+
+function convertMedia(settings: Settings,
+  meta: JsonMeta,
+  mediaList: [string, string][],
+  type: DatasetType,
+  updater: DesktopJobUpdater): DesktopJob {
+  // TODO:  Do we need a run log for conversion?
+  //const joblog = npath.join(jobWorkDir, 'runlog.txt');
+
+  // TODO:  Avoiding issues with VIAME ffmpeg and x264 support for right now
+  const setupScriptPath = npath.join(settings.viamePath, 'setup_viame.sh');
+  const ffmpegPath = 'ffmpeg'; // `"${settings.viamePath}/bin/ffmpeg"`;
+  const commands: string[] = [];//[`source ${setupScriptPath} &&`];
+  if (type === 'video' && mediaList[0]) {
+    commands.push(`${ffmpegPath} -i "${mediaList[0][0]}" -c:v libx264 -preset slow -crf 26 -c:a copy "${mediaList[0][1]}"`);
+  }
+
+  //commands.push(`| tee "${joblog}"`);
+  console.log(commands.join(' '));
+  console.log(meta);
+  const job = spawn(commands.join(' '), { shell: '/bin/bash' });
+
+  const jobBase: DesktopJob = {
+    key: `convert_${job.pid}_${meta.originalBasePath}`,
+    pid: job.pid,
+    jobType: 'conversion',
+    workingDir: meta.originalBasePath || DefaultSettings.dataPath,
+    datasetIds: [meta.id],
+    exitCode: job.exitCode,
+    startTime: new Date(),
+  };
+
+  const processChunk = (chunk: Buffer) => chunk
+    .toString('utf-8')
+    .split('\n')
+    .filter((a) => a);
+
+  job.stdout.on('data', (chunk: Buffer) => {
+    // eslint-disable-next-line no-console
+    console.log(chunk.toString('utf-8'));
+    updater({
+      ...jobBase,
+      body: processChunk(chunk),
+    });
+  });
+
+  job.stderr.on('data', (chunk: Buffer) => {
+    // eslint-disable-next-line no-console
+    console.log(chunk.toString('utf-8'));
+    updater({
+      ...jobBase,
+      body: processChunk(chunk),
+    });
+  });
+
+  job.on('exit', async (code) => {
+    console.log('On Exit');
+    console.log(code);
+    if (code !== 0) {
+      console.error('Error with running conversion');
+    } else {
+      //Here we do the updating for the JSON Meta
+      common.completeConversion(settings, meta.id, job.pid);
+    }
+    updater({
+      ...jobBase,
+      body: [''],
+      exitCode: code,
+      endTime: new Date(),
+    });
+  });
+  return jobBase;
+}
+
 
 export default {
   DefaultSettings,
   validateViamePath,
   runPipeline,
   nvidiaSmi,
+  checkMedia,
+  convertMedia,
 };
