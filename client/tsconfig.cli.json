@@ -5,7 +5,7 @@
     "module": "commonjs",
     "outDir": "./bin",
     "declaration": true,
-    "declarationDir": "./bin/types",
+    "declarationDir": "./bin/types"
   },
   "include": [
     "platform/desktop/backend/serializers/*.ts",

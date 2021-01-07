@@ -25,7 +25,7 @@
       ],
       "platform": [
         "platform/*"
-      ],
+      ]
     },
     "lib": [
       "ES2017.Object",
@@ -47,7 +47,7 @@
     "platform/**/*.ts",
     "src/**/*.ts",
     "src/**/*.vue",
-    "tests/**/*.ts",
+    "tests/**/*.ts"
   ],
   "exclude": [
     "node_modules"
