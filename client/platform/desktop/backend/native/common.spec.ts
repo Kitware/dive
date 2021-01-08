@@ -74,12 +74,15 @@ const settings: Settings = {
   viamePath: '/opt/viame',
 };
 const urlMapper = (a: string) => `http://localhost:8888/api/media?path=${a}`;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const updater = (update: DesktopJobUpdate) => undefined;
-const checkMedia = (settingsVal: Settings, file: string) => true;
-const convertMedia = (settingsVal: Settings,
-  meta: JsonMeta,
-  mediaList: [string, string][],
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const checkMedia = (settingsVal: Settings, file: string) => file.includes('mp4');
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const convertMedia = (settingsVal: Settings, meta: JsonMeta, mediaList: [string, string][],
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   type: DatasetType,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   updaterFunc: DesktopJobUpdater) => ({
   key: 'jobKey',
   jobType: 'conversion',
@@ -265,12 +268,16 @@ describe('native.common', () => {
       .rejects.toThrow('chose image file for video import option');
     await expect(common.importMedia(settings, '/home/user/data/videoSuccess/otherfile.txt', updater, { checkMedia, convertMedia }))
       .rejects.toThrow('unsupported MIME type');
-    await expect(common.importMedia(settings, '/home/user/data/videoSuccess/video1.avi', updater, { checkMedia, convertMedia }))
-      .rejects.toThrow('unsupported MIME type');
     await expect(common.importMedia(settings, '/home/user/data/videoSuccess/nomime', updater, { checkMedia, convertMedia }))
       .rejects.toThrow('could not determine video MIME');
     await expect(common.importMedia(settings, '/home/user/data/annotationFail/video1.mp4', updater, { checkMedia, convertMedia }))
       .rejects.toThrow('too many CSV');
+  });
+
+  it('importMedia video, start conversion', async () => {
+    const meta = await common.importMedia(settings, '/home/user/data/videoSuccess/video1.avi', updater, { checkMedia, convertMedia });
+    expect(meta.transcodingJobKey).toBe(1234);
+    expect(meta.type).toBe('video');
   });
 });
 

@@ -276,7 +276,6 @@ function checkMedia(settings: Settings, file: string): boolean {
 
   const ffprobeJSON: FFProbeResults = JSON.parse(result.stdout.toString('utf-8'));
   if (ffprobeJSON && ffprobeJSON.streams) {
-    console.log(ffprobeJSON);
     const websafe = ffprobeJSON.streams.filter((el) => el.codec_name === 'h264' && el.codec_type === 'video');
 
     return !!websafe.length;
