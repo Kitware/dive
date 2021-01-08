@@ -5,13 +5,11 @@
  * Command-line entrypoints into serializers and other tooling.
  * See README.md for usage
  */
+
 import { Writable } from 'stream';
 import { stdout } from 'process';
-
 import yargs from 'yargs';
 
-// Improper relative paths used because CLI won't work with path aliases
-// https://github.com/TypeStrong/ts-node/issues/422
 import { loadJsonTracks, loadJsonMetadata } from 'platform/desktop/backend/native/common';
 import { parseFile, serialize } from './viame';
 
