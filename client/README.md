@@ -40,7 +40,7 @@ yarn test
 yarn build:cli
 
 # Watch
-yarn watch:cli
+yarn dev:cli
 
 # Run in development mode
 yarn divecli --help

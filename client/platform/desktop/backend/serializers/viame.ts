@@ -325,10 +325,12 @@ async function serialize(
     writeHeader(stringify, meta);
     Object.values(data).forEach((track) => {
       const filters = meta.confidenceFilters || {};
-      const pairsAboveThreshold = Track.trackExceedsThreshold(track.confidencePairs, filters);
-      if (!options.excludeBelowThreshold || pairsAboveThreshold.length) {
-        /* Include only the pairs that exceed the threshold in CSV output */
-        const sortedPairs = pairsAboveThreshold.sort((a, b) => a[1] - b[1]);
+      /* Include only the pairs that exceed the threshold in CSV output */
+      const confidencePairs = options.excludeBelowThreshold
+        ? Track.trackExceedsThreshold(track.confidencePairs, filters)
+        : track.confidencePairs;
+      if (confidencePairs.length) {
+        const sortedPairs = confidencePairs.sort((a, b) => a[1] - b[1]);
         track.features.forEach((keyframeFeature, index) => {
           const interpolatedFeatures = [keyframeFeature];
 
@@ -393,12 +395,12 @@ async function serialize(
                 /* TODO support for multiple GeoJSON Objects of the same type */
               });
             }
-
             stringify.write(row);
           });
         });
       }
     });
+    stringify.end();
   });
 }
 
