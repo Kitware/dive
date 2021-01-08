@@ -300,7 +300,7 @@ async function writeHeader(writer: Writable, meta: JsonMeta) {
     writer.write([`#meta fps=${meta.fps}`]);
   }
   writer.write(
-    [`# Written on ${(new Date()).toLocaleString()} by dive_csv_writer:typescript`],
+    [`# Written on ${(new Date()).toLocaleString().replace(',', '')} by dive_writer:typescript`],
   );
 }
 
@@ -325,10 +325,10 @@ async function serialize(
     writeHeader(stringify, meta);
     Object.values(data).forEach((track) => {
       const filters = meta.confidenceFilters || {};
-      if (!options.excludeBelowThreshold
-        || Track.trackExceedsThreshold(track.confidencePairs, filters)
-      ) {
-        const sortedPairs = track.confidencePairs.sort((a, b) => a[1] - b[1]);
+      const pairsAboveThreshold = Track.trackExceedsThreshold(track.confidencePairs, filters);
+      if (!options.excludeBelowThreshold || pairsAboveThreshold.length) {
+        /* Include only the pairs that exceed the threshold in CSV output */
+        const sortedPairs = pairsAboveThreshold.sort((a, b) => a[1] - b[1]);
         track.features.forEach((keyframeFeature, index) => {
           const interpolatedFeatures = [keyframeFeature];
 
@@ -360,7 +360,7 @@ async function serialize(
               column2,
               feature.frame,
               ...(feature.bounds as number[]),
-              sortedPairs[0][1],
+              sortedPairs[0][1], // always take highest confidence to be track confidence
               feature.fishLength || -1,
               ...flattenDeep(sortedPairs),
             ];
@@ -383,7 +383,7 @@ async function serialize(
                   row.push(`${PolyToken} ${coordinates.map(Math.round).join(' ')}`);
                 } else if (geoJSONFeature.geometry.type === 'Point') {
                   if (geoJSONFeature.properties) {
-                    const kpname = geoJSONFeature.properties.name;
+                    const kpname = geoJSONFeature.properties.key;
                     const { coordinates } = geoJSONFeature.geometry;
                     row.push(
                       `${KeypointToken} ${kpname} ${coordinates.map(Math.round).join(' ')}`,
