@@ -12,10 +12,6 @@
     "allowSyntheticDefaultImports": true,
     "sourceMap": false,
     "baseUrl": ".",
-    "types": [
-      "vuetify",
-      "webpack-env"
-    ],
     "paths": {
       "vue-media-annotator/*": [
         "src/*"
@@ -28,16 +24,8 @@
       ]
     },
     "lib": [
-      "ES2017.Object",
       "esnext",
-      "dom",
-      "dom.iterable",
-      "scripthost"
-    ],
-    "typeRoots": [
-      "src/@types",
-      "./node_modules/@types",
-      "./node_modules/vuetify/types"
+      "dom"
     ]
   },
   "include": [
