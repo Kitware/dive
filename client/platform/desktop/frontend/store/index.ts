@@ -2,7 +2,7 @@ import { Api, Pipe } from 'viame-web-common/apispec';
 import * as api from 'platform/desktop/frontend/api';
 
 /* Warning, this import involves node.js code for loadDetections (below) */
-import common from 'platform/desktop/backend/native/common';
+import * as common from 'platform/desktop/backend/native/common';
 
 import { settings } from './settings';
 import { getRecents, setRecents, RecentsKey } from './dataset';

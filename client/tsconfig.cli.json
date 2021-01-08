@@ -1,12 +1,20 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    /* Jest requires es5, not sure why */
-    "target": "ES2017",
+    "target": "es2017",
     "module": "commonjs",
     "outDir": "./bin",
+    "declaration": true,
+    "declarationDir": "./bin/types"
   },
   "include": [
-    "platform/desktop/backend/serializers/cli.ts",
-  ],
+    "platform/desktop/backend/serializers/*.ts",
+    "platform/desktop/backend/serializers/*.ts",
+    "platform/desktop/backend/common/*.ts",
+    "viame-web-common/apispec.ts",
+    "src/@types/*.ts",
+    "src/track.ts",
+    "src/utils.ts",
+    "src/listUtils.ts"
+  ]
 }

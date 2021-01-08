@@ -8,11 +8,14 @@ set -e # exit immediately on fail
 
 yarn install --frozen-lockfile
 
-yarn test &
+yarn test
+
 yarn lint &
-yarn lint:templates &
+yarn lint:templates
+
 yarn build:web &
 yarn build:electron &
 yarn build:lib &
+yarn build:cli &
 
 time wait 

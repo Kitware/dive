@@ -13,11 +13,12 @@
     "build:web": "vue-cli-service build platform/web-girder/main.ts",
     "build:electron": "vue-cli-service electron:build",
     "build:lib": "rollup -c",
-    "build:cli": "tsc -p tsconfig.cli.json",
+    "build:cli": "tsc -b tsconfig.cli.json && tsc-alias -p tsconfig.cli.json",
+    "dev:cli": "tsc -w -p tsconfig.cli.json & tsc-alias -w -p tsconfig.cli.json",
+    "divecli": "node ./bin/platform/desktop/backend/serializers/cli.js",
     "lint": "vue-cli-service lint src/ viame-web-common/ platform/",
     "lint:templates": "vtc --workspace . --srcDir src/",
-    "test": "vue-cli-service test:unit src/ viame-web-common/ platform/",
-    "serialize": "ts-node --project tsconfig.cli.json platform/desktop/backend/serializers/cli.ts"
+    "test": "vue-cli-service test:unit src/ viame-web-common/ platform/"
   },
   "resolutions": {
     "@types/jest": "^25.2.3"
@@ -27,7 +28,7 @@
     "/lib/"
   ],
   "bin": {
-    "viamecli": "./bin/platform/desktop/backend/serializers/cli.js"
+    "divecli": "./bin/platform/desktop/backend/serializers/cli.js"
   },
   "main": "lib/index.js",
   "types": "lib/types/index.d.ts",
@@ -40,8 +41,9 @@
     "@types/mousetrap": "^1.6.3",
     "@types/source-map": "0.5.2",
     "@vue/composition-api": "^1.0.0-beta.18",
-    "axios": "^0.19.2",
+    "axios": "^0.21.1",
     "core-js": "^3.6.4",
+    "csv-stringify": "^5.6.0",
     "d3": "^5.12.0",
     "geojs": "^0.20.0",
     "lodash": "^4.17.19",
@@ -71,7 +73,6 @@
     "@types/range-parser": "^1.2.3",
     "@types/request": "^2.48.5",
     "@types/resize-observer-browser": "^0.1.4",
-    "@types/xml2json": "^0.11.3",
     "@typescript-eslint/eslint-plugin": "^2.33.0",
     "@typescript-eslint/parser": "^2.33.0",
     "@vue/cli-plugin-babel": "~4.3.1",
@@ -112,7 +113,7 @@
     "sass": "^1.26.3",
     "sass-loader": "^8.0.2",
     "ts-jest": "^26.0.0",
-    "ts-node": "^9.0.0",
+    "tsc-alias": "^1.2.0",
     "typescript": "~3.8.3",
     "vue-cli-plugin-electron-builder": "^2.0.0-beta.5",
     "vue-cli-plugin-vuetify": "^2.0.5",
@@ -121,7 +122,6 @@
     "vue-type-check": "^1.0.0",
     "vuetify-loader": "^1.4.3",
     "xml-js": "^1.6.11",
-    "xml2json": "^0.12.0",
     "yargs": "^16.1.0"
   },
   "jest": {

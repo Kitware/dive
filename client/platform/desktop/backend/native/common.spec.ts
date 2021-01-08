@@ -10,7 +10,7 @@ import type {
 } from 'platform/desktop/constants';
 
 import { DatasetType } from 'viame-web-common/apispec';
-import common from './common';
+import * as common from './common';
 
 const pipelines = {
   'classify_detections_svm.pipe': '',

@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "target": "esnext",
+    "target": "es2018",
     "module": "esnext",
     "strict": true,
     "jsx": "preserve",
@@ -12,29 +12,20 @@
     "allowSyntheticDefaultImports": true,
     "sourceMap": false,
     "baseUrl": ".",
-    "types": [
-      "vuetify",
-      "webpack-env"
-    ],
     "paths": {
       "vue-media-annotator/*": [
         "src/*"
       ],
       "viame-web-common/*": [
         "viame-web-common/*"
+      ],
+      "platform": [
+        "platform/*"
       ]
     },
     "lib": [
-      "ES2017.Object",
       "esnext",
-      "dom",
-      "dom.iterable",
-      "scripthost"
-    ],
-    "typeRoots": [
-      "src/@types",
-      "./node_modules/@types",
-      "./node_modules/vuetify/types"
+      "dom"
     ]
   },
   "include": [
@@ -44,7 +35,7 @@
     "platform/**/*.ts",
     "src/**/*.ts",
     "src/**/*.vue",
-    "tests/**/*.ts",
+    "tests/**/*.ts"
   ],
   "exclude": [
     "node_modules"
