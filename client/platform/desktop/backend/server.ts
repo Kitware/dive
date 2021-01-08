@@ -11,7 +11,7 @@ import fs from 'fs-extra';
 import { SaveDetectionsArgs } from 'viame-web-common/apispec';
 
 import settings from './state/settings';
-import common from './native/common';
+import * as common from './native/common';
 
 const app = express();
 const apirouter = express.Router();

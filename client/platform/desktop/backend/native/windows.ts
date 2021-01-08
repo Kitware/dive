@@ -13,7 +13,7 @@ import {
   NvidiaSmiReply,
 } from 'platform/desktop/constants';
 
-import common from './common';
+import * as common from './common';
 
 const DefaultSettings: Settings = {
   // The current settings schema config

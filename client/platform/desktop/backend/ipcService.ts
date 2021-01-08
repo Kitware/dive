@@ -6,7 +6,7 @@ import { DesktopJobUpdate, RunPipeline, Settings } from 'platform/desktop/consta
 
 import linux from './native/linux';
 import win32 from './native/windows';
-import common from './native/common';
+import * as common from './native/common';
 import settings from './state/settings';
 import { listen } from './server';
 
