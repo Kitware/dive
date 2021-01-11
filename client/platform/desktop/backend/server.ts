@@ -42,66 +42,68 @@ function makeMediaUrl(filepath: string): string {
   return `http://${addr.address}:${addr.port}/api/media?path=${filepath}`;
 }
 
-function fail(res: express.Response, code: number, message: string) {
-  return res.status(code).json({ message }).end();
-}
-
-apirouter.get('/', (_, res) => {
-  res.send('Electron REST backend.');
-});
-
 /* LOAD metadata */
-apirouter.get('/dataset/:id/meta', async (req, res) => {
+apirouter.get('/dataset/:id/meta', async (req, res, next) => {
   try {
     const ds = await common.loadMetadata(settings.get(), req.params.id, makeMediaUrl);
     res.json(ds);
   } catch (err) {
-    fail(res, 500, err);
+    err.status = 500;
+    next(err);
   }
 });
 
 /* SAVE metadata */
-apirouter.post('/dataset/:id/meta', async (req, res) => {
+apirouter.post('/dataset/:id/meta', async (req, res, next) => {
   try {
     await common.saveMetadata(settings.get(), req.params.id, req.body);
-    res.status(200);
+    res.status(200).send('done');
   } catch (err) {
-    fail(res, 500, err);
+    err.status = 500;
+    next(err);
   }
 });
 
 /* SAVE detections */
-apirouter.post('/dataset/:id/detections', async (req, res) => {
+apirouter.post('/dataset/:id/detections', async (req, res, next) => {
   try {
     const args = req.body as SaveDetectionsArgs;
     await common.saveDetections(settings.get(), req.params.id, args);
-    return res.status(200);
+    res.status(200).send('done');
   } catch (err) {
-    console.error(err);
-    return fail(res, 500, err);
-    throw err;
+    err.status = 500;
+    next(err);
   }
+  return null;
 });
 
 /* IMPORT dataset */
-apirouter.post('/import', async (req, res) => {
+apirouter.post('/import', async (req, res, next) => {
   const { path } = req.query;
   if (!path || Array.isArray(path)) {
-    return fail(res, 400, `Invalid path: ${path}`);
+    return next({
+      status: 500,
+      statusMessage: `Invalid path: ${path}`,
+    });
   }
   try {
     const meta = await common.importMedia(settings.get(), path.toString());
-    return res.json(meta);
+    res.json(meta);
   } catch (err) {
-    return fail(res, 500, err);
+    err.status = 500;
+    next(err);
   }
+  return null;
 });
 
 /* STREAM media */
-apirouter.get('/media', (req, res) => {
+apirouter.get('/media', (req, res, next) => {
   let { path } = req.query;
   if (!path || Array.isArray(path)) {
-    return fail(res, 400, `Invalid path: ${path}`);
+    return next({
+      status: 400,
+      statusMessage: `Invalid path: ${path}`,
+    });
   }
   path = path.toString();
 
@@ -109,23 +111,38 @@ apirouter.get('/media', (req, res) => {
   try {
     filestat = fs.statSync(path);
     if (!filestat.isFile()) {
-      return fail(res, 404, `Invalid file for path: ${path}`);
+      return next({
+        status: 404,
+        statusMessage: `Invalid file for path: ${path}`,
+      });
     }
   } catch (err) {
-    return fail(res, 404, `No such path ${path}`);
+    return next({
+      status: 404,
+      statusMessage: `No such path ${path}`,
+    });
   }
 
   const mimetype = mime.lookup(path);
   if (mimetype === false) {
-    return fail(res, 400, `Mime lookup failed for path: ${path}`);
+    return next({
+      status: 400,
+      statusMessage: `Mime lookup failed for path: ${path}`,
+    });
   }
   if (!supportedMediaTypes.includes(mimetype)) {
-    return fail(res, 400, 'Cannot request this mime type');
+    return next({
+      status: 400,
+      statusMessage: 'Cannot request this mime type',
+    });
   }
 
   const ranges = req.headers.range && rangeParser(filestat.size, req.headers.range);
   if (ranges === -1 || ranges === -2) {
-    return fail(res, 400, `Range parse failed: ${req.headers.range}`);
+    return next({
+      status: 400,
+      statusMessage: `Range parse failed: ${req.headers.range}`,
+    });
   }
 
   if (ranges === undefined || ranges === '') {
@@ -162,6 +179,20 @@ if (process.env.NODE_ENV === 'development') {
 }
 app.use(bodyparser.json());
 app.use('/api', apirouter);
+
+function fail(
+  err: { status?: number; statusMessage?: string },
+  req: express.Request,
+  res: express.Response,
+) {
+  res.status(err.status || 500).json({ message: err.statusMessage || err });
+}
+
+apirouter.get('/', (_, res) => {
+  res.send('Electron REST backend.');
+});
+
+app.use(fail);
 
 /* Singleton listen function will only create a server once */
 function listen(callback: (server: http.Server) => void) {
