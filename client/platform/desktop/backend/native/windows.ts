@@ -1,9 +1,9 @@
 /**
  * VIAME process manager for windows platform
  */
+import os from 'os';
 import npath from 'path';
 import { spawn, spawnSync } from 'child_process';
-import { app } from 'electron';
 import fs from 'fs-extra';
 import { xml2json } from 'xml-js';
 
@@ -25,7 +25,7 @@ const DefaultSettings: Settings = {
   // A path to the VIAME base install
   viamePath: 'C:\\Program Files\\VIAME',
   // Path to a user data folder
-  dataPath: app.getPath('home'),
+  dataPath: npath.join(os.homedir(), 'VIAME_DATA'),
 };
 
 let programFiles = 'C:\\Program Files';
@@ -254,9 +254,11 @@ function checkMedia(settings: Settings, file: string): boolean {
 
   const modifiedCommand = `"${setupScriptPath.replace(/\\/g, '\\')}"`;
 
-  const ffprobePath = `"${settings.viamePath}\\bin\\ffprobe.exe"`;
+  const ffprobePath = `${settings.viamePath}\\bin\\ffprobe.exe`;
   const ffprobeModified = `"${ffprobePath.replace(/\\/g, '\\')}"`;
-  console.log(`Starting ffprobe of file ${file}`);
+  if (!fs.existsSync(setupScriptPath)) {
+    throw new Error(`${modifiedCommand} does not exist and is required to convert files.  Please download the VIAME toolkit from the main page`);
+  }
   const command = [
     `${modifiedCommand} &&`,
     `${ffprobeModified}`,
@@ -273,8 +275,15 @@ function checkMedia(settings: Settings, file: string): boolean {
   if (result.error) {
     throw result.error;
   }
-
-  const ffprobeJSON: FFProbeResults = JSON.parse(result.stdout.toString('utf-8'));
+  // TODO: I don't like the below for grabbing the JSON out of the return data
+  const returnText = result.stdout.toString('utf-8');
+  const firstIndex = returnText.indexOf('{');
+  const lastIndex = returnText.lastIndexOf('}');
+  if (firstIndex === -1 || lastIndex === -1) {
+    throw new Error('No ffprobe JSON result found');
+  }
+  const json = returnText.substring(firstIndex, lastIndex + 1);
+  const ffprobeJSON: FFProbeResults = JSON.parse(json);
   if (ffprobeJSON && ffprobeJSON.streams) {
     const websafe = ffprobeJSON.streams.filter((el) => el.codec_name === 'h264' && el.codec_type === 'video');
 
@@ -293,21 +302,23 @@ function convertMedia(settings: Settings,
   //const joblog = npath.join(jobWorkDir, 'runlog.txt');
 
   const setupScriptPath = npath.join(settings.viamePath, 'setup_viame.bat');
-  const ffmpegPath = `"${settings.viamePath}\\bin\\ffmpeg.exe"`;
+  const ffmpegPath = `${settings.viamePath}\\bin\\ffmpeg.exe`;
 
   const modifiedCommand = `"${setupScriptPath.replace(/\\/g, '\\')}"`;
   const ffmpegModified = `"${ffmpegPath.replace(/\\/g, '\\')}"`;
+
+  if (!fs.existsSync(setupScriptPath)) {
+    throw new Error(`${modifiedCommand} does not exist and is required to convert files.  Please download the VIAME toolkit from the main page`);
+  }
 
   const commands: string[] = [`${modifiedCommand} &&`];
   if (type === 'video' && mediaList[0]) {
     commands.push(`${ffmpegModified} -i "${mediaList[0][0]}" -c:v libx264 -preset slow -crf 26 -c:a copy "${mediaList[0][1]}"`);
   } else if (type === 'image-sequence' && imageIndex < mediaList.length) {
-    commands.push(`${ffmpegPath} -i "${mediaList[imageIndex][0]}" "${mediaList[imageIndex][1]}"`);
+    commands.push(`${ffmpegModified} -i "${mediaList[imageIndex][0]}" "${mediaList[imageIndex][1]}"`);
   }
 
-  //commands.push(`| tee "${joblog}"`);
-
-  const job = spawn(commands.join(' &&'), {
+  const job = spawn(commands.join(' '), {
     shell: true,
   });
 
