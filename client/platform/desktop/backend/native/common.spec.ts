@@ -276,7 +276,7 @@ describe('native.common', () => {
 
   it('importMedia video, start conversion', async () => {
     const meta = await common.importMedia(settings, '/home/user/data/videoSuccess/video1.avi', updater, { checkMedia, convertMedia });
-    expect(meta.transcodingJobKey).toBe(1234);
+    expect(meta.transcodingJobKey).toBe('jobKey');
     expect(meta.type).toBe('video');
   });
 });

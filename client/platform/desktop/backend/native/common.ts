@@ -142,11 +142,17 @@ async function loadMetadata(
       videoUrl = makeMediaUrl(video);
     }
   } else if (projectMetaData.type === 'image-sequence') {
-    /* TODO: if images were transcoded, use them */
-    imageData = projectMetaData.originalImageFiles.map((filename: string) => ({
-      url: makeMediaUrl(npath.join(projectMetaData.originalBasePath, filename)),
-      filename,
-    }));
+    if (projectMetaData.transcodedImageFiles) {
+      imageData = projectMetaData.transcodedImageFiles.map((filename: string) => ({
+        url: makeMediaUrl(npath.join(projectDirData.basePath, filename)),
+        filename,
+      }));
+    } else {
+      imageData = projectMetaData.originalImageFiles.map((filename: string) => ({
+        url: makeMediaUrl(npath.join(projectMetaData.originalBasePath, filename)),
+        filename,
+      }));
+    }
   } else {
     throw new Error(`unexpected project type for id="${datasetId}" type="${projectMetaData.type}"`);
   }
@@ -426,7 +432,6 @@ async function importMedia(settings: Settings, path: string,
     contents.forEach((filename) => {
       const abspath = npath.join(jsonMeta.originalBasePath, filename);
       const mimetype = mime.lookup(abspath);
-      /* TODO: support transcoding of non-web-safe image types */
       if (mimetype && (websafeImageTypes.includes(mimetype)
       || otherImageTypes.includes(mimetype))) {
         jsonMeta.originalImageFiles.push(filename);
@@ -473,7 +478,7 @@ async function importMedia(settings: Settings, path: string,
       datasetType,
       updater,
     );
-    jsonMeta.transcodingJobKey = jobBase.pid;
+    jsonMeta.transcodingJobKey = jobBase.key;
   }
 
   await _saveAsJson(npath.join(projectDirAbsPath, JsonMetaFileName), jsonMeta);
@@ -516,7 +521,7 @@ async function importMedia(settings: Settings, path: string,
  * After media conversion we need to remove the transcodingKey and add the new files to the list
  */
 async function completeConversion(
-  settings: Settings, datasetId: string, transcodingJobKey: number,
+  settings: Settings, datasetId: string, transcodingJobKey: string,
 ) {
   const projectDirInfo = await getValidatedProjectDir(settings, datasetId);
   const existing = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);

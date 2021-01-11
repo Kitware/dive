@@ -287,7 +287,9 @@ function convertMedia(settings: Settings,
   meta: JsonMeta,
   mediaList: [string, string][],
   type: DatasetType,
-  updater: DesktopJobUpdater): DesktopJob {
+  updater: DesktopJobUpdater,
+  imageIndex = 0,
+  key = ''): DesktopJob {
   //const joblog = npath.join(jobWorkDir, 'runlog.txt');
 
   const setupScriptPath = npath.join(settings.viamePath, 'setup_viame.bat');
@@ -299,6 +301,8 @@ function convertMedia(settings: Settings,
   const commands: string[] = [`${modifiedCommand} &&`];
   if (type === 'video' && mediaList[0]) {
     commands.push(`${ffmpegModified} -i "${mediaList[0][0]}" -c:v libx264 -preset slow -crf 26 -c:a copy "${mediaList[0][1]}"`);
+  } else if (type === 'image-sequence' && imageIndex < mediaList.length) {
+    commands.push(`${ffmpegPath} -i "${mediaList[imageIndex][0]}" "${mediaList[imageIndex][1]}"`);
   }
 
   //commands.push(`| tee "${joblog}"`);
@@ -307,8 +311,13 @@ function convertMedia(settings: Settings,
     shell: true,
   });
 
+  let jobKey = `convert_${job.pid}_${meta.originalBasePath}`;
+  if (key.length) {
+    jobKey = key;
+  }
+
   const jobBase: DesktopJob = {
-    key: `convert_${job.pid}_${meta.originalBasePath}`,
+    key: jobKey,
     pid: job.pid,
     jobType: 'conversion',
     workingDir: meta.originalBasePath || DefaultSettings.dataPath,
@@ -341,17 +350,23 @@ function convertMedia(settings: Settings,
   });
 
   job.on('exit', async (code) => {
-    console.log('On Exit');
-    console.log(code);
     if (code !== 0) {
       console.error('Error with running conversion');
+    } else if (type === 'video' || (type === 'image-sequence' && imageIndex === mediaList.length - 1)) {
+      common.completeConversion(settings, meta.id, jobKey);
+      updater({
+        ...jobBase,
+        body: [''],
+        exitCode: code,
+        endTime: new Date(),
+      });
+    } else if (type === 'image-sequence') {
+      updater({
+        ...jobBase,
+        body: [`Convertion ${imageIndex + 1} of ${mediaList.length} Complete`],
+      });
+      convertMedia(settings, meta, mediaList, type, updater, imageIndex + 1, jobKey);
     }
-    updater({
-      ...jobBase,
-      body: [''],
-      exitCode: code,
-      endTime: new Date(),
-    });
   });
   return jobBase;
 }

@@ -199,6 +199,10 @@ async function nvidiaSmi(): Promise<NvidiaSmiReply> {
   });
 }
 
+/**
+ * Checs the video file for the codec type and
+ * returns true if it is x264, if not will return false for media conversion
+ */
 function checkMedia(settings: Settings, file: string): boolean {
   const setupScriptPath = npath.join(settings.viamePath, 'setup_viame.sh');
   const ffprobePath = `"${settings.viamePath}/bin/ffprobe"`;
@@ -220,9 +224,7 @@ function checkMedia(settings: Settings, file: string): boolean {
   }
   const ffprobeJSON: FFProbeResults = JSON.parse(result.stdout.toString('utf-8'));
   if (ffprobeJSON && ffprobeJSON.streams) {
-    console.log(ffprobeJSON);
     const websafe = ffprobeJSON.streams.filter((el) => (el.codec_name === 'h264' && el.codec_type === 'video'));
-
     return !!websafe.length;
   }
   return false;
@@ -232,7 +234,9 @@ function convertMedia(settings: Settings,
   meta: JsonMeta,
   mediaList: [string, string][],
   type: DatasetType,
-  updater: DesktopJobUpdater): DesktopJob {
+  updater: DesktopJobUpdater,
+  imageIndex = 0,
+  key = ''): DesktopJob {
   // TODO:  Do we need a run log for conversion?
   //const joblog = npath.join(jobWorkDir, 'runlog.txt');
 
@@ -242,15 +246,18 @@ function convertMedia(settings: Settings,
   const commands: string[] = [];//[`source ${setupScriptPath} &&`];
   if (type === 'video' && mediaList[0]) {
     commands.push(`${ffmpegPath} -i "${mediaList[0][0]}" -c:v libx264 -preset slow -crf 26 -c:a copy "${mediaList[0][1]}"`);
+  } else if (type === 'image-sequence' && imageIndex < mediaList.length) {
+    commands.push(`${ffmpegPath} -i "${mediaList[imageIndex][0]}" "${mediaList[imageIndex][1]}"`);
   }
 
-  //commands.push(`| tee "${joblog}"`);
-  console.log(commands.join(' '));
-  console.log(meta);
   const job = spawn(commands.join(' '), { shell: '/bin/bash' });
-
+  console.log(commands.join(' '));
+  let jobKey = `convert_${job.pid}_${meta.originalBasePath}`;
+  if (key.length) {
+    jobKey = key;
+  }
   const jobBase: DesktopJob = {
-    key: `convert_${job.pid}_${meta.originalBasePath}`,
+    key: jobKey,
     pid: job.pid,
     jobType: 'conversion',
     workingDir: meta.originalBasePath || DefaultSettings.dataPath,
@@ -283,20 +290,23 @@ function convertMedia(settings: Settings,
   });
 
   job.on('exit', async (code) => {
-    console.log('On Exit');
-    console.log(code);
     if (code !== 0) {
       console.error('Error with running conversion');
-    } else {
-      //Here we do the updating for the JSON Meta
-      common.completeConversion(settings, meta.id, job.pid);
+    } else if (type === 'video' || (type === 'image-sequence' && imageIndex === mediaList.length - 1)) {
+      common.completeConversion(settings, meta.id, jobKey);
+      updater({
+        ...jobBase,
+        body: [''],
+        exitCode: code,
+        endTime: new Date(),
+      });
+    } else if (type === 'image-sequence') {
+      updater({
+        ...jobBase,
+        body: [`Convertion ${imageIndex + 1} of ${mediaList.length} Complete`],
+      });
+      convertMedia(settings, meta, mediaList, type, updater, imageIndex + 1, jobKey);
     }
-    updater({
-      ...jobBase,
-      body: [''],
-      exitCode: code,
-      endTime: new Date(),
-    });
   });
   return jobBase;
 }

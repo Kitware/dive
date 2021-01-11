@@ -33,6 +33,10 @@ export const websafeImageTypes = [
 export const otherImageTypes = [
   'image/avif',
   'image/tiff',
+  'image/bmp',
+  'image/x-windows-bmp',
+  'image/sgi',
+  'image/x-portable-graymap',
 ];
 
 export const JsonMetaCurrentVersion = 1;
@@ -92,7 +96,7 @@ export interface JsonMeta extends DatasetMetaMutable {
 
   // If the dataset required transcoding, specify the job
   // key that ran transcoding
-  transcodingJobKey?: number;
+  transcodingJobKey?: string;
 }
 
 export type DesktopMetadata = DatasetMeta & JsonMeta;
