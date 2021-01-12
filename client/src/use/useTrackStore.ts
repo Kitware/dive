@@ -3,7 +3,7 @@ import IntervalTree from '@flatten-js/interval-tree';
 import Track, { TrackId } from '../track';
 
 interface UseTrackStoreParams {
-  markChangesPending: (type: 'upsert' | 'delete', track?: Track) => void;
+  markChangesPending: (type: 'upsert' | 'delete', track: Track) => void;
 }
 
 export function getTrack(

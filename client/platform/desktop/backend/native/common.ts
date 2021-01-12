@@ -27,10 +27,10 @@ const JsonTrackFileName = /^result(_.*)?\.json$/;
 const JsonMetaFileName = 'meta.json';
 const CsvFileName = /^.*\.csv$/;
 
-async function _acquireLock(dir: string) {
-  const release = await lockfile.lock(dir, {
+async function _acquireLock(dir: string, resource: string, lockname: 'meta' | 'tracks') {
+  const release = await lockfile.lock(resource, {
     stale: 5000, // 5 seconds
-    lockfilePath: npath.join(dir, 'dir.lock'),
+    lockfilePath: npath.join(dir, `${lockname}.lock`),
   });
   return release;
 }
@@ -244,7 +244,7 @@ async function _saveSerialized(
   const time = moment().format('MM-DD-YYYY_hh-mm-ss.SSS');
   const newFileName = `result_${time}.json`;
   const projectInfo = getProjectDir(settings, datasetId);
-  const release = await _acquireLock(projectInfo.basePath);
+  const release = await _acquireLock(projectInfo.basePath, projectInfo.basePath, 'tracks');
 
   try {
     const validatedInfo = await getValidatedProjectDir(settings, datasetId);
@@ -288,6 +288,7 @@ async function _saveAsJson(absPath: string, data: unknown) {
 
 async function saveMetadata(settings: Settings, datasetId: string, args: DatasetMetaMutable) {
   const projectDirInfo = await getValidatedProjectDir(settings, datasetId);
+  const release = await _acquireLock(projectDirInfo.basePath, projectDirInfo.metaFileAbsPath, 'meta');
   const existing = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
   if (args.confidenceFilters) {
     existing.confidenceFilters = args.confidenceFilters;
@@ -296,6 +297,7 @@ async function saveMetadata(settings: Settings, datasetId: string, args: Dataset
     existing.customTypeStyling = args.customTypeStyling;
   }
   await _saveAsJson(projectDirInfo.metaFileAbsPath, existing);
+  await release();
 }
 
 /**
