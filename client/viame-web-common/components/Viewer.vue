@@ -118,13 +118,15 @@ export default defineComponent({
       new HeadTail(),
     ];
 
+    const markMetaChangesPending = () => markChangesPending('meta');
+
     const {
       typeStyling,
       stateStyling,
       updateTypeStyle,
       populateTypeStyles,
       getTypeStyles,
-    } = useStyling({ markChangesPending });
+    } = useStyling({ markChangesPending: markMetaChangesPending });
 
     const {
       trackMap,
@@ -153,7 +155,11 @@ export default defineComponent({
       deleteType,
       updateCheckedTypes,
       updateCheckedTrackId,
-    } = useTrackFilters({ sortedTracks, removeTrack, markChangesPending });
+    } = useTrackFilters({
+      sortedTracks,
+      removeTrack,
+      markChangesPending: markMetaChangesPending,
+    });
 
     const {
       selectedTrackId,
@@ -359,7 +365,6 @@ export default defineComponent({
       visibleModes,
       /* methods */
       handler: globalHandler,
-      markChangesPending,
       save,
       saveThreshold,
       updateNewTrackSettings,
