@@ -1,5 +1,5 @@
 <script>
-import { throttle } from 'lodash';
+import { throttle, debounce } from 'lodash';
 
 export default {
   name: 'ConfidenceFilter',
@@ -11,10 +11,14 @@ export default {
   },
   created() {
     this.updateConfidence = throttle(this.updateConfidence, 100);
+    this.emitEnd = debounce(this.emitEnd, 200);
   },
   methods: {
     updateConfidence(value) {
       this.$emit('update:confidence', value);
+    },
+    emitEnd() {
+      this.$emit('end');
     },
   },
 };
@@ -32,8 +36,8 @@ export default {
       class="px-3 mb-2"
       persistent-hint
       @input="updateConfidence"
-      @end="$emit('end')"
-      @mouseup="$emit('end')"
+      @end="emitEnd"
+      @mouseup="emitEnd"
     />
   </div>
 </template>
