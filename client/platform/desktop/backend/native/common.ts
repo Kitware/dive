@@ -6,6 +6,7 @@ import fs from 'fs-extra';
 import { shell } from 'electron';
 import mime from 'mime-types';
 import moment from 'moment';
+import lockfile from 'proper-lockfile';
 import {
   DatasetType, MultiTrackRecord, Pipelines, SaveDetectionsArgs, FrameImage, DatasetMetaMutable,
 } from 'viame-web-common/apispec';
@@ -25,6 +26,13 @@ const AuxFolderName = 'auxiliary';
 const JsonTrackFileName = /^result(_.*)?\.json$/;
 const JsonMetaFileName = 'meta.json';
 const CsvFileName = /^.*\.csv$/;
+
+async function acquireDirLock(dir: string) {
+  const release = await lockfile.lock(dir, {
+    lockfilePath: npath.join(dir, 'dir.lock'),
+  });
+  return release;
+}
 
 /**
  * locate json track file in a directory
@@ -214,7 +222,7 @@ async function createKwiverRunWorkingDir(
   // eslint won't recognize \. as valid escape
   // eslint-disable-next-line no-useless-escape
   const safeDatasetName = jsonMetaList[0].name.replace(/[\.\s/]+/g, '_');
-  const runFolderName = moment().format(`[${safeDatasetName}_${pipeline}]_MM-DD-yy_hh-mm-ss`);
+  const runFolderName = moment().format(`[${safeDatasetName}_${pipeline}]_MM-DD-yy_hh-mm-ss.SSS`);
   const runFolderPath = npath.join(jobFolderPath, runFolderName);
   if (!fs.existsSync(jobFolderPath)) {
     await fs.mkdir(jobFolderPath);
@@ -230,10 +238,12 @@ async function _saveSerialized(
   settings: Settings,
   datasetId: string,
   trackData: MultiTrackRecord,
+  allowEmpty = false,
 ) {
-  const time = moment().format('MM-DD-YYYY_hh-mm-ss');
+  const time = moment().format('MM-DD-YYYY_hh-mm-ss.SSS');
   const newFileName = `result_${time}.json`;
   const projectInfo = getProjectDir(settings, datasetId);
+  const release = await acquireDirLock(projectInfo.basePath);
 
   try {
     const validatedInfo = await getValidatedProjectDir(settings, datasetId);
@@ -246,9 +256,11 @@ async function _saveSerialized(
     );
   } catch (err) {
     // Some part of the project dir didn't exist
+    if (!allowEmpty) throw err;
   }
   const serialized = JSON.stringify(trackData);
   await fs.writeFile(npath.join(projectInfo.basePath, newFileName), serialized);
+  await release();
 }
 
 /**
@@ -275,6 +287,7 @@ async function _saveAsJson(absPath: string, data: unknown) {
 
 async function saveMetadata(settings: Settings, datasetId: string, args: DatasetMetaMutable) {
   const projectDirInfo = await getValidatedProjectDir(settings, datasetId);
+  const release = await acquireDirLock(projectDirInfo.basePath);
   const existing = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
   if (args.confidenceFilters) {
     existing.confidenceFilters = args.confidenceFilters;
@@ -282,7 +295,8 @@ async function saveMetadata(settings: Settings, datasetId: string, args: Dataset
   if (args.customTypeStyling) {
     existing.customTypeStyling = args.customTypeStyling;
   }
-  _saveAsJson(projectDirInfo.metaFileAbsPath, existing);
+  await _saveAsJson(projectDirInfo.metaFileAbsPath, existing);
+  await release();
 }
 
 /**
@@ -317,7 +331,7 @@ async function processOtherAnnotationFiles(
         const data: MultiTrackRecord = {};
         tracks.forEach((t) => { data[t.trackId.toString()] = t; });
         // eslint-disable-next-line no-await-in-loop
-        await _saveSerialized(settings, datasetId, data);
+        await _saveSerialized(settings, datasetId, data, true);
         processedFiles.push(path);
         break; // Exit on first successful detection load
       } catch (err) {
@@ -456,7 +470,7 @@ async function importMedia(settings: Settings, path: string): Promise<JsonMeta> 
   }
   /* Finally create an empty file as fallback */
   if (!foundDetections) {
-    await _saveSerialized(settings, dsId, {});
+    await _saveSerialized(settings, dsId, {}, true);
   }
 
   return jsonMeta;
