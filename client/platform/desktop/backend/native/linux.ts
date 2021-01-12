@@ -242,10 +242,10 @@ function convertMedia(settings: Settings,
 
   // TODO:  Avoiding issues with VIAME ffmpeg and x264 support for right now
   const setupScriptPath = npath.join(settings.viamePath, 'setup_viame.sh');
-  const ffmpegPath = 'ffmpeg'; // `"${settings.viamePath}/bin/ffmpeg"`;
-  const commands: string[] = [];//[`source ${setupScriptPath} &&`];
+  const ffmpegPath = `"${settings.viamePath}/bin/ffmpeg"`;
+  const commands = [`source ${setupScriptPath} &&`];
   if (type === 'video' && mediaList[0]) {
-    commands.push(`${ffmpegPath} -i "${mediaList[0][0]}" -c:v libx264 -preset slow -crf 26 -c:a copy "${mediaList[0][1]}"`);
+    commands.push(`${ffmpegPath} -i "${mediaList[0][0]}" -c:v h264 -c:a copy "${mediaList[0][1]}"`);
   } else if (type === 'image-sequence' && imageIndex < mediaList.length) {
     commands.push(`${ffmpegPath} -i "${mediaList[imageIndex][0]}" "${mediaList[imageIndex][1]}"`);
   }
