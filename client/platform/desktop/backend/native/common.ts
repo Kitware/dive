@@ -238,6 +238,7 @@ async function _saveSerialized(
   settings: Settings,
   datasetId: string,
   trackData: MultiTrackRecord,
+  allowEmpty = false,
 ) {
   const time = moment().format('MM-DD-YYYY_hh-mm-ss.SSS');
   const newFileName = `result_${time}.json`;
@@ -255,7 +256,7 @@ async function _saveSerialized(
     );
   } catch (err) {
     // Some part of the project dir didn't exist
-    console.error(err);
+    if (!allowEmpty) throw err;
   }
   const serialized = JSON.stringify(trackData);
   await fs.writeFile(npath.join(projectInfo.basePath, newFileName), serialized);
@@ -330,7 +331,7 @@ async function processOtherAnnotationFiles(
         const data: MultiTrackRecord = {};
         tracks.forEach((t) => { data[t.trackId.toString()] = t; });
         // eslint-disable-next-line no-await-in-loop
-        await _saveSerialized(settings, datasetId, data);
+        await _saveSerialized(settings, datasetId, data, true);
         processedFiles.push(path);
         break; // Exit on first successful detection load
       } catch (err) {
@@ -469,7 +470,7 @@ async function importMedia(settings: Settings, path: string): Promise<JsonMeta> 
   }
   /* Finally create an empty file as fallback */
   if (!foundDetections) {
-    await _saveSerialized(settings, dsId, {});
+    await _saveSerialized(settings, dsId, {}, true);
   }
 
   return jsonMeta;
