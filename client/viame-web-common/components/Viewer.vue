@@ -118,15 +118,13 @@ export default defineComponent({
       new HeadTail(),
     ];
 
-    const markMetaChangesPending = () => markChangesPending('meta');
-
     const {
       typeStyling,
       stateStyling,
       updateTypeStyle,
       populateTypeStyles,
       getTypeStyles,
-    } = useStyling({ markChangesPending: markMetaChangesPending });
+    } = useStyling({ markChangesPending });
 
     const {
       trackMap,
@@ -158,7 +156,7 @@ export default defineComponent({
     } = useTrackFilters({
       sortedTracks,
       removeTrack,
-      markChangesPending: markMetaChangesPending,
+      markChangesPending,
     });
 
     const {
