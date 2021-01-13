@@ -17,25 +17,37 @@ export default defineComponent({
   },
   setup(_, { root }) {
     const recents = ref(getRecents().splice(0, 20));
+    const snackbar = ref(false);
+    const errorText = ref('');
     async function open(dstype: DatasetType) {
       const ret = await openFromDisk(dstype);
       if (!ret.canceled) {
-        const meta = await importMedia(ret.filePaths[0]);
-        if (!meta.transcodingJobKey) {
-          root.$router.push({
-            name: 'viewer',
-            params: { id: meta.id },
-          });
-        } else {
-          const recentsMeta = await loadMetadata(meta.id);
-          setRecents(recentsMeta);
-          recents.value = getRecents().splice(0, 20);
+        try {
+          const meta = await importMedia(ret.filePaths[0]);
+          if (!meta.transcodingJobKey) {
+            root.$router.push({
+              name: 'viewer',
+              params: { id: meta.id },
+            });
+          } else {
+            const recentsMeta = await loadMetadata(meta.id);
+            setRecents(recentsMeta);
+            recents.value = getRecents().splice(0, 20);
+          }
+        } catch (err) {
+          snackbar.value = true;
+          errorText.value = err.message;
         }
       }
     }
 
     return {
-      open, recents, join, setOrGetConversionJob,
+      open,
+      recents,
+      join,
+      setOrGetConversionJob,
+      snackbar,
+      errorText,
     };
   },
 });
@@ -147,5 +159,21 @@ export default defineComponent({
         </v-row>
       </v-col>
     </v-container>
+    <v-snackbar
+      v-model="snackbar"
+      :timeout="-1"
+      color="error"
+    >
+      {{ errorText }}
+      <template v-slot:action="{ attrs }">
+        <v-btn
+          text
+          v-bind="attrs"
+          @click="snackbar = false"
+        >
+          Close
+        </v-btn>
+      </template>
+    </v-snackbar>
   </v-main>
 </template>

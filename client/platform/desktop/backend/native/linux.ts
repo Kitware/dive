@@ -28,6 +28,17 @@ const DefaultSettings: Settings = {
   dataPath: npath.join(os.homedir(), 'VIAME_DATA'),
 };
 
+interface FFmpegSettings {
+  initialization: string;
+  path: string;
+  encoding: string;
+}
+const ffmpegSettings: FFmpegSettings = {
+  initialization: '', // command to initialize
+  path: '', // location of the ffmpeg executable
+  encoding: '', //encoding mode used
+};
+
 async function validateViamePath(settings: Settings): Promise<true | string> {
   const setupScriptPath = npath.join(settings.viamePath, 'setup_viame.sh');
   const setupExists = await fs.pathExists(setupScriptPath);
@@ -217,6 +228,21 @@ function checkMedia(settings: Settings, file: string): boolean {
     '-show_streams',
     file,
   ];
+  //We try the initial ffprobe first
+  if (!fs.existsSync(`${settings.viamePath}/bin/ffprobe`)) {
+    // fall back to local ffprobe
+    const localProbe = spawnSync('whereis ffprobe', { shell: '/bin/bash' });
+    if (localProbe.error) {
+      throw new Error('ffprobe not installed, please download VIAME Toolkit from the main page');
+    }
+    const location = localProbe.stdout.toString('utf-8').split(':');
+    if (/\S/.test(location[1])) {
+      command.splice(1, 1);
+      command[0] = 'ffprobe';
+    } else {
+      throw new Error('ffprobe not installed, please download VIAME Toolkit from the main page');
+    }
+  }
   const result = spawnSync(command.join(' '),
     { shell: '/bin/bash' });
   if (result.error) {
@@ -230,6 +256,52 @@ function checkMedia(settings: Settings, file: string): boolean {
   return false;
 }
 
+/**
+ * module level variable of ffmpegSettings stores settings so calculation is done only once
+ */
+function ffmpegCommand(settings: Settings): FFmpegSettings {
+  if (ffmpegSettings.path !== '' && ffmpegSettings.encoding !== '') {
+    return ffmpegSettings;
+  }
+  const setupScriptPath = npath.join(settings.viamePath, 'setup_viame.sh');
+  const ffmpegPath = `"${settings.viamePath}/bin/ffmpeg"`;
+  const init = `source ${setupScriptPath} &&`;
+
+  //First lets see if the VIAME install has libx264
+  const ffmpegViameExists = fs.existsSync(`${settings.viamePath}/bin/ffmpeg`);
+  if (ffmpegViameExists) {
+    const viameffmpeg = spawnSync(`${init} ${ffmpegPath} -encoders`, { shell: '/bin/bash' });
+    if (!viameffmpeg.error) {
+      const ffmpegOutput = viameffmpeg.stdout.toString('utf-8');
+      if (ffmpegOutput.includes('libx264')) {
+        ffmpegSettings.initialization = `source ${setupScriptPath} &&`;
+        ffmpegSettings.path = `"${settings.viamePath}/bin/ffmpeg"`;
+        ffmpegSettings.encoding = '-c:v libx264 -preset slow -crf 26 -c:a copy';
+        return ffmpegSettings;
+      }
+    }
+  }
+  //Now we need to test for a local install with libx264
+  const localffmpeg = spawnSync('ffmpeg -encoders', { shell: '/bin/bash' });
+  if (!localffmpeg.error) {
+    if (localffmpeg.stdout.toString('utf-8').includes('libx264')) {
+      ffmpegSettings.initialization = '';
+      ffmpegSettings.path = 'ffmpeg';
+      ffmpegSettings.encoding = '-c:v libx264 -preset slow -crf 26 -c:a copy';
+      return ffmpegSettings;
+    }
+  }
+  // As long as VIAMEffmpeg exists we can attempt to use nvida encoding
+  if (ffmpegViameExists) {
+    ffmpegSettings.initialization = `source ${setupScriptPath} &&`;
+    ffmpegSettings.path = `"${settings.viamePath}/bin/ffmpeg"`;
+    ffmpegSettings.encoding = '-c:v h264 -c:a copy';
+    return ffmpegSettings;
+  }
+  //We make it down here we have no way to convert the video file
+  throw new Error('ffmpeg not installed, please download VIAME Toolkit from the main page');
+}
+
 function convertMedia(settings: Settings,
   meta: JsonMeta,
   mediaList: [string, string][],
@@ -237,21 +309,15 @@ function convertMedia(settings: Settings,
   updater: DesktopJobUpdater,
   imageIndex = 0,
   key = ''): DesktopJob {
-  // TODO:  Do we need a run log for conversion?
-  //const joblog = npath.join(jobWorkDir, 'runlog.txt');
-
-  // TODO:  Avoiding issues with VIAME ffmpeg and x264 support for right now
-  const setupScriptPath = npath.join(settings.viamePath, 'setup_viame.sh');
-  const ffmpegPath = `"${settings.viamePath}/bin/ffmpeg"`;
-  const commands = [`source ${setupScriptPath} &&`];
+  const ffSettings = ffmpegCommand(settings);
+  const commands = [];
   if (type === 'video' && mediaList[0]) {
-    commands.push(`${ffmpegPath} -i "${mediaList[0][0]}" -c:v h264 -c:a copy "${mediaList[0][1]}"`);
+    commands.push(`${ffSettings.initialization} ${ffSettings.path} -i "${mediaList[0][0]}" ${ffSettings.encoding} "${mediaList[0][1]}"`);
   } else if (type === 'image-sequence' && imageIndex < mediaList.length) {
-    commands.push(`${ffmpegPath} -i "${mediaList[imageIndex][0]}" "${mediaList[imageIndex][1]}"`);
+    commands.push(`${ffSettings.initialization} ${ffSettings.path} -i "${mediaList[imageIndex][0]}" "${mediaList[imageIndex][1]}"`);
   }
 
   const job = spawn(commands.join(' '), { shell: '/bin/bash' });
-  console.log(commands.join(' '));
   let jobKey = `convert_${job.pid}_${meta.originalBasePath}`;
   if (key.length) {
     jobKey = key;
@@ -303,7 +369,7 @@ function convertMedia(settings: Settings,
     } else if (type === 'image-sequence') {
       updater({
         ...jobBase,
-        body: [`Convertion ${imageIndex + 1} of ${mediaList.length} Complete`],
+        body: [`Conversion ${imageIndex + 1} of ${mediaList.length} Complete`],
       });
       convertMedia(settings, meta, mediaList, type, updater, imageIndex + 1, jobKey);
     }
