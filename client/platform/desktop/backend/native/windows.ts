@@ -257,7 +257,7 @@ function checkMedia(settings: Settings, file: string): boolean {
   const ffprobePath = `${settings.viamePath}\\bin\\ffprobe.exe`;
   const ffprobeModified = `"${ffprobePath.replace(/\\/g, '\\')}"`;
   if (!fs.existsSync(setupScriptPath)) {
-    throw new Error(`${modifiedCommand} does not exist and is required to convert files.  Please download the VIAME toolkit from the main page`);
+    throw new Error(`${modifiedCommand} does not exist and is required to convert files.  Please download and install the VIAME toolkit from the main page`);
   }
   const command = [
     `${modifiedCommand} &&`,
@@ -308,7 +308,7 @@ function convertMedia(settings: Settings,
   const ffmpegModified = `"${ffmpegPath.replace(/\\/g, '\\')}"`;
 
   if (!fs.existsSync(setupScriptPath)) {
-    throw new Error(`${modifiedCommand} does not exist and is required to convert files.  Please download the VIAME toolkit from the main page`);
+    throw new Error('ffmpeg does not exist and is required to convert files.  Please download and install the VIAME toolkit from the main page');
   }
 
   const commands: string[] = [`${modifiedCommand} &&`];

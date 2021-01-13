@@ -240,7 +240,7 @@ function checkMedia(settings: Settings, file: string): boolean {
       command.splice(1, 1);
       command[0] = 'ffprobe';
     } else {
-      throw new Error('ffprobe not installed, please download VIAME Toolkit from the main page');
+      throw new Error('ffprobe not installed, please download and install VIAME Toolkit from the main page');
     }
   }
   const result = spawnSync(command.join(' '),
@@ -299,7 +299,7 @@ function ffmpegCommand(settings: Settings): FFmpegSettings {
     return ffmpegSettings;
   }
   //We make it down here we have no way to convert the video file
-  throw new Error('ffmpeg not installed, please download VIAME Toolkit from the main page');
+  throw new Error('ffmpeg not installed, please download and install VIAME Toolkit from the main page');
 }
 
 function convertMedia(settings: Settings,
