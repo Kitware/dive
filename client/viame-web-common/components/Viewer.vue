@@ -86,7 +86,7 @@ export default defineComponent({
     const datasetType: Ref<DatasetType> = ref('image-sequence');
     const videoUrl = ref(undefined as undefined | string);
     const frame = ref(0); // the currently displayed frame number
-    const { loadDetections, loadMetadata } = useApi();
+    const { loadDetections, loadMetadata, saveMetadata } = useApi();
     // Loaded flag prevents annotator window from populating
     // with stale data from props, for example if a persistent store
     // like vuex is used to drive them.
@@ -153,7 +153,11 @@ export default defineComponent({
       deleteType,
       updateCheckedTypes,
       updateCheckedTrackId,
-    } = useTrackFilters({ sortedTracks, removeTrack, markChangesPending });
+    } = useTrackFilters({
+      sortedTracks,
+      removeTrack,
+      markChangesPending,
+    });
 
     const {
       selectedTrackId,
@@ -249,7 +253,7 @@ export default defineComponent({
     }
 
     function saveThreshold() {
-      saveToServer({
+      saveMetadata(props.datasetId, {
         confidenceFilters: confidenceFilters.value,
       });
     }
@@ -359,7 +363,6 @@ export default defineComponent({
       visibleModes,
       /* methods */
       handler: globalHandler,
-      markChangesPending,
       save,
       saveThreshold,
       updateNewTrackSettings,
