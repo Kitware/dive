@@ -253,7 +253,7 @@ export default defineComponent({
     }
 
     function saveThreshold() {
-      saveMetadata(props.datasetId, {
+      saveMetadata(props.id, {
         confidenceFilters: confidenceFilters.value,
       });
     }
