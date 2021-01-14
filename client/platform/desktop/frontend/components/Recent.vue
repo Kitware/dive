@@ -30,6 +30,7 @@ export default defineComponent({
               params: { id: meta.id },
             });
           } else {
+            // Display new data and await transcoding to complete
             const recentsMeta = await loadMetadata(meta.id);
             setRecents(recentsMeta);
             recents.value = getRecents().splice(0, 20);

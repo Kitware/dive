@@ -45,6 +45,10 @@ function updateHistory(args: DesktopJobUpdate) {
 
 const conversionJob: Ref<Record<string, boolean>> = ref({});
 
+/**
+ * Locally stored coversion job in progress
+ * Used to indicate in recents that data is disabled until conversion completes
+ */
 function setOrGetConversionJob(datasetId: string, status?: boolean) {
   let existing = conversionJob.value[datasetId];
   if (!existing) {

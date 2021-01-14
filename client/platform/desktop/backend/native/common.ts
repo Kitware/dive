@@ -407,8 +407,8 @@ async function importMedia(settings: Settings, path: string,
     originalVideoFile: '',
     createdAt: (new Date()).toString(),
     originalImageFiles: [],
-    transcodedVideoFile: '', // TODO: this is empty (see above)
-    transcodedImageFiles: [], // TODO: this is empty
+    transcodedVideoFile: '',
+    transcodedImageFiles: [],
     name: dsName,
   };
 
@@ -430,7 +430,6 @@ async function importMedia(settings: Settings, path: string,
       if (websafeImageTypes.includes(mimetype) || otherImageTypes.includes(mimetype)) {
         throw new Error('User chose image file for video import option');
       } else if (websafeVideoTypes.includes(mimetype) || otherVideoTypes.includes(mimetype)) {
-        /* TODO: Kick off video inspection and maybe transcode */
         if (!checkMedia(settings, path) || otherVideoTypes.includes(mimetype)) {
           mediaConvertList.push(path);
         }
@@ -532,7 +531,7 @@ async function importMedia(settings: Settings, path: string,
 }
 
 /**
- * After media conversion we need to remove the transcodingKey and add the new files to the list
+ * After media conversion we need to remove the transcodingKey to signify it is done
  */
 async function completeConversion(
   settings: Settings, datasetId: string, transcodingJobKey: string,

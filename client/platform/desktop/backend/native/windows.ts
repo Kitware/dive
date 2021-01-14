@@ -280,7 +280,7 @@ function checkMedia(settings: Settings, file: string): boolean {
   const firstIndex = returnText.indexOf('{');
   const lastIndex = returnText.lastIndexOf('}');
   if (firstIndex === -1 || lastIndex === -1) {
-    throw new Error('No ffprobe JSON result found');
+    throw new Error('No ffprobe found. Please download and install the VIAME toolkit from the main page`');
   }
   const json = returnText.substring(firstIndex, lastIndex + 1);
   const ffprobeJSON: FFProbeResults = JSON.parse(json);
