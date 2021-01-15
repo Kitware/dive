@@ -26,7 +26,6 @@ import { MediaController } from 'vue-media-annotator/components/annotators/media
 /* VIAME WEB COMMON */
 import PolygonBase from 'viame-web-common/recipes/polygonbase';
 import HeadTail from 'viame-web-common/recipes/headtail';
-import NavigationTitle from 'viame-web-common/components/NavigationTitle.vue';
 import EditorMenu from 'viame-web-common/components/EditorMenu.vue';
 import ConfidenceFilter from 'viame-web-common/components/ConfidenceFilter.vue';
 import UserGuideButton from 'viame-web-common/components/UserGuideButton.vue';
@@ -50,7 +49,6 @@ export default defineComponent({
     LayerManager,
     VideoAnnotator,
     ImageAnnotator,
-    NavigationTitle,
     ConfidenceFilter,
     RunPipelineMenu,
     UserGuideButton,
@@ -382,7 +380,6 @@ export default defineComponent({
 <template>
   <v-main class="viewer">
     <v-app-bar app>
-      <navigation-title />
       <slot name="title" />
       <v-spacer />
       <template #extension>

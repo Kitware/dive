@@ -36,7 +36,10 @@ SentryInit({
 const notificationBus = new NotificationBus(girderRest);
 notificationBus.connect();
 
-girderRest.fetchUser().then(() => {
+Promise.all([
+  store.dispatch('Location/loadBrand'),
+  girderRest.fetchUser(),
+]).then(() => {
   new Vue({
     router,
     store,

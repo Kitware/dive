@@ -18,7 +18,7 @@ export default {
     runningJobIds: [],
   }),
   computed: {
-    ...mapState('Location', ['location']),
+    ...mapState('Location', ['location', 'brandData']),
   },
   async created() {
     const jobStatus = all();
@@ -71,7 +71,7 @@ export default {
 
 <template>
   <v-app-bar app>
-    <NavigationTitle>VIAME</NavigationTitle>
+    <NavigationTitle>{{ brandData.name }}</NavigationTitle>
     <v-tabs
       icons-and-text
       color="accent"
