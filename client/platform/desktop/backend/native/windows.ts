@@ -74,7 +74,7 @@ async function runPipeline(
 ): Promise<DesktopJob> {
   return viame.runPipeline(settings, runPipelineArgs, updater, validateViamePath, {
     ...ViameWindowsConstants,
-    setupScriptAbs: npath.join(settings.viamePath, ViameWindowsConstants.setup),
+    setupScriptAbs: `"${npath.join(settings.viamePath, ViameWindowsConstants.setup)}"`,
   });
 }
 
@@ -85,7 +85,7 @@ async function train(
 ): Promise<DesktopJob> {
   return viame.train(settings, runTrainingArgs, updater, validateViamePath, {
     ...ViameWindowsConstants,
-    setupScriptAbs: npath.join(settings.viamePath, ViameWindowsConstants.setup),
+    setupScriptAbs: `"${npath.join(settings.viamePath, ViameWindowsConstants.setup)}"`,
   });
 }
 

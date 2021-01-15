@@ -68,7 +68,7 @@ async function runPipeline(
   const setupScriptAbs = npath.join(settings.viamePath, ViameLinuxConstants.setup);
   return viame.runPipeline(settings, runPipelineArgs, updater, validateViamePath, {
     ...ViameLinuxConstants,
-    setupScriptAbs: `. ${setupScriptAbs}`,
+    setupScriptAbs: `. "${setupScriptAbs}"`,
   });
 }
 
@@ -80,7 +80,7 @@ async function train(
   const setupScriptPath = npath.join(settings.viamePath, ViameLinuxConstants.setup);
   return viame.train(settings, runTrainingArgs, updater, validateViamePath, {
     ...ViameLinuxConstants,
-    setupScriptAbs: `. ${setupScriptPath}`,
+    setupScriptAbs: `. "${setupScriptPath}"`,
   });
 }
 

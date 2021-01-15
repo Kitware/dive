@@ -53,18 +53,6 @@ class Viame(Resource):
         self.route("GET", ("valid_images",), self.get_valid_images)
 
     @access.user
-    @autoDescribeRoute(Description("List datasets").pagingParams(defaultSort="name"))
-    def list_datasets(self, limit, offset, sort):
-        return Folder().findWithPermissions(
-            {"meta.annotate": True},
-            offset=offset,
-            limit=limit,
-            sort=sort,
-            level=AccessType.READ,
-            user=self.getCurrentUser(),
-        )
-
-    @access.user
     @describeRoute(Description("Get available pipelines"))
     def get_pipelines(self, params):
         if self.static_pipelines is None:

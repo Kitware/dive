@@ -122,6 +122,8 @@ export interface RunTraining {
 export interface DesktopJob {
   // key unique identifier for this job
   key: string;
+  // command that was run
+  command: string;
   // jobType identify type of job
   jobType: 'pipeline' | 'training';
   // title whatever humans should see this job called

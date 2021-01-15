@@ -50,12 +50,12 @@ async function runPipeline(
     const videoAbsPath = npath.join(meta.originalBasePath, meta.originalVideoFile);
     command = [
       `${viameConstants.setupScriptAbs} &&`,
-      `${viameConstants.kwiverExe} runner`,
-      '-s input:video_reader:type=vidl_ffmpeg',
-      `-p ${pipelinePath}`,
-      `-s input:video_filename=${videoAbsPath}`,
-      `-s detector_writer:file_name=${detectorOutput}`,
-      `-s track_writer:file_name=${trackOutput}`,
+      `"${viameConstants.kwiverExe}" runner`,
+      '-s "input:video_reader:type=vidl_ffmpeg"',
+      `-p "${pipelinePath}"`,
+      `-s input:video_filename="${videoAbsPath}"`,
+      `-s detector_writer:file_name="${detectorOutput}"`,
+      `-s track_writer:file_name="${trackOutput}"`,
     ];
   } else if (meta.type === 'image-sequence') {
     // Create frame image manifest
@@ -67,7 +67,7 @@ async function runPipeline(
     await fs.writeFile(manifestFile, fileData);
     command = [
       `${viameConstants.setupScriptAbs} &&`,
-      `${viameConstants.kwiverExe} runner`,
+      `"${viameConstants.kwiverExe}" runner`,
       `-p "${pipelinePath}"`,
       `-s input:video_filename="${manifestFile}"`,
       `-s detector_writer:file_name="${detectorOutput}"`,
@@ -82,6 +82,7 @@ async function runPipeline(
 
   const jobBase: DesktopJob = {
     key: `pipeline_${job.pid}_${jobWorkDir}`,
+    command: command.join(' '),
     jobType: 'pipeline',
     pid: job.pid,
     args: runPipelineArgs,
@@ -91,6 +92,8 @@ async function runPipeline(
     exitCode: job.exitCode,
     startTime: new Date(),
   };
+
+  fs.writeFile(npath.join(jobWorkDir, 'dive_job_manifest.json'), JSON.stringify(jobBase));
 
   updater({
     ...jobBase,
@@ -199,10 +202,10 @@ async function train(
 
   const command = [
     `${viameConstants.setupScriptAbs} &&`,
-    viameConstants.trainingExe,
-    '--input-list', inputFolderFileList,
-    '--input-truth', groundTruthFileList,
-    '--config', configFilePath,
+    `"${viameConstants.trainingExe}"`,
+    `--input-list "${inputFolderFileList}"`,
+    `--input-truth "${groundTruthFileList}"`,
+    `--config "${configFilePath}"`,
     '--no-query',
   ];
 
@@ -215,6 +218,7 @@ async function train(
 
   const jobBase: DesktopJob = {
     key: `pipeline_${job.pid}_${jobWorkDir}`,
+    command: command.join(' '),
     jobType: 'pipeline',
     pid: job.pid,
     args: runTrainingArgs,
@@ -224,6 +228,8 @@ async function train(
     exitCode: job.exitCode,
     startTime: new Date(),
   };
+
+  fs.writeFile(npath.join(jobWorkDir, 'dive_job_manifest.json'), JSON.stringify(jobBase));
 
   updater({
     ...jobBase,
