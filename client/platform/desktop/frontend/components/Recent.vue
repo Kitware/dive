@@ -5,7 +5,7 @@ import { defineComponent } from '@vue/composition-api';
 import { DatasetType } from 'viame-web-common/apispec';
 
 import { openFromDisk, importMedia } from '../api';
-import { getRecents } from '../store/dataset';
+import { recents } from '../store/dataset';
 import BrowserLink from './BrowserLink.vue';
 import NavigationBar from './NavigationBar.vue';
 
@@ -15,7 +15,6 @@ export default defineComponent({
     NavigationBar,
   },
   setup(_, { root }) {
-    const recents = getRecents().splice(0, 20);
     async function open(dstype: DatasetType) {
       const ret = await openFromDisk(dstype);
       if (!ret.canceled) {

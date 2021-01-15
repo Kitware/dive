@@ -214,7 +214,7 @@ async function getPipelineList(settings: Settings): Promise<Pipelines> {
  */
 async function getTrainingConfigs(settings: Settings): Promise<TrainingConfigs> {
   const pipelinePath = npath.join(settings.viamePath, 'configs/pipelines');
-  const allowedPatterns = /\.conf$/;
+  const allowedPatterns = /\.viame_csv\.conf$/;
   const exists = await fs.pathExists(pipelinePath);
   if (!exists) {
     throw new Error('Path does not exist');

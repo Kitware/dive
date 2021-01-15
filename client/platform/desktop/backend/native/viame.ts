@@ -200,9 +200,10 @@ async function train(
   const command = [
     `${viameConstants.setupScriptAbs} &&`,
     viameConstants.trainingExe,
-    '-il', inputFolderFileList,
-    '-it', groundTruthFileList,
-    '-c', configFilePath,
+    '--input-list', inputFolderFileList,
+    '--input-truth', groundTruthFileList,
+    '--config', configFilePath,
+    '--no-query',
   ];
 
   const job = spawn(command.join(' '), {

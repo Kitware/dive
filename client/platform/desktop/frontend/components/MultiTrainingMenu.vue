@@ -1,29 +1,24 @@
 <script lang="ts">
-import type { DataTableHeader, DataOptions } from 'vuetify';
+import type { DataTableHeader } from 'vuetify';
 
 import {
-  computed, defineComponent, onBeforeMount, set, del, reactive, watch, toRef,
+  computed, defineComponent, onBeforeMount, set, del, reactive,
 } from '@vue/composition-api';
 import { DatasetMeta, TrainingConfigs, useApi } from 'viame-web-common/apispec';
-import { listDatasets } from '../store/dataset';
+import { datasets } from '../store/dataset';
 
 export default defineComponent({
   setup(_, { root }) {
     const { getTrainingConfigurations, runTraining } = useApi();
 
     const data = reactive({
-      items: [] as DatasetMeta[],
       stagedItems: {} as Record<string, DatasetMeta>,
       trainingOutputName: '',
       selectedTrainingConfig: 'foo.whatever',
       trainingConfigurations: {
-        configs: ['foo.whatever', 'bar.somethingelse'],
+        configs: [],
+        default: '',
       } as TrainingConfigs,
-      // external pagination
-      paginationOptions: {
-        itemsPerPage: 30,
-      } as DataOptions,
-      serverItemsCount: 0,
     });
 
     const headersTmpl: DataTableHeader[] = [
@@ -46,17 +41,6 @@ export default defineComponent({
       },
     ];
 
-    watch([toRef(data, 'paginationOptions')], async () => {
-      const { page, itemsPerPage } = data.paginationOptions;
-      const resp = await listDatasets({
-        limit: itemsPerPage,
-        offset: (page - 1) * itemsPerPage,
-        sort: 'name',
-      });
-      data.items = resp.items;
-      data.serverItemsCount = resp.total;
-    }, { deep: true });
-
     onBeforeMount(async () => {
       const configs = await getTrainingConfigurations();
       data.trainingConfigurations = configs;
@@ -71,10 +55,11 @@ export default defineComponent({
       }
     }
 
-    const availableItems = computed(() => data.items.map((item) => ({
-      ...item,
-      included: item.id in data.stagedItems,
-    })));
+    const availableItems = computed(() => Object.values(datasets.value)
+      .map((item) => ({
+        ...item,
+        included: item.id in data.stagedItems,
+      })));
 
     const stagedItems = computed(() => Object.values(data.stagedItems));
 
@@ -210,8 +195,6 @@ export default defineComponent({
       <v-data-table
         dense
         v-bind="{ headers: available.headers, items: available.items.value }"
-        :options.sync="data.paginationOptions"
-        :server-items-length="data.serverItemsCount"
         :footer-props="{ itemsPerPageOptions: [30, 50, -1] }"
         :item-class="({ included }) => included ? 'disabled-row' : ''"
         no-data-text="No data meets criteria for chosen configuration"

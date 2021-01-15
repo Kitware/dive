@@ -10,7 +10,7 @@ from viame_utils.types import PipelineCategory, PipelineDescription
 
 AllowedStaticPipelines = r"^detector_.+|^tracker_.+|^generate_.+"
 DisallowedStaticPipelines = (
-    r".*local.*|detector_svm_models.pipe|tracker_svm_models.pipe"
+    r".*local.*|detector_svm_models\.pipe|tracker_svm_models\.pipe"
 )
 
 
