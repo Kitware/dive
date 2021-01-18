@@ -45,12 +45,6 @@ export default defineComponent({
           Settings<v-icon>mdi-settings</v-icon>
         </v-tab>
       </v-tabs>
-      <span
-        v-if="datasets[id]"
-        class="title pl-3"
-      >
-        {{ datasets[id].name }}
-      </span>
     </template>
     <template #title-right>
       <RunPipelineMenu :selected-dataset-ids="[id]" />

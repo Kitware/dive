@@ -31,7 +31,7 @@ const locationModule: Module<LocationState, never> = {
     },
   },
   actions: {
-    async loadBrand({ state, commit }) {
+    async loadBrand({ commit }) {
       const data = await getBrandData();
       if (data.brand) {
         commit('setBrandData', data);

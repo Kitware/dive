@@ -3,7 +3,6 @@ import { GirderModel } from '@girder/components/src';
 import {
   Attribute, Pipe, Pipelines, TrainingConfigs,
 } from 'viame-web-common/apispec';
-import { GirderMetadata, GirderMetadataStatic } from '../constants';
 import girderRest from '../plugins/girder';
 
 interface ValidationResponse {

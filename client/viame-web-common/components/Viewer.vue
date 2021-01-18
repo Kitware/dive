@@ -82,6 +82,7 @@ export default defineComponent({
     const fps = ref(10 as string | number);
     const imageData = ref([] as FrameImage[]);
     const datasetType: Ref<DatasetType> = ref('image-sequence');
+    const datasetName = ref('');
     const videoUrl = ref(undefined as undefined | string);
     const frame = ref(0); // the currently displayed frame number
     const { loadDetections, loadMetadata, saveMetadata } = useApi();
@@ -317,6 +318,7 @@ export default defineComponent({
           importTypes(Object.keys(meta.customTypeStyling), false);
         }
         populateConfidenceFilters(meta.confidenceFilters);
+        datasetName.value = meta.name;
         fps.value = meta.fps;
         imageData.value = meta.imageData;
         videoUrl.value = meta.videoUrl;
@@ -338,6 +340,7 @@ export default defineComponent({
     return {
       /* props */
       confidenceThreshold,
+      datasetName,
       datasetType,
       editingTrack,
       editingMode,
@@ -381,6 +384,11 @@ export default defineComponent({
   <v-main class="viewer">
     <v-app-bar app>
       <slot name="title" />
+      <span
+        class="title pl-3"
+      >
+        {{ datasetName }}
+      </span>
       <v-spacer />
       <template #extension>
         <span>Viewer/Edit Controls</span>
