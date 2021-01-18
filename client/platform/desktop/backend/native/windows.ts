@@ -26,7 +26,7 @@ const DefaultSettings: Settings = {
 
 const ViameWindowsConstants = {
   setup: 'setup_viame.bat',
-  trainingExe: 'viame_train_detector.bat',
+  trainingExe: 'viame_train_detector.exe',
   kwiverExe: 'kwiver.exe',
   shell: true,
 };
@@ -67,12 +67,16 @@ async function validateViamePath(settings: Settings): Promise<true | string> {
   });
 }
 
+// Mock the validate call when starting jobs because it just takes too long to run.
+// TODO: maybe perform a lightweight check or some other test that doesn't spawn() kwiver
+const validateFake = () => Promise.resolve(true as true);
+
 async function runPipeline(
   settings: Settings,
   runPipelineArgs: RunPipeline,
   updater: (msg: DesktopJobUpdate) => void,
 ): Promise<DesktopJob> {
-  return viame.runPipeline(settings, runPipelineArgs, updater, validateViamePath, {
+  return viame.runPipeline(settings, runPipelineArgs, updater, validateFake, {
     ...ViameWindowsConstants,
     setupScriptAbs: `"${npath.join(settings.viamePath, ViameWindowsConstants.setup)}"`,
   });
@@ -83,7 +87,7 @@ async function train(
   runTrainingArgs: RunTraining,
   updater: (msg: DesktopJobUpdate) => void,
 ): Promise<DesktopJob> {
-  return viame.train(settings, runTrainingArgs, updater, validateViamePath, {
+  return viame.train(settings, runTrainingArgs, updater, validateFake, {
     ...ViameWindowsConstants,
     setupScriptAbs: `"${npath.join(settings.viamePath, ViameWindowsConstants.setup)}"`,
   });
