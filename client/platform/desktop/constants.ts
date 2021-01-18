@@ -136,17 +136,23 @@ export interface RunTraining {
   trainingConfig: string;
 }
 
+export interface ConversionArgs {
+  meta: JsonMeta;
+  mediaList: [string, string][];
+  type: DatasetType;
+}
+
 export interface DesktopJob {
   // key unique identifier for this job
   key: string;
   // command that was run
   command: string;
   // jobType identify type of job
-  jobType: 'pipeline' | 'training';
+  jobType: 'pipeline' | 'training' | 'conversion';
   // title whatever humans should see this job called
   title: string;
   // arguments to creation
-  args: RunPipeline | RunTraining;
+  args: RunPipeline | RunTraining | ConversionArgs;
   // datasetIds of the involved datasets
   datasetIds: string[];
   // pid of the process spawned
@@ -177,12 +183,5 @@ export interface FFProbeResults {
 
 export type ConvertMedia =
 (settings: Settings,
-  meta: JsonMeta,
-  mediaList: [string, string][],
-  type: DatasetType,
+  args: ConversionArgs,
   updater: DesktopJobUpdater) => DesktopJob;
-
-export interface RunPipeline {
-  datasetId: string;
-  pipeline: Pipe;
-}

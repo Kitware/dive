@@ -1,9 +1,10 @@
 import npath from 'path';
-import { spawn } from 'child_process';
+import { spawn, spawnSync } from 'child_process';
 import fs from 'fs-extra';
 
 import {
-  Settings, DesktopJob, DesktopJobUpdate, RunPipeline, RunTraining,
+  Settings, DesktopJob, DesktopJobUpdate, RunPipeline, RunTraining, FFProbeResults,
+  ConversionArgs,
 } from 'platform/desktop/constants';
 import { serialize } from 'platform/desktop/backend/serializers/viame';
 
@@ -12,11 +13,19 @@ import { cleanString, jobFileEchoMiddleware } from './utils';
 
 const PipelineRelativeDir = 'configs/pipelines';
 
+
+interface FFmpegSettings {
+  initialization: string;
+  path: string;
+  encoding: string;
+}
+
 interface ViameConstants {
   setupScriptAbs: string; // abs path setup comman
   trainingExe: string; // name of training binary on PATH
   kwiverExe: string; // name of kwiver binary on PATH
   shell: string | boolean; // shell arg for spawn
+  ffmpeg: FFmpegSettings; //ffmpeg settings
 }
 
 /**
@@ -249,7 +258,122 @@ async function train(
   return jobBase;
 }
 
+function checkMedia(
+  viameConstants: ViameConstants,
+  file: string,
+): boolean {
+  const ffprobePath = `${viameConstants.ffmpeg.path.replace('ffmpeg', 'ffprobe')}`;
+  const command = [
+    `${viameConstants.ffmpeg.initialization}`,
+    `${ffprobePath}`,
+    '-print_format',
+    'json',
+    '-v',
+    'quiet',
+    '-show_format',
+    '-show_streams',
+    file,
+  ];
+  const result = spawnSync(command.join(' '),
+    { shell: viameConstants.shell });
+  if (result.error) {
+    throw result.error;
+  }
+  // TODO: Don't like this, but Windows needs this
+  const returnText = result.stdout.toString('utf-8');
+  const firstIndex = returnText.indexOf('{');
+  const lastIndex = returnText.lastIndexOf('}');
+  if (firstIndex === -1 || lastIndex === -1) {
+    throw new Error('No ffprobe found. Please download and install the VIAME toolkit from the main page`');
+  }
+  const json = returnText.substring(firstIndex, lastIndex + 1);
+  const ffprobeJSON: FFProbeResults = JSON.parse(json);
+  if (ffprobeJSON && ffprobeJSON.streams) {
+    const websafe = ffprobeJSON.streams.filter((el) => el.codec_name === 'h264' && el.codec_type === 'video');
+
+    return !!websafe.length;
+  }
+  return false;
+}
+
+function convertMedia(settings: Settings,
+  args: ConversionArgs,
+  updater: (msg: DesktopJobUpdate) => void,
+  viameConstants: ViameConstants,
+  imageIndex = 0,
+  key = ''): DesktopJob {
+  const commands = [];
+  if (args.type === 'video' && args.mediaList[0]) {
+    commands.push(`${viameConstants.ffmpeg.initialization} ${viameConstants.ffmpeg.path} -i "${args.mediaList[0][0]}" ${viameConstants.ffmpeg.encoding} "${args.mediaList[0][1]}"`);
+  } else if (args.type === 'image-sequence' && imageIndex < args.mediaList.length) {
+    commands.push(`${viameConstants.ffmpeg.initialization} ${viameConstants.ffmpeg.path} -i "${args.mediaList[imageIndex][0]}" "${args.mediaList[imageIndex][1]}"`);
+  }
+
+  const job = spawn(commands.join(' '), { shell: viameConstants.shell });
+  let jobKey = `convert_${job.pid}_${args.meta.originalBasePath}`;
+  if (key.length) {
+    jobKey = key;
+  }
+  const jobBase: DesktopJob = {
+    key: jobKey,
+    pid: job.pid,
+    command: commands.join(' '),
+    args,
+    title: `converting ${args.meta.name}`,
+    jobType: 'conversion',
+    workingDir: args.meta.originalBasePath,
+    datasetIds: [args.meta.id],
+    exitCode: job.exitCode,
+    startTime: new Date(),
+  };
+
+  const processChunk = (chunk: Buffer) => chunk
+    .toString('utf-8')
+    .split('\n')
+    .filter((a) => a);
+
+  job.stdout.on('data', (chunk: Buffer) => {
+    // eslint-disable-next-line no-console
+    console.log(chunk.toString('utf-8'));
+    updater({
+      ...jobBase,
+      body: processChunk(chunk),
+    });
+  });
+
+  job.stderr.on('data', (chunk: Buffer) => {
+    // eslint-disable-next-line no-console
+    console.log(chunk.toString('utf-8'));
+    updater({
+      ...jobBase,
+      body: processChunk(chunk),
+    });
+  });
+
+  job.on('exit', async (code) => {
+    if (code !== 0) {
+      console.error('Error with running conversion');
+    } else if (args.type === 'video' || (args.type === 'image-sequence' && imageIndex === args.mediaList.length - 1)) {
+      common.completeConversion(settings, args.meta.id, jobKey);
+      updater({
+        ...jobBase,
+        body: [''],
+        exitCode: code,
+        endTime: new Date(),
+      });
+    } else if (args.type === 'image-sequence') {
+      updater({
+        ...jobBase,
+        body: [`Conversion ${imageIndex + 1} of ${args.mediaList.length} Complete`],
+      });
+      convertMedia(settings, args, updater, viameConstants, imageIndex + 1, jobKey);
+    }
+  });
+  return jobBase;
+}
 export {
   runPipeline,
   train,
+  checkMedia,
+  convertMedia,
 };

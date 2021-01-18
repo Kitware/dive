@@ -5,6 +5,7 @@ import fs from 'fs-extra';
 import { Console } from 'console';
 
 import type {
+  ConversionArgs,
   DesktopJob,
   DesktopJobUpdate, DesktopJobUpdater, JsonMeta, Settings,
 } from 'platform/desktop/constants';
@@ -79,12 +80,13 @@ const updater = (update: DesktopJobUpdate) => undefined;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const checkMedia = (settingsVal: Settings, file: string) => file.includes('mp4');
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-const convertMedia = (settingsVal: Settings, meta: JsonMeta, mediaList: [string, string][],
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  type: DatasetType,
+const convertMedia = (settingsVal: Settings, args: ConversionArgs,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   updaterFunc: DesktopJobUpdater) => ({
   key: 'jobKey',
+  title: 'title',
+  command: 'command',
+  args: {},
   jobType: 'conversion',
   datasetIds: ['datasetId'],
   pid: 1234,

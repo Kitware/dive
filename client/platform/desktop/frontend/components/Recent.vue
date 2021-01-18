@@ -5,7 +5,7 @@ import { defineComponent, ref } from '@vue/composition-api';
 import { DatasetType } from 'viame-web-common/apispec';
 
 import { openFromDisk, importMedia, loadMetadata } from '../api';
-import { getRecents, setRecents } from '../store/dataset';
+import { recents, setRecents } from '../store/dataset';
 import BrowserLink from './BrowserLink.vue';
 import NavigationBar from './NavigationBar.vue';
 import { setOrGetConversionJob } from '../store/jobs';
@@ -16,7 +16,6 @@ export default defineComponent({
     NavigationBar,
   },
   setup(_, { root }) {
-    const recents = ref(getRecents().splice(0, 20));
     const snackbar = ref(false);
     const errorText = ref('');
     async function open(dstype: DatasetType) {
@@ -33,7 +32,6 @@ export default defineComponent({
             // Display new data and await transcoding to complete
             const recentsMeta = await loadMetadata(meta.id);
             setRecents(recentsMeta);
-            recents.value = getRecents().splice(0, 20);
           }
         } catch (err) {
           snackbar.value = true;

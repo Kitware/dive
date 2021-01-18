@@ -506,9 +506,11 @@ async function importMedia(settings: Settings, path: string,
     });
     jobBase = convertMedia(
       settings,
-      jsonMeta,
-      srcDstList,
-      datasetType,
+      {
+        meta: jsonMeta,
+        mediaList: srcDstList,
+        type: datasetType,
+      },
       updater,
     );
     jsonMeta.transcodingJobKey = jobBase.key;

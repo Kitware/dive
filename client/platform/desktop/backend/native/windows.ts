@@ -10,7 +10,7 @@ import { xml2json } from 'xml-js';
 import {
   Settings, SettingsCurrentVersion,
   DesktopJob, DesktopJobUpdate, RunPipeline,
-  NvidiaSmiReply, RunTraining,
+  NvidiaSmiReply, RunTraining, FFProbeResults, ConversionArgs, DesktopJobUpdater,
 } from 'platform/desktop/constants';
 
 import * as viame from './viame';
@@ -29,6 +29,12 @@ const ViameWindowsConstants = {
   trainingExe: 'viame_train_detector.exe',
   kwiverExe: 'kwiver.exe',
   shell: true,
+  ffmpeg: {
+    initialization: 'setup_viame.bat', // command to initialize
+    path: '\\bin\\ffprobe.exe', // location of the ffmpeg executable
+    encoding: '-c:v libx264 -preset slow -crf 26 -c:a copy', //encoding mode used
+  },
+
 };
 
 let programFiles = 'C:\\Program Files';
@@ -150,138 +156,26 @@ async function nvidiaSmi(): Promise<NvidiaSmiReply> {
     });
   });
 }
-
+/**
+ * Checs the video file for the codec type and
+ * returns true if it is x264, if not will return false for media conversion
+ */
 function checkMedia(settings: Settings, file: string): boolean {
-  const setupScriptPath = npath.join(settings.viamePath, 'setup_viame.bat');
-
-  const modifiedCommand = `"${setupScriptPath.replace(/\\/g, '\\')}"`;
-
-  const ffprobePath = `${settings.viamePath}\\bin\\ffprobe.exe`;
-  const ffprobeModified = `"${ffprobePath.replace(/\\/g, '\\')}"`;
-  if (!fs.existsSync(setupScriptPath)) {
-    throw new Error(`${modifiedCommand} does not exist and is required to convert files.  Please download and install the VIAME toolkit from the main page`);
-  }
-  const command = [
-    `${modifiedCommand} &&`,
-    `${ffprobeModified}`,
-    '-print_format',
-    'json',
-    '-v',
-    'quiet',
-    '-show_format',
-    '-show_streams',
-    file,
-  ];
-  const result = spawnSync(command.join(' '),
-    { shell: true });
-  if (result.error) {
-    throw result.error;
-  }
-  // TODO: I don't like the below for grabbing the JSON out of the return data
-  const returnText = result.stdout.toString('utf-8');
-  const firstIndex = returnText.indexOf('{');
-  const lastIndex = returnText.lastIndexOf('}');
-  if (firstIndex === -1 || lastIndex === -1) {
-    throw new Error('No ffprobe found. Please download and install the VIAME toolkit from the main page`');
-  }
-  const json = returnText.substring(firstIndex, lastIndex + 1);
-  const ffprobeJSON: FFProbeResults = JSON.parse(json);
-  if (ffprobeJSON && ffprobeJSON.streams) {
-    const websafe = ffprobeJSON.streams.filter((el) => el.codec_name === 'h264' && el.codec_type === 'video');
-
-    return !!websafe.length;
-  }
-  return false;
+  const setupScriptAbs = npath.join(settings.viamePath, ViameWindowsConstants.setup);
+  return viame.checkMedia({
+    ...ViameWindowsConstants,
+    setupScriptAbs: `. "${setupScriptAbs}"`,
+  }, file);
 }
 
 function convertMedia(settings: Settings,
-  meta: JsonMeta,
-  mediaList: [string, string][],
-  type: DatasetType,
-  updater: DesktopJobUpdater,
-  imageIndex = 0,
-  key = ''): DesktopJob {
-  //const joblog = npath.join(jobWorkDir, 'runlog.txt');
-
-  const setupScriptPath = npath.join(settings.viamePath, 'setup_viame.bat');
-  const ffmpegPath = `${settings.viamePath}\\bin\\ffmpeg.exe`;
-
-  const modifiedCommand = `"${setupScriptPath.replace(/\\/g, '\\')}"`;
-  const ffmpegModified = `"${ffmpegPath.replace(/\\/g, '\\')}"`;
-
-  if (!fs.existsSync(setupScriptPath)) {
-    throw new Error('ffmpeg does not exist and is required to convert files.  Please download and install the VIAME toolkit from the main page');
-  }
-
-  const commands: string[] = [`${modifiedCommand} &&`];
-  if (type === 'video' && mediaList[0]) {
-    commands.push(`${ffmpegModified} -i "${mediaList[0][0]}" -c:v libx264 -preset slow -crf 26 -c:a copy "${mediaList[0][1]}"`);
-  } else if (type === 'image-sequence' && imageIndex < mediaList.length) {
-    commands.push(`${ffmpegModified} -i "${mediaList[imageIndex][0]}" "${mediaList[imageIndex][1]}"`);
-  }
-
-  const job = spawn(commands.join(' '), {
-    shell: true,
+  args: ConversionArgs,
+  updater: DesktopJobUpdater): DesktopJob {
+  const setupScriptAbs = npath.join(settings.viamePath, ViameWindowsConstants.setup);
+  return viame.convertMedia(settings, args, updater, {
+    ...ViameWindowsConstants,
+    setupScriptAbs: `. "${setupScriptAbs}"`,
   });
-
-  let jobKey = `convert_${job.pid}_${meta.originalBasePath}`;
-  if (key.length) {
-    jobKey = key;
-  }
-
-  const jobBase: DesktopJob = {
-    key: jobKey,
-    pid: job.pid,
-    jobType: 'conversion',
-    workingDir: meta.originalBasePath || DefaultSettings.dataPath,
-    datasetIds: [meta.id],
-    exitCode: job.exitCode,
-    startTime: new Date(),
-  };
-
-  const processChunk = (chunk: Buffer) => chunk
-    .toString('utf-8')
-    .split('\n')
-    .filter((a) => a);
-
-  job.stdout.on('data', (chunk: Buffer) => {
-    // eslint-disable-next-line no-console
-    console.log(chunk.toString('utf-8'));
-    updater({
-      ...jobBase,
-      body: processChunk(chunk),
-    });
-  });
-
-  job.stderr.on('data', (chunk: Buffer) => {
-    // eslint-disable-next-line no-console
-    console.log(chunk.toString('utf-8'));
-    updater({
-      ...jobBase,
-      body: processChunk(chunk),
-    });
-  });
-
-  job.on('exit', async (code) => {
-    if (code !== 0) {
-      console.error('Error with running conversion');
-    } else if (type === 'video' || (type === 'image-sequence' && imageIndex === mediaList.length - 1)) {
-      common.completeConversion(settings, meta.id, jobKey);
-      updater({
-        ...jobBase,
-        body: [''],
-        exitCode: code,
-        endTime: new Date(),
-      });
-    } else if (type === 'image-sequence') {
-      updater({
-        ...jobBase,
-        body: [`Convertion ${imageIndex + 1} of ${mediaList.length} Complete`],
-      });
-      convertMedia(settings, meta, mediaList, type, updater, imageIndex + 1, jobKey);
-    }
-  });
-  return jobBase;
 }
 
 export default {

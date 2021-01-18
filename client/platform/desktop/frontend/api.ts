@@ -10,7 +10,7 @@ import type {
 
 import {
   DesktopJob, DesktopMetadata, JsonMeta, NvidiaSmiReply,
-  RunPipeline, RunTraining, websafeVideoTypes, fileVideoTypes,
+  RunPipeline, RunTraining, fileVideoTypes,
 } from 'platform/desktop/constants';
 
 /**
