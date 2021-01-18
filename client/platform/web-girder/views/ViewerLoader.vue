@@ -5,7 +5,7 @@ import {
 import Viewer from 'viame-web-common/components/Viewer.vue';
 import NavigationTitle from 'viame-web-common/components/NavigationTitle.vue';
 import RunPipelineMenu from 'viame-web-common/components/RunPipelineMenu.vue';
-
+import JobsTab from './JobsTab.vue';
 import { getPathFromLocation } from '../utils';
 import Export from './Export.vue';
 
@@ -16,6 +16,7 @@ import Export from './Export.vue';
 export default defineComponent({
   components: {
     Export,
+    JobsTab,
     RunPipelineMenu,
     NavigationTitle,
     Viewer,
@@ -58,9 +59,7 @@ export default defineComponent({
     ref="viewerRef"
   >
     <template #title>
-      <NavigationTitle>
-        {{ brandData.name }}
-      </NavigationTitle>
+      <NavigationTitle :name="brandData.name" />
       <v-tabs
         icons-and-text
         hide-slider
@@ -70,6 +69,7 @@ export default defineComponent({
           Data
           <v-icon>mdi-database</v-icon>
         </v-tab>
+        <JobsTab />
         <v-tab to="/settings">
           Settings<v-icon>mdi-settings</v-icon>
         </v-tab>

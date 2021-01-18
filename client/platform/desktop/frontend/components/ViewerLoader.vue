@@ -1,6 +1,7 @@
 <script lang="ts">
 import { defineComponent } from '@vue/composition-api';
 
+import NavigationTitle from 'viame-web-common/components/NavigationTitle.vue';
 import Viewer from 'viame-web-common/components/Viewer.vue';
 import RunPipelineMenu from 'viame-web-common/components/RunPipelineMenu.vue';
 import JobTab from './JobTab.vue';
@@ -10,6 +11,7 @@ import { datasets } from '../store/dataset';
 export default defineComponent({
   components: {
     JobTab,
+    NavigationTitle,
     RunPipelineMenu,
     Viewer,
   },
@@ -28,6 +30,7 @@ export default defineComponent({
 <template>
   <Viewer :id="id">
     <template #title>
+      <NavigationTitle />
       <v-tabs
         icons-and-text
         hide-slider

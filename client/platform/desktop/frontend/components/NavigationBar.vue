@@ -17,7 +17,7 @@ export default defineComponent({
 
 <template>
   <v-app-bar app>
-    <NavigationTitle>{{ name }}</NavigationTitle>
+    <NavigationTitle />
     <v-tabs
       icons-and-text
       style="flex-basis:0; flex-grow:0;"
