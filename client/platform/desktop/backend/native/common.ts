@@ -8,7 +8,8 @@ import mime from 'mime-types';
 import moment from 'moment';
 import lockfile from 'proper-lockfile';
 import {
-  DatasetType, MultiTrackRecord, Pipelines, SaveDetectionsArgs, FrameImage, DatasetMetaMutable,
+  DatasetType, MultiTrackRecord, Pipelines, SaveDetectionsArgs,
+  FrameImage, DatasetMetaMutable, TrainingConfigs,
 } from 'viame-web-common/apispec';
 import * as viameSerializers from 'platform/desktop/backend/serializers/viame';
 
@@ -209,9 +210,27 @@ async function getPipelineList(settings: Settings): Promise<Pipelines> {
 }
 
 /**
- * Create `job_runs/{runfoldername}` folder, usually inside an aux folder
- * @param baseDir parent
- * @param pipeline name
+ * get training configurations
+ */
+async function getTrainingConfigs(settings: Settings): Promise<TrainingConfigs> {
+  const pipelinePath = npath.join(settings.viamePath, 'configs/pipelines');
+  const allowedPatterns = /\.viame_csv\.conf$/;
+  const exists = await fs.pathExists(pipelinePath);
+  if (!exists) {
+    throw new Error('Path does not exist');
+  }
+  let configs = await fs.readdir(pipelinePath);
+  configs = configs
+    .filter((p) => p.match(allowedPatterns))
+    .sort((a, b) => a.localeCompare(b));
+  return {
+    default: configs[0],
+    configs,
+  };
+}
+
+/**
+ * Create job run working directory
  */
 async function createKwiverRunWorkingDir(
   settings: Settings, jsonMetaList: JsonMeta[], pipeline: string,
@@ -482,8 +501,11 @@ async function openLink(url: string) {
 }
 
 export {
+  ProjectsFolderName,
+  JobsFolderName,
   createKwiverRunWorkingDir,
   getPipelineList,
+  getTrainingConfigs,
   getProjectDir,
   getValidatedProjectDir,
   importMedia,

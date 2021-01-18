@@ -1,18 +1,17 @@
-import { Api, Pipe } from 'viame-web-common/apispec';
+import { Api } from 'viame-web-common/apispec';
 import * as api from 'platform/desktop/frontend/api';
 
 /* Warning, this import involves node.js code for loadDetections (below) */
 import * as common from 'platform/desktop/backend/native/common';
 
 import { settings } from './settings';
-import { getRecents, setRecents, RecentsKey } from './dataset';
-import { getOrCreateHistory } from './jobs';
+import { load, setRecents, clearRecents } from './dataset';
 
 /* Run forward migrations on any client-side data stores */
 export async function migrate() {
-  const recents = await getRecents();
-  if (recents.length && typeof recents[0] === 'string') {
-    window.localStorage.setItem(RecentsKey, JSON.stringify([]));
+  const datasets = await load();
+  if (datasets.length && typeof datasets[0] === 'string') {
+    clearRecents();
   }
 }
 
@@ -20,11 +19,6 @@ export async function migrate() {
  * Wrap API with hooks to use the store
  */
 export default function wrap(): Api {
-  async function runPipeline(itemId: string, pipeline: Pipe) {
-    const job = await api.runPipeline(itemId, pipeline);
-    getOrCreateHistory(job, job.datasetIds);
-  }
-
   async function loadMetadata(datasetId: string) {
     const meta = await api.loadMetadata(datasetId);
     setRecents(meta);
@@ -49,6 +43,5 @@ export default function wrap(): Api {
     ...api,
     loadDetections,
     loadMetadata,
-    runPipeline,
   };
 }

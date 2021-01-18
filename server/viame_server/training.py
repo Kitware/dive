@@ -1,4 +1,5 @@
 import json
+import re
 from typing import List
 
 from girder.models.assetstore import Assetstore
@@ -14,11 +15,12 @@ from viame_server.constants import (
     VideoType,
     safeImageRegex,
 )
-from viame_server.pipelines import get_static_pipelines_path
+from viame_server.pipelines import DisallowedStaticPipelines, get_static_pipelines_path
 from viame_server.serializers import viame
 
 TrainingOutputFolderName = "VIAME Training Results"
 DefaultTrainingConfiguration = "train_netharn_cascade.viame_csv.conf"
+AllowedTrainingConfigs = r".*\.viame_csv\.conf$"
 
 
 class TrainingConfigurationDescription(TypedDict):
@@ -30,7 +32,8 @@ def load_training_configurations() -> TrainingConfigurationDescription:
     """Load existing training configs."""
 
     main_pipeline_path = get_static_pipelines_path()
-    configurations = [path.name for path in main_pipeline_path.glob("./*.conf")]
+    configurations = sorted([path.name for path in main_pipeline_path.glob("./*.conf")])
+    configurations = [c for c in configurations if re.match(AllowedTrainingConfigs, c)]
 
     return {
         "configs": configurations,

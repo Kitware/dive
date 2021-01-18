@@ -52,10 +52,13 @@ interface DatasetMetaMutable {
 }
 
 interface DatasetMeta extends DatasetMetaMutable {
+  id: string;
   imageData: FrameImage[];
   videoUrl: string | undefined;
   type: Readonly<DatasetType>;
   fps: Readonly<number | string>; // this will become mutable in the future.
+  name: string;
+  createdAt: string;
 }
 
 interface Api {

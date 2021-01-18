@@ -2,7 +2,9 @@ import OS from 'os';
 import http from 'http';
 import { ipcMain } from 'electron';
 
-import { DesktopJobUpdate, RunPipeline, Settings } from 'platform/desktop/constants';
+import {
+  DesktopJobUpdate, RunPipeline, RunTraining, Settings,
+} from 'platform/desktop/constants';
 
 import linux from './native/linux';
 import win32 from './native/windows';
@@ -26,6 +28,10 @@ export default function register() {
   });
   ipcMain.handle('get-pipeline-list', async () => {
     const ret = await common.getPipelineList(settings.get());
+    return ret;
+  });
+  ipcMain.handle('get-training-configs', async () => {
+    const ret = await common.getTrainingConfigs(settings.get());
     return ret;
   });
   ipcMain.handle('open-link-in-browser', (_, url: string) => {
@@ -56,5 +62,11 @@ export default function register() {
       event.sender.send('job-update', update);
     };
     return currentPlatform.runPipeline(settings.get(), args, updater);
+  });
+  ipcMain.handle('run-training', async (event, args: RunTraining) => {
+    const updater = (update: DesktopJobUpdate) => {
+      event.sender.send('job-update', update);
+    };
+    return currentPlatform.train(settings.get(), args, updater);
   });
 }

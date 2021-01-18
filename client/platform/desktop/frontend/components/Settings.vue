@@ -80,7 +80,7 @@ export default defineComponent({
                 persistent-hint
               />
             </v-col>
-            <v-col>
+            <v-col cols="3">
               <v-btn
                 large
                 block
@@ -154,7 +154,7 @@ export default defineComponent({
             You are using a supported GPU configuration
           </span>
           <span v-else>
-            Could not reliably determine your GPU compatibility:  nvidia-smi not found.
+            Could not determine your GPU compatibility: {{ smi.error }}
           </span>
         </v-alert>
         <v-alert

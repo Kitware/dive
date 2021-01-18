@@ -1,18 +1,15 @@
-<script>
+<script lang="ts">
+import Vue from 'vue';
 import AttributeSettings from 'viame-web-common/components/AttributeSettings.vue';
-import NavigationBar from './NavigationBar.vue';
 
-export default {
-  name: 'Config',
-  components: { NavigationBar, AttributeSettings },
-};
+export default Vue.extend({
+  name: 'Settings',
+  components: { AttributeSettings },
+});
 </script>
 
 <template>
-  <v-main>
-    <NavigationBar />
-    <v-container>
-      <AttributeSettings />
-    </v-container>
-  </v-main>
+  <v-container>
+    <AttributeSettings />
+  </v-container>
 </template>
