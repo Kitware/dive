@@ -14,7 +14,6 @@ yarn lint &
 yarn lint:templates
 
 yarn build:web &
-yarn build:electron &
 yarn build:lib &
 yarn build:cli &
 

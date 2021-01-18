@@ -4,16 +4,8 @@ VIAME-Web is a web interface for performing data management, video annotation, a
 within the VIAME (https://github.com/VIAME/VIAME) repository. When compiled, docker instances for VIAME-Web can be run either
 as local servers or online in web services. A sample instance of VIAME-Web is running on a public server at https://viame.kitware.com.
 Additional documentation will be available in the future for users.
-<br>
-<p align="center">
-<br>
-<nobr>
-<img src="https://raw.githubusercontent.com/wiki/VIAME/VIAME-Web/images/Misc/FishPolygonSelected.png" alt="Example from viame.kitware.com sample data" width="370" border="1">
-&nbsp; &nbsp; &nbsp;
-<img src="https://raw.githubusercontent.com/wiki/VIAME/VIAME-Web/images/Misc/PolygonUAV.png" alt="Example from mevadata.org UAV clip" width="430" border="1">
-&nbsp; &nbsp; &nbsp;
-</nobr>
-</p>
+
+![docs/images/Banner.png](docs/images/Banner.png)
 
 ## Features
 

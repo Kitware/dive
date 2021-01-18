@@ -65,6 +65,7 @@ export default defineComponent({
     const {
       cursorHandler,
       initializeViewer,
+      mediaController,
     } = commonMedia.initialize({ seek, play, pause });
 
     /**
@@ -109,6 +110,7 @@ export default defineComponent({
       containerRef: commonMedia.containerRef,
       onResize: commonMedia.onResize,
       cursorHandler,
+      mediaController,
     };
   },
 });

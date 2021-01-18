@@ -8,7 +8,6 @@ import RunPipelineMenu from 'viame-web-common/components/RunPipelineMenu.vue';
 import { getPathFromLocation } from '../utils';
 import Export from './Export.vue';
 
-
 /**
  * ViewerLoader is responsible for loading
  * data from girder.
@@ -17,7 +16,7 @@ export default defineComponent({
   components: { Export, RunPipelineMenu, Viewer },
 
   props: {
-    datasetId: {
+    id: {
       type: String,
       required: true,
     },
@@ -29,7 +28,7 @@ export default defineComponent({
     }
   },
   setup(props, { root, refs }) {
-    const dataset = toRef(root.$store.state.Dataset, 'dataset');
+    const meta = toRef(root.$store.state.Dataset, 'meta');
     const frameRate = toRef(root.$store.getters, 'Dataset/frameRate');
     const annotatorType = toRef(root.$store.getters, 'Dataset/annotatorType');
     const imageData = toRef(root.$store.state.Dataset, 'imageData');
@@ -50,7 +49,7 @@ export default defineComponent({
 
     return {
       dataPath,
-      dataset,
+      meta,
       frameRate,
       annotatorType,
       imageData,
@@ -63,12 +62,12 @@ export default defineComponent({
 
 <template>
   <Viewer
+    :id="id"
     ref="viewer"
     :frame-rate="frameRate"
     :annotator-type="annotatorType"
     :image-data="imageData"
     :video-url="videoUrl"
-    :dataset-id="datasetId"
   >
     <template #title>
       <v-tabs
@@ -80,20 +79,26 @@ export default defineComponent({
           Data
           <v-icon>mdi-database</v-icon>
         </v-tab>
+        <v-tab :to="{ name: 'training' }">
+          Training
+          <v-icon>
+            mdi-brain
+          </v-icon>
+        </v-tab>
         <v-tab to="/settings">
           Settings<v-icon>mdi-settings</v-icon>
         </v-tab>
       </v-tabs>
       <span
-        v-if="dataset"
+        v-if="meta"
         class="title pl-3"
       >
-        {{ dataset.name }}
+        {{ meta.name }}
       </span>
     </template>
     <template #title-right>
-      <RunPipelineMenu :selected-dataset-ids="[datasetId]" />
-      <Export :dataset-id="datasetId" />
+      <RunPipelineMenu :selected-dataset-ids="[id]" />
+      <Export :dataset-id="id" />
     </template>
   </Viewer>
 </template>

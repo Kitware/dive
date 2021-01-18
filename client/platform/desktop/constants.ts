@@ -120,13 +120,33 @@ export interface NvidiaSmiReply {
   error: string;
 }
 
+/** TODO promote to apispec */
+export interface RunPipeline {
+  datasetId: string;
+  pipeline: Pipe;
+}
+
+/** TODO promote to apispec */
+export interface RunTraining {
+  // datasets to run training on
+  datasetIds: string[];
+  // new pipeline name to be created
+  pipelineName: string;
+  // training configuration file name
+  trainingConfig: string;
+}
+
 export interface DesktopJob {
   // key unique identifier for this job
   key: string;
+  // command that was run
+  command: string;
   // jobType identify type of job
-  jobType: 'pipeline' | 'training' | 'conversion';
-  // pipe
-  pipeline?: Pipe;
+  jobType: 'pipeline' | 'training';
+  // title whatever humans should see this job called
+  title: string;
+  // arguments to creation
+  args: RunPipeline | RunTraining;
   // datasetIds of the involved datasets
   datasetIds: string[];
   // pid of the process spawned

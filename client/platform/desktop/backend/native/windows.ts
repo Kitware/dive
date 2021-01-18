@@ -10,14 +10,10 @@ import { xml2json } from 'xml-js';
 import {
   Settings, SettingsCurrentVersion,
   DesktopJob, DesktopJobUpdate, RunPipeline,
-  NvidiaSmiReply,
-  FFProbeResults,
-  JsonMeta,
-  DesktopJobUpdater,
+  NvidiaSmiReply, RunTraining,
 } from 'platform/desktop/constants';
 
-import { DatasetType } from 'viame-web-common/apispec';
-import * as common from './common';
+import * as viame from './viame';
 
 const DefaultSettings: Settings = {
   // The current settings schema config
@@ -26,6 +22,13 @@ const DefaultSettings: Settings = {
   viamePath: 'C:\\Program Files\\VIAME',
   // Path to a user data folder
   dataPath: npath.join(os.homedir(), 'VIAME_DATA'),
+};
+
+const ViameWindowsConstants = {
+  setup: 'setup_viame.bat',
+  trainingExe: 'viame_train_detector.exe',
+  kwiverExe: 'kwiver.exe',
+  shell: true,
 };
 
 let programFiles = 'C:\\Program Files';
@@ -64,132 +67,30 @@ async function validateViamePath(settings: Settings): Promise<true | string> {
   });
 }
 
-/**
- * Fashioned as a node.js implementation of viame_tasks.tasks.run_pipeline
- *
- * @param datasetIdPath dataset path absolute
- * @param pipeline pipeline file basename
- * @param settings global settings
- */
+// Mock the validate call when starting jobs because it just takes too long to run.
+// TODO: maybe perform a lightweight check or some other test that doesn't spawn() kwiver
+const validateFake = () => Promise.resolve(true as true);
+
 async function runPipeline(
   settings: Settings,
   runPipelineArgs: RunPipeline,
   updater: (msg: DesktopJobUpdate) => void,
 ): Promise<DesktopJob> {
-  const { datasetId, pipeline } = runPipelineArgs;
-  const isValid = await validateViamePath(settings);
-  if (isValid !== true) {
-    throw new Error(isValid);
-  }
-
-  const setupScriptPath = npath.join(settings.viamePath, 'setup_viame.bat');
-  const pipelinePath = npath.join(settings.viamePath, 'configs/pipelines', pipeline.pipe);
-  const projectInfo = await common.getValidatedProjectDir(settings, datasetId);
-  const meta = await common.loadJsonMetadata(projectInfo.metaFileAbsPath);
-  const jobWorkDir = await common.createKwiverRunWorkingDir(
-    settings, [meta], pipeline.name,
-  );
-
-  const detectorOutput = npath.join(jobWorkDir, 'detector_output.csv');
-  const trackOutput = npath.join(jobWorkDir, 'track_output.csv');
-  const joblog = npath.join(jobWorkDir, 'runlog.txt');
-
-  const modifiedCommand = `"${setupScriptPath.replace(/\\/g, '\\')}"`;
-
-  let command: string[] = [];
-  if (meta.type === 'video') {
-    command = [
-      `${modifiedCommand} &&`,
-      'kwiver.exe runner',
-      '-s input:video_reader:type=vidl_ffmpeg',
-      `-p ${pipelinePath}`,
-      `-s input:video_filename=${datasetId}`,
-      `-s detector_writer:file_name=${detectorOutput}`,
-      `-s track_writer:file_name=${trackOutput}`,
-    ];
-  } else if (meta.type === 'image-sequence') {
-    // Create frame image manifest
-    const manifestFile = npath.join(jobWorkDir, 'image-manifest.txt');
-    // map image file names to absolute paths
-    const fileData = meta.originalImageFiles
-      .map((f) => npath.join(projectInfo.basePath, f))
-      .join('\n');
-    await fs.writeFile(manifestFile, fileData);
-    command = [
-      `${modifiedCommand} &&`,
-      'kwiver.exe runner',
-      `-p "${pipelinePath}"`,
-      `-s input:video_filename="${manifestFile}"`,
-      `-s detector_writer:file_name="${detectorOutput}"`,
-      `-s track_writer:file_name="${trackOutput}"`,
-    ];
-  }
-
-  const job = spawn(command.join(' '), {
-    shell: true,
-    cwd: jobWorkDir,
+  return viame.runPipeline(settings, runPipelineArgs, updater, validateFake, {
+    ...ViameWindowsConstants,
+    setupScriptAbs: `"${npath.join(settings.viamePath, ViameWindowsConstants.setup)}"`,
   });
+}
 
-  const jobBase: DesktopJob = {
-    key: `pipeline_${job.pid}_${jobWorkDir}`,
-    jobType: 'pipeline',
-    pid: job.pid,
-    pipeline,
-    workingDir: jobWorkDir,
-    datasetIds: [datasetId],
-    exitCode: job.exitCode,
-    startTime: new Date(),
-  };
-
-  const processChunk = (chunk: Buffer) => chunk
-    .toString('utf-8')
-    .split('\n')
-    .filter((a) => a);
-
-  job.stdout.on('data', (chunk: Buffer) => {
-    // eslint-disable-next-line no-console
-    console.log(chunk.toString('utf-8'));
-    updater({
-      ...jobBase,
-      body: processChunk(chunk),
-    });
-    // No way in windows to display and log stdout at same time without 3rd party tools
-    fs.appendFile(joblog, chunk.toString('utf-8'), (err) => {
-      if (err) throw err;
-    });
+async function train(
+  settings: Settings,
+  runTrainingArgs: RunTraining,
+  updater: (msg: DesktopJobUpdate) => void,
+): Promise<DesktopJob> {
+  return viame.train(settings, runTrainingArgs, updater, validateFake, {
+    ...ViameWindowsConstants,
+    setupScriptAbs: `"${npath.join(settings.viamePath, ViameWindowsConstants.setup)}"`,
   });
-
-  job.stderr.on('data', (chunk: Buffer) => {
-    // eslint-disable-next-line no-console
-    console.log(chunk.toString('utf-8'));
-    updater({
-      ...jobBase,
-      body: processChunk(chunk),
-    });
-    fs.appendFile(joblog, chunk.toString('utf-8'), (err) => {
-      if (err) throw err;
-    });
-  });
-
-  job.on('exit', async (code) => {
-    if (code === 0) {
-      try {
-        await common.processOtherAnnotationFiles(
-          settings, datasetId, [trackOutput, detectorOutput],
-        );
-      } catch (err) {
-        console.error(err);
-      }
-    }
-    updater({
-      ...jobBase,
-      body: [''],
-      exitCode: code,
-      endTime: new Date(),
-    });
-  });
-
-  return jobBase;
 }
 
 function checkDefaultNvidiaSmi(resolve: (value: NvidiaSmiReply) => void) {
@@ -218,6 +119,7 @@ function checkDefaultNvidiaSmi(resolve: (value: NvidiaSmiReply) => void) {
     });
   });
 }
+
 // Note: this is the most recent location for the nvidia-smi
 // it doesn't guarantee that the system doesn't have a relevant GPU
 async function nvidiaSmi(): Promise<NvidiaSmiReply> {
@@ -386,6 +288,7 @@ export default {
   DefaultSettings,
   validateViamePath,
   runPipeline,
+  train,
   nvidiaSmi,
   initialize,
   checkMedia,

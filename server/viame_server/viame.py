@@ -39,6 +39,7 @@ class Viame(Resource):
         self.resourceName = "viame"
         self.static_pipelines = None
 
+        self.route("GET", ("dataset",), self.list_datasets)
         self.route("GET", ("pipelines",), self.get_pipelines)
         self.route("POST", ("pipeline",), self.run_pipeline_task)
         self.route("GET", ("training_configs",), self.get_training_configs)

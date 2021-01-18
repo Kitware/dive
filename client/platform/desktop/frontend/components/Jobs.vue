@@ -83,12 +83,25 @@ export default defineComponent({
                 </v-col>
                 <v-col cols="8">
                   <v-card-title class="primary--text text--lighten-3 text-decoration-none pt-0">
-                    {{ datasets[job.datasets[0]].name }}
+                    {{ job.job.jobType }}: {{ datasets[job.job.datasetIds[0]].name }}
                   </v-card-title>
-                  <v-card-subtitle v-if="job.job.pipeline">
-                    [pipe] {{ job.job.pipeline.name }}
-                    <br>[pid] {{ job.job.pid }}
-                    <br>[path] {{ datasets[job.datasets[0]].originalBasePath }}
+                  <v-card-subtitle>
+                    <table cell-spacing="10px">
+                      <tr v-if="'pipeline' in job.job.args">
+                        <td>Pipe</td>
+                        <td>{{ job.job.args.pipeline.pipe }}</td>
+                      </tr>
+                      <tr>
+                        <td>PID</td>
+                        <td>{{ job.job.pid }}</td>
+                      </tr>
+                      <tr>
+                        <td>datasets</td>
+                        <td>
+                          {{ job.job.datasetIds.join(', ') }}
+                        </td>
+                      </tr>
+                    </table>
                   </v-card-subtitle>
                 </v-col>
                 <v-col cols="3">
@@ -162,5 +175,8 @@ export default defineComponent({
 .terminal {
   font-family: monospace;
   font-size: 12px;
+}
+td {
+  padding-right: 20px;
 }
 </style>

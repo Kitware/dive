@@ -26,7 +26,6 @@ export default defineComponent({
 
     onBeforeMount(async () => {
       const resp = await getTrainingConfigurations();
-
       trainingConfigurations.value = resp;
       selectedTrainingConfig.value = resp.default;
     });

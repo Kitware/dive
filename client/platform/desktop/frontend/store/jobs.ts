@@ -14,28 +14,21 @@ Vue.use(Install);
 interface DesktopJobHistory {
   job: DesktopJob;
   logs: string[];
-  datasets: string[];
 }
 
 const jobHistory: Ref<Record<string, DesktopJobHistory>> = ref({});
 const recentHistory = computed(() => Object.values(jobHistory.value));
 const runningJobs = computed(() => recentHistory.value.filter((v) => v.job.exitCode === null));
 
-function getOrCreateHistory(args: DesktopJob, datasets?: string[]): DesktopJobHistory {
+function updateHistory(args: DesktopJobUpdate) {
   let existing = jobHistory.value[args.key];
   if (!existing) {
     set<DesktopJobHistory>(jobHistory.value, args.key, {
       job: args,
       logs: [],
-      datasets: datasets || args.datasetIds || [],
     });
     existing = jobHistory.value[args.key];
   }
-  return existing;
-}
-
-function updateHistory(args: DesktopJobUpdate) {
-  const existing = getOrCreateHistory(args);
   if (args.body) {
     existing.logs.push(...args.body);
   }
@@ -74,7 +67,6 @@ init();
 
 
 export {
-  getOrCreateHistory,
   jobHistory,
   recentHistory,
   runningJobs,

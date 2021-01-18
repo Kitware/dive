@@ -1,3 +1,5 @@
+import fs from 'fs-extra';
+import { DesktopJob, DesktopJobUpdate } from 'platform/desktop/constants';
 
 /**
  * Get a nice safe string
@@ -17,8 +19,34 @@ function makeid(length: number): string {
   return result;
 }
 
-// eslint-disable-next-line import/prefer-default-export
+const processChunk = (chunk: Buffer) => chunk
+  .toString('utf-8')
+  .split('\n')
+  .filter((a) => a);
+
+/**
+ * Middleware to echo to stdout and write to file
+ */
+function jobFileEchoMiddleware(
+  jobBase: DesktopJob,
+  updater: (msg: DesktopJobUpdate) => void,
+  logfile: string,
+) {
+  return (chunk: Buffer) => {
+    process.stdout.write(chunk.toString('utf-8'));
+    // No way in windows to display and log stdout at same time without 3rd party tools
+    fs.appendFile(logfile, chunk.toString('utf-8'), (err) => {
+      if (err) throw err;
+    });
+    updater({
+      ...jobBase,
+      body: processChunk(chunk),
+    });
+  };
+}
+
 export {
   cleanString,
   makeid,
+  jobFileEchoMiddleware,
 };
