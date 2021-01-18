@@ -9,11 +9,10 @@ import { xml2json } from 'xml-js';
 
 import {
   Settings, SettingsCurrentVersion,
-  DesktopJob, DesktopJobUpdate, RunPipeline,
+  DesktopJob, RunPipeline,
   NvidiaSmiReply,
   RunTraining,
   DesktopJobUpdater,
-  FFProbeResults,
   ConversionArgs,
 } from 'platform/desktop/constants';
 
@@ -72,7 +71,7 @@ async function validateViamePath(settings: Settings): Promise<true | string> {
 async function runPipeline(
   settings: Settings,
   runPipelineArgs: RunPipeline,
-  updater: (msg: DesktopJobUpdate) => void,
+  updater: DesktopJobUpdater,
 ): Promise<DesktopJob> {
   const setupScriptAbs = npath.join(settings.viamePath, ViameLinuxConstants.setup);
   return viame.runPipeline(settings, runPipelineArgs, updater, validateViamePath, {
@@ -84,7 +83,7 @@ async function runPipeline(
 async function train(
   settings: Settings,
   runTrainingArgs: RunTraining,
-  updater: (msg: DesktopJobUpdate) => void,
+  updater: DesktopJobUpdater,
 ): Promise<DesktopJob> {
   const setupScriptPath = npath.join(settings.viamePath, ViameLinuxConstants.setup);
   return viame.train(settings, runTrainingArgs, updater, validateViamePath, {
@@ -123,7 +122,8 @@ async function nvidiaSmi(): Promise<NvidiaSmiReply> {
 }
 
 /**
- * module level variable of ffmpegSettings stores settings so calculation is done only once
+ * one time per launch configuration for ffmpeg and ffprobe
+ * Linux version is more complicated for multiple VIAME versions and local ffmpeg
  */
 function ffmpegCommand(settings: Settings): void {
   if (ViameLinuxConstants.ffmpeg.path !== '' && ViameLinuxConstants.ffmpeg.encoding !== '') {

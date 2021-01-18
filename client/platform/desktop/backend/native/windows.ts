@@ -9,8 +9,8 @@ import { xml2json } from 'xml-js';
 
 import {
   Settings, SettingsCurrentVersion,
-  DesktopJob, DesktopJobUpdate, RunPipeline,
-  NvidiaSmiReply, RunTraining, FFProbeResults, ConversionArgs, DesktopJobUpdater,
+  DesktopJob, RunPipeline, NvidiaSmiReply, RunTraining,
+  ConversionArgs, DesktopJobUpdater,
 } from 'platform/desktop/constants';
 
 import * as viame from './viame';
@@ -30,9 +30,9 @@ const ViameWindowsConstants = {
   kwiverExe: 'kwiver.exe',
   shell: true,
   ffmpeg: {
-    initialization: 'setup_viame.bat', // command to initialize
-    path: '\\bin\\ffprobe.exe', // location of the ffmpeg executable
-    encoding: '-c:v libx264 -preset slow -crf 26 -c:a copy', //encoding mode used
+    initialization: '', // command to initialize
+    path: '', // location of the ffmpeg executable
+    encoding: '', //encoding mode used
   },
 
 };
@@ -80,7 +80,7 @@ const validateFake = () => Promise.resolve(true as true);
 async function runPipeline(
   settings: Settings,
   runPipelineArgs: RunPipeline,
-  updater: (msg: DesktopJobUpdate) => void,
+  updater: DesktopJobUpdater,
 ): Promise<DesktopJob> {
   return viame.runPipeline(settings, runPipelineArgs, updater, validateFake, {
     ...ViameWindowsConstants,
@@ -91,7 +91,7 @@ async function runPipeline(
 async function train(
   settings: Settings,
   runTrainingArgs: RunTraining,
-  updater: (msg: DesktopJobUpdate) => void,
+  updater: DesktopJobUpdater,
 ): Promise<DesktopJob> {
   return viame.train(settings, runTrainingArgs, updater, validateFake, {
     ...ViameWindowsConstants,
@@ -156,11 +156,41 @@ async function nvidiaSmi(): Promise<NvidiaSmiReply> {
     });
   });
 }
+
 /**
- * Checs the video file for the codec type and
+ * one time per launch configuration for ffmpeg and ffprobe
+ */
+function ffmpegCommand(settings: Settings): void {
+  if (ViameWindowsConstants.ffmpeg.path !== '' && ViameWindowsConstants.ffmpeg.encoding !== '') {
+    return;
+  }
+  const setupScriptPath = npath.join(settings.viamePath, ViameWindowsConstants.setup);
+  const ffmpegPath = npath.join(settings.viamePath, '/bin/ffmpeg.exe');
+  const init = `"${setupScriptPath}" &&`;
+
+  //First lets see if the VIAME install has libx264
+  const modifiedCommand = `"${ffmpegPath.replace(/\\/g, '\\')}"`;
+
+  const viameffmpeg = spawnSync(`${init} ${modifiedCommand} -encoders`, { shell: true });
+  if (!viameffmpeg.error) {
+    const ffmpegOutput = viameffmpeg.stdout.toString('utf-8');
+    if (ffmpegOutput.includes('libx264')) {
+      ViameWindowsConstants.ffmpeg.initialization = `"${setupScriptPath}" &&`;
+      ViameWindowsConstants.ffmpeg.path = `"${settings.viamePath}/bin/ffmpeg.exe"`;
+      ViameWindowsConstants.ffmpeg.encoding = '-c:v libx264 -preset slow -crf 26 -c:a copy';
+      return;
+    }
+  }
+
+  throw new Error('ffmpeg not installed, please download and install VIAME Toolkit from the main page');
+}
+
+/**
+ * Checks the video file for the codec type and
  * returns true if it is x264, if not will return false for media conversion
  */
 function checkMedia(settings: Settings, file: string): boolean {
+  ffmpegCommand(settings);
   const setupScriptAbs = npath.join(settings.viamePath, ViameWindowsConstants.setup);
   return viame.checkMedia({
     ...ViameWindowsConstants,
@@ -171,6 +201,7 @@ function checkMedia(settings: Settings, file: string): boolean {
 function convertMedia(settings: Settings,
   args: ConversionArgs,
   updater: DesktopJobUpdater): DesktopJob {
+  ffmpegCommand(settings);
   const setupScriptAbs = npath.join(settings.viamePath, ViameWindowsConstants.setup);
   return viame.convertMedia(settings, args, updater, {
     ...ViameWindowsConstants,

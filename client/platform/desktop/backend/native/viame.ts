@@ -3,8 +3,9 @@ import { spawn, spawnSync } from 'child_process';
 import fs from 'fs-extra';
 
 import {
-  Settings, DesktopJob, DesktopJobUpdate, RunPipeline, RunTraining, FFProbeResults,
+  Settings, DesktopJob, RunPipeline, RunTraining, FFProbeResults,
   ConversionArgs,
+  DesktopJobUpdater,
 } from 'platform/desktop/constants';
 import { serialize } from 'platform/desktop/backend/serializers/viame';
 
@@ -34,7 +35,7 @@ interface ViameConstants {
 async function runPipeline(
   settings: Settings,
   runPipelineArgs: RunPipeline,
-  updater: (msg: DesktopJobUpdate) => void,
+  updater: DesktopJobUpdater,
   validateViamePath: (settings: Settings) => Promise<true | string>,
   viameConstants: ViameConstants,
 ): Promise<DesktopJob> {
@@ -139,7 +140,7 @@ async function runPipeline(
 async function train(
   settings: Settings,
   runTrainingArgs: RunTraining,
-  updater: (msg: DesktopJobUpdate) => void,
+  updater: DesktopJobUpdater,
   validateViamePath: (settings: Settings) => Promise<true | string>,
   viameConstants: ViameConstants,
 ): Promise<DesktopJob> {
@@ -298,7 +299,7 @@ function checkMedia(
 
 function convertMedia(settings: Settings,
   args: ConversionArgs,
-  updater: (msg: DesktopJobUpdate) => void,
+  updater: DesktopJobUpdater,
   viameConstants: ViameConstants,
   imageIndex = 0,
   key = ''): DesktopJob {
@@ -327,28 +328,9 @@ function convertMedia(settings: Settings,
     startTime: new Date(),
   };
 
-  const processChunk = (chunk: Buffer) => chunk
-    .toString('utf-8')
-    .split('\n')
-    .filter((a) => a);
+  job.stdout.on('data', jobFileEchoMiddleware(jobBase, updater));
+  job.stderr.on('data', jobFileEchoMiddleware(jobBase, updater));
 
-  job.stdout.on('data', (chunk: Buffer) => {
-    // eslint-disable-next-line no-console
-    console.log(chunk.toString('utf-8'));
-    updater({
-      ...jobBase,
-      body: processChunk(chunk),
-    });
-  });
-
-  job.stderr.on('data', (chunk: Buffer) => {
-    // eslint-disable-next-line no-console
-    console.log(chunk.toString('utf-8'));
-    updater({
-      ...jobBase,
-      body: processChunk(chunk),
-    });
-  });
 
   job.on('exit', async (code) => {
     if (code !== 0) {
