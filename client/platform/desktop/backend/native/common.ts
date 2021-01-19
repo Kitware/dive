@@ -465,8 +465,10 @@ async function importMedia(settings: Settings, path: string,
     contents.forEach((filename) => {
       const abspath = npath.join(jsonMeta.originalBasePath, filename);
       const mimetype = mime.lookup(abspath);
-      if (mimetype && (websafeImageTypes.includes(mimetype)
-      || otherImageTypes.includes(mimetype))) {
+      if (
+        mimetype && (websafeImageTypes.includes(mimetype)
+        || otherImageTypes.includes(mimetype))
+      ) {
         jsonMeta.originalImageFiles.push(filename);
         tempConvertList.push(abspath);
         if (otherImageTypes.includes(mimetype)) {
