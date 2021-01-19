@@ -393,7 +393,9 @@ async function _initializeProjectDir(settings: Settings, jsonMeta: JsonMeta): Pr
  * @param path path to import dir/file
  * @returns datasetId
  */
-async function importMedia(settings: Settings, path: string,
+async function importMedia(
+  settings: Settings,
+  path: string,
   updater: DesktopJobUpdater,
   { checkMedia, convertMedia }: {
   checkMedia: (settings: Settings, path: string) => boolean;
