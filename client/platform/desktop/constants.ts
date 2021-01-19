@@ -10,6 +10,7 @@ export const websafeVideoTypes = [
 export const otherVideoTypes = [
   'video/quicktime',
   'video/x-msvideo',
+  'video/x-ms-wmv',
 ];
 
 export const fileVideoTypes = [

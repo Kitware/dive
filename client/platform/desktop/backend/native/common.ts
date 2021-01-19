@@ -152,7 +152,7 @@ async function loadMetadata(
       videoUrl = makeMediaUrl(video);
     }
   } else if (projectMetaData.type === 'image-sequence') {
-    if (projectMetaData.transcodedImageFiles) {
+    if (projectMetaData.transcodedImageFiles && projectMetaData.transcodedImageFiles.length) {
       imageData = projectMetaData.transcodedImageFiles.map((filename: string) => ({
         url: makeMediaUrl(npath.join(projectDirData.basePath, filename)),
         filename,
