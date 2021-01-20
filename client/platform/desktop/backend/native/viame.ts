@@ -294,7 +294,11 @@ async function convertMedia(settings: Settings,
   updater: DesktopJobUpdater,
   viameConstants: ViameConstants,
   imageIndex = 0,
-  key = ''): Promise<DesktopJob> {
+  key = '',
+  baseWorkDir = ''): Promise<DesktopJob> {
+  // Image conversion needs to utilize the baseWorkDir, init or vids create their own directory
+  const jobWorkDir = baseWorkDir || await common.createKwiverRunWorkingDir(settings, [args.meta], 'conversion');
+  const joblog = npath.join(jobWorkDir, 'runlog.txt');
   const commands = [];
   if (args.meta.type === 'video' && args.mediaList[0]) {
     commands.push(`${viameConstants.ffmpeg.initialization} ${viameConstants.ffmpeg.path} -i "${args.mediaList[0][0]}" ${viameConstants.ffmpeg.encoding} "${args.mediaList[0][1]}"`);
@@ -303,7 +307,7 @@ async function convertMedia(settings: Settings,
   }
 
   const job = spawn(commands.join(' '), { shell: viameConstants.shell });
-  let jobKey = `convert_${job.pid}_${args.meta.originalBasePath}`;
+  let jobKey = `convert_${job.pid}_${jobWorkDir}`;
   if (key.length) {
     jobKey = key;
   }
@@ -314,14 +318,14 @@ async function convertMedia(settings: Settings,
     args,
     title: `converting ${args.meta.name}`,
     jobType: 'conversion',
-    workingDir: args.meta.originalBasePath,
+    workingDir: jobWorkDir,
     datasetIds: [args.meta.id],
     exitCode: job.exitCode,
     startTime: new Date(),
   };
 
-  job.stdout.on('data', jobFileEchoMiddleware(jobBase, updater));
-  job.stderr.on('data', jobFileEchoMiddleware(jobBase, updater));
+  job.stdout.on('data', jobFileEchoMiddleware(jobBase, updater, joblog));
+  job.stderr.on('data', jobFileEchoMiddleware(jobBase, updater, joblog));
 
 
   job.on('exit', async (code) => {
@@ -340,7 +344,7 @@ async function convertMedia(settings: Settings,
         ...jobBase,
         body: [`Conversion ${imageIndex + 1} of ${args.mediaList.length} Complete`],
       });
-      convertMedia(settings, args, updater, viameConstants, imageIndex + 1, jobKey);
+      convertMedia(settings, args, updater, viameConstants, imageIndex + 1, jobKey, jobWorkDir);
     }
   });
   return jobBase;
