@@ -38,7 +38,7 @@ export default defineComponent({
 
   setup(props, { root }) {
     const viewerRef = ref();
-    const brandData = toRef(root.$store.state.Location, 'brandData');
+    const brandData = toRef(root.$store.state.Brand, 'brandData');
     const location = toRef(root.$store.state.Location, 'location');
     const dataPath = computed(() => getPathFromLocation(location.value));
     onMounted(() => {

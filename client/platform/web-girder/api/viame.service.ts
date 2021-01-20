@@ -14,7 +14,8 @@ interface ValidationResponse {
 }
 
 export interface BrandData {
-  brand: boolean;
+  vuetify: unknown;
+  favicon: string | null;
   logo: string;
   name: string;
   loginMessage: string;

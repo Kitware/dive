@@ -60,7 +60,7 @@ class Viame(Resource):
         # Find an item owned by an admin with meta.brand=True
         data = Item().findOne(
             {
-                'meta.brand': True,
+                'meta.brand': {'$in': [True, 'true', 'True']},
                 'creatorId': {'$in': adminUserIds},
             }
         )

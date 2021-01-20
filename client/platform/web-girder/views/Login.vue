@@ -16,7 +16,7 @@ export default defineComponent({
       form: 'login',
       userDialog: true,
     });
-    const brandData = toRef(root.$store.state.Location, 'brandData');
+    const brandData = toRef(root.$store.state.Brand, 'brandData');
     const girderRest = useGirderRest();
     function onLogin() {
       root.$router.push('/');

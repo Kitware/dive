@@ -8,20 +8,11 @@ import snackbarService from 'viame-web-common/vue-utilities/snackbar-service';
 import promptService from 'viame-web-common/vue-utilities/prompt-service';
 import vMousetrap from 'viame-web-common/vue-utilities/v-mousetrap';
 
-import vuetify from './plugins/vuetify';
+import getVuetify from './plugins/vuetify';
 import girderRest, { notificationBus } from './plugins/girder';
 import App from './App.vue';
 import router from './router';
 import store from './store';
-
-Vue.config.productionTip = false;
-Vue.use(VueCompositionApi);
-Vue.use(snackbarService(vuetify));
-Vue.use(promptService(vuetify));
-Vue.use(vMousetrap);
-Vue.use(VueGtag, {
-  config: { id: process.env.VUE_APP_GTAG },
-});
 
 SentryInit({
   dsn: process.env.VUE_APP_SENTRY_DSN,
@@ -31,12 +22,22 @@ SentryInit({
   release: process.env.VUE_APP_GIT_HASH,
 });
 
+Vue.config.productionTip = false;
+Vue.use(VueCompositionApi);
+Vue.use(vMousetrap);
+Vue.use(VueGtag, {
+  config: { id: process.env.VUE_APP_GTAG },
+});
+
 notificationBus.connect();
 
 Promise.all([
-  store.dispatch('Location/loadBrand'),
+  store.dispatch('Brand/loadBrand'),
   girderRest.fetchUser(),
 ]).then(() => {
+  const vuetify = getVuetify(store.state.Brand.brandData?.vuetify);
+  Vue.use(snackbarService(vuetify));
+  Vue.use(promptService(vuetify));
   new Vue({
     router,
     store,
