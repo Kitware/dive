@@ -1,5 +1,6 @@
+import { spawn } from 'child_process';
 import fs from 'fs-extra';
-import { DesktopJob, DesktopJobUpdate } from 'platform/desktop/constants';
+import { DesktopJob, DesktopJobUpdater } from 'platform/desktop/constants';
 
 /**
  * Get a nice safe string
@@ -29,15 +30,17 @@ const processChunk = (chunk: Buffer) => chunk
  */
 function jobFileEchoMiddleware(
   jobBase: DesktopJob,
-  updater: (msg: DesktopJobUpdate) => void,
-  logfile: string,
+  updater: DesktopJobUpdater,
+  logfile?: string,
 ) {
   return (chunk: Buffer) => {
     process.stdout.write(chunk.toString('utf-8'));
     // No way in windows to display and log stdout at same time without 3rd party tools
-    fs.appendFile(logfile, chunk.toString('utf-8'), (err) => {
-      if (err) throw err;
-    });
+    if (logfile) {
+      fs.appendFile(logfile, chunk.toString('utf-8'), (err) => {
+        if (err) throw err;
+      });
+    }
     updater({
       ...jobBase,
       body: processChunk(chunk),
@@ -45,8 +48,40 @@ function jobFileEchoMiddleware(
   };
 }
 
+function spawnResult(command: string, shell: boolean | string, args: string[] = []):
+Promise<{ output: null | string; exitCode: number; error: string}> {
+  return new Promise((resolve) => {
+    const proc = spawn(command, args, { shell });
+    let output = '';
+    let error = '';
+    proc.stdout.on('data', (chunk) => {
+      output = output.concat(chunk.toString('utf-8'));
+    });
+
+    proc.stderr.on('data', (chunk) => {
+      error = error.concat(chunk.toString('utf-8'));
+    });
+
+    proc.on('close', (exitCode) => {
+      resolve({
+        output,
+        exitCode,
+        error,
+      });
+    });
+    proc.on('error', (err) => {
+      resolve({
+        output: null,
+        exitCode: -1,
+        error: err.message,
+      });
+    });
+  });
+}
+
 export {
   cleanString,
   makeid,
   jobFileEchoMiddleware,
+  spawnResult,
 };

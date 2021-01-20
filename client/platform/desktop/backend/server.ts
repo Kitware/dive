@@ -77,25 +77,6 @@ apirouter.post('/dataset/:id/detections', async (req, res, next) => {
   return null;
 });
 
-/* IMPORT dataset */
-apirouter.post('/import', async (req, res, next) => {
-  const { path } = req.query;
-  if (!path || Array.isArray(path)) {
-    return next({
-      status: 500,
-      statusMessage: `Invalid path: ${path}`,
-    });
-  }
-  try {
-    const meta = await common.importMedia(settings.get(), path.toString());
-    res.json(meta);
-  } catch (err) {
-    err.status = 500;
-    next(err);
-  }
-  return null;
-});
-
 /* STREAM media */
 apirouter.get('/media', (req, res, next) => {
   let { path } = req.query;

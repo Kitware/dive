@@ -4,7 +4,11 @@ import npath from 'path';
 import fs from 'fs-extra';
 import { Console } from 'console';
 
-import type { JsonMeta, Settings } from 'platform/desktop/constants';
+import type {
+  ConversionArgs,
+  DesktopJob,
+  DesktopJobUpdate, DesktopJobUpdater, JsonMeta, Settings,
+} from 'platform/desktop/constants';
 
 import * as common from './common';
 
@@ -70,7 +74,25 @@ const settings: Settings = {
   viamePath: '/opt/viame',
 };
 const urlMapper = (a: string) => `http://localhost:8888/api/media?path=${a}`;
-
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const updater = (update: DesktopJobUpdate) => undefined;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const checkMedia = async (settingsVal: Settings, file: string) => file.includes('mp4');
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const convertMedia = async (settingsVal: Settings, args: ConversionArgs,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  updaterFunc: DesktopJobUpdater) => ({
+  key: 'jobKey',
+  title: 'title',
+  command: 'command',
+  args: {},
+  jobType: 'conversion',
+  datasetIds: ['datasetId'],
+  pid: 1234,
+  workingDir: 'workingdir',
+  exitCode: null,
+  startTime: new Date(),
+} as DesktopJob);
 // https://github.com/tschaub/mock-fs/issues/234
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const console = new Console(process.stdout, process.stderr);
@@ -225,7 +247,7 @@ describe('native.common', () => {
   });
 
   it('importMedia image sequence success', async () => {
-    const meta = await common.importMedia(settings, '/home/user/data/imageSuccess');
+    const meta = await common.importMedia(settings, '/home/user/data/imageSuccess', updater, { checkMedia, convertMedia });
     expect(meta.name).toBe('imageSuccess');
     expect(meta.originalImageFiles.length).toBe(2);
     expect(meta.originalVideoFile).toBe('');
@@ -233,7 +255,7 @@ describe('native.common', () => {
   });
 
   it('importMedia video success', async () => {
-    const meta = await common.importMedia(settings, '/home/user/data/videoSuccess/video1.mp4');
+    const meta = await common.importMedia(settings, '/home/user/data/videoSuccess/video1.mp4', updater, { checkMedia, convertMedia });
     expect(meta.name).toBe('video1');
     expect(meta.originalImageFiles.length).toBe(0);
     expect(meta.originalVideoFile).toBe('video1.mp4');
@@ -241,18 +263,22 @@ describe('native.common', () => {
   });
 
   it('importMedia various failure modes', async () => {
-    await expect(common.importMedia(settings, '/fake/path'))
+    await expect(common.importMedia(settings, '/fake/path', updater, { checkMedia, convertMedia }))
       .rejects.toThrow('file or directory not found');
-    await expect(common.importMedia(settings, '/home/user/data/imageSuccess/foo.png'))
+    await expect(common.importMedia(settings, '/home/user/data/imageSuccess/foo.png', updater, { checkMedia, convertMedia }))
       .rejects.toThrow('chose image file for video import option');
-    await expect(common.importMedia(settings, '/home/user/data/videoSuccess/otherfile.txt'))
+    await expect(common.importMedia(settings, '/home/user/data/videoSuccess/otherfile.txt', updater, { checkMedia, convertMedia }))
       .rejects.toThrow('unsupported MIME type');
-    await expect(common.importMedia(settings, '/home/user/data/videoSuccess/video1.avi'))
-      .rejects.toThrow('unsupported MIME type');
-    await expect(common.importMedia(settings, '/home/user/data/videoSuccess/nomime'))
+    await expect(common.importMedia(settings, '/home/user/data/videoSuccess/nomime', updater, { checkMedia, convertMedia }))
       .rejects.toThrow('could not determine video MIME');
-    await expect(common.importMedia(settings, '/home/user/data/annotationFail/video1.mp4'))
+    await expect(common.importMedia(settings, '/home/user/data/annotationFail/video1.mp4', updater, { checkMedia, convertMedia }))
       .rejects.toThrow('too many CSV');
+  });
+
+  it('importMedia video, start conversion', async () => {
+    const meta = await common.importMedia(settings, '/home/user/data/videoSuccess/video1.avi', updater, { checkMedia, convertMedia });
+    expect(meta.transcodingJobKey).toBe('jobKey');
+    expect(meta.type).toBe('video');
   });
 });
 
