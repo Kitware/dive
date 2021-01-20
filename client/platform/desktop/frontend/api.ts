@@ -10,7 +10,7 @@ import type {
 
 import {
   DesktopJob, DesktopMetadata, JsonMeta, NvidiaSmiReply,
-  RunPipeline, RunTraining, websafeVideoTypes,
+  RunPipeline, RunTraining, fileVideoTypes,
 } from 'platform/desktop/constants';
 
 /**
@@ -21,7 +21,7 @@ async function openFromDisk(datasetType: DatasetType) {
   let filters: FileFilter[] = [];
   if (datasetType === 'video') {
     filters = [
-      { name: 'Videos', extensions: websafeVideoTypes.map((str) => str.split('/')[1]) },
+      { name: 'Videos', extensions: fileVideoTypes },
     ];
   }
   const results = await remote.dialog.showOpenDialog({
@@ -70,6 +70,11 @@ async function runTraining(
   return ipcRenderer.invoke('run-training', args);
 }
 
+async function importMedia(path: string): Promise<JsonMeta> {
+  const data: JsonMeta = await ipcRenderer.invoke('import-media', path);
+  return data;
+}
+
 /**
  * REST api for larger-body messages
  */
@@ -102,14 +107,6 @@ async function saveMetadata(id: string, args: DatasetMetaMutable) {
 async function saveDetections(id: string, args: SaveDetectionsArgs) {
   const client = await getClient();
   return client.post(`dataset/${id}/detections`, args);
-}
-
-async function importMedia(path: string): Promise<JsonMeta> {
-  const client = await getClient();
-  const { data } = await client.post<JsonMeta>('import', undefined, {
-    params: { path },
-  });
-  return data;
 }
 
 /**
