@@ -19,6 +19,7 @@ import TrackItem from './TrackItem.vue';
 import TrackList from './TrackList.vue';
 import TypeList from './TypeList.vue';
 
+export * from './annotators/useMediaController';
 export {
   ImageAnnotator,
   VideoAnnotator,
