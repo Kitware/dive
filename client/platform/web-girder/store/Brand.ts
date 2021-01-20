@@ -19,7 +19,7 @@ function setFavicon(href: string) {
 function setTitle(title: string) {
   const titleEl = document.querySelector('title');
   if (titleEl) {
-    titleEl.innerText = `DIVE ${title}`;
+    titleEl.innerText = title;
   }
 }
 
