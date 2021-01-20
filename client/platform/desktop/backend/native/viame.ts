@@ -279,15 +279,8 @@ async function checkMedia(
   if (result.error || result.output === null) {
     throw result.error || 'Error using ffprobe';
   }
-  // TODO: Don't like this, but Windows needs this
   const returnText = result.output;
-  const firstIndex = returnText.indexOf('{');
-  const lastIndex = returnText.lastIndexOf('}');
-  if (firstIndex === -1 || lastIndex === -1) {
-    throw new Error('No ffprobe found. Please download and install the VIAME toolkit from the main page`');
-  }
-  const json = returnText.substring(firstIndex, lastIndex + 1);
-  const ffprobeJSON: FFProbeResults = JSON.parse(json);
+  const ffprobeJSON: FFProbeResults = JSON.parse(returnText);
   if (ffprobeJSON && ffprobeJSON.streams) {
     const websafe = ffprobeJSON.streams.filter((el) => el.codec_name === 'h264' && el.codec_type === 'video');
 
@@ -309,8 +302,6 @@ async function convertMedia(settings: Settings,
     commands.push(`${viameConstants.ffmpeg.initialization} ${viameConstants.ffmpeg.path} -i "${args.mediaList[imageIndex][0]}" "${args.mediaList[imageIndex][1]}"`);
   }
 
-  console.log(viameConstants);
-  console.log(commands.join(' '));
   const job = spawn(commands.join(' '), { shell: viameConstants.shell });
   let jobKey = `convert_${job.pid}_${args.meta.originalBasePath}`;
   if (key.length) {

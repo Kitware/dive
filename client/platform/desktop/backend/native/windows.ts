@@ -176,7 +176,7 @@ async function ffmpegCommand(settings: Settings) {
   if (viameffmpeg.output) {
     const ffmpegOutput = viameffmpeg.output;
     if (ffmpegOutput.includes('libx264')) {
-      ViameWindowsConstants.ffmpeg.initialization = `"${setupScriptPath}" &&`;
+      ViameWindowsConstants.ffmpeg.initialization = `"${setupScriptPath}" >NUL &&`;
       ViameWindowsConstants.ffmpeg.path = `"${settings.viamePath}/bin/ffmpeg.exe"`;
       ViameWindowsConstants.ffmpeg.encoding = '-c:v libx264 -preset slow -crf 26 -c:a copy';
       return;
