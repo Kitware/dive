@@ -19,7 +19,8 @@ export default {
     runningJobIds: [],
   }),
   computed: {
-    ...mapState('Location', ['location', 'brandData']),
+    ...mapState('Location', ['location']),
+    ...mapState('Brand', ['brandData']),
   },
   async created() {
     this.girderRest.$on('logout', this.onLogout);
