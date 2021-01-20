@@ -6,6 +6,7 @@ from girder.constants import AccessType
 from girder.models.folder import Folder
 from girder.models.item import Item
 from girder.models.token import Token
+from girder.models.user import User
 
 from viame_tasks.tasks import (
     convert_images,
@@ -39,7 +40,7 @@ class Viame(Resource):
         self.resourceName = "viame"
         self.static_pipelines = None
 
-        self.route("GET", ("dataset",), self.list_datasets)
+        self.route("GET", ("brand_data",), self.get_brand_data)
         self.route("GET", ("pipelines",), self.get_pipelines)
         self.route("POST", ("pipeline",), self.run_pipeline_task)
         self.route("GET", ("training_configs",), self.get_training_configs)
@@ -51,6 +52,21 @@ class Viame(Resource):
         self.route("POST", ("validate_files",), self.validate_files)
         self.route("DELETE", ("attribute", ":id"), self.delete_attribute)
         self.route("GET", ("valid_images",), self.get_valid_images)
+
+    @access.public
+    @autoDescribeRoute(Description("Get custom brand data"))
+    def get_brand_data(self):
+        adminUserIds = [user['_id'] for user in User().getAdmins()]
+        # Find an item owned by an admin with meta.brand=True
+        data = Item().findOne(
+            {
+                'meta.brand': {'$in': [True, 'true', 'True']},
+                'creatorId': {'$in': adminUserIds},
+            }
+        )
+        if data is not None:
+            return data['meta']
+        return {}
 
     @access.user
     @describeRoute(Description("Get available pipelines"))

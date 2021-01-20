@@ -6,12 +6,18 @@ import JobTab from './JobTab.vue';
 
 export default defineComponent({
   components: { NavigationTitle, JobTab },
+  props: {
+    name: {
+      type: String,
+      default: 'DIVE',
+    },
+  },
 });
 </script>
 
 <template>
   <v-app-bar app>
-    <NavigationTitle>VIAME</NavigationTitle>
+    <NavigationTitle />
     <v-tabs
       icons-and-text
       style="flex-basis:0; flex-grow:0;"

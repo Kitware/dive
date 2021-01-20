@@ -1,8 +1,8 @@
 import { GirderModel } from '@girder/components/src';
+
 import {
   Attribute, Pipe, Pipelines, TrainingConfigs,
 } from 'viame-web-common/apispec';
-import { GirderMetadata, GirderMetadataStatic } from '../constants';
 import girderRest from '../plugins/girder';
 
 interface ValidationResponse {
@@ -13,35 +13,19 @@ interface ValidationResponse {
   message: string;
 }
 
-/**
- * listDatasets gets static metadata from girder.
- *
- * Important: data loaded in this way will not have had their imageData or videoUrl
- * populated. Outside of viewer, these shoudln't be necessary.
- */
-async function listDatasets({
-  limit = 50, offset = 0, sort = 'name',
-}): Promise<{
-  items: GirderMetadata[];
-  total: number;
-}> {
-  // Adjust for -1 (everything) which girder accepts as 0
-  const limitAdjusted = limit < 0 ? 0 : limit;
-  const { data, headers } = await girderRest.get<GirderModel[]>('viame/dataset', {
-    params: { limit: limitAdjusted, offset, sort },
-  });
-  const datasets: GirderMetadata[] = data.map((d) => ({
-    ...d,
-    ...(d.meta as GirderMetadataStatic),
-    id: d._id,
-    imageData: [],
-    videoUrl: '',
-  }));
-  return {
-    items: datasets,
-    total: parseInt(headers['girder-total-count'], 10),
-  };
+export interface BrandData {
+  vuetify: unknown;
+  favicon: string | null;
+  logo: string;
+  name: string;
+  loginMessage: string;
 }
+
+async function getBrandData(): Promise<BrandData> {
+  const { data } = await girderRest.get<BrandData>('viame/brand_data');
+  return data;
+}
+
 
 function makeViameFolder({
   folderId, name, fps, type,
@@ -151,7 +135,7 @@ async function getValidWebImages(folderId: string) {
 
 
 export {
-  listDatasets,
+  getBrandData,
   deleteResources,
   getAttributes,
   setAttribute,

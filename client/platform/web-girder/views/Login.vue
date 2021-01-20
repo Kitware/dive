@@ -1,8 +1,9 @@
 <script lang="ts">
 import {
-  defineComponent, reactive, toRefs, onBeforeUnmount,
+  defineComponent, reactive, toRefs, onBeforeUnmount, toRef,
 } from '@vue/composition-api';
 import { Authentication as GirderAuth } from '@girder/components/src/components';
+
 import { useGirderRest } from '../plugins/girder';
 
 export default defineComponent({
@@ -15,13 +16,17 @@ export default defineComponent({
       form: 'login',
       userDialog: true,
     });
+    const brandData = toRef(root.$store.state.Brand, 'brandData');
     const girderRest = useGirderRest();
     function onLogin() {
       root.$router.push('/');
     }
     girderRest.$on('login', onLogin);
     onBeforeUnmount(() => girderRest.$off('login', onLogin));
-    return toRefs(data);
+    return {
+      ...toRefs(data),
+      brandData,
+    };
   },
 });
 </script>
@@ -42,10 +47,10 @@ export default defineComponent({
       >
         <img
           style="width: 100%"
-          src="~viame-web-common/assets/logo.png"
+          :src="brandData.logo"
           class="mb-2"
         >
-        <h3>Welcome to VIAME Web (Public Beta)</h3>
+        <h3>Welcome to {{ brandData.name }} (Public Beta)</h3>
         <div>
           Log in or register to get started.
         </div>
@@ -53,8 +58,7 @@ export default defineComponent({
           outlined
           class="my-4"
         >
-          VIAME Web is automatically updated at 2AM EST/EDT on Thursdays.
-          Downtime is typically less than 10 minutes.
+          {{ brandData.loginMessage }}
         </v-alert>
         <div>
           If you need help, check the

@@ -1,6 +1,12 @@
 <script>
 export default {
   name: 'NavigationTitle',
+  props: {
+    name: {
+      type: String,
+      default: 'DIVE',
+    },
+  },
   computed: {
     version() {
       return process.env.VUE_APP_GIT_HASH;
@@ -17,7 +23,7 @@ export default {
     >
       <template #activator="{ on }">
         <span v-on="on">
-          <slot>VIAME</slot>
+          <slot>{{ name }}</slot>
         </span>
       </template>
       <span>{{ version }}</span>

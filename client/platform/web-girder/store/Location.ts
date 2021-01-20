@@ -1,11 +1,9 @@
 import { Module } from 'vuex';
 import { GirderModel } from '@girder/components/src';
 
-export interface LocationState {
-    location: null | GirderModel;
-}
+import { LocationState, RootState } from './types';
 
-const locationModule: Module<LocationState, never> = {
+const locationModule: Module<LocationState, RootState> = {
   namespaced: true,
   state: {
     location: null,

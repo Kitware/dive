@@ -26,7 +26,6 @@ import { MediaController } from 'vue-media-annotator/components/annotators/media
 /* VIAME WEB COMMON */
 import PolygonBase from 'viame-web-common/recipes/polygonbase';
 import HeadTail from 'viame-web-common/recipes/headtail';
-import NavigationTitle from 'viame-web-common/components/NavigationTitle.vue';
 import EditorMenu from 'viame-web-common/components/EditorMenu.vue';
 import ConfidenceFilter from 'viame-web-common/components/ConfidenceFilter.vue';
 import UserGuideButton from 'viame-web-common/components/UserGuideButton.vue';
@@ -50,7 +49,6 @@ export default defineComponent({
     LayerManager,
     VideoAnnotator,
     ImageAnnotator,
-    NavigationTitle,
     ConfidenceFilter,
     RunPipelineMenu,
     UserGuideButton,
@@ -84,6 +82,7 @@ export default defineComponent({
     const fps = ref(10 as string | number);
     const imageData = ref([] as FrameImage[]);
     const datasetType: Ref<DatasetType> = ref('image-sequence');
+    const datasetName = ref('');
     const videoUrl = ref(undefined as undefined | string);
     const frame = ref(0); // the currently displayed frame number
     const { loadDetections, loadMetadata, saveMetadata } = useApi();
@@ -319,6 +318,7 @@ export default defineComponent({
           importTypes(Object.keys(meta.customTypeStyling), false);
         }
         populateConfidenceFilters(meta.confidenceFilters);
+        datasetName.value = meta.name;
         fps.value = meta.fps;
         imageData.value = meta.imageData;
         videoUrl.value = meta.videoUrl;
@@ -340,6 +340,7 @@ export default defineComponent({
     return {
       /* props */
       confidenceThreshold,
+      datasetName,
       datasetType,
       editingTrack,
       editingMode,
@@ -382,8 +383,12 @@ export default defineComponent({
 <template>
   <v-main class="viewer">
     <v-app-bar app>
-      <navigation-title />
       <slot name="title" />
+      <span
+        class="title pl-3"
+      >
+        {{ datasetName }}
+      </span>
       <v-spacer />
       <template #extension>
         <span>Viewer/Edit Controls</span>

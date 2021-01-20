@@ -8,6 +8,8 @@ import { getFolder, getItemDownloadUri } from '../api/girder.service';
 import { getValidWebImages } from '../api/viame.service';
 import { getClipMeta } from '../api/viameDetection.service';
 
+import { DatasetState, RootState } from './types';
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function isGirderDatasetMeta(obj: any): obj is GirderMetadataStatic {
   if (obj.annotate !== true) {
@@ -24,11 +26,7 @@ function isGirderDatasetMeta(obj: any): obj is GirderMetadataStatic {
 
 const defaultFrameRate = 30;
 
-interface DatasetState {
-  meta: GirderMetadata | null;
-}
-
-const datasetModule: Module<DatasetState, never> = {
+const datasetModule: Module<DatasetState, RootState> = {
   namespaced: true,
   state: {
     meta: null,
