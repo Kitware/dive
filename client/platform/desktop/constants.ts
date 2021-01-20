@@ -140,7 +140,6 @@ export interface RunTraining {
 export interface ConversionArgs {
   meta: JsonMeta;
   mediaList: [string, string][];
-  type: DatasetType;
 }
 
 export interface DesktopJob {
@@ -185,4 +184,4 @@ export interface FFProbeResults {
 export type ConvertMedia =
 (settings: Settings,
   args: ConversionArgs,
-  updater: DesktopJobUpdater) => DesktopJob;
+  updater: DesktopJobUpdater) => Promise<DesktopJob>;

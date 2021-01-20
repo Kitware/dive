@@ -398,9 +398,10 @@ async function importMedia(
   path: string,
   updater: DesktopJobUpdater,
   { checkMedia, convertMedia }: {
-  checkMedia: (settings: Settings, path: string) => boolean;
+  checkMedia: (settings: Settings, path: string) => Promise<boolean>;
   convertMedia: ConvertMedia;
-}): Promise<JsonMeta> {
+},
+): Promise<JsonMeta> {
   let datasetType: DatasetType;
 
   const exists = fs.existsSync(path);
@@ -452,7 +453,8 @@ async function importMedia(
       if (websafeImageTypes.includes(mimetype) || otherImageTypes.includes(mimetype)) {
         throw new Error('User chose image file for video import option');
       } else if (websafeVideoTypes.includes(mimetype) || otherVideoTypes.includes(mimetype)) {
-        if (!checkMedia(settings, path) || otherVideoTypes.includes(mimetype)) {
+        const webSafeVideo = await checkMedia(settings, path);
+        if (!webSafeVideo || otherVideoTypes.includes(mimetype)) {
           mediaConvertList.push(path);
         }
       } else {
@@ -497,23 +499,22 @@ async function importMedia(
     const extension = datasetType === 'video' ? '.mp4' : '.png';
     mediaConvertList.forEach((item) => {
       const destLoc = item.replace(jsonMeta.originalBasePath, projectDirAbsPath);
-      const destExt = destLoc.replace(npath.extname(item), extension);
+      const destAbsPath = destLoc.replace(npath.extname(item), extension);
       if (datasetType === 'video') {
-        jsonMeta.transcodedVideoFile = npath.basename(destExt);
+        jsonMeta.transcodedVideoFile = npath.basename(destAbsPath);
       } else if (datasetType === 'image-sequence') {
         if (!jsonMeta.transcodedImageFiles) {
           jsonMeta.transcodedImageFiles = [];
         }
-        jsonMeta.transcodedImageFiles.push(npath.basename(destExt));
+        jsonMeta.transcodedImageFiles.push(npath.basename(destAbsPath));
       }
-      srcDstList.push([item, destExt]);
+      srcDstList.push([item, destAbsPath]);
     });
-    jobBase = convertMedia(
+    jobBase = await convertMedia(
       settings,
       {
         meta: jsonMeta,
         mediaList: srcDstList,
-        type: datasetType,
       },
       updater,
     );
@@ -566,8 +567,8 @@ async function completeConversion(
   const existing = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
   if (existing.transcodingJobKey === transcodingJobKey) {
     existing.transcodingJobKey = undefined;
+    saveMetadata(settings, datasetId, existing);
   }
-  _saveAsJson(projectDirInfo.metaFileAbsPath, existing);
 }
 
 async function openLink(url: string) {

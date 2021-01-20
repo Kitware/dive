@@ -1,5 +1,5 @@
 import npath from 'path';
-import { spawn, spawnSync } from 'child_process';
+import { spawn } from 'child_process';
 import fs from 'fs-extra';
 
 import {
@@ -10,7 +10,7 @@ import {
 import { serialize } from 'platform/desktop/backend/serializers/viame';
 
 import * as common from './common';
-import { cleanString, jobFileEchoMiddleware } from './utils';
+import { cleanString, jobFileEchoMiddleware, spawnResult } from './utils';
 
 const PipelineRelativeDir = 'configs/pipelines';
 
@@ -259,10 +259,10 @@ async function train(
   return jobBase;
 }
 
-function checkMedia(
+async function checkMedia(
   viameConstants: ViameConstants,
   file: string,
-): boolean {
+): Promise<boolean> {
   const ffprobePath = `${viameConstants.ffmpeg.path.replace('ffmpeg', 'ffprobe')}`;
   const command = [
     `${viameConstants.ffmpeg.initialization}`,
@@ -275,13 +275,12 @@ function checkMedia(
     '-show_streams',
     file,
   ];
-  const result = spawnSync(command.join(' '),
-    { shell: viameConstants.shell });
-  if (result.error) {
-    throw result.error;
+  const result = await spawnResult(command.join(' '), viameConstants.shell);
+  if (result.error || result.output === null) {
+    throw result.error || 'Error using ffprobe';
   }
   // TODO: Don't like this, but Windows needs this
-  const returnText = result.stdout.toString('utf-8');
+  const returnText = result.output;
   const firstIndex = returnText.indexOf('{');
   const lastIndex = returnText.lastIndexOf('}');
   if (firstIndex === -1 || lastIndex === -1) {
@@ -297,19 +296,21 @@ function checkMedia(
   return false;
 }
 
-function convertMedia(settings: Settings,
+async function convertMedia(settings: Settings,
   args: ConversionArgs,
   updater: DesktopJobUpdater,
   viameConstants: ViameConstants,
   imageIndex = 0,
-  key = ''): DesktopJob {
+  key = ''): Promise<DesktopJob> {
   const commands = [];
-  if (args.type === 'video' && args.mediaList[0]) {
+  if (args.meta.type === 'video' && args.mediaList[0]) {
     commands.push(`${viameConstants.ffmpeg.initialization} ${viameConstants.ffmpeg.path} -i "${args.mediaList[0][0]}" ${viameConstants.ffmpeg.encoding} "${args.mediaList[0][1]}"`);
-  } else if (args.type === 'image-sequence' && imageIndex < args.mediaList.length) {
+  } else if (args.meta.type === 'image-sequence' && imageIndex < args.mediaList.length) {
     commands.push(`${viameConstants.ffmpeg.initialization} ${viameConstants.ffmpeg.path} -i "${args.mediaList[imageIndex][0]}" "${args.mediaList[imageIndex][1]}"`);
   }
 
+  console.log(viameConstants);
+  console.log(commands.join(' '));
   const job = spawn(commands.join(' '), { shell: viameConstants.shell });
   let jobKey = `convert_${job.pid}_${args.meta.originalBasePath}`;
   if (key.length) {
@@ -335,7 +336,7 @@ function convertMedia(settings: Settings,
   job.on('exit', async (code) => {
     if (code !== 0) {
       console.error('Error with running conversion');
-    } else if (args.type === 'video' || (args.type === 'image-sequence' && imageIndex === args.mediaList.length - 1)) {
+    } else if (args.meta.type === 'video' || (args.meta.type === 'image-sequence' && imageIndex === args.mediaList.length - 1)) {
       common.completeConversion(settings, args.meta.id, jobKey);
       updater({
         ...jobBase,
@@ -343,7 +344,7 @@ function convertMedia(settings: Settings,
         exitCode: code,
         endTime: new Date(),
       });
-    } else if (args.type === 'image-sequence') {
+    } else if (args.meta.type === 'image-sequence') {
       updater({
         ...jobBase,
         body: [`Conversion ${imageIndex + 1} of ${args.mediaList.length} Complete`],

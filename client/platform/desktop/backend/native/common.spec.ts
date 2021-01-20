@@ -10,7 +10,6 @@ import type {
   DesktopJobUpdate, DesktopJobUpdater, JsonMeta, Settings,
 } from 'platform/desktop/constants';
 
-import { DatasetType } from 'viame-web-common/apispec';
 import * as common from './common';
 
 const pipelines = {
@@ -78,9 +77,9 @@ const urlMapper = (a: string) => `http://localhost:8888/api/media?path=${a}`;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const updater = (update: DesktopJobUpdate) => undefined;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-const checkMedia = (settingsVal: Settings, file: string) => file.includes('mp4');
+const checkMedia = async (settingsVal: Settings, file: string) => file.includes('mp4');
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-const convertMedia = (settingsVal: Settings, args: ConversionArgs,
+const convertMedia = async (settingsVal: Settings, args: ConversionArgs,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   updaterFunc: DesktopJobUpdater) => ({
   key: 'jobKey',

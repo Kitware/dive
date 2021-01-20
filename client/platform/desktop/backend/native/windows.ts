@@ -3,7 +3,7 @@
  */
 import os from 'os';
 import npath from 'path';
-import { spawn, spawnSync } from 'child_process';
+import { spawn } from 'child_process';
 import fs from 'fs-extra';
 import { xml2json } from 'xml-js';
 
@@ -14,6 +14,7 @@ import {
 } from 'platform/desktop/constants';
 
 import * as viame from './viame';
+import { spawnResult } from './utils';
 
 const DefaultSettings: Settings = {
   // The current settings schema config
@@ -160,7 +161,7 @@ async function nvidiaSmi(): Promise<NvidiaSmiReply> {
 /**
  * one time per launch configuration for ffmpeg and ffprobe
  */
-function ffmpegCommand(settings: Settings): void {
+async function ffmpegCommand(settings: Settings) {
   if (ViameWindowsConstants.ffmpeg.path !== '' && ViameWindowsConstants.ffmpeg.encoding !== '') {
     return;
   }
@@ -171,9 +172,9 @@ function ffmpegCommand(settings: Settings): void {
   //First lets see if the VIAME install has libx264
   const modifiedCommand = `"${ffmpegPath.replace(/\\/g, '\\')}"`;
 
-  const viameffmpeg = spawnSync(`${init} ${modifiedCommand} -encoders`, { shell: true });
-  if (!viameffmpeg.error) {
-    const ffmpegOutput = viameffmpeg.stdout.toString('utf-8');
+  const viameffmpeg = await spawnResult(`${init} ${modifiedCommand} -encoders`, true);
+  if (viameffmpeg.output) {
+    const ffmpegOutput = viameffmpeg.output;
     if (ffmpegOutput.includes('libx264')) {
       ViameWindowsConstants.ffmpeg.initialization = `"${setupScriptPath}" &&`;
       ViameWindowsConstants.ffmpeg.path = `"${settings.viamePath}/bin/ffmpeg.exe"`;
@@ -189,8 +190,8 @@ function ffmpegCommand(settings: Settings): void {
  * Checks the video file for the codec type and
  * returns true if it is x264, if not will return false for media conversion
  */
-function checkMedia(settings: Settings, file: string): boolean {
-  ffmpegCommand(settings);
+async function checkMedia(settings: Settings, file: string): Promise<boolean> {
+  await ffmpegCommand(settings);
   const setupScriptAbs = npath.join(settings.viamePath, ViameWindowsConstants.setup);
   return viame.checkMedia({
     ...ViameWindowsConstants,
@@ -198,10 +199,10 @@ function checkMedia(settings: Settings, file: string): boolean {
   }, file);
 }
 
-function convertMedia(settings: Settings,
+async function convertMedia(settings: Settings,
   args: ConversionArgs,
-  updater: DesktopJobUpdater): DesktopJob {
-  ffmpegCommand(settings);
+  updater: DesktopJobUpdater): Promise<DesktopJob> {
+  await ffmpegCommand(settings);
   const setupScriptAbs = npath.join(settings.viamePath, ViameWindowsConstants.setup);
   return viame.convertMedia(settings, args, updater, {
     ...ViameWindowsConstants,

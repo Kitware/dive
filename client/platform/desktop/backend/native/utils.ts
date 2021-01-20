@@ -1,3 +1,4 @@
+import { spawn } from 'child_process';
 import fs from 'fs-extra';
 import { DesktopJob, DesktopJobUpdater } from 'platform/desktop/constants';
 
@@ -47,8 +48,40 @@ function jobFileEchoMiddleware(
   };
 }
 
+function spawnResult(command: string, shell: boolean | string, args: string[] = []):
+Promise<{ output: null | string; exitCode: number; error: string}> {
+  return new Promise((resolve) => {
+    const proc = spawn(command, args, { shell });
+    let output = '';
+    let error = '';
+    proc.stdout.on('data', (chunk) => {
+      output = output.concat(chunk.toString('utf-8'));
+    });
+
+    proc.stderr.on('data', (chunk) => {
+      error = error.concat(chunk.toString('utf-8'));
+    });
+
+    proc.on('close', (exitCode) => {
+      resolve({
+        output,
+        exitCode,
+        error,
+      });
+    });
+    proc.on('error', (err) => {
+      resolve({
+        output: null,
+        exitCode: -1,
+        error: err.message,
+      });
+    });
+  });
+}
+
 export {
   cleanString,
   makeid,
   jobFileEchoMiddleware,
+  spawnResult,
 };

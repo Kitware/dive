@@ -135,7 +135,7 @@ export default defineComponent({
                   <span class="primary--text text--darken-1 text-decoration-none">
                     {{ recent.name }}
                   </span>
-                  <span>
+                  <span class="pl-4">
                     Converting
                     <v-icon>
                       mdi-spin mdi-sync

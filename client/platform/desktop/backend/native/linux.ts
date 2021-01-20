@@ -3,7 +3,7 @@
  */
 import os from 'os';
 import npath from 'path';
-import { spawn, spawnSync } from 'child_process';
+import { spawn } from 'child_process';
 import fs from 'fs-extra';
 import { xml2json } from 'xml-js';
 
@@ -17,6 +17,7 @@ import {
 } from 'platform/desktop/constants';
 
 import * as viame from './viame';
+import { spawnResult } from './utils';
 
 const DefaultSettings: Settings = {
   // The current settings schema config
@@ -125,38 +126,44 @@ async function nvidiaSmi(): Promise<NvidiaSmiReply> {
  * one time per launch configuration for ffmpeg and ffprobe
  * Linux version is more complicated for multiple VIAME versions and local ffmpeg
  */
-function ffmpegCommand(settings: Settings): void {
+async function ffmpegCommand(settings: Settings) {
   if (ViameLinuxConstants.ffmpeg.path !== '' && ViameLinuxConstants.ffmpeg.encoding !== '') {
     return;
   }
   const setupScriptPath = npath.join(settings.viamePath, ViameLinuxConstants.setup);
   const ffmpegPath = `"${settings.viamePath}/bin/ffmpeg"`;
   const init = `source ${setupScriptPath} &&`;
-
+  const errorLog = [];
   //First lets see if the VIAME install has libx264
   const ffmpegViameExists = fs.existsSync(`${settings.viamePath}/bin/ffmpeg`);
   if (ffmpegViameExists) {
-    const viameffmpeg = spawnSync(`${init} ${ffmpegPath} -encoders`, { shell: '/bin/bash' });
-    if (!viameffmpeg.error) {
-      const ffmpegOutput = viameffmpeg.stdout.toString('utf-8');
-      if (ffmpegOutput.includes('libx264')) {
+    const viameffmpeg = await spawnResult(`${init} ${ffmpegPath} -encoders`, '/bin/bash');
+    if (viameffmpeg.output) {
+      if (viameffmpeg.output.includes('libx264')) {
         ViameLinuxConstants.ffmpeg.initialization = `source ${setupScriptPath} &&`;
         ViameLinuxConstants.ffmpeg.path = `"${settings.viamePath}/bin/ffmpeg"`;
         ViameLinuxConstants.ffmpeg.encoding = '-c:v libx264 -preset slow -crf 26 -c:a copy';
         return;
       }
     }
+    if (viameffmpeg.exitCode === -1) {
+      errorLog.push(viameffmpeg.error);
+    }
   }
   //Now we need to test for a local install with libx264
-  const localffmpeg = spawnSync('ffmpeg -encoders', { shell: '/bin/bash' });
-  if (!localffmpeg.error) {
-    if (localffmpeg.stdout.toString('utf-8').includes('libx264')) {
+  const localffmpeg = await spawnResult('ffmpeg -encoders', '/bin/bash');
+  if (localffmpeg.output) {
+    if (localffmpeg.output.includes('libx264')) {
       ViameLinuxConstants.ffmpeg.initialization = '';
       ViameLinuxConstants.ffmpeg.path = 'ffmpeg';
       ViameLinuxConstants.ffmpeg.encoding = '-c:v libx264 -preset slow -crf 26 -c:a copy';
       return;
     }
   }
+  if (localffmpeg.exitCode === -1) {
+    errorLog.push(localffmpeg.error);
+  }
+
   // As long as VIAMEffmpeg exists we can attempt to use nvida encoding
   if (ffmpegViameExists) {
     ViameLinuxConstants.ffmpeg.initialization = `source ${setupScriptPath} &&`;
@@ -165,6 +172,9 @@ function ffmpegCommand(settings: Settings): void {
     return;
   }
   //We make it down here we have no way to convert the video file
+  if (errorLog.length) {
+    throw new Error(`ffmpeg errors: ${errorLog.join(' | ')}`);
+  }
   throw new Error('ffmpeg not installed, please download and install VIAME Toolkit from the main page');
 }
 
@@ -172,8 +182,8 @@ function ffmpegCommand(settings: Settings): void {
  * Checs the video file for the codec type and
  * returns true if it is x264, if not will return false for media conversion
  */
-function checkMedia(settings: Settings, file: string): boolean {
-  ffmpegCommand(settings);
+async function checkMedia(settings: Settings, file: string): Promise<boolean> {
+  await ffmpegCommand(settings);
   const setupScriptAbs = npath.join(settings.viamePath, ViameLinuxConstants.setup);
   return viame.checkMedia({
     ...ViameLinuxConstants,
@@ -181,10 +191,10 @@ function checkMedia(settings: Settings, file: string): boolean {
   }, file);
 }
 
-function convertMedia(settings: Settings,
+async function convertMedia(settings: Settings,
   args: ConversionArgs,
-  updater: DesktopJobUpdater): DesktopJob {
-  ffmpegCommand(settings);
+  updater: DesktopJobUpdater): Promise<DesktopJob> {
+  await ffmpegCommand(settings);
   const setupScriptAbs = npath.join(settings.viamePath, ViameLinuxConstants.setup);
   return viame.convertMedia(settings, args, updater, {
     ...ViameLinuxConstants,
