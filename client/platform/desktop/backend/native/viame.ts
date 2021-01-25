@@ -217,6 +217,7 @@ async function train(
     `--input-truth "${groundTruthFileList}"`,
     `--config "${configFilePath}"`,
     '--no-query',
+    '--no-adv-prints',
   ];
 
   const job = spawn(command.join(' '), {
