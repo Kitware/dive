@@ -4,12 +4,15 @@ import { defineComponent } from '@vue/composition-api';
 import NavigationTitle from 'viame-web-common/components/NavigationTitle.vue';
 import Viewer from 'viame-web-common/components/Viewer.vue';
 import RunPipelineMenu from 'viame-web-common/components/RunPipelineMenu.vue';
+
+import Export from './Export.vue';
 import JobTab from './JobTab.vue';
 
 import { datasets } from '../store/dataset';
 
 export default defineComponent({
   components: {
+    Export,
     JobTab,
     NavigationTitle,
     RunPipelineMenu,
@@ -29,6 +32,13 @@ export default defineComponent({
 
 <template>
   <Viewer :id="id">
+    <template #extension-right>
+      <Export
+        v-if="datasets[id]"
+        :meta="datasets[id]"
+        :small="true"
+      />
+    </template>
     <template #title>
       <NavigationTitle />
       <v-tabs

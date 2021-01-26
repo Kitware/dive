@@ -185,3 +185,9 @@ export type ConvertMedia =
 (settings: Settings,
   args: ConversionArgs,
   updater: DesktopJobUpdater) => Promise<DesktopJob>;
+
+export interface ExportDatasetArgs {
+  id: string;
+  exclude: boolean;
+  path: string;
+}

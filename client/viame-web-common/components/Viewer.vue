@@ -403,6 +403,7 @@ export default defineComponent({
           @delete-annotation="handler.removeAnnotation"
         />
         <v-spacer />
+        <slot name="extension-right" />
       </template>
       <slot name="title-right" />
       <user-guide-button annotating />

@@ -10,7 +10,7 @@ import type {
 
 import {
   DesktopJob, DesktopMetadata, JsonMeta, NvidiaSmiReply,
-  RunPipeline, RunTraining, fileVideoTypes,
+  RunPipeline, RunTraining, fileVideoTypes, ExportDatasetArgs,
 } from 'platform/desktop/constants';
 
 /**
@@ -73,6 +73,19 @@ async function runTraining(
 async function importMedia(path: string): Promise<JsonMeta> {
   const data: JsonMeta = await ipcRenderer.invoke('import-media', path);
   return data;
+}
+
+async function exportDataset(id: string, exclude: boolean) {
+  const location = await remote.dialog.showSaveDialog({
+    title: 'Export Dataset',
+    defaultPath: `detections_${id}.csv`,
+  });
+  if (!location.canceled && location.filePath) {
+    const args: ExportDatasetArgs = {
+      id, exclude, path: location.filePath,
+    };
+    ipcRenderer.invoke('export-dataset', args);
+  }
 }
 
 /**
@@ -140,6 +153,7 @@ export {
   saveMetadata,
   saveDetections,
   /* Nonstandard APIs */
+  exportDataset,
   importMedia,
   openFromDisk,
   openLink,
