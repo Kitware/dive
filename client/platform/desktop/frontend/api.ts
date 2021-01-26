@@ -112,19 +112,25 @@ async function saveDetections(id: string, args: SaveDetectionsArgs) {
 /**
  * Unimplemented sections of the API
  */
-
-async function getAttributes() {
-  return Promise.resolve([] as Attribute[]);
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+async function getAttributes(datasetId: string) {
+  //Now we return a list of attributes from the corresponding meta field
+  const client = await getClient();
+  const { data } = await client.get<Attribute[]>(`dataset/${datasetId}/attribute`);
+  return data;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-async function setAttribute({ addNew, data }: {addNew: boolean | undefined; data: Attribute}) {
-  return Promise.resolve();
+async function setAttribute(datasetId: string, { addNew, data }:
+  {addNew?: boolean; data: Attribute}) {
+  const client = await getClient();
+  return client.post(`dataset/${datasetId}/attribute`, { addNew, data });
 }
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-async function deleteAttribute(data: Attribute) {
-  return Promise.resolve([] as Attribute[]);
+async function deleteAttribute(datasetId: string, data: Attribute) {
+  const client = await getClient();
+  return client.delete(`dataset/${datasetId}/attribute`, { data });
 }
 
 export {

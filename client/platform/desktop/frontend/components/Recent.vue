@@ -30,6 +30,7 @@ export default defineComponent({
             });
           } else {
             // Display new data and await transcoding to complete
+            console.log(meta);
             const recentsMeta = await loadMetadata(meta.id);
             setRecents(recentsMeta);
           }

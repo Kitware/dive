@@ -1,4 +1,5 @@
 import type {
+  Attribute,
   DatasetMeta, DatasetMetaMutable, DatasetType, Pipe,
 } from 'viame-web-common/apispec';
 
@@ -51,6 +52,8 @@ export interface Settings {
   // dataPath path to a userspace data directory
   dataPath: string;
 }
+
+export type Attributes = Record<string, Attribute>;
 
 /**
  * JsonMeta is a SUBSET of DatasetMeta contained within

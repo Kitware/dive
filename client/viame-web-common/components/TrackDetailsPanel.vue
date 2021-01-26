@@ -47,7 +47,10 @@ export default defineComponent({
       type: Boolean,
       required: true,
     },
-
+    datasetId: {
+      type: String,
+      required: true,
+    },
   },
   setup(props) {
     const attributes = ref([] as Attribute[]);
@@ -96,7 +99,7 @@ export default defineComponent({
     async function closeEditor() {
       editingAttribute.value = null;
       editingError.value = null;
-      attributes.value = await getAttributes();
+      attributes.value = await getAttributes(props.datasetId);
     }
 
     function addAttribute(type: 'Track' | 'Detection') {
@@ -126,7 +129,7 @@ export default defineComponent({
       }
 
       try {
-        await setAttribute(saveData);
+        await setAttribute(props.datasetId, saveData);
       } catch (err) {
         editingError.value = err.message;
       }
@@ -137,7 +140,7 @@ export default defineComponent({
     async function deleteAttributeHandler(data: Attribute) {
       editingError.value = null;
       try {
-        await deleteAttribute(data);
+        await deleteAttribute(props.datasetId, data);
       } catch (err) {
         editingError.value = err.message;
       }
@@ -181,7 +184,7 @@ export default defineComponent({
     });
 
     onBeforeMount(async () => {
-      attributes.value = await getAttributes();
+      attributes.value = await getAttributes(props.datasetId);
     });
 
     return {

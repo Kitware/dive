@@ -10,14 +10,16 @@ import moment from 'moment';
 import lockfile from 'proper-lockfile';
 import {
   DatasetType, MultiTrackRecord, Pipelines, SaveDetectionsArgs,
-  FrameImage, DatasetMetaMutable, TrainingConfigs,
+  FrameImage, DatasetMetaMutable, TrainingConfigs, Attribute,
 } from 'viame-web-common/apispec';
 import * as viameSerializers from 'platform/desktop/backend/serializers/viame';
 
 import {
   websafeImageTypes, websafeVideoTypes, otherImageTypes, otherVideoTypes,
-  JsonMeta, Settings, JsonMetaCurrentVersion, DesktopMetadata, DesktopJobUpdater, ConvertMedia,
+  JsonMeta, Settings, JsonMetaCurrentVersion, DesktopMetadata,
+  DesktopJobUpdater, ConvertMedia, Attributes,
 } from 'platform/desktop/constants';
+import { StringKeyObject, TrackData } from 'vue-media-annotator/track';
 import { cleanString, makeid } from './utils';
 
 const ProjectsFolderName = 'DIVE_Projects';
@@ -321,8 +323,72 @@ async function saveMetadata(settings: Settings, datasetId: string, args: Dataset
   if (args.customTypeStyling) {
     existing.customTypeStyling = args.customTypeStyling;
   }
+  if (args.attributes) {
+    existing.attributes = args.attributes;
+  }
   await _saveAsJson(projectDirInfo.metaFileAbsPath, existing);
   await release();
+}
+
+async function getAttributes(settings: Settings, datasetId: string):
+  Promise<Attribute[]> {
+  const projectDirData = await getValidatedProjectDir(settings, datasetId);
+  const projectMetaData = await loadJsonMetadata(projectDirData.metaFileAbsPath);
+  if (projectMetaData.attributes) {
+    return Object.values(projectMetaData.attributes);
+  }
+  return [];
+}
+
+async function setAttribute(settings: Settings, datasetId: string, { data }:
+  {data: Attribute }) {
+  const projectDirData = await getValidatedProjectDir(settings, datasetId);
+  const projectMetaData = await loadJsonMetadata(projectDirData.metaFileAbsPath);
+  if (!projectMetaData.attributes) {
+    projectMetaData.attributes = {};
+  }
+  projectMetaData.attributes[data._id] = data;
+  await saveMetadata(settings, datasetId, projectMetaData);
+}
+
+async function deleteAttribute(settings: Settings, datasetId: string, { data }:
+  { data: Attribute }) {
+  const projectDirData = await getValidatedProjectDir(settings, datasetId);
+  const projectMetaData = await loadJsonMetadata(projectDirData.metaFileAbsPath);
+  if (!projectMetaData.attributes) {
+    return;
+  }
+  if (projectMetaData.attributes[data._id]) {
+    delete projectMetaData.attributes[data._id];
+  }
+  await saveMetadata(settings, datasetId, projectMetaData);
+}
+
+function processAttributes(attributes: StringKeyObject, type: 'track' | 'detection', attributeObj: Attributes) {
+  Object.entries(attributes).forEach(([key]) => {
+    if (attributeObj[`${type}_${key}`] === undefined) {
+      // eslint-disable-next-line no-param-reassign
+      attributeObj[`${type}_${key}`] = {
+        belongs: type,
+        datatype: 'text',
+        name: key,
+        _id: `${type}_${key}`,
+      };
+    }
+  });
+}
+
+function processTrackforAttributes(track: TrackData, attributeObj: Attributes) {
+  if (track.attributes) {
+    processAttributes(track.attributes, 'track', attributeObj);
+  }
+  if (track.features) {
+    track.features.forEach((item) => {
+      if (item.attributes) {
+        processAttributes(track.attributes, 'detection', attributeObj);
+      }
+    });
+  }
 }
 
 /**
@@ -339,9 +405,10 @@ async function processOtherAnnotationFiles(
   settings: Settings,
   datasetId: string,
   absPaths: string[],
-): Promise<{ fps?: number; processedFiles: string[] }> {
+): Promise<{ fps?: number; processedFiles: string[]; attributes?: Attributes }> {
   const fps = undefined;
   const processedFiles = []; // which files were processed to generate the detections
+  const attributes: Attributes = {};
 
   for (let i = 0; i < absPaths.length; i += 1) {
     const path = absPaths[i];
@@ -355,7 +422,11 @@ async function processOtherAnnotationFiles(
         // eslint-disable-next-line no-await-in-loop
         const tracks = await viameSerializers.parseFile(path);
         const data: MultiTrackRecord = {};
-        tracks.forEach((t) => { data[t.trackId.toString()] = t; });
+        tracks.forEach((t) => {
+          data[t.trackId.toString()] = t;
+          // Gather track & detection attributes in file
+          processTrackforAttributes(t, attributes);
+        });
         // eslint-disable-next-line no-await-in-loop
         await _saveSerialized(settings, datasetId, data, true);
         processedFiles.push(path);
@@ -366,7 +437,7 @@ async function processOtherAnnotationFiles(
       }
     }
   }
-  return { fps, processedFiles };
+  return { fps, processedFiles, attributes };
 }
 
 async function _initializeAppDataDir(settings: Settings) {
@@ -521,7 +592,6 @@ async function importMedia(
     jsonMeta.transcodingJobKey = jobBase.key;
   }
 
-  await _saveAsJson(npath.join(projectDirAbsPath, JsonMetaFileName), jsonMeta);
 
   let foundDetections = false;
 
@@ -543,12 +613,16 @@ async function importMedia(
     if (csvFileCandidates.length > 1) {
       throw new Error(`too many CSV files found in ${jsonMeta.originalBasePath}, expected at most 1`);
     }
-    const { fps, processedFiles } = await processOtherAnnotationFiles(
+    const { fps, processedFiles, attributes } = await processOtherAnnotationFiles(
       settings, dsId, csvFileCandidates,
     );
     if (fps) jsonMeta.fps = fps;
+    if (attributes) jsonMeta.attributes = attributes;
     foundDetections = processedFiles.length > 0;
   }
+
+  await _saveAsJson(npath.join(projectDirAbsPath, JsonMetaFileName), jsonMeta);
+
   /* Finally create an empty file as fallback */
   if (!foundDetections) {
     await _saveSerialized(settings, dsId, {}, true);
@@ -593,4 +667,7 @@ export {
   saveDetections,
   saveMetadata,
   completeConversion,
+  getAttributes,
+  setAttribute,
+  deleteAttribute,
 };

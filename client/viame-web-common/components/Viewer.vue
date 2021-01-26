@@ -429,7 +429,7 @@ export default defineComponent({
       style="min-width: 700px;"
     >
       <sidebar
-        v-bind="{ newTrackSettings, typeSettings }"
+        v-bind="{ newTrackSettings, typeSettings, datasetId:id }"
         @update-new-track-settings="updateNewTrackSettings($event)"
         @update-type-settings="updateTypeSettings($event)"
         @import-types="importTypes($event)"
