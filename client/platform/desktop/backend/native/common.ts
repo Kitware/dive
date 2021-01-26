@@ -603,6 +603,13 @@ async function importMedia(
       trackFileAbsPath,
       npath.join(projectDirAbsPath, npath.basename(trackFileAbsPath)),
     );
+    //Load tracks to generate attributes
+    const tracks = await loadJsonTracks(trackFileAbsPath);
+    const attributes = {};
+    Object.values(tracks).forEach((track) => {
+      processTrackforAttributes(track, attributes);
+    });
+    if (attributes) jsonMeta.attributes = attributes;
     foundDetections = true;
   }
   /* Look for other types of annotation files as a second priority */
