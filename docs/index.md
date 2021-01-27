@@ -1,26 +1,31 @@
-# Home
+# DIVE Documentation
 
-The documentation for VIAME DIVE, an open-source AI system for analyzing imagery and video.
+This is the documentation for DIVE, an open-source annotation system that integrates with VIAME.
 
-See the full ecosystem of tools at [viametoolkit.org](https://www.viametoolkit.org/)
+## Definitions
 
-Need help?
+* **DIVE** is the annotator and data management software system.  It is our name for the code and capabilities, including both web and desktop, that can be deployed and configured for a variety of needs.  It integrates tightly with the VIAME, but is separate from that tool suite.
+    * The desktop and girder (web) systems are known as **DIVE Desktop** and **DIVE Web**.
+* **VIAME** stands for "Video and Image Analytics for Marine Environments".  It is a suite of computer vision tools for object detection, tracking, rapid model generation, and many other types of analysis.  Get more info at [viametoolkit.org](https://www.viametoolkit.org/)
+* **VIAME Web** is the *specific* DIVE Web deployment at [viame.kitware.com](https://viame.kitware.com). It includes a web-based annotator with the capabilities to run VIAME workflows on user-provided data.  You may deploy the web system into your own labratory or cloud environment.
 
-* For problems, feature requests, etc. contact us through our [discussion board](https://github.com/VIAME/VIAME/discussions)
+## Need help?
+
+* For problems, feature requests, etc. contact us through our [discussion board](https://github.com/VIAME/VIAME/discussions).  This board is for all topics related to VIAME or DIVE.
 * You can also email `viame-web@kitware.com`
 
 ![Home](images/Banner.png)
 
-## Web (Browser) Version
+## VIAME Web (Browser) Version
 
-A VIAME Web server is available at [viame.kitware.com](https://viame.kitware.com).
+VIAME Web is available at [viame.kitware.com](https://viame.kitware.com).
 
 !!! info
     **VIAME Web is automatically updated and down for 10 minutes on 2 am EST/EDT Thursdays**
 
 [Use the web version.](Getting-Started.md)
 
-## Desktop Version
+## DIVE Desktop Version
 
 A full desktop version is also available.
 
@@ -28,7 +33,7 @@ A full desktop version is also available.
 
 ## Features
 
-Current capabilities of VIAME Web include:
+Current capabilities of DIVE include:
 
 * User import of frame images or video.
 * Playback of existing annotation data.
