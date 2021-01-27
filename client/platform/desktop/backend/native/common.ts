@@ -19,7 +19,7 @@ import {
   JsonMeta, Settings, JsonMetaCurrentVersion, DesktopMetadata,
   DesktopJobUpdater, ConvertMedia, Attributes,
 } from 'platform/desktop/constants';
-import { StringKeyObject, TrackData } from 'vue-media-annotator/track';
+import processTrackAttributes from './attributeProcessor';
 import { cleanString, makeid } from './utils';
 
 const ProjectsFolderName = 'DIVE_Projects';
@@ -364,33 +364,6 @@ async function deleteAttribute(settings: Settings, datasetId: string, { data }:
   await saveMetadata(settings, datasetId, projectMetaData);
 }
 
-function processAttributes(attributes: StringKeyObject, type: 'track' | 'detection', attributeObj: Attributes) {
-  Object.entries(attributes).forEach(([key]) => {
-    if (attributeObj[`${type}_${key}`] === undefined) {
-      // eslint-disable-next-line no-param-reassign
-      attributeObj[`${type}_${key}`] = {
-        belongs: type,
-        datatype: 'text',
-        name: key,
-        _id: `${type}_${key}`,
-      };
-    }
-  });
-}
-
-function processTrackforAttributes(track: TrackData, attributeObj: Attributes) {
-  if (track.attributes) {
-    processAttributes(track.attributes, 'track', attributeObj);
-  }
-  if (track.features) {
-    track.features.forEach((item) => {
-      if (item.attributes) {
-        processAttributes(track.attributes, 'detection', attributeObj);
-      }
-    });
-  }
-}
-
 /**
  * processOtherAnnotationFiles imports data from external annotation formats
  * given a list of candidate file paths.
@@ -408,7 +381,7 @@ async function processOtherAnnotationFiles(
 ): Promise<{ fps?: number; processedFiles: string[]; attributes?: Attributes }> {
   const fps = undefined;
   const processedFiles = []; // which files were processed to generate the detections
-  const attributes: Attributes = {};
+  let attributes: Attributes = {};
 
   for (let i = 0; i < absPaths.length; i += 1) {
     const path = absPaths[i];
@@ -421,12 +394,10 @@ async function processOtherAnnotationFiles(
       try {
         // eslint-disable-next-line no-await-in-loop
         const tracks = await viameSerializers.parseFile(path);
-        const data: MultiTrackRecord = {};
-        tracks.forEach((t) => {
-          data[t.trackId.toString()] = t;
-          // Gather track & detection attributes in file
-          processTrackforAttributes(t, attributes);
-        });
+        let data = {};
+        const results = processTrackAttributes(tracks);
+        data = results.data;
+        attributes = results.attributes;
         // eslint-disable-next-line no-await-in-loop
         await _saveSerialized(settings, datasetId, data, true);
         processedFiles.push(path);
@@ -605,10 +576,7 @@ async function importMedia(
     );
     //Load tracks to generate attributes
     const tracks = await loadJsonTracks(trackFileAbsPath);
-    const attributes = {};
-    Object.values(tracks).forEach((track) => {
-      processTrackforAttributes(track, attributes);
-    });
+    const { attributes } = processTrackAttributes(Object.values(tracks));
     if (attributes) jsonMeta.attributes = attributes;
     foundDetections = true;
   }
