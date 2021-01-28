@@ -394,12 +394,10 @@ async function processOtherAnnotationFiles(
       try {
         // eslint-disable-next-line no-await-in-loop
         const tracks = await viameSerializers.parseFile(path);
-        let data = {};
-        const results = processTrackAttributes(tracks);
-        data = results.data;
-        attributes = results.attributes;
+        const processed = processTrackAttributes(tracks);
+        attributes = processed.attributes;
         // eslint-disable-next-line no-await-in-loop
-        await _saveSerialized(settings, datasetId, data, true);
+        await _saveSerialized(settings, datasetId, processed.data, true);
         processedFiles.push(path);
         break; // Exit on first successful detection load
       } catch (err) {

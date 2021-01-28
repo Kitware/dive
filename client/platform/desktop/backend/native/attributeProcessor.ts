@@ -1,41 +1,44 @@
 import { Attributes } from 'platform/desktop/constants';
-import { Attribute, MultiTrackRecord } from 'viame-web-common/apispec';
+import { MultiTrackRecord } from 'viame-web-common/apispec';
 import { StringKeyObject, TrackData } from 'vue-media-annotator/track';
 
-type ProcessedAttribute = Record<string, Attribute & { testVals: Record<string, number>}>;
 
+/**
+ * Processes a list of tracks and returns a MultiTrackRecord and an attributes object to be used
+ * @param tracks list of tracks to process for the attributes
+ */
 function processTrackAttributes(tracks: TrackData[]):
 {data: MultiTrackRecord; attributes: Attributes} {
-  const attributeObj: ProcessedAttribute = {};
+  const attributeObj: Attributes = {};
+  const trackMap: MultiTrackRecord = {};
+  const testVals: Record<string, Record<string, number>> = {};
 
   function processAttributes(attributes: StringKeyObject, type: 'track' | 'detection') {
     Object.entries(attributes).forEach(([key, val]) => {
       const valstring = `${val}`;
       if (attributeObj[`${type}_${key}`] === undefined) {
-      // eslint-disable-next-line no-param-reassign
         attributeObj[`${type}_${key}`] = {
           belongs: type,
           datatype: 'text',
           name: key,
           _id: `${type}_${key}`,
-          testVals: { },
         };
-        // eslint-disable-next-line no-param-reassign
-        attributeObj[`${type}_${key}`].testVals[valstring] = 1;
-      } else if (attributeObj[`${type}_${key}`] && attributeObj[`${type}_${key}`].testVals) {
-        if (attributeObj[`${type}_${key}`].testVals[valstring]) {
-        // eslint-disable-next-line no-param-reassign
-          attributeObj[`${type}_${key}`].testVals[valstring] += 1;
+        testVals[`${type}_${key}`] = { };
+        testVals[`${type}_${key}`][valstring] = 1;
+      } else if (attributeObj[`${type}_${key}`] && testVals[`${type}_${key}`]) {
+        if (testVals[`${type}_${key}`][valstring]) {
+          testVals[`${type}_${key}`][valstring] += 1;
         }
       }
     });
-    //Now we attempt to process the attributes for the type.
-    Object.values(attributeObj).forEach((attribute) => {
-      if (attribute.testVals) {
+    // Now we attempt to process the attributes to infer the type.
+    // Cascading based on the attempting to convert and values
+    Object.keys(attributeObj).forEach((attributeKey) => {
+      if (testVals[attributeKey]) {
         let attributeType: ('number' | 'boolean' | 'text') = 'number';
         let lowCount = 1;
         const values: string[] = [];
-        Object.entries(attribute.testVals).forEach(([key, val]) => {
+        Object.entries(testVals[attributeKey]).forEach(([key, val]) => {
           if (val <= lowCount) {
             lowCount = val;
           }
@@ -47,13 +50,12 @@ function processTrackAttributes(tracks: TrackData[]):
             attributeType = 'text';
           }
         });
-        //If all items are used 2 or more times it has set Values otherwise it doesn't
+        // If all items are used 2 or more times it has discrete set Values otherwise
         if (lowCount >= 2 && attributeType.indexOf('text') !== -1) {
-        // eslint-disable-next-line no-param-reassign
-          attribute.values = values;
+          attributeObj[attributeKey].values = values;
         }
         // eslint-disable-next-line no-param-reassign
-        attribute.datatype = attributeType;
+        attributeObj[attributeKey].datatype = attributeType;
       }
     });
   }
@@ -71,12 +73,11 @@ function processTrackAttributes(tracks: TrackData[]):
     }
   }
 
-  const trackMap: MultiTrackRecord = {};
   tracks.forEach((t) => {
     trackMap[t.trackId.toString()] = t;
-    // Gather track & detection attributes in file
     processTrackforAttributes(t);
   });
+
   return { data: trackMap, attributes: attributeObj };
 }
 
