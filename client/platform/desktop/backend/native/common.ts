@@ -16,12 +16,15 @@ import * as viameSerializers from 'platform/desktop/backend/serializers/viame';
 
 import {
   websafeImageTypes, websafeVideoTypes, otherImageTypes, otherVideoTypes,
-  JsonMeta, Settings, JsonMetaCurrentVersion, DesktopMetadata, DesktopJobUpdater, ConvertMedia,
+  JsonMeta, Settings, JsonMetaCurrentVersion, DesktopMetadata, DesktopJobUpdater,
+  ConvertMedia, RunTraining,
 } from 'platform/desktop/constants';
 import { cleanString, makeid } from './utils';
 
 const ProjectsFolderName = 'DIVE_Projects';
 const JobsFolderName = 'DIVE_Jobs';
+const PipelinesFolderName = 'DIVE_Pipelines';
+
 const AuxFolderName = 'auxiliary';
 
 const JsonTrackFileName = /^result(_.*)?\.json$/;
@@ -212,6 +215,50 @@ async function getPipelineList(settings: Settings): Promise<Pipelines> {
       };
     }
   });
+
+  // Now lets add to it the trained pipelines by recursively looking in the dir
+  const allowedTrainedPatterns = /^detector.+|^tracker.+|^generate.+|^trained_detector\.zip|^trained_tracker\.zip|^trained_generate\.zip/;
+  const trainedPipelinePath = npath.join(settings.dataPath, PipelinesFolderName);
+  const trainedExists = await fs.pathExists(trainedPipelinePath);
+  if (!trainedExists) return ret;
+  const trainedPipeFolders = await fs.readdir(trainedPipelinePath);
+  console.log(trainedPipeFolders);
+  await Promise.all(trainedPipeFolders.map(async (item) => {
+    const pipeFolder = npath.join(trainedPipelinePath, item);
+    const pipeFolderExists = await fs.pathExists(pipeFolder);
+    if (!pipeFolderExists) return false;
+    let pipesInFolder = await fs.readdir(pipeFolder);
+    console.log('pipesInFolder');
+    console.log(pipesInFolder);
+    pipesInFolder = pipesInFolder.filter(
+      (p: string) => p.match(allowedTrainedPatterns) && !p.match(disallowedPatterns),
+    );
+    console.log('pipesInFolder');
+    console.log(pipesInFolder);
+    if (pipesInFolder.length >= 2) {
+      const pipeName = pipesInFolder.find((pipe) => pipe && pipe.indexOf('.pipe') !== -1);
+      console.log('pipeName');
+      console.log(pipeName);
+      if (pipeName) {
+        const pipeInfo = {
+          name: item,
+          type: 'trained',
+          pipe: npath.join(pipeFolder, pipeName),
+        };
+        if ('trained' in ret) {
+          ret.trained.pipes.push(pipeInfo);
+        } else {
+          ret.trained = {
+            pipes: [pipeInfo],
+            description: 'trained pipes',
+          };
+        }
+      }
+    }
+    return true;
+  }));
+  console.log('Pipeline Return Value');
+  console.log(ret);
   return ret;
 }
 
@@ -367,6 +414,40 @@ async function processOtherAnnotationFiles(
     }
   }
   return { fps, processedFiles };
+}
+/**
+ * Need to take the trained pipeline if it exists and place it in the DIVE_Pipelines folder
+ */
+async function processTrainedPipeline(settings: Settings, args: RunTraining, workingDir: string) {
+  //Look for trained_detector.zip and detector.pipe and move them to DIVE_Pipelines folder
+  const allowedPatterns = /^detector_.+|^tracker_.+|^generate_.+|^trained_detector\.zip|^trained_tracker\.zip|^trained_generate\.zip/;
+  const trainedDir = npath.join(workingDir, '/category_models');
+  const exists = await fs.pathExists(trainedDir);
+  if (!exists) return {};
+  let pipes = await fs.readdir(trainedDir);
+  console.log(pipes);
+  pipes = pipes.filter((p) => p.match(allowedPatterns));
+
+  if (!pipes.length) {
+    throw new Error('Could not located trained files');
+  }
+  const baseFolder = npath.join(settings.dataPath, PipelinesFolderName);
+  if (!fs.existsSync(baseFolder)) {
+    await fs.mkdir(baseFolder);
+  }
+
+  const folderName = npath.join(baseFolder, args.pipelineName);
+  if (!fs.existsSync(baseFolder)) {
+    await fs.mkdir(baseFolder);
+  }
+
+  //Move detector and model to the new folder
+  pipes.forEach((item) => {
+    const abspath = npath.join(trainedDir, item);
+    const destpath = npath.join(folderName, item);
+    fs.move(abspath, destpath, { overwrite: true });
+  });
+  return false;
 }
 
 async function _initializeAppDataDir(settings: Settings) {
@@ -593,4 +674,5 @@ export {
   saveDetections,
   saveMetadata,
   completeConversion,
+  processTrainedPipeline,
 };
