@@ -64,6 +64,9 @@ interface DatasetMeta extends DatasetMetaMutable {
 
 interface Api {
   /**
+   * TODO: Modification to use loadMetadata as well as saving
+   * utilizing upsert/delete for the metaData.  This requires having
+   * useAttributes to manage attributes locally and then save to backend
    * @deprecated soon attributes will come from loadMetadata()
    */
   getAttributes(datasetId: string): Promise<Attribute[]>;

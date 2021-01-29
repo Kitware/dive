@@ -28,10 +28,6 @@ export default defineComponent({
       type: Number,
       default: 300,
     },
-    datasetId: {
-      type: String,
-      required: true,
-    },
   },
 
   components: {
@@ -130,7 +126,6 @@ export default defineComponent({
         <track-details-panel
           :lock-types="typeSettings.lockTypes"
           :hotkeys-disabled="$prompt.visible()"
-          :dataset-id="datasetId"
           @track-seek="$emit('track-seek', $event)"
         />
       </div>

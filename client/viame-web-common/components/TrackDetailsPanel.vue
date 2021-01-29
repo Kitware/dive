@@ -15,6 +15,7 @@ import {
   useAllTypes,
   useHandler,
   useTrackMap,
+  useDatasetId,
 } from 'vue-media-annotator/provides';
 import { getTrack } from 'vue-media-annotator/use/useTrackStore';
 import TrackItem from 'vue-media-annotator/components/TrackItem.vue';
@@ -47,10 +48,6 @@ export default defineComponent({
       type: Boolean,
       required: true,
     },
-    datasetId: {
-      type: String,
-      required: true,
-    },
   },
   setup(props) {
     const attributes = ref([] as Attribute[]);
@@ -60,6 +57,7 @@ export default defineComponent({
     const typeStylingRef = useTypeStyling();
     const allTypesRef = useAllTypes();
     const trackMap = useTrackMap();
+    const datasetId = useDatasetId();
     const { trackSelectNext, trackSplit, removeTrack } = useHandler();
 
     //Edit/Set single value by clicking
@@ -99,7 +97,7 @@ export default defineComponent({
     async function closeEditor() {
       editingAttribute.value = null;
       editingError.value = null;
-      attributes.value = await getAttributes(props.datasetId);
+      attributes.value = await getAttributes(datasetId.value);
     }
 
     function addAttribute(type: 'Track' | 'Detection') {
@@ -129,7 +127,7 @@ export default defineComponent({
       }
 
       try {
-        await setAttribute(props.datasetId, saveData);
+        await setAttribute(datasetId.value, saveData);
       } catch (err) {
         editingError.value = err.message;
       }
@@ -140,7 +138,7 @@ export default defineComponent({
     async function deleteAttributeHandler(data: Attribute) {
       editingError.value = null;
       try {
-        await deleteAttribute(props.datasetId, data);
+        await deleteAttribute(datasetId.value, data);
       } catch (err) {
         editingError.value = err.message;
       }
@@ -184,7 +182,7 @@ export default defineComponent({
     });
 
     onBeforeMount(async () => {
-      attributes.value = await getAttributes(props.datasetId);
+      attributes.value = await getAttributes(datasetId.value);
     });
 
     return {
