@@ -347,6 +347,11 @@ async function setAttribute(settings: Settings, datasetId: string, { data }:
   if (!projectMetaData.attributes) {
     projectMetaData.attributes = {};
   }
+  // Reassign _id based on name if it is a new item
+  if (data._id === '') {
+    // eslint-disable-next-line no-param-reassign
+    data._id = `${data.belongs}_${data.name}`;
+  }
   projectMetaData.attributes[data._id] = data;
   await saveMetadata(settings, datasetId, projectMetaData);
 }
