@@ -10,6 +10,7 @@ import type {
   DesktopJobUpdate, DesktopJobUpdater, JsonMeta, Settings,
 } from 'platform/desktop/constants';
 
+import { Attribute } from 'viame-web-common/apispec';
 import * as common from './common';
 
 const pipelines = {
@@ -114,6 +115,12 @@ mockfs({
       notanimage: '',
       'notanimage.txt': '',
     },
+    metaAttributesID: {
+      'foo.png': '',
+      'bar.png': '',
+      notanimage: '',
+      'notanimage.txt': '',
+    },
     videoSuccess: {
       'video1.avi': '',
       'video1.mp4': '',
@@ -173,6 +180,40 @@ mockfs({
         'result_1.json': '',
         'result_2.json': '',
         auxiliary: {},
+      },
+      metaAttributesID: {
+        'meta.json': JSON.stringify({
+          version: 1,
+          id: 'metaAttributesID',
+          type: 'image-sequence',
+          fps: 5,
+          originalBasePath: '/home/user/media/metaAttributesID',
+          originalImageFiles: [
+            'foo.png',
+            'bar.png',
+          ],
+          attributes: {
+            // eslint-disable-next-line @typescript-eslint/camelcase
+            track_attribute1: {
+              belongs: 'track',
+              datatype: 'text',
+              values: ['value1', 'value2', 'value3'],
+              name: 'attribute1',
+              _id: 'track_attribute1',
+            },
+            // eslint-disable-next-line @typescript-eslint/camelcase
+            detection_attribute1: {
+              belongs: 'detection',
+              datatype: 'number',
+              name: 'attribute1',
+              _id: 'detection_attribute1',
+            },
+          },
+        }),
+        'result_whatever.json': JSON.stringify({}),
+        auxiliary: {},
+
+
       },
     },
   },
@@ -279,6 +320,66 @@ describe('native.common', () => {
     const meta = await common.importMedia(settings, '/home/user/data/videoSuccess/video1.avi', updater, { checkMedia, convertMedia });
     expect(meta.transcodingJobKey).toBe('jobKey');
     expect(meta.type).toBe('video');
+  });
+
+
+  it('getAtributes', async () => {
+    const meta = await common.getAttributes(settings, 'metaAttributesID');
+    //Should return an array of data items
+    expect(meta.length).toBe(2);
+    expect(meta[0].values).toEqual(['value1', 'value2', 'value3']);
+    expect(meta[1].datatype).toBe('number');
+  });
+
+  it('addAttribute', async () => {
+    const templateAttribute: Attribute = {
+      name: 'newAttribute', datatype: 'boolean', belongs: 'track', _id: '',
+    };
+    await common.setAttribute(settings, 'metaAttributesID', {
+      data: templateAttribute,
+    });
+    //Should return an array of data items
+    const meta = await common.getAttributes(settings, 'metaAttributesID');
+    const newAttribute = meta.find((item) => item.name === 'newAttribute');
+    expect(meta.length).toBe(3);
+    expect(newAttribute).toEqual(templateAttribute);
+  });
+
+  it('updateAttribute', async () => {
+    const templateAttribute: Attribute = {
+      name: 'newAttributeName', datatype: 'boolean', belongs: 'track', _id: 'track_attribute1',
+    };
+    await common.setAttribute(settings, 'metaAttributesID', {
+      data: templateAttribute,
+    });
+    //Should return an array of data items
+    const meta = await common.getAttributes(settings, 'metaAttributesID');
+    const updatedAttribute = meta.find((item) => item._id === 'track_attribute1');
+    expect(meta.length).toBe(3);
+    expect(updatedAttribute).toEqual(templateAttribute);
+  });
+
+  it('deleteAttribute', async () => {
+    const deleteAttribute: Attribute = {
+      name: 'attribute1', datatype: 'text', belongs: 'track', _id: 'track_attribute1',
+    };
+    await common.deleteAttribute(settings, 'metaAttributesID', { data: deleteAttribute });
+    const meta = await common.getAttributes(settings, 'metaAttributesID');
+    //Should return an array of data items
+    expect(meta.length).toBe(2);
+    expect(meta[0].datatype).toBe('number');
+  });
+
+  it('initial attribute creation', async () => {
+    const templateAttribute: Attribute = {
+      name: 'newAttribute', datatype: 'boolean', belongs: 'track', _id: '',
+    };
+    await common.setAttribute(settings, 'projectid1VideoGood', {
+      data: templateAttribute,
+    });
+    const meta = await common.getAttributes(settings, 'projectid1VideoGood');
+    expect(meta.length).toBe(1);
+    expect(meta[0]).toEqual(templateAttribute);
   });
 });
 
