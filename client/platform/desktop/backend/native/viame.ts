@@ -222,6 +222,7 @@ async function train(
     '--no-query',
     '--no-adv-prints',
     '--no-embedded-pipe',
+    '-s detector_trainer:ocv_windowed:trainer:netharn:timeout=100',
   ];
 
   const job = spawn(command.join(' '), {
@@ -254,6 +255,8 @@ async function train(
   job.stdout.on('data', jobFileEchoMiddleware(jobBase, updater, joblog));
   job.stderr.on('data', jobFileEchoMiddleware(jobBase, updater, joblog));
   job.on('exit', async (code) => {
+    let exitCode = code;
+    const bodyText = [''];
     if (code === 0) {
       try {
         await common.processTrainedPipeline(
@@ -261,12 +264,17 @@ async function train(
         );
       } catch (err) {
         console.error(err);
+        exitCode = 1;
+        bodyText.unshift(err.toString('utf-8'));
+        fs.appendFile(joblog, bodyText[0], (error) => {
+          if (error) throw error;
+        });
       }
     }
     updater({
       ...jobBase,
-      body: [''],
-      exitCode: code,
+      body: bodyText,
+      exitCode,
       endTime: new Date(),
     });
   });

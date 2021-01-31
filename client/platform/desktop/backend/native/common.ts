@@ -411,15 +411,17 @@ async function processOtherAnnotationFiles(
  */
 async function processTrainedPipeline(settings: Settings, args: RunTraining, workingDir: string) {
   //Look for trained_detector.zip and detector.pipe and move them to DIVE_Pipelines folder
-  const allowedPatterns = /^detector.+|^tracker.+|^generate.+|^trained_detector\.zip|^trained_tracker\.zip|^trained_generate\.zip/;
+  const allowedPatterns = /^detector.+|^tracker.+|^generate.+/;
   const trainedDir = npath.join(workingDir, '/category_models');
   const exists = await fs.pathExists(trainedDir);
-  if (!exists) return {};
-  let pipes = await fs.readdir(trainedDir);
-  pipes = pipes.filter((p) => p.match(allowedPatterns));
+  if (!exists) {
+    throw new Error(`Path: ${trainedDir} does not exist`);
+  }
+  const folderContents = await fs.readdir(trainedDir);
+  const pipes = folderContents.filter((p) => p.match(allowedPatterns));
 
   if (!pipes.length) {
-    throw new Error('Could not located trained files');
+    throw new Error(`Could not located trained pipe file inside of ${trainedDir}`);
   }
   const baseFolder = npath.join(settings.dataPath, PipelinesFolderName);
   if (!fs.existsSync(baseFolder)) {
@@ -432,7 +434,7 @@ async function processTrainedPipeline(settings: Settings, args: RunTraining, wor
   }
 
   //Move detector and model to the new folder
-  pipes.forEach((item) => {
+  folderContents.forEach((item) => {
     const abspath = npath.join(trainedDir, item);
     const destpath = npath.join(folderName, item);
     fs.move(abspath, destpath, { overwrite: true });
