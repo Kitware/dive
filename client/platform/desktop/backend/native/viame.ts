@@ -221,7 +221,7 @@ async function train(
     `--config "${configFilePath}"`,
     '--no-query',
     '--no-adv-prints',
-    '-s detector_trainer:ocv_windowed:trainer:netharn:timeout=100',
+    '--no-embedded-pipe',
   ];
 
   const job = spawn(command.join(' '), {
