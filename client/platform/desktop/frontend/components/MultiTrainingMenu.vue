@@ -2,14 +2,35 @@
 import type { DataTableHeader } from 'vuetify';
 
 import {
-  computed, defineComponent, onBeforeMount, set, del, reactive,
+  computed, defineComponent, onBeforeMount, set, del, reactive, ref,
 } from '@vue/composition-api';
-import { DatasetMeta, TrainingConfigs, useApi } from 'viame-web-common/apispec';
+import {
+  DatasetMeta, Pipelines, TrainingConfigs, useApi,
+} from 'viame-web-common/apispec';
+
 import { datasets } from '../store/dataset';
 
 export default defineComponent({
   setup(_, { root }) {
     const { getTrainingConfigurations, runTraining } = useApi();
+
+    const { getPipelineList } = useApi();
+    const unsortedPipelines = ref({} as Pipelines);
+    onBeforeMount(async () => {
+      unsortedPipelines.value = await getPipelineList();
+    });
+
+    const trainedPipelines = computed(() => {
+      const list: string[] = [];
+      Object.entries(unsortedPipelines.value).forEach(([, category]) => {
+        category.pipes.forEach((pipe) => {
+          if (pipe.type === 'trained') {
+            list.push(pipe.name);
+          }
+        });
+      });
+      return list;
+    });
 
     const data = reactive({
       stagedItems: {} as Record<string, DatasetMeta>,
@@ -90,11 +111,16 @@ export default defineComponent({
       }
     }
 
+    const nameRules = [
+      (val: string) => (!trainedPipelines.value.includes(val) || 'A Trained pipeline with that name already exists'),
+    ];
+
     return {
       data,
       toggleStaged,
       isReadyToTrain,
       runTrainingOnFolder,
+      nameRules,
       available: {
         items: availableItems,
         headers: headersTmpl.concat(
@@ -138,9 +164,9 @@ export default defineComponent({
         <v-col sm="5">
           <v-text-field
             v-model="data.trainingOutputName"
+            :rules="nameRules"
             outlined
             dense
-            hide-details
             aria-required
             label="Output Name (Required)"
           />
