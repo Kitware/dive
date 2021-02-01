@@ -1,5 +1,6 @@
 import type { FileFilter } from 'electron';
 
+import npath from 'path';
 import axios, { AxiosInstance } from 'axios';
 import { ipcRenderer, remote } from 'electron';
 
@@ -78,7 +79,7 @@ async function importMedia(path: string): Promise<JsonMeta> {
 async function exportDataset(id: string, exclude: boolean): Promise<string> {
   const location = await remote.dialog.showSaveDialog({
     title: 'Export Dataset',
-    defaultPath: `result_${id}.csv`,
+    defaultPath: npath.join(remote.app.getPath('home'), `result_${id}.csv`),
   });
   if (!location.canceled && location.filePath) {
     const args: ExportDatasetArgs = {

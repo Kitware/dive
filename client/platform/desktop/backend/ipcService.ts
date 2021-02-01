@@ -9,7 +9,6 @@ import {
 import linux from './native/linux';
 import win32 from './native/windows';
 import * as common from './native/common';
-import { serializeFile } from './serializers/viame';
 import settings from './state/settings';
 import { listen } from './server';
 

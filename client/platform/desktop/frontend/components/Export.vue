@@ -98,12 +98,35 @@ export default defineComponent({
         </v-card-title>
 
         <v-card-text class="pb-0">
-          <v-alert
-            v-if="data.err"
-            type="error"
+          <v-dialog
+            max-width="600"
+            persistent
+            :value="data.err"
+            :overlay-opacity="0.8"
           >
-            {{ data.err }}
-          </v-alert>
+            <v-card outlined>
+              <v-card-text class="pa-3">
+                <v-card-text class="text-h4">
+                  Error
+                </v-card-text>
+                <v-alert
+                  type="error"
+                >
+                  {{ data.err }}
+                </v-alert>
+              </v-card-text>
+              <v-card-actions>
+                <v-spacer />
+                <v-btn
+                  color="primary"
+                  @click="data.err = null"
+                >
+                  <v-icon>mdi-close</v-icon>
+                  Dismiss
+                </v-btn>
+              </v-card-actions>
+            </v-card>
+          </v-dialog>
           <v-alert
             v-if="data.outPath"
             dense
