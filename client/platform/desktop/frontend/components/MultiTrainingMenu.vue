@@ -21,16 +21,15 @@ export default defineComponent({
     });
 
     const trainedPipelines = computed(() => {
-      const list: string[] = [];
-      Object.entries(unsortedPipelines.value).forEach(([, category]) => {
-        category.pipes.forEach((pipe) => {
-          if (pipe.type === 'trained') {
-            list.push(pipe.name);
-          }
-        });
-      });
-      return list;
+      if (unsortedPipelines.value.trained) {
+        return unsortedPipelines.value.trained.pipes.map((item) => item.name);
+      }
+      return [];
     });
+
+    const nameRules = [
+      (val: string) => (!trainedPipelines.value.includes(val) || 'A Trained pipeline with that name already exists'),
+    ];
 
     const data = reactive({
       stagedItems: {} as Record<string, DatasetMeta>,
@@ -110,10 +109,6 @@ export default defineComponent({
         });
       }
     }
-
-    const nameRules = [
-      (val: string) => (!trainedPipelines.value.includes(val) || 'A Trained pipeline with that name already exists'),
-    ];
 
     return {
       data,
