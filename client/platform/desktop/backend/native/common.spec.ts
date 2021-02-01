@@ -7,7 +7,7 @@ import { Console } from 'console';
 import type {
   ConversionArgs,
   DesktopJob,
-  DesktopJobUpdate, DesktopJobUpdater, JsonMeta, Settings,
+  DesktopJobUpdate, DesktopJobUpdater, JsonMeta, RunTraining, Settings,
 } from 'platform/desktop/constants';
 
 import * as common from './common';
@@ -129,6 +129,25 @@ mockfs({
   '/home/user/viamedata': {
     // eslint-disable-next-line @typescript-eslint/camelcase
     DIVE_Jobs: {
+      goodTrainingJob: {
+        // eslint-disable-next-line @typescript-eslint/camelcase
+        category_models: {
+          'detector.pipe': '',
+          'trained_detector.zip': '',
+        },
+      },
+      badTrainingJob: {
+        missingModelFolder: {},
+      },
+      missingPipeTrainingJob: {
+        // eslint-disable-next-line @typescript-eslint/camelcase
+        category_models: {
+          'trained_detector.zip': '',
+        },
+      },
+    },
+    // eslint-disable-next-line @typescript-eslint/camelcase
+    DIVE_Pipelines: {
       /* Empty */
     },
     // eslint-disable-next-line @typescript-eslint/camelcase
@@ -187,7 +206,7 @@ describe('native.common', () => {
     expect(pipes.detector.pipes).toHaveLength(4);
     expect(pipes.tracker.pipes).toHaveLength(5);
     expect(pipes.generate.pipes).toHaveLength(4);
-    expect(pipes.training).toBeUndefined();
+    expect(pipes.trained).toBeUndefined();
   });
 
   it('getValidatedProjectDir loads correct project directory', async () => {
@@ -279,6 +298,50 @@ describe('native.common', () => {
     const meta = await common.importMedia(settings, '/home/user/data/videoSuccess/video1.avi', updater, { checkMedia, convertMedia });
     expect(meta.transcodingJobKey).toBe('jobKey');
     expect(meta.type).toBe('video');
+  });
+
+  it('processing good Trained Pipeline folder', async () => {
+    const trainingArgs: RunTraining = {
+      datasetIds: ['randomID'],
+      pipelineName: 'trainedPipelineName',
+      trainingConfig: 'trainingConfig',
+    };
+    const contents = await common.processTrainedPipeline(settings, trainingArgs, '/home/user/viamedata/DIVE_Jobs/goodTrainingJob/');
+    expect(contents).toEqual(['detector.pipe', 'trained_detector.zip']);
+    //Data should be moved out of the current folder
+    const sourceFolder = fs.readdirSync('/home/user/viamedata/DIVE_Jobs/goodTrainingJob/category_models');
+    expect(sourceFolder.length).toBe(0);
+    //Folders hould be created for new pipeline
+    const pipelineFolder = '/home/user/viamedata/DIVE_Pipelines/trainedPipelineName';
+    const exists = fs.existsSync(pipelineFolder);
+    expect(exists).toBe(true);
+    const folderContents = fs.readdirSync(pipelineFolder);
+    expect(folderContents.length).toBe(2);
+  });
+
+  it('processing bad Trained Pipeline folders', async () => {
+    const trainingArgs: RunTraining = {
+      datasetIds: ['randomID'],
+      pipelineName: 'trainedBadPipelineName',
+      trainingConfig: 'trainingConfig',
+    };
+    expect(common.processTrainedPipeline(settings, trainingArgs, '/home/user/viamedata/DIVE_Jobs/badTrainingJob/')).rejects.toThrow(
+      'Path: /home/user/viamedata/Dive_Jobs/badTrainingJob/category_models does not exist',
+    );
+    expect(common.processTrainedPipeline(settings, trainingArgs, '/home/user/viamedata/DIVE_Jobs/missingPipeTrainingJob/')).rejects.toThrow(
+      'Could not located trained pipe file inside of /home/user/viamedata/Dive_Jobs/missingPipeTrainingJob/category_models',
+    );
+  });
+
+  it('getPipelineList lists pipelines with Trained pipelines', async () => {
+    const exists = await fs.pathExists(settings.viamePath);
+    expect(exists).toBe(true);
+    const pipes = await common.getPipelineList(settings);
+    expect(pipes).toBeTruthy();
+    expect(pipes.detector.pipes).toHaveLength(4);
+    expect(pipes.tracker.pipes).toHaveLength(5);
+    expect(pipes.generate.pipes).toHaveLength(4);
+    expect(pipes.trained.pipes).toHaveLength(1);
   });
 });
 

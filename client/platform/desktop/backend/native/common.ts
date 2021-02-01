@@ -429,17 +429,16 @@ async function processTrainedPipeline(settings: Settings, args: RunTraining, wor
   }
 
   const folderName = npath.join(baseFolder, args.pipelineName);
-  if (!fs.existsSync(baseFolder)) {
-    await fs.mkdir(baseFolder);
+  if (!fs.existsSync(folderName)) {
+    await fs.mkdir(folderName);
   }
-
   //Move detector and model to the new folder
-  folderContents.forEach((item) => {
+  await Promise.all(folderContents.map(async (item) => {
     const abspath = npath.join(trainedDir, item);
     const destpath = npath.join(folderName, item);
-    fs.move(abspath, destpath, { overwrite: true });
-  });
-  return false;
+    await fs.move(abspath, destpath, { overwrite: true });
+  }));
+  return folderContents;
 }
 
 async function _initializeAppDataDir(settings: Settings) {
