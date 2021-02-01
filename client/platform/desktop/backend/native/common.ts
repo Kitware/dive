@@ -17,7 +17,7 @@ import * as viameSerializers from 'platform/desktop/backend/serializers/viame';
 import {
   websafeImageTypes, websafeVideoTypes, otherImageTypes, otherVideoTypes,
   JsonMeta, Settings, JsonMetaCurrentVersion, DesktopMetadata, DesktopJobUpdater,
-  ConvertMedia, RunTraining, Attributes,
+  ConvertMedia, RunTraining, Attributes, ExportDatasetArgs,
 } from 'platform/desktop/constants';
 import processTrackAttributes from './attributeProcessor';
 import { cleanString, makeid } from './utils';
@@ -698,10 +698,24 @@ async function openLink(url: string) {
   shell.openExternal(url);
 }
 
+async function exportDataset(
+  settings: Settings,
+  args: ExportDatasetArgs,
+) {
+  const projectDirInfo = await getValidatedProjectDir(settings, args.id);
+  const meta = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
+  const data = await loadJsonTracks(projectDirInfo.trackFileAbsPath);
+  return viameSerializers.serializeFile(args.path, data, meta, {
+    excludeBelowThreshold: args.exclude,
+    header: true,
+  });
+}
+
 export {
   ProjectsFolderName,
   JobsFolderName,
   createKwiverRunWorkingDir,
+  exportDataset,
   getPipelineList,
   getTrainingConfigs,
   getProjectDir,

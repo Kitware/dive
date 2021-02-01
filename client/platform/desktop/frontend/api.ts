@@ -1,5 +1,6 @@
 import type { FileFilter } from 'electron';
 
+import npath from 'path';
 import axios, { AxiosInstance } from 'axios';
 import { ipcRenderer, remote } from 'electron';
 
@@ -10,7 +11,7 @@ import type {
 
 import {
   DesktopJob, DesktopMetadata, JsonMeta, NvidiaSmiReply,
-  RunPipeline, RunTraining, fileVideoTypes,
+  RunPipeline, RunTraining, fileVideoTypes, ExportDatasetArgs,
 } from 'platform/desktop/constants';
 
 /**
@@ -73,6 +74,20 @@ async function runTraining(
 async function importMedia(path: string): Promise<JsonMeta> {
   const data: JsonMeta = await ipcRenderer.invoke('import-media', path);
   return data;
+}
+
+async function exportDataset(id: string, exclude: boolean): Promise<string> {
+  const location = await remote.dialog.showSaveDialog({
+    title: 'Export Dataset',
+    defaultPath: npath.join(remote.app.getPath('home'), `result_${id}.csv`),
+  });
+  if (!location.canceled && location.filePath) {
+    const args: ExportDatasetArgs = {
+      id, exclude, path: location.filePath,
+    };
+    return ipcRenderer.invoke('export-dataset', args);
+  }
+  return '';
 }
 
 /**
@@ -139,6 +154,7 @@ export {
   saveMetadata,
   saveDetections,
   /* Nonstandard APIs */
+  exportDataset,
   importMedia,
   openFromDisk,
   openLink,

@@ -3,7 +3,7 @@ import http from 'http';
 import { ipcMain } from 'electron';
 
 import {
-  DesktopJobUpdate, RunPipeline, RunTraining, Settings,
+  DesktopJobUpdate, RunPipeline, RunTraining, Settings, ExportDatasetArgs,
 } from 'platform/desktop/constants';
 
 import linux from './native/linux';
@@ -39,6 +39,10 @@ export default function register() {
   });
   ipcMain.on('update-settings', async (_, s: Settings) => {
     settings.set(s);
+  });
+  ipcMain.handle('export-dataset', async (_, args: ExportDatasetArgs) => {
+    const ret = await common.exportDataset(settings.get(), args);
+    return ret;
   });
 
   /**
