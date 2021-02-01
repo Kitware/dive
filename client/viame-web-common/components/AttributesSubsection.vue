@@ -39,7 +39,7 @@ export default defineComponent({
     const frameRef = useFrame();
     const selectedTrackIdRef = useSelectedTrackId();
     const trackMap = useTrackMap();
-    const activeSettings = ref(false);
+    const activeSettings = ref(true);
 
     const selectedTrack = computed(() => {
       if (selectedTrackIdRef.value !== null) {
