@@ -46,7 +46,10 @@ async function runPipeline(
     throw new Error(isValid);
   }
 
-  const pipelinePath = npath.join(settings.viamePath, PipelineRelativeDir, pipeline.pipe);
+  let pipelinePath = npath.join(settings.viamePath, PipelineRelativeDir, pipeline.pipe);
+  if (runPipelineArgs.pipeline.type === 'trained') {
+    pipelinePath = pipeline.pipe;
+  }
   const projectInfo = await common.getValidatedProjectDir(settings, datasetId);
   const meta = await common.loadJsonMetadata(projectInfo.metaFileAbsPath);
   const jobWorkDir = await common.createKwiverRunWorkingDir(settings, [meta], pipeline.name);
@@ -218,6 +221,7 @@ async function train(
     `--config "${configFilePath}"`,
     '--no-query',
     '--no-adv-prints',
+    '--no-embedded-pipe',
   ];
 
   const job = spawn(command.join(' '), {
@@ -249,11 +253,27 @@ async function train(
 
   job.stdout.on('data', jobFileEchoMiddleware(jobBase, updater, joblog));
   job.stderr.on('data', jobFileEchoMiddleware(jobBase, updater, joblog));
-  job.on('exit', (code) => {
+  job.on('exit', async (code) => {
+    let exitCode = code;
+    const bodyText = [''];
+    if (code === 0) {
+      try {
+        await common.processTrainedPipeline(
+          settings, runTrainingArgs, jobWorkDir,
+        );
+      } catch (err) {
+        console.error(err);
+        exitCode = 1;
+        bodyText.unshift(err.toString('utf-8'));
+        fs.appendFile(joblog, bodyText[0], (error) => {
+          if (error) throw error;
+        });
+      }
+    }
     updater({
       ...jobBase,
-      body: [''],
-      exitCode: code,
+      body: bodyText,
+      exitCode,
       endTime: new Date(),
     });
   });
