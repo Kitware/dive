@@ -49,6 +49,7 @@ interface FrameImage {
 interface DatasetMetaMutable {
   customTypeStyling?: Record<string, CustomStyle>;
   confidenceFilters?: Record<string, number>;
+  attributes?: Record<string, Attribute>;
 }
 
 interface DatasetMeta extends DatasetMetaMutable {
@@ -63,11 +64,15 @@ interface DatasetMeta extends DatasetMetaMutable {
 
 interface Api {
   /**
+   * TODO: Modification to use loadMetadata as well as saving
+   * utilizing upsert/delete for the metaData.  This requires having
+   * useAttributes to manage attributes locally and then save to backend
    * @deprecated soon attributes will come from loadMetadata()
    */
-  getAttributes(): Promise<Attribute[]>;
-  setAttribute({ addNew, data }: {addNew: boolean | undefined; data: Attribute}): Promise<unknown>;
-  deleteAttribute(data: Attribute): Promise<unknown>;
+  getAttributes(datasetId: string): Promise<Attribute[]>;
+  setAttribute(datasetId: string, { addNew, data }:
+    {addNew?: boolean; data: Attribute}): Promise<unknown>;
+  deleteAttribute(datasetId: string, data: Attribute): Promise<unknown>;
 
   getPipelineList(): Promise<Pipelines>;
   runPipeline(itemId: string, pipeline: Pipe): Promise<unknown>;

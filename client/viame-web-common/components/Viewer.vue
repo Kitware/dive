@@ -292,6 +292,7 @@ export default defineComponent({
     provideAnnotator(
       {
         allTypes,
+        datasetId: ref(props.id),
         usedTypes,
         checkedTrackIds,
         checkedTypes,

@@ -64,12 +64,13 @@ function deleteResources(resources: Array<GirderModel>) {
     headers: { 'X-HTTP-Method-Override': 'DELETE' },
   });
 }
-
-async function getAttributes(): Promise<Attribute[]> {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+async function getAttributes(datasetId = ''): Promise<Attribute[]> {
   const { data } = await girderRest.get('/viame/attribute');
   return data as Attribute[];
 }
-function setAttribute({ addNew, data }:
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function setAttribute(datasetId = '', { addNew, data }:
    {addNew: boolean | undefined; data: Attribute}): Promise<Attribute[]> {
   if (addNew) {
     return girderRest.post('/viame/attribute', data);
@@ -79,8 +80,8 @@ function setAttribute({ addNew, data }:
     data,
   );
 }
-
-function deleteAttribute(data: Attribute): Promise<Attribute> {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function deleteAttribute(datasetId = '', data: Attribute): Promise<Attribute> {
   return girderRest.delete(
     `/viame/attribute/${data._id}`,
   );
