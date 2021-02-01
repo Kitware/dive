@@ -404,8 +404,23 @@ async function serialize(
   });
 }
 
+async function serializeFile(
+  path: string,
+  data: MultiTrackRecord,
+  meta: JsonMeta,
+  options = {
+    excludeBelowThreshold: false,
+    header: true,
+  },
+) {
+  const stream = fs.createWriteStream(path);
+  await serialize(stream, data, meta, options);
+  return path;
+}
+
 export {
   parse,
   parseFile,
   serialize,
+  serializeFile,
 };

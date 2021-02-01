@@ -35,7 +35,7 @@ export default defineComponent({
     <template #extension-right>
       <Export
         v-if="datasets[id]"
-        :meta="datasets[id]"
+        :id="id"
         :small="true"
       />
     </template>

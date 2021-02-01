@@ -75,17 +75,18 @@ async function importMedia(path: string): Promise<JsonMeta> {
   return data;
 }
 
-async function exportDataset(id: string, exclude: boolean) {
+async function exportDataset(id: string, exclude: boolean): Promise<string> {
   const location = await remote.dialog.showSaveDialog({
     title: 'Export Dataset',
-    defaultPath: `detections_${id}.csv`,
+    defaultPath: `result_${id}.csv`,
   });
   if (!location.canceled && location.filePath) {
     const args: ExportDatasetArgs = {
       id, exclude, path: location.filePath,
     };
-    ipcRenderer.invoke('export-dataset', args);
+    return ipcRenderer.invoke('export-dataset', args);
   }
+  return '';
 }
 
 /**

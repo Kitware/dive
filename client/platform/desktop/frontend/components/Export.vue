@@ -1,14 +1,14 @@
 <script lang="ts">
 import {
-  defineComponent, PropType, reactive, computed, toRef,
+  defineComponent, reactive, computed, toRef, watch,
 } from '@vue/composition-api';
-import { MediaTypes } from 'viame-web-common/constants';
+import { loadMetadata, exportDataset } from 'platform/desktop/frontend/api';
 import type { JsonMeta } from 'platform/desktop/constants';
 
 export default defineComponent({
   props: {
-    meta: {
-      type: Object as PropType<JsonMeta>,
+    id: {
+      type: String,
       required: true,
     },
     small: {
@@ -22,13 +22,40 @@ export default defineComponent({
       menuOpen: false,
       excludeFiltered: false,
       activator: 0,
+      err: null as unknown,
+      meta: null as JsonMeta | null,
+      outPath: '',
     });
 
-    const metaRef = toRef(props, 'meta');
-    const mediaType = computed(() => MediaTypes[metaRef.value.type]);
-    const thresholds = computed(() => Object.keys(metaRef.value.confidenceFilters || {}));
+    watch(toRef(data, 'menuOpen'), async (newval) => {
+      if (newval) {
+        data.meta = await loadMetadata(props.id);
+      } else {
+        data.err = null;
+        data.outPath = '';
+      }
+    });
 
-    return { data, mediaType, thresholds };
+    const thresholds = computed(() => (
+      data.meta
+        ? Object.keys(data.meta.confidenceFilters || {})
+        : []));
+
+    async function doExport() {
+      try {
+        data.err = null;
+        data.outPath = await exportDataset(props.id, data.excludeFiltered);
+      } catch (err) {
+        data.err = err;
+        throw err;
+      }
+    }
+
+    return {
+      data,
+      doExport,
+      thresholds,
+    };
   },
 });
 </script>
@@ -37,7 +64,7 @@ export default defineComponent({
   <v-menu
     v-model="data.menuOpen"
     :close-on-content-click="false"
-    :nudge-width="120"
+    :nudge-width="280"
     offset-y
     max-width="280"
   >
@@ -71,7 +98,21 @@ export default defineComponent({
         </v-card-title>
 
         <v-card-text class="pb-0">
-          <div>Get latest detections csv only</div>
+          <v-alert
+            v-if="data.err"
+            type="error"
+          >
+            {{ data.err }}
+          </v-alert>
+          <v-alert
+            v-if="data.outPath"
+            dense
+            class="text-caption"
+            type="success"
+          >
+            Export succeeded.
+          </v-alert>
+          <div>Export to VIAME CSV format</div>
           <template v-if="thresholds.length">
             <v-checkbox
               v-model="data.excludeFiltered"
@@ -79,10 +120,13 @@ export default defineComponent({
               dense
               hide-details
             />
-            <div class="py-2">
-              <span>Current thresholds:</span>
+            <div
+              v-if="data.meta && data.meta.confidenceFilters"
+              class="py-2"
+            >
+              <div>Current thresholds:</div>
               <span
-                v-for="(val, key) in meta.confidenceFilters"
+                v-for="(val, key) in data.meta.confidenceFilters"
                 :key="key"
                 class="pt-2"
               >
@@ -96,6 +140,7 @@ export default defineComponent({
           <v-btn
             depressed
             block
+            @click="doExport"
           >
             <span>export detections</span>
           </v-btn>
