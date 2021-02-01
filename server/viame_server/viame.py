@@ -6,6 +6,7 @@ from girder.constants import AccessType
 from girder.models.folder import Folder
 from girder.models.item import Item
 from girder.models.token import Token
+from girder.models.user import User
 
 from viame_tasks.tasks import (
     convert_images,
@@ -39,6 +40,7 @@ class Viame(Resource):
         self.resourceName = "viame"
         self.static_pipelines = None
 
+        self.route("GET", ("brand_data",), self.get_brand_data)
         self.route("GET", ("pipelines",), self.get_pipelines)
         self.route("POST", ("pipeline",), self.run_pipeline_task)
         self.route("GET", ("training_configs",), self.get_training_configs)
@@ -50,6 +52,21 @@ class Viame(Resource):
         self.route("POST", ("validate_files",), self.validate_files)
         self.route("DELETE", ("attribute", ":id"), self.delete_attribute)
         self.route("GET", ("valid_images",), self.get_valid_images)
+
+    @access.public
+    @autoDescribeRoute(Description("Get custom brand data"))
+    def get_brand_data(self):
+        adminUserIds = [user['_id'] for user in User().getAdmins()]
+        # Find an item owned by an admin with meta.brand=True
+        data = Item().findOne(
+            {
+                'meta.brand': {'$in': [True, 'true', 'True']},
+                'creatorId': {'$in': adminUserIds},
+            }
+        )
+        if data is not None:
+            return data['meta']
+        return {}
 
     @access.user
     @describeRoute(Description("Get available pipelines"))
@@ -108,13 +125,10 @@ class Viame(Resource):
     @access.user
     @autoDescribeRoute(
         Description("Run training on a folder")
-        .modelParam(
-            "folderId",
-            description="The folder containing the training data",
-            model=Folder,
-            paramType="query",
-            required=True,
-            level=AccessType.WRITE,
+        .jsonParam(
+            "folderIds",
+            description="Array of folderIds to run training on",
+            paramType="body",
         )
         .param(
             "pipelineName",
@@ -129,20 +143,33 @@ class Viame(Resource):
             required=True,
         )
     )
-    def run_training(self, folder, pipelineName, config):
+    def run_training(self, folderIds, pipelineName, config):
         user = self.getCurrentUser()
         token = Token().createToken(user=user, days=14)
 
-        detections = list(
-            Item().find({"meta.detection": str(folder["_id"])}).sort([("created", -1)])
-        )
-        detection = detections[0] if detections else None
+        detection_list = []
+        folder_list = []
+        folder_names = []
+        if folderIds is None or len(folderIds) == 0:
+            raise Exception("No folderIds in param")
 
-        if not detection:
-            raise Exception(f"No detections for folder {folder['name']}")
+        for folderId in folderIds:
+            folder = Folder().load(folderId, level=AccessType.READ, user=user)
+            if folder is None:
+                raise Exception(f"Cannot access folder {folderId}")
+            folder_names.append(folder['name'])
+            detections = list(
+                Item().find({"meta.detection": str(folderId)}).sort([("created", -1)])
+            )
+            detection = detections[0] if detections else None
 
-        # Ensure detection has a csv format
-        csv_detection_file(folder, detection, user)
+            if not detection:
+                raise Exception(f"No detections for folder {folder['name']}")
+
+            # Ensure detection has a csv format
+            csv_detection_file(folder, detection, user)
+            detection_list.append(detection)
+            folder_list.append(folder)
 
         # Ensure the folder to upload results to exists
         results_folder = training_output_folder(user)
@@ -151,12 +178,14 @@ class Viame(Resource):
             queue="training",
             kwargs=dict(
                 results_folder=results_folder,
-                source_folder=folder,
-                groundtruth=detection,
+                source_folder_list=folder_list,
+                groundtruth_list=detection_list,
                 pipeline_name=pipelineName,
                 config=config,
                 girder_client_token=str(token["_id"]),
-                girder_job_title=(f"Running training on folder: {str(folder['name'])}"),
+                girder_job_title=(
+                    f"Running training on folder: {', '.join(folder_names)}"
+                ),
                 girder_job_type="training",
             ),
         )
@@ -251,6 +280,7 @@ class Viame(Resource):
                     path=GetPathFromItemId(str(item["_id"])),
                     folderId=str(item["folderId"]),
                     auxiliaryFolderId=auxiliary["_id"],
+                    itemId=str(item["_id"]),
                     girder_job_title=(
                         "Converting {} to a web friendly format".format(
                             str(item["_id"])

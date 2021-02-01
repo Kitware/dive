@@ -4,11 +4,20 @@ declare module '@girder/components/src' {
 
   export interface GirderModel {
     name: string;
+    created: string;
+    creatorId: string;
+    updated: string;
     _id: string;
     _modelType: 'item' | 'folder' | 'file' | 'user';
-    parentCollection?: string;
-    parentId?: string;
+    parentCollection: string;
+    parentId: string;
+    baseParentId: string;
     meta: unknown;
+    size: number;
+  }
+
+  export interface GirderJob extends GirderModel {
+    status: number;
   }
 
   interface GirderRestClientParams {

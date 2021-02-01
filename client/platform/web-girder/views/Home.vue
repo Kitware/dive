@@ -1,4 +1,5 @@
 <script>
+import Vue from 'vue';
 import { mapMutations } from 'vuex';
 import { FileManager } from '@girder/components/src/components/Snippet';
 import { getLocationType } from '@girder/components/src/utils';
@@ -9,20 +10,18 @@ import RunTrainingMenu from 'viame-web-common/components/RunTrainingMenu.vue';
 import { getPathFromLocation, getLocationFromRoute } from '../utils';
 import { deleteResources } from '../api/viame.service';
 import Export from './Export.vue';
-import NavigationBar from './NavigationBar.vue';
 import Upload from './Upload.vue';
 
-export default {
+export default Vue.extend({
   name: 'Home',
   components: {
     Export,
     FileManager,
     Upload,
-    NavigationBar,
     RunPipelineMenu,
     RunTrainingMenu,
   },
-  inject: ['notificationBus'],
+  inject: ['notificationBus', 'girderRest'],
   data: () => ({
     uploaderDialog: false,
     selected: [],
@@ -93,6 +92,14 @@ export default {
   },
   async created() {
     this.setLocation(await getLocationFromRoute(this.$route));
+    if (this.location === null) {
+      const newloc = {
+        _id: this.girderRest.user._id,
+        _modelType: 'user',
+      };
+      this.setLocation(newloc);
+      this.$router.push(getPathFromLocation(newloc));
+    }
     this.notificationBus.$on('message:job_status', this.handleNotification);
   },
   beforeDestroy() {
@@ -141,12 +148,11 @@ export default {
       }
     },
   },
-};
+});
 </script>
 
 <template>
-  <v-main>
-    <NavigationBar />
+  <div>
     <v-progress-linear
       :indeterminate="loading"
       height="6"
@@ -231,7 +237,7 @@ export default {
                 x-small
                 color="primary"
                 depressed
-                :to="{ name: 'viewer', params: { datasetId: item._id } }"
+                :to="{ name: 'viewer', params: { id: item._id } }"
                 @click.stop="openClip(item)"
               >
                 Launch Annotator
@@ -241,7 +247,7 @@ export default {
         </v-col>
       </v-row>
     </v-container>
-  </v-main>
+  </div>
 </template>
 
 <style lang='scss'>

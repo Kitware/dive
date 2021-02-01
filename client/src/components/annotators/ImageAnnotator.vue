@@ -33,6 +33,10 @@ export default defineComponent({
       type: Number,
       required: true,
     },
+    loadImageFunc: {
+      type: Function as PropType<(imageDataItem: ImageDataItem, img: HTMLImageElement) => void>,
+      default: loadImageFunc,
+    },
   },
 
   setup(props, { emit }) {
@@ -137,7 +141,7 @@ export default defineComponent({
         };
         imgs[i] = newImgInternal;
         pendingImgs.add(newImgInternal);
-        loadImageFunc(newImgInternal, img);
+        props.loadImageFunc(newImgInternal, img);
       }
       return expectFrame(i);
     }

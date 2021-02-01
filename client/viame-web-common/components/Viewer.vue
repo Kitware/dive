@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  defineComponent, ref, toRef, computed,
+  defineComponent, ref, toRef, computed, Ref,
 } from '@vue/composition-api';
 import type { Vue } from 'vue/types/vue';
 
@@ -26,7 +26,6 @@ import { MediaController } from 'vue-media-annotator/components/annotators/media
 /* VIAME WEB COMMON */
 import PolygonBase from 'viame-web-common/recipes/polygonbase';
 import HeadTail from 'viame-web-common/recipes/headtail';
-import NavigationTitle from 'viame-web-common/components/NavigationTitle.vue';
 import EditorMenu from 'viame-web-common/components/EditorMenu.vue';
 import ConfidenceFilter from 'viame-web-common/components/ConfidenceFilter.vue';
 import UserGuideButton from 'viame-web-common/components/UserGuideButton.vue';
@@ -40,7 +39,7 @@ import {
   useSave,
   useSettings,
 } from 'viame-web-common/use';
-import { useApi, FrameImage } from 'viame-web-common/apispec';
+import { useApi, FrameImage, DatasetType } from 'viame-web-common/apispec';
 
 export default defineComponent({
   components: {
@@ -50,7 +49,6 @@ export default defineComponent({
     LayerManager,
     VideoAnnotator,
     ImageAnnotator,
-    NavigationTitle,
     ConfidenceFilter,
     RunPipelineMenu,
     UserGuideButton,
@@ -59,7 +57,7 @@ export default defineComponent({
 
   // TODO: remove this in vue 3
   props: {
-    datasetId: {
+    id: {
       type: String,
       required: true,
     },
@@ -83,22 +81,15 @@ export default defineComponent({
     });
     const fps = ref(10 as string | number);
     const imageData = ref([] as FrameImage[]);
+    const datasetType: Ref<DatasetType> = ref('image-sequence');
+    const datasetName = ref('');
     const videoUrl = ref(undefined as undefined | string);
     const frame = ref(0); // the currently displayed frame number
-    const { loadDetections, loadMetadata } = useApi();
+    const { loadDetections, loadMetadata, saveMetadata } = useApi();
     // Loaded flag prevents annotator window from populating
     // with stale data from props, for example if a persistent store
     // like vuex is used to drive them.
     const loaded = ref(false);
-    const annotatorType = computed(() => {
-      if (imageData.value.length) {
-        return 'ImageAnnotator';
-      }
-      if (videoUrl.value !== undefined && videoUrl.value.length) {
-        return 'VideoAnnotator';
-      }
-      return '';
-    });
     const frameRate = computed(() => {
       if (fps.value) {
         if (typeof fps.value === 'string') {
@@ -119,7 +110,7 @@ export default defineComponent({
       save: saveToServer,
       markChangesPending,
       pendingSaveCount,
-    } = useSave(toRef(props, 'datasetId'));
+    } = useSave(toRef(props, 'id'));
 
     const recipes = [
       new PolygonBase(),
@@ -145,20 +136,6 @@ export default defineComponent({
       removeTrack: tsRemoveTrack,
     } = useTrackStore({ markChangesPending });
 
-    async function loadTracks(datasetId: string) {
-      try {
-        const data = await loadDetections(datasetId);
-        if (data !== null) {
-          Object.values(data).forEach(
-            (trackData) => insertTrack(Track.fromJSON(trackData)),
-          );
-        }
-      } catch (err) {
-        loadError.value = err;
-        throw err;
-      }
-    }
-
     const {
       checkedTrackIds,
       checkedTypes,
@@ -175,22 +152,10 @@ export default defineComponent({
       deleteType,
       updateCheckedTypes,
       updateCheckedTrackId,
-    } = useTrackFilters({ sortedTracks, removeTrack, markChangesPending });
-
-    Promise.all([
-      loadMetadata(props.datasetId),
-      loadTracks(props.datasetId),
-    ]).then(([meta]) => {
-      // tasks to run after dataset and tracks have loaded
-      populateTypeStyles(meta.customTypeStyling);
-      if (meta.customTypeStyling) {
-        importTypes(Object.keys(meta.customTypeStyling), false);
-      }
-      populateConfidenceFilters(meta.confidenceFilters);
-      loaded.value = true;
-      fps.value = meta.fps;
-      imageData.value = meta.imageData;
-      videoUrl.value = meta.videoUrl;
+    } = useTrackFilters({
+      sortedTracks,
+      removeTrack,
+      markChangesPending,
     });
 
     const {
@@ -287,7 +252,7 @@ export default defineComponent({
     }
 
     function saveThreshold() {
-      saveToServer({
+      saveMetadata(props.id, {
         confidenceFilters: confidenceFilters.value,
       });
     }
@@ -327,6 +292,7 @@ export default defineComponent({
     provideAnnotator(
       {
         allTypes,
+        datasetId: ref(props.id),
         usedTypes,
         checkedTrackIds,
         checkedTypes,
@@ -345,10 +311,38 @@ export default defineComponent({
       globalHandler,
     );
 
+    /** Trigger data load */
+    Promise.all([
+      loadMetadata(props.id).then((meta) => {
+        populateTypeStyles(meta.customTypeStyling);
+        if (meta.customTypeStyling) {
+          importTypes(Object.keys(meta.customTypeStyling), false);
+        }
+        populateConfidenceFilters(meta.confidenceFilters);
+        datasetName.value = meta.name;
+        fps.value = meta.fps;
+        imageData.value = meta.imageData;
+        videoUrl.value = meta.videoUrl;
+        datasetType.value = meta.type;
+      }),
+      loadDetections(props.id).then((tracks) => {
+        Object.values(tracks).forEach(
+          (trackData) => insertTrack(Track.fromJSON(trackData)),
+        );
+      }),
+    ]).then(() => {
+      loaded.value = true;
+    }).catch((err) => {
+      loaded.value = false;
+      loadError.value = err;
+      throw err;
+    });
+
     return {
       /* props */
-      annotatorType,
       confidenceThreshold,
+      datasetName,
+      datasetType,
       editingTrack,
       editingMode,
       eventChartData,
@@ -371,7 +365,6 @@ export default defineComponent({
       visibleModes,
       /* methods */
       handler: globalHandler,
-      markChangesPending,
       save,
       saveThreshold,
       updateNewTrackSettings,
@@ -391,8 +384,12 @@ export default defineComponent({
 <template>
   <v-main class="viewer">
     <v-app-bar app>
-      <navigation-title />
       <slot name="title" />
+      <span
+        class="title pl-3"
+      >
+        {{ datasetName }}
+      </span>
       <v-spacer />
       <template #extension>
         <span>Viewer/Edit Controls</span>
@@ -446,7 +443,7 @@ export default defineComponent({
       </sidebar>
       <v-col style="position: relative">
         <component
-          :is="annotatorType"
+          :is="datasetType === 'image-sequence' ? 'image-annotator' : 'video-annotator'"
           v-if="(imageData.length || videoUrl) && loaded"
           ref="playbackComponent"
           v-mousetrap="[
@@ -460,7 +457,7 @@ export default defineComponent({
         >
           <template slot="control">
             <controls-container
-              v-bind="{ lineChartData, eventChartData }"
+              v-bind="{ lineChartData, eventChartData, imageData, datasetType }"
               @select-track="handler.trackSelect"
             />
           </template>

@@ -1,8 +1,7 @@
 import Vue from 'vue';
 import Install, { ref } from '@vue/composition-api';
 import { ipcRenderer } from 'electron';
-
-import { Settings } from '../constants';
+import { Settings } from 'platform/desktop/constants';
 
 // TODO remove this: this won't be necessary in Vue 3
 Vue.use(Install);
@@ -38,17 +37,25 @@ async function init() {
     if (settingsStr) {
       const maybeSettings = JSON.parse(settingsStr);
       if (isSettings(maybeSettings)) {
-        settingsvalue = maybeSettings;
+        settingsvalue = {
+          // Populate from defaults to include any missing properties
+          ...settingsvalue,
+          // Overwrite with explicitly persisted settings
+          ...maybeSettings,
+        };
       }
     }
   } catch {
     // pass
   }
   settings.value = settingsvalue;
+
+  ipcRenderer.send('update-settings', settings.value);
 }
 
 async function setSettings(s: Settings) {
   window.localStorage.setItem(SettingsKey, JSON.stringify(s));
+  ipcRenderer.send('update-settings', settings.value);
 }
 
 // Will be initialized on first import

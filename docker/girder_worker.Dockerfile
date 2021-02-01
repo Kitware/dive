@@ -60,6 +60,7 @@ COPY docker/provision /home/provision
 # Switch over to user "worker"
 RUN useradd -D --shell=/bin/bash && useradd -m worker
 RUN chown -R worker:worker /usr/local/lib/python*
+RUN chown -R worker:worker /opt/noaa/viame
 USER worker
 
 ENTRYPOINT ["/tini", "--"]

@@ -4,10 +4,10 @@ import {
 } from '@vue/composition-api';
 
 import { remote } from 'electron';
-import { NvidiaSmiReply } from '../constants';
+import { NvidiaSmiReply } from 'platform/desktop/constants';
 
 import { settings, setSettings, validateSettings } from '../store/settings';
-import { nvidiaSmi } from '../api/main';
+import { nvidiaSmi } from '../api';
 
 import BrowserLink from './BrowserLink.vue';
 import NavigationBar from './NavigationBar.vue';
@@ -30,13 +30,13 @@ export default defineComponent({
       smi.value = await nvidiaSmi();
     });
 
-    async function openPath() {
+    async function openPath(name: 'viamePath' | 'dataPath') {
       const result = await remote.dialog.showOpenDialog({
         properties: ['openDirectory'],
-        defaultPath: localSettings.value.viamePath,
+        defaultPath: localSettings.value[name],
       });
       if (!result.canceled) {
-        [localSettings.value.viamePath] = result.filePaths;
+        [localSettings.value[name]] = result.filePaths;
       }
     }
 
@@ -80,21 +80,45 @@ export default defineComponent({
                 persistent-hint
               />
             </v-col>
+            <v-col cols="3">
+              <v-btn
+                large
+                block
+                color="primary"
+                class="mb-6"
+                @click="openPath('viamePath')"
+              >
+                Choose
+                <v-icon class="ml-2">
+                  mdi-folder-open
+                </v-icon>
+              </v-btn>
+            </v-col>
+          </v-row>
+          <v-row>
+            <v-col cols="9">
+              <v-text-field
+                v-model="localSettings.dataPath"
+                label="Project Data Storage Path"
+                hint="project annotation and metadata goes here."
+                dense
+                persistent-hint
+              />
+            </v-col>
             <v-col>
               <v-btn
                 large
                 block
                 color="primary"
                 class="mb-6"
-                @click="openPath()"
+                @click="openPath('dataPath')"
               >
-                Open
+                Choose
                 <v-icon class="ml-2">
                   mdi-folder-open
                 </v-icon>
               </v-btn>
             </v-col>
-            <v-row />
           </v-row>
         </v-card-text>
         <v-card-text>
@@ -130,7 +154,7 @@ export default defineComponent({
             You are using a supported GPU configuration
           </span>
           <span v-else>
-            Could not reliably determine your GPU compatibility:  nvidia-smi not found.
+            Could not determine your GPU compatibility: {{ smi.error }}
           </span>
         </v-alert>
         <v-alert

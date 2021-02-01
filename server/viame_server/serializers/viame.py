@@ -10,7 +10,7 @@ from typing import Dict, Generator, List, Tuple, Union
 from viame_server.serializers.models import Feature, Track, interpolate
 
 
-def writeHeader(writer: '_csv._writer'):
+def writeHeader(writer: '_csv._writer', metadata: Dict):
     writer.writerow(
         [
             "# 1: Detection or Track-id",
@@ -26,9 +26,16 @@ def writeHeader(writer: '_csv._writer'):
             "Confidence Pairs or Attributes",
         ]
     )
+    metadata_list = []
+    for (key, value) in metadata.items():
+        metadata_list.append(f" {key}: {value}")
+    metadata_str = ",".join(metadata_list)
+    writer.writerow([f'# metadata -{metadata_str}'])
 
     writer.writerow(
-        [f'# Written on {datetime.datetime.now().ctime()} by: viame_web_csv_writer']
+        [
+            f'# Written on {datetime.datetime.now().ctime()} by: viame_web_csv_writer:python'
+        ]
     )
 
 
@@ -210,7 +217,10 @@ def export_tracks_as_csv(
     csvFile = io.StringIO()
     writer = csv.writer(csvFile)
     if header:
-        writeHeader(writer)
+        metadata = {}
+        if fps is not None:
+            metadata["fps"] = fps
+        writeHeader(writer, metadata)
     for t in track_dict.values():
         track = Track(**t)
         if (not excludeBelowThreshold) or track.exceeds_thresholds(thresholds):

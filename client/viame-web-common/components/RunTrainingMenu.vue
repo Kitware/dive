@@ -26,12 +26,11 @@ export default defineComponent({
 
     onBeforeMount(async () => {
       const resp = await getTrainingConfigurations();
-
       trainingConfigurations.value = resp;
       selectedTrainingConfig.value = resp.default;
     });
 
-    const trainingDisabled = computed(() => props.selectedDatasetIds.length !== 1);
+    const trainingDisabled = computed(() => props.selectedDatasetIds.length === 0);
     const trainingOutputName = ref<string | null>(null);
     const menuOpen = ref(false);
 
@@ -46,7 +45,7 @@ export default defineComponent({
 
       try {
         await runTraining(
-          props.selectedDatasetIds[0],
+          props.selectedDatasetIds,
           trainingOutputName.value,
           selectedTrainingConfig.value,
         );

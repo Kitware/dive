@@ -6,27 +6,34 @@ import JobTab from './JobTab.vue';
 
 export default defineComponent({
   components: { NavigationTitle, JobTab },
+  props: {
+    name: {
+      type: String,
+      default: 'DIVE',
+    },
+  },
 });
 </script>
 
 <template>
   <v-app-bar app>
-    <NavigationTitle>VIAME</NavigationTitle>
+    <NavigationTitle />
     <v-tabs
       icons-and-text
       style="flex-basis:0; flex-grow:0;"
       color="accent"
     >
-      <v-tab
-        :to="{ name: 'recent' }"
-      >
+      <v-tab :to="{ name: 'recent' }">
         Recents
         <v-icon>mdi-folder-open</v-icon>
+      </v-tab>
+      <job-tab />
+      <v-tab :to="{ name: 'training' }">
+        Training<v-icon>mdi-brain</v-icon>
       </v-tab>
       <v-tab :to="{ name: 'settings' }">
         Settings<v-icon>mdi-settings</v-icon>
       </v-tab>
-      <job-tab />
     </v-tabs>
     <v-spacer />
   </v-app-bar>

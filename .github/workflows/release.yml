@@ -33,20 +33,27 @@ jobs:
     - run: git config --global user.email "viame-web@kitware.com"
     - run: yarn lint
     - run: yarn lint:templates
-    - run: yarn test
+
+    - name: Unit tests
+      run: yarn test
+      if: ${{ matrix.config.os != 'windows-latest' }}
+
     - run: yarn build:lib
     - run: yarn build:electron
     - run: yarn build:cli
+    - run: chmod +x bin/platform/desktop/backend/cli.js
+
     - name: Publish to NPM
       run: yarn publish --new-version ${{ github.event.release.tag_name }}
       if: ${{ matrix.config.os == 'ubuntu-latest' }}
       env:
         # Use a token to publish to NPM.  Must configure this!
         NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
     # push the version changes to GitHub
     - name: Upload Release Asset
       uses: alexellis/upload-assets@0.2.3
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        asset_paths: '["./client/dist_electron/VIAME-Dive*"]'
+        asset_paths: '["./client/dist_electron/DIVE-Desktop*"]'

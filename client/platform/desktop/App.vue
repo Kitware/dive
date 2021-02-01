@@ -7,7 +7,7 @@
 <script lang="ts">
 import { defineComponent } from '@vue/composition-api';
 import { provideApi } from 'viame-web-common/apispec';
-import statefulApi from './store';
+import statefulApi from './frontend/store';
 
 export default defineComponent({
   name: 'App',

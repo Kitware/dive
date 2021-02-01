@@ -20,23 +20,49 @@ yarn build:web
 # build vue-media-server library
 yarn build:lib
 
-# build electron
+# Electron
+yarn serve:electron
 yarn build:electron
 
-# lint
+# lint and test
 yarn lint
 yarn lint:templates
+yarn test
 
 # Local verification of all tests, linting, builds
 ./checkbuild.sh
-
-# Parser CLI tools
-yarn serialize viame /path/to/viame.csv
-# output to file, suppress yarn's stdout
-yarn --silent serialize viame /path/to/viame.csv > tracks.json
 ```
 
-See [this issue](https://github.com/vuejs/vue-cli/issues/3065) for details on why our `yarn serve` command is weird.
+### CLI Tools
+
+``` bash
+# Build
+yarn build:cli
+
+# Watch
+yarn dev:cli
+
+# Run in development mode
+yarn divecli --help
+
+# Parse VIAME CSV
+yarn divecli viame2json /path/to/viame.csv
+
+# Parse DIVE JSON
+yarn divecli json2viame /path/to/results.json /path/to/meta.json
+
+# output to file, suppress yarn's stdout
+yarn --silent divecli viame2json /path/to/viame.csv > tracks.json
+```
+
+Configuration abnormalities:
+
+> **Note** tsconfig.cli.json is used to build the cli.  It's necessary to specify the exact files along the import path of the cli.js entrypoint, and if new files are added, they will need to be added manually.  Build errors should alert you to this.
+
+* `tsconfig.json`: `{ target: 'es2018' }` used because renderer/web uses babel but background does not, and [webpack doesn't support esnext](https://stackoverflow.com/questions/58813176/webpack-cant-compile-ts-3-7-optional-chaining-nullish-coalescing)
+* [acorn unexpected token webpack issue (unused, just useful)](https://github.com/webpack/webpack/issues/10227)
+* [Why our yarn serve is weird](https://github.com/vuejs/vue-cli/issues/3065)
+* [Typescript Absolute -> Relative Paths](https://github.com/microsoft/TypeScript/issues/15479)
 
 ## Publishing
 

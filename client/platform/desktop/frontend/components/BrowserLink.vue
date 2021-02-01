@@ -1,7 +1,7 @@
 <script lang="ts">
 import { defineComponent, PropType } from '@vue/composition-api';
 
-import { openLink } from '../api/main';
+import { openLink } from '../api';
 
 export default defineComponent({
   props: {

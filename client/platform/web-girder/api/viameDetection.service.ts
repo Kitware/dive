@@ -1,4 +1,5 @@
-import Track, { TrackData, TrackId } from 'vue-media-annotator/track';
+import { SaveDetectionsArgs } from 'viame-web-common/apispec';
+import { TrackData } from 'vue-media-annotator/track';
 import girderRest from '../plugins/girder';
 
 interface ExportUrlsResponse {
@@ -29,16 +30,9 @@ async function loadDetections(folderId: string, formatting = 'track_json') {
   return data as { [key: string]: TrackData };
 }
 
-async function saveDetections(folderId: string, args: {
-  delete: TrackId[];
-  upsert: Map<TrackId, Track>;
-}) {
-  const serialized = {} as SerializedTrackstore;
-  Array.from(args.upsert.entries()).forEach(([id, track]) => {
-    serialized[id] = track.serialize();
-  });
+async function saveDetections(folderId: string, args: SaveDetectionsArgs) {
   return girderRest.put('viame_detection', {
-    upsert: serialized,
+    upsert: args.upsert,
     delete: args.delete,
   }, {
     params: { folderId },

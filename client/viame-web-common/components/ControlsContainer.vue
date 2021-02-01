@@ -2,6 +2,9 @@
 import {
   defineComponent, ref, PropType,
 } from '@vue/composition-api';
+import type { DatasetType } from 'viame-web-common/apispec';
+import type { ImageDataItem } from 'vue-media-annotator/components/annotators/ImageAnnotator.vue';
+
 import {
   Controls,
   EventChart,
@@ -28,6 +31,14 @@ export default defineComponent({
       type: Object as PropType<unknown>,
       required: true,
     },
+    datasetType: {
+      type: String as PropType<DatasetType>,
+      required: true,
+    },
+    imageData: {
+      type: Array as PropType<ImageDataItem[]>,
+      default: () => [],
+    },
   },
 
   setup() {
@@ -53,52 +64,61 @@ export default defineComponent({
 
 <template>
   <div>
-    <Controls>
-      <template slot="timelineControls">
-        <div style="min-width: 210px">
-          <v-tooltip
-            open-delay="200"
-            bottom
-          >
-            <template #activator="{ on }">
-              <v-icon
-                small
-                v-on="on"
-                @click="collapsed=!collapsed"
-              >
-                {{ collapsed?'mdi-chevron-up-box': 'mdi-chevron-down-box' }}
-              </v-icon>
-            </template>
-            <span>Collapse/Expand Timeline</span>
-          </v-tooltip>
-          <v-btn
-            class="ml-2"
-            :class="{'timeline-button':currentView!=='Detections' || collapsed}"
-            depressed
-            :outlined="currentView==='Detections' && !collapsed"
-            x-small
-            tab-index="-1"
-            @click="toggleView('Detections')"
-          >
-            Detections
-          </v-btn>
-          <v-btn
-            class="ml-2"
-            :class="{'timeline-button':currentView!=='Events' || collapsed}"
-            depressed
-            :outlined="currentView==='Events' && !collapsed"
-            x-small
-            tab-index="-1"
-            @click="toggleView('Events')"
-          >
-            Events
-          </v-btn>
-        </div>
-      </template>
-    </Controls>
-    <timeline-wrapper v-if="(!collapsed)">
+    <timeline-wrapper>
       <template #default="{ maxFrame, frame, seek }">
+        <Controls>
+          <template slot="timelineControls">
+            <div style="min-width: 210px">
+              <v-tooltip
+                open-delay="200"
+                bottom
+              >
+                <template #activator="{ on }">
+                  <v-icon
+                    small
+                    v-on="on"
+                    @click="collapsed=!collapsed"
+                  >
+                    {{ collapsed?'mdi-chevron-up-box': 'mdi-chevron-down-box' }}
+                  </v-icon>
+                </template>
+                <span>Collapse/Expand Timeline</span>
+              </v-tooltip>
+              <v-btn
+                class="ml-2"
+                :class="{'timeline-button':currentView!=='Detections' || collapsed}"
+                depressed
+                :outlined="currentView==='Detections' && !collapsed"
+                x-small
+                tab-index="-1"
+                @click="toggleView('Detections')"
+              >
+                Detections
+              </v-btn>
+              <v-btn
+                class="ml-2"
+                :class="{'timeline-button':currentView!=='Events' || collapsed}"
+                depressed
+                :outlined="currentView==='Events' && !collapsed"
+                x-small
+                tab-index="-1"
+                @click="toggleView('Events')"
+              >
+                Events
+              </v-btn>
+            </div>
+          </template>
+          <template #middle>
+            <span
+              v-if="datasetType === 'image-sequence'"
+              class="text-middle px-3"
+            >
+              {{ imageData[frame].filename }}
+            </span>
+          </template>
+        </Controls>
         <Timeline
+          v-if="(!collapsed)"
           :max-frame="maxFrame"
           :frame="frame"
           :display="!collapsed"
@@ -142,7 +162,15 @@ export default defineComponent({
 </template>
 
 <style lang="scss" scoped>
+.text-middle {
+  vertical-align: baseline;
+  font-family: monospace;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: bold;
+}
 .timeline-button {
-    border: thin solid transparent;
+  border: thin solid transparent;
 }
 </style>

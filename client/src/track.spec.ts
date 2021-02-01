@@ -1,7 +1,7 @@
 /// <reference types="jest" />
 import Vue from 'vue';
 import CompositionApi from '@vue/composition-api';
-import Track, { TrackData } from './track';
+import Track, { ConfidencePair, TrackData } from './track';
 import { RectBounds } from './utils';
 
 Vue.use(CompositionApi);
@@ -73,6 +73,9 @@ describe('Track', () => {
     expect(f4).toStrictEqual([null, null, feature]);
     expect(track.begin).toBe(3);
     expect(track.end).toBe(3);
+    expect(() => track.setFeature({
+      frame: 4,
+    })).toThrow('must be called with keyframe');
   });
 
   it('should fail to initialize with non-sparse array', () => {
@@ -118,5 +121,41 @@ describe('Track', () => {
     expect(t.getType(1)).toEqual(['newType', 1]);
     t.setType('lowType', 0.25);
     expect(t.getType()).toEqual(['lowType', 0.25]);
+  });
+});
+
+describe('trackExceedsThreshold', () => {
+  it('correctly determine if a confidence pair set exceeds any thresholds', () => {
+    const pairs: ConfidencePair[] = [
+      ['foo', 0.05],
+      ['bar', 0.1],
+      ['baz', 0.1000001],
+    ];
+    expect(Track.trackExceedsThreshold(pairs, {
+      default: 0.1,
+    })).toEqual([
+      ['bar', 0.1],
+      ['baz', 0.1000001],
+    ]);
+    expect(Track.trackExceedsThreshold(pairs, {
+      default: 2,
+    })).toEqual([]);
+    expect(Track.trackExceedsThreshold(pairs, {
+      default: 0.1,
+      baz: 0.2,
+    })).toEqual([
+      ['bar', 0.1],
+    ]);
+    expect(Track.trackExceedsThreshold(pairs, {
+      bar: 0.2,
+    })).toEqual([
+      ['foo', 0.05],
+      ['baz', 0.1000001],
+    ]);
+  });
+  it('other edge cases', () => {
+    expect(Track.trackExceedsThreshold([], {})).toEqual([]);
+    expect(Track.trackExceedsThreshold([['foo', 1]], {})).toEqual([['foo', 1]]);
+    expect(Track.trackExceedsThreshold([['foo', 0]], {})).toEqual([['foo', 0]]);
   });
 });

@@ -17,7 +17,8 @@ markdown_extensions:
 
 nav:
   - Home: index.md
-  - Getting Started: Getting-Started.md
+  - Web Version: Getting-Started.md
+  - Desktop Version: Dive-Desktop.md
   - Annotation Quickstart: Annotation-QuickStart.md
   - Pipeline Docs: Pipeline-Documentation.md
   - User Interface Guide:
@@ -33,6 +34,7 @@ nav:
     - Attributes: Attributes.md
   - Concepts and Definitions: Definitions.md
   - Mouse and Keyboard Shortcuts: Mouse-Keyboard-Shortcuts.md
+  - Command Line Tools: Command-Line-Tools.md
 
 google_analytics:
   - UA-6042509-43

@@ -8,9 +8,6 @@ x-worker: &base-worker
     context: ../
     dockerfile: docker/girder_worker.Dockerfile
   image: kitware/viame-worker:${TAG:-latest}
-  volumes:
-    # Exposes pipeline directory to girder so it can see what pipelines are available.
-    - pipelines:${VIAME_PIPELINES_PATH}:ro
   depends_on:
     girder:
         condition: service_healthy
@@ -74,6 +71,9 @@ services:
   girder_worker_pipelines:
     # Merge base-worker object with this config
     << : *base-worker
+    volumes:
+      # Exposes pipeline directory to girder so it can see what pipelines are available.
+      - pipelines:${VIAME_PIPELINES_PATH}:ro
     environment:
       - WORKER_WATCHING_QUEUES=pipelines
       - WORKER_CONCURRENCY=${PIPELINE_WORKER_CONCURRENCY:-1}

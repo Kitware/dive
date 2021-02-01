@@ -18,6 +18,9 @@ import { FilteredTrack } from './use/useTrackFilters';
 const AllTypesSymbol = Symbol('allTypes');
 type AllTypesType = Readonly<Ref<readonly string[]>>;
 
+const DatasetIdSymbol = Symbol('datasetID');
+type DatasetIdType = Readonly<Ref<string>>;
+
 const UsedTypesSymbol = Symbol('usedTypes');
 type UsedTypesType = Readonly<Ref<readonly string[]>>;
 
@@ -159,6 +162,7 @@ function dummyHandler(handle: (name: string, args: unknown[]) => void): Handler 
  */
 export interface State {
   allTypes: AllTypesType;
+  datasetId: DatasetIdType;
   usedTypes: UsedTypesType;
   checkedTrackIds: CheckedTrackIdsType;
   checkedTypes: CheckedTypesType;
@@ -188,6 +192,7 @@ function dummyState(): State {
   };
   return {
     allTypes: ref([]),
+    datasetId: ref(''),
     usedTypes: ref([]),
     checkedTrackIds: ref([]),
     checkedTypes: ref([]),
@@ -224,6 +229,7 @@ function dummyState(): State {
  */
 function provideAnnotator(state: State, handler: Handler) {
   provide(AllTypesSymbol, state.allTypes);
+  provide(DatasetIdSymbol, state.datasetId);
   provide(UsedTypesSymbol, state.usedTypes);
   provide(CheckedTrackIdsSymbol, state.checkedTrackIds);
   provide(CheckedTypesSymbol, state.checkedTypes);
@@ -255,6 +261,9 @@ function use<T>(s: symbol) {
 
 function useAllTypes() {
   return use<AllTypesType>(AllTypesSymbol);
+}
+function useDatasetId() {
+  return use<DatasetIdType>(DatasetIdSymbol);
 }
 function useUsedTypes() {
   return use<UsedTypesType>(UsedTypesSymbol);
@@ -322,6 +331,7 @@ export {
   provideAnnotator,
   use,
   useAllTypes,
+  useDatasetId,
   useUsedTypes,
   useCheckedTrackIds,
   useCheckedTypes,

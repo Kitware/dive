@@ -259,9 +259,10 @@ export default class Track {
         Math.round(feature.bounds[3]),
       ];
     }
-    if (feature.keyframe) {
-      listInsert(this.featureIndex, feature.frame);
+    if (!this.features[feature.frame].keyframe) {
+      throw new Error('setFeature must be called with keyframe=true OR to update an existing keyframe');
     }
+    listInsert(this.featureIndex, feature.frame);
     const fg = this.features[feature.frame].geometry || { type: 'FeatureCollection', features: [] };
     geometry.forEach((geo) => {
       const i = fg.features
@@ -499,5 +500,15 @@ export default class Track {
       end: json.end,
     });
     return track;
+  }
+
+  /**
+   * Figure out if any confidence pairs are above any corresponding thresholds
+   */
+  static trackExceedsThreshold(
+    pairs: Array<ConfidencePair>, thresholds: Record<string, number>,
+  ): Array<ConfidencePair> {
+    const defaultThresh = thresholds.default || 0;
+    return pairs.filter(([name, value]) => value >= (thresholds[name] || defaultThresh));
   }
 }

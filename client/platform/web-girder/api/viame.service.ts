@@ -1,4 +1,5 @@
 import { GirderModel } from '@girder/components/src';
+
 import {
   Attribute, Pipe, Pipelines, TrainingConfigs,
 } from 'viame-web-common/apispec';
@@ -10,6 +11,19 @@ interface ValidationResponse {
   media: string[];
   annotations: string[];
   message: string;
+}
+
+export interface BrandData {
+  vuetify: unknown;
+  favicon: string | null;
+  logo: string;
+  name: string;
+  loginMessage: string;
+}
+
+async function getBrandData(): Promise<BrandData> {
+  const { data } = await girderRest.get<BrandData>('viame/brand_data');
+  return data;
 }
 
 
@@ -50,12 +64,13 @@ function deleteResources(resources: Array<GirderModel>) {
     headers: { 'X-HTTP-Method-Override': 'DELETE' },
   });
 }
-
-async function getAttributes(): Promise<Attribute[]> {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+async function getAttributes(datasetId = ''): Promise<Attribute[]> {
   const { data } = await girderRest.get('/viame/attribute');
   return data as Attribute[];
 }
-function setAttribute({ addNew, data }:
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function setAttribute(datasetId = '', { addNew, data }:
    {addNew: boolean | undefined; data: Attribute}): Promise<Attribute[]> {
   if (addNew) {
     return girderRest.post('/viame/attribute', data);
@@ -65,8 +80,8 @@ function setAttribute({ addNew, data }:
     data,
   );
 }
-
-function deleteAttribute(data: Attribute): Promise<Attribute> {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function deleteAttribute(datasetId = '', data: Attribute): Promise<Attribute> {
   return girderRest.delete(
     `/viame/attribute/${data._id}`,
   );
@@ -92,8 +107,8 @@ async function getTrainingConfigurations(): Promise<TrainingConfigs> {
   return data;
 }
 
-function runTraining(folderId: string, pipelineName: string, config: string) {
-  return girderRest.post('/viame/train', null, { params: { folderId, pipelineName, config } });
+function runTraining(folderIds: string[], pipelineName: string, config: string) {
+  return girderRest.post('/viame/train', folderIds, { params: { pipelineName, config } });
 }
 
 function saveMetadata(folderId: string, metadata: object) {
@@ -121,6 +136,7 @@ async function getValidWebImages(folderId: string) {
 
 
 export {
+  getBrandData,
   deleteResources,
   getAttributes,
   setAttribute,
