@@ -222,7 +222,6 @@ async function train(
     '--no-query',
     '--no-adv-prints',
     '--no-embedded-pipe',
-    '-s detector_trainer:ocv_windowed:trainer:netharn:timeout=100',
   ];
 
   const job = spawn(command.join(' '), {
