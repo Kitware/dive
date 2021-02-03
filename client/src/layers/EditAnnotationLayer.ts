@@ -255,8 +255,6 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
    */
   creationIncomplete(): boolean {
     const features = this.featureLayer.annotations();
-
-
     return this.getMode() === 'creation'
     && (!features.length || (features[0] && !features[0].coordinates().length));
   }
