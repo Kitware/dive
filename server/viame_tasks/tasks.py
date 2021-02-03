@@ -109,9 +109,9 @@ def run_pipeline(self: Task, params: PipelineJob):
             "kwiver runner",
             "-s input:video_reader:type=vidl_ffmpeg",
             f"-p {pipeline_path}",
-            f"-s input:video_filename={input_file}",
-            f"-s detector_writer:file_name={detector_output_path}",
-            f"-s track_writer:file_name={track_output_path}",
+            f"-s input:video_filename='{input_file}'",
+            f"-s detector_writer:file_name='{detector_output_path}'",
+            f"-s track_writer:file_name='{track_output_path}'",
         ]
     elif input_type == 'image-sequence':
         with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as temp2:
@@ -127,9 +127,9 @@ def run_pipeline(self: Task, params: PipelineJob):
             ". ./setup_viame.sh &&",
             "kwiver runner",
             f"-p {pipeline_path}",
-            f"-s input:video_filename={image_list_file}",
-            f"-s detector_writer:file_name={detector_output_path}",
-            f"-s track_writer:file_name={track_output_path}",
+            f"-s input:video_filename='{image_list_file}'",
+            f"-s detector_writer:file_name='{detector_output_path}'",
+            f"-s track_writer:file_name='{track_output_path}'",
         ]
     else:
         raise ValueError('Unknown input type: {}'.format(input_type))
