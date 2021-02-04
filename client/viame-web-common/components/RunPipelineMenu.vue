@@ -152,9 +152,8 @@ export default defineComponent({
             >
               <v-menu
                 :key="pipeType"
-                offset-y
-                max-height="80%"
-                allow-overflow
+                offset-x
+                right
               >
                 <template v-slot:activator="{ on }">
                   <v-btn
@@ -168,12 +167,15 @@ export default defineComponent({
                       color="accent"
                       class="ml-0"
                     >
-                      mdi-menu-down
+                      mdi-menu-right
                     </v-icon>
                   </v-btn>
                 </template>
 
-                <v-list dense>
+                <v-list
+                  dense
+                  style="overflow-y:auto; max-height:85vh"
+                >
                   <v-list-item
                     v-for="(pipeline) in pipelines[pipeType].pipes"
                     :key="`${pipeline.name}-${pipeline.pipe}`"
