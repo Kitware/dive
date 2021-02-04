@@ -9,6 +9,19 @@ export default {
 
 <template>
   <v-container>
-    <JobList />
+    <JobList>
+      <template #jobwidget="{ item }">
+        <span>{{ item.statusText.replace('Inactive', 'In Queue') }}</span>
+        <v-btn
+          x-small
+          :href="`/girder/#jobs/${item._id}`"
+          color="info"
+          outlined
+          class="mx-2"
+        >
+          Manage
+        </v-btn>
+      </template>
+    </JobList>
   </v-container>
 </template>
