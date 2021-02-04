@@ -110,7 +110,6 @@ class Viame(Resource):
         """
         folder_id_str = str(folder["_id"])
         # First, verify that no other outstanding jobs are running on this dataset
-        # We do not use findWithPermissions, b
         existing_jobs = Job().findOne(
             {
                 JOBCONST_DATASET_ID: folder_id_str,
