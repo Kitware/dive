@@ -66,7 +66,7 @@ export default defineComponent({
         pipelineState.status = 'done';
       } catch (err) {
         pipelineState.status = 'error';
-        pipelineState.error = err;
+        pipelineState.error = err.response?.data?.message || err;
         throw err;
       }
     }
@@ -192,6 +192,7 @@ export default defineComponent({
     </v-menu>
     <v-dialog
       :value="pipelineState.status !== null"
+      @input="dismissLaunchDialog"
       max-width="400"
     >
       <v-card outlined>
