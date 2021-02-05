@@ -6,7 +6,18 @@ DIVE Desktop has most of the same UI and features as VIAME Web **without** requi
 
 ## Installation
 
-[Download and install the package for your OS from GitHub](https://github.com/VIAME/VIAME-Web/releases)
+**[⬇️ Download the latest DIVE Desktop from GitHub.](https://github.com/VIAME/VIAME-Web/releases/latest)**
+
+Choose an **asset** from the list matching your operating system:
+
+| OS       | Extension | Description |
+| -------- | --------- | ----------- |
+| Windows  | .exe      | Portable executable (recommended) |
+| Windows  | .msi      | Installer file |
+| MacOS    | .dmg      | MacOS DiskImage (Intel only, M1 not supported) |
+| Linux    | .AppImage | Portable executable for all Linux platforms (recommended) |
+| Linux    | .snap     | Ubuntu SnapCraft package |
+
 
 ## Features
 
