@@ -3,10 +3,12 @@ from girder.api import access
 from girder.api.describe import Description, autoDescribeRoute, describeRoute
 from girder.api.rest import Resource
 from girder.constants import AccessType
+from girder.exceptions import RestException
 from girder.models.folder import Folder
 from girder.models.item import Item
 from girder.models.token import Token
 from girder.models.user import User
+from girder_jobs.models.job import Job
 
 from viame_tasks.tasks import (
     convert_images,
@@ -25,13 +27,19 @@ from .training import (
     load_training_configurations,
     training_output_folder,
 )
-from .transforms import GetPathFromFolderId, GetPathFromItemId
+from .transforms import GetPathFromItemId
 from .utils import (
     get_or_create_auxiliary_folder,
     getTrackData,
     move_existing_result_to_auxiliary_folder,
     saveTracks,
 )
+
+JOBCONST_DATASET_ID = 'datset_id'
+JOBCONST_TRAINING_INPUT_IDS = 'training_input_ids'
+JOBCONST_TRAINING_CONFIG = 'training_config'
+JOBCONST_RESULTS_FOLDER_ID = 'results_folder_id'
+JOBCONST_PIPELINE_NAME = 'pipeline_name'
 
 
 class Viame(Resource):
@@ -100,19 +108,39 @@ class Viame(Resource):
         :param folder: The girder folder containing the dataset to run on.
         :param pipeline: The pipeline to run the dataset on.
         """
+        folder_id_str = str(folder["_id"])
+        # First, verify that no other outstanding jobs are running on this dataset
+        existing_jobs = Job().findOne(
+            {
+                JOBCONST_DATASET_ID: folder_id_str,
+                'status': {
+                    # Find jobs that are inactive, queued, or running
+                    # https://github.com/girder/girder/blob/master/plugins/jobs/girder_jobs/constants.py
+                    '$in': [0, 1, 2]
+                },
+            }
+        )
+        if existing_jobs is not None:
+            raise RestException(
+                (
+                    f"A pipeline for {folder_id_str} is already running. "
+                    "Only one outstanding job may be run at a time for "
+                    "a dataset."
+                )
+            )
 
         user = self.getCurrentUser()
         token = Token().createToken(user=user, days=14)
         move_existing_result_to_auxiliary_folder(folder, user)
 
         params: PipelineJob = {
-            "input_folder": str(folder["_id"]),
+            "input_folder": folder_id_str,
             "input_type": folder["meta"]["type"],
-            "output_folder": str(folder["_id"]),
+            "output_folder": folder_id_str,
             "pipeline": pipeline,
         }
 
-        return run_pipeline.apply_async(
+        newjob = run_pipeline.apply_async(
             queue="pipelines",
             kwargs=dict(
                 params=params,
@@ -121,6 +149,14 @@ class Viame(Resource):
                 girder_job_type="pipelines",
             ),
         )
+        newjob.job[JOBCONST_DATASET_ID] = folder_id_str
+        newjob.job[JOBCONST_RESULTS_FOLDER_ID] = folder_id_str
+        newjob.job[JOBCONST_PIPELINE_NAME] = pipeline['name']
+        # Allow any users with accecss to the input data to also
+        # see and possibly manage the job
+        Job().copyAccessPolicies(folder, newjob.job)
+        Job().save(newjob.job)
+        return newjob.job
 
     @access.user
     @autoDescribeRoute(
@@ -151,12 +187,12 @@ class Viame(Resource):
         folder_list = []
         folder_names = []
         if folderIds is None or len(folderIds) == 0:
-            raise Exception("No folderIds in param")
+            raise RestException("No folderIds in param")
 
         for folderId in folderIds:
             folder = Folder().load(folderId, level=AccessType.READ, user=user)
             if folder is None:
-                raise Exception(f"Cannot access folder {folderId}")
+                raise RestException(f"Cannot access folder {folderId}")
             folder_names.append(folder['name'])
             detections = list(
                 Item().find({"meta.detection": str(folderId)}).sort([("created", -1)])
@@ -164,7 +200,7 @@ class Viame(Resource):
             detection = detections[0] if detections else None
 
             if not detection:
-                raise Exception(f"No detections for folder {folder['name']}")
+                raise RestException(f"No detections for folder {folder['name']}")
 
             # Ensure detection has a csv format
             csv_detection_file(folder, detection, user)
@@ -174,7 +210,7 @@ class Viame(Resource):
         # Ensure the folder to upload results to exists
         results_folder = training_output_folder(user)
 
-        return train_pipeline.apply_async(
+        newjob = train_pipeline.apply_async(
             queue="training",
             kwargs=dict(
                 results_folder=results_folder,
@@ -189,6 +225,12 @@ class Viame(Resource):
                 girder_job_type="training",
             ),
         )
+        newjob.job[JOBCONST_TRAINING_INPUT_IDS] = folderIds
+        newjob.job[JOBCONST_RESULTS_FOLDER_ID] = str(results_folder['_id'])
+        newjob.job[JOBCONST_TRAINING_CONFIG] = config
+        newjob.job[JOBCONST_PIPELINE_NAME] = pipelineName
+        Job().save(newjob.job)
+        return newjob.job
 
     @access.user
     @autoDescribeRoute(
