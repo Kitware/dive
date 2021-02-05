@@ -250,6 +250,7 @@ export default defineComponent({
       />
 
       <confidence-subsection
+        style="max-height:33vh"
         :confidence-pairs="selectedTrack.confidencePairs"
       />
       <attribute-subsection

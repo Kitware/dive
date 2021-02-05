@@ -171,7 +171,7 @@ export default defineComponent({
           editingTracks.push(trackFrame);
         }
         if (editingTracks.length) {
-          if (editingTrack) {
+          if (editingTrack && !editAnnotationLayer.creationIncomplete()) {
             editAnnotationLayer.setType(editingTrack);
             editAnnotationLayer.setKey(selectedKey);
             editAnnotationLayer.changeData(editingTracks);
