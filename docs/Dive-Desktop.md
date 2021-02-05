@@ -21,6 +21,6 @@ DIVE Desktop generally requires a local installtion of the VIAME toolkit to be f
 
 | Name | Default | Description |
 | ---- | ------- | ----------- |
-| DIVE_VIAME_PATH | /opt/noaa/viame (linux/macos) C:\Program Files\VIAME (windows) | location of VIAME installtion.  Users may override this value in the settings pane |
+| DIVE_VIAME_INSTALL_PATH | /opt/noaa/viame (linux/macos) C:\Program Files\VIAME (windows) | location of VIAME installtion.  Users may override this value in the settings pane |
 
 ![images/Banner.png](images/Banner.png)
