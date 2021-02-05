@@ -33,7 +33,7 @@ export default function useSettings(allTypes: Ref<Readonly<string[]>>) {
           interpolate: false,
         },
         Detection: {
-          continuous: true,
+          continuous: false,
         },
       },
     },
