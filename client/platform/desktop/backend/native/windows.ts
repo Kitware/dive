@@ -20,7 +20,7 @@ const DefaultSettings: Settings = {
   // The current settings schema config
   version: SettingsCurrentVersion,
   // A path to the VIAME base install
-  viamePath: 'C:\\Program Files\\VIAME',
+  viamePath: process.env.DIVE_VIAME_INSTALL_PATH || 'C:\\Program Files\\VIAME',
   // Path to a user data folder
   dataPath: npath.join(os.homedir(), 'VIAME_DATA'),
 };
