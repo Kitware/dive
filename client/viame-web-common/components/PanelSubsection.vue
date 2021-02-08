@@ -43,5 +43,6 @@ export default defineComponent({
 .scroll-section {
   overflow-y: auto;
   overflow-x: hidden;
+  min-height: 50px;
 }
 </style>
