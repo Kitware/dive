@@ -19,33 +19,61 @@ export type FormatTextRow = (track: FrameDataTrack) => TextData[] | null;
 interface TextLayerParams {
   formatter?: FormatTextRow;
 }
-
 /**
+ * @param track - standard frameDataTrack info
+ * @param additionalNum Number of additional pairs to display, top pair is the current pair
+ * followed by more in descending order.
  * @returns value or null.  null indicates that the text should not be displayed.
  */
-function defaultFormatter(track: FrameDataTrack): TextData[] | null {
+function defaultFormatter(track: FrameDataTrack, additionalNum = 0): TextData[] | null {
   if (track.features && track.features.bounds) {
     const { bounds } = track.features;
 
     if (bounds && track.confidencePairs !== null) {
       const lineHeight = 25;
-      let currentHeight = bounds[1] - lineHeight * (track.confidencePairs.length - 1);
+      const maxPairs = Math.min(track.confidencePairs.length, additionalNum);
+      let currentHeight = bounds[1] - (lineHeight * (maxPairs + 1));
       const arr: TextData[] = [];
-      track.confidencePairs.forEach((pair) => {
-        const type = pair[0];
-        const confidence = pair[1];
-        arr.push({
-          selected: track.selected,
-          editing: track.editing,
-          type,
-          confidence,
-          text: `${type}: ${confidence.toFixed(2)}`,
-          x: bounds[2],
-          y: currentHeight,
-          currentPair: track.trackType === pair,
-        });
-        currentHeight += lineHeight;
+      const baseType = track.trackType ? track.trackType[0] : 'unknown';
+      const baseConfidence = track.trackType ? track.trackType[1] : 1.0;
+      const currentTypeIndication = maxPairs > 0 ? '**' : '';
+      arr.push({
+        selected: track.selected,
+        editing: track.editing,
+        type: baseType,
+        confidence: baseConfidence,
+        text: `${currentTypeIndication}${baseType}: ${baseConfidence.toFixed(2)}`,
+        x: bounds[2],
+        y: bounds[1],
+        currentPair: true,
       });
+      //Now we display any additional types besides the default type
+      currentHeight += lineHeight;
+      let pairCount = 0;
+      if (track.confidencePairs.length) {
+        for (let i = 0; i < track.confidencePairs.length; i += 1) {
+          if (pairCount >= maxPairs) {
+            break;
+          }
+          if (track.trackType !== track.confidencePairs[i]) {
+            const type = track.confidencePairs[i][0];
+            const confidence = track.confidencePairs[i][1];
+            arr.push({
+              selected: track.selected,
+              editing: track.editing,
+              type,
+              confidence,
+              text: `${type}: ${confidence.toFixed(2)}`,
+              x: bounds[2],
+              y: currentHeight,
+              currentPair: false,
+            });
+            currentHeight += lineHeight;
+            pairCount += 1;
+          }
+        }
+      }
+
       return arr;
     }
   }
@@ -97,13 +125,16 @@ export default class TextLayer extends BaseLayer<TextData> {
       ...baseStyle,
       color: (data) => {
         if (data.editing || data.selected) {
-          if (!data.selected) {
+          if (!data.selected && !data.currentPair) {
             if (this.stateStyling.disabled.color !== 'type') {
               return this.stateStyling.disabled.color;
             }
             return this.typeStyling.value.color(data.type);
           }
-          return this.stateStyling.selected.color;
+          if (data.currentPair) {
+            return this.stateStyling.selected.color;
+          }
+          return this.typeStyling.value.color(data.type);
         }
         return this.typeStyling.value.color(data.type);
       },
