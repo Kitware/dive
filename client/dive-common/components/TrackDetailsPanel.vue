@@ -20,11 +20,11 @@ import {
 import { getTrack } from 'vue-media-annotator/use/useTrackStore';
 import TrackItem from 'vue-media-annotator/components/TrackItem.vue';
 
-import { useApi, Attribute } from 'viame-web-common/apispec';
-import AttributeInput from 'viame-web-common/components/AttributeInput.vue';
-import AttributeEditor from 'viame-web-common/components/AttributeEditor.vue';
-import AttributeSubsection from 'viame-web-common/components/AttributesSubsection.vue';
-import ConfidenceSubsection from 'viame-web-common/components/ConfidenceSubsection.vue';
+import { useApi, Attribute } from 'dive-common/apispec';
+import AttributeInput from 'dive-common/components/AttributeInput.vue';
+import AttributeEditor from 'dive-common/components/AttributeEditor.vue';
+import AttributeSubsection from 'dive-common/components/AttributesSubsection.vue';
+import ConfidenceSubsection from 'dive-common/components/ConfidenceSubsection.vue';
 
 
 export default defineComponent({

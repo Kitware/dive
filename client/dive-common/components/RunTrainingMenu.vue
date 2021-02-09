@@ -3,7 +3,7 @@ import {
   defineComponent, computed, PropType, ref, onBeforeMount,
 } from '@vue/composition-api';
 
-import { useApi, TrainingConfigs } from 'viame-web-common/apispec';
+import { useApi, TrainingConfigs } from 'dive-common/apispec';
 
 
 export default defineComponent({

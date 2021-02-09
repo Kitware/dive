@@ -182,7 +182,7 @@ export default defineComponent({
           <div>
             Build Version:
             <browser-link
-              :href="`https://github.com/VIAME/VIAME-Web`"
+              :href="`https://github.com/VIAME/dive`"
               display="inline"
             >
               {{ gitHash }}
@@ -209,13 +209,13 @@ export default defineComponent({
       </v-card>
       <div class="d-flex flex-row justify-end">
         <browser-link
-          href="https://github.com/VIAME/VIAME-Web/issues/new?labels=bug&template=bug-report.md&title=%5BBUG%5D"
+          href="https://github.com/VIAME/dive/issues/new?labels=bug&template=bug-report.md&title=%5BBUG%5D"
           class="ma-2"
         >
           🐛 Report a bug
         </browser-link>
         <browser-link
-          href="https://github.com/VIAME/VIAME-Web/issues/new?labels=enhancement&template=feature-request.md&title=%5BFEATURE%5D"
+          href="https://github.com/VIAME/dive/issues/new?labels=enhancement&template=feature-request.md&title=%5BFEATURE%5D"
           class="ma-2"
         >
           🚧 Feature Request

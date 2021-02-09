@@ -7,7 +7,7 @@ import {
   useTypeStyling,
 } from 'vue-media-annotator/provides';
 
-import PanelSubsection from 'viame-web-common/components/PanelSubsection.vue';
+import PanelSubsection from 'dive-common/components/PanelSubsection.vue';
 
 export default defineComponent({
   name: 'ConfidenceSubsection',

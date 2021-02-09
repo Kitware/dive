@@ -1,7 +1,7 @@
 import type {
   Attribute,
   DatasetMeta, DatasetMetaMutable, DatasetType, Pipe,
-} from 'viame-web-common/apispec';
+} from 'dive-common/apispec';
 
 export const websafeVideoTypes = [
   'video/mp4',

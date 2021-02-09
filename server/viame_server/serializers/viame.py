@@ -32,11 +32,7 @@ def writeHeader(writer: '_csv._writer', metadata: Dict):
     metadata_str = ",".join(metadata_list)
     writer.writerow([f'# metadata -{metadata_str}'])
 
-    writer.writerow(
-        [
-            f'# Written on {datetime.datetime.now().ctime()} by: viame_web_csv_writer:python'
-        ]
-    )
+    writer.writerow([f'# Written on {datetime.datetime.now().ctime()} by: dive:python'])
 
 
 def valueToString(value):
@@ -165,7 +161,7 @@ def _parse_row_for_tracks(row: List[str]) -> Tuple[Feature, Dict, Dict, List]:
 
 def load_csv_as_tracks(rows: List[str]) -> Dict[str, dict]:
     """
-    Convert VIAME web CSV to json tracks.
+    Convert VIAME CSV to json tracks.
     Expect detections to be in increasing order (either globally or by track).
     """
     reader = csv.reader(row for row in rows if (not row.startswith("#") and row))

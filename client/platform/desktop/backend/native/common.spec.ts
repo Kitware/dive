@@ -10,7 +10,7 @@ import type {
   DesktopJobUpdate, DesktopJobUpdater, JsonMeta, RunTraining, Settings,
 } from 'platform/desktop/constants';
 
-import { Attribute } from 'viame-web-common/apispec';
+import { Attribute } from 'dive-common/apispec';
 import * as common from './common';
 
 const pipelines = {
@@ -365,10 +365,10 @@ describe('native.common', () => {
       trainingConfig: 'trainingConfig',
     };
     expect(common.processTrainedPipeline(settings, trainingArgs, '/home/user/viamedata/DIVE_Jobs/badTrainingJob/')).rejects.toThrow(
-      'Path: /home/user/viamedata/Dive_Jobs/badTrainingJob/category_models does not exist',
+      'Path: /home/user/viamedata/DIVE_Jobs/badTrainingJob/category_models does not exist',
     );
     expect(common.processTrainedPipeline(settings, trainingArgs, '/home/user/viamedata/DIVE_Jobs/missingPipeTrainingJob/')).rejects.toThrow(
-      'Could not located trained pipe file inside of /home/user/viamedata/Dive_Jobs/missingPipeTrainingJob/category_models',
+      'Could not located trained pipe file inside of /home/user/viamedata/DIVE_Jobs/missingPipeTrainingJob/category_models',
     );
   });
 

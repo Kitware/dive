@@ -1,5 +1,5 @@
 import { Attributes } from 'platform/desktop/constants';
-import { MultiTrackRecord } from 'viame-web-common/apispec';
+import { MultiTrackRecord } from 'dive-common/apispec';
 import { StringKeyObject, TrackData } from 'vue-media-annotator/track';
 
 

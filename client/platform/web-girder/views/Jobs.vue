@@ -33,7 +33,7 @@ export default {
           limited GPU capacity.  Jobs in queue will be processed in the order in
           which they are received. You can run your own server and job runner with Docker
           using the instructions provided
-          <a href="https://github.com/VIAME/VIAME-Web/tree/master/docker">here</a>.
+          <a href="https://github.com/VIAME/dive/tree/master/docker">here</a>.
         </p>
       </v-card-text>
     </v-card>

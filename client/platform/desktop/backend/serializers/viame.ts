@@ -10,7 +10,7 @@ import moment from 'moment';
 import { flattenDeep } from 'lodash';
 import { pipeline, Readable, Writable } from 'stream';
 
-import { MultiTrackRecord } from 'viame-web-common/apispec';
+import { MultiTrackRecord } from 'dive-common/apispec';
 import { JsonMeta } from 'platform/desktop/constants';
 
 // Imports that involve actual code require relative imports because ts-node barely works

@@ -62,7 +62,7 @@ export default defineComponent({
         </v-alert>
         <div>
           If you need help, check the
-          <a href="https://viame.github.io/VIAME-Web/">
+          <a href="https://viame.github.io/dive/">
             User Documentation
           </a>
           or email <a href="mailto:viame-web@kitware.com">viame-web@kitware.com</a>

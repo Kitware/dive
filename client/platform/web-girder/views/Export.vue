@@ -1,5 +1,5 @@
 <script>
-import { MediaTypes } from 'viame-web-common/constants';
+import { MediaTypes } from 'dive-common/constants';
 import { getExportUrls } from '../api/viameDetection.service';
 
 export default {

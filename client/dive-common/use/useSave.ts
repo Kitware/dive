@@ -1,6 +1,6 @@
 import { ref, Ref } from '@vue/composition-api';
 import Track, { TrackId } from 'vue-media-annotator/track';
-import { useApi, DatasetMetaMutable } from 'viame-web-common/apispec';
+import { useApi, DatasetMetaMutable } from 'dive-common/apispec';
 
 export default function useSave(datasetId: Ref<Readonly<string>>) {
   const pendingSaveCount = ref(0);

@@ -1,4 +1,4 @@
-import { DatasetMeta, DatasetMetaMutable, DatasetType } from 'viame-web-common/apispec';
+import { DatasetMeta, DatasetMetaMutable, DatasetType } from 'dive-common/apispec';
 
 /**
  * Static properties loaded from the girder folder data/metadata

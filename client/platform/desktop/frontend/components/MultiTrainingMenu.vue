@@ -6,7 +6,7 @@ import {
 } from '@vue/composition-api';
 import {
   DatasetMeta, Pipelines, TrainingConfigs, useApi,
-} from 'viame-web-common/apispec';
+} from 'dive-common/apispec';
 
 import { datasets } from '../store/dataset';
 

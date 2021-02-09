@@ -1,5 +1,5 @@
 <script>
-import UserGuideDialog from 'viame-web-common/components/UserGuideDialog.vue';
+import UserGuideDialog from 'dive-common/components/UserGuideDialog.vue';
 
 export default {
   components: {
@@ -14,7 +14,7 @@ export default {
   data() {
     return {
       dialog: false,
-      userGuideLink: 'https://viame.github.io/VIAME-Web/',
+      userGuideLink: 'https://viame.github.io/dive/',
     };
   },
 };

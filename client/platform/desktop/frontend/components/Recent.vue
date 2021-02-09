@@ -2,7 +2,7 @@
 import { join } from 'path';
 import { defineComponent, ref } from '@vue/composition-api';
 
-import { DatasetType } from 'viame-web-common/apispec';
+import { DatasetType } from 'dive-common/apispec';
 
 import { openFromDisk, importMedia, loadMetadata } from '../api';
 import { recents, setRecents } from '../store/dataset';
@@ -66,7 +66,7 @@ export default defineComponent({
               DIVE Annotation Tool
             </h1>
             <h3>Useful Links</h3>
-            <browser-link href="https://viame.github.io/VIAME-Web/">
+            <browser-link href="https://viame.github.io/dive/">
               User Guide
             </browser-link>
             <browser-link href="https://viame.kitware.com/#/collection/5e4c256ca0fc86aa03120c34">

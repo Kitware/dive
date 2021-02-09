@@ -3,7 +3,7 @@ import {
   computed, defineComponent, PropType, Ref, ref,
 } from '@vue/composition-api';
 
-import { Attribute } from 'viame-web-common/apispec';
+import { Attribute } from 'dive-common/apispec';
 
 export default defineComponent({
   name: 'AttributeSettings',

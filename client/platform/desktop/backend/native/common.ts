@@ -11,7 +11,7 @@ import lockfile from 'proper-lockfile';
 import {
   DatasetType, MultiTrackRecord, Pipelines, SaveDetectionsArgs,
   FrameImage, DatasetMetaMutable, TrainingConfigs, Attribute,
-} from 'viame-web-common/apispec';
+} from 'dive-common/apispec';
 import * as viameSerializers from 'platform/desktop/backend/serializers/viame';
 
 import {

@@ -1,7 +1,7 @@
 import { Module } from 'vuex';
 
-import { ImageSequenceType, VideoType } from 'viame-web-common/constants';
-import type { FrameImage } from 'viame-web-common/apispec';
+import { ImageSequenceType, VideoType } from 'dive-common/constants';
+import type { FrameImage } from 'dive-common/apispec';
 import type { GirderMetadataStatic, GirderMetadata } from 'platform/web-girder/constants';
 
 import { getFolder, getItemDownloadUri } from '../api/girder.service';
