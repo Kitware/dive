@@ -172,6 +172,7 @@ export default defineComponent({
         }
         if (editingTracks.length) {
           if (editingTrack) {
+            editAnnotationLayer.checkCreationIncomplete(editingTrack, selectedKey);
             editAnnotationLayer.setType(editingTrack);
             editAnnotationLayer.setKey(selectedKey);
             editAnnotationLayer.changeData(editingTracks);
