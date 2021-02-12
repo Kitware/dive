@@ -139,7 +139,7 @@ export default defineComponent({
           <v-card-text class="pb-0">
             Choose a pipeline type. Check the
             <a
-              href="https://viame.github.io/dive/Pipeline-Documentation/"
+              href="https://kitware.github.io/dive/Pipeline-Documentation/"
               target="_blank"
             >docs</a>
             for more information about these options.

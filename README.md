@@ -19,7 +19,7 @@ DIVE is a web interface for performing data management, video annotation, and ru
 
 ## Documentation
 
-* [Client User Guide](https://viame.github.io/dive/)
+* [Client User Guide](https://kitware.github.io/dive/)
 * [Client Development Docs](client/README.md)
 * [Docker Getting Started Guide](docker/README.md)
 

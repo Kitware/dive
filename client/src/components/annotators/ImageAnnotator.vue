@@ -115,7 +115,7 @@ export default defineComponent({
     }
 
     /**
-     * Adds a single frame to the pendingImgs array for loading and assigns it to the master
+     * Adds a single frame to the pendingImgs array for loading and assigns it to the main
      * imgs list. Once the image is loaded it is removed from the pendingImgs
      * @param {int} i the image to cache if it isn't already assigned
      */

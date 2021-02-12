@@ -1,6 +1,6 @@
 # Web Version
 
-The web version is an open-source browser-based dynamic web app with a [Girder](https://resonant.kitware.com/) Python backend.  You can use our server (see below) or [run your own](https://github.com/VIAME/dive/tree/master/docker).
+The web version is an open-source browser-based dynamic web app with a [Girder](https://resonant.kitware.com/) Python backend.  You can use our server (see below) or [run your own](https://github.com/Kitware/dive/tree/main/docker).
 
 ## Features
 

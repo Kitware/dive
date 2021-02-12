@@ -187,7 +187,7 @@ export default defineComponent({
     /**
      * TODO: for some reason, GeoJS requires us to initialize
      * by calling the render function twice.  This is a bug.
-     * https://github.com/VIAME/dive/issues/365
+     * https://github.com/Kitware/dive/issues/365
      */
     [1, 2].forEach(() => {
       updateLayers(

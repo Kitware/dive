@@ -6,7 +6,7 @@
     "email": "viame-web@kitware.com"
   },
   "description": "DIVE annotation platform",
-  "homepage": "https://github.com/VIAME/dive",
+  "homepage": "https://github.com/Kitware/dive",
   "scripts": {
     "serve": "vue-cli-service serve platform/web-girder/main.ts",
     "serve:electron": "vue-cli-service electron:serve",

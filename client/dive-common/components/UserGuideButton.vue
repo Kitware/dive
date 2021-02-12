@@ -14,7 +14,7 @@ export default {
   data() {
     return {
       dialog: false,
-      userGuideLink: 'https://viame.github.io/dive/',
+      userGuideLink: 'https://kitware.github.io/dive/',
     };
   },
 };
