@@ -8,7 +8,7 @@ import express from 'express';
 import bodyparser from 'body-parser';
 import rangeParser from 'range-parser';
 import fs from 'fs-extra';
-import { Attribute, SaveDetectionsArgs } from 'viame-web-common/apispec';
+import { Attribute, SaveDetectionsArgs } from 'dive-common/apispec';
 
 import settings from './state/settings';
 import * as common from './native/common';

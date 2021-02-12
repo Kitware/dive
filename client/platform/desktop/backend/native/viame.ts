@@ -30,7 +30,7 @@ interface ViameConstants {
 }
 
 /**
- * a node.js implementation of viame_tasks.tasks.run_pipeline
+ * a node.js implementation of dive_tasks.tasks.run_pipeline
  */
 async function runPipeline(
   settings: Settings,
@@ -138,7 +138,7 @@ async function runPipeline(
 }
 
 /**
- * a node.js implementation of viame_tasks.tasks.run_training
+ * a node.js implementation of dive_tasks.tasks.run_training
  */
 async function train(
   settings: Settings,

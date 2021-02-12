@@ -23,23 +23,23 @@ import {
 } from 'vue-media-annotator/components';
 import { MediaController } from 'vue-media-annotator/components/annotators/mediaControllerType';
 
-/* VIAME WEB COMMON */
-import PolygonBase from 'viame-web-common/recipes/polygonbase';
-import HeadTail from 'viame-web-common/recipes/headtail';
-import EditorMenu from 'viame-web-common/components/EditorMenu.vue';
-import ConfidenceFilter from 'viame-web-common/components/ConfidenceFilter.vue';
-import UserGuideButton from 'viame-web-common/components/UserGuideButton.vue';
-import RunPipelineMenu from 'viame-web-common/components/RunPipelineMenu.vue';
-import DeleteControls from 'viame-web-common/components/DeleteControls.vue';
-import ControlsContainer from 'viame-web-common/components/ControlsContainer.vue';
-import Sidebar from 'viame-web-common/components/Sidebar.vue';
+/* DIVE COMMON */
+import PolygonBase from 'dive-common/recipes/polygonbase';
+import HeadTail from 'dive-common/recipes/headtail';
+import EditorMenu from 'dive-common/components/EditorMenu.vue';
+import ConfidenceFilter from 'dive-common/components/ConfidenceFilter.vue';
+import UserGuideButton from 'dive-common/components/UserGuideButton.vue';
+import RunPipelineMenu from 'dive-common/components/RunPipelineMenu.vue';
+import DeleteControls from 'dive-common/components/DeleteControls.vue';
+import ControlsContainer from 'dive-common/components/ControlsContainer.vue';
+import Sidebar from 'dive-common/components/Sidebar.vue';
 
 import {
   useModeManager,
   useSave,
   useSettings,
-} from 'viame-web-common/use';
-import { useApi, FrameImage, DatasetType } from 'viame-web-common/apispec';
+} from 'dive-common/use';
+import { useApi, FrameImage, DatasetType } from 'dive-common/apispec';
 
 export default defineComponent({
   components: {

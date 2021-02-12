@@ -1,9 +1,6 @@
 <img src="http://www.viametoolkit.org/wp-content/uploads/2016/08/viami_logo.png" alt="VIAME Logo" width="200" height="78">
 <br>
-VIAME-Web is a web interface for performing data management, video annotation, and running a portion of the algorithms stored
-within the VIAME (https://github.com/VIAME/VIAME) repository. When compiled, docker instances for VIAME-Web can be run either
-as local servers or online in web services. A sample instance of VIAME-Web is running on a public server at https://viame.kitware.com.
-Additional documentation will be available in the future for users.
+DIVE is a web interface for performing data management, video annotation, and running a portion of the algorithms stored within the VIAME (https://github.com/VIAME/VIAME) repository. When compiled, docker instances for DIVE can be run either as local servers or online in web services. A sample instance of DIVE is running on a public server at https://viame.kitware.com. Additional documentation will be available in the future for users.
 
 ![docs/images/Banner.png](docs/images/Banner.png)
 
@@ -12,7 +9,7 @@ Additional documentation will be available in the future for users.
 * Video Annotation
   * Single-frame boxes and polygons
   * Multi-frame bounding box tracks with interpolation
-  * Automatic transcoding to support `avi`, `mov`, 
+  * Automatic transcoding to support `avi`, `mov`
 * Still image annotation
   * Bounding boxes
   * Polygons
@@ -22,13 +19,13 @@ Additional documentation will be available in the future for users.
 
 ## Documentation
 
-* [Client User Guide](https://viame.github.io/VIAME-Web/)
+* [Client User Guide](https://kitware.github.io/dive/)
 * [Client Development Docs](client/README.md)
 * [Docker Getting Started Guide](docker/README.md)
 
 ## Code Architecture
 
-VIAME-Web uses [Girder](https://girder.readthedocs.io/en/stable/) for data management and has a typical girder + girder worker +
+DIVE uses [Girder](https://girder.readthedocs.io/en/stable/) for data management and has a typical girder + girder worker +
 docker architecture. Command-line executables for VIAME and FFmpeg are built inside the worker docker image. See docker scripts
 for additional details.
 
@@ -51,7 +48,7 @@ Run `pip install` on the against the server directory. Then `girder-worker -l in
 
 ### Input
 
-VIAME-Web takes two different kinds of input data, either a video file (e.g. .mpg) or an image sequence. Both types can
+DIVE takes two different kinds of input data, either a video file (e.g. .mpg) or an image sequence. Both types can
 be optionally accompanied with a CSV file containing video annotations. Example input sequences are available at
 https://viame.kitware.com/girder#collections.
 

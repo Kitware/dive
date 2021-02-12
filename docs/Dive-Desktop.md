@@ -2,11 +2,11 @@
 
 DIVE is available as an electron based desktop application with deep [VIAME](https://github.com/viame/viame) integration.
 
-DIVE Desktop has most of the same UI and features as VIAME Web **without** requiring a network connection or a server installation.
+DIVE Desktop has most of the same UI and features as DIVE **without** requiring a network connection or a server installation.
 
 ## Installation
 
-**[⬇️ Download the latest DIVE Desktop from GitHub.](https://github.com/VIAME/VIAME-Web/releases/latest)**
+**[⬇️ Download the latest DIVE Desktop from GitHub.](https://github.com/Kitware/dive/releases/latest)**
 
 Choose an **asset** from the list matching your operating system:
 

@@ -5,8 +5,8 @@
     "name": "Kitware, Inc.",
     "email": "viame-web@kitware.com"
   },
-  "description": "VIAME Web annotation platform",
-  "homepage": "https://github.com/VIAME/VIAME-Web",
+  "description": "DIVE annotation platform",
+  "homepage": "https://github.com/Kitware/dive",
   "scripts": {
     "serve": "vue-cli-service serve platform/web-girder/main.ts",
     "serve:electron": "vue-cli-service electron:serve",
@@ -16,9 +16,9 @@
     "build:cli": "tsc -b tsconfig.cli.json && tsc-alias -p tsconfig.cli.json",
     "dev:cli": "tsc -w -p tsconfig.cli.json & tsc-alias -w -p tsconfig.cli.json",
     "divecli": "node ./bin/platform/desktop/backend/cli.js",
-    "lint": "vue-cli-service lint src/ viame-web-common/ platform/",
+    "lint": "vue-cli-service lint src/ dive-common/ platform/",
     "lint:templates": "vtc --workspace . --srcDir src/",
-    "test": "vue-cli-service test:unit src/ viame-web-common/ platform/"
+    "test": "vue-cli-service test:unit src/ dive-common/ platform/"
   },
   "resolutions": {
     "@types/jest": "^25.2.3"
@@ -131,7 +131,7 @@
     "verbose": true,
     "moduleNameMapper": {
       "^vue-media-annotator/(.*)$": "<rootDir>/src/$1",
-      "^viame-web-common/(.*)$": "<rootDir>/viame-web-common/$1",
+      "^dive-common/(.*)$": "<rootDir>/dive-common/$1",
       "^platform/(.*)$": "<rootDir>/platform/$1",
       "\\.css$": "<rootDir>/test/stub.js"
     },

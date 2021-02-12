@@ -2,7 +2,7 @@
 import {
   defineComponent, ref, PropType,
 } from '@vue/composition-api';
-import type { DatasetType } from 'viame-web-common/apispec';
+import type { DatasetType } from 'dive-common/apispec';
 import type { ImageDataItem } from 'vue-media-annotator/components/annotators/ImageAnnotator.vue';
 
 import {

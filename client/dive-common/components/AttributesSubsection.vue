@@ -5,15 +5,15 @@ import {
   PropType,
   computed,
 } from '@vue/composition-api';
-import { Attribute } from 'viame-web-common/apispec';
+import { Attribute } from 'dive-common/apispec';
 import {
   useSelectedTrackId,
   useFrame,
   useTrackMap,
 } from 'vue-media-annotator/provides';
 import { getTrack } from 'vue-media-annotator/use/useTrackStore';
-import AttributeInput from 'viame-web-common/components/AttributeInput.vue';
-import PanelSubsection from 'viame-web-common/components/PanelSubsection.vue';
+import AttributeInput from 'dive-common/components/AttributeInput.vue';
+import PanelSubsection from 'dive-common/components/PanelSubsection.vue';
 
 
 export default defineComponent({

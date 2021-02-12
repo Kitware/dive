@@ -1,7 +1,7 @@
 <script lang="ts">
 import Vue, { PropType } from 'vue';
 import { cloneDeep } from 'lodash';
-import { TypeSettings } from 'viame-web-common/use/useSettings';
+import { TypeSettings } from 'dive-common/use/useSettings';
 
 export default Vue.extend({
   name: 'TypeSettingsPanel',

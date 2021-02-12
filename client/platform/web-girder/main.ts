@@ -4,9 +4,9 @@ import VueCompositionApi from '@vue/composition-api';
 import { init as SentryInit } from '@sentry/browser';
 import { Vue as SentryVue } from '@sentry/integrations';
 
-import snackbarService from 'viame-web-common/vue-utilities/snackbar-service';
-import promptService from 'viame-web-common/vue-utilities/prompt-service';
-import vMousetrap from 'viame-web-common/vue-utilities/v-mousetrap';
+import snackbarService from 'dive-common/vue-utilities/snackbar-service';
+import promptService from 'dive-common/vue-utilities/prompt-service';
+import vMousetrap from 'dive-common/vue-utilities/v-mousetrap';
 
 import getVuetify from './plugins/vuetify';
 import girderRest, { notificationBus } from './plugins/girder';

@@ -3,7 +3,7 @@ from typing import Dict, List
 
 import pytest
 
-from viame_server.serializers import viame
+from dive_server.serializers import viame
 
 test_tuple = [
     (

@@ -2,7 +2,7 @@ import { merge } from 'lodash';
 import { Module } from 'vuex';
 
 import { BrandData, getBrandData } from 'platform/web-girder/api/viame.service';
-import defaultLogo from 'viame-web-common/assets/logo.png';
+import defaultLogo from 'dive-common/assets/logo.png';
 
 import { BrandState, RootState } from './types';
 
@@ -31,7 +31,7 @@ const brandModule: Module<BrandState, RootState> = {
       favicon: null,
       logo: defaultLogo,
       name: 'DIVE',
-      loginMessage: `VIAME Web is automatically updated 
+      loginMessage: `DIVE is automatically updated 
         at 2AM EST/EDT on Thursdays. Downtime is typically
         less than 10 minutes.`,
     },

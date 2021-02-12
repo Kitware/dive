@@ -12,7 +12,7 @@
     "platform/desktop/backend/serializers/*.ts",
     "platform/desktop/backend/cli.ts",
     "platform/desktop/backend/native/*.ts",
-    "viame-web-common/apispec.ts",
+    "dive-common/apispec.ts",
     "src/@types/*.ts",
     "src/track.ts",
     "src/utils.ts",
