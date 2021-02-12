@@ -1,6 +1,6 @@
 /**
  * VIAME CSV parser/serializer copied logically from
- * viame_server.serializers.viame python module
+ * dive_server.serializers.viame python module
  */
 
 import csvparser from 'csv-parse';

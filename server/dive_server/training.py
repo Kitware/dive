@@ -9,14 +9,14 @@ from girder.models.item import Item
 from girder.models.upload import Upload
 from typing_extensions import TypedDict
 
-from viame_server.constants import (
+from dive_server.constants import (
     ImageSequenceType,
     ViameDataFolderName,
     VideoType,
     safeImageRegex,
 )
-from viame_server.pipelines import DisallowedStaticPipelines, get_static_pipelines_path
-from viame_server.serializers import viame
+from dive_server.pipelines import DisallowedStaticPipelines, get_static_pipelines_path
+from dive_server.serializers import viame
 
 TrainingOutputFolderName = "VIAME Training Results"
 DefaultTrainingConfiguration = "train_netharn_cascade.viame_csv.conf"

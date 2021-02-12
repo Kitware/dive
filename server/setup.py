@@ -19,30 +19,26 @@ requirements = [
 ]
 
 setup(
-    author_email="kitware@kitware.com",
+    author_email="viame-web@kitware.com",
     classifiers=[
-        "Development Status :: 2 - Pre-Alpha",
         "License :: OSI Approved :: Apache Software License",
         "Natural Language :: English",
-        "Programming Language :: Python :: 2",
-        "Programming Language :: Python :: 2.7",
         "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.5",
         "Programming Language :: Python :: 3.6",
     ],
-    description="Server side functionality of VIAMEWeb",
+    description="DIVE Data Server",
     install_requires=requirements,
     python_requires=">=3.7",
     license="Apache Software License 2.0",
     include_package_data=True,
-    keywords="VIAME",
-    name="viame_server",
+    keywords="DIVE, VIAME, VIAME-Web, Annotation",
+    name="dive_server",
     packages=find_packages(exclude=["test", "test.*"]),
-    url="https://github.com/OpenImaging/miqa",
-    version="0.3.1",
+    url="https://github.com/Kitware/dive",
+    version="1.4.1",
     zip_safe=False,
     entry_points={
-        "girder.plugin": ["viame_server = viame_server:GirderPlugin"],
-        "girder_worker_plugins": ["viame_tasks = viame_tasks:ViamePlugin"],
+        "girder.plugin": ["dive_server = dive_server:GirderPlugin"],
+        "girder_worker_plugins": ["dive_tasks = dive_tasks:DIVEPlugin"],
     },
 )

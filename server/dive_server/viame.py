@@ -10,13 +10,13 @@ from girder.models.token import Token
 from girder.models.user import User
 from girder_jobs.models.job import Job
 
-from viame_tasks.tasks import (
+from dive_tasks.tasks import (
     convert_images,
     convert_video,
     run_pipeline,
     train_pipeline,
 )
-from viame_utils.types import PipelineDescription, PipelineJob
+from dive_utils.types import PipelineDescription, PipelineJob
 
 from .constants import csvRegex, imageRegex, safeImageRegex, videoRegex, ymlRegex
 from .model.attribute import Attribute

@@ -12,12 +12,12 @@ from girder_worker.task import Task
 from girder_worker.utils import JobManager, JobStatus
 from GPUtil import getGPUs
 
-from viame_tasks.utils import (
+from dive_tasks.utils import (
     get_source_video_filename,
     organize_folder_for_training,
     read_and_close_process_outputs,
 )
-from viame_utils.types import PipelineJob
+from dive_utils.types import PipelineJob
 
 
 def get_gpu_environment() -> Dict[str, str]:
