@@ -14,7 +14,7 @@ export default {
         <span>{{ item.statusText.replace('Inactive', 'Queued') }}</span>
         <v-btn
           x-small
-          :href="`http://localhost:8010/girder/#job/${item._id}`"
+          :href="`/girder/#job/${item._id}`"
           color="info"
           outlined
           class="mx-2"
