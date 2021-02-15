@@ -10,7 +10,13 @@ from girder.models.token import Token
 from girder.models.user import User
 from girder_jobs.models.job import Job
 
-from dive_tasks.tasks import convert_images, convert_video, run_pipeline, train_pipeline
+from dive_tasks.tasks import (
+    convert_images,
+    convert_video,
+    run_pipeline,
+    train_pipeline,
+    upgrade_pipelines,
+)
 from dive_utils.types import PipelineDescription, PipelineJob
 
 from .constants import csvRegex, imageRegex, safeImageRegex, videoRegex, ymlRegex
@@ -48,6 +54,7 @@ class Viame(Resource):
         self.route("POST", ("pipeline",), self.run_pipeline_task)
         self.route("GET", ("training_configs",), self.get_training_configs)
         self.route("POST", ("train",), self.run_training)
+        self.route("POST", ("upgrade_pipelines",), self.upgrade_pipelines)
         self.route("POST", ("postprocess", ":id"), self.postprocess)
         self.route("POST", ("attribute",), self.create_attribute)
         self.route("GET", ("attribute",), self.get_attributes)
@@ -55,6 +62,15 @@ class Viame(Resource):
         self.route("POST", ("validate_files",), self.validate_files)
         self.route("DELETE", ("attribute", ":id"), self.delete_attribute)
         self.route("GET", ("valid_images",), self.get_valid_images)
+
+    @access.admin
+    @autoDescribeRoute(Description("Upgrade pipelines"))
+    def upgrade_pipelines(self):
+        token = Token().createToken(user=self.getCurrentUser(), days=1)
+        upgrade_pipelines.delay(
+            girder_job_title="Upgrade Pipelines",
+            girder_client_token=str(token["_id"]),
+        )
 
     @access.public
     @autoDescribeRoute(Description("Get custom brand data"))

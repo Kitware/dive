@@ -48,6 +48,42 @@ class Config:
 
 
 @app.task(bind=True, acks_late=True)
+def upgrade_pipelines(self: Task):
+    conf = Config()
+    manager: JobManager = self.job_manager
+    shutil.rmtree(conf.pipeline_base_path)
+    os.makedirs(conf.pipeline_base_path, exist_ok=True)
+    commands = [
+        '/opt/noaa/viame/bin/download_viame_addons.sh',
+        '/opt/noaa/viame/bin/filter_non_web_pipelines.sh',
+    ]
+    process_log_file = tempfile.TemporaryFile()
+    process_err_file = tempfile.TemporaryFile()
+
+    if self.canceled:
+        manager.updateStatus(JobStatus.CANCELED)
+        return
+
+    for cmd in commands:
+        process = Popen(
+            cmd,
+            stderr=process_err_file,
+            stdout=process_log_file,
+            shell=True,
+            executable='/bin/bash',
+            env=conf.gpu_process_env,
+        )
+        stdout, stderr = read_and_close_process_outputs(
+            process, self, process_log_file, process_err_file
+        )
+        if self.canceled:
+            manager.updateStatus(JobStatus.CANCELED)
+            return
+        output = stdout + "\n" + stderr
+        manager.write(output)
+
+
+@app.task(bind=True, acks_late=True)
 def run_pipeline(self: Task, params: PipelineJob):
     conf = Config()
     manager: JobManager = self.job_manager
