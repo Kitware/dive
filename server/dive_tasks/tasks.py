@@ -3,7 +3,7 @@ import os
 import shutil
 import tempfile
 from pathlib import Path
-from subprocess import DEVNULL, Popen
+from subprocess import DEVNULL, Popen, PIPE, TimeoutExpired
 from typing import Dict, List
 
 from girder_client import GirderClient
@@ -54,11 +54,9 @@ def upgrade_pipelines(self: Task):
     shutil.rmtree(conf.pipeline_base_path)
     os.makedirs(conf.pipeline_base_path, exist_ok=True)
     commands = [
-        '/opt/noaa/viame/bin/download_viame_addons.sh',
-        '/opt/noaa/viame/bin/filter_non_web_pipelines.sh',
+        'exec /opt/noaa/viame/bin/download_viame_addons.sh',
+        'exec /opt/noaa/viame/bin/filter_non_web_pipelines.sh',
     ]
-    process_log_file = tempfile.TemporaryFile()
-    process_err_file = tempfile.TemporaryFile()
 
     if self.canceled:
         manager.updateStatus(JobStatus.CANCELED)
@@ -67,20 +65,23 @@ def upgrade_pipelines(self: Task):
     for cmd in commands:
         process = Popen(
             cmd,
-            stderr=process_err_file,
-            stdout=process_log_file,
+            stdout=PIPE,
             shell=True,
             executable='/bin/bash',
             env=conf.gpu_process_env,
         )
-        stdout, stderr = read_and_close_process_outputs(
-            process, self, process_log_file, process_err_file
-        )
+        while (not self.canceled) and (process.poll() is None):
+            try:
+                output, _ = process.communicate(b'', timeout=10)
+                if output:
+                    manager.write(output.strip().decode('utf-8'))
+            except TimeoutExpired:
+                pass
+
         if self.canceled:
+            process.kill()
             manager.updateStatus(JobStatus.CANCELED)
-            return
-        output = stdout + "\n" + stderr
-        manager.write(output)
+            break
 
 
 @app.task(bind=True, acks_late=True)
