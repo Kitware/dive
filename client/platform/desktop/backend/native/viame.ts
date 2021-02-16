@@ -58,6 +58,14 @@ async function runPipeline(
   const trackOutput = npath.join(jobWorkDir, 'track_output.csv');
   const joblog = npath.join(jobWorkDir, 'runlog.txt');
 
+  const groundTruthFileName = `groundtruth_${meta.id}.csv`;
+  const groundTruthFileStream = fs.createWriteStream(
+    npath.join(jobWorkDir, groundTruthFileName),
+  );
+  const inputData = await common.loadJsonTracks(projectInfo.trackFileAbsPath);
+  await serialize(groundTruthFileStream, inputData, meta);
+  groundTruthFileStream.end();
+
   let command: string[] = [];
   if (meta.type === 'video') {
     const videoAbsPath = npath.join(meta.originalBasePath, meta.originalVideoFile);
@@ -67,6 +75,8 @@ async function runPipeline(
       '-s "input:video_reader:type=vidl_ffmpeg"',
       `-p "${pipelinePath}"`,
       `-s input:video_filename="${videoAbsPath}"`,
+      `-s detection_reader:file_name="${groundTruthFileName}"`,
+      `-s track_reader:file_name=${groundTruthFileName}`,
       `-s detector_writer:file_name="${detectorOutput}"`,
       `-s track_writer:file_name="${trackOutput}"`,
     ];
@@ -83,6 +93,8 @@ async function runPipeline(
       `"${viameConstants.kwiverExe}" runner`,
       `-p "${pipelinePath}"`,
       `-s input:video_filename="${manifestFile}"`,
+      `-s detection_reader:file_name="${groundTruthFileName}"`,
+      `-s track_reader:file_name=${groundTruthFileName}`,
       `-s detector_writer:file_name="${detectorOutput}"`,
       `-s track_writer:file_name="${trackOutput}"`,
     ];
