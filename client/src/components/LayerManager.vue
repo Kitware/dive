@@ -11,7 +11,7 @@ import LineLayer from '../layers/AnnotationLayers/LineLayer';
 import EditAnnotationLayer, { EditAnnotationTypes } from '../layers/EditAnnotationLayer';
 import { FrameDataTrack } from '../layers/LayerTypes';
 import TextLayer, { FormatTextRow } from '../layers/TextLayer';
-import Track, { TrackId } from '../track';
+import { TrackId } from '../track';
 import { geojsonToBound } from '../utils';
 import { VisibleAnnotationTypes } from '../layers';
 
