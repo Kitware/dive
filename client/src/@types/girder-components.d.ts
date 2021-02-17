@@ -16,6 +16,10 @@ declare module '@girder/components/src' {
     size: number;
   }
 
+  export interface GirderJob extends GirderModel {
+    status: number;
+  }
+
   interface GirderRestClientParams {
     apiRoot: string;
     token?: string;

@@ -1,6 +1,6 @@
 **Documentation in progress**
 
-VIAME and VIAME Web are capable of running pre-trained detection and tracking pipelines on your imagery and videos.  This document is to help you decide which pipeline to run.
+VIAME and DIVE are capable of running pre-trained detection and tracking pipelines on your imagery and videos.  This document is to help you decide which pipeline to run.
 
 ## Detection
 

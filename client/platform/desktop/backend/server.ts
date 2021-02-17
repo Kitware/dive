@@ -8,7 +8,7 @@ import express from 'express';
 import bodyparser from 'body-parser';
 import rangeParser from 'range-parser';
 import fs from 'fs-extra';
-import { SaveDetectionsArgs } from 'viame-web-common/apispec';
+import { Attribute, SaveDetectionsArgs } from 'dive-common/apispec';
 
 import settings from './state/settings';
 import * as common from './native/common';
@@ -64,31 +64,47 @@ apirouter.post('/dataset/:id/meta', async (req, res, next) => {
   }
 });
 
+/* LOAD Attributes */
+apirouter.get('/dataset/:id/attribute', async (req, res, next) => {
+  try {
+    const ds = await common.getAttributes(settings.get(), req.params.id);
+    res.json(ds);
+  } catch (err) {
+    err.status = 500;
+    next(err);
+  }
+});
+
+/* ADD/Update Attribute */
+apirouter.post('/dataset/:id/attribute', async (req, res, next) => {
+  try {
+    const args = req.body as {addNew?: boolean; data: Attribute };
+    await common.setAttribute(settings.get(), req.params.id, args);
+    res.status(200).send('done');
+  } catch (err) {
+    err.status = 500;
+    next(err);
+  }
+});
+
+/* Delete Attribute */
+apirouter.delete('/dataset/:id/attribute', async (req, res, next) => {
+  try {
+    const args = { data: req.body } as { data: Attribute };
+    await common.deleteAttribute(settings.get(), req.params.id, args);
+    res.status(200).send('done');
+  } catch (err) {
+    err.status = 500;
+    next(err);
+  }
+});
+
 /* SAVE detections */
 apirouter.post('/dataset/:id/detections', async (req, res, next) => {
   try {
     const args = req.body as SaveDetectionsArgs;
     await common.saveDetections(settings.get(), req.params.id, args);
     res.status(200).send('done');
-  } catch (err) {
-    err.status = 500;
-    next(err);
-  }
-  return null;
-});
-
-/* IMPORT dataset */
-apirouter.post('/import', async (req, res, next) => {
-  const { path } = req.query;
-  if (!path || Array.isArray(path)) {
-    return next({
-      status: 500,
-      statusMessage: `Invalid path: ${path}`,
-    });
-  }
-  try {
-    const meta = await common.importMedia(settings.get(), path.toString());
-    res.json(meta);
   } catch (err) {
     err.status = 500;
     next(err);

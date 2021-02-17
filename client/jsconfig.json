@@ -1,7 +1,7 @@
 {
   "include": [
     "src/**/*",
-    "viame-web-common/**/*"
+    "dive-common/**/*"
   ],
   "compilerOptions": {
     "baseUrl": "",
@@ -9,8 +9,8 @@
       "vue-media-annotator/*": [
         "src/*"
       ],
-      "viame-web-common/*": [
-        "viame-web-common/*"
+      "dive-common/*": [
+        "dive-common/*"
       ]
     }
   }

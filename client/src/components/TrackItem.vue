@@ -114,7 +114,7 @@ export default defineComponent({
     }
 
     function onBlur(e: KeyboardEvent) {
-      if (data.trackTypeValue === '') {
+      if (data.trackTypeValue.trim() === '') {
         data.trackTypeValue = props.trackType;
       } else if (data.trackTypeValue !== props.trackType) {
         handler.trackTypeChange(props.track.trackId, data.trackTypeValue);

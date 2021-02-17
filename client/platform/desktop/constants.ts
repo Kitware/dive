@@ -1,10 +1,25 @@
 import type {
+  Attribute,
   DatasetMeta, DatasetMetaMutable, DatasetType, Pipe,
-} from 'viame-web-common/apispec';
+} from 'dive-common/apispec';
 
 export const websafeVideoTypes = [
   'video/mp4',
   'video/webm',
+];
+
+export const otherVideoTypes = [
+  'video/quicktime',
+  'video/x-msvideo',
+  'video/x-ms-wmv',
+];
+
+export const fileVideoTypes = [
+  'mp4',
+  'webm',
+  'avi',
+  'mov',
+  'wmv',
 ];
 
 export const websafeImageTypes = [
@@ -20,6 +35,10 @@ export const websafeImageTypes = [
 export const otherImageTypes = [
   'image/avif',
   'image/tiff',
+  'image/bmp',
+  'image/x-windows-bmp',
+  'image/sgi',
+  'image/x-portable-graymap',
 ];
 
 export const JsonMetaCurrentVersion = 1;
@@ -33,6 +52,8 @@ export interface Settings {
   // dataPath path to a userspace data directory
   dataPath: string;
 }
+
+export type Attributes = Record<string, Attribute>;
 
 /**
  * JsonMeta is a SUBSET of DatasetMeta contained within
@@ -119,17 +140,22 @@ export interface RunTraining {
   trainingConfig: string;
 }
 
+export interface ConversionArgs {
+  meta: JsonMeta;
+  mediaList: [string, string][];
+}
+
 export interface DesktopJob {
   // key unique identifier for this job
   key: string;
   // command that was run
   command: string;
   // jobType identify type of job
-  jobType: 'pipeline' | 'training';
+  jobType: 'pipeline' | 'training' | 'conversion';
   // title whatever humans should see this job called
   title: string;
   // arguments to creation
-  args: RunPipeline | RunTraining;
+  args: RunPipeline | RunTraining | ConversionArgs;
   // datasetIds of the involved datasets
   datasetIds: string[];
   // pid of the process spawned
@@ -147,4 +173,24 @@ export interface DesktopJob {
 export interface DesktopJobUpdate extends DesktopJob {
   // body contents of update payload
   body: string[];
+}
+
+export type DesktopJobUpdater = (msg: DesktopJobUpdate) => void;
+
+export interface FFProbeResults {
+  streams?: [{
+    codec_type?: string;
+    codec_name?: string;
+  }];
+}
+
+export type ConvertMedia =
+(settings: Settings,
+  args: ConversionArgs,
+  updater: DesktopJobUpdater) => Promise<DesktopJob>;
+
+export interface ExportDatasetArgs {
+  id: string;
+  exclude: boolean;
+  path: string;
 }

@@ -1,16 +1,17 @@
 import type { FileFilter } from 'electron';
 
+import npath from 'path';
 import axios, { AxiosInstance } from 'axios';
 import { ipcRenderer, remote } from 'electron';
 
 import type {
   Attribute, DatasetMetaMutable, DatasetType,
   Pipe, Pipelines, SaveDetectionsArgs, TrainingConfigs,
-} from 'viame-web-common/apispec';
+} from 'dive-common/apispec';
 
 import {
   DesktopJob, DesktopMetadata, JsonMeta, NvidiaSmiReply,
-  RunPipeline, RunTraining, websafeVideoTypes,
+  RunPipeline, RunTraining, fileVideoTypes, ExportDatasetArgs,
 } from 'platform/desktop/constants';
 
 /**
@@ -21,7 +22,7 @@ async function openFromDisk(datasetType: DatasetType) {
   let filters: FileFilter[] = [];
   if (datasetType === 'video') {
     filters = [
-      { name: 'Videos', extensions: websafeVideoTypes.map((str) => str.split('/')[1]) },
+      { name: 'Videos', extensions: fileVideoTypes },
     ];
   }
   const results = await remote.dialog.showOpenDialog({
@@ -70,6 +71,25 @@ async function runTraining(
   return ipcRenderer.invoke('run-training', args);
 }
 
+async function importMedia(path: string): Promise<JsonMeta> {
+  const data: JsonMeta = await ipcRenderer.invoke('import-media', path);
+  return data;
+}
+
+async function exportDataset(id: string, exclude: boolean): Promise<string> {
+  const location = await remote.dialog.showSaveDialog({
+    title: 'Export Dataset',
+    defaultPath: npath.join(remote.app.getPath('home'), `result_${id}.csv`),
+  });
+  if (!location.canceled && location.filePath) {
+    const args: ExportDatasetArgs = {
+      id, exclude, path: location.filePath,
+    };
+    return ipcRenderer.invoke('export-dataset', args);
+  }
+  return '';
+}
+
 /**
  * REST api for larger-body messages
  */
@@ -104,30 +124,21 @@ async function saveDetections(id: string, args: SaveDetectionsArgs) {
   return client.post(`dataset/${id}/detections`, args);
 }
 
-async function importMedia(path: string): Promise<JsonMeta> {
+async function getAttributes(datasetId: string) {
   const client = await getClient();
-  const { data } = await client.post<JsonMeta>('import', undefined, {
-    params: { path },
-  });
+  const { data } = await client.get<Attribute[]>(`dataset/${datasetId}/attribute`);
   return data;
 }
 
-/**
- * Unimplemented sections of the API
- */
-
-async function getAttributes() {
-  return Promise.resolve([] as Attribute[]);
+async function setAttribute(datasetId: string, { addNew, data }:
+  {addNew?: boolean; data: Attribute}) {
+  const client = await getClient();
+  return client.post(`dataset/${datasetId}/attribute`, { addNew, data });
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-async function setAttribute({ addNew, data }: {addNew: boolean | undefined; data: Attribute}) {
-  return Promise.resolve();
-}
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-async function deleteAttribute(data: Attribute) {
-  return Promise.resolve([] as Attribute[]);
+async function deleteAttribute(datasetId: string, data: Attribute) {
+  const client = await getClient();
+  return client.delete(`dataset/${datasetId}/attribute`, { data });
 }
 
 export {
@@ -143,6 +154,7 @@ export {
   saveMetadata,
   saveDetections,
   /* Nonstandard APIs */
+  exportDataset,
   importMedia,
   openFromDisk,
   openLink,

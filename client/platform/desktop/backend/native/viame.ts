@@ -3,29 +3,39 @@ import { spawn } from 'child_process';
 import fs from 'fs-extra';
 
 import {
-  Settings, DesktopJob, DesktopJobUpdate, RunPipeline, RunTraining,
+  Settings, DesktopJob, RunPipeline, RunTraining, FFProbeResults,
+  ConversionArgs,
+  DesktopJobUpdater,
 } from 'platform/desktop/constants';
 import { serialize } from 'platform/desktop/backend/serializers/viame';
 
 import * as common from './common';
-import { cleanString, jobFileEchoMiddleware } from './utils';
+import { cleanString, jobFileEchoMiddleware, spawnResult } from './utils';
 
 const PipelineRelativeDir = 'configs/pipelines';
+
+
+interface FFmpegSettings {
+  initialization: string;
+  path: string;
+  encoding: string;
+}
 
 interface ViameConstants {
   setupScriptAbs: string; // abs path setup comman
   trainingExe: string; // name of training binary on PATH
   kwiverExe: string; // name of kwiver binary on PATH
   shell: string | boolean; // shell arg for spawn
+  ffmpeg: FFmpegSettings; //ffmpeg settings
 }
 
 /**
- * a node.js implementation of viame_tasks.tasks.run_pipeline
+ * a node.js implementation of dive_tasks.tasks.run_pipeline
  */
 async function runPipeline(
   settings: Settings,
   runPipelineArgs: RunPipeline,
-  updater: (msg: DesktopJobUpdate) => void,
+  updater: DesktopJobUpdater,
   validateViamePath: (settings: Settings) => Promise<true | string>,
   viameConstants: ViameConstants,
 ): Promise<DesktopJob> {
@@ -36,7 +46,10 @@ async function runPipeline(
     throw new Error(isValid);
   }
 
-  const pipelinePath = npath.join(settings.viamePath, PipelineRelativeDir, pipeline.pipe);
+  let pipelinePath = npath.join(settings.viamePath, PipelineRelativeDir, pipeline.pipe);
+  if (runPipelineArgs.pipeline.type === 'trained') {
+    pipelinePath = pipeline.pipe;
+  }
   const projectInfo = await common.getValidatedProjectDir(settings, datasetId);
   const meta = await common.loadJsonMetadata(projectInfo.metaFileAbsPath);
   const jobWorkDir = await common.createKwiverRunWorkingDir(settings, [meta], pipeline.name);
@@ -125,12 +138,12 @@ async function runPipeline(
 }
 
 /**
- * a node.js implementation of viame_tasks.tasks.run_training
+ * a node.js implementation of dive_tasks.tasks.run_training
  */
 async function train(
   settings: Settings,
   runTrainingArgs: RunTraining,
-  updater: (msg: DesktopJobUpdate) => void,
+  updater: DesktopJobUpdater,
   validateViamePath: (settings: Settings) => Promise<true | string>,
   viameConstants: ViameConstants,
 ): Promise<DesktopJob> {
@@ -207,6 +220,8 @@ async function train(
     `--input-truth "${groundTruthFileList}"`,
     `--config "${configFilePath}"`,
     '--no-query',
+    '--no-adv-prints',
+    '--no-embedded-pipe',
   ];
 
   const job = spawn(command.join(' '), {
@@ -238,18 +253,126 @@ async function train(
 
   job.stdout.on('data', jobFileEchoMiddleware(jobBase, updater, joblog));
   job.stderr.on('data', jobFileEchoMiddleware(jobBase, updater, joblog));
-  job.on('exit', (code) => {
+  job.on('exit', async (code) => {
+    let exitCode = code;
+    const bodyText = [''];
+    if (code === 0) {
+      try {
+        await common.processTrainedPipeline(
+          settings, runTrainingArgs, jobWorkDir,
+        );
+      } catch (err) {
+        console.error(err);
+        exitCode = 1;
+        bodyText.unshift(err.toString('utf-8'));
+        fs.appendFile(joblog, bodyText[0], (error) => {
+          if (error) throw error;
+        });
+      }
+    }
     updater({
       ...jobBase,
-      body: [''],
-      exitCode: code,
+      body: bodyText,
+      exitCode,
       endTime: new Date(),
     });
   });
   return jobBase;
 }
 
+async function checkMedia(
+  viameConstants: ViameConstants,
+  file: string,
+): Promise<boolean> {
+  const ffprobePath = `${viameConstants.ffmpeg.path.replace('ffmpeg', 'ffprobe')}`;
+  const command = [
+    `${viameConstants.ffmpeg.initialization}`,
+    `${ffprobePath}`,
+    '-print_format',
+    'json',
+    '-v',
+    'quiet',
+    '-show_format',
+    '-show_streams',
+    file,
+  ];
+  const result = await spawnResult(command.join(' '), viameConstants.shell);
+  if (result.error || result.output === null) {
+    throw result.error || 'Error using ffprobe';
+  }
+  const returnText = result.output;
+  const ffprobeJSON: FFProbeResults = JSON.parse(returnText);
+  if (ffprobeJSON && ffprobeJSON.streams) {
+    const websafe = ffprobeJSON.streams.filter((el) => el.codec_name === 'h264' && el.codec_type === 'video');
+
+    return !!websafe.length;
+  }
+  return false;
+}
+
+async function convertMedia(settings: Settings,
+  args: ConversionArgs,
+  updater: DesktopJobUpdater,
+  viameConstants: ViameConstants,
+  imageIndex = 0,
+  key = '',
+  baseWorkDir = ''): Promise<DesktopJob> {
+  // Image conversion needs to utilize the baseWorkDir, init or vids create their own directory
+  const jobWorkDir = baseWorkDir || await common.createKwiverRunWorkingDir(settings, [args.meta], 'conversion');
+  const joblog = npath.join(jobWorkDir, 'runlog.txt');
+  const commands = [];
+  if (args.meta.type === 'video' && args.mediaList[0]) {
+    commands.push(`${viameConstants.ffmpeg.initialization} ${viameConstants.ffmpeg.path} -i "${args.mediaList[0][0]}" ${viameConstants.ffmpeg.encoding} "${args.mediaList[0][1]}"`);
+  } else if (args.meta.type === 'image-sequence' && imageIndex < args.mediaList.length) {
+    commands.push(`${viameConstants.ffmpeg.initialization} ${viameConstants.ffmpeg.path} -i "${args.mediaList[imageIndex][0]}" "${args.mediaList[imageIndex][1]}"`);
+  }
+
+  const job = spawn(commands.join(' '), { shell: viameConstants.shell });
+  let jobKey = `convert_${job.pid}_${jobWorkDir}`;
+  if (key.length) {
+    jobKey = key;
+  }
+  const jobBase: DesktopJob = {
+    key: jobKey,
+    pid: job.pid,
+    command: commands.join(' '),
+    args,
+    title: `converting ${args.meta.name}`,
+    jobType: 'conversion',
+    workingDir: jobWorkDir,
+    datasetIds: [args.meta.id],
+    exitCode: job.exitCode,
+    startTime: new Date(),
+  };
+
+  job.stdout.on('data', jobFileEchoMiddleware(jobBase, updater, joblog));
+  job.stderr.on('data', jobFileEchoMiddleware(jobBase, updater, joblog));
+
+
+  job.on('exit', async (code) => {
+    if (code !== 0) {
+      console.error('Error with running conversion');
+    } else if (args.meta.type === 'video' || (args.meta.type === 'image-sequence' && imageIndex === args.mediaList.length - 1)) {
+      common.completeConversion(settings, args.meta.id, jobKey);
+      updater({
+        ...jobBase,
+        body: [''],
+        exitCode: code,
+        endTime: new Date(),
+      });
+    } else if (args.meta.type === 'image-sequence') {
+      updater({
+        ...jobBase,
+        body: [`Conversion ${imageIndex + 1} of ${args.mediaList.length} Complete`],
+      });
+      convertMedia(settings, args, updater, viameConstants, imageIndex + 1, jobKey, jobWorkDir);
+    }
+  });
+  return jobBase;
+}
 export {
   runPipeline,
   train,
+  checkMedia,
+  convertMedia,
 };

@@ -1,12 +1,14 @@
 import { Module } from 'vuex';
 
-import { ImageSequenceType, VideoType } from 'viame-web-common/constants';
-import type { FrameImage } from 'viame-web-common/apispec';
+import { ImageSequenceType, VideoType } from 'dive-common/constants';
+import type { FrameImage } from 'dive-common/apispec';
 import type { GirderMetadataStatic, GirderMetadata } from 'platform/web-girder/constants';
 
 import { getFolder, getItemDownloadUri } from '../api/girder.service';
 import { getValidWebImages } from '../api/viame.service';
 import { getClipMeta } from '../api/viameDetection.service';
+
+import { DatasetState, RootState } from './types';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function isGirderDatasetMeta(obj: any): obj is GirderMetadataStatic {
@@ -24,11 +26,7 @@ function isGirderDatasetMeta(obj: any): obj is GirderMetadataStatic {
 
 const defaultFrameRate = 30;
 
-interface DatasetState {
-  meta: GirderMetadata | null;
-}
-
-const datasetModule: Module<DatasetState, never> = {
+const datasetModule: Module<DatasetState, RootState> = {
   namespaced: true,
   state: {
     meta: null,

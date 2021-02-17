@@ -1,10 +1,10 @@
 <script>
 import { mapState } from 'vuex';
-import { all } from '@girder/components/src/components/Job/status';
 
-import NavigationTitle from 'viame-web-common/components/NavigationTitle.vue';
-import UserGuideButton from 'viame-web-common/components/UserGuideButton.vue';
+import NavigationTitle from 'dive-common/components/NavigationTitle.vue';
+import UserGuideButton from 'dive-common/components/UserGuideButton.vue';
 
+import JobsTab from './JobsTab.vue';
 import { getPathFromLocation } from '../utils';
 
 export default {
@@ -12,28 +12,21 @@ export default {
   components: {
     NavigationTitle,
     UserGuideButton,
+    JobsTab,
   },
-  inject: ['girderRest', 'notificationBus'],
+  inject: ['girderRest'],
   data: () => ({
     runningJobIds: [],
   }),
   computed: {
     ...mapState('Location', ['location']),
+    ...mapState('Brand', ['brandData']),
   },
   async created() {
-    const jobStatus = all();
-    const { data: runningJobs } = await this.girderRest.get('/job', {
-      params: {
-        statuses: `[${jobStatus.RUNNING.value}]`,
-      },
-    });
-    this.runningJobIds = runningJobs.map((job) => job._id);
-    this.notificationBus.$on('message:job_status', this.handleNotification);
     this.girderRest.$on('logout', this.onLogout);
   },
   beforeDestroy() {
     this.girderRest.$off('logout', this.onLogout);
-    this.notificationBus.$off('message:job_status', this.handleNotification);
   },
   methods: {
     getPathFromLocation,
@@ -43,35 +36,13 @@ export default {
     logout() {
       this.girderRest.logout();
     },
-    handleNotification({ data: job }) {
-      const jobStatus = all();
-      const jobId = job._id;
-      switch (job.status) {
-        case jobStatus.RUNNING.value:
-          if (this.runningJobIds.indexOf(jobId) === -1) {
-            this.runningJobIds.push(jobId);
-          }
-          break;
-        case jobStatus.CANCELED.value:
-          // fall through
-        case jobStatus.SUCCESS.value:
-          // fall through
-        case jobStatus.ERROR.value:
-          if (this.runningJobIds.indexOf(jobId) !== -1) {
-            this.runningJobIds.splice(this.runningJobIds.indexOf(jobId), 1);
-          }
-          break;
-        default:
-          break;
-      }
-    },
   },
 };
 </script>
 
 <template>
   <v-app-bar app>
-    <NavigationTitle>VIAME</NavigationTitle>
+    <NavigationTitle :name="brandData.name" />
     <v-tabs
       icons-and-text
       color="accent"
@@ -81,26 +52,7 @@ export default {
       >
         Data<v-icon>mdi-database</v-icon>
       </v-tab>
-      <v-tab to="/jobs">
-        Jobs
-        <v-badge
-          :value="runningJobIds.length"
-          overlap
-          bottom
-          offset-x="-6"
-          offset-y="16"
-        >
-          <template slot="badge">
-            <v-icon
-              dark
-              class="rotate"
-            >
-              mdi-autorenew
-            </v-icon>
-          </template>
-          <v-icon>mdi-format-list-checks</v-icon>
-        </v-badge>
-      </v-tab>
+      <JobsTab />
       <v-tab to="/settings">
         Settings<v-icon>mdi-settings</v-icon>
       </v-tab>

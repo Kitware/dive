@@ -1,14 +1,17 @@
 <script lang="ts">
 import { defineComponent } from '@vue/composition-api';
 
-import Viewer from 'viame-web-common/components/Viewer.vue';
-import RunPipelineMenu from 'viame-web-common/components/RunPipelineMenu.vue';
+import Viewer from 'dive-common/components/Viewer.vue';
+import RunPipelineMenu from 'dive-common/components/RunPipelineMenu.vue';
+
+import Export from './Export.vue';
 import JobTab from './JobTab.vue';
 
 import { datasets } from '../store/dataset';
 
 export default defineComponent({
   components: {
+    Export,
     JobTab,
     RunPipelineMenu,
     Viewer,
@@ -45,15 +48,13 @@ export default defineComponent({
           Settings<v-icon>mdi-settings</v-icon>
         </v-tab>
       </v-tabs>
-      <span
-        v-if="datasets[id]"
-        class="title pl-3"
-      >
-        {{ datasets[id].name }}
-      </span>
     </template>
     <template #title-right>
       <RunPipelineMenu :selected-dataset-ids="[id]" />
+      <Export
+        v-if="datasets[id]"
+        :id="id"
+      />
     </template>
   </Viewer>
 </template>

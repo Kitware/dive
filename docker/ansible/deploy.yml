@@ -32,7 +32,7 @@
       mail:
         from: "{{ deploy_email_address }}"
         to: "{{ notify_email_address  }}"
-        subject: Failed Build of Viame-Web
+        subject: Failed Build of DIVE
         body: |
           Captured stdout:
           {{ build.module_stdout  }}

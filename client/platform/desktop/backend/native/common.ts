@@ -1,6 +1,7 @@
 /**
  * Common native implementations
  */
+
 import npath from 'path';
 import fs from 'fs-extra';
 import { shell } from 'electron';
@@ -9,19 +10,22 @@ import moment from 'moment';
 import lockfile from 'proper-lockfile';
 import {
   DatasetType, MultiTrackRecord, Pipelines, SaveDetectionsArgs,
-  FrameImage, DatasetMetaMutable, TrainingConfigs,
-} from 'viame-web-common/apispec';
+  FrameImage, DatasetMetaMutable, TrainingConfigs, Attribute,
+} from 'dive-common/apispec';
 import * as viameSerializers from 'platform/desktop/backend/serializers/viame';
 
 import {
-  websafeImageTypes, websafeVideoTypes, otherImageTypes,
-  JsonMeta, Settings, JsonMetaCurrentVersion, DesktopMetadata,
+  websafeImageTypes, websafeVideoTypes, otherImageTypes, otherVideoTypes,
+  JsonMeta, Settings, JsonMetaCurrentVersion, DesktopMetadata, DesktopJobUpdater,
+  ConvertMedia, RunTraining, Attributes, ExportDatasetArgs,
 } from 'platform/desktop/constants';
-
+import processTrackAttributes from './attributeProcessor';
 import { cleanString, makeid } from './utils';
 
 const ProjectsFolderName = 'DIVE_Projects';
 const JobsFolderName = 'DIVE_Jobs';
+const PipelinesFolderName = 'DIVE_Pipelines';
+
 const AuxFolderName = 'auxiliary';
 
 const JsonTrackFileName = /^result(_.*)?\.json$/;
@@ -152,11 +156,17 @@ async function loadMetadata(
       videoUrl = makeMediaUrl(video);
     }
   } else if (projectMetaData.type === 'image-sequence') {
-    /* TODO: if images were transcoded, use them */
-    imageData = projectMetaData.originalImageFiles.map((filename: string) => ({
-      url: makeMediaUrl(npath.join(projectMetaData.originalBasePath, filename)),
-      filename,
-    }));
+    if (projectMetaData.transcodedImageFiles && projectMetaData.transcodedImageFiles.length) {
+      imageData = projectMetaData.transcodedImageFiles.map((filename: string) => ({
+        url: makeMediaUrl(npath.join(projectDirData.basePath, filename)),
+        filename,
+      }));
+    } else {
+      imageData = projectMetaData.originalImageFiles.map((filename: string) => ({
+        url: makeMediaUrl(npath.join(projectMetaData.originalBasePath, filename)),
+        filename,
+      }));
+    }
   } else {
     throw new Error(`unexpected project type for id="${datasetId}" type="${projectMetaData.type}"`);
   }
@@ -206,6 +216,41 @@ async function getPipelineList(settings: Settings): Promise<Pipelines> {
       };
     }
   });
+
+  // Now lets add to it the trained pipelines by recursively looking in the dir
+  const allowedTrainedPatterns = /^detector.+|^tracker.+|^generate.+|^trained_detector\.zip|^trained_tracker\.zip|^trained_generate\.zip/;
+  const trainedPipelinePath = npath.join(settings.dataPath, PipelinesFolderName);
+  const trainedExists = await fs.pathExists(trainedPipelinePath);
+  if (!trainedExists) return ret;
+  const trainedPipeFolders = await fs.readdir(trainedPipelinePath);
+  await Promise.all(trainedPipeFolders.map(async (item) => {
+    const pipeFolder = npath.join(trainedPipelinePath, item);
+    const pipeFolderExists = await fs.pathExists(pipeFolder);
+    if (!pipeFolderExists) return false;
+    let pipesInFolder = await fs.readdir(pipeFolder);
+    pipesInFolder = pipesInFolder.filter(
+      (p: string) => p.match(allowedTrainedPatterns) && !p.match(disallowedPatterns),
+    );
+    if (pipesInFolder.length >= 2) {
+      const pipeName = pipesInFolder.find((pipe) => pipe && pipe.indexOf('.pipe') !== -1);
+      if (pipeName) {
+        const pipeInfo = {
+          name: item,
+          type: 'trained',
+          pipe: npath.join(pipeFolder, pipeName),
+        };
+        if ('trained' in ret) {
+          ret.trained.pipes.push(pipeInfo);
+        } else {
+          ret.trained = {
+            pipes: [pipeInfo],
+            description: 'trained pipes',
+          };
+        }
+      }
+    }
+    return true;
+  }));
   return ret;
 }
 
@@ -315,8 +360,50 @@ async function saveMetadata(settings: Settings, datasetId: string, args: Dataset
   if (args.customTypeStyling) {
     existing.customTypeStyling = args.customTypeStyling;
   }
+  if (args.attributes) {
+    existing.attributes = args.attributes;
+  }
   await _saveAsJson(projectDirInfo.metaFileAbsPath, existing);
   await release();
+}
+
+async function getAttributes(settings: Settings, datasetId: string):
+  Promise<Attribute[]> {
+  const projectDirData = await getValidatedProjectDir(settings, datasetId);
+  const projectMetaData = await loadJsonMetadata(projectDirData.metaFileAbsPath);
+  if (projectMetaData.attributes) {
+    return Object.values(projectMetaData.attributes);
+  }
+  return [];
+}
+
+async function setAttribute(settings: Settings, datasetId: string, { data }:
+  {data: Attribute }) {
+  const projectDirData = await getValidatedProjectDir(settings, datasetId);
+  const projectMetaData = await loadJsonMetadata(projectDirData.metaFileAbsPath);
+  if (!projectMetaData.attributes) {
+    projectMetaData.attributes = {};
+  }
+  // Reassign _id based on name if it is a new item
+  if (data._id === '') {
+    // eslint-disable-next-line no-param-reassign
+    data._id = `${data.belongs}_${data.name}`;
+  }
+  projectMetaData.attributes[data._id] = data;
+  await saveMetadata(settings, datasetId, projectMetaData);
+}
+
+async function deleteAttribute(settings: Settings, datasetId: string, { data }:
+  { data: Attribute }) {
+  const projectDirData = await getValidatedProjectDir(settings, datasetId);
+  const projectMetaData = await loadJsonMetadata(projectDirData.metaFileAbsPath);
+  if (!projectMetaData.attributes) {
+    return;
+  }
+  if (projectMetaData.attributes[data._id]) {
+    delete projectMetaData.attributes[data._id];
+  }
+  await saveMetadata(settings, datasetId, projectMetaData);
 }
 
 /**
@@ -333,9 +420,10 @@ async function processOtherAnnotationFiles(
   settings: Settings,
   datasetId: string,
   absPaths: string[],
-): Promise<{ fps?: number; processedFiles: string[] }> {
+): Promise<{ fps?: number; processedFiles: string[]; attributes?: Attributes }> {
   const fps = undefined;
   const processedFiles = []; // which files were processed to generate the detections
+  let attributes: Attributes = {};
 
   for (let i = 0; i < absPaths.length; i += 1) {
     const path = absPaths[i];
@@ -348,10 +436,10 @@ async function processOtherAnnotationFiles(
       try {
         // eslint-disable-next-line no-await-in-loop
         const tracks = await viameSerializers.parseFile(path);
-        const data: MultiTrackRecord = {};
-        tracks.forEach((t) => { data[t.trackId.toString()] = t; });
+        const processed = processTrackAttributes(tracks);
+        attributes = processed.attributes;
         // eslint-disable-next-line no-await-in-loop
-        await _saveSerialized(settings, datasetId, data, true);
+        await _saveSerialized(settings, datasetId, processed.data, true);
         processedFiles.push(path);
         break; // Exit on first successful detection load
       } catch (err) {
@@ -360,7 +448,41 @@ async function processOtherAnnotationFiles(
       }
     }
   }
-  return { fps, processedFiles };
+  return { fps, processedFiles, attributes };
+}
+/**
+ * Need to take the trained pipeline if it exists and place it in the DIVE_Pipelines folder
+ */
+async function processTrainedPipeline(settings: Settings, args: RunTraining, workingDir: string) {
+  //Look for trained_detector.zip and detector.pipe and move them to DIVE_Pipelines folder
+  const allowedPatterns = /^detector.+|^tracker.+|^generate.+/;
+  const trainedDir = npath.join(workingDir, '/category_models');
+  const exists = await fs.pathExists(trainedDir);
+  if (!exists) {
+    throw new Error(`Path: ${trainedDir} does not exist`);
+  }
+  const folderContents = await fs.readdir(trainedDir);
+  const pipes = folderContents.filter((p) => p.match(allowedPatterns));
+
+  if (!pipes.length) {
+    throw new Error(`Could not located trained pipe file inside of ${trainedDir}`);
+  }
+  const baseFolder = npath.join(settings.dataPath, PipelinesFolderName);
+  if (!fs.existsSync(baseFolder)) {
+    await fs.mkdir(baseFolder);
+  }
+
+  const folderName = npath.join(baseFolder, args.pipelineName);
+  if (!fs.existsSync(folderName)) {
+    await fs.mkdir(folderName);
+  }
+  //Move detector and model to the new folder
+  await Promise.all(folderContents.map(async (item) => {
+    const abspath = npath.join(trainedDir, item);
+    const destpath = npath.join(folderName, item);
+    await fs.move(abspath, destpath, { overwrite: true });
+  }));
+  return folderContents;
 }
 
 async function _initializeAppDataDir(settings: Settings) {
@@ -387,7 +509,15 @@ async function _initializeProjectDir(settings: Settings, jsonMeta: JsonMeta): Pr
  * @param path path to import dir/file
  * @returns datasetId
  */
-async function importMedia(settings: Settings, path: string): Promise<JsonMeta> {
+async function importMedia(
+  settings: Settings,
+  path: string,
+  updater: DesktopJobUpdater,
+  { checkMedia, convertMedia }: {
+  checkMedia: (settings: Settings, path: string) => Promise<boolean>;
+  convertMedia: ConvertMedia;
+},
+): Promise<JsonMeta> {
   let datasetType: DatasetType;
 
   const exists = fs.existsSync(path);
@@ -416,8 +546,8 @@ async function importMedia(settings: Settings, path: string): Promise<JsonMeta> 
     originalVideoFile: '',
     createdAt: (new Date()).toString(),
     originalImageFiles: [],
-    transcodedVideoFile: '', // TODO: this is empty (see above)
-    transcodedImageFiles: [], // TODO: this is empty
+    transcodedVideoFile: '',
+    transcodedImageFiles: [],
     name: dsName,
   };
 
@@ -430,6 +560,7 @@ async function importMedia(settings: Settings, path: string): Promise<JsonMeta> 
 
   const contents = await fs.readdir(jsonMeta.originalBasePath);
 
+  let mediaConvertList: string[] = [];
   /* Extract and validate media from import path */
   if (jsonMeta.type === 'video') {
     jsonMeta.originalVideoFile = npath.basename(path);
@@ -437,8 +568,11 @@ async function importMedia(settings: Settings, path: string): Promise<JsonMeta> 
     if (mimetype) {
       if (websafeImageTypes.includes(mimetype) || otherImageTypes.includes(mimetype)) {
         throw new Error('User chose image file for video import option');
-      } else if (websafeVideoTypes.includes(mimetype)) {
-        /* TODO: Kick off video inspection and maybe transcode */
+      } else if (websafeVideoTypes.includes(mimetype) || otherVideoTypes.includes(mimetype)) {
+        const webSafeVideo = await checkMedia(settings, path);
+        if (!webSafeVideo || otherVideoTypes.includes(mimetype)) {
+          mediaConvertList.push(path);
+        }
       } else {
         throw new Error(`unsupported MIME type for video ${mimetype}`);
       }
@@ -446,21 +580,63 @@ async function importMedia(settings: Settings, path: string): Promise<JsonMeta> 
       throw new Error(`could not determine video MIME type for ${path}`);
     }
   } else if (datasetType === 'image-sequence') {
-    jsonMeta.originalImageFiles = contents.filter((filename) => {
+    const tempConvertList: string[] = [];
+    let convertAny = false; //If we have to convert one image we convert all for organization
+    contents.forEach((filename) => {
       const abspath = npath.join(jsonMeta.originalBasePath, filename);
       const mimetype = mime.lookup(abspath);
-      /* TODO: support transcoding of non-web-safe image types */
-      return !!(mimetype && websafeImageTypes.includes(mimetype));
+      if (
+        mimetype && (websafeImageTypes.includes(mimetype)
+        || otherImageTypes.includes(mimetype))
+      ) {
+        jsonMeta.originalImageFiles.push(filename);
+        tempConvertList.push(abspath);
+        if (otherImageTypes.includes(mimetype)) {
+          convertAny = true;
+        }
+      }
     });
     if (jsonMeta.originalImageFiles.length === 0) {
       throw new Error(`no images found in ${path}`);
+    }
+    if (convertAny) {
+      mediaConvertList = tempConvertList;
     }
   } else {
     throw new Error('only video and image-sequence types are supported');
   }
 
   const projectDirAbsPath = await _initializeProjectDir(settings, jsonMeta);
-  await _saveAsJson(npath.join(projectDirAbsPath, JsonMetaFileName), jsonMeta);
+
+  //Now we will kick off any conversions that are necessary
+  let jobBase = null;
+  if (mediaConvertList.length) {
+    const srcDstList: [string, string][] = [];
+    const extension = datasetType === 'video' ? '.mp4' : '.png';
+    mediaConvertList.forEach((item) => {
+      const destLoc = item.replace(jsonMeta.originalBasePath, projectDirAbsPath);
+      const destAbsPath = destLoc.replace(npath.extname(item), extension);
+      if (datasetType === 'video') {
+        jsonMeta.transcodedVideoFile = npath.basename(destAbsPath);
+      } else if (datasetType === 'image-sequence') {
+        if (!jsonMeta.transcodedImageFiles) {
+          jsonMeta.transcodedImageFiles = [];
+        }
+        jsonMeta.transcodedImageFiles.push(npath.basename(destAbsPath));
+      }
+      srcDstList.push([item, destAbsPath]);
+    });
+    jobBase = await convertMedia(
+      settings,
+      {
+        meta: jsonMeta,
+        mediaList: srcDstList,
+      },
+      updater,
+    );
+    jsonMeta.transcodingJobKey = jobBase.key;
+  }
+
 
   let foundDetections = false;
 
@@ -472,6 +648,10 @@ async function importMedia(settings: Settings, path: string): Promise<JsonMeta> 
       trackFileAbsPath,
       npath.join(projectDirAbsPath, npath.basename(trackFileAbsPath)),
     );
+    //Load tracks to generate attributes
+    const tracks = await loadJsonTracks(trackFileAbsPath);
+    const { attributes } = processTrackAttributes(Object.values(tracks));
+    if (attributes) jsonMeta.attributes = attributes;
     foundDetections = true;
   }
   /* Look for other types of annotation files as a second priority */
@@ -482,12 +662,16 @@ async function importMedia(settings: Settings, path: string): Promise<JsonMeta> 
     if (csvFileCandidates.length > 1) {
       throw new Error(`too many CSV files found in ${jsonMeta.originalBasePath}, expected at most 1`);
     }
-    const { fps, processedFiles } = await processOtherAnnotationFiles(
+    const { fps, processedFiles, attributes } = await processOtherAnnotationFiles(
       settings, dsId, csvFileCandidates,
     );
     if (fps) jsonMeta.fps = fps;
+    if (attributes) jsonMeta.attributes = attributes;
     foundDetections = processedFiles.length > 0;
   }
+
+  await _saveAsJson(npath.join(projectDirAbsPath, JsonMetaFileName), jsonMeta);
+
   /* Finally create an empty file as fallback */
   if (!foundDetections) {
     await _saveSerialized(settings, dsId, {}, true);
@@ -496,14 +680,42 @@ async function importMedia(settings: Settings, path: string): Promise<JsonMeta> 
   return jsonMeta;
 }
 
+/**
+ * After media conversion we need to remove the transcodingKey to signify it is done
+ */
+async function completeConversion(
+  settings: Settings, datasetId: string, transcodingJobKey: string,
+) {
+  const projectDirInfo = await getValidatedProjectDir(settings, datasetId);
+  const existing = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
+  if (existing.transcodingJobKey === transcodingJobKey) {
+    existing.transcodingJobKey = undefined;
+    saveMetadata(settings, datasetId, existing);
+  }
+}
+
 async function openLink(url: string) {
   shell.openExternal(url);
+}
+
+async function exportDataset(
+  settings: Settings,
+  args: ExportDatasetArgs,
+) {
+  const projectDirInfo = await getValidatedProjectDir(settings, args.id);
+  const meta = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
+  const data = await loadJsonTracks(projectDirInfo.trackFileAbsPath);
+  return viameSerializers.serializeFile(args.path, data, meta, {
+    excludeBelowThreshold: args.exclude,
+    header: true,
+  });
 }
 
 export {
   ProjectsFolderName,
   JobsFolderName,
   createKwiverRunWorkingDir,
+  exportDataset,
   getPipelineList,
   getTrainingConfigs,
   getProjectDir,
@@ -517,4 +729,9 @@ export {
   processOtherAnnotationFiles,
   saveDetections,
   saveMetadata,
+  completeConversion,
+  processTrainedPipeline,
+  getAttributes,
+  setAttribute,
+  deleteAttribute,
 };

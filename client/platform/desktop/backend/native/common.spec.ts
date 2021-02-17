@@ -4,8 +4,13 @@ import npath from 'path';
 import fs from 'fs-extra';
 import { Console } from 'console';
 
-import type { JsonMeta, Settings } from 'platform/desktop/constants';
+import type {
+  ConversionArgs,
+  DesktopJob,
+  DesktopJobUpdate, DesktopJobUpdater, JsonMeta, RunTraining, Settings,
+} from 'platform/desktop/constants';
 
+import { Attribute } from 'dive-common/apispec';
 import * as common from './common';
 
 const pipelines = {
@@ -70,7 +75,25 @@ const settings: Settings = {
   viamePath: '/opt/viame',
 };
 const urlMapper = (a: string) => `http://localhost:8888/api/media?path=${a}`;
-
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const updater = (update: DesktopJobUpdate) => undefined;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const checkMedia = async (settingsVal: Settings, file: string) => file.includes('mp4');
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const convertMedia = async (settingsVal: Settings, args: ConversionArgs,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  updaterFunc: DesktopJobUpdater) => ({
+  key: 'jobKey',
+  title: 'title',
+  command: 'command',
+  args: {},
+  jobType: 'conversion',
+  datasetIds: ['datasetId'],
+  pid: 1234,
+  workingDir: 'workingdir',
+  exitCode: null,
+  startTime: new Date(),
+} as DesktopJob);
 // https://github.com/tschaub/mock-fs/issues/234
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const console = new Console(process.stdout, process.stderr);
@@ -92,6 +115,12 @@ mockfs({
       notanimage: '',
       'notanimage.txt': '',
     },
+    metaAttributesID: {
+      'foo.png': '',
+      'bar.png': '',
+      notanimage: '',
+      'notanimage.txt': '',
+    },
     videoSuccess: {
       'video1.avi': '',
       'video1.mp4': '',
@@ -107,6 +136,25 @@ mockfs({
   '/home/user/viamedata': {
     // eslint-disable-next-line @typescript-eslint/camelcase
     DIVE_Jobs: {
+      goodTrainingJob: {
+        // eslint-disable-next-line @typescript-eslint/camelcase
+        category_models: {
+          'detector.pipe': '',
+          'trained_detector.zip': '',
+        },
+      },
+      badTrainingJob: {
+        missingModelFolder: {},
+      },
+      missingPipeTrainingJob: {
+        // eslint-disable-next-line @typescript-eslint/camelcase
+        category_models: {
+          'trained_detector.zip': '',
+        },
+      },
+    },
+    // eslint-disable-next-line @typescript-eslint/camelcase
+    DIVE_Pipelines: {
       /* Empty */
     },
     // eslint-disable-next-line @typescript-eslint/camelcase
@@ -152,6 +200,38 @@ mockfs({
         'result_2.json': '',
         auxiliary: {},
       },
+      metaAttributesID: {
+        'meta.json': JSON.stringify({
+          version: 1,
+          id: 'metaAttributesID',
+          type: 'image-sequence',
+          fps: 5,
+          originalBasePath: '/home/user/media/metaAttributesID',
+          originalImageFiles: [
+            'foo.png',
+            'bar.png',
+          ],
+          attributes: {
+            // eslint-disable-next-line @typescript-eslint/camelcase
+            track_attribute1: {
+              belongs: 'track',
+              datatype: 'text',
+              values: ['value1', 'value2', 'value3'],
+              name: 'attribute1',
+              _id: 'track_attribute1',
+            },
+            // eslint-disable-next-line @typescript-eslint/camelcase
+            detection_attribute1: {
+              belongs: 'detection',
+              datatype: 'number',
+              name: 'attribute1',
+              _id: 'detection_attribute1',
+            },
+          },
+        }),
+        'result_whatever.json': JSON.stringify({}),
+        auxiliary: {},
+      },
     },
   },
 });
@@ -165,7 +245,7 @@ describe('native.common', () => {
     expect(pipes.detector.pipes).toHaveLength(4);
     expect(pipes.tracker.pipes).toHaveLength(5);
     expect(pipes.generate.pipes).toHaveLength(4);
-    expect(pipes.training).toBeUndefined();
+    expect(pipes.trained).toBeUndefined();
   });
 
   it('getValidatedProjectDir loads correct project directory', async () => {
@@ -225,7 +305,7 @@ describe('native.common', () => {
   });
 
   it('importMedia image sequence success', async () => {
-    const meta = await common.importMedia(settings, '/home/user/data/imageSuccess');
+    const meta = await common.importMedia(settings, '/home/user/data/imageSuccess', updater, { checkMedia, convertMedia });
     expect(meta.name).toBe('imageSuccess');
     expect(meta.originalImageFiles.length).toBe(2);
     expect(meta.originalVideoFile).toBe('');
@@ -233,7 +313,7 @@ describe('native.common', () => {
   });
 
   it('importMedia video success', async () => {
-    const meta = await common.importMedia(settings, '/home/user/data/videoSuccess/video1.mp4');
+    const meta = await common.importMedia(settings, '/home/user/data/videoSuccess/video1.mp4', updater, { checkMedia, convertMedia });
     expect(meta.name).toBe('video1');
     expect(meta.originalImageFiles.length).toBe(0);
     expect(meta.originalVideoFile).toBe('video1.mp4');
@@ -241,18 +321,125 @@ describe('native.common', () => {
   });
 
   it('importMedia various failure modes', async () => {
-    await expect(common.importMedia(settings, '/fake/path'))
+    await expect(common.importMedia(settings, '/fake/path', updater, { checkMedia, convertMedia }))
       .rejects.toThrow('file or directory not found');
-    await expect(common.importMedia(settings, '/home/user/data/imageSuccess/foo.png'))
+    await expect(common.importMedia(settings, '/home/user/data/imageSuccess/foo.png', updater, { checkMedia, convertMedia }))
       .rejects.toThrow('chose image file for video import option');
-    await expect(common.importMedia(settings, '/home/user/data/videoSuccess/otherfile.txt'))
+    await expect(common.importMedia(settings, '/home/user/data/videoSuccess/otherfile.txt', updater, { checkMedia, convertMedia }))
       .rejects.toThrow('unsupported MIME type');
-    await expect(common.importMedia(settings, '/home/user/data/videoSuccess/video1.avi'))
-      .rejects.toThrow('unsupported MIME type');
-    await expect(common.importMedia(settings, '/home/user/data/videoSuccess/nomime'))
+    await expect(common.importMedia(settings, '/home/user/data/videoSuccess/nomime', updater, { checkMedia, convertMedia }))
       .rejects.toThrow('could not determine video MIME');
-    await expect(common.importMedia(settings, '/home/user/data/annotationFail/video1.mp4'))
+    await expect(common.importMedia(settings, '/home/user/data/annotationFail/video1.mp4', updater, { checkMedia, convertMedia }))
       .rejects.toThrow('too many CSV');
+  });
+
+  it('importMedia video, start conversion', async () => {
+    const meta = await common.importMedia(settings, '/home/user/data/videoSuccess/video1.avi', updater, { checkMedia, convertMedia });
+    expect(meta.transcodingJobKey).toBe('jobKey');
+    expect(meta.type).toBe('video');
+  });
+
+  it('processing good Trained Pipeline folder', async () => {
+    const trainingArgs: RunTraining = {
+      datasetIds: ['randomID'],
+      pipelineName: 'trainedPipelineName',
+      trainingConfig: 'trainingConfig',
+    };
+    const contents = await common.processTrainedPipeline(settings, trainingArgs, '/home/user/viamedata/DIVE_Jobs/goodTrainingJob/');
+    expect(contents).toEqual(['detector.pipe', 'trained_detector.zip']);
+    //Data should be moved out of the current folder
+    const sourceFolder = fs.readdirSync('/home/user/viamedata/DIVE_Jobs/goodTrainingJob/category_models');
+    expect(sourceFolder.length).toBe(0);
+    //Folders hould be created for new pipeline
+    const pipelineFolder = '/home/user/viamedata/DIVE_Pipelines/trainedPipelineName';
+    const exists = fs.existsSync(pipelineFolder);
+    expect(exists).toBe(true);
+    const folderContents = fs.readdirSync(pipelineFolder);
+    expect(folderContents.length).toBe(2);
+  });
+
+  it('processing bad Trained Pipeline folders', async () => {
+    const trainingArgs: RunTraining = {
+      datasetIds: ['randomID'],
+      pipelineName: 'trainedBadPipelineName',
+      trainingConfig: 'trainingConfig',
+    };
+    expect(common.processTrainedPipeline(settings, trainingArgs, '/home/user/viamedata/DIVE_Jobs/badTrainingJob/')).rejects.toThrow(
+      'Path: /home/user/viamedata/DIVE_Jobs/badTrainingJob/category_models does not exist',
+    );
+    expect(common.processTrainedPipeline(settings, trainingArgs, '/home/user/viamedata/DIVE_Jobs/missingPipeTrainingJob/')).rejects.toThrow(
+      'Could not located trained pipe file inside of /home/user/viamedata/DIVE_Jobs/missingPipeTrainingJob/category_models',
+    );
+  });
+
+  it('getPipelineList lists pipelines with Trained pipelines', async () => {
+    const exists = await fs.pathExists(settings.viamePath);
+    expect(exists).toBe(true);
+    const pipes = await common.getPipelineList(settings);
+    expect(pipes).toBeTruthy();
+    expect(pipes.detector.pipes).toHaveLength(4);
+    expect(pipes.tracker.pipes).toHaveLength(5);
+    expect(pipes.generate.pipes).toHaveLength(4);
+    expect(pipes.trained.pipes).toHaveLength(1);
+  });
+
+  it('getAtributes', async () => {
+    const meta = await common.getAttributes(settings, 'metaAttributesID');
+    //Should return an array of data items
+    expect(meta.length).toBe(2);
+    expect(meta[0].values).toEqual(['value1', 'value2', 'value3']);
+    expect(meta[1].datatype).toBe('number');
+  });
+
+  it('addAttribute', async () => {
+    const templateAttribute: Attribute = {
+      name: 'newAttribute', datatype: 'boolean', belongs: 'track', _id: '',
+    };
+    await common.setAttribute(settings, 'metaAttributesID', {
+      data: templateAttribute,
+    });
+    //Should return an array of data items
+    const meta = await common.getAttributes(settings, 'metaAttributesID');
+    const newAttribute = meta.find((item) => item.name === 'newAttribute');
+    expect(meta.length).toBe(3);
+    expect(newAttribute).toEqual(templateAttribute);
+  });
+
+  it('updateAttribute', async () => {
+    const templateAttribute: Attribute = {
+      name: 'newAttributeName', datatype: 'boolean', belongs: 'track', _id: 'track_attribute1',
+    };
+    await common.setAttribute(settings, 'metaAttributesID', {
+      data: templateAttribute,
+    });
+    //Should return an array of data items
+    const meta = await common.getAttributes(settings, 'metaAttributesID');
+    const updatedAttribute = meta.find((item) => item._id === 'track_attribute1');
+    expect(meta.length).toBe(3);
+    expect(updatedAttribute).toEqual(templateAttribute);
+  });
+
+  it('deleteAttribute', async () => {
+    const deleteAttribute: Attribute = {
+      name: 'attribute1', datatype: 'text', belongs: 'track', _id: 'track_attribute1',
+    };
+    await common.deleteAttribute(settings, 'metaAttributesID', { data: deleteAttribute });
+    const meta = await common.getAttributes(settings, 'metaAttributesID');
+    //Should return an array of data items
+    expect(meta.length).toBe(2);
+    expect(meta[0].datatype).toBe('number');
+  });
+
+  it('initial attribute creation', async () => {
+    const templateAttribute: Attribute = {
+      name: 'newAttribute', datatype: 'boolean', belongs: 'track', _id: '',
+    };
+    await common.setAttribute(settings, 'projectid1VideoGood', {
+      data: templateAttribute,
+    });
+    const meta = await common.getAttributes(settings, 'projectid1VideoGood');
+    expect(meta.length).toBe(1);
+    expect(meta[0]).toEqual(templateAttribute);
   });
 });
 

@@ -3,7 +3,7 @@ import http from 'http';
 import { ipcMain } from 'electron';
 
 import {
-  DesktopJobUpdate, RunPipeline, RunTraining, Settings,
+  DesktopJobUpdate, RunPipeline, RunTraining, Settings, ExportDatasetArgs,
 } from 'platform/desktop/constants';
 
 import linux from './native/linux';
@@ -40,6 +40,10 @@ export default function register() {
   ipcMain.on('update-settings', async (_, s: Settings) => {
     settings.set(s);
   });
+  ipcMain.handle('export-dataset', async (_, args: ExportDatasetArgs) => {
+    const ret = await common.exportDataset(settings.get(), args);
+    return ret;
+  });
 
   /**
    * Platform-dependent methods
@@ -53,6 +57,18 @@ export default function register() {
     const defaults = currentPlatform.DefaultSettings;
     return defaults;
   });
+
+  ipcMain.handle('import-media', async (event, path: string) => {
+    const updater = (update: DesktopJobUpdate) => {
+      event.sender.send('job-update', update);
+    };
+    const ret = await common.importMedia(settings.get(), path, updater, {
+      checkMedia: currentPlatform.checkMedia,
+      convertMedia: currentPlatform.convertMedia,
+    });
+    return ret;
+  });
+
   ipcMain.handle('validate-settings', async (_, s: Settings) => {
     const ret = await currentPlatform.validateViamePath(s);
     return ret;

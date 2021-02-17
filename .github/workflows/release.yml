@@ -57,3 +57,21 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         asset_paths: '["./client/dist_electron/DIVE-Desktop*"]'
+
+  docs:
+    name: Deploy docs
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        # "ref" specifies the branch to check out.
+        # "github.event.release.target_commitish" is a global variable and specifies the branch the release targeted
+        ref: ${{ github.event.release.target_commitish }}
+
+    # Deploy docs
+    - name: Deploy docs
+      uses: mhausenblas/mkdocs-deploy-gh-pages@master
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        CONFIG_FILE: mkdocs.yml
+        EXTRA_PACKAGES: build-base

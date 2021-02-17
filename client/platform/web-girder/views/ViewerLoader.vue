@@ -1,10 +1,11 @@
 <script lang="ts">
 import {
-  computed, defineComponent, onBeforeUnmount, onMounted, ref, toRef,
+  defineComponent, onBeforeUnmount, onMounted, ref, toRef, computed,
 } from '@vue/composition-api';
-import Viewer from 'viame-web-common/components/Viewer.vue';
-import RunPipelineMenu from 'viame-web-common/components/RunPipelineMenu.vue';
-
+import Viewer from 'dive-common/components/Viewer.vue';
+import NavigationTitle from 'dive-common/components/NavigationTitle.vue';
+import RunPipelineMenu from 'dive-common/components/RunPipelineMenu.vue';
+import JobsTab from './JobsTab.vue';
 import { getPathFromLocation } from '../utils';
 import Export from './Export.vue';
 
@@ -13,7 +14,13 @@ import Export from './Export.vue';
  * data from girder.
  */
 export default defineComponent({
-  components: { Export, RunPipelineMenu, Viewer },
+  components: {
+    Export,
+    JobsTab,
+    RunPipelineMenu,
+    NavigationTitle,
+    Viewer,
+  },
 
   props: {
     id: {
@@ -21,41 +28,27 @@ export default defineComponent({
       required: true,
     },
   },
+
   // TODO: This will require an import from vue-router for Vue3 compatibility
   async beforeRouteLeave(to, from, next) {
     if (await this.viewerRef.navigateAwayGuard()) {
       next();
     }
   },
-  setup(props, { root, refs }) {
-    const meta = toRef(root.$store.state.Dataset, 'meta');
-    const frameRate = toRef(root.$store.getters, 'Dataset/frameRate');
-    const annotatorType = toRef(root.$store.getters, 'Dataset/annotatorType');
-    const imageData = toRef(root.$store.state.Dataset, 'imageData');
-    const videoUrl = toRef(root.$store.state.Dataset, 'videoUrl');
-    const location = toRef(root.$store.state.Location, 'location');
-    const dataPath = computed(() => (
-      getPathFromLocation(location.value)));
 
+  setup(props, { root }) {
     const viewerRef = ref();
+    const brandData = toRef(root.$store.state.Brand, 'brandData');
+    const location = toRef(root.$store.state.Location, 'location');
+    const dataPath = computed(() => getPathFromLocation(location.value));
     onMounted(() => {
-      viewerRef.value = refs.viewer;
       window.addEventListener('beforeunload', viewerRef.value.warnBrowserExit);
     });
     onBeforeUnmount(() => {
       window.removeEventListener('beforeunload', viewerRef.value.warnBrowserExit);
     });
 
-
-    return {
-      dataPath,
-      meta,
-      frameRate,
-      annotatorType,
-      imageData,
-      videoUrl,
-      viewerRef,
-    };
+    return { viewerRef, dataPath, brandData };
   },
 });
 </script>
@@ -63,13 +56,10 @@ export default defineComponent({
 <template>
   <Viewer
     :id="id"
-    ref="viewer"
-    :frame-rate="frameRate"
-    :annotator-type="annotatorType"
-    :image-data="imageData"
-    :video-url="videoUrl"
+    ref="viewerRef"
   >
     <template #title>
+      <NavigationTitle :name="brandData.name" />
       <v-tabs
         icons-and-text
         hide-slider
@@ -79,22 +69,11 @@ export default defineComponent({
           Data
           <v-icon>mdi-database</v-icon>
         </v-tab>
-        <v-tab :to="{ name: 'training' }">
-          Training
-          <v-icon>
-            mdi-brain
-          </v-icon>
-        </v-tab>
+        <JobsTab />
         <v-tab to="/settings">
           Settings<v-icon>mdi-settings</v-icon>
         </v-tab>
       </v-tabs>
-      <span
-        v-if="meta"
-        class="title pl-3"
-      >
-        {{ meta.name }}
-      </span>
     </template>
     <template #title-right>
       <RunPipelineMenu :selected-dataset-ids="[id]" />

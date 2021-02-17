@@ -1,8 +1,8 @@
 import { GirderModel } from '@girder/components/src';
+
 import {
   Attribute, Pipe, Pipelines, TrainingConfigs,
-} from 'viame-web-common/apispec';
-import { GirderMetadata, GirderMetadataStatic } from '../constants';
+} from 'dive-common/apispec';
 import girderRest from '../plugins/girder';
 
 interface ValidationResponse {
@@ -13,35 +13,19 @@ interface ValidationResponse {
   message: string;
 }
 
-/**
- * listDatasets gets static metadata from girder.
- *
- * Important: data loaded in this way will not have had their imageData or videoUrl
- * populated. Outside of viewer, these shoudln't be necessary.
- */
-async function listDatasets({
-  limit = 50, offset = 0, sort = 'name',
-}): Promise<{
-  items: GirderMetadata[];
-  total: number;
-}> {
-  // Adjust for -1 (everything) which girder accepts as 0
-  const limitAdjusted = limit < 0 ? 0 : limit;
-  const { data, headers } = await girderRest.get<GirderModel[]>('viame/dataset', {
-    params: { limit: limitAdjusted, offset, sort },
-  });
-  const datasets: GirderMetadata[] = data.map((d) => ({
-    ...d,
-    ...(d.meta as GirderMetadataStatic),
-    id: d._id,
-    imageData: [],
-    videoUrl: '',
-  }));
-  return {
-    items: datasets,
-    total: parseInt(headers['girder-total-count'], 10),
-  };
+export interface BrandData {
+  vuetify: unknown;
+  favicon: string | null;
+  logo: string;
+  name: string;
+  loginMessage: string;
 }
+
+async function getBrandData(): Promise<BrandData> {
+  const { data } = await girderRest.get<BrandData>('viame/brand_data');
+  return data;
+}
+
 
 function makeViameFolder({
   folderId, name, fps, type,
@@ -80,12 +64,13 @@ function deleteResources(resources: Array<GirderModel>) {
     headers: { 'X-HTTP-Method-Override': 'DELETE' },
   });
 }
-
-async function getAttributes(): Promise<Attribute[]> {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+async function getAttributes(datasetId = ''): Promise<Attribute[]> {
   const { data } = await girderRest.get('/viame/attribute');
   return data as Attribute[];
 }
-function setAttribute({ addNew, data }:
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function setAttribute(datasetId = '', { addNew, data }:
    {addNew: boolean | undefined; data: Attribute}): Promise<Attribute[]> {
   if (addNew) {
     return girderRest.post('/viame/attribute', data);
@@ -95,8 +80,8 @@ function setAttribute({ addNew, data }:
     data,
   );
 }
-
-function deleteAttribute(data: Attribute): Promise<Attribute> {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function deleteAttribute(datasetId = '', data: Attribute): Promise<Attribute> {
   return girderRest.delete(
     `/viame/attribute/${data._id}`,
   );
@@ -151,7 +136,7 @@ async function getValidWebImages(folderId: string) {
 
 
 export {
-  listDatasets,
+  getBrandData,
   deleteResources,
   getAttributes,
   setAttribute,

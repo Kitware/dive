@@ -1,7 +1,7 @@
 <script>
 import Dropzone from '@girder/components/src/components/Presentation/Dropzone.vue';
 import { fileUploader, sizeFormatter } from '@girder/components/src/utils/mixins';
-import { ImageSequenceType, VideoType } from 'viame-web-common/constants';
+import { ImageSequenceType, VideoType } from 'dive-common/constants';
 
 import { makeViameFolder, validateUploadGroup, postProcess } from '../api/viame.service';
 import { getResponseError } from '../utils';
