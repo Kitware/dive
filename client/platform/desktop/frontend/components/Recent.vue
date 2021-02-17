@@ -66,15 +66,30 @@ export default defineComponent({
               DIVE Annotation Tool
             </h1>
             <h3>Useful Links</h3>
-            <browser-link href="https://kitware.github.io/dive/">
-              User Guide
-            </browser-link>
-            <browser-link href="https://viame.kitware.com/#/collection/5e4c256ca0fc86aa03120c34">
-              Public example data
-            </browser-link>
-            <browser-link href="https://viametoolkit.org/">
-              viametoolkit.org
-            </browser-link>
+            <div>
+              <browser-link
+                display="inline"
+                href="https://kitware.github.io/dive/"
+              >
+                User Guide
+              </browser-link>
+            </div>
+            <div>
+              <browser-link
+                display="inline"
+                href="https://viame.kitware.com/#/collection/5e4c256ca0fc86aa03120c34"
+              >
+                Public example data
+              </browser-link>
+            </div>
+            <div>
+              <browser-link
+                display="inline"
+                href="https://viametoolkit.org/"
+              >
+                viametoolkit.org
+              </browser-link>
+            </div>
           </v-col>
           <v-col
             md="4"
