@@ -77,20 +77,26 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
     markChangesPending({ type: 'track', action: 'upsert', data: track });
   }
 
-  function insertTrack(track: Track) {
+  function insertTrack(track: Track, afterId?: TrackId) {
     track.bus.$on('notify', onChange);
     trackMap.set(track.trackId, track);
     intervalTree.insert([track.begin, track.end], track.trackId.toString());
-    trackIds.value.push(track.trackId);
+    if (afterId) {
+      /* Insert specifically after another trackId */
+      const insertIndex = trackIds.value.indexOf(afterId) + 1;
+      trackIds.value.splice(insertIndex, 0, track.trackId);
+    } else {
+      trackIds.value.push(track.trackId);
+    }
   }
 
-  function addTrack(frame: number, defaultType: string): Track {
+  function addTrack(frame: number, defaultType: string, afterId?: TrackId): Track {
     const track = new Track(getNewTrackId(), {
       begin: frame,
       end: frame,
       confidencePairs: [[defaultType, 1]],
     });
-    insertTrack(track);
+    insertTrack(track, afterId);
     markChangesPending({ type: 'track', action: 'upsert', data: track });
     return track;
   }

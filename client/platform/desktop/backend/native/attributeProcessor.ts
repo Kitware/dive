@@ -67,7 +67,7 @@ function processTrackAttributes(tracks: TrackData[]):
     if (track.features) {
       track.features.forEach((item) => {
         if (item.attributes) {
-          processAttributes(track.attributes, 'detection');
+          processAttributes(item.attributes, 'detection');
         }
       });
     }
