@@ -103,9 +103,12 @@ function saveMetadata(folderId: string, metadata: object) {
 }
 
 function saveAttributes(folderId: string, args: SaveAttributeArgs) {
-  return girderRest.put(
-    '/viame/attributes', folderId, { params: { ...args } },
-  );
+  return girderRest.put('/viame/attributes', {
+    upsert: args.upsert,
+    delete: args.delete,
+  }, {
+    params: { folderId },
+  });
 }
 
 function postProcess(folderId: string) {
