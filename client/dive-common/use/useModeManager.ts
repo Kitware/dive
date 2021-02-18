@@ -48,7 +48,7 @@ export default function useModeManager({
   recipes: Recipe[];
   selectTrack: (trackId: TrackId | null, edit: boolean) => void;
   selectNextTrack: (delta?: number) => TrackId | null;
-  addTrack: (frame: number, defaultType: string) => Track;
+  addTrack: (frame: number, defaultType: string, afterId?: TrackId) => Track;
   removeTrack: (trackId: TrackId) => void;
 }) {
   let creating = false;
@@ -135,7 +135,9 @@ export default function useModeManager({
 
   function handleAddTrackOrDetection(): TrackId {
     // Handles adding a new track with the NewTrack Settings
-    const newTrackId = addTrack(frame.value, newTrackSettings.type).trackId;
+    const newTrackId = addTrack(
+      frame.value, newTrackSettings.type, selectedTrackId.value || undefined,
+    ).trackId;
     selectTrack(newTrackId, true);
     creating = true;
     return newTrackId;
@@ -341,15 +343,16 @@ export default function useModeManager({
   }
 
   function handleRemoveTrack(trackIds: TrackId[]) {
+    /* Figure out next track ID */
+    const maybeNextTrackId = selectNextTrack(1);
+    const previousOrNext = maybeNextTrackId !== null
+      ? maybeNextTrackId
+      : selectNextTrack(-1);
+    /* Delete track */
     trackIds.forEach((trackId) => {
       removeTrack(trackId);
     });
-    if (selectedTrackId.value !== null) {
-      if (trackIds.includes(selectedTrackId.value)) {
-        const newTrack = selectNextTrack(1) !== null ? selectNextTrack(1) : selectNextTrack(-1);
-        selectTrack(newTrack, false);
-      }
-    }
+    selectTrack(previousOrNext, false);
   }
 
   /** Toggle editing mode for track */
