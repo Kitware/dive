@@ -2,8 +2,8 @@
 import {
   computed, defineComponent, PropType, Ref, ref,
 } from '@vue/composition-api';
+import { Attribute } from 'vue-media-annotator/use/useAttributes';
 
-import { Attribute } from 'dive-common/apispec';
 
 export default defineComponent({
   name: 'AttributeSettings',

@@ -1,8 +1,9 @@
 import { GirderModel } from '@girder/components/src';
 
 import {
-  Attribute, Pipe, Pipelines, TrainingConfigs,
+  Pipe, Pipelines, SaveAttributeArgs, TrainingConfigs,
 } from 'dive-common/apispec';
+import { Attribute } from 'vue-media-annotator/use/useAttributes';
 import girderRest from '../plugins/girder';
 
 interface ValidationResponse {
@@ -69,23 +70,6 @@ async function getAttributes(datasetId = ''): Promise<Attribute[]> {
   const { data } = await girderRest.get('/viame/attribute');
   return data as Attribute[];
 }
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function setAttribute(datasetId = '', { addNew, data }:
-   {addNew: boolean | undefined; data: Attribute}): Promise<Attribute[]> {
-  if (addNew) {
-    return girderRest.post('/viame/attribute', data);
-  }
-  return girderRest.put(
-    `/viame/attribute/${data._id}`,
-    data,
-  );
-}
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function deleteAttribute(datasetId = '', data: Attribute): Promise<Attribute> {
-  return girderRest.delete(
-    `/viame/attribute/${data._id}`,
-  );
-}
 
 
 async function getPipelineList() {
@@ -118,6 +102,12 @@ function saveMetadata(folderId: string, metadata: object) {
   );
 }
 
+function saveAttributes(folderId: string, args: SaveAttributeArgs) {
+  return girderRest.put(
+    '/viame/attributes', folderId, { params: { ...args } },
+  );
+}
+
 function postProcess(folderId: string) {
   return girderRest.post(`viame/postprocess/${folderId}`);
 }
@@ -139,8 +129,6 @@ export {
   getBrandData,
   deleteResources,
   getAttributes,
-  setAttribute,
-  deleteAttribute,
   getPipelineList,
   makeViameFolder,
   postProcess,
@@ -148,6 +136,7 @@ export {
   getTrainingConfigurations,
   runTraining,
   saveMetadata,
+  saveAttributes,
   validateUploadGroup,
   getValidWebImages,
 };

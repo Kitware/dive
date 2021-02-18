@@ -3,7 +3,17 @@ import IntervalTree from '@flatten-js/interval-tree';
 import Track, { TrackId } from '../track';
 
 interface UseTrackStoreParams {
-  markChangesPending: (type: 'upsert' | 'delete', track: Track) => void;
+  markChangesPending: (
+    {
+      type,
+      action,
+      data,
+    }:
+    {
+      type: 'track';
+      action: 'upsert' | 'delete';
+      data: Track;
+    }) => void;
 }
 
 export function getTrack(
@@ -64,7 +74,7 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
       intervalTree.insert([track.begin, track.end], track.trackId.toString());
     }
     canary.value += 1;
-    markChangesPending('upsert', track);
+    markChangesPending({ type: 'track', action: 'upsert', data: track });
   }
 
   function insertTrack(track: Track) {
@@ -81,7 +91,7 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
       confidencePairs: [[defaultType, 1]],
     });
     insertTrack(track);
-    markChangesPending('upsert', track);
+    markChangesPending({ type: 'track', action: 'upsert', data: track });
     return track;
   }
 
@@ -101,7 +111,7 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
       throw new Error(`TrackId ${trackId} not found in trackIds.`);
     }
     trackIds.value.splice(listIndex, 1);
-    markChangesPending('delete', track);
+    markChangesPending({ type: 'track', action: 'delete', data: track });
   }
 
   /*

@@ -10,7 +10,7 @@ import type {
   DesktopJobUpdate, DesktopJobUpdater, JsonMeta, RunTraining, Settings,
 } from 'platform/desktop/constants';
 
-import { Attribute } from 'dive-common/apispec';
+import { Attribute } from 'vue-media-annotator/use/useAttributes';
 import * as common from './common';
 
 const pipelines = {
@@ -381,65 +381,6 @@ describe('native.common', () => {
     expect(pipes.tracker.pipes).toHaveLength(5);
     expect(pipes.generate.pipes).toHaveLength(4);
     expect(pipes.trained.pipes).toHaveLength(1);
-  });
-
-  it('getAtributes', async () => {
-    const meta = await common.getAttributes(settings, 'metaAttributesID');
-    //Should return an array of data items
-    expect(meta.length).toBe(2);
-    expect(meta[0].values).toEqual(['value1', 'value2', 'value3']);
-    expect(meta[1].datatype).toBe('number');
-  });
-
-  it('addAttribute', async () => {
-    const templateAttribute: Attribute = {
-      name: 'newAttribute', datatype: 'boolean', belongs: 'track', _id: '',
-    };
-    await common.setAttribute(settings, 'metaAttributesID', {
-      data: templateAttribute,
-    });
-    //Should return an array of data items
-    const meta = await common.getAttributes(settings, 'metaAttributesID');
-    const newAttribute = meta.find((item) => item.name === 'newAttribute');
-    expect(meta.length).toBe(3);
-    expect(newAttribute).toEqual(templateAttribute);
-  });
-
-  it('updateAttribute', async () => {
-    const templateAttribute: Attribute = {
-      name: 'newAttributeName', datatype: 'boolean', belongs: 'track', _id: 'track_attribute1',
-    };
-    await common.setAttribute(settings, 'metaAttributesID', {
-      data: templateAttribute,
-    });
-    //Should return an array of data items
-    const meta = await common.getAttributes(settings, 'metaAttributesID');
-    const updatedAttribute = meta.find((item) => item._id === 'track_attribute1');
-    expect(meta.length).toBe(3);
-    expect(updatedAttribute).toEqual(templateAttribute);
-  });
-
-  it('deleteAttribute', async () => {
-    const deleteAttribute: Attribute = {
-      name: 'attribute1', datatype: 'text', belongs: 'track', _id: 'track_attribute1',
-    };
-    await common.deleteAttribute(settings, 'metaAttributesID', { data: deleteAttribute });
-    const meta = await common.getAttributes(settings, 'metaAttributesID');
-    //Should return an array of data items
-    expect(meta.length).toBe(2);
-    expect(meta[0].datatype).toBe('number');
-  });
-
-  it('initial attribute creation', async () => {
-    const templateAttribute: Attribute = {
-      name: 'newAttribute', datatype: 'boolean', belongs: 'track', _id: '',
-    };
-    await common.setAttribute(settings, 'projectid1VideoGood', {
-      data: templateAttribute,
-    });
-    const meta = await common.getAttributes(settings, 'projectid1VideoGood');
-    expect(meta.length).toBe(1);
-    expect(meta[0]).toEqual(templateAttribute);
   });
 });
 

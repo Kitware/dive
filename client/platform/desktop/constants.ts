@@ -1,5 +1,4 @@
 import type {
-  Attribute,
   DatasetMeta, DatasetMetaMutable, DatasetType, Pipe,
 } from 'dive-common/apispec';
 
@@ -53,7 +52,6 @@ export interface Settings {
   dataPath: string;
 }
 
-export type Attributes = Record<string, Attribute>;
 
 /**
  * JsonMeta is a SUBSET of DatasetMeta contained within

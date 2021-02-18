@@ -49,6 +49,7 @@ class Viame(Resource):
         self.route("GET", ("training_configs",), self.get_training_configs)
         self.route("POST", ("train",), self.run_training)
         self.route("POST", ("postprocess", ":id"), self.postprocess)
+        self.route("PUT", ("attributes", ":id"), self.save_attributes)
         self.route("POST", ("attribute",), self.create_attribute)
         self.route("GET", ("attribute",), self.get_attributes)
         self.route("PUT", ("attribute", ":id"), self.update_attribute)
@@ -375,6 +376,48 @@ class Viame(Resource):
                 Item().move(item, auxiliary)
 
         return folder
+
+    @access.user
+    @autoDescribeRoute(
+        Description("")
+        .modelParam(
+            "folderId",
+            description="folder id of a clip",
+            model=Folder,
+            paramType="query",
+            required=True,
+            level=AccessType.WRITE,
+        )
+        .jsonParam(
+            "attributes",
+            "upsert and delete attributes",
+            paramType="body",
+            requireObject=True,
+        )
+    )
+    def save_attributes(self, folder, attributes):
+        user = self.getCurrentUser()
+        upsert = attributes.get('upsert', [])
+        delete = attributes.get('delete', [])
+        attributes_dict = folder['meta']['attributes']
+        if attributes_dict is None:
+            attributes_dict = {}
+        for attribute_id in delete:
+            attributes_dict.pop(str(attribute_id), None)
+        for attribute in upsert:
+            attributes_dict[str(attribute['_id'])] = attribute
+
+        upserted_len = len(upsert)
+        deleted_len = len(delete)
+
+        if upserted_len or deleted_len:
+            folder['meta']['attributes'] = attributes_dict
+            Folder().save(folder)
+
+        return {
+            "updated": upserted_len,
+            "deleted": deleted_len,
+        }
 
     @access.user
     @autoDescribeRoute(

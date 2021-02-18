@@ -2,7 +2,6 @@
 import {
   computed,
   defineComponent,
-  onBeforeMount,
   Ref,
   ref,
 } from '@vue/composition-api';
@@ -15,16 +14,16 @@ import {
   useAllTypes,
   useHandler,
   useTrackMap,
-  useDatasetId,
+  useAttributes,
 } from 'vue-media-annotator/provides';
 import { getTrack } from 'vue-media-annotator/use/useTrackStore';
 import TrackItem from 'vue-media-annotator/components/TrackItem.vue';
 
-import { useApi, Attribute } from 'dive-common/apispec';
 import AttributeInput from 'dive-common/components/AttributeInput.vue';
 import AttributeEditor from 'dive-common/components/AttributeEditor.vue';
 import AttributeSubsection from 'dive-common/components/AttributesSubsection.vue';
 import ConfidenceSubsection from 'dive-common/components/ConfidenceSubsection.vue';
+import { Attribute } from 'vue-media-annotator/use/useAttributes';
 
 
 export default defineComponent({
@@ -50,14 +49,13 @@ export default defineComponent({
     },
   },
   setup(props) {
-    const attributes = ref([] as Attribute[]);
+    const attributes = useAttributes();
     const editingAttribute: Ref<Attribute | null> = ref(null);
     const editingError: Ref<string | null> = ref(null);
     const editingModeRef = useEditingMode();
     const typeStylingRef = useTypeStyling();
     const allTypesRef = useAllTypes();
     const trackMap = useTrackMap();
-    const datasetId = useDatasetId();
     const { trackSelectNext, trackSplit, removeTrack } = useHandler();
 
     //Edit/Set single value by clicking
@@ -66,7 +64,7 @@ export default defineComponent({
 
     const frameRef = useFrame();
     const selectedTrackIdRef = useSelectedTrackId();
-    const { getAttributes, setAttribute, deleteAttribute } = useApi();
+    const { setAttribute, deleteAttribute } = useHandler();
     const selectedTrack = computed(() => {
       if (selectedTrackIdRef.value !== null) {
         return getTrack(trackMap, selectedTrackIdRef.value);
@@ -97,7 +95,6 @@ export default defineComponent({
     async function closeEditor() {
       editingAttribute.value = null;
       editingError.value = null;
-      attributes.value = await getAttributes(datasetId.value);
     }
 
     function addAttribute(type: 'Track' | 'Detection') {
@@ -127,7 +124,7 @@ export default defineComponent({
       }
 
       try {
-        await setAttribute(datasetId.value, saveData);
+        await setAttribute({ data: saveData.data });
       } catch (err) {
         editingError.value = err.message;
       }
@@ -138,7 +135,7 @@ export default defineComponent({
     async function deleteAttributeHandler(data: Attribute) {
       editingError.value = null;
       try {
-        await deleteAttribute(datasetId.value, data);
+        await deleteAttribute(data._id);
       } catch (err) {
         editingError.value = err.message;
       }
@@ -179,10 +176,6 @@ export default defineComponent({
           disabled,
         },
       ];
-    });
-
-    onBeforeMount(async () => {
-      attributes.value = await getAttributes(datasetId.value);
     });
 
     return {

@@ -5,7 +5,6 @@ import {
   PropType,
   computed,
 } from '@vue/composition-api';
-import { Attribute } from 'dive-common/apispec';
 import {
   useSelectedTrackId,
   useFrame,
@@ -14,6 +13,7 @@ import {
 import { getTrack } from 'vue-media-annotator/use/useTrackStore';
 import AttributeInput from 'dive-common/components/AttributeInput.vue';
 import PanelSubsection from 'dive-common/components/PanelSubsection.vue';
+import { Attribute } from 'vue-media-annotator/use/useAttributes';
 
 
 export default defineComponent({
