@@ -40,27 +40,38 @@ export default function UseAttributes({ markChangesPending }: UseAttributesParam
 
   const getAttributes = computed(() => Object.values(attributes.value));
 
-  function setAttribute({ data }: {data: Attribute }) {
+  function setAttribute({ data }: {data: Attribute }, updateAllTracks = false) {
+    let oldAttribute;
     if (data._id === '') {
       // eslint-disable-next-line no-param-reassign
       data._id = `${data.belongs}_${data.name}`;
+    } else if (attributes.value[data._id]) {
+      // Existing attribute
+      if (attributes.value[data._id].name !== data.name) {
+        oldAttribute = attributes.value[data._id];
+        // Name change should delete the old attribute and create a new one with the updated id
+        VueDel(attributes.value, data._id);
+        markChangesPending({ type: 'attribute', action: 'delete', data: { ...attributes.value[data._id] } });
+        // Create a new attribute to replace it
+        // eslint-disable-next-line no-param-reassign
+        data._id = `${data.belongs}_${data.name}`;
+      }
+    }
+    if (updateAllTracks && oldAttribute) {
+      // TODO: Lengthy track/detection attribute updating function
     }
     VueSet(attributes.value, data._id, data);
     markChangesPending({ type: 'attribute', action: 'upsert', data: attributes.value[data._id] });
   }
 
+
   function deleteAttribute(attributeId: string, removeFromTracks = false) {
     if (attributes.value[attributeId] !== undefined) {
-      // Maybe use different data structure
       markChangesPending({ type: 'attribute', action: 'delete', data: { ...attributes.value[attributeId] } });
-
-      // DONT LIKE THIS
       VueDel(attributes.value, attributeId);
     }
     if (removeFromTracks) {
-      // Here we would go through the existing tracks and remove all references to the attribute
-      // this could take a long time on larger datasets so we may need a spinner or something in
-      // the UI we can disregard for testing now
+      // TODO: Lengthty track/detection attribute deletion function
     }
   }
 

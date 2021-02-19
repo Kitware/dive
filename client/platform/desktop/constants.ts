@@ -1,6 +1,7 @@
 import type {
   DatasetMeta, DatasetMetaMutable, DatasetType, Pipe,
 } from 'dive-common/apispec';
+import { Attribute } from 'vue-media-annotator/use/useAttributes';
 
 export const websafeVideoTypes = [
   'video/mp4',
@@ -99,6 +100,9 @@ export interface JsonMeta extends DatasetMetaMutable {
   // If the dataset required transcoding, specify the job
   // key that ran transcoding
   transcodingJobKey?: string;
+
+  //Attributes are not datasetMetaMutable and are stored separate
+  attributes?: Record<string, Attribute>;
 }
 
 export type DesktopMetadata = DatasetMeta & JsonMeta;

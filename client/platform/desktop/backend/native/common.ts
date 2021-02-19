@@ -361,9 +361,6 @@ async function saveMetadata(settings: Settings, datasetId: string, args: Dataset
   if (args.customTypeStyling) {
     existing.customTypeStyling = args.customTypeStyling;
   }
-  if (args.attributes) {
-    existing.attributes = args.attributes;
-  }
   await _saveAsJson(projectDirInfo.metaFileAbsPath, existing);
   await release();
 }

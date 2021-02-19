@@ -47,7 +47,6 @@ interface FrameImage {
 interface DatasetMetaMutable {
   customTypeStyling?: Record<string, CustomStyle>;
   confidenceFilters?: Record<string, number>;
-  attributes?: Record<string, Attribute>;
 }
 
 interface DatasetMeta extends DatasetMetaMutable {
@@ -58,6 +57,7 @@ interface DatasetMeta extends DatasetMetaMutable {
   fps: Readonly<number | string>; // this will become mutable in the future.
   name: string;
   createdAt: string;
+  attributes?: Record<string, Attribute>;
 }
 
 interface Api {
