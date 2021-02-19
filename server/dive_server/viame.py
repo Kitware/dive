@@ -50,9 +50,9 @@ class Viame(Resource):
         self.route("POST", ("train",), self.run_training)
         self.route("POST", ("postprocess", ":id"), self.postprocess)
         self.route("PUT", ("attributes",), self.save_attributes)
-        self.route("POST", ("attribute",), self.create_attribute) # deprecated
-        self.route("GET", ("attribute",), self.get_attributes) # deprecated
-        self.route("PUT", ("attribute", ":id"), self.update_attribute) # deprecated
+        self.route("POST", ("attribute",), self.create_attribute)  # deprecated
+        self.route("GET", ("attribute",), self.get_attributes)  # deprecated
+        self.route("PUT", ("attribute", ":id"), self.update_attribute)  # deprecated
         self.route("POST", ("validate_files",), self.validate_files)
         self.route("DELETE", ("attribute", ":id"), self.delete_attribute)
         self.route("GET", ("valid_images",), self.get_valid_images)
@@ -420,7 +420,8 @@ class Viame(Resource):
 
     @access.user
     @autoDescribeRoute(
-        Description("").jsonParam("data", "", requireObject=True, paramType="body")
+        Description("")
+        .jsonParam("data", "", requireObject=True, paramType="body")
         .deprecated()
     )
     def create_attribute(self, data, params):
@@ -449,9 +450,7 @@ class Viame(Resource):
 
     @access.user
     @autoDescribeRoute(
-        Description("")
-        .modelParam("id", model=Attribute, required=True)
-        .deprecated()
+        Description("").modelParam("id", model=Attribute, required=True).deprecated()
     )
     def delete_attribute(self, attribute, params):
         return Attribute().remove(attribute)
