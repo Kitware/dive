@@ -1,4 +1,5 @@
 import { GirderModel } from '@girder/components/src';
+import { SSL_OP_NETSCAPE_CA_DN_BUG } from 'constants';
 
 import {
   Attribute, Pipe, Pipelines, TrainingConfigs,
@@ -113,8 +114,8 @@ function runTraining(folderIds: string[], pipelineName: string, config: string) 
 
 function saveMetadata(folderId: string, metadata: object) {
   return girderRest.put(
-    `/folder/${folderId}/metadata?allowNull=true`,
-    metadata,
+    `/viame/metadata/${folderId}`,
+    { ...metadata },
   );
 }
 

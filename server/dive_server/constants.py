@@ -40,3 +40,6 @@ TrainedPipelineCategory = "trained"
 # The name of the folder where any user specific data should be stored
 # (created as a folder of that user)
 ViameDataFolderName = "VIAME"
+
+metadataMutable = ['customTypeStyling', 'confidenceFilters']
+metadataReserved = ['attributes', 'fps', 'type', 'ffprobe_info', 'annotate']
