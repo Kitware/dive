@@ -16,11 +16,11 @@ from dive_utils.types import PipelineDescription, PipelineJob
 from .constants import (
     csvRegex,
     imageRegex,
+    metadataMutable,
+    metadataReserved,
     safeImageRegex,
     videoRegex,
     ymlRegex,
-    metadataMutable,
-    metadataReserved,
 )
 from .model.attribute import Attribute
 from .pipelines import load_pipelines, load_static_pipelines
