@@ -80,7 +80,7 @@ export default function useFilteredTracks(
         .findIndex(([confkey, confval]) => confval >= confidenceThresh && checkedSet.has(confkey));
         /* include tracks where at least 1 confidence pair is above
          * the threshold and part of the checked type set */
-      if (confidencePairIndex !== -1 || track.confidencePairs.length === 0) {
+      if (confidencePairIndex >= 0 || track.confidencePairs.length === 0) {
         resultsArr.push({
           track,
           context: {
