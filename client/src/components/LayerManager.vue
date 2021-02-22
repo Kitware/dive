@@ -1,7 +1,7 @@
 <script lang="ts">
 import { defineComponent, watch, PropType } from '@vue/composition-api';
 
-import { FilteredTrack } from 'vue-media-annotator/use/useTrackFilters';
+import { TrackWithContext } from 'vue-media-annotator/use/useTrackFilters';
 import { injectMediaController } from './annotators/useMediaController';
 import RectangleLayer from '../layers/AnnotationLayers/RectangleLayer';
 import PolygonLayer from '../layers/AnnotationLayers/PolygonLayer';
@@ -44,7 +44,7 @@ export default defineComponent({
     const handler = useHandler();
     const intervalTree = useIntervalTree();
     const trackMap = useTrackMap();
-    const filteredTracksRef = useEnabledTracks();
+    const enabledTracksRef = useEnabledTracks();
     const selectedTrackIdRef = useSelectedTrackId();
     const typeStylingRef = useTypeStyling();
     const editingModeRef = useEditingMode();
@@ -96,7 +96,7 @@ export default defineComponent({
       frame: number,
       editingTrack: false | EditAnnotationTypes,
       selectedTrackId: TrackId | null,
-      filteredTracks: readonly FilteredTrack[],
+      enabledTracks: readonly TrackWithContext[],
       visibleModes: readonly VisibleAnnotationTypes[],
       selectedKey: string,
     ) {
@@ -112,10 +112,10 @@ export default defineComponent({
           if (track === undefined) {
             throw new Error(`TrackID ${trackId} not found in map`);
           }
-          const filteredIndex = filteredTracks.findIndex(
-            (filtered) => filtered.track.trackId === track.trackId,
+          const enabledIndex = enabledTracks.findIndex(
+            (trackWithContext) => trackWithContext.track.trackId === track.trackId,
           );
-          if (filteredIndex !== -1) {
+          if (enabledIndex !== -1) {
             const [features] = track.getFeature(frame);
             const trackFrame = {
               selected: (selectedTrackId === track.trackId),
@@ -123,7 +123,7 @@ export default defineComponent({
               trackId: track.trackId,
               features,
               trackType: track.getType(
-                filteredTracks[filteredIndex].context.confidencePairIndex,
+                enabledTracks[enabledIndex].context.confidencePairIndex,
               ),
               confidencePairs: track.confidencePairs,
             };
@@ -167,8 +167,8 @@ export default defineComponent({
           if (editTrack === undefined) {
             throw new Error(`trackMap missing trackid ${selectedTrackId}`);
           }
-          const filteredIndex = filteredTracks.findIndex(
-            (filtered) => filtered.track.trackId === editTrack.trackId,
+          const enabledIndex = enabledTracks.findIndex(
+            (trackWithContext) => trackWithContext.track.trackId === editTrack.trackId,
           );
 
           const [real, lower, upper] = editTrack.getFeature(frame);
@@ -179,7 +179,7 @@ export default defineComponent({
             trackId: editTrack.trackId,
             features: (features && features.interpolate) ? features : null,
             trackType: editTrack.getType(
-              filteredTracks[filteredIndex].context.confidencePairIndex,
+              enabledTracks[enabledIndex].context.confidencePairIndex,
             ),
             confidencePairs: editTrack.confidencePairs,
           };
@@ -209,7 +209,7 @@ export default defineComponent({
         frameNumberRef.value,
         editingModeRef.value,
         selectedTrackIdRef.value,
-        filteredTracksRef.value,
+        enabledTracksRef.value,
         visibleModesRef.value,
         selectedKeyRef.value,
       );
@@ -218,7 +218,7 @@ export default defineComponent({
     watch([
       frameNumberRef,
       editingModeRef,
-      filteredTracksRef,
+      enabledTracksRef,
       selectedTrackIdRef,
       visibleModesRef,
       typeStylingRef,
@@ -227,7 +227,7 @@ export default defineComponent({
         frameNumberRef.value,
         editingModeRef.value,
         selectedTrackIdRef.value,
-        filteredTracksRef.value,
+        enabledTracksRef.value,
         visibleModesRef.value,
         selectedKeyRef.value,
       );
@@ -271,7 +271,7 @@ export default defineComponent({
           frameNumberRef.value,
           editingModeRef.value,
           selectedTrackIdRef.value,
-          filteredTracksRef.value,
+          enabledTracksRef.value,
           visibleModesRef.value,
           selectedKeyRef.value,
         );

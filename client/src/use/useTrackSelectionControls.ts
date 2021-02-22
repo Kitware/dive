@@ -1,11 +1,11 @@
 import { computed, ref, Ref } from '@vue/composition-api';
-import { FilteredTrack } from 'vue-media-annotator/use/useTrackFilters';
+import { TrackWithContext } from 'vue-media-annotator/use/useTrackFilters';
 import { TrackId } from '../track';
 /* Maintain references to the selected Track, selected detection,
  * editing state, etc.
  */
 export default function useTrackSelectionControls(
-  { filteredTracks }: {filteredTracks: Readonly<Ref<readonly FilteredTrack[]>>},
+  { filteredTracks }: {filteredTracks: Readonly<Ref<readonly TrackWithContext[]>>},
 ) {
   // the currently selected Track
   const selectedTrackId = ref(null as TrackId | null);

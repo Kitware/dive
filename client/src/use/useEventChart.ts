@@ -1,11 +1,11 @@
 
 import { computed, Ref } from '@vue/composition-api';
-import { FilteredTrack } from 'vue-media-annotator/use/useTrackFilters';
+import { TrackWithContext } from 'vue-media-annotator/use/useTrackFilters';
 import { TrackId } from '../track';
 import { TypeStyling } from './useStyling';
 
 interface EventChartParams {
-  enabledTracks: Readonly<Ref<readonly FilteredTrack[]>>;
+  enabledTracks: Readonly<Ref<readonly TrackWithContext[]>>;
   selectedTrackId: Ref<TrackId | null>;
   typeStyling: Ref<TypeStyling>;
 }

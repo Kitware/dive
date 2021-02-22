@@ -1,9 +1,9 @@
 import { computed, Ref } from '@vue/composition-api';
-import { FilteredTrack } from 'vue-media-annotator/use/useTrackFilters';
+import { TrackWithContext } from 'vue-media-annotator/use/useTrackFilters';
 import { TypeStyling } from './useStyling';
 
 interface UseLineChartParams {
-  enabledTracks: Readonly<Ref<readonly FilteredTrack[]>>;
+  enabledTracks: Readonly<Ref<readonly TrackWithContext[]>>;
   typeStyling: Ref<TypeStyling>;
   allTypes: Readonly<Ref<readonly string[]>>;
 }
@@ -49,7 +49,7 @@ export default function useLineChart({
       const iend = track.end > track.begin ? track.end : track.begin + 1;
       [totalArr[ibegin], totalArr[iend]] = updateHistogram(ibegin, iend, totalArr);
       const type = track.getType(filtered.context.confidencePairIndex);
-      if (type && type.length) {
+      if (type) {
         const trackType = type[0];
         const typeArr = histograms.get(trackType) as number[];
         [typeArr[ibegin], typeArr[iend]] = updateHistogram(ibegin, iend, typeArr);

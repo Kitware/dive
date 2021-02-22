@@ -74,7 +74,7 @@ export default function useFilteredTracks(
   const filteredTracks = computed(() => {
     const checkedSet = new Set(checkedTypes.value);
     const confidenceThresh = defaultConfidenceThreshold.value;
-    const resultsArr: FilteredTrack[] = [];
+    const resultsArr: TrackWithContext[] = [];
     sortedTracks.value.forEach((track) => {
       const confidencePairIndex = track.confidencePairs
         .findIndex(([confkey, confval]) => confval >= confidenceThresh && checkedSet.has(confkey));

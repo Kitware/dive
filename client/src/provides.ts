@@ -8,7 +8,7 @@ import { EditAnnotationTypes } from './layers/EditAnnotationLayer';
 import Track, { TrackId } from './track';
 import { VisibleAnnotationTypes } from './layers';
 import { RectBounds } from './utils';
-import { FilteredTrack } from './use/useTrackFilters';
+import { TrackWithContext } from './use/useTrackFilters';
 
 /**
  * Type definitions are read only because injectors may mutate internal state,
@@ -31,7 +31,7 @@ const CheckedTypesSymbol = Symbol('checkedTypes');
 type CheckedTypesType = Readonly<Ref<readonly string[]>>;
 
 const EnabledTracksSymbol = Symbol('enabledTracks');
-type EnabledTracksType = Readonly<Ref<readonly FilteredTrack[]>>;
+type EnabledTracksType = Readonly<Ref<readonly TrackWithContext[]>>;
 
 const EditingModeSymbol = Symbol('editingMode');
 type EditingModeType = Readonly<Ref<false | EditAnnotationTypes>>;
@@ -46,7 +46,7 @@ const TrackMapSymbol = Symbol('trackMap');
 type TrackMapType = Readonly<Map<TrackId, Track>>;
 
 const TracksSymbol = Symbol('tracks');
-type FilteredTracksType = Readonly<Ref<readonly FilteredTrack[]>>;
+type FilteredTracksType = Readonly<Ref<readonly TrackWithContext[]>>;
 
 const TypeStylingSymbol = Symbol('typeStyling');
 type TypeStylingType = Readonly<Ref<TypeStyling>>;

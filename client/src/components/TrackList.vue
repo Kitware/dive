@@ -4,7 +4,7 @@ import {
   defineComponent, reactive, computed, ref, Ref, watch,
 } from '@vue/composition-api';
 
-import { FilteredTrack } from 'vue-media-annotator/use/useTrackFilters';
+import { TrackWithContext } from 'vue-media-annotator/use/useTrackFilters';
 import { TrackId } from '../track';
 import {
   useAllTypes,
@@ -20,7 +20,7 @@ import {
 import TrackItem from './TrackItem.vue';
 
 interface VirtualListItem {
-  filteredTrack: FilteredTrack;
+  filteredTrack: TrackWithContext;
   selectedTrackId: number | null;
   checkedTrackIds: readonly number[];
   editingTrack: boolean;

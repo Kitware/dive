@@ -25,18 +25,16 @@ interface TextLayerParams {
  * followed by more in descending order.
  * @returns value or null.  null indicates that the text should not be displayed.
  */
-function defaultFormatter(track: FrameDataTrack, additionalNum = 0): TextData[] | null {
+function defaultFormatter(track: FrameDataTrack, additionalNum = 2): TextData[] | null {
   if (track.features && track.features.bounds) {
     const { bounds } = track.features;
 
     if (bounds && track.confidencePairs !== null) {
-      const lineHeight = 25;
-      const maxPairs = Math.min(track.confidencePairs.length, additionalNum);
-      let currentHeight = bounds[1] - (lineHeight * (maxPairs + 1));
+      const lineHeight = 20;
       const arr: TextData[] = [];
       const baseType = track.trackType ? track.trackType[0] : 'unknown';
       const baseConfidence = track.trackType ? track.trackType[1] : 1.0;
-      const currentTypeIndication = maxPairs > 0 ? '**' : '';
+      const currentTypeIndication = additionalNum > 0 ? '**' : '';
       arr.push({
         selected: track.selected,
         editing: track.editing,
@@ -48,29 +46,28 @@ function defaultFormatter(track: FrameDataTrack, additionalNum = 0): TextData[] 
         currentPair: true,
       });
       //Now we display any additional types besides the default type
-      currentHeight += lineHeight;
+      const maxAdditionalPairs = Math.min(track.confidencePairs.length, additionalNum);
+      let currentHeight = bounds[1] - (lineHeight * (maxAdditionalPairs));
       let pairCount = 0;
-      if (track.confidencePairs.length) {
-        for (let i = 0; i < track.confidencePairs.length; i += 1) {
-          if (pairCount >= maxPairs) {
-            break;
-          }
-          if (track.trackType !== track.confidencePairs[i]) {
-            const type = track.confidencePairs[i][0];
-            const confidence = track.confidencePairs[i][1];
-            arr.push({
-              selected: track.selected,
-              editing: track.editing,
-              type,
-              confidence,
-              text: `${type}: ${confidence.toFixed(2)}`,
-              x: bounds[2],
-              y: currentHeight,
-              currentPair: false,
-            });
-            currentHeight += lineHeight;
-            pairCount += 1;
-          }
+      for (let i = 0; i < track.confidencePairs.length; i += 1) {
+        if (pairCount >= maxAdditionalPairs) {
+          break;
+        }
+        if (track.trackType !== track.confidencePairs[i]) {
+          const type = track.confidencePairs[i][0];
+          const confidence = track.confidencePairs[i][1];
+          arr.push({
+            selected: track.selected,
+            editing: track.editing,
+            type,
+            confidence,
+            text: `${type}: ${confidence.toFixed(2)}`,
+            x: bounds[2],
+            y: currentHeight,
+            currentPair: false,
+          });
+          currentHeight += lineHeight;
+          pairCount += 1;
         }
       }
 
