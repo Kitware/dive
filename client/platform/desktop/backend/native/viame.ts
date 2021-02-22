@@ -58,13 +58,16 @@ async function runPipeline(
   const trackOutput = npath.join(jobWorkDir, 'track_output.csv');
   const joblog = npath.join(jobWorkDir, 'runlog.txt');
 
-  const groundTruthFileName = `groundtruth_${meta.id}.csv`;
-  const groundTruthFileStream = fs.createWriteStream(
-    npath.join(jobWorkDir, groundTruthFileName),
-  );
-  const inputData = await common.loadJsonTracks(projectInfo.trackFileAbsPath);
-  await serialize(groundTruthFileStream, inputData, meta);
-  groundTruthFileStream.end();
+  let groundTruthFileName;
+  if (pipeline.requires_input) {
+    groundTruthFileName = `groundtruth_${meta.id}.csv`;
+    const groundTruthFileStream = fs.createWriteStream(
+      npath.join(jobWorkDir, groundTruthFileName),
+    );
+    const inputData = await common.loadJsonTracks(projectInfo.trackFileAbsPath);
+    await serialize(groundTruthFileStream, inputData, meta);
+    groundTruthFileStream.end();
+  }
 
   let command: string[] = [];
   if (meta.type === 'video') {
@@ -75,11 +78,13 @@ async function runPipeline(
       '-s "input:video_reader:type=vidl_ffmpeg"',
       `-p "${pipelinePath}"`,
       `-s input:video_filename="${videoAbsPath}"`,
-      `-s detection_reader:file_name="${groundTruthFileName}"`,
-      `-s track_reader:file_name=${groundTruthFileName}`,
       `-s detector_writer:file_name="${detectorOutput}"`,
       `-s track_writer:file_name="${trackOutput}"`,
     ];
+    if (pipeline.requires_input) {
+      command.push(`-s detection_reader:file_name="${groundTruthFileName}"`);
+      command.push(`-s track_reader:file_name="${groundTruthFileName}"`);
+    }
   } else if (meta.type === 'image-sequence') {
     // Create frame image manifest
     const manifestFile = npath.join(jobWorkDir, 'image-manifest.txt');
@@ -93,11 +98,13 @@ async function runPipeline(
       `"${viameConstants.kwiverExe}" runner`,
       `-p "${pipelinePath}"`,
       `-s input:video_filename="${manifestFile}"`,
-      `-s detection_reader:file_name="${groundTruthFileName}"`,
-      `-s track_reader:file_name=${groundTruthFileName}`,
       `-s detector_writer:file_name="${detectorOutput}"`,
       `-s track_writer:file_name="${trackOutput}"`,
     ];
+    if (pipeline.requires_input) {
+      command.push(`-s detection_reader:file_name="${groundTruthFileName}"`);
+      command.push(`-s track_reader:file_name="${groundTruthFileName}"`);
+    }
   }
 
   const job = spawn(command.join(' '), {

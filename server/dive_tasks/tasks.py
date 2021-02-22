@@ -57,6 +57,9 @@ def run_pipeline(self: Task, params: PipelineJob):
     input_folder = params["input_folder"]
     input_type = params["input_type"]
     output_folder = params["output_folder"]
+    groundtruth = ''
+    if "groundtruth" in params.keys():
+        groundtruth = params["groundtruth"]
 
     # Create temporary files/folders, removed at the end of the function
     input_path = Path(tempfile.mkdtemp())
@@ -93,6 +96,10 @@ def run_pipeline(self: Task, params: PipelineJob):
     # Handle spaces in pipeline names
     pipeline_path = pipeline_path.replace(" ", r"\ ")
 
+    groundtruth_file = ''
+    if groundtruth != '':
+        groundtruth_file = os.path.join(input_path, groundtruth)
+
     if input_type == 'video':
         # filter files for source video file
         source_video = get_source_video_filename(input_folder, self.girder_client)
@@ -110,9 +117,13 @@ def run_pipeline(self: Task, params: PipelineJob):
             "-s input:video_reader:type=vidl_ffmpeg",
             f"-p {pipeline_path}",
             f"-s input:video_filename='{input_file}'",
-            f"-s detector_writer:file_name='{detector_output_path}'",
-            f"-s track_writer:file_name='{track_output_path}'",
+            f'-s detection_reader:file_name="{groundtruth_file}"',
+            f'-s track_reader:file_name="{groundtruth_file}"',
         ]
+        if groundtruth_file != '':
+            command.append(f'-s detection_reader:file_name="{groundtruth_file}"')
+            command.append(f'-s track_reader:file_name="{groundtruth_file}"')
+
     elif input_type == 'image-sequence':
         with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as temp2:
             temp2.writelines(
@@ -131,6 +142,9 @@ def run_pipeline(self: Task, params: PipelineJob):
             f"-s detector_writer:file_name='{detector_output_path}'",
             f"-s track_writer:file_name='{track_output_path}'",
         ]
+        if groundtruth_file != '':
+            command.append(f'-s detection_reader:file_name="{groundtruth_file}"')
+            command.append(f'-s track_reader:file_name="{groundtruth_file}"')
     else:
         raise ValueError('Unknown input type: {}'.format(input_type))
 

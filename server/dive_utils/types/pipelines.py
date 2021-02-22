@@ -15,6 +15,8 @@ class PipelineDescription(TypedDict):
     # If the pipeline is stored in girder, this is
     # the ID of the folder containing the pipeline,
     folderId: Optional[str]
+    # If the pipeline requires input
+    requires_input: Optional[bool]
 
 
 class PipelineJob(TypedDict):
@@ -24,6 +26,7 @@ class PipelineJob(TypedDict):
     input_folder: str
     input_type: str
     output_folder: str
+    groundtruth: Optional[str]
 
 
 class PipelineCategory(TypedDict):
