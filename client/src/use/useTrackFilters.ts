@@ -4,12 +4,19 @@ import {
 import Track, { TrackId } from '../track';
 import { updateSubset } from '../utils';
 
-export interface FilteredTrack {
-    track: Track;
-    context: {
-      confidencePairIndex: number;
-    };
+/**
+ * TrackWithContext wraps a track with additional information
+ * such as why the track was included or returned by a system
+ * or function.
+ */
+export interface TrackWithContext {
+  track: Readonly<Track>;
+  context: {
+    // confidencePair index within track that makes this track a positive filter result
+    confidencePairIndex: number;
+  };
 }
+
 /* Provide track filtering controls on tracks loaded from useTrackStore. */
 export default function useFilteredTracks(
   { sortedTracks, removeTrack, markChangesPending }:
