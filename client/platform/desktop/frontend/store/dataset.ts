@@ -11,13 +11,16 @@ const datasets = ref({} as Record<string, JsonMeta>);
 
 const recents = computed(() => {
   const list = Object.values(datasets.value)
-    .sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt))
-    .slice(0, 20);
+    .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
   return list;
 });
 
 /**
- * Load recent datasets from localstorage
+ * Load recent datasets from localstorage.
+ *
+ * Note that the localStorage copy is just a cache and not a source of truth.
+ * The real dataset JsonMeta must be loaded from disk through the
+ * loadMetadata() backend method.
  */
 function load(): JsonMeta[] {
   try {
@@ -42,7 +45,17 @@ function load(): JsonMeta[] {
  * @param id dataset id path
  */
 function setRecents(meta: JsonMeta) {
-  Vue.set(datasets.value, meta.id, meta);
+  Vue.set(datasets.value, meta.id, {
+    ...meta,
+    /**
+     * Erase image lists from meta object stored in recents.
+     * Saves space and serialization cost since these parts of
+     * the recents object aren't used in this way.
+     */
+    imageData: [],
+    originalImageFiles: [],
+    transcodedImageFiles: [],
+  });
   const values = Object.values(datasets.value);
   window.localStorage.setItem(RecentsKey, JSON.stringify(values));
 }

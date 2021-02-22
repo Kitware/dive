@@ -1,6 +1,6 @@
 <script lang="ts">
 import { join } from 'path';
-import { defineComponent, ref } from '@vue/composition-api';
+import { computed, defineComponent, ref } from '@vue/composition-api';
 
 import { DatasetType } from 'dive-common/apispec';
 
@@ -17,6 +17,8 @@ export default defineComponent({
   },
   setup(_, { root }) {
     const snackbar = ref(false);
+    const pageSize = 12; // Default 12 looks good on default width/height of window
+    const limit = ref(pageSize);
     const errorText = ref('');
     async function open(dstype: DatasetType) {
       const ret = await openFromDisk(dstype);
@@ -40,11 +42,28 @@ export default defineComponent({
       }
     }
 
+    const paginatedRecents = computed(() => recents.value.slice(0, limit.value));
+    const totalRecents = computed(() => recents.value.length);
+
+    function toggleMore() {
+      if (limit.value < recents.value.length) {
+        limit.value = recents.value.length;
+      } else {
+        limit.value = pageSize;
+      }
+    }
+
     return {
+      // methods
       open,
-      recents,
       join,
       setOrGetConversionJob,
+      toggleMore,
+      // state
+      pageSize,
+      limit,
+      paginatedRecents,
+      totalRecents,
       snackbar,
       errorText,
     };
@@ -125,11 +144,20 @@ export default defineComponent({
             class="px-4 py-2 my-4"
             min-width="100%"
           >
-            <h2 class="text-h4 font-weight-light mb-2">
+            <h2
+              v-if="totalRecents > 0"
+              class="text-h4 font-weight-light mb-2"
+            >
               Recent
             </h2>
+            <h2
+              v-else
+              class="text-h4 font-weight-light mb-2"
+            >
+              Open images or video to get started
+            </h2>
             <div
-              v-for="recent in recents"
+              v-for="recent in paginatedRecents"
               :key="recent.id"
               class="pa-1"
             >
@@ -141,9 +169,7 @@ export default defineComponent({
                   {{
                     (recent.type === 'video')
                       ? 'mdi-file-video'
-                      : (recent.originalImageFiles.length > 1)
-                        ? 'mdi-image-multiple'
-                        : 'mdi-image'
+                      : 'mdi-image-multiple'
                   }}
                 </v-icon>
                 <span v-if="setOrGetConversionJob(recent.id)">
@@ -166,6 +192,34 @@ export default defineComponent({
                 </router-link>
                 <span class="grey--text px-4">
                   {{ recent.originalBasePath }}
+                </span>
+              </h3>
+            </div>
+            <div
+              v-if="pageSize < totalRecents"
+              class="mx-1"
+            >
+              <v-divider class="my-2" />
+              <h3
+                class="text-body-1"
+                style="cursor: pointer;"
+                @click="toggleMore"
+              >
+                <v-icon
+                  class="pr-2"
+                  color="primary lighten-3"
+                >
+                  {{ (limit === totalRecents) ? 'mdi-chevron-up' : 'mdi-chevron-down' }}
+                </v-icon>
+                <span
+                  class="primary--text text--lighten-3"
+                >
+                  <span v-if="limit < totalRecents">
+                    Show {{ totalRecents - pageSize }} more
+                  </span>
+                  <span v-else>
+                    Show less
+                  </span>
                 </span>
               </h3>
             </div>
