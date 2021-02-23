@@ -5,6 +5,6 @@ export interface FrameDataTrack {
   editing: boolean | string;
   trackId: number;
   features: Feature | null;
-  trackType: [string, number] | null;
+  trackType: [string, number];
   confidencePairs: [string, number][] | null;
 }

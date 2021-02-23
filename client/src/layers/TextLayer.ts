@@ -11,7 +11,7 @@ export interface TextData {
   y: number;
   offsetY?: number;
   offsetX?: number;
-  currentPair?: boolean;
+  currentPair: boolean;
 }
 
 export type FormatTextRow = (track: FrameDataTrack) => TextData[] | null;
@@ -32,13 +32,13 @@ function defaultFormatter(track: FrameDataTrack, additionalNum = 0): TextData[] 
     if (bounds && track.confidencePairs !== null) {
       const lineHeight = 20;
       const arr: TextData[] = [];
-      const baseType = track.trackType ? track.trackType[0] : 'unknown';
-      const baseConfidence = track.trackType ? track.trackType[1] : 1.0;
+      const baseType = track.trackType[0];
+      const baseConfidence = track.trackType[1];
       const currentTypeIndication = additionalNum > 0 && track.confidencePairs.length > 1 ? '**' : '';
       arr.push({
         selected: track.selected,
         editing: track.editing,
-        type: baseType,
+        type: track.trackType[0],
         confidence: baseConfidence,
         text: `${currentTypeIndication}${baseType}: ${baseConfidence.toFixed(2)}`,
         x: bounds[2],
