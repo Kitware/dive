@@ -25,7 +25,7 @@ interface TextLayerParams {
  * followed by more in descending order.
  * @returns value or null.  null indicates that the text should not be displayed.
  */
-function defaultFormatter(track: FrameDataTrack, additionalNum = 2): TextData[] | null {
+function defaultFormatter(track: FrameDataTrack, additionalNum = 0): TextData[] | null {
   if (track.features && track.features.bounds) {
     const { bounds } = track.features;
 
@@ -34,7 +34,7 @@ function defaultFormatter(track: FrameDataTrack, additionalNum = 2): TextData[] 
       const arr: TextData[] = [];
       const baseType = track.trackType ? track.trackType[0] : 'unknown';
       const baseConfidence = track.trackType ? track.trackType[1] : 1.0;
-      const currentTypeIndication = additionalNum > 0 ? '**' : '';
+      const currentTypeIndication = additionalNum > 0 && track.confidencePairs.length > 1 ? '**' : '';
       arr.push({
         selected: track.selected,
         editing: track.editing,

@@ -341,14 +341,11 @@ export default class Track {
     }
   }
 
-  getType(index = 0): [string, number] | null {
-    if (this.confidencePairs.length > 0) {
-      if (this.confidencePairs[index]) {
-        return this.confidencePairs[index];
-      }
-      return this.confidencePairs[0];
+  getType(index = 0): [string, number] {
+    if (this.confidencePairs.length > 0 && this.confidencePairs[index]) {
+      return this.confidencePairs[index];
     }
-    return null;
+    throw new Error('Index Error: The requested confidencePairs index does not exist.');
   }
 
   removeTypes(types: string[]) {

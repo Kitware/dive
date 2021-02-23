@@ -48,12 +48,9 @@ export default function useLineChart({
       const ibegin = track.begin;
       const iend = track.end > track.begin ? track.end : track.begin + 1;
       [totalArr[ibegin], totalArr[iend]] = updateHistogram(ibegin, iend, totalArr);
-      const type = track.getType(filtered.context.confidencePairIndex);
-      if (type) {
-        const trackType = type[0];
-        const typeArr = histograms.get(trackType) as number[];
-        [typeArr[ibegin], typeArr[iend]] = updateHistogram(ibegin, iend, typeArr);
-      }
+      const trackType = track.getType(filtered.context.confidencePairIndex)[0];
+      const typeArr = histograms.get(trackType) as number[];
+      [typeArr[ibegin], typeArr[iend]] = updateHistogram(ibegin, iend, typeArr);
     });
 
     const mapfunc = typeStyling.value.color;

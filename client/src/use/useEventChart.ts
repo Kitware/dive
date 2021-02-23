@@ -31,8 +31,7 @@ export default function useEventChart({
       const { track } = filtered;
       const { confidencePairs } = track;
       if (confidencePairs.length) {
-        const type = track.getType(filtered.context.confidencePairIndex);
-        const trackType = type ? type[0] : '';
+        const trackType = track.getType(filtered.context.confidencePairIndex)[0];
         values.push({
           trackId: track.trackId,
           name: `Track ${track.trackId}`,

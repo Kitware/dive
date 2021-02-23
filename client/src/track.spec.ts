@@ -114,13 +114,14 @@ describe('Track', () => {
     expect(t.getType()).toEqual(['foo', 1]);
     expect(t.getType(1)).toEqual(['bar', 0.9]);
     expect(t.getType(0)).toEqual(['foo', 1.0]);
-    expect(t.getType(-1)).toEqual(['foo', 1.0]);
+    expect(() => t.getType(-1)).toThrow('Index Error: The requested confidencePairs index does not exist.');
     t.setType('newType');
     expect(t.getType()).toEqual(['newType', 1]);
     // Testing type out of range
-    expect(t.getType(1)).toEqual(['newType', 1]);
+    expect(() => t.getType(1)).toThrow('Index Error: The requested confidencePairs index does not exist.');
     t.setType('lowType', 0.25);
     expect(t.getType()).toEqual(['lowType', 0.25]);
+    expect(() => t.getType(20)).toThrow('Index Error: The requested confidencePairs index does not exist.');
   });
 });
 
