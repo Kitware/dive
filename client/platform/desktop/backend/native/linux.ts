@@ -34,9 +34,19 @@ const ViameLinuxConstants = {
   kwiverExe: 'kwiver',
   shell: '/bin/bash',
   ffmpeg: {
+    // Ready indicates that the proper ffmpeg settings have been learned from the system.
+    ready: false,
     initialization: '', // command to initialize
     path: '', // location of the ffmpeg executable
-    encoding: '', //encoding mode used
+    // Default video args
+    videoArgs: [
+      '-c:v libx264',
+      '-preset slow',
+      '-crf 26',
+      '-c: a copy',
+      // https://video.stackexchange.com/questions/20871/how-do-i-convert-anamorphic-hdv-video-to-normal-h-264-video-with-ffmpeg-how-to
+      '-vf "scale=iw*sar:ih,setsar=1"',
+    ].join(' '),
   },
 };
 
@@ -127,7 +137,7 @@ async function nvidiaSmi(): Promise<NvidiaSmiReply> {
  * Linux version is more complicated for multiple VIAME versions and local ffmpeg
  */
 async function ffmpegCommand(settings: Settings) {
-  if (ViameLinuxConstants.ffmpeg.path !== '' && ViameLinuxConstants.ffmpeg.encoding !== '') {
+  if (ViameLinuxConstants.ffmpeg.ready) {
     return;
   }
   const setupScriptPath = npath.join(settings.viamePath, ViameLinuxConstants.setup);
@@ -142,7 +152,7 @@ async function ffmpegCommand(settings: Settings) {
       if (viameffmpeg.output.includes('libx264')) {
         ViameLinuxConstants.ffmpeg.initialization = `source ${setupScriptPath} &&`;
         ViameLinuxConstants.ffmpeg.path = `"${settings.viamePath}/bin/ffmpeg"`;
-        ViameLinuxConstants.ffmpeg.encoding = '-c:v libx264 -preset slow -crf 26 -c:a copy';
+        ViameLinuxConstants.ffmpeg.ready = true;
         return;
       }
     }
@@ -156,7 +166,7 @@ async function ffmpegCommand(settings: Settings) {
     if (localffmpeg.output.includes('libx264')) {
       ViameLinuxConstants.ffmpeg.initialization = '';
       ViameLinuxConstants.ffmpeg.path = 'ffmpeg';
-      ViameLinuxConstants.ffmpeg.encoding = '-c:v libx264 -preset slow -crf 26 -c:a copy';
+      ViameLinuxConstants.ffmpeg.ready = true;
       return;
     }
   }
@@ -168,7 +178,8 @@ async function ffmpegCommand(settings: Settings) {
   if (ffmpegViameExists) {
     ViameLinuxConstants.ffmpeg.initialization = `source ${setupScriptPath} &&`;
     ViameLinuxConstants.ffmpeg.path = `"${settings.viamePath}/bin/ffmpeg"`;
-    ViameLinuxConstants.ffmpeg.encoding = '-c:v h264 -c:a copy';
+    ViameLinuxConstants.ffmpeg.videoArgs = '-c:v h264 -c:a copy';
+    ViameLinuxConstants.ffmpeg.ready = true;
     return;
   }
   //We make it down here we have no way to convert the video file

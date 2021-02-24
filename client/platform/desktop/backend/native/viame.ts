@@ -18,10 +18,10 @@ const PipelineRelativeDir = 'configs/pipelines';
 interface FFmpegSettings {
   initialization: string;
   path: string;
-  encoding: string;
+  videoArgs: string;
 }
 
-interface ViameConstants {
+export interface ViameConstants {
   setupScriptAbs: string; // abs path setup comman
   trainingExe: string; // name of training binary on PATH
   kwiverExe: string; // name of kwiver binary on PATH
@@ -322,7 +322,13 @@ async function convertMedia(settings: Settings,
   const joblog = npath.join(jobWorkDir, 'runlog.txt');
   const commands = [];
   if (args.meta.type === 'video' && args.mediaList[0]) {
-    commands.push(`${viameConstants.ffmpeg.initialization} ${viameConstants.ffmpeg.path} -i "${args.mediaList[0][0]}" ${viameConstants.ffmpeg.encoding} "${args.mediaList[0][1]}"`);
+    commands.push([
+      viameConstants.ffmpeg.initialization,
+      viameConstants.ffmpeg.path,
+      `-i "${args.mediaList[0][0]}"`,
+      viameConstants.ffmpeg.videoArgs,
+      `"${args.mediaList[0][1]}"`
+    ].join(' '));
   } else if (args.meta.type === 'image-sequence' && imageIndex < args.mediaList.length) {
     commands.push(`${viameConstants.ffmpeg.initialization} ${viameConstants.ffmpeg.path} -i "${args.mediaList[imageIndex][0]}" "${args.mediaList[imageIndex][1]}"`);
   }
@@ -352,6 +358,12 @@ async function convertMedia(settings: Settings,
   job.on('exit', async (code) => {
     if (code !== 0) {
       console.error('Error with running conversion');
+      updater({
+        ...jobBase,
+        body: [''],
+        exitCode: code,
+        endTime: new Date(),
+      });
     } else if (args.meta.type === 'video' || (args.meta.type === 'image-sequence' && imageIndex === args.mediaList.length - 1)) {
       common.completeConversion(settings, args.meta.id, jobKey);
       updater({

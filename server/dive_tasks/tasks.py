@@ -389,14 +389,11 @@ def convert_video(self: Task, path, folderId, auxiliaryFolderId, itemId):
             "ffmpeg",
             "-i",
             file_name,
-            "-c:v",
-            "libx264",
-            "-preset",
-            "slow",
-            "-crf",
-            "26",
-            "-c:a",
-            "copy",
+            "-vf \"scale=iw*sar:ih,setsar=1\"",
+            "-c:v libx264",
+            "-preset slow",
+            "-crf 26",
+            "-c:a copy",
             output_path,
         ],
         stdout=process_log_file,
@@ -415,7 +412,14 @@ def convert_video(self: Task, path, folderId, auxiliaryFolderId, itemId):
     if process.returncode == 0:
         manager.updateStatus(JobStatus.PUSHING_OUTPUT)
         new_file = gc.uploadFileToFolder(folderId, output_path)
-        gc.addMetadataToItem(new_file['itemId'], {"codec": "h264"})
+        gc.addMetadataToItem(
+            new_file['itemId'],
+            {
+                "source_video": False,
+                "transcoder": "ffmpeg",
+                "codec": "h264",
+            },
+        )
         gc.addMetadataToItem(
             itemId,
             {

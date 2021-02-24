@@ -73,8 +73,9 @@ def organize_folder_for_training(
 def get_source_video_filename(folderId: str, girder_client: GirderClient):
     """
     Searches a folderId for source videos that are compatible with training/pipelines
-    Will look for {"source_video":True} metadata first, then fall back to the converted video
-    indicated by  {"codec":"h264"}
+    Will look for {"codec": 'h264'} metadata first, then fall back to the converted video
+    indicated by  {"source_video": true}
+
     If neither found it will return None
 
     :folderId: Current path to wehere the items sit
@@ -87,7 +88,7 @@ def get_source_video_filename(folderId: str, girder_client: GirderClient):
     for item in folder_contents:
         file_name = item.get("name")
         if item.get("meta", {}).get("source_video") is True:
-            return file_name
-        if item.get("meta", {}).get("codec") == "h264":
             backup_converted_file = file_name
+        if item.get("meta", {}).get("codec") == "h264":
+            return file_name
     return backup_converted_file
