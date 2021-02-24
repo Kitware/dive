@@ -21,6 +21,10 @@ services:
     volumes:
       - ../server:/home/viame_girder
 
+  girder_worker_default:
+    volumes:
+      - ../server:/home/viame_girder
+
   mc:
     image: mongo
     command: ["mongo", "mongodb://mongo:27017/girder"]

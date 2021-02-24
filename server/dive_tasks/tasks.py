@@ -3,7 +3,7 @@ import os
 import shutil
 import tempfile
 from pathlib import Path
-from subprocess import DEVNULL, Popen
+from subprocess import DEVNULL, Popen, PIPE, TimeoutExpired
 from typing import Dict, List
 
 from girder_client import GirderClient
@@ -45,6 +45,43 @@ class Config:
         self.viame_install_path = os.environ.get(
             'VIAME_INSTALL_PATH', '/opt/noaa/viame'
         )
+
+
+@app.task(bind=True, acks_late=True)
+def upgrade_pipelines(self: Task):
+    conf = Config()
+    manager: JobManager = self.job_manager
+    shutil.rmtree(conf.pipeline_base_path)
+    os.makedirs(conf.pipeline_base_path, exist_ok=True)
+    commands = [
+        'exec /opt/noaa/viame/bin/download_viame_addons.sh',
+        'exec /opt/noaa/viame/bin/filter_non_web_pipelines.sh',
+    ]
+
+    if self.canceled:
+        manager.updateStatus(JobStatus.CANCELED)
+        return
+
+    for cmd in commands:
+        process = Popen(
+            cmd,
+            stdout=PIPE,
+            shell=True,
+            executable='/bin/bash',
+            env=conf.gpu_process_env,
+        )
+        while (not self.canceled) and (process.poll() is None):
+            try:
+                output, _ = process.communicate(b'', timeout=10)
+                if output:
+                    manager.write(output.strip().decode('utf-8'))
+            except TimeoutExpired:
+                pass
+
+        if self.canceled:
+            process.kill()
+            manager.updateStatus(JobStatus.CANCELED)
+            break
 
 
 @app.task(bind=True, acks_late=True)
