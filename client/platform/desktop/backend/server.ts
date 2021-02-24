@@ -65,7 +65,7 @@ apirouter.post('/dataset/:id/meta', async (req, res, next) => {
   }
 });
 
-/* SAVE detections */
+/* SAVE attributes */
 apirouter.post('/dataset/:id/attributes', async (req, res, next) => {
   try {
     const args = req.body as SaveAttributeArgs;

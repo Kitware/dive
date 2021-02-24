@@ -10,7 +10,7 @@ export default Vue.extend({
   <v-container>
     <v-card>
       <v-card-title>
-        Coming Soon?
+        <!-- NEW GLOBAL SETTINGS ADDED HERE -->
       </v-card-title>
     </v-card>
   </v-container>
