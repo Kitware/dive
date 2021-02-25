@@ -26,7 +26,7 @@ interface TextLayerParams {
  * @param lineHeight - height of each text line
  * @returns value or null.  null indicates that the text should not be displayed.
  */
-function defaultFormatter(track: FrameDataTrack, maxPairs = 3, lineHeight = 20): TextData[] | null {
+function defaultFormatter(track: FrameDataTrack, maxPairs = 1, lineHeight = 20): TextData[] | null {
   if (track.features && track.features.bounds) {
     const { bounds } = track.features;
     if (bounds && track.confidencePairs !== null) {
