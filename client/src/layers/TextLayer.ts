@@ -19,59 +19,43 @@ export type FormatTextRow = (track: FrameDataTrack) => TextData[] | null;
 interface TextLayerParams {
   formatter?: FormatTextRow;
 }
+
 /**
  * @param track - standard frameDataTrack info
- * @param additionalNum Number of additional pairs to display, top pair is the current pair
- * followed by more in descending order.
+ * @param maxPairs - maximum number of lines to show
+ * @param lineHeight - height of each text line
  * @returns value or null.  null indicates that the text should not be displayed.
  */
-function defaultFormatter(track: FrameDataTrack, additionalNum = 0): TextData[] | null {
+function defaultFormatter(track: FrameDataTrack, maxPairs = 3, lineHeight = 20): TextData[] | null {
   if (track.features && track.features.bounds) {
     const { bounds } = track.features;
-
     if (bounds && track.confidencePairs !== null) {
-      const lineHeight = 20;
       const arr: TextData[] = [];
-      const baseType = track.trackType[0];
-      const baseConfidence = track.trackType[1];
-      const currentTypeIndication = additionalNum > 0 && track.confidencePairs.length > 1 ? '**' : '';
-      arr.push({
-        selected: track.selected,
-        editing: track.editing,
-        type: track.trackType[0],
-        confidence: baseConfidence,
-        text: `${currentTypeIndication}${baseType}: ${baseConfidence.toFixed(2)}`,
-        x: bounds[2],
-        y: bounds[1],
-        currentPair: true,
-      });
-      //Now we display any additional types besides the default type
-      const maxAdditionalPairs = Math.min(track.confidencePairs.length, additionalNum);
-      let currentHeight = bounds[1] - (lineHeight * (maxAdditionalPairs));
-      let pairCount = 0;
-      for (let i = 0; i < track.confidencePairs.length; i += 1) {
-        if (pairCount >= maxAdditionalPairs) {
-          break;
-        }
-        if (track.trackType !== track.confidencePairs[i]) {
-          const type = track.confidencePairs[i][0];
-          const confidence = track.confidencePairs[i][1];
-          arr.push({
-            selected: track.selected,
-            editing: track.editing,
-            type,
-            confidence,
-            text: `${type}: ${confidence.toFixed(2)}`,
-            x: bounds[2],
-            y: currentHeight,
-            currentPair: false,
-          });
-          currentHeight += lineHeight;
-          pairCount += 1;
-        }
+      const totalVisiblePairs = Math.min(track.confidencePairs.length, maxPairs);
+      for (let i = 0; i < totalVisiblePairs; i += 1) {
+        const [type, confidence] = track.confidencePairs[i];
+        const isCurrentPair = (type === track.trackType[0]);
+        const currentTypeIndication = (isCurrentPair && totalVisiblePairs > 1) ? '**' : '';
+        arr.push({
+          selected: track.selected,
+          editing: track.editing,
+          type,
+          confidence,
+          text: `${currentTypeIndication}${type}: ${confidence.toFixed(2)}`,
+          x: bounds[2],
+          y: -1, // updated below
+          currentPair: isCurrentPair,
+        });
       }
-
-      return arr;
+      return arr
+        // sort with currentPair first
+        .sort((a, b) => (+b.currentPair) - (+a.currentPair))
+        // calculate height after sort
+        .map((v, i) => {
+          const currentHeight = bounds[1] - (lineHeight * i);
+          v.y = currentHeight; // eslint-disable-line no-param-reassign
+          return v;
+        });
     }
   }
   return null;
