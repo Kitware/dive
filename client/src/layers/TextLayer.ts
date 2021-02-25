@@ -48,14 +48,8 @@ function defaultFormatter(track: FrameDataTrack, maxPairs = 3, lineHeight = 20):
         });
       }
       return arr
-        // sort with currentPair first
-        .sort((a, b) => (+b.currentPair) - (+a.currentPair))
-        // calculate height after sort
-        .map((v, i) => {
-          const currentHeight = bounds[1] - (lineHeight * i);
-          v.y = currentHeight; // eslint-disable-line no-param-reassign
-          return v;
-        });
+        .sort((a, b) => (+b.currentPair) - (+a.currentPair)) // sort currentPair=true first
+        .map((v, i) => ({ ...v, y: bounds[1] - (lineHeight * i) })); // calculate y after sort
     }
   }
   return null;
