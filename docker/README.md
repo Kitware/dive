@@ -47,7 +47,6 @@ This image contains both the backend and client.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| VIAME_PIPELINES_PATH | none | A path inside the **other** worker container where VIAME pipelines can be found.  You must mount this path. |
 | GIRDER_MONGO_URI | mongodb://mongo:27017/girder | a mongodb connection string |
 | GIRDER_ADMIN_USER | admin | admin username |
 | GIRDER_ADMIN_PASS | viame | admin password |
@@ -62,7 +61,6 @@ This image contains a celery worker to run VIAME pipelines and transcoding jobs.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| VIAME_PIPELINES_PATH | none | A path inside the container where VIAME pipelines can be found.  |
 | CELERY_BROKER_URL | amqp://guest:guest@rabbit/ | rabbitmq connection string |
 | BROKER_CONNECTION_TIMEOUT | 2 | rabbitmq connection timeout |
 

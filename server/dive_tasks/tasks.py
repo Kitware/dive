@@ -5,6 +5,8 @@ import tempfile
 from pathlib import Path
 from subprocess import DEVNULL, Popen, PIPE, TimeoutExpired
 from typing import Dict, List
+from urllib import request
+import zipfile
 
 from girder_client import GirderClient
 from girder_worker.app import app
@@ -17,7 +19,16 @@ from dive_tasks.utils import (
     organize_folder_for_training,
     read_and_close_process_outputs,
 )
-from dive_utils.types import PipelineJob
+from dive_utils.types import PipelineJob, UpgradeJob
+
+upgradeJobDefault: UpgradeJob = {
+    'force': False,
+    'urls': [
+        'https://data.kitware.com/api/v1/item/6011e3452fa25629b91ade60/download',
+        'https://data.kitware.com/api/v1/item/601ae0a82fa25629b938d0db/download',
+        'https://data.kitware.com/api/v1/item/6011ebf72fa25629b91aef03/download',
+    ],
+}
 
 
 def get_gpu_environment() -> Dict[str, str]:
@@ -38,43 +49,34 @@ def get_gpu_environment() -> Dict[str, str]:
 class Config:
     def __init__(self):
         self.gpu_process_env = get_gpu_environment()
+        self.addon_zip_directory = os.environ.get(
+            'ADDON_ZIP_DIR',
+            '/tmp/viame/addons',
+        )
         self.viame_install_path = os.environ.get(
-            'VIAME_INSTALL_PATH', '/opt/noaa/viame'
+            'VIAME_INSTALL_PATH',
+            '/opt/noaa/viame',
         )
 
 
 @app.task(bind=True, acks_late=True)
-def upgrade_pipelines(self: Task):
+def upgrade_pipelines(self: Task, upgradeJob: UpgradeJob = upgradeJobDefault):
     conf = Config()
     manager: JobManager = self.job_manager
 
-    commands = [
-        'exec /opt/noaa/viame/bin/download_viame_addons.sh',
-        'exec /opt/noaa/viame/bin/filter_non_web_pipelines.sh',
-    ]
+    addon_zip_directory = Path(self.addon_zip_directory)
+    addon_zip_directory.mkdir(exist_ok=True)
 
-    if self.canceled:
-        manager.updateStatus(JobStatus.CANCELED)
-        return
-
-    for cmd in commands:
-        process = Popen(
-            cmd,
-            stdout=PIPE,
-            shell=True,
-            executable='/bin/bash',
-            env=conf.gpu_process_env,
-        )
-        while (not self.canceled) and (process.poll() is None):
-            try:
-                output, _ = process.communicate(b'', timeout=10)
-                if output:
-                    manager.write(output.strip().decode('utf-8'))
-            except TimeoutExpired:
-                pass
-
+    for idx, addon in enumerate(upgradeJob['urls']):
+        filename = addon_zip_directory / f"download_{idx}.zip"
+        if not filename.exists() or upgradeJob['force']:
+            request.urlretrieve(addon, filename=filename)
+            z = zipfile.ZipFile(filename)
+            z.extractall(conf.viame_install_path)
+            manager.write(f'Extracted data from {filename}')
+        else:
+            manager.write(f'Skipping {filename}')
         if self.canceled:
-            process.kill()
             manager.updateStatus(JobStatus.CANCELED)
             break
 

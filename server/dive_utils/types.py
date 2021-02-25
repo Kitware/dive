@@ -66,6 +66,7 @@ class PipelineCategory(TypedDict):
 
 
 class UpgradeJob(TypedDict):
+    force: bool
     urls: List[str]
 
 

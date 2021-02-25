@@ -23,7 +23,8 @@ def get_static_pipelines_paths() -> List[Path]:
     """
     Find all the places there might be static pipelines on disk
     """
-    env_pipelines_paths = os.getenv("VIAME_PIPELINES_PATH", "").split(",")
+    # env_pipelines_paths = os.getenv("VIAME_PIPELINES_PATH", "").split(",")
+    env_pipelines_paths = ['/opt/noaa/viame/configs/pipelines']
     if len(env_pipelines_paths) == 0:
         raise Exception(
             "No pipeline paths specified. "
