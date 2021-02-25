@@ -43,7 +43,7 @@ const ViameLinuxConstants = {
       '-c:v libx264',
       '-preset slow',
       '-crf 26',
-      '-c: a copy',
+      '-c:a copy',
       // https://video.stackexchange.com/questions/20871/how-do-i-convert-anamorphic-hdv-video-to-normal-h-264-video-with-ffmpeg-how-to
       '-vf "scale=iw*sar:ih,setsar=1"',
     ].join(' '),

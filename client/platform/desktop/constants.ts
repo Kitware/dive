@@ -185,6 +185,7 @@ export interface FFProbeResults {
   streams?: [{
     codec_type?: string;
     codec_name?: string;
+    sample_aspect_ratio?: string;
   }];
 }
 

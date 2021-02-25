@@ -60,7 +60,10 @@ async function runPipeline(
 
   let command: string[] = [];
   if (meta.type === 'video') {
-    const videoAbsPath = npath.join(meta.originalBasePath, meta.originalVideoFile);
+    let videoAbsPath = npath.join(meta.originalBasePath, meta.originalVideoFile);
+    if (meta.transcodedVideoFile) {
+      videoAbsPath = npath.join(projectInfo.basePath, meta.transcodedVideoFile);
+    }
     command = [
       `${viameConstants.setupScriptAbs} &&`,
       `"${viameConstants.kwiverExe}" runner`,
@@ -287,14 +290,14 @@ async function checkMedia(
   const ffprobePath = `${viameConstants.ffmpeg.path.replace('ffmpeg', 'ffprobe')}`;
   const command = [
     `${viameConstants.ffmpeg.initialization}`,
-    `${ffprobePath}`,
+    `"${ffprobePath}"`,
     '-print_format',
     'json',
     '-v',
     'quiet',
     '-show_format',
     '-show_streams',
-    file,
+    `"${file}"`,
   ];
   const result = await spawnResult(command.join(' '), viameConstants.shell);
   if (result.error || result.output === null) {
@@ -303,7 +306,9 @@ async function checkMedia(
   const returnText = result.output;
   const ffprobeJSON: FFProbeResults = JSON.parse(returnText);
   if (ffprobeJSON && ffprobeJSON.streams) {
-    const websafe = ffprobeJSON.streams.filter((el) => el.codec_name === 'h264' && el.codec_type === 'video');
+    const websafe = ffprobeJSON.streams
+      .filter((el) => el.codec_name === 'h264' && el.codec_type === 'video')
+      .filter((el) => el.sample_aspect_ratio === '1:1');
 
     return !!websafe.length;
   }

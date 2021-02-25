@@ -72,7 +72,7 @@ async function runTraining(
 }
 
 async function importMedia(path: string): Promise<JsonMeta> {
-  const data: JsonMeta = await ipcRenderer.invoke('import-media', path);
+  const data: JsonMeta = await ipcRenderer.invoke('import-media', { path });
   return data;
 }
 
