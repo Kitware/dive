@@ -38,10 +38,6 @@ def get_gpu_environment() -> Dict[str, str]:
 class Config:
     def __init__(self):
         self.gpu_process_env = get_gpu_environment()
-
-        self.pipeline_base_path = os.environ.get(
-            'VIAME_PIPELINES_PATH', '/opt/noaa/viame/configs/pipelines/'
-        )
         self.viame_install_path = os.environ.get(
             'VIAME_INSTALL_PATH', '/opt/noaa/viame'
         )
@@ -51,8 +47,7 @@ class Config:
 def upgrade_pipelines(self: Task):
     conf = Config()
     manager: JobManager = self.job_manager
-    shutil.rmtree(conf.pipeline_base_path)
-    os.makedirs(conf.pipeline_base_path, exist_ok=True)
+
     commands = [
         'exec /opt/noaa/viame/bin/download_viame_addons.sh',
         'exec /opt/noaa/viame/bin/filter_non_web_pipelines.sh',
@@ -125,7 +120,7 @@ def run_pipeline(self: Task, params: PipelineJob):
         )
         pipeline_path = str(trained_pipeline_folder / pipeline["pipe"])
     else:
-        pipeline_path = os.path.join(conf.pipeline_base_path, pipeline["pipe"])
+        pipeline_path = pipeline["pipe_path"]
 
     # Handle spaces in pipeline names
     pipeline_path = pipeline_path.replace(" ", r"\ ")

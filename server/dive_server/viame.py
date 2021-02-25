@@ -8,6 +8,7 @@ from girder.models.folder import Folder
 from girder.models.item import Item
 from girder.models.token import Token
 from girder.models.user import User
+from girder.models.setting import Setting
 from girder_jobs.models.job import Job
 
 from dive_tasks.tasks import (
@@ -87,10 +88,30 @@ class Viame(Resource):
             return data['meta']
         return {}
 
+    @access.admin
+    @autoDescribeRoute(
+        Description("Update pipeline configurations").jsonParam(
+            "configs",
+            "The pipeline to run on the dataset",
+            required=True,
+            requireObject=True,
+        )
+    )
+    def update_pipeline_configs(self, configs):
+        # TODO: In a future version of Pydantic, TypedDict will be supported
+        # and we can validate properly.  For now, trust I guess.
+        Setting().set('pipeline_configs', configs)
+
     @access.user
-    @describeRoute(Description("Get available pipelines"))
+    @describeRoute(
+        Description("Get available pipelines").param(
+            'force',
+            'force reload of static pipelines',
+            required=False,
+        )
+    )
     def get_pipelines(self, params):
-        if self.static_pipelines is None:
+        if self.static_pipelines is None or params.get('force', False):
             self.static_pipelines = load_static_pipelines()
         return load_pipelines(self.static_pipelines, self.getCurrentUser())
 
@@ -214,6 +235,7 @@ class Viame(Resource):
                 raise RestException(f"No detections for folder {folder['name']}")
 
             # Ensure detection has a csv format
+            # TODO: Move this into worker job
             csv_detection_file(folder, detection, user)
             detection_list.append(detection)
             folder_list.append(folder)

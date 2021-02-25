@@ -37,8 +37,9 @@ RUN wget https://bootstrap.pypa.io/get-pip.py && python3.7 get-pip.py
 # Initialize python virtual environment
 RUN apt-get update && apt-get install -y python3.7-venv
 
-# Switch over to user "worker"
-RUN useradd -D --shell=/bin/bash && useradd -m worker
+# Switch over to user "worker" 1099:1099 to align with base image
+# https://github.com/VIAME/VIAME/blob/master/cmake/build_server_docker.sh#L123
+RUN useradd --create-home --uid 1099 --shell=/bin/bash worker
 USER worker
 
 ENV VIRTUAL_ENV=/home/worker/venv
@@ -61,14 +62,6 @@ RUN pip install --no-deps .
 
 # Copy provision scripts
 COPY --chown=worker:worker docker/provision /home/provision
-
-# Download addons
-USER root
-RUN /opt/noaa/viame/bin/download_viame_addons.sh \
-  && /opt/noaa/viame/bin/filter_non_web_pipelines.sh \
-  && chown -R worker:worker /opt/noaa/viame/
-
-USER worker
 
 ENTRYPOINT ["/tini", "--"]
 CMD ["/home/provision/girder_worker_entrypoint.sh"]

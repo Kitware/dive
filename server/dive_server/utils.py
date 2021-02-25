@@ -3,7 +3,7 @@ import json
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Dict
+from typing import Dict, List
 
 from girder.models.file import File
 from girder.models.folder import Folder
@@ -11,23 +11,6 @@ from girder.models.item import Item
 from girder.models.upload import Upload
 
 from dive_server.serializers import viame
-
-
-def get_static_pipelines_path() -> Path:
-    pipeline_path = None
-
-    env_pipelines_path = os.getenv("VIAME_PIPELINES_PATH")
-    if env_pipelines_path is None:
-        raise Exception(
-            "No pipeline path specified. "
-            "Please set the VIAME_PIPELINES_PATH environment variable.",
-        )
-
-    pipeline_path = Path(env_pipelines_path)
-    if not pipeline_path.exists():
-        raise Exception("Specified pipeline path does not exist!")
-
-    return pipeline_path
 
 
 def get_or_create_auxiliary_folder(folder, user):

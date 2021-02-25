@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 import re
 from typing import List
 
@@ -7,7 +8,6 @@ from girder.models.file import File
 from girder.models.folder import Folder
 from girder.models.item import Item
 from girder.models.upload import Upload
-from typing_extensions import TypedDict
 
 from dive_server.constants import (
     ImageSequenceType,
@@ -15,30 +15,10 @@ from dive_server.constants import (
     VideoType,
     safeImageRegex,
 )
-from dive_server.pipelines import DisallowedStaticPipelines, get_static_pipelines_path
 from dive_server.serializers import viame
+from dive_utils.types import TrainingConfigurationSummary, TrainingConfiguration
 
 TrainingOutputFolderName = "VIAME Training Results"
-DefaultTrainingConfiguration = "train_netharn_cascade.viame_csv.conf"
-AllowedTrainingConfigs = r".*\.viame_csv\.conf$"
-
-
-class TrainingConfigurationDescription(TypedDict):
-    configs: List[str]
-    default: str
-
-
-def load_training_configurations() -> TrainingConfigurationDescription:
-    """Load existing training configs."""
-
-    main_pipeline_path = get_static_pipelines_path()
-    configurations = sorted([path.name for path in main_pipeline_path.glob("./*.conf")])
-    configurations = [c for c in configurations if re.match(AllowedTrainingConfigs, c)]
-
-    return {
-        "configs": configurations,
-        "default": DefaultTrainingConfiguration,
-    }
 
 
 def training_output_folder(user):
