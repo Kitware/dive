@@ -32,7 +32,7 @@ function defaultFormatter(track: FrameDataTrack, maxPairs = 3, lineHeight = 20):
     if (bounds && track.confidencePairs !== null) {
       const arr: TextData[] = [];
       const totalVisiblePairs = Math.min(track.confidencePairs.length, maxPairs);
-      for (let i = 0; i < totalVisiblePairs; i += 1) {
+      for (let i = 0; i < track.confidencePairs.length; i += 1) {
         const [type, confidence] = track.confidencePairs[i];
         const isCurrentPair = (type === track.trackType[0]);
         const currentTypeIndication = (isCurrentPair && totalVisiblePairs > 1) ? '**' : '';
@@ -49,6 +49,7 @@ function defaultFormatter(track: FrameDataTrack, maxPairs = 3, lineHeight = 20):
       }
       return arr
         .sort((a, b) => (+b.currentPair) - (+a.currentPair)) // sort currentPair=true first
+        .slice(0, totalVisiblePairs)
         .map((v, i) => ({ ...v, y: bounds[1] - (lineHeight * i) })); // calculate y after sort
     }
   }
