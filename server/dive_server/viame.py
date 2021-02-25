@@ -127,12 +127,15 @@ class Viame(Resource):
         user = self.getCurrentUser()
         token = Token().createToken(user=user, days=14)
 
+        # TODO Temporary inclusion of track_user pipelines requiring input
+        if 'track_user' in pipeline["pipe"]:
+            print("track_user")
+            pipeline["requires_input"] = True
+
         # If it requires inputs we need to find it and use it as an input
-        if "requires_input" in pipeline.keys() and pipeline["requires_input"]:
+        if "requires_input" in pipeline.keys() and pipeline["requires_input"] is True:
             detections = list(
-                Item()
-                .find({"meta.detection": str(folder['_id'])})
-                .sort([("created", -1)])
+                Item().find({"meta.detection": folder_id_str}).sort([("created", -1)])
             )
             detection = detections[0] if detections else None
 
@@ -140,7 +143,7 @@ class Viame(Resource):
                 raise RestException(f"No detections for folder {folder['name']}")
 
             # Ensure detection has a csv format
-            csv_detection_file(folder, detection, user)
+            detection = csv_detection_file(folder, detection, user)
 
         move_existing_result_to_auxiliary_folder(folder, user)
 
@@ -150,9 +153,8 @@ class Viame(Resource):
             "output_folder": folder_id_str,
             "pipeline": pipeline,
         }
-        if "requires_input" in pipeline.keys() and pipeline["requires_input"]:
-            params["groundtruth"] = detection
-
+        if "requires_input" in pipeline.keys() and pipeline["requires_input"] is True:
+            params["pipeline_input"] = detection
         newjob = run_pipeline.apply_async(
             queue="pipelines",
             kwargs=dict(
