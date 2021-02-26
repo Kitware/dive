@@ -7,7 +7,7 @@ import { ipcRenderer, remote } from 'electron';
 import type {
   Attribute, DatasetMetaMutable, DatasetType,
   Pipe, Pipelines, SaveDetectionsArgs, TrainingConfigs,
-} from 'viame-web-common/apispec';
+} from 'dive-common/apispec';
 
 import {
   DesktopJob, DesktopMetadata, JsonMeta, NvidiaSmiReply,

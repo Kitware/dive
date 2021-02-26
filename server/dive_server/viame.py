@@ -10,13 +10,8 @@ from girder.models.token import Token
 from girder.models.user import User
 from girder_jobs.models.job import Job
 
-from viame_tasks.tasks import (
-    convert_images,
-    convert_video,
-    run_pipeline,
-    train_pipeline,
-)
-from viame_utils.types import PipelineDescription, PipelineJob
+from dive_tasks.tasks import convert_images, convert_video, run_pipeline, train_pipeline
+from dive_utils.types import PipelineDescription, PipelineJob
 
 from .constants import csvRegex, imageRegex, safeImageRegex, videoRegex, ymlRegex
 from .model.attribute import Attribute
@@ -115,7 +110,7 @@ class Viame(Resource):
                 JOBCONST_DATASET_ID: folder_id_str,
                 'status': {
                     # Find jobs that are inactive, queued, or running
-                    # https://github.com/girder/girder/blob/master/plugins/jobs/girder_jobs/constants.py
+                    # https://github.com/girder/girder/blob/main/plugins/jobs/girder_jobs/constants.py
                     '$in': [0, 1, 2]
                 },
             }

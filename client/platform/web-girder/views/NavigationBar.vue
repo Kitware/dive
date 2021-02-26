@@ -1,8 +1,8 @@
 <script>
 import { mapState } from 'vuex';
 
-import NavigationTitle from 'viame-web-common/components/NavigationTitle.vue';
-import UserGuideButton from 'viame-web-common/components/UserGuideButton.vue';
+import NavigationTitle from 'dive-common/components/NavigationTitle.vue';
+import UserGuideButton from 'dive-common/components/UserGuideButton.vue';
 
 import JobsTab from './JobsTab.vue';
 import { getPathFromLocation } from '../utils';

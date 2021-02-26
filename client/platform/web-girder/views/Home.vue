@@ -4,8 +4,8 @@ import { mapMutations } from 'vuex';
 import { FileManager } from '@girder/components/src/components/Snippet';
 import { getLocationType } from '@girder/components/src/utils';
 
-import RunPipelineMenu from 'viame-web-common/components/RunPipelineMenu.vue';
-import RunTrainingMenu from 'viame-web-common/components/RunTrainingMenu.vue';
+import RunPipelineMenu from 'dive-common/components/RunPipelineMenu.vue';
+import RunTrainingMenu from 'dive-common/components/RunTrainingMenu.vue';
 
 import { getPathFromLocation, getLocationFromRoute } from '../utils';
 import { deleteResources } from '../api/viame.service';

@@ -2,7 +2,7 @@
 import {
   defineComponent, computed, PropType, ref, onBeforeMount, reactive,
 } from '@vue/composition-api';
-import { Pipelines, Pipe, useApi } from 'viame-web-common/apispec';
+import { Pipelines, Pipe, useApi } from 'dive-common/apispec';
 
 export default defineComponent({
   props: {
@@ -139,7 +139,7 @@ export default defineComponent({
           <v-card-text class="pb-0">
             Choose a pipeline type. Check the
             <a
-              href="https://viame.github.io/VIAME-Web/Pipeline-Documentation/"
+              href="https://kitware.github.io/dive/Pipeline-Documentation/"
               target="_blank"
             >docs</a>
             for more information about these options.
@@ -194,8 +194,8 @@ export default defineComponent({
     </v-menu>
     <v-dialog
       :value="pipelineState.status !== null"
-      @input="dismissLaunchDialog"
       max-width="400"
+      @input="dismissLaunchDialog"
     >
       <v-card outlined>
         <v-card-title>

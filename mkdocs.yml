@@ -1,10 +1,10 @@
 
-site_name: VIAME Web
-site_url: https://viame.github.io/viame-web
-site_description: Documentation for Viame Web
+site_name: DIVE
+site_url: https://kitware.github.io/dive
+site_description: Documentation for DIVE
 site_author: Kitware
 
-repo_url: https://github.com/VIAME/VIAME-Web
+repo_url: https://github.com/Kitware/dive
 
 theme:
   name: material

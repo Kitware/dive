@@ -1,8 +1,8 @@
-# VIAME Web Frontend
+# DIVE Frontend
 
 This directory contains the code for both
 
-* The specific VIAME-Web client deployed to [viame.kitware.com](https://viame.kitware.com)
+* The specific DIVE client deployed to [viame.kitware.com](https://viame.kitware.com)
 * The web annotation library published to npm as [`vue-media-annotator`](https://developer.aliyun.com/mirror/npm/package/vue-media-annotator)
 
 ## Development

@@ -1,4 +1,4 @@
-import { SaveDetectionsArgs } from 'viame-web-common/apispec';
+import { SaveDetectionsArgs } from 'dive-common/apispec';
 import { TrackData } from 'vue-media-annotator/track';
 import girderRest from '../plugins/girder';
 

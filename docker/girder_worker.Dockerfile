@@ -1,11 +1,12 @@
 FROM kitware/viame:gpu-algorithms-latest
 
+# install tini init system
+ENV TINI_VERSION v0.19.0
+ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini /tini
+RUN chmod +x /tini
+
 # VIAME install at /opt/noaa/viame/
 # VIAME pipelines at /opt/noaa/viame/configs/pipelines/
-
-# Download addons
-RUN /opt/noaa/viame/bin/download_viame_addons.sh
-RUN /opt/noaa/viame/bin/filter_non_web_pipelines.sh
 
 ENV CELERY_BROKER_URL amqp://guest:guest@rabbit/
 ENV BROKER_CONNECTION_TIMEOUT 2
@@ -37,18 +38,21 @@ RUN wget https://bootstrap.pypa.io/get-pip.py && python3.7 get-pip.py
 RUN apt-get update && apt-get install -y python3.7-venv
 ENV VIRTUAL_ENV=/opt/venv
 RUN python3.7 -m venv $VIRTUAL_ENV
+
+# Activate the venv
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
-# install tini init system
-ENV TINI_VERSION v0.19.0
-ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini /tini
-RUN chmod +x /tini
-
-RUN pip install future
+# Cryptography requires latest pip, setuptools.
+# https://cryptography.io/en/latest/faq.html#installing-cryptography-fails-with-error-can-not-find-rust-compiler
+RUN pip install -U pip setuptools
 
 # Pip install dependencies
 COPY server/setup.py /home/viame_girder/
 RUN pip install --no-cache-dir .
+
+# Download addons
+RUN /opt/noaa/viame/bin/download_viame_addons.sh
+RUN /opt/noaa/viame/bin/filter_non_web_pipelines.sh
 
 # Pip install actual packages
 COPY server/ /home/viame_girder/

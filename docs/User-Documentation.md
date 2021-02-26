@@ -1,12 +1,6 @@
-## Notes
+# User Documentation
 
-* **VIAME Web is automatically updated and down for 10 minutes on 2 am EST/EDT Sundays and Thursdays**
-* For problems, feature requests, etc. please email viame-web@kitware.com
-* To move data to the core (global) training data from your personal folder, please also email viame-web@kitware.com
-
-## Documentation
-
-Current capabilities of VIAME Web include:
+Current capabilities of DIVE include:
 
 * User import of frame images or video.
 * Playback of existing annotation data.
@@ -15,7 +9,7 @@ Current capabilities of VIAME Web include:
 * Manual user refinement of automatically generated tracks
 * Export of generated annotations.
 
-### Controls
+## Controls
 
 | control              | description                        |
 | -------------------- | ---------------------------------- |
@@ -30,16 +24,16 @@ Current capabilities of VIAME Web include:
 | left-click           | select/de-select track             |
 | right-click          | toggle track edit mode             |
 
-### Register for an account
+## Register for an account
 
 A user account is required to store data and run pipelines on viame.kitware.com.
 
 1. Visit https://viame.kitware.com
 2. Click **Register**
 
-### Adding a data source
+## Adding a data source
 
-* Open the VIAME Web Homepage, and navigate to the "Data" tab.
+* Open the DIVE Homepage, and navigate to the "Data" tab.
 * Click the blue "user home" button at the top left of the data browser.
 * Choose your "public" or "private" folder.
 * Click the blue "Upload" button that appears in the toolbar.
@@ -48,7 +42,7 @@ A user account is required to store data and run pipelines on viame.kitware.com.
 * Choose a name for the data, enter the optional video playback frame rate, and press start-upload.
 * In the data browser, a new blue "Annotate" button will appear next to your data.
 
-### General annotation controls
+## General annotation controls
 
 General Definitions
 
@@ -64,7 +58,7 @@ General controls
 * **Delete single detection**: Press `q` when a detection is selected.
 * **Delete single track**: In the track list, a meatballs menu will appear on hover.  Click the meatballs menu and click "Delete Track".
 
-### Creating a new track
+## Creating a new track
 
 * In the track list header, click the `+` button.
 * Your cursor will turn into a cross-hair.
@@ -75,7 +69,7 @@ General controls
 * left-click the track again to select it in the Track list.
 * Double-click its type to open the list of available types, and select one.
 
-### Adding head and tail point annotations
+## Adding head and tail point annotations
 
 When annotating fish, it's possible to add additional detection-level annotations for head and tail position.  It's best to first create a complete track of a fish before adding head/tail annotations.
 
@@ -92,6 +86,6 @@ Notes:
 * **To Delete a head/tail pair**, select a detection with existing markers and tap `q`.
 * When a track is selected, a meatball menu will appear in the top-right corner of the annotation window.  All hotkey controls are also available on that menu.
 
-### Persisting changes
+## Persisting changes
 
 Annotations are not automatically persisted to the VIAME server.  To save your changes, click the save disk at the right side of the top toolbar.

@@ -9,10 +9,10 @@ import {
 import { TypeList, TrackList } from 'vue-media-annotator/components';
 import { useAllTypes } from 'vue-media-annotator/provides';
 
-import { NewTrackSettings, TypeSettings } from 'viame-web-common/use/useSettings';
-import TrackDetailsPanel from 'viame-web-common/components/TrackDetailsPanel.vue';
-import CreationMode from 'viame-web-common/components/CreationMode.vue';
-import TypeSettingsPanel from 'viame-web-common/components/TypeSettingsPanel.vue';
+import { NewTrackSettings, TypeSettings } from 'dive-common/use/useSettings';
+import TrackDetailsPanel from 'dive-common/components/TrackDetailsPanel.vue';
+import CreationMode from 'dive-common/components/CreationMode.vue';
+import TypeSettingsPanel from 'dive-common/components/TypeSettingsPanel.vue';
 
 export default defineComponent({
   props: {

@@ -1,4 +1,4 @@
-import { Api } from 'viame-web-common/apispec';
+import { Api } from 'dive-common/apispec';
 import * as api from 'platform/desktop/frontend/api';
 
 /* Warning, this import involves node.js code for loadDetections (below) */

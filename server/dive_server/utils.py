@@ -10,7 +10,7 @@ from girder.models.folder import Folder
 from girder.models.item import Item
 from girder.models.upload import Upload
 
-from viame_server.serializers import viame
+from dive_server.serializers import viame
 
 
 def get_static_pipelines_path() -> Path:

@@ -1,5 +1,5 @@
 import { Attributes } from 'platform/desktop/constants';
-import { MultiTrackRecord } from 'viame-web-common/apispec';
+import { MultiTrackRecord } from 'dive-common/apispec';
 import { StringKeyObject, TrackData } from 'vue-media-annotator/track';
 
 
@@ -67,7 +67,7 @@ function processTrackAttributes(tracks: TrackData[]):
     if (track.features) {
       track.features.forEach((item) => {
         if (item.attributes) {
-          processAttributes(track.attributes, 'detection');
+          processAttributes(item.attributes, 'detection');
         }
       });
     }

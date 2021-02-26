@@ -8,7 +8,7 @@ process.env.VUE_APP_VERSION = packagejson.version;
 function chainWebpack(config) {
   config.output.strictModuleExceptionHandling(true);
   config.resolve.symlinks(false);
-  config.resolve.alias.set('viame-web-common', path.resolve(__dirname, 'viame-web-common'));
+  config.resolve.alias.set('dive-common', path.resolve(__dirname, 'dive-common'));
   config.resolve.alias.set('vue-media-annotator', path.resolve(__dirname, 'src'));
   config.resolve.alias.set('platform', path.resolve(__dirname, 'platform'));
 }
@@ -40,7 +40,7 @@ module.exports = {
           // https://github.com/nklayman/vue-cli-plugin-electron-builder/issues/188
           // https://github.com/electron-userland/electron-builder/issues/2592
           main: 'background.js',
-          version: '1.4.1',
+          version: '1.4.2',
         },
         linux: {
           target: ['AppImage', 'snap', 'tar.gz'],
@@ -51,7 +51,7 @@ module.exports = {
           target: ['nsis', 'portable', 'msi', 'zip'],
           // eslint-disable-next-line no-template-curly-in-string
           artifactName: 'DIVE-Desktop-${version}.${ext}',
-          icon: 'viame-web-common/assets/windows.ico',
+          icon: 'dive-common/assets/windows.ico',
         },
       },
       chainWebpackMainProcess: chainWebpack,

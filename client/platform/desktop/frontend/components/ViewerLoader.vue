@@ -1,8 +1,8 @@
 <script lang="ts">
 import { defineComponent } from '@vue/composition-api';
 
-import Viewer from 'viame-web-common/components/Viewer.vue';
-import RunPipelineMenu from 'viame-web-common/components/RunPipelineMenu.vue';
+import Viewer from 'dive-common/components/Viewer.vue';
+import RunPipelineMenu from 'dive-common/components/RunPipelineMenu.vue';
 
 import Export from './Export.vue';
 import JobTab from './JobTab.vue';
