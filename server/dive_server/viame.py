@@ -128,7 +128,7 @@ class Viame(Resource):
         token = Token().createToken(user=user, days=14)
 
         # TODO Temporary inclusion of track_user pipelines requiring input
-        if 'track_user' in pipeline["pipe"]:
+        if 'track_user' in pipeline["pipe"] or 'add_segmentation' in pipeline["pipe"]:
             print("track_user")
             pipeline["requires_input"] = True
 
