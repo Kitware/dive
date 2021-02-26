@@ -58,6 +58,12 @@ async function runPipeline(
   const trackOutput = npath.join(jobWorkDir, 'track_output.csv');
   const joblog = npath.join(jobWorkDir, 'runlog.txt');
 
+  //TODO: TEMPORARY FIX FOR DEMO PURPOSES
+  console.log(`pipeline: ${pipeline.pipe}`);
+  if ((/track_user|add_segmentation|add_head_tail_keypoints/g).test(pipeline.pipe)) {
+    // eslint-disable-next-line @typescript-eslint/camelcase
+    pipeline.requires_input = true;
+  }
   let groundTruthFileName;
   if (pipeline.requires_input) {
     groundTruthFileName = `groundtruth_${meta.id}.csv`;
