@@ -6,16 +6,36 @@ import useTrackSelectionControls from './useTrackSelectionControls';
 
 Vue.use(CompositionApi);
 
-const tracks = computed(() => ([
-  new Track(0, {}),
-  new Track(2, {}),
-  new Track(200, {}),
-  new Track(1000, {}),
+const filteredTracks = computed(() => ([
+  {
+    track: new Track(0, {}),
+    context: {
+      confidencePairIndex: 0,
+    },
+  },
+  {
+    track: new Track(2, {}),
+    context: {
+      confidencePairIndex: 0,
+    },
+  },
+  {
+    track: new Track(200, {}),
+    context: {
+      confidencePairIndex: 0,
+    },
+  },
+  {
+    track: new Track(1000, {}),
+    context: {
+      confidencePairIndex: 0,
+    },
+  },
 ]));
 
 describe('useTrackSelectionControls', () => {
   it('can select individual tracks', () => {
-    const tsc = useTrackSelectionControls({ tracks });
+    const tsc = useTrackSelectionControls({ filteredTracks });
     expect(tsc.selectedTrackId.value).toBeNull();
 
     tsc.selectTrack(2);
@@ -34,7 +54,7 @@ describe('useTrackSelectionControls', () => {
   });
 
   it('can select next or previous track', () => {
-    const tsc = useTrackSelectionControls({ tracks });
+    const tsc = useTrackSelectionControls({ filteredTracks });
 
     expect(tsc.selectNextTrack()).toBe(0);
 
