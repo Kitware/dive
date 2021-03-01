@@ -11,6 +11,17 @@ export interface Attribute {
   _id: string;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function isAttribute(obj: any): obj is Attribute {
+  return (
+    (typeof obj === 'object')
+    && (typeof obj.belongs === 'string')
+    && (typeof obj.datatype === 'string')
+    && (typeof obj._id === 'string')
+    && (typeof obj.name === 'string')
+  );
+}
+
 export type Attributes = Record<string, Attribute>;
 
 /**

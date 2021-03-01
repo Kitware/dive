@@ -1,9 +1,24 @@
 import { ref, Ref } from '@vue/composition-api';
 
-import Track, { TrackId } from 'vue-media-annotator/track';
-import { Attribute } from 'vue-media-annotator/use/useAttributes';
+import Track, { TrackId, isTrack } from 'vue-media-annotator/track';
+import { Attribute, isAttribute } from 'vue-media-annotator/use/useAttributes';
 
 import { useApi, DatasetMetaMutable } from 'dive-common/apispec';
+
+function _updatePendingChangeMap<K, V>(
+  key: K, value: V,
+  action: 'upsert' | 'delete',
+  upsert: Map<K, V>,
+  del: Set<K>,
+) {
+  if (action === 'delete') {
+    del.add(key);
+    upsert.delete(key);
+  } else if (action === 'upsert') {
+    del.delete(key);
+    upsert.set(key, value);
+  }
+}
 
 export default function useSave(datasetId: Ref<Readonly<string>>) {
   const pendingSaveCount = ref(0);
@@ -49,37 +64,25 @@ export default function useSave(datasetId: Ref<Readonly<string>>) {
 
   function markChangesPending(
     {
-      type,
       action,
       data,
     }: {
-    type: 'track' | 'attribute' | 'meta';
-    action?: 'upsert' | 'delete';
-    data?: Track | Attribute;
-    } = { type: 'meta' },
+      action: 'upsert' | 'delete' | 'meta';
+      data?: Track | Attribute;
+    } = { action: 'meta' },
   ) {
-    if (type === 'meta') {
+    if (action === 'meta') {
       pendingChangeMap.meta += 1;
-    } else if (type === 'track' && data !== undefined && (data as Track).trackId !== undefined) {
-      const track = data as Track;
-      if (action === 'delete') {
-        pendingChangeMap.delete.add(track.trackId);
-        pendingChangeMap.upsert.delete(track.trackId);
-      } else if (action === 'upsert') {
-        pendingChangeMap.delete.delete(track.trackId);
-        pendingChangeMap.upsert.set(track.trackId, track);
-      }
-    } else if (type === 'attribute' && data !== undefined && (data as Attribute)._id !== undefined) {
-      const attribute = data as Attribute;
-      if (action === 'delete') {
-        pendingChangeMap.attributeDelete.add(attribute._id);
-        pendingChangeMap.attributeUpsert.delete(attribute._id);
-      } else if (action === 'upsert') {
-        pendingChangeMap.attributeDelete.delete(attribute._id);
-        pendingChangeMap.attributeUpsert.set(attribute._id, attribute);
-      }
+    } else if (isTrack(data)) {
+      _updatePendingChangeMap(
+        data.trackId, data, action, pendingChangeMap.upsert, pendingChangeMap.delete,
+      );
+    } else if (isAttribute(data)) {
+      _updatePendingChangeMap(
+        data._id, data, action, pendingChangeMap.attributeUpsert, pendingChangeMap.attributeDelete,
+      );
     } else {
-      throw new Error('Arguments inconsistent with pending change type');
+      throw new Error(`Arguments inconsistent with pending change type: ${action} cannot be performed on ${data}`);
     }
     pendingSaveCount.value += 1;
   }
