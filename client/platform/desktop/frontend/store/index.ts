@@ -5,14 +5,12 @@ import * as api from 'platform/desktop/frontend/api';
 import * as common from 'platform/desktop/backend/native/common';
 
 import { settings } from './settings';
-import { load, setRecents, clearRecents } from './dataset';
+import { load, setRecents } from './dataset';
 
 /* Run forward migrations on any client-side data stores */
 export async function migrate() {
-  const datasets = await load();
-  if (datasets.length && typeof datasets[0] === 'string') {
-    clearRecents();
-  }
+  /* No migrations yet */
+  await load();
 }
 
 /**
