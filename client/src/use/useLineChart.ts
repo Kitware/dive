@@ -1,9 +1,9 @@
 import { computed, Ref } from '@vue/composition-api';
-import Track from '../track';
+import { TrackWithContext } from 'vue-media-annotator/use/useTrackFilters';
 import { TypeStyling } from './useStyling';
 
 interface UseLineChartParams {
-  enabledTracks: Readonly<Ref<readonly Track[]>>;
+  enabledTracks: Readonly<Ref<readonly TrackWithContext[]>>;
   typeStyling: Ref<TypeStyling>;
   allTypes: Readonly<Ref<readonly string[]>>;
 }
@@ -42,17 +42,15 @@ export default function useLineChart({
      * For each begin time, push a 1, for each end time, push a -1.
      * Then iterate each histogram and generate its accumulation at each point.
      */
-    enabledTracks.value.forEach((track) => {
+    enabledTracks.value.forEach((filtered) => {
+      const { track } = filtered;
       const totalArr = histograms.get('total') as number[];
       const ibegin = track.begin;
       const iend = track.end > track.begin ? track.end : track.begin + 1;
       [totalArr[ibegin], totalArr[iend]] = updateHistogram(ibegin, iend, totalArr);
-      const { confidencePairs } = track;
-      if (confidencePairs.length) {
-        const trackType = confidencePairs[0][0];
-        const typeArr = histograms.get(trackType) as number[];
-        [typeArr[ibegin], typeArr[iend]] = updateHistogram(ibegin, iend, typeArr);
-      }
+      const trackType = track.getType(filtered.context.confidencePairIndex)[0];
+      const typeArr = histograms.get(trackType) as number[];
+      [typeArr[ibegin], typeArr[iend]] = updateHistogram(ibegin, iend, typeArr);
     });
 
     const mapfunc = typeStyling.value.color;
