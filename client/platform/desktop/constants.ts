@@ -9,10 +9,19 @@ export const websafeVideoTypes = [
 ];
 
 export const otherVideoTypes = [
-  'video/quicktime',
-  'video/mpeg',
+  /* avi */
+  'vide/avi',
+  'video/msvideo',
   'video/x-msvideo',
   'video/x-ms-wmv',
+  /* mov */
+  'video/quicktime',
+  /* mpeg */
+  'video/mpeg',
+  'video/x-mpeg',
+  'video/x-mpeq2a',
+  /* ogg */
+  'video/ogg',
 ];
 
 export const fileVideoTypes = [
@@ -24,6 +33,7 @@ export const fileVideoTypes = [
   'mpg',
   'mpeg',
   'mp2',
+  'ogg',
 ];
 
 export const websafeImageTypes = [

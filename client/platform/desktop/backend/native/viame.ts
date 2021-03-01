@@ -13,7 +13,7 @@ import * as common from './common';
 import { cleanString, jobFileEchoMiddleware, spawnResult } from './utils';
 
 const PipelineRelativeDir = 'configs/pipelines';
-
+const DiveJobManifestName = 'dive_job_manifest.json';
 
 interface FFmpegSettings {
   initialization: string;
@@ -109,7 +109,7 @@ async function runPipeline(
     startTime: new Date(),
   };
 
-  fs.writeFile(npath.join(jobWorkDir, 'dive_job_manifest.json'), JSON.stringify(jobBase));
+  fs.writeFile(npath.join(jobWorkDir, DiveJobManifestName), JSON.stringify(jobBase));
 
   updater({
     ...jobBase,
@@ -247,7 +247,7 @@ async function train(
     startTime: new Date(),
   };
 
-  fs.writeFile(npath.join(jobWorkDir, 'dive_job_manifest.json'), JSON.stringify(jobBase));
+  fs.writeFile(npath.join(jobWorkDir, DiveJobManifestName), JSON.stringify(jobBase));
 
   updater({
     ...jobBase,
@@ -332,7 +332,7 @@ async function convertMedia(settings: Settings,
       viameConstants.ffmpeg.path,
       `-i "${args.mediaList[0][0]}"`,
       viameConstants.ffmpeg.videoArgs,
-      `"${args.mediaList[0][1]}"`
+      `"${args.mediaList[0][1]}"`,
     ].join(' '));
   } else if (args.meta.type === 'image-sequence' && imageIndex < args.mediaList.length) {
     commands.push(`${viameConstants.ffmpeg.initialization} ${viameConstants.ffmpeg.path} -i "${args.mediaList[imageIndex][0]}" "${args.mediaList[imageIndex][1]}"`);
@@ -356,9 +356,10 @@ async function convertMedia(settings: Settings,
     startTime: new Date(),
   };
 
+  fs.writeFile(npath.join(jobWorkDir, DiveJobManifestName), JSON.stringify(jobBase));
+
   job.stdout.on('data', jobFileEchoMiddleware(jobBase, updater, joblog));
   job.stderr.on('data', jobFileEchoMiddleware(jobBase, updater, joblog));
-
 
   job.on('exit', async (code) => {
     if (code !== 0) {

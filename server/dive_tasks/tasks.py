@@ -389,11 +389,12 @@ def convert_video(self: Task, path, folderId, auxiliaryFolderId, itemId):
             "ffmpeg",
             "-i",
             file_name,
-            "-vf \"scale=iw*sar:ih,setsar=1\"",
             "-c:v libx264",
             "-preset slow",
             "-crf 26",
             "-c:a copy",
+            # see native/<platform> code for a discussion of this option
+            '-vf "scale=ceil(iw*sar/2)*2:ceil(ih/2)*2,setsar=1"',
             output_path,
         ],
         stdout=process_log_file,

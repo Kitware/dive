@@ -41,7 +41,7 @@ const ViameWindowsConstants = {
       '-crf 26',
       '-c:a copy',
       // https://video.stackexchange.com/questions/20871/how-do-i-convert-anamorphic-hdv-video-to-normal-h-264-video-with-ffmpeg-how-to
-      '-vf "scale=iw*sar:ih,setsar=1"',
+      '-vf "scale=ceil(iw*sar/2)*2:ceil(ih/2)*2,setsar=1"',
     ].join(' '),
   },
 

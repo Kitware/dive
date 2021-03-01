@@ -44,12 +44,24 @@ const ViameLinuxConstants = {
       '-preset slow',
       '-crf 26',
       '-c:a copy',
-      // https://video.stackexchange.com/questions/20871/how-do-i-convert-anamorphic-hdv-video-to-normal-h-264-video-with-ffmpeg-how-to
-      '-vf "scale=iw*sar:ih,setsar=1"',
+      /**
+       * TODO: Upgrade to ffmpeg 4, use `round` instead of `ceil`
+       * 3.4 is part of 18.04LTS, so we should support it
+       *
+       * References:
+       * https://github.com/Kitware/dive/pull/602 (Anamorphic Video Support)
+       * https://video.stackexchange.com/questions/20871/how-do-i-convert-anamorphic-hdv-video-to-normal-h-264-video-with-ffmpeg-how-to
+       */
+      '-vf "scale=ceil(iw*sar/2)*2:ceil(ih/2)*2,setsar=1"',
     ].join(' '),
   },
 };
 
+const ViameBundledFFMPEGVideoArgs = [
+  '-c:v h264',
+  '-c: a copy',
+  '-vf "scale=ceil(iw*sar/2)*2:ceil(ih/2)*2,setsar=1"',
+].join(' ');
 
 async function validateViamePath(settings: Settings): Promise<true | string> {
   const setupScriptPath = npath.join(settings.viamePath, ViameLinuxConstants.setup);
@@ -178,7 +190,7 @@ async function ffmpegCommand(settings: Settings) {
   if (ffmpegViameExists) {
     ViameLinuxConstants.ffmpeg.initialization = `source ${setupScriptPath} &&`;
     ViameLinuxConstants.ffmpeg.path = `"${settings.viamePath}/bin/ffmpeg"`;
-    ViameLinuxConstants.ffmpeg.videoArgs = '-c:v h264 -c:a copy';
+    ViameLinuxConstants.ffmpeg.videoArgs = ViameBundledFFMPEGVideoArgs;
     ViameLinuxConstants.ffmpeg.ready = true;
     return;
   }

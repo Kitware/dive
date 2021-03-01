@@ -23,6 +23,7 @@ async function openFromDisk(datasetType: DatasetType) {
   if (datasetType === 'video') {
     filters = [
       { name: 'Videos', extensions: fileVideoTypes },
+      { name: 'All Files', extensions: ['*'] },
     ];
   }
   const results = await remote.dialog.showOpenDialog({
