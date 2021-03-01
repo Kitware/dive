@@ -18,7 +18,8 @@
     "divecli": "node ./bin/platform/desktop/backend/cli.js",
     "lint": "vue-cli-service lint src/ dive-common/ platform/",
     "lint:templates": "vtc --workspace . --srcDir src/",
-    "test": "vue-cli-service test:unit src/ dive-common/ platform/"
+    "test": "vue-cli-service test:unit src/ dive-common/ platform/",
+    "test:integration":"jest ./test/integration/integration.spec.ts"
   },
   "resolutions": {
     "@types/jest": "^25.2.3"
@@ -101,9 +102,11 @@
     "fs-extra": "^9.0.1",
     "git-describe": "^4.0.4",
     "jest": "^26.0.1",
+    "jest-playwright-preset": "^1.4.7",
     "jest-transform-stub": "^2.0.0",
     "mime-types": "^2.1.27",
     "mock-fs": "^4.13.0",
+    "playwright": "^1.9.1",
     "proper-lockfile": "^4.1.1",
     "pump": "^3.0.0",
     "range-parser": "^1.2.1",
@@ -129,6 +132,7 @@
   },
   "jest": {
     "verbose": true,
+    "preset": "jest-playwright-preset",
     "moduleNameMapper": {
       "^vue-media-annotator/(.*)$": "<rootDir>/src/$1",
       "^dive-common/(.*)$": "<rootDir>/dive-common/$1",
