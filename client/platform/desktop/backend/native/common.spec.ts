@@ -10,7 +10,6 @@ import type {
   DesktopJobUpdate, DesktopJobUpdater, JsonMeta, RunTraining, Settings,
 } from 'platform/desktop/constants';
 
-import { Attribute } from 'vue-media-annotator/use/useAttributes';
 import * as common from './common';
 
 const pipelines = {

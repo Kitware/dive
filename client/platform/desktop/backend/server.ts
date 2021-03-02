@@ -10,7 +10,6 @@ import rangeParser from 'range-parser';
 import fs from 'fs-extra';
 import { SaveAttributeArgs, SaveDetectionsArgs } from 'dive-common/apispec';
 
-import { Attribute } from 'vue-media-annotator/use/useAttributes';
 import settings from './state/settings';
 import * as common from './native/common';
 
