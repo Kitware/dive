@@ -1,31 +1,50 @@
 import Vue from 'vue';
 import Install, { ref, computed } from '@vue/composition-api';
 import { JsonMeta } from 'platform/desktop/constants';
+import { DatasetType } from 'dive-common/apispec';
 
 const RecentsKey = 'desktop.recent';
 
 // TODO remove this: this won't be necessary in Vue 3
 Vue.use(Install);
 
-const datasets = ref({} as Record<string, JsonMeta>);
+/**
+ * JsonMetaCache is a subset of JsonMeta
+ * cached in localStorage for quickly listing
+ * known datasets
+ */
+interface JsonMetaCache {
+  version: number;
+  type: DatasetType;
+  id: string;
+  fps: number;
+  name: string;
+  createdAt: string;
+  originalBasePath: string;
+}
+
+const datasets = ref({} as Record<string, JsonMetaCache>);
 
 const recents = computed(() => {
   const list = Object.values(datasets.value)
-    .sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt))
-    .slice(0, 20);
+    .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
   return list;
 });
 
 /**
- * Load recent datasets from localstorage
+ * Load recent datasets from localstorage.
+ *
+ * Note that the localStorage copy is just a cache and not a source of truth.
+ * The real dataset JsonMeta must be loaded from disk through the
+ * loadMetadata() backend method.
  */
-function load(): JsonMeta[] {
+function load(): JsonMetaCache[] {
   try {
     const arr = window.localStorage.getItem(RecentsKey);
     if (arr) {
       const maybeArr = JSON.parse(arr);
       if (maybeArr.length) {
-        maybeArr.forEach((meta: JsonMeta) => (
+        maybeArr.forEach((meta: JsonMetaCache) => (
           Vue.set(datasets.value, meta.id, meta)
         ));
         return maybeArr;
@@ -42,7 +61,15 @@ function load(): JsonMeta[] {
  * @param id dataset id path
  */
 function setRecents(meta: JsonMeta) {
-  Vue.set(datasets.value, meta.id, meta);
+  Vue.set(datasets.value, meta.id, {
+    version: meta.version,
+    type: meta.type,
+    id: meta.id,
+    fps: meta.fps,
+    name: meta.name,
+    createdAt: meta.createdAt,
+    originalBasePath: meta.originalBasePath,
+  });
   const values = Object.values(datasets.value);
   window.localStorage.setItem(RecentsKey, JSON.stringify(values));
 }

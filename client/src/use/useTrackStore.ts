@@ -126,7 +126,7 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
     trackIds.value.forEach((trackId) => {
       const track = getTrack(trackMap, trackId);
       const confidence = track.getType();
-      if (confidence !== null && confidence[1] < thresh) {
+      if (confidence[1] < thresh) {
         removeTrack(trackId);
       }
     });

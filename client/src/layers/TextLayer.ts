@@ -11,6 +11,7 @@ export interface TextData {
   y: number;
   offsetY?: number;
   offsetX?: number;
+  currentPair: boolean;
 }
 
 export type FormatTextRow = (track: FrameDataTrack) => TextData[] | null;
@@ -20,23 +21,36 @@ interface TextLayerParams {
 }
 
 /**
+ * @param track - standard frameDataTrack info
+ * @param maxPairs - maximum number of lines to show
+ * @param lineHeight - height of each text line
  * @returns value or null.  null indicates that the text should not be displayed.
  */
-function defaultFormatter(track: FrameDataTrack): TextData[] | null {
+function defaultFormatter(track: FrameDataTrack, maxPairs = 1, lineHeight = 20): TextData[] | null {
   if (track.features && track.features.bounds) {
     const { bounds } = track.features;
     if (bounds && track.confidencePairs !== null) {
-      const type = track.confidencePairs[0];
-      const confidence = track.confidencePairs[1];
-      return [{
-        selected: track.selected,
-        editing: track.editing,
-        type,
-        confidence,
-        text: `${type}: ${confidence.toFixed(2)}`,
-        x: bounds[2],
-        y: bounds[1],
-      }];
+      const arr: TextData[] = [];
+      const totalVisiblePairs = Math.min(track.confidencePairs.length, maxPairs);
+      for (let i = 0; i < track.confidencePairs.length; i += 1) {
+        const [type, confidence] = track.confidencePairs[i];
+        const isCurrentPair = (type === track.trackType[0]);
+        const currentTypeIndication = (isCurrentPair && totalVisiblePairs > 1) ? '**' : '';
+        arr.push({
+          selected: track.selected,
+          editing: track.editing,
+          type,
+          confidence,
+          text: `${currentTypeIndication}${type}: ${confidence.toFixed(2)}`,
+          x: bounds[2],
+          y: -1, // updated below
+          currentPair: isCurrentPair,
+        });
+      }
+      return arr
+        .sort((a, b) => (+b.currentPair) - (+a.currentPair)) // sort currentPair=true first
+        .slice(0, totalVisiblePairs)
+        .map((v, i) => ({ ...v, y: bounds[1] - (lineHeight * i) })); // calculate y after sort
     }
   }
   return null;
@@ -87,16 +101,25 @@ export default class TextLayer extends BaseLayer<TextData> {
       ...baseStyle,
       color: (data) => {
         if (data.editing || data.selected) {
-          if (!data.selected) {
+          if (!data.selected && !data.currentPair) {
             if (this.stateStyling.disabled.color !== 'type') {
               return this.stateStyling.disabled.color;
             }
             return this.typeStyling.value.color(data.type);
           }
-          return this.stateStyling.selected.color;
+          if (data.currentPair) {
+            return this.stateStyling.selected.color;
+          }
+          return this.typeStyling.value.color(data.type);
         }
         return this.typeStyling.value.color(data.type);
       },
+      textOpacity: ((data) => {
+        if (data.currentPair) {
+          return 1.0;
+        }
+        return this.stateStyling.disabled.opacity;
+      }),
       offset: (data) => ({
         x: data.offsetY || 3,
         y: data.offsetX || -8,

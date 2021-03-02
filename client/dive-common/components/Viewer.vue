@@ -172,7 +172,7 @@ export default defineComponent({
       editingTrack,
       selectNextTrack,
     } = useTrackSelectionControls({
-      tracks: filteredTracks,
+      filteredTracks,
     });
 
     const { lineChartData } = useLineChart({
@@ -312,7 +312,7 @@ export default defineComponent({
         frame,
         intervalTree,
         trackMap,
-        tracks: filteredTracks,
+        filteredTracks,
         typeStyling,
         selectedKey,
         selectedTrackId,
