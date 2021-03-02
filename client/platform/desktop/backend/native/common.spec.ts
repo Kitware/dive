@@ -217,14 +217,14 @@ mockfs({
               datatype: 'text',
               values: ['value1', 'value2', 'value3'],
               name: 'attribute1',
-              _id: 'track_attribute1',
+              key: 'track_attribute1',
             },
             // eslint-disable-next-line @typescript-eslint/camelcase
             detection_attribute1: {
               belongs: 'detection',
               datatype: 'number',
               name: 'attribute1',
-              _id: 'detection_attribute1',
+              key: 'detection_attribute1',
             },
           },
         }),

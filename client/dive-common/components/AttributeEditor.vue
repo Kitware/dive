@@ -22,7 +22,7 @@ export default defineComponent({
     const belongs: Ref<string> = ref(props.selectedAttribute.belongs);
     const datatype: Ref<string> = ref(props.selectedAttribute.datatype);
     let values: string[] = props.selectedAttribute.values ? props.selectedAttribute.values : [];
-    let addNew = !props.selectedAttribute._id.length;
+    let addNew = !props.selectedAttribute.key.length;
 
     const form: Ref<HTMLFormElement | null> = ref(null);
 
@@ -58,15 +58,19 @@ export default defineComponent({
         return;
       }
 
-      const content = {
+      const data = {
         name: name.value,
         belongs: belongs.value,
         datatype: datatype.value,
         values: datatype.value === 'text' && values ? values : [],
-        _id: props.selectedAttribute._id,
+        key: `${belongs.value}_${name.value}`,
       };
 
-      emit('save', { addNew, data: content });
+      if (addNew) {
+        emit('save', { data });
+      } else {
+        emit('save', { data, oldAttribute: props.selectedAttribute });
+      }
     }
 
     async function deleteAttribute() {
@@ -151,7 +155,7 @@ export default defineComponent({
                   <v-btn
                     class="hover-show-child"
                     color="error"
-                    :disabled="!selectedAttribute._id.length"
+                    :disabled="!selectedAttribute.key.length"
                     @click.prevent="deleteAttribute"
                   >
                     Delete

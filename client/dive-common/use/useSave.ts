@@ -79,7 +79,7 @@ export default function useSave(datasetId: Ref<Readonly<string>>) {
       );
     } else if (isAttribute(data)) {
       _updatePendingChangeMap(
-        data._id, data, action, pendingChangeMap.attributeUpsert, pendingChangeMap.attributeDelete,
+        data.key, data, action, pendingChangeMap.attributeUpsert, pendingChangeMap.attributeDelete,
       );
     } else {
       throw new Error(`Arguments inconsistent with pending change type: ${action} cannot be performed on ${data}`);

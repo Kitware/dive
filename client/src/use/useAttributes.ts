@@ -8,7 +8,7 @@ export interface Attribute {
   datatype: 'text' | 'number' | 'boolean';
   values?: string[];
   name: string;
-  _id: string;
+  key: string;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -17,7 +17,7 @@ export function isAttribute(obj: any): obj is Attribute {
     (typeof obj === 'object')
     && (typeof obj.belongs === 'string')
     && (typeof obj.datatype === 'string')
-    && (typeof obj._id === 'string')
+    && (typeof obj.key === 'string')
     && (typeof obj.name === 'string')
   );
 }
@@ -47,37 +47,28 @@ export default function UseAttributes({ markChangesPending }: UseAttributesParam
     attributes.value = metadataAttributes;
   }
 
-  const getAttributes = computed(() => Object.values(attributes.value));
+  const attributesList = computed(() => Object.values(attributes.value));
 
-  function setAttribute({ data }: {data: Attribute }, updateAllTracks = false) {
-    let oldAttribute;
-    if (data._id === '') {
-      // eslint-disable-next-line no-param-reassign
-      data._id = `${data.belongs}_${data.name}`;
-    } else if (attributes.value[data._id]) {
-      // Existing attribute
-      if (attributes.value[data._id].name !== data.name) {
-        oldAttribute = attributes.value[data._id];
-        // Name change should delete the old attribute and create a new one with the updated id
-        VueDel(attributes.value, data._id);
-        markChangesPending({ action: 'delete', data: { ...attributes.value[data._id] } });
-        // Create a new attribute to replace it
-        // eslint-disable-next-line no-param-reassign
-        data._id = `${data.belongs}_${data.name}`;
-      }
+  function setAttribute({ data, oldAttribute }:
+     {data: Attribute; oldAttribute?: Attribute }, updateAllTracks = false) {
+    if (oldAttribute && data.key !== oldAttribute.key) {
+      // Name change should delete the old attribute and create a new one with the updated id
+      VueDel(attributes.value, oldAttribute.key);
+      markChangesPending({ action: 'delete', data: oldAttribute });
+      // Create a new attribute to replace it
     }
     if (updateAllTracks && oldAttribute) {
       // TODO: Lengthy track/detection attribute updating function
     }
-    VueSet(attributes.value, data._id, data);
-    markChangesPending({ action: 'upsert', data: attributes.value[data._id] });
+    VueSet(attributes.value, data.key, data);
+    markChangesPending({ action: 'upsert', data: attributes.value[data.key] });
   }
 
 
-  function deleteAttribute(attributeId: string, removeFromTracks = false) {
-    if (attributes.value[attributeId] !== undefined) {
-      markChangesPending({ action: 'delete', data: { ...attributes.value[attributeId] } });
-      VueDel(attributes.value, attributeId);
+  function deleteAttribute({ data }: {data: Attribute}, removeFromTracks = false) {
+    if (attributes.value[data.key] !== undefined) {
+      markChangesPending({ action: 'delete', data: attributes.value[data.key] });
+      VueDel(attributes.value, data.key);
     }
     if (removeFromTracks) {
       // TODO: Lengthty track/detection attribute deletion function
@@ -86,7 +77,7 @@ export default function UseAttributes({ markChangesPending }: UseAttributesParam
 
   return {
     loadAttributes,
-    getAttributes,
+    attributesList,
     setAttribute,
     deleteAttribute,
   };

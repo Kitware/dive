@@ -126,9 +126,10 @@ export interface Handler {
     fill?: boolean;
   }): void;
   /* set an Attribute in the metaData */
-  setAttribute({ data }: {data: Attribute }): void;
+  setAttribute({ data, oldAttribute }:
+    {data: Attribute; oldAttribute?: Attribute }, updateAllTracks?: boolean): void;
   /* delete an Attribute in the metaData */
-  deleteAttribute(attributeId: string, removeFromTracks?: boolean): void;
+  deleteAttribute({ data }: {data: Attribute}, removeFromTracks?: boolean): void;
 }
 const HandlerSymbol = Symbol('handler');
 

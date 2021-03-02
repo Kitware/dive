@@ -19,7 +19,7 @@ import {
   JsonMeta, Settings, JsonMetaCurrentVersion, DesktopMetadata, DesktopJobUpdater,
   ConvertMedia, RunTraining, ExportDatasetArgs,
 } from 'platform/desktop/constants';
-import { Attributes } from 'vue-media-annotator/use/useAttributes';
+import { Attribute, Attributes } from 'vue-media-annotator/use/useAttributes';
 import processTrackAttributes from './attributeProcessor';
 import { cleanString, makeid } from './utils';
 
@@ -351,7 +351,8 @@ async function _saveAsJson(absPath: string, data: unknown) {
   await fs.writeFile(absPath, serialized);
 }
 
-async function saveMetadata(settings: Settings, datasetId: string, args: DatasetMetaMutable) {
+async function saveMetadata(settings: Settings, datasetId: string,
+  args: DatasetMetaMutable & { attributes?: Record<string, Attribute>}) {
   const projectDirInfo = await getValidatedProjectDir(settings, datasetId);
   const release = await _acquireLock(projectDirInfo.basePath, projectDirInfo.metaFileAbsPath, 'meta');
   const existing = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
@@ -361,6 +362,10 @@ async function saveMetadata(settings: Settings, datasetId: string, args: Dataset
   if (args.customTypeStyling) {
     existing.customTypeStyling = args.customTypeStyling;
   }
+  if (args.attributes) {
+    existing.attributes = args.attributes;
+  }
+
   await _saveAsJson(projectDirInfo.metaFileAbsPath, existing);
   await release();
 }
@@ -379,7 +384,7 @@ async function saveAttributes(settings: Settings, datasetId: string, args: SaveA
   });
   args.upsert.forEach((attribute) => {
     if (projectMetaData.attributes) {
-      projectMetaData.attributes[attribute._id] = attribute;
+      projectMetaData.attributes[attribute.key] = attribute;
     }
   });
   await saveMetadata(settings, datasetId, projectMetaData);

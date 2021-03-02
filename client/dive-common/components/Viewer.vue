@@ -127,7 +127,7 @@ export default defineComponent({
     } = useStyling({ markChangesPending });
 
     const {
-      getAttributes: attributes,
+      attributesList: attributes,
       loadAttributes,
       setAttribute,
       deleteAttribute,

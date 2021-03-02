@@ -3,7 +3,6 @@ import { GirderModel } from '@girder/components/src';
 import {
   Pipe, Pipelines, SaveAttributeArgs, TrainingConfigs,
 } from 'dive-common/apispec';
-import { Attribute } from 'vue-media-annotator/use/useAttributes';
 import girderRest from '../plugins/girder';
 
 interface ValidationResponse {
@@ -65,12 +64,6 @@ function deleteResources(resources: Array<GirderModel>) {
     headers: { 'X-HTTP-Method-Override': 'DELETE' },
   });
 }
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-async function getAttributes(datasetId = ''): Promise<Attribute[]> {
-  const { data } = await girderRest.get('/viame/attribute');
-  return data as Attribute[];
-}
-
 
 async function getPipelineList() {
   const { data } = await girderRest.get<Pipelines>('viame/pipelines');
@@ -131,7 +124,6 @@ async function getValidWebImages(folderId: string) {
 export {
   getBrandData,
   deleteResources,
-  getAttributes,
   getPipelineList,
   makeViameFolder,
   postProcess,

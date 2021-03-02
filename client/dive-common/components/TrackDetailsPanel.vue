@@ -104,27 +104,26 @@ export default defineComponent({
         belongs,
         datatype: 'text',
         name: `New${type}Attribute`,
-        _id: '',
+        key: '',
       };
     }
     function editAttribute(attribute: Attribute) {
       editingAttribute.value = attribute;
     }
-    async function saveAttribtueHandler(saveData: {
-      addNew: boolean | undefined;
+    async function saveAttributeHandler({ data, oldAttribute }: {
+      oldAttribute?: Attribute;
       data: Attribute;
     }) {
       editingError.value = null;
-      if (attributes.value.some((attribute) => (
-        attribute.name === saveData.data.name
-        && attribute.belongs === saveData.data.belongs
-        && attribute._id !== saveData.data._id))) {
+      if (!oldAttribute && attributes.value.some((attribute) => (
+        attribute.name === data.name
+        && attribute.belongs === data.belongs))) {
         editingError.value = 'Attribute with that name exists';
         return;
       }
 
       try {
-        await setAttribute({ data: saveData.data });
+        await setAttribute({ data, oldAttribute });
       } catch (err) {
         editingError.value = err.message;
       }
@@ -135,7 +134,7 @@ export default defineComponent({
     async function deleteAttributeHandler(data: Attribute) {
       editingError.value = null;
       try {
-        await deleteAttribute(data._id);
+        await deleteAttribute({ data });
       } catch (err) {
         editingError.value = err.message;
       }
@@ -184,7 +183,7 @@ export default defineComponent({
       attributes,
       /* Editing */
       editingAttribute,
-      saveAttribtueHandler,
+      saveAttributeHandler,
       deleteAttributeHandler,
       editingError,
       editIndividual,
@@ -274,7 +273,7 @@ export default defineComponent({
         :selected-attribute="editingAttribute"
         :error="editingError"
         @close="closeEditor"
-        @save="saveAttribtueHandler"
+        @save="saveAttributeHandler"
         @delete="deleteAttributeHandler"
       />
     </v-dialog>

@@ -21,7 +21,7 @@ function processTrackAttributes(tracks: TrackData[]):
           belongs: type,
           datatype: 'text',
           name: key,
-          _id: `${type}_${key}`,
+          key: `${type}_${key}`,
         };
         testVals[`${type}_${key}`] = { };
         testVals[`${type}_${key}`][valstring] = 1;

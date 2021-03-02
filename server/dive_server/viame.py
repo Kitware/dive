@@ -17,6 +17,7 @@ from .constants import csvRegex, imageRegex, safeImageRegex, videoRegex, ymlRege
 from .model.attribute import Attribute
 from .pipelines import load_pipelines, load_static_pipelines
 from .serializers import meva as meva_serializer
+from .serializers import models
 from .training import (
     csv_detection_file,
     load_training_configurations,
@@ -50,11 +51,7 @@ class Viame(Resource):
         self.route("POST", ("train",), self.run_training)
         self.route("POST", ("postprocess", ":id"), self.postprocess)
         self.route("PUT", ("attributes",), self.save_attributes)
-        self.route("POST", ("attribute",), self.create_attribute)  # deprecated
-        self.route("GET", ("attribute",), self.get_attributes)  # deprecated
-        self.route("PUT", ("attribute", ":id"), self.update_attribute)  # deprecated
         self.route("POST", ("validate_files",), self.validate_files)
-        self.route("DELETE", ("attribute", ":id"), self.delete_attribute)
         self.route("GET", ("valid_images",), self.get_valid_images)
 
     @access.public
@@ -404,7 +401,8 @@ class Viame(Resource):
         for attribute_id in delete:
             attributes_dict.pop(str(attribute_id), None)
         for attribute in upsert:
-            attributes_dict[str(attribute['_id'])] = attribute
+            validated: models.Attribute = models.Attribute(**attribute)
+            attributes_dict[str(validated.key)] = validated.dict(exclude_none=True)
 
         upserted_len = len(upsert)
         deleted_len = len(delete)
@@ -417,43 +415,6 @@ class Viame(Resource):
             "updated": upserted_len,
             "deleted": deleted_len,
         }
-
-    @access.user
-    @autoDescribeRoute(
-        Description("")
-        .jsonParam("data", "", requireObject=True, paramType="body")
-        .deprecated()
-    )
-    def create_attribute(self, data, params):
-        attribute = Attribute().create(
-            data["name"], data["belongs"], data["datatype"], data["values"]
-        )
-        return attribute
-
-    @access.user
-    @autoDescribeRoute(Description("").deprecated())
-    def get_attributes(self):
-        return Attribute().find()
-
-    @access.user
-    @autoDescribeRoute(
-        Description("")
-        .modelParam("id", model=Attribute, required=True)
-        .jsonParam("data", "", requireObject=True, paramType="body")
-        .deprecated()
-    )
-    def update_attribute(self, data, attribute, params):
-        if "_id" in data:
-            del data["_id"]
-        attribute.update(data)
-        return Attribute().save(attribute)
-
-    @access.user
-    @autoDescribeRoute(
-        Description("").modelParam("id", model=Attribute, required=True).deprecated()
-    )
-    def delete_attribute(self, attribute, params):
-        return Attribute().remove(attribute)
 
     @access.user
     @autoDescribeRoute(
