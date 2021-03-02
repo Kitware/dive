@@ -5,12 +5,10 @@ import Track, { TrackId } from '../track';
 interface UseTrackStoreParams {
   markChangesPending: (
     {
-      type,
       action,
       data,
     }:
     {
-      type: 'track';
       action: 'upsert' | 'delete';
       data: Track;
     }) => void;
@@ -74,7 +72,7 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
       intervalTree.insert([track.begin, track.end], track.trackId.toString());
     }
     canary.value += 1;
-    markChangesPending({ type: 'track', action: 'upsert', data: track });
+    markChangesPending({ action: 'upsert', data: track });
   }
 
   function insertTrack(track: Track, afterId?: TrackId) {
@@ -97,7 +95,7 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
       confidencePairs: [[defaultType, 1]],
     });
     insertTrack(track, afterId);
-    markChangesPending({ type: 'track', action: 'upsert', data: track });
+    markChangesPending({ action: 'upsert', data: track });
     return track;
   }
 
@@ -117,7 +115,7 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
       throw new Error(`TrackId ${trackId} not found in trackIds.`);
     }
     trackIds.value.splice(listIndex, 1);
-    markChangesPending({ type: 'track', action: 'delete', data: track });
+    markChangesPending({ action: 'delete', data: track });
   }
 
   /*
