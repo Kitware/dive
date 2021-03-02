@@ -30,11 +30,9 @@ export type Attributes = Record<string, Attribute>;
 interface UseAttributesParams {
   markChangesPending: (
     {
-      type,
       action,
       data,
     }: {
-      type: 'attribute';
       action: 'upsert' | 'delete';
       data: Attribute;
     }
@@ -62,7 +60,7 @@ export default function UseAttributes({ markChangesPending }: UseAttributesParam
         oldAttribute = attributes.value[data._id];
         // Name change should delete the old attribute and create a new one with the updated id
         VueDel(attributes.value, data._id);
-        markChangesPending({ type: 'attribute', action: 'delete', data: { ...attributes.value[data._id] } });
+        markChangesPending({ action: 'delete', data: { ...attributes.value[data._id] } });
         // Create a new attribute to replace it
         // eslint-disable-next-line no-param-reassign
         data._id = `${data.belongs}_${data.name}`;
@@ -72,13 +70,13 @@ export default function UseAttributes({ markChangesPending }: UseAttributesParam
       // TODO: Lengthy track/detection attribute updating function
     }
     VueSet(attributes.value, data._id, data);
-    markChangesPending({ type: 'attribute', action: 'upsert', data: attributes.value[data._id] });
+    markChangesPending({ action: 'upsert', data: attributes.value[data._id] });
   }
 
 
   function deleteAttribute(attributeId: string, removeFromTracks = false) {
     if (attributes.value[attributeId] !== undefined) {
-      markChangesPending({ type: 'attribute', action: 'delete', data: { ...attributes.value[attributeId] } });
+      markChangesPending({ action: 'delete', data: { ...attributes.value[attributeId] } });
       VueDel(attributes.value, attributeId);
     }
     if (removeFromTracks) {
