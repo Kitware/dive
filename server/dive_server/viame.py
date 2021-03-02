@@ -128,16 +128,12 @@ class Viame(Resource):
         token = Token().createToken(user=user, days=14)
 
         # TODO Temporary inclusion of track_user pipelines requiring input
-        if (
-            'track_user' in pipeline["pipe"]
-            or 'add_segmentation' in pipeline["pipe"]
-            or 'add_head_tail_keypoints' in pipeline['pipe']
-        ):
-            print("track_user")
-            pipeline["requires_input"] = True
+        requires_input = False
+        if 'utility' in pipeline["pipe"]:
+            requires_input = True
 
         # If it requires inputs we need to find it and use it as an input
-        if "requires_input" in pipeline.keys() and pipeline["requires_input"] is True:
+        if requires_input is True:
             detections = list(
                 Item().find({"meta.detection": folder_id_str}).sort([("created", -1)])
             )
@@ -157,7 +153,7 @@ class Viame(Resource):
             "output_folder": folder_id_str,
             "pipeline": pipeline,
         }
-        if "requires_input" in pipeline.keys() and pipeline["requires_input"] is True:
+        if requires_input is True:
             params["pipeline_input"] = detection
         newjob = run_pipeline.apply_async(
             queue="pipelines",

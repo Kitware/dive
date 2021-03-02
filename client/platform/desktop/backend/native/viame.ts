@@ -59,13 +59,12 @@ async function runPipeline(
   const joblog = npath.join(jobWorkDir, 'runlog.txt');
 
   //TODO: TEMPORARY FIX FOR DEMO PURPOSES
-  console.log(`pipeline: ${pipeline.pipe}`);
-  if ((/track_user|add_segmentation|add_head_tail_keypoints/g).test(pipeline.pipe)) {
-    // eslint-disable-next-line @typescript-eslint/camelcase
-    pipeline.requires_input = true;
+  let requiresInput = false;
+  if ((/utility_/g).test(pipeline.pipe)) {
+    requiresInput = true;
   }
   let groundTruthFileName;
-  if (pipeline.requires_input) {
+  if (requiresInput) {
     groundTruthFileName = `groundtruth_${meta.id}.csv`;
     const groundTruthFileStream = fs.createWriteStream(
       npath.join(jobWorkDir, groundTruthFileName),
@@ -87,7 +86,7 @@ async function runPipeline(
       `-s detector_writer:file_name="${detectorOutput}"`,
       `-s track_writer:file_name="${trackOutput}"`,
     ];
-    if (pipeline.requires_input) {
+    if (requiresInput) {
       command.push(`-s detection_reader:file_name="${groundTruthFileName}"`);
       command.push(`-s track_reader:file_name="${groundTruthFileName}"`);
     }
@@ -107,7 +106,7 @@ async function runPipeline(
       `-s detector_writer:file_name="${detectorOutput}"`,
       `-s track_writer:file_name="${trackOutput}"`,
     ];
-    if (pipeline.requires_input) {
+    if (requiresInput) {
       command.push(`-s detection_reader:file_name="${groundTruthFileName}"`);
       command.push(`-s track_reader:file_name="${groundTruthFileName}"`);
     }

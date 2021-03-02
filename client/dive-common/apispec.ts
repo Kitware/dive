@@ -19,7 +19,6 @@ interface Pipe {
   name: string;
   pipe: string;
   type: string;
-  requires_input?: boolean;
 }
 
 interface Category {
