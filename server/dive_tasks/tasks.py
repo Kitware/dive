@@ -13,7 +13,7 @@ from girder_worker.utils import JobManager, JobStatus
 from GPUtil import getGPUs
 
 from dive_tasks.utils import (
-    get_source_video_filename,
+    get_video_filename,
     organize_folder_for_training,
     read_and_close_process_outputs,
 )
@@ -95,7 +95,7 @@ def run_pipeline(self: Task, params: PipelineJob):
 
     if input_type == 'video':
         # filter files for source video file
-        source_video = get_source_video_filename(input_folder, self.girder_client)
+        source_video = get_video_filename(input_folder, self.girder_client)
         # Preserving default behavior incase new stuff fails
         if source_video is None:
             raise Exception(
@@ -252,7 +252,7 @@ def train_pipeline(
             )
             # We point to file if is a video
             if source_folder.get("meta", {}).get("type") == "video":
-                video_file = get_source_video_filename(source_folder["_id"], gc)
+                video_file = get_video_filename(source_folder["_id"], gc)
                 if video_file is None:
                     raise Exception(
                         'Error finding valid video file in folder: {}'.format(
