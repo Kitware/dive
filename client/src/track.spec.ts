@@ -90,6 +90,39 @@ describe('Track', () => {
       confidencePairs: [['foo', 1]],
     })).toThrowError();
   });
+
+  it('Indexing Types', () => {
+    const itrack: TrackData = {
+      attributes: {},
+      begin: 0,
+      end: 100,
+      confidencePairs: [
+        ['foo', 1],
+        ['bar', 0.9],
+      ],
+      features: [
+        {
+          frame: 0,
+          bounds: [1, 2, 3, 4],
+          head: [1, 2],
+        },
+      ],
+      meta: {},
+      trackId: 1,
+    };
+    const t = Track.fromJSON(itrack);
+    expect(t.getType()).toEqual(['foo', 1]);
+    expect(t.getType(1)).toEqual(['bar', 0.9]);
+    expect(t.getType(0)).toEqual(['foo', 1.0]);
+    expect(() => t.getType(-1)).toThrow('Index Error: The requested confidencePairs index does not exist.');
+    t.setType('newType');
+    expect(t.getType()).toEqual(['newType', 1]);
+    // Testing type out of range
+    expect(() => t.getType(1)).toThrow('Index Error: The requested confidencePairs index does not exist.');
+    t.setType('lowType', 0.25);
+    expect(t.getType()).toEqual(['lowType', 0.25]);
+    expect(() => t.getType(20)).toThrow('Index Error: The requested confidencePairs index does not exist.');
+  });
 });
 
 describe('trackExceedsThreshold', () => {

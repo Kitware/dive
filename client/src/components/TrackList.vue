@@ -4,7 +4,8 @@ import {
   defineComponent, reactive, computed, ref, Ref, watch,
 } from '@vue/composition-api';
 
-import Track, { TrackId } from '../track';
+import { TrackWithContext } from 'vue-media-annotator/use/useTrackFilters';
+import { TrackId } from '../track';
 import {
   useAllTypes,
   useCheckedTrackIds,
@@ -13,13 +14,13 @@ import {
   useHandler,
   useSelectedTrackId,
   useTrackMap,
-  useTracks,
+  useFilteredTracks,
   useTypeStyling,
 } from '../provides';
 import TrackItem from './TrackItem.vue';
 
 interface VirtualListItem {
-  track: Track;
+  filteredTrack: TrackWithContext;
   selectedTrackId: number | null;
   checkedTrackIds: readonly number[];
   editingTrack: boolean;
@@ -59,7 +60,7 @@ export default defineComponent({
     const editingModeRef = useEditingMode();
     const selectedTrackIdRef = useSelectedTrackId();
     const trackMap = useTrackMap();
-    const tracksRef = useTracks();
+    const filteredTracksRef = useFilteredTracks();
     const typeStylingRef = useTypeStyling();
     const frameRef = useFrame();
     const {
@@ -77,8 +78,8 @@ export default defineComponent({
       const checkedTrackIds = checkedTrackIdsRef.value;
       const editingMode = editingModeRef.value;
       const allTypes = allTypesRef.value;
-      return tracksRef.value.map((track) => ({
-        track,
+      return filteredTracksRef.value.map((filtered) => ({
+        filteredTrack: filtered,
         selectedTrackId,
         checkedTrackIds,
         editingTrack: !!editingMode,
@@ -98,7 +99,9 @@ export default defineComponent({
       if (trackId !== null && virtualList.value !== null) {
         const track = trackMap.get(trackId);
         if (track) {
-          const offset = tracksRef.value.indexOf(track);
+          const offset = filteredTracksRef.value.findIndex(
+            (filtered) => filtered.track.trackId === trackId,
+          );
           if (offset === -1) {
             virtualList.value.$el.scrollTop = 0;
           } else {
@@ -132,13 +135,13 @@ export default defineComponent({
     }
 
     function getItemProps(item: VirtualListItem) {
-      const type = item.track.getType();
+      const type = item.filteredTrack.track.getType(item.filteredTrack.context.confidencePairIndex);
       const trackType = type ? type[0] : '';
-      const selected = item.selectedTrackId === item.track.trackId;
+      const selected = item.selectedTrackId === item.filteredTrack.track.trackId;
       return {
         trackType,
-        track: item.track,
-        inputValue: item.checkedTrackIds.indexOf(item.track.trackId) >= 0,
+        track: item.filteredTrack.track,
+        inputValue: item.checkedTrackIds.indexOf(item.filteredTrack.track.trackId) >= 0,
         selected,
         editing: selected && item.editingTrack,
         color: typeStylingRef.value.color(trackType),
@@ -147,7 +150,7 @@ export default defineComponent({
     }
 
     watch(selectedTrackIdRef, scrollToTrack);
-    watch(tracksRef, scrollToSelectedTrack);
+    watch(filteredTracksRef, scrollToSelectedTrack);
 
 
     async function multiDelete() {
@@ -156,11 +159,11 @@ export default defineComponent({
       let count = 0;
       const limit = 20;
       virtualListItems.value.forEach((item) => {
-        if (item.checkedTrackIds.includes(item.track.trackId)) {
+        if (item.checkedTrackIds.includes(item.filteredTrack.track.trackId)) {
           if (count < limit) {
-            text.push(item.track.trackId.toString());
+            text.push(item.filteredTrack.track.trackId.toString());
           }
-          tracksDisplayed.push(item.track.trackId);
+          tracksDisplayed.push(item.filteredTrack.track.trackId);
           count += 1;
         }
       });
@@ -218,7 +221,7 @@ export default defineComponent({
       getItemProps,
       mouseTrap,
       newTrackColor,
-      tracks: tracksRef,
+      filteredTracks: filteredTracksRef,
       trackAdd,
       virtualListItems,
       virtualList,
@@ -233,7 +236,7 @@ export default defineComponent({
     <v-subheader class="flex-grow-1 trackHeader px-1">
       <v-container>
         <v-row align="center">
-          Tracks ({{ tracks.length }})
+          Tracks ({{ filteredTracks.length }})
           <v-spacer />
           <div>
             <v-btn
@@ -254,7 +257,7 @@ export default defineComponent({
             >
               <template #activator="{ on }">
                 <v-btn
-                  :disabled="tracks.length === 0"
+                  :disabled="filteredTracks.length === 0"
                   icon
                   small
                   class="mr-2"

@@ -59,7 +59,8 @@ export default defineComponent({
 
     async function clickDelete() {
       const typeDisplay: string[] = [];
-      const text = ['Do you want to delete all tracks of following types:'];
+      const text = ['This will remove the type from any visible track or delete the track if it is the only type.',
+        'Do you want to delete all tracks of following types:'];
       checkedTypesRef.value.forEach((item) => {
         typeDisplay.push(item);
         text.push(item.toString());

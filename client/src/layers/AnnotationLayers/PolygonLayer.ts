@@ -8,7 +8,7 @@ interface PolyGeoJSData{
   trackId: number;
   selected: boolean;
   editing: boolean | string;
-  confidencePairs: [string, number] | null;
+  trackType: [string, number] | null;
   polygon: GeoJSON.Polygon;
 }
 
@@ -79,7 +79,7 @@ export default class PolygonLayer extends BaseLayer<PolyGeoJSData> {
                   trackId: track.trackId,
                   selected: track.selected,
                   editing: track.editing,
-                  confidencePairs: track.confidencePairs,
+                  trackType: track.trackType,
                   polygon,
                 };
                 arr.push(annotation);
@@ -113,26 +113,26 @@ export default class PolygonLayer extends BaseLayer<PolyGeoJSData> {
           if (data.selected) {
             return this.stateStyling.selected.color;
           }
-          if (data.confidencePairs) {
-            return this.typeStyling.value.color(data.confidencePairs[0]);
+          if (data.trackType) {
+            return this.typeStyling.value.color(data.trackType[0]);
           }
           return this.typeStyling.value.color('');
         },
         fill: (data) => {
-          if (data.confidencePairs) {
-            return this.typeStyling.value.fill(data.confidencePairs[0]);
+          if (data.trackType) {
+            return this.typeStyling.value.fill(data.trackType[0]);
           }
           return this.stateStyling.standard.fill;
         },
         fillColor: (_point, _index, data) => {
-          if (data.confidencePairs) {
-            return this.typeStyling.value.color(data.confidencePairs[0]);
+          if (data.trackType) {
+            return this.typeStyling.value.color(data.trackType[0]);
           }
           return this.typeStyling.value.color('');
         },
         fillOpacity: (_point, _index, data) => {
-          if (data.confidencePairs) {
-            return this.typeStyling.value.opacity(data.confidencePairs[0]);
+          if (data.trackType) {
+            return this.typeStyling.value.opacity(data.trackType[0]);
           }
           return this.stateStyling.standard.opacity;
         },
@@ -140,8 +140,8 @@ export default class PolygonLayer extends BaseLayer<PolyGeoJSData> {
           if (data.selected) {
             return this.stateStyling.selected.opacity;
           }
-          if (data.confidencePairs) {
-            return this.typeStyling.value.opacity(data.confidencePairs[0]);
+          if (data.trackType) {
+            return this.typeStyling.value.opacity(data.trackType[0]);
           }
 
           return this.stateStyling.standard.opacity;
@@ -150,8 +150,8 @@ export default class PolygonLayer extends BaseLayer<PolyGeoJSData> {
           if (data.selected) {
             return this.stateStyling.selected.strokeWidth;
           }
-          if (data.confidencePairs) {
-            return this.typeStyling.value.strokeWidth(data.confidencePairs[0]);
+          if (data.trackType) {
+            return this.typeStyling.value.strokeWidth(data.trackType[0]);
           }
           return this.stateStyling.standard.strokeWidth;
         },
@@ -159,8 +159,8 @@ export default class PolygonLayer extends BaseLayer<PolyGeoJSData> {
           if (data.selected) {
             return this.stateStyling.selected.strokeWidth;
           }
-          if (data.confidencePairs) {
-            return this.typeStyling.value.strokeWidth(data.confidencePairs[0]);
+          if (data.trackType) {
+            return this.typeStyling.value.strokeWidth(data.trackType[0]);
           }
           return this.stateStyling.standard.strokeWidth;
         },
