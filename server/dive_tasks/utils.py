@@ -70,9 +70,9 @@ def organize_folder_for_training(
     return groundtruth
 
 
-def get_source_video_filename(folderId: str, girder_client: GirderClient):
+def get_video_filename(folderId: str, girder_client: GirderClient):
     """
-    Searches a folderId for source videos that are compatible with training/pipelines
+    Searches a folderId for videos that are compatible with training/pipelines
 
     * look for {"codec": 'h264', "source_video": False | None }, a transcoded video
     * then fall back to {"source_video": True}, the user uploaded video
