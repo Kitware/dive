@@ -9,9 +9,19 @@ export const websafeVideoTypes = [
 ];
 
 export const otherVideoTypes = [
-  'video/quicktime',
+  /* avi */
+  'vide/avi',
+  'video/msvideo',
   'video/x-msvideo',
   'video/x-ms-wmv',
+  /* mov */
+  'video/quicktime',
+  /* mpeg */
+  'video/mpeg',
+  'video/x-mpeg',
+  'video/x-mpeq2a',
+  /* ogg */
+  'video/ogg',
 ];
 
 export const fileVideoTypes = [
@@ -20,6 +30,10 @@ export const fileVideoTypes = [
   'avi',
   'mov',
   'wmv',
+  'mpg',
+  'mpeg',
+  'mp2',
+  'ogg',
 ];
 
 export const websafeImageTypes = [
@@ -183,6 +197,7 @@ export interface FFProbeResults {
   streams?: [{
     codec_type?: string;
     codec_name?: string;
+    sample_aspect_ratio?: string;
   }];
 }
 

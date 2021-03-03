@@ -70,24 +70,24 @@ def organize_folder_for_training(
     return groundtruth
 
 
-def get_source_video_filename(folderId: str, girder_client: GirderClient):
+def get_video_filename(folderId: str, girder_client: GirderClient):
     """
-    Searches a folderId for source videos that are compatible with training/pipelines
-    Will look for {"source_video":True} metadata first, then fall back to the converted video
-    indicated by  {"codec":"h264"}
-    If neither found it will return None
+    Searches a folderId for videos that are compatible with training/pipelines
 
-    :folderId: Current path to wehere the items sit
+    * look for {"codec": 'h264', "source_video": False | None }, a transcoded video
+    * then fall back to {"source_video": True}, the user uploaded video
+    * If neither found it will return None
 
+    :folderId: Current path to where the items sit
     :girder_client: girder_client used to request the data
     """
-
     folder_contents = girder_client.listItem(folderId)
     backup_converted_file = None
     for item in folder_contents:
         file_name = item.get("name")
-        if item.get("meta", {}).get("source_video") is True:
-            return file_name
-        if item.get("meta", {}).get("codec") == "h264":
+        meta = item.get("meta", {})
+        if meta.get("source_video") is True:
             backup_converted_file = file_name
+        elif meta.get("codec") == "h264":
+            return file_name
     return backup_converted_file
