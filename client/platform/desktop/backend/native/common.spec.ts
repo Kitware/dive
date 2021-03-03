@@ -37,10 +37,10 @@ const pipelines = {
   'filter_to_kwa.pipe': '',
   'full_frame_classifier_local.pipe': '',
   'full_frame_classifier_svm.pipe': '',
-  'generate_empty_frame_lbls_1fr.pipe': '',
-  'generate_empty_frame_lbls_10fr.pipe': '',
-  'generate_empty_frame_lbls_100fr.pipe': '',
-  'generate_empty_frame_lbls_1000fr.pipe': '',
+  'utility_empty_frame_lbls_1fr.pipe': '',
+  'utility__empty_frame_lbls_10fr.pipe': '',
+  'utility__empty_frame_lbls_100fr.pipe': '',
+  'utility__empty_frame_lbls_1000fr.pipe': '',
   'index_default.pipe': '',
   'index_default.svm.pipe': '',
   'index_default.trk.pipe': '',
@@ -244,7 +244,7 @@ describe('native.common', () => {
     expect(pipes).toBeTruthy();
     expect(pipes.detector.pipes).toHaveLength(4);
     expect(pipes.tracker.pipes).toHaveLength(5);
-    expect(pipes.generate.pipes).toHaveLength(4);
+    expect(pipes.utility.pipes).toHaveLength(4);
     expect(pipes.trained).toBeUndefined();
   });
 
@@ -379,7 +379,7 @@ describe('native.common', () => {
     expect(pipes).toBeTruthy();
     expect(pipes.detector.pipes).toHaveLength(4);
     expect(pipes.tracker.pipes).toHaveLength(5);
-    expect(pipes.generate.pipes).toHaveLength(4);
+    expect(pipes.utility.pipes).toHaveLength(4);
     expect(pipes.trained.pipes).toHaveLength(1);
   });
 
