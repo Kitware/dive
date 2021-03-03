@@ -58,7 +58,7 @@ export default function register() {
     return defaults;
   });
 
-  ipcMain.handle('import-media', async (event, path: string) => {
+  ipcMain.handle('import-media', async (event, { path }: { path: string }) => {
     const updater = (update: DesktopJobUpdate) => {
       event.sender.send('job-update', update);
     };
