@@ -51,6 +51,17 @@ interface TrackParams {
   attributes?: StringKeyObject;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function isTrack(obj: any): obj is Track {
+  return (
+    (typeof obj === 'object')
+    && (obj.trackId !== undefined)
+    && (typeof obj.features === 'object')
+    && (typeof obj.begin === 'number')
+    && (typeof obj.end === 'number')
+  );
+}
+
 /**
  * Track manages the state of a track, its
  * frame data, and all metadata.

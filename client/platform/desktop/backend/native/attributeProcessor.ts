@@ -1,6 +1,6 @@
-import { Attributes } from 'platform/desktop/constants';
 import { MultiTrackRecord } from 'dive-common/apispec';
 import { StringKeyObject, TrackData } from 'vue-media-annotator/track';
+import { Attributes } from 'vue-media-annotator/use/useAttributes';
 
 
 /**
@@ -21,7 +21,7 @@ function processTrackAttributes(tracks: TrackData[]):
           belongs: type,
           datatype: 'text',
           name: key,
-          _id: `${type}_${key}`,
+          key: `${type}_${key}`,
         };
         testVals[`${type}_${key}`] = { };
         testVals[`${type}_${key}`][valstring] = 1;
