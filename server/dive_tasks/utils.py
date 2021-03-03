@@ -78,7 +78,7 @@ def get_video_filename(folderId: str, girder_client: GirderClient):
     * then fall back to {"source_video": True}, the user uploaded video
     * If neither found it will return None
 
-    :folderId: Current path to wehere the items sit
+    :folderId: Current path to where the items sit
     :girder_client: girder_client used to request the data
     """
     folder_contents = girder_client.listItem(folderId)
