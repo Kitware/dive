@@ -5,8 +5,8 @@ import axios, { AxiosInstance } from 'axios';
 import { ipcRenderer, remote } from 'electron';
 
 import type {
-  Attribute, DatasetMetaMutable, DatasetType,
-  Pipe, Pipelines, SaveDetectionsArgs, TrainingConfigs,
+  DatasetMetaMutable, DatasetType,
+  Pipe, Pipelines, SaveAttributeArgs, SaveDetectionsArgs, TrainingConfigs,
 } from 'dive-common/apispec';
 
 import {
@@ -125,35 +125,22 @@ async function saveDetections(id: string, args: SaveDetectionsArgs) {
   return client.post(`dataset/${id}/detections`, args);
 }
 
-async function getAttributes(datasetId: string) {
-  const client = await getClient();
-  const { data } = await client.get<Attribute[]>(`dataset/${datasetId}/attribute`);
-  return data;
-}
 
-async function setAttribute(datasetId: string, { addNew, data }:
-  {addNew?: boolean; data: Attribute}) {
+async function saveAttributes(id: string, args: SaveAttributeArgs) {
   const client = await getClient();
-  return client.post(`dataset/${datasetId}/attribute`, { addNew, data });
-}
-
-async function deleteAttribute(datasetId: string, data: Attribute) {
-  const client = await getClient();
-  return client.delete(`dataset/${datasetId}/attribute`, { data });
+  return client.post(`dataset/${id}/attributes`, args);
 }
 
 export {
   /* Standard Specification APIs */
   loadMetadata,
-  getAttributes,
-  setAttribute,
-  deleteAttribute,
   getPipelineList,
   runPipeline,
   getTrainingConfigurations,
   runTraining,
   saveMetadata,
   saveDetections,
+  saveAttributes,
   /* Nonstandard APIs */
   exportDataset,
   importMedia,
