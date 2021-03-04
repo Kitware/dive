@@ -58,6 +58,7 @@ class Viame(Resource):
         self.route("GET", ("training_configs",), self.get_training_configs)
         self.route("POST", ("train",), self.run_training)
         self.route("POST", ("postprocess", ":id"), self.postprocess)
+        self.route("PUT", ("metadata", ":id"), self.update_metadata)
         self.route("PUT", ("attributes",), self.save_attributes)
         self.route("POST", ("validate_files",), self.validate_files)
         self.route("GET", ("valid_images",), self.get_valid_images)
@@ -381,6 +382,49 @@ class Viame(Resource):
                 Item().move(item, auxiliary)
 
         return folder
+
+    @access.user
+    @autoDescribeRoute(
+        Description("Save mutable metadata for a folder")
+        .notes(
+            f"Save allowable mutable metadata: <b>{metadataMutable}</b><br>"
+            "Will return the allowed metadata that was set and the expunged or removed data.<br>"
+            f"If a reserved key is used:  <b>{metadataReserved}</b>  it will return an error"
+        )
+        .modelParam(
+            "id",
+            description="datasetId or folder for the metadata",
+            model=Folder,
+            level=AccessType.WRITE,
+        )
+        .jsonParam(
+            "data",
+            "JSON with the metadata to set",
+            requireObject=True,
+            paramType="body",
+        )
+        .errorResponse('Using a reserved metadata key', 400)
+    )
+    def update_metadata(self, folder, data):
+        expunged = []
+        meta = {}
+        # filter data for only allowed metadataMutable and error on Reserved
+        for key in data.keys():
+            if key in metadataReserved:
+                raise RestException(
+                    f'Using a reserved metadata key: {key}, please remove it and use the proper endpoint'
+                )
+            elif key not in metadataMutable:
+                expunged.append(key)
+            else:
+                meta[key] = data[key]
+
+        folder['meta'].update(meta)
+        Folder().save(folder)
+        resp = {}
+        resp['allowed'] = meta
+        resp['expunged'] = expunged
+        return resp
 
     @access.user
     @autoDescribeRoute(
