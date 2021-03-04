@@ -7,7 +7,7 @@ import io
 import re
 from typing import Dict, Generator, List, Tuple, Union
 
-from dive_server.serializers.models import Feature, Track, interpolate
+from dive_server.serializers.models import Feature, Track, interpolate, Attribute
 
 
 def writeHeader(writer: '_csv._writer', metadata: Dict):
@@ -158,6 +158,21 @@ def _parse_row_for_tracks(row: List[str]) -> Tuple[Feature, Dict, Dict, List]:
     # Pass the rest of the unchanged info through as well
     return feature, attributes, track_attributes, confidence_pairs
 
+def create_attributes(metadata_attributes, test_vals, atr_type, key, val):
+    valstring = f'{val}'
+    if metadata_attributes[f'{atr_type}_{key}'] is None:
+        metadata_attributes[f'{atr_type}_{key}'] = {
+            'belongs': atr_type,
+            'datatype': 'text',
+            'name': key,
+            'key': f'{atr_type}_{key}'
+        }
+        test_vals[f'{atr_type}_{key}'] = {}
+        test_vals[f'{atr_type}_{key}'][valstring] = 1
+    elif metadata_attributes[f'{atr_type}_{key}'] and test_vals[f'{atr_type}_{key}']:
+        if test_vals[f'{atr_type}_{key}'][valstring]:
+            test_vals[f'{atr_type}_{key}'][valstring] += 1
+
 
 def load_csv_as_tracks(rows: List[str]) -> Dict[str, dict]:
     """
@@ -166,6 +181,8 @@ def load_csv_as_tracks(rows: List[str]) -> Dict[str, dict]:
     """
     reader = csv.reader(row for row in rows if (not row.startswith("#") and row))
     tracks: Dict[int, Track] = {}
+    metadata_attributes: Dict[str, Attribute] = { }
+    test_vals = {}
     for row in reader:
         (
             feature,
@@ -187,8 +204,36 @@ def load_csv_as_tracks(rows: List[str]) -> Dict[str, dict]:
 
         for (key, val) in track_attributes.items():
             track.attributes[key] = val
+            create_attributes(metadata_attributes, test_vals, 'track', key, val)
+        for (key, val) in attributes.items():
+            create_attributes(metadata_attributes, test_vals, 'detection', key, val)
+    # Now we process all the metadata_attributes for the types
+    for (attributeKey, attributeVal) in metadata_attributes.items():
+        if (test_vals[attributeKey]):
+            attribute_type = 'number'
+            low_count = 1
+            values = []
+            for (key, val) in test_vals[attributeKey].items():
+                if val <= low_count:
+                    low_count = val
+                values.append(key)
+                if attribute_type == 'number':
+                    try:
+                        float(key)
+                    except ValueError:
+                        attribute_type = 'boolean'
+                if attribute_type == 'boolean' and key != 'true' and key != 'false':
+                    attribute_type = 'text'
+        if low_count >= 2 and 'text' in attribute_type:
+            metadata_attributes[attributeKey]['values'] = values
+
+        metadata_attributes[attributeKey]['datatype'] = attribute_type
+
+
 
     return {trackId: track.dict(exclude_none=True) for trackId, track in tracks.items()}
+
+
 
 
 def export_tracks_as_csv(
