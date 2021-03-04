@@ -31,9 +31,18 @@ const ViameWindowsConstants = {
   kwiverExe: 'kwiver.exe',
   shell: true,
   ffmpeg: {
+    ready: false,
     initialization: '', // command to initialize
     path: '', // location of the ffmpeg executable
-    encoding: '', //encoding mode used
+    // Default video args
+    videoArgs: [
+      '-c:v libx264',
+      '-preset slow',
+      '-crf 26',
+      '-c:a copy',
+      // https://video.stackexchange.com/questions/20871/how-do-i-convert-anamorphic-hdv-video-to-normal-h-264-video-with-ffmpeg-how-to
+      '-vf "scale=ceil(iw*sar/2)*2:ceil(ih/2)*2,setsar=1"',
+    ].join(' '),
   },
 
 };
@@ -162,7 +171,7 @@ async function nvidiaSmi(): Promise<NvidiaSmiReply> {
  * one time per launch configuration for ffmpeg and ffprobe
  */
 async function ffmpegCommand(settings: Settings) {
-  if (ViameWindowsConstants.ffmpeg.path !== '' && ViameWindowsConstants.ffmpeg.encoding !== '') {
+  if (ViameWindowsConstants.ffmpeg.ready) {
     return;
   }
   const setupScriptPath = npath.join(settings.viamePath, ViameWindowsConstants.setup);
@@ -178,7 +187,7 @@ async function ffmpegCommand(settings: Settings) {
     if (ffmpegOutput.includes('libx264')) {
       ViameWindowsConstants.ffmpeg.initialization = `"${setupScriptPath}" >NUL &&`;
       ViameWindowsConstants.ffmpeg.path = `"${settings.viamePath}/bin/ffmpeg.exe"`;
-      ViameWindowsConstants.ffmpeg.encoding = '-c:v libx264 -preset slow -crf 26 -c:a copy';
+      ViameWindowsConstants.ffmpeg.ready = true;
       return;
     }
   }

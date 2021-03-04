@@ -15,7 +15,7 @@ from girder_worker.utils import JobManager, JobStatus
 from GPUtil import getGPUs
 
 from dive_tasks.utils import (
-    get_source_video_filename,
+    get_video_filename,
     organize_folder_for_training,
     read_and_close_process_outputs,
 )
@@ -129,7 +129,7 @@ def run_pipeline(self: Task, params: PipelineJob):
 
     if input_type == 'video':
         # filter files for source video file
-        source_video = get_source_video_filename(input_folder, self.girder_client)
+        source_video = get_video_filename(input_folder, self.girder_client)
         # Preserving default behavior incase new stuff fails
         if source_video is None:
             raise Exception(
@@ -286,7 +286,7 @@ def train_pipeline(
             )
             # We point to file if is a video
             if source_folder.get("meta", {}).get("type") == "video":
-                video_file = get_source_video_filename(source_folder["_id"], gc)
+                video_file = get_video_filename(source_folder["_id"], gc)
                 if video_file is None:
                     raise Exception(
                         'Error finding valid video file in folder: {}'.format(
@@ -431,6 +431,9 @@ def convert_video(self: Task, path, folderId, auxiliaryFolderId, itemId):
             "26",
             "-c:a",
             "copy",
+            # see native/<platform> code for a discussion of this option
+            "-vf",
+            "scale=ceil(iw*sar/2)*2:ceil(ih/2)*2,setsar=1",
             output_path,
         ],
         stdout=process_log_file,
@@ -449,7 +452,14 @@ def convert_video(self: Task, path, folderId, auxiliaryFolderId, itemId):
     if process.returncode == 0:
         manager.updateStatus(JobStatus.PUSHING_OUTPUT)
         new_file = gc.uploadFileToFolder(folderId, output_path)
-        gc.addMetadataToItem(new_file['itemId'], {"codec": "h264"})
+        gc.addMetadataToItem(
+            new_file['itemId'],
+            {
+                "source_video": False,
+                "transcoder": "ffmpeg",
+                "codec": "h264",
+            },
+        )
         gc.addMetadataToItem(
             itemId,
             {
