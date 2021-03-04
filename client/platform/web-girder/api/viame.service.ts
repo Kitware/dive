@@ -1,8 +1,7 @@
 import { GirderModel } from '@girder/components/src';
-import { SSL_OP_NETSCAPE_CA_DN_BUG } from 'constants';
 
 import {
-  Attribute, Pipe, Pipelines, TrainingConfigs,
+  Pipe, Pipelines, SaveAttributeArgs, TrainingConfigs,
 } from 'dive-common/apispec';
 import girderRest from '../plugins/girder';
 
@@ -65,29 +64,6 @@ function deleteResources(resources: Array<GirderModel>) {
     headers: { 'X-HTTP-Method-Override': 'DELETE' },
   });
 }
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-async function getAttributes(datasetId = ''): Promise<Attribute[]> {
-  const { data } = await girderRest.get('/viame/attribute');
-  return data as Attribute[];
-}
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function setAttribute(datasetId = '', { addNew, data }:
-   {addNew: boolean | undefined; data: Attribute}): Promise<Attribute[]> {
-  if (addNew) {
-    return girderRest.post('/viame/attribute', data);
-  }
-  return girderRest.put(
-    `/viame/attribute/${data._id}`,
-    data,
-  );
-}
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function deleteAttribute(datasetId = '', data: Attribute): Promise<Attribute> {
-  return girderRest.delete(
-    `/viame/attribute/${data._id}`,
-  );
-}
-
 
 async function getPipelineList() {
   const { data } = await girderRest.get<Pipelines>('viame/pipelines');
@@ -119,6 +95,15 @@ function saveMetadata(folderId: string, metadata: object) {
   );
 }
 
+function saveAttributes(folderId: string, args: SaveAttributeArgs) {
+  return girderRest.put('/viame/attributes', {
+    upsert: args.upsert,
+    delete: args.delete,
+  }, {
+    params: { folderId },
+  });
+}
+
 function postProcess(folderId: string) {
   return girderRest.post(`viame/postprocess/${folderId}`);
 }
@@ -139,9 +124,6 @@ async function getValidWebImages(folderId: string) {
 export {
   getBrandData,
   deleteResources,
-  getAttributes,
-  setAttribute,
-  deleteAttribute,
   getPipelineList,
   makeViameFolder,
   postProcess,
@@ -149,6 +131,7 @@ export {
   getTrainingConfigurations,
   runTraining,
   saveMetadata,
+  saveAttributes,
   validateUploadGroup,
   getValidWebImages,
 };

@@ -7,6 +7,7 @@ import type { Vue } from 'vue/types/vue';
 /* VUE MEDIA ANNOTATOR */
 import Track, { TrackId } from 'vue-media-annotator/track';
 import {
+  useAttributes,
   useLineChart,
   useStyling,
   useTrackFilters,
@@ -126,6 +127,13 @@ export default defineComponent({
     } = useStyling({ markChangesPending });
 
     const {
+      attributesList: attributes,
+      loadAttributes,
+      setAttribute,
+      deleteAttribute,
+    } = useAttributes({ markChangesPending });
+
+    const {
       trackMap,
       sortedTracks,
       intervalTree,
@@ -164,7 +172,7 @@ export default defineComponent({
       editingTrack,
       selectNextTrack,
     } = useTrackSelectionControls({
-      tracks: filteredTracks,
+      filteredTracks,
     });
 
     const { lineChartData } = useLineChart({
@@ -287,10 +295,13 @@ export default defineComponent({
       updateTypeStyle,
       removeTypeTracks,
       deleteType,
+      setAttribute,
+      deleteAttribute,
     };
 
     provideAnnotator(
       {
+        attributes,
         allTypes,
         datasetId: ref(props.id),
         usedTypes,
@@ -301,7 +312,7 @@ export default defineComponent({
         frame,
         intervalTree,
         trackMap,
-        tracks: filteredTracks,
+        filteredTracks,
         typeStyling,
         selectedKey,
         selectedTrackId,
@@ -317,6 +328,9 @@ export default defineComponent({
         populateTypeStyles(meta.customTypeStyling);
         if (meta.customTypeStyling) {
           importTypes(Object.keys(meta.customTypeStyling), false);
+        }
+        if (meta.attributes) {
+          loadAttributes(meta.attributes);
         }
         populateConfidenceFilters(meta.confidenceFilters);
         datasetName.value = meta.name;

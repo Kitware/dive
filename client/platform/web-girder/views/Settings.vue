@@ -1,15 +1,17 @@
 <script lang="ts">
 import Vue from 'vue';
-import AttributeSettings from 'dive-common/components/AttributeSettings.vue';
 
 export default Vue.extend({
   name: 'Settings',
-  components: { AttributeSettings },
 });
 </script>
 
 <template>
   <v-container>
-    <AttributeSettings />
+    <v-card>
+      <v-card-title>
+        <!-- NEW GLOBAL SETTINGS ADDED HERE -->
+      </v-card-title>
+    </v-card>
   </v-container>
 </template>

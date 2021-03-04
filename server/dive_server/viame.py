@@ -25,6 +25,7 @@ from .constants import (
 from .model.attribute import Attribute
 from .pipelines import load_pipelines, load_static_pipelines
 from .serializers import meva as meva_serializer
+from .serializers import models
 from .training import (
     csv_detection_file,
     load_training_configurations,
@@ -57,12 +58,8 @@ class Viame(Resource):
         self.route("GET", ("training_configs",), self.get_training_configs)
         self.route("POST", ("train",), self.run_training)
         self.route("POST", ("postprocess", ":id"), self.postprocess)
-        self.route("PUT", ("metadata", ":id"), self.update_metadata)
-        self.route("POST", ("attribute",), self.create_attribute)
-        self.route("GET", ("attribute",), self.get_attributes)
-        self.route("PUT", ("attribute", ":id"), self.update_attribute)
+        self.route("PUT", ("attributes",), self.save_attributes)
         self.route("POST", ("validate_files",), self.validate_files)
-        self.route("DELETE", ("attribute", ":id"), self.delete_attribute)
         self.route("GET", ("valid_images",), self.get_valid_images)
 
     @access.public
@@ -387,78 +384,45 @@ class Viame(Resource):
 
     @access.user
     @autoDescribeRoute(
-        Description("Save mutable metadata for a folder")
-        .notes(
-            f"Save allowable mutable metadata: <b>{metadataMutable}</b><br>"
-            "Will return the allowed metadata that was set and the expunged or removed data.<br>"
-            f"If a reserved key is used:  <b>{metadataReserved}</b>  it will return an error"
-        )
+        Description("")
         .modelParam(
-            "id",
-            description="datasetId or folder for the metadata",
+            "folderId",
+            description="folder id of a clip",
             model=Folder,
+            paramType="query",
+            required=True,
             level=AccessType.WRITE,
         )
         .jsonParam(
-            "data",
-            "JSON with the metadata to set",
-            requireObject=True,
+            "attributes",
+            "upsert and delete attributes",
             paramType="body",
+            requireObject=True,
         )
-        .errorResponse('Using a reserved metadata key', 400)
     )
-    def update_metadata(self, folder, data):
-        expunged = []
-        meta = {}
-        # filter data for only allowed metadataMutable and error on Reserved
-        for key in data.keys():
-            if key in metadataReserved:
-                raise RestException(
-                    f'Using a reserved metadata key: {key}, please remove it and use the proper endpoint'
-                )
-            elif key not in metadataMutable:
-                expunged.append(key)
-            else:
-                meta[key] = data[key]
+    def save_attributes(self, folder, attributes):
+        upsert = attributes.get('upsert', [])
+        delete = attributes.get('delete', [])
+        attributes_dict = {}
+        if 'attributes' in folder['meta']:
+            attributes_dict = folder['meta']['attributes']
+        for attribute_id in delete:
+            attributes_dict.pop(str(attribute_id), None)
+        for attribute in upsert:
+            validated: models.Attribute = models.Attribute(**attribute)
+            attributes_dict[str(validated.key)] = validated.dict(exclude_none=True)
 
-        folder['meta'].update(meta)
-        Folder().save(folder)
-        resp = {}
-        resp['allowed'] = meta
-        resp['expunged'] = expunged
-        return resp
+        upserted_len = len(upsert)
+        deleted_len = len(delete)
 
-    @access.user
-    @autoDescribeRoute(
-        Description("").jsonParam("data", "", requireObject=True, paramType="body")
-    )
-    def create_attribute(self, data, params):
-        attribute = Attribute().create(
-            data["name"], data["belongs"], data["datatype"], data["values"]
-        )
-        return attribute
+        if upserted_len or deleted_len:
+            folder['meta']['attributes'] = attributes_dict
+            Folder().save(folder)
 
-    @access.user
-    @autoDescribeRoute(Description(""))
-    def get_attributes(self):
-        return Attribute().find()
-
-    @access.user
-    @autoDescribeRoute(
-        Description("")
-        .modelParam("id", model=Attribute, required=True)
-        .jsonParam("data", "", requireObject=True, paramType="body")
-    )
-    def update_attribute(self, data, attribute, params):
-        if "_id" in data:
-            del data["_id"]
-        attribute.update(data)
-        return Attribute().save(attribute)
-
-    @access.user
-    @autoDescribeRoute(Description("").modelParam("id", model=Attribute, required=True))
-    def delete_attribute(self, attribute, params):
-        return Attribute().remove(attribute)
+        return {
+            "updated": upserted_len,
+            "deleted": deleted_len,
+        }
 
     @access.user
     @autoDescribeRoute(

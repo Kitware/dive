@@ -387,8 +387,8 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
             },
           };
 
-          if (track.confidencePairs) {
-            [this.trackType] = track.confidencePairs;
+          if (track.trackType) {
+            [this.trackType] = track.trackType;
           }
 
           this.featureLayer.geojson(geojsonFeature);

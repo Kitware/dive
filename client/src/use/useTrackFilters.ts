@@ -4,6 +4,19 @@ import {
 import Track, { TrackId } from '../track';
 import { updateSubset } from '../utils';
 
+/**
+ * TrackWithContext wraps a track with additional information
+ * such as why the track was included or returned by a system
+ * or function.
+ */
+export interface TrackWithContext {
+  track: Readonly<Track>;
+  context: {
+    // confidencePair index within track that makes this track a positive filter result
+    confidencePairIndex: number;
+  };
+}
+
 /* Provide track filtering controls on tracks loaded from useTrackStore. */
 export default function useFilteredTracks(
   { sortedTracks, removeTrack, markChangesPending }:
@@ -61,24 +74,27 @@ export default function useFilteredTracks(
   const filteredTracks = computed(() => {
     const checkedSet = new Set(checkedTypes.value);
     const confidenceThresh = defaultConfidenceThreshold.value;
-    return sortedTracks.value.filter((track) => {
-      const confidencePairsAboveThreshold = track.confidencePairs
-        .some(([confkey, confval]) => (
-          confval >= confidenceThresh && checkedSet.has(confkey)
-        ));
-      return (
+    const resultsArr: TrackWithContext[] = [];
+    sortedTracks.value.forEach((track) => {
+      const confidencePairIndex = track.confidencePairs
+        .findIndex(([confkey, confval]) => confval >= confidenceThresh && checkedSet.has(confkey));
         /* include tracks where at least 1 confidence pair is above
          * the threshold and part of the checked type set */
-        confidencePairsAboveThreshold
-        /* include tracks with no confidence pairs */
-        || track.confidencePairs.length === 0
-      );
+      if (confidencePairIndex >= 0 || track.confidencePairs.length === 0) {
+        resultsArr.push({
+          track,
+          context: {
+            confidencePairIndex,
+          },
+        });
+      }
     });
+    return resultsArr;
   });
 
   const enabledTracks = computed(() => {
     const checkedSet = new Set(checkedTrackIds.value);
-    return filteredTracks.value.filter((track) => checkedSet.has(track.trackId));
+    return filteredTracks.value.filter((filtered) => checkedSet.has(filtered.track.trackId));
   });
 
   // because vue watchers don't behave properly, and it's better to not have
@@ -135,13 +151,16 @@ export default function useFilteredTracks(
     markChangesPending();
   }
 
-  function removeTypeTracks(type: string[]) {
-    sortedTracks.value.forEach((track) => {
-      track.confidencePairs.forEach(([name]) => {
-        if (type.includes(name)) {
-          removeTrack(track.trackId);
+  function removeTypeTracks(types: string[]) {
+    filteredTracks.value.forEach((filtered) => {
+      const filteredType = filtered.track.getType(filtered.context.confidencePairIndex);
+      if (filteredType && types.includes(filteredType[0])) {
+        //Remove the type from the track if multiple types exist
+        const newConfidencePairs = filtered.track.removeTypes(types);
+        if (newConfidencePairs.length === 0) {
+          removeTrack(filtered.track.trackId);
         }
-      });
+      }
     });
   }
 
