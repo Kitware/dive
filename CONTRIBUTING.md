@@ -7,11 +7,11 @@ Our team process involves scrum-style practices with some key differences
 
 ## States
 
-### `Untriaged`
+### `Triage`
 
 > Technical contributors: We aren't sure if we should do this, how hard it will be, or if we have enough information.
 
-`Untriaged` work may be necessary in the indefinite future, but has not been researched.  This is the requirements gathering state.
+`Triage` work may be necessary in the indefinite future, but has not been researched.  This is the requirements gathering state.
 
 ### `Backlog`
 
@@ -34,14 +34,14 @@ Our team process involves scrum-style practices with some key differences
 ## Responsibilities
 
 * Team leads and stakeholders
-  * Can propose new work, which becomes `Untriaged`
-  * Are solely responsible for maintaining priority in `Untriaged`.
+  * Can propose new work, which becomes `Triage`
+  * Are solely responsible for maintaining priority in `Triage`.
   * Help technical team maintain priority in `Backlog`.
 
 * Technical contributors
-  * Can also propose new work, which can become `Backlog` or `Untriaged` depending on scope.
-  * Are responsible for taking action on high-priority `Untriaged` work, moving it into the backlog.
-  * Are responsible for gathering additional information or pushing back against `Untriaged` work.
+  * Can also propose new work, which can become `Backlog` or `Triage` depending on scope.
+  * Are responsible for taking action on high-priority `Triage` work, moving it into the backlog.
+  * Are responsible for gathering additional information or pushing back against `Triage` work.
 
 ## Meetings
 
