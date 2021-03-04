@@ -42,4 +42,12 @@ TrainedPipelineCategory = "trained"
 ViameDataFolderName = "VIAME"
 
 metadataMutable = ['customTypeStyling', 'confidenceFilters']
-metadataReserved = ['attributes', 'fps', 'type', 'ffprobe_info', 'annotate']
+metadataReserved = [
+    'attributes',
+    'fps',
+    'type',
+    'ffprobe_info',
+    'annotate',
+    'codec',
+    'source_video',
+]
