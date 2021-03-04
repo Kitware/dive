@@ -1,6 +1,7 @@
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from pydantic import BaseModel, Field
+from typing_extensions import Literal
 
 
 class GeoJSONGeometry(BaseModel):
@@ -50,6 +51,14 @@ class Track(BaseModel):
                 for field, confidence in self.confidencePairs
             ]
         )
+
+
+class Attribute(BaseModel):
+    belongs: Literal['track', 'detection']
+    datatype: Literal['text', 'number', 'boolean']
+    values: Optional[List[str]]
+    name: str
+    key: str
 
 
 # interpolate all features [a, b)

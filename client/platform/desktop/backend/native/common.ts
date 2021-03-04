@@ -10,15 +10,16 @@ import moment from 'moment';
 import lockfile from 'proper-lockfile';
 import {
   DatasetType, MultiTrackRecord, Pipelines, SaveDetectionsArgs,
-  FrameImage, DatasetMetaMutable, TrainingConfigs, Attribute,
+  FrameImage, DatasetMetaMutable, TrainingConfigs, SaveAttributeArgs,
 } from 'dive-common/apispec';
 import * as viameSerializers from 'platform/desktop/backend/serializers/viame';
 
 import {
   websafeImageTypes, websafeVideoTypes, otherImageTypes, otherVideoTypes,
   JsonMeta, Settings, JsonMetaCurrentVersion, DesktopMetadata, DesktopJobUpdater,
-  ConvertMedia, RunTraining, Attributes, ExportDatasetArgs,
+  ConvertMedia, RunTraining, ExportDatasetArgs,
 } from 'platform/desktop/constants';
+import { Attribute, Attributes } from 'vue-media-annotator/use/useAttributes';
 import processTrackAttributes from './attributeProcessor';
 import { cleanString, makeid } from './utils';
 
@@ -350,7 +351,8 @@ async function _saveAsJson(absPath: string, data: unknown) {
   await fs.writeFile(absPath, serialized);
 }
 
-async function saveMetadata(settings: Settings, datasetId: string, args: DatasetMetaMutable) {
+async function saveMetadata(settings: Settings, datasetId: string,
+  args: DatasetMetaMutable & { attributes?: Record<string, Attribute>}) {
   const projectDirInfo = await getValidatedProjectDir(settings, datasetId);
   const release = await _acquireLock(projectDirInfo.basePath, projectDirInfo.metaFileAbsPath, 'meta');
   const existing = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
@@ -363,48 +365,31 @@ async function saveMetadata(settings: Settings, datasetId: string, args: Dataset
   if (args.attributes) {
     existing.attributes = args.attributes;
   }
+
   await _saveAsJson(projectDirInfo.metaFileAbsPath, existing);
   await release();
 }
 
-async function getAttributes(settings: Settings, datasetId: string):
-  Promise<Attribute[]> {
-  const projectDirData = await getValidatedProjectDir(settings, datasetId);
-  const projectMetaData = await loadJsonMetadata(projectDirData.metaFileAbsPath);
-  if (projectMetaData.attributes) {
-    return Object.values(projectMetaData.attributes);
-  }
-  return [];
-}
 
-async function setAttribute(settings: Settings, datasetId: string, { data }:
-  {data: Attribute }) {
+async function saveAttributes(settings: Settings, datasetId: string, args: SaveAttributeArgs) {
   const projectDirData = await getValidatedProjectDir(settings, datasetId);
   const projectMetaData = await loadJsonMetadata(projectDirData.metaFileAbsPath);
   if (!projectMetaData.attributes) {
     projectMetaData.attributes = {};
   }
-  // Reassign _id based on name if it is a new item
-  if (data._id === '') {
-    // eslint-disable-next-line no-param-reassign
-    data._id = `${data.belongs}_${data.name}`;
-  }
-  projectMetaData.attributes[data._id] = data;
+  args.delete.forEach((attributeId) => {
+    if (projectMetaData.attributes && projectMetaData.attributes[attributeId]) {
+      delete projectMetaData.attributes[attributeId];
+    }
+  });
+  args.upsert.forEach((attribute) => {
+    if (projectMetaData.attributes) {
+      projectMetaData.attributes[attribute.key] = attribute;
+    }
+  });
   await saveMetadata(settings, datasetId, projectMetaData);
 }
 
-async function deleteAttribute(settings: Settings, datasetId: string, { data }:
-  { data: Attribute }) {
-  const projectDirData = await getValidatedProjectDir(settings, datasetId);
-  const projectMetaData = await loadJsonMetadata(projectDirData.metaFileAbsPath);
-  if (!projectMetaData.attributes) {
-    return;
-  }
-  if (projectMetaData.attributes[data._id]) {
-    delete projectMetaData.attributes[data._id];
-  }
-  await saveMetadata(settings, datasetId, projectMetaData);
-}
 
 /**
  * processOtherAnnotationFiles imports data from external annotation formats
@@ -731,7 +716,5 @@ export {
   saveMetadata,
   completeConversion,
   processTrainedPipeline,
-  getAttributes,
-  setAttribute,
-  deleteAttribute,
+  saveAttributes,
 };

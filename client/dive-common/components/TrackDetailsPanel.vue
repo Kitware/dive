@@ -2,7 +2,6 @@
 import {
   computed,
   defineComponent,
-  onBeforeMount,
   Ref,
   ref,
 } from '@vue/composition-api';
@@ -15,12 +14,12 @@ import {
   useAllTypes,
   useHandler,
   useTrackMap,
-  useDatasetId,
+  useAttributes,
 } from 'vue-media-annotator/provides';
 import { getTrack } from 'vue-media-annotator/use/useTrackStore';
+import { Attribute } from 'vue-media-annotator/use/useAttributes';
 import TrackItem from 'vue-media-annotator/components/TrackItem.vue';
 
-import { useApi, Attribute } from 'dive-common/apispec';
 import AttributeInput from 'dive-common/components/AttributeInput.vue';
 import AttributeEditor from 'dive-common/components/AttributeEditor.vue';
 import AttributeSubsection from 'dive-common/components/AttributesSubsection.vue';
@@ -50,14 +49,13 @@ export default defineComponent({
     },
   },
   setup(props) {
-    const attributes = ref([] as Attribute[]);
+    const attributes = useAttributes();
     const editingAttribute: Ref<Attribute | null> = ref(null);
     const editingError: Ref<string | null> = ref(null);
     const editingModeRef = useEditingMode();
     const typeStylingRef = useTypeStyling();
     const allTypesRef = useAllTypes();
     const trackMap = useTrackMap();
-    const datasetId = useDatasetId();
     const { trackSelectNext, trackSplit, removeTrack } = useHandler();
 
     //Edit/Set single value by clicking
@@ -66,7 +64,7 @@ export default defineComponent({
 
     const frameRef = useFrame();
     const selectedTrackIdRef = useSelectedTrackId();
-    const { getAttributes, setAttribute, deleteAttribute } = useApi();
+    const { setAttribute, deleteAttribute } = useHandler();
     const selectedTrack = computed(() => {
       if (selectedTrackIdRef.value !== null) {
         return getTrack(trackMap, selectedTrackIdRef.value);
@@ -97,7 +95,6 @@ export default defineComponent({
     async function closeEditor() {
       editingAttribute.value = null;
       editingError.value = null;
-      attributes.value = await getAttributes(datasetId.value);
     }
 
     function addAttribute(type: 'Track' | 'Detection') {
@@ -107,27 +104,26 @@ export default defineComponent({
         belongs,
         datatype: 'text',
         name: `New${type}Attribute`,
-        _id: '',
+        key: '',
       };
     }
     function editAttribute(attribute: Attribute) {
       editingAttribute.value = attribute;
     }
-    async function saveAttribtueHandler(saveData: {
-      addNew: boolean | undefined;
+    async function saveAttributeHandler({ data, oldAttribute }: {
+      oldAttribute?: Attribute;
       data: Attribute;
     }) {
       editingError.value = null;
-      if (attributes.value.some((attribute) => (
-        attribute.name === saveData.data.name
-        && attribute.belongs === saveData.data.belongs
-        && attribute._id !== saveData.data._id))) {
+      if (!oldAttribute && attributes.value.some((attribute) => (
+        attribute.name === data.name
+        && attribute.belongs === data.belongs))) {
         editingError.value = 'Attribute with that name exists';
         return;
       }
 
       try {
-        await setAttribute(datasetId.value, saveData);
+        await setAttribute({ data, oldAttribute });
       } catch (err) {
         editingError.value = err.message;
       }
@@ -138,7 +134,7 @@ export default defineComponent({
     async function deleteAttributeHandler(data: Attribute) {
       editingError.value = null;
       try {
-        await deleteAttribute(datasetId.value, data);
+        await deleteAttribute({ data });
       } catch (err) {
         editingError.value = err.message;
       }
@@ -181,17 +177,13 @@ export default defineComponent({
       ];
     });
 
-    onBeforeMount(async () => {
-      attributes.value = await getAttributes(datasetId.value);
-    });
-
     return {
       selectedTrackIdRef,
       /* Attributes */
       attributes,
       /* Editing */
       editingAttribute,
-      saveAttribtueHandler,
+      saveAttributeHandler,
       deleteAttributeHandler,
       editingError,
       editIndividual,
@@ -281,7 +273,7 @@ export default defineComponent({
         :selected-attribute="editingAttribute"
         :error="editingError"
         @close="closeEditor"
-        @save="saveAttribtueHandler"
+        @save="saveAttributeHandler"
         @delete="deleteAttributeHandler"
       />
     </v-dialog>
