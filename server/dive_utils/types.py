@@ -1,5 +1,4 @@
 from typing import Any, List, Optional, Dict
-from pydantic.main import BaseModel
 from typing_extensions import TypedDict
 
 __all__ = [
@@ -19,12 +18,9 @@ class GirderModel(TypedDict):
 class PipelineDescription(TypedDict):
     """Describes a pipeline for running on datasets."""
 
-    name: str
-    type: str
-
-    # If the pipeline is from some folder on disk,
-    # this is the path to the pipe file
-    pipe_path: Optional[str]
+    name: str  # friendly name
+    type: str  # indicates whether this is a dynamic pipe.
+    pipe: Optional[str]  # unmodified pipe file name
 
     # If the pipeline is stored in girder, this is
     # the ID of the folder containing the pipeline,
@@ -41,13 +37,13 @@ class PipelineJob(TypedDict):
 
 
 class TrainingConfiguration(TypedDict):
-    pipe_path: str
-    name: str
+    pipe: str  # unmodified pipe file name
+    name: str  # friendly name
 
 
 class TrainingConfigurationSummary(TypedDict):
     configs: List[TrainingConfiguration]
-    default: TrainingConfiguration
+    default: Optional[TrainingConfiguration]
 
 
 class TrainingJob(TypedDict):

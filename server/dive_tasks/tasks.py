@@ -1,11 +1,13 @@
 import json
 import os
 import shutil
+import shlex
 import tempfile
 from pathlib import Path
 from subprocess import DEVNULL, Popen, PIPE, TimeoutExpired
-from typing import Dict, List
+from typing import Dict, List, Tuple
 from urllib import request
+from urllib.parse import urlparse
 import zipfile
 
 from girder_client import GirderClient
@@ -14,71 +16,136 @@ from girder_worker.task import Task
 from girder_worker.utils import JobManager, JobStatus
 from GPUtil import getGPUs
 
+from dive_tasks.pipeline_discovery import discover_configs
 from dive_tasks.utils import (
     get_video_filename,
     organize_folder_for_training,
     read_and_close_process_outputs,
 )
-from dive_utils.types import PipelineJob, UpgradeJob
+from dive_utils.types import AvailableJobSchema, PipelineJob, UpgradeJob
 
-upgradeJobDefault: UpgradeJob = {
+
+EMPTY_JOB_SCHEMA: AvailableJobSchema = {
+    'pipelines': {},
+    'training': {
+        'configs': [],
+        'default': None,
+    },
+}
+UPGRADE_JOB_DEFAULT: UpgradeJob = {
     'force': False,
     'urls': [
         'https://data.kitware.com/api/v1/item/6011e3452fa25629b91ade60/download',
-        'https://data.kitware.com/api/v1/item/601ae0a82fa25629b938d0db/download',
-        'https://data.kitware.com/api/v1/item/6011ebf72fa25629b91aef03/download',
+        'https://viame.kitware.com/api/v1/item/60412dd253c5cf52641ffa1d/download',
+        # 'https://data.kitware.com/api/v1/item/6011ebf72fa25629b91aef03/download',
+        # 'https://data.kitware.com/api/v1/item/601b00d02fa25629b9391ad6/download',
     ],
 }
 
 
-def get_gpu_environment() -> Dict[str, str]:
-    """Get environment variables for using CUDA enabled GPUs."""
-    env = os.environ.copy()
-
-    gpu_uuid = env.get("WORKER_GPU_UUID")
-    gpus = [gpu.id for gpu in getGPUs() if gpu.uuid == gpu_uuid]
-
-    # Only set this env var if WORKER_GPU_UUID was supplied,
-    # and it matches an installed GPU
-    if gpus:
-        env["CUDA_VISIBLE_DEVICES"] = str(gpus[0])
-
-    return env
-
-
 class Config:
     def __init__(self):
-        self.gpu_process_env = get_gpu_environment()
-        self.addon_zip_directory = os.environ.get(
-            'ADDON_ZIP_DIR',
-            '/tmp/viame/addons',
-        )
-        self.viame_install_path = os.environ.get(
+        self.gpu_process_env = Config.get_gpu_environment()
+        self.viame_install_directory = os.environ.get(
             'VIAME_INSTALL_PATH',
             '/opt/noaa/viame',
         )
+        self.addon_root_directory = os.environ.get(
+            'ADDON_ROOT_DIR',
+            '/tmp/addons',
+        )
+
+        self.viame_install_path = Path(self.viame_install_directory)
+        assert self.viame_install_path.exists(), "VIAME Base install directory missing"
+
+        # The subdirectory within VIAME_INSTALL_PATH where pipelines can be found
+        self.pipeline_subdir = 'configs/pipelines'
+        self.viame_pipeine_path = self.viame_install_path / self.pipeline_subdir
+        assert self.viame_pipeine_path.exists(), "VIAME common pipe directory missing"
+
+        self.addon_root_path = Path(self.addon_root_directory)
+        self.addon_zip_path = self.addon_root_path / 'zips'
+        self.addon_extracted_path = self.addon_root_path / 'extracted'
+
+        self.addon_zip_path.mkdir(exist_ok=True, parents=True)
+        self.addon_extracted_path.mkdir(exist_ok=True, parents=True)
+
+    def get_extracted_pipeline_path(self) -> Path:
+        """
+        Includes subdirectory for pipelines
+        """
+        pipeline_path = self.addon_extracted_path / self.pipeline_subdir
+        assert pipeline_path.exists(), f"Missing path {pipeline_path}"
+        return pipeline_path
+
+    @staticmethod
+    def get_gpu_environment() -> Dict[str, str]:
+        """Get environment variables for using CUDA enabled GPUs."""
+        env = os.environ.copy()
+
+        gpu_uuid = env.get("WORKER_GPU_UUID")
+        gpus = [gpu.id for gpu in getGPUs() if gpu.uuid == gpu_uuid]
+
+        # Only set this env var if WORKER_GPU_UUID was supplied,
+        # and it matches an installed GPU
+        if gpus:
+            env["CUDA_VISIBLE_DEVICES"] = str(gpus[0])
+
+        return env
 
 
 @app.task(bind=True, acks_late=True)
-def upgrade_pipelines(self: Task, upgradeJob: UpgradeJob = upgradeJobDefault):
+def upgrade_pipelines(self: Task, upgradeJob: UpgradeJob = UPGRADE_JOB_DEFAULT):
+    """ Install addons from zip files over HTTP """
     conf = Config()
     manager: JobManager = self.job_manager
 
-    addon_zip_directory = Path(self.addon_zip_directory)
-    addon_zip_directory.mkdir(exist_ok=True)
+    # zipfiles to extract after download is complete
+    addons_to_update_update: List[Path] = []
 
-    for idx, addon in enumerate(upgradeJob['urls']):
-        filename = addon_zip_directory / f"download_{idx}.zip"
-        if not filename.exists() or upgradeJob['force']:
-            request.urlretrieve(addon, filename=filename)
-            z = zipfile.ZipFile(filename)
-            z.extractall(conf.viame_install_path)
-            manager.write(f'Extracted data from {filename}')
+    for addon in upgradeJob['urls']:
+        download_name = urlparse(addon).path.replace('/', '_')
+        zipfile_path = conf.addon_zip_path / f'{download_name}.zip'
+        if not zipfile_path.exists() or upgradeJob['force']:
+            # Update the zipfile if force option set or file not exists
+            manager.write(f'Downloading {addon} to {zipfile_path}\n')
+            # TODO wrap try catch
+            request.urlretrieve(addon, filename=zipfile_path)
         else:
-            manager.write(f'Skipping {filename}')
+            manager.write(f'Skipping download of {zipfile_path}\n')
+        addons_to_update_update.append(zipfile_path)
         if self.canceled:
             manager.updateStatus(JobStatus.CANCELED)
-            break
+            return JobStatus.CANCELED
+
+    # remove and recreate the existing addon pipeline directory
+    shutil.rmtree(conf.addon_extracted_path)
+    # remake the extracted pipe line path
+    (conf.addon_extracted_path / conf.pipeline_subdir).mkdir(
+        exist_ok=False, parents=True
+    )
+    # copy over data from built image
+    shutil.copytree(conf.viame_pipeine_path, conf.get_extracted_pipeline_path())
+    # Extract zipfiles over newly copied files.  Right now the zip archives
+    # MUST contain the pipeline subdir (e.g. configs/pipelines) in their
+    # internal structure.
+    for zipfile_path in addons_to_update_update:
+        manager.write(f'Extracting {zipfile_path}\n')
+        z = zipfile.ZipFile(zipfile_path)
+        z.extractall(conf.addon_extracted_path)
+
+    if self.canceled:
+        # Remove everything
+        shutil.rmtree(conf.addon_extracted_path)
+        manager.updateStatus(JobStatus.CANCELED)
+        self.girder_client.post(
+            'viame/update_job_configs', json={'configs': EMPTY_JOB_SCHEMA}
+        )
+        return JobStatus.CANCELED
+
+    # finally, crawl the new files and report results
+    summary = discover_configs(conf.get_extracted_pipeline_path())
+    self.girder_client.post('viame/update_job_configs', json={'configs': summary})
 
 
 @app.task(bind=True, acks_late=True)
@@ -100,32 +167,13 @@ def run_pipeline(self: Task, params: PipelineJob):
 
     self.girder_client.downloadFolderRecursive(input_folder, input_path)
 
-    # get a list of the input media
-    # TODO: better filtering that only allows files of valid types
-    directory_files = os.listdir(input_path)
-    filtered_directory_files = []
-    for file_name in directory_files:
-        full_file_path = os.path.join(input_path, file_name)
-        is_directory = os.path.isdir(full_file_path)
-        if (not is_directory) and (
-            not os.path.splitext(file_name)[1].lower() == '.csv'
-            and (not os.path.splitext(file_name)[1].lower() == '.json')
-        ):
-            filtered_directory_files.append(file_name)
-
-    if len(filtered_directory_files) == 0:
-        raise ValueError('No media files found in {}'.format(input_path))
-
     if pipeline["type"] == "trained":
         self.girder_client.downloadFolderRecursive(
             pipeline["folderId"], str(trained_pipeline_folder)
         )
-        pipeline_path = str(trained_pipeline_folder / pipeline["pipe"])
+        pipeline_path = trained_pipeline_folder / pipeline["pipe"]
     else:
-        pipeline_path = pipeline["pipe_path"]
-
-    # Handle spaces in pipeline names
-    pipeline_path = pipeline_path.replace(" ", r"\ ")
+        pipeline_path = conf.get_extracted_pipeline_path() / pipeline["pipe"]
 
     if input_type == 'video':
         # filter files for source video file
@@ -138,16 +186,23 @@ def run_pipeline(self: Task, params: PipelineJob):
         input_file = os.path.join(input_path, source_video)
 
         command = [
-            f"cd {conf.viame_install_path} &&",
+            f"cd {shlex.quote(str(conf.viame_install_path))} &&",
             ". ./setup_viame.sh &&",
             "kwiver runner",
             "-s input:video_reader:type=vidl_ffmpeg",
-            f"-p {pipeline_path}",
-            f"-s input:video_filename='{input_file}'",
-            f"-s detector_writer:file_name='{detector_output_path}'",
-            f"-s track_writer:file_name='{track_output_path}'",
+            f"-p {shlex.quote(str(pipeline_path))}",
+            f"-s input:video_filename={shlex.quote(input_file)}",
+            f"-s detector_writer:file_name={shlex.quote(detector_output_path)}",
+            f"-s track_writer:file_name={shlex.quote(track_output_path)}",
         ]
     elif input_type == 'image-sequence':
+        resp = self.girder_client.get(
+            'viame/valid_images', params={'folderId': input_folder}
+        )
+        filtered_directory_files = [item['name'] for item in resp.json()]
+        if len(filtered_directory_files) == 0:
+            raise ValueError('No media files found in {}'.format(input_path))
+
         with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as temp2:
             temp2.writelines(
                 (
@@ -157,13 +212,13 @@ def run_pipeline(self: Task, params: PipelineJob):
             )
             image_list_file = temp2.name
         command = [
-            f"cd {conf.viame_install_path} &&",
+            f"cd {shlex.quote(str(conf.viame_install_path))} &&",
             ". ./setup_viame.sh &&",
             "kwiver runner",
-            f"-p {pipeline_path}",
-            f"-s input:video_filename='{image_list_file}'",
-            f"-s detector_writer:file_name='{detector_output_path}'",
-            f"-s track_writer:file_name='{track_output_path}'",
+            f"-p {shlex.quote(str(pipeline_path))}",
+            f"-s input:video_filename={shlex.quote(image_list_file)}",
+            f"-s detector_writer:file_name={shlex.quote(detector_output_path)}",
+            f"-s track_writer:file_name={shlex.quote(track_output_path)}",
         ]
     else:
         raise ValueError('Unknown input type: {}'.format(input_type))
@@ -247,7 +302,7 @@ def train_pipeline(
     manager: JobManager = self.job_manager
 
     viame_install_path = Path(conf.viame_install_path)
-    pipeline_base_path = Path(conf.pipeline_base_path)
+    pipeline_base_path = Path(conf.get_extracted_pipeline_path())
     training_executable = viame_install_path / "bin" / "viame_train_detector"
     config_file = pipeline_base_path / config
 
@@ -259,7 +314,7 @@ def train_pipeline(
     # List of folderIds used for training
     trained_on_list: List[str] = []
     # List of[input folder / ground truth file] pairs for creating input lists
-    input_groundtruth_list: List[[Path, Path]] = []
+    input_groundtruth_list: List[Tuple[Path, Path]] = []
     # root_data_dir is the directory passed to `viame_train_detector`
     with tempfile.TemporaryDirectory() as _temp_dir_string:
         manager.updateStatus(JobStatus.FETCHING_INPUT)
@@ -295,7 +350,7 @@ def train_pipeline(
                     )
                 download_path = download_path / video_file
 
-            input_groundtruth_list.append([download_path, groundtruth_file])
+            input_groundtruth_list.append((download_path, groundtruth_file))
 
         input_folder_file_list = root_data_dir / "input_folder_list.txt"
         ground_truth_file_list = root_data_dir / "input_truth_list.txt"

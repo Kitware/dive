@@ -18,7 +18,7 @@ def load_dynamic_pipelines(user: Optional[Dict] = None) -> Dict[str, PipelineCat
         {
             "name": folder["name"],
             "type": TrainedPipelineCategory,
-            "pipe_name": None,
+            "pipe": None,
             "folderId": str(folder["_id"]),
         }
         for folder in Folder().findWithPermissions(

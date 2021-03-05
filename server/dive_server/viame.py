@@ -18,16 +18,14 @@ from dive_tasks.tasks import (
     train_pipeline,
     upgrade_pipelines,
 )
-from dive_utils.types import PipelineDescription, PipelineJob
+from dive_utils.types import AvailableJobSchema, PipelineDescription, PipelineJob
 
 from .constants import csvRegex, imageRegex, safeImageRegex, videoRegex, ymlRegex
 from .model.attribute import Attribute
-from .pipelines import load_pipelines, load_static_pipelines
 from .serializers import meva as meva_serializer
 from .serializers import models
 from .training import (
     csv_detection_file,
-    load_training_configurations,
     training_output_folder,
 )
 from .transforms import GetPathFromItemId
@@ -44,19 +42,20 @@ JOBCONST_TRAINING_CONFIG = 'training_config'
 JOBCONST_RESULTS_FOLDER_ID = 'results_folder_id'
 JOBCONST_PIPELINE_NAME = 'pipeline_name'
 
+SETTINGS_CONST_JOBS_CONFIGS = 'jobs_configs'
+
 
 class Viame(Resource):
     def __init__(self):
         super(Viame, self).__init__()
         self.resourceName = "viame"
-        self.static_pipelines = None
 
         self.route("GET", ("brand_data",), self.get_brand_data)
-        self.route("GET", ("pipelines",), self.get_pipelines)
+        self.route("GET", ("pipelines",), self.get_available_jobs)
         self.route("POST", ("pipeline",), self.run_pipeline_task)
-        self.route("GET", ("training_configs",), self.get_training_configs)
         self.route("POST", ("train",), self.run_training)
         self.route("POST", ("upgrade_pipelines",), self.upgrade_pipelines)
+        self.route("POST", ("update_job_configs",), self.update_job_configs)
         self.route("POST", ("postprocess", ":id"), self.postprocess)
         self.route("PUT", ("attributes",), self.save_attributes)
         self.route("POST", ("validate_files",), self.validate_files)
@@ -70,6 +69,21 @@ class Viame(Resource):
             girder_job_title="Upgrade Pipelines",
             girder_client_token=str(token["_id"]),
         )
+
+    @access.admin
+    @autoDescribeRoute(
+        Description("Persist discovered job configurations").jsonParam(
+            "configs",
+            "Replace static job configurations",
+            required=True,
+            requireObject=True,
+            paramType='body',
+        )
+    )
+    def update_job_configs(self, configs: AvailableJobSchema):
+        # TODO: In a future version of Pydantic, TypedDict will be supported
+        # and we can validate properly.  For now, we just
+        Setting().set(SETTINGS_CONST_JOBS_CONFIGS, configs)
 
     @access.public
     @autoDescribeRoute(Description("Get custom brand data"))
@@ -86,37 +100,12 @@ class Viame(Resource):
             return data['meta']
         return {}
 
-    @access.admin
-    @autoDescribeRoute(
-        Description("Update pipeline configurations").jsonParam(
-            "configs",
-            "The pipeline to run on the dataset",
-            required=True,
-            requireObject=True,
-        )
-    )
-    def update_pipeline_configs(self, configs):
-        # TODO: In a future version of Pydantic, TypedDict will be supported
-        # and we can validate properly.  For now, trust I guess.
-        Setting().set('pipeline_configs', configs)
-
     @access.user
-    @describeRoute(
-        Description("Get available pipelines").param(
-            'force',
-            'force reload of static pipelines',
-            required=False,
-        )
-    )
-    def get_pipelines(self, params):
-        if self.static_pipelines is None or params.get('force', False):
-            self.static_pipelines = load_static_pipelines()
-        return load_pipelines(self.static_pipelines, self.getCurrentUser())
-
-    @access.user
-    @describeRoute(Description("Get available training configurations."))
-    def get_training_configs(self, params):
-        return load_training_configurations()
+    @describeRoute(Description("Get available job configurations"))
+    def get_available_jobs(self, params):
+        static_job_configs = Setting().get(SETTINGS_CONST_JOBS_CONFIGS) or {}
+        # return load_pipelines(self.static_pipelines, self.getCurrentUser())
+        return static_job_configs
 
     @access.user
     @autoDescribeRoute(

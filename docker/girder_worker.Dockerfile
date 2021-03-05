@@ -42,6 +42,9 @@ RUN apt-get update && apt-get install -y python3.7-venv
 RUN useradd --create-home --uid 1099 --shell=/bin/bash worker
 USER worker
 
+# Create directory for addons
+RUN mkdir -p /tmp/addons
+
 ENV VIRTUAL_ENV=/home/worker/venv
 RUN python3.7 -m venv $VIRTUAL_ENV
 
