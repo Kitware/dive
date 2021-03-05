@@ -4,11 +4,25 @@ from pathlib import Path
 
 from girder import events, plugin
 from girder.models.setting import Setting
+from girder.utility import setting_utilities
 
+from .constants import SETTINGS_CONST_JOBS_CONFIGS
 from .client_webroot import ClientWebroot
 from .event import check_existing_annotations
 from .viame import Viame
 from .viame_detection import ViameDetection
+
+
+@setting_utilities.validator({SETTINGS_CONST_JOBS_CONFIGS})
+def validateSettings(doc):
+    """
+    Handle plugin-specific system settings. Right now we don't do any
+    validation.
+    """
+    val = doc['value']
+    # TODO: replace with real schema validation
+    assert 'training' in val, '"training" missing from doc'
+    assert 'pipelines' in val, '"piplines" missing from doc'
 
 
 class GirderPlugin(plugin.GirderPlugin):

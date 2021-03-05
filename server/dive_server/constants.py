@@ -1,5 +1,7 @@
 import re
 
+SETTINGS_CONST_JOBS_CONFIGS = 'jobs_configs'
+
 ImageSequenceType = "image-sequence"
 VideoType = "video"
 

@@ -16,7 +16,6 @@ from dive_server.constants import (
     safeImageRegex,
 )
 from dive_server.serializers import viame
-from dive_utils.types import TrainingConfigurationSummary, TrainingConfiguration
 
 TrainingOutputFolderName = "VIAME Training Results"
 

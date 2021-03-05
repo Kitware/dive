@@ -20,8 +20,14 @@ from dive_tasks.tasks import (
 )
 from dive_utils.types import AvailableJobSchema, PipelineDescription, PipelineJob
 
-from .constants import csvRegex, imageRegex, safeImageRegex, videoRegex, ymlRegex
-from .model.attribute import Attribute
+from .constants import (
+    csvRegex,
+    imageRegex,
+    safeImageRegex,
+    videoRegex,
+    ymlRegex,
+    SETTINGS_CONST_JOBS_CONFIGS,
+)
 from .serializers import meva as meva_serializer
 from .serializers import models
 from .training import (
@@ -42,8 +48,6 @@ JOBCONST_TRAINING_CONFIG = 'training_config'
 JOBCONST_RESULTS_FOLDER_ID = 'results_folder_id'
 JOBCONST_PIPELINE_NAME = 'pipeline_name'
 
-SETTINGS_CONST_JOBS_CONFIGS = 'jobs_configs'
-
 
 class Viame(Resource):
     def __init__(self):
@@ -51,7 +55,8 @@ class Viame(Resource):
         self.resourceName = "viame"
 
         self.route("GET", ("brand_data",), self.get_brand_data)
-        self.route("GET", ("pipelines",), self.get_available_jobs)
+        self.route("GET", ("pipelines",), self.get_pipelines)
+        self.route("GET", ("training_configs",), self.get_training_configs)
         self.route("POST", ("pipeline",), self.run_pipeline_task)
         self.route("POST", ("train",), self.run_training)
         self.route("POST", ("upgrade_pipelines",), self.upgrade_pipelines)
@@ -101,11 +106,25 @@ class Viame(Resource):
         return {}
 
     @access.user
-    @describeRoute(Description("Get available job configurations"))
-    def get_available_jobs(self, params):
-        static_job_configs = Setting().get(SETTINGS_CONST_JOBS_CONFIGS) or {}
+    @describeRoute(Description("Get available pipeline configurations"))
+    def get_pipelines(self, params):
+        static_job_configs: AvailableJobSchema = (
+            Setting().get(SETTINGS_CONST_JOBS_CONFIGS) or {}
+        )
         # return load_pipelines(self.static_pipelines, self.getCurrentUser())
+        if 'pipelines' in static_job_configs:
+            return static_job_configs['pipelines'] or {}
         return static_job_configs
+
+    @access.user
+    @autoDescribeRoute(Description("Get available training configs"))
+    def get_training_configs(self, params):
+        static_job_configs: AvailableJobSchema = Setting().get(
+            SETTINGS_CONST_JOBS_CONFIGS
+        )
+        if 'training' in static_job_configs:
+            return static_job_configs['training'] or {}
+        return {}
 
     @access.user
     @autoDescribeRoute(

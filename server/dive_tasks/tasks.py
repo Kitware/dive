@@ -37,7 +37,7 @@ UPGRADE_JOB_DEFAULT: UpgradeJob = {
     'urls': [
         'https://data.kitware.com/api/v1/item/6011e3452fa25629b91ade60/download',
         'https://viame.kitware.com/api/v1/item/60412dd253c5cf52641ffa1d/download',
-        # 'https://data.kitware.com/api/v1/item/6011ebf72fa25629b91aef03/download',
+        'https://data.kitware.com/api/v1/item/6011ebf72fa25629b91aef03/download',
         # 'https://data.kitware.com/api/v1/item/601b00d02fa25629b9391ad6/download',
     ],
 }
@@ -85,12 +85,13 @@ class Config:
         self.addon_zip_path.mkdir(exist_ok=True, parents=True)
         self.addon_extracted_path.mkdir(exist_ok=True, parents=True)
 
-    def get_extracted_pipeline_path(self) -> Path:
+    def get_extracted_pipeline_path(self, missing_ok=False) -> Path:
         """
         Includes subdirectory for pipelines
         """
         pipeline_path = self.addon_extracted_path / self.pipeline_subdir
-        assert pipeline_path.exists(), f"Missing path {pipeline_path}"
+        if not missing_ok:
+            assert pipeline_path.exists(), f"Missing path {pipeline_path}"
         return pipeline_path
 
 
@@ -99,11 +100,11 @@ def upgrade_pipelines(self: Task, upgradeJob: UpgradeJob = UPGRADE_JOB_DEFAULT):
     """ Install addons from zip files over HTTP """
     conf = Config()
     manager: JobManager = self.job_manager
-
+    total = len(upgradeJob['urls'])
     # zipfiles to extract after download is complete
     addons_to_update_update: List[Path] = []
 
-    for addon in upgradeJob['urls']:
+    for idx, addon in enumerate(upgradeJob['urls']):
         download_name = urlparse(addon).path.replace('/', '_')
         zipfile_path = conf.addon_zip_path / f'{download_name}.zip'
         if not zipfile_path.exists() or upgradeJob['force']:
@@ -120,17 +121,17 @@ def upgrade_pipelines(self: Task, upgradeJob: UpgradeJob = UPGRADE_JOB_DEFAULT):
 
     # remove and recreate the existing addon pipeline directory
     shutil.rmtree(conf.addon_extracted_path)
-    # remake the extracted pipe line path
-    (conf.addon_extracted_path / conf.pipeline_subdir).mkdir(
-        exist_ok=False, parents=True
+    # copy over data from built image, which causes mkdir() for all parents
+    shutil.copytree(
+        conf.viame_pipeine_path, conf.get_extracted_pipeline_path(missing_ok=True)
     )
-    # copy over data from built image
-    shutil.copytree(conf.viame_pipeine_path, conf.get_extracted_pipeline_path())
     # Extract zipfiles over newly copied files.  Right now the zip archives
     # MUST contain the pipeline subdir (e.g. configs/pipelines) in their
     # internal structure.
     for zipfile_path in addons_to_update_update:
-        manager.write(f'Extracting {zipfile_path}\n')
+        manager.write(
+            f'Extracting {zipfile_path} to {str(conf.addon_extracted_path)}\n'
+        )
         z = zipfile.ZipFile(zipfile_path)
         z.extractall(conf.addon_extracted_path)
 
@@ -138,14 +139,12 @@ def upgrade_pipelines(self: Task, upgradeJob: UpgradeJob = UPGRADE_JOB_DEFAULT):
         # Remove everything
         shutil.rmtree(conf.addon_extracted_path)
         manager.updateStatus(JobStatus.CANCELED)
-        self.girder_client.post(
-            'viame/update_job_configs', json={'configs': EMPTY_JOB_SCHEMA}
-        )
+        self.girder_client.post('viame/update_job_configs', json=EMPTY_JOB_SCHEMA)
         return JobStatus.CANCELED
 
     # finally, crawl the new files and report results
     summary = discover_configs(conf.get_extracted_pipeline_path())
-    self.girder_client.post('viame/update_job_configs', json={'configs': summary})
+    self.girder_client.post('viame/update_job_configs', json=summary)
 
 
 @app.task(bind=True, acks_late=True)

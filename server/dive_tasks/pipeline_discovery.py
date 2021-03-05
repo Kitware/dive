@@ -7,7 +7,6 @@ from dive_utils.types import (
     AvailableJobSchema,
     PipelineCategory,
     PipelineDescription,
-    TrainingConfiguration,
     TrainingConfigurationSummary,
 )
 
@@ -47,23 +46,17 @@ def load_static_pipelines(search_path: Path) -> Dict[str, PipelineCategory]:
 
 
 def load_training_configurations(search_path: Path) -> TrainingConfigurationSummary:
-    configurations: List[TrainingConfiguration] = []
-    default_config: TrainingConfiguration
+    configurations: List[str] = []
+    default_config: str
 
     for pipe in search_path.glob("./*.conf"):
-        nameparts = pipe.name.replace(".pipe", "").split("_")
-        training_conf: TrainingConfiguration = {
-            'name': " ".join(nameparts),
-            'pipe': pipe.name,
-        }
-        configurations.append(training_conf)
-        if training_conf['pipe'] == DefaultTrainingConfiguration:
-            default_config = training_conf
+        pipe_name = pipe.name
+        configurations.append(pipe_name)
+        if pipe_name == DefaultTrainingConfiguration:
+            default_config = pipe_name
 
     # Filter out stuff that doesn't match allowed patterns
-    configurations = [
-        c for c in configurations if re.match(AllowedTrainingConfigs, c['name'])
-    ]
+    configurations = [c for c in configurations if re.match(AllowedTrainingConfigs, c)]
 
     return {
         "configs": configurations,

@@ -36,21 +36,16 @@ class PipelineJob(TypedDict):
     output_folder: str
 
 
-class TrainingConfiguration(TypedDict):
-    pipe: str  # unmodified pipe file name
-    name: str  # friendly name
-
-
 class TrainingConfigurationSummary(TypedDict):
-    configs: List[TrainingConfiguration]
-    default: Optional[TrainingConfiguration]
+    configs: List[str]
+    default: Optional[str]
 
 
 class TrainingJob(TypedDict):
     """Describes the parameters for running a training job"""
 
     new_pipeline_name: str
-    config_pipeline: TrainingConfiguration
+    config_pipeline: str
     results_folder: GirderModel
     source_folder_list: List[GirderModel]
     groundtruth_list: List[GirderModel]
