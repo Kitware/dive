@@ -43,9 +43,24 @@ UPGRADE_JOB_DEFAULT: UpgradeJob = {
 }
 
 
+def get_gpu_environment() -> Dict[str, str]:
+    """Get environment variables for using CUDA enabled GPUs."""
+    env = os.environ.copy()
+
+    gpu_uuid = env.get("WORKER_GPU_UUID")
+    gpus = [gpu.id for gpu in getGPUs() if gpu.uuid == gpu_uuid]
+
+    # Only set this env var if WORKER_GPU_UUID was supplied,
+    # and it matches an installed GPU
+    if gpus:
+        env["CUDA_VISIBLE_DEVICES"] = str(gpus[0])
+
+    return env
+
+
 class Config:
     def __init__(self):
-        self.gpu_process_env = Config.get_gpu_environment()
+        self.gpu_process_env = get_gpu_environment()
         self.viame_install_directory = os.environ.get(
             'VIAME_INSTALL_PATH',
             '/opt/noaa/viame',
@@ -77,21 +92,6 @@ class Config:
         pipeline_path = self.addon_extracted_path / self.pipeline_subdir
         assert pipeline_path.exists(), f"Missing path {pipeline_path}"
         return pipeline_path
-
-    @staticmethod
-    def get_gpu_environment() -> Dict[str, str]:
-        """Get environment variables for using CUDA enabled GPUs."""
-        env = os.environ.copy()
-
-        gpu_uuid = env.get("WORKER_GPU_UUID")
-        gpus = [gpu.id for gpu in getGPUs() if gpu.uuid == gpu_uuid]
-
-        # Only set this env var if WORKER_GPU_UUID was supplied,
-        # and it matches an installed GPU
-        if gpus:
-            env["CUDA_VISIBLE_DEVICES"] = str(gpus[0])
-
-        return env
 
 
 @app.task(bind=True, acks_late=True)
