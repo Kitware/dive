@@ -1,0 +1,29 @@
+version: "2.4"
+services:
+
+  rabbit:
+    restart: always
+
+  mongo:
+    restart: always
+
+  girder:
+    restart: always
+
+  girder_worker_default:
+    restart: always
+
+  girder_worker_pipelines:
+    restart: always
+
+  girder_worker_training:
+    restart: always
+
+  watchtower:
+    image: containrrr/watchtower:latest
+    container_name: watchtower
+    restart: always
+    command: --schedule "0 2 * * 4" # weekly on thursday morning 2AM
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /etc/timezone:/etc/timezone:ro
