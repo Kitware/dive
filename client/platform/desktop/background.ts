@@ -27,7 +27,7 @@ function cleanup() {
   app.quit();
 }
 
-function createWindow() {
+async function createWindow() {
   const size = screen.getPrimaryDisplay().workAreaSize;
   // Create the browser window.
   win = new BrowserWindow({
@@ -44,20 +44,6 @@ function createWindow() {
     },
   });
 
-  if (process.env.IS_ELECTRON) {
-    // Load the url of the dev server if in development mode
-    win.loadURL(process.env.WEBPACK_DEV_SERVER_URL as string);
-    if (!process.env.IS_TEST) win.webContents.openDevTools();
-  } else {
-    createProtocol('app');
-    // Load the index.html when not in development
-    win.loadURL(`file://${__dirname}/index.html`);
-  }
-
-  win.on('closed', () => {
-    win = null;
-  });
-
   listen((server) => {
     let address = server.address();
     let port = 0;
@@ -68,6 +54,20 @@ function createWindow() {
     console.error(`Server listening on ${address}:${port}`);
   });
   ipcListen();
+
+  if (process.env.IS_ELECTRON) {
+    // Load the url of the dev server if in development mode
+    await win.loadURL(process.env.WEBPACK_DEV_SERVER_URL as string);
+    if (!process.env.IS_TEST) win.webContents.openDevTools();
+  } else {
+    createProtocol('app');
+    // Load the index.html when not in development
+    win.loadURL(`file://${__dirname}/index.html`);
+  }
+
+  win.on('closed', () => {
+    win = null;
+  });
 }
 
 // Quit when all windows are closed.

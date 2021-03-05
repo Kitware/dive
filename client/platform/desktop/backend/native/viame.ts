@@ -13,15 +13,15 @@ import * as common from './common';
 import { cleanString, jobFileEchoMiddleware, spawnResult } from './utils';
 
 const PipelineRelativeDir = 'configs/pipelines';
-
+const DiveJobManifestName = 'dive_job_manifest.json';
 
 interface FFmpegSettings {
   initialization: string;
   path: string;
-  encoding: string;
+  videoArgs: string;
 }
 
-interface ViameConstants {
+export interface ViameConstants {
   setupScriptAbs: string; // abs path setup comman
   trainingExe: string; // name of training binary on PATH
   kwiverExe: string; // name of kwiver binary on PATH
@@ -60,7 +60,10 @@ async function runPipeline(
 
   let command: string[] = [];
   if (meta.type === 'video') {
-    const videoAbsPath = npath.join(meta.originalBasePath, meta.originalVideoFile);
+    let videoAbsPath = npath.join(meta.originalBasePath, meta.originalVideoFile);
+    if (meta.transcodedVideoFile) {
+      videoAbsPath = npath.join(projectInfo.basePath, meta.transcodedVideoFile);
+    }
     command = [
       `${viameConstants.setupScriptAbs} &&`,
       `"${viameConstants.kwiverExe}" runner`,
@@ -106,7 +109,7 @@ async function runPipeline(
     startTime: new Date(),
   };
 
-  fs.writeFile(npath.join(jobWorkDir, 'dive_job_manifest.json'), JSON.stringify(jobBase));
+  fs.writeFile(npath.join(jobWorkDir, DiveJobManifestName), JSON.stringify(jobBase));
 
   updater({
     ...jobBase,
@@ -244,7 +247,7 @@ async function train(
     startTime: new Date(),
   };
 
-  fs.writeFile(npath.join(jobWorkDir, 'dive_job_manifest.json'), JSON.stringify(jobBase));
+  fs.writeFile(npath.join(jobWorkDir, DiveJobManifestName), JSON.stringify(jobBase));
 
   updater({
     ...jobBase,
@@ -287,14 +290,14 @@ async function checkMedia(
   const ffprobePath = `${viameConstants.ffmpeg.path.replace('ffmpeg', 'ffprobe')}`;
   const command = [
     `${viameConstants.ffmpeg.initialization}`,
-    `${ffprobePath}`,
+    `"${ffprobePath}"`,
     '-print_format',
     'json',
     '-v',
     'quiet',
     '-show_format',
     '-show_streams',
-    file,
+    `"${file}"`,
   ];
   const result = await spawnResult(command.join(' '), viameConstants.shell);
   if (result.error || result.output === null) {
@@ -303,7 +306,9 @@ async function checkMedia(
   const returnText = result.output;
   const ffprobeJSON: FFProbeResults = JSON.parse(returnText);
   if (ffprobeJSON && ffprobeJSON.streams) {
-    const websafe = ffprobeJSON.streams.filter((el) => el.codec_name === 'h264' && el.codec_type === 'video');
+    const websafe = ffprobeJSON.streams
+      .filter((el) => el.codec_name === 'h264' && el.codec_type === 'video')
+      .filter((el) => el.sample_aspect_ratio === '1:1');
 
     return !!websafe.length;
   }
@@ -322,7 +327,13 @@ async function convertMedia(settings: Settings,
   const joblog = npath.join(jobWorkDir, 'runlog.txt');
   const commands = [];
   if (args.meta.type === 'video' && args.mediaList[0]) {
-    commands.push(`${viameConstants.ffmpeg.initialization} ${viameConstants.ffmpeg.path} -i "${args.mediaList[0][0]}" ${viameConstants.ffmpeg.encoding} "${args.mediaList[0][1]}"`);
+    commands.push([
+      viameConstants.ffmpeg.initialization,
+      viameConstants.ffmpeg.path,
+      `-i "${args.mediaList[0][0]}"`,
+      viameConstants.ffmpeg.videoArgs,
+      `"${args.mediaList[0][1]}"`,
+    ].join(' '));
   } else if (args.meta.type === 'image-sequence' && imageIndex < args.mediaList.length) {
     commands.push(`${viameConstants.ffmpeg.initialization} ${viameConstants.ffmpeg.path} -i "${args.mediaList[imageIndex][0]}" "${args.mediaList[imageIndex][1]}"`);
   }
@@ -345,13 +356,20 @@ async function convertMedia(settings: Settings,
     startTime: new Date(),
   };
 
+  fs.writeFile(npath.join(jobWorkDir, DiveJobManifestName), JSON.stringify(jobBase));
+
   job.stdout.on('data', jobFileEchoMiddleware(jobBase, updater, joblog));
   job.stderr.on('data', jobFileEchoMiddleware(jobBase, updater, joblog));
-
 
   job.on('exit', async (code) => {
     if (code !== 0) {
       console.error('Error with running conversion');
+      updater({
+        ...jobBase,
+        body: [''],
+        exitCode: code,
+        endTime: new Date(),
+      });
     } else if (args.meta.type === 'video' || (args.meta.type === 'image-sequence' && imageIndex === args.mediaList.length - 1)) {
       common.completeConversion(settings, args.meta.id, jobKey);
       updater({

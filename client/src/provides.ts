@@ -8,12 +8,16 @@ import { EditAnnotationTypes } from './layers/EditAnnotationLayer';
 import Track, { TrackId } from './track';
 import { VisibleAnnotationTypes } from './layers';
 import { RectBounds } from './utils';
+import { Attribute } from './use/useAttributes';
 import { TrackWithContext } from './use/useTrackFilters';
 
 /**
  * Type definitions are read only because injectors may mutate internal state,
  * but should never overwrite or delete the injected object.
  */
+
+const AttributesSymbol = Symbol('attributes');
+type AttributesType = Readonly<Ref<Attribute[]>>;
 
 const AllTypesSymbol = Symbol('allTypes');
 type AllTypesType = Readonly<Ref<readonly string[]>>;
@@ -121,8 +125,14 @@ export interface Handler {
     opacity?: number;
     fill?: boolean;
   }): void;
+  /* set an Attribute in the metaData */
+  setAttribute({ data, oldAttribute }:
+    {data: Attribute; oldAttribute?: Attribute }, updateAllTracks?: boolean): void;
+  /* delete an Attribute in the metaData */
+  deleteAttribute({ data }: {data: Attribute}, removeFromTracks?: boolean): void;
 }
 const HandlerSymbol = Symbol('handler');
+
 
 /**
  * Make a trivial noop handler. Useful if you only intend to
@@ -150,6 +160,8 @@ function dummyHandler(handle: (name: string, args: unknown[]) => void): Handler 
     deleteType(...args) { handle('deleteType', args); },
     updateTypeName(...args) { handle('updateTypeName', args); },
     updateTypeStyle(...args) { handle('updateTypeStyle', args); },
+    setAttribute(...args) { handle('setAttribute', args); },
+    deleteAttribute(...args) { handle('deleteAttribute', args); },
   };
 }
 
@@ -161,6 +173,7 @@ function dummyHandler(handle: (name: string, args: unknown[]) => void): Handler 
  * you will need to construct on your own.
  */
 export interface State {
+  attributes: AttributesType;
   allTypes: AllTypesType;
   datasetId: DatasetIdType;
   usedTypes: UsedTypesType;
@@ -191,6 +204,7 @@ function dummyState(): State {
     fill: false,
   };
   return {
+    attributes: ref([]),
     allTypes: ref([]),
     datasetId: ref(''),
     usedTypes: ref([]),
@@ -228,6 +242,7 @@ function dummyState(): State {
  * @param {Hander} handler
  */
 function provideAnnotator(state: State, handler: Handler) {
+  provide(AttributesSymbol, state.attributes);
   provide(AllTypesSymbol, state.allTypes);
   provide(DatasetIdSymbol, state.datasetId);
   provide(UsedTypesSymbol, state.usedTypes);
@@ -257,6 +272,10 @@ function use<T>(s: symbol) {
     throw _handleMissing(s);
   }
   return v;
+}
+
+function useAttributes() {
+  return use<AttributesType>(AttributesSymbol);
 }
 
 function useAllTypes() {
@@ -330,6 +349,7 @@ export {
   dummyState,
   provideAnnotator,
   use,
+  useAttributes,
   useAllTypes,
   useDatasetId,
   useUsedTypes,
