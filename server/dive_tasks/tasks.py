@@ -99,7 +99,7 @@ def upgrade_pipelines(self: Task, upgradeJob: UpgradeJob = UPGRADE_JOB_DEFAULT):
     """ Install addons from zip files over HTTP """
     conf = Config()
     manager: JobManager = self.job_manager
-    total = len(upgradeJob['urls'])
+    gc: GirderClient = self.girder_client
     # zipfiles to extract after download is complete
     addons_to_update_update: List[Path] = []
 
@@ -138,18 +138,19 @@ def upgrade_pipelines(self: Task, upgradeJob: UpgradeJob = UPGRADE_JOB_DEFAULT):
         # Remove everything
         shutil.rmtree(conf.addon_extracted_path)
         manager.updateStatus(JobStatus.CANCELED)
-        self.girder_client.post('viame/update_job_configs', json=EMPTY_JOB_SCHEMA)
+        gc.post('viame/update_job_configs', json=EMPTY_JOB_SCHEMA)
         return JobStatus.CANCELED
 
     # finally, crawl the new files and report results
     summary = discover_configs(conf.get_extracted_pipeline_path())
-    self.girder_client.post('viame/update_job_configs', json=summary)
+    gc.post('viame/update_job_configs', json=summary)
 
 
 @app.task(bind=True, acks_late=True)
 def run_pipeline(self: Task, params: PipelineJob):
     conf = Config()
     manager: JobManager = self.job_manager
+    gc: GirderClient = self.girder_client
 
     # Extract params
     pipeline = params["pipeline"]
@@ -163,19 +164,17 @@ def run_pipeline(self: Task, params: PipelineJob):
     detector_output_path = tempfile.NamedTemporaryFile(suffix=".csv", delete=False).name
     track_output_path = tempfile.NamedTemporaryFile(suffix=".csv", delete=False).name
 
-    self.girder_client.downloadFolderRecursive(input_folder, input_path)
+    gc.downloadFolderRecursive(input_folder, input_path)
 
     if pipeline["type"] == "trained":
-        self.girder_client.downloadFolderRecursive(
-            pipeline["folderId"], str(trained_pipeline_folder)
-        )
+        gc.downloadFolderRecursive(pipeline["folderId"], str(trained_pipeline_folder))
         pipeline_path = trained_pipeline_folder / pipeline["pipe"]
     else:
         pipeline_path = conf.get_extracted_pipeline_path() / pipeline["pipe"]
 
     if input_type == 'video':
         # filter files for source video file
-        source_video = get_video_filename(input_folder, self.girder_client)
+        source_video = get_video_filename(input_folder, gc)
         # Preserving default behavior incase new stuff fails
         if source_video is None:
             raise Exception(
@@ -194,10 +193,8 @@ def run_pipeline(self: Task, params: PipelineJob):
             f"-s track_writer:file_name={shlex.quote(track_output_path)}",
         ]
     elif input_type == 'image-sequence':
-        resp = self.girder_client.get(
-            'viame/valid_images', params={'folderId': input_folder}
-        )
-        filtered_directory_files = [item['name'] for item in resp.json()]
+        itemList = gc.get('viame/valid_images', parameters={'folderId': input_folder})
+        filtered_directory_files = [item['name'] for item in itemList]
         if len(filtered_directory_files) == 0:
             raise ValueError('No media files found in {}'.format(input_path))
 
@@ -257,12 +254,10 @@ def run_pipeline(self: Task, params: PipelineJob):
     else:
         output_path = detector_output_path
     manager.updateStatus(JobStatus.PUSHING_OUTPUT)
-    newfile = self.girder_client.uploadFileToFolder(output_folder, output_path)
+    newfile = gc.uploadFileToFolder(output_folder, output_path)
 
-    self.girder_client.addMetadataToItem(newfile["itemId"], {"pipeline": pipeline})
-    self.girder_client.post(
-        f'viame/postprocess/{output_folder}', data={"skipJobs": True}
-    )
+    gc.addMetadataToItem(newfile["itemId"], {"pipeline": pipeline})
+    gc.post(f'viame/postprocess/{output_folder}', data={"skipJobs": True})
 
     # Files
     os.remove(track_output_path)

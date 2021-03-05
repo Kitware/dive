@@ -27,8 +27,6 @@ VIAME server will be running at http://localhost:8010/
 You can run the data viewer without needing GPU support as well
 
 ``` bash
-cd docker
-cp .env.default .env
 docker-compose up girder
 ```
 
@@ -49,7 +47,7 @@ This image contains both the backend and client.
 |----------|---------|-------------|
 | GIRDER_MONGO_URI | mongodb://mongo:27017/girder | a mongodb connection string |
 | GIRDER_ADMIN_USER | admin | admin username |
-| GIRDER_ADMIN_PASS | viame | admin password |
+| GIRDER_ADMIN_PASS | letmein | admin password |
 | CELERY_BROKER_URL | amqp://guest:guest@rabbit/ | rabbitmq connection string |
 | BROKER_CONNECTION_TIMEOUT | 2 | rabbitmq connection timeout |
 
@@ -69,7 +67,5 @@ This image contains a celery worker to run VIAME pipelines and transcoding jobs.
 > **Note:** In order to build images yourself, the `.git` folder must exist, so you must `git clone` from source control.  A release archive zip can be used too, but only to run pre-built images from a container registry.
 
 ``` bash
-cd docker
-cp .env.default .env
 docker-compose build
 ```

@@ -28,6 +28,7 @@ from .constants import (
     videoRegex,
     ymlRegex,
 )
+from .pipelines import load_dynamic_pipelines
 from .serializers import meva as meva_serializer
 from .serializers import models
 from .training import csv_detection_file, training_output_folder
@@ -67,6 +68,7 @@ class Viame(Resource):
     @autoDescribeRoute(Description("Upgrade pipelines"))
     def upgrade_pipelines(self):
         token = Token().createToken(user=self.getCurrentUser(), days=1)
+        Setting().set(SETTINGS_CONST_JOBS_CONFIGS, None)
         upgrade_pipelines.delay(
             girder_job_title="Upgrade Pipelines",
             girder_client_token=str(token["_id"]),
@@ -83,8 +85,6 @@ class Viame(Resource):
         )
     )
     def update_job_configs(self, configs: AvailableJobSchema):
-        # TODO: In a future version of Pydantic, TypedDict will be supported
-        # and we can validate properly.  For now, we just
         Setting().set(SETTINGS_CONST_JOBS_CONFIGS, configs)
 
     @access.public
@@ -108,20 +108,17 @@ class Viame(Resource):
         static_job_configs: AvailableJobSchema = (
             Setting().get(SETTINGS_CONST_JOBS_CONFIGS) or {}
         )
-        # return load_pipelines(self.static_pipelines, self.getCurrentUser())
-        if 'pipelines' in static_job_configs:
-            return static_job_configs['pipelines'] or {}
-        return static_job_configs
+        static_pipelines = static_job_configs.get('pipelines', {})
+        dynamic_pipelines = load_dynamic_pipelines(self.getCurrentUser())
+        return static_pipelines.update(dynamic_pipelines)
 
     @access.user
     @autoDescribeRoute(Description("Get available training configs"))
     def get_training_configs(self, params):
-        static_job_configs: AvailableJobSchema = Setting().get(
-            SETTINGS_CONST_JOBS_CONFIGS
+        static_job_configs: AvailableJobSchema = (
+            Setting().get(SETTINGS_CONST_JOBS_CONFIGS) or {}
         )
-        if 'training' in static_job_configs:
-            return static_job_configs['training'] or {}
-        return {}
+        return static_job_configs.get('training', {})
 
     @access.user
     @autoDescribeRoute(

@@ -47,7 +47,7 @@ services:
       - girder_assetstore:/home/assetstore
       # Bind mount nocopy public data
       - type: bind
-        source: ${PUBLIC_DATA_PATH}
+        source: ${PUBLIC_DATA_PATH:-girder_data}
         target: /data/public
         read_only: true
         volume:
@@ -84,7 +84,7 @@ services:
     volumes:
       - addons:/tmp/addons:ro # readonly
     environment:
-      - WORKER_WATCHING_QUEUES=training
+      - WORKER_WATCHING_QUEUES=training,pipelines
       - WORKER_CONCURRENCY=${TRAINING_WORKER_CONCURRENCY:-1}
       - WORKER_GPU_UUID=${TRAINING_GPU_UUID}
 

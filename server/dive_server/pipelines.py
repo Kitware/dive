@@ -1,12 +1,13 @@
-from typing import Dict, Optional
+from typing import Dict
 
 from girder.models.folder import Folder
+from girder.models.model_base import Model
 
 from dive_server.constants import TrainedPipelineCategory, TrainedPipelineMarker
 from dive_utils.types import PipelineCategory
 
 
-def load_dynamic_pipelines(user: Optional[Dict] = None) -> Dict[str, PipelineCategory]:
+def load_dynamic_pipelines(user: Model) -> Dict[str, PipelineCategory]:
     """Add any additional dynamic pipelines to the existing pipeline list."""
 
     pipelines: Dict[str, PipelineCategory] = {}
@@ -15,7 +16,9 @@ def load_dynamic_pipelines(user: Optional[Dict] = None) -> Dict[str, PipelineCat
         {
             "name": folder["name"],
             "type": TrainedPipelineCategory,
-            "pipe": None,
+            # TODO: the string 'detector.pipe' comes from a convention
+            # within VIAME that may not always be true.
+            "pipe": "detector.pipe",
             "folderId": str(folder["_id"]),
         }
         for folder in Folder().findWithPermissions(

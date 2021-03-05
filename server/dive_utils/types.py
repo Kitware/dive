@@ -21,7 +21,7 @@ class PipelineDescription(TypedDict):
 
     name: str  # friendly name
     type: str  # indicates whether this is a dynamic pipe.
-    pipe: Optional[str]  # unmodified pipe file name
+    pipe: str  # unmodified pipe file name
 
     # If the pipeline is stored in girder, this is
     # the ID of the folder containing the pipeline,
