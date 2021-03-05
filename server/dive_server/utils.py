@@ -10,7 +10,7 @@ from girder.models.folder import Folder
 from girder.models.item import Item
 from girder.models.upload import Upload
 
-from dive_server.serializers import viame
+from dive_server.serializers import models, viame
 
 
 def get_static_pipelines_path() -> Path:
@@ -56,8 +56,19 @@ def getTrackData(file: File) -> Dict[str, dict]:
             b"".join(list(File().download(file, headers=False)()))
             .decode("utf-8")
             .splitlines()
-        )
+        )['tracks']
     return json.loads(b"".join(list(File().download(file, headers=False)())).decode())
+
+
+def getTrackandAttributesFromCSV(file: File) -> Dict[str, dict]:
+    if file is None:
+        return {"tracks": {}, "attributes": {}}
+    if "csv" in file["exts"]:
+        return viame.load_csv_as_tracks(
+            b"".join(list(File().download(file, headers=False)()))
+            .decode("utf-8")
+            .splitlines()
+        )
 
 
 def saveTracks(folder, tracks, user):
@@ -79,3 +90,17 @@ def saveTracks(folder, tracks, user):
         user=user,
         mimeType="application/json",
     )
+
+
+def saveAttributes(folder, attributes, user):
+    attributes_dict = {}
+    if 'attributes' in folder['meta']:
+        attributes_dict = folder['meta']['attributes']
+    # we dont overwrite any existing meta attributes
+    for attribute in attributes.values():
+        validated: models.Attribute = models.Attribute(**attribute)
+        if attribute['key'] not in attributes_dict:
+            attributes_dict[str(validated.key)] = validated.dict(exclude_none=True)
+
+    folder['meta']['attributes'] = attributes_dict
+    Folder().save(folder)

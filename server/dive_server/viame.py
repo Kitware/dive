@@ -26,8 +26,10 @@ from .training import (
 from .transforms import GetPathFromItemId
 from .utils import (
     get_or_create_auxiliary_folder,
+    getTrackandAttributesFromCSV,
     getTrackData,
     move_existing_result_to_auxiliary_folder,
+    saveAttributes,
     saveTracks,
 )
 
@@ -366,8 +368,9 @@ class Viame(Resource):
         )
         if csvItems.count() >= 1:
             file = Item().childFiles(csvItems.next())[0]
-            json_output = getTrackData(file)
-            saveTracks(folder, json_output, user)
+            tracks_and_attributes = getTrackandAttributesFromCSV(file)
+            saveTracks(folder, tracks_and_attributes['tracks'], user)
+            saveAttributes(folder, tracks_and_attributes['attributes'], user)
             csvItems.rewind()
             for item in csvItems:
                 Item().move(item, auxiliary)
