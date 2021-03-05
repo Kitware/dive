@@ -34,9 +34,13 @@ from .constants import (
 from .pipelines import load_pipelines, verify_pipe
 from .serializers import meva as meva_serializer
 from .serializers import models
-from .training import csv_detection_file, training_output_folder
+from .training import (
+    ensure_csv_detections_file,
+    training_output_folder,
+)
 from .transforms import GetPathFromItemId
 from .utils import (
+    detections_item,
     get_or_create_auxiliary_folder,
     getTrackData,
     move_existing_result_to_auxiliary_folder,
@@ -189,18 +193,10 @@ class Viame(Resource):
         if 'utility' in pipeline["pipe"]:
             requires_input = True
 
-        # If it requires inputs we need to find it and use it as an input
         if requires_input is True:
-            detections = list(
-                Item().find({"meta.detection": folder_id_str}).sort([("created", -1)])
-            )
-            detection = detections[0] if detections else None
-
-            if not detection:
-                raise RestException(f"No detections for folder {folder['name']}")
-
-            # Ensure detection has a csv format
-            detection = csv_detection_file(folder, detection, user)
+            # Ensure detection has a csv detections item
+            detections = detections_item(folder, strict=True)
+            detection_csv = ensure_csv_detections_file(folder, detections, user)
 
         move_existing_result_to_auxiliary_folder(folder, user)
 
@@ -211,7 +207,6 @@ class Viame(Resource):
             "pipeline": pipeline,
             "pipeline_input": detection if requires_input else None,
         }
-
         newjob = run_pipeline.apply_async(
             queue="pipelines",
             kwargs=dict(
@@ -266,18 +261,11 @@ class Viame(Resource):
             if folder is None:
                 raise RestException(f"Cannot access folder {folderId}")
             folder_names.append(folder['name'])
-            detections = list(
-                Item().find({"meta.detection": str(folderId)}).sort([("created", -1)])
-            )
-            detection = detections[0] if detections else None
-
-            if not detection:
-                raise RestException(f"No detections for folder {folder['name']}")
-
             # Ensure detection has a csv format
             # TODO: Move this into worker job
-            csv_detection_file(folder, detection, user)
-            detection_list.append(detection)
+            detections_json_item = detections_item(folder, strict=True)
+            ensure_csv_detections_file(folder, detections_json_item, user)
+            detection_list.append(detections_json_item)
             folder_list.append(folder)
 
         # Ensure the folder to upload results to exists

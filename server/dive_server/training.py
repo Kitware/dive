@@ -5,6 +5,7 @@ from girder.models.file import File
 from girder.models.folder import Folder
 from girder.models.item import Item
 from girder.models.upload import Upload
+from girder.models.user import User
 
 from dive_server.constants import (
     ImageSequenceType,
@@ -17,7 +18,7 @@ from dive_server.serializers import viame
 TrainingOutputFolderName = "VIAME Training Results"
 
 
-def training_output_folder(user):
+def training_output_folder(user: User):
     """Ensure that the user has a training results folder."""
 
     viameFolder = Folder().createFolder(
@@ -40,11 +41,13 @@ def training_output_folder(user):
     )
 
 
-def csv_detection_file(folder, detection_item, user):
+def ensure_csv_detections_file(
+    folder: Folder, detection_item: Item, user: User
+) -> File:
     """
     Ensures that the detection item has a file which is a csv.
-
-    Returns the file document.
+    Attach the newly created .csv to the existing detection_item.
+    :returns: the file document.
     """
 
     file = Item().childFiles(detection_item)[0]

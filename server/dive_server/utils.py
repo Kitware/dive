@@ -2,8 +2,10 @@ import io
 import json
 import os
 from datetime import datetime
-from typing import Dict, List
+from pathlib import Path
+from typing import Dict, Iterable, Optional
 
+from girder.exceptions import RestException
 from girder.models.file import File
 from girder.models.folder import Folder
 from girder.models.item import Item
@@ -12,17 +14,50 @@ from girder.models.upload import Upload
 from dive_server.serializers import viame
 
 
+def all_detections_items(folder: Folder) -> Iterable[Item]:
+    """caller is responsible for verifying access permissions"""
+    return Item().find({"meta.detection": str(folder['_id'])}).sort([("created", -1)])
+
+
+def detections_item(folder: Folder, strict=False) -> Optional[Item]:
+    all_items = all_detections_items(folder)
+    detection = all_items[0] if all_items else None
+    if not detection and strict:
+        raise RestException(f"No detections for folder {folder['name']}")
+    return detection
+
+
+def detections_file(folder: Folder, strict=False):
+    item = detections_item(folder, strict)
+    if item is None and not strict:
+        return None
+    return Item().childFiles(item[0])[0]
+
+
+def get_static_pipelines_path() -> Path:
+    pipeline_path = None
+
+    env_pipelines_path = os.getenv("VIAME_PIPELINES_PATH")
+    if env_pipelines_path is None:
+        raise Exception(
+            "No pipeline path specified. "
+            "Please set the VIAME_PIPELINES_PATH environment variable.",
+        )
+
+    pipeline_path = Path(env_pipelines_path)
+    if not pipeline_path.exists():
+        raise Exception("Specified pipeline path does not exist!")
+
+    return pipeline_path
+
+
 def get_or_create_auxiliary_folder(folder, user):
     return Folder().createFolder(folder, "auxiliary", reuseExisting=True, creator=user)
 
 
 def move_existing_result_to_auxiliary_folder(folder, user):
     auxiliary = get_or_create_auxiliary_folder(folder, user)
-
-    existingResultItems = Item().find(
-        {"meta.detection": str(folder["_id"]), "folderId": folder["_id"]}
-    )
-    for item in existingResultItems:
+    for item in all_detections_items(folder):
         Item().move(item, auxiliary)
 
 
