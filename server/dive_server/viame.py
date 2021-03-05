@@ -6,9 +6,9 @@ from girder.constants import AccessType
 from girder.exceptions import RestException
 from girder.models.folder import Folder
 from girder.models.item import Item
+from girder.models.setting import Setting
 from girder.models.token import Token
 from girder.models.user import User
-from girder.models.setting import Setting
 from girder_jobs.models.job import Job
 
 from dive_tasks.tasks import (
@@ -21,19 +21,16 @@ from dive_tasks.tasks import (
 from dive_utils.types import AvailableJobSchema, PipelineDescription, PipelineJob
 
 from .constants import (
+    SETTINGS_CONST_JOBS_CONFIGS,
     csvRegex,
     imageRegex,
     safeImageRegex,
     videoRegex,
     ymlRegex,
-    SETTINGS_CONST_JOBS_CONFIGS,
 )
 from .serializers import meva as meva_serializer
 from .serializers import models
-from .training import (
-    csv_detection_file,
-    training_output_folder,
-)
+from .training import csv_detection_file, training_output_folder
 from .transforms import GetPathFromItemId
 from .utils import (
     get_or_create_auxiliary_folder,

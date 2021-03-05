@@ -6,8 +6,8 @@ from girder import events, plugin
 from girder.models.setting import Setting
 from girder.utility import setting_utilities
 
-from .constants import SETTINGS_CONST_JOBS_CONFIGS
 from .client_webroot import ClientWebroot
+from .constants import SETTINGS_CONST_JOBS_CONFIGS
 from .event import check_existing_annotations
 from .viame import Viame
 from .viame_detection import ViameDetection

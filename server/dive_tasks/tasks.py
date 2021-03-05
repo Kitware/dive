@@ -1,14 +1,14 @@
 import json
 import os
-import shutil
 import shlex
+import shutil
 import tempfile
+import zipfile
 from pathlib import Path
-from subprocess import DEVNULL, Popen, PIPE, TimeoutExpired
+from subprocess import DEVNULL, Popen
 from typing import Dict, List, Tuple
 from urllib import request
 from urllib.parse import urlparse
-import zipfile
 
 from girder_client import GirderClient
 from girder_worker.app import app
@@ -23,7 +23,6 @@ from dive_tasks.utils import (
     read_and_close_process_outputs,
 )
 from dive_utils.types import AvailableJobSchema, PipelineJob, UpgradeJob
-
 
 EMPTY_JOB_SCHEMA: AvailableJobSchema = {
     'pipelines': {},

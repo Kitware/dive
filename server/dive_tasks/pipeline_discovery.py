@@ -1,7 +1,6 @@
-import os
-from pathlib import Path
 import re
-from typing import List, Dict
+from pathlib import Path
+from typing import Dict, List
 
 from dive_utils.types import (
     AvailableJobSchema,

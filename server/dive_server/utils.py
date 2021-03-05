@@ -2,7 +2,6 @@ import io
 import json
 import os
 from datetime import datetime
-from pathlib import Path
 from typing import Dict, List
 
 from girder.models.file import File

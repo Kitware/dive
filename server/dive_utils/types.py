@@ -1,4 +1,5 @@
-from typing import Any, List, Optional, Dict
+from typing import Any, Dict, List, Optional
+
 from typing_extensions import TypedDict
 
 __all__ = [
