@@ -8,7 +8,7 @@ from dive_server.constants import TrainedPipelineCategory, TrainedPipelineMarker
 from dive_server.utils import get_static_pipelines_path
 from dive_utils.types import PipelineCategory, PipelineDescription
 
-AllowedStaticPipelines = r"^detector_.+|^tracker_.+|^generate_.+"
+AllowedStaticPipelines = r"^detector_.+|^tracker_.+|^utility_.+|^generate_.+"
 DisallowedStaticPipelines = (
     r".*local.*|detector_svm_models\.pipe|tracker_svm_models\.pipe"
 )
