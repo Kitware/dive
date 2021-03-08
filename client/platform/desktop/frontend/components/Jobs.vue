@@ -138,7 +138,7 @@ export default defineComponent({
                       class="pr-2"
                     >
                       mdi-console
-                    </v-icon> View Output
+                    </v-icon> View Console Log
                   </v-btn>
                 </v-col>
               </v-row>
