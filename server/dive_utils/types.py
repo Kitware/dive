@@ -46,16 +46,6 @@ class TrainingConfigurationSummary(TypedDict):
     default: Optional[str]
 
 
-class TrainingJob(TypedDict):
-    """Describes the parameters for running a training job"""
-
-    new_pipeline_name: str
-    config_pipeline: str
-    results_folder: GirderModel
-    source_folder_list: List[GirderModel]
-    groundtruth_list: List[GirderModel]
-
-
 class PipelineCategory(TypedDict):
     pipes: List[PipelineDescription]
     description: str

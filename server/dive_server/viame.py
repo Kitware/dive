@@ -110,7 +110,8 @@ class Viame(Resource):
         )
         static_pipelines = static_job_configs.get('pipelines', {})
         dynamic_pipelines = load_dynamic_pipelines(self.getCurrentUser())
-        return static_pipelines.update(dynamic_pipelines)
+        static_pipelines.update(dynamic_pipelines)
+        return static_pipelines
 
     @access.user
     @autoDescribeRoute(Description("Get available training configs"))

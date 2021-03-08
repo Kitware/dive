@@ -34,10 +34,11 @@ EMPTY_JOB_SCHEMA: AvailableJobSchema = {
 UPGRADE_JOB_DEFAULT: UpgradeJob = {
     'force': False,
     'urls': [
-        'https://data.kitware.com/api/v1/item/6011e3452fa25629b91ade60/download',
-        'https://viame.kitware.com/api/v1/item/60412dd253c5cf52641ffa1d/download',
-        'https://data.kitware.com/api/v1/item/6011ebf72fa25629b91aef03/download',
-        # 'https://data.kitware.com/api/v1/item/601b00d02fa25629b9391ad6/download',
+        'https://data.kitware.com/api/v1/item/6011e3452fa25629b91ade60/download',  # Habcam
+        'https://viame.kitware.com/api/v1/item/60412dd253c5cf52641ffa1d/download',  # SEFSC
+        'https://data.kitware.com/api/v1/item/6011ebf72fa25629b91aef03/download',  # PengHead
+        'https://data.kitware.com/api/v1/item/601b00d02fa25629b9391ad6/download',  # Motion
+        'https://data.kitware.com/api/v1/item/601afdde2fa25629b9390c41/download',  # EM Tuna
     ],
 }
 
@@ -71,6 +72,14 @@ class Config:
 
         self.viame_install_path = Path(self.viame_install_directory)
         assert self.viame_install_path.exists(), "VIAME Base install directory missing"
+        self.viame_setup_script = self.viame_install_path / "setup_viame.sh"
+        assert self.viame_setup_script.is_file(), "VIAME Setup Script missing"
+        self.viame_training_executable = (
+            self.viame_install_path / "bin" / "viame_train_detector"
+        )
+        assert (
+            self.viame_training_executable.is_file()
+        ), "VIAME Training Executable missing"
 
         # The subdirectory within VIAME_INSTALL_PATH where pipelines can be found
         self.pipeline_subdir = 'configs/pipelines'
@@ -191,8 +200,7 @@ def run_pipeline(self: Task, params: PipelineJob):
         input_file = os.path.join(input_path, source_video)
 
         command = [
-            f"cd {shlex.quote(str(conf.viame_install_path))} &&",
-            ". ./setup_viame.sh &&",
+            f". {shlex.quote(str(conf.viame_setup_script))} &&",
             "kwiver runner",
             "-s input:video_reader:type=vidl_ffmpeg",
             f"-p {shlex.quote(str(pipeline_path))}",
@@ -219,8 +227,7 @@ def run_pipeline(self: Task, params: PipelineJob):
             )
             image_list_file = temp2.name
         command = [
-            f"cd {shlex.quote(str(conf.viame_install_path))} &&",
-            ". ./setup_viame.sh &&",
+            f". {shlex.quote(str(conf.viame_setup_script))} &&",
             "kwiver runner",
             f"-p {shlex.quote(str(pipeline_path))}",
             f"-s input:video_filename={shlex.quote(image_list_file)}",
@@ -299,8 +306,8 @@ def train_pipeline(
     """
     Train a pipeline by making a call to viame_train_detector
 
-    :param source_folder_list: The Girder Folders to pull training data from
     :param results_folder: The Girder Folder to place the results of training into
+    :param source_folder_list: The Girder Folders to pull training data from
     :param groundtruth_list: A list of relative paths to either a file containing detections,
         or a folder containing that file.
     :param pipeline_name: The base name of the resulting pipeline.
@@ -309,9 +316,7 @@ def train_pipeline(
     gc: GirderClient = self.girder_client
     manager: JobManager = self.job_manager
 
-    viame_install_path = Path(conf.viame_install_path)
     pipeline_base_path = Path(conf.get_extracted_pipeline_path())
-    training_executable = viame_install_path / "bin" / "viame_train_detector"
     config_file = pipeline_base_path / config
 
     pipeline_name = pipeline_name.replace(" ", "_")
@@ -373,14 +378,14 @@ def train_pipeline(
         with tempfile.TemporaryDirectory() as _training_output_path:
             training_output_path = Path(_training_output_path)
             command = [
-                f". {conf.viame_install_path}/setup_viame.sh &&",
-                str(training_executable),
+                f". {shlex.quote(str(conf.viame_setup_script))} &&",
+                shlex.quote(str(conf.viame_training_executable)),
                 "-il",
-                str(input_folder_file_list),
+                shlex.quote(str(input_folder_file_list)),
                 "-it",
-                str(ground_truth_file_list),
+                shlex.quote(str(ground_truth_file_list)),
                 "-c",
-                str(config_file),
+                shlex.quote(str(config_file)),
                 "--no-query",
             ]
 

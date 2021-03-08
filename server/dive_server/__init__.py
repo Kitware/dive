@@ -20,9 +20,10 @@ def validateSettings(doc):
     validation.
     """
     val = doc['value']
-    # TODO: replace with real schema validation
-    assert 'training' in val, '"training" missing from doc'
-    assert 'pipelines' in val, '"piplines" missing from doc'
+    if val is not None:
+        # TODO: replace with real schema validation
+        assert 'training' in val, '"training" missing from doc'
+        assert 'pipelines' in val, '"piplines" missing from doc'
 
 
 class GirderPlugin(plugin.GirderPlugin):
