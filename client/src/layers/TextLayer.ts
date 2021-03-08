@@ -107,7 +107,7 @@ export default class TextLayer extends BaseLayer<TextData> {
             }
             return this.typeStyling.value.color(data.type);
           }
-          if (data.currentPair) {
+          if (data.selected && data.currentPair) {
             return this.stateStyling.selected.color;
           }
           return this.typeStyling.value.color(data.type);

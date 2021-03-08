@@ -58,6 +58,22 @@ async function runPipeline(
   const trackOutput = npath.join(jobWorkDir, 'track_output.csv');
   const joblog = npath.join(jobWorkDir, 'runlog.txt');
 
+  //TODO: TEMPORARY FIX FOR DEMO PURPOSES
+  let requiresInput = false;
+  if ((/utility_/g).test(pipeline.pipe)) {
+    requiresInput = true;
+  }
+  let groundTruthFileName;
+  if (requiresInput) {
+    groundTruthFileName = `groundtruth_${meta.id}.csv`;
+    const groundTruthFileStream = fs.createWriteStream(
+      npath.join(jobWorkDir, groundTruthFileName),
+    );
+    const inputData = await common.loadJsonTracks(projectInfo.trackFileAbsPath);
+    await serialize(groundTruthFileStream, inputData, meta);
+    groundTruthFileStream.end();
+  }
+
   let command: string[] = [];
   if (meta.type === 'video') {
     let videoAbsPath = npath.join(meta.originalBasePath, meta.originalVideoFile);
@@ -73,6 +89,10 @@ async function runPipeline(
       `-s detector_writer:file_name="${detectorOutput}"`,
       `-s track_writer:file_name="${trackOutput}"`,
     ];
+    if (requiresInput) {
+      command.push(`-s detection_reader:file_name="${groundTruthFileName}"`);
+      command.push(`-s track_reader:file_name="${groundTruthFileName}"`);
+    }
   } else if (meta.type === 'image-sequence') {
     // Create frame image manifest
     const manifestFile = npath.join(jobWorkDir, 'image-manifest.txt');
@@ -89,6 +109,10 @@ async function runPipeline(
       `-s detector_writer:file_name="${detectorOutput}"`,
       `-s track_writer:file_name="${trackOutput}"`,
     ];
+    if (requiresInput) {
+      command.push(`-s detection_reader:file_name="${groundTruthFileName}"`);
+      command.push(`-s track_reader:file_name="${groundTruthFileName}"`);
+    }
   }
 
   const job = spawn(command.join(' '), {

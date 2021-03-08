@@ -123,6 +123,13 @@ export default class Track {
   }
 
   /**
+   * True after at least 1 feature has been added
+   */
+  private isInitialized() {
+    return this.featureIndex.length > 0;
+  }
+
+  /**
    * Test the first element in the feature array.  Its index should match
    * its frame number.  Otherwise, the constructor was called with a
    * dense array, which is incorrect.
@@ -198,12 +205,15 @@ export default class Track {
   }
 
   private notify(name: string, oldValue: unknown) {
-    this.revision.value += 1;
-    this.bus.$emit('notify', {
-      track: this,
-      event: name,
-      oldValue,
-    });
+    /* Prevent broadcast until the first feature is initialized */
+    if (this.isInitialized()) {
+      this.revision.value += 1;
+      this.bus.$emit('notify', {
+        track: this,
+        event: name,
+        oldValue,
+      });
+    }
   }
 
   /** Determine if track can be split at frame */

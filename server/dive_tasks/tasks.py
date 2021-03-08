@@ -57,6 +57,9 @@ def run_pipeline(self: Task, params: PipelineJob):
     input_folder = params["input_folder"]
     input_type = params["input_type"]
     output_folder = params["output_folder"]
+    pipeline_input = ''
+    if "pipeline_input" in params.keys():
+        pipeline_input = params["pipeline_input"]
 
     # Create temporary files/folders, removed at the end of the function
     input_path = Path(tempfile.mkdtemp())
@@ -93,6 +96,11 @@ def run_pipeline(self: Task, params: PipelineJob):
     # Handle spaces in pipeline names
     pipeline_path = pipeline_path.replace(" ", r"\ ")
 
+    pipeline_input_file = ''
+    if pipeline_input != '':
+        pipeline_input_file = os.path.join(input_path, pipeline_input["name"])
+        self.girder_client.downloadFile(str(pipeline_input["_id"]), pipeline_input_file)
+
     if input_type == 'video':
         # filter files for source video file
         source_video = get_video_filename(input_folder, self.girder_client)
@@ -113,6 +121,10 @@ def run_pipeline(self: Task, params: PipelineJob):
             f"-s detector_writer:file_name='{detector_output_path}'",
             f"-s track_writer:file_name='{track_output_path}'",
         ]
+        if pipeline_input_file != '':
+            command.append(f'-s detection_reader:file_name="{pipeline_input_file}"')
+            command.append(f'-s track_reader:file_name="{pipeline_input_file}"')
+
     elif input_type == 'image-sequence':
         with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as temp2:
             temp2.writelines(
@@ -131,6 +143,9 @@ def run_pipeline(self: Task, params: PipelineJob):
             f"-s detector_writer:file_name='{detector_output_path}'",
             f"-s track_writer:file_name='{track_output_path}'",
         ]
+        if pipeline_input_file != '':
+            command.append(f'-s detection_reader:file_name="{pipeline_input_file}"')
+            command.append(f'-s track_reader:file_name="{pipeline_input_file}"')
     else:
         raise ValueError('Unknown input type: {}'.format(input_type))
 
