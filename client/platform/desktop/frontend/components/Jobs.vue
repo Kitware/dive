@@ -128,7 +128,13 @@ export default defineComponent({
                           class="selectable"
                           @click="openPath(job.job)"
                         >
-                          show in file manager
+                          <span class="text-decoration-underline">show in file manager</span>
+                          <v-icon
+                            small
+                            class="mx-2"
+                          >
+                            mdi-folder-open
+                          </v-icon>
                         </td>
                       </tr>
                     </table>
