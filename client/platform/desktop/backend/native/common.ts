@@ -132,12 +132,8 @@ async function loadJsonMetadata(metaAbsPath: string): Promise<JsonMeta> {
  */
 async function loadJsonTracks(tracksAbsPath: string): Promise<MultiTrackRecord> {
   const rawBuffer = await fs.readFile(tracksAbsPath, 'utf-8');
-  if (rawBuffer.length < 5) {
-    /**
-     * 5 is somewhat arbitrary, and accounts for newline chars
-     * This cannot possibly be a valid file.  Return empty
-     */
-    return {};
+  if (rawBuffer.length === 0) {
+    return {}; // Return empty object if file was empty
   }
   let annotationData: MultiTrackRecord = {};
   try {
