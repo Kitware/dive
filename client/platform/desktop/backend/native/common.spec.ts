@@ -126,6 +126,10 @@ mockfs({
       'otherfile.txt': '',
       nomime: '',
     },
+    annotationEmptySuccess: {
+      'video1.mp4': '',
+      'result_foo.json': '',
+    },
     annotationFail: {
       'video1.mp4': '',
       'file1.csv': '',
@@ -317,6 +321,12 @@ describe('native.common', () => {
     expect(meta.originalImageFiles.length).toBe(0);
     expect(meta.originalVideoFile).toBe('video1.mp4');
     expect(meta.originalBasePath).toBe('/home/user/data/videoSuccess');
+  });
+
+  it('importMedia empty json file success', async () => {
+    const meta = await common.importMedia(settings, '/home/user/data/annotationEmptySuccess/video1.mp4', updater, { checkMedia, convertMedia });
+    const tracks = await common.loadDetections(settings, meta.id);
+    expect(tracks).toEqual({});
   });
 
   it('importMedia various failure modes', async () => {

@@ -109,7 +109,12 @@ async function getValidatedProjectDir(settings: Settings, datasetId: string) {
  */
 async function loadJsonMetadata(metaAbsPath: string): Promise<JsonMeta> {
   const rawBuffer = await fs.readFile(metaAbsPath, 'utf-8');
-  const metaJson = JSON.parse(rawBuffer);
+  let metaJson;
+  try {
+    metaJson = JSON.parse(rawBuffer);
+  } catch (err) {
+    throw new Error(`Unable to parse ${metaAbsPath}: ${err}`);
+  }
   /* check if this file meets the current schema version */
   if ('version' in metaJson) {
     const { version } = metaJson;
@@ -127,7 +132,15 @@ async function loadJsonMetadata(metaAbsPath: string): Promise<JsonMeta> {
  */
 async function loadJsonTracks(tracksAbsPath: string): Promise<MultiTrackRecord> {
   const rawBuffer = await fs.readFile(tracksAbsPath, 'utf-8');
-  const annotationData = JSON.parse(rawBuffer) as MultiTrackRecord;
+  if (rawBuffer.length === 0) {
+    return {}; // Return empty object if file was empty
+  }
+  let annotationData: MultiTrackRecord = {};
+  try {
+    annotationData = JSON.parse(rawBuffer) as MultiTrackRecord;
+  } catch (err) {
+    throw new Error(`Unable to parse ${tracksAbsPath}: ${err}`);
+  }
   // TODO: somehow verify the schema of this file
   if (Array.isArray(annotationData)) {
     throw new Error('object expected in track json');
