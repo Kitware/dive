@@ -11,7 +11,7 @@ from dive_utils.types import (
 
 DefaultTrainingConfiguration = "train_netharn_cascade.viame_csv.conf"
 AllowedTrainingConfigs = r".*\.viame_csv\.conf$"
-AllowedStaticPipelines = r"^detector_.+|^tracker_.+|^generate_.+"
+AllowedStaticPipelines = r"^detector_.+|^tracker_.+|^utility_.+|^generate_.+"
 DisallowedStaticPipelines = (
     r".*local.*|detector_svm_models\.pipe|tracker_svm_models\.pipe"
 )

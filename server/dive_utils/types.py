@@ -27,6 +27,9 @@ class PipelineDescription(TypedDict):
     # the ID of the folder containing the pipeline,
     folderId: Optional[str]
 
+    # If the pipeline requires input
+    requires_input: Optional[bool]
+
 
 class PipelineJob(TypedDict):
     """Describes the parameters for running a pipeline on a dataset."""
@@ -35,6 +38,7 @@ class PipelineJob(TypedDict):
     input_folder: str
     input_type: str
     output_folder: str
+    pipeline_input: Optional[str]
 
 
 class TrainingConfigurationSummary(TypedDict):
