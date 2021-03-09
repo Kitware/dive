@@ -22,7 +22,7 @@ from dive_tasks.utils import (
     organize_folder_for_training,
     read_and_close_process_outputs,
 )
-from dive_utils.types import AvailableJobSchema, PipelineJob, UpgradeJob
+from dive_utils.types import AvailableJobSchema, PipelineJob
 
 EMPTY_JOB_SCHEMA: AvailableJobSchema = {
     'pipelines': {},
@@ -31,16 +31,13 @@ EMPTY_JOB_SCHEMA: AvailableJobSchema = {
         'default': None,
     },
 }
-UPGRADE_JOB_DEFAULT: UpgradeJob = {
-    'force': False,
-    'urls': [
-        'https://data.kitware.com/api/v1/item/6011e3452fa25629b91ade60/download',  # Habcam
-        'https://viame.kitware.com/api/v1/item/60412dd253c5cf52641ffa1d/download',  # SEFSC
-        'https://data.kitware.com/api/v1/item/6011ebf72fa25629b91aef03/download',  # PengHead
-        'https://data.kitware.com/api/v1/item/601b00d02fa25629b9391ad6/download',  # Motion
-        'https://data.kitware.com/api/v1/item/601afdde2fa25629b9390c41/download',  # EM Tuna
-    ],
-}
+UPGRADE_JOB_DEFAULT_URLS: List[str] = [
+    'https://data.kitware.com/api/v1/item/6011e3452fa25629b91ade60/download',  # Habcam
+    'https://viame.kitware.com/api/v1/item/60412dd253c5cf52641ffa1d/download',  # SEFSC
+    'https://data.kitware.com/api/v1/item/6011ebf72fa25629b91aef03/download',  # PengHead
+    'https://data.kitware.com/api/v1/item/601b00d02fa25629b9391ad6/download',  # Motion
+    'https://data.kitware.com/api/v1/item/601afdde2fa25629b9390c41/download',  # EM Tuna
+]
 
 
 def get_gpu_environment() -> Dict[str, str]:
@@ -104,7 +101,11 @@ class Config:
 
 
 @app.task(bind=True, acks_late=True)
-def upgrade_pipelines(self: Task, upgradeJob: UpgradeJob = UPGRADE_JOB_DEFAULT):
+def upgrade_pipelines(
+    self: Task,
+    urls: List[str] = UPGRADE_JOB_DEFAULT_URLS,
+    force: bool = False,
+):
     """ Install addons from zip files over HTTP """
     conf = Config()
     manager: JobManager = self.job_manager
@@ -112,10 +113,10 @@ def upgrade_pipelines(self: Task, upgradeJob: UpgradeJob = UPGRADE_JOB_DEFAULT):
     # zipfiles to extract after download is complete
     addons_to_update_update: List[Path] = []
 
-    for idx, addon in enumerate(upgradeJob['urls']):
+    for idx, addon in enumerate(urls):
         download_name = urlparse(addon).path.replace('/', '_')
         zipfile_path = conf.addon_zip_path / f'{download_name}.zip'
-        if not zipfile_path.exists() or upgradeJob['force']:
+        if not zipfile_path.exists() or force:
             # Update the zipfile if force option set or file not exists
             manager.write(f'Downloading {addon} to {zipfile_path}\n')
             # TODO wrap try catch

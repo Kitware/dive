@@ -1,3 +1,5 @@
+from typing import List
+
 import pymongo
 from girder.api import access
 from girder.api.describe import Description, autoDescribeRoute, describeRoute
@@ -12,6 +14,7 @@ from girder.models.user import User
 from girder_jobs.models.job import Job
 
 from dive_tasks.tasks import (
+    UPGRADE_JOB_DEFAULT_URLS,
     convert_images,
     convert_video,
     run_pipeline,
@@ -65,11 +68,31 @@ class Viame(Resource):
         self.route("GET", ("valid_images",), self.get_valid_images)
 
     @access.admin
-    @autoDescribeRoute(Description("Upgrade pipelines"))
-    def upgrade_pipelines(self):
+    @autoDescribeRoute(
+        Description("Upgrade addon pipelines")
+        .param(
+            "force",
+            "Force re-download of all addons.",
+            paramType="formData",
+            dataType="boolean",
+            default=False,
+            required=False,
+        )
+        .jsonParam(
+            "urls",
+            "List of public URLs for addon zipfiles",
+            paramType='body',
+            requireArray=True,
+            required=False,
+            default=UPGRADE_JOB_DEFAULT_URLS,
+        )
+    )
+    def upgrade_pipelines(self, force: bool, urls: List[str]):
         token = Token().createToken(user=self.getCurrentUser(), days=1)
         Setting().set(SETTINGS_CONST_JOBS_CONFIGS, None)
         upgrade_pipelines.delay(
+            urls=urls,
+            force=force,
             girder_job_title="Upgrade Pipelines",
             girder_client_token=str(token["_id"]),
         )

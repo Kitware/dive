@@ -3,17 +3,10 @@ from typing import Any, Dict, List, Optional
 from typing_extensions import TypedDict
 
 __all__ = [
-    "GirderMode",
     "PipelineDescription",
     "PipelineJob",
     "PipelineCategory",
 ]
-
-
-class GirderModel(TypedDict):
-    _id: str
-    name: str
-    meta: Dict[str, Any]
 
 
 class PipelineDescription(TypedDict):
@@ -49,11 +42,6 @@ class TrainingConfigurationSummary(TypedDict):
 class PipelineCategory(TypedDict):
     pipes: List[PipelineDescription]
     description: str
-
-
-class UpgradeJob(TypedDict):
-    force: bool
-    urls: List[str]
 
 
 class AvailableJobSchema(TypedDict):
