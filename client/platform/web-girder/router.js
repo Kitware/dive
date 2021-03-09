@@ -6,7 +6,7 @@ import Home from './views/Home.vue';
 import Jobs from './views/Jobs.vue';
 import Login from './views/Login.vue';
 import RouterPage from './views/RouterPage.vue';
-import Settings from './views/Settings.vue';
+// import Settings from './views/Settings.vue'; // Remove for now
 import ViewerLoader from './views/ViewerLoader.vue';
 
 Vue.use(Router);
@@ -38,12 +38,15 @@ const router = new Router({
       name: 'router_base',
       component: RouterPage,
       children: [
+        /*
+         * Deprecated and removed for now
         {
           path: 'settings',
           name: 'settings',
           component: Settings,
           beforeEnter,
         },
+        */
         {
           path: 'jobs',
           name: 'jobs',

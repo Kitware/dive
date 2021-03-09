@@ -1,4 +1,4 @@
-import { SaveDetectionsArgs } from 'dive-common/apispec';
+import { SaveAttributeArgs, SaveDetectionsArgs } from 'dive-common/apispec';
 import { TrackData } from 'vue-media-annotator/track';
 import girderRest from '../plugins/girder';
 
@@ -39,6 +39,16 @@ async function saveDetections(folderId: string, args: SaveDetectionsArgs) {
   });
 }
 
+async function saveAttributes(folderId: string, args: SaveAttributeArgs) {
+  return girderRest.put('viame_attribute', {
+    upsert: args.upsert,
+    delete: args.delete,
+  }, {
+    params: { folderId },
+  });
+}
+
+
 interface ClipMetaResponse {
   videoUrl: string;
 }
@@ -55,4 +65,5 @@ export {
   getExportUrls,
   loadDetections,
   saveDetections,
+  saveAttributes,
 };

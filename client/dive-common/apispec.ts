@@ -2,18 +2,11 @@ import { provide } from '@vue/composition-api';
 
 import { use } from 'vue-media-annotator/provides';
 import { TrackData, TrackId } from 'vue-media-annotator/track';
+import { Attribute } from 'vue-media-annotator/use/useAttributes';
 import { CustomStyle } from 'vue-media-annotator/use/useStyling';
 
 type DatasetType = 'image-sequence' | 'video';
 type MultiTrackRecord = Record<string, TrackData>;
-
-interface Attribute {
-  belongs: 'track' | 'detection';
-  datatype: 'text' | 'number' | 'boolean';
-  values?: string[];
-  name: string;
-  _id: string;
-}
 
 interface Pipe {
   name: string;
@@ -39,6 +32,11 @@ interface SaveDetectionsArgs {
   upsert: TrackData[];
 }
 
+interface SaveAttributeArgs {
+  delete: string[];
+  upsert: Attribute[];
+}
+
 interface FrameImage {
   url: string;
   filename: string;
@@ -50,7 +48,6 @@ interface FrameImage {
 interface DatasetMetaMutable {
   customTypeStyling?: Record<string, CustomStyle>;
   confidenceFilters?: Record<string, number>;
-  attributes?: Record<string, Attribute>;
 }
 
 interface DatasetMeta extends DatasetMetaMutable {
@@ -61,19 +58,10 @@ interface DatasetMeta extends DatasetMetaMutable {
   fps: Readonly<number | string>; // this will become mutable in the future.
   name: string;
   createdAt: string;
+  attributes?: Record<string, Attribute>;
 }
 
 interface Api {
-  /**
-   * TODO: Modification to use loadMetadata as well as saving
-   * utilizing upsert/delete for the metaData.  This requires having
-   * useAttributes to manage attributes locally and then save to backend
-   * @deprecated soon attributes will come from loadMetadata()
-   */
-  getAttributes(datasetId: string): Promise<Attribute[]>;
-  setAttribute(datasetId: string, { addNew, data }:
-    {addNew?: boolean; data: Attribute}): Promise<unknown>;
-  deleteAttribute(datasetId: string, data: Attribute): Promise<unknown>;
 
   getPipelineList(): Promise<Pipelines>;
   runPipeline(itemId: string, pipeline: Pipe): Promise<unknown>;
@@ -86,6 +74,7 @@ interface Api {
 
   saveDetections(datasetId: string, args: SaveDetectionsArgs): Promise<unknown>;
   saveMetadata(datasetId: string, metadata: DatasetMetaMutable): Promise<unknown>;
+  saveAttributes(datasetId: string, args: SaveAttributeArgs): Promise<unknown>;
 }
 
 const ApiSymbol = Symbol('api');
@@ -110,7 +99,6 @@ export {
 
 export type {
   Api,
-  Attribute,
   DatasetMeta,
   DatasetMetaMutable,
   DatasetType,
@@ -119,5 +107,6 @@ export type {
   Pipe,
   Pipelines,
   SaveDetectionsArgs,
+  SaveAttributeArgs,
   TrainingConfigs,
 };

@@ -115,7 +115,14 @@ export default function useModeManager({
 
   function handleSelectTrack(trackId: TrackId | null, edit = false) {
     selectTrack(trackId, edit);
-    creating = false;
+    /**
+     * If creating mode and editing and selectedTrackId is the same,
+     * don't kick out of creating mode.  This happens when moving between
+     * rect/poly/line during continuous creation.
+     */
+    if (!(creating && edit && trackId === selectedTrackId.value)) {
+      creating = false;
+    }
   }
 
   //Handles deselection or hitting escape including while editing
@@ -161,8 +168,6 @@ export default function useModeManager({
           if (newTrackSettings.modeSettings.Detection.continuous) {
             handleAddTrackOrDetection();
             newCreatingValue = true; // don't disable creating mode
-          } else { //Exit editing mode for the added track
-            selectTrack(addedTrack.trackId, false);
           }
         }
       }

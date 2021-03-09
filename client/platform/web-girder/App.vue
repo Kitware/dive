@@ -9,14 +9,12 @@ import { defineComponent } from '@vue/composition-api';
 import { provideApi } from 'dive-common/apispec';
 import type { GirderMetadata } from './constants';
 import {
-  getAttributes,
-  setAttribute,
-  deleteAttribute,
   getPipelineList,
   runPipeline,
   getTrainingConfigurations,
   runTraining,
   saveMetadata,
+  saveAttributes,
 } from './api/viame.service';
 import {
   loadDetections,
@@ -32,9 +30,6 @@ export default defineComponent({
     }
 
     provideApi({
-      getAttributes,
-      setAttribute,
-      deleteAttribute,
       getPipelineList,
       runPipeline,
       getTrainingConfigurations,
@@ -43,6 +38,7 @@ export default defineComponent({
       saveDetections,
       loadMetadata,
       saveMetadata,
+      saveAttributes,
     });
   },
 });

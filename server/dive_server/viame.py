@@ -17,6 +17,7 @@ from .constants import csvRegex, imageRegex, safeImageRegex, videoRegex, ymlRege
 from .model.attribute import Attribute
 from .pipelines import load_pipelines, load_static_pipelines
 from .serializers import meva as meva_serializer
+from .serializers import models
 from .training import (
     csv_detection_file,
     load_training_configurations,
@@ -49,11 +50,8 @@ class Viame(Resource):
         self.route("GET", ("training_configs",), self.get_training_configs)
         self.route("POST", ("train",), self.run_training)
         self.route("POST", ("postprocess", ":id"), self.postprocess)
-        self.route("POST", ("attribute",), self.create_attribute)
-        self.route("GET", ("attribute",), self.get_attributes)
-        self.route("PUT", ("attribute", ":id"), self.update_attribute)
+        self.route("PUT", ("attributes",), self.save_attributes)
         self.route("POST", ("validate_files",), self.validate_files)
-        self.route("DELETE", ("attribute", ":id"), self.delete_attribute)
         self.route("GET", ("valid_images",), self.get_valid_images)
 
     @access.public
@@ -128,12 +126,12 @@ class Viame(Resource):
         token = Token().createToken(user=user, days=14)
 
         # TODO Temporary inclusion of track_user pipelines requiring input
-        if 'track_user' in pipeline["pipe"] or 'add_segmentation' in pipeline["pipe"] or 'add_head_tail_keypoints' in pipeline['pipe']:
-            print("track_user")
-            pipeline["requires_input"] = True
+        requires_input = False
+        if 'utility' in pipeline["pipe"]:
+            requires_input = True
 
         # If it requires inputs we need to find it and use it as an input
-        if "requires_input" in pipeline.keys() and pipeline["requires_input"] is True:
+        if requires_input is True:
             detections = list(
                 Item().find({"meta.detection": folder_id_str}).sort([("created", -1)])
             )
@@ -153,7 +151,7 @@ class Viame(Resource):
             "output_folder": folder_id_str,
             "pipeline": pipeline,
         }
-        if "requires_input" in pipeline.keys() and pipeline["requires_input"] is True:
+        if requires_input is True:
             params["pipeline_input"] = detection
         newjob = run_pipeline.apply_async(
             queue="pipelines",
@@ -398,35 +396,45 @@ class Viame(Resource):
 
     @access.user
     @autoDescribeRoute(
-        Description("").jsonParam("data", "", requireObject=True, paramType="body")
-    )
-    def create_attribute(self, data, params):
-        attribute = Attribute().create(
-            data["name"], data["belongs"], data["datatype"], data["values"]
-        )
-        return attribute
-
-    @access.user
-    @autoDescribeRoute(Description(""))
-    def get_attributes(self):
-        return Attribute().find()
-
-    @access.user
-    @autoDescribeRoute(
         Description("")
-        .modelParam("id", model=Attribute, required=True)
-        .jsonParam("data", "", requireObject=True, paramType="body")
+        .modelParam(
+            "folderId",
+            description="folder id of a clip",
+            model=Folder,
+            paramType="query",
+            required=True,
+            level=AccessType.WRITE,
+        )
+        .jsonParam(
+            "attributes",
+            "upsert and delete attributes",
+            paramType="body",
+            requireObject=True,
+        )
     )
-    def update_attribute(self, data, attribute, params):
-        if "_id" in data:
-            del data["_id"]
-        attribute.update(data)
-        return Attribute().save(attribute)
+    def save_attributes(self, folder, attributes):
+        upsert = attributes.get('upsert', [])
+        delete = attributes.get('delete', [])
+        attributes_dict = {}
+        if 'attributes' in folder['meta']:
+            attributes_dict = folder['meta']['attributes']
+        for attribute_id in delete:
+            attributes_dict.pop(str(attribute_id), None)
+        for attribute in upsert:
+            validated: models.Attribute = models.Attribute(**attribute)
+            attributes_dict[str(validated.key)] = validated.dict(exclude_none=True)
 
-    @access.user
-    @autoDescribeRoute(Description("").modelParam("id", model=Attribute, required=True))
-    def delete_attribute(self, attribute, params):
-        return Attribute().remove(attribute)
+        upserted_len = len(upsert)
+        deleted_len = len(delete)
+
+        if upserted_len or deleted_len:
+            folder['meta']['attributes'] = attributes_dict
+            Folder().save(folder)
+
+        return {
+            "updated": upserted_len,
+            "deleted": deleted_len,
+        }
 
     @access.user
     @autoDescribeRoute(

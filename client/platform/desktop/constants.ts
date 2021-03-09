@@ -1,7 +1,7 @@
 import type {
-  Attribute,
   DatasetMeta, DatasetMetaMutable, DatasetType, Pipe,
 } from 'dive-common/apispec';
+import { Attribute } from 'vue-media-annotator/use/useAttributes';
 
 export const websafeVideoTypes = [
   'video/mp4',
@@ -9,9 +9,19 @@ export const websafeVideoTypes = [
 ];
 
 export const otherVideoTypes = [
-  'video/quicktime',
+  /* avi */
+  'vide/avi',
+  'video/msvideo',
   'video/x-msvideo',
   'video/x-ms-wmv',
+  /* mov */
+  'video/quicktime',
+  /* mpeg */
+  'video/mpeg',
+  'video/x-mpeg',
+  'video/x-mpeq2a',
+  /* ogg */
+  'video/ogg',
 ];
 
 export const fileVideoTypes = [
@@ -20,6 +30,10 @@ export const fileVideoTypes = [
   'avi',
   'mov',
   'wmv',
+  'mpg',
+  'mpeg',
+  'mp2',
+  'ogg',
 ];
 
 export const websafeImageTypes = [
@@ -53,7 +67,6 @@ export interface Settings {
   dataPath: string;
 }
 
-export type Attributes = Record<string, Attribute>;
 
 /**
  * JsonMeta is a SUBSET of DatasetMeta contained within
@@ -101,6 +114,9 @@ export interface JsonMeta extends DatasetMetaMutable {
   // If the dataset required transcoding, specify the job
   // key that ran transcoding
   transcodingJobKey?: string;
+
+  //Attributes are not datasetMetaMutable and are stored separate
+  attributes?: Record<string, Attribute>;
 }
 
 export type DesktopMetadata = DatasetMeta & JsonMeta;
@@ -181,6 +197,7 @@ export interface FFProbeResults {
   streams?: [{
     codec_type?: string;
     codec_name?: string;
+    sample_aspect_ratio?: string;
   }];
 }
 

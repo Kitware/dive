@@ -51,6 +51,17 @@ interface TrackParams {
   attributes?: StringKeyObject;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function isTrack(obj: any): obj is Track {
+  return (
+    (typeof obj === 'object')
+    && (obj.trackId !== undefined)
+    && (typeof obj.features === 'object')
+    && (typeof obj.begin === 'number')
+    && (typeof obj.end === 'number')
+  );
+}
+
 /**
  * Track manages the state of a track, its
  * frame data, and all metadata.
@@ -109,6 +120,13 @@ export default class Track {
 
   get length() {
     return (this.end - this.begin) + 1;
+  }
+
+  /**
+   * True after at least 1 feature has been added
+   */
+  private isInitialized() {
+    return this.featureIndex.length > 0;
   }
 
   /**
@@ -187,12 +205,15 @@ export default class Track {
   }
 
   private notify(name: string, oldValue: unknown) {
-    this.revision.value += 1;
-    this.bus.$emit('notify', {
-      track: this,
-      event: name,
-      oldValue,
-    });
+    /* Prevent broadcast until the first feature is initialized */
+    if (this.isInitialized()) {
+      this.revision.value += 1;
+      this.bus.$emit('notify', {
+        track: this,
+        event: name,
+        oldValue,
+      });
+    }
   }
 
   /** Determine if track can be split at frame */
@@ -341,12 +362,24 @@ export default class Track {
     }
   }
 
-  getType(): [string, number] | null {
-    if (this.confidencePairs.length > 0) {
-      return this.confidencePairs[0];
+  getType(index = 0): [string, number] {
+    if (this.confidencePairs.length > 0 && this.confidencePairs[index]) {
+      return this.confidencePairs[index];
     }
-    return null;
+    throw new Error('Index Error: The requested confidencePairs index does not exist.');
   }
+
+  removeTypes(types: string[]) {
+    if (this.confidencePairs.length > 0) {
+      const old = this.confidencePairs;
+      this.confidencePairs = this.confidencePairs.filter(
+        ([type]) => !types.includes(type),
+      );
+      this.notify('confidencePairs', old);
+    }
+    return this.confidencePairs;
+  }
+
 
   setType(trackType: string, confidenceVal = 1) {
     const old = this.confidencePairs;

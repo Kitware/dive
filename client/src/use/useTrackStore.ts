@@ -3,7 +3,15 @@ import IntervalTree from '@flatten-js/interval-tree';
 import Track, { TrackId } from '../track';
 
 interface UseTrackStoreParams {
-  markChangesPending: (type: 'upsert' | 'delete', track: Track) => void;
+  markChangesPending: (
+    {
+      action,
+      data,
+    }:
+    {
+      action: 'upsert' | 'delete';
+      data: Track;
+    }) => void;
 }
 
 export function getTrack(
@@ -64,7 +72,7 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
       intervalTree.insert([track.begin, track.end], track.trackId.toString());
     }
     canary.value += 1;
-    markChangesPending('upsert', track);
+    markChangesPending({ action: 'upsert', data: track });
   }
 
   function insertTrack(track: Track, afterId?: TrackId) {
@@ -87,7 +95,7 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
       confidencePairs: [[defaultType, 1]],
     });
     insertTrack(track, afterId);
-    markChangesPending('upsert', track);
+    markChangesPending({ action: 'upsert', data: track });
     return track;
   }
 
@@ -107,7 +115,7 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
       throw new Error(`TrackId ${trackId} not found in trackIds.`);
     }
     trackIds.value.splice(listIndex, 1);
-    markChangesPending('delete', track);
+    markChangesPending({ action: 'delete', data: track });
   }
 
   /*
@@ -118,7 +126,7 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
     trackIds.value.forEach((trackId) => {
       const track = getTrack(trackMap, trackId);
       const confidence = track.getType();
-      if (confidence !== null && confidence[1] < thresh) {
+      if (confidence[1] < thresh) {
         removeTrack(trackId);
       }
     });

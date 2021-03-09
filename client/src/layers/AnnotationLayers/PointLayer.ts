@@ -5,7 +5,7 @@ interface PointGeoJSData {
     trackId: number;
     selected: boolean;
     editing: boolean | string;
-    confidencePairs: [string, number] | null;
+    trackType: [string, number] | null;
     feature: string;
     x: number;
     y: number;
@@ -37,7 +37,7 @@ export default class PointLayer extends BaseLayer<PointGeoJSData> {
                 trackId: track.trackId,
                 selected: track.selected,
                 editing: track.editing,
-                confidencePairs: track.confidencePairs,
+                trackType: track.trackType,
                 feature: key,
                 x,
                 y,
@@ -60,8 +60,8 @@ export default class PointLayer extends BaseLayer<PointGeoJSData> {
         if (data.selected) {
           return this.stateStyling.selected.strokeWidth * 2;
         }
-        if (data.confidencePairs) {
-          return this.typeStyling.value.strokeWidth(data.confidencePairs[0]) * 2;
+        if (data.trackType) {
+          return this.typeStyling.value.strokeWidth(data.trackType[0]) * 2;
         }
         return this.stateStyling.standard.strokeWidth * 2;
       },

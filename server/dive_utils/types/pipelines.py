@@ -16,6 +16,7 @@ class PipelineDescription(TypedDict):
     # the ID of the folder containing the pipeline,
     folderId: Optional[str]
     # If the pipeline requires input
+    # TODO Actual implementation
     requires_input: Optional[bool]
 
 
@@ -26,7 +27,7 @@ class PipelineJob(TypedDict):
     input_folder: str
     input_type: str
     output_folder: str
-    groundtruth: Optional[str]
+    pipeline_input: Optional[str]
 
 
 class PipelineCategory(TypedDict):
