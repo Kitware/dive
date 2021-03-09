@@ -16,7 +16,7 @@ import useMediaController from './useMediaController';
  * frame alignment mis-matches with common raw framerates. For example,
  *
  */
-const frameInnerOffset = 0.01;
+const frameInnerOffset = 0.0001;
 
 export default defineComponent({
   name: 'VideoAnnotator',
@@ -75,6 +75,8 @@ export default defineComponent({
 
     function pause() {
       video.pause();
+      /* Don't allow pause on intermediary "frames", snap to frame boundary */
+      seek(data.frame);
       data.playing = false;
     }
 
