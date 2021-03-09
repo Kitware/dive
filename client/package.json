@@ -19,8 +19,8 @@
     "lint": "vue-cli-service lint src/ dive-common/ platform/",
     "lint:templates": "vtc --workspace . --srcDir src/",
     "test": "vue-cli-service test:unit src/ dive-common/ platform/",
-    "test:integration":"jest ./test/integration/integration.spec.ts",
-    "test:electron":"jest ./test/integration/electron.spec.ts"
+    "test:integration":"jest --runInBand ./test/integration/integration.spec.ts",
+    "test:electron":"jest  ./test/integration/electron.spec.ts"
   },
   "resolutions": {
     "@types/jest": "^25.2.3"
@@ -134,6 +134,11 @@
   "jest": {
     "verbose": true,
     "preset": "jest-playwright-preset",
+    "testEnvironmentOptions": {
+      "jest-playwright": {
+        "skipInitialization": true
+      }
+    },
     "moduleNameMapper": {
       "^vue-media-annotator/(.*)$": "<rootDir>/src/$1",
       "^dive-common/(.*)$": "<rootDir>/dive-common/$1",

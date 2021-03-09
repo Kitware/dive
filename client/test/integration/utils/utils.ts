@@ -1,9 +1,9 @@
 import {
-  Browser, Page,
+  Page,
 } from 'playwright';
 
 
-export default async function login({ browser, page }: { browser: Browser; page: Page }, { username, password } = { username: 'testaccount', password: 'testAccount' }) {
+export default async function login({ page }: { page: Page }, { username, password } = { username: 'testaccount', password: 'testAccount' }) {
   await page.goto('http://localhost:8080/#/login');
   // Click input[type="text"]
   await page.click('input[type="text"]');

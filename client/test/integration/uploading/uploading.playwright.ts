@@ -8,7 +8,7 @@ export default function runUploadingTests() {
   let page: Page;
 
   beforeAll(async () => {
-    browser = await chromium.launch({ slowMo: 100 });
+    browser = await chromium.launch({ slowMo: 100, headless: false });
   });
   afterAll(async () => {
     await browser.close();
@@ -20,10 +20,9 @@ export default function runUploadingTests() {
   afterEach(async () => {
     await page.close();
   });
-
   describe('uploading Data to the system', () => {
     it('uploading Data', async () => {
-      await login({ browser, page });
+      await login({ page });
       await page.click('text=Public');
       // Click button:has-text("Upload")
       await page.click('button:has-text("Upload")');
@@ -60,8 +59,6 @@ export default function runUploadingTests() {
       await page.mouse.move(400, 400, { steps: 20 });
 
       await page.mouse.up({ button: 'left' });
-
-      await page.pause();
     }, 120000);
   });
 }
