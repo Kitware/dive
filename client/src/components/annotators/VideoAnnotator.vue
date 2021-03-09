@@ -2,6 +2,22 @@
 import { defineComponent, PropType } from '@vue/composition-api';
 import useMediaController from './useMediaController';
 
+/**
+ * frameInnerOffset is a constant percentage offset
+ * of a frame's width to seek to in video, used to prevent
+ * rounding errors when calculating the time location of
+ * a particular frame.
+ *
+ * In the future, when precise seconds (or flicks) are recorded
+ * with feature data, this offset must be accounted for during
+ * framerate conversion and export.
+ *
+ * This number is inentionally small in order to avoid meaninful
+ * frame alignment mis-matches with common raw framerates. For example,
+ *
+ */
+const frameInnerOffset = 0.01;
+
 export default defineComponent({
   name: 'VideoAnnotator',
 
@@ -52,7 +68,7 @@ export default defineComponent({
     }
 
     async function seek(frame: number) {
-      video.currentTime = frame / props.frameRate;
+      video.currentTime = (frame + frameInnerOffset) / props.frameRate;
       data.frame = Math.round(video.currentTime * props.frameRate);
       commonMedia.emitFrame();
     }
