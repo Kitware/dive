@@ -40,7 +40,7 @@ module.exports = {
           // https://github.com/nklayman/vue-cli-plugin-electron-builder/issues/188
           // https://github.com/electron-userland/electron-builder/issues/2592
           main: 'background.js',
-          version: '1.4.2',
+          version: '1.4.3',
         },
         linux: {
           target: ['AppImage', 'snap', 'tar.gz'],
