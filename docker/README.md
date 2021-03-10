@@ -69,3 +69,26 @@ This image contains a celery worker to run VIAME pipelines and transcoding jobs.
 ``` bash
 docker-compose build
 ```
+
+## Addon management
+
+After initial deployment, a DIVE server will only have basic VIAME pipelines available. VIAME addons are installed and upgraded using a celery task that must be triggered by hand. Run this by issueing a `POST /api/v1/viame/upgrade_pipelines` request from the swagger UI at `/girder/api/v1`.
+
+* Whether you `force` or not, only those pipelines from addons from the exact urls passed will be enabled on the server.
+* An old addon can be disabled by simply omitting its download from the upgrade payload.
+* `force` should be used to force re-download of all URLs in the payload even if their zipfiles have been cached.
+* An upgrade run is always required if the "common" pipelines in the base image change.  These are updated for every run, and do not require `force`.
+* See the job log to verify the exact actions taken by an upgrade job.
+
+![Upgrade Pipelines Swagger](/docs/images/UpgradePipelinesSwagger.png)
+
+## Production deployment
+
+Our production deployment on https://viame.kitware.com also uses `docker-compose`.
+
+``` bash
+docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+```
+
+* It is updated on a schedule by `containrrr/watchtower` using automated image builds from docker hub (above).
+* It includes `linuxserver/duplicati` for nighly backups.

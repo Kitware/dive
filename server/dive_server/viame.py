@@ -31,7 +31,7 @@ from .constants import (
     videoRegex,
     ymlRegex,
 )
-from .pipelines import load_dynamic_pipelines
+from .pipelines import load_pipelines, verify_pipe
 from .serializers import meva as meva_serializer
 from .serializers import models
 from .training import csv_detection_file, training_output_folder
@@ -73,7 +73,7 @@ class Viame(Resource):
         .param(
             "force",
             "Force re-download of all addons.",
-            paramType="formData",
+            paramType="query",
             dataType="boolean",
             default=False,
             required=False,
@@ -128,13 +128,7 @@ class Viame(Resource):
     @access.user
     @describeRoute(Description("Get available pipeline configurations"))
     def get_pipelines(self, params):
-        static_job_configs: AvailableJobSchema = (
-            Setting().get(SETTINGS_CONST_JOBS_CONFIGS) or {}
-        )
-        static_pipelines = static_job_configs.get('pipelines', {})
-        dynamic_pipelines = load_dynamic_pipelines(self.getCurrentUser())
-        static_pipelines.update(dynamic_pipelines)
-        return static_pipelines
+        return load_pipelines(self.getCurrentUser())
 
     @access.user
     @autoDescribeRoute(Description("Get available training configs"))
@@ -164,6 +158,9 @@ class Viame(Resource):
         :param folder: The girder folder containing the dataset to run on.
         :param pipeline: The pipeline to run the dataset on.
         """
+        user = self.getCurrentUser()
+        verify_pipe(user, pipeline)
+
         folder_id_str = str(folder["_id"])
         # First, verify that no other outstanding jobs are running on this dataset
         existing_jobs = Job().findOne(
@@ -185,7 +182,6 @@ class Viame(Resource):
                 )
             )
 
-        user = self.getCurrentUser()
         token = Token().createToken(user=user, days=14)
 
         # TODO Temporary inclusion of track_user pipelines requiring input
