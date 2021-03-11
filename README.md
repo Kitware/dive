@@ -1,48 +1,32 @@
 <img src="http://www.viametoolkit.org/wp-content/uploads/2016/08/viami_logo.png" alt="VIAME Logo" width="200" height="78">
-<br>
-DIVE is a web interface for performing data management, video annotation, and running a portion of the algorithms stored within the VIAME (https://github.com/VIAME/VIAME) repository. When compiled, docker instances for DIVE can be run either as local servers or online in web services. A sample instance of DIVE is running on a public server at https://viame.kitware.com. Additional documentation will be available in the future for users.
+
+DIVE is a web interface for performing data management, video annotation, and running a portion of the algorithms stored within the [VIAME](https://github.com/VIAME/VIAME) repository. When compiled, docker instances for DIVE can be run either as local servers or online in web services. A sample instance of DIVE is running on a public server at [viame.kitware.com](https://viame.kitware.com).
 
 ![docs/images/Banner.png](docs/images/Banner.png)
 
 ## Features
 
-* Video Annotation
-  * Single-frame boxes and polygons
-  * Multi-frame bounding box tracks with interpolation
-  * Automatic transcoding to support `avi`, `mov`
-* Still image annotation
-  * Bounding boxes
-  * Polygons
-* Customizable labeling
-  * label shapes and tracks
-  * add text, numeric, multiple-choice attributes
+* video annotation
+* still image (and image sequence) annotation
+* deep integration with [VIAME](https://github.com/VIAME/VIAME) computer vision analysis tools
+* single-frame boxes, polygons, and lines
+* multi-frame bounding box tracks with interpolation
+* Automatic transcoding to support most video formats
+* Customizable labeling with text, numeric, multiple-choice attributes
 
 ## Documentation
 
 * [Client User Guide](https://kitware.github.io/dive/)
 * [Client Development Docs](client/README.md)
 * [Docker Getting Started Guide](docker/README.md)
+* [Contributor Documentation](CONTRIBUTING.md)
 
-## Code Architecture
+## Technologies Used
 
-DIVE uses [Girder](https://girder.readthedocs.io/en/stable/) for data management and has a typical girder + girder worker +
-docker architecture. Command-line executables for VIAME and FFmpeg are built inside the worker docker image. See docker scripts
-for additional details.
+DIVE uses [Girder](https://girder.readthedocs.io/en/stable/) for data management and has a typical girder + girder worker + docker architecture.  See docker scripts for additional details.
 
-### Client
-
-The client application is a standard [@vue/cli](https://cli.vuejs.org/) application.
-
-### Server
-
-The Rest API server is a Girder3 plugin. Generally, it needs a running MongoDB instance, Python3, and a python environment, 
-Run `pip install` on the against the server directory. Then `girder build` , `girder serve` to start the girder server. Refer to
-[Girder3 documentation](https://girder.readthedocs.io/en/stable/) and the included docker scripts for details.
-
-### Worker
-
-The processing server is a typical Girder worker tasks. Generally, it needs a running RabbitMQ instance. Python3, and a python environment.
-Run `pip install` on the against the server directory. Then `girder-worker -l info` to start girder worker.
+* The client application is a standard [@vue/cli](https://cli.vuejs.org/) application.
+* The job runner is built on celery and [Girder Worker](https://girder-worker.readthedocs.io/en/latest/).  Command-line executables for VIAME and FFmpeg are built inside the worker docker image.
 
 ## Example Data
 

@@ -2,6 +2,28 @@
 import { defineComponent, PropType } from '@vue/composition-api';
 import useMediaController from './useMediaController';
 
+/**
+ * For MPEG codecs, the PTS (Presentation Timestamp)
+ * should be forced ahead 1 tick. currentTime has a finite
+ * resolution of 90MHZ
+ *
+ * Chrome has a PTS precision bug:
+ * https://bugs.chromium.org/p/chromium/issues/detail?id=555376
+ * "currentTime must be in the range [PTS, PTS + duration)",
+ * but Chrome behaves as if currentTime in = [PTS, PTS + duration]
+ *
+ * Firefox behaves correctly, so it's harmless to advance a single
+ * tick into the already correct PTS.
+ *
+ * Other browsers can be wrong by more than an entire frame and are
+ * futile to attempt to correct.
+ *
+ * TODO: VideoAnnotator _should_not_ report this PTS force hack
+ * when reporting currentTime, as it would be inaccurate re: the
+ * MPEG specification.
+ */
+const OnePTSTick = 1 / (90 * 1000);
+
 export default defineComponent({
   name: 'VideoAnnotator',
 
@@ -52,13 +74,15 @@ export default defineComponent({
     }
 
     async function seek(frame: number) {
-      video.currentTime = frame / props.frameRate;
+      // ref: PTS precision note above
+      video.currentTime = (frame / props.frameRate) + OnePTSTick;
       data.frame = Math.round(video.currentTime * props.frameRate);
       commonMedia.emitFrame();
     }
 
     function pause() {
       video.pause();
+      seek(data.frame); // snap to frame boundary
       data.playing = false;
     }
 

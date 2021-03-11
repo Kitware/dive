@@ -1,0 +1,52 @@
+version: "2.4"
+services:
+
+  rabbit:
+    restart: always
+
+  mongo:
+    restart: always
+
+  girder:
+    restart: always
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true" 
+
+  girder_worker_default:
+    restart: always
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true" 
+
+  girder_worker_pipelines:
+    restart: always
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true" 
+
+  girder_worker_training:
+    restart: always
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true" 
+
+  watchtower:
+    image: containrrr/watchtower:latest
+    container_name: watchtower
+    restart: always
+    command: --schedule "0 2 * * 4" --label-enable # weekly on thursday morning 2AM
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /etc/timezone:/etc/timezone:ro
+
+  duplicati:
+    image: linuxserver/duplicati:latest
+    container_name: duplicati
+    restart: always
+    ports:
+      - "8200:8200" # Port is not exposed outside vpn
+    environment:
+      - "TZ=America/New_York"
+      - "PUID=0" # Requires root to access docker volumes directory
+      - "PGID=0" 
+    volumes:
+      - /var/lib/docker/volumes:/source_volumes:ro # backup source
+      - /var/local/backups:/destination_backups:rw # backup dest
+      - /var/local/backups/duplicati/config:/config:rw

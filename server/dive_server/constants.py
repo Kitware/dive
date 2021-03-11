@@ -1,11 +1,13 @@
 import re
 
+SETTINGS_CONST_JOBS_CONFIGS = 'jobs_configs'
+
 ImageSequenceType = "image-sequence"
 VideoType = "video"
 
 webValidImageFormats = {"png", "jpg", "jpeg"}
 validImageFormats = {*webValidImageFormats, "tif", "tiff", "sgi", "bmp", "pgm"}
-validVideoFormats = {"mp4", "avi", "mov", "mpg"}
+validVideoFormats = {"mp4", "avi", "mov", "mpg", "mpeg"}
 
 videoRegex = re.compile(r"(\." + r"|\.".join(validVideoFormats) + ')$', re.IGNORECASE)
 imageRegex = re.compile(r"(\." + r"|\.".join(validImageFormats) + ')$', re.IGNORECASE)

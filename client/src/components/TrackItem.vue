@@ -117,7 +117,10 @@ export default defineComponent({
       if (data.trackTypeValue.trim() === '') {
         data.trackTypeValue = props.trackType;
       } else if (data.trackTypeValue !== props.trackType) {
-        handler.trackTypeChange(props.track.trackId, data.trackTypeValue);
+        /* horrendous hack to prevent race. https://github.com/Kitware/dive/issues/475 */
+        window.setTimeout(() => {
+          handler.trackTypeChange(props.track.trackId, data.trackTypeValue);
+        }, 100);
       }
       if (props.lockTypes) {
         blurType(e);
