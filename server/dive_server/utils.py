@@ -3,18 +3,19 @@ import json
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Iterable, Optional
+from typing import Dict, Optional
 
 from girder.exceptions import RestException
 from girder.models.file import File
 from girder.models.folder import Folder
 from girder.models.item import Item
 from girder.models.upload import Upload
+from pymongo.cursor import Cursor
 
 from dive_server.serializers import viame
 
 
-def all_detections_items(folder: Folder) -> Iterable[Item]:
+def all_detections_items(folder: Folder) -> Cursor[Item]:
     """caller is responsible for verifying access permissions"""
     return Item().find({"meta.detection": str(folder['_id'])}).sort([("created", -1)])
 
@@ -31,7 +32,7 @@ def detections_file(folder: Folder, strict=False):
     item = detections_item(folder, strict)
     if item is None and not strict:
         return None
-    return Item().childFiles(item[0])[0]
+    return Item().childFiles(item)[0]
 
 
 def get_static_pipelines_path() -> Path:

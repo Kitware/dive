@@ -1,6 +1,6 @@
 import json
 import urllib
-from typing import Dict, List
+from typing import List
 
 from girder.api import access
 from girder.api.describe import Description, autoDescribeRoute

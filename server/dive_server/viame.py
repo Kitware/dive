@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 
 import pymongo
 from girder.api import access
@@ -6,6 +6,7 @@ from girder.api.describe import Description, autoDescribeRoute, describeRoute
 from girder.api.rest import Resource
 from girder.constants import AccessType
 from girder.exceptions import RestException
+from girder.models.file import File
 from girder.models.folder import Folder
 from girder.models.item import Item
 from girder.models.setting import Setting
@@ -34,10 +35,7 @@ from .constants import (
 from .pipelines import load_pipelines, verify_pipe
 from .serializers import meva as meva_serializer
 from .serializers import models
-from .training import (
-    ensure_csv_detections_file,
-    training_output_folder,
-)
+from .training import ensure_csv_detections_file, training_output_folder
 from .transforms import GetPathFromItemId
 from .utils import (
     detections_item,
@@ -189,14 +187,11 @@ class Viame(Resource):
         token = Token().createToken(user=user, days=14)
 
         # TODO Temporary inclusion of track_user pipelines requiring input
-        requires_input = False
+        detection_csv: Optional[File] = None
         if 'utility' in pipeline["pipe"]:
-            requires_input = True
-
-        if requires_input is True:
             # Ensure detection has a csv detections item
-            detections = detections_item(folder, strict=True)
-            detection_csv = ensure_csv_detections_file(folder, detections, user)
+            detection = detections_item(folder, strict=True)
+            detection_csv = ensure_csv_detections_file(folder, detection, user)
 
         move_existing_result_to_auxiliary_folder(folder, user)
 
@@ -205,7 +200,7 @@ class Viame(Resource):
             "input_type": folder["meta"]["type"],
             "output_folder": folder_id_str,
             "pipeline": pipeline,
-            "pipeline_input": detection if requires_input else None,
+            "pipeline_input": detection_csv,
         }
         newjob = run_pipeline.apply_async(
             queue="pipelines",
