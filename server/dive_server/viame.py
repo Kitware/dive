@@ -262,9 +262,9 @@ class Viame(Resource):
             folder_names.append(folder['name'])
             # Ensure detection has a csv format
             # TODO: Move this into worker job
-            detections_json_item = detections_item(folder, strict=True)
-            ensure_csv_detections_file(folder, detections_json_item, user)
-            detection_list.append(detections_json_item)
+            train_on_detections_item = detections_item(folder, strict=True)
+            ensure_csv_detections_file(folder, train_on_detections_item, user)
+            detection_list.append(train_on_detections_item)
             folder_list.append(folder)
 
         # Ensure the folder to upload results to exists
