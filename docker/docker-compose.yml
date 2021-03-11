@@ -84,7 +84,7 @@ services:
     volumes:
       - addons:/tmp/addons:ro # readonly
     environment:
-      - WORKER_WATCHING_QUEUES=training,pipelines
+      - WORKER_WATCHING_QUEUES=training
       - WORKER_CONCURRENCY=${TRAINING_WORKER_CONCURRENCY:-1}
       - WORKER_GPU_UUID=${TRAINING_GPU_UUID}
 
