@@ -35,7 +35,7 @@ EMPTY_JOB_SCHEMA: AvailableJobSchema = {
 }
 UPGRADE_JOB_DEFAULT_URLS: List[str] = [
     'https://data.kitware.com/api/v1/item/6011e3452fa25629b91ade60/download',  # Habcam
-    'https://viame.kitware.com/api/v1/item/60412dd253c5cf52641ffa1d/download',  # SEFSC
+    'https://viame.kitware.com/api/v1/item/604859fc5b1737bb9085f5e2/download',  # SEFSC
     'https://data.kitware.com/api/v1/item/6011ebf72fa25629b91aef03/download',  # PengHead
     'https://data.kitware.com/api/v1/item/601b00d02fa25629b9391ad6/download',  # Motion
     'https://data.kitware.com/api/v1/item/601afdde2fa25629b9390c41/download',  # EM Tuna
