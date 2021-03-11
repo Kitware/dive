@@ -1,12 +1,14 @@
+import contextlib
 import json
 import os
 import shlex
 import shutil
+import subprocess
 import tempfile
 import zipfile
 from pathlib import Path
-from subprocess import DEVNULL, Popen
-from typing import Dict, List, Tuple
+from subprocess import Popen
+from typing import Dict, List, Optional, Tuple
 from urllib import request
 from urllib.parse import urlparse
 
@@ -20,9 +22,9 @@ from dive_tasks.pipeline_discovery import discover_configs
 from dive_tasks.utils import (
     get_video_filename,
     organize_folder_for_training,
-    read_and_close_process_outputs,
+    stream_subprocess,
 )
-from dive_utils.types import AvailableJobSchema, PipelineJob
+from dive_utils.types import AvailableJobSchema, GirderModel, PipelineJob
 
 EMPTY_JOB_SCHEMA: AvailableJobSchema = {
     'pipelines': {},
@@ -167,7 +169,7 @@ def run_pipeline(self: Task, params: PipelineJob):
     input_folder = params["input_folder"]
     input_type = params["input_type"]
     output_folder = params["output_folder"]
-    pipeline_input = ''
+    pipeline_input: Optional[GirderModel] = None
     if "pipeline_input" in params.keys():
         pipeline_input = params["pipeline_input"]
 
@@ -177,6 +179,16 @@ def run_pipeline(self: Task, params: PipelineJob):
     detector_output_path = tempfile.NamedTemporaryFile(suffix=".csv", delete=False).name
     track_output_path = tempfile.NamedTemporaryFile(suffix=".csv", delete=False).name
 
+    # defer cleanup
+    def cleanup():
+        # Files
+        with contextlib.suppress(FileNotFoundError):
+            os.remove(track_output_path)
+            os.remove(detector_output_path)
+        # Folders
+        shutil.rmtree(input_path, ignore_errors=True)
+        shutil.rmtree(trained_pipeline_folder, ignore_errors=True)
+
     gc.downloadFolderRecursive(input_folder, input_path)
 
     if pipeline["type"] == "trained":
@@ -184,11 +196,6 @@ def run_pipeline(self: Task, params: PipelineJob):
         pipeline_path = trained_pipeline_folder / pipeline["pipe"]
     else:
         pipeline_path = conf.get_extracted_pipeline_path() / pipeline["pipe"]
-
-    pipeline_input_file = ''
-    if pipeline_input != '':
-        pipeline_input_file = os.path.join(input_path, pipeline_input["name"])
-        self.girder_client.downloadFile(str(pipeline_input["_id"]), pipeline_input_file)
 
     if input_type == 'video':
         # filter files for source video file
@@ -209,9 +216,6 @@ def run_pipeline(self: Task, params: PipelineJob):
             f"-s detector_writer:file_name={shlex.quote(detector_output_path)}",
             f"-s track_writer:file_name={shlex.quote(track_output_path)}",
         ]
-        if pipeline_input_file != '':
-            command.append(f'-s detection_reader:file_name="{pipeline_input_file}"')
-            command.append(f'-s track_reader:file_name="{pipeline_input_file}"')
 
     elif input_type == 'image-sequence':
         itemList = gc.get('viame/valid_images', parameters={'folderId': input_folder})
@@ -235,64 +239,43 @@ def run_pipeline(self: Task, params: PipelineJob):
             f"-s detector_writer:file_name={shlex.quote(detector_output_path)}",
             f"-s track_writer:file_name={shlex.quote(track_output_path)}",
         ]
-        if pipeline_input_file != '':
-            command.append(f'-s detection_reader:file_name="{pipeline_input_file}"')
-            command.append(f'-s track_reader:file_name="{pipeline_input_file}"')
     else:
         raise ValueError('Unknown input type: {}'.format(input_type))
 
+    # Include input detections
+    if pipeline_input is not None:
+        pipeline_input_file = str(input_path / pipeline_input["name"])
+        self.girder_client.downloadFile(str(pipeline_input["_id"]), pipeline_input_file)
+        quoted_input_file = shlex.quote(pipeline_input_file)
+        command.append(f'-s detection_reader:file_name={quoted_input_file}')
+        command.append(f'-s track_reader:file_name={quoted_input_file}')
+
     cmd = " ".join(command)
-    print('Running command:', cmd)
+    manager.write(f"Running command: {cmd}\n", forceFlush=True)
 
-    process_log_file = tempfile.TemporaryFile()
     process_err_file = tempfile.TemporaryFile()
-
     process = Popen(
         cmd,
+        stdout=subprocess.PIPE,
         stderr=process_err_file,
-        stdout=process_log_file,
         shell=True,
         executable='/bin/bash',
         env=conf.gpu_process_env,
     )
-
-    stdout, stderr = read_and_close_process_outputs(
-        process, self, process_log_file, process_err_file
-    )
+    stream_subprocess(process, self, manager, process_err_file, cleanup=cleanup)
     if self.canceled:
-        manager.updateStatus(JobStatus.CANCELED)
         return
-
-    if process.returncode > 0:
-        raise RuntimeError(
-            'Pipeline exited with nonzero status code {}: {}'.format(
-                process.returncode, stderr
-            )
-        )
-    else:
-        manager.write(stdout + "\n" + stderr)
 
     if os.path.getsize(track_output_path) > 0:
         output_path = track_output_path
     else:
         output_path = detector_output_path
+
     manager.updateStatus(JobStatus.PUSHING_OUTPUT)
     newfile = gc.uploadFileToFolder(output_folder, output_path)
 
     gc.addMetadataToItem(newfile["itemId"], {"pipeline": pipeline})
     gc.post(f'viame/postprocess/{output_folder}', data={"skipJobs": True})
-
-    # Files
-    os.remove(track_output_path)
-    os.remove(detector_output_path)
-
-    # Folders
-    shutil.rmtree(input_path, ignore_errors=True)
-    shutil.rmtree(trained_pipeline_folder, ignore_errors=True)
-
-    if self.canceled:
-        manager.updateStatus(JobStatus.CANCELED)
-        return
 
 
 @app.task(bind=True, acks_late=True)
@@ -351,7 +334,7 @@ def train_pipeline(
             # Organize data
             groundtruth_path = download_path / groundtruth["name"]
             groundtruth_file = organize_folder_for_training(
-                root_data_dir, download_path, groundtruth_path
+                download_path, groundtruth_path
             )
             # We point to file if is a video
             if source_folder.get("meta", {}).get("type") == "video":
@@ -390,40 +373,33 @@ def train_pipeline(
                 "--no-query",
             ]
 
-            process_log_file = tempfile.TemporaryFile()
-            process_err_file = tempfile.TemporaryFile()
             manager.updateStatus(JobStatus.RUNNING)
             cmd = " ".join(command)
-            print('Running command:', cmd)
-            # Call viame_train_detector
+            manager.write(f"Running command: {cmd}\n", forceFlush=True)
+
+            process_err_file = tempfile.TemporaryFile()
             process = Popen(
                 " ".join(command),
-                stdout=process_log_file,
+                stdout=subprocess.PIPE,
                 stderr=process_err_file,
                 shell=True,
                 executable='/bin/bash',
                 cwd=training_output_path,
                 env=conf.gpu_process_env,
             )
-
-            stdout, stderr = read_and_close_process_outputs(
-                process, self, process_log_file, process_err_file
-            )
-            manager.write(stdout + "\n" + stderr)
+            stream_subprocess(process, self, manager, process_err_file)
             if self.canceled:
-                manager.updateStatus(JobStatus.CANCELED)
                 return
+
             training_results_path = training_output_path / "category_models"
 
-            # Get all files/folders in directory
-            training_output = list(training_results_path.glob("*"))
-            if process.returncode or not training_output:
+            # Check that there are results in the output path
+            if len(list(training_results_path.glob("*"))) == 0:
                 raise RuntimeError(
-                    "Training output failed or didn't produce results, discarding..."
+                    "Training output didn't produce results, discarding..."
                 )
-            else:
-                manager.updateStatus(JobStatus.PUSHING_OUTPUT)
 
+            manager.updateStatus(JobStatus.PUSHING_OUTPUT)
             # This is the name of the folder that is uploaded to the
             # "Training Results" girder folder
             girder_output_folder = gc.createFolder(
@@ -437,10 +413,6 @@ def train_pipeline(
 
             gc.upload(f"{training_results_path}/*", girder_output_folder["_id"])
 
-    if self.canceled:
-        manager.updateStatus(JobStatus.CANCELED)
-        return
-
 
 @app.task(bind=True, acks_late=True)
 def convert_video(self: Task, path, folderId, auxiliaryFolderId, itemId):
@@ -448,6 +420,10 @@ def convert_video(self: Task, path, folderId, auxiliaryFolderId, itemId):
     # We are only using this to get a name, and recreating it below.
     with tempfile.NamedTemporaryFile(suffix=".mp4", delete=True) as temp:
         output_path = temp.name
+
+    def cleanup():
+        with contextlib.suppress(FileNotFoundError):
+            os.remove(output_path)
 
     gc: GirderClient = self.girder_client
     manager: JobManager = self.job_manager
@@ -465,27 +441,25 @@ def convert_video(self: Task, path, folderId, auxiliaryFolderId, itemId):
         file_name,
     ]
 
-    with tempfile.TemporaryFile() as process_log_file:
-        process = Popen(command, stderr=DEVNULL, stdout=process_log_file)
-        stdout, stderr = read_and_close_process_outputs(process, self, process_log_file)
-        if self.canceled:
-            manager.updateStatus(JobStatus.CANCELED)
-            return
-        if process.returncode > 0:
-            raise RuntimeError(
-                'could not execute ffprobe {}: {}'.format(process.returncode, stderr)
-            )
+    process_err_file = tempfile.TemporaryFile()
+    process = Popen(
+        command,
+        stdout=subprocess.PIPE,
+        stderr=process_err_file,
+    )
+    stdout = stream_subprocess(
+        process, self, manager, process_err_file, keep_stdout=True
+    )
+    if self.canceled:
+        return
 
-        jsoninfo = json.loads(stdout)
-        videostream = list(
-            filter(lambda x: x["codec_type"] == "video", jsoninfo["streams"])
-        )
-        if len(videostream) != 1:
-            raise Exception(
-                'Expected 1 video stream, found {}'.format(len(videostream))
-            )
+    jsoninfo = json.loads(stdout)
+    videostream = list(
+        filter(lambda x: x["codec_type"] == "video", jsoninfo["streams"])
+    )
+    if len(videostream) != 1:
+        raise Exception('Expected 1 video stream, found {}'.format(len(videostream)))
 
-    process_log_file = tempfile.TemporaryFile()
     process_err_file = tempfile.TemporaryFile()
     process = Popen(
         [
@@ -505,51 +479,40 @@ def convert_video(self: Task, path, folderId, auxiliaryFolderId, itemId):
             "scale=ceil(iw*sar/2)*2:ceil(ih/2)*2,setsar=1",
             output_path,
         ],
-        stdout=process_log_file,
+        stdout=subprocess.PIPE,
         stderr=process_err_file,
     )
 
-    stdout, stderr = read_and_close_process_outputs(
-        process, self, process_log_file, process_err_file
+    stream_subprocess(process, self, manager, process_err_file, cleanup=cleanup)
+    if self.canceled:
+        return
+
+    manager.updateStatus(JobStatus.PUSHING_OUTPUT)
+    new_file = gc.uploadFileToFolder(folderId, output_path)
+    gc.addMetadataToItem(
+        new_file['itemId'],
+        {
+            "source_video": False,
+            "transcoder": "ffmpeg",
+            "codec": "h264",
+        },
     )
-
-    output = stdout + "\n" + stderr
-    manager.write(output)
-    if self.canceled:
-        manager.updateStatus(JobStatus.CANCELED)
-        return
-    if process.returncode == 0:
-        manager.updateStatus(JobStatus.PUSHING_OUTPUT)
-        new_file = gc.uploadFileToFolder(folderId, output_path)
-        gc.addMetadataToItem(
-            new_file['itemId'],
-            {
-                "source_video": False,
-                "transcoder": "ffmpeg",
-                "codec": "h264",
-            },
-        )
-        gc.addMetadataToItem(
-            itemId,
-            {
-                "source_video": True,
-                "codec": videostream[0]["codec_name"],
-            },
-        )
-        gc.addMetadataToFolder(
-            folderId,
-            {
-                "fps": 5,  # TODO: current time system doesn't allow for non-int framerates
-                "annotate": True,  # mark the parent folder as able to annotate.
-                "ffprobe_info": videostream[0],
-            },
-        )
-
-    os.remove(output_path)
-
-    if self.canceled:
-        manager.updateStatus(JobStatus.CANCELED)
-        return
+    gc.addMetadataToItem(
+        itemId,
+        {
+            "source_video": True,
+            "codec": videostream[0]["codec_name"],
+        },
+    )
+    gc.addMetadataToFolder(
+        folderId,
+        {
+            "fps": 5,  # TODO: current time system doesn't allow for non-int framerates
+            "annotate": True,  # mark the parent folder as able to annotate.
+            "ffprobe_info": videostream[0],
+        },
+    )
+    cleanup()
 
 
 @app.task(bind=True, acks_late=True)
@@ -584,41 +547,23 @@ def convert_images(self: Task, folderId):
             item_path = dest_dir / item["name"]
             new_item_path = dest_dir / ".".join([*item["name"].split(".")[:-1], "png"])
 
-            process_log_file = tempfile.TemporaryFile()
             process_err_file = tempfile.TemporaryFile()
             process = Popen(
                 ["ffmpeg", "-i", item_path, new_item_path],
-                stdout=process_log_file,
+                stdout=subprocess.PIPE,
                 stderr=process_err_file,
             )
-
-            stdout, stderr = read_and_close_process_outputs(
-                process, self, process_log_file, process_err_file
-            )
-
+            stream_subprocess(process, self, manager, process_err_file)
             if self.canceled:
-                manager.updateStatus(JobStatus.CANCELED)
                 return
 
-            output = ""
-            if len(stdout):
-                output = f"{stdout}\n"
-            if len(stderr):
-                output = f"{output}{stderr}\n"
-
-            manager.write(output)
-
-            if process.returncode == 0:
-                gc.uploadFileToFolder(folderId, new_item_path)
-                gc.delete(f"item/{item['_id']}")
-                count += 1
+            gc.uploadFileToFolder(folderId, new_item_path)
+            gc.delete(f"item/{item['_id']}")
+            count += 1
 
     gc.addMetadataToFolder(
         str(folderId),
         {"annotate": True},  # mark the parent folder as able to annotate.
     )
 
-    if self.canceled:
-        manager.updateStatus(JobStatus.CANCELED)
-        return
     return count
