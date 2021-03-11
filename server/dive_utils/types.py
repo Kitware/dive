@@ -3,10 +3,16 @@ from typing import Any, Dict, List, Optional
 from typing_extensions import TypedDict
 
 __all__ = [
+    "GirderModel",
     "PipelineDescription",
     "PipelineJob",
     "PipelineCategory",
 ]
+
+
+class GirderModel(TypedDict):
+    name: str
+    _id: str
 
 
 class PipelineDescription(TypedDict):
@@ -20,9 +26,6 @@ class PipelineDescription(TypedDict):
     # the ID of the folder containing the pipeline,
     folderId: Optional[str]
 
-    # If the pipeline requires input
-    requires_input: Optional[bool]
-
 
 class PipelineJob(TypedDict):
     """Describes the parameters for running a pipeline on a dataset."""
@@ -31,7 +34,7 @@ class PipelineJob(TypedDict):
     input_folder: str
     input_type: str
     output_folder: str
-    pipeline_input: Optional[str]
+    pipeline_input: Optional[GirderModel]
 
 
 class TrainingConfigurationSummary(TypedDict):

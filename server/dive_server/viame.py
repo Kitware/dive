@@ -209,9 +209,9 @@ class Viame(Resource):
             "input_type": folder["meta"]["type"],
             "output_folder": folder_id_str,
             "pipeline": pipeline,
+            "pipeline_input": detection if requires_input else None,
         }
-        if requires_input is True:
-            params["pipeline_input"] = detection
+
         newjob = run_pipeline.apply_async(
             queue="pipelines",
             kwargs=dict(

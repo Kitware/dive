@@ -13,7 +13,17 @@ DefaultTrainingConfiguration = "train_netharn_cascade.viame_csv.conf"
 AllowedTrainingConfigs = r".*\.viame_csv\.conf$"
 AllowedStaticPipelines = r"^detector_.+|^tracker_.+|^utility_.+|^generate_.+"
 DisallowedStaticPipelines = (
-    r".*local.*|detector_svm_models\.pipe|tracker_svm_models\.pipe"
+    # Remove utilities pipes which hold no meaning in web
+    r".*local.*|"
+    r".*hough.*|"
+    r".*_svm_models\.pipe|"
+    r"detector_extract_chips\.pipe|"
+    # Remove tracker pipelines which hold no meaning in web
+    r"tracker_stabilized_iou\.pipe|"
+    r"tracker_short_term\.pipe|"
+    # Remove seal and sea lion specialized pipelines un-runnable in web
+    r"detector_arctic_.*fusion.*\.pipe|"
+    r".*[2|3]-cam\.pipe"
 )
 
 
@@ -35,7 +45,7 @@ def load_static_pipelines(search_path: Path) -> Dict[str, PipelineCategory]:
             "pipe": pipe,
             "folderId": None,
         }
-
+        print(f"Discovered pipe {pipe_info}")
         if pipe_type in pipedict:
             pipedict[pipe_type]["pipes"].append(pipe_info)
         else:
@@ -51,6 +61,7 @@ def load_training_configurations(search_path: Path) -> TrainingConfigurationSumm
     for pipe in search_path.glob("./*.conf"):
         pipe_name = pipe.name
         configurations.append(pipe_name)
+        print(f"Discovered training {pipe_name}")
         if pipe_name == DefaultTrainingConfiguration:
             default_config = pipe_name
 

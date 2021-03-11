@@ -26,6 +26,10 @@ services:
     restart: always
     labels:
       - "com.centurylinklabs.watchtower.enable=true" 
+    environment:
+      - WORKER_WATCHING_QUEUES=training,pipelines
+      - WORKER_CONCURRENCY=${TRAINING_WORKER_CONCURRENCY:-1}
+      - WORKER_GPU_UUID=${TRAINING_GPU_UUID}
 
   watchtower:
     image: containrrr/watchtower:latest
