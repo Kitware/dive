@@ -36,7 +36,16 @@ RUN wget https://bootstrap.pypa.io/get-pip.py && python3.7 get-pip.py
 
 # Initialize python virtual environment
 RUN apt-get update && apt-get install -y python3.7-venv
-ENV VIRTUAL_ENV=/opt/venv
+
+# Switch over to user "worker" 1099:1099 to align with base image
+# https://github.com/VIAME/VIAME/blob/master/cmake/build_server_docker.sh#L123
+RUN useradd --create-home --uid 1099 --shell=/bin/bash worker
+USER worker
+
+# Create directory for addons
+RUN mkdir -p /tmp/addons
+
+ENV VIRTUAL_ENV=/home/worker/venv
 RUN python3.7 -m venv $VIRTUAL_ENV
 
 # Activate the venv
@@ -47,25 +56,15 @@ ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 RUN pip install -U pip setuptools
 
 # Pip install dependencies
-COPY server/setup.py /home/viame_girder/
+COPY --chown=worker:worker server/setup.py /home/viame_girder/
 RUN pip install --no-cache-dir .
 
-# Download addons
-RUN /opt/noaa/viame/bin/download_viame_addons.sh
-RUN /opt/noaa/viame/bin/filter_non_web_pipelines.sh
-
 # Pip install actual packages
-COPY server/ /home/viame_girder/
+COPY --chown=worker:worker server/ /home/viame_girder/
 RUN pip install --no-deps .
 
 # Copy provision scripts
-COPY docker/provision /home/provision
-
-# Switch over to user "worker"
-RUN useradd -D --shell=/bin/bash && useradd -m worker
-RUN chown -R worker:worker /usr/local/lib/python*
-RUN chown -R worker:worker /opt/noaa/viame
-USER worker
+COPY --chown=worker:worker docker/provision /home/provision
 
 ENTRYPOINT ["/tini", "--"]
 CMD ["/home/provision/girder_worker_entrypoint.sh"]
