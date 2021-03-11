@@ -27,13 +27,12 @@ from .constants import (
     SETTINGS_CONST_JOBS_CONFIGS,
     csvRegex,
     imageRegex,
+    metadataMutable,
+    metadataReserved,
     safeImageRegex,
     videoRegex,
     ymlRegex,
-    metadataMutable,
-    metadataReserved,
 )
-from .model.attribute import Attribute
 from .pipelines import load_pipelines, verify_pipe
 from .serializers import meva as meva_serializer
 from .serializers import models
