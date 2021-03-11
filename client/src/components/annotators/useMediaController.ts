@@ -33,12 +33,20 @@ export default function useMediaController({ emit }: {
     observer: null,
     cursor: 'default',
     imageCursor: '',
+    baseZoom: 0,
     originalBounds: {
       left: 0,
       top: 0,
       bottom: 1,
       right: 1,
     },
+    baseCameraBounds: {
+      left: 0,
+      top: 0,
+      bottom: 1,
+      right: 1,
+    },
+
   });
 
   const emitFrame = throttle(() => {
@@ -71,20 +79,50 @@ export default function useMediaController({ emit }: {
       bottom: height,
       right: width,
     });
+
+
+    geoViewerRef.value.geoOn(geo.event.actionwheel, (evt) => {
+      console.log('Camera zoom event');
+      const cameraBounds = geoViewerRef.value.camera()._bounds;
+      const currentZoom = geoViewerRef.value.zoomAndCenterFromBounds(
+        geoViewerRef.value.bounds(),
+      ).zoom;
+      console.log(`currentZoom: ${currentZoom} base: ${data.baseZoom}`);
+      if (currentZoom > data.baseZoom) {
+        const { right, bottom } = data.originalBounds;
+        geoViewerRef.value.maxBounds({
+          left: 0 - (right * margin),
+          top: 0 - (bottom * margin),
+          right: right * (1 + margin),
+          bottom: bottom * (1 + margin),
+        });
+      } else {
+        geoViewerRef.value.maxBounds(data.baseCameraBounds);
+      }
+    });
+
+
+    const cameraBounds = geoViewerRef.value.camera()._bounds;
     const params = geo.util.pixelCoordinateParams(
       containerRef.value, width, height, width, height,
     );
-    const { right, bottom } = params.map.maxBounds;
+
+    //const { right, bottom } = params.map.maxBounds;
     data.originalBounds = params.map.maxBounds;
-    geoViewerRef.value.maxBounds({
-      left: 0 - (right * margin),
-      top: 0 - (bottom * margin),
-      right: right * (1 + margin),
-      bottom: bottom * (1 + margin),
-    });
+    data.baseZoom = geoViewerRef.value.zoomAndCenterFromBounds(data.originalBounds).zoom;
+    data.baseCameraBounds = {
+      left: cameraBounds.left - ((cameraBounds.right - cameraBounds.left) * margin),
+      top: (cameraBounds.top - ((cameraBounds.bottom) * margin)) * -1,
+      right: cameraBounds.right + ((cameraBounds.right - cameraBounds.left) * margin),
+      bottom: (cameraBounds.bottom + ((cameraBounds.bottom) * margin)) * -1,
+    };
+    geoViewerRef.value.maxBounds(data.baseCameraBounds);
+    let minZoom = geoViewerRef.value.zoomAndCenterFromBounds(geoViewerRef.value.maxBounds()).zoom;
+    minZoom = (data.baseZoom + minZoom) / 2.0;
+
     geoViewerRef.value.zoomRange({
       // do not set a min limit so that bounds clamping determines min
-      min: -Infinity,
+      min: minZoom,
       // 4x zoom max
       max: 4,
     });
