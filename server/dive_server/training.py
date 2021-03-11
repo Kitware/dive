@@ -14,6 +14,7 @@ from dive_server.constants import (
     safeImageRegex,
 )
 from dive_server.serializers import viame
+from dive_utils.types import GirderModel
 
 TrainingOutputFolderName = "VIAME Training Results"
 
@@ -43,7 +44,7 @@ def training_output_folder(user: User):
 
 def ensure_csv_detections_file(
     folder: Folder, detection_item: Item, user: User
-) -> File:
+) -> GirderModel:
     """
     Ensures that the detection item has a file which is a csv.
     Attach the newly created .csv to the existing detection_item.

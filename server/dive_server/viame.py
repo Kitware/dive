@@ -6,7 +6,6 @@ from girder.api.describe import Description, autoDescribeRoute, describeRoute
 from girder.api.rest import Resource
 from girder.constants import AccessType
 from girder.exceptions import RestException
-from girder.models.file import File
 from girder.models.folder import Folder
 from girder.models.item import Item
 from girder.models.setting import Setting
@@ -22,7 +21,12 @@ from dive_tasks.tasks import (
     train_pipeline,
     upgrade_pipelines,
 )
-from dive_utils.types import AvailableJobSchema, PipelineDescription, PipelineJob
+from dive_utils.types import (
+    AvailableJobSchema,
+    GirderModel,
+    PipelineDescription,
+    PipelineJob,
+)
 
 from .constants import (
     SETTINGS_CONST_JOBS_CONFIGS,
@@ -187,7 +191,7 @@ class Viame(Resource):
         token = Token().createToken(user=user, days=14)
 
         # TODO Temporary inclusion of track_user pipelines requiring input
-        detection_csv: Optional[File] = None
+        detection_csv: Optional[GirderModel] = None
         if 'utility' in pipeline["pipe"]:
             # Ensure detection has a csv detections item
             detection = detections_item(folder, strict=True)
