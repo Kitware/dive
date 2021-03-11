@@ -472,8 +472,9 @@ def convert_video(self: Task, path, folderId, auxiliaryFolderId, itemId):
             "slow",
             "-crf",
             "26",
+            # https://askubuntu.com/questions/1315697/could-not-find-tag-for-codec-pcm-s16le-in-stream-1-codec-not-currently-support
             "-c:a",
-            "copy",
+            "aac",
             # see native/<platform> code for a discussion of this option
             "-vf",
             "scale=ceil(iw*sar/2)*2:ceil(ih/2)*2,setsar=1",
