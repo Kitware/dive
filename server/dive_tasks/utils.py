@@ -70,7 +70,7 @@ def organize_folder_for_training(
     return groundtruth
 
 
-def get_video_filename(folderId: str, girder_client: GirderClient):
+def get_video_filename(folderId: str, girder_client: GirderClient) -> Optional[str]:
     """
     Searches a folderId for videos that are compatible with training/pipelines
 

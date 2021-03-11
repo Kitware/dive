@@ -1,6 +1,0 @@
-[Unit]
-Description=Update the Viame Instance
-
-[Service]
-ExecStart=/usr/local/bin/ansible-playbook /home/viame/docker/ansible/deploy.yml
-Type=oneshot

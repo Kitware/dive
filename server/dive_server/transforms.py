@@ -2,10 +2,7 @@ import os
 import shutil
 import tempfile
 
-from girder_worker_utils.transforms.girder_io import (
-    GirderClientResultTransform,
-    GirderClientTransform,
-)
+from girder_worker_utils.transforms.girder_io import GirderClientTransform
 
 
 class GetPathFromItemId(GirderClientTransform):
