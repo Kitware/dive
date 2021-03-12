@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 
 import pymongo
 from girder.api import access
@@ -21,7 +21,12 @@ from dive_tasks.tasks import (
     train_pipeline,
     upgrade_pipelines,
 )
-from dive_utils.types import AvailableJobSchema, PipelineDescription, PipelineJob
+from dive_utils.types import (
+    AvailableJobSchema,
+    GirderModel,
+    PipelineDescription,
+    PipelineJob,
+)
 
 from .constants import (
     SETTINGS_CONST_JOBS_CONFIGS,
@@ -36,9 +41,10 @@ from .constants import (
 from .pipelines import load_pipelines, verify_pipe
 from .serializers import meva as meva_serializer
 from .serializers import models
-from .training import csv_detection_file, training_output_folder
+from .training import ensure_csv_detections_file, training_output_folder
 from .transforms import GetPathFromItemId
 from .utils import (
+    detections_item,
     get_or_create_auxiliary_folder,
     getTrackData,
     move_existing_result_to_auxiliary_folder,
@@ -188,22 +194,11 @@ class Viame(Resource):
         token = Token().createToken(user=user, days=14)
 
         # TODO Temporary inclusion of track_user pipelines requiring input
-        requires_input = False
+        detection_csv: Optional[GirderModel] = None
         if 'utility' in pipeline["pipe"]:
-            requires_input = True
-
-        # If it requires inputs we need to find it and use it as an input
-        if requires_input is True:
-            detections = list(
-                Item().find({"meta.detection": folder_id_str}).sort([("created", -1)])
-            )
-            detection = detections[0] if detections else None
-
-            if not detection:
-                raise RestException(f"No detections for folder {folder['name']}")
-
-            # Ensure detection has a csv format
-            detection = csv_detection_file(folder, detection, user)
+            # Ensure detection has a csv detections item
+            detection = detections_item(folder, strict=True)
+            detection_csv = ensure_csv_detections_file(folder, detection, user)
 
         move_existing_result_to_auxiliary_folder(folder, user)
 
@@ -212,9 +207,8 @@ class Viame(Resource):
             "input_type": folder["meta"]["type"],
             "output_folder": folder_id_str,
             "pipeline": pipeline,
+            "pipeline_input": detection_csv,
         }
-        if requires_input is True:
-            params["pipeline_input"] = detection
         newjob = run_pipeline.apply_async(
             queue="pipelines",
             kwargs=dict(
@@ -269,18 +263,11 @@ class Viame(Resource):
             if folder is None:
                 raise RestException(f"Cannot access folder {folderId}")
             folder_names.append(folder['name'])
-            detections = list(
-                Item().find({"meta.detection": str(folderId)}).sort([("created", -1)])
-            )
-            detection = detections[0] if detections else None
-
-            if not detection:
-                raise RestException(f"No detections for folder {folder['name']}")
-
             # Ensure detection has a csv format
             # TODO: Move this into worker job
-            csv_detection_file(folder, detection, user)
-            detection_list.append(detection)
+            train_on_detections_item = detections_item(folder, strict=True)
+            ensure_csv_detections_file(folder, train_on_detections_item, user)
+            detection_list.append(train_on_detections_item)
             folder_list.append(folder)
 
         # Ensure the folder to upload results to exists

@@ -1,6 +1,6 @@
 import json
 import urllib
-from typing import Dict, List
+from typing import List
 
 from girder.api import access
 from girder.api.describe import Description, autoDescribeRoute
@@ -19,7 +19,7 @@ from dive_server.constants import (
     safeImageRegex,
 )
 from dive_server.serializers import models, viame
-from dive_server.utils import getTrackData, saveTracks
+from dive_server.utils import detections_file, detections_item, getTrackData, saveTracks
 
 
 class ViameDetection(Resource):
@@ -34,11 +34,7 @@ class ViameDetection(Resource):
         self.route("GET", (":id", "export_all"), self.export_all)
 
     def _get_clip_meta(self, folder):
-        detections = list(
-            Item().find({"meta.detection": str(folder["_id"])}).sort([("created", -1)])
-        )
-        detection = detections[0] if len(detections) else None
-
+        detection = detections_item(folder)
         videoUrl = None
         video = None
         # Find a video tagged with an h264 codec left by the transcoder
@@ -68,29 +64,8 @@ class ViameDetection(Resource):
             'videoUrl': videoUrl,
         }
 
-    def _load_detections(self, folder):
-        detectionItems = list(
-            Item().findWithPermissions(
-                {"meta.detection": str(folder["_id"])},
-                user=self.getCurrentUser(),
-            )
-        )
-        detectionItems.sort(key=lambda d: d["created"], reverse=True)
-        if not len(detectionItems):
-            return None
-        file = Item().childFiles(detectionItems[0])[0]
-
-        return file
-
     def _generate_detections(self, folder, excludeBelowThreshold):
-        detectionItems = list(
-            Item().findWithPermissions(
-                {"meta.detection": str(folder["_id"])}, user=self.getCurrentUser()
-            )
-        )
-        detectionItems.sort(key=lambda d: d["created"], reverse=True)
-        item = detectionItems[0]
-        file = Item().childFiles(item)[0]
+        file = detections_file(folder, strict=True)
 
         # TODO: deprecated, remove after we migrate everyone to json
         if "csv" in file["exts"]:
@@ -257,7 +232,7 @@ class ViameDetection(Resource):
         )
     )
     def get_detection(self, folder):
-        file = self._load_detections(folder)
+        file = detections_file(folder)
         if file is None:
             return {}
         if "csv" in file["exts"]:
@@ -297,7 +272,7 @@ class ViameDetection(Resource):
         user = self.getCurrentUser()
         upsert: List[dict] = tracks.get('upsert', [])
         delete: List[str] = tracks.get('delete', [])
-        track_dict = getTrackData(self._load_detections(folder))
+        track_dict = getTrackData(detections_file(folder))
 
         for track_id in delete:
             track_dict.pop(str(track_id), None)

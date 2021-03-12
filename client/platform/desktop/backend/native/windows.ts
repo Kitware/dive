@@ -39,7 +39,8 @@ const ViameWindowsConstants = {
       '-c:v libx264',
       '-preset slow',
       '-crf 26',
-      '-c:a copy',
+      // https://askubuntu.com/questions/1315697/could-not-find-tag-for-codec-pcm-s16le-in-stream-1-codec-not-currently-support
+      '-c:a aac',
       // https://video.stackexchange.com/questions/20871/how-do-i-convert-anamorphic-hdv-video-to-normal-h-264-video-with-ffmpeg-how-to
       '-vf "scale=ceil(iw*sar/2)*2:ceil(ih/2)*2,setsar=1"',
     ].join(' '),
