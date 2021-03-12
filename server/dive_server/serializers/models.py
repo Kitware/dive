@@ -67,6 +67,9 @@ class CustomStyle(BaseModel):
     opacity: Optional[float]
     fill: Optional[bool]
 
+    class Config:
+        extra = 'forbid'
+
 
 class MetadataMutableUpdate(BaseModel):
     """Update schema for mutable metadata fields"""
