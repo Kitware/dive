@@ -10,6 +10,7 @@ from dive_server.constants import (
     TrainedPipelineCategory,
     TrainedPipelineMarker,
 )
+from dive_tasks.tasks import EMPTY_JOB_SCHEMA
 from dive_utils.types import AvailableJobSchema, PipelineCategory, PipelineDescription
 
 
@@ -38,7 +39,7 @@ def _load_dynamic_pipelines(user: User) -> Dict[str, PipelineCategory]:
 def load_pipelines(user: User) -> Dict[str, PipelineCategory]:
     """Load all static and dynamic pipelines"""
     static_job_configs: AvailableJobSchema = (
-        Setting().get(SETTINGS_CONST_JOBS_CONFIGS) or {}
+        Setting().get(SETTINGS_CONST_JOBS_CONFIGS) or EMPTY_JOB_SCHEMA
     )
     static_pipelines = static_job_configs.get('pipelines', {})
     dynamic_pipelines = _load_dynamic_pipelines(user)
