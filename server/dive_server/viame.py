@@ -32,8 +32,6 @@ from .constants import (
     SETTINGS_CONST_JOBS_CONFIGS,
     csvRegex,
     imageRegex,
-    metadataMutable,
-    metadataReserved,
     safeImageRegex,
     videoRegex,
     ymlRegex,
@@ -446,12 +444,7 @@ class Viame(Resource):
 
     @access.user
     @autoDescribeRoute(
-        Description("Save mutable metadata for a folder")
-        .notes(
-            f"Save allowable mutable metadata: <b>{metadataMutable}</b><br>"
-            "Will return the allowed metadata that was set and the expunged or removed data.<br>"
-            f"If a reserved key is used:  <b>{metadataReserved}</b>  it will return an error"
-        )
+        Description("Save mutable metadata for a dataset")
         .modelParam(
             "id",
             description="datasetId or folder for the metadata",
@@ -467,25 +460,11 @@ class Viame(Resource):
         .errorResponse('Using a reserved metadata key', 400)
     )
     def update_metadata(self, folder, data):
-        expunged = []
-        meta = {}
-        # filter data for only allowed metadataMutable and error on Reserved
-        for key in data.keys():
-            if key in metadataReserved:
-                raise RestException(
-                    f'Using a reserved metadata key: {key}, please remove it and use the proper endpoint'
-                )
-            elif key not in metadataMutable:
-                expunged.append(key)
-            else:
-                meta[key] = data[key]
-
-        folder['meta'].update(meta)
+        validated = models.MetadataMutableUpdate(**data)
+        for name, value in validated.dict(exclude_none=True).items():
+            folder['meta'][name] = value
         Folder().save(folder)
-        resp = {}
-        resp['allowed'] = meta
-        resp['expunged'] = expunged
-        return resp
+        return folder['meta']
 
     @access.user
     @autoDescribeRoute(

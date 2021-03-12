@@ -61,6 +61,23 @@ class Attribute(BaseModel):
     key: str
 
 
+class CustomStyle(BaseModel):
+    color: Optional[str]
+    strokeWidth: Optional[float]
+    opacity: Optional[float]
+    fill: Optional[bool]
+
+
+class MetadataMutableUpdate(BaseModel):
+    """Update schema for mutable metadata fields"""
+
+    customTypeStyling: Optional[Dict[str, CustomStyle]]
+    confidenceFilters: Optional[Dict[str, float]]
+
+    class Config:
+        extra = 'forbid'
+
+
 # interpolate all features [a, b)
 def interpolate(a: Feature, b: Feature) -> List[Feature]:
     if a.interpolate is False:
