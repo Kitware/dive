@@ -3,7 +3,7 @@ import {
   provide, inject, ref, Ref,
 } from '@vue/composition-api';
 
-import { StateStyles, TypeStyling } from './use/useStyling';
+import { CustomStyle, StateStyles, TypeStyling } from './use/useStyling';
 import { EditAnnotationTypes } from './layers/EditAnnotationLayer';
 import Track, { TrackId } from './track';
 import { VisibleAnnotationTypes } from './layers';
@@ -120,10 +120,7 @@ export interface Handler {
   /* change styles */
   updateTypeStyle(args: {
     type: string;
-    color?: string;
-    strokeWidth?: number;
-    opacity?: number;
-    fill?: boolean;
+    value: CustomStyle;
   }): void;
   /* set an Attribute in the metaData */
   setAttribute({ data, oldAttribute }:
