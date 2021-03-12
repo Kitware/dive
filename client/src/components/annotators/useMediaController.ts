@@ -34,35 +34,19 @@ export default function useMediaController({ emit }: {
     cursor: 'default',
     imageCursor: '',
     baseZoom: 0,
+    localWidth: 0,
+    localHeight: 0,
     originalBounds: {
       left: 0,
       top: 0,
       bottom: 1,
       right: 1,
     },
-    baseCameraBounds: {
-      left: 0,
-      top: 0,
-      bottom: 1,
-      right: 1,
-    },
-
   });
 
   const emitFrame = throttle(() => {
     emit('frame-update', data.frame);
   }, 200);
-
-  function onResize() {
-    if (geoViewerRef.value === undefined || containerRef.value === undefined) {
-      return;
-    }
-    const size = containerRef.value.getBoundingClientRect();
-    const mapSize = geoViewerRef.value.size();
-    if (size.width !== mapSize.width || size.height !== mapSize.height) {
-      geoViewerRef.value.size(size);
-    }
-  }
 
   function resetZoom() {
     const zoomAndCenter = geoViewerRef.value.zoomAndCenterFromBounds(
@@ -72,54 +56,45 @@ export default function useMediaController({ emit }: {
     geoViewerRef.value.center(zoomAndCenter.center);
   }
 
-  function resetMapDimensions(width: number, height: number, margin = 0.3) {
-    geoViewerRef.value.bounds({
-      left: 0,
-      top: 0,
-      bottom: height,
-      right: width,
-    });
-
-
-    geoViewerRef.value.geoOn(geo.event.actionwheel, (evt) => {
-      console.log('Camera zoom event');
-      const cameraBounds = geoViewerRef.value.camera()._bounds;
-      const currentZoom = geoViewerRef.value.zoomAndCenterFromBounds(
-        geoViewerRef.value.bounds(),
-      ).zoom;
-      console.log(`currentZoom: ${currentZoom} base: ${data.baseZoom}`);
-      if (currentZoom > data.baseZoom) {
-        const { right, bottom } = data.originalBounds;
-        geoViewerRef.value.maxBounds({
-          left: 0 - (right * margin),
-          top: 0 - (bottom * margin),
-          right: right * (1 + margin),
-          bottom: bottom * (1 + margin),
-        });
-      } else {
-        geoViewerRef.value.maxBounds(data.baseCameraBounds);
-      }
-    });
-
-
-    const cameraBounds = geoViewerRef.value.camera()._bounds;
-    const params = geo.util.pixelCoordinateParams(
-      containerRef.value, width, height, width, height,
-    );
-
-    //const { right, bottom } = params.map.maxBounds;
-    data.originalBounds = params.map.maxBounds;
+  function resetCameraBounds(margin = 0.3) {
     data.baseZoom = geoViewerRef.value.zoomAndCenterFromBounds(data.originalBounds).zoom;
-    data.baseCameraBounds = {
+    const cameraBounds = geoViewerRef.value.camera().bounds;
+    const baseCameraBounds = {
       left: cameraBounds.left - ((cameraBounds.right - cameraBounds.left) * margin),
-      top: (cameraBounds.top - ((cameraBounds.bottom) * margin)) * -1,
+      top: (cameraBounds.top - ((cameraBounds.bottom - cameraBounds.top) * margin)) * -1,
       right: cameraBounds.right + ((cameraBounds.right - cameraBounds.left) * margin),
-      bottom: (cameraBounds.bottom + ((cameraBounds.bottom) * margin)) * -1,
+      bottom: (cameraBounds.bottom + ((cameraBounds.bottom - cameraBounds.top) * margin)) * -1,
     };
-    geoViewerRef.value.maxBounds(data.baseCameraBounds);
-    let minZoom = geoViewerRef.value.zoomAndCenterFromBounds(geoViewerRef.value.maxBounds()).zoom;
-    minZoom = (data.baseZoom + minZoom) / 2.0;
+    const extendedCameraBounds = {
+      left: cameraBounds.left - ((cameraBounds.right - cameraBounds.left) * margin * 2),
+      top: (cameraBounds.top - ((cameraBounds.bottom - cameraBounds.top) * margin * 2)) * -1,
+      right: cameraBounds.right + ((cameraBounds.right - cameraBounds.left) * margin * 2),
+      bottom: (cameraBounds.bottom + ((cameraBounds.bottom - cameraBounds.top) * margin * 2)) * -1,
+    };
+    const initialZoom = geoViewerRef.value.zoomAndCenterFromBounds(baseCameraBounds).zoom;
+    // if (initialZoom === data.baseZoom) {
+    //   return;
+    // }
 
+    const previousMax = geoViewerRef.value.maxBounds();
+    geoViewerRef.value.maxBounds(extendedCameraBounds);
+
+    const minZoom = geoViewerRef.value.zoomAndCenterFromBounds(baseCameraBounds).zoom;
+    //minZoom = (data.baseZoom + minZoom) / 2.0;
+    if (data.baseZoom < minZoom) {
+      geoViewerRef.value.maxBounds(data.originalBounds);
+      if (data.baseZoom === minZoom && minZoom === initialZoom) {
+        geoViewerRef.value.maxBounds(previousMax);
+        geoViewerRef.value.zoomRange({
+        // do not set a min limit so that bounds clamping determines min
+          min: data.baseZoom,
+          // 4x zoom max
+          max: 4,
+        });
+        return;
+      }
+    }
+    console.log(`initialZoom: ${initialZoom} BaseZoom: ${data.baseZoom} minZoom:${minZoom}`);
     geoViewerRef.value.zoomRange({
       // do not set a min limit so that bounds clamping determines min
       min: minZoom,
@@ -131,6 +106,36 @@ export default function useMediaController({ emit }: {
     geoViewerRef.value.clampZoom(true);
     resetZoom();
   }
+
+  function resetMapDimensions(width: number, height: number, margin = 0.3) {
+    console.log('reset Map Dimensions');
+    geoViewerRef.value.bounds({
+      left: 0,
+      top: 0,
+      bottom: height,
+      right: width,
+    });
+
+    const params = geo.util.pixelCoordinateParams(
+      containerRef.value, width, height, width, height,
+    );
+    data.originalBounds = params.map.maxBounds;
+    resetCameraBounds(margin);
+  }
+
+  function onResize() {
+    if (geoViewerRef.value === undefined || containerRef.value === undefined) {
+      return;
+    }
+    const size = containerRef.value.getBoundingClientRect();
+    const mapSize = geoViewerRef.value.size();
+    if (size.width !== mapSize.width || size.height !== mapSize.height) {
+      geoViewerRef.value.size(size);
+    }
+    resetZoom();
+    resetCameraBounds();
+  }
+
 
   let observer: ResizeObserver | null = null;
   onMounted(() => {
