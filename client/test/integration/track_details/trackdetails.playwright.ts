@@ -143,7 +143,20 @@ export default function runTrackDetailsTest() {
           path: './test/screenshots/track_details/eyeIcon.png',
         });
       }
-      // Screenshot - Path: ./test/screenshots/track_details/settingsIcon.png
+      await page.click('text=Track Attributes: Attribute >> :nth-match(button, 2)');
+      // Click text=Detection Attributes: Attribute >> :nth-match(button, 2)
+      await page.click('text=Detection Attributes: Attribute >> :nth-match(button, 2)');
+      // Screenshot - Path: ./test/screenshots/track_details/trackDetailsView.png
+      const _test_screenshots_track_details_trackDetailsView = await page.$('text=Track Editor seriola pristipomoides_auricilla etelis_carbunculus 1 Confidence Pa');
+      if (_test_screenshots_track_details_trackDetailsView) {
+        await _test_screenshots_track_details_trackDetailsView.screenshot({
+          path: './test/screenshots/track_details/trackDetailsView.png',
+        });
+      }
+      await page.click('text=Track Attributes: Attribute >> :nth-match(button, 2)');
+      // Click text=Detection Attributes: Attribute >> :nth-match(button, 2)
+      await page.click('text=Detection Attributes: Attribute >> :nth-match(button, 2)');
+
       const _test_screenshots_track_details_settingsIcon = await page.$('text=CompleteTrack: true false >> button');
       if (_test_screenshots_track_details_settingsIcon) {
         await _test_screenshots_track_details_settingsIcon.screenshot({
