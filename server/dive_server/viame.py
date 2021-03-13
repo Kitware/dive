@@ -1,3 +1,5 @@
+from typing import List, Optional
+
 import pymongo
 from girder.api import access
 from girder.api.describe import Description, autoDescribeRoute, describeRoute
@@ -6,25 +8,41 @@ from girder.constants import AccessType
 from girder.exceptions import RestException
 from girder.models.folder import Folder
 from girder.models.item import Item
+from girder.models.setting import Setting
 from girder.models.token import Token
 from girder.models.user import User
 from girder_jobs.models.job import Job
 
-from dive_tasks.tasks import convert_images, convert_video, run_pipeline, train_pipeline
-from dive_utils.types import PipelineDescription, PipelineJob
+from dive_tasks.tasks import (
+    UPGRADE_JOB_DEFAULT_URLS,
+    convert_images,
+    convert_video,
+    run_pipeline,
+    train_pipeline,
+    upgrade_pipelines,
+)
+from dive_utils.types import (
+    AvailableJobSchema,
+    GirderModel,
+    PipelineDescription,
+    PipelineJob,
+)
 
-from .constants import csvRegex, imageRegex, safeImageRegex, videoRegex, ymlRegex
-from .model.attribute import Attribute
-from .pipelines import load_pipelines, load_static_pipelines
+from .constants import (
+    SETTINGS_CONST_JOBS_CONFIGS,
+    csvRegex,
+    imageRegex,
+    safeImageRegex,
+    videoRegex,
+    ymlRegex,
+)
+from .pipelines import load_pipelines, verify_pipe
 from .serializers import meva as meva_serializer
 from .serializers import models
-from .training import (
-    csv_detection_file,
-    load_training_configurations,
-    training_output_folder,
-)
+from .training import ensure_csv_detections_file, training_output_folder
 from .transforms import GetPathFromItemId
 from .utils import (
+    detections_item,
     get_or_create_auxiliary_folder,
     getTrackData,
     move_existing_result_to_auxiliary_folder,
@@ -42,17 +60,61 @@ class Viame(Resource):
     def __init__(self):
         super(Viame, self).__init__()
         self.resourceName = "viame"
-        self.static_pipelines = None
 
         self.route("GET", ("brand_data",), self.get_brand_data)
         self.route("GET", ("pipelines",), self.get_pipelines)
-        self.route("POST", ("pipeline",), self.run_pipeline_task)
         self.route("GET", ("training_configs",), self.get_training_configs)
+        self.route("POST", ("pipeline",), self.run_pipeline_task)
         self.route("POST", ("train",), self.run_training)
+        self.route("POST", ("upgrade_pipelines",), self.upgrade_pipelines)
+        self.route("POST", ("update_job_configs",), self.update_job_configs)
         self.route("POST", ("postprocess", ":id"), self.postprocess)
         self.route("PUT", ("attributes",), self.save_attributes)
         self.route("POST", ("validate_files",), self.validate_files)
         self.route("GET", ("valid_images",), self.get_valid_images)
+
+    @access.admin
+    @autoDescribeRoute(
+        Description("Upgrade addon pipelines")
+        .param(
+            "force",
+            "Force re-download of all addons.",
+            paramType="query",
+            dataType="boolean",
+            default=False,
+            required=False,
+        )
+        .jsonParam(
+            "urls",
+            "List of public URLs for addon zipfiles",
+            paramType='body',
+            requireArray=True,
+            required=False,
+            default=UPGRADE_JOB_DEFAULT_URLS,
+        )
+    )
+    def upgrade_pipelines(self, force: bool, urls: List[str]):
+        token = Token().createToken(user=self.getCurrentUser(), days=1)
+        Setting().set(SETTINGS_CONST_JOBS_CONFIGS, None)
+        upgrade_pipelines.delay(
+            urls=urls,
+            force=force,
+            girder_job_title="Upgrade Pipelines",
+            girder_client_token=str(token["_id"]),
+        )
+
+    @access.admin
+    @autoDescribeRoute(
+        Description("Persist discovered job configurations").jsonParam(
+            "configs",
+            "Replace static job configurations",
+            required=True,
+            requireObject=True,
+            paramType='body',
+        )
+    )
+    def update_job_configs(self, configs: AvailableJobSchema):
+        Setting().set(SETTINGS_CONST_JOBS_CONFIGS, configs)
 
     @access.public
     @autoDescribeRoute(Description("Get custom brand data"))
@@ -70,16 +132,17 @@ class Viame(Resource):
         return {}
 
     @access.user
-    @describeRoute(Description("Get available pipelines"))
+    @describeRoute(Description("Get available pipeline configurations"))
     def get_pipelines(self, params):
-        if self.static_pipelines is None:
-            self.static_pipelines = load_static_pipelines()
-        return load_pipelines(self.static_pipelines, self.getCurrentUser())
+        return load_pipelines(self.getCurrentUser())
 
     @access.user
-    @describeRoute(Description("Get available training configurations."))
+    @autoDescribeRoute(Description("Get available training configs"))
     def get_training_configs(self, params):
-        return load_training_configurations()
+        static_job_configs: AvailableJobSchema = (
+            Setting().get(SETTINGS_CONST_JOBS_CONFIGS) or {}
+        )
+        return static_job_configs.get('training', {})
 
     @access.user
     @autoDescribeRoute(
@@ -101,6 +164,9 @@ class Viame(Resource):
         :param folder: The girder folder containing the dataset to run on.
         :param pipeline: The pipeline to run the dataset on.
         """
+        user = self.getCurrentUser()
+        verify_pipe(user, pipeline)
+
         folder_id_str = str(folder["_id"])
         # First, verify that no other outstanding jobs are running on this dataset
         existing_jobs = Job().findOne(
@@ -122,26 +188,14 @@ class Viame(Resource):
                 )
             )
 
-        user = self.getCurrentUser()
         token = Token().createToken(user=user, days=14)
 
         # TODO Temporary inclusion of track_user pipelines requiring input
-        requires_input = False
+        detection_csv: Optional[GirderModel] = None
         if 'utility' in pipeline["pipe"]:
-            requires_input = True
-
-        # If it requires inputs we need to find it and use it as an input
-        if requires_input is True:
-            detections = list(
-                Item().find({"meta.detection": folder_id_str}).sort([("created", -1)])
-            )
-            detection = detections[0] if detections else None
-
-            if not detection:
-                raise RestException(f"No detections for folder {folder['name']}")
-
-            # Ensure detection has a csv format
-            detection = csv_detection_file(folder, detection, user)
+            # Ensure detection has a csv detections item
+            detection = detections_item(folder, strict=True)
+            detection_csv = ensure_csv_detections_file(folder, detection, user)
 
         move_existing_result_to_auxiliary_folder(folder, user)
 
@@ -150,9 +204,8 @@ class Viame(Resource):
             "input_type": folder["meta"]["type"],
             "output_folder": folder_id_str,
             "pipeline": pipeline,
+            "pipeline_input": detection_csv,
         }
-        if requires_input is True:
-            params["pipeline_input"] = detection
         newjob = run_pipeline.apply_async(
             queue="pipelines",
             kwargs=dict(
@@ -207,17 +260,11 @@ class Viame(Resource):
             if folder is None:
                 raise RestException(f"Cannot access folder {folderId}")
             folder_names.append(folder['name'])
-            detections = list(
-                Item().find({"meta.detection": str(folderId)}).sort([("created", -1)])
-            )
-            detection = detections[0] if detections else None
-
-            if not detection:
-                raise RestException(f"No detections for folder {folder['name']}")
-
             # Ensure detection has a csv format
-            csv_detection_file(folder, detection, user)
-            detection_list.append(detection)
+            # TODO: Move this into worker job
+            train_on_detections_item = detections_item(folder, strict=True)
+            ensure_csv_detections_file(folder, train_on_detections_item, user)
+            detection_list.append(train_on_detections_item)
             folder_list.append(folder)
 
         # Ensure the folder to upload results to exists

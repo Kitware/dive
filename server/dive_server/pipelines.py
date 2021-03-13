@@ -1,60 +1,30 @@
-import copy
-import re
-from typing import Dict, List, Optional
+from typing import Dict
 
+from girder.exceptions import RestException
 from girder.models.folder import Folder
+from girder.models.setting import Setting
+from girder.models.user import User
 
-from dive_server.constants import TrainedPipelineCategory, TrainedPipelineMarker
-from dive_server.utils import get_static_pipelines_path
-from dive_utils.types import PipelineCategory, PipelineDescription
-
-AllowedStaticPipelines = r"^detector_.+|^tracker_.+|^utility_.+|^generate_.+"
-DisallowedStaticPipelines = (
-    r".*local.*|detector_svm_models\.pipe|tracker_svm_models\.pipe"
+from dive_server.constants import (
+    SETTINGS_CONST_JOBS_CONFIGS,
+    TrainedPipelineCategory,
+    TrainedPipelineMarker,
 )
+from dive_tasks.tasks import EMPTY_JOB_SCHEMA
+from dive_utils.types import AvailableJobSchema, PipelineCategory, PipelineDescription
 
 
-Pipelines = Dict[str, PipelineCategory]
-
-
-def load_static_pipelines() -> Pipelines:
-    """Return the static pipelines."""
-
-    static_pipelines_path = get_static_pipelines_path()
-    pipedict: Pipelines = {}
-    pipelist = [
-        path.name
-        for path in static_pipelines_path.glob("./*.pipe")
-        if re.match(AllowedStaticPipelines, path.name)
-        and not re.match(DisallowedStaticPipelines, path.name)
-    ]
-
-    for pipe in pipelist:
-        pipe_type, *nameparts = pipe.replace(".pipe", "").split("_")
-        pipe_info: PipelineDescription = {
-            "name": " ".join(nameparts),
-            "type": pipe_type,
-            "pipe": pipe,
-            "folderId": None,
-        }
-
-        if pipe_type in pipedict:
-            pipedict[pipe_type]["pipes"].append(pipe_info)
-        else:
-            pipedict[pipe_type] = {"pipes": [pipe_info], "description": ""}
-
-    return pipedict
-
-
-def load_pipelines(
-    static_pipelines: Pipelines, user: Optional[Dict] = None
-) -> Pipelines:
+def _load_dynamic_pipelines(user: User) -> Dict[str, PipelineCategory]:
     """Add any additional dynamic pipelines to the existing pipeline list."""
-    pipelines = copy.deepcopy(static_pipelines)
-    trained_pipelines: List[PipelineDescription] = [
+
+    pipelines: Dict[str, PipelineCategory] = {}
+    pipelines[TrainedPipelineCategory] = {"pipes": [], "description": ""}
+    pipelines[TrainedPipelineCategory]["pipes"] = [
         {
             "name": folder["name"],
             "type": TrainedPipelineCategory,
+            # TODO: the string 'detector.pipe' comes from a convention
+            # within VIAME that may not always be true.
             "pipe": "detector.pipe",
             "folderId": str(folder["_id"]),
         }
@@ -63,13 +33,34 @@ def load_pipelines(
             user=user,
         )
     ]
-
-    if not len(trained_pipelines):
-        return pipelines
-
-    if TrainedPipelineCategory not in pipelines:
-        pipelines[TrainedPipelineCategory] = {"pipes": [], "description": ""}
-
-    pipelines[TrainedPipelineCategory]["pipes"].extend(trained_pipelines)
-
     return pipelines
+
+
+def load_pipelines(user: User) -> Dict[str, PipelineCategory]:
+    """Load all static and dynamic pipelines"""
+    static_job_configs: AvailableJobSchema = (
+        Setting().get(SETTINGS_CONST_JOBS_CONFIGS) or EMPTY_JOB_SCHEMA
+    )
+    static_pipelines = static_job_configs.get('pipelines', {})
+    dynamic_pipelines = _load_dynamic_pipelines(user)
+    static_pipelines.update(dynamic_pipelines)
+    return static_pipelines
+
+
+def verify_pipe(user: User, pipeline: PipelineDescription):
+    """Verify a pipeline exists and is runnable"""
+    missing_exception = RestException(
+        (
+            f'No such pipeline exists for type={pipeline["type"]} pipe={pipeline["pipe"]}. '
+            'A pipeline upgrade may be outstanding or somethiung might have gone wrong. '
+            'If you think this is an error, contact the server operator.'
+        )
+    )
+    all_pipelines = load_pipelines(user)
+    try:
+        category_pipes = all_pipelines[pipeline['type']]['pipes']
+        matchs = [pipe for pipe in category_pipes if pipe["pipe"] == pipeline["pipe"]]
+        if len(matchs) != 1:
+            raise missing_exception
+    except KeyError:
+        raise missing_exception
