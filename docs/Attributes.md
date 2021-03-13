@@ -3,17 +3,18 @@
 Attributes are properties that can be assigned to an entire track or a single detection within a track. Attributes are created within a dataset using the TrackDetails panel.
 
 !!! info
-    Attributes were previously global settings but have been moved to being dataset specific.
+    Attributes were previously global but have been moved to being dataset specific.
 
 ## Background/Definitions
 
-It’s important to note that there are dataset level attributes and then track/detection attributes.  Dataset attributes are all the possible attributes that can be assigned and visualized in the dataset.  Then there are track/detection level attributes.  These are a subset of the dataset attributes that are applied to tracks/detections.  Track attributes are information for the entire track and detection attributes are information for the specific frame or instance of time.
+It’s important to note that there are dataset level attributes and then track/detection attributes.  Dataset attributes are all the possible attributes that can be assigned and visualized in the dataset.  Think of them as a template for the attributes that can be set on tracks/detections.  Track/Detection attributes are a subset of the dataset attributes that are applied to tracks/detections.  Track attributes are information for the entire track and detection attributes are information for the specific frame or instance of time.
 
-**Dataset Attribute** - base attribute which defines the name and **type** for either a Track or Detection Attribute
-**Track Attribute** - attribute with a **value** associated with the entire track
-**Detection Attribute** - attribute with a **value** specified for a detection during a single frame
+- **Dataset Attribute** - base attribute which defines the name and **type** for either a Track or Detection Attribute
+- **Track Attribute** - attribute with a **value** associated with the entire track
+- **Detection Attribute** - attribute with a **value** specified for a detection during a single frame
 
 Example:
+
 - Dataset Attributes
     - Track
         - CompleteTrack: Boolean
@@ -22,7 +23,8 @@ Example:
         - Swimming: Boolean
         - Eating: Boolean
 
-Usage of the Dataset Attributes for a track:
+Usage of the above Dataset Attributes for a track:
+
 - Fish Track 1
     - Track Attributes
         - FishLength: 20
@@ -41,8 +43,8 @@ Attributes and editing them are located under the TrackDetails Panel.  This pane
 
 1. While your data is open you can select a track/detection to apply attributes.
 1. Open the track-details page by clicking on the  {screenshot of symbol} icon or by using the ‘A’ key as a shortcut.
-    1. ![Attributes Swap Large](images/Attributes/goingToDetails.png)
     1. ![Attributes Swap Icon](images/Attributes/swapIcon.png)
+    1. ![Attributes Swap Large](images/Attributes/goingToDetails.png)
 1. Here you will see the track/detection type, confidence pairs associated with it and then a list of track and detection attributes.
     1. ![Track Details Full Panel](images/Attributes/trackDetailsFull.png)
 1. For attributes there are two sections
@@ -56,6 +58,8 @@ Attributes and editing them are located under the TrackDetails Panel.  This pane
 
 By default the view on the page shows all attributes associated with the dataset in editing mode.  If you click on the Eye Icon this will only display the attributes that are set on the selected track and the current frame for that track.
 ![Eye Icon](images/Attributes/eyeIcon.png)
+
+!['Edit Attributes'](images/Attributes/trackDetailsFull.png)    !['View Attributes'](images/Attributes/trackDetailsView.png)
 
 After clicking the eye icon, all attributes that aren't set will be removed from view.  This is useful for reviewing or viewing attributes of a track when there is a large set of Dataset Attributes.
 
@@ -81,27 +85,7 @@ After clicking the eye icon, all attributes that aren't set will be removed from
 ## Setting Track/Detection Attribute Values
 1.  Click on the attribute value when in viewing mode to edit and set the attribute
 1.  Or directly edit the value field when in the attribute editing mode
-1.  Setting an attribute to the null/empty value or deleting it will remove the value from the track/detection
-
-![Create Attributes](videos/Attributes/CreateAttributes.gif)
-
-## Setting Attributes on Tracks/Detections
-
-1. Select a track or detection that attributes should be applied on
-1. Click in the upper right of the track/type panel to go to the Attributes Interface
-    1. ![Attributes Button](images/Attributes/AttributesButton.png)
-1.  You are provided with some information about the currently selected track and it's attributes
-    1. ![Attributes Setting](images/Attributes/AttributesSetting.png)
-1.  Near the top is the Track ID, confidence pairs and then a list of Track Attributes that can be edited
-1.  Further down is the current Frame number and the Detection attributes which are connected to that specific frame
-1.  Attributes can be edited by clicking on the dropdowns and setting them
-    1. Boolean attributes allows you select **blank** or **true** or **false**
-       1. ![Boolean Attribute](images/Attributes/BooleanAttribute.png)
-    2. Number attributes allow a numerical input
-    3. Text attributes can either be custom text or selection from a predefined list of types
-2. ![Attributes Set](images/Attributes/AttributesSet.png)
-3.  **NOTE:**  Don't forget to save the data after changing track attributes.
-    1. ![Save Icon](images/NavBar/SaveIcon.png)
+1.  Setting an attribute to the null/empty value will remove the value from the track/detection
 
 ## Applying Attributes Demo
 
