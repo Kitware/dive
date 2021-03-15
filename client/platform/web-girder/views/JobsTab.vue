@@ -2,9 +2,7 @@
 import {
   defineComponent, onBeforeUnmount, reactive, toRefs,
 } from '@vue/composition-api';
-import type { GirderJob } from '@girder/components/src';
-// eslint-disable-next-line @typescript-eslint/ban-ts-ignore
-// @ts-ignore
+import { GirderJob } from '@girder/components';
 import { all } from '@girder/components/src/components/Job/status';
 import { useGirderRest, useNotificationBus } from '../plugins/girder';
 

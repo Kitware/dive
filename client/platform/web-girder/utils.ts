@@ -1,8 +1,5 @@
 import { AxiosError } from 'axios';
-import { GirderModel } from '@girder/components/src';
-// eslint-disable-next-line @typescript-eslint/ban-ts-ignore
-// @ts-ignore
-import { isRootLocation } from '@girder/components/src/utils/locationHelpers';
+import { isRootLocation, GirderModel } from '@girder/components';
 import { getFolder } from './api/girder.service';
 
 interface Location {

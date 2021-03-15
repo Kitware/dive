@@ -2,14 +2,14 @@
 import {
   defineComponent, reactive, toRefs, onBeforeUnmount, toRef,
 } from '@vue/composition-api';
-import { Authentication as GirderAuth } from '@girder/components/src/components';
+import { GirderAuthentication } from '@girder/components';
 
 import { useGirderRest } from '../plugins/girder';
 
 export default defineComponent({
   name: 'Login',
   components: {
-    GirderAuth,
+    GirderAuthentication,
   },
   setup(_, { root }) {
     const data = reactive({
@@ -68,7 +68,7 @@ export default defineComponent({
           or email <a href="mailto:viame-web@kitware.com">viame-web@kitware.com</a>
         </div>
       </v-alert>
-      <GirderAuth
+      <GirderAuthentication
         register
         forgot-password-url="/girder#?dialog=resetpassword"
       />

@@ -1,15 +1,15 @@
 <script>
-import JobList from '@girder/components/src/components/Job/JobList.vue';
+import { GirderJobList } from '@girder/components';
 
 export default {
   name: 'Jobs',
-  components: { JobList },
+  components: { GirderJobList },
 };
 </script>
 
 <template>
   <v-container>
-    <JobList>
+    <GirderJobList>
       <template #jobwidget="{ item }">
         <span>{{ item.statusText.replace('Inactive', 'Queued') }}</span>
         <v-btn
@@ -22,7 +22,7 @@ export default {
           Manage
         </v-btn>
       </template>
-    </JobList>
+    </GirderJobList>
     <v-card class="mt-4">
       <v-card-title class="text-h6">
         Job Runner Info

@@ -1,6 +1,5 @@
 import Vue from 'vue';
-import NotificationBus from '@girder/components/src/utils/notifications';
-import Girder, { RestClient } from '@girder/components/src';
+import Girder, { NotificationBus, RestClient } from '@girder/components';
 
 Vue.use(Girder);
 const girderRest = new RestClient({ apiRoot: 'api/v1' });

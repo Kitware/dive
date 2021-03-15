@@ -1,8 +1,7 @@
 <script>
 import Vue from 'vue';
 import { mapMutations } from 'vuex';
-import { FileManager } from '@girder/components/src/components/Snippet';
-import { getLocationType } from '@girder/components/src/utils';
+import { GirderFileManager, getLocationType } from '@girder/components';
 
 import RunPipelineMenu from 'dive-common/components/RunPipelineMenu.vue';
 import RunTrainingMenu from 'dive-common/components/RunTrainingMenu.vue';
@@ -16,7 +15,7 @@ export default Vue.extend({
   name: 'Home',
   components: {
     Export,
-    FileManager,
+    GirderFileManager,
     Upload,
     RunPipelineMenu,
     RunTrainingMenu,
@@ -164,7 +163,7 @@ export default Vue.extend({
         no-gutters
       >
         <v-col :cols="12">
-          <FileManager
+          <GirderFileManager
             ref="fileManager"
             v-model="selected"
             :selectable="!locationIsViameFolder"
@@ -243,7 +242,7 @@ export default Vue.extend({
                 Launch Annotator
               </v-btn>
             </template>
-          </FileManager>
+          </GirderFileManager>
         </v-col>
       </v-row>
     </v-container>

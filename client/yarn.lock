@@ -1141,18 +1141,18 @@
   resolved "https://registry.yarnpkg.com/@flatten-js/interval-tree/-/interval-tree-1.0.11.tgz#1864a3c2ec7972e28dd1eeb26f82b609590baa15"
   integrity sha512-gp9mS5d7QTcjE9mTG3hoiC82q1MjqX+nrAlKODkj45YXWMhR/j/OHStTVw9qRTUEiq6mzspE8iFi3JTAg8s7Pw==
 
-"@girder/components@^2.2.8":
-  version "2.2.8"
-  resolved "https://registry.yarnpkg.com/@girder/components/-/components-2.2.8.tgz#8ea11f5a27ae59af6248c57bc5ae0ea17dd89d26"
-  integrity sha512-Sj13UHk1linrzr9LyQ2JTH/ZwCjr0RnE83AmCJ5HO5fZEKdGv+jT/662zWK6wr8oO/mKbQcOtvsGfF8UTGA0Dg==
+"@girder/components@^3.0.0":
+  version "3.0.0"
+  resolved "https://registry.yarnpkg.com/@girder/components/-/components-3.0.0.tgz#e7031b44c93413afb40b670bb89dc7676457c0d3"
+  integrity sha512-QQIiZ72YN8TnM8uJI4BYGN73LNzTweZMIgcOJHtWdVdDOJMxjfVM9amLqKEW22wzMvBBYeuG4cw6hD12+P2NJg==
   dependencies:
     "@mdi/font" "^5.3.45"
-    axios "^0.19.2"
+    axios "^0.21.1"
     js-cookie "^2.2.0"
     markdown-it "^11.0.0"
     moment "^2.27.0"
     qs "^6.9.4"
-    vue "^2.6.10"
+    vue "^2.6.12"
     vue-async-computed "^3.4.1"
     vuetify "^2.3.1"
 
@@ -3636,13 +3636,6 @@ axios@*, axios@^0.21.1:
   dependencies:
     follow-redirects "^1.10.0"
 
-axios@^0.19.2:
-  version "0.19.2"
-  resolved "https://registry.yarnpkg.com/axios/-/axios-0.19.2.tgz#3ea36c5d8818d0d5f8a8a97a6d36b86cdc00cb27"
-  integrity sha512-fjgm5MvRHLhx+osE2xoekY70AhARk3a6hkN+3Io1jc00jtquGvxYlKlsFUhmUET0V5te6CcZI7lcv2Ym61mjHA==
-  dependencies:
-    follow-redirects "1.5.10"
-
 babel-code-frame@^6.22.0, babel-code-frame@^6.26.0:
   version "6.26.0"
   resolved "https://registry.yarnpkg.com/babel-code-frame/-/babel-code-frame-6.26.0.tgz#63fd43f7dc1e3bb7ce35947db8fe369a3f58c74b"
@@ -6028,13 +6021,6 @@ debug@2.6.9, debug@^2.2.0, debug@^2.3.3, debug@^2.6.8, debug@^2.6.9:
   dependencies:
     ms "2.0.0"
 
-debug@=3.1.0, debug@~3.1.0:
-  version "3.1.0"
-  resolved "https://registry.yarnpkg.com/debug/-/debug-3.1.0.tgz#5bb5a0672628b64149566ba16819e61518c67261"
-  integrity sha512-OX8XqP7/1a9cqkxYw2yXss15f26NKWBpDXQd0/uK/KPqdQhxbPa994hnzjcE2VqQpDslf55723cKPUOGSmMY3g==
-  dependencies:
-    ms "2.0.0"
-
 debug@^3.1.0, debug@^3.1.1, debug@^3.2.5:
   version "3.2.6"
   resolved "https://registry.yarnpkg.com/debug/-/debug-3.2.6.tgz#e83d17de16d8a7efb7717edbe5fb10135eee629b"
@@ -6055,6 +6041,13 @@ debug@^4.3.0:
   integrity sha512-jjO6JD2rKfiZQnBoRzhRTbXjHLGLfH+UtGkWLc/UXAh/rzZMyjbgn0NcfFpqT8nd1kTtFnDiJcrIFkq4UKeJVg==
   dependencies:
     ms "2.1.2"
+
+debug@~3.1.0:
+  version "3.1.0"
+  resolved "https://registry.yarnpkg.com/debug/-/debug-3.1.0.tgz#5bb5a0672628b64149566ba16819e61518c67261"
+  integrity sha512-OX8XqP7/1a9cqkxYw2yXss15f26NKWBpDXQd0/uK/KPqdQhxbPa994hnzjcE2VqQpDslf55723cKPUOGSmMY3g==
+  dependencies:
+    ms "2.0.0"
 
 decamelize-keys@^1.0.0:
   version "1.1.0"
@@ -7693,13 +7686,6 @@ fn-name@^2.0.1:
   version "2.0.1"
   resolved "https://registry.yarnpkg.com/fn-name/-/fn-name-2.0.1.tgz#5214d7537a4d06a4a301c0cc262feb84188002e7"
   integrity sha1-UhTXU3pNBqSjAcDMJi/rhBiAAuc=
-
-follow-redirects@1.5.10:
-  version "1.5.10"
-  resolved "https://registry.yarnpkg.com/follow-redirects/-/follow-redirects-1.5.10.tgz#7b7a9f9aea2fdff36786a94ff643ed07f4ff5e2a"
-  integrity sha512-0V5l4Cizzvqt5D44aTXbFZz+FtyXV1vrDN6qrelxtfYQKW0KO0W2T/hkE8xvGa/540LkZlkaUjO4ailYTFtHVQ==
-  dependencies:
-    debug "=3.1.0"
 
 follow-redirects@^1.0.0, follow-redirects@^1.10.0:
   version "1.13.1"
@@ -16936,11 +16922,6 @@ vue-type-check@^1.0.0:
     typescript "^3.6.3"
     vscode-languageserver "^5.2.1"
     vue-language-server "0.0.62"
-
-vue@^2.6.10:
-  version "2.6.11"
-  resolved "https://registry.yarnpkg.com/vue/-/vue-2.6.11.tgz#76594d877d4b12234406e84e35275c6d514125c5"
-  integrity sha512-VfPwgcGABbGAue9+sfrD4PuwFar7gPb1yl1UK1MwXoQPAw0BKSqWfoYCT/ThFrdEVWoI51dBuyCoiNU9bZDZxQ==
 
 vue@^2.6.12:
   version "2.6.12"
