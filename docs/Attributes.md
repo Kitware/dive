@@ -5,17 +5,17 @@ Attributes are properties that can be assigned to an entire track or a single de
 !!! info
     Attributes were previously global but have been moved to being dataset specific.
 
-## Background/Definitions
+## Background/Terms
 
-It’s important to note that there are dataset level attributes and then track/detection attributes.  Dataset attributes are all the possible attributes that can be assigned and visualized in the dataset.  Think of them as a template for the attributes that can be set on tracks/detections.  Track/Detection attributes are a subset of the dataset attributes that are applied to tracks/detections.  Track attributes are information for the entire track and detection attributes are information for the specific frame or instance of time.
+It’s important to note that there are attribute definitations and then track/detection attributes.  Attributes definitions are all the possible attributes that can be assigned to tracks or detection.  Think of them as a template for the attributes that can be set on tracks/detections.  Track attributes are information for the entire track and detection attributes are information for the specific frame or instance of time.
 
-- **Dataset Attribute** - base attribute which defines the name and **type** for either a Track or Detection Attribute
+- **Attribute Definition** - base attribute which defines the name and **type** for either a Track or Detection Attribute
 - **Track Attribute** - attribute with a **value** associated with the entire track
 - **Detection Attribute** - attribute with a **value** specified for a detection during a single frame
 
 Example:
 
-- Dataset Attributes
+- Attribute Definitions
     - Track
         - CompleteTrack: Boolean
         - FishLength: number (cm)
@@ -23,7 +23,7 @@ Example:
         - Swimming: Boolean
         - Eating: Boolean
 
-Usage of the above Dataset Attributes for a track:
+Usage of the above Attribute Definitions for a track and its detections:
 
 - Fish Track 1
     - Track Attributes
@@ -35,7 +35,7 @@ Usage of the above Dataset Attributes for a track:
             - Swimming: false
             - Eating: false
 
-**Note:** All dataset attributes do not need to be assigned to values
+**Note:** All Attribute definitions do not need to be assigned to values.  CompleteTrack (Track Attribute) and Swimming for Frame 1 (Detection Attribute) weren't assigned in this example.
 
 ## Navigating to Attributes
 
@@ -54,14 +54,14 @@ Attributes and editing them are located under the TrackDetails Panel.  This pane
 !!! info
     During import of a VIAME CSV file Attributes that are structured using the VIAME CSV specification will automatically show up in the list.  The system does a best guess at determining the type of the attribute based on the values used throughout the dataset.
 
-## Adding Dataset Attributes
+## Adding Attribute Definitions
 
 By default the view on the page shows all attributes associated with the dataset in editing mode.  If you click on the Eye Icon this will only display the attributes that are set on the selected track and the current frame for that track.
 ![Eye Icon](images/Attributes/eyeIcon.png)
 
 !['Edit Attributes'](images/Attributes/trackDetailsFull.png)    !['View Attributes'](images/Attributes/trackDetailsView.png)
 
-After clicking the eye icon, all attributes that aren't set will be removed from view.  This is useful for reviewing or viewing attributes of a track when there is a large set of Dataset Attributes.
+After clicking the eye icon, all attributes that are unset will be removed from view.  This is useful for reviewing or viewing attributes of a track when there is a large number of Attribute Definitions.
 
 1. To add attributes click on the corresponding "+Attribute" icon for either a Track or Detection Attribute
     1. ![Eye Icon](images/Attributes/AttributeButton.png)
@@ -77,9 +77,9 @@ After clicking the eye icon, all attributes that aren't set will be removed from
 1. After choosing a Track/Detection and a Datatype click Save to add the new attribute
 
 ## Editing Dataset Attributes
-1. Click on the setting icon next to an existing attribute to edit it's details
+1. Click on the setting icon next to an existing attribute to edit it's definition details
     1. ![Edit Attribute Panel](images/Attributes/editAttribute.png)
-1. **Note:**  Currently editing or deleting a dataset attribute doesn’t affect the currently set Track/Detection attributes for the data.  It removes the display of them and prevents sem from being set on future tracks/detections.  A future update will enable this capability.
+1. **Note:**  Currently editing or deleting an attribute definition doesn’t affect the currently set Track/Detection attributes for the data.  It removes the display of them and prevents sem from being set on future tracks/detections.  A future update will enable this capability.
 
 
 ## Setting Track/Detection Attribute Values
