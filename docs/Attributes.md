@@ -3,7 +3,7 @@
 Attributes are properties that can be assigned to an entire track or a single detection within a track. Attributes are created within a dataset using the TrackDetails panel.
 
 !!! info
-    Attributes were previously global but have been moved to being dataset specific.
+    Attributes were previously globally defined.  They are now defined on each individual dataset.
 
 ## Background/Terms
 
