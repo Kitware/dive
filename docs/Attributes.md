@@ -9,7 +9,7 @@ Attributes are properties that can be assigned to an entire track or a single de
 
 It’s important to note that there are attribute definitations and then track/detection attributes.  Attributes definitions are all the possible attributes that can be assigned to tracks or detection.  Think of them as a template for the attributes that can be set on tracks/detections.  Track attributes are information for the entire track and detection attributes are information for the specific frame or instance of time.
 
-- **Attribute Definition** - base attribute which defines the name and **type** for either a Track or Detection Attribute
+- **Attribute Definition** - base attribute which defines the name and **type** for either a track or detection attribute
 - **Track Attribute** - attribute with a **value** associated with the entire track
 - **Detection Attribute** - attribute with a **value** specified for a detection during a single frame
 
