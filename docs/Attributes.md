@@ -60,7 +60,7 @@ By default the view on the page shows all attributes associated with the dataset
 
 !['Edit Attributes'](images/Attributes/trackDetailsFull.png)    !['View Attributes'](images/Attributes/trackDetailsView.png)
 
-After clicking the eye icon, all attributes that are unset will be removed from view.  This is useful for reviewing or viewing attributes of a track when there is a large number of Attribute Definitions.
+After clicking the eye icon, all attributes that are unset will be removed from view.  This is useful for reviewing or viewing attributes of a track when there is a large number of attribute definitions.
 
 1. To add attributes click on the corresponding "+Attribute" icon for either a track or detection attribute
     1. ![Eye Icon](images/Attributes/AttributeButton.png)
