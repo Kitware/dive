@@ -100,10 +100,12 @@ export default defineComponent({
       }
       updateTypeStyle({
         type: data.editingType,
-        color: data.editingColor,
-        strokeWidth: data.editingThickness,
-        fill: data.editingFill,
-        opacity: data.editingOpacity,
+        value: {
+          color: data.editingColor,
+          strokeWidth: data.editingThickness,
+          fill: data.editingFill,
+          opacity: data.editingOpacity,
+        },
       });
     }
 

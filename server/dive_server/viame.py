@@ -69,6 +69,7 @@ class Viame(Resource):
         self.route("POST", ("upgrade_pipelines",), self.upgrade_pipelines)
         self.route("POST", ("update_job_configs",), self.update_job_configs)
         self.route("POST", ("postprocess", ":id"), self.postprocess)
+        self.route("PUT", ("metadata", ":id"), self.update_metadata)
         self.route("PUT", ("attributes",), self.save_attributes)
         self.route("POST", ("validate_files",), self.validate_files)
         self.route("GET", ("valid_images",), self.get_valid_images)
@@ -440,6 +441,30 @@ class Viame(Resource):
                 Item().move(item, auxiliary)
 
         return folder
+
+    @access.user
+    @autoDescribeRoute(
+        Description("Save mutable metadata for a dataset")
+        .modelParam(
+            "id",
+            description="datasetId or folder for the metadata",
+            model=Folder,
+            level=AccessType.WRITE,
+        )
+        .jsonParam(
+            "data",
+            "JSON with the metadata to set",
+            requireObject=True,
+            paramType="body",
+        )
+        .errorResponse('Using a reserved metadata key', 400)
+    )
+    def update_metadata(self, folder, data):
+        validated = models.MetadataMutableUpdate(**data)
+        for name, value in validated.dict(exclude_none=True).items():
+            folder['meta'][name] = value
+        Folder().save(folder)
+        return folder['meta']
 
     @access.user
     @autoDescribeRoute(
