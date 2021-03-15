@@ -1,6 +1,7 @@
 import { GirderModel } from '@girder/components/src';
 
 import {
+  DatasetMetaMutable,
   Pipe, Pipelines, SaveAttributeArgs, TrainingConfigs,
 } from 'dive-common/apispec';
 import girderRest from '../plugins/girder';
@@ -88,7 +89,7 @@ function runTraining(folderIds: string[], pipelineName: string, config: string) 
   return girderRest.post('/viame/train', folderIds, { params: { pipelineName, config } });
 }
 
-function saveMetadata(folderId: string, metadata: object) {
+function saveMetadata(folderId: string, metadata: DatasetMetaMutable) {
   return girderRest.put(
     `/viame/metadata/${folderId}`,
     { ...metadata },
