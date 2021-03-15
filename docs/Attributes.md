@@ -1,6 +1,6 @@
 # Attributes
 
-Attributes are properties that can be assigned to an entire track or a single detection within a track. Attributes are created within a dataset using the TrackDetails panel.
+Attributes are properties that can be assigned to an entire track or a single detection within a track. Attributes are created within a dataset using the Track Details panel.
 
 !!! info
     Attributes were previously globally defined.  They are now defined on each individual dataset.
@@ -38,10 +38,10 @@ Usage of the above Attribute Definitions for a track and its detections:
 
 ## Navigating to Attributes
 
-Controls for defining and editing attributes are found on the TrackDetails Panel. 
+Controls for defining and editing attributes are found on the Track Details Panel. 
 
 1. While your data is open you can select a track/detection to apply attributes.
-1. Open the track-details page by clicking on the  {screenshot of symbol} icon or by using the ‘A’ key as a shortcut.
+1. Open the Track Details page by clicking on the eye icon or by using the ‘A’ key as a shortcut.
     1. ![Attributes Swap Icon](images/Attributes/swapIcon.png)
     1. ![Attributes Swap Large](images/Attributes/goingToDetails.png)
 1. Here you will see the track/detection type, confidence pairs associated with it and then a list of track and detection attributes.
