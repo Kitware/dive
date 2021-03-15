@@ -78,7 +78,9 @@ After clicking the eye icon, all attributes that are unset will be removed from 
 ## Editing Dataset Attributes
 1. Click on the setting icon next to an existing attribute to edit it's definition details
     1. ![Edit Attribute Panel](images/Attributes/editAttribute.png)
-1. **Note:**  Currently editing or deleting an attribute definition doesn’t affect the currently set Track/Detection attributes for the data.  It removes the display of them and prevents sem from being set on future tracks/detections.  A future update will enable this capability.
+1. **Note:**  Editing or deleting an attribute definition doesn’t change the existing track/detection attributes for the data
+    1. Deleting an attribute definition will cause it to disappear from the list.  A future update will cause the attribute to also be removed from all tracks/detections.
+    1. Editing an attribute definition will change the way the controls behave, but will not change any existing set values.
 
 
 ## Setting Track/Detection Attribute Values
