@@ -39,7 +39,7 @@ Usage of the above Attribute Definitions for a track and its detections:
 
 ## Navigating to Attributes
 
-Attributes and editing them are located under the TrackDetails Panel.  This panel is used to perform detailed editing of a track types and attributes.
+Controls for defining and editing attributes are found on the TrackDetails Panel. 
 
 1. While your data is open you can select a track/detection to apply attributes.
 1. Open the track-details page by clicking on the  {screenshot of symbol} icon or by using the ‘A’ key as a shortcut.
