@@ -15,26 +15,25 @@ It’s important to note that there are attribute definitations and then track/d
 
 Example:
 
-- Attribute Definitions
-    - Track
-        - CompleteTrack: Boolean
-        - FishLength: number (cm)
-    - Detection
-        - Swimming: Boolean
-        - Eating: Boolean
+    - Attribute Definitions
+        - Track
+            - CompleteTrack: Boolean
+            - FishLength: number (cm)
+        - Detection
+            - Swimming: Boolean
+            - Eating: Boolean
 
 Usage of the above Attribute Definitions for a track and its detections:
 
-- Fish Track 1
-    - Track Attributes
-        - FishLength: 20
-    - Detection Attributes
-        - Frame 1
-            - Eating: true
-        - Frame 2
-            - Swimming: false
-            - Eating: false
-
+    - Fish Track 1
+        - Track Attributes
+            - FishLength: 20
+        - Detection Attributes
+            - Frame 1
+                - Eating: true
+            - Frame 2
+                - Swimming: false
+                - Eating: false
 **Note:** All Attribute definitions do not need to be assigned to values.  CompleteTrack (Track Attribute) and Swimming for Frame 1 (Detection Attribute) weren't assigned in this example.
 
 ## Navigating to Attributes
