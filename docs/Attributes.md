@@ -51,7 +51,7 @@ Controls for defining and editing attributes are found on the TrackDetails Panel
     1. *Detection Attributes* - attributes associated with the track on a per frame basis
 
 !!! info
-    During import of a VIAME CSV file Attributes that are structured using the VIAME CSV specification will automatically show up in the list.  The system does a best guess at determining the type of the attribute based on the values used throughout the dataset.
+    During import of a VIAME CSV file, attributes that are structured using the [VIAME CSV specification](https://viame.readthedocs.io/en/latest/section_links/detection_file_conversions.html) will automatically show up in the list.  The type of the attribute is guessed by examining values and may need to be manually corrected.
 
 ## Adding Attribute Definitions
 
