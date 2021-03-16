@@ -1,7 +1,7 @@
 <script>
 import Vue from 'vue';
-import { GirderDropzone } from '@girder/components/src';
-import { mixins } from '@girder/components/src';
+import { GirderDropzone, mixins } from '@girder/components/src';
+
 import { ImageSequenceType, VideoType } from 'dive-common/constants';
 
 import { makeViameFolder, validateUploadGroup, postProcess } from '../api/viame.service';
