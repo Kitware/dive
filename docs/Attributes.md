@@ -82,7 +82,6 @@ After clicking the eye icon, all attributes that are unset will be removed from 
     1. Deleting an attribute definition will cause it to disappear from the list.  A future update will cause the attribute to also be removed from all tracks/detections.
     1. Editing an attribute definition will change the way the controls behave, but will not change any existing set values.
 
-
 ## Setting Track/Detection Attribute Values
 1.  Click on the attribute value when in viewing mode to edit and set the attribute
 1.  Or directly edit the value field when in the attribute editing mode
