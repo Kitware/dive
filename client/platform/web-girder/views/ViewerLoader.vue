@@ -70,9 +70,6 @@ export default defineComponent({
           <v-icon>mdi-database</v-icon>
         </v-tab>
         <JobsTab />
-        <v-tab to="/settings">
-          Settings<v-icon>mdi-settings</v-icon>
-        </v-tab>
       </v-tabs>
     </template>
     <template #title-right>

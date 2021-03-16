@@ -1,4 +1,4 @@
-import type { GirderModel } from '@girder/components';
+import type { GirderModel } from '@girder/components/src';
 import type { BrandData } from 'platform/web-girder/api/viame.service';
 import type { GirderMetadata } from 'platform/web-girder/constants';
 

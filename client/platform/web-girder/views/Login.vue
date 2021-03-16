@@ -2,7 +2,7 @@
 import {
   defineComponent, reactive, toRefs, onBeforeUnmount, toRef,
 } from '@vue/composition-api';
-import { GirderAuthentication } from '@girder/components';
+import { GirderAuthentication } from '@girder/components/src';
 
 import { useGirderRest } from '../plugins/girder';
 

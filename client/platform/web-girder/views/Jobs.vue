@@ -1,5 +1,5 @@
 <script>
-import { GirderJobList } from '@girder/components';
+import { GirderJobList } from '@girder/components/src';
 
 export default {
   name: 'Jobs',

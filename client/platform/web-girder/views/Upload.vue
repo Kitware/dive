@@ -1,6 +1,7 @@
 <script>
 import Vue from 'vue';
-import { GirderDropZone, mixins } from '@girder/components';
+import { GirderDropzone } from '@girder/components/src';
+import { mixins } from '@girder/components/src';
 import { ImageSequenceType, VideoType } from 'dive-common/constants';
 
 import { makeViameFolder, validateUploadGroup, postProcess } from '../api/viame.service';
@@ -57,7 +58,7 @@ async function readFilesFromDrop(e) {
 
 export default Vue.extend({
   name: 'Upload',
-  components: { GirderDropZone },
+  components: { GirderDropzone },
   mixins: [mixins.fileUploader, mixins.sizeFormatter],
   inject: ['girderRest'],
   props: {
@@ -402,7 +403,7 @@ export default Vue.extend({
       </v-alert>
     </div>
     <div class="dropzone-container">
-      <GirderDropZone
+      <GirderDropzone
         class="dropzone"
         multiple
         message="Drag files or directory here"

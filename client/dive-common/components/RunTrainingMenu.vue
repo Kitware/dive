@@ -130,10 +130,11 @@ export default defineComponent({
 
         <v-alert
           dense
-          type="warning"
+          color="warning"
+          class="mx-2"
         >
           This instance is updated on Thursday at 2AM EST.
-          If your training job is running at that time it may be restarted/killed.
+          If your training job is running at that time it may be restarted or killed.
         </v-alert>
 
         <v-text-field

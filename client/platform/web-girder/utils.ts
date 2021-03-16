@@ -1,5 +1,5 @@
 import { AxiosError } from 'axios';
-import { isRootLocation, GirderModel } from '@girder/components';
+import { isRootLocation, GirderModel } from '@girder/components/src';
 import { getFolder } from './api/girder.service';
 
 interface Location {

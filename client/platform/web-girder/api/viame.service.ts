@@ -1,4 +1,4 @@
-import type { GirderModel } from '@girder/components';
+import type { GirderModel } from '@girder/components/src';
 
 import {
   DatasetMetaMutable,
