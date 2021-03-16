@@ -35,7 +35,7 @@
   "types": "lib/types/index.d.ts",
   "dependencies": {
     "@flatten-js/interval-tree": "^1.0.11",
-    "@girder/components": "^3.0.0",
+    "@girder/components": "^3.0.1",
     "@mdi/font": "^3.9.97",
     "@sentry/browser": "^5.24.2",
     "@sentry/integrations": "^5.24.2",
