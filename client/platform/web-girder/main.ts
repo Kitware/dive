@@ -1,10 +1,8 @@
-import { merge } from 'lodash';
 import Vue from 'vue';
 import VueGtag from 'vue-gtag';
 import VueCompositionApi from '@vue/composition-api';
 import { init as SentryInit } from '@sentry/browser';
 import { Vue as SentryVue } from '@sentry/integrations';
-import { vuetifyConfig as girderVuetifyConfig } from '@girder/components/src';
 
 import registerNotifications from 'vue-media-annotator/notificatonBus';
 import snackbarService from 'dive-common/vue-utilities/snackbar-service';
@@ -38,7 +36,7 @@ Promise.all([
   store.dispatch('Brand/loadBrand'),
   girderRest.fetchUser(),
 ]).then(() => {
-  const vuetify = getVuetify(merge(girderVuetifyConfig, store.state.Brand.brandData?.vuetify));
+  const vuetify = getVuetify(store.state.Brand.brandData?.vuetify);
   Vue.use(snackbarService(vuetify));
   Vue.use(promptService(vuetify));
   new Vue({

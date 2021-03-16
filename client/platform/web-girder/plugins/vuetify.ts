@@ -5,6 +5,7 @@ import { merge } from 'lodash';
 
 import '@mdi/font/css/materialdesignicons.css';
 import { ThemeOptions } from 'vuetify/types/services/theme';
+import { vuetifyConfig } from '@girder/components/src';
 
 Vue.use(Vuetify);
 
@@ -21,7 +22,7 @@ function getVuetify(config: unknown) {
       },
     },
   };
-  const appVuetifyConfig = merge(config, { theme });
+  const appVuetifyConfig = merge(vuetifyConfig, config, { theme });
   return new Vuetify(appVuetifyConfig);
 }
 
