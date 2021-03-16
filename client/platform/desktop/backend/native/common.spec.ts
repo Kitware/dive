@@ -36,10 +36,10 @@ const pipelines = {
   'filter_to_kwa.pipe': '',
   'full_frame_classifier_local.pipe': '',
   'full_frame_classifier_svm.pipe': '',
-  'generate_empty_frame_lbls_1fr.pipe': '',
-  'generate_empty_frame_lbls_10fr.pipe': '',
-  'generate_empty_frame_lbls_100fr.pipe': '',
-  'generate_empty_frame_lbls_1000fr.pipe': '',
+  'utility_empty_frame_lbls_1fr.pipe': '',
+  'utility_empty_frame_lbls_10fr.pipe': '',
+  'utility_empty_frame_lbls_100fr.pipe': '',
+  'utility_empty_frame_lbls_1000fr.pipe': '',
   'index_default.pipe': '',
   'index_default.svm.pipe': '',
   'index_default.trk.pipe': '',
@@ -125,6 +125,10 @@ mockfs({
       'video1.mp4': '',
       'otherfile.txt': '',
       nomime: '',
+    },
+    annotationEmptySuccess: {
+      'video1.mp4': '',
+      'result_foo.json': '',
     },
     annotationFail: {
       'video1.mp4': '',
@@ -243,7 +247,7 @@ describe('native.common', () => {
     expect(pipes).toBeTruthy();
     expect(pipes.detector.pipes).toHaveLength(4);
     expect(pipes.tracker.pipes).toHaveLength(5);
-    expect(pipes.generate.pipes).toHaveLength(4);
+    expect(pipes.utility.pipes).toHaveLength(4);
     expect(pipes.trained).toBeUndefined();
   });
 
@@ -319,6 +323,12 @@ describe('native.common', () => {
     expect(meta.originalBasePath).toBe('/home/user/data/videoSuccess');
   });
 
+  it('importMedia empty json file success', async () => {
+    const meta = await common.importMedia(settings, '/home/user/data/annotationEmptySuccess/video1.mp4', updater, { checkMedia, convertMedia });
+    const tracks = await common.loadDetections(settings, meta.id);
+    expect(tracks).toEqual({});
+  });
+
   it('importMedia various failure modes', async () => {
     await expect(common.importMedia(settings, '/fake/path', updater, { checkMedia, convertMedia }))
       .rejects.toThrow('file or directory not found');
@@ -378,7 +388,7 @@ describe('native.common', () => {
     expect(pipes).toBeTruthy();
     expect(pipes.detector.pipes).toHaveLength(4);
     expect(pipes.tracker.pipes).toHaveLength(5);
-    expect(pipes.generate.pipes).toHaveLength(4);
+    expect(pipes.utility.pipes).toHaveLength(4);
     expect(pipes.trained.pipes).toHaveLength(1);
   });
 });

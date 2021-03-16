@@ -250,20 +250,6 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
   }
 
   /**
-   * Provides an indicator that the system is still waiting for creation
-   * geoJSON data.  This is relevant which switching focus while in creation mode
-   */
-  checkCreationIncomplete(editingType: EditAnnotationTypes, key: string) {
-    if (editingType !== this.type || key !== this.selectedKey) {
-      this.skipNextExternalUpdate = false;
-      return;
-    }
-    const features = this.featureLayer.annotations();
-    this.skipNextExternalUpdate = this.getMode() === 'creation'
-    && (!features.length || (features[0] && !features[0].coordinates().length));
-  }
-
-  /**
    * Change the layer mode
    */
   setMode(

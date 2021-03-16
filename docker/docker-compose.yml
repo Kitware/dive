@@ -23,6 +23,8 @@ services:
   mongo:
     image: mongo:latest
     volumes:
+      # Bind mount assetstore from local directory
+      # - ${DIVE_GIRDER_MONGO_DATA:-girder_data/mongo}:/data/db
       - mongo_db:/data/db
 
   girder:
@@ -40,17 +42,18 @@ services:
     ports:
       - "8010:8080"
     volumes:
+      # Bind mount assetstore from local directory
+      # - ${DIVE_GIRDER_ASSETSTORE:-girder_data/assetstore}:/home/assetstore
       - girder_assetstore:/home/assetstore
-      # Mount pipeline directory from girder_worker
-      - pipelines:${VIAME_PIPELINES_PATH}:ro
+      # Bind mount nocopy public data
       - type: bind
-        source: ${PUBLIC_DATA_PATH}
+        source: ${PUBLIC_DATA_PATH:-girder_data}
         target: /data/public
         read_only: true
         volume:
           nocopy: true
+
     environment:
-      - VIAME_PIPELINES_PATH=${VIAME_PIPELINES_PATH}
       - GIRDER_MONGO_URI=mongodb://mongo:27017/girder
       - GIRDER_ADMIN_USER=${GIRDER_ADMIN_USER}
       - GIRDER_ADMIN_PASS=${GIRDER_ADMIN_PASS}
@@ -59,6 +62,9 @@ services:
   girder_worker_default:
     # Merge base-worker object with this config
     << : *base-worker
+    volumes:
+      # readwrite because this worker does addon updates
+      - addons:/tmp/addons:rw
     environment:
       - WORKER_WATCHING_QUEUES=celery
 
@@ -66,24 +72,23 @@ services:
     # Merge base-worker object with this config
     << : *base-worker
     volumes:
-      # Exposes pipeline directory to girder so it can see what pipelines are available.
-      - pipelines:${VIAME_PIPELINES_PATH}:ro
+      - addons:/tmp/addons:ro # readonly
     environment:
       - WORKER_WATCHING_QUEUES=pipelines
       - WORKER_CONCURRENCY=${PIPELINE_WORKER_CONCURRENCY:-1}
       - WORKER_GPU_UUID=${PIPELINE_GPU_UUID}
-      - VIAME_PIPELINES_PATH=${VIAME_PIPELINES_PATH}
 
   girder_worker_training:
     # Merge base-worker object with this config
     << : *base-worker
+    volumes:
+      - addons:/tmp/addons:ro # readonly
     environment:
       - WORKER_WATCHING_QUEUES=training
       - WORKER_CONCURRENCY=${TRAINING_WORKER_CONCURRENCY:-1}
       - WORKER_GPU_UUID=${TRAINING_GPU_UUID}
-      - VIAME_PIPELINES_PATH=${VIAME_PIPELINES_PATH}
 
 volumes:
-  pipelines:
+  addons:
   mongo_db:
   girder_assetstore:

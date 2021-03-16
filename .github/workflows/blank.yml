@@ -50,3 +50,5 @@ jobs:
       run: black --check .
     - name: Check import linting with isort
       run: isort --check .
+    - name: Check mypy
+      run: mypy --config-file mypy.ini .

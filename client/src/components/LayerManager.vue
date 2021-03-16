@@ -113,7 +113,7 @@ export default defineComponent({
             throw new Error(`TrackID ${trackId} not found in map`);
           }
           const enabledIndex = enabledTracks.findIndex(
-            (trackWithContext) => trackWithContext.track.trackId === track.trackId,
+            (trackWithContext) => trackWithContext.track.trackId === trackId,
           );
           if (enabledIndex !== -1) {
             const [features] = track.getFeature(frame);
@@ -128,7 +128,7 @@ export default defineComponent({
               confidencePairs: track.confidencePairs,
             };
             frameData.push(trackFrame);
-            if (frameData[frameData.length - 1].selected && (editingTrack)) {
+            if (trackFrame.selected && (editingTrack)) {
               editingTracks.push(trackFrame);
             }
           }
@@ -187,7 +187,6 @@ export default defineComponent({
         }
         if (editingTracks.length) {
           if (editingTrack) {
-            editAnnotationLayer.checkCreationIncomplete(editingTrack, selectedKey);
             editAnnotationLayer.setType(editingTrack);
             editAnnotationLayer.setKey(selectedKey);
             editAnnotationLayer.changeData(editingTracks);

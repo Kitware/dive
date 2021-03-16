@@ -43,7 +43,8 @@ const ViameLinuxConstants = {
       '-c:v libx264',
       '-preset slow',
       '-crf 26',
-      '-c:a copy',
+      // https://askubuntu.com/questions/1315697/could-not-find-tag-for-codec-pcm-s16le-in-stream-1-codec-not-currently-support
+      '-c:a aac',
       /**
        * TODO: Upgrade to ffmpeg 4, use `round` instead of `ceil`
        * 3.4 is part of 18.04LTS, so we should support it
