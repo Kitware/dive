@@ -28,6 +28,8 @@ function processTrackAttributes(tracks: TrackData[]):
       } else if (attributeObj[`${type}_${key}`] && testVals[`${type}_${key}`]) {
         if (testVals[`${type}_${key}`][valstring]) {
           testVals[`${type}_${key}`][valstring] += 1;
+        } else {
+          testVals[`${type}_${key}`][valstring] = 1;
         }
       }
     });
@@ -36,7 +38,7 @@ function processTrackAttributes(tracks: TrackData[]):
     Object.keys(attributeObj).forEach((attributeKey) => {
       if (testVals[attributeKey]) {
         let attributeType: ('number' | 'boolean' | 'text') = 'number';
-        let lowCount = 1;
+        let lowCount = 3;
         const values: string[] = [];
         Object.entries(testVals[attributeKey]).forEach(([key, val]) => {
           if (val <= lowCount) {
@@ -50,8 +52,8 @@ function processTrackAttributes(tracks: TrackData[]):
             attributeType = 'text';
           }
         });
-        // If all items are used 2 or more times it has discrete set Values otherwise
-        if (lowCount >= 2 && attributeType.indexOf('text') !== -1) {
+        // If all items are used 3 or more times it has discrete set Values otherwise
+        if (lowCount >= 3 && attributeType.indexOf('text') !== -1) {
           attributeObj[attributeKey].values = values;
         }
         // eslint-disable-next-line no-param-reassign

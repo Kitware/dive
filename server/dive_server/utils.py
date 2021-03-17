@@ -3,7 +3,7 @@ import json
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 
 from girder.exceptions import RestException
 from girder.models.file import File
@@ -12,7 +12,7 @@ from girder.models.item import Item
 from girder.models.upload import Upload
 from pymongo.cursor import Cursor
 
-from dive_server.serializers import viame
+from dive_server.serializers import models, viame
 from dive_utils.types import GirderModel
 
 
@@ -74,23 +74,25 @@ def getTrackData(file: Optional[File]) -> Dict[str, dict]:
     if file is None:
         return {}
     if "csv" in file["exts"]:
-        return viame.load_csv_as_tracks(
-            b"".join(list(File().download(file, headers=False)()))
-            .decode("utf-8")
-            .splitlines()
-        )['tracks']
-    return json.loads(b"".join(list(File().download(file, headers=False)())).decode())
-
-
-def getTrackandAttributesFromCSV(file: File) -> Dict[str, dict]:
-    if file is None:
-        return {"tracks": {}, "attributes": {}}
-    if "csv" in file["exts"]:
-        return viame.load_csv_as_tracks(
+        (tracks, attributes) = viame.load_csv_as_tracks_and_attributes(
             b"".join(list(File().download(file, headers=False)()))
             .decode("utf-8")
             .splitlines()
         )
+        return tracks
+    return json.loads(b"".join(list(File().download(file, headers=False)())).decode())
+
+
+def getTrackAndAttributesFromCSV(file: File) -> Tuple[dict, dict]:
+    if file is None:
+        return ({}, {})
+    if "csv" in file["exts"]:
+        return viame.load_csv_as_tracks_and_attributes(
+            b"".join(list(File().download(file, headers=False)()))
+            .decode("utf-8")
+            .splitlines()
+        )
+    return ({}, {})
 
 
 def saveTracks(folder, tracks, user):

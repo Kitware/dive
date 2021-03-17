@@ -159,7 +159,13 @@ def _parse_row_for_tracks(row: List[str]) -> Tuple[Feature, Dict, Dict, List]:
     return feature, attributes, track_attributes, confidence_pairs
 
 
-def create_attributes(metadata_attributes, test_vals, atr_type, key, val):
+def create_attributes(
+    metadata_attributes: Dict[str, Attribute],
+    test_vals: Dict[str, int],
+    atr_type: str,
+    key: str,
+    val,
+):
     valstring = f'{val}'
     if f'{atr_type}_{key}' not in metadata_attributes:
         metadata_attributes[f'{atr_type}_{key}'] = {
@@ -175,9 +181,37 @@ def create_attributes(metadata_attributes, test_vals, atr_type, key, val):
     ):
         if valstring in test_vals[f'{atr_type}_{key}']:
             test_vals[f'{atr_type}_{key}'][valstring] += 1
+        else:
+            test_vals[f'{atr_type}_{key}'][valstring] = 1
 
 
-def load_csv_as_tracks(rows: List[str]) -> Dict[str, dict]:
+def calculate_attribute_types(
+    metadata_attributes: Dict[str, Attribute], test_vals: Dict[str, int]
+):
+    for attributeKey in metadata_attributes.keys():
+        if attributeKey in test_vals:
+            attribute_type = 'number'
+            low_count = 3
+            values = []
+            for (key, val) in test_vals[attributeKey].items():
+                if val <= low_count:
+                    low_count = val
+                values.append(key)
+                if attribute_type == 'number':
+                    try:
+                        float(key)
+                    except ValueError:
+                        attribute_type = 'boolean'
+                if attribute_type == 'boolean' and key != 'True' and key != 'False':
+                    attribute_type = 'text'
+            # If all text values are used 3 or more times they are defined values
+            if low_count >= 3 and 'text' in attribute_type:
+                metadata_attributes[attributeKey]['values'] = values
+
+            metadata_attributes[attributeKey]['datatype'] = attribute_type
+
+
+def load_csv_as_tracks_and_attributes(rows: List[str]) -> Tuple[dict, dict]:
     """
     Convert VIAME CSV to json tracks.
     Expect detections to be in increasing order (either globally or by track).
@@ -211,32 +245,12 @@ def load_csv_as_tracks(rows: List[str]) -> Dict[str, dict]:
         for (key, val) in attributes.items():
             create_attributes(metadata_attributes, test_vals, 'detection', key, val)
     # Now we process all the metadata_attributes for the types
-    for (attributeKey, attributeVal) in metadata_attributes.items():
-        if attributeKey in test_vals:
-            attribute_type = 'number'
-            low_count = 1
-            values = []
-            for (key, val) in test_vals[attributeKey].items():
-                if val <= low_count:
-                    low_count = val
-                values.append(key)
-                if attribute_type == 'number':
-                    try:
-                        float(key)
-                    except ValueError:
-                        attribute_type = 'boolean'
-                if attribute_type == 'boolean' and key != 'True' and key != 'False':
-                    attribute_type = 'text'
-        if low_count >= 2 and 'text' in attribute_type:
-            metadata_attributes[attributeKey]['values'] = values
-
-        metadata_attributes[attributeKey]['datatype'] = attribute_type
+    calculate_attribute_types(metadata_attributes, test_vals)
 
     track_json = {
         trackId: track.dict(exclude_none=True) for trackId, track in tracks.items()
     }
-    print(metadata_attributes)
-    return {'tracks': track_json, 'attributes': metadata_attributes}
+    return track_json, metadata_attributes
 
 
 def export_tracks_as_csv(

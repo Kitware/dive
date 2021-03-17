@@ -212,12 +212,26 @@ test_tuple = [
                 "end": 4,
             },
         },
+        {
+            'detection_attrNAME': {
+                "belongs": "detection",
+                "datatype": "text",
+                "key": "detection_attrNAME",
+                "name": "attrNAME",
+            },
+            'track_booleanAttr': {
+                "belongs": "track",
+                "datatype": "boolean",
+                "key": "track_booleanAttr",
+                "name": "booleanAttr",
+            },
+        },
     ),
     (
         [
             # test that variable length is handled properly
             # length == 11, valid
-            "0,1.png,0,884,510,1219,737,1,-1,typestring,1",
+            "0,1.png,0,884,510,1219,737,1,-1,typestring,1,",
             # length == 12, note ignored
             "0,2.png,1,111,222,3333,444,1,-1,typestring,1,(note) note",
             # Length == 13, both notes ignored
@@ -252,11 +266,189 @@ test_tuple = [
                 "end": 2,
             },
         },
+        {},
+    ),
+    (
+        [
+            # testing attributes interpretation
+            "0,1.png,0,884.66,510,1219.66,737.66,1,-1,typestring,1,(atr) DetectionNumber 2.002,(atr) DetectionPredefinedValue value1",
+            "0,2.png,1,111,222,3333,444,1,-1,typestring,1,(trk-atr) booleanAttr true,(atr) DetectionPredefinedValue value2",
+            "0,3.png,2,747,457,1039,633,1,-1,typestring,1,(trk-atr) booleanAttr true,(atr) DetectionPredefinedValue value3",
+            "0,3.png,3,884.66,510,1219.66,737.66,1,-1,typestring,1,(trk-atr) booleanAttr true,(atr) DetectionPredefinedValue value1",
+            "0,4.png,4,111,222,3333,444,1,-1,typestring,1,(atr) DetectionPredefinedValue value2",
+            "0,5.png,5,747,457,1039,633,1,-1,typestring,1,(atr) DetectionPredefinedValue value3",
+            "1,1.png,0,884.66,510,1219.66,737.66,1,-1,typestring,1,(atr) DetectionNumber 2.002,(atr) DetectionPredefinedValue value1",
+            "1,2.png,1,111,222,3333,444,1,-1,typestring,1,(trk-atr) booleanAttr true,(atr) DetectionPredefinedValue value2",
+            "1,3.png,2,747,457,1039,633,1,-1,typestring,1,(trk-atr) booleanAttr true,(atr) DetectionPredefinedValue value3",
+            "1,3.png,3,884.66,510,1219.66,737.66,1,-1,typestring,1,(trk-atr) booleanAttr true,(atr) DetectionPredefinedValue value1",
+            "1,4.png,4,111,222,3333,444,1,-1,typestring,1,(atr) DetectionPredefinedValue value2",
+            "1,5.png,5,747,457,1039,633,1,-1,typestring,1,(atr) DetectionPredefinedValue value3",
+        ],
+        {
+            "0": {
+                "trackId": 0,
+                "attributes": {"booleanAttr": True},
+                "confidencePairs": [["typestring", 1.0]],
+                "features": [
+                    {
+                        "frame": 0,
+                        "bounds": [885, 510, 1220, 738],
+                        "keyframe": True,
+                        "interpolate": False,
+                        "attributes": {
+                            "DetectionPredefinedValue": "value1",
+                            "DetectionNumber": 2.002,
+                        },
+                    },
+                    {
+                        "frame": 1,
+                        "bounds": [111, 222, 3333, 444],
+                        "keyframe": True,
+                        "interpolate": False,
+                        "attributes": {
+                            "DetectionPredefinedValue": "value2",
+                        },
+                    },
+                    {
+                        "frame": 2,
+                        "bounds": [747, 457, 1039, 633],
+                        "keyframe": True,
+                        "interpolate": False,
+                        "attributes": {
+                            "DetectionPredefinedValue": "value3",
+                        },
+                    },
+                    {
+                        "frame": 3,
+                        "bounds": [885, 510, 1220, 738],
+                        "keyframe": True,
+                        "interpolate": False,
+                        "attributes": {
+                            "DetectionPredefinedValue": "value1",
+                        },
+                    },
+                    {
+                        "frame": 4,
+                        "bounds": [111, 222, 3333, 444],
+                        "keyframe": True,
+                        "interpolate": False,
+                        "attributes": {
+                            "DetectionPredefinedValue": "value2",
+                        },
+                    },
+                    {
+                        "frame": 5,
+                        "bounds": [747, 457, 1039, 633],
+                        "keyframe": True,
+                        "interpolate": False,
+                        "attributes": {
+                            "DetectionPredefinedValue": "value3",
+                        },
+                    },
+                ],
+                "begin": 0,
+                "end": 5,
+            },
+            "1": {
+                "trackId": 1,
+                "attributes": {"booleanAttr": True},
+                "confidencePairs": [["typestring", 1.0]],
+                "features": [
+                    {
+                        "frame": 0,
+                        "bounds": [885, 510, 1220, 738],
+                        "keyframe": True,
+                        "interpolate": False,
+                        "attributes": {
+                            "DetectionPredefinedValue": "value1",
+                            "DetectionNumber": 2.002,
+                        },
+                    },
+                    {
+                        "frame": 1,
+                        "bounds": [111, 222, 3333, 444],
+                        "keyframe": True,
+                        "interpolate": False,
+                        "attributes": {
+                            "DetectionPredefinedValue": "value2",
+                        },
+                    },
+                    {
+                        "frame": 2,
+                        "bounds": [747, 457, 1039, 633],
+                        "keyframe": True,
+                        "interpolate": False,
+                        "attributes": {
+                            "DetectionPredefinedValue": "value3",
+                        },
+                    },
+                    {
+                        "frame": 3,
+                        "bounds": [885, 510, 1220, 738],
+                        "keyframe": True,
+                        "interpolate": False,
+                        "attributes": {
+                            "DetectionPredefinedValue": "value1",
+                        },
+                    },
+                    {
+                        "frame": 4,
+                        "bounds": [111, 222, 3333, 444],
+                        "keyframe": True,
+                        "interpolate": False,
+                        "attributes": {
+                            "DetectionPredefinedValue": "value2",
+                        },
+                    },
+                    {
+                        "frame": 5,
+                        "bounds": [747, 457, 1039, 633],
+                        "keyframe": True,
+                        "interpolate": False,
+                        "attributes": {
+                            "DetectionPredefinedValue": "value3",
+                        },
+                    },
+                ],
+                "begin": 0,
+                "end": 5,
+            },
+        },
+        {
+            'detection_DetectionNumber': {
+                "belongs": "detection",
+                "datatype": "number",
+                "key": "detection_DetectionNumber",
+                "name": "DetectionNumber",
+            },
+            'detection_DetectionPredefinedValue': {
+                "belongs": "detection",
+                "datatype": "text",
+                "key": "detection_DetectionPredefinedValue",
+                "name": "DetectionPredefinedValue",
+                "values": ["value1", "value2", "value3"],
+            },
+            'track_booleanAttr': {
+                "belongs": "track",
+                "datatype": "boolean",
+                "key": "track_booleanAttr",
+                "name": "booleanAttr",
+            },
+        },
     ),
 ]
 
 
-@pytest.mark.parametrize("input,expected", test_tuple)
-def test_read_csv(input: List[str], expected: Dict[str, dict]):
-    out_json = viame.load_csv_as_tracks(input)['tracks']
-    assert json.dumps(out_json, sort_keys=True) == json.dumps(expected, sort_keys=True)
+@pytest.mark.parametrize("input,expected_tracks,expected_attributes", test_tuple)
+def test_read_csv(
+    input: List[str],
+    expected_tracks: Dict[str, dict],
+    expected_attributes: Dict[str, dict],
+):
+    (tracks, attributes) = viame.load_csv_as_tracks_and_attributes(input)
+    assert json.dumps(tracks, sort_keys=True) == json.dumps(
+        expected_tracks, sort_keys=True
+    )
+    assert json.dumps(attributes, sort_keys=True) == json.dumps(
+        expected_attributes, sort_keys=True
+    )
