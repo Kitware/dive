@@ -118,47 +118,65 @@ export default defineComponent({
     </template>
 
     <template>
-      <v-card v-if="trainingConfigurations">
+      <v-card
+        v-if="trainingConfigurations"
+        outlined
+      >
         <v-card-title class="pb-1">
           Run Training
         </v-card-title>
 
         <v-card-text>
-          Specify the name of the resulting pipeline
-          and configuration file to use for training.
+          <p>
+            Specify the name of the resulting pipeline
+            and configuration file to use for training.
+          </p>
+          <v-alert
+            dense
+            color="warning"
+            outlined
+          >
+            This instance is updated on Thursday at 2AM EST.
+            If your training job is running at that time it may be restarted or killed.
+          </v-alert>
+
+          <v-text-field
+            v-model="trainingOutputName"
+            outlined
+            hide-details
+            class="my-4"
+            label="Output Name"
+          />
+          <v-select
+            v-model="selectedTrainingConfig"
+            outlined
+            hide-details
+            class="my-4"
+            label="Configuration File"
+            :items="trainingConfigurations.configs"
+          />
+          <p>
+            Input data:
+          </p>
+          <v-chip
+            v-for="id in selectedDatasetIds"
+            :key="id"
+            small
+            class="mr-1 mb-2"
+          >
+            <pre>{{ id }}</pre>
+          </v-chip>
+          <v-btn
+            depressed
+            block
+            color="primary"
+            class="mt-4"
+            :disabled="!trainingOutputName || !selectedTrainingConfig"
+            @click="runTrainingOnFolder"
+          >
+            Run Training
+          </v-btn>
         </v-card-text>
-
-        <v-alert
-          dense
-          color="warning"
-          class="mx-2"
-        >
-          This instance is updated on Thursday at 2AM EST.
-          If your training job is running at that time it may be restarted or killed.
-        </v-alert>
-
-        <v-text-field
-          v-model="trainingOutputName"
-          class="mx-2"
-          outlined
-          label="Output Name"
-        />
-        <v-select
-          v-model="selectedTrainingConfig"
-          outlined
-          class="mx-2"
-          label="Configuration File"
-          :items="trainingConfigurations.configs"
-        />
-        <v-btn
-          depressed
-          class="mb-2 ml-2"
-          color="primary"
-          :disabled="!trainingOutputName || !selectedTrainingConfig"
-          @click="runTrainingOnFolder"
-        >
-          Run Training
-        </v-btn>
       </v-card>
     </template>
   </v-menu>

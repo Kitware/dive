@@ -43,7 +43,11 @@ Promise.all([
     router,
     store,
     vuetify,
-    provide: { girderRest, vuetify },
+    provide: {
+      girderRest,
+      notificationBus: girderRest, // gwc.JobList expects this
+      vuetify,
+    },
     render: (h) => h(App),
   })
     .$mount('#app')

@@ -1,4 +1,9 @@
-import { RestClient } from '@girder/components/src';
+import { GirderModel, RestClient } from '@girder/components/src';
+
+// TODO remove after GWC types are fixed
+interface AugmentedRestClient extends RestClient {
+  user: GirderModel;
+}
 
 export interface GirderNotification {
   _id: string;
@@ -16,7 +21,9 @@ export interface GirderNotification {
  *
  * @param rc Girder RestClient
  */
-export default function registerNotifications(rc: RestClient) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export default function registerNotifications(_rc: any) {
+  const rc: AugmentedRestClient = _rc; // TODO remove after types fixed
   const ES = window.EventSource;
   const withCredentials = true;
   const timeoutSeconds = 300;
@@ -67,6 +74,9 @@ export default function registerNotifications(rc: RestClient) {
 
   function connect() {
     if (connected()) {
+      return;
+    }
+    if (!rc.user) {
       return;
     }
     lastConnectionAttempt = new Date();

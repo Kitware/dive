@@ -132,7 +132,10 @@ export default defineComponent({
       </template>
 
       <template>
-        <v-card v-if="pipelines">
+        <v-card
+          v-if="pipelines"
+          outlined
+        >
           <v-card-title>
             VIAME Pipelines
           </v-card-title>
@@ -149,12 +152,13 @@ export default defineComponent({
             <v-col
               v-for="(pipeType) in Object.keys(pipelines)"
               :key="pipeType"
-              cols="6"
+              cols="12"
             >
               <v-menu
                 :key="pipeType"
                 offset-x
-                right
+                nudge-left="10"
+                left
               >
                 <template v-slot:activator="{ on }">
                   <v-btn
@@ -162,19 +166,20 @@ export default defineComponent({
                     block
                     v-on="on"
                   >
-                    {{ pipeTypeDisplay(pipeType) }}
                     <v-icon
-                      left
+                      right
                       color="accent"
-                      class="ml-0"
+                      class="mr-0"
                     >
-                      mdi-menu-right
+                      mdi-menu-left
                     </v-icon>
+                    {{ pipeTypeDisplay(pipeType) }}
                   </v-btn>
                 </template>
 
                 <v-list
                   dense
+                  outlined
                   style="overflow-y:auto; max-height:85vh"
                 >
                   <v-list-item
