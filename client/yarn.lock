@@ -7875,7 +7875,7 @@ gensync@^1.0.0-beta.1:
   resolved "https://registry.yarnpkg.com/gensync/-/gensync-1.0.0-beta.1.tgz#58f4361ff987e5ff6e1e7a210827aa371eaac269"
   integrity sha512-r8EC6NO1sngH/zdD9fiRDLdcgnbayXah+mLgManTaIZJqEC1MZstmnox8KpnI2/fxQwrp5OpCOYWLp4rBl4Jcg==
 
-geojs@^1.0.0:
+geojs@1.0.0:
   version "1.0.0"
   resolved "https://registry.yarnpkg.com/geojs/-/geojs-1.0.0.tgz#39b79b1fb76fbcead21b3f2181b33e32b22998a6"
   integrity sha512-At+IOT5r3uq3SPJGkXJWm8C9Dg0nWQlpMBt+h6URtWNWcwbUb3CGk0Ox9bpboWwIU08wNsjfV0umfQfQL0WFkg==
