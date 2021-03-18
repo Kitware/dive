@@ -1,5 +1,6 @@
 import { spawn } from 'child_process';
 import fs from 'fs-extra';
+import { observeChild } from 'platform/desktop/backend/native/processManager';
 import { DesktopJob, DesktopJobUpdater } from 'platform/desktop/constants';
 
 /**
@@ -49,9 +50,9 @@ function jobFileEchoMiddleware(
 }
 
 function spawnResult(command: string, shell: boolean | string, args: string[] = []):
-Promise<{ output: null | string; exitCode: number; error: string}> {
+Promise<{ output: null | string; exitCode: number | null; error: string}> {
   return new Promise((resolve) => {
-    const proc = spawn(command, args, { shell });
+    const proc = observeChild(spawn(command, args, { shell }));
     let output = '';
     let error = '';
     proc.stdout.on('data', (chunk) => {
@@ -62,7 +63,7 @@ Promise<{ output: null | string; exitCode: number; error: string}> {
       error = error.concat(chunk.toString('utf-8'));
     });
 
-    proc.on('close', (exitCode) => {
+    proc.on('exit', (exitCode) => {
       resolve({
         output,
         exitCode,
