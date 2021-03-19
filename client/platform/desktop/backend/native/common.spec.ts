@@ -308,44 +308,48 @@ describe('native.common', () => {
   });
 
   it('importMedia image sequence success', async () => {
-    const meta = await common.importMedia(settings, '/home/user/data/imageSuccess', updater, { checkMedia, convertMedia });
-    expect(meta.name).toBe('imageSuccess');
-    expect(meta.originalImageFiles.length).toBe(2);
-    expect(meta.originalVideoFile).toBe('');
-    expect(meta.originalBasePath).toBe('/home/user/data/imageSuccess');
+    const payload = await common.beginMediaImport(settings, '/home/user/data/imageSuccess', checkMedia);
+    expect(payload.jsonMeta.name).toBe('imageSuccess');
+    expect(payload.jsonMeta.originalImageFiles.length).toBe(2);
+    expect(payload.jsonMeta.originalVideoFile).toBe('');
+    expect(payload.jsonMeta.originalBasePath).toBe('/home/user/data/imageSuccess');
   });
 
   it('importMedia video success', async () => {
-    const meta = await common.importMedia(settings, '/home/user/data/videoSuccess/video1.mp4', updater, { checkMedia, convertMedia });
-    expect(meta.name).toBe('video1');
-    expect(meta.originalImageFiles.length).toBe(0);
-    expect(meta.originalVideoFile).toBe('video1.mp4');
-    expect(meta.originalBasePath).toBe('/home/user/data/videoSuccess');
+    const payload = await common.beginMediaImport(settings, '/home/user/data/videoSuccess/video1.mp4', checkMedia);
+    expect(payload.jsonMeta.name).toBe('video1');
+    expect(payload.jsonMeta.originalImageFiles.length).toBe(0);
+    expect(payload.jsonMeta.originalVideoFile).toBe('video1.mp4');
+    expect(payload.jsonMeta.originalBasePath).toBe('/home/user/data/videoSuccess');
   });
 
   it('importMedia empty json file success', async () => {
-    const meta = await common.importMedia(settings, '/home/user/data/annotationEmptySuccess/video1.mp4', updater, { checkMedia, convertMedia });
-    const tracks = await common.loadDetections(settings, meta.id);
+    const payload = await common.beginMediaImport(settings, '/home/user/data/annotationEmptySuccess/video1.mp4', checkMedia);
+    await common.finalizeMediaImport(settings, payload, updater, convertMedia);
+    const tracks = await common.loadDetections(settings, payload.jsonMeta.id);
     expect(tracks).toEqual({});
   });
 
   it('importMedia various failure modes', async () => {
-    await expect(common.importMedia(settings, '/fake/path', updater, { checkMedia, convertMedia }))
+    await expect(common.beginMediaImport(settings, '/fake/path', checkMedia))
       .rejects.toThrow('file or directory not found');
-    await expect(common.importMedia(settings, '/home/user/data/imageSuccess/foo.png', updater, { checkMedia, convertMedia }))
+    await expect(common.beginMediaImport(settings, '/home/user/data/imageSuccess/foo.png', checkMedia))
       .rejects.toThrow('chose image file for video import option');
-    await expect(common.importMedia(settings, '/home/user/data/videoSuccess/otherfile.txt', updater, { checkMedia, convertMedia }))
+    await expect(common.beginMediaImport(settings, '/home/user/data/videoSuccess/otherfile.txt', checkMedia))
       .rejects.toThrow('unsupported MIME type');
-    await expect(common.importMedia(settings, '/home/user/data/videoSuccess/nomime', updater, { checkMedia, convertMedia }))
+    await expect(common.beginMediaImport(settings, '/home/user/data/videoSuccess/nomime', checkMedia))
       .rejects.toThrow('could not determine video MIME');
-    await expect(common.importMedia(settings, '/home/user/data/annotationFail/video1.mp4', updater, { checkMedia, convertMedia }))
+
+    const payload = await common.beginMediaImport(settings, '/home/user/data/annotationFail/video1.mp4', checkMedia);
+    await expect(common.finalizeMediaImport(settings, payload, updater, convertMedia))
       .rejects.toThrow('too many CSV');
   });
 
   it('importMedia video, start conversion', async () => {
-    const meta = await common.importMedia(settings, '/home/user/data/videoSuccess/video1.avi', updater, { checkMedia, convertMedia });
-    expect(meta.transcodingJobKey).toBe('jobKey');
-    expect(meta.type).toBe('video');
+    const payload = await common.beginMediaImport(settings, '/home/user/data/videoSuccess/video1.avi', checkMedia);
+    await common.finalizeMediaImport(settings, payload, updater, convertMedia);
+    expect(payload.jsonMeta.transcodingJobKey).toBe('jobKey');
+    expect(payload.jsonMeta.type).toBe('video');
   });
 
   it('processing good Trained Pipeline folder', async () => {

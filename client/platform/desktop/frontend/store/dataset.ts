@@ -56,6 +56,13 @@ function load(): JsonMetaCache[] {
   }
 }
 
+function locateDuplicates(meta: JsonMeta) {
+  return recents.value.filter((candidate) => (
+    candidate.originalBasePath === meta.originalBasePath
+    && candidate.name === meta.name
+  ));
+}
+
 /**
  * Add ID to recent datasets
  * @param id dataset id path
@@ -83,6 +90,7 @@ export {
   datasets,
   recents,
   load,
+  locateDuplicates,
   setRecents,
   clearRecents,
 };

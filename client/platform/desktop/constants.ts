@@ -186,6 +186,11 @@ export interface DesktopJob {
   endTime?: Date;
 }
 
+export interface MediaImportPayload {
+  jsonMeta: JsonMeta;
+  mediaConvertList: string[];
+}
+
 export interface DesktopJobUpdate extends DesktopJob {
   // body contents of update payload
   body: string[];

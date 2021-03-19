@@ -3,7 +3,7 @@ import http from 'http';
 import { ipcMain } from 'electron';
 
 import {
-  DesktopJobUpdate, RunPipeline, RunTraining, Settings, ExportDatasetArgs,
+  DesktopJobUpdate, RunPipeline, RunTraining, Settings, ExportDatasetArgs, MediaImportPayload,
 } from 'platform/desktop/constants';
 
 import linux from './native/linux';
@@ -59,13 +59,19 @@ export default function register() {
   });
 
   ipcMain.handle('import-media', async (event, { path }: { path: string }) => {
+    const ret = await common.beginMediaImport(
+      settings.get(), path, currentPlatform.checkMedia,
+    );
+    return ret;
+  });
+
+  ipcMain.handle('finalize-import', async (event, args: MediaImportPayload) => {
     const updater = (update: DesktopJobUpdate) => {
       event.sender.send('job-update', update);
     };
-    const ret = await common.importMedia(settings.get(), path, updater, {
-      checkMedia: currentPlatform.checkMedia,
-      convertMedia: currentPlatform.convertMedia,
-    });
+    const ret = await common.finalizeMediaImport(
+      settings.get(), args, updater, currentPlatform.convertMedia,
+    );
     return ret;
   });
 

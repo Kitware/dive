@@ -17,7 +17,7 @@ import * as viameSerializers from 'platform/desktop/backend/serializers/viame';
 import {
   websafeImageTypes, websafeVideoTypes, otherImageTypes, otherVideoTypes,
   JsonMeta, Settings, JsonMetaCurrentVersion, DesktopMetadata, DesktopJobUpdater,
-  ConvertMedia, RunTraining, ExportDatasetArgs,
+  ConvertMedia, RunTraining, ExportDatasetArgs, MediaImportPayload,
 } from 'platform/desktop/constants';
 import { Attribute, Attributes } from 'vue-media-annotator/use/useAttributes';
 import processTrackAttributes from './attributeProcessor';
@@ -501,21 +501,13 @@ async function _initializeProjectDir(settings: Settings, jsonMeta: JsonMeta): Pr
 }
 
 /**
- * importMedia locates as much information as possible
- * about a dataset using only the directory structure.
- * @param settings user settings
- * @param path path to import dir/file
- * @returns datasetId
+ * Begin a dataset import.
  */
-async function importMedia(
+async function beginMediaImport(
   settings: Settings,
   path: string,
-  updater: DesktopJobUpdater,
-  { checkMedia, convertMedia }: {
-  checkMedia: (settings: Settings, path: string) => Promise<boolean>;
-  convertMedia: ConvertMedia;
-},
-): Promise<JsonMeta> {
+  checkMedia: (settings: Settings, path: string) => Promise<boolean>,
+): Promise<MediaImportPayload> {
   let datasetType: DatasetType;
 
   const exists = fs.existsSync(path);
@@ -604,6 +596,25 @@ async function importMedia(
     throw new Error('only video and image-sequence types are supported');
   }
 
+  return {
+    jsonMeta,
+    mediaConvertList,
+  };
+}
+
+/**
+ * Finalize a dataset import.
+ */
+async function finalizeMediaImport(
+  settings: Settings,
+  args: MediaImportPayload,
+  updater: DesktopJobUpdater,
+  convertMedia: ConvertMedia,
+) {
+  const { jsonMeta, mediaConvertList } = args;
+  const { type: datasetType, id: dsId } = jsonMeta;
+
+  const contents = await fs.readdir(jsonMeta.originalBasePath);
   const projectDirAbsPath = await _initializeProjectDir(settings, jsonMeta);
 
   //Now we will kick off any conversions that are necessary
@@ -712,13 +723,14 @@ async function exportDataset(
 export {
   ProjectsFolderName,
   JobsFolderName,
+  beginMediaImport,
   createKwiverRunWorkingDir,
   exportDataset,
+  finalizeMediaImport,
   getPipelineList,
   getTrainingConfigs,
   getProjectDir,
   getValidatedProjectDir,
-  importMedia,
   loadMetadata,
   loadJsonMetadata,
   loadJsonTracks,
