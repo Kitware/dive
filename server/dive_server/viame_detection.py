@@ -154,6 +154,12 @@ class ViameDetection(Resource):
                 f'/api/v1/folder/{folderId}/download?{urllib.parse.urlencode(params)}'
             )
 
+        # No-copy import data does not support mimeFilter.
+        # We cannot detect which collections are from no-copy imported data, so
+        # disable all image download from collections
+        if folder['baseParentType'] == 'collection':
+            export_media = None
+
         return {
             'mediaType': source_type,
             'exportAllUrl': export_all,

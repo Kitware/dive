@@ -35,7 +35,7 @@ services:
     image: containrrr/watchtower:latest
     container_name: watchtower
     restart: always
-    command: --schedule "0 2 * * 4" --label-enable # weekly on thursday morning 2AM
+    command: --schedule "0 0 2 * * 4" --label-enable # weekly on thursday morning 2AM
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - /etc/timezone:/etc/timezone:ro
