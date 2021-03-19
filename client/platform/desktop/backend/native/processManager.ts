@@ -34,8 +34,6 @@ function close(child: ChildProcess): Promise<void> {
   });
 
   child.kill('SIGTERM');
-  child.kill('SIGINT');
-  child.kill('SIGKILL');
   return onclose;
 }
 
