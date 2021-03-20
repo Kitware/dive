@@ -3,24 +3,6 @@ import fs from 'fs-extra';
 import { observeChild } from 'platform/desktop/backend/native/processManager';
 import { DesktopJob, DesktopJobUpdater } from 'platform/desktop/constants';
 
-/**
- * Get a nice safe string
- */
-function cleanString(dirty: string) {
-  return dirty.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-}
-
-// https://stackoverflow.com/questions/1349404/generate-random-string-characters-in-javascript
-function makeid(length: number): string {
-  let result = '';
-  const characters = 'abcdefghijklmnopqrstuvwxyz0123456789';
-  const charactersLength = characters.length;
-  for (let i = 0; i < length; i += 1) {
-    result += characters.charAt(Math.floor(Math.random() * charactersLength));
-  }
-  return result;
-}
-
 const processChunk = (chunk: Buffer) => chunk
   .toString('utf-8')
   .split('\n')
@@ -81,8 +63,6 @@ Promise<{ output: null | string; exitCode: number | null; error: string}> {
 }
 
 export {
-  cleanString,
-  makeid,
   jobFileEchoMiddleware,
   spawnResult,
 };

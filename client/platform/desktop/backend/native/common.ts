@@ -19,9 +19,9 @@ import {
   JsonMeta, Settings, JsonMetaCurrentVersion, DesktopMetadata, DesktopJobUpdater,
   ConvertMedia, RunTraining, ExportDatasetArgs, MediaImportPayload,
 } from 'platform/desktop/constants';
+import { cleanString, makeid } from 'platform/desktop/sharedUtils';
 import { Attribute, Attributes } from 'vue-media-annotator/use/useAttributes';
 import processTrackAttributes from './attributeProcessor';
-import { cleanString, makeid } from './utils';
 
 const ProjectsFolderName = 'DIVE_Projects';
 const JobsFolderName = 'DIVE_Jobs';
@@ -598,6 +598,7 @@ async function beginMediaImport(
 
   return {
     jsonMeta,
+    globPattern: '',
     mediaConvertList,
   };
 }

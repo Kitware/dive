@@ -188,6 +188,7 @@ export interface DesktopJob {
 
 export interface MediaImportPayload {
   jsonMeta: JsonMeta;
+  globPattern: string;
   mediaConvertList: string[];
 }
 
