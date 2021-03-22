@@ -1,7 +1,7 @@
 import Vue from 'vue';
 import Vuetify from 'vuetify/lib';
 import colors from 'vuetify/lib/util/colors';
-import girderVuetifyConfig from '@girder/components/src/utils/vuetifyConfig';
+import { vuetifyConfig as girderVuetifyConfig } from '@girder/components/src';
 import { merge } from 'lodash';
 
 import '@mdi/font/css/materialdesignicons.css';
