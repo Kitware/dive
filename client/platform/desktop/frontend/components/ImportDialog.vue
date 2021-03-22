@@ -50,6 +50,7 @@ export default defineComponent({
   <v-card
     outlined
     class="import-card"
+    style="overflow-x: hidden;"
   >
     <v-card-title class="text-h5">
       Import new {{ MediaTypes[argCopy.jsonMeta.type] }}
@@ -65,7 +66,7 @@ export default defineComponent({
         <p
           v-for="(duplicate, i) in duplicates"
           :key="duplicate.id"
-          class="duplicate-list my-0"
+          class="text-caption my-0"
         >
           {{ i + 1 }}: {{ duplicate.name }}, created on
           {{ (new Date(duplicate.createdAt)).toLocaleString() }}
@@ -139,13 +140,13 @@ export default defineComponent({
           outlined
           class="ml-3"
         >
-          Current pattern "{{ argCopy.globPattern }}" matches {{ filteredImages.length }}
+          "{{ argCopy.globPattern }}" matches {{ filteredImages.length }}
           out of {{ argCopy.jsonMeta.originalImageFiles.length }} images
         </v-chip>
         <p class="my-3">
           New Dataset Properties
         </p>
-        <table>
+        <table class="key-value-table">
           <tr>
             <td>New ID</td>
             <td>
@@ -202,37 +203,5 @@ export default defineComponent({
 </template>
 
 <style scoped lang="scss">
-.import-card {
-  overflow-x: hidden;
-}
-.duplicate-list {
-  font-size: 12px;
-}
-table {
-  border-collapse: collapse;
-  width: 100%;
-
-  td {
-    font-size: 14px;
-    border-bottom: 1px solid #444444;
-    padding: 2px 0;
-    padding-right: 10px;
-
-    &:first-child {
-      width: 140px;
-      min-width: 140px;
-      font-weight: bold;
-      padding-left: 12px;
-    }
-    &:last-child {
-      font-size: 12px;
-      padding-right: 10px;
-    }
-  }
-
-  tr:last-child td {
-    border-bottom: 0;
-  }
-}
-
+@import './styles/KeyValueTable.scss';
 </style>

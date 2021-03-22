@@ -19,7 +19,7 @@ import {
   JsonMeta, Settings, JsonMetaCurrentVersion, DesktopMetadata, DesktopJobUpdater,
   ConvertMedia, RunTraining, ExportDatasetArgs, MediaImportPayload,
 } from 'platform/desktop/constants';
-import { cleanString, makeid } from 'platform/desktop/sharedUtils';
+import { cleanString, filterByGlob, makeid } from 'platform/desktop/sharedUtils';
 import { Attribute, Attributes } from 'vue-media-annotator/use/useAttributes';
 import processTrackAttributes from './attributeProcessor';
 
@@ -612,11 +612,17 @@ async function finalizeMediaImport(
   updater: DesktopJobUpdater,
   convertMedia: ConvertMedia,
 ) {
-  const { jsonMeta, mediaConvertList } = args;
+  const { jsonMeta, globPattern } = args;
+  let { mediaConvertList } = args;
   const { type: datasetType, id: dsId } = jsonMeta;
 
-  const contents = await fs.readdir(jsonMeta.originalBasePath);
   const projectDirAbsPath = await _initializeProjectDir(settings, jsonMeta);
+
+  // Filter all parts of the input based on glob pattern
+  if (globPattern && jsonMeta.type === 'image-sequence') {
+    jsonMeta.originalImageFiles = filterByGlob(globPattern, jsonMeta.originalImageFiles);
+    mediaConvertList = filterByGlob(globPattern, mediaConvertList);
+  }
 
   //Now we will kick off any conversions that are necessary
   let jobBase = null;
@@ -647,7 +653,6 @@ async function finalizeMediaImport(
     jsonMeta.transcodingJobKey = jobBase.key;
   }
 
-
   let foundDetections = false;
 
   /* Look for JSON track file as first priority */
@@ -666,6 +671,7 @@ async function finalizeMediaImport(
   }
   /* Look for other types of annotation files as a second priority */
   if (!foundDetections) {
+    const contents = await fs.readdir(jsonMeta.originalBasePath);
     const csvFileCandidates = contents
       .filter((v) => CsvFileName.test(v))
       .map((filename) => npath.join(jsonMeta.originalBasePath, filename));
