@@ -47,7 +47,7 @@ from .utils import (
     getTrackAndAttributesFromCSV,
     getTrackData,
     move_existing_result_to_auxiliary_folder,
-    saveAttributes,
+    saveCSVImportAttributes,
     saveTracks,
 )
 
@@ -438,7 +438,7 @@ class Viame(Resource):
             file = Item().childFiles(csvItems.next())[0]
             (tracks, attributes) = getTrackAndAttributesFromCSV(file)
             saveTracks(folder, tracks, user)
-            saveAttributes(folder, attributes, user)
+            saveCSVImportAttributes(folder, attributes, user)
             csvItems.rewind()
             for item in csvItems:
                 Item().move(item, auxiliary)

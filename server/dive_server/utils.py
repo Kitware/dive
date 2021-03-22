@@ -116,7 +116,7 @@ def saveTracks(folder, tracks, user):
     )
 
 
-def saveAttributes(folder, attributes, user):
+def saveCSVImportAttributes(folder, attributes, user):
     attributes_dict = {}
     if 'attributes' in folder['meta']:
         attributes_dict = folder['meta']['attributes']
