@@ -104,8 +104,9 @@ export default defineComponent({
 <template>
   <div>
     <v-menu
-      max-width="320"
+      max-width="230"
       offset-y
+      :close-on-content-click="false"
     >
       <template v-slot:activator="{ on: menuOn }">
         <v-tooltip bottom>
@@ -157,8 +158,7 @@ export default defineComponent({
               <v-menu
                 :key="pipeType"
                 offset-x
-                nudge-left="10"
-                left
+                right
               >
                 <template v-slot:activator="{ on }">
                   <v-btn
@@ -166,14 +166,14 @@ export default defineComponent({
                     block
                     v-on="on"
                   >
+                    {{ pipeTypeDisplay(pipeType) }}
                     <v-icon
                       right
                       color="accent"
-                      class="mr-0"
+                      class="ml-2"
                     >
-                      mdi-menu-left
+                      mdi-menu-right
                     </v-icon>
-                    {{ pipeTypeDisplay(pipeType) }}
                   </v-btn>
                 </template>
 

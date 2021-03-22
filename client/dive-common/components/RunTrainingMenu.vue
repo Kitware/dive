@@ -136,7 +136,7 @@ export default defineComponent({
             color="warning"
             outlined
           >
-            This instance is updated on Thursday at 2AM EST.
+            This server is updated on Thursday at 2AM EST.
             If your training job is running at that time it may be restarted or killed.
           </v-alert>
 
@@ -155,17 +155,6 @@ export default defineComponent({
             label="Configuration File"
             :items="trainingConfigurations.configs"
           />
-          <p>
-            Input data:
-          </p>
-          <v-chip
-            v-for="id in selectedDatasetIds"
-            :key="id"
-            small
-            class="mr-1 mb-2"
-          >
-            <pre>{{ id }}</pre>
-          </v-chip>
           <v-btn
             depressed
             block
@@ -174,7 +163,7 @@ export default defineComponent({
             :disabled="!trainingOutputName || !selectedTrainingConfig"
             @click="runTrainingOnFolder"
           >
-            Run Training
+            Train on {{ selectedDatasetIds.length }} dataset(s)
           </v-btn>
         </v-card-text>
       </v-card>
