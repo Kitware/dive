@@ -33,6 +33,34 @@ const JsonTrackFileName = /^result(_.*)?\.json$/;
 const JsonMetaFileName = 'meta.json';
 const CsvFileName = /^.*\.csv$/;
 
+async function findImagesInFolder(path: string, glob?: string) {
+  const images: string[] = [];
+  let requiresTranscoding = false;
+  const contents = await fs.readdir(path);
+
+  contents.forEach((filename) => {
+    const abspath = npath.join(path, filename);
+    const mimetype = mime.lookup(abspath);
+    if (glob === undefined || filterByGlob(glob, [filename]).length === 1) {
+      if (
+        mimetype && (websafeImageTypes.includes(mimetype)
+          || otherImageTypes.includes(mimetype))
+      ) {
+        images.push(filename);
+        if (otherImageTypes.includes(mimetype)) {
+          requiresTranscoding = true;
+        }
+      }
+    }
+  });
+  return {
+    images,
+    mediaConvetList: requiresTranscoding
+      ? images.map((filename) => npath.join(path, filename))
+      : [],
+  };
+}
+
 async function _acquireLock(dir: string, resource: string, lockname: 'meta' | 'tracks') {
   const release = await lockfile.lock(resource, {
     stale: 5000, // 5 seconds
@@ -548,8 +576,7 @@ async function beginMediaImport(
     jsonMeta.originalBasePath = npath.dirname(path);
   }
 
-  const contents = await fs.readdir(jsonMeta.originalBasePath);
-
+  /* mediaConvertList is a list of absolute paths of media to convert */
   let mediaConvertList: string[] = [];
   /* Extract and validate media from import path */
   if (jsonMeta.type === 'video') {
@@ -570,28 +597,12 @@ async function beginMediaImport(
       throw new Error(`could not determine video MIME type for ${path}`);
     }
   } else if (datasetType === 'image-sequence') {
-    const tempConvertList: string[] = [];
-    let convertAny = false; //If we have to convert one image we convert all for organization
-    contents.forEach((filename) => {
-      const abspath = npath.join(jsonMeta.originalBasePath, filename);
-      const mimetype = mime.lookup(abspath);
-      if (
-        mimetype && (websafeImageTypes.includes(mimetype)
-        || otherImageTypes.includes(mimetype))
-      ) {
-        jsonMeta.originalImageFiles.push(filename);
-        tempConvertList.push(abspath);
-        if (otherImageTypes.includes(mimetype)) {
-          convertAny = true;
-        }
-      }
-    });
-    if (jsonMeta.originalImageFiles.length === 0) {
+    const found = await findImagesInFolder(jsonMeta.originalBasePath);
+    if (found.images.length === 0) {
       throw new Error(`no images found in ${path}`);
     }
-    if (convertAny) {
-      mediaConvertList = tempConvertList;
-    }
+    jsonMeta.originalImageFiles = found.images;
+    mediaConvertList = found.mediaConvetList;
   } else {
     throw new Error('only video and image-sequence types are supported');
   }
@@ -620,8 +631,12 @@ async function finalizeMediaImport(
 
   // Filter all parts of the input based on glob pattern
   if (globPattern && jsonMeta.type === 'image-sequence') {
-    jsonMeta.originalImageFiles = filterByGlob(globPattern, jsonMeta.originalImageFiles);
-    mediaConvertList = filterByGlob(globPattern, mediaConvertList);
+    const found = await findImagesInFolder(jsonMeta.originalBasePath, globPattern);
+    if (found.images.length === 0) {
+      throw new Error(`no images in ${jsonMeta.originalBasePath} matched pattern ${globPattern}`);
+    }
+    jsonMeta.originalImageFiles = found.images;
+    mediaConvertList = found.mediaConvetList;
   }
 
   //Now we will kick off any conversions that are necessary

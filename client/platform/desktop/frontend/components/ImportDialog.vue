@@ -34,10 +34,18 @@ export default defineComponent({
       argCopy.value.jsonMeta.originalImageFiles,
     ));
 
+    const ready = computed(() => {
+      if (argCopy.value.globPattern) {
+        return filteredImages.value.length > 0;
+      }
+      return true;
+    });
+
     return {
       argCopy,
       duplicates,
       filteredImages,
+      ready,
       settings,
       showAdvanced,
       MediaTypes,
@@ -125,7 +133,7 @@ export default defineComponent({
           v-if="argCopy.jsonMeta.type === 'image-sequence'"
           v-model="argCopy.globPattern"
           label="Glob Filter Pattern"
-          placeholder="Leave blank to use all images. example: *png"
+          placeholder="Leave blank to use all images. example: *.png"
           hint="
             Used to filter input images. Multiple patterns should be separated with semicolon.
           "
@@ -193,6 +201,7 @@ export default defineComponent({
         </v-btn>
         <v-btn
           color="primary"
+          :disabled="!ready"
           @click="$emit('finalize-import', argCopy)"
         >
           Finish Import
