@@ -135,7 +135,7 @@ export interface NvidiaSmiReply {
     };
   } | null;
   // process exit code
-  exitCode: number;
+  exitCode: number | null;
   // error message
   error: string;
 }
