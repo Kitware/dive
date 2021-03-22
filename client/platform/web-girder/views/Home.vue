@@ -1,8 +1,7 @@
 <script>
 import Vue from 'vue';
 import { mapMutations } from 'vuex';
-import { FileManager } from '@girder/components/src/components/Snippet';
-import { getLocationType } from '@girder/components/src/utils';
+import { getLocationType, GirderFileManager } from '@girder/components/src';
 
 import RunPipelineMenu from 'dive-common/components/RunPipelineMenu.vue';
 import RunTrainingMenu from 'dive-common/components/RunTrainingMenu.vue';
@@ -16,12 +15,12 @@ export default Vue.extend({
   name: 'Home',
   components: {
     Export,
-    FileManager,
+    GirderFileManager,
     Upload,
     RunPipelineMenu,
     RunTrainingMenu,
   },
-  inject: ['notificationBus', 'girderRest'],
+  inject: ['girderRest'],
   data: () => ({
     uploaderDialog: false,
     selected: [],
@@ -100,10 +99,10 @@ export default Vue.extend({
       this.setLocation(newloc);
       this.$router.push(getPathFromLocation(newloc));
     }
-    this.notificationBus.$on('message:job_status', this.handleNotification);
+    this.girderRest.$on('message:job_status', this.handleNotification);
   },
   beforeDestroy() {
-    this.notificationBus.$off('message:job_status', this.handleNotification);
+    this.girderRest.$off('message:job_status', this.handleNotification);
   },
   methods: {
     ...mapMutations('Location', ['setLocation']),
@@ -164,7 +163,7 @@ export default Vue.extend({
         no-gutters
       >
         <v-col :cols="12">
-          <FileManager
+          <GirderFileManager
             ref="fileManager"
             v-model="selected"
             :selectable="!locationIsViameFolder"
@@ -243,7 +242,7 @@ export default Vue.extend({
                 Launch Annotator
               </v-btn>
             </template>
-          </FileManager>
+          </GirderFileManager>
         </v-col>
       </v-row>
     </v-container>

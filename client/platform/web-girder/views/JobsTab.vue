@@ -2,17 +2,14 @@
 import {
   defineComponent, onBeforeUnmount, reactive, toRefs,
 } from '@vue/composition-api';
-import type { GirderJob } from '@girder/components/src';
-// eslint-disable-next-line @typescript-eslint/ban-ts-ignore
-// @ts-ignore
+import { GirderJob } from '@girder/components/src';
 import { all } from '@girder/components/src/components/Job/status';
-import { useGirderRest, useNotificationBus } from '../plugins/girder';
+import { useGirderRest } from '../plugins/girder';
 
 export default defineComponent({
   name: 'JobsTab',
   setup() {
     const girderRest = useGirderRest();
-    const notificationBus = useNotificationBus();
     const jobStatus = all();
     const data = reactive({
       runningJobIds: [] as string[],
@@ -47,11 +44,11 @@ export default defineComponent({
         },
       });
       data.runningJobIds = runningJobs.map((job) => job._id);
-      notificationBus.$on('message:job_status', handleNotification);
+      girderRest.$on('message:job_status', handleNotification);
     }
 
     onBeforeUnmount(() => {
-      notificationBus.$off('message:job_status', handleNotification);
+      girderRest.$off('message:job_status', handleNotification);
     });
 
     created();
