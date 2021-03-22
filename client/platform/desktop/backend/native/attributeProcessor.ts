@@ -35,10 +35,12 @@ function processTrackAttributes(tracks: TrackData[]):
     });
     // Now we attempt to process the attributes to infer the type.
     // Cascading based on the attempting to convert and values
+
+    const predefinedMinCount = 3; // count all keys must have a value to convert to predefined
     Object.keys(attributeObj).forEach((attributeKey) => {
       if (testVals[attributeKey]) {
         let attributeType: ('number' | 'boolean' | 'text') = 'number';
-        let lowCount = 3;
+        let lowCount = predefinedMinCount;
         const values: string[] = [];
         Object.entries(testVals[attributeKey]).forEach(([key, val]) => {
           if (val <= lowCount) {
@@ -53,7 +55,7 @@ function processTrackAttributes(tracks: TrackData[]):
           }
         });
         // If all items are used 3 or more times it has discrete set Values otherwise
-        if (lowCount >= 3 && attributeType.indexOf('text') !== -1) {
+        if (lowCount >= predefinedMinCount && attributeType.indexOf('text') !== -1) {
           attributeObj[attributeKey].values = values;
         }
         // eslint-disable-next-line no-param-reassign

@@ -188,10 +188,13 @@ def create_attributes(
 def calculate_attribute_types(
     metadata_attributes: Dict[str, Attribute], test_vals: Dict[str, int]
 ):
+    predefined_min_count = (
+        3  # count all keys must have a value to convert to predefined
+    )
     for attributeKey in metadata_attributes.keys():
         if attributeKey in test_vals:
             attribute_type = 'number'
-            low_count = 3
+            low_count = predefined_min_count
             values = []
             for (key, val) in test_vals[attributeKey].items():
                 if val <= low_count:
@@ -205,7 +208,7 @@ def calculate_attribute_types(
                 if attribute_type == 'boolean' and key != 'True' and key != 'False':
                     attribute_type = 'text'
             # If all text values are used 3 or more times they are defined values
-            if low_count >= 3 and 'text' in attribute_type:
+            if low_count >= predefined_min_count and 'text' in attribute_type:
                 metadata_attributes[attributeKey]['values'] = values
 
             metadata_attributes[attributeKey]['datatype'] = attribute_type
