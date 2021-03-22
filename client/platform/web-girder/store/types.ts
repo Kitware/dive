@@ -1,6 +1,6 @@
-import { GirderModel } from '@girder/components/src';
-import { BrandData } from 'platform/web-girder/api/viame.service';
-import { GirderMetadata } from 'platform/web-girder/constants';
+import type { GirderModel } from '@girder/components/src';
+import type { BrandData } from 'platform/web-girder/api/viame.service';
+import type { GirderMetadata } from 'platform/web-girder/constants';
 
 export interface LocationState {
   location: null | GirderModel;
