@@ -1,9 +1,10 @@
 <script lang="ts">
 import {
-  defineComponent, reactive, computed, toRef, watch,
+  defineComponent, reactive, computed, toRef, watch, ref,
 } from '@vue/composition-api';
 import { loadMetadata, exportDataset } from 'platform/desktop/frontend/api';
 import type { JsonMeta } from 'platform/desktop/constants';
+import { usePendingSaveCount, useHandler } from 'vue-media-annotator/provides';
 
 export default defineComponent({
   props: {
@@ -26,6 +27,10 @@ export default defineComponent({
       meta: null as JsonMeta | null,
       outPath: '',
     });
+    const savePrompt = ref(false);
+
+    const pendingSaveCount = usePendingSaveCount();
+    const { save } = useHandler();
 
     watch(toRef(data, 'menuOpen'), async (newval) => {
       if (newval) {
@@ -41,7 +46,14 @@ export default defineComponent({
         ? Object.keys(data.meta.confidenceFilters || {})
         : []));
 
-    async function doExport() {
+    async function doExport({ forceSave = false }) {
+      if (pendingSaveCount.value > 0 && forceSave) {
+        await save();
+        savePrompt.value = false;
+      } else if (pendingSaveCount.value > 0) {
+        savePrompt.value = true;
+        return;
+      }
       try {
         data.err = null;
         data.outPath = await exportDataset(props.id, data.excludeFiltered);
@@ -54,6 +66,7 @@ export default defineComponent({
     return {
       data,
       doExport,
+      savePrompt,
       thresholds,
     };
   },
@@ -102,7 +115,7 @@ export default defineComponent({
             max-width="600"
             persistent
             :value="data.err"
-            :overlay-opacity="0.8"
+            :overlay-opacity="0.95"
           >
             <v-card outlined>
               <v-card-text class="pa-3">
@@ -123,6 +136,43 @@ export default defineComponent({
                 >
                   <v-icon>mdi-close</v-icon>
                   Dismiss
+                </v-btn>
+              </v-card-actions>
+            </v-card>
+          </v-dialog>
+          <v-dialog
+            max-width="500"
+            persistent
+            :value="savePrompt"
+            :overlay-opacity="0.95"
+          >
+            <v-card outlined>
+              <v-card-text class="py-4">
+                <p class="text-h5">
+                  Do you want to save changes first?
+                </p>
+                <v-alert
+                  dense
+                  outlined
+                  type="warning"
+                >
+                  There are unsaved changes to this dataset.
+                </v-alert>
+              </v-card-text>
+              <v-card-actions>
+                <v-spacer />
+                <v-btn
+                  depressed
+                  text
+                  @click="savePrompt = false"
+                >
+                  Cancel
+                </v-btn>
+                <v-btn
+                  color="primary"
+                  @click="doExport({ forceSave: true })"
+                >
+                  Save and Export
                 </v-btn>
               </v-card-actions>
             </v-card>

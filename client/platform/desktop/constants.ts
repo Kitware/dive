@@ -58,6 +58,8 @@ export const otherImageTypes = [
 export const JsonMetaCurrentVersion = 1;
 export const SettingsCurrentVersion = 1;
 
+export const DefaultOverlayOpacity = 0.95;
+
 export interface Settings {
   // version a schema version
   version: number;

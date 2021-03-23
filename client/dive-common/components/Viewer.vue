@@ -288,6 +288,7 @@ export default defineComponent({
 
     const globalHandler = {
       ...handler,
+      save,
       setCheckedTypes: updateCheckedTypes,
       trackSplit,
       trackEnable: updateCheckedTrackId,
@@ -311,6 +312,7 @@ export default defineComponent({
         enabledTracks,
         frame,
         intervalTree,
+        pendingSaveCount,
         trackMap,
         filteredTracks,
         typeStyling,
