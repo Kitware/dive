@@ -1,44 +1,63 @@
 <script lang="ts">
 import { join } from 'path';
-import { computed, defineComponent, ref } from '@vue/composition-api';
+import {
+  computed, defineComponent, ref, Ref,
+} from '@vue/composition-api';
 
-import { DatasetType } from 'dive-common/apispec';
+import type { DatasetType } from 'dive-common/apispec';
+import type { MediaImportPayload } from 'platform/desktop/constants';
 
-import { openFromDisk, importMedia, loadMetadata } from '../api';
+import * as api from '../api';
 import { recents, setRecents } from '../store/dataset';
+import { setOrGetConversionJob } from '../store/jobs';
 import BrowserLink from './BrowserLink.vue';
 import NavigationBar from './NavigationBar.vue';
-import { setOrGetConversionJob } from '../store/jobs';
+import ImportDialog from './ImportDialog.vue';
 
 export default defineComponent({
   components: {
     BrowserLink,
+    ImportDialog,
     NavigationBar,
   },
+
   setup(_, { root }) {
     const snackbar = ref(false);
     const pageSize = 12; // Default 12 looks good on default width/height of window
     const limit = ref(pageSize);
     const errorText = ref('');
+    const pendingImportPayload: Ref<MediaImportPayload | null> = ref(null);
+
     async function open(dstype: DatasetType) {
-      const ret = await openFromDisk(dstype);
+      const ret = await api.openFromDisk(dstype);
       if (!ret.canceled) {
         try {
-          const meta = await importMedia(ret.filePaths[0]);
-          if (!meta.transcodingJobKey) {
-            root.$router.push({
-              name: 'viewer',
-              params: { id: meta.id },
-            });
-          } else {
-            // Display new data and await transcoding to complete
-            const recentsMeta = await loadMetadata(meta.id);
-            setRecents(recentsMeta);
-          }
+          pendingImportPayload.value = await api.importMedia(ret.filePaths[0]);
         } catch (err) {
           snackbar.value = true;
           errorText.value = err.message;
         }
+      }
+    }
+
+    /** Accept args from the dialog, as it may have modified some parts */
+    async function finalizeImport(args: MediaImportPayload) {
+      try {
+        const jsonMeta = await api.finalizeImport(args);
+        pendingImportPayload.value = null; // close dialog
+        if (!jsonMeta.transcodingJobKey) {
+          root.$router.push({
+            name: 'viewer',
+            params: { id: jsonMeta.id },
+          });
+        } else {
+          // Display new data and await transcoding to complete
+          const recentsMeta = await api.loadMetadata(jsonMeta.id);
+          setRecents(recentsMeta);
+        }
+      } catch (err) {
+        snackbar.value = true;
+        errorText.value = err.message;
       }
     }
 
@@ -56,6 +75,7 @@ export default defineComponent({
     return {
       // methods
       open,
+      finalizeImport,
       join,
       setOrGetConversionJob,
       toggleMore,
@@ -63,6 +83,7 @@ export default defineComponent({
       pageSize,
       limit,
       paginatedRecents,
+      pendingImportPayload,
       totalRecents,
       snackbar,
       errorText,
@@ -73,6 +94,20 @@ export default defineComponent({
 
 <template>
   <v-main>
+    <v-dialog
+      :value="pendingImportPayload !== null"
+      persistent
+      width="800"
+      overlay-opacity="0.95"
+      max-width="80%"
+    >
+      <ImportDialog
+        v-if="pendingImportPayload !== null"
+        :import-data="pendingImportPayload"
+        @finalize-import="finalizeImport($event)"
+        @abort="pendingImportPayload = null"
+      />
+    </v-dialog>
     <navigation-bar />
     <v-container>
       <v-col>

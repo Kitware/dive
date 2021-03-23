@@ -7,11 +7,12 @@ import {
   ConversionArgs,
   DesktopJobUpdater,
 } from 'platform/desktop/constants';
+import { cleanString } from 'platform/desktop/sharedUtils';
 import { serialize } from 'platform/desktop/backend/serializers/viame';
 import { observeChild } from 'platform/desktop/backend/native/processManager';
 
 import * as common from './common';
-import { cleanString, jobFileEchoMiddleware, spawnResult } from './utils';
+import { jobFileEchoMiddleware, spawnResult } from './utils';
 
 
 const PipelineRelativeDir = 'configs/pipelines';
