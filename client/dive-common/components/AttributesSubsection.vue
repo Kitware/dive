@@ -256,7 +256,7 @@ export default defineComponent({
                 x-small
                 @click="editAttribute(attribute)"
               >
-                <v-icon small> mdi-settings </v-icon>
+                <v-icon small> mdi-cog </v-icon>
               </v-btn>
             </v-col>
           </v-row>

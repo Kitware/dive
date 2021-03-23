@@ -44,8 +44,10 @@ from .transforms import GetPathFromItemId
 from .utils import (
     detections_item,
     get_or_create_auxiliary_folder,
+    getTrackAndAttributesFromCSV,
     getTrackData,
     move_existing_result_to_auxiliary_folder,
+    saveCSVImportAttributes,
     saveTracks,
 )
 
@@ -434,8 +436,9 @@ class Viame(Resource):
         )
         if csvItems.count() >= 1:
             file = Item().childFiles(csvItems.next())[0]
-            json_output = getTrackData(file)
-            saveTracks(folder, json_output, user)
+            (tracks, attributes) = getTrackAndAttributesFromCSV(file)
+            saveTracks(folder, tracks, user)
+            saveCSVImportAttributes(folder, attributes, user)
             csvItems.rewind()
             for item in csvItems:
                 Item().move(item, auxiliary)

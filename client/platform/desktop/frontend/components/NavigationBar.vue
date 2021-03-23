@@ -29,7 +29,7 @@ export default defineComponent({
         Training<v-icon>mdi-brain</v-icon>
       </v-tab>
       <v-tab :to="{ name: 'settings' }">
-        Settings<v-icon>mdi-settings</v-icon>
+        Settings<v-icon>mdi-cog</v-icon>
       </v-tab>
     </v-tabs>
     <v-spacer />
