@@ -2,11 +2,17 @@
 import {
   defineComponent, reactive, computed, toRef, watch, ref,
 } from '@vue/composition-api';
+
+import { usePendingSaveCount, useHandler } from 'vue-media-annotator/provides';
+import AutosavePrompt from 'dive-common/components/AutosavePrompt.vue';
 import { loadMetadata, exportDataset } from 'platform/desktop/frontend/api';
 import type { JsonMeta } from 'platform/desktop/constants';
-import { usePendingSaveCount, useHandler } from 'vue-media-annotator/provides';
 
 export default defineComponent({
+  name: 'Export',
+
+  components: { AutosavePrompt },
+
   props: {
     id: {
       type: String,
@@ -140,43 +146,10 @@ export default defineComponent({
               </v-card-actions>
             </v-card>
           </v-dialog>
-          <v-dialog
-            max-width="500"
-            persistent
-            :value="savePrompt"
-            :overlay-opacity="0.95"
-          >
-            <v-card outlined>
-              <v-card-text class="py-4">
-                <p class="text-h5">
-                  Do you want to save changes first?
-                </p>
-                <v-alert
-                  dense
-                  outlined
-                  type="warning"
-                >
-                  There are unsaved changes to this dataset.
-                </v-alert>
-              </v-card-text>
-              <v-card-actions>
-                <v-spacer />
-                <v-btn
-                  depressed
-                  text
-                  @click="savePrompt = false"
-                >
-                  Cancel
-                </v-btn>
-                <v-btn
-                  color="primary"
-                  @click="doExport({ forceSave: true })"
-                >
-                  Save and Export
-                </v-btn>
-              </v-card-actions>
-            </v-card>
-          </v-dialog>
+          <AutosavePrompt
+            v-model="savePrompt"
+            @save="doExport({ forceSave: true })"
+          />
           <v-alert
             v-if="data.outPath"
             dense
