@@ -8,7 +8,6 @@
     "moduleResolution": "node",
     "allowJs": true,
     "outDir": "./dist",
-    // "skipLibCheck": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "sourceMap": false,
