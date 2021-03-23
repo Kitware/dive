@@ -177,9 +177,7 @@ def create_attributes(
         }
         test_vals[attribute_key] = {}
         test_vals[attribute_key][valstring] = 1
-    elif (
-        attribute_key in metadata_attributes and attribute_key in test_vals
-    ):
+    elif attribute_key in metadata_attributes and attribute_key in test_vals:
         if valstring in test_vals[attribute_key]:
             test_vals[attribute_key][valstring] += 1
         else:
