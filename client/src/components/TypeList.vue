@@ -182,7 +182,7 @@ export default defineComponent({
               small
               :color="data.settingsActive ? 'accent' : 'default'"
             >
-              mdi-settings
+              mdi-cog
             </v-icon>
           </v-btn>
           <v-tooltip
