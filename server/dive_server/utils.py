@@ -3,7 +3,7 @@ import json
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 
 from girder.exceptions import RestException
 from girder.models.file import File
@@ -12,7 +12,7 @@ from girder.models.item import Item
 from girder.models.upload import Upload
 from pymongo.cursor import Cursor
 
-from dive_server.serializers import viame
+from dive_server.serializers import models, viame
 from dive_utils.types import GirderModel
 
 
@@ -74,12 +74,25 @@ def getTrackData(file: Optional[File]) -> Dict[str, dict]:
     if file is None:
         return {}
     if "csv" in file["exts"]:
-        return viame.load_csv_as_tracks(
+        (tracks, attributes) = viame.load_csv_as_tracks_and_attributes(
             b"".join(list(File().download(file, headers=False)()))
             .decode("utf-8")
             .splitlines()
         )
+        return tracks
     return json.loads(b"".join(list(File().download(file, headers=False)())).decode())
+
+
+def getTrackAndAttributesFromCSV(file: File) -> Tuple[dict, dict]:
+    if file is None:
+        return ({}, {})
+    if "csv" in file["exts"]:
+        return viame.load_csv_as_tracks_and_attributes(
+            b"".join(list(File().download(file, headers=False)()))
+            .decode("utf-8")
+            .splitlines()
+        )
+    return ({}, {})
 
 
 def saveTracks(folder, tracks, user):
@@ -101,3 +114,17 @@ def saveTracks(folder, tracks, user):
         user=user,
         mimeType="application/json",
     )
+
+
+def saveCSVImportAttributes(folder, attributes, user):
+    attributes_dict = {}
+    if 'attributes' in folder['meta']:
+        attributes_dict = folder['meta']['attributes']
+    # we dont overwrite any existing meta attributes
+    for attribute in attributes.values():
+        validated: models.Attribute = models.Attribute(**attribute)
+        if attribute['key'] not in attributes_dict:
+            attributes_dict[str(validated.key)] = validated.dict(exclude_none=True)
+
+    folder['meta']['attributes'] = attributes_dict
+    Folder().save(folder)
