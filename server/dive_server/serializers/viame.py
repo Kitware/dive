@@ -167,22 +167,23 @@ def create_attributes(
     val,
 ):
     valstring = f'{val}'
-    if f'{atr_type}_{key}' not in metadata_attributes:
-        metadata_attributes[f'{atr_type}_{key}'] = {
+    attribute_key = f'{atr_type}_{key}'
+    if attribute_key not in metadata_attributes:
+        metadata_attributes[attribute_key] = {
             'belongs': atr_type,
             'datatype': 'text',
             'name': key,
-            'key': f'{atr_type}_{key}',
+            'key': attribute_key,
         }
-        test_vals[f'{atr_type}_{key}'] = {}
-        test_vals[f'{atr_type}_{key}'][valstring] = 1
+        test_vals[attribute_key] = {}
+        test_vals[attribute_key][valstring] = 1
     elif (
-        f'{atr_type}_{key}' in metadata_attributes and f'{atr_type}_{key}' in test_vals
+        attribute_key in metadata_attributes and attribute_key in test_vals
     ):
-        if valstring in test_vals[f'{atr_type}_{key}']:
-            test_vals[f'{atr_type}_{key}'][valstring] += 1
+        if valstring in test_vals[attribute_key]:
+            test_vals[attribute_key][valstring] += 1
         else:
-            test_vals[f'{atr_type}_{key}'][valstring] = 1
+            test_vals[attribute_key][valstring] = 1
 
 
 def calculate_attribute_types(
