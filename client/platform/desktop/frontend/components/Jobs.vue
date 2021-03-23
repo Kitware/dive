@@ -107,7 +107,7 @@ export default defineComponent({
                     {{ job.job.jobType }}: {{ datasets[job.job.datasetIds[0]].name }}
                   </v-card-title>
                   <v-card-subtitle>
-                    <table cell-spacing="10px">
+                    <table class="key-value-table">
                       <tr v-if="'pipeline' in job.job.args">
                         <td>Pipe</td>
                         <td>{{ job.job.args.pipeline.pipe }}</td>
@@ -124,17 +124,19 @@ export default defineComponent({
                       </tr>
                       <tr>
                         <td>work dir</td>
-                        <td
-                          class="selectable"
-                          @click="openPath(job.job)"
-                        >
-                          <span class="text-decoration-underline">show in file manager</span>
-                          <v-icon
-                            small
-                            class="mx-2"
+                        <td>
+                          <span
+                            class="selectable"
+                            @click="openPath(job.job)"
                           >
-                            mdi-folder-open
-                          </v-icon>
+                            <span class="text-decoration-underline">show in file manager</span>
+                            <v-icon
+                              small
+                              class="mx-2"
+                            >
+                              mdi-folder-open
+                            </v-icon>
+                          </span>
                         </td>
                       </tr>
                     </table>
@@ -220,21 +222,23 @@ export default defineComponent({
   </v-main>
 </template>
 
-<style scoped>
+<style lang="scss" scoped>
+@import './styles/KeyValueTable.scss';
+
 .terminal {
   font-family: monospace;
   font-size: 12px;
+
+  &.terminal-meta {
+    opacity: 0.7;
+  }
 }
-.terminal-meta {
-  opacity: 0.7;
-}
-td {
-  padding-right: 20px;
-}
+
 .selectable {
   cursor: pointer;
-}
-.selectable:hover {
-  opacity: 0.8;
+
+  &:hover {
+    opacity: 0.8;
+  }
 }
 </style>

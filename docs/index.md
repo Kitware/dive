@@ -1,13 +1,12 @@
 # DIVE Documentation
 
-This is the documentation for DIVE, an open-source annotation system that integrates with VIAME.
-
-![Home](images/Banner.png)
+This is the user documentation for DIVE, an open-source annotation system that integrates with VIAME.
 
 ## Get Help
 
-* For problems, feature requests, etc. contact us through our [discussion board](https://github.com/VIAME/VIAME/discussions).  This board is for all topics related to VIAME or DIVE.
-* You can also email `viame-web@kitware.com`
+For feedback, problems, questions, or feature requests, please email <a href="mailto:viame-web@kitware.com">`viame-web@kitware.com`</a>
+
+![Home](images/Banner.png)
 
 ## VIAME Web (Browser) Version
 
