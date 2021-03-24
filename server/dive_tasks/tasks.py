@@ -24,6 +24,7 @@ from dive_tasks.utils import (
     organize_folder_for_training,
     stream_subprocess,
 )
+from dive_utils import fromMeta
 from dive_utils.types import AvailableJobSchema, GirderModel, PipelineJob
 
 EMPTY_JOB_SCHEMA: AvailableJobSchema = {
@@ -91,6 +92,12 @@ class Config:
 
         self.addon_zip_path.mkdir(exist_ok=True, parents=True)
         self.addon_extracted_path.mkdir(exist_ok=True, parents=True)
+
+        # Set include directory to include pipelines from this path
+        # https://github.com/VIAME/VIAME/issues/131
+        self.gpu_process_env['SPROKIT_PIPE_INCLUDE_PATH'] = str(
+            self.addon_extracted_path / self.pipeline_subdir
+        )
 
     def get_extracted_pipeline_path(self, missing_ok=False) -> Path:
         """
@@ -337,7 +344,7 @@ def train_pipeline(
                 download_path, groundtruth_path
             )
             # We point to file if is a video
-            if source_folder.get("meta", {}).get("type") == "video":
+            if fromMeta(source_folder, "type") == "video":
                 video_file = get_video_filename(source_folder["_id"], gc)
                 if video_file is None:
                     raise Exception(

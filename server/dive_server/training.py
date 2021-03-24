@@ -14,6 +14,7 @@ from dive_server.constants import (
     safeImageRegex,
 )
 from dive_server.serializers import viame
+from dive_utils import fromMeta
 from dive_utils.types import GirderModel
 
 TrainingOutputFolderName = "VIAME Training Results"
@@ -60,12 +61,11 @@ def ensure_csv_detections_file(
         b"".join(list(File().download(file, headers=False)())).decode()
     )
 
-    foldermeta = folder.get('meta', {})
     fps = None
     imageFiles = None
-    source_type = foldermeta.get('type', None)
+    source_type = fromMeta(folder, 'type')
     if source_type == VideoType:
-        fps = foldermeta.get('fps', None)
+        fps = fromMeta(folder, 'fps')
     elif source_type == ImageSequenceType:
         imageFiles = [
             f['name']
@@ -74,7 +74,7 @@ def ensure_csv_detections_file(
             .sort("lowerName")
         ]
 
-    thresholds = folder.get("meta", {}).get("confidenceFilters", {})
+    thresholds = fromMeta(folder, "confidenceFilters", {})
     csv_string = "".join(
         (
             line
