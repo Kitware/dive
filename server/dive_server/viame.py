@@ -202,8 +202,8 @@ class Viame(Resource):
                 pipeline["folderId"], level=AccessType.READ, user=user
             )
             requires_input = asbool(fromMeta(pipeFolder, "requires_input"))
-        if 'utility' in pipeline["pipe"]:
-            # If pipeline has "utility" in the name.
+        elif pipeline["pipe"].startswith('utility_'):
+            # TODO Temporary inclusion of utility pipes which take csv input
             requires_input = True
 
         detection_csv: Optional[GirderModel] = None
