@@ -10,7 +10,6 @@ Best for a series of images that have no temporal relationship, such as arial ph
 | -------- | --------------------------------------------------------------------------- |
 | Default  | Use the default detector if you aren't sure which best applies to your data |
 
-
 ## Tracking
 
 Run full tracking pipelines on your data.  Appropriate for videos and image sequences that derive from a video.  Tracking involves first running a detection pipeline then performing detection linking to form connected object tracks.
@@ -19,6 +18,15 @@ Run full tracking pipelines on your data.  Appropriate for videos and image sequ
 | -------- | -------------------------------------------------------------------------- |
 | Default  | Use the default tracker if you aren't sure which best applies to your data |
 
+## Utility
+
+An assortment of other types of utility pipelines.  Utility piplines are named `utility_<name>.pipe` and are unique in that they _may_ take detections as inputs (but are not required to).  
+
+| Pipeline | Use case                                                                   |
+| -------- | -------------------------------------------------------------------------- |
+| <pre>add segmentations watershed</pre>  | Transform existing bounding boxes into polygons |
+| <pre>empty frame lbls {N}fr</pre> | Add an empty bounding box covering the whole media element for the purpose of adding full-frame classifier attributes. Unique tracks are created every N frames. |
+| <pre>track user selections</pre> | Create tracks from user-initialized detection bounding boxes.  Draw a box on the first frame of a track, and the pipeline will continue tracking the selected object(s) |
 
 ## Training
 

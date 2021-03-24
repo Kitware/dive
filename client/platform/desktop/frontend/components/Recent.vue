@@ -27,6 +27,7 @@ export default defineComponent({
     const limit = ref(pageSize);
     const errorText = ref('');
     const pendingImportPayload: Ref<MediaImportPayload | null> = ref(null);
+    const searchText: Ref<string | null> = ref('');
 
     async function open(dstype: DatasetType) {
       const ret = await api.openFromDisk(dstype);
@@ -61,8 +62,10 @@ export default defineComponent({
       }
     }
 
-    const paginatedRecents = computed(() => recents.value.slice(0, limit.value));
-    const totalRecents = computed(() => recents.value.length);
+    const filteredRecents = computed(() => recents.value
+      .filter((v) => v.name.toLowerCase().indexOf((searchText.value || '').toLowerCase()) >= 0));
+    const paginatedRecents = computed(() => (filteredRecents.value.slice(0, limit.value)));
+    const totalRecents = computed(() => filteredRecents.value.length);
 
     function toggleMore() {
       if (limit.value < recents.value.length) {
@@ -85,6 +88,7 @@ export default defineComponent({
       paginatedRecents,
       pendingImportPayload,
       totalRecents,
+      searchText,
       snackbar,
       errorText,
     };
@@ -179,12 +183,33 @@ export default defineComponent({
             class="px-4 py-2 my-4"
             min-width="100%"
           >
-            <h2
-              v-if="totalRecents > 0"
-              class="text-h4 font-weight-light mb-2"
+            <div
+              v-if="totalRecents > 0 || searchText"
+              class="d-flex flex-row"
             >
-              Recent
-            </h2>
+              <div class="text-h4 font-weight-light mb-2">
+                Recent
+              </div>
+              <v-spacer />
+              <v-text-field
+                v-model="searchText"
+                dense
+                outlined
+                clearable
+                hide-details
+                placeholder="search"
+                class="shrink"
+                color="grey darken-1"
+              >
+                <template #append>
+                  <v-icon
+                    color="grey darken-1"
+                  >
+                    mdi-magnify
+                  </v-icon>
+                </template>
+              </v-text-field>
+            </div>
             <h2
               v-else
               class="text-h4 font-weight-light mb-2"
