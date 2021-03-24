@@ -20,7 +20,7 @@ Run full tracking pipelines on your data.  Appropriate for videos and image sequ
 
 ## Utility
 
-An assortment of other types of utility pipelines.  Utility piplines are named `utility_<name>.pipe` and are unique in that they take detections as inputs.
+An assortment of other types of utility pipelines.  Utility piplines are named `utility_<name>.pipe` and are unique in that they _may_ take detections as inputs (but are not required to).  
 
 | Pipeline | Use case                                                                   |
 | -------- | -------------------------------------------------------------------------- |
