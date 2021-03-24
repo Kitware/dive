@@ -13,6 +13,7 @@ from girder.models.upload import Upload
 from pymongo.cursor import Cursor
 
 from dive_server.serializers import models, viame
+from dive_utils import fromMeta
 from dive_utils.types import GirderModel
 
 
@@ -67,7 +68,7 @@ def move_existing_result_to_auxiliary_folder(folder, user):
 
 
 def itemIsWebsafeVideo(item: Item) -> bool:
-    return item.get("meta", {}).get("codec") == "h264"
+    return fromMeta(item, "codec") == "h264"
 
 
 def getTrackData(file: Optional[File]) -> Dict[str, dict]:
@@ -117,9 +118,7 @@ def saveTracks(folder, tracks, user):
 
 
 def saveCSVImportAttributes(folder, attributes, user):
-    attributes_dict = {}
-    if 'attributes' in folder['meta']:
-        attributes_dict = folder['meta']['attributes']
+    attributes_dict = fromMeta(folder, 'attributes', {})
     # we dont overwrite any existing meta attributes
     for attribute in attributes.values():
         validated: models.Attribute = models.Attribute(**attribute)

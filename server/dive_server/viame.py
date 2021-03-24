@@ -21,6 +21,7 @@ from dive_tasks.tasks import (
     train_pipeline,
     upgrade_pipelines,
 )
+from dive_utils import TRUTHY_META_VALUES, asbool, fromMeta
 from dive_utils.types import (
     AvailableJobSchema,
     GirderModel,
@@ -30,6 +31,7 @@ from dive_utils.types import (
 
 from .constants import (
     SETTINGS_CONST_JOBS_CONFIGS,
+    TrainedPipelineCategory,
     csvRegex,
     imageRegex,
     safeImageRegex,
@@ -126,7 +128,7 @@ class Viame(Resource):
         # Find an item owned by an admin with meta.brand=True
         data = Item().findOne(
             {
-                'meta.brand': {'$in': [True, 'true', 'True']},
+                'meta.brand': {'$in': TRUTHY_META_VALUES},
                 'creatorId': {'$in': adminUserIds},
             }
         )
@@ -193,9 +195,19 @@ class Viame(Resource):
 
         token = Token().createToken(user=user, days=14)
 
-        # TODO Temporary inclusion of track_user pipelines requiring input
-        detection_csv: Optional[GirderModel] = None
+        requires_input = False  # include CSV input for pipe
+        if pipeline["type"] == TrainedPipelineCategory:
+            # Verify that the user has READ access to the pipe they want to run
+            pipeFolder = Folder().load(
+                pipeline["folderId"], level=AccessType.READ, user=user
+            )
+            requires_input = asbool(fromMeta(pipeFolder, "requires_input"))
         if 'utility' in pipeline["pipe"]:
+            # If pipeline has "utility" in the name.
+            requires_input = True
+
+        detection_csv: Optional[GirderModel] = None
+        if requires_input:
             # Ensure detection has a csv detections item
             detection = detections_item(folder, strict=True)
             detection_csv = ensure_csv_detections_file(folder, detection, user)
@@ -204,7 +216,7 @@ class Viame(Resource):
 
         params: PipelineJob = {
             "input_folder": folder_id_str,
-            "input_type": folder["meta"]["type"],
+            "input_type": fromMeta(folder, "type", required=True),
             "output_folder": folder_id_str,
             "pipeline": pipeline,
             "pipeline_input": detection_csv,
@@ -490,9 +502,7 @@ class Viame(Resource):
     def save_attributes(self, folder, attributes):
         upsert = attributes.get('upsert', [])
         delete = attributes.get('delete', [])
-        attributes_dict = {}
-        if 'attributes' in folder['meta']:
-            attributes_dict = folder['meta']['attributes']
+        attributes_dict = fromMeta(folder, 'attributes', {})
         for attribute_id in delete:
             attributes_dict.pop(str(attribute_id), None)
         for attribute in upsert:

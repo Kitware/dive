@@ -10,6 +10,8 @@ from girder_client import GirderClient
 from girder_worker.task import Task
 from girder_worker.utils import JobManager, JobStatus
 
+from dive_utils import asbool, fromMeta
+
 
 def stream_subprocess(
     process: Popen,
@@ -123,9 +125,8 @@ def get_video_filename(folderId: str, girder_client: GirderClient) -> Optional[s
     backup_converted_file = None
     for item in folder_contents:
         file_name = item.get("name")
-        meta = item.get("meta", {})
-        if meta.get("source_video") is True:
+        if asbool(fromMeta(item, "source_video")):
             backup_converted_file = file_name
-        elif meta.get("codec") == "h264":
+        elif fromMeta(item, "codec") == "h264":
             return file_name
     return backup_converted_file

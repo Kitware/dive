@@ -24,6 +24,7 @@ from dive_tasks.utils import (
     organize_folder_for_training,
     stream_subprocess,
 )
+from dive_utils import fromMeta
 from dive_utils.types import AvailableJobSchema, GirderModel, PipelineJob
 
 EMPTY_JOB_SCHEMA: AvailableJobSchema = {
@@ -337,7 +338,7 @@ def train_pipeline(
                 download_path, groundtruth_path
             )
             # We point to file if is a video
-            if source_folder.get("meta", {}).get("type") == "video":
+            if fromMeta(source_folder, "type") == "video":
                 video_file = get_video_filename(source_folder["_id"], gc)
                 if video_file is None:
                     raise Exception(
