@@ -74,7 +74,10 @@ export default defineComponent({
     </template>
     <template #title-right>
       <RunPipelineMenu :selected-dataset-ids="[id]" />
-      <Export :dataset-id="id" />
+      <Export
+        :dataset-id="id"
+        block-on-unsaved
+      />
     </template>
   </Viewer>
 </template>

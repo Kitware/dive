@@ -21,6 +21,10 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    blockOnUnsaved: {
+      type: Boolean,
+      default: false,
+    },
   },
 
   setup(props) {
@@ -32,20 +36,18 @@ export default defineComponent({
     let save = () => Promise.resolve();
     let pendingSaveCount = ref(0);
 
-    try {
+    if (props.blockOnUnsaved) {
       save = useHandler().save;
       pendingSaveCount = usePendingSaveCount();
-    } catch (err) {
-      /**
-       * Error indicates that this export dialog was opened in a place
-       * outside the viewer where pending changes aren't possible.
-       */
     }
 
     async function doExport({ forceSave = false, url }: { url?: string; forceSave?: boolean }) {
       if (pendingSaveCount.value > 0 && forceSave) {
-        await save();
-        savePrompt.value = false;
+        try {
+          await save();
+        } finally {
+          savePrompt.value = false;
+        }
       } else if (pendingSaveCount.value > 0 && url) {
         savePrompt.value = true;
         currentSaveUrl.value = url;

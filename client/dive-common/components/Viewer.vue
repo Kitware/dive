@@ -256,6 +256,7 @@ export default defineComponent({
           text,
           positiveButton: 'OK',
         });
+        throw err;
       }
     }
 
