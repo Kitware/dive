@@ -11,6 +11,7 @@ from dive_server.constants import (
     TrainedPipelineMarker,
 )
 from dive_tasks.tasks import EMPTY_JOB_SCHEMA
+from dive_utils import TRUTHY_META_VALUES
 from dive_utils.types import AvailableJobSchema, PipelineCategory, PipelineDescription
 
 
@@ -19,20 +20,23 @@ def _load_dynamic_pipelines(user: User) -> Dict[str, PipelineCategory]:
 
     pipelines: Dict[str, PipelineCategory] = {}
     pipelines[TrainedPipelineCategory] = {"pipes": [], "description": ""}
-    pipelines[TrainedPipelineCategory]["pipes"] = [
-        {
-            "name": folder["name"],
-            "type": TrainedPipelineCategory,
-            # TODO: the string 'detector.pipe' comes from a convention
-            # within VIAME that may not always be true.
-            "pipe": "detector.pipe",
-            "folderId": str(folder["_id"]),
-        }
-        for folder in Folder().findWithPermissions(
-            query={f"meta.{TrainedPipelineMarker}": True},
-            user=user,
-        )
-    ]
+    for folder in Folder().findWithPermissions(
+        query={f"meta.{TrainedPipelineMarker}": {'$in': TRUTHY_META_VALUES}},
+        user=user,
+    ):
+        pipename = None
+        for item in Folder().childItems(folder):
+            if item['name'].endswith('.pipe'):
+                pipename = item['name']
+        if pipename is not None:
+            pipelines[TrainedPipelineCategory]["pipes"].append(
+                {
+                    "name": folder["name"],
+                    "type": TrainedPipelineCategory,
+                    "pipe": pipename,
+                    "folderId": str(folder["_id"]),
+                }
+            )
     return pipelines
 
 
@@ -59,7 +63,15 @@ def verify_pipe(user: User, pipeline: PipelineDescription):
     all_pipelines = load_pipelines(user)
     try:
         category_pipes = all_pipelines[pipeline['type']]['pipes']
-        matchs = [pipe for pipe in category_pipes if pipe["pipe"] == pipeline["pipe"]]
+        matchs = [
+            pipe
+            for pipe in category_pipes
+            if (
+                pipe["pipe"] == pipeline["pipe"]
+                and pipeline['type'] == pipe['type']
+                and pipeline['folderId'] == pipe['folderId']
+            )
+        ]
         if len(matchs) != 1:
             raise missing_exception
     except KeyError:

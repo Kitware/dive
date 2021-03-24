@@ -93,6 +93,12 @@ class Config:
         self.addon_zip_path.mkdir(exist_ok=True, parents=True)
         self.addon_extracted_path.mkdir(exist_ok=True, parents=True)
 
+        # Set include directory to include pipelines from this path
+        # https://github.com/VIAME/VIAME/issues/131
+        self.gpu_process_env['SPROKIT_PIPE_INCLUDE_PATH'] = str(
+            self.addon_extracted_path / self.pipeline_subdir
+        )
+
     def get_extracted_pipeline_path(self, missing_ok=False) -> Path:
         """
         Includes subdirectory for pipelines

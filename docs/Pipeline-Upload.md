@@ -8,10 +8,18 @@ It's possible to upload custom pipes to DIVE Web through the girder interface.
 1. Open the girder interface at `/girder` and create a new private folder called `MyPipelines`
     1. For our demo instance, open [https://viame.kitware.com/girder](https://viame.kitware.com/girder)
 1. Create a new folder in that private folder, and give it a name you'd like to associate with your new pipeline.
-1. Upload two or more files inside your new pipeline subfolder:
-    1. A pipeline file named `detector.pipe`
-    1. Whatever other `.zip` files are required by the pipe, named exactly as the appear in your `detector.pipe` file above.
-1. Finally, tag the **folder** with key `trained_pipeline` and value `true`. **Be sure to use the JSON editor** to make sure the value is boolean `true` and not string `'true'`.
+1. Upload one or more files inside your new pipeline subfolder:
+    1. A pipeline file ending in the `.pipe` file extension
+    1. Whatever other model `.zip` files are required by the pipe, named exactly as the appear in your `.pipe` file above.
+1. Finally, set the **pipeline folder** metadata key `trained_pipeline` with value `true`.
 1. Your new pipeline will be available under the `Run Pipeline -> Trained` menu from the DIVE web app.
 
 ![Upload Pipeline](images/Misc/UploadPipeline.png)
+
+## Accepting input
+
+If your pipe must accept input, set the **pipeline folder** metadata property `requires_input` to `true`.
+
+## Including base pipelines
+
+User-uploaded pipelines may `include` any pipe already installed from the base image or an addon. Including other user-uploaded pipes is not supported.
