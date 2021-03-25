@@ -25,5 +25,5 @@ def check_existing_annotations(event):
         # Update metadata of parent folder
         # FPS is hardcoded for now
         folder = Folder().findOne({"_id": item["folderId"]})
-        folder["meta"].update({"type": ImageSequenceType, "fps": 30, "annotate": True})
+        folder["meta"].update({"type": ImageSequenceType, "fps": 10, "annotate": True})
         Folder().save(folder)

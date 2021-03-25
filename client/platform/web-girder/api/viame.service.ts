@@ -33,7 +33,7 @@ function makeViameFolder({
 }: {
   folderId: string;
   name: string;
-  fps: number;
+  fps: number | string;
   type: string;
 }) {
   return girderRest.post(
