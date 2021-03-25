@@ -27,7 +27,6 @@ jobs:
         flags: unittests # optional
         name: codecov-umbrella # optional
         fail_ci_if_error: false
-    verbose: true # optional (default = false)
     - run: yarn build:web
     - run: yarn build:lib
     - run: yarn build:electron
