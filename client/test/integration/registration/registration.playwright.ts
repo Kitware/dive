@@ -83,7 +83,6 @@ export default function runRegistrationTests() {
       // Make sure we login and now have the default user
       await page.waitForSelector('.girder-breadcrumb-component');
       const breadCrumb = await page.textContent('.girder-breadcrumb-component');
-      await page.screenshot({ path: './test/integration/screenshots/userMainPage.jpg', fullPage: true });
       expect(breadCrumb).toContain('testaccount');
     });
   });

@@ -18,6 +18,5 @@ export default async function login({ page }: { page: Page }, { username, passwo
   //Confirm that the page loaded
   await page.waitForSelector('.girder-breadcrumb-component');
   const breadCrumb = await page.textContent('.girder-breadcrumb-component');
-  await page.screenshot({ path: './test/integration/screenshots/userMainPage.jpg', fullPage: true });
   expect(breadCrumb).toContain('testaccount');
 }
