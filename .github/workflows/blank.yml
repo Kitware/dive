@@ -23,7 +23,8 @@ jobs:
     - uses: codecov/codecov-action@v1
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
-        files: ./coverage/clover.xml,./coverage/lcov.info
+        directory: ./coverage
+        working-directory: client
         flags: unittests # optional
         name: codecov-umbrella # optional
         fail_ci_if_error: false
