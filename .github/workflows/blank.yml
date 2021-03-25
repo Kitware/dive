@@ -22,8 +22,8 @@ jobs:
     - run: yarn test --collect-coverage
     - uses: codecov/codecov-action@v1
       with:
-        token: ${{ secrets.CODECOV_TOKEN }} # not required for public repos
-        directory: ./coverage
+        token: ${{ secrets.CODECOV_TOKEN }}
+        files: ./coverage/clover.xml,./coverage/lcov.info
         flags: unittests # optional
         name: codecov-umbrella # optional
         fail_ci_if_error: false
