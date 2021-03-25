@@ -1,8 +1,17 @@
-<script>
-import { MediaTypes } from 'dive-common/constants';
-import { getExportUrls } from '../api/viameDetection.service';
+<script lang="ts">
+import {
+  computed, defineComponent, watch, ref, toRef,
+} from '@vue/composition-api';
 
-export default {
+import { usePendingSaveCount, useHandler } from 'vue-media-annotator/provides';
+import AutosavePrompt from 'dive-common/components/AutosavePrompt.vue';
+import { MediaTypes } from 'dive-common/constants';
+import { getExportUrls, ExportUrlsResponse } from '../api/viameDetection.service';
+
+
+export default defineComponent({
+  components: { AutosavePrompt },
+
   props: {
     datasetId: {
       type: String,
@@ -12,34 +21,72 @@ export default {
       type: Boolean,
       default: false,
     },
+    blockOnUnsaved: {
+      type: Boolean,
+      default: false,
+    },
   },
 
-  data() {
+  setup(props) {
+    const menuOpen = ref(false);
+    const excludeFiltered = ref(false);
+    const exportUrls = ref(null as null | ExportUrlsResponse);
+    const savePrompt = ref(false);
+    const currentSaveUrl = ref('');
+    let save = () => Promise.resolve();
+    let pendingSaveCount = ref(0);
+
+    if (props.blockOnUnsaved) {
+      save = useHandler().save;
+      pendingSaveCount = usePendingSaveCount();
+    }
+
+    async function doExport({ forceSave = false, url }: { url?: string; forceSave?: boolean }) {
+      if (pendingSaveCount.value > 0 && forceSave) {
+        try {
+          await save();
+        } finally {
+          savePrompt.value = false;
+        }
+      } else if (pendingSaveCount.value > 0 && url) {
+        savePrompt.value = true;
+        currentSaveUrl.value = url;
+        return;
+      }
+      if (url) {
+        window.location.assign(url);
+      } else if (forceSave && currentSaveUrl.value) {
+        window.location.assign(currentSaveUrl.value);
+      } else {
+        throw new Error('Expected either url OR forceSave and currentSaveUrl');
+      }
+    }
+
+    /** TODO replace with watchEffect */
+    async function updateExportUrls() {
+      if (menuOpen.value) {
+        exportUrls.value = await getExportUrls(props.datasetId, excludeFiltered.value);
+      }
+    }
+    watch([toRef(props, 'datasetId'), excludeFiltered, menuOpen], updateExportUrls);
+    updateExportUrls();
+
+    const mediaType = computed(() => (exportUrls.value
+      ? MediaTypes[exportUrls.value.mediaType]
+      : null));
+    const thresholds = computed(() => Object.keys(exportUrls.value?.currentThresholds || {}));
+
     return {
-      menuOpen: false,
-      excludeFiltered: false,
-      activator: 0,
+      excludeFiltered,
+      menuOpen,
+      exportUrls,
+      mediaType,
+      thresholds,
+      savePrompt,
+      doExport,
     };
   },
-
-  asyncComputed: {
-    async exportUrls() {
-      if (this.menuOpen) {
-        return getExportUrls(this.datasetId, this.excludeFiltered);
-      }
-      return null;
-    },
-  },
-
-  computed: {
-    mediaType() {
-      return MediaTypes[this.exportUrls.mediaType];
-    },
-    thresholds() {
-      return Object.keys(this.exportUrls.currentThresholds || {});
-    },
-  },
-};
+});
 </script>
 
 <template>
@@ -74,6 +121,10 @@ export default {
       </v-tooltip>
     </template>
     <template>
+      <AutosavePrompt
+        v-model="savePrompt"
+        @save="doExport({ forceSave: true })"
+      />
       <v-card v-if="menuOpen && exportUrls">
         <v-card-title>
           Download options
@@ -87,6 +138,7 @@ export default {
             depressed
             block
             target="_blank"
+            rel="noopener"
             :disabled="!exportUrls.exportMediaUrl"
             :href="exportUrls.exportMediaUrl"
           >
@@ -120,9 +172,8 @@ export default {
           <v-btn
             depressed
             block
-            target="_blank"
             :disabled="!exportUrls.exportDetectionsUrl"
-            :href="exportUrls.exportDetectionsUrl"
+            @click="doExport({ url: exportUrls && exportUrls.exportDetectionsUrl })"
           >
             <span v-if="exportUrls.exportDetectionsUrl">detections</span>
             <span v-else>detections unavailable</span>
@@ -137,8 +188,7 @@ export default {
           <v-btn
             depressed
             block
-            target="_blank"
-            :href="exportUrls.exportAllUrl"
+            @click="doExport({ url: exportUrls && exportUrls.exportAllUrl })"
           >
             Everything
           </v-btn>

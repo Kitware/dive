@@ -1,7 +1,6 @@
-import { Module } from 'vuex';
-import { GirderModel } from '@girder/components/src';
-
-import { LocationState, RootState } from './types';
+import type { Module } from 'vuex';
+import type { GirderModel } from '@girder/components/src';
+import type { LocationState, RootState } from './types';
 
 const locationModule: Module<LocationState, RootState> = {
   namespaced: true,

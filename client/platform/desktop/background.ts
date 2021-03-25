@@ -4,7 +4,8 @@ import {
 import { createProtocol } from 'vue-cli-plugin-electron-builder/lib';
 import installExtension, { VUEJS_DEVTOOLS } from 'electron-devtools-installer';
 
-import { listen, close } from './backend/server';
+import { closeAll as closeChildren } from './backend/native/processManager';
+import { listen, close as closeServer } from './backend/server';
 import ipcListen from './backend/ipcService';
 
 app.commandLine.appendSwitch('no-sandbox');
@@ -22,8 +23,9 @@ protocol.registerSchemesAsPrivileged([
   { scheme: 'app', privileges: { secure: true, standard: true } },
 ]);
 
-function cleanup() {
-  close();
+async function cleanup() {
+  closeServer();
+  await closeChildren();
   app.quit();
 }
 
@@ -87,6 +89,13 @@ app.on('activate', () => {
   }
 });
 
+// If the quit button from the context menu is used,
+// Intercept the before-quit event
+app.on('before-quit', () => {
+  closeChildren();
+  closeServer();
+});
+
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
@@ -102,17 +111,14 @@ app.on('ready', async () => {
   createWindow();
 });
 
-// Exit cleanly on request from parent process in development mode.
-if (isDevelopment) {
-  if (process.platform === 'win32') {
-    process.on('message', (data) => {
-      if (data === 'graceful-exit') {
-        cleanup();
-      }
-    });
-  } else {
-    process.on('SIGTERM', () => {
+if (process.platform === 'win32') {
+  process.on('message', (data) => {
+    if (data === 'graceful-exit') {
       cleanup();
-    });
-  }
+    }
+  });
+} else {
+  process.on('SIGTERM', () => {
+    cleanup();
+  });
 }

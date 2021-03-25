@@ -1,6 +1,6 @@
 {
   "name": "vue-media-annotator",
-  "version": "1.4.3",
+  "version": "1.4.4",
   "author": {
     "name": "Kitware, Inc.",
     "email": "viame-web@kitware.com"
@@ -36,8 +36,8 @@
   "types": "lib/types/index.d.ts",
   "dependencies": {
     "@flatten-js/interval-tree": "^1.0.11",
-    "@girder/components": "^2.2.8",
-    "@mdi/font": "^3.9.97",
+    "@girder/components": "^3.0.1",
+    "@mdi/font": "^5.3.45",
     "@sentry/browser": "^5.24.2",
     "@sentry/integrations": "^5.24.2",
     "@types/mousetrap": "^1.6.3",
@@ -47,7 +47,8 @@
     "core-js": "^3.6.4",
     "csv-stringify": "^5.6.0",
     "d3": "^5.12.0",
-    "geojs": "^0.20.0",
+    "geojs": "1.0.0",
+    "glob-to-regexp": "^0.4.1",
     "lodash": "^4.17.19",
     "moment": "^2.29.1",
     "mousetrap": "^1.6.5",
@@ -66,6 +67,7 @@
     "@types/electron-devtools-installer": "^2.2.0",
     "@types/express": "^4.17.9",
     "@types/geojson": "^7946.0.7",
+    "@types/glob-to-regexp": "^0.4.0",
     "@types/jest": "^25.2.3",
     "@types/lodash": "^4.14.151",
     "@types/mime-types": "^2.1.0",

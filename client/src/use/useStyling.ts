@@ -4,7 +4,7 @@ import {
   inject, ref, Ref, computed, set as VueSet,
 } from '@vue/composition-api';
 import * as d3 from 'd3';
-import { noop } from 'lodash';
+import { noop, merge } from 'lodash';
 
 interface Style {
   strokeWidth: number;
@@ -122,20 +122,11 @@ export default function useStyling({ markChangesPending }: UseStylingParams) {
 
   function updateTypeStyle(args: {
     type: string;
-    color?: string;
-    strokeWidth?: number;
-    opacity?: number;
-    fill?: boolean;
+    value: CustomStyle;
   }) {
-    const { type } = args;
-    if (!customStyles.value[type]) {
-      VueSet(customStyles.value, type, {});
-    }
-    Object.entries(args).forEach(([key, value]) => {
-      if (value !== undefined) {
-        VueSet(customStyles.value[type], key, value);
-      }
-    });
+    const { type, value } = args;
+    const oldValue = customStyles.value[type] || {};
+    VueSet(customStyles.value, type, merge(oldValue, value));
     customStylesRevisionCounter.value += 1;
     markChangesPending();
   }

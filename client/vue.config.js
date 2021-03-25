@@ -1,6 +1,9 @@
 const { gitDescribeSync } = require('git-describe');
 const path = require('path');
+const http = require('http');
 const packagejson = require('./package.json');
+
+const keepAliveAgent = new http.Agent({ keepAlive: true });
 
 process.env.VUE_APP_GIT_HASH = gitDescribeSync().hash;
 process.env.VUE_APP_VERSION = packagejson.version;
@@ -19,6 +22,8 @@ module.exports = {
       '/api': {
         target: 'http://localhost:8010',
         secure: false,
+        ws: true,
+        agent: keepAliveAgent,
       },
     },
   },
@@ -40,7 +45,6 @@ module.exports = {
           // https://github.com/nklayman/vue-cli-plugin-electron-builder/issues/188
           // https://github.com/electron-userland/electron-builder/issues/2592
           main: 'background.js',
-          version: '1.4.3',
         },
         linux: {
           target: ['AppImage', 'snap', 'tar.gz'],

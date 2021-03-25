@@ -11,7 +11,7 @@ import type {
 
 import {
   DesktopJob, DesktopMetadata, JsonMeta, NvidiaSmiReply,
-  RunPipeline, RunTraining, fileVideoTypes, ExportDatasetArgs,
+  RunPipeline, RunTraining, fileVideoTypes, ExportDatasetArgs, MediaImportPayload,
 } from 'platform/desktop/constants';
 
 /**
@@ -72,9 +72,12 @@ async function runTraining(
   return ipcRenderer.invoke('run-training', args);
 }
 
-async function importMedia(path: string): Promise<JsonMeta> {
-  const data: JsonMeta = await ipcRenderer.invoke('import-media', { path });
-  return data;
+function importMedia(path: string): Promise<MediaImportPayload> {
+  return ipcRenderer.invoke('import-media', { path });
+}
+
+function finalizeImport(args: MediaImportPayload): Promise<JsonMeta> {
+  return ipcRenderer.invoke('finalize-import', args);
 }
 
 async function exportDataset(id: string, exclude: boolean): Promise<string> {
@@ -143,6 +146,7 @@ export {
   saveAttributes,
   /* Nonstandard APIs */
   exportDataset,
+  finalizeImport,
   importMedia,
   openFromDisk,
   openLink,

@@ -20,6 +20,7 @@ from dive_server.constants import (
 )
 from dive_server.serializers import models, viame
 from dive_server.utils import detections_file, detections_item, getTrackData, saveTracks
+from dive_utils import fromMeta
 
 
 class ViameDetection(Resource):
@@ -73,12 +74,11 @@ class ViameDetection(Resource):
 
         filename = ".".join([file["name"].split(".")[:-1][0], "csv"])
 
-        foldermeta = folder.get('meta', {})
         fps = None
         imageFiles = None
-        source_type = foldermeta.get('type', None)
+        source_type = fromMeta(folder, 'type')
         if source_type == VideoType:
-            fps = foldermeta.get('fps', None)
+            fps = fromMeta(folder, 'fps')
         elif source_type == ImageSequenceType:
             imageFiles = [
                 f['name']
@@ -86,7 +86,7 @@ class ViameDetection(Resource):
                 .childItems(folder, filters={"lowerName": {"$regex": safeImageRegex}})
                 .sort("lowerName")
             ]
-        thresholds = folder.get("meta", {}).get("confidenceFilters", {})
+        thresholds = fromMeta(folder, "confidenceFilters", {})
         track_dict = getTrackData(file)
 
         def downloadGenerator():
@@ -138,7 +138,7 @@ class ViameDetection(Resource):
                 f'?excludeBelowThreshold={excludeBelowThreshold}'
             )
 
-        source_type = folder.get('meta', {}).get('type', None)
+        source_type = fromMeta(folder, 'type')
         if source_type == VideoType:
             params = {
                 'mimeFilter': json.dumps(list(VideoMimeTypes)),
@@ -154,12 +154,18 @@ class ViameDetection(Resource):
                 f'/api/v1/folder/{folderId}/download?{urllib.parse.urlencode(params)}'
             )
 
+        # No-copy import data does not support mimeFilter.
+        # We cannot detect which collections are from no-copy imported data, so
+        # disable all image download from collections
+        if folder['baseParentType'] == 'collection':
+            export_media = None
+
         return {
             'mediaType': source_type,
             'exportAllUrl': export_all,
             'exportMediaUrl': export_media,
             'exportDetectionsUrl': export_detections,
-            'currentThresholds': folder.get("meta", {}).get("confidenceFilters", {}),
+            'currentThresholds': fromMeta(folder, "confidenceFilters", {}),
         }
 
     @access.public(scope=TokenScope.DATA_READ, cookie=True)

@@ -7,6 +7,7 @@ import { spawn } from 'child_process';
 import fs from 'fs-extra';
 import { xml2json } from 'xml-js';
 
+import { observeChild } from 'platform/desktop/backend/native/processManager';
 import {
   Settings, SettingsCurrentVersion,
   DesktopJob, RunPipeline, NvidiaSmiReply, RunTraining,
@@ -52,7 +53,7 @@ let programFiles = 'C:\\Program Files';
 // There exists no app.getPath('programfiles') so we need to
 // check the variable for the default location
 async function initialize() {
-  const environmentVarPath = spawn('cmd.exe', ['/c', 'echo %PROGRAMFILES%'], { shell: true });
+  const environmentVarPath = observeChild(spawn('cmd.exe', ['/c', 'echo %PROGRAMFILES%'], { shell: true }));
   environmentVarPath.stdout.on('data', (data) => {
     const trimmed = data.toString().trim();
     programFiles = trimmed;
@@ -68,11 +69,11 @@ async function validateViamePath(settings: Settings): Promise<true | string> {
   }
 
   const modifiedCommand = `"${setupScriptPath.replace(/\\/g, '\\')}"`;
-  const kwiverExistsOnPath = spawn(
+  const kwiverExistsOnPath = observeChild(spawn(
     `${modifiedCommand} && kwiver.exe help`, {
       shell: true,
     },
-  );
+  ));
   return new Promise((resolve) => {
     kwiverExistsOnPath.on('exit', (code) => {
       if (code === 0) {
@@ -111,13 +112,17 @@ async function train(
 }
 
 function checkDefaultNvidiaSmi(resolve: (value: NvidiaSmiReply) => void) {
-  const smi = spawn(`"${programFiles}\\NVIDIA Corporation\\NVSMI\\nvidia-smi.exe"`, ['-q', '-x'], { shell: true });
+  const smi = observeChild(spawn(
+    `"${programFiles}\\NVIDIA Corporation\\NVSMI\\nvidia-smi.exe"`,
+    ['-q', '-x'],
+    { shell: true },
+  ));
   let result = '';
   smi.stdout.on('data', (chunk) => {
     result = result.concat(chunk.toString('utf-8'));
   });
 
-  smi.on('close', (exitCode) => {
+  smi.on('exit', (exitCode) => {
     let jsonStr = 'null'; // parses to null
     if (exitCode === 0) {
       jsonStr = xml2json(result, { compact: true });
@@ -141,7 +146,7 @@ function checkDefaultNvidiaSmi(resolve: (value: NvidiaSmiReply) => void) {
 // it doesn't guarantee that the system doesn't have a relevant GPU
 async function nvidiaSmi(): Promise<NvidiaSmiReply> {
   return new Promise((resolve) => {
-    const pathsmi = spawn('nvidia-smi', ['-q', '-x'], { shell: true });
+    const pathsmi = observeChild(spawn('nvidia-smi', ['-q', '-x'], { shell: true }));
     let result = '';
     pathsmi.stdout.on('data', (chunk) => {
       // eslint-disable-next-line no-console
@@ -149,7 +154,7 @@ async function nvidiaSmi(): Promise<NvidiaSmiReply> {
       result = result.concat(chunk.toString('utf-8'));
     });
 
-    pathsmi.on('close', (exitCode) => {
+    pathsmi.on('exit', (exitCode) => {
       let jsonStr = 'null'; // parses to null
       if (exitCode === 0) {
         jsonStr = xml2json(result, { compact: true });

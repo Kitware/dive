@@ -34,7 +34,10 @@ nav:
     - Attributes: Attributes.md
   - Concepts and Definitions: Definitions.md
   - Mouse and Keyboard Shortcuts: Mouse-Keyboard-Shortcuts.md
-  - Command Line Tools: Command-Line-Tools.md
+  - Advanced features:
+    - Custom Pipeline Upload: Pipeline-Upload.md
+    - Command Line Tools: Command-Line-Tools.md
+    - Server Operator Guide: Server-Operator.md
 
 google_analytics:
   - UA-6042509-43

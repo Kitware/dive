@@ -70,14 +70,14 @@ export default defineComponent({
           <v-icon>mdi-database</v-icon>
         </v-tab>
         <JobsTab />
-        <v-tab to="/settings">
-          Settings<v-icon>mdi-settings</v-icon>
-        </v-tab>
       </v-tabs>
     </template>
     <template #title-right>
       <RunPipelineMenu :selected-dataset-ids="[id]" />
-      <Export :dataset-id="id" />
+      <Export
+        :dataset-id="id"
+        block-on-unsaved
+      />
     </template>
   </Viewer>
 </template>
