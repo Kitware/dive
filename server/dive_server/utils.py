@@ -3,18 +3,37 @@ import json
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple, Type
 
+from girder.constants import AccessType
 from girder.exceptions import RestException
 from girder.models.file import File
 from girder.models.folder import Folder
 from girder.models.item import Item
+from girder.models.model_base import AccessControlledModel
 from girder.models.upload import Upload
+from pydantic.main import BaseModel
 from pymongo.cursor import Cursor
 
-from dive_server.serializers import models, viame
-from dive_utils import fromMeta
+from dive_server.serializers import viame
+from dive_utils import fromMeta, models
 from dive_utils.types import GirderModel
+
+
+class PydanticModel(AccessControlledModel):
+    schema: Type[BaseModel]
+
+    def initialize(self, name: str, schema: Type[BaseModel]):
+        self.name = name
+        self.schema = schema
+        self.exposeFields(AccessType.READ, schema.schema()['properties'].keys())
+
+    def validate(self, doc: dict):
+        validated = self.schema(**doc)
+        return validated.dict()
+
+    def create(self, item: BaseModel):
+        return self.save(item.dict())
 
 
 def all_detections_items(folder: Folder) -> Cursor:

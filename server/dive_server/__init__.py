@@ -1,16 +1,16 @@
 import os
-import sys
-from pathlib import Path
 
 from girder import events, plugin
 from girder.models.setting import Setting
 from girder.utility import setting_utilities
+from girder.utility.model_importer import ModelImporter
 
 from .client_webroot import ClientWebroot
 from .constants import SETTINGS_CONST_JOBS_CONFIGS
 from .event import check_existing_annotations
 from .viame import Viame
 from .viame_detection import ViameDetection
+from .viame_summary import SummaryItem, ViameSummary
 
 
 @setting_utilities.validator({SETTINGS_CONST_JOBS_CONFIGS})
@@ -28,9 +28,11 @@ def validateSettings(doc):
 
 class GirderPlugin(plugin.GirderPlugin):
     def load(self, info):
+        ModelImporter.registerModel('summaryItem', SummaryItem, plugin='dive_server')
 
         info["apiRoot"].viame = Viame()
         info["apiRoot"].viame_detection = ViameDetection()
+        info["apiRoot"].viame_summary = ViameSummary()
         # Relocate Girder
         info["serverRoot"], info["serverRoot"].girder = (
             ClientWebroot(),
