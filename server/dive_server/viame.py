@@ -142,7 +142,7 @@ class Viame(Resource):
         Description("List datasets in the system")
         .pagingParams("created")
         .param(
-            'published',
+            PublishedMarker,
             'Return only published datasets',
             required=False,
             default=False,
@@ -154,7 +154,7 @@ class Viame(Resource):
         query = {
             'meta.annotate': {'$in': TRUTHY_META_VALUES},
         }
-        if self.boolParam('published', params):
+        if self.boolParam(PublishedMarker, params):
             query = {
                 '$and': [
                     query,
