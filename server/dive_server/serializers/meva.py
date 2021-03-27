@@ -6,7 +6,7 @@ from boiler.definitions import ActorType
 from boiler.serialization import kpf
 from girder.models.file import File
 
-from dive_server.serializers.models import Feature, Track
+from dive_utils.models import Feature, Track
 
 
 @dataclass
