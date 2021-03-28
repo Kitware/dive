@@ -5,7 +5,7 @@ import { TrackData, TrackId } from 'vue-media-annotator/track';
 import { Attribute } from 'vue-media-annotator/use/useAttributes';
 import { CustomStyle } from 'vue-media-annotator/use/useStyling';
 
-type DatasetType = 'image-sequence' | 'video';
+type DatasetType = 'image-sequence' | 'video' | 'stereoscopic';
 type MultiTrackRecord = Record<string, TrackData>;
 
 interface Pipe {

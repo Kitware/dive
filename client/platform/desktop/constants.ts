@@ -117,6 +117,13 @@ export interface JsonMeta extends DatasetMetaMutable {
 
   //Attributes are not datasetMetaMutable and are stored separate
   attributes?: Record<string, Attribute>;
+
+  stereoscopic?: {
+    leftImages: string[];
+    rightImages: string[];
+    calibration?: string;
+    display: 'left' | 'right'; // displaying images
+  };
 }
 
 export type DesktopMetadata = DatasetMeta & JsonMeta;

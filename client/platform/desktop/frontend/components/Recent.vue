@@ -13,16 +13,19 @@ import { setOrGetConversionJob } from '../store/jobs';
 import BrowserLink from './BrowserLink.vue';
 import NavigationBar from './NavigationBar.vue';
 import ImportDialog from './ImportDialog.vue';
+import ImportStereoDialog from './ImportStereoDialog.vue';
 
 export default defineComponent({
   components: {
     BrowserLink,
     ImportDialog,
     NavigationBar,
+    ImportStereoDialog,
   },
 
   setup(_, { root }) {
     const snackbar = ref(false);
+    const importStereo = ref(false);
     const pageSize = 12; // Default 12 looks good on default width/height of window
     const limit = ref(pageSize);
     const errorText = ref('');
@@ -91,6 +94,7 @@ export default defineComponent({
       searchText,
       snackbar,
       errorText,
+      importStereo,
     };
   },
 });
@@ -99,7 +103,7 @@ export default defineComponent({
 <template>
   <v-main>
     <v-dialog
-      :value="pendingImportPayload !== null"
+      :value="pendingImportPayload !== null || importStereo"
       persistent
       width="800"
       overlay-opacity="0.95"
@@ -110,6 +114,11 @@ export default defineComponent({
         :import-data="pendingImportPayload"
         @finalize-import="finalizeImport($event)"
         @abort="pendingImportPayload = null"
+      />
+      <ImportStereoDialog
+        v-if="importStereo"
+        @finalize-import="finalizeImport($event)"
+        @abort="importStereo = false"
       />
     </v-dialog>
     <navigation-bar />
@@ -153,18 +162,45 @@ export default defineComponent({
             md="4"
             sm="6"
           >
-            <v-btn
-              large
-              block
-              color="primary"
-              class="mb-6"
-              @click="open('image-sequence')"
-            >
-              Open Image Sequence
-              <v-icon class="ml-2">
-                mdi-folder-open
-              </v-icon>
-            </v-btn>
+            <v-menu offset-y>
+              <template v-slot:activator="{ on }">
+                <v-btn
+                  large
+                  block
+                  color="primary"
+                  class="mb-6 mr-0 pr-0"
+                  @click="open('image-sequence')"
+                >
+                  <div class="col-11">
+                    Open Image Sequence
+                    <v-icon class="ml-2">
+                      mdi-folder-open
+                    </v-icon>
+                  </div>
+                  <v-icon
+                    class="justify-right my-auto"
+                    style="float:right; border-left: 1px solid white;"
+                    v-on="on"
+                  >
+                    mdi-chevron-down
+                  </v-icon>
+                </v-btn>
+              </template>
+              <v-list>
+                <v-list-item>
+                  <v-btn
+                    block
+                    color="primary"
+                    @click="importStereo = true"
+                  >
+                    Stereoscopic
+                    <v-icon>
+                      mdi-binoculars
+                    </v-icon>
+                  </v-btn>
+                </v-list-item>
+              </v-list>
+            </v-menu>
             <v-btn
               block
               large
