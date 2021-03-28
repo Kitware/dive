@@ -12,16 +12,16 @@ from girder.models.folder import Folder
 from girder.models.item import Item
 from girder.utility import ziputil
 
-from dive_server.constants import (
+from dive_server.serializers import viame
+from dive_server.utils import detections_file, detections_item, getTrackData, saveTracks
+from dive_utils import fromMeta, models
+from dive_utils.constants import (
     ImageMimeTypes,
     ImageSequenceType,
     VideoMimeTypes,
     VideoType,
     safeImageRegex,
 )
-from dive_server.serializers import viame
-from dive_server.utils import detections_file, detections_item, getTrackData, saveTracks
-from dive_utils import fromMeta, models
 
 
 class ViameDetection(Resource):
