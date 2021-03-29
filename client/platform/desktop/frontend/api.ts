@@ -11,8 +11,10 @@ import type {
 
 import {
   DesktopJob, DesktopMetadata, JsonMeta, NvidiaSmiReply,
-  RunPipeline, RunTraining, fileVideoTypes, ExportDatasetArgs, MediaImportPayload,
+  RunPipeline, RunTraining, fileVideoTypes, ExportDatasetArgs,
+  MediaImportPayload, StereoImportKeywordArgs, StereoImportMultiArgs,
 } from 'platform/desktop/constants';
+
 
 /**
  * Native functions that run entirely in the renderer
@@ -74,6 +76,11 @@ async function runTraining(
 
 function importMedia(path: string): Promise<MediaImportPayload> {
   return ipcRenderer.invoke('import-media', { path });
+}
+
+function importStereo(args: StereoImportKeywordArgs| StereoImportMultiArgs):
+   Promise<MediaImportPayload> {
+  return ipcRenderer.invoke('import-stereo-media', { args });
 }
 
 function finalizeImport(args: MediaImportPayload): Promise<JsonMeta> {
@@ -148,6 +155,7 @@ export {
   exportDataset,
   finalizeImport,
   importMedia,
+  importStereo,
   openFromDisk,
   openLink,
   nvidiaSmi,

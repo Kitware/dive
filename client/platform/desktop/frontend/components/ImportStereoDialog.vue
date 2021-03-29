@@ -12,7 +12,6 @@ import * as api from '../api';
 export default defineComponent({
   name: 'ImportStereoDialog',
   setup(props, { emit }) {
-    const ready = ref(false);
     const importType: Ref<'multi'|'keyword'| ''> = ref('');
     const leftFolder = ref('');
     const rightFolder = ref('');
@@ -73,16 +72,17 @@ export default defineComponent({
       const ret = await api.openFromDisk(dstype);
       if (!ret.canceled) {
         try {
-          const dsName = npath.parse(ret.filePaths[0]).name;
+          const path = ret.filePaths[0];
+          const dsName = npath.parse(path).name;
           if (folder === 'left') {
-            leftFolder.value = dsName;
+            leftFolder.value = path;
           }
           if (folder === 'right') {
-            rightFolder.value = dsName;
+            rightFolder.value = path;
           }
           if (folder === 'keyword') {
-            keywordFolder.value = dsName;
-            pendingImportPayload.value = await api.importMedia(ret.filePaths[0]);
+            keywordFolder.value = path;
+            pendingImportPayload.value = await api.importMedia(path);
           }
         } catch (err) {
           console.log(err);
@@ -92,14 +92,14 @@ export default defineComponent({
 
     const prepForImport = () => {
       if (importType.value === 'multi') {
-        emit('begin-stereo-import-multi', {
+        emit('begin-stereo-import', {
           defaultDisplay: defaultDisplay.value,
           leftFolder: leftFolder.value,
           rightFolder: rightFolder.value,
           calibrationFile: calibrationFile.value,
         });
       } else if (importType.value === 'keyword') {
-        emit('finalize-stereo-import-keyword', {
+        emit('begin-stereo-import', {
           defaultDisplay: defaultDisplay.value,
           keywordFolder: keywordFolder.value,
           globPatternLeft: globPatternLeft.value,
@@ -109,7 +109,6 @@ export default defineComponent({
       }
     };
     return {
-      ready,
       keywordReady,
       nextSteps,
       importType,
@@ -318,7 +317,7 @@ export default defineComponent({
         </v-btn>
         <v-btn
           color="primary"
-          :disabled="!ready"
+          :disabled="!nextSteps"
           @click="prepForImport"
         >
           Begin Import

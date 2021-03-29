@@ -224,3 +224,18 @@ export interface ExportDatasetArgs {
   exclude: boolean;
   path: string;
 }
+
+export interface StereoImportMultiArgs {
+  defaultDisplay: 'left' | 'right';
+  leftFolder: string;
+  rightFolder: string;
+  calibrationFile?: string;
+}
+
+export interface StereoImportKeywordArgs {
+  defaultDisplay: 'left' | 'right';
+  keywordFolder: string;
+  globPatternLeft: string;
+  globPatternRight: string;
+  calibrationFile?: string;
+}

@@ -5,7 +5,7 @@ import {
 } from '@vue/composition-api';
 
 import type { DatasetType } from 'dive-common/apispec';
-import type { MediaImportPayload } from 'platform/desktop/constants';
+import type { MediaImportPayload, StereoImportKeywordArgs, StereoImportMultiArgs } from 'platform/desktop/constants';
 
 import * as api from '../api';
 import { recents, setRecents } from '../store/dataset';
@@ -14,6 +14,7 @@ import BrowserLink from './BrowserLink.vue';
 import NavigationBar from './NavigationBar.vue';
 import ImportDialog from './ImportDialog.vue';
 import ImportStereoDialog from './ImportStereoDialog.vue';
+
 
 export default defineComponent({
   components: {
@@ -25,7 +26,7 @@ export default defineComponent({
 
   setup(_, { root }) {
     const snackbar = ref(false);
-    const importStereo = ref(false);
+    const importStereoDialog = ref(false);
     const pageSize = 12; // Default 12 looks good on default width/height of window
     const limit = ref(pageSize);
     const errorText = ref('');
@@ -65,6 +66,16 @@ export default defineComponent({
       }
     }
 
+    async function stereoImport(args: StereoImportKeywordArgs | StereoImportMultiArgs) {
+      importStereoDialog.value = false;
+      try {
+        pendingImportPayload.value = await api.importStereo(args);
+      } catch (err) {
+        snackbar.value = true;
+        errorText.value = err.message;
+      }
+    }
+
     const filteredRecents = computed(() => recents.value
       .filter((v) => v.name.toLowerCase().indexOf((searchText.value || '').toLowerCase()) >= 0));
     const paginatedRecents = computed(() => (filteredRecents.value.slice(0, limit.value)));
@@ -82,6 +93,7 @@ export default defineComponent({
       // methods
       open,
       finalizeImport,
+      stereoImport,
       join,
       setOrGetConversionJob,
       toggleMore,
@@ -94,7 +106,7 @@ export default defineComponent({
       searchText,
       snackbar,
       errorText,
-      importStereo,
+      importStereoDialog,
     };
   },
 });
@@ -103,7 +115,7 @@ export default defineComponent({
 <template>
   <v-main>
     <v-dialog
-      :value="pendingImportPayload !== null || importStereo"
+      :value="pendingImportPayload !== null || importStereoDialog"
       persistent
       width="800"
       overlay-opacity="0.95"
@@ -116,9 +128,9 @@ export default defineComponent({
         @abort="pendingImportPayload = null"
       />
       <ImportStereoDialog
-        v-if="importStereo"
-        @finalize-import="finalizeImport($event)"
-        @abort="importStereo = false"
+        v-if="importStereoDialog"
+        @begin-stereo-import="stereoImport($event)"
+        @abort="importStereoDialog = false"
       />
     </v-dialog>
     <navigation-bar />
@@ -191,7 +203,7 @@ export default defineComponent({
                   <v-btn
                     block
                     color="primary"
-                    @click="importStereo = true"
+                    @click="importStereoDialog = true"
                   >
                     Stereoscopic
                     <v-icon>
@@ -267,6 +279,9 @@ export default defineComponent({
                       ? 'mdi-file-video'
                       : 'mdi-image-multiple'
                   }}
+                </v-icon>
+                <v-icon v-if="recent.stereoscopic">
+                  mdi-binoculars
                 </v-icon>
                 <span v-if="setOrGetConversionJob(recent.id)">
                   <span class="primary--text text--darken-1 text-decoration-none">

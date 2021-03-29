@@ -1,38 +1,16 @@
 import npath from 'path';
 import fs from 'fs-extra';
-import { shell } from 'electron';
 import mime from 'mime-types';
-import moment from 'moment';
-import lockfile from 'proper-lockfile';
 import {
-  DatasetType, MultiTrackRecord, Pipelines, SaveDetectionsArgs,
-  FrameImage, DatasetMetaMutable, TrainingConfigs, SaveAttributeArgs,
+  DatasetType,
 } from 'dive-common/apispec';
-import * as viameSerializers from 'platform/desktop/backend/serializers/viame';
 
 import {
-  websafeImageTypes, websafeVideoTypes, otherImageTypes, otherVideoTypes,
-  JsonMeta, Settings, JsonMetaCurrentVersion, DesktopMetadata, DesktopJobUpdater,
-  ConvertMedia, RunTraining, ExportDatasetArgs, MediaImportPayload,
+  websafeImageTypes, otherImageTypes,
+  JsonMeta, Settings, JsonMetaCurrentVersion, MediaImportPayload, StereoImportMultiArgs, StereoImportKeywordArgs,
 } from 'platform/desktop/constants';
 import { cleanString, filterByGlob, makeid } from 'platform/desktop/sharedUtils';
-import { Attribute, Attributes } from 'vue-media-annotator/use/useAttributes';
-import processTrackAttributes from './attributeProcessor';
 
-interface StereoImportMultiArgs {
-    defaultDisplay: 'left' | 'right';
-    leftFolder: string;
-    rightFolder: string;
-    calibrationFile?: string;
-}
-
-interface StereoImportMultiArgs {
-    defaultDisplay: 'left' | 'right';
-    keywordFolder: string;
-    globPatternLeft: string;
-    globPatternRight: string;
-    calibrationFile?: string;
-}
 
 async function findImagesInFolder(path: string, glob?: string) {
   const images: string[] = [];
@@ -62,31 +40,54 @@ async function findImagesInFolder(path: string, glob?: string) {
   };
 }
 
+function isSteroImportMultiArgs(s: any): s is StereoImportMultiArgs {
+  if (s.leftFolder && s.rightFolder && s.defaultDisplay) {
+    return true;
+  }
+  return false;
+}
+function isSteroImportKeywordArgs(s: any): s is StereoImportKeywordArgs {
+  if (s.globPatternLeft && s.globPatternRight && s.defaultDisplay) {
+    return true;
+  }
+  return false;
+}
 
 /**
  * Begin a dataset import.
  */
-async function beginStereoImportMulti(
+async function beginStereoImport(
   settings: Settings,
-  args: StereoImportMultiArgs,
+  args: StereoImportMultiArgs | StereoImportKeywordArgs,
   checkMedia: (settings: Settings, path: string) => Promise<boolean>,
 ): Promise<MediaImportPayload> {
   let datasetType: DatasetType;
 
-  const leftExists = fs.existsSync(args.leftFolder);
-  if (!leftExists) {
-    throw new Error(`file or directory not found: ${args.leftFolder}`);
-  }
-  const rightExists = fs.existsSync(args.rightFolder);
-  if (!rightExists) {
-    throw new Error(`file or directory not found: ${args.rightFolder}`);
-  }
+  let mainFolder;
+  if (isSteroImportMultiArgs(args)) {
+    const leftExists = fs.existsSync(args.leftFolder);
+    if (!leftExists) {
+      throw new Error(`file or directory not found: ${args.leftFolder}`);
+    }
+    const rightExists = fs.existsSync(args.rightFolder);
+    if (!rightExists) {
+      throw new Error(`file or directory not found: ${args.rightFolder}`);
+    }
 
-  let mainFolder = args.leftFolder;
-  if (args.defaultDisplay === 'right') {
-    mainFolder = args.rightFolder;
+    mainFolder = args.leftFolder;
+    if (args.defaultDisplay === 'right') {
+      mainFolder = args.rightFolder;
+    }
+  } else if (isSteroImportKeywordArgs(args)) {
+    const keywordExists = fs.existsSync(args.keywordFolder);
+    if (!keywordExists) {
+      throw new Error(`file or directory not found: ${args.keywordFolder}`);
+    }
+    mainFolder = args.keywordFolder;
   }
-
+  if (mainFolder === undefined) {
+    throw new Error('No main folder defined');
+  }
   const stat = await fs.stat(mainFolder);
   if (stat.isDirectory()) {
     datasetType = 'image-sequence';
@@ -153,22 +154,37 @@ async function beginStereoImportMulti(
     */
     throw new Error('Not support stereoscopic video at this time');
   } else if (datasetType === 'image-sequence') {
-    const leftFound = await findImagesInFolder(args.leftFolder);
-    if (leftFound.images.length === 0) {
-      throw new Error(`no images found in ${args.leftFolder}`);
+    if (isSteroImportMultiArgs(args)) {
+      const leftFound = await findImagesInFolder(args.leftFolder);
+      if (leftFound.images.length === 0) {
+        throw new Error(`no images found in ${args.leftFolder}`);
+      }
+      const rightFound = await findImagesInFolder(args.rightFolder);
+      if (rightFound.images.length === 0) {
+        throw new Error(`no images found in ${args.rightFolder}`);
+      }
+      if (jsonMeta.stereoscopic) {
+        jsonMeta.stereoscopic.leftImages = leftFound.images;
+        jsonMeta.stereoscopic.rightImages = rightFound.images;
+      }
+      jsonMeta.originalImageFiles = leftFound.images.concat(rightFound.images);
+      mediaConvertList = leftFound.mediaConvetList.concat(rightFound.mediaConvetList);
+    } else if (isSteroImportKeywordArgs(args)) {
+      const leftFound = await findImagesInFolder(args.keywordFolder, args.globPatternLeft);
+      if (leftFound.images.length === 0) {
+        throw new Error(`no images found in ${args.keywordFolder} with glob ${args.globPatternLeft}`);
+      }
+      const rightFound = await findImagesInFolder(args.keywordFolder, args.globPatternRight);
+      if (rightFound.images.length === 0) {
+        throw new Error(`no images found in ${args.keywordFolder} with glob ${args.globPatternRight}`);
+      }
+      if (jsonMeta.stereoscopic) {
+        jsonMeta.stereoscopic.leftImages = leftFound.images;
+        jsonMeta.stereoscopic.rightImages = rightFound.images;
+      }
+      jsonMeta.originalImageFiles = leftFound.images.concat(rightFound.images);
+      mediaConvertList = leftFound.mediaConvetList.concat(rightFound.mediaConvetList);
     }
-    jsonMeta.originalImageFiles = leftFound.images;
-    mediaConvertList = leftFound.mediaConvetList;
-    const rightFound = await findImagesInFolder(args.rightFolder);
-    if (rightFound.images.length === 0) {
-      throw new Error(`no images found in ${args.rightFolder}`);
-    }
-    if (jsonMeta.stereoscopic) {
-      jsonMeta.stereoscopic.leftImages = leftFound.images;
-      jsonMeta.stereoscopic.rightImages = rightFound.images;
-    }
-    jsonMeta.originalImageFiles = leftFound.images.concat(rightFound.images);
-    mediaConvertList = leftFound.mediaConvetList.concat(rightFound.mediaConvetList);
   } else {
     throw new Error('only video and image-sequence types are supported');
   }
@@ -179,3 +195,5 @@ async function beginStereoImportMulti(
     mediaConvertList,
   };
 }
+
+export default { beginStereoImport };
