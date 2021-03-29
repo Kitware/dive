@@ -56,6 +56,7 @@ export default defineComponent({
 <template>
   <Viewer
     :id="id"
+    :key="id"
     ref="viewerRef"
   >
     <template #title>

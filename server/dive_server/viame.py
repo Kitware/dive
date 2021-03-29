@@ -48,6 +48,7 @@ from .utils import (
     createSoftClone,
     detections_item,
     get_or_create_auxiliary_folder,
+    getCloneRoot,
     getTrackAndAttributesFromCSV,
     move_existing_result_to_auxiliary_folder,
     saveCSVImportAttributes,
@@ -600,9 +601,8 @@ class Viame(Resource):
         )
     )
     def get_valid_images(self, folder):
-        verify_dataset(folder)
         return Folder().childItems(
-            folder,
+            getCloneRoot(self.getCurrentUser(), folder),
             filters={"lowerName": {"$regex": safeImageRegex}},
             sort=[("lowerName", pymongo.ASCENDING)],
         )

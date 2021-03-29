@@ -16,13 +16,13 @@ from dive_server.serializers import viame
 from dive_server.utils import (
     detections_file,
     detections_item,
+    getCloneRoot,
     getTrackData,
     saveTracks,
     verify_dataset,
 )
 from dive_utils import fromMeta, models
 from dive_utils.constants import (
-    ForeignMediaId,
     ImageMimeTypes,
     ImageSequenceType,
     VideoMimeTypes,
@@ -43,15 +43,13 @@ class ViameDetection(Resource):
         self.route("GET", (":id", "export_all"), self.export_all)
 
     def _get_clip_meta(self, folder):
-        detection = detections_item(folder)
         videoUrl = None
         video = None
-        folderId = fromMeta(folder, ForeignMediaId, False) or folder['_id']
 
         # Find a video tagged with an h264 codec left by the transcoder
         item = Item().findOne(
             {
-                'folderId': folder['_id'],
+                'folderId': getCloneRoot(self.getCurrentUser(), folder)['_id'],
                 'meta.codec': 'h264',
                 'meta.source_video': {
                     '$in': [
@@ -70,7 +68,7 @@ class ViameDetection(Resource):
 
         return {
             'folder': folder,
-            'detection': detection,
+            'detection': detections_item(folder),
             'video': video,
             'videoUrl': videoUrl,
         }

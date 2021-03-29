@@ -7,7 +7,7 @@ import { usePendingSaveCount, useHandler } from 'vue-media-annotator/provides';
 import AutosavePrompt from 'dive-common/components/AutosavePrompt.vue';
 import { MediaTypes } from 'dive-common/constants';
 import { getExportUrls, ExportUrlsResponse } from '../api/viameDetection.service';
-
+import { clone } from '../api/viame.service';
 
 export default defineComponent({
   components: { AutosavePrompt },
@@ -27,7 +27,7 @@ export default defineComponent({
     },
   },
 
-  setup(props) {
+  setup(props, { root }) {
     const menuOpen = ref(false);
     const excludeFiltered = ref(false);
     const exportUrls = ref(null as null | ExportUrlsResponse);
@@ -39,6 +39,11 @@ export default defineComponent({
     if (props.blockOnUnsaved) {
       save = useHandler().save;
       pendingSaveCount = usePendingSaveCount();
+    }
+
+    async function doClone() {
+      const newDataset = await clone({ folderId: props.datasetId });
+      root.$router.push({ name: 'viewer', params: { id: newDataset._id } });
     }
 
     async function doExport({ forceSave = false, url }: { url?: string; forceSave?: boolean }) {
@@ -83,6 +88,7 @@ export default defineComponent({
       mediaType,
       thresholds,
       savePrompt,
+      doClone,
       doExport,
     };
   },
@@ -191,6 +197,24 @@ export default defineComponent({
             @click="doExport({ url: exportUrls && exportUrls.exportAllUrl })"
           >
             Everything
+          </v-btn>
+        </v-card-actions>
+
+        <v-card-title>
+          Make a clone
+        </v-card-title>
+        <v-card-text class="pb-0">
+          Create a copy of this dataset in your personal workspace.  You will be able
+          to edit annotations.  This operation does not copy, but instead directly references
+          the source media.
+        </v-card-text>
+        <v-card-actions>
+          <v-btn
+            depressed
+            block
+            @click="doClone"
+          >
+            Clone
           </v-btn>
         </v-card-actions>
       </v-card>

@@ -17,7 +17,7 @@ from pymongo.cursor import Cursor
 
 from dive_server.serializers import viame
 from dive_utils import TRUTHY_META_VALUES, asbool, fromMeta, models
-from dive_utils.constants import DatasetMarker, ForeignMediaId
+from dive_utils.constants import DatasetMarker, DetectionMarker, ForeignMediaIdMarker
 from dive_utils.types import GirderModel
 
 
@@ -39,7 +39,11 @@ class PydanticModel(AccessControlledModel):
 
 def all_detections_items(folder: Folder) -> Cursor:
     """caller is responsible for verifying access permissions"""
-    return Item().find({"meta.detection": str(folder['_id'])}).sort([("created", -1)])
+    return (
+        Item()
+        .find({f"meta.{DetectionMarker}": str(folder['_id'])})
+        .sort([("created", -1)])
+    )
 
 
 def detections_item(folder: Folder, strict=False) -> Optional[GirderModel]:
@@ -157,6 +161,20 @@ def verify_dataset(folder: GirderModel):
     return True
 
 
+def getCloneRoot(owner: GirderModel, source_folder: GirderModel):
+    """Get the source media folder associated with a clone"""
+    verify_dataset(source_folder)
+    while fromMeta(source_folder, ForeignMediaIdMarker, False) is not False:
+        """Recurse through source folders to find the root, allowing clones of clones"""
+        source_folder = Folder().load(
+            fromMeta(source_folder, ForeignMediaIdMarker),
+            level=AccessType.READ,
+            user=owner,
+        )
+        verify_dataset(source_folder)
+    return source_folder
+
+
 def createSoftClone(
     owner: GirderModel,
     source_folder: GirderModel,
@@ -164,15 +182,6 @@ def createSoftClone(
     public: bool = False,
 ):
     """Create a no-copy clone of source_id for owner"""
-
-    while fromMeta(source_folder, ForeignMediaId, False) is not False:
-        """Recurse through source folders to find the root, allowing clones of clones"""
-        source_folder = Folder().load(
-            fromMeta(source_folder, ForeignMediaId),
-            level=AccessType.READ,
-            user=owner,
-        )
-        verify_dataset(source_folder)
 
     cloned_parent = Folder().findOne(
         {
@@ -190,14 +199,20 @@ def createSoftClone(
     cloned_folder = Folder().createFolder(
         cloned_parent,
         name or f'Clone of {source_folder["name"]}',
-        description=f'Clone of {source_folder["name"]}',
+        description=f'Clone of {source_folder["name"]}.',
         reuseExisting=False,
         public=public,
     )
     cloned_folder['meta'] = source_folder['meta']
-    cloned_folder['meta'][ForeignMediaId] = str(source_folder['_id'])
+    media_source_folder = getCloneRoot(owner, source_folder)
+    cloned_folder['meta'][ForeignMediaIdMarker] = str(media_source_folder['_id'])
+    Folder().save(cloned_folder)
     get_or_create_auxiliary_folder(cloned_folder, owner)
     source_detections = detections_item(source_folder)
     if source_detections is not None:
-        Item().copyItem(source_detections, creator=owner, folder=cloned_folder)
+        cloned_detection_item = Item().copyItem(
+            source_detections, creator=owner, folder=cloned_folder
+        )
+        cloned_detection_item['meta'][DetectionMarker] = str(cloned_folder['_id'])
+        Item().save(cloned_detection_item)
     return cloned_folder

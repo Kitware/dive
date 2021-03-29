@@ -27,6 +27,21 @@ async function getBrandData(): Promise<BrandData> {
   return data;
 }
 
+async function clone({ folderId, name, isPublic }: {
+  folderId: string;
+  name?: string;
+  isPublic?: boolean;
+}) {
+  const formData = new FormData();
+  if (name) {
+    formData.set('name', name);
+  }
+  if (isPublic !== undefined) {
+    formData.set('public', `${isPublic}`);
+  }
+  const { data } = await girderRest.post<GirderModel>(`viame/dataset/${folderId}/clone`, formData);
+  return data;
+}
 
 function makeViameFolder({
   folderId, name, fps, type,
@@ -123,6 +138,7 @@ async function getValidWebImages(folderId: string) {
 
 
 export {
+  clone,
   getBrandData,
   deleteResources,
   getPipelineList,
