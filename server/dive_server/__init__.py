@@ -5,8 +5,9 @@ from girder.models.setting import Setting
 from girder.utility import setting_utilities
 from girder.utility.model_importer import ModelImporter
 
+from dive_utils.constants import SETTINGS_CONST_JOBS_CONFIGS
+
 from .client_webroot import ClientWebroot
-from .constants import SETTINGS_CONST_JOBS_CONFIGS
 from .event import check_existing_annotations
 from .viame import Viame
 from .viame_detection import ViameDetection
@@ -33,6 +34,7 @@ class GirderPlugin(plugin.GirderPlugin):
         info["apiRoot"].viame = Viame()
         info["apiRoot"].viame_detection = ViameDetection()
         info["apiRoot"].viame_summary = ViameSummary()
+
         # Relocate Girder
         info["serverRoot"], info["serverRoot"].girder = (
             ClientWebroot(),

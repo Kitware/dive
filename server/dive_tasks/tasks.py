@@ -25,6 +25,7 @@ from dive_tasks.utils import (
     stream_subprocess,
 )
 from dive_utils import fromMeta
+from dive_utils.constants import TrainedPipelineCategory, TrainedPipelineMarker
 from dive_utils.types import AvailableJobSchema, GirderModel, PipelineJob
 
 EMPTY_JOB_SCHEMA: AvailableJobSchema = {
@@ -198,7 +199,7 @@ def run_pipeline(self: Task, params: PipelineJob):
 
     gc.downloadFolderRecursive(input_folder, input_path)
 
-    if pipeline["type"] == "trained":
+    if pipeline["type"] == TrainedPipelineCategory:
         gc.downloadFolderRecursive(pipeline["folderId"], str(trained_pipeline_folder))
         pipeline_path = trained_pipeline_folder / pipeline["pipe"]
     else:
@@ -413,7 +414,7 @@ def train_pipeline(
                 results_folder["_id"],
                 pipeline_name,
                 metadata={
-                    "trained_pipeline": True,
+                    TrainedPipelineMarker: True,
                     "trained_on": trained_on_list,
                 },
             )
