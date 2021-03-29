@@ -66,6 +66,15 @@ class Viame(Resource):
         self.resourceName = "viame"
 
         self.route("GET", ("datasets",), self.list_datasets)
+        self.route(
+            "POST",
+            (
+                "dataset",
+                ":id",
+                "clone",
+            ),
+            self.clone_dataset,
+        )
         self.route("GET", ("brand_data",), self.get_brand_data)
         self.route("GET", ("pipelines",), self.get_pipelines)
         self.route("GET", ("training_configs",), self.get_training_configs)
@@ -164,6 +173,41 @@ class Viame(Resource):
         return Folder().findWithPermissions(
             query, offset=offset, limit=limit, sort=sort, user=self.getCurrentUser()
         )
+
+    @access.user
+    @autoDescribeRoute(
+        Description("Clone a dataset")
+        .modelParam(
+            "id",
+            description="Dataset clone source",
+            model=Folder,
+            level=AccessType.READ,
+        )
+        .param(
+            "name",
+            "Name for new dataset",
+            paramType="formData",
+            dataType="string",
+            default=None,
+            required=False,
+        )
+        .param(
+            "public",
+            "Should the clone be public",
+            paramType="formData",
+            dataType="boolean",
+            default=False,
+            required=False,
+        )
+    )
+    def clone_dataset(
+        self,
+        folderId,
+        name,
+        public,
+    ):
+        owner = self.getCurrentUser()
+        pass
 
     @access.user
     @describeRoute(Description("Get available pipeline configurations"))

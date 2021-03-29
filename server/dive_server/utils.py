@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Dict, Optional, Tuple, Type
 
 from girder.constants import AccessType
-from girder.exceptions import RestException
+from girder.exceptions import GirderException, RestException
 from girder.models.file import File
 from girder.models.folder import Folder
 from girder.models.item import Item
@@ -146,3 +146,28 @@ def saveCSVImportAttributes(folder, attributes, user):
 
     folder['meta']['attributes'] = attributes_dict
     Folder().save(folder)
+
+
+def createClone(owner: GirderModel, source_id: GirderModel, name: str, public: bool):
+    source_folder = Folder().load(source_id)
+    cloned_parent = Folder().findOne(
+        {
+            'parentId': owner['_id'],
+            'baseParentType': 'user',
+            'baseParentId': owner['_id'],
+            'public': public,
+            'name': 'Public' if public else 'Private',
+        }
+    )
+    if cloned_parent is None:
+        raise GirderException('Owner is missing default public or private folder')
+    cloned_folder = Folder().createFolder(
+        cloned_parent,
+        name,
+        description=f'Clone of {source["name"]}',
+        reuseExisting=False,
+    )
+    cloned_folder['meta'] = source['meta']
+    source_detections = detections_item(source)
+    if source_detections is not None:
+        Item().copyItem(source_detections, creator=owner, folder=cloned_folder)
