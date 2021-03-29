@@ -1,27 +1,14 @@
 # DIVE Documentation
 
-This is the user documentation for DIVE, an open-source annotation system that integrates with VIAME.
+This is the user documentation for DIVE, an open-source annotation and analysis platform build for VIAME.
+
+[:fontawesome-solid-compass: Try the web version](Getting-Started.md){ .md-button } [:fontawesome-solid-desktop: Get the desktop app](Dive-Desktop.md){ .md-button }
 
 ## Get Help
 
-For feedback, problems, questions, or feature requests, please email <a href="mailto:viame-web@kitware.com">`viame-web@kitware.com`</a>
+For feedback, problems, questions, or feature requests, please email <a href="mailto:viame-web@kitware.com">`viame-web@kitware.com`</a>. Our team would be happy to hear from you!
 
 ![Home](images/Banner.png)
-
-## VIAME Web (Browser) Version
-
-VIAME Web is available at [viame.kitware.com](https://viame.kitware.com).
-
-!!! info
-    **VIAME Web is automatically updated and down for 10 minutes on 2 am EST/EDT Thursdays**
-
-[Use the web version.](Getting-Started.md)
-
-## DIVE Desktop Version
-
-A full desktop version is also available.
-
-[Get the desktop version.](Dive-Desktop.md)
 
 ## Features
 

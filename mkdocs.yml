@@ -14,12 +14,17 @@ theme:
 
 markdown_extensions:
   - admonition
+  - attr_list
+  - pymdownx.emoji:
+      emoji_index: !!python/name:materialx.emoji.twemoji
+      emoji_generator: !!python/name:materialx.emoji.to_svg
 
 nav:
   - Home: index.md
   - Web Version: Getting-Started.md
   - Desktop Version: Dive-Desktop.md
   - Annotation Quickstart: Annotation-QuickStart.md
+  - Use Cases: Use-Cases.md
   - Pipeline Docs: Pipeline-Documentation.md
   - User Interface Guide:
     - Introduction: Annotation-User-Interface-Overview.md

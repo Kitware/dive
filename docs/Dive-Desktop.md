@@ -6,7 +6,7 @@ DIVE Desktop has most of the same UI and features as DIVE **without** requiring 
 
 ## Installation
 
-**[⬇️ Download the latest DIVE Desktop from GitHub.](https://github.com/Kitware/dive/releases/latest)**
+[⬇️ Download the latest DIVE Desktop from GitHub](https://github.com/Kitware/dive/releases/latest){ .md-button .md-button--primary }
 
 Choose an **asset** from the list matching your operating system:
 

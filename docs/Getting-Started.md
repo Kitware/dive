@@ -1,6 +1,11 @@
 # Web Version
 
-The web version is an open-source browser-based dynamic web app with a [Girder](https://resonant.kitware.com/) Python backend.  You can use our server (see below) or [run your own](https://github.com/Kitware/dive/tree/main/docker).
+[Try our public server](https://viame.kitware.com){ .md-button .md-button--primary }
+
+You can also [run your own](https://github.com/Kitware/dive/tree/main/docker).
+
+!!! warning
+    **VIAME Web is automatically updated at 2AM EST/EDT every Thursday.**  If you are running a pipeline or training workflow during update, it will be interrupted and started over.
 
 ## Features
 
