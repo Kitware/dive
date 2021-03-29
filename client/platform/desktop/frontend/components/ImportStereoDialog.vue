@@ -11,9 +11,9 @@ import * as api from '../api';
 
 export default defineComponent({
   name: 'ImportStereoDialog',
-  setup() {
+  setup(props, { emit }) {
     const ready = ref(false);
-    const importType = ref('');
+    const importType: Ref<'multi'|'keyword'| ''> = ref('');
     const leftFolder = ref('');
     const rightFolder = ref('');
     const keywordFolder = ref('');
@@ -50,7 +50,9 @@ export default defineComponent({
         return 'Left and Right filters should have the same number of images';
       }
       if (
-        filteredImagesRight.value.filter((value) => filteredImagesLeft.value.includes(value)).length
+        filteredImagesRight.value.filter(
+          (value: string) => filteredImagesLeft.value.includes(value),
+        ).length
       ) {
         return 'Intersecting values.  Images must be unique to Left and Right';
       }
@@ -87,12 +89,30 @@ export default defineComponent({
         }
       }
     }
+
+    const prepForImport = () => {
+      if (importType.value === 'multi') {
+        emit('begin-stereo-import-multi', {
+          defaultDisplay: defaultDisplay.value,
+          leftFolder: leftFolder.value,
+          rightFolder: rightFolder.value,
+          calibrationFile: calibrationFile.value,
+        });
+      } else if (importType.value === 'keyword') {
+        emit('finalize-stereo-import-keyword', {
+          defaultDisplay: defaultDisplay.value,
+          keywordFolder: keywordFolder.value,
+          globPatternLeft: globPatternLeft.value,
+          globPatternRight: globPatternRight.value,
+          calibrationFile: calibrationFile.value,
+        });
+      }
+    };
     return {
       ready,
       keywordReady,
       nextSteps,
       importType,
-      open,
       leftFolder,
       rightFolder,
       keywordFolder,
@@ -103,6 +123,9 @@ export default defineComponent({
       filteredImagesRight,
       calibrationFile,
       defaultDisplay,
+      //Methods
+      open,
+      prepForImport,
     };
   },
 });
@@ -296,7 +319,7 @@ export default defineComponent({
         <v-btn
           color="primary"
           :disabled="!ready"
-          @click="$emit('finalize-stereo-import',)"
+          @click="prepForImport"
         >
           Begin Import
         </v-btn>
