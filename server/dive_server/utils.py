@@ -16,7 +16,8 @@ from pydantic.main import BaseModel
 from pymongo.cursor import Cursor
 
 from dive_server.serializers import viame
-from dive_utils import fromMeta, models
+from dive_utils import TRUTHY_META_VALUES, asbool, fromMeta, models
+from dive_utils.constants import DatasetMarker, ForeignMediaId
 from dive_utils.types import GirderModel
 
 
@@ -148,8 +149,31 @@ def saveCSVImportAttributes(folder, attributes, user):
     Folder().save(folder)
 
 
-def createClone(owner: GirderModel, source_id: GirderModel, name: str, public: bool):
-    source_folder = Folder().load(source_id)
+def verify_dataset(folder: GirderModel):
+    """Verify that a given folder is a DIVE dataset"""
+
+    if not asbool(fromMeta(folder, DatasetMarker, False)):
+        raise GirderException(f'Source folder is not a valid DIVE dataset')
+    return True
+
+
+def createSoftClone(
+    owner: GirderModel,
+    source_folder: GirderModel,
+    name: str = None,
+    public: bool = False,
+):
+    """Create a no-copy clone of source_id for owner"""
+
+    while fromMeta(source_folder, ForeignMediaId, False) is not False:
+        """Recurse through source folders to find the root, allowing clones of clones"""
+        source_folder = Folder().load(
+            fromMeta(source_folder, ForeignMediaId),
+            level=AccessType.READ,
+            user=owner,
+        )
+        verify_dataset(source_folder)
+
     cloned_parent = Folder().findOne(
         {
             'parentId': owner['_id'],
@@ -160,14 +184,20 @@ def createClone(owner: GirderModel, source_id: GirderModel, name: str, public: b
         }
     )
     if cloned_parent is None:
-        raise GirderException('Owner is missing default public or private folder')
+        raise GirderException(
+            'Owner is missing default public or private folder, no destination to clone'
+        )
     cloned_folder = Folder().createFolder(
         cloned_parent,
-        name,
-        description=f'Clone of {source["name"]}',
+        name or f'Clone of {source_folder["name"]}',
+        description=f'Clone of {source_folder["name"]}',
         reuseExisting=False,
+        public=public,
     )
-    cloned_folder['meta'] = source['meta']
-    source_detections = detections_item(source)
+    cloned_folder['meta'] = source_folder['meta']
+    cloned_folder['meta'][ForeignMediaId] = str(source_folder['_id'])
+    get_or_create_auxiliary_folder(cloned_folder, owner)
+    source_detections = detections_item(source_folder)
     if source_detections is not None:
         Item().copyItem(source_detections, creator=owner, folder=cloned_folder)
+    return cloned_folder

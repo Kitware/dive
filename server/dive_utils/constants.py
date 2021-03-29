@@ -35,7 +35,9 @@ VideoMimeTypes = {
     "video/x-msvideo",
 }
 
+DatasetMarker = 'annotate'
 PublishedMarker = 'published'
+ForeignMediaId = 'foreign_media_id'
 TrainedPipelineMarker = "trained_pipeline"
 TrainedPipelineCategory = "trained"
 

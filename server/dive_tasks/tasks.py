@@ -25,7 +25,11 @@ from dive_tasks.utils import (
     stream_subprocess,
 )
 from dive_utils import fromMeta
-from dive_utils.constants import TrainedPipelineCategory, TrainedPipelineMarker
+from dive_utils.constants import (
+    DatasetMarker,
+    TrainedPipelineCategory,
+    TrainedPipelineMarker,
+)
 from dive_utils.types import AvailableJobSchema, GirderModel, PipelineJob
 
 EMPTY_JOB_SCHEMA: AvailableJobSchema = {
@@ -517,7 +521,7 @@ def convert_video(self: Task, path, folderId, auxiliaryFolderId, itemId):
         folderId,
         {
             "fps": 5,  # TODO: current time system doesn't allow for non-int framerates
-            "annotate": True,  # mark the parent folder as able to annotate.
+            DatasetMarker: True,  # mark the parent folder as able to annotate.
             "ffprobe_info": videostream[0],
         },
     )

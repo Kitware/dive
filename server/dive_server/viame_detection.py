@@ -13,9 +13,16 @@ from girder.models.item import Item
 from girder.utility import ziputil
 
 from dive_server.serializers import viame
-from dive_server.utils import detections_file, detections_item, getTrackData, saveTracks
+from dive_server.utils import (
+    detections_file,
+    detections_item,
+    getTrackData,
+    saveTracks,
+    verify_dataset,
+)
 from dive_utils import fromMeta, models
 from dive_utils.constants import (
+    ForeignMediaId,
     ImageMimeTypes,
     ImageSequenceType,
     VideoMimeTypes,
@@ -39,6 +46,8 @@ class ViameDetection(Resource):
         detection = detections_item(folder)
         videoUrl = None
         video = None
+        folderId = fromMeta(folder, ForeignMediaId, False) or folder['_id']
+
         # Find a video tagged with an h264 codec left by the transcoder
         item = Item().findOne(
             {
@@ -121,6 +130,7 @@ class ViameDetection(Resource):
         )
     )
     def get_export_urls(self, folder, excludeBelowThreshold):
+        verify_dataset(folder)
         folderId = str(folder['_id'])
 
         export_all = f'/api/v1/folder/{folderId}/download'
@@ -188,6 +198,7 @@ class ViameDetection(Resource):
         )
     )
     def export_detections(self, folder, excludeBelowThreshold):
+        verify_dataset(folder)
         filename, gen = self._generate_detections(folder, excludeBelowThreshold)
         setContentDisposition(filename)
         return gen
@@ -211,6 +222,7 @@ class ViameDetection(Resource):
         )
     )
     def export_all(self, folder, excludeBelowThreshold):
+        verify_dataset(folder)
         _, gen = self._generate_detections(folder, excludeBelowThreshold)
         setResponseHeader('Content-Type', 'application/zip')
         setContentDisposition(folder['name'] + '.zip')
@@ -239,6 +251,7 @@ class ViameDetection(Resource):
         )
     )
     def get_detection(self, folder):
+        verify_dataset(folder)
         file = detections_file(folder)
         if file is None:
             return {}
@@ -260,6 +273,7 @@ class ViameDetection(Resource):
         )
     )
     def get_clip_meta(self, folder):
+        verify_dataset(folder)
         return self._get_clip_meta(folder)
 
     @access.user
@@ -278,6 +292,7 @@ class ViameDetection(Resource):
         )
     )
     def save_detection(self, folder, tracks):
+        verify_dataset(folder)
         user = self.getCurrentUser()
         upsert: List[dict] = tracks.get('upsert', [])
         delete: List[str] = tracks.get('delete', [])

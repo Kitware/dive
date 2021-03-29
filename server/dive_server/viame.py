@@ -24,6 +24,7 @@ from dive_tasks.tasks import (
 from dive_utils import TRUTHY_META_VALUES, asbool, fromMeta, models
 from dive_utils.constants import (
     SETTINGS_CONST_JOBS_CONFIGS,
+    DatasetMarker,
     PublishedMarker,
     TrainedPipelineCategory,
     csvRegex,
@@ -44,13 +45,14 @@ from .serializers import meva as meva_serializer
 from .training import ensure_csv_detections_file, training_output_folder
 from .transforms import GetPathFromItemId
 from .utils import (
+    createSoftClone,
     detections_item,
     get_or_create_auxiliary_folder,
     getTrackAndAttributesFromCSV,
-    getTrackData,
     move_existing_result_to_auxiliary_folder,
     saveCSVImportAttributes,
     saveTracks,
+    verify_dataset,
 )
 
 JOBCONST_DATASET_ID = 'datset_id'
@@ -66,15 +68,7 @@ class Viame(Resource):
         self.resourceName = "viame"
 
         self.route("GET", ("datasets",), self.list_datasets)
-        self.route(
-            "POST",
-            (
-                "dataset",
-                ":id",
-                "clone",
-            ),
-            self.clone_dataset,
-        )
+        self.route("POST", ("dataset", ":id", "clone"), self.clone_dataset)
         self.route("GET", ("brand_data",), self.get_brand_data)
         self.route("GET", ("pipelines",), self.get_pipelines)
         self.route("GET", ("training_configs",), self.get_training_configs)
@@ -161,7 +155,7 @@ class Viame(Resource):
     def list_datasets(self, params):
         limit, offset, sort = self.getPagingParameters(params)
         query = {
-            'meta.annotate': {'$in': TRUTHY_META_VALUES},
+            f'meta.{DatasetMarker}': {'$in': TRUTHY_META_VALUES},
         }
         if self.boolParam(PublishedMarker, params):
             query = {
@@ -200,14 +194,10 @@ class Viame(Resource):
             required=False,
         )
     )
-    def clone_dataset(
-        self,
-        folderId,
-        name,
-        public,
-    ):
+    def clone_dataset(self, folder, name, public):
+        verify_dataset(folder)
         owner = self.getCurrentUser()
-        pass
+        return createSoftClone(owner, folder, name, public)
 
     @access.user
     @describeRoute(Description("Get available pipeline configurations"))
@@ -244,6 +234,7 @@ class Viame(Resource):
         """
         user = self.getCurrentUser()
         verify_pipe(user, pipeline)
+        verify_dataset(folder)
 
         folder_id_str = str(folder["_id"])
         # First, verify that no other outstanding jobs are running on this dataset
@@ -347,6 +338,7 @@ class Viame(Resource):
             folder = Folder().load(folderId, level=AccessType.READ, user=user)
             if folder is None:
                 raise RestException(f"Cannot access folder {folderId}")
+            verify_dataset(folder)
             folder_names.append(folder['name'])
             # Ensure detection has a csv format
             # TODO: Move this into worker job
@@ -497,7 +489,7 @@ class Viame(Resource):
                 )
 
             elif imageItems.count() > 0:
-                folder["meta"]["annotate"] = True
+                folder["meta"][DatasetMarker] = True
 
             # transform KPF if necessary
             ymlItems = Folder().childItems(
@@ -548,6 +540,7 @@ class Viame(Resource):
         .errorResponse('Using a reserved metadata key', 400)
     )
     def update_metadata(self, folder, data):
+        verify_dataset(folder)
         validated = models.MetadataMutableUpdate(**data)
         for name, value in validated.dict(exclude_none=True).items():
             folder['meta'][name] = value
@@ -573,6 +566,7 @@ class Viame(Resource):
         )
     )
     def save_attributes(self, folder, attributes):
+        verify_dataset(folder)
         upsert = attributes.get('upsert', [])
         delete = attributes.get('delete', [])
         attributes_dict = fromMeta(folder, 'attributes', {})
@@ -606,6 +600,7 @@ class Viame(Resource):
         )
     )
     def get_valid_images(self, folder):
+        verify_dataset(folder)
         return Folder().childItems(
             folder,
             filters={"lowerName": {"$regex": safeImageRegex}},
