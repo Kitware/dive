@@ -12,6 +12,7 @@ import { serialize } from 'platform/desktop/backend/serializers/viame';
 import { observeChild } from 'platform/desktop/backend/native/processManager';
 
 import * as common from './common';
+import stereoImport from './stereoImport';
 import { jobFileEchoMiddleware, spawnResult } from './utils';
 
 
@@ -76,6 +77,11 @@ async function runPipeline(
     await serialize(groundTruthFileStream, inputData, meta);
     groundTruthFileStream.end();
   }
+  let stereoInput = false;
+  if (meta.stereoscopic && pipeline.type === 'measurement') {
+    stereoInput = true;
+    stereoImport.writeSteroInputs(jobWorkDir, meta);
+  }
 
   let command: string[] = [];
   if (meta.type === 'video') {
@@ -115,6 +121,11 @@ async function runPipeline(
     if (requiresInput) {
       command.push(`-s detection_reader:file_name="${groundTruthFileName}"`);
       command.push(`-s track_reader:file_name="${groundTruthFileName}"`);
+    }
+    if (stereoInput) {
+      command.push(`-s cam1_iread:video_filename="${npath.join(jobWorkDir, 'cam1_images.txt')}"`);
+      command.push(`-s cam2_iread:video_filename="${npath.join(jobWorkDir, 'cam2_images.txt')}"`);
+      command.push(`-s measure:cal_fpath="${meta.stereoscopic?.calibration}"`);
     }
   }
 

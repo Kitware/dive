@@ -68,7 +68,7 @@ export default defineComponent({
       return false;
     });
 
-    async function open(dstype: DatasetType, folder: 'left' | 'right' | 'keyword') {
+    async function open(dstype: DatasetType | 'calibration', folder: 'left' | 'right' | 'keyword' | 'calibration') {
       const ret = await api.openFromDisk(dstype);
       if (!ret.canceled) {
         try {
@@ -83,6 +83,9 @@ export default defineComponent({
           if (folder === 'keyword') {
             keywordFolder.value = path;
             pendingImportPayload.value = await api.importMedia(path);
+          }
+          if (folder === 'calibration') {
+            calibrationFile.value = path;
           }
         } catch (err) {
           console.log(err);

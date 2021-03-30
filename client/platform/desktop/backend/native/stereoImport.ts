@@ -164,8 +164,12 @@ async function beginStereoImport(
         throw new Error(`no images found in ${args.rightFolder}`);
       }
       if (jsonMeta.stereoscopic) {
-        jsonMeta.stereoscopic.leftImages = leftFound.images;
-        jsonMeta.stereoscopic.rightImages = rightFound.images;
+        jsonMeta.stereoscopic.leftImages = leftFound.images.map(
+          (image) => npath.join(args.leftFolder, image),
+        );
+        jsonMeta.stereoscopic.rightImages = rightFound.images.map(
+          (image) => npath.join(args.rightFolder, image),
+        );
       }
       jsonMeta.originalImageFiles = leftFound.images.concat(rightFound.images);
       mediaConvertList = leftFound.mediaConvetList.concat(rightFound.mediaConvetList);
@@ -196,4 +200,21 @@ async function beginStereoImport(
   };
 }
 
-export default { beginStereoImport };
+function writeSteroInputs(jobWorkDir: string, meta: JsonMeta) {
+  // Write input folder paths to list
+  const leftInputFile = fs.createWriteStream(npath.join(jobWorkDir, 'cam1_images.txt'));
+  const rightInputFile = fs.createWriteStream(npath.join(jobWorkDir, 'cam2_images.txt'));
+  if (meta.type === 'video') {
+    // TODO Support stereo video
+  } else if (meta.type === 'image-sequence') {
+    if (meta.stereoscopic) {
+      meta.stereoscopic.leftImages.forEach((image) => leftInputFile.write(`${image}\n`));
+      meta.stereoscopic.rightImages.forEach((image) => rightInputFile.write(`${image}\n`));
+    }
+  }
+  leftInputFile.end();
+  rightInputFile.end();
+
+}
+
+export default { beginStereoImport, writeSteroInputs };

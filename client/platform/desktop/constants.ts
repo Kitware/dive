@@ -24,6 +24,9 @@ export const otherVideoTypes = [
   'video/ogg',
 ];
 
+export const calibrationFileTypes = [
+  'npz',
+];
 export const fileVideoTypes = [
   'mp4',
   'webm',

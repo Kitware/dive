@@ -231,7 +231,7 @@ async function loadDetections(settings: Settings, datasetId: string) {
  */
 async function getPipelineList(settings: Settings): Promise<Pipelines> {
   const pipelinePath = npath.join(settings.viamePath, 'configs/pipelines');
-  const allowedPatterns = /^detector_.+|^tracker_.+|^generate_.+|^utility_|^measurement/;
+  const allowedPatterns = /^detector_.+|^tracker_.+|^generate_.+|^utility_|^measurement\.gmm/;
   const disallowedPatterns = /.*local.*|detector_svm_models.pipe|tracker_svm_models.pipe/;
   const exists = await fs.pathExists(pipelinePath);
   if (!exists) return {};
@@ -241,7 +241,7 @@ async function getPipelineList(settings: Settings): Promise<Pipelines> {
   /* TODO: fetch trained pipelines */
   const ret: Pipelines = {};
   pipes.forEach((p) => {
-    const parts = p.replace('.pipe', '').split('_');
+    const parts = p.replace('.pipe', '').replace('.', '_').split('_');
     const pipeType = parts[0];
     const pipeName = parts.slice(1).join(' ');
     const pipeInfo = {

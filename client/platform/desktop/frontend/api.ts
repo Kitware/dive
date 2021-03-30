@@ -12,7 +12,7 @@ import type {
 import {
   DesktopJob, DesktopMetadata, JsonMeta, NvidiaSmiReply,
   RunPipeline, RunTraining, fileVideoTypes, ExportDatasetArgs,
-  MediaImportPayload, StereoImportKeywordArgs, StereoImportMultiArgs,
+  MediaImportPayload, StereoImportKeywordArgs, StereoImportMultiArgs, calibrationFileTypes,
 } from 'platform/desktop/constants';
 
 
@@ -20,7 +20,7 @@ import {
  * Native functions that run entirely in the renderer
  */
 
-async function openFromDisk(datasetType: DatasetType) {
+async function openFromDisk(datasetType: DatasetType | 'calibration') {
   let filters: FileFilter[] = [];
   if (datasetType === 'video') {
     filters = [
@@ -28,8 +28,14 @@ async function openFromDisk(datasetType: DatasetType) {
       { name: 'All Files', extensions: ['*'] },
     ];
   }
+  if (datasetType === 'calibration') {
+    filters = [
+      { name: 'calibration', extensions: calibrationFileTypes },
+      { name: 'All Files', extensions: ['*'] },
+    ];
+  }
   const results = await remote.dialog.showOpenDialog({
-    properties: [datasetType === 'video' ? 'openFile' : 'openDirectory'],
+    properties: [datasetType === 'image-sequence' ? 'openDirectory' : 'openFile'],
     filters,
   });
   return results;
