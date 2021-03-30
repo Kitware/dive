@@ -41,6 +41,7 @@ DetectionMarker = "detection"
 PublishedMarker = "published"
 ForeignMediaIdMarker = "foreign_media_id"
 TrainedPipelineMarker = "trained_pipeline"
+TypeMarker = "type"
 
 # Other constants
 TrainedPipelineCategory = "trained"

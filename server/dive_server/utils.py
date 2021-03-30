@@ -16,8 +16,13 @@ from pydantic.main import BaseModel
 from pymongo.cursor import Cursor
 
 from dive_server.serializers import viame
-from dive_utils import TRUTHY_META_VALUES, asbool, fromMeta, models
-from dive_utils.constants import DatasetMarker, DetectionMarker, ForeignMediaIdMarker
+from dive_utils import asbool, fromMeta, models
+from dive_utils.constants import (
+    DatasetMarker,
+    DetectionMarker,
+    ForeignMediaIdMarker,
+    PublishedMarker,
+)
 from dive_utils.types import GirderModel
 
 
@@ -164,14 +169,21 @@ def verify_dataset(folder: GirderModel):
 def getCloneRoot(owner: GirderModel, source_folder: GirderModel):
     """Get the source media folder associated with a clone"""
     verify_dataset(source_folder)
-    while fromMeta(source_folder, ForeignMediaIdMarker, False) is not False:
+    next_id = fromMeta(source_folder, ForeignMediaIdMarker, False)
+    while next_id is not False:
         """Recurse through source folders to find the root, allowing clones of clones"""
         source_folder = Folder().load(
-            fromMeta(source_folder, ForeignMediaIdMarker),
+            next_id,
             level=AccessType.READ,
             user=owner,
         )
+        if source_folder is None:
+            raise GirderException(
+                f"Referenced media source missing. Folder Id {next_id} was not found."
+                " This may be a cloned dataset where the source was deleted."
+            )
         verify_dataset(source_folder)
+        next_id = fromMeta(source_folder, ForeignMediaIdMarker, False)
     return source_folder
 
 
@@ -181,7 +193,7 @@ def createSoftClone(
     name: str = None,
     public: bool = False,
 ):
-    """Create a no-copy clone of source_id for owner"""
+    """Create a no-copy clone of folder with source_id for owner"""
 
     cloned_parent = Folder().findOne(
         {
@@ -206,6 +218,7 @@ def createSoftClone(
     cloned_folder['meta'] = source_folder['meta']
     media_source_folder = getCloneRoot(owner, source_folder)
     cloned_folder['meta'][ForeignMediaIdMarker] = str(media_source_folder['_id'])
+    cloned_folder['meta'][PublishedMarker] = False
     Folder().save(cloned_folder)
     get_or_create_auxiliary_folder(cloned_folder, owner)
     source_detections = detections_item(source_folder)

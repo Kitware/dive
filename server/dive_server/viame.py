@@ -5,7 +5,7 @@ from girder.api import access
 from girder.api.describe import Description, autoDescribeRoute, describeRoute
 from girder.api.rest import Resource
 from girder.constants import AccessType
-from girder.exceptions import RestException
+from girder.exceptions import GirderException, RestException
 from girder.models.folder import Folder
 from girder.models.item import Item
 from girder.models.setting import Setting
@@ -25,6 +25,7 @@ from dive_utils import TRUTHY_META_VALUES, asbool, fromMeta, models
 from dive_utils.constants import (
     SETTINGS_CONST_JOBS_CONFIGS,
     DatasetMarker,
+    ForeignMediaIdMarker,
     PublishedMarker,
     TrainedPipelineCategory,
     csvRegex,
@@ -450,6 +451,9 @@ class Viame(Resource):
         """
         user = self.getCurrentUser()
         auxiliary = get_or_create_auxiliary_folder(folder, user)
+
+        if fromMeta(folder, ForeignMediaIdMarker, None) is not None:
+            raise GirderException("Cannot run postprocessing on cloned dataset")
 
         if not skipJobs:
             token = Token().createToken(user=user, days=2)

@@ -8,7 +8,7 @@ import tempfile
 import zipfile
 from pathlib import Path
 from subprocess import Popen
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
 from urllib import request
 from urllib.parse import urlparse
 
@@ -20,7 +20,7 @@ from GPUtil import getGPUs
 
 from dive_tasks.pipeline_discovery import discover_configs
 from dive_tasks.utils import (
-    get_video_filename,
+    download_source_media,
     organize_folder_for_training,
     stream_subprocess,
 )
@@ -29,6 +29,8 @@ from dive_utils.constants import (
     DatasetMarker,
     TrainedPipelineCategory,
     TrainedPipelineMarker,
+    TypeMarker,
+    VideoType,
 )
 from dive_utils.types import AvailableJobSchema, GirderModel, PipelineJob
 
@@ -175,33 +177,28 @@ def run_pipeline(self: Task, params: PipelineJob):
     conf = Config()
     manager: JobManager = self.job_manager
     gc: GirderClient = self.girder_client
+    manager.updateStatus(JobStatus.FETCHING_INPUT)
 
     # Extract params
     pipeline = params["pipeline"]
-    input_folder = params["input_folder"]
+    input_folder_id = params["input_folder"]
     input_type = params["input_type"]
     output_folder = params["output_folder"]
-    pipeline_input: Optional[GirderModel] = None
-    if "pipeline_input" in params.keys():
-        pipeline_input = params["pipeline_input"]
+    pipeline_input = params["pipeline_input"]
 
     # Create temporary files/folders, removed at the end of the function
     input_path = Path(tempfile.mkdtemp())
     trained_pipeline_folder = Path(tempfile.mkdtemp())
-    detector_output_path = tempfile.NamedTemporaryFile(suffix=".csv", delete=False).name
-    track_output_path = tempfile.NamedTemporaryFile(suffix=".csv", delete=False).name
+    misc_path = Path(tempfile.mkdtemp())
+    detector_output_path = (misc_path / 'detector_output.csv').name
+    track_output_path = (misc_path / 'track_output.csv').name
+    img_list_path = (misc_path / 'img_list_file.txt').name
 
     # defer cleanup
     def cleanup():
-        # Files
-        with contextlib.suppress(FileNotFoundError):
-            os.remove(track_output_path)
-            os.remove(detector_output_path)
-        # Folders
+        shutil.rmtree(misc_path, ignore_errors=True)
         shutil.rmtree(input_path, ignore_errors=True)
         shutil.rmtree(trained_pipeline_folder, ignore_errors=True)
-
-    gc.downloadFolderRecursive(input_folder, input_path)
 
     if pipeline["type"] == TrainedPipelineCategory:
         gc.downloadFolderRecursive(pipeline["folderId"], str(trained_pipeline_folder))
@@ -209,45 +206,32 @@ def run_pipeline(self: Task, params: PipelineJob):
     else:
         pipeline_path = conf.get_extracted_pipeline_path() / pipeline["pipe"]
 
-    if input_type == 'video':
-        # filter files for source video file
-        source_video = get_video_filename(input_folder, gc)
-        # Preserving default behavior incase new stuff fails
-        if source_video is None:
-            raise Exception(
-                'Error finding valid video file in folder: {}'.format(input_folder)
-            )
-        input_file = os.path.join(input_path, source_video)
+    # Download source media
+    input_folder = gc.getFolder(input_folder_id)
+    input_media_list = download_source_media(gc, input_folder, input_path)
 
+    if input_type == 'video':
+        assert len(input_media_list) == 1, "Expected exactly 1 video"
+        input_video_filename = str(input_path / input_media_list[0]['name'])
         command = [
             f". {shlex.quote(str(conf.viame_setup_script))} &&",
             "kwiver runner",
             "-s input:video_reader:type=vidl_ffmpeg",
             f"-p {shlex.quote(str(pipeline_path))}",
-            f"-s input:video_filename={shlex.quote(input_file)}",
+            f"-s input:video_filename={shlex.quote(input_video_filename)}",
             f"-s detector_writer:file_name={shlex.quote(detector_output_path)}",
             f"-s track_writer:file_name={shlex.quote(track_output_path)}",
         ]
-
     elif input_type == 'image-sequence':
-        itemList = gc.get('viame/valid_images', parameters={'folderId': input_folder})
-        filtered_directory_files = [item['name'] for item in itemList]
-        if len(filtered_directory_files) == 0:
-            raise ValueError('No media files found in {}'.format(input_path))
-
-        with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as temp2:
-            temp2.writelines(
-                (
-                    (os.path.join(input_path, file_name) + "\n").encode()
-                    for file_name in sorted(filtered_directory_files)
-                )
+        with open(img_list_path, "w+") as img_list_file:
+            img_list_file.writelines(
+                f"{str(input_path / item['name'])}\n" for item in input_media_list
             )
-            image_list_file = temp2.name
         command = [
             f". {shlex.quote(str(conf.viame_setup_script))} &&",
             "kwiver runner",
             f"-p {shlex.quote(str(pipeline_path))}",
-            f"-s input:video_filename={shlex.quote(image_list_file)}",
+            f"-s input:video_filename={shlex.quote(img_list_path)}",
             f"-s detector_writer:file_name={shlex.quote(detector_output_path)}",
             f"-s track_writer:file_name={shlex.quote(track_output_path)}",
         ]
@@ -264,6 +248,7 @@ def run_pipeline(self: Task, params: PipelineJob):
 
     cmd = " ".join(command)
     manager.write(f"Running command: {cmd}\n", forceFlush=True)
+    manager.updateStatus(JobStatus.RUNNING)
 
     process_err_file = tempfile.TemporaryFile()
     process = Popen(
@@ -293,9 +278,9 @@ def run_pipeline(self: Task, params: PipelineJob):
 @app.task(bind=True, acks_late=True)
 def train_pipeline(
     self: Task,
-    results_folder: Dict,
-    source_folder_list: List[Dict],
-    groundtruth_list: List[Dict],
+    results_folder: GirderModel,
+    source_folder_list: List[GirderModel],
+    groundtruth_list: List[GirderModel],
     pipeline_name: str,
     config: str,
 ):
@@ -307,6 +292,7 @@ def train_pipeline(
     :param groundtruth_list: A list of relative paths to either a file containing detections,
         or a folder containing that file.
     :param pipeline_name: The base name of the resulting pipeline.
+    :param config: string name of the input configuration
     """
     conf = Config()
     gc: GirderClient = self.girder_client
@@ -334,41 +320,25 @@ def train_pipeline(
             groundtruth = groundtruth_list[index]
             download_path = Path(tempfile.mkdtemp(dir=root_data_dir))
             trained_on_list.append(str(source_folder["_id"]))
-
-            # Generator of items
-            training_data = gc.listItem(source_folder["_id"])
-
-            # Download data onto server
+            # Download groundtruth item
             gc.downloadItem(str(groundtruth["_id"]), download_path)
-            for item in training_data:
-                gc.downloadItem(str(item["_id"]), download_path)
-
-            # Organize data
-            groundtruth_path = download_path / groundtruth["name"]
+            # Rename groundtruth csv file
             groundtruth_file = organize_folder_for_training(
-                download_path, groundtruth_path
+                download_path, download_path / groundtruth["name"]
             )
-            # We point to file if is a video
-            if fromMeta(source_folder, "type") == "video":
-                video_file = get_video_filename(source_folder["_id"], gc)
-                if video_file is None:
-                    raise Exception(
-                        'Error finding valid video file in folder: {}'.format(
-                            source_folder["_id"]
-                        )
-                    )
-                download_path = download_path / video_file
-
             input_groundtruth_list.append((download_path, groundtruth_file))
+            # Download input media
+            input_media_list = download_source_media(gc, source_folder, download_path)
+            if fromMeta(source_folder, TypeMarker) == VideoType:
+                download_path = download_path / input_media_list[0]['name']
 
         input_folder_file_list = root_data_dir / "input_folder_list.txt"
         ground_truth_file_list = root_data_dir / "input_truth_list.txt"
         with open(input_folder_file_list, "w+") as data_list:
-            folder_paths = [f"{item[0]}\n" for item in input_groundtruth_list]
-            data_list.writelines(folder_paths)
-        with open(ground_truth_file_list, "w+") as truth_list:
-            truth_paths = [f"{item[1]}\n" for item in input_groundtruth_list]
-            truth_list.writelines(truth_paths)
+            with open(ground_truth_file_list, "w+") as truth_list:
+                for folder_path, truthfile_path in input_groundtruth_list:
+                    data_list.write(f"{folder_path}\n")
+                    truth_list.write(f"{truthfile_path}\n")
 
         # Completely separate directory from `root_data_dir`
         with tempfile.TemporaryDirectory() as _training_output_path:
@@ -422,7 +392,6 @@ def train_pipeline(
                     "trained_on": trained_on_list,
                 },
             )
-
             gc.upload(f"{training_results_path}/*", girder_output_folder["_id"])
 
 

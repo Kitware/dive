@@ -4,13 +4,15 @@ from datetime import datetime
 from pathlib import Path
 from subprocess import Popen
 from tempfile import mktemp
-from typing import IO, Callable, Optional
+from typing import IO, Callable, List, Optional
 
 from girder_client import GirderClient
 from girder_worker.task import Task
 from girder_worker.utils import JobManager, JobStatus
 
-from dive_utils import asbool, fromMeta
+from dive_utils import fromMeta
+from dive_utils.constants import ImageSequenceType, TypeMarker, VideoType
+from dive_utils.types import GirderModel
 
 
 def stream_subprocess(
@@ -110,23 +112,20 @@ def organize_folder_for_training(data_dir: Path, downloaded_groundtruth: Path):
     return groundtruth
 
 
-def get_video_filename(folderId: str, girder_client: GirderClient) -> Optional[str]:
+def download_source_media(
+    girder_client: GirderClient, folder: GirderModel, dest: Path
+) -> List[GirderModel]:
     """
-    Searches a folderId for videos that are compatible with training/pipelines
-
-    * look for {"codec": 'h264', "source_video": False | None }, a transcoded video
-    * then fall back to {"source_video": True}, the user uploaded video
-    * If neither found it will return None
-
-    :folderId: Current path to where the items sit
-    :girder_client: girder_client used to request the data
+    Download source media for folder from girder
     """
-    folder_contents = girder_client.listItem(folderId)
-    backup_converted_file = None
-    for item in folder_contents:
-        file_name = item.get("name")
-        if asbool(fromMeta(item, "source_video")):
-            backup_converted_file = file_name
-        elif fromMeta(item, "codec") == "h264":
-            return file_name
-    return backup_converted_file
+    if fromMeta(folder, TypeMarker) == ImageSequenceType:
+        image_items = girder_client.get(f'viame/dataset/{folder["_id"]}/images')
+        for item in image_items:
+            girder_client.downloadItem(item["_id"], dest)
+        return image_items
+    elif fromMeta(folder, TypeMarker) == VideoType:
+        clip_meta = girder_client.get(f"viame_detection/{folder['_id']}/clip_meta")
+        girder_client.downloadFile(clip_meta['video']['_id'], dest)
+        return [clip_meta['video']]
+    else:
+        raise Exception(f"unexpected folder {str(folder)}")
