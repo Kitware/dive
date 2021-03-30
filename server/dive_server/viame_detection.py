@@ -130,7 +130,7 @@ class ViameDetection(Resource):
     def get_export_urls(self, folder, excludeBelowThreshold):
         verify_dataset(folder)
         folderId = str(folder['_id'])
-
+        mediaFolderId = getCloneRoot(self.getCurrentUser(), folder)['_id']
         export_all = f'/api/v1/folder/{folderId}/download'
         export_media = None
         export_detections = None
@@ -152,16 +152,12 @@ class ViameDetection(Resource):
             params = {
                 'mimeFilter': json.dumps(list(VideoMimeTypes)),
             }
-            export_media = (
-                f'/api/v1/folder/{folderId}/download?{urllib.parse.urlencode(params)}'
-            )
+            export_media = f'/api/v1/folder/{mediaFolderId}/download?{urllib.parse.urlencode(params)}'
         elif source_type == ImageSequenceType:
             params = {
                 'mimeFilter': json.dumps(list(ImageMimeTypes)),
             }
-            export_media = (
-                f'/api/v1/folder/{folderId}/download?{urllib.parse.urlencode(params)}'
-            )
+            export_media = f'/api/v1/folder/{mediaFolderId}/download?{urllib.parse.urlencode(params)}'
 
         # No-copy import data does not support mimeFilter.
         # We cannot detect which collections are from no-copy imported data, so
@@ -225,12 +221,29 @@ class ViameDetection(Resource):
         setResponseHeader('Content-Type', 'application/zip')
         setContentDisposition(folder['name'] + '.zip')
         user = self.getCurrentUser()
+        mediaFolder = getCloneRoot(user, folder)
 
         def stream():
             z = ziputil.ZipGenerator(folder['name'])
-            for (path, file) in Folder().fileList(folder, user=user, subpath=False):
+            # add media
+            for (path, file) in Folder().fileList(
+                mediaFolder,
+                user=user,
+                subpath=False,
+                mimeFilter=VideoMimeTypes.union(ImageMimeTypes),
+            ):
                 for data in z.addFile(file, path):
                     yield data
+            # add JSON detections
+            for (path, file) in Folder().fileList(
+                folder,
+                user=user,
+                subpath=False,
+                mimeFilter={'application/json'},
+            ):
+                for data in z.addFile(file, path):
+                    yield data
+            # add CSV detections
             for data in z.addFile(gen, "output_tracks.csv"):
                 yield data
             yield z.footer()

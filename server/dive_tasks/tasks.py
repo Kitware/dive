@@ -262,7 +262,7 @@ def run_pipeline(self: Task, params: PipelineJob):
     if self.canceled:
         return
 
-    if Path(track_output_file).exists():
+    if Path(track_output_file).exists() and os.path.getsize(track_output_file):
         output_path = track_output_file
     else:
         output_path = detector_output_file
