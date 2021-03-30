@@ -183,8 +183,12 @@ async function beginStereoImport(
         throw new Error(`no images found in ${args.keywordFolder} with glob ${args.globPatternRight}`);
       }
       if (jsonMeta.stereoscopic) {
-        jsonMeta.stereoscopic.leftImages = leftFound.images;
-        jsonMeta.stereoscopic.rightImages = rightFound.images;
+        jsonMeta.stereoscopic.leftImages = leftFound.images.map(
+          (image) => npath.join(args.keywordFolder, image),
+        );
+        jsonMeta.stereoscopic.rightImages = rightFound.images.map(
+          (image) => npath.join(args.keywordFolder, image),
+        );
       }
       jsonMeta.originalImageFiles = leftFound.images.concat(rightFound.images);
       mediaConvertList = leftFound.mediaConvetList.concat(rightFound.mediaConvetList);
