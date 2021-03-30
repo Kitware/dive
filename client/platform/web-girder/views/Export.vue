@@ -8,6 +8,7 @@ import AutosavePrompt from 'dive-common/components/AutosavePrompt.vue';
 import { MediaTypes } from 'dive-common/constants';
 import { getExportUrls, ExportUrlsResponse } from '../api/viameDetection.service';
 
+
 export default defineComponent({
   components: { AutosavePrompt },
 
@@ -26,7 +27,7 @@ export default defineComponent({
     },
   },
 
-  setup(props, { root }) {
+  setup(props) {
     const menuOpen = ref(false);
     const excludeFiltered = ref(false);
     const exportUrls = ref(null as null | ExportUrlsResponse);
