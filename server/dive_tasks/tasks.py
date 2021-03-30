@@ -27,6 +27,7 @@ from dive_tasks.utils import (
 from dive_utils import fromMeta
 from dive_utils.constants import (
     DatasetMarker,
+    ImageSequenceType,
     TrainedPipelineCategory,
     TrainedPipelineMarker,
     TypeMarker,
@@ -181,18 +182,18 @@ def run_pipeline(self: Task, params: PipelineJob):
 
     # Extract params
     pipeline = params["pipeline"]
-    input_folder_id = params["input_folder"]
+    input_folder_id = str(params["input_folder"])
     input_type = params["input_type"]
-    output_folder = params["output_folder"]
+    output_folder_id = str(params["output_folder"])
     pipeline_input = params["pipeline_input"]
 
     # Create temporary files/folders, removed at the end of the function
     input_path = Path(tempfile.mkdtemp())
     trained_pipeline_folder = Path(tempfile.mkdtemp())
     misc_path = Path(tempfile.mkdtemp())
-    detector_output_path = (misc_path / 'detector_output.csv').name
-    track_output_path = (misc_path / 'track_output.csv').name
-    img_list_path = (misc_path / 'img_list_file.txt').name
+    detector_output_file = str(misc_path / 'detector_output.csv')
+    track_output_file = str(misc_path / 'track_output.csv')
+    img_list_path = misc_path / 'img_list_file.txt'
 
     # defer cleanup
     def cleanup():
@@ -207,41 +208,39 @@ def run_pipeline(self: Task, params: PipelineJob):
         pipeline_path = conf.get_extracted_pipeline_path() / pipeline["pipe"]
 
     # Download source media
-    input_folder = gc.getFolder(input_folder_id)
+    input_folder: GirderModel = gc.getFolder(input_folder_id)
     input_media_list = download_source_media(gc, input_folder, input_path)
 
-    if input_type == 'video':
+    if input_type == VideoType:
         assert len(input_media_list) == 1, "Expected exactly 1 video"
-        input_video_filename = str(input_path / input_media_list[0]['name'])
         command = [
             f". {shlex.quote(str(conf.viame_setup_script))} &&",
             "kwiver runner",
             "-s input:video_reader:type=vidl_ffmpeg",
             f"-p {shlex.quote(str(pipeline_path))}",
-            f"-s input:video_filename={shlex.quote(input_video_filename)}",
-            f"-s detector_writer:file_name={shlex.quote(detector_output_path)}",
-            f"-s track_writer:file_name={shlex.quote(track_output_path)}",
+            f"-s input:video_filename={shlex.quote(input_media_list[0])}",
+            f"-s detector_writer:file_name={shlex.quote(detector_output_file)}",
+            f"-s track_writer:file_name={shlex.quote(track_output_file)}",
         ]
-    elif input_type == 'image-sequence':
+    elif input_type == ImageSequenceType:
         with open(img_list_path, "w+") as img_list_file:
-            img_list_file.writelines(
-                f"{str(input_path / item['name'])}\n" for item in input_media_list
-            )
+            img_list_file.write('\n'.join(input_media_list))
         command = [
             f". {shlex.quote(str(conf.viame_setup_script))} &&",
             "kwiver runner",
             f"-p {shlex.quote(str(pipeline_path))}",
-            f"-s input:video_filename={shlex.quote(img_list_path)}",
-            f"-s detector_writer:file_name={shlex.quote(detector_output_path)}",
-            f"-s track_writer:file_name={shlex.quote(track_output_path)}",
+            f"-s input:video_filename={shlex.quote(str(img_list_path))}",
+            f"-s detector_writer:file_name={shlex.quote(detector_output_file)}",
+            f"-s track_writer:file_name={shlex.quote(track_output_file)}",
         ]
     else:
         raise ValueError('Unknown input type: {}'.format(input_type))
 
     # Include input detections
     if pipeline_input is not None:
+        pipeline_input_id = str(pipeline_input['_id'])
         pipeline_input_file = str(input_path / pipeline_input["name"])
-        self.girder_client.downloadFile(str(pipeline_input["_id"]), pipeline_input_file)
+        self.girder_client.downloadFile(pipeline_input_id, pipeline_input_file)
         quoted_input_file = shlex.quote(pipeline_input_file)
         command.append(f'-s detection_reader:file_name={quoted_input_file}')
         command.append(f'-s track_reader:file_name={quoted_input_file}')
@@ -263,16 +262,16 @@ def run_pipeline(self: Task, params: PipelineJob):
     if self.canceled:
         return
 
-    if os.path.getsize(track_output_path) > 0:
-        output_path = track_output_path
+    if Path(track_output_file).exists():
+        output_path = track_output_file
     else:
-        output_path = detector_output_path
+        output_path = detector_output_file
 
     manager.updateStatus(JobStatus.PUSHING_OUTPUT)
-    newfile = gc.uploadFileToFolder(output_folder, output_path)
+    newfile = gc.uploadFileToFolder(output_folder_id, output_path)
 
-    gc.addMetadataToItem(newfile["itemId"], {"pipeline": pipeline})
-    gc.post(f'viame/postprocess/{output_folder}', data={"skipJobs": True})
+    gc.addMetadataToItem(str(newfile["itemId"]), {"pipeline": pipeline})
+    gc.post(f'viame/postprocess/{output_folder_id}', data={"skipJobs": True})
 
 
 @app.task(bind=True, acks_late=True)
@@ -323,22 +322,22 @@ def train_pipeline(
             # Download groundtruth item
             gc.downloadItem(str(groundtruth["_id"]), download_path)
             # Rename groundtruth csv file
-            groundtruth_file = organize_folder_for_training(
+            groundtruth_path = organize_folder_for_training(
                 download_path, download_path / groundtruth["name"]
             )
-            input_groundtruth_list.append((download_path, groundtruth_file))
+            input_groundtruth_list.append((download_path, groundtruth_path))
             # Download input media
             input_media_list = download_source_media(gc, source_folder, download_path)
             if fromMeta(source_folder, TypeMarker) == VideoType:
-                download_path = download_path / input_media_list[0]['name']
+                download_path = Path(input_media_list[0])
 
         input_folder_file_list = root_data_dir / "input_folder_list.txt"
         ground_truth_file_list = root_data_dir / "input_truth_list.txt"
         with open(input_folder_file_list, "w+") as data_list:
             with open(ground_truth_file_list, "w+") as truth_list:
-                for folder_path, truthfile_path in input_groundtruth_list:
+                for folder_path, groundtruth_path in input_groundtruth_list:
                     data_list.write(f"{folder_path}\n")
-                    truth_list.write(f"{truthfile_path}\n")
+                    truth_list.write(f"{groundtruth_path}\n")
 
         # Completely separate directory from `root_data_dir`
         with tempfile.TemporaryDirectory() as _training_output_path:

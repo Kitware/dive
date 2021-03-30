@@ -190,30 +190,16 @@ def getCloneRoot(owner: GirderModel, source_folder: GirderModel):
 def createSoftClone(
     owner: GirderModel,
     source_folder: GirderModel,
+    parent_folder: GirderModel,
     name: str = None,
-    public: bool = False,
 ):
     """Create a no-copy clone of folder with source_id for owner"""
 
-    cloned_parent = Folder().findOne(
-        {
-            'parentId': owner['_id'],
-            'baseParentType': 'user',
-            'baseParentId': owner['_id'],
-            'public': public,
-            'name': 'Public' if public else 'Private',
-        }
-    )
-    if cloned_parent is None:
-        raise GirderException(
-            'Owner is missing default public or private folder, no destination to clone'
-        )
     cloned_folder = Folder().createFolder(
-        cloned_parent,
-        name or f'Clone of {source_folder["name"]}',
+        parent_folder,
+        name or source_folder['name'],
         description=f'Clone of {source_folder["name"]}.',
         reuseExisting=False,
-        public=public,
     )
     cloned_folder['meta'] = source_folder['meta']
     media_source_folder = getCloneRoot(owner, source_folder)

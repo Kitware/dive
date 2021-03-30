@@ -4,7 +4,7 @@ from datetime import datetime
 from pathlib import Path
 from subprocess import Popen
 from tempfile import mktemp
-from typing import IO, Callable, List, Optional
+from typing import IO, Callable, List, Optional, Union
 
 from girder_client import GirderClient
 from girder_worker.task import Task
@@ -114,18 +114,23 @@ def organize_folder_for_training(data_dir: Path, downloaded_groundtruth: Path):
 
 def download_source_media(
     girder_client: GirderClient, folder: GirderModel, dest: Path
-) -> List[GirderModel]:
+) -> List[str]:
     """
     Download source media for folder from girder
     """
     if fromMeta(folder, TypeMarker) == ImageSequenceType:
-        image_items = girder_client.get(f'viame/dataset/{folder["_id"]}/images')
+        image_items = girder_client.get(
+            'viame/valid_images', {'folderId': folder["_id"]}
+        )
         for item in image_items:
-            girder_client.downloadItem(item["_id"], dest)
-        return image_items
+            girder_client.downloadItem(str(item["_id"]), str(dest))
+        return [str(dest / item['name']) for item in image_items]
     elif fromMeta(folder, TypeMarker) == VideoType:
-        clip_meta = girder_client.get(f"viame_detection/{folder['_id']}/clip_meta")
-        girder_client.downloadFile(clip_meta['video']['_id'], dest)
-        return [clip_meta['video']]
+        clip_meta = girder_client.get(
+            "viame_detection/clip_meta", {'folderId': folder['_id']}
+        )
+        destination_path = str(dest / clip_meta['video']['name'])
+        girder_client.downloadFile(str(clip_meta['video']['_id']), destination_path)
+        return [destination_path]
     else:
         raise Exception(f"unexpected folder {str(folder)}")

@@ -11,6 +11,7 @@ interface GirderMetadataStatic extends DatasetMetaMutable {
   createdAt: string;
   ffprobe_info?: Record<string, string>;
   annotate: boolean;
+  foreign_media_id?: string;
 }
 
 /**

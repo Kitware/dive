@@ -179,6 +179,14 @@ class Viame(Resource):
             model=Folder,
             level=AccessType.READ,
         )
+        .modelParam(
+            "parentFolderId",
+            description="Parent folder of the clone",
+            paramType="formData",
+            destName="parentFolder",
+            model=Folder,
+            level=AccessType.WRITE,
+        )
         .param(
             "name",
             "Name for new dataset",
@@ -187,19 +195,11 @@ class Viame(Resource):
             default=None,
             required=False,
         )
-        .param(
-            "public",
-            "Should the clone be public",
-            paramType="formData",
-            dataType="boolean",
-            default=False,
-            required=False,
-        )
     )
-    def clone_dataset(self, folder, name, public):
+    def clone_dataset(self, folder, parentFolder, name):
         verify_dataset(folder)
         owner = self.getCurrentUser()
-        return createSoftClone(owner, folder, name, public)
+        return createSoftClone(owner, folder, parentFolder, name)
 
     @access.user
     @describeRoute(Description("Get available pipeline configurations"))
@@ -451,11 +451,9 @@ class Viame(Resource):
         """
         user = self.getCurrentUser()
         auxiliary = get_or_create_auxiliary_folder(folder, user)
+        isClone = fromMeta(folder, ForeignMediaIdMarker, None) is not None
 
-        if fromMeta(folder, ForeignMediaIdMarker, None) is not None:
-            raise GirderException("Cannot run postprocessing on cloned dataset")
-
-        if not skipJobs:
+        if not skipJobs and not isClone:
             token = Token().createToken(user=user, days=2)
             # transcode VIDEO if necessary
             videoItems = Folder().childItems(

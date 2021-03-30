@@ -2,12 +2,14 @@
 import {
   defineComponent, onBeforeUnmount, onMounted, ref, toRef, computed,
 } from '@vue/composition-api';
+
 import Viewer from 'dive-common/components/Viewer.vue';
 import NavigationTitle from 'dive-common/components/NavigationTitle.vue';
 import RunPipelineMenu from 'dive-common/components/RunPipelineMenu.vue';
 import JobsTab from './JobsTab.vue';
 import { getPathFromLocation } from '../utils';
 import Export from './Export.vue';
+import Clone from './Clone.vue';
 
 /**
  * ViewerLoader is responsible for loading
@@ -15,6 +17,7 @@ import Export from './Export.vue';
  */
 export default defineComponent({
   components: {
+    Clone,
     Export,
     JobsTab,
     RunPipelineMenu,
@@ -48,7 +51,9 @@ export default defineComponent({
       window.removeEventListener('beforeunload', viewerRef.value.warnBrowserExit);
     });
 
-    return { viewerRef, dataPath, brandData };
+    return {
+      viewerRef, dataPath, brandData,
+    };
   },
 });
 </script>
@@ -72,6 +77,7 @@ export default defineComponent({
         </v-tab>
         <JobsTab />
       </v-tabs>
+      <Clone :source="$store.state.Dataset.meta" />
     </template>
     <template #title-right>
       <RunPipelineMenu :selected-dataset-ids="[id]" />
