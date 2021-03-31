@@ -28,7 +28,8 @@ Each dataset maintains its own list of types (classes). These are customizable u
 
 ![Type List Header](images/TypeListHeader.png){ width=300px }
 
-Type settings are available by clicking the `cog` button next to `Visiblity` in the type filder list heading.
+Type settings are available by clicking the `cog` button next to `Visiblity` in the type filter list heading.
+
 ### Type Settings Options
 
 ![Type Settings](images/TypeSettings.png){ width=300px }
