@@ -7,7 +7,10 @@ import {
 } from '@vue/composition-api';
 
 import { TypeList, TrackList } from 'vue-media-annotator/components';
-import { useAllTypes } from 'vue-media-annotator/provides';
+import {
+  useAllTypes, useHandler, useMergeList, useTrackMap,
+} from 'vue-media-annotator/provides';
+import { getTrack } from 'vue-media-annotator/use/useTrackStore';
 
 import { NewTrackSettings, TypeSettings } from 'dive-common/use/useSettings';
 import TrackDetailsPanel from 'dive-common/components/TrackDetailsPanel.vue';
@@ -40,6 +43,9 @@ export default defineComponent({
 
   setup() {
     const allTypesRef = useAllTypes();
+    const trackMap = useTrackMap();
+    const { toggleMerge, removeTrack, trackSelect } = useHandler();
+    const mergeList = useMergeList();
     const data = reactive({
       currentTab: 'tracks' as 'tracks' | 'attributes',
     });
@@ -52,9 +58,27 @@ export default defineComponent({
       }
     }
 
+    function doToggleMerge() {
+      data.currentTab = 'attributes';
+      toggleMerge();
+    }
+
+    function commitMerge() {
+      if (mergeList.value.length >= 2) {
+        const track = getTrack(trackMap, mergeList.value[0]);
+        const otherTrackIds = mergeList.value.slice(1);
+        track.merge(otherTrackIds.map((trackId) => getTrack(trackMap, trackId)));
+        removeTrack(otherTrackIds);
+        toggleMerge();
+        trackSelect(track.trackId, false);
+      }
+    }
+
     return {
       allTypesRef,
       swapTabs,
+      doToggleMerge,
+      commitMerge,
       ...toRefs(data),
     };
   },
@@ -71,6 +95,8 @@ export default defineComponent({
     <v-btn
       v-mousetrap="[
         { bind: 'a', handler: swapTabs },
+        { bind: 'm', handler: doToggleMerge },
+        { bind: 'shift+m', handler: commitMerge },
       ]"
       icon
       title="press `a`"
@@ -127,6 +153,8 @@ export default defineComponent({
           :lock-types="typeSettings.lockTypes"
           :hotkeys-disabled="$prompt.visible()"
           @track-seek="$emit('track-seek', $event)"
+          @toggle-merge="doToggleMerge"
+          @commit-merge="commitMerge"
         />
       </div>
     </v-slide-x-transition>

@@ -187,6 +187,7 @@ export default defineComponent({
 
     // Provides wrappers for actions to integrate with settings
     const {
+      mergeList,
       selectedFeatureHandle,
       handler,
       editingMode,
@@ -313,6 +314,7 @@ export default defineComponent({
         enabledTracks,
         frame,
         intervalTree,
+        mergeList,
         pendingSaveCount,
         trackMap,
         filteredTracks,

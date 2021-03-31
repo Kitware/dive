@@ -5,7 +5,7 @@ import {
   Ref,
   ref,
 } from '@vue/composition-api';
-
+import { flatten } from 'lodash';
 import {
   useSelectedTrackId,
   useFrame,
@@ -15,6 +15,7 @@ import {
   useHandler,
   useTrackMap,
   useAttributes,
+  useMergeList,
 } from 'vue-media-annotator/provides';
 import { getTrack } from 'vue-media-annotator/use/useTrackStore';
 import { Attribute } from 'vue-media-annotator/use/useAttributes';
@@ -24,7 +25,6 @@ import AttributeInput from 'dive-common/components/AttributeInput.vue';
 import AttributeEditor from 'dive-common/components/AttributeEditor.vue';
 import AttributeSubsection from 'dive-common/components/AttributesSubsection.vue';
 import ConfidenceSubsection from 'dive-common/components/ConfidenceSubsection.vue';
-
 
 export default defineComponent({
   components: {
@@ -56,20 +56,26 @@ export default defineComponent({
     const typeStylingRef = useTypeStyling();
     const allTypesRef = useAllTypes();
     const trackMap = useTrackMap();
-    const { trackSelectNext, trackSplit, removeTrack } = useHandler();
+    const mergeList = useMergeList();
+    const mergeInProgress = computed(() => mergeList.value.length > 0);
+    const {
+      trackSelectNext, trackSplit, removeTrack,
+    } = useHandler();
 
     //Edit/Set single value by clicking
     const editIndividual: Ref<Attribute | null> = ref(null);
 
-
     const frameRef = useFrame();
     const selectedTrackIdRef = useSelectedTrackId();
     const { setAttribute, deleteAttribute } = useHandler();
-    const selectedTrack = computed(() => {
-      if (selectedTrackIdRef.value !== null) {
-        return getTrack(trackMap, selectedTrackIdRef.value);
+    const selectedTrackList = computed(() => {
+      if (mergeList.value.length > 0) {
+        return mergeList.value.map((trackId) => getTrack(trackMap, trackId));
       }
-      return null;
+      if (selectedTrackIdRef.value !== null) {
+        return [getTrack(trackMap, selectedTrackIdRef.value)];
+      }
+      return [];
     });
 
     function setEditIndividual(attribute: Attribute | null) {
@@ -188,7 +194,9 @@ export default defineComponent({
       editingError,
       editIndividual,
       /* Selected */
-      selectedTrack,
+      selectedTrackList,
+      mergeList,
+      mergeInProgress,
       /* Update functions */
       closeEditor,
       editAttribute,
@@ -199,6 +207,7 @@ export default defineComponent({
       setEditIndividual,
       resetEditIndividual,
       mouseTrap,
+      flatten,
     };
   },
 });
@@ -212,9 +221,11 @@ export default defineComponent({
     class="d-flex flex-column overflow-hidden"
     @click.native="resetEditIndividual"
   >
-    <v-subheader>Track Editor</v-subheader>
+    <v-subheader>
+      {{ mergeInProgress ? `Merge Candidates ${mergeList.length}` : 'Track Editor' }}
+    </v-subheader>
     <div
-      v-if="!selectedTrack"
+      v-if="!selectedTrackList.length"
       class="ml-4 body-2"
     >
       No Track selected
@@ -230,20 +241,49 @@ export default defineComponent({
         </option>
       </datalist>
       <track-item
+        v-for="track in selectedTrackList"
+        :key="track.trackId"
         :solo="true"
-        :track="selectedTrack"
-        :track-type="selectedTrack.confidencePairs[0][0]"
+        :track="track"
+        :track-type="track.confidencePairs[0][0]"
         :selected="true"
         :editing="!!editingModeRef"
         :input-value="true"
-        :color="typeStylingRef.color(selectedTrack.confidencePairs[0][0])"
+        :color="typeStylingRef.color(track.confidencePairs[0][0])"
         :lock-types="lockTypes"
         @seek="$emit('track-seek', $event)"
       />
-
+      <div class="d-flex flex-row">
+        <v-btn
+          :color="mergeInProgress ? 'error' : 'accent'"
+          :outlined="!mergeInProgress"
+          class="ma-2 grow"
+          x-small
+          @click="$emit('toggle-merge')"
+        >
+          <span v-if="!mergeInProgress">
+            Begin Track Merge (m)
+          </span>
+          <span v-else>
+            Abort (m)
+          </span>
+        </v-btn>
+        <v-btn
+          v-if="mergeList.length >= 2"
+          color="success"
+          x-small
+          class="ma-2 grow"
+          @click="$emit('commit-merge')"
+        >
+          <v-icon class="pr-1">
+            mdi-check
+          </v-icon>
+          commit (shift+m)
+        </v-btn>
+      </div>
       <confidence-subsection
         style="max-height:33vh"
-        :confidence-pairs="selectedTrack.confidencePairs"
+        :confidence-pairs="flatten(selectedTrackList.map((t) => t.confidencePairs))"
       />
       <attribute-subsection
         mode="Track"

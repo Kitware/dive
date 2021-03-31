@@ -265,6 +265,20 @@ export default class Track {
     ];
   }
 
+  /**
+   * Merge other into track at frame, preferring features from
+   * self if there are conflicts
+   */
+  merge(others: Track[]) {
+    others.forEach((other) => {
+      other.features.forEach((f) => {
+        if (this.getFeature(f.frame)[0] === null) {
+          this.setFeature(f, f.geometry?.features);
+        }
+      });
+    });
+  }
+
   setFeature(feature: Feature, geometry: GeoJSON.Feature<TrackSupportedFeature>[] = []): Feature {
     const f = this.features[feature.frame] || {};
     this.features[feature.frame] = {
@@ -393,6 +407,10 @@ export default class Track {
     this.notify('attributes', { key, value: oldval });
   }
 
+  /**
+   * Returns a 3-tuple of nullable features:
+   * [exact_feature_match, previous_keyframe, next_keyframe]
+   */
   getFeature(frame: number): [Feature | null, Feature | null, Feature | null] {
     // First, try a direct keyframe hit
     const maybeFrame = this.features[frame];

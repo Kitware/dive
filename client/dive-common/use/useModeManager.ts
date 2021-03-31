@@ -1,7 +1,7 @@
 import {
   computed, Ref, reactive, ref, onBeforeUnmount,
 } from '@vue/composition-api';
-import { uniq, flatMapDeep } from 'lodash';
+import { uniq, flatMapDeep, merge } from 'lodash';
 import Track, { TrackId } from 'vue-media-annotator/track';
 import { getTrack } from 'vue-media-annotator/use/useTrackStore';
 import { RectBounds, updateBounds } from 'vue-media-annotator/utils';
@@ -69,6 +69,9 @@ export default function useModeManager({
   const visibleModes = computed(() => (
     uniq(annotationModes.visible.concat(editingMode.value || []))
   ));
+  // Track merge state
+  const mergeList = ref([] as TrackId[]);
+  const mergeInProgress = computed(() => mergeList.value.length > 0);
 
   /**
    * Figure out if a new feature should enable interpolation
@@ -104,6 +107,15 @@ export default function useModeManager({
     }
   }
 
+  function handleToggleMerge() {
+    if (!mergeInProgress.value && selectedTrackId.value) {
+      /* If no merge in progress and there is a selected track id */
+      mergeList.value = [selectedTrackId.value];
+    } else {
+      mergeList.value = [];
+    }
+  }
+
   function handleSelectFeatureHandle(i: number, key = '') {
     if (i !== selectedFeatureHandle.value) {
       selectedFeatureHandle.value = i;
@@ -122,6 +134,12 @@ export default function useModeManager({
      */
     if (!(creating && edit && trackId === selectedTrackId.value)) {
       creating = false;
+    }
+    /**
+     * If merge is in progress, add selected tracks to the merge list
+     */
+    if (trackId !== null && mergeInProgress.value) {
+      mergeList.value = Array.from((new Set(mergeList.value).add(trackId)));
     }
   }
 
@@ -408,10 +426,12 @@ export default function useModeManager({
 
   return {
     editingMode,
+    mergeList,
     visibleModes,
     selectedFeatureHandle,
     selectedKey,
     handler: {
+      toggleMerge: handleToggleMerge,
       trackAdd: handleAddTrackOrDetection,
       trackAbort: handleEscapeMode,
       trackEdit: handleTrackEdit,

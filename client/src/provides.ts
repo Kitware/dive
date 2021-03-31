@@ -43,6 +43,9 @@ type EditingModeType = Readonly<Ref<false | EditAnnotationTypes>>;
 const FrameSymbol = Symbol('frame');
 type FrameType = Readonly<Ref<number>>;
 
+const MergeListSymbol = Symbol('mergeList');
+type MergeList = Readonly<Ref<readonly TrackId[]>>;
+
 const PendingSaveCountSymbol = Symbol('pendingSaveCount');
 type pendingSaveCountType = Readonly<Ref<number>>;
 
@@ -77,6 +80,8 @@ type VisibleModesType = Readonly<Ref<readonly VisibleAnnotationTypes[]>>;
 export interface Handler {
   /* Save pending changes to persistence layer */
   save(): Promise<void>;
+  /* Turn merge mode on and off */
+  toggleMerge(): void;
   /* Select and seek to track */
   trackSeek(trackId: TrackId): void;
   /* Toggle editing mode for track */
@@ -144,6 +149,7 @@ const HandlerSymbol = Symbol('handler');
 function dummyHandler(handle: (name: string, args: unknown[]) => void): Handler {
   return {
     save(...args) { handle('save', args); return Promise.resolve(); },
+    toggleMerge(...args) { handle('toggleMerge', args); },
     trackSeek(...args) { handle('trackSeek', args); },
     trackEdit(...args) { handle('trackEdit', args); },
     trackEnable(...args) { handle('trackEnable', args); },
@@ -187,6 +193,7 @@ export interface State {
   filteredTracks: FilteredTracksType;
   frame: FrameType;
   intervalTree: IntervalTreeType;
+  mergeList: MergeList;
   pendingSaveCount: pendingSaveCountType;
   trackMap: TrackMapType;
   typeStyling: TypeStylingType;
@@ -219,6 +226,7 @@ function dummyState(): State {
     filteredTracks: ref([]),
     frame: ref(0),
     intervalTree: new IntervalTree(),
+    mergeList: ref([]),
     pendingSaveCount: ref(0),
     trackMap: new Map<TrackId, Track>(),
     typeStyling: ref({
@@ -257,6 +265,7 @@ function provideAnnotator(state: State, handler: Handler) {
   provide(EditingModeSymbol, state.editingMode);
   provide(FrameSymbol, state.frame);
   provide(IntervalTreeSymbol, state.intervalTree);
+  provide(MergeListSymbol, state.mergeList);
   provide(PendingSaveCountSymbol, state.pendingSaveCount);
   provide(TrackMapSymbol, state.trackMap);
   provide(TracksSymbol, state.filteredTracks);
@@ -322,6 +331,10 @@ function useIntervalTree() {
   return use<IntervalTreeType>(IntervalTreeSymbol);
 }
 
+function useMergeList() {
+  return use<MergeList>(MergeListSymbol);
+}
+
 function usePendingSaveCount() {
   return use<pendingSaveCountType>(PendingSaveCountSymbol);
 }
@@ -369,6 +382,7 @@ export {
   useEditingMode,
   useHandler,
   useIntervalTree,
+  useMergeList,
   usePendingSaveCount,
   useFrame,
   useTrackMap,
