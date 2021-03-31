@@ -35,7 +35,7 @@ VideoMimeTypes = {
     "video/x-msvideo",
 }
 
-
+PublishedMarker = 'published'
 TrainedPipelineMarker = "trained_pipeline"
 TrainedPipelineCategory = "trained"
 

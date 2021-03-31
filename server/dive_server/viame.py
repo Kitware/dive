@@ -21,16 +21,10 @@ from dive_tasks.tasks import (
     train_pipeline,
     upgrade_pipelines,
 )
-from dive_utils import TRUTHY_META_VALUES, asbool, fromMeta
-from dive_utils.types import (
-    AvailableJobSchema,
-    GirderModel,
-    PipelineDescription,
-    PipelineJob,
-)
-
-from .constants import (
+from dive_utils import TRUTHY_META_VALUES, asbool, fromMeta, models
+from dive_utils.constants import (
     SETTINGS_CONST_JOBS_CONFIGS,
+    PublishedMarker,
     TrainedPipelineCategory,
     csvRegex,
     imageRegex,
@@ -38,9 +32,15 @@ from .constants import (
     videoRegex,
     ymlRegex,
 )
+from dive_utils.types import (
+    AvailableJobSchema,
+    GirderModel,
+    PipelineDescription,
+    PipelineJob,
+)
+
 from .pipelines import load_pipelines, verify_pipe
 from .serializers import meva as meva_serializer
-from .serializers import models
 from .training import ensure_csv_detections_file, training_output_folder
 from .transforms import GetPathFromItemId
 from .utils import (
@@ -65,6 +65,7 @@ class Viame(Resource):
         super(Viame, self).__init__()
         self.resourceName = "viame"
 
+        self.route("GET", ("datasets",), self.list_datasets)
         self.route("GET", ("brand_data",), self.get_brand_data)
         self.route("GET", ("pipelines",), self.get_pipelines)
         self.route("GET", ("training_configs",), self.get_training_configs)
@@ -135,6 +136,34 @@ class Viame(Resource):
         if data is not None:
             return data['meta']
         return {}
+
+    @access.user
+    @describeRoute(
+        Description("List datasets in the system")
+        .pagingParams("created")
+        .param(
+            PublishedMarker,
+            'Return only published datasets',
+            required=False,
+            default=False,
+            dataType='boolean',
+        )
+    )
+    def list_datasets(self, params):
+        limit, offset, sort = self.getPagingParameters(params)
+        query = {
+            'meta.annotate': {'$in': TRUTHY_META_VALUES},
+        }
+        if self.boolParam(PublishedMarker, params):
+            query = {
+                '$and': [
+                    query,
+                    {f'meta.{PublishedMarker}': {'$in': TRUTHY_META_VALUES}},
+                ]
+            }
+        return Folder().findWithPermissions(
+            query, offset=offset, limit=limit, sort=sort, user=self.getCurrentUser()
+        )
 
     @access.user
     @describeRoute(Description("Get available pipeline configurations"))

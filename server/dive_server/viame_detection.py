@@ -6,21 +6,22 @@ from girder.api import access
 from girder.api.describe import Description, autoDescribeRoute
 from girder.api.rest import Resource, setContentDisposition, setResponseHeader
 from girder.constants import AccessType, TokenScope
+from girder.exceptions import RestException
 from girder.models.file import File
 from girder.models.folder import Folder
 from girder.models.item import Item
 from girder.utility import ziputil
 
-from dive_server.constants import (
+from dive_server.serializers import viame
+from dive_server.utils import detections_file, detections_item, getTrackData, saveTracks
+from dive_utils import fromMeta, models
+from dive_utils.constants import (
     ImageMimeTypes,
     ImageSequenceType,
     VideoMimeTypes,
     VideoType,
     safeImageRegex,
 )
-from dive_server.serializers import models, viame
-from dive_server.utils import detections_file, detections_item, getTrackData, saveTracks
-from dive_utils import fromMeta
 
 
 class ViameDetection(Resource):
@@ -242,7 +243,9 @@ class ViameDetection(Resource):
         if file is None:
             return {}
         if "csv" in file["exts"]:
-            return getTrackData(file)
+            raise RestException(
+                'Cannot get detections until postprocessing is complete.'
+            )
         return File().download(file, contentDisposition="inline")
 
     @access.user

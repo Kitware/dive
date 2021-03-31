@@ -81,6 +81,17 @@ class MetadataMutableUpdate(BaseModel):
         extra = 'forbid'
 
 
+class SummaryItemSchema(BaseModel):
+    value: str
+    total_tracks: int
+    total_detections: int
+    found_in: List[str]
+
+
+class PublicDataSummary(BaseModel):
+    label_summary_items: List[SummaryItemSchema]
+
+
 # interpolate all features [a, b)
 def interpolate(a: Feature, b: Feature) -> List[Feature]:
     if a.interpolate is False:

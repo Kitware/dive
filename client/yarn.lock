@@ -1932,6 +1932,11 @@
   dependencies:
     chalk "*"
 
+"@types/color-hash@^1.0.0":
+  version "1.0.0"
+  resolved "https://registry.yarnpkg.com/@types/color-hash/-/color-hash-1.0.0.tgz#2671e71d46ce07248ca149ca058bdc01c2dbb975"
+  integrity sha512-Vj9gPc43pJeILnI0Yh0ds4+1toNUmvVqKxg/5sY8ESZafKo24TY5eCKXwXPym1xcgEMb2Qxy3dRwaYOro4U5Tg==
+
 "@types/color-name@^1.1.1":
   version "1.1.1"
   resolved "https://registry.yarnpkg.com/@types/color-name/-/color-name-1.1.1.tgz#1c1261bbeaa10a8055bbc5d8ab84b7b2afc846a0"
@@ -5062,6 +5067,11 @@ color-convert@^2.0.1:
   dependencies:
     color-name "~1.1.4"
 
+color-hash@^1.0.3:
+  version "1.0.3"
+  resolved "https://registry.yarnpkg.com/color-hash/-/color-hash-1.0.3.tgz#c0e7952f06d022e548e65da239512bd67d3809ee"
+  integrity sha1-wOeVLwbQIuVI5l2iOVEr1n04Ce4=
+
 color-name@1.1.3:
   version "1.1.3"
   resolved "https://registry.yarnpkg.com/color-name/-/color-name-1.1.3.tgz#a7d0558bd89c42f795dd42328f740831ca53bc25"
@@ -7899,6 +7909,7 @@ geojs@1.0.0:
   optionalDependencies:
     d3 "^3.5.17"
     hammerjs "^2.0.8"
+    vtk.js "^14.3.2"
 
 get-caller-file@^1.0.1:
   version "1.0.3"
