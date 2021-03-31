@@ -43,9 +43,7 @@ export default defineComponent({
 
   setup() {
     const allTypesRef = useAllTypes();
-    const trackMap = useTrackMap();
-    const { toggleMerge, removeTrack, trackSelect } = useHandler();
-    const mergeList = useMergeList();
+    const { toggleMerge, commitMerge } = useHandler();
     const data = reactive({
       currentTab: 'tracks' as 'tracks' | 'attributes',
     });
@@ -59,18 +57,8 @@ export default defineComponent({
     }
 
     function doToggleMerge() {
-      data.currentTab = 'attributes';
-      toggleMerge();
-    }
-
-    function commitMerge() {
-      if (mergeList.value.length >= 2) {
-        const track = getTrack(trackMap, mergeList.value[0]);
-        const otherTrackIds = mergeList.value.slice(1);
-        track.merge(otherTrackIds.map((trackId) => getTrack(trackMap, trackId)));
-        removeTrack(otherTrackIds);
-        toggleMerge();
-        trackSelect(track.trackId, false);
+      if (toggleMerge().length) {
+        data.currentTab = 'attributes';
       }
     }
 

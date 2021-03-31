@@ -107,15 +107,6 @@ export default function useModeManager({
     }
   }
 
-  function handleToggleMerge() {
-    if (!mergeInProgress.value && selectedTrackId.value) {
-      /* If no merge in progress and there is a selected track id */
-      mergeList.value = [selectedTrackId.value];
-    } else {
-      mergeList.value = [];
-    }
-  }
-
   function handleSelectFeatureHandle(i: number, key = '') {
     if (i !== selectedFeatureHandle.value) {
       selectedFeatureHandle.value = i;
@@ -126,7 +117,6 @@ export default function useModeManager({
   }
 
   function handleSelectTrack(trackId: TrackId | null, edit = false) {
-    selectTrack(trackId, edit);
     /**
      * If creating mode and editing and selectedTrackId is the same,
      * don't kick out of creating mode.  This happens when moving between
@@ -141,6 +131,8 @@ export default function useModeManager({
     if (trackId !== null && mergeInProgress.value) {
       mergeList.value = Array.from((new Set(mergeList.value).add(trackId)));
     }
+
+    selectTrack(trackId, edit);
   }
 
   //Handles deselection or hitting escape including while editing
@@ -417,6 +409,33 @@ export default function useModeManager({
     }
   }
 
+  /**
+   * Merge: Enabled whenever there are candidates in the merge list
+   */
+  function handleToggleMerge(): TrackId[] {
+    if (!mergeInProgress.value && selectedTrackId.value) {
+      /* If no merge in progress and there is a selected track id */
+      mergeList.value = [selectedTrackId.value];
+    } else {
+      mergeList.value = [];
+    }
+    return mergeList.value;
+  }
+
+  /**
+   * Merge: Commit the merge list
+   */
+  function handleCommitMerge() {
+    if (mergeList.value.length >= 2) {
+      const track = getTrack(trackMap, mergeList.value[0]);
+      const otherTrackIds = mergeList.value.slice(1);
+      track.merge(otherTrackIds.map((trackId) => getTrack(trackMap, trackId)));
+      handleRemoveTrack(otherTrackIds);
+      handleToggleMerge();
+      handleSelectTrack(track.trackId, false);
+    }
+  }
+
   /* Subscribe to recipe activation events */
   recipes.forEach((r) => r.bus.$on('activate', handleSetAnnotationState));
   /* Unsubscribe before unmount */
@@ -431,6 +450,7 @@ export default function useModeManager({
     selectedFeatureHandle,
     selectedKey,
     handler: {
+      commitMerge: handleCommitMerge,
       toggleMerge: handleToggleMerge,
       trackAdd: handleAddTrackOrDetection,
       trackAbort: handleEscapeMode,

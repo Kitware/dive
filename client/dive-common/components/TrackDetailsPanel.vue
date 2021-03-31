@@ -256,7 +256,7 @@ export default defineComponent({
       <div class="d-flex flex-row">
         <v-btn
           :color="mergeInProgress ? 'error' : 'accent'"
-          :outlined="!mergeInProgress"
+          outlined
           class="ma-2 grow"
           x-small
           @click="$emit('toggle-merge')"
@@ -265,7 +265,7 @@ export default defineComponent({
             Begin Track Merge (m)
           </span>
           <span v-else>
-            Abort (m)
+            Abort Merge (m)
           </span>
         </v-btn>
         <v-btn

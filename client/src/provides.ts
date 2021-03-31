@@ -80,8 +80,6 @@ type VisibleModesType = Readonly<Ref<readonly VisibleAnnotationTypes[]>>;
 export interface Handler {
   /* Save pending changes to persistence layer */
   save(): Promise<void>;
-  /* Turn merge mode on and off */
-  toggleMerge(): void;
   /* Select and seek to track */
   trackSeek(trackId: TrackId): void;
   /* Toggle editing mode for track */
@@ -136,7 +134,11 @@ export interface Handler {
   setAttribute({ data, oldAttribute }:
     {data: Attribute; oldAttribute?: Attribute }, updateAllTracks?: boolean): void;
   /* delete an Attribute in the metaData */
-  deleteAttribute({ data }: {data: Attribute}, removeFromTracks?: boolean): void;
+  deleteAttribute({ data }: { data: Attribute }, removeFromTracks?: boolean): void;
+  /* Commit the staged merge tracks */
+  commitMerge(): void;
+  /* Turn merge mode on and off */
+  toggleMerge(): TrackId[];
 }
 const HandlerSymbol = Symbol('handler');
 
@@ -149,7 +151,6 @@ const HandlerSymbol = Symbol('handler');
 function dummyHandler(handle: (name: string, args: unknown[]) => void): Handler {
   return {
     save(...args) { handle('save', args); return Promise.resolve(); },
-    toggleMerge(...args) { handle('toggleMerge', args); },
     trackSeek(...args) { handle('trackSeek', args); },
     trackEdit(...args) { handle('trackEdit', args); },
     trackEnable(...args) { handle('trackEnable', args); },
@@ -171,6 +172,8 @@ function dummyHandler(handle: (name: string, args: unknown[]) => void): Handler 
     updateTypeStyle(...args) { handle('updateTypeStyle', args); },
     setAttribute(...args) { handle('setAttribute', args); },
     deleteAttribute(...args) { handle('deleteAttribute', args); },
+    toggleMerge(...args) { handle('toggleMerge', args); return []; },
+    commitMerge(...args) { handle('commitMerge', args); },
   };
 }
 

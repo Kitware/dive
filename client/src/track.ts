@@ -271,6 +271,9 @@ export default class Track {
    */
   merge(others: Track[]) {
     others.forEach((other) => {
+      other.confidencePairs.forEach((pair) => {
+        this.setType(...pair);
+      });
       other.features.forEach((f) => {
         if (this.getFeature(f.frame)[0] === null) {
           this.setFeature(f, f.geometry?.features);
