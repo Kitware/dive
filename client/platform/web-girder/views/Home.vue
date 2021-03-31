@@ -167,7 +167,7 @@ export default Vue.extend({
             ref="fileManager"
             v-model="selected"
             :selectable="!locationIsViameFolder"
-            :new-folder-enabled="!selected.length"
+            :new-folder-enabled="!selected.length && !locationIsViameFolder"
             :location.sync="location"
             @dragover.native="dragover"
           >

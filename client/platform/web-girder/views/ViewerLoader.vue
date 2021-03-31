@@ -77,7 +77,10 @@ export default defineComponent({
         </v-tab>
         <JobsTab />
       </v-tabs>
-      <Clone :source="$store.state.Dataset.meta" />
+      <Clone
+        v-if="$store.state.Dataset.meta"
+        :source="$store.state.Dataset.meta"
+      />
     </template>
     <template #title-right>
       <RunPipelineMenu :selected-dataset-ids="[id]" />

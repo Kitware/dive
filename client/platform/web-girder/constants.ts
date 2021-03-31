@@ -1,3 +1,4 @@
+import { GirderModel } from '@girder/components/src';
 import { DatasetMeta, DatasetMetaMutable, DatasetType } from 'dive-common/apispec';
 
 /**
@@ -14,12 +15,18 @@ interface GirderMetadataStatic extends DatasetMetaMutable {
   foreign_media_id?: string;
 }
 
+/** A girder folder model with dataset metadata */
+interface GirderDatasetModel extends GirderModel {
+  meta: GirderMetadataStatic;
+}
+
 /**
  * Full metadata including dynamic properties (image list, video url)
  */
 type GirderMetadata = GirderMetadataStatic & DatasetMeta;
 
 export {
+  GirderDatasetModel,
   GirderMetadataStatic,
   GirderMetadata,
 };

@@ -2,19 +2,18 @@
 import {
   computed, defineComponent, Ref, ref, PropType,
 } from '@vue/composition-api';
-import { GirderFileManager, GirderModel } from '@girder/components/src';
+import { GirderFileManager } from '@girder/components/src';
 import { withRestError } from 'platform/web-girder/utils';
-
+import { GirderDatasetModel } from 'platform/web-girder/constants';
 import { clone } from '../api/viame.service';
 import { useGirderRest } from '../plugins/girder';
-
 
 export default defineComponent({
   components: { GirderFileManager },
 
   props: {
     source: {
-      type: Object as PropType<GirderModel>,
+      type: Object as PropType<GirderDatasetModel>,
       required: true,
     },
   },
@@ -24,19 +23,26 @@ export default defineComponent({
     const open = ref(false);
     // eslint-disable-next-line @typescript-eslint/ban-ts-ignore
     // @ts-ignore
-    const location: Ref<GirderModel> = ref({
+    const location: Ref<GirderDatasetModel> = ref({
       _modelType: 'user',
       // eslint-disable-next-line @typescript-eslint/ban-ts-ignore
       // @ts-ignore
       _id: girderRest.user._id,
+      meta: {},
     });
     const newName = ref('');
 
-    const canClone = computed(() => location.value._modelType === 'folder');
+    const locationIsFolder = computed(() => (location.value._modelType === 'folder'));
 
     async function click() {
       newName.value = `Clone of ${props.source.name}`;
       open.value = true;
+    }
+
+    function setLocation(newLoc: GirderDatasetModel) {
+      if (!newLoc.meta?.annotate) {
+        location.value = newLoc;
+      }
     }
 
     const { func: doClone, error: cloneError } = withRestError(async () => {
@@ -49,14 +55,15 @@ export default defineComponent({
     });
 
     return {
-      canClone,
       cloneError,
       location,
+      locationIsFolder,
       newName,
       open,
       /* methods */
       click,
       doClone,
+      setLocation,
     };
   },
 });
@@ -91,7 +98,7 @@ export default defineComponent({
     </template>
 
     <v-card>
-      <template v-if="source.meta.foreign_media_id ">
+      <template v-if="source.meta.foreign_media_id">
         <v-card-title>
           This dataset is a clone
         </v-card-title>
@@ -135,19 +142,34 @@ export default defineComponent({
             new-folder-enabled
             root-location-disabled
             no-access-control
-            :location.sync="location"
-          />
+            :location="location"
+            @update:location="setLocation"
+          >
+            <template #row-widget="{item}">
+              <v-chip
+                v-if="(item.meta && item.meta.annotate)"
+                color="white"
+                x-small
+                outlined
+                class="mx-3"
+              >
+                dataset
+              </v-chip>
+            </template>
+          </GirderFileManager>
         </v-card>
         <v-btn
           depressed
           block
           color="primary"
           class="mt-4"
-          :disabled="!canClone"
+          :disabled="!locationIsFolder"
           @click="doClone"
         >
-          <span v-if="canClone">Clone into {{ location.name }}</span>
-          <span v-else>Choose a destination folder...</span>
+          <span v-if="!locationIsFolder">
+            Choose a destination folder...
+          </span>
+          <span v-else>Clone into {{ location.name }}</span>
         </v-btn>
       </v-card-text>
     </v-card>
