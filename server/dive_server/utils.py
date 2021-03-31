@@ -162,7 +162,7 @@ def verify_dataset(folder: GirderModel):
     """Verify that a given folder is a DIVE dataset"""
 
     if not asbool(fromMeta(folder, DatasetMarker, False)):
-        raise GirderException(f'Source folder is not a valid DIVE dataset')
+        raise RestException(f'Source folder is not a valid DIVE dataset')
     return True
 
 
@@ -178,7 +178,7 @@ def getCloneRoot(owner: GirderModel, source_folder: GirderModel):
             user=owner,
         )
         if source_folder is None:
-            raise GirderException(
+            raise RestException(
                 f"Referenced media source missing. Folder Id {next_id} was not found."
                 " This may be a cloned dataset where the source was deleted."
             )

@@ -6,8 +6,8 @@ import {
 import { usePendingSaveCount, useHandler } from 'vue-media-annotator/provides';
 import AutosavePrompt from 'dive-common/components/AutosavePrompt.vue';
 import { MediaTypes } from 'dive-common/constants';
+import { withRestError } from 'platform/web-girder/utils';
 import { getExportUrls, ExportUrlsResponse } from '../api/viameDetection.service';
-
 
 export default defineComponent({
   components: { AutosavePrompt },
@@ -62,12 +62,11 @@ export default defineComponent({
       }
     }
 
-    /** TODO replace with watchEffect */
-    async function updateExportUrls() {
+    const { func: updateExportUrls, error } = withRestError(async () => {
       if (menuOpen.value) {
         exportUrls.value = await getExportUrls(props.datasetId, excludeFiltered.value);
       }
-    }
+    });
     watch([toRef(props, 'datasetId'), excludeFiltered, menuOpen], updateExportUrls);
     updateExportUrls();
 
@@ -77,6 +76,7 @@ export default defineComponent({
     const thresholds = computed(() => Object.keys(exportUrls.value?.currentThresholds || {}));
 
     return {
+      error,
       excludeFiltered,
       menuOpen,
       exportUrls,
@@ -125,74 +125,86 @@ export default defineComponent({
         v-model="savePrompt"
         @save="doExport({ forceSave: true })"
       />
-      <v-card v-if="menuOpen && exportUrls">
+      <v-card v-if="menuOpen">
         <v-card-title>
           Download options
         </v-card-title>
+        <v-alert
+          v-if="error"
+          color="error"
+          class="mx-2"
+        >
+          <p class="text-h5">
+            Error
+          </p>
+          {{ error }}
+        </v-alert>
 
-        <v-card-text class="pb-0">
-          Zip all {{ mediaType || 'media' }} files only
-        </v-card-text>
-        <v-card-actions>
-          <v-btn
-            depressed
-            block
-            target="_blank"
-            rel="noopener"
-            :disabled="!exportUrls.exportMediaUrl"
-            :href="exportUrls.exportMediaUrl"
-          >
-            {{ mediaType || 'media unavailable' }}
-          </v-btn>
-        </v-card-actions>
+        <template v-if="exportUrls">
+          <v-card-text class="pb-0">
+            Zip all {{ mediaType || 'media' }} files only
+          </v-card-text>
+          <v-card-actions>
+            <v-btn
+              depressed
+              block
+              target="_blank"
+              rel="noopener"
+              :disabled="!exportUrls.exportMediaUrl"
+              :href="exportUrls.exportMediaUrl"
+            >
+              {{ mediaType || 'media unavailable' }}
+            </v-btn>
+          </v-card-actions>
 
-        <v-card-text class="pb-0">
-          <div>Get latest detections csv only</div>
-          <template v-if="thresholds.length">
-            <v-checkbox
-              v-model="excludeFiltered"
-              label="exclude tracks below confidence threshold"
-              dense
-              hide-details
-            />
-            <div class="py-2">
-              <span>Current thresholds:</span>
-              <span
-                v-for="(val, key) in exportUrls.currentThresholds"
-                :key="key"
-                class="pt-2"
-              >
-                ({{ key }}, {{ val }})
-              </span>
-            </div>
-          </template>
-        </v-card-text>
-        <v-card-actions>
-          <v-spacer />
-          <v-btn
-            depressed
-            block
-            :disabled="!exportUrls.exportDetectionsUrl"
-            @click="doExport({ url: exportUrls && exportUrls.exportDetectionsUrl })"
-          >
-            <span v-if="exportUrls.exportDetectionsUrl">detections</span>
-            <span v-else>detections unavailable</span>
-          </v-btn>
-        </v-card-actions>
+          <v-card-text class="pb-0">
+            <div>Get latest detections csv only</div>
+            <template v-if="thresholds.length">
+              <v-checkbox
+                v-model="excludeFiltered"
+                label="exclude tracks below confidence threshold"
+                dense
+                hide-details
+              />
+              <div class="py-2">
+                <span>Current thresholds:</span>
+                <span
+                  v-for="(val, key) in exportUrls.currentThresholds"
+                  :key="key"
+                  class="pt-2"
+                >
+                  ({{ key }}, {{ val }})
+                </span>
+              </div>
+            </template>
+          </v-card-text>
+          <v-card-actions>
+            <v-spacer />
+            <v-btn
+              depressed
+              block
+              :disabled="!exportUrls.exportDetectionsUrl"
+              @click="doExport({ url: exportUrls && exportUrls.exportDetectionsUrl })"
+            >
+              <span v-if="exportUrls.exportDetectionsUrl">detections</span>
+              <span v-else>detections unavailable</span>
+            </v-btn>
+          </v-card-actions>
 
-        <v-card-text class="pb-0">
-          Zip all media, detections, and edit history recursively from all sub-folders
-        </v-card-text>
-        <v-card-actions>
-          <v-spacer />
-          <v-btn
-            depressed
-            block
-            @click="doExport({ url: exportUrls && exportUrls.exportAllUrl })"
-          >
-            Everything
-          </v-btn>
-        </v-card-actions>
+          <v-card-text class="pb-0">
+            Zip all media, detections, and edit history recursively from all sub-folders
+          </v-card-text>
+          <v-card-actions>
+            <v-spacer />
+            <v-btn
+              depressed
+              block
+              @click="doExport({ url: exportUrls && exportUrls.exportAllUrl })"
+            >
+              Everything
+            </v-btn>
+          </v-card-actions>
+        </template>
       </v-card>
     </template>
   </v-menu>

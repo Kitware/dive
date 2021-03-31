@@ -236,7 +236,7 @@ class Viame(Resource):
         """
         user = self.getCurrentUser()
         verify_pipe(user, pipeline)
-        verify_dataset(folder)
+        getCloneRoot(user, folder)
 
         folder_id_str = str(folder["_id"])
         # First, verify that no other outstanding jobs are running on this dataset
@@ -340,7 +340,7 @@ class Viame(Resource):
             folder = Folder().load(folderId, level=AccessType.READ, user=user)
             if folder is None:
                 raise RestException(f"Cannot access folder {folderId}")
-            verify_dataset(folder)
+            getCloneRoot(user, folder)
             folder_names.append(folder['name'])
             # Ensure detection has a csv format
             # TODO: Move this into worker job
