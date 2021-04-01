@@ -7,7 +7,9 @@ import {
 
 import {
   websafeImageTypes, otherImageTypes,
-  JsonMeta, Settings, JsonMetaCurrentVersion, MediaImportPayload, StereoImportMultiArgs, StereoImportKeywordArgs,
+  JsonMeta, Settings, JsonMetaCurrentVersion,
+  MediaImportPayload, StereoImportMultiArgs,
+  StereoImportKeywordArgs,
 } from 'platform/desktop/constants';
 import { cleanString, filterByGlob, makeid } from 'platform/desktop/sharedUtils';
 
@@ -218,7 +220,6 @@ function writeSteroInputs(jobWorkDir: string, meta: JsonMeta) {
   }
   leftInputFile.end();
   rightInputFile.end();
-
 }
 
 export default { beginStereoImport, writeSteroInputs };
