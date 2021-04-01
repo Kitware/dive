@@ -18,7 +18,8 @@ markdown_extensions:
 
 nav:
   - Home: index.md
-  - Web Version: Getting-Started.md
+  - Web Version: Web-Version.md
+  - Web Data Management: Web-Data-Management.md
   - Desktop Version: Dive-Desktop.md
   - Annotation Quickstart: Annotation-QuickStart.md
   - Pipeline Docs: Pipeline-Documentation.md
@@ -29,7 +30,6 @@ nav:
     - Annotation View: UI-Annotation-View.md
     - Type List: UI-Type-List.md
     - Track List: UI-Track-List.md
-    - Sharing: UI-Sharing.md
     - Interpolation: UI-Interpolation.md
     - Downloading Data: UI-Downloading-Data.md
     - Attributes: Attributes.md

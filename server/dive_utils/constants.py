@@ -35,8 +35,15 @@ VideoMimeTypes = {
     "video/x-msvideo",
 }
 
-PublishedMarker = 'published'
+# Metadata markers
+DatasetMarker = "annotate"
+DetectionMarker = "detection"
+PublishedMarker = "published"
+ForeignMediaIdMarker = "foreign_media_id"
 TrainedPipelineMarker = "trained_pipeline"
+TypeMarker = "type"
+
+# Other constants
 TrainedPipelineCategory = "trained"
 
 # The name of the folder where any user specific data should be stored
