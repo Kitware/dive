@@ -32,6 +32,7 @@ export default defineComponent({
     const errorText = ref('');
     const pendingImportPayload: Ref<MediaImportPayload | null> = ref(null);
     const searchText: Ref<string | null> = ref('');
+    const stereo = ref(false);
 
     async function open(dstype: DatasetType) {
       const ret = await api.openFromDisk(dstype);
@@ -97,6 +98,7 @@ export default defineComponent({
       join,
       setOrGetConversionJob,
       toggleMore,
+      stereo,
       // state
       pageSize,
       limit,
@@ -129,7 +131,7 @@ export default defineComponent({
       />
       <ImportMultiCamDialog
         v-if="importMultiCamDialog"
-        :stereo="true"
+        :stereo="stereo"
         @begin-multicam-import="multiCamImport($event)"
         @abort="importMultiCamDialog = false"
       />
@@ -204,11 +206,22 @@ export default defineComponent({
                   <v-btn
                     block
                     color="primary"
-                    @click="importMultiCamDialog = true"
+                    @click="stereo = true; importMultiCamDialog = true"
                   >
                     Stereoscopic
-                    <v-icon>
+                    <v-icon class="ml-2">
                       mdi-binoculars
+                    </v-icon>
+                  </v-btn>
+                </v-list-item> <v-list-item>
+                  <v-btn
+                    block
+                    color="primary"
+                    @click="stereo = false; importMultiCamDialog = true"
+                  >
+                    MultiCam
+                    <v-icon class="ml-2">
+                      mdi-camera-burst
                     </v-icon>
                   </v-btn>
                 </v-list-item>

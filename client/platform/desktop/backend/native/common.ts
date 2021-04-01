@@ -186,6 +186,7 @@ async function loadMetadata(
 
   let videoUrl = '';
   let imageData = [] as FrameImage[];
+  const multiCamImage = {} as Record<string, FrameImage[]>;
 
   /* Generate URLs against embedded media server from known file paths on disk */
   if (projectMetaData.type === 'video') {
@@ -209,6 +210,15 @@ async function loadMetadata(
         filename,
       }));
     }
+    if (projectMetaData.multiCam) {
+      const multiData = projectMetaData.multiCam.imageLists;
+      Object.entries(multiData).forEach(([key, val]) => {
+        multiCamImage[key] = val.map((filename: string) => ({
+          url: makeMediaUrl(filename),
+          filename: filename.substring(filename.lastIndexOf('/')),
+        }));
+      });
+    }
   } else {
     throw new Error(`unexpected project type for id="${datasetId}" type="${projectMetaData.type}"`);
   }
@@ -217,6 +227,7 @@ async function loadMetadata(
     ...projectMetaData,
     videoUrl,
     imageData,
+    multiCamImage,
   };
 }
 

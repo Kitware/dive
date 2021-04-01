@@ -58,6 +58,7 @@ interface DatasetMeta extends DatasetMetaMutable {
   name: string;
   createdAt: string;
   attributes?: Record<string, Attribute>;
+  multiCamImage?: Record<string, FrameImage[]>;
 }
 
 interface Api {

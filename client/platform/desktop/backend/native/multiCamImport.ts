@@ -28,6 +28,12 @@ function isKeywordArgs(s: any): s is MultiCamImportKeywordArgs {
   return false;
 }
 
+async function asyncForEach(array: any[], callback: Function) {
+  for (let index = 0; index < array.length; index += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    await callback(array[index], index, array);
+  }
+}
 /**
  * Begin a dataset import.
  */
@@ -99,6 +105,7 @@ async function beginMultiCamImport(
   };
 
 
+
   if (datasetType === 'video') {
     // get parent folder, since videos reference a file directly
     jsonMeta.originalBasePath = npath.dirname(mainFolder);
@@ -127,24 +134,25 @@ async function beginMultiCamImport(
       throw new Error(`could not determine video MIME type for ${path}`);
     }
     */
-    throw new Error('Not support stereoscopic video at this time');
+    throw new Error('No support stereoscopic video at this time');
   } else if (datasetType === 'image-sequence') {
     if (isFolderArgs(args)) {
-      Object.entries(args.folderList).forEach(async ([key, folder]) => {
-        const found = await findImagesInFolder(folder);
-        if (found.images.length === 0) {
-          throw new Error(`no images found in ${folder}`);
-        }
-        if (jsonMeta.multiCam && jsonMeta.multiCam.imageLists[key] !== undefined) {
-          jsonMeta.multiCam.imageLists[key] = found.images.map(
-            (image) => npath.join(folder, image),
-          );
-          jsonMeta.originalImageFiles = jsonMeta.originalImageFiles.concat(found.images);
-          mediaConvertList = mediaConvertList.concat(found.mediaConvetList);
-        }
-      });
+      await asyncForEach(Object.entries(args.folderList),
+        async ([key, folder]: [string, string]) => {
+          const found = await findImagesInFolder(folder);
+          if (found.images.length === 0) {
+            throw new Error(`no images found in ${folder}`);
+          }
+          if (jsonMeta.multiCam && jsonMeta.multiCam.imageLists[key] !== undefined) {
+            jsonMeta.multiCam.imageLists[key] = found.images.map(
+              (image) => npath.join(folder, image),
+            );
+            jsonMeta.originalImageFiles = jsonMeta.originalImageFiles.concat(found.images);
+            mediaConvertList = mediaConvertList.concat(found.mediaConvetList);
+          }
+        });
     } else if (isKeywordArgs(args)) {
-      Object.entries(args.globList).forEach(async ([key, glob]) => {
+      await asyncForEach(Object.entries(args.globList), async ([key, glob]: [string, string]) => {
         const found = await findImagesInFolder(args.keywordFolder, glob);
         if (jsonMeta.multiCam && jsonMeta.multiCam.imageLists[key] !== undefined) {
           jsonMeta.multiCam.imageLists[key] = found.images.map(
@@ -158,6 +166,7 @@ async function beginMultiCamImport(
   } else {
     throw new Error('only video and image-sequence types are supported');
   }
+
 
   return {
     jsonMeta,

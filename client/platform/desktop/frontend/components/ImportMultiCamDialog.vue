@@ -9,8 +9,13 @@ import { MediaImportPayload } from 'platform/desktop/constants';
 import { DatasetType } from 'dive-common/apispec';
 import * as api from '../api';
 
+import ImportMultiCamAddType from './ImportMultiCamAddType.vue';
+
 
 export default defineComponent({
+  components: {
+    ImportMultiCamAddType,
+  },
   name: 'ImportMultiCamDialog',
   props: {
     stereo: {
@@ -22,7 +27,7 @@ export default defineComponent({
     const importType: Ref<'multi'|'keyword'| ''> = ref('');
     const folderList: Ref<Record<string, string>> = ref({});
     const keywordFolder = ref('');
-    const pendingImportPayload: Ref<Record<string, MediaImportPayload>> = ref({});
+    const pendingImportPayload: Ref<MediaImportPayload | null> = ref(null);
     const globList: Ref<Record<string, string>> = ref({});
     const calibrationFile = ref('');
     const defaultDisplay = ref('left');
@@ -49,9 +54,9 @@ export default defineComponent({
     const filteredImages = computed(() => {
       const filtered: Record<string, string[]> = {};
       Object.entries(globList.value).forEach(([key, glob]) => {
-        if (pendingImportPayload.value[key]) {
+        if (pendingImportPayload.value) {
           filtered[key] = filterByGlob(
-            glob, pendingImportPayload.value[key].jsonMeta.originalImageFiles,
+            glob, pendingImportPayload.value.jsonMeta.originalImageFiles,
           );
         }
       });
@@ -62,6 +67,9 @@ export default defineComponent({
       const entries = Object.entries(filteredImages.value);
       let length = -1;
       let totalList: string[] = [];
+      if (!entries.length) {
+        return 'Need to have some data loaded';
+      }
       for (let i = 0; i < entries.length; i += 1) {
         const imageEntry = entries[i];
         if (!imageEntry[1].length) {
@@ -89,7 +97,7 @@ export default defineComponent({
       if (importType.value === 'multi') {
         const entries = Object.entries(folderList.value);
         const filterLength = entries.filter(([key, val]) => val !== '').length;
-        if (entries.length === filterLength) {
+        if (entries.length === filterLength && entries.length) {
           return true;
         }
         return false;
@@ -108,8 +116,11 @@ export default defineComponent({
           const dsName = npath.parse(path).name;
           if (folder === 'calibration') {
             calibrationFile.value = path;
-          } else {
+          } else if (importType.value === 'multi') {
             folderList.value[folder] = path;
+          } else if (importType.value === 'keyword') {
+            keywordFolder.value = path;
+            pendingImportPayload.value = await api.importMedia(ret.filePaths[0]);
           }
         } catch (err) {
           console.log(err);
@@ -128,14 +139,14 @@ export default defineComponent({
         }
       }
     };
-    const addNewSet = () => {
+    const addNewSet = (name: string) => {
       if (importType.value === 'multi') {
-        if (!folderList.value[newSetName.value]) {
-          Vue.set(folderList.value, newSetName.value, '');
+        if (!folderList.value[name]) {
+          Vue.set(folderList.value, name, '');
         }
       } else if (importType.value === 'keyword') {
         if (!globList.value[newSetName.value]) {
-          Vue.set(globList.value, newSetName.value, '');
+          Vue.set(globList.value, name, '');
         }
       }
       newSetName.value = '';
@@ -209,6 +220,14 @@ export default defineComponent({
             v-for="(item, key) in folderList"
             :key="key"
           >
+            <v-btn
+              v-if="!stereo"
+              class="mr-2"
+              color="error"
+              @click="deleteSet(key)"
+            >
+              <v-icon>mdi-delete</v-icon>
+            </v-btn>
             <v-text-field
               :label="`${key}:`"
               placeholder="Choose Folder"
@@ -225,15 +244,8 @@ export default defineComponent({
                 mdi-folder-open
               </v-icon>
             </v-btn>
-            <v-btn
-              class="ml-2"
-              color="error"
-              @click="deleteSet(key)"
-            >
-              <v-icon>mdi-delete</v-icon>
-            </v-btn>
           </v-list-item>
-          <v-list-item>
+          <v-list-item v-if="!stereo">
             <v-btn
               x-small
               color="primary"
@@ -244,31 +256,12 @@ export default defineComponent({
                 mdi-plus
               </v-icon>
             </v-btn>
-            <v-row
+            <import-multi-cam-add-type
               v-if="addNewToggle"
-              class="align-center"
-            >
-              <v-text-field
-                v-model="newSetName"
-                label="name"
-                placeholder="Choose a name"
-                class="mx-4"
-              />
-              <v-btn
-                color="error"
-                class="mx-2"
-                @click="newSetName=''; addNewToggle=false"
-              >
-                Cancel
-              </v-btn>
-              <v-btn
-                color="success"
-                class="mx-2"
-                @click="addNewSet"
-              >
-                Submit
-              </v-btn>
-            </v-row>
+              :name-list="displayKeys"
+              @add-new="addNewSet"
+              @cancel="addNewToggle = false"
+            />
           </v-list-item>
         </v-list>
       </div>
@@ -296,6 +289,15 @@ export default defineComponent({
           v-for="(item, key) in globList"
           :key="key"
         >
+          <v-btn
+            v-if="!stereo"
+
+            class="mr-2 mb-5"
+            color="error"
+            @click="deleteSet(key)"
+          >
+            <v-icon>mdi-delete</v-icon>
+          </v-btn>
           <v-text-field
             v-model="globList[key]"
             :label="`${key} Glob Filter Pattern `"
@@ -311,7 +313,7 @@ export default defineComponent({
             class="ml-3 mb-5"
           >
             "{{ globList[key] }}" matches {{ filteredImages[key].length }}
-            out of {{ pendingImportPayload[key].jsonMeta.originalImageFiles.length }} images
+            out of {{ pendingImportPayload.jsonMeta.originalImageFiles.length }} images
           </v-chip>
         </v-list-item>
         <v-list-item
@@ -324,6 +326,24 @@ export default defineComponent({
           >
             {{ keywordReady }}
           </v-alert>
+        </v-list-item>
+        <v-list-item v-if="!stereo">
+          <v-btn
+            x-small
+            color="primary"
+            :disabled="addNewToggle"
+            @click="addNewToggle = true"
+          >
+            <v-icon>
+              mdi-plus
+            </v-icon>
+          </v-btn>
+          <import-multi-cam-add-type
+            v-if="addNewToggle"
+            :name-list="displayKeys"
+            @add-new="addNewSet"
+            @cancel="addNewToggle = false"
+          />
         </v-list-item>
       </div>
       <div v-if="nextSteps">
@@ -348,7 +368,7 @@ export default defineComponent({
             </v-radio-group>
           </v-list-item>
           <v-list-item v-if="stereo">
-            Optional Calibration File:
+            Calibration File:
             <v-text-field
               label="Calibration File:"
               placeholder="Choose File"
@@ -380,7 +400,7 @@ export default defineComponent({
         </v-btn>
         <v-btn
           color="primary"
-          :disabled="!nextSteps"
+          :disabled="!nextSteps || (stereo && !calibrationFile)"
           @click="prepForImport"
         >
           Begin Import
