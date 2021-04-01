@@ -12,9 +12,13 @@ export default defineComponent({
       type: Array as PropType<string[]>,
       default: () => [],
     },
-    small: {
-      type: Boolean,
-      default: false,
+    buttonOptions: {
+      type: Object,
+      default: () => ({}),
+    },
+    menuOptions: {
+      type: Object,
+      default: () => ({}),
     },
   },
 
@@ -90,19 +94,21 @@ export default defineComponent({
   <v-menu
     v-model="menuOpen"
     max-width="500"
-    offset-y
+    v-bind="menuOptions"
     :close-on-content-click="false"
   >
     <template v-slot:activator="{ on: menuOn }">
-      <v-tooltip bottom>
+      <v-tooltip
+        bottom
+        :disabled="menuOptions.offsetX"
+      >
         <template #activator="{ on: tooltipOn }">
           <v-btn
-            text
-            :small="small"
+            v-bind="buttonOptions"
             :disabled="trainingDisabled"
             v-on="{ ...tooltipOn, ...menuOn }"
           >
-            <v-icon color="accent">
+            <v-icon>
               mdi-brain
             </v-icon>
             <span

@@ -10,10 +10,27 @@ import { getPathFromLocation, getLocationFromRoute } from '../utils';
 import { deleteResources } from '../api/viame.service';
 import Export from './Export.vue';
 import Upload from './Upload.vue';
+import DataDetails from './DataDetails.vue';
+import Clone from './Clone.vue';
+
+const buttonOptions = {
+  block: true,
+  // tile: true,
+  left: true,
+  color: 'primary',
+  class: ['my-2'],
+};
+
+const menuOptions = {
+  offsetX: true,
+  left: true,
+};
 
 export default Vue.extend({
   name: 'Home',
   components: {
+    Clone,
+    DataDetails,
     Export,
     GirderFileManager,
     Upload,
@@ -22,6 +39,8 @@ export default Vue.extend({
   },
   inject: ['girderRest'],
   data: () => ({
+    buttonOptions,
+    menuOptions,
     uploaderDialog: false,
     selected: [],
     uploading: false,
@@ -62,12 +81,15 @@ export default Vue.extend({
         if (selected._modelType !== 'folder') {
           return null;
         }
-        return selected._id;
+        return selected;
       }
       if (this.locationIsViameFolder) {
-        return this.location._id;
+        return this.location;
       }
       return null;
+    },
+    exportTargetId() {
+      return this.exportTarget?._id || null;
     },
     locationIsViameFolder() {
       return !!(this.location && this.location.meta && this.location.meta.annotate);
@@ -160,9 +182,8 @@ export default Vue.extend({
     <v-container fill-height>
       <v-row
         class="fill-height nowraptable"
-        no-gutters
       >
-        <v-col :cols="12">
+        <v-col :cols="9">
           <GirderFileManager
             ref="fileManager"
             v-model="selected"
@@ -172,35 +193,6 @@ export default Vue.extend({
             @dragover.native="dragover"
           >
             <template #headerwidget>
-              <run-training-menu
-                :selected-dataset-ids="locationInputs"
-                small
-              />
-              <run-pipeline-menu
-                :selected-dataset-ids="locationInputs"
-                small
-              />
-              <export
-                v-if="exportTarget"
-                :dataset-id="exportTarget"
-                small
-              />
-              <v-btn
-                v-if="selected.length"
-                class="ma-0"
-                text
-                small
-                @click="deleteSelection"
-              >
-                <v-icon
-                  left
-                  color="accent"
-                  class="mdi-24px mr-1"
-                >
-                  mdi-delete
-                </v-icon>
-                Delete
-              </v-btn>
               <v-dialog
                 v-if="shouldShowUpload"
                 v-model="uploaderDialog"
@@ -263,6 +255,51 @@ export default Vue.extend({
               </v-chip>
             </template>
           </GirderFileManager>
+        </v-col>
+        <v-col cols="3">
+          <DataDetails
+            :value="selected.length ? selected : [location]"
+          >
+            <template #actions>
+              <div class="pa-2">
+                <Clone
+                  v-if="exportTarget && exportTarget.meta.annotate"
+                  :button-options="{
+                    ...buttonOptions,
+                    outlined: true,
+                    color: 'white',
+                  }"
+                  :source="exportTarget"
+                />
+                <run-training-menu
+                  v-bind="{ buttonOptions, menuOptions }"
+                  :selected-dataset-ids="locationInputs"
+                />
+                <run-pipeline-menu
+                  v-bind="{ buttonOptions, menuOptions }"
+                  :selected-dataset-ids="locationInputs"
+                />
+                <export
+                  v-bind="{ buttonOptions, menuOptions }"
+                  :dataset-id="exportTargetId"
+                />
+                <v-btn
+                  :disabled="!selected.length"
+                  v-bind="{ ...buttonOptions }"
+                  color="error"
+                  @click="deleteSelection"
+                >
+                  <v-icon
+                    left
+                    class="pr-2"
+                  >
+                    mdi-delete
+                  </v-icon>
+                  Delete
+                </v-btn>
+              </div>
+            </template>
+          </DataDetails>
         </v-col>
       </v-row>
     </v-container>

@@ -15,15 +15,19 @@ export default defineComponent({
   props: {
     datasetId: {
       type: String,
-      required: true,
-    },
-    small: {
-      type: Boolean,
-      default: false,
+      default: null,
     },
     blockOnUnsaved: {
       type: Boolean,
       default: false,
+    },
+    buttonOptions: {
+      type: Object,
+      default: () => ({}),
+    },
+    menuOptions: {
+      type: Object,
+      default: () => ({}),
     },
   },
 
@@ -94,7 +98,7 @@ export default defineComponent({
     v-model="menuOpen"
     :close-on-content-click="false"
     :nudge-width="120"
-    offset-y
+    v-bind="menuOptions"
     max-width="280"
   >
     <template #activator="{ on: menuOn }">
@@ -102,11 +106,11 @@ export default defineComponent({
         <template #activator="{ on: tooltipOn }">
           <v-btn
             class="ma-0"
-            text
-            :small="small"
+            v-bind="buttonOptions"
+            :disabled="!datasetId"
             v-on="{ ...tooltipOn, ...menuOn }"
           >
-            <v-icon color="accent">
+            <v-icon>
               mdi-download
             </v-icon>
             <span
@@ -125,7 +129,9 @@ export default defineComponent({
         v-model="savePrompt"
         @save="doExport({ forceSave: true })"
       />
-      <v-card v-if="menuOpen">
+      <v-card
+        outlined
+      >
         <v-card-title>
           Download options
         </v-card-title>

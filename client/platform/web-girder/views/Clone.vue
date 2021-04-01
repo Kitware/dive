@@ -16,6 +16,10 @@ export default defineComponent({
       type: Object as PropType<GirderDatasetModel>,
       required: true,
     },
+    buttonOptions: {
+      type: Object,
+      default: () => ({}),
+    },
   },
 
   setup(props, { root }) {
@@ -83,15 +87,12 @@ export default defineComponent({
         v-on="on"
       >
         <template #activator="{ on: ton, attrs: tattrs }">
-          <v-chip
-            v-bind="tattrs"
-            color="white"
-            outlined
-            class="ml-2"
+          <v-btn
+            v-bind="{ ...tattrs, ...buttonOptions }"
             v-on="{ ...ton, click }"
           >
             Clone
-          </v-chip>
+          </v-btn>
         </template>
         <span>Create a clone of this data</span>
       </v-tooltip>
