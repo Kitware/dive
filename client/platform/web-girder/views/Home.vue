@@ -179,7 +179,10 @@ export default Vue.extend({
       height="6"
       :style="{ visibility: loading ? 'visible' : 'hidden' }"
     />
-    <v-container fill-height>
+    <v-container
+      fill-height
+      :fluid="$vuetify.breakpoint.mdAndDown"
+    >
       <v-row
         class="fill-height nowraptable"
       >
