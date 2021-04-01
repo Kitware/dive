@@ -6,7 +6,7 @@ import { TypeStyling } from './useStyling';
 
 interface EventChartParams {
   enabledTracks: Readonly<Ref<readonly TrackWithContext[]>>;
-  selectedTrackId: Ref<TrackId | null>;
+  selectedTrackIds: Ref<TrackId[] | null>;
   typeStyling: Ref<TypeStyling>;
 }
 
@@ -20,12 +20,12 @@ interface EventChartData {
 }
 
 export default function useEventChart({
-  enabledTracks, selectedTrackId, typeStyling,
+  enabledTracks, selectedTrackIds, typeStyling,
 }: EventChartParams) {
   const eventChartData = computed(() => {
     const values = [] as EventChartData[];
     const mapfunc = typeStyling.value.color;
-    const selectedTrackIdValue = selectedTrackId.value;
+    const selectedTrackIdsValue = selectedTrackIds.value;
     /* use forEach rather than filter().map() to save an interation */
     enabledTracks.value.forEach((filtered) => {
       const { track } = filtered;
@@ -36,7 +36,7 @@ export default function useEventChart({
           trackId: track.trackId,
           name: `Track ${track.trackId}`,
           color: mapfunc(trackType),
-          selected: track.trackId === selectedTrackIdValue,
+          selected: selectedTrackIdsValue?.includes(track.trackId) || false,
           range: [track.begin, track.end],
           markers: track.featureIndex.map((i) => (
             [i, track.features[i].interpolate || false])),
@@ -44,7 +44,7 @@ export default function useEventChart({
       }
     });
     return {
-      muted: selectedTrackIdValue !== null,
+      muted: selectedTrackIdsValue !== null,
       values,
     };
   });

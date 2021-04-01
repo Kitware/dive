@@ -36,6 +36,10 @@ export default defineComponent({
       type: Boolean,
       required: true,
     },
+    merging: {
+      type: Boolean,
+      default: false,
+    },
     color: {
       type: String,
       required: true,
@@ -88,7 +92,7 @@ export default defineComponent({
 
     /* Sets styling for the selected track */
     const style = computed(() => {
-      if (props.selected && !props.solo) {
+      if (props.selected) {
         return {
           'background-color': `${vuetify.theme.themes.dark.accentBackground}`,
         };
@@ -295,13 +299,14 @@ export default defineComponent({
         <tooltip-btn
           color="error"
           icon="mdi-delete"
+          :disabled="merging"
           :tooltip-text="`Delete ${isTrack ? 'Track' : 'Detection'}`"
           @click="handler.removeTrack([track.trackId])"
         />
 
         <tooltip-btn
           v-if="isTrack"
-          :disabled="!track.canSplit(frame)"
+          :disabled="!track.canSplit(frame) || merging"
           icon="mdi-call-split"
           tooltip-text="Split Track"
           @click="handler.trackSplit(track.trackId, frame)"
@@ -362,7 +367,7 @@ export default defineComponent({
       <tooltip-btn
         :icon="(editing) ? 'mdi-pencil-box' : 'mdi-pencil-box-outline'"
         tooltip-text="Toggle edit mode"
-        :disabled="!inputValue"
+        :disabled="!inputValue || merging"
         @click="handler.trackEdit(track.trackId)"
       />
     </v-row>

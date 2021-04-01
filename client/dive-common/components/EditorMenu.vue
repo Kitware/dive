@@ -34,6 +34,10 @@ export default Vue.extend({
       type: Array as PropType<Recipe[]>,
       required: true,
     },
+    mergeMode: {
+      type: Boolean,
+      default: false,
+    },
   },
 
   computed: {
@@ -158,14 +162,14 @@ export default Vue.extend({
       <span
         :class="[
           'ml-8', 'mr-1', 'px-3', 'py-1',
-          'modechip', editingTrack ? 'primary' : ''
+          'modechip', editingTrack || mergeMode ? 'primary' : ''
         ]"
       >
         <v-icon class="pr-1">
-          mdi-pencil
+          {{ mergeMode ? 'mdi-call-merge' : 'mdi-pencil' }}
         </v-icon>
         <span class="text-subtitle-2">
-          Editing
+          {{ mergeMode ? 'Merging' : 'Editing' }}
         </span>
       </span>
       <v-btn

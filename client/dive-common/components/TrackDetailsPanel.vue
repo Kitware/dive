@@ -222,7 +222,7 @@ export default defineComponent({
     @click.native="resetEditIndividual"
   >
     <v-subheader>
-      {{ mergeInProgress ? `Merge Candidates ${mergeList.length}` : 'Track Editor' }}
+      {{ mergeInProgress ? 'Merge Candidates' : 'Track Editor' }}
     </v-subheader>
     <div
       v-if="!selectedTrackList.length"
@@ -240,39 +240,53 @@ export default defineComponent({
           {{ type }}
         </option>
       </datalist>
-      <track-item
+      <v-card
         v-for="track in selectedTrackList"
         :key="track.trackId"
-        :solo="true"
-        :track="track"
-        :track-type="track.confidencePairs[0][0]"
-        :selected="true"
-        :editing="!!editingModeRef"
-        :input-value="true"
-        :color="typeStylingRef.color(track.confidencePairs[0][0])"
-        :lock-types="lockTypes"
-        @seek="$emit('track-seek', $event)"
-      />
+        class="mx-2 mb-2"
+        outlined
+        flat
+      >
+        <track-item
+          :solo="true"
+          :merging="mergeInProgress"
+          :track="track"
+          :track-type="track.confidencePairs[0][0]"
+          :selected="true"
+          :editing="!!editingModeRef"
+          :input-value="true"
+          :color="typeStylingRef.color(track.confidencePairs[0][0])"
+          :lock-types="lockTypes"
+          @seek="$emit('track-seek', $event)"
+        />
+      </v-card>
       <div class="d-flex flex-row">
         <v-btn
-          :color="mergeInProgress ? 'error' : 'accent'"
-          outlined
-          class="ma-2 grow"
+          :color="mergeInProgress ? 'error' : 'primary'"
+          class="mx-2 mb-2 grow"
+          depressed
           x-small
           @click="$emit('toggle-merge')"
         >
           <span v-if="!mergeInProgress">
+            <v-icon
+              small
+              class="pr-1"
+            >
+              mdi-call-merge
+            </v-icon>
             Begin Track Merge (m)
           </span>
           <span v-else>
-            Abort Merge (m)
+            Abort (esc)
           </span>
         </v-btn>
         <v-btn
           v-if="mergeList.length >= 2"
           color="success"
           x-small
-          class="ma-2 grow"
+          depressed
+          class="mr-2 mb-2 grow"
           @click="$emit('commit-merge')"
         >
           <v-icon class="pr-1">

@@ -46,9 +46,9 @@ export default Vue.extend({
 <template>
   <div>
     <v-btn
+      v-if="!disabled"
       color="error"
       depressed
-      :disabled="disabled"
       small
       @click="deleteSelected"
     >

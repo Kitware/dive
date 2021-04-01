@@ -175,19 +175,12 @@ export default defineComponent({
       filteredTracks,
     });
 
-    const { lineChartData } = useLineChart({
-      enabledTracks, typeStyling, allTypes,
-    });
-
-    const { eventChartData } = useEventChart({
-      enabledTracks, selectedTrackId, typeStyling,
-    });
-
     const { clientSettings, updateNewTrackSettings, updateTypeSettings } = useSettings(allTypes);
 
     // Provides wrappers for actions to integrate with settings
     const {
       mergeList,
+      mergeInProgress,
       selectedFeatureHandle,
       handler,
       editingMode,
@@ -205,6 +198,21 @@ export default defineComponent({
       selectNextTrack,
       addTrack,
       removeTrack,
+    });
+
+    const allSelectedIds = computed(() => {
+      if (selectedTrackId.value) {
+        return mergeList.value.concat(selectedTrackId.value);
+      }
+      return mergeList.value;
+    });
+
+    const { lineChartData } = useLineChart({
+      enabledTracks, typeStyling, allTypes,
+    });
+
+    const { eventChartData } = useEventChart({
+      enabledTracks, selectedTrackIds: allSelectedIds, typeStyling,
     });
 
     async function trackSplit(trackId: TrackId | null, _frame: number) {
@@ -372,6 +380,7 @@ export default defineComponent({
       loaded,
       loadError,
       mediaController,
+      mergeMode: mergeInProgress,
       newTrackSettings: clientSettings.newTrackSettings,
       typeSettings: clientSettings.typeSettings,
       pendingSaveCount,
@@ -413,7 +422,7 @@ export default defineComponent({
       <template #extension>
         <span>Viewer/Edit Controls</span>
         <editor-menu
-          v-bind="{ editingMode, visibleModes, editingTrack, recipes }"
+          v-bind="{ editingMode, visibleModes, editingTrack, recipes, mergeMode }"
           class="shrink px-6"
           @set-annotation-state="handler.setAnnotationState"
         />

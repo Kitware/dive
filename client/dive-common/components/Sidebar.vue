@@ -7,10 +7,7 @@ import {
 } from '@vue/composition-api';
 
 import { TypeList, TrackList } from 'vue-media-annotator/components';
-import {
-  useAllTypes, useHandler, useMergeList, useTrackMap,
-} from 'vue-media-annotator/provides';
-import { getTrack } from 'vue-media-annotator/use/useTrackStore';
+import { useAllTypes, useHandler } from 'vue-media-annotator/provides';
 
 import { NewTrackSettings, TypeSettings } from 'dive-common/use/useSettings';
 import TrackDetailsPanel from 'dive-common/components/TrackDetailsPanel.vue';

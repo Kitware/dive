@@ -1,7 +1,7 @@
 import {
   computed, Ref, reactive, ref, onBeforeUnmount,
 } from '@vue/composition-api';
-import { uniq, flatMapDeep, merge } from 'lodash';
+import { uniq, flatMapDeep } from 'lodash';
 import Track, { TrackId } from 'vue-media-annotator/track';
 import { getTrack } from 'vue-media-annotator/use/useTrackStore';
 import { RectBounds, updateBounds } from 'vue-media-annotator/utils';
@@ -131,8 +131,8 @@ export default function useModeManager({
     if (trackId !== null && mergeInProgress.value) {
       mergeList.value = Array.from((new Set(mergeList.value).add(trackId)));
     }
-
-    selectTrack(trackId, edit);
+    /* Do not allow editing when merge is in progres */
+    selectTrack(trackId, edit && !mergeInProgress.value);
   }
 
   //Handles deselection or hitting escape including while editing
@@ -147,6 +147,7 @@ export default function useModeManager({
         }
       }
     }
+    mergeList.value = [];
     handleSelectTrack(null, false);
   }
 
@@ -374,19 +375,20 @@ export default function useModeManager({
   function handleTrackEdit(trackId: TrackId) {
     const track = getTrack(trackMap, trackId);
     seekNearest(track);
-    selectTrack(trackId, trackId === selectedTrackId.value ? (!editingTrack.value) : true);
+    const editing = trackId === selectedTrackId.value ? (!editingTrack.value) : true;
+    handleSelectTrack(trackId, editing);
   }
 
   function handleTrackClick(trackId: TrackId) {
     const track = getTrack(trackMap, trackId);
     seekNearest(track);
-    selectTrack(trackId, editingTrack.value);
+    handleSelectTrack(trackId, editingTrack.value);
   }
 
   function handleSelectNext(delta: number) {
     const newTrack = selectNextTrack(delta);
     if (newTrack !== null) {
-      selectTrack(newTrack, false);
+      handleSelectTrack(newTrack, false);
       seekNearest(getTrack(trackMap, newTrack));
     }
   }
@@ -413,9 +415,11 @@ export default function useModeManager({
    * Merge: Enabled whenever there are candidates in the merge list
    */
   function handleToggleMerge(): TrackId[] {
-    if (!mergeInProgress.value && selectedTrackId.value) {
+    if (!mergeInProgress.value && selectedTrackId.value !== null) {
       /* If no merge in progress and there is a selected track id */
       mergeList.value = [selectedTrackId.value];
+      /* no editing in merge mode */
+      selectTrack(selectedTrackId.value, false);
     } else {
       mergeList.value = [];
     }
@@ -446,6 +450,7 @@ export default function useModeManager({
   return {
     editingMode,
     mergeList,
+    mergeInProgress,
     visibleModes,
     selectedFeatureHandle,
     selectedKey,
