@@ -1,4 +1,5 @@
 <script lang="ts">
+import Vue from 'vue';
 import {
   computed, defineComponent, ref, Ref,
 } from '@vue/composition-api';
@@ -10,57 +11,88 @@ import * as api from '../api';
 
 
 export default defineComponent({
-  name: 'ImportStereoDialog',
+  name: 'ImportMultiCamDialog',
+  props: {
+    stereo: {
+      type: Boolean,
+      required: false,
+    },
+  },
   setup(props, { emit }) {
     const importType: Ref<'multi'|'keyword'| ''> = ref('');
-    const leftFolder = ref('');
-    const rightFolder = ref('');
+    const folderList: Ref<Record<string, string>> = ref({});
     const keywordFolder = ref('');
-    const pendingImportPayload: Ref<MediaImportPayload | null> = ref(null);
-    const globPatternLeft = ref('');
-    const globPatternRight = ref('');
+    const pendingImportPayload: Ref<Record<string, MediaImportPayload>> = ref({});
+    const globList: Ref<Record<string, string>> = ref({});
     const calibrationFile = ref('');
     const defaultDisplay = ref('left');
+    const addNewToggle = ref(false);
+    const newSetName = ref('');
 
-    const filteredImagesLeft = computed(() => {
-      if (pendingImportPayload.value) {
-        return filterByGlob(
-          globPatternLeft.value,
-          pendingImportPayload.value.jsonMeta.originalImageFiles,
-        );
-      }
+    if (props.stereo) {
+      folderList.value = {
+        left: '',
+        right: '',
+      };
+      globList.value = {
+        left: '',
+        right: '',
+      };
+    }
+
+    const displayKeys = computed(() => {
+      if (importType.value === 'multi') return Object.keys(folderList.value);
+      if (importType.value === 'keyword') return Object.keys(globList.value);
       return [];
     });
-    const filteredImagesRight = computed(() => {
-      if (pendingImportPayload.value) {
-        return filterByGlob(
-          globPatternRight.value,
-          pendingImportPayload.value.jsonMeta.originalImageFiles,
-        );
-      }
-      return [];
+
+    const filteredImages = computed(() => {
+      const filtered: Record<string, string[]> = {};
+      Object.entries(globList.value).forEach(([key, glob]) => {
+        if (pendingImportPayload.value[key]) {
+          filtered[key] = filterByGlob(
+            glob, pendingImportPayload.value[key].jsonMeta.originalImageFiles,
+          );
+        }
+      });
+      return filtered;
     });
 
     const keywordReady = computed(() => {
-      if (!filteredImagesRight.value.length || !filteredImagesLeft.value.length) {
-        return 'Requires filtered Left and Right Images';
-      }
-      if (filteredImagesRight.value.length !== filteredImagesLeft.value.length) {
-        return 'Left and Right filters should have the same number of images';
-      }
-      if (
-        filteredImagesRight.value.filter(
-          (value: string) => filteredImagesLeft.value.includes(value),
-        ).length
-      ) {
-        return 'Intersecting values.  Images must be unique to Left and Right';
+      const entries = Object.entries(filteredImages.value);
+      let length = -1;
+      let totalList: string[] = [];
+      for (let i = 0; i < entries.length; i += 1) {
+        const imageEntry = entries[i];
+        if (!imageEntry[1].length) {
+          return `Requires filtered Images for ${imageEntry[0]} `;
+        } if (length === -1) {
+          length = imageEntry[1].length;
+        }
+        if (length !== imageEntry[1].length) {
+          return `All glob patterns should have the same length of ${length}`;
+        }
+        if (
+          imageEntry[1].filter(
+            // eslint-disable-next-line no-loop-func
+            (value: string) => totalList.includes(value),
+          ).length
+        ) {
+          return 'Intersecting values.  Images must be unique to globs';
+        }
+        totalList = totalList.concat(imageEntry[0]);
       }
       return 'Success';
     });
 
     const nextSteps = computed(() => {
-      if (importType.value === 'multi' && leftFolder.value && rightFolder.value) {
-        return true;
+      if (importType.value === 'multi') {
+        const entries = Object.entries(folderList.value);
+        const filterLength = entries.filter(([key, val]) => val !== '').length;
+        if (entries.length === filterLength) {
+          return true;
+        }
+        return false;
       }
       if (importType.value === 'keyword' && keywordFolder.value && keywordReady.value === 'Success') {
         return true;
@@ -68,24 +100,16 @@ export default defineComponent({
       return false;
     });
 
-    async function open(dstype: DatasetType | 'calibration', folder: 'left' | 'right' | 'keyword' | 'calibration') {
+    async function open(dstype: DatasetType | 'calibration', folder: string | 'calibration') {
       const ret = await api.openFromDisk(dstype);
       if (!ret.canceled) {
         try {
           const path = ret.filePaths[0];
           const dsName = npath.parse(path).name;
-          if (folder === 'left') {
-            leftFolder.value = path;
-          }
-          if (folder === 'right') {
-            rightFolder.value = path;
-          }
-          if (folder === 'keyword') {
-            keywordFolder.value = path;
-            pendingImportPayload.value = await api.importMedia(path);
-          }
           if (folder === 'calibration') {
             calibrationFile.value = path;
+          } else {
+            folderList.value[folder] = path;
           }
         } catch (err) {
           console.log(err);
@@ -93,20 +117,43 @@ export default defineComponent({
       }
     }
 
+    const deleteSet = (key: string) => {
+      if (importType.value === 'multi') {
+        if (!folderList.value[key]) {
+          Vue.delete(folderList.value, key);
+        }
+      } else if (importType.value === 'keyword') {
+        if (!globList.value[key]) {
+          Vue.delete(globList.value, key);
+        }
+      }
+    };
+    const addNewSet = () => {
+      if (importType.value === 'multi') {
+        if (!folderList.value[newSetName.value]) {
+          Vue.set(folderList.value, newSetName.value, '');
+        }
+      } else if (importType.value === 'keyword') {
+        if (!globList.value[newSetName.value]) {
+          Vue.set(globList.value, newSetName.value, '');
+        }
+      }
+      newSetName.value = '';
+      addNewToggle.value = false;
+    };
+
     const prepForImport = () => {
       if (importType.value === 'multi') {
-        emit('begin-stereo-import', {
+        emit('begin-multicam-import', {
           defaultDisplay: defaultDisplay.value,
-          leftFolder: leftFolder.value,
-          rightFolder: rightFolder.value,
+          folderList: folderList.value,
           calibrationFile: calibrationFile.value,
         });
       } else if (importType.value === 'keyword') {
-        emit('begin-stereo-import', {
+        emit('begin-multicam-import', {
           defaultDisplay: defaultDisplay.value,
           keywordFolder: keywordFolder.value,
-          globPatternLeft: globPatternLeft.value,
-          globPatternRight: globPatternRight.value,
+          globList: globList.value,
           calibrationFile: calibrationFile.value,
         });
       }
@@ -115,19 +162,21 @@ export default defineComponent({
       keywordReady,
       nextSteps,
       importType,
-      leftFolder,
-      rightFolder,
+      folderList,
       keywordFolder,
       pendingImportPayload,
-      globPatternLeft,
-      globPatternRight,
-      filteredImagesLeft,
-      filteredImagesRight,
+      globList,
+      filteredImages,
       calibrationFile,
       defaultDisplay,
+      displayKeys,
+      addNewToggle,
+      newSetName,
       //Methods
       open,
       prepForImport,
+      addNewSet,
+      deleteSet,
     };
   },
 });
@@ -156,41 +205,70 @@ export default defineComponent({
       </v-radio-group>
       <div v-if="importType === 'multi'">
         <v-list>
-          <v-list-item>
+          <v-list-item
+            v-for="(item, key) in folderList"
+            :key="key"
+          >
             <v-text-field
-              label="Left:"
+              :label="`${key}:`"
               placeholder="Choose Folder"
               disabled
-              :value="leftFolder"
+              :value="folderList[key]"
               class="mx-4"
             />
             <v-btn
               color="primary"
-              @click="open('image-sequence', 'left')"
+              @click="open('image-sequence', key)"
             >
               Open Image Sequence
               <v-icon class="ml-2">
                 mdi-folder-open
               </v-icon>
+            </v-btn>
+            <v-btn
+              class="ml-2"
+              color="error"
+              @click="deleteSet(key)"
+            >
+              <v-icon>mdi-delete</v-icon>
             </v-btn>
           </v-list-item>
           <v-list-item>
-            <v-text-field
-              label="Right:"
-              placeholder="Choose Folder"
-              disabled
-              :value="rightFolder"
-              class="mx-4"
-            />
             <v-btn
+              x-small
               color="primary"
-              @click="open('image-sequence', 'right')"
+              :disabled="addNewToggle"
+              @click="addNewToggle = true"
             >
-              Open Image Sequence
-              <v-icon class="ml-2">
-                mdi-folder-open
+              <v-icon>
+                mdi-plus
               </v-icon>
             </v-btn>
+            <v-row
+              v-if="addNewToggle"
+              class="align-center"
+            >
+              <v-text-field
+                v-model="newSetName"
+                label="name"
+                placeholder="Choose a name"
+                class="mx-4"
+              />
+              <v-btn
+                color="error"
+                class="mx-2"
+                @click="newSetName=''; addNewToggle=false"
+              >
+                Cancel
+              </v-btn>
+              <v-btn
+                color="success"
+                class="mx-2"
+                @click="addNewSet"
+              >
+                Submit
+              </v-btn>
+            </v-row>
           </v-list-item>
         </v-list>
       </div>
@@ -214,42 +292,26 @@ export default defineComponent({
             </v-icon>
           </v-btn>
         </v-list-item>
-        <v-list-item v-if="keywordFolder">
+        <v-list-item
+          v-for="(item, key) in globList"
+          :key="key"
+        >
           <v-text-field
-            v-model="globPatternLeft"
-            label="Left Image Glob Filter Pattern "
+            v-model="globList[key]"
+            :label="`${key} Glob Filter Pattern `"
             placeholder="Leave blank to use all images. example: *.png"
             persistent-hint
             outlined
             dense
           />
           <v-chip
-            v-if="globPatternLeft"
-            :color="filteredImagesLeft.length ? 'success' : 'error'"
+            v-if="globList[key]"
+            :color="filteredImages[key].length ? 'success' : 'error'"
             outlined
             class="ml-3 mb-5"
           >
-            "{{ globPatternLeft }}" matches {{ filteredImagesLeft.length }}
-            out of {{ pendingImportPayload.jsonMeta.originalImageFiles.length }} images
-          </v-chip>
-        </v-list-item>
-        <v-list-item v-if="keywordFolder">
-          <v-text-field
-            v-model="globPatternRight"
-            label="Right Image Glob Filter Pattern "
-            placeholder="Leave blank to use all images. example: *.png"
-            persistent-hint
-            outlined
-            dense
-          />
-          <v-chip
-            v-if="globPatternRight"
-            :color="filteredImagesRight.length ? 'success' : 'error'"
-            outlined
-            class="ml-3 mb-5"
-          >
-            "{{ globPatternRight }}" matches {{ filteredImagesRight.length }}
-            out of {{ pendingImportPayload.jsonMeta.originalImageFiles.length }} images
+            "{{ globList[key] }}" matches {{ filteredImages[key].length }}
+            out of {{ pendingImportPayload[key].jsonMeta.originalImageFiles.length }} images
           </v-chip>
         </v-list-item>
         <v-list-item
@@ -270,7 +332,7 @@ export default defineComponent({
           outlined
           dense
         >
-          Visualization currently doesn't support stereoscopic views so please choose
+          Visualization currently doesn't support multi views so please choose
           a list of images to display by default when viewing
         </v-alert>
         <v-list>
@@ -278,16 +340,14 @@ export default defineComponent({
             Default Display:
             <v-radio-group v-model="defaultDisplay">
               <v-radio
-                value="left"
-                label="left"
-              />
-              <v-radio
-                value="right"
-                label="right"
+                v-for="(item,index) in displayKeys"
+                :key="index"
+                :value="item"
+                :label="item"
               />
             </v-radio-group>
           </v-list-item>
-          <v-list-item>
+          <v-list-item v-if="stereo">
             Optional Calibration File:
             <v-text-field
               label="Calibration File:"

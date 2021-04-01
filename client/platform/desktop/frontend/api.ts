@@ -12,7 +12,7 @@ import type {
 import {
   DesktopJob, DesktopMetadata, JsonMeta, NvidiaSmiReply,
   RunPipeline, RunTraining, fileVideoTypes, ExportDatasetArgs,
-  MediaImportPayload, StereoImportKeywordArgs, StereoImportMultiArgs, calibrationFileTypes,
+  MediaImportPayload, MultiCamImportFolderArgs, MultiCamImportKeywordArgs, calibrationFileTypes,
 } from 'platform/desktop/constants';
 
 
@@ -84,9 +84,9 @@ function importMedia(path: string): Promise<MediaImportPayload> {
   return ipcRenderer.invoke('import-media', { path });
 }
 
-function importStereo(args: StereoImportKeywordArgs| StereoImportMultiArgs):
+function importMultiCam(args: MultiCamImportFolderArgs| MultiCamImportKeywordArgs):
    Promise<MediaImportPayload> {
-  return ipcRenderer.invoke('import-stereo-media', { args });
+  return ipcRenderer.invoke('import-multicam-media', { args });
 }
 
 function finalizeImport(args: MediaImportPayload): Promise<JsonMeta> {
@@ -161,7 +161,7 @@ export {
   exportDataset,
   finalizeImport,
   importMedia,
-  importStereo,
+  importMultiCam,
   openFromDisk,
   openLink,
   nvidiaSmi,

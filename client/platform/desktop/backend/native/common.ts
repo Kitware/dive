@@ -764,4 +764,5 @@ export {
   completeConversion,
   processTrainedPipeline,
   saveAttributes,
+  findImagesInFolder,
 };

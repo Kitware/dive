@@ -12,7 +12,7 @@ import { serialize } from 'platform/desktop/backend/serializers/viame';
 import { observeChild } from 'platform/desktop/backend/native/processManager';
 
 import * as common from './common';
-import stereoImport from './stereoImport';
+import multiCamImport from './multiCamImport';
 import { jobFileEchoMiddleware, spawnResult } from './utils';
 
 
@@ -78,9 +78,9 @@ async function runPipeline(
     groundTruthFileStream.end();
   }
   let stereoInput = false;
-  if (meta.stereoscopic && pipeline.type === 'measurement') {
+  if (meta.multiCam && pipeline.type === 'measurement') {
     stereoInput = true;
-    stereoImport.writeSteroInputs(jobWorkDir, meta);
+    multiCamImport.writeMultiCamPipelineInputs(jobWorkDir, meta);
   }
 
   let command: string[] = [];
@@ -125,7 +125,9 @@ async function runPipeline(
     if (stereoInput) {
       command.push(`-s cam1_iread:video_filename="${npath.join(jobWorkDir, 'cam1_images.txt')}"`);
       command.push(`-s cam2_iread:video_filename="${npath.join(jobWorkDir, 'cam2_images.txt')}"`);
-      command.push(`-s measure:cal_fpath="${meta.stereoscopic?.calibration}"`);
+      if (meta.multiCam && meta.multiCam.calibration) {
+        command.push(`-s measure:cal_fpath="${meta.multiCam.calibration}"`);
+      }
     }
   }
 

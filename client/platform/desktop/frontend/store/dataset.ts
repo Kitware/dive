@@ -97,7 +97,7 @@ function setRecents(meta: JsonMeta) {
     originalBasePath: meta.originalBasePath,
     originalVideoFile: meta.originalVideoFile,
     transcodedVideoFile: meta.transcodedVideoFile,
-    stereoscopic: !!meta.stereoscopic,
+    multiCam: !!meta.multiCam,
   } as JsonMetaCache);
   const values = Object.values(datasets.value);
   window.localStorage.setItem(RecentsKey, JSON.stringify(values));

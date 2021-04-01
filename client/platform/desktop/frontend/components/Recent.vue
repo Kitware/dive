@@ -5,7 +5,7 @@ import {
 } from '@vue/composition-api';
 
 import type { DatasetType } from 'dive-common/apispec';
-import type { MediaImportPayload, StereoImportKeywordArgs, StereoImportMultiArgs } from 'platform/desktop/constants';
+import type { MediaImportPayload, MultiCamImportFolderArgs, MultiCamImportKeywordArgs } from 'platform/desktop/constants';
 
 import * as api from '../api';
 import { recents, setRecents } from '../store/dataset';
@@ -13,7 +13,7 @@ import { setOrGetConversionJob } from '../store/jobs';
 import BrowserLink from './BrowserLink.vue';
 import NavigationBar from './NavigationBar.vue';
 import ImportDialog from './ImportDialog.vue';
-import ImportStereoDialog from './ImportStereoDialog.vue';
+import ImportMultiCamDialog from './ImportMultiCamDialog.vue';
 
 
 export default defineComponent({
@@ -21,12 +21,12 @@ export default defineComponent({
     BrowserLink,
     ImportDialog,
     NavigationBar,
-    ImportStereoDialog,
+    ImportMultiCamDialog,
   },
 
   setup(_, { root }) {
     const snackbar = ref(false);
-    const importStereoDialog = ref(false);
+    const importMultiCamDialog = ref(false);
     const pageSize = 12; // Default 12 looks good on default width/height of window
     const limit = ref(pageSize);
     const errorText = ref('');
@@ -66,10 +66,10 @@ export default defineComponent({
       }
     }
 
-    async function stereoImport(args: StereoImportKeywordArgs | StereoImportMultiArgs) {
-      importStereoDialog.value = false;
+    async function multiCamImport(args: MultiCamImportFolderArgs | MultiCamImportKeywordArgs) {
+      importMultiCamDialog.value = false;
       try {
-        pendingImportPayload.value = await api.importStereo(args);
+        pendingImportPayload.value = await api.importMultiCam(args);
       } catch (err) {
         snackbar.value = true;
         errorText.value = err.message;
@@ -93,7 +93,7 @@ export default defineComponent({
       // methods
       open,
       finalizeImport,
-      stereoImport,
+      multiCamImport,
       join,
       setOrGetConversionJob,
       toggleMore,
@@ -106,7 +106,7 @@ export default defineComponent({
       searchText,
       snackbar,
       errorText,
-      importStereoDialog,
+      importMultiCamDialog,
     };
   },
 });
@@ -115,7 +115,7 @@ export default defineComponent({
 <template>
   <v-main>
     <v-dialog
-      :value="pendingImportPayload !== null || importStereoDialog"
+      :value="pendingImportPayload !== null || importMultiCamDialog"
       persistent
       width="800"
       overlay-opacity="0.95"
@@ -127,10 +127,11 @@ export default defineComponent({
         @finalize-import="finalizeImport($event)"
         @abort="pendingImportPayload = null"
       />
-      <ImportStereoDialog
-        v-if="importStereoDialog"
-        @begin-stereo-import="stereoImport($event)"
-        @abort="importStereoDialog = false"
+      <ImportMultiCamDialog
+        v-if="importMultiCamDialog"
+        :stereo="true"
+        @begin-multicam-import="multiCamImport($event)"
+        @abort="importMultiCamDialog = false"
       />
     </v-dialog>
     <navigation-bar />
@@ -203,7 +204,7 @@ export default defineComponent({
                   <v-btn
                     block
                     color="primary"
-                    @click="importStereoDialog = true"
+                    @click="importMultiCamDialog = true"
                   >
                     Stereoscopic
                     <v-icon>

@@ -121,11 +121,10 @@ export interface JsonMeta extends DatasetMetaMutable {
   //Attributes are not datasetMetaMutable and are stored separate
   attributes?: Record<string, Attribute>;
 
-  stereoscopic?: {
-    leftImages: string[];
-    rightImages: string[];
+  multiCam?: {
+    imageLists: Record<string, string[]>;
     calibration?: string;
-    display: 'left' | 'right'; // displaying images
+    display: string;
   };
 }
 
@@ -228,17 +227,15 @@ export interface ExportDatasetArgs {
   path: string;
 }
 
-export interface StereoImportMultiArgs {
-  defaultDisplay: 'left' | 'right';
-  leftFolder: string;
-  rightFolder: string;
+export interface MultiCamImportFolderArgs {
+  defaultDisplay: string;
+  folderList: Record<string, string>;
   calibrationFile?: string;
 }
 
-export interface StereoImportKeywordArgs {
-  defaultDisplay: 'left' | 'right';
+export interface MultiCamImportKeywordArgs {
+  defaultDisplay: string;
   keywordFolder: string;
-  globPatternLeft: string;
-  globPatternRight: string;
+  globList: Record<string, string>;
   calibrationFile?: string;
 }
