@@ -91,16 +91,6 @@ export default Vue.extend({
       }
       return null;
     },
-    files: {
-      default: [],
-      async get() {
-        if (this.datum && this.datum._modelType === 'item') {
-          const { data } = await this.girderRest.get(`item/${this.datum._id}/files`);
-          return data.map((f) => f.name);
-        }
-        return [];
-      },
-    },
   },
   computed: {
     title() {
