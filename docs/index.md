@@ -15,7 +15,7 @@ VIAME Web is available at [viame.kitware.com](https://viame.kitware.com).
 !!! info
     **VIAME Web is automatically updated and down for 10 minutes on 2 am EST/EDT Thursdays**
 
-[Use the web version.](Getting-Started.md)
+[Use the web version.](Web-Version.md)
 
 ## DIVE Desktop Version
 

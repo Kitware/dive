@@ -167,7 +167,7 @@ export default Vue.extend({
             ref="fileManager"
             v-model="selected"
             :selectable="!locationIsViameFolder"
-            :new-folder-enabled="!selected.length"
+            :new-folder-enabled="!selected.length && !locationIsViameFolder"
             :location.sync="location"
             @dragover.native="dragover"
           >
@@ -241,6 +241,26 @@ export default Vue.extend({
               >
                 Launch Annotator
               </v-btn>
+              <v-chip
+                v-if="(item.meta && item.meta.foreign_media_id)"
+                color="white"
+                x-small
+                outlined
+                disabled
+                class="my-0 mx-3"
+              >
+                cloned
+              </v-chip>
+              <v-chip
+                v-if="(item.meta && item.meta.published)"
+                color="green"
+                x-small
+                outlined
+                disabled
+                class="my-0 mx-3"
+              >
+                published
+              </v-chip>
             </template>
           </GirderFileManager>
         </v-col>

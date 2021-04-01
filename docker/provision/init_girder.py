@@ -7,7 +7,6 @@ from girder.exceptions import ValidationException
 
 cherrypy.config["database"]["uri"] = os.getenv("GIRDER_MONGO_URI")
 
-
 ADMIN_USER = os.getenv("GIRDER_ADMIN_USER", "admin")
 ADMIN_PASS = os.getenv("GIRDER_ADMIN_PASS", "letmein")
 
@@ -15,7 +14,13 @@ ADMIN_PASS = os.getenv("GIRDER_ADMIN_PASS", "letmein")
 def createInitialUser():
     try:
         User().createUser(
-            ADMIN_USER, ADMIN_PASS, ADMIN_USER, ADMIN_USER, "admin@admin.com", admin=True, public=True,
+            ADMIN_USER,
+            ADMIN_PASS,
+            ADMIN_USER,
+            ADMIN_USER,
+            "admin@admin.com",
+            admin=True,
+            public=True,
         )
     except ValidationException:
         print("Admin user already exists, skipping...")
@@ -29,7 +34,12 @@ def createAssetstore():
 
 
 def configure():
-    Setting().set('core.cors.allow_origin', os.environ.get('CORS_ALLOWED_ORIGINS', 'http://localhost:8080, http://localhost:8010'))
+    Setting().set(
+        "core.cors.allow_origin",
+        os.environ.get(
+            "CORS_ALLOWED_ORIGINS", "http://localhost:8080, http://localhost:8010"
+        ),
+    )
 
 
 def run_girder_init():

@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Dict, Optional, Tuple, Type
 
 from girder.constants import AccessType
-from girder.exceptions import RestException
+from girder.exceptions import GirderException, RestException
 from girder.models.file import File
 from girder.models.folder import Folder
 from girder.models.item import Item
@@ -16,7 +16,13 @@ from pydantic.main import BaseModel
 from pymongo.cursor import Cursor
 
 from dive_server.serializers import viame
-from dive_utils import fromMeta, models
+from dive_utils import asbool, fromMeta, models
+from dive_utils.constants import (
+    DatasetMarker,
+    DetectionMarker,
+    ForeignMediaIdMarker,
+    PublishedMarker,
+)
 from dive_utils.types import GirderModel
 
 
@@ -38,7 +44,11 @@ class PydanticModel(AccessControlledModel):
 
 def all_detections_items(folder: Folder) -> Cursor:
     """caller is responsible for verifying access permissions"""
-    return Item().find({"meta.detection": str(folder['_id'])}).sort([("created", -1)])
+    return (
+        Item()
+        .find({f"meta.{DetectionMarker}": str(folder['_id'])})
+        .sort([("created", -1)])
+    )
 
 
 def detections_item(folder: Folder, strict=False) -> Optional[GirderModel]:
@@ -146,3 +156,62 @@ def saveCSVImportAttributes(folder, attributes, user):
 
     folder['meta']['attributes'] = attributes_dict
     Folder().save(folder)
+
+
+def verify_dataset(folder: GirderModel):
+    """Verify that a given folder is a DIVE dataset"""
+
+    if not asbool(fromMeta(folder, DatasetMarker, False)):
+        raise RestException(f'Source folder is not a valid DIVE dataset')
+    return True
+
+
+def getCloneRoot(owner: GirderModel, source_folder: GirderModel):
+    """Get the source media folder associated with a clone"""
+    verify_dataset(source_folder)
+    next_id = fromMeta(source_folder, ForeignMediaIdMarker, False)
+    while next_id is not False:
+        """Recurse through source folders to find the root, allowing clones of clones"""
+        source_folder = Folder().load(
+            next_id,
+            level=AccessType.READ,
+            user=owner,
+        )
+        if source_folder is None:
+            raise RestException(
+                f"Referenced media source missing. Folder Id {next_id} was not found."
+                " This may be a cloned dataset where the source was deleted."
+            )
+        verify_dataset(source_folder)
+        next_id = fromMeta(source_folder, ForeignMediaIdMarker, False)
+    return source_folder
+
+
+def createSoftClone(
+    owner: GirderModel,
+    source_folder: GirderModel,
+    parent_folder: GirderModel,
+    name: str = None,
+):
+    """Create a no-copy clone of folder with source_id for owner"""
+
+    cloned_folder = Folder().createFolder(
+        parent_folder,
+        name or source_folder['name'],
+        description=f'Clone of {source_folder["name"]}.',
+        reuseExisting=False,
+    )
+    cloned_folder['meta'] = source_folder['meta']
+    media_source_folder = getCloneRoot(owner, source_folder)
+    cloned_folder['meta'][ForeignMediaIdMarker] = str(media_source_folder['_id'])
+    cloned_folder['meta'][PublishedMarker] = False
+    Folder().save(cloned_folder)
+    get_or_create_auxiliary_folder(cloned_folder, owner)
+    source_detections = detections_item(source_folder)
+    if source_detections is not None:
+        cloned_detection_item = Item().copyItem(
+            source_detections, creator=owner, folder=cloned_folder
+        )
+        cloned_detection_item['meta'][DetectionMarker] = str(cloned_folder['_id'])
+        Item().save(cloned_detection_item)
+    return cloned_folder
