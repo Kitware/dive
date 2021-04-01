@@ -7,7 +7,7 @@ import io
 import re
 from typing import Dict, Generator, List, Tuple, Union
 
-from dive_server.serializers.models import Feature, Track, interpolate
+from dive_utils.models import Attribute, Feature, Track, interpolate
 
 
 def writeHeader(writer: '_csv._writer', metadata: Dict):
@@ -159,13 +159,69 @@ def _parse_row_for_tracks(row: List[str]) -> Tuple[Feature, Dict, Dict, List]:
     return feature, attributes, track_attributes, confidence_pairs
 
 
-def load_csv_as_tracks(rows: List[str]) -> Dict[str, dict]:
+def create_attributes(
+    metadata_attributes: Dict[str, Attribute],
+    test_vals: Dict[str, int],
+    atr_type: str,
+    key: str,
+    val,
+):
+    valstring = f'{val}'
+    attribute_key = f'{atr_type}_{key}'
+    if attribute_key not in metadata_attributes:
+        metadata_attributes[attribute_key] = {
+            'belongs': atr_type,
+            'datatype': 'text',
+            'name': key,
+            'key': attribute_key,
+        }
+        test_vals[attribute_key] = {}
+        test_vals[attribute_key][valstring] = 1
+    elif attribute_key in metadata_attributes and attribute_key in test_vals:
+        if valstring in test_vals[attribute_key]:
+            test_vals[attribute_key][valstring] += 1
+        else:
+            test_vals[attribute_key][valstring] = 1
+
+
+def calculate_attribute_types(
+    metadata_attributes: Dict[str, Attribute], test_vals: Dict[str, int]
+):
+    predefined_min_count = (
+        3  # count all keys must have a value to convert to predefined
+    )
+    for attributeKey in metadata_attributes.keys():
+        if attributeKey in test_vals:
+            attribute_type = 'number'
+            low_count = predefined_min_count
+            values = []
+            for (key, val) in test_vals[attributeKey].items():
+                if val <= low_count:
+                    low_count = val
+                values.append(key)
+                if attribute_type == 'number':
+                    try:
+                        float(key)
+                    except ValueError:
+                        attribute_type = 'boolean'
+                if attribute_type == 'boolean' and key != 'True' and key != 'False':
+                    attribute_type = 'text'
+            # If all text values are used 3 or more times they are defined values
+            if low_count >= predefined_min_count and 'text' in attribute_type:
+                metadata_attributes[attributeKey]['values'] = values
+
+            metadata_attributes[attributeKey]['datatype'] = attribute_type
+
+
+def load_csv_as_tracks_and_attributes(rows: List[str]) -> Tuple[dict, dict]:
     """
     Convert VIAME CSV to json tracks.
     Expect detections to be in increasing order (either globally or by track).
     """
     reader = csv.reader(row for row in rows if (not row.startswith("#") and row))
     tracks: Dict[int, Track] = {}
+    metadata_attributes: Dict[str, Attribute] = {}
+    test_vals = {}
     for row in reader:
         (
             feature,
@@ -187,8 +243,16 @@ def load_csv_as_tracks(rows: List[str]) -> Dict[str, dict]:
 
         for (key, val) in track_attributes.items():
             track.attributes[key] = val
+            create_attributes(metadata_attributes, test_vals, 'track', key, val)
+        for (key, val) in attributes.items():
+            create_attributes(metadata_attributes, test_vals, 'detection', key, val)
+    # Now we process all the metadata_attributes for the types
+    calculate_attribute_types(metadata_attributes, test_vals)
 
-    return {trackId: track.dict(exclude_none=True) for trackId, track in tracks.items()}
+    track_json = {
+        trackId: track.dict(exclude_none=True) for trackId, track in tracks.items()
+    }
+    return track_json, metadata_attributes
 
 
 def export_tracks_as_csv(

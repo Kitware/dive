@@ -15,7 +15,7 @@ import {
   DesktopJobUpdater,
   ConversionArgs,
 } from 'platform/desktop/constants';
-
+import { observeChild } from 'platform/desktop/backend/native/processManager';
 import * as viame from './viame';
 import { spawnResult } from './utils';
 
@@ -43,7 +43,8 @@ const ViameLinuxConstants = {
       '-c:v libx264',
       '-preset slow',
       '-crf 26',
-      '-c:a copy',
+      // https://askubuntu.com/questions/1315697/could-not-find-tag-for-codec-pcm-s16le-in-stream-1-codec-not-currently-support
+      '-c:a aac',
       /**
        * TODO: Upgrade to ffmpeg 4, use `round` instead of `ceil`
        * 3.4 is part of 18.04LTS, so we should support it
@@ -76,10 +77,10 @@ async function validateViamePath(settings: Settings): Promise<true | string> {
     return `${trainingScriptPath} does not exist`;
   }
 
-  const kwiverExistsOnPath = spawn(
+  const kwiverExistsOnPath = observeChild(spawn(
     `source ${setupScriptPath} && which ${ViameLinuxConstants.kwiverExe}`,
     { shell: '/bin/bash' },
-  );
+  ));
   return new Promise((resolve) => {
     kwiverExistsOnPath.on('exit', (code) => {
       if (code === 0) {
@@ -118,12 +119,12 @@ async function train(
 // Based on https://github.com/chrisallenlane/node-nvidia-smi
 async function nvidiaSmi(): Promise<NvidiaSmiReply> {
   return new Promise((resolve) => {
-    const smi = spawn('nvidia-smi', ['-q', '-x']);
+    const smi = observeChild(spawn('nvidia-smi', ['-q', '-x']));
     let result = '';
     smi.stdout.on('data', (chunk) => {
       result = result.concat(chunk.toString('utf-8'));
     });
-    smi.on('close', (exitCode) => {
+    smi.on('exit', (exitCode) => {
       let jsonStr = 'null'; // parses to null
       if (exitCode === 0) {
         jsonStr = xml2json(result, { compact: true });

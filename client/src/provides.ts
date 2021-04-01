@@ -3,7 +3,7 @@ import {
   provide, inject, ref, Ref,
 } from '@vue/composition-api';
 
-import { StateStyles, TypeStyling } from './use/useStyling';
+import { CustomStyle, StateStyles, TypeStyling } from './use/useStyling';
 import { EditAnnotationTypes } from './layers/EditAnnotationLayer';
 import Track, { TrackId } from './track';
 import { VisibleAnnotationTypes } from './layers';
@@ -43,6 +43,9 @@ type EditingModeType = Readonly<Ref<false | EditAnnotationTypes>>;
 const FrameSymbol = Symbol('frame');
 type FrameType = Readonly<Ref<number>>;
 
+const PendingSaveCountSymbol = Symbol('pendingSaveCount');
+type pendingSaveCountType = Readonly<Ref<number>>;
+
 const IntervalTreeSymbol = Symbol('intervalTree');
 type IntervalTreeType = Readonly<IntervalTree>;
 
@@ -72,6 +75,8 @@ type VisibleModesType = Readonly<Ref<readonly VisibleAnnotationTypes[]>>;
  * for above state
  */
 export interface Handler {
+  /* Save pending changes to persistence layer */
+  save(): Promise<void>;
   /* Select and seek to track */
   trackSeek(trackId: TrackId): void;
   /* Toggle editing mode for track */
@@ -120,10 +125,7 @@ export interface Handler {
   /* change styles */
   updateTypeStyle(args: {
     type: string;
-    color?: string;
-    strokeWidth?: number;
-    opacity?: number;
-    fill?: boolean;
+    value: CustomStyle;
   }): void;
   /* set an Attribute in the metaData */
   setAttribute({ data, oldAttribute }:
@@ -141,6 +143,7 @@ const HandlerSymbol = Symbol('handler');
  */
 function dummyHandler(handle: (name: string, args: unknown[]) => void): Handler {
   return {
+    save(...args) { handle('save', args); return Promise.resolve(); },
     trackSeek(...args) { handle('trackSeek', args); },
     trackEdit(...args) { handle('trackEdit', args); },
     trackEnable(...args) { handle('trackEnable', args); },
@@ -181,10 +184,11 @@ export interface State {
   checkedTypes: CheckedTypesType;
   editingMode: EditingModeType;
   enabledTracks: EnabledTracksType;
+  filteredTracks: FilteredTracksType;
   frame: FrameType;
   intervalTree: IntervalTreeType;
+  pendingSaveCount: pendingSaveCountType;
   trackMap: TrackMapType;
-  filteredTracks: FilteredTracksType;
   typeStyling: TypeStylingType;
   selectedKey: SelectedKeyType;
   selectedTrackId: SelectedTrackIdType;
@@ -212,10 +216,11 @@ function dummyState(): State {
     checkedTypes: ref([]),
     editingMode: ref(false),
     enabledTracks: ref([]),
+    filteredTracks: ref([]),
     frame: ref(0),
     intervalTree: new IntervalTree(),
+    pendingSaveCount: ref(0),
     trackMap: new Map<TrackId, Track>(),
-    filteredTracks: ref([]),
     typeStyling: ref({
       color() { return style.color; },
       strokeWidth() { return style.strokeWidth; },
@@ -252,6 +257,7 @@ function provideAnnotator(state: State, handler: Handler) {
   provide(EditingModeSymbol, state.editingMode);
   provide(FrameSymbol, state.frame);
   provide(IntervalTreeSymbol, state.intervalTree);
+  provide(PendingSaveCountSymbol, state.pendingSaveCount);
   provide(TrackMapSymbol, state.trackMap);
   provide(TracksSymbol, state.filteredTracks);
   provide(TypeStylingSymbol, state.typeStyling);
@@ -316,6 +322,10 @@ function useIntervalTree() {
   return use<IntervalTreeType>(IntervalTreeSymbol);
 }
 
+function usePendingSaveCount() {
+  return use<pendingSaveCountType>(PendingSaveCountSymbol);
+}
+
 function useTrackMap() {
   return use<TrackMapType>(TrackMapSymbol);
 }
@@ -359,6 +369,7 @@ export {
   useEditingMode,
   useHandler,
   useIntervalTree,
+  usePendingSaveCount,
   useFrame,
   useTrackMap,
   useFilteredTracks,

@@ -104,8 +104,9 @@ export default defineComponent({
 <template>
   <div>
     <v-menu
-      max-width="320"
+      max-width="230"
       offset-y
+      :close-on-content-click="false"
     >
       <template v-slot:activator="{ on: menuOn }">
         <v-tooltip bottom>
@@ -132,7 +133,10 @@ export default defineComponent({
       </template>
 
       <template>
-        <v-card v-if="pipelines">
+        <v-card
+          v-if="pipelines"
+          outlined
+        >
           <v-card-title>
             VIAME Pipelines
           </v-card-title>
@@ -149,7 +153,7 @@ export default defineComponent({
             <v-col
               v-for="(pipeType) in Object.keys(pipelines)"
               :key="pipeType"
-              cols="6"
+              cols="12"
             >
               <v-menu
                 :key="pipeType"
@@ -164,9 +168,9 @@ export default defineComponent({
                   >
                     {{ pipeTypeDisplay(pipeType) }}
                     <v-icon
-                      left
+                      right
                       color="accent"
-                      class="ml-0"
+                      class="ml-2"
                     >
                       mdi-menu-right
                     </v-icon>
@@ -175,6 +179,7 @@ export default defineComponent({
 
                 <v-list
                   dense
+                  outlined
                   style="overflow-y:auto; max-height:85vh"
                 >
                   <v-list-item

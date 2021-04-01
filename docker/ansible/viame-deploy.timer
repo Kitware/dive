@@ -1,8 +1,0 @@
-[Unit]
-Description=Run the Viame deploy every Thursday at 2 AM
-
-[Timer]
-OnCalendar=Thu 02:00 America/New_York
-
-[Install]
-WantedBy=timers.target

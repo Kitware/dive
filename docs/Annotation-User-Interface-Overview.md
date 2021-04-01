@@ -10,5 +10,4 @@ The User Interface for the Annotation Editor is broken into a few main areas:
 * **[Type List](UI-Type-List.md)** - A list of all the types of tracks/detections on the page that can be used to filter the current view.
 * **[Track List](UI-Track-List.md)** - List of all the tracks as well as providing a way to perform editing functions on those tracks.
 * **[Timeline](UI-Timeline.md)** - timeline view of tracks and detections, as well as an interface to control the current frame along the video/image-sequence
-* **[Sharing and Permissions](UI-Sharing.md)** - How to manage sharing and permissions
 * **[Attributes](Attributes.md)** - Attributes panel used to assign attributes to individual tracks or detections.

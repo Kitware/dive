@@ -21,6 +21,20 @@ interface JsonMetaCache {
   name: string;
   createdAt: string;
   originalBasePath: string;
+  originalVideoFile: string;
+  transcodedVideoFile?: string;
+}
+
+/**
+ * Handle migration for changes in JsonMetaCache schema
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function hydrateJsonMetaCacheValue(input: any): JsonMetaCache {
+  return {
+    originalVideoFile: '',
+    transcodedVideoFile: '',
+    ...input,
+  };
 }
 
 const datasets = ref({} as Record<string, JsonMetaCache>);
@@ -45,7 +59,7 @@ function load(): JsonMetaCache[] {
       const maybeArr = JSON.parse(arr);
       if (maybeArr.length) {
         maybeArr.forEach((meta: JsonMetaCache) => (
-          Vue.set(datasets.value, meta.id, meta)
+          Vue.set(datasets.value, meta.id, hydrateJsonMetaCacheValue(meta))
         ));
         return maybeArr;
       }
@@ -54,6 +68,17 @@ function load(): JsonMetaCache[] {
   } catch (err) {
     throw new Error(`could not load meta from localstorage: ${err}`);
   }
+}
+
+function locateDuplicates(meta: JsonMeta) {
+  return recents.value.filter((candidate) => (
+    candidate.originalBasePath === meta.originalBasePath
+    && (
+      meta.type === 'video'
+        ? meta.originalVideoFile === candidate.originalVideoFile
+        : true
+    )
+  ));
 }
 
 /**
@@ -69,7 +94,9 @@ function setRecents(meta: JsonMeta) {
     name: meta.name,
     createdAt: meta.createdAt,
     originalBasePath: meta.originalBasePath,
-  });
+    originalVideoFile: meta.originalVideoFile,
+    transcodedVideoFile: meta.transcodedVideoFile,
+  } as JsonMetaCache);
   const values = Object.values(datasets.value);
   window.localStorage.setItem(RecentsKey, JSON.stringify(values));
 }
@@ -83,6 +110,7 @@ export {
   datasets,
   recents,
   load,
+  locateDuplicates,
   setRecents,
   clearRecents,
 };

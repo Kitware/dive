@@ -1,6 +1,7 @@
-import { GirderModel } from '@girder/components/src';
+import type { GirderModel } from '@girder/components/src';
 
 import {
+  DatasetMetaMutable,
   Pipe, Pipelines, SaveAttributeArgs, TrainingConfigs,
 } from 'dive-common/apispec';
 import girderRest from '../plugins/girder';
@@ -26,6 +27,19 @@ async function getBrandData(): Promise<BrandData> {
   return data;
 }
 
+async function clone({ folderId, name, parentFolderId }: {
+  folderId: string;
+  parentFolderId: string;
+  name?: string;
+}) {
+  const formData = new FormData();
+  formData.set('parentFolderId', parentFolderId);
+  if (name) {
+    formData.set('name', name);
+  }
+  const { data } = await girderRest.post<GirderModel>(`viame/dataset/${folderId}/clone`, formData);
+  return data;
+}
 
 function makeViameFolder({
   folderId, name, fps, type,
@@ -88,10 +102,10 @@ function runTraining(folderIds: string[], pipelineName: string, config: string) 
   return girderRest.post('/viame/train', folderIds, { params: { pipelineName, config } });
 }
 
-function saveMetadata(folderId: string, metadata: object) {
+function saveMetadata(folderId: string, metadata: DatasetMetaMutable) {
   return girderRest.put(
-    `/folder/${folderId}/metadata?allowNull=true`,
-    metadata,
+    `/viame/metadata/${folderId}`,
+    { ...metadata },
   );
 }
 
@@ -122,6 +136,7 @@ async function getValidWebImages(folderId: string) {
 
 
 export {
+  clone,
   getBrandData,
   deleteResources,
   getPipelineList,

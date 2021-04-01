@@ -48,13 +48,24 @@ export default {
       color="accent"
     >
       <v-tab
+        exact
         :to="getPathFromLocation(location)"
       >
-        Data<v-icon>mdi-database</v-icon>
+        Data
+        <v-icon>mdi-database</v-icon>
       </v-tab>
       <JobsTab />
     </v-tabs>
     <v-spacer />
+    <v-btn
+      text
+      :to="{ name: 'summary' }"
+    >
+      <v-icon class="pr-2">
+        mdi-format-list-bulleted-square
+      </v-icon>
+      Stats
+    </v-btn>
     <user-guide-button />
     <v-btn
       text

@@ -1,9 +1,9 @@
-import { SaveAttributeArgs, SaveDetectionsArgs } from 'dive-common/apispec';
+import { DatasetType, SaveAttributeArgs, SaveDetectionsArgs } from 'dive-common/apispec';
 import { TrackData } from 'vue-media-annotator/track';
 import girderRest from '../plugins/girder';
 
-interface ExportUrlsResponse {
-  mediaType: string;
+export interface ExportUrlsResponse {
+  mediaType: DatasetType;
   exportAllUrl: string;
   exportMediaUrl: string;
   exportDetectionsUrl: string;

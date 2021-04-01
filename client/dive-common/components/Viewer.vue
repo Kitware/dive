@@ -258,6 +258,7 @@ export default defineComponent({
           text,
           positiveButton: 'OK',
         });
+        throw err;
       }
     }
 
@@ -290,6 +291,7 @@ export default defineComponent({
 
     const globalHandler = {
       ...handler,
+      save,
       setCheckedTypes: updateCheckedTypes,
       trackSplit,
       trackEnable: updateCheckedTrackId,
@@ -313,6 +315,7 @@ export default defineComponent({
         enabledTracks,
         frame,
         intervalTree,
+        pendingSaveCount,
         trackMap,
         filteredTracks,
         typeStyling,
@@ -350,7 +353,8 @@ export default defineComponent({
       loaded.value = true;
     }).catch((err) => {
       loaded.value = false;
-      loadError.value = err;
+      loadError.value = (err.response?.data?.message || err)
+        .concat(" If you don't know how to resolve this, please contact the server administrator.");
       throw err;
     });
 
@@ -488,6 +492,7 @@ export default defineComponent({
             v-if="loadError"
             type="error"
             prominent
+            max-width="60%"
           >
             <p class="ma-2">
               {{ loadError }}

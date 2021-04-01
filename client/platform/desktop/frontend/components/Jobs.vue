@@ -1,9 +1,12 @@
 <script lang="ts">
+import { shell } from 'electron';
 import moment, { utc } from 'moment';
 import { defineComponent, ref, onBeforeUnmount } from '@vue/composition-api';
+
+import { DesktopJob } from 'platform/desktop/constants';
+
 import BrowserLink from './BrowserLink.vue';
 import NavigationBar from './NavigationBar.vue';
-
 import { datasets } from '../store/dataset';
 import { recentHistory } from '../store/jobs';
 
@@ -22,6 +25,20 @@ export default defineComponent({
     }, 1000);
     onBeforeUnmount(() => clearInterval(clockDriverInterval));
 
+    const truncateOutputAtLines = 500;
+
+    function toggleVisibleOutput(job: DesktopJob) {
+      if (job.key === visibleOutput.value) {
+        visibleOutput.value = null;
+      } else {
+        visibleOutput.value = job.key;
+      }
+    }
+
+    async function openPath(job: DesktopJob) {
+      shell.openPath(job.workingDir);
+    }
+
     return {
       clockDriver,
       datasets,
@@ -29,6 +46,10 @@ export default defineComponent({
       moment,
       utc,
       visibleOutput,
+      truncateOutputAtLines,
+      /* methods */
+      openPath,
+      toggleVisibleOutput,
     };
   },
 });
@@ -46,7 +67,7 @@ export default defineComponent({
               Job History ({{ recentHistory.length }})
             </h1>
             <v-card
-              v-for="job in recentHistory"
+              v-for="job in recentHistory.slice().reverse()"
               :key="job.job.key"
               class=" mb-4"
               min-width="100%"
@@ -86,7 +107,7 @@ export default defineComponent({
                     {{ job.job.jobType }}: {{ datasets[job.job.datasetIds[0]].name }}
                   </v-card-title>
                   <v-card-subtitle>
-                    <table cell-spacing="10px">
+                    <table class="key-value-table">
                       <tr v-if="'pipeline' in job.job.args">
                         <td>Pipe</td>
                         <td>{{ job.job.args.pipeline.pipe }}</td>
@@ -99,6 +120,23 @@ export default defineComponent({
                         <td>datasets</td>
                         <td>
                           {{ job.job.datasetIds.join(', ') }}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td>work dir</td>
+                        <td>
+                          <span
+                            class="selectable"
+                            @click="openPath(job.job)"
+                          >
+                            <span class="text-decoration-underline">show in file manager</span>
+                            <v-icon
+                              small
+                              class="mx-2"
+                            >
+                              mdi-folder-open
+                            </v-icon>
+                          </span>
                         </td>
                       </tr>
                     </table>
@@ -131,14 +169,14 @@ export default defineComponent({
                     text
                     small
                     class="mb-2 primary--text text--lighten-3 text-decoration-none"
-                    @click="visibleOutput = job.job.key"
+                    @click="toggleVisibleOutput(job.job)"
                   >
                     <v-icon
                       color="primary lighten-3"
                       class="pr-2"
                     >
                       mdi-console
-                    </v-icon> View Output
+                    </v-icon> {{ job.job.key === visibleOutput ? 'Hide' : 'Show' }} Console Log
                   </v-btn>
                 </v-col>
               </v-row>
@@ -152,14 +190,27 @@ export default defineComponent({
                   rounded
                   color="black"
                   min-width="100%"
+                  height="220"
                   class="px-4 py-1"
+                  style="overflow-y: auto;"
                 >
                   <p
-                    v-for="(line, i) in job.logs.slice(-10, -1)"
+                    v-for="(line, i) in job.logs.slice(-1 * truncateOutputAtLines, -1).reverse()"
                     :key="line + i"
                     class="my-1 terminal"
                   >
-                    {{ line.replace('\n', '') }}
+                    {{ job.logs.length - i - 1 }}. {{ line.replace('\n', '') }}
+                  </p>
+                  <p
+                    v-if="job.logs.length > truncateOutputAtLines"
+                    class="my-1 terminal terminal-meta"
+                  >
+                    ______________________________
+                    <br><br>
+                    Logging truncated at {{ truncateOutputAtLines }} most recent lines.
+                    See job working directory for full console log.
+                    <br>
+                    {{ job.job.workingDir }}
                   </p>
                 </v-card>
               </v-row>
@@ -171,12 +222,23 @@ export default defineComponent({
   </v-main>
 </template>
 
-<style scoped>
+<style lang="scss" scoped>
+@import './styles/KeyValueTable.scss';
+
 .terminal {
   font-family: monospace;
   font-size: 12px;
+
+  &.terminal-meta {
+    opacity: 0.7;
+  }
 }
-td {
-  padding-right: 20px;
+
+.selectable {
+  cursor: pointer;
+
+  &:hover {
+    opacity: 0.8;
+  }
 }
 </style>

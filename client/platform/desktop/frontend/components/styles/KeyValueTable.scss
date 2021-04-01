@@ -1,0 +1,31 @@
+table {
+  border-collapse: collapse;
+  width: 100%;
+
+  &.key-value-table {
+    td:first-child {
+      width: 140px;
+      min-width: 140px;
+    }
+    td:last-child {
+      font-size: 12px;
+    }
+  }
+
+  td, th {
+    text-align: left;
+    font-size: 14px;
+    border-bottom: 1px solid #444444;
+    padding: 2px 0;
+    padding-right: 10px;
+
+    &:first-child {
+      font-weight: bold;
+      padding-left: 12px;
+    }
+  }
+
+  tr:last-child td {
+    border-bottom: 0;
+  }
+}

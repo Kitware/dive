@@ -7,10 +7,13 @@ import {
   ConversionArgs,
   DesktopJobUpdater,
 } from 'platform/desktop/constants';
+import { cleanString } from 'platform/desktop/sharedUtils';
 import { serialize } from 'platform/desktop/backend/serializers/viame';
+import { observeChild } from 'platform/desktop/backend/native/processManager';
 
 import * as common from './common';
-import { cleanString, jobFileEchoMiddleware, spawnResult } from './utils';
+import { jobFileEchoMiddleware, spawnResult } from './utils';
+
 
 const PipelineRelativeDir = 'configs/pipelines';
 const DiveJobManifestName = 'dive_job_manifest.json';
@@ -115,10 +118,10 @@ async function runPipeline(
     }
   }
 
-  const job = spawn(command.join(' '), {
+  const job = observeChild(spawn(command.join(' '), {
     shell: viameConstants.shell,
     cwd: jobWorkDir,
-  });
+  }));
 
   const jobBase: DesktopJob = {
     key: `pipeline_${job.pid}_${jobWorkDir}`,
@@ -251,10 +254,10 @@ async function train(
     '--no-embedded-pipe',
   ];
 
-  const job = spawn(command.join(' '), {
+  const job = observeChild(spawn(command.join(' '), {
     shell: viameConstants.shell,
     cwd: jobWorkDir,
-  });
+  }));
 
   const cleanPipelineName = cleanString(runTrainingArgs.pipelineName);
 
@@ -362,7 +365,7 @@ async function convertMedia(settings: Settings,
     commands.push(`${viameConstants.ffmpeg.initialization} ${viameConstants.ffmpeg.path} -i "${args.mediaList[imageIndex][0]}" "${args.mediaList[imageIndex][1]}"`);
   }
 
-  const job = spawn(commands.join(' '), { shell: viameConstants.shell });
+  const job = observeChild(spawn(commands.join(' '), { shell: viameConstants.shell }));
   let jobKey = `convert_${job.pid}_${jobWorkDir}`;
   if (key.length) {
     jobKey = key;

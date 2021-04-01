@@ -100,10 +100,12 @@ export default defineComponent({
       }
       updateTypeStyle({
         type: data.editingType,
-        color: data.editingColor,
-        strokeWidth: data.editingThickness,
-        fill: data.editingFill,
-        opacity: data.editingOpacity,
+        value: {
+          color: data.editingColor,
+          strokeWidth: data.editingThickness,
+          fill: data.editingFill,
+          opacity: data.editingOpacity,
+        },
       });
     }
 
@@ -180,7 +182,7 @@ export default defineComponent({
               small
               :color="data.settingsActive ? 'accent' : 'default'"
             >
-              mdi-settings
+              mdi-cog
             </v-icon>
           </v-btn>
           <v-tooltip

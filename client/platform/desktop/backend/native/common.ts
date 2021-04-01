@@ -17,11 +17,11 @@ import * as viameSerializers from 'platform/desktop/backend/serializers/viame';
 import {
   websafeImageTypes, websafeVideoTypes, otherImageTypes, otherVideoTypes,
   JsonMeta, Settings, JsonMetaCurrentVersion, DesktopMetadata, DesktopJobUpdater,
-  ConvertMedia, RunTraining, ExportDatasetArgs,
+  ConvertMedia, RunTraining, ExportDatasetArgs, MediaImportPayload,
 } from 'platform/desktop/constants';
+import { cleanString, filterByGlob, makeid } from 'platform/desktop/sharedUtils';
 import { Attribute, Attributes } from 'vue-media-annotator/use/useAttributes';
 import processTrackAttributes from './attributeProcessor';
-import { cleanString, makeid } from './utils';
 
 const ProjectsFolderName = 'DIVE_Projects';
 const JobsFolderName = 'DIVE_Jobs';
@@ -32,6 +32,34 @@ const AuxFolderName = 'auxiliary';
 const JsonTrackFileName = /^result(_.*)?\.json$/;
 const JsonMetaFileName = 'meta.json';
 const CsvFileName = /^.*\.csv$/;
+
+async function findImagesInFolder(path: string, glob?: string) {
+  const images: string[] = [];
+  let requiresTranscoding = false;
+  const contents = await fs.readdir(path);
+
+  contents.forEach((filename) => {
+    const abspath = npath.join(path, filename);
+    const mimetype = mime.lookup(abspath);
+    if (glob === undefined || filterByGlob(glob, [filename]).length === 1) {
+      if (
+        mimetype && (websafeImageTypes.includes(mimetype)
+          || otherImageTypes.includes(mimetype))
+      ) {
+        images.push(filename);
+        if (otherImageTypes.includes(mimetype)) {
+          requiresTranscoding = true;
+        }
+      }
+    }
+  });
+  return {
+    images,
+    mediaConvetList: requiresTranscoding
+      ? images.map((filename) => npath.join(path, filename))
+      : [],
+  };
+}
 
 async function _acquireLock(dir: string, resource: string, lockname: 'meta' | 'tracks') {
   const release = await lockfile.lock(resource, {
@@ -109,7 +137,12 @@ async function getValidatedProjectDir(settings: Settings, datasetId: string) {
  */
 async function loadJsonMetadata(metaAbsPath: string): Promise<JsonMeta> {
   const rawBuffer = await fs.readFile(metaAbsPath, 'utf-8');
-  const metaJson = JSON.parse(rawBuffer);
+  let metaJson;
+  try {
+    metaJson = JSON.parse(rawBuffer);
+  } catch (err) {
+    throw new Error(`Unable to parse ${metaAbsPath}: ${err}`);
+  }
   /* check if this file meets the current schema version */
   if ('version' in metaJson) {
     const { version } = metaJson;
@@ -127,7 +160,15 @@ async function loadJsonMetadata(metaAbsPath: string): Promise<JsonMeta> {
  */
 async function loadJsonTracks(tracksAbsPath: string): Promise<MultiTrackRecord> {
   const rawBuffer = await fs.readFile(tracksAbsPath, 'utf-8');
-  const annotationData = JSON.parse(rawBuffer) as MultiTrackRecord;
+  if (rawBuffer.length === 0) {
+    return {}; // Return empty object if file was empty
+  }
+  let annotationData: MultiTrackRecord = {};
+  try {
+    annotationData = JSON.parse(rawBuffer) as MultiTrackRecord;
+  } catch (err) {
+    throw new Error(`Unable to parse ${tracksAbsPath}: ${err}`);
+  }
   // TODO: somehow verify the schema of this file
   if (Array.isArray(annotationData)) {
     throw new Error('object expected in track json');
@@ -488,21 +529,13 @@ async function _initializeProjectDir(settings: Settings, jsonMeta: JsonMeta): Pr
 }
 
 /**
- * importMedia locates as much information as possible
- * about a dataset using only the directory structure.
- * @param settings user settings
- * @param path path to import dir/file
- * @returns datasetId
+ * Begin a dataset import.
  */
-async function importMedia(
+async function beginMediaImport(
   settings: Settings,
   path: string,
-  updater: DesktopJobUpdater,
-  { checkMedia, convertMedia }: {
-  checkMedia: (settings: Settings, path: string) => Promise<boolean>;
-  convertMedia: ConvertMedia;
-},
-): Promise<JsonMeta> {
+  checkMedia: (settings: Settings, path: string) => Promise<boolean>,
+): Promise<MediaImportPayload> {
   let datasetType: DatasetType;
 
   const exists = fs.existsSync(path);
@@ -543,8 +576,7 @@ async function importMedia(
     jsonMeta.originalBasePath = npath.dirname(path);
   }
 
-  const contents = await fs.readdir(jsonMeta.originalBasePath);
-
+  /* mediaConvertList is a list of absolute paths of media to convert */
   let mediaConvertList: string[] = [];
   /* Extract and validate media from import path */
   if (jsonMeta.type === 'video') {
@@ -565,33 +597,47 @@ async function importMedia(
       throw new Error(`could not determine video MIME type for ${path}`);
     }
   } else if (datasetType === 'image-sequence') {
-    const tempConvertList: string[] = [];
-    let convertAny = false; //If we have to convert one image we convert all for organization
-    contents.forEach((filename) => {
-      const abspath = npath.join(jsonMeta.originalBasePath, filename);
-      const mimetype = mime.lookup(abspath);
-      if (
-        mimetype && (websafeImageTypes.includes(mimetype)
-        || otherImageTypes.includes(mimetype))
-      ) {
-        jsonMeta.originalImageFiles.push(filename);
-        tempConvertList.push(abspath);
-        if (otherImageTypes.includes(mimetype)) {
-          convertAny = true;
-        }
-      }
-    });
-    if (jsonMeta.originalImageFiles.length === 0) {
+    const found = await findImagesInFolder(jsonMeta.originalBasePath);
+    if (found.images.length === 0) {
       throw new Error(`no images found in ${path}`);
     }
-    if (convertAny) {
-      mediaConvertList = tempConvertList;
-    }
+    jsonMeta.originalImageFiles = found.images;
+    mediaConvertList = found.mediaConvetList;
   } else {
     throw new Error('only video and image-sequence types are supported');
   }
 
+  return {
+    jsonMeta,
+    globPattern: '',
+    mediaConvertList,
+  };
+}
+
+/**
+ * Finalize a dataset import.
+ */
+async function finalizeMediaImport(
+  settings: Settings,
+  args: MediaImportPayload,
+  updater: DesktopJobUpdater,
+  convertMedia: ConvertMedia,
+) {
+  const { jsonMeta, globPattern } = args;
+  let { mediaConvertList } = args;
+  const { type: datasetType, id: dsId } = jsonMeta;
+
   const projectDirAbsPath = await _initializeProjectDir(settings, jsonMeta);
+
+  // Filter all parts of the input based on glob pattern
+  if (globPattern && jsonMeta.type === 'image-sequence') {
+    const found = await findImagesInFolder(jsonMeta.originalBasePath, globPattern);
+    if (found.images.length === 0) {
+      throw new Error(`no images in ${jsonMeta.originalBasePath} matched pattern ${globPattern}`);
+    }
+    jsonMeta.originalImageFiles = found.images;
+    mediaConvertList = found.mediaConvetList;
+  }
 
   //Now we will kick off any conversions that are necessary
   let jobBase = null;
@@ -622,7 +668,6 @@ async function importMedia(
     jsonMeta.transcodingJobKey = jobBase.key;
   }
 
-
   let foundDetections = false;
 
   /* Look for JSON track file as first priority */
@@ -641,6 +686,7 @@ async function importMedia(
   }
   /* Look for other types of annotation files as a second priority */
   if (!foundDetections) {
+    const contents = await fs.readdir(jsonMeta.originalBasePath);
     const csvFileCandidates = contents
       .filter((v) => CsvFileName.test(v))
       .map((filename) => npath.join(jsonMeta.originalBasePath, filename));
@@ -699,13 +745,14 @@ async function exportDataset(
 export {
   ProjectsFolderName,
   JobsFolderName,
+  beginMediaImport,
   createKwiverRunWorkingDir,
   exportDataset,
+  finalizeMediaImport,
   getPipelineList,
   getTrainingConfigs,
   getProjectDir,
   getValidatedProjectDir,
-  importMedia,
   loadMetadata,
   loadJsonMetadata,
   loadJsonTracks,

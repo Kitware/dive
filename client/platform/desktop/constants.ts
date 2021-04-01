@@ -135,7 +135,7 @@ export interface NvidiaSmiReply {
     };
   } | null;
   // process exit code
-  exitCode: number;
+  exitCode: number | null;
   // error message
   error: string;
 }
@@ -184,6 +184,12 @@ export interface DesktopJob {
   startTime: Date;
   // endTime time of process exit
   endTime?: Date;
+}
+
+export interface MediaImportPayload {
+  jsonMeta: JsonMeta;
+  globPattern: string;
+  mediaConvertList: string[];
 }
 
 export interface DesktopJobUpdate extends DesktopJob {
