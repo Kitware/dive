@@ -91,7 +91,15 @@ export default defineComponent({
             v-bind="{ ...tattrs, ...buttonOptions }"
             v-on="{ ...ton, click }"
           >
-            Clone
+            <v-icon>
+              mdi-content-copy
+            </v-icon>
+            <span
+              v-show="!$vuetify.breakpoint.mdAndDown"
+              class="pl-1"
+            >
+              Clone
+            </span>
           </v-btn>
         </template>
         <span>Create a clone of this data</span>

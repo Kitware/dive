@@ -11,6 +11,19 @@ import { getPathFromLocation } from '../utils';
 import Export from './Export.vue';
 import Clone from './Clone.vue';
 
+const buttonOptions = {
+  text: true,
+  color: 'grey lighten-1',
+  outlined: true,
+  depressed: true,
+  class: ['mx-1'],
+};
+
+const menuOptions = {
+  offsetY: true,
+  bottom: true,
+};
+
 /**
  * ViewerLoader is responsible for loading
  * data from girder.
@@ -52,7 +65,11 @@ export default defineComponent({
     });
 
     return {
-      viewerRef, dataPath, brandData,
+      buttonOptions,
+      menuOptions,
+      viewerRef,
+      dataPath,
+      brandData,
     };
   },
 });
@@ -77,16 +94,21 @@ export default defineComponent({
         </v-tab>
         <JobsTab />
       </v-tabs>
-      <Clone
-        v-if="$store.state.Dataset.meta"
-        :source="$store.state.Dataset.meta"
-      />
     </template>
     <template #title-right>
-      <RunPipelineMenu :selected-dataset-ids="[id]" />
+      <RunPipelineMenu
+        v-bind="{ buttonOptions, menuOptions }"
+        :selected-dataset-ids="[id]"
+      />
       <Export
+        v-bind="{ buttonOptions, menuOptions }"
         :dataset-id="id"
         block-on-unsaved
+      />
+      <Clone
+        v-if="$store.state.Dataset.meta"
+        v-bind="{ buttonOptions }"
+        :source="$store.state.Dataset.meta"
       />
     </template>
   </Viewer>
