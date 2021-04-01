@@ -13,8 +13,8 @@ export default defineComponent({
 
   props: {
     source: {
-      type: Object as PropType<GirderDatasetModel>,
-      required: true,
+      type: Object as PropType<GirderDatasetModel | null>,
+      default: null,
     },
     buttonOptions: {
       type: Object,
@@ -39,8 +39,10 @@ export default defineComponent({
     const locationIsFolder = computed(() => (location.value._modelType === 'folder'));
 
     async function click() {
-      newName.value = `Clone of ${props.source.name}`;
-      open.value = true;
+      if (props.source) {
+        newName.value = `Clone of ${props.source.name}`;
+        open.value = true;
+      }
     }
 
     function setLocation(newLoc: GirderDatasetModel) {
@@ -50,6 +52,9 @@ export default defineComponent({
     }
 
     const { func: doClone, error: cloneError } = withRestError(async () => {
+      if (!props.source) {
+        throw new Error('No source dataset!');
+      }
       const newDataset = await clone({
         folderId: props.source._id,
         name: newName.value,
@@ -89,13 +94,14 @@ export default defineComponent({
         <template #activator="{ on: ton, attrs: tattrs }">
           <v-btn
             v-bind="{ ...tattrs, ...buttonOptions }"
+            :disabled="source === null || !source.meta.annotate"
             v-on="{ ...ton, click }"
           >
             <v-icon>
               mdi-content-copy
             </v-icon>
             <span
-              v-show="!$vuetify.breakpoint.mdAndDown"
+              v-show="!$vuetify.breakpoint.mdAndDown || buttonOptions.block"
               class="pl-1"
             >
               Clone
@@ -106,7 +112,7 @@ export default defineComponent({
       </v-tooltip>
     </template>
 
-    <v-card>
+    <v-card v-if="source">
       <template v-if="source.meta.foreign_media_id">
         <v-card-title>
           This dataset is a clone

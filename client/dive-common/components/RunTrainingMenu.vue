@@ -112,7 +112,7 @@ export default defineComponent({
               mdi-brain
             </v-icon>
             <span
-              v-show="!$vuetify.breakpoint.mdAndDown"
+              v-show="!$vuetify.breakpoint.mdAndDown || buttonOptions.block"
               class="pl-1"
             >
               Run Training

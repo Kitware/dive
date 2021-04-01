@@ -16,8 +16,9 @@ import Clone from './Clone.vue';
 const buttonOptions = {
   block: true,
   left: true,
+  depressed: true,
   color: 'primary',
-  class: ['my-2'],
+  class: ['my-2', 'd-flex', 'justify-start'],
 };
 
 const menuOptions = {
@@ -193,12 +194,7 @@ export default Vue.extend({
             <template #actions>
               <div class="pa-2">
                 <Clone
-                  v-if="exportTarget && exportTarget.meta.annotate"
-                  :button-options="{
-                    ...buttonOptions,
-                    outlined: true,
-                    color: 'white',
-                  }"
+                  :button-options="buttonOptions"
                   :source="exportTarget"
                 />
                 <run-training-menu
@@ -219,13 +215,12 @@ export default Vue.extend({
                   color="error"
                   @click="deleteSelection"
                 >
-                  <v-icon
-                    left
-                    class="pr-2"
-                  >
+                  <v-icon>
                     mdi-delete
                   </v-icon>
-                  Delete
+                  <span class="pl-1">
+                    Delete
+                  </span>
                 </v-btn>
               </div>
             </template>
