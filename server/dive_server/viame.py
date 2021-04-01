@@ -22,14 +22,7 @@ from dive_tasks.tasks import (
     upgrade_pipelines,
 )
 from dive_utils import TRUTHY_META_VALUES, asbool, fromMeta, models
-from dive_utils.types import (
-    AvailableJobSchema,
-    GirderModel,
-    PipelineDescription,
-    PipelineJob,
-)
-
-from .constants import (
+from dive_utils.constants import (
     SETTINGS_CONST_JOBS_CONFIGS,
     PublishedMarker,
     TrainedPipelineCategory,
@@ -39,6 +32,13 @@ from .constants import (
     videoRegex,
     ymlRegex,
 )
+from dive_utils.types import (
+    AvailableJobSchema,
+    GirderModel,
+    PipelineDescription,
+    PipelineJob,
+)
+
 from .pipelines import load_pipelines, verify_pipe
 from .serializers import meva as meva_serializer
 from .training import ensure_csv_detections_file, training_output_folder
