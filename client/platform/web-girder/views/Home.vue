@@ -15,7 +15,6 @@ import Clone from './Clone.vue';
 
 const buttonOptions = {
   block: true,
-  // tile: true,
   left: true,
   color: 'primary',
   class: ['my-2'],
@@ -23,7 +22,8 @@ const buttonOptions = {
 
 const menuOptions = {
   offsetX: true,
-  left: true,
+  right: true,
+  nudgeRight: 8,
 };
 
 export default Vue.extend({
@@ -183,6 +183,51 @@ export default Vue.extend({
       <v-row
         class="fill-height nowraptable"
       >
+        <v-col cols="3">
+          <DataDetails
+            :value="selected.length ? selected : [location]"
+          >
+            <template #actions>
+              <div class="pa-2">
+                <Clone
+                  v-if="exportTarget && exportTarget.meta.annotate"
+                  :button-options="{
+                    ...buttonOptions,
+                    outlined: true,
+                    color: 'white',
+                  }"
+                  :source="exportTarget"
+                />
+                <run-training-menu
+                  v-bind="{ buttonOptions, menuOptions }"
+                  :selected-dataset-ids="locationInputs"
+                />
+                <run-pipeline-menu
+                  v-bind="{ buttonOptions, menuOptions }"
+                  :selected-dataset-ids="locationInputs"
+                />
+                <export
+                  v-bind="{ buttonOptions, menuOptions }"
+                  :dataset-id="exportTargetId"
+                />
+                <v-btn
+                  :disabled="!selected.length"
+                  v-bind="{ ...buttonOptions }"
+                  color="error"
+                  @click="deleteSelection"
+                >
+                  <v-icon
+                    left
+                    class="pr-2"
+                  >
+                    mdi-delete
+                  </v-icon>
+                  Delete
+                </v-btn>
+              </div>
+            </template>
+          </DataDetails>
+        </v-col>
         <v-col :cols="9">
           <GirderFileManager
             ref="fileManager"
@@ -255,51 +300,6 @@ export default Vue.extend({
               </v-chip>
             </template>
           </GirderFileManager>
-        </v-col>
-        <v-col cols="3">
-          <DataDetails
-            :value="selected.length ? selected : [location]"
-          >
-            <template #actions>
-              <div class="pa-2">
-                <Clone
-                  v-if="exportTarget && exportTarget.meta.annotate"
-                  :button-options="{
-                    ...buttonOptions,
-                    outlined: true,
-                    color: 'white',
-                  }"
-                  :source="exportTarget"
-                />
-                <run-training-menu
-                  v-bind="{ buttonOptions, menuOptions }"
-                  :selected-dataset-ids="locationInputs"
-                />
-                <run-pipeline-menu
-                  v-bind="{ buttonOptions, menuOptions }"
-                  :selected-dataset-ids="locationInputs"
-                />
-                <export
-                  v-bind="{ buttonOptions, menuOptions }"
-                  :dataset-id="exportTargetId"
-                />
-                <v-btn
-                  :disabled="!selected.length"
-                  v-bind="{ ...buttonOptions }"
-                  color="error"
-                  @click="deleteSelection"
-                >
-                  <v-icon
-                    left
-                    class="pr-2"
-                  >
-                    mdi-delete
-                  </v-icon>
-                  Delete
-                </v-btn>
-              </div>
-            </template>
-          </DataDetails>
         </v-col>
       </v-row>
     </v-container>
