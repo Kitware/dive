@@ -11,17 +11,6 @@ export interface Attribute {
   key: string;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function isAttribute(obj: any): obj is Attribute {
-  return (
-    (typeof obj === 'object')
-    && (typeof obj.belongs === 'string')
-    && (typeof obj.datatype === 'string')
-    && (typeof obj.key === 'string')
-    && (typeof obj.name === 'string')
-  );
-}
-
 export type Attributes = Record<string, Attribute>;
 
 /**
@@ -31,10 +20,10 @@ interface UseAttributesParams {
   markChangesPending: (
     {
       action,
-      data,
+      attribute,
     }: {
       action: 'upsert' | 'delete';
-      data: Attribute;
+      attribute: Attribute;
     }
   ) => void;
 }
@@ -54,20 +43,20 @@ export default function UseAttributes({ markChangesPending }: UseAttributesParam
     if (oldAttribute && data.key !== oldAttribute.key) {
       // Name change should delete the old attribute and create a new one with the updated id
       VueDel(attributes.value, oldAttribute.key);
-      markChangesPending({ action: 'delete', data: oldAttribute });
+      markChangesPending({ action: 'delete', attribute: oldAttribute });
       // Create a new attribute to replace it
     }
     if (updateAllTracks && oldAttribute) {
       // TODO: Lengthy track/detection attribute updating function
     }
     VueSet(attributes.value, data.key, data);
-    markChangesPending({ action: 'upsert', data: attributes.value[data.key] });
+    markChangesPending({ action: 'upsert', attribute: attributes.value[data.key] });
   }
 
 
   function deleteAttribute({ data }: {data: Attribute}, removeFromTracks = false) {
     if (attributes.value[data.key] !== undefined) {
-      markChangesPending({ action: 'delete', data: attributes.value[data.key] });
+      markChangesPending({ action: 'delete', attribute: attributes.value[data.key] });
       VueDel(attributes.value, data.key);
     }
     if (removeFromTracks) {

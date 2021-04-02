@@ -1,7 +1,7 @@
 import { ref, Ref } from '@vue/composition-api';
 
-import Track, { TrackId, isTrack } from 'vue-media-annotator/track';
-import { Attribute, isAttribute } from 'vue-media-annotator/use/useAttributes';
+import Track, { TrackId } from 'vue-media-annotator/track';
+import { Attribute } from 'vue-media-annotator/use/useAttributes';
 
 import { useApi, DatasetMetaMutable } from 'dive-common/apispec';
 
@@ -65,24 +65,30 @@ export default function useSave(datasetId: Ref<Readonly<string>>) {
   function markChangesPending(
     {
       action,
-      data,
+      track,
+      attribute,
     }: {
       action: 'upsert' | 'delete' | 'meta';
-      data?: Track | Attribute;
+      track?: Track;
+      attribute?: Attribute;
     } = { action: 'meta' },
   ) {
     if (action === 'meta') {
       pendingChangeMap.meta += 1;
-    } else if (isTrack(data)) {
+    } else if (track !== undefined) {
       _updatePendingChangeMap(
-        data.trackId, data, action, pendingChangeMap.upsert, pendingChangeMap.delete,
+        track.trackId, track, action, pendingChangeMap.upsert, pendingChangeMap.delete,
       );
-    } else if (isAttribute(data)) {
+    } else if (attribute !== undefined) {
       _updatePendingChangeMap(
-        data.key, data, action, pendingChangeMap.attributeUpsert, pendingChangeMap.attributeDelete,
+        attribute.key,
+        attribute,
+        action,
+        pendingChangeMap.attributeUpsert,
+        pendingChangeMap.attributeDelete,
       );
     } else {
-      throw new Error(`Arguments inconsistent with pending change type: ${action} cannot be performed on ${data}`);
+      throw new Error(`Arguments inconsistent with pending change type: ${action} cannot be performed on ${attribute}`);
     }
     pendingSaveCount.value += 1;
   }
