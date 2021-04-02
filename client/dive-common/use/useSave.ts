@@ -88,7 +88,7 @@ export default function useSave(datasetId: Ref<Readonly<string>>) {
         pendingChangeMap.attributeDelete,
       );
     } else {
-      throw new Error(`Arguments inconsistent with pending change type: ${action} cannot be performed on ${attribute}`);
+      throw new Error(`Arguments inconsistent with pending change type: ${action} cannot be performed without additional arguments`);
     }
     pendingSaveCount.value += 1;
   }
