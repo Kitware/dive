@@ -672,7 +672,7 @@ async function finalizeMediaImport(
       let destLoc = item.replace(jsonMeta.originalBasePath, projectDirAbsPath);
       //If we have multicam we may need to transcode multiple folders
       if (jsonMeta.multiCam) {
-        Object.entries(jsonMeta.multiCam.imageLists).forEach(([key, val]) => {
+        Object.values(jsonMeta.multiCam.imageLists).forEach((val) => {
           destLoc = destLoc.replace(val.basePath, projectDirAbsPath);
         });
       }
