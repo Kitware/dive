@@ -11,6 +11,8 @@ import {
   MediaImportPayload, MultiCamImportFolderArgs,
   MultiCamImportKeywordArgs,
   MultiCamImportArgs,
+  websafeVideoTypes,
+  otherVideoTypes,
 } from 'platform/desktop/constants';
 import { cleanString, makeid } from 'platform/desktop/sharedUtils';
 import { findImagesInFolder } from './common';
@@ -117,26 +119,34 @@ async function beginMultiCamImport(
   let mediaConvertList: string[] = [];
   /* Extract and validate media from import path */
   if (jsonMeta.type === 'video') {
-    // TODO Stereo Video Support
-    /*
-    jsonMeta.originalVideoFile = npath.basename(mainFolder);
-    const mimetype = mime.lookup(mainFolder);
-    if (mimetype) {
-      if (websafeImageTypes.includes(mimetype) || otherImageTypes.includes(mimetype)) {
-        throw new Error('User chose image file for video import option');
-      } else if (websafeVideoTypes.includes(mimetype) || otherVideoTypes.includes(mimetype)) {
-        const webSafeVideo = await checkMedia(settings, path);
-        if (!webSafeVideo || otherVideoTypes.includes(mimetype)) {
-          mediaConvertList.push(path);
-        }
-      } else {
-        throw new Error(`unsupported MIME type for video ${mimetype}`);
-      }
-    } else {
-      throw new Error(`could not determine video MIME type for ${path}`);
+    if (isFolderArgs(args)) {
+      await asyncForEach(Object.entries(args.folderList),
+        async ([key, video]: [string, string]) => {
+          const mimetype = mime.lookup(video);
+          if (key === args.defaultDisplay) {
+            jsonMeta.originalVideoFile = npath.basename(video);
+          }
+          if (mimetype) {
+            if (websafeImageTypes.includes(mimetype) || otherImageTypes.includes(mimetype)) {
+              throw new Error('User chose image file for video import option');
+            } else if (websafeVideoTypes.includes(mimetype) || otherVideoTypes.includes(mimetype)) {
+              const webSafeVideo = await checkMedia(settings, video);
+              if (!webSafeVideo || otherVideoTypes.includes(mimetype)) {
+                mediaConvertList.push(video);
+              }
+              if (jsonMeta.multiCam && jsonMeta.multiCam.imageLists[key] !== undefined) {
+                jsonMeta.multiCam.imageLists[key].filenames = [video];
+              }
+            } else {
+              throw new Error(`unsupported MIME type for video ${mimetype}`);
+            }
+          } else {
+            throw new Error(`could not determine video MIME type for ${video}`);
+          }
+        });
+    } else if (isKeywordArgs(args)) {
+      throw new Error('glob pattern matching is not supported for multi-cam videos');
     }
-    */
-    throw new Error('No support stereoscopic video at this time');
   } else if (datasetType === 'image-sequence') {
     if (isFolderArgs(args)) {
       await asyncForEach(Object.entries(args.folderList),
@@ -190,11 +200,8 @@ function writeMultiCamPipelineInputs(jobWorkDir: string, meta: JsonMeta, project
     if (meta.multiCam && meta.multiCam.imageLists) {
       let i = 0;
       Object.entries(meta.multiCam.imageLists).forEach(([key, list]) => {
-        let { basePath } = list;
-        if (meta.transcodedImageFiles && meta.transcodedImageFiles.length) {
-          basePath = projectDirPath;
-        }
-        const inputFile = fs.createWriteStream(npath.join(jobWorkDir, `cam${i}_images.txt`));
+        const { basePath } = list;
+        const inputFile = fs.createWriteStream(npath.join(jobWorkDir, `cam${i + 1}_images.txt`));
         list.filenames.forEach((image) => inputFile.write(`${npath.join(basePath, image)}\n`));
         inputFile.end();
         i += 1;

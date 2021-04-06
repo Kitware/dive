@@ -1,9 +1,8 @@
 <script lang="ts">
 import Vue from 'vue';
 import {
-  computed, defineComponent, ref, Ref,
+  computed, defineComponent, ref, Ref, PropType,
 } from '@vue/composition-api';
-import npath from 'path';
 import { filterByGlob } from 'platform/desktop/sharedUtils';
 import { MediaImportPayload } from 'platform/desktop/constants';
 import { DatasetType } from 'dive-common/apispec';
@@ -19,8 +18,12 @@ export default defineComponent({
   name: 'ImportMultiCamDialog',
   props: {
     stereo: {
-      type: Boolean,
+      type: Boolean as PropType<boolean>,
       required: false,
+    },
+    dataType: {
+      type: String as PropType<'image-sequence' | 'video'>,
+      default: 'image-sequence',
     },
   },
   setup(props, { emit }) {
@@ -43,6 +46,9 @@ export default defineComponent({
         left: '',
         right: '',
       };
+    }
+    if (props.dataType === 'video') {
+      importType.value = 'multi';
     }
 
     const displayKeys = computed(() => {
@@ -113,7 +119,6 @@ export default defineComponent({
       if (!ret.canceled) {
         try {
           const path = ret.filePaths[0];
-          const dsName = npath.parse(path).name;
           if (folder === 'calibration') {
             calibrationFile.value = path;
           } else if (importType.value === 'multi') {
@@ -203,17 +208,23 @@ export default defineComponent({
       Import Stero Dataset
     </v-card-title>
     <v-card-text>
-      Please Select an import type.
-      <v-radio-group v-model="importType">
-        <v-radio
-          value="multi"
-          label="Multi-Folder: Import a left and right folder"
-        />
-        <v-radio
-          value="keyword"
-          label="Keyword Filter: Use a filter to deteremine left and right images"
-        />
-      </v-radio-group>
+      <div v-if="dataType === 'image-sequence'">
+        Please Select an import type.
+        <v-radio-group v-model="importType">
+          <v-radio
+            value="multi"
+            :label="
+              `Multi-Folder: Import a left and right
+             ${dataType === 'image-sequence' ? 'folder' : 'videos'}`"
+          />
+          <v-radio
+            value="keyword"
+            :label="
+              `Keyword Filter: Use a filter to deteremine
+             left and right ${dataType === 'image-sequence' ? 'images' : 'videos'}`"
+          />
+        </v-radio-group>
+      </div>
       <div v-if="importType === 'multi'">
         <v-list>
           <v-list-item
@@ -230,18 +241,18 @@ export default defineComponent({
             </v-btn>
             <v-text-field
               :label="`${key}:`"
-              placeholder="Choose Folder"
+              :placeholder="dataType === 'image-sequence' ? 'Choose Folder' : 'Choose Video' "
               disabled
               :value="folderList[key]"
               class="mx-4"
             />
             <v-btn
               color="primary"
-              @click="open('image-sequence', key)"
+              @click="open(dataType, key)"
             >
-              Open Image Sequence
+              {{ dataType === 'image-sequence' ? 'Open Image Sequence' : 'Open Video' }}
               <v-icon class="ml-2">
-                mdi-folder-open
+                {{ dataType === 'image-sequence' ? 'mdi-folder-open' : 'mdi-file-video' }}
               </v-icon>
             </v-btn>
           </v-list-item>

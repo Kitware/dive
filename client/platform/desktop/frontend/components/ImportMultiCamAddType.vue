@@ -1,8 +1,5 @@
 <script lang="ts">
-import Vue, { PropType } from 'vue';
-import {
-  computed, defineComponent, ref, Ref,
-} from '@vue/composition-api';
+import { defineComponent, ref } from '@vue/composition-api';
 
 
 export default defineComponent({
