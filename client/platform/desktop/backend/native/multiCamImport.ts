@@ -149,7 +149,10 @@ async function beginMultiCamImport(
             jsonMeta.multiCam.imageLists[key].filenames = found.images.map(
               (image) => image,
             );
-            jsonMeta.originalImageFiles = jsonMeta.originalImageFiles.concat(found.images);
+            // Possible to have same named images in different folders, have key to use
+            found.images.forEach((image) => {
+              jsonMeta.originalImageFiles.push(`${key}_${image}`);
+            });
             mediaConvertList = mediaConvertList.concat(found.mediaConvertList);
           }
         });
@@ -160,7 +163,10 @@ async function beginMultiCamImport(
           jsonMeta.multiCam.imageLists[key].filenames = found.images.map(
             (image) => image,
           );
-          jsonMeta.originalImageFiles = jsonMeta.originalImageFiles.concat(found.images);
+          // Possible to have same named images in different folders, have key to use
+          found.images.forEach((image) => {
+            jsonMeta.originalImageFiles.push(`${key}_${image}`);
+          });
           mediaConvertList = mediaConvertList.concat(found.mediaConvertList);
         }
       });

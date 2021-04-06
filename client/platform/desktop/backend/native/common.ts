@@ -218,10 +218,14 @@ async function loadMetadata(
       }
       let displayFilenames = displayImage.filenames;
       let { basePath } = displayImage;
+      // Filter transcoded images to use left/right files)
       if (projectMetaData.transcodedImageFiles && projectMetaData.transcodedImageFiles.length) {
         displayFilenames = projectMetaData.transcodedImageFiles.filter(
           (filename: string) => displayFilenames
-            .filter((displayName) => displayName.includes(filename.substring(0, filename.lastIndexOf('.')))).length,
+            .filter((displayName) => {
+              const baseFile = filename.substring(0, filename.lastIndexOf('.'));
+              return displayName.includes(baseFile) || `${projectMetaData.multiCam?.display}_${displayName}`.includes(baseFile);
+            }).length,
         );
         basePath = projectDirData.basePath;
       }
@@ -229,9 +233,6 @@ async function loadMetadata(
         url: makeMediaUrl(npath.join(basePath, filename)),
         filename,
       }));
-      imageData.forEach((item) => {
-        console.log(item.url);
-      });
     }
   } else {
     throw new Error(`unexpected project type for id="${datasetId}" type="${projectMetaData.type}"`);
@@ -668,15 +669,24 @@ async function finalizeMediaImport(
   if (mediaConvertList.length) {
     const srcDstList: [string, string][] = [];
     const extension = datasetType === 'video' ? '.mp4' : '.png';
+    let destAbsPath = '';
     mediaConvertList.forEach((item) => {
       let destLoc = item.replace(jsonMeta.originalBasePath, projectDirAbsPath);
-      //If we have multicam we may need to transcode multiple folders
+      //If we have multicam we may need to check more than the base folder
       if (jsonMeta.multiCam) {
-        Object.values(jsonMeta.multiCam.imageLists).forEach((val) => {
-          destLoc = destLoc.replace(val.basePath, projectDirAbsPath);
+        Object.entries(jsonMeta.multiCam.imageLists).forEach(([key, val]) => {
+          if (item.includes(val.basePath)) {
+            destLoc = item.replace(val.basePath, projectDirAbsPath);
+            destLoc = destLoc.replace(npath.basename(item), `${key}_${npath.basename(item)}`);
+            destAbsPath = destLoc.replace(npath.extname(item), extension);
+          }
         });
+        if (!destAbsPath) {
+          throw new Error('There was an issue transcoding multiCams');
+        }
+      } else {
+        destAbsPath = destLoc.replace(npath.extname(item), extension);
       }
-      const destAbsPath = destLoc.replace(npath.extname(item), extension);
       if (datasetType === 'video') {
         jsonMeta.transcodedVideoFile = npath.basename(destAbsPath);
       } else if (datasetType === 'image-sequence') {
