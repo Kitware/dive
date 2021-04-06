@@ -1,4 +1,5 @@
 import { AxiosError } from 'axios';
+import { ref } from '@vue/composition-api';
 import { isRootLocation, GirderModel } from '@girder/components/src';
 import { getFolder } from './api/girder.service';
 
@@ -35,9 +36,22 @@ function getPathFromLocation(location: Location) {
   }`;
 }
 
-function getResponseError(error: AxiosError): string | AxiosError {
+function getResponseError(error: AxiosError): string {
   const { response } = error;
   return response?.data?.message || error;
+}
+
+function withRestError(callable: () => Promise<unknown>) {
+  const error = ref('');
+
+  function wrapped() {
+    error.value = '';
+    return callable().catch((err) => {
+      error.value = getResponseError(err);
+      throw err;
+    });
+  }
+  return { func: wrapped, error };
 }
 
 
@@ -45,4 +59,5 @@ export {
   getLocationFromRoute,
   getPathFromLocation,
   getResponseError,
+  withRestError,
 };

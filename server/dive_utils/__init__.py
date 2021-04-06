@@ -1,6 +1,8 @@
 """Utilities that are common to both the viame server and tasks package."""
 from typing import Any, Dict, Union
 
+from dive_utils.types import GirderModel
+
 TRUTHY_META_VALUES = ['yes', '1', 1, 'true', 't', 'True', True]
 
 
@@ -9,7 +11,9 @@ def asbool(value: Union[str, None, bool]) -> bool:
     return str(value).lower() in TRUTHY_META_VALUES
 
 
-def fromMeta(obj: Dict[str, Any], key: str, default=None, required=False) -> Any:
+def fromMeta(
+    obj: Union[Dict[str, Any], GirderModel], key: str, default=None, required=False
+) -> Any:
     """Safely get a property from girder metadata"""
     if not required:
         return obj.get("meta", {}).get(key, default)
