@@ -4,7 +4,7 @@ import { ipcMain } from 'electron';
 
 import {
   DesktopJobUpdate, RunPipeline, RunTraining, Settings, ExportDatasetArgs,
-  MediaImportPayload, MultiCamImportFolderArgs, MultiCamImportKeywordArgs,
+  MediaImportPayload, MultiCamImportArgs,
 } from 'platform/desktop/constants';
 
 import linux from './native/linux';
@@ -68,7 +68,7 @@ export default function register() {
   });
 
   ipcMain.handle('import-multicam-media', async (event, { args }:
-    { args: MultiCamImportFolderArgs | MultiCamImportKeywordArgs }) => {
+    { args: MultiCamImportArgs }) => {
     const ret = await multiCamImport.beginMultiCamImport(
       settings.get(), args, currentPlatform.checkMedia,
     );

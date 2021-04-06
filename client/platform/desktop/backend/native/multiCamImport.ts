@@ -10,6 +10,7 @@ import {
   JsonMeta, Settings, JsonMetaCurrentVersion,
   MediaImportPayload, MultiCamImportFolderArgs,
   MultiCamImportKeywordArgs,
+  MultiCamImportArgs,
 } from 'platform/desktop/constants';
 import { cleanString, makeid } from 'platform/desktop/sharedUtils';
 import { findImagesInFolder } from './common';
@@ -39,13 +40,16 @@ async function asyncForEach(array: any[], callback: Function) {
  */
 async function beginMultiCamImport(
   settings: Settings,
-  args: MultiCamImportKeywordArgs | MultiCamImportFolderArgs,
+  args: MultiCamImportArgs,
   checkMedia: (settings: Settings, path: string) => Promise<boolean>,
 ): Promise<MediaImportPayload> {
   let datasetType: DatasetType;
 
   let mainFolder: string | undefined;
-  const imageLists: Record<string, string[]> = {};
+  const imageLists: Record<string, {
+    basePath: string;
+    filenames: string[];
+   }> = {};
   if (isFolderArgs(args)) {
     Object.entries(args.folderList).forEach(([key, folder]) => {
       const folderExists = fs.existsSync(folder);
@@ -55,7 +59,7 @@ async function beginMultiCamImport(
       if (args.defaultDisplay === key) {
         mainFolder = folder;
       }
-      imageLists[key] = [];
+      imageLists[key] = { basePath: folder, filenames: [] };
     });
   } else if (isKeywordArgs(args)) {
     const keywordExists = fs.existsSync(args.keywordFolder);
@@ -64,7 +68,7 @@ async function beginMultiCamImport(
     }
     mainFolder = args.keywordFolder;
     Object.entries(args.globList).forEach(([key]) => {
-      imageLists[key] = [];
+      imageLists[key] = { basePath: args.keywordFolder, filenames: [] };
     });
   }
   if (mainFolder === undefined) {
@@ -104,8 +108,6 @@ async function beginMultiCamImport(
     display: args.defaultDisplay,
   };
 
-
-
   if (datasetType === 'video') {
     // get parent folder, since videos reference a file directly
     jsonMeta.originalBasePath = npath.dirname(mainFolder);
@@ -144,22 +146,22 @@ async function beginMultiCamImport(
             throw new Error(`no images found in ${folder}`);
           }
           if (jsonMeta.multiCam && jsonMeta.multiCam.imageLists[key] !== undefined) {
-            jsonMeta.multiCam.imageLists[key] = found.images.map(
-              (image) => npath.join(folder, image),
+            jsonMeta.multiCam.imageLists[key].filenames = found.images.map(
+              (image) => image,
             );
             jsonMeta.originalImageFiles = jsonMeta.originalImageFiles.concat(found.images);
-            mediaConvertList = mediaConvertList.concat(found.mediaConvetList);
+            mediaConvertList = mediaConvertList.concat(found.mediaConvertList);
           }
         });
     } else if (isKeywordArgs(args)) {
       await asyncForEach(Object.entries(args.globList), async ([key, glob]: [string, string]) => {
         const found = await findImagesInFolder(args.keywordFolder, glob);
         if (jsonMeta.multiCam && jsonMeta.multiCam.imageLists[key] !== undefined) {
-          jsonMeta.multiCam.imageLists[key] = found.images.map(
-            (image) => npath.join(args.keywordFolder, image),
+          jsonMeta.multiCam.imageLists[key].filenames = found.images.map(
+            (image) => image,
           );
           jsonMeta.originalImageFiles = jsonMeta.originalImageFiles.concat(found.images);
-          mediaConvertList = mediaConvertList.concat(found.mediaConvetList);
+          mediaConvertList = mediaConvertList.concat(found.mediaConvertList);
         }
       });
     }
@@ -175,15 +177,19 @@ async function beginMultiCamImport(
   };
 }
 
-function writeMultiCamPipelineInputs(jobWorkDir: string, meta: JsonMeta) {
+function writeMultiCamPipelineInputs(jobWorkDir: string, meta: JsonMeta, projectDirPath: string) {
   if (meta.type === 'video') {
     // TODO Support stereo video
   } else if (meta.type === 'image-sequence') {
     if (meta.multiCam && meta.multiCam.imageLists) {
       let i = 0;
       Object.entries(meta.multiCam.imageLists).forEach(([key, list]) => {
+        let { basePath } = list;
+        if (meta.transcodedImageFiles && meta.transcodedImageFiles.length) {
+          basePath = projectDirPath;
+        }
         const inputFile = fs.createWriteStream(npath.join(jobWorkDir, `cam${i}_images.txt`));
-        list.forEach((image) => inputFile.write(`${image}\n`));
+        list.filenames.forEach((image) => inputFile.write(`${npath.join(basePath, image)}\n`));
         inputFile.end();
         i += 1;
       });

@@ -12,7 +12,7 @@ import type {
 import {
   DesktopJob, DesktopMetadata, JsonMeta, NvidiaSmiReply,
   RunPipeline, RunTraining, fileVideoTypes, ExportDatasetArgs,
-  MediaImportPayload, MultiCamImportFolderArgs, MultiCamImportKeywordArgs, calibrationFileTypes,
+  MediaImportPayload, MultiCamImportArgs, calibrationFileTypes,
 } from 'platform/desktop/constants';
 
 
@@ -84,7 +84,7 @@ function importMedia(path: string): Promise<MediaImportPayload> {
   return ipcRenderer.invoke('import-media', { path });
 }
 
-function importMultiCam(args: MultiCamImportFolderArgs| MultiCamImportKeywordArgs):
+function importMultiCam(args: MultiCamImportArgs):
    Promise<MediaImportPayload> {
   return ipcRenderer.invoke('import-multicam-media', { args });
 }

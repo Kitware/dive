@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  defineComponent, ref, PropType, computed,
+  defineComponent, ref, PropType,
 } from '@vue/composition-api';
 import type { DatasetType } from 'dive-common/apispec';
 import type { ImageDataItem } from 'vue-media-annotator/components/annotators/ImageAnnotator.vue';
@@ -39,32 +39,11 @@ export default defineComponent({
       type: Array as PropType<ImageDataItem[]>,
       default: () => [],
     },
-    multiCamImageData: {
-      type: Object as PropType<Record<string, ImageDataItem[] | null>>,
-      default: null,
-    },
   },
 
-  setup(props, { emit }) {
+  setup() {
     const currentView = ref('Detections');
     const collapsed = ref(false);
-    const multiCam = ref(false);
-    const currentCam = ref('');
-
-    const cameras = computed(() => {
-      if (props.multiCamImageData === null) {
-        return [];
-      }
-      return Object.keys(props.multiCamImageData);
-    });
-    if (props.multiCamImageData !== null && cameras.value.length) {
-      multiCam.value = true;
-      [currentCam.value] = cameras.value;
-    }
-
-    const selectImageSet = (val: string) => {
-      emit('select-image-set', currentCam.value);
-    };
 
     /**
      * Toggles on and off the individual timeline views
@@ -75,13 +54,9 @@ export default defineComponent({
       collapsed.value = false;
     }
     return {
-      currentCam,
-      cameras,
-      multiCam,
       currentView,
       toggleView,
       collapsed,
-      selectImageSet,
     };
   },
 });
@@ -138,21 +113,6 @@ export default defineComponent({
               v-if="datasetType === 'image-sequence'"
               class="text-middle px-3"
             >
-              <select
-                v-if="multiCam"
-                v-model="currentCam"
-                class="input-box select-input"
-                style="max-width:140px; display:inline"
-                @change="selectImageSet"
-              >
-                <option
-                  v-for="item in cameras"
-                  :key="item"
-                  :value="item"
-                >
-                  {{ item }}
-                </option>
-              </select>
               {{ imageData[frame].filename }}
             </span>
           </template>
@@ -213,16 +173,4 @@ export default defineComponent({
 .timeline-button {
   border: thin solid transparent;
 }
- .input-box {
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    border-radius: 4px;
-    padding: 0 6px;
-    width: 135px;
-    color: white;
-  }
-  .select-input {
-    width: 120px;
-    background-color: #1e1e1e;
-    appearance: menulist;
-  }
 </style>

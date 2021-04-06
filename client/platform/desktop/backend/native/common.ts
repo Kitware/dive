@@ -55,7 +55,7 @@ async function findImagesInFolder(path: string, glob?: string) {
   });
   return {
     images,
-    mediaConvetList: requiresTranscoding
+    mediaConvertList: requiresTranscoding
       ? images.map((filename) => npath.join(path, filename))
       : [],
   };
@@ -186,7 +186,6 @@ async function loadMetadata(
 
   let videoUrl = '';
   let imageData = [] as FrameImage[];
-  const multiCamImage = {} as Record<string, FrameImage[]>;
 
   /* Generate URLs against embedded media server from known file paths on disk */
   if (projectMetaData.type === 'video') {
@@ -210,13 +209,28 @@ async function loadMetadata(
         filename,
       }));
     }
-    if (projectMetaData.multiCam) {
-      const multiData = projectMetaData.multiCam.imageLists;
-      Object.entries(multiData).forEach(([key, val]) => {
-        multiCamImage[key] = val.map((filename: string) => ({
-          url: makeMediaUrl(filename),
-          filename: filename.substring(filename.lastIndexOf('/')),
-        }));
+    // Filter for the default stereo view
+    if (projectMetaData.multiCam && projectMetaData.multiCam.display) {
+      //Confirm we have a imageList for the display
+      const displayImage = projectMetaData.multiCam.imageLists[projectMetaData.multiCam.display];
+      if (!displayImage) {
+        throw new Error(`The default display of ${projectMetaData.multiCam.display} is not in the ImageLists`);
+      }
+      let displayFilenames = displayImage.filenames;
+      let { basePath } = displayImage;
+      if (projectMetaData.transcodedImageFiles && projectMetaData.transcodedImageFiles.length) {
+        displayFilenames = projectMetaData.transcodedImageFiles.filter(
+          (filename: string) => displayFilenames
+            .filter((displayName) => displayName.includes(filename.substring(0, filename.lastIndexOf('.')))).length,
+        );
+        basePath = projectDirData.basePath;
+      }
+      imageData = displayFilenames.map((filename: string) => ({
+        url: makeMediaUrl(npath.join(basePath, filename)),
+        filename,
+      }));
+      imageData.forEach((item) => {
+        console.log(item.url);
       });
     }
   } else {
@@ -227,7 +241,6 @@ async function loadMetadata(
     ...projectMetaData,
     videoUrl,
     imageData,
-    multiCamImage,
   };
 }
 
@@ -613,7 +626,7 @@ async function beginMediaImport(
       throw new Error(`no images found in ${path}`);
     }
     jsonMeta.originalImageFiles = found.images;
-    mediaConvertList = found.mediaConvetList;
+    mediaConvertList = found.mediaConvertList;
   } else {
     throw new Error('only video and image-sequence types are supported');
   }
@@ -647,7 +660,7 @@ async function finalizeMediaImport(
       throw new Error(`no images in ${jsonMeta.originalBasePath} matched pattern ${globPattern}`);
     }
     jsonMeta.originalImageFiles = found.images;
-    mediaConvertList = found.mediaConvetList;
+    mediaConvertList = found.mediaConvertList;
   }
 
   //Now we will kick off any conversions that are necessary
@@ -656,7 +669,13 @@ async function finalizeMediaImport(
     const srcDstList: [string, string][] = [];
     const extension = datasetType === 'video' ? '.mp4' : '.png';
     mediaConvertList.forEach((item) => {
-      const destLoc = item.replace(jsonMeta.originalBasePath, projectDirAbsPath);
+      let destLoc = item.replace(jsonMeta.originalBasePath, projectDirAbsPath);
+      //If we have multicam we may need to transcode multiple folders
+      if (jsonMeta.multiCam) {
+        Object.entries(jsonMeta.multiCam.imageLists).forEach(([key, val]) => {
+          destLoc = destLoc.replace(val.basePath, projectDirAbsPath);
+        });
+      }
       const destAbsPath = destLoc.replace(npath.extname(item), extension);
       if (datasetType === 'video') {
         jsonMeta.transcodedVideoFile = npath.basename(destAbsPath);

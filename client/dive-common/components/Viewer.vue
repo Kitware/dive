@@ -82,7 +82,6 @@ export default defineComponent({
     });
     const fps = ref(10 as string | number);
     const imageData = ref([] as FrameImage[]);
-    const multiCamImageData: Ref<Record<string, FrameImage[]> | null> = ref(null);
     const datasetType: Ref<DatasetType> = ref('image-sequence');
     const datasetName = ref('');
     const videoUrl = ref(undefined as undefined | string);
@@ -288,12 +287,6 @@ export default defineComponent({
       return result;
     }
 
-    function selectImageSet(val: string) {
-      if (multiCamImageData.value && multiCamImageData.value[val]) {
-        imageData.value = multiCamImageData.value[val];
-      }
-    }
-
     const globalHandler = {
       ...handler,
       save,
@@ -346,9 +339,6 @@ export default defineComponent({
         datasetName.value = meta.name;
         fps.value = meta.fps;
         imageData.value = meta.imageData;
-        if (meta.multiCamImage) {
-          multiCamImageData.value = meta.multiCamImage;
-        }
         videoUrl.value = meta.videoUrl;
         datasetType.value = meta.type;
       }),
@@ -377,7 +367,6 @@ export default defineComponent({
       frame,
       frameRate,
       imageData,
-      multiCamImageData,
       lineChartData,
       loaded,
       loadError,
@@ -402,7 +391,6 @@ export default defineComponent({
       updateTypeName,
       removeTypeTracks,
       importTypes,
-      selectImageSet,
       // For Navigation Guarding
       navigateAwayGuard,
       warnBrowserExit,
@@ -488,9 +476,8 @@ export default defineComponent({
         >
           <template slot="control">
             <controls-container
-              v-bind="{ lineChartData, eventChartData, imageData, multiCamImageData, datasetType }"
+              v-bind="{ lineChartData, eventChartData, imageData, datasetType }"
               @select-track="handler.trackSelect"
-              @select-image-set="selectImageSet"
             />
           </template>
           <layer-manager />

@@ -5,7 +5,7 @@ import {
 } from '@vue/composition-api';
 
 import type { DatasetType } from 'dive-common/apispec';
-import type { MediaImportPayload, MultiCamImportFolderArgs, MultiCamImportKeywordArgs } from 'platform/desktop/constants';
+import type { MediaImportPayload, MultiCamImportArgs } from 'platform/desktop/constants';
 
 import * as api from '../api';
 import { recents, setRecents } from '../store/dataset';
@@ -67,7 +67,7 @@ export default defineComponent({
       }
     }
 
-    async function multiCamImport(args: MultiCamImportFolderArgs | MultiCamImportKeywordArgs) {
+    async function multiCamImport(args: MultiCamImportArgs) {
       importMultiCamDialog.value = false;
       try {
         pendingImportPayload.value = await api.importMultiCam(args);
@@ -193,8 +193,7 @@ export default defineComponent({
                     </v-icon>
                   </div>
                   <v-icon
-                    class="justify-right my-auto"
-                    style="float:right; border-left: 1px solid white;"
+                    class="justify-right my-auto button-dropdown"
                     v-on="on"
                   >
                     mdi-chevron-down
@@ -370,3 +369,17 @@ export default defineComponent({
     </v-snackbar>
   </v-main>
 </template>
+
+<style lang="scss">
+.button-dropdown {
+  float:right;
+  border-left: 1px solid white;
+}
+.button-dropdown::before{
+  padding-top:5px;
+  padding-bottom:5px;
+}
+.button-dropdown::after{
+  border-radius: 0% !important;
+}
+</style>

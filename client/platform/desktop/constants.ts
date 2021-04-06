@@ -122,7 +122,10 @@ export interface JsonMeta extends DatasetMetaMutable {
   attributes?: Record<string, Attribute>;
 
   multiCam?: {
-    imageLists: Record<string, string[]>;
+    imageLists: Record<string, {
+      basePath: string;
+      filenames: string[];
+    }>;
     calibration?: string;
     display: string;
   };
@@ -226,7 +229,6 @@ export interface ExportDatasetArgs {
   exclude: boolean;
   path: string;
 }
-
 export interface MultiCamImportFolderArgs {
   defaultDisplay: string;
   folderList: Record<string, string>;
@@ -239,3 +241,5 @@ export interface MultiCamImportKeywordArgs {
   globList: Record<string, string>;
   calibrationFile?: string;
 }
+
+export type MultiCamImportArgs = MultiCamImportFolderArgs | MultiCamImportKeywordArgs;

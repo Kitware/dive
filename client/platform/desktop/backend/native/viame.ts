@@ -80,7 +80,7 @@ async function runPipeline(
   let stereoInput = false;
   if (meta.multiCam && pipeline.type === 'measurement') {
     stereoInput = true;
-    multiCamImport.writeMultiCamPipelineInputs(jobWorkDir, meta);
+    multiCamImport.writeMultiCamPipelineInputs(jobWorkDir, meta, projectInfo.basePath);
   }
 
   let command: string[] = [];
