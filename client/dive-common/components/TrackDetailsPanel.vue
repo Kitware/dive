@@ -20,6 +20,7 @@ import {
 import { getTrack } from 'vue-media-annotator/use/useTrackStore';
 import { Attribute } from 'vue-media-annotator/use/useAttributes';
 import TrackItem from 'vue-media-annotator/components/TrackItem.vue';
+import TooltipBtn from 'vue-media-annotator/components/TooltipButton.vue';
 
 import AttributeInput from 'dive-common/components/AttributeInput.vue';
 import AttributeEditor from 'dive-common/components/AttributeEditor.vue';
@@ -33,6 +34,7 @@ export default defineComponent({
     AttributeEditor,
     AttributeSubsection,
     ConfidenceSubsection,
+    TooltipBtn,
   },
   props: {
     lockTypes: {
@@ -59,7 +61,7 @@ export default defineComponent({
     const mergeList = useMergeList();
     const mergeInProgress = computed(() => mergeList.value.length > 0);
     const {
-      trackSelectNext, trackSplit, removeTrack,
+      trackSelectNext, trackSplit, removeTrack, unstageFromMerge,
     } = useHandler();
 
     //Edit/Set single value by clicking
@@ -208,6 +210,7 @@ export default defineComponent({
       resetEditIndividual,
       mouseTrap,
       flatten,
+      unstageFromMerge,
     };
   },
 });
@@ -218,16 +221,31 @@ export default defineComponent({
     v-mousetrap="mouseTrap"
     :style="{ width: `${width}px` }"
     class="d-flex flex-column fill-height overflow-hidden"
-    @click.native="resetEditIndividual"
+    @click="resetEditIndividual"
   >
     <v-subheader style="min-height: 48px;">
       {{ mergeInProgress ? 'Merge Candidates' : 'Track Editor' }}
     </v-subheader>
     <div
       v-if="!selectedTrackList.length"
-      class="ml-4 body-2"
+      class="ml-4 body-2 text-caption"
     >
-      No Track selected
+      <p>No track selected.</p>
+      <p>
+        This panel is used for:
+      <ul>
+        <li>Setting attributes on tracks and keyframes</li>
+        <li>Merging several tracks together</li>
+        <li>Viewing and managing class types and conficence values</li>
+      </ul>
+      </p>
+      <p>Select a track to populate this editor.</p>
+      <span
+        style="text-decoration: underline; cursor: pointer;"
+        @click="$emit('back')"
+      >
+        ← back to track list (press `a` to toggle)
+      </span>
     </div>
     <template v-else>
       <datalist id="allTypesOptions">
@@ -243,7 +261,7 @@ export default defineComponent({
         <v-card
           v-for="track in selectedTrackList"
           :key="track.trackId"
-          class="mx-2 my-2"
+          class="mx-2 my-2 d-flex align-center"
           outlined
           flat
         >
@@ -257,7 +275,15 @@ export default defineComponent({
             :input-value="true"
             :color="typeStylingRef.color(track.confidencePairs[0][0])"
             :lock-types="lockTypes"
+            class="grow"
             @seek="$emit('track-seek', $event)"
+          />
+
+          <tooltip-btn
+            v-if="mergeInProgress"
+            icon="mdi-close"
+            tooltip-text="Remove from merge group"
+            @click="unstageFromMerge([track.trackId])"
           />
         </v-card>
       </div>
@@ -322,13 +348,6 @@ export default defineComponent({
       />
     </template>
     <v-spacer />
-    <span
-      class="mx-2 text-caption my-2"
-      style="text-decoration: underline; cursor: pointer;"
-      @click="$emit('back')"
-    >
-      ← back to track list (press `a`)
-    </span>
     <v-dialog
       :value="editingAttribute != null"
       max-width="550"

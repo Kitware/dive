@@ -440,6 +440,13 @@ export default function useModeManager({
     }
   }
 
+  /**
+   * Unstage a track from the merge list
+   */
+  function handleUnstageFromMerge(trackIds: TrackId[]) {
+    mergeList.value = mergeList.value.filter((trackId) => !trackIds.includes(trackId));
+  }
+
   /* Subscribe to recipe activation events */
   recipes.forEach((r) => r.bus.$on('activate', handleSetAnnotationState));
   /* Unsubscribe before unmount */
@@ -471,6 +478,7 @@ export default function useModeManager({
       removeAnnotation: handleRemoveAnnotation,
       selectFeatureHandle: handleSelectFeatureHandle,
       setAnnotationState: handleSetAnnotationState,
+      unstageFromMerge: handleUnstageFromMerge,
     },
   };
 }

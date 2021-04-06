@@ -139,6 +139,8 @@ export interface Handler {
   commitMerge(): void;
   /* Turn merge mode on and off */
   toggleMerge(): TrackId[];
+  /* Remove trackIds from merge */
+  unstageFromMerge(ids: TrackId[]): void;
 }
 const HandlerSymbol = Symbol('handler');
 
@@ -174,6 +176,7 @@ function dummyHandler(handle: (name: string, args: unknown[]) => void): Handler 
     deleteAttribute(...args) { handle('deleteAttribute', args); },
     toggleMerge(...args) { handle('toggleMerge', args); return []; },
     commitMerge(...args) { handle('commitMerge', args); },
+    unstageFromMerge(...args) { handle('unstageFromMerge', args); },
   };
 }
 
