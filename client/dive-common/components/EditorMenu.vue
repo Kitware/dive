@@ -159,19 +159,35 @@ export default Vue.extend({
       >
         <v-icon>{{ button.icon }}</v-icon>
       </v-btn>
-      <span
-        :class="[
-          'ml-8', 'mr-1', 'px-3', 'py-1',
-          'modechip', editingTrack || mergeMode ? 'primary' : ''
-        ]"
+      <v-tooltip
+        bottom
+        max-width="300"
       >
-        <v-icon class="pr-1">
-          {{ mergeMode ? 'mdi-call-merge' : 'mdi-pencil' }}
-        </v-icon>
-        <span class="text-subtitle-2">
-          {{ mergeMode ? 'Merging' : 'Editing' }}
+        <template #activator="{ on, attrs }">
+          <span
+            v-bind="attrs"
+            :class="[
+              'ml-8', 'mr-1', 'px-3', 'py-1',
+              'modechip', editingTrack ? 'primary' : (
+                mergeMode ? 'error' : ''
+              )
+            ]"
+            v-on="on"
+          >
+            <v-icon class="pr-1">
+              {{ mergeMode ? 'mdi-call-merge' : 'mdi-pencil' }}
+            </v-icon>
+            <span class="text-subtitle-2">
+              {{ mergeMode ? 'Merge Mode' : 'Editing Mode' }}
+            </span>
+          </span>
+        </template>
+        <span v-if="mergeMode">
+          Merge in progress.  Editing is disabled.
+          Select additional tracks to merge.
         </span>
-      </span>
+        <span v-else>Editing mode status indicator: {{ editingMode ? 'enabled': 'disabled' }}</span>
+      </v-tooltip>
       <v-btn
         v-for="button in editButtons"
         :key="button.id + 'view'"
@@ -191,8 +207,9 @@ export default Vue.extend({
 
 <style scoped>
 .modechip {
-  border-radius: 4px;
+  border-radius: 16px;
   white-space: nowrap;
   border: 1px solid;
+  cursor: default;
 }
 </style>

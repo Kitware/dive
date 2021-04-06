@@ -129,19 +129,16 @@ export default defineComponent({
           </template>
         </track-list>
       </div>
-      <div
+      <track-details-panel
         v-else-if="currentTab === 'attributes'"
-        key="attributes"
-        class="wrapper d-flex"
-      >
-        <track-details-panel
-          :lock-types="typeSettings.lockTypes"
-          :hotkeys-disabled="$prompt.visible()"
-          @track-seek="$emit('track-seek', $event)"
-          @toggle-merge="doToggleMerge"
-          @commit-merge="commitMerge"
-        />
-      </div>
+        :lock-types="typeSettings.lockTypes"
+        :hotkeys-disabled="$prompt.visible()"
+        :width="width"
+        @track-seek="$emit('track-seek', $event)"
+        @toggle-merge="doToggleMerge"
+        @back="swapTabs"
+        @commit-merge="commitMerge"
+      />
     </v-slide-x-transition>
   </v-card>
 </template>

@@ -214,14 +214,13 @@ export default defineComponent({
 </script>
 
 <template>
-  <v-card
-    ref="card"
+  <div
     v-mousetrap="mouseTrap"
-    :width="width"
-    class="d-flex flex-column overflow-hidden"
+    :style="{ width: `${width}px` }"
+    class="d-flex flex-column fill-height overflow-hidden"
     @click.native="resetEditIndividual"
   >
-    <v-subheader>
+    <v-subheader style="min-height: 48px;">
       {{ mergeInProgress ? 'Merge Candidates' : 'Track Editor' }}
     </v-subheader>
     <div
@@ -240,30 +239,32 @@ export default defineComponent({
           {{ type }}
         </option>
       </datalist>
-      <v-card
-        v-for="track in selectedTrackList"
-        :key="track.trackId"
-        class="mx-2 mb-2"
-        outlined
-        flat
-      >
-        <track-item
-          :solo="true"
-          :merging="mergeInProgress"
-          :track="track"
-          :track-type="track.confidencePairs[0][0]"
-          :selected="true"
-          :editing="!!editingModeRef"
-          :input-value="true"
-          :color="typeStylingRef.color(track.confidencePairs[0][0])"
-          :lock-types="lockTypes"
-          @seek="$emit('track-seek', $event)"
-        />
-      </v-card>
+      <div class="multi-select-list">
+        <v-card
+          v-for="track in selectedTrackList"
+          :key="track.trackId"
+          class="mx-2 my-2"
+          outlined
+          flat
+        >
+          <track-item
+            :solo="true"
+            :merging="mergeInProgress"
+            :track="track"
+            :track-type="track.confidencePairs[0][0]"
+            :selected="true"
+            :editing="!!editingModeRef"
+            :input-value="true"
+            :color="typeStylingRef.color(track.confidencePairs[0][0])"
+            :lock-types="lockTypes"
+            @seek="$emit('track-seek', $event)"
+          />
+        </v-card>
+      </div>
       <div class="d-flex flex-row">
         <v-btn
           :color="mergeInProgress ? 'error' : 'primary'"
-          class="mx-2 mb-2 grow"
+          class="mx-2 my-2 grow"
           depressed
           x-small
           @click="$emit('toggle-merge')"
@@ -286,7 +287,7 @@ export default defineComponent({
           color="success"
           x-small
           depressed
-          class="mr-2 mb-2 grow"
+          class="mr-2 my-2 grow"
           @click="$emit('commit-merge')"
         >
           <v-icon class="pr-1">
@@ -296,10 +297,13 @@ export default defineComponent({
         </v-btn>
       </div>
       <confidence-subsection
-        style="max-height:33vh"
-        :confidence-pairs="flatten(selectedTrackList.map((t) => t.confidencePairs))"
+        style="max-height:33vh;"
+        :confidence-pairs="
+          flatten(selectedTrackList.map((t) => t.confidencePairs)).sort((a, b) => b[1] - a[1])
+        "
       />
       <attribute-subsection
+        v-if="!mergeInProgress"
         mode="Track"
         :attributes="attributes"
         :edit-individual="editIndividual"
@@ -308,6 +312,7 @@ export default defineComponent({
         @add-attribute="addAttribute"
       />
       <attribute-subsection
+        v-if="!mergeInProgress"
         mode="Detection"
         :attributes="attributes"
         :edit-individual="editIndividual"
@@ -316,6 +321,14 @@ export default defineComponent({
         @add-attribute="addAttribute"
       />
     </template>
+    <v-spacer />
+    <span
+      class="mx-2 text-caption my-2"
+      style="text-decoration: underline; cursor: pointer;"
+      @click="$emit('back')"
+    >
+      ← back to track list (press `a`)
+    </span>
     <v-dialog
       :value="editingAttribute != null"
       max-width="550"
@@ -331,5 +344,12 @@ export default defineComponent({
         @delete="deleteAttributeHandler"
       />
     </v-dialog>
-  </v-card>
+  </div>
 </template>
+
+<style lang="scss" scoped>
+.multi-select-list {
+  overflow-y: auto;
+  max-height: 50vh;
+}
+</style>

@@ -6,7 +6,7 @@ import { TypeStyling } from './useStyling';
 
 interface EventChartParams {
   enabledTracks: Readonly<Ref<readonly TrackWithContext[]>>;
-  selectedTrackIds: Ref<TrackId[] | null>;
+  selectedTrackIds: Ref<TrackId[]>;
   typeStyling: Ref<TypeStyling>;
 }
 
@@ -36,7 +36,7 @@ export default function useEventChart({
           trackId: track.trackId,
           name: `Track ${track.trackId}`,
           color: mapfunc(trackType),
-          selected: selectedTrackIdsValue?.includes(track.trackId) || false,
+          selected: selectedTrackIdsValue.includes(track.trackId),
           range: [track.begin, track.end],
           markers: track.featureIndex.map((i) => (
             [i, track.features[i].interpolate || false])),
@@ -44,7 +44,7 @@ export default function useEventChart({
       }
     });
     return {
-      muted: selectedTrackIdsValue !== null,
+      muted: selectedTrackIdsValue.length > 0,
       values,
     };
   });

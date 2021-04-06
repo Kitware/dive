@@ -123,6 +123,71 @@ describe('Track', () => {
     expect(t.getType()).toEqual(['lowType', 0.25]);
     expect(() => t.getType(20)).toThrow('Index Error: The requested confidencePairs index does not exist.');
   });
+
+  it('merges tracks', () => {
+    const track0tmpl: TrackData = {
+      begin: 0,
+      end: 10,
+      attributes: {
+        a: 'a',
+      },
+      confidencePairs: [
+        ['a', 0.1],
+        ['b', 0.2],
+      ],
+      features: [
+        {
+          frame: 0,
+          bounds: [0, 0, 0, 0],
+          attributes: { a1: 'a1' },
+        },
+        {
+          frame: 10,
+          bounds: [10, 10, 10, 10],
+        },
+      ],
+      meta: {},
+      trackId: 0,
+    };
+    const track1tmpl: TrackData = {
+      begin: 2,
+      end: 12,
+      attributes: {
+        a: 'b',
+      },
+      confidencePairs: [
+        ['a', 0.2],
+        ['c', 0.3],
+      ],
+      features: [
+        {
+          frame: 2,
+          bounds: [2, 2, 2, 2],
+          interpolate: true,
+          attributes: { a1: 'b1' },
+        },
+        {
+          frame: 10,
+          interpolate: true,
+          bounds: [11, 11, 11, 11],
+          attributes: { a1: 'b1' },
+        },
+      ],
+      meta: {},
+      trackId: 0,
+    };
+    const track0 = Track.fromJSON(track0tmpl);
+    track0.merge([Track.fromJSON(track1tmpl)]);
+    expect(track0.attributes).toEqual({ a: 'a' });
+    expect(track0.begin).toBe(0);
+    expect(track0.end).toBe(10);
+    expect(track0.getFeature(0)[0]?.bounds).toEqual([0, 0, 0, 0]);
+    expect(track0.getFeature(10)[0]?.bounds).toEqual([10, 10, 10, 10]);
+    expect(track0.getFeature(10)[0]?.attributes).toBeUndefined();
+    expect(track0.getFeature(10)[0]?.interpolate).toBeFalsy();
+    expect(track0.trackId).toBe(0);
+    expect(track0.featureIndex.length).toBe(3);
+  });
 });
 
 describe('trackExceedsThreshold', () => {

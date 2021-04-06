@@ -272,13 +272,25 @@ export default class Track {
   merge(others: Track[]) {
     others.forEach((other) => {
       other.confidencePairs.forEach((pair) => {
-        this.setType(...pair);
+        const match = this.confidencePairs.find(([name]) => name === pair[0]);
+        // Only set confidence if greater
+        if (match === undefined || match[1] < pair[1]) {
+          this.setType(...pair);
+        }
       });
       other.features.forEach((f) => {
         if (this.getFeature(f.frame)[0] === null) {
           this.setFeature(f, f.geometry?.features);
         }
       });
+      const { attributes } = other;
+      if (attributes !== undefined) {
+        Object.entries(attributes).forEach(([key, val]) => {
+          if (([null, undefined] as unknown[]).indexOf(this.attributes[key]) !== -1) {
+            this.setAttribute(key, val);
+          }
+        });
+      }
     });
   }
 
