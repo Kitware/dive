@@ -1,7 +1,9 @@
 <script>
 import Vue from 'vue';
 import { mapMutations } from 'vuex';
-import { getLocationType, GirderFileManager } from '@girder/components/src';
+import {
+  getLocationType, GirderFileManager, GirderMarkdown, GirderBreadcrumb,
+} from '@girder/components/src';
 
 import RunPipelineMenu from 'dive-common/components/RunPipelineMenu.vue';
 import RunTrainingMenu from 'dive-common/components/RunTrainingMenu.vue';
@@ -34,6 +36,7 @@ export default Vue.extend({
     DataDetails,
     Export,
     GirderFileManager,
+    GirderMarkdown,
     Upload,
     RunPipelineMenu,
     RunTrainingMenu,
@@ -102,6 +105,9 @@ export default Vue.extend({
     },
     locationInputs() {
       return this.locationIsViameFolder ? [this.location._id] : this.selectedViameFolderIds;
+    },
+    selectedDescription() {
+      return this.location?.description;
     },
   },
   watch: {
@@ -298,6 +304,15 @@ export default Vue.extend({
               </v-chip>
             </template>
           </GirderFileManager>
+          <v-card
+            v-if="selectedDescription"
+            class="my-4"
+          >
+            <GirderMarkdown
+              :text="selectedDescription"
+              class="pa-3"
+            />
+          </v-card>
         </v-col>
       </v-row>
     </v-container>

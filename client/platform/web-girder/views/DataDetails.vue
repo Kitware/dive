@@ -12,11 +12,6 @@
         </v-icon>{{ title }}
       </v-toolbar-title>
     </v-toolbar>
-    <girder-markdown
-      v-if="details && details.description"
-      :text="details.description"
-      class="mx-3 mt-2"
-    />
     <girder-detail-list
       :rows="info"
       title="Info"
@@ -29,7 +24,6 @@
 import Vue from 'vue';
 import {
   GirderDetailList,
-  GirderMarkdown,
   mixins,
 } from '@girder/components/src';
 
@@ -49,7 +43,7 @@ const {
 export const DefaultInfoKeys = [
   {
     value: 'size',
-    name: 'Size: ',
+    name: 'Contents: ',
     transform: sizeFormatter.methods.formatSize,
   },
   {
@@ -57,12 +51,30 @@ export const DefaultInfoKeys = [
     name: 'Created on ',
     transform: dateFormatter.methods.formatDate,
   },
+  {
+    value: 'public',
+    name: 'Public: ',
+  },
+  {
+    meta: true,
+    value: 'fps',
+    name: 'FPS: ',
+  },
+  {
+    meta: true,
+    value: 'type',
+    name: 'Type: ',
+  },
+  {
+    meta: true,
+    value: 'published',
+    name: 'Published: ',
+  },
 ];
 
 export default Vue.extend({
   components: {
     GirderDetailList,
-    GirderMarkdown,
   },
   mixins: [sizeFormatter, usernameFormatter],
   props: {
@@ -94,9 +106,18 @@ export default Vue.extend({
   },
   computed: {
     title() {
-      return this.details
-        ? (this.details.name || this.formatUsername(this.details))
-        : `${this.value.length} Selection(s)`;
+      if (this.details) {
+        return this.details.name || this.formatUsername(this.details);
+      }
+      if (this.datum) {
+        if (this.datum._modelType) {
+          return this.datum._modelType;
+        }
+        if (this.datum.type) {
+          return this.datum.type;
+        }
+      }
+      return `${this.value.length} Selection(s)`;
     },
     datum() {
       return this.value.length === 1 ? this.value[0] : undefined;
@@ -109,13 +130,20 @@ export default Vue.extend({
     info() {
       if (this.details) {
         /* If this is a single datum */
-        return this.infoKeys.map((k) => {
-          let val = this.details[k.value];
-          if (k.transform) {
-            val = k.transform(val);
-          }
-          return `${k.name}${val}`;
-        });
+        return this.infoKeys
+          .map((k) => {
+            let val = k.meta
+              ? this.details.meta?.[k.value]
+              : this.details[k.value];
+            if (!val) {
+              return null;
+            }
+            if (k.transform) {
+              val = k.transform(val);
+            }
+            return `${k.name}${val}`;
+          })
+          .filter((v) => v);
       } if (this.value.length > 1) {
         /* If this is a multi-selection */
         const reducer = (acc, curr) => {
