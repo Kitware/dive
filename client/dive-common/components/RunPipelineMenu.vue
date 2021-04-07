@@ -10,9 +10,13 @@ export default defineComponent({
       type: Array as PropType<string[]>,
       default: () => [],
     },
-    small: {
-      type: Boolean,
-      default: false,
+    buttonOptions: {
+      type: Object,
+      default: () => ({}),
+    },
+    menuOptions: {
+      type: Object,
+      default: () => ({}),
     },
   },
 
@@ -105,23 +109,25 @@ export default defineComponent({
   <div>
     <v-menu
       max-width="230"
-      offset-y
+      v-bind="menuOptions"
       :close-on-content-click="false"
     >
       <template v-slot:activator="{ on: menuOn }">
-        <v-tooltip bottom>
+        <v-tooltip
+          bottom
+          :disabled="menuOptions.offsetX"
+        >
           <template #activator="{ on: tooltipOn }">
             <v-btn
-              text
-              :small="small"
+              v-bind="buttonOptions"
               :disabled="pipelinesNotRunnable"
               v-on="{ ...tooltipOn, ...menuOn }"
             >
-              <v-icon color="accent">
+              <v-icon>
                 mdi-pipe
               </v-icon>
               <span
-                v-show="!$vuetify.breakpoint.mdAndDown"
+                v-show="!$vuetify.breakpoint.mdAndDown || buttonOptions.block"
                 class="pl-1"
               >
                 Run pipeline
