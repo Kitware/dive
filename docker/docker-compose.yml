@@ -23,11 +23,6 @@ services:
     command: >
       --api.insecure=true
       --serversTransport.insecureSkipVerify=true
-      --accesslog=true
-      --accesslog.filepath=/var/log/traefik/access.log
-      --accesslog.fields.headers.names.Content-Type=keep
-      --accesslog.fields.headers.names.Referer=keep
-      --accesslog.fields.headers.names.User-Agent=keep
       --providers.docker=true
       --providers.docker.exposedByDefault=false
       --entrypoints.web.address=:80
