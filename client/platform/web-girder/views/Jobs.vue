@@ -8,7 +8,9 @@ export default {
 </script>
 
 <template>
-  <v-container>
+  <v-container
+    :fluid="$vuetify.breakpoint.mdAndDown"
+  >
     <GirderJobList>
       <template #jobwidget="{ item }">
         <span>{{ item.statusText.replace('Inactive', 'Queued') }}</span>
