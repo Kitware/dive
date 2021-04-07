@@ -21,13 +21,9 @@ services:
     image: traefik:v2.4
     container_name: traefik
     command: >
-      --api.insecure=true
-      --serversTransport.insecureSkipVerify=true
       --providers.docker=true
       --providers.docker.exposedByDefault=false
       --entrypoints.web.address=:80
-    labels:
-      - "traefik.enable=true"
     volumes:
       - ${SOCK_PATH:-/var/run/docker.sock}:/var/run/docker.sock
     ports:
