@@ -17,8 +17,34 @@ x-worker: &base-worker
 version: "2.4"
 services:
 
+  traefik:
+    image: traefik:v2.4
+    container_name: traefik
+    command: >
+      --api.insecure=true
+      --serversTransport.insecureSkipVerify=true
+      --accesslog=true
+      --accesslog.filepath=/var/log/traefik/access.log
+      --accesslog.fields.headers.names.Content-Type=keep
+      --accesslog.fields.headers.names.Referer=keep
+      --accesslog.fields.headers.names.User-Agent=keep
+      --providers.docker=true
+      --providers.docker.exposedByDefault=false
+      --entrypoints.web.address=:80
+    labels:
+      - "traefik.enable=true"
+    volumes:
+      - ${SOCK_PATH:-/var/run/docker.sock}:/var/run/docker.sock
+    ports:
+      - "8010:80"
+
   rabbit:
     image: rabbitmq:management
+    ports:
+      - "5672:5672"
+    environment:
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_DEFAULT_USER:-guest}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_DEFAULT_PASS:-guest}
 
   mongo:
     image: mongo:latest
@@ -39,8 +65,6 @@ services:
         retries: 5
     depends_on:
       - mongo
-    ports:
-      - "8010:8080"
     volumes:
       # Bind mount assetstore from local directory
       # - ${DIVE_GIRDER_ASSETSTORE:-girder_data/assetstore}:/home/assetstore
@@ -52,11 +76,16 @@ services:
         read_only: true
         volume:
           nocopy: true
-
     environment:
       - GIRDER_MONGO_URI=mongodb://mongo:27017/girder
       - GIRDER_ADMIN_USER=${GIRDER_ADMIN_USER}
       - GIRDER_ADMIN_PASS=${GIRDER_ADMIN_PASS}
+      - "CELERY_BROKER_URL=amqp://${RABBITMQ_DEFAULT_USER}:${RABBITMQ_DEFAULT_PASS}@rabbit/"
+    labels:
+      - traefik.enable=true
+      - traefik.http.services.girder-svc.loadbalancer.server.port=8080
+      - traefik.http.routers.girder-rtr.entrypoints=web
+      - traefik.http.routers.girder-rtr.rule=HostRegexp(`{catchall:.*}`)
 
   # Worker for misc non gpu-bound tasks
   girder_worker_default:
@@ -67,6 +96,7 @@ services:
       - addons:/tmp/addons:rw
     environment:
       - WORKER_WATCHING_QUEUES=celery
+      - "CELERY_BROKER_URL=amqp://${RABBITMQ_DEFAULT_USER}:${RABBITMQ_DEFAULT_PASS}@rabbit/"
 
   girder_worker_pipelines:
     # Merge base-worker object with this config
@@ -77,6 +107,7 @@ services:
       - WORKER_WATCHING_QUEUES=pipelines
       - WORKER_CONCURRENCY=${PIPELINE_WORKER_CONCURRENCY:-1}
       - WORKER_GPU_UUID=${PIPELINE_GPU_UUID}
+      - "CELERY_BROKER_URL=amqp://${RABBITMQ_DEFAULT_USER}:${RABBITMQ_DEFAULT_PASS}@rabbit/"
 
   girder_worker_training:
     # Merge base-worker object with this config
@@ -87,6 +118,7 @@ services:
       - WORKER_WATCHING_QUEUES=training
       - WORKER_CONCURRENCY=${TRAINING_WORKER_CONCURRENCY:-1}
       - WORKER_GPU_UUID=${TRAINING_GPU_UUID}
+      - "CELERY_BROKER_URL=amqp://${RABBITMQ_DEFAULT_USER}:${RABBITMQ_DEFAULT_PASS}@rabbit/"
 
 volumes:
   addons:
