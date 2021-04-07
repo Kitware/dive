@@ -2,7 +2,7 @@
 import Vue from 'vue';
 import { mapMutations } from 'vuex';
 import {
-  getLocationType, GirderFileManager, GirderMarkdown, GirderBreadcrumb,
+  getLocationType, GirderFileManager, GirderMarkdown,
 } from '@girder/components/src';
 
 import RunPipelineMenu from 'dive-common/components/RunPipelineMenu.vue';
