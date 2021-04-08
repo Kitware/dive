@@ -35,7 +35,10 @@ services:
     image: containrrr/watchtower:latest
     container_name: watchtower
     restart: always
-    command: --schedule "0 0 2 * * 4" --label-enable # weekly on thursday morning 2AM
+    command: >
+      --rolling-restart
+      --schedule "0 0 2 * * 4"
+      --label-enable
     environment:
       - "TZ=${TIMEZONE:-America/New_York}"
     volumes:

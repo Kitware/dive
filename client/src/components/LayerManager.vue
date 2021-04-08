@@ -26,6 +26,7 @@ import {
   useVisibleModes,
   useSelectedKey,
   useStateStyles,
+  useMergeList,
 } from '../provides';
 
 /** LayerManager is a component intended to be used as a child of an Annotator.
@@ -46,6 +47,7 @@ export default defineComponent({
     const trackMap = useTrackMap();
     const enabledTracksRef = useEnabledTracks();
     const selectedTrackIdRef = useSelectedTrackId();
+    const mergeListRef = useMergeList();
     const typeStylingRef = useTypeStyling();
     const editingModeRef = useEditingMode();
     const visibleModesRef = useVisibleModes();
@@ -96,6 +98,7 @@ export default defineComponent({
       frame: number,
       editingTrack: false | EditAnnotationTypes,
       selectedTrackId: TrackId | null,
+      mergeList: readonly TrackId[],
       enabledTracks: readonly TrackWithContext[],
       visibleModes: readonly VisibleAnnotationTypes[],
       selectedKey: string,
@@ -118,7 +121,8 @@ export default defineComponent({
           if (enabledIndex !== -1) {
             const [features] = track.getFeature(frame);
             const trackFrame = {
-              selected: (selectedTrackId === track.trackId),
+              selected: ((selectedTrackId === track.trackId)
+                || (mergeList.includes(track.trackId))),
               editing: editingTrack,
               trackId: track.trackId,
               features,
@@ -209,6 +213,7 @@ export default defineComponent({
         frameNumberRef.value,
         editingModeRef.value,
         selectedTrackIdRef.value,
+        mergeListRef.value,
         enabledTracksRef.value,
         visibleModesRef.value,
         selectedKeyRef.value,
@@ -220,6 +225,7 @@ export default defineComponent({
       editingModeRef,
       enabledTracksRef,
       selectedTrackIdRef,
+      mergeListRef,
       visibleModesRef,
       typeStylingRef,
     ], () => {
@@ -227,6 +233,7 @@ export default defineComponent({
         frameNumberRef.value,
         editingModeRef.value,
         selectedTrackIdRef.value,
+        mergeListRef.value,
         enabledTracksRef.value,
         visibleModesRef.value,
         selectedKeyRef.value,
@@ -271,6 +278,7 @@ export default defineComponent({
           frameNumberRef.value,
           editingModeRef.value,
           selectedTrackIdRef.value,
+          mergeListRef.value,
           enabledTracksRef.value,
           visibleModesRef.value,
           selectedKeyRef.value,
