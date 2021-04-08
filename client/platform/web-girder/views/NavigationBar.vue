@@ -1,6 +1,7 @@
 <script>
-import { mapState } from 'vuex';
+import { mapMutations, mapState } from 'vuex';
 
+import { GirderSearch } from '@girder/components/src';
 import NavigationTitle from 'dive-common/components/NavigationTitle.vue';
 import UserGuideButton from 'dive-common/components/UserGuideButton.vue';
 
@@ -13,6 +14,7 @@ export default {
     NavigationTitle,
     UserGuideButton,
     JobsTab,
+    GirderSearch,
   },
   inject: ['girderRest'],
   data: () => ({
@@ -30,6 +32,11 @@ export default {
   },
   methods: {
     getPathFromLocation,
+    ...mapMutations('Location', ['setLocation']),
+    goto(loc) {
+      this.$router.push({ name: 'home', params: loc });
+      this.setLocation(loc);
+    },
     onLogout() {
       this.$router.push({ name: 'login' });
     },
@@ -57,6 +64,14 @@ export default {
       <JobsTab />
     </v-tabs>
     <v-spacer />
+    <GirderSearch
+      :search-types="['user', 'folder']"
+      placeholder="search"
+      hide-options-menu
+      hide-search-icon
+      class="mx-2 grow"
+      @select="goto($event)"
+    />
     <v-btn
       text
       :to="{ name: 'summary' }"
