@@ -12,8 +12,8 @@ import { serialize } from 'platform/desktop/backend/serializers/viame';
 import { observeChild } from 'platform/desktop/backend/native/processManager';
 
 import * as common from './common';
-import multiCamImport from './multiCamImport';
 import { jobFileEchoMiddleware, spawnResult } from './utils';
+import { getMultiCamImageFiles, getMultiCamVideoPath, writeMultiCamPipelineInputs } from './multiCamUtils';
 
 
 const PipelineRelativeDir = 'configs/pipelines';
@@ -77,16 +77,13 @@ async function runPipeline(
     await serialize(groundTruthFileStream, inputData, meta);
     groundTruthFileStream.end();
   }
-  let stereoInput = false;
-  if (meta.multiCam && pipeline.type === 'measurement') {
-    stereoInput = true;
-    multiCamImport.writeMultiCamPipelineInputs(jobWorkDir, meta, projectInfo.basePath);
-  }
 
   let command: string[] = [];
   if (meta.type === 'video') {
     let videoAbsPath = npath.join(meta.originalBasePath, meta.originalVideoFile);
-    if (meta.transcodedVideoFile) {
+    if (meta.multiCam) {
+      videoAbsPath = getMultiCamVideoPath(meta);
+    } else if (meta.transcodedVideoFile) {
       videoAbsPath = npath.join(projectInfo.basePath, meta.transcodedVideoFile);
     }
     command = [
@@ -98,15 +95,15 @@ async function runPipeline(
       `-s detector_writer:file_name="${detectorOutput}"`,
       `-s track_writer:file_name="${trackOutput}"`,
     ];
-    if (requiresInput) {
-      command.push(`-s detection_reader:file_name="${groundTruthFileName}"`);
-      command.push(`-s track_reader:file_name="${groundTruthFileName}"`);
-    }
   } else if (meta.type === 'image-sequence') {
     // Create frame image manifest
     const manifestFile = npath.join(jobWorkDir, 'image-manifest.txt');
     // map image file names to absolute paths
-    const fileData = meta.originalImageFiles
+    let imageList = meta.originalImageFiles;
+    if (meta.multiCam) {
+      imageList = getMultiCamImageFiles(meta);
+    }
+    const fileData = imageList
       .map((f) => npath.join(meta.originalBasePath, f))
       .join('\n');
     await fs.writeFile(manifestFile, fileData);
@@ -118,18 +115,22 @@ async function runPipeline(
       `-s detector_writer:file_name="${detectorOutput}"`,
       `-s track_writer:file_name="${trackOutput}"`,
     ];
-    if (requiresInput) {
-      command.push(`-s detection_reader:file_name="${groundTruthFileName}"`);
-      command.push(`-s track_reader:file_name="${groundTruthFileName}"`);
-    }
-    if (stereoInput) {
-      command.push(`-s cam1_iread:video_filename="${npath.join(jobWorkDir, 'cam1_images.txt')}"`);
-      command.push(`-s cam2_iread:video_filename="${npath.join(jobWorkDir, 'cam2_images.txt')}"`);
-      if (meta.multiCam && meta.multiCam.calibration) {
-        command.push(`-s measure:cal_fpath="${meta.multiCam.calibration}"`);
-      }
+  }
+  if (requiresInput) {
+    command.push(`-s detection_reader:file_name="${groundTruthFileName}"`);
+    command.push(`-s track_reader:file_name="${groundTruthFileName}"`);
+  }
+
+  if (meta.multiCam && meta.multiCam.calibration && pipeline.type === 'measurement') {
+    const inputArgFilePair = writeMultiCamPipelineInputs(jobWorkDir, meta);
+    Object.entries(inputArgFilePair).forEach(([arg, file]) => {
+      command.push(`-s ${arg}:video_filename="${npath.join(jobWorkDir, file)}`);
+    });
+    if (meta.multiCam && meta.multiCam.calibration) {
+      command.push(`-s measure:cal_fpath="${meta.multiCam.calibration}"`);
     }
   }
+
 
   const job = observeChild(spawn(command.join(' '), {
     shell: viameConstants.shell,
@@ -370,9 +371,9 @@ async function convertMedia(settings: Settings,
     commands.push([
       viameConstants.ffmpeg.initialization,
       viameConstants.ffmpeg.path,
-      `-i "${args.mediaList[0][0]}"`,
+      `-i "${args.mediaList[imageIndex][0]}"`,
       viameConstants.ffmpeg.videoArgs,
-      `"${args.mediaList[0][1]}"`,
+      `"${args.mediaList[imageIndex][1]}"`,
     ].join(' '));
   } else if (args.meta.type === 'image-sequence' && imageIndex < args.mediaList.length) {
     commands.push(`${viameConstants.ffmpeg.initialization} ${viameConstants.ffmpeg.path} -i "${args.mediaList[imageIndex][0]}" "${args.mediaList[imageIndex][1]}"`);
@@ -410,7 +411,7 @@ async function convertMedia(settings: Settings,
         exitCode: code,
         endTime: new Date(),
       });
-    } else if (args.meta.type === 'video' || (args.meta.type === 'image-sequence' && imageIndex === args.mediaList.length - 1)) {
+    } else if (imageIndex === args.mediaList.length - 1) {
       common.completeConversion(settings, args.meta.id, jobKey);
       updater({
         ...jobBase,
@@ -418,7 +419,7 @@ async function convertMedia(settings: Settings,
         exitCode: code,
         endTime: new Date(),
       });
-    } else if (args.meta.type === 'image-sequence') {
+    } else {
       updater({
         ...jobBase,
         body: [`Conversion ${imageIndex + 1} of ${args.mediaList.length} Complete`],

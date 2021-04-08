@@ -17,13 +17,14 @@ import {
 import { cleanString, makeid } from 'platform/desktop/sharedUtils';
 import { findImagesInFolder } from './common';
 
-
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function isFolderArgs(s: any): s is MultiCamImportFolderArgs {
   if (s.folderList && s.defaultDisplay) {
     return true;
   }
   return false;
 }
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function isKeywordArgs(s: any): s is MultiCamImportKeywordArgs {
   if (s.globList && s.defaultDisplay) {
     return true;
@@ -31,6 +32,7 @@ function isKeywordArgs(s: any): s is MultiCamImportKeywordArgs {
   return false;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function asyncForEach(array: any[], callback: Function) {
   for (let index = 0; index < array.length; index += 1) {
     // eslint-disable-next-line no-await-in-loop
@@ -51,6 +53,7 @@ async function beginMultiCamImport(
   const imageLists: Record<string, {
     basePath: string;
     filenames: string[];
+    videoFile: string;
    }> = {};
   if (isFolderArgs(args)) {
     Object.entries(args.folderList).forEach(([key, folder]) => {
@@ -61,7 +64,7 @@ async function beginMultiCamImport(
       if (args.defaultDisplay === key) {
         mainFolder = folder;
       }
-      imageLists[key] = { basePath: folder, filenames: [] };
+      imageLists[key] = { basePath: folder, filenames: [], videoFile: '' };
     });
   } else if (isKeywordArgs(args)) {
     const keywordExists = fs.existsSync(args.keywordFolder);
@@ -70,7 +73,7 @@ async function beginMultiCamImport(
     }
     mainFolder = args.keywordFolder;
     Object.entries(args.globList).forEach(([key]) => {
-      imageLists[key] = { basePath: args.keywordFolder, filenames: [] };
+      imageLists[key] = { basePath: args.keywordFolder, filenames: [], videoFile: '' };
     });
   }
   if (mainFolder === undefined) {
@@ -81,6 +84,13 @@ async function beginMultiCamImport(
     datasetType = 'image-sequence';
   } else if (stat.isFile()) {
     datasetType = 'video';
+    //Reset the basePaths to folders instead of files
+    Object.keys(imageLists).forEach((key) => {
+      const newpath = npath.dirname(imageLists[key].basePath);
+      if (typeof (newpath) === 'string') {
+        imageLists[key].basePath = newpath;
+      }
+    });
   } else {
     throw new Error('Only regular files and directories are supported');
   }
@@ -135,7 +145,7 @@ async function beginMultiCamImport(
                 mediaConvertList.push(video);
               }
               if (jsonMeta.multiCam && jsonMeta.multiCam.imageLists[key] !== undefined) {
-                jsonMeta.multiCam.imageLists[key].filenames = [video];
+                jsonMeta.multiCam.imageLists[key].videoFile = npath.basename(video);
               }
             } else {
               throw new Error(`unsupported MIME type for video ${mimetype}`);
@@ -159,10 +169,6 @@ async function beginMultiCamImport(
             jsonMeta.multiCam.imageLists[key].filenames = found.images.map(
               (image) => image,
             );
-            // Possible to have same named images in different folders, have key to use
-            found.images.forEach((image) => {
-              jsonMeta.originalImageFiles.push(`${key}_${image}`);
-            });
             mediaConvertList = mediaConvertList.concat(found.mediaConvertList);
           }
         });
@@ -173,10 +179,6 @@ async function beginMultiCamImport(
           jsonMeta.multiCam.imageLists[key].filenames = found.images.map(
             (image) => image,
           );
-          // Possible to have same named images in different folders, have key to use
-          found.images.forEach((image) => {
-            jsonMeta.originalImageFiles.push(`${key}_${image}`);
-          });
           mediaConvertList = mediaConvertList.concat(found.mediaConvertList);
         }
       });
@@ -193,21 +195,4 @@ async function beginMultiCamImport(
   };
 }
 
-function writeMultiCamPipelineInputs(jobWorkDir: string, meta: JsonMeta, projectDirPath: string) {
-  if (meta.type === 'video') {
-    // TODO Support stereo video
-  } else if (meta.type === 'image-sequence') {
-    if (meta.multiCam && meta.multiCam.imageLists) {
-      let i = 0;
-      Object.entries(meta.multiCam.imageLists).forEach(([key, list]) => {
-        const { basePath } = list;
-        const inputFile = fs.createWriteStream(npath.join(jobWorkDir, `cam${i + 1}_images.txt`));
-        list.filenames.forEach((image) => inputFile.write(`${npath.join(basePath, image)}\n`));
-        inputFile.end();
-        i += 1;
-      });
-    }
-  }
-}
-
-export default { beginMultiCamImport, writeMultiCamPipelineInputs };
+export default beginMultiCamImport;

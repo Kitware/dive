@@ -102,7 +102,7 @@ export default defineComponent({
     const nextSteps = computed(() => {
       if (importType.value === 'multi') {
         const entries = Object.entries(folderList.value);
-        const filterLength = entries.filter(([key, val]) => val !== '').length;
+        const filterLength = entries.filter(([, val]) => val !== '').length;
         if (entries.length === filterLength && entries.length) {
           return true;
         }
@@ -128,7 +128,7 @@ export default defineComponent({
             pendingImportPayload.value = await api.importMedia(ret.filePaths[0]);
           }
         } catch (err) {
-          console.log(err);
+          console.error(err);
         }
       }
     }

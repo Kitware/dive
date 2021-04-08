@@ -22,6 +22,7 @@ import {
 import { cleanString, filterByGlob, makeid } from 'platform/desktop/sharedUtils';
 import { Attribute, Attributes } from 'vue-media-annotator/use/useAttributes';
 import processTrackAttributes from './attributeProcessor';
+import { getMultiCamUrls, transcodeMultiCam } from './multiCamUtils';
 
 const ProjectsFolderName = 'DIVE_Projects';
 const JobsFolderName = 'DIVE_Jobs';
@@ -188,7 +189,11 @@ async function loadMetadata(
   let imageData = [] as FrameImage[];
 
   /* Generate URLs against embedded media server from known file paths on disk */
-  if (projectMetaData.type === 'video') {
+  if (projectMetaData.multiCam) {
+    ({ videoUrl, imageData } = getMultiCamUrls(
+      projectMetaData, projectDirData.basePath, makeMediaUrl,
+    ));
+  } else if (projectMetaData.type === 'video') {
     /* If the video has been transcoded, use that video */
     if (projectMetaData.transcodedVideoFile) {
       const video = npath.join(projectDirData.basePath, projectMetaData.transcodedVideoFile);
@@ -206,31 +211,6 @@ async function loadMetadata(
     } else {
       imageData = projectMetaData.originalImageFiles.map((filename: string) => ({
         url: makeMediaUrl(npath.join(projectMetaData.originalBasePath, filename)),
-        filename,
-      }));
-    }
-    // Filter for the default stereo view
-    if (projectMetaData.multiCam && projectMetaData.multiCam.display) {
-      //Confirm we have a imageList for the display
-      const displayImage = projectMetaData.multiCam.imageLists[projectMetaData.multiCam.display];
-      if (!displayImage) {
-        throw new Error(`The default display of ${projectMetaData.multiCam.display} is not in the ImageLists`);
-      }
-      let displayFilenames = displayImage.filenames;
-      let { basePath } = displayImage;
-      // Filter transcoded images to use left/right files)
-      if (projectMetaData.transcodedImageFiles && projectMetaData.transcodedImageFiles.length) {
-        displayFilenames = projectMetaData.transcodedImageFiles.filter(
-          (filename: string) => displayFilenames
-            .filter((displayName) => {
-              const baseFile = filename.substring(0, filename.lastIndexOf('.'));
-              return displayName.includes(baseFile) || `${projectMetaData.multiCam?.display}_${displayName}`.includes(baseFile);
-            }).length,
-        );
-        basePath = projectDirData.basePath;
-      }
-      imageData = displayFilenames.map((filename: string) => ({
-        url: makeMediaUrl(npath.join(basePath, filename)),
         filename,
       }));
     }
@@ -671,29 +651,20 @@ async function finalizeMediaImport(
     const extension = datasetType === 'video' ? '.mp4' : '.png';
     let destAbsPath = '';
     mediaConvertList.forEach((item) => {
-      let destLoc = item.replace(jsonMeta.originalBasePath, projectDirAbsPath);
+      const destLoc = item.replace(jsonMeta.originalBasePath, projectDirAbsPath);
       //If we have multicam we may need to check more than the base folder
       if (jsonMeta.multiCam) {
-        Object.entries(jsonMeta.multiCam.imageLists).forEach(([key, val]) => {
-          if (item.includes(val.basePath)) {
-            destLoc = item.replace(val.basePath, projectDirAbsPath);
-            destLoc = destLoc.replace(npath.basename(item), `${key}_${npath.basename(item)}`);
-            destAbsPath = destLoc.replace(npath.extname(item), extension);
-          }
-        });
-        if (!destAbsPath) {
-          throw new Error('There was an issue transcoding multiCams');
-        }
+        destAbsPath = transcodeMultiCam(jsonMeta, item, projectDirAbsPath, datasetType, extension);
       } else {
         destAbsPath = destLoc.replace(npath.extname(item), extension);
-      }
-      if (datasetType === 'video') {
-        jsonMeta.transcodedVideoFile = npath.basename(destAbsPath);
-      } else if (datasetType === 'image-sequence') {
-        if (!jsonMeta.transcodedImageFiles) {
-          jsonMeta.transcodedImageFiles = [];
+        if (datasetType === 'video') {
+          jsonMeta.transcodedVideoFile = npath.basename(destAbsPath);
+        } else if (datasetType === 'image-sequence') {
+          if (!jsonMeta.transcodedImageFiles) {
+            jsonMeta.transcodedImageFiles = [];
+          }
+          jsonMeta.transcodedImageFiles.push(npath.basename(destAbsPath));
         }
-        jsonMeta.transcodedImageFiles.push(npath.basename(destAbsPath));
       }
       srcDstList.push([item, destAbsPath]);
     });

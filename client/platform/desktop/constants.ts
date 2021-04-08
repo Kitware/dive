@@ -125,6 +125,9 @@ export interface JsonMeta extends DatasetMetaMutable {
     imageLists: Record<string, {
       basePath: string;
       filenames: string[];
+      videoFile: string;
+      transcodedImagesFiles?: string[];
+      transcodedVideo?: string;
     }>;
     calibration?: string;
     display: string;

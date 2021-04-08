@@ -10,7 +10,7 @@ import {
 import linux from './native/linux';
 import win32 from './native/windows';
 import * as common from './native/common';
-import multiCamImport from './native/multiCamImport';
+import beginMultiCamImport from './native/multiCamImport';
 import settings from './state/settings';
 import { listen } from './server';
 
@@ -69,7 +69,7 @@ export default function register() {
 
   ipcMain.handle('import-multicam-media', async (event, { args }:
     { args: MultiCamImportArgs }) => {
-    const ret = await multiCamImport.beginMultiCamImport(
+    const ret = await beginMultiCamImport(
       settings.get(), args, currentPlatform.checkMedia,
     );
     return ret;
