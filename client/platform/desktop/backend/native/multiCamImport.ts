@@ -50,7 +50,7 @@ async function beginMultiCamImport(
   let datasetType: DatasetType;
 
   let mainFolder: string | undefined;
-  const imageLists: Record<string, {
+  const cameras: Record<string, {
     basePath: string;
     filenames: string[];
     videoFile: string;
@@ -64,7 +64,7 @@ async function beginMultiCamImport(
       if (args.defaultDisplay === key) {
         mainFolder = folder;
       }
-      imageLists[key] = { basePath: folder, filenames: [], videoFile: '' };
+      cameras[key] = { basePath: folder, filenames: [], videoFile: '' };
     });
   } else if (isKeywordArgs(args)) {
     const keywordExists = fs.existsSync(args.keywordFolder);
@@ -73,7 +73,7 @@ async function beginMultiCamImport(
     }
     mainFolder = args.keywordFolder;
     Object.entries(args.globList).forEach(([key]) => {
-      imageLists[key] = { basePath: args.keywordFolder, filenames: [], videoFile: '' };
+      cameras[key] = { basePath: args.keywordFolder, filenames: [], videoFile: '' };
     });
   }
   if (mainFolder === undefined) {
@@ -85,10 +85,10 @@ async function beginMultiCamImport(
   } else if (stat.isFile()) {
     datasetType = 'video';
     //Reset the basePaths to folders instead of files
-    Object.keys(imageLists).forEach((key) => {
-      const newpath = npath.dirname(imageLists[key].basePath);
+    Object.keys(cameras).forEach((key) => {
+      const newpath = npath.dirname(cameras[key].basePath);
       if (typeof (newpath) === 'string') {
-        imageLists[key].basePath = newpath;
+        cameras[key].basePath = newpath;
       }
     });
   } else {
@@ -115,7 +115,7 @@ async function beginMultiCamImport(
   };
 
   jsonMeta.multiCam = {
-    imageLists,
+    cameras,
     calibration: args.calibrationFile,
     display: args.defaultDisplay,
   };
@@ -144,8 +144,8 @@ async function beginMultiCamImport(
               if (!webSafeVideo || otherVideoTypes.includes(mimetype)) {
                 mediaConvertList.push(video);
               }
-              if (jsonMeta.multiCam && jsonMeta.multiCam.imageLists[key] !== undefined) {
-                jsonMeta.multiCam.imageLists[key].videoFile = npath.basename(video);
+              if (jsonMeta.multiCam && jsonMeta.multiCam.cameras[key] !== undefined) {
+                jsonMeta.multiCam.cameras[key].videoFile = npath.basename(video);
               }
             } else {
               throw new Error(`unsupported MIME type for video ${mimetype}`);
@@ -165,8 +165,8 @@ async function beginMultiCamImport(
           if (found.images.length === 0) {
             throw new Error(`no images found in ${folder}`);
           }
-          if (jsonMeta.multiCam && jsonMeta.multiCam.imageLists[key] !== undefined) {
-            jsonMeta.multiCam.imageLists[key].filenames = found.images.map(
+          if (jsonMeta.multiCam && jsonMeta.multiCam.cameras[key] !== undefined) {
+            jsonMeta.multiCam.cameras[key].filenames = found.images.map(
               (image) => image,
             );
             mediaConvertList = mediaConvertList.concat(found.mediaConvertList);
@@ -175,8 +175,8 @@ async function beginMultiCamImport(
     } else if (isKeywordArgs(args)) {
       await asyncForEach(Object.entries(args.globList), async ([key, glob]: [string, string]) => {
         const found = await findImagesInFolder(args.keywordFolder, glob);
-        if (jsonMeta.multiCam && jsonMeta.multiCam.imageLists[key] !== undefined) {
-          jsonMeta.multiCam.imageLists[key].filenames = found.images.map(
+        if (jsonMeta.multiCam && jsonMeta.multiCam.cameras[key] !== undefined) {
+          jsonMeta.multiCam.cameras[key].filenames = found.images.map(
             (image) => image,
           );
           mediaConvertList = mediaConvertList.concat(found.mediaConvertList);

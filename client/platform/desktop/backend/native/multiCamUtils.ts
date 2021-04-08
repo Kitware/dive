@@ -15,7 +15,7 @@ function transcodeMultiCam(
 ) {
   let destLoc = '';
   if (jsonMeta.multiCam) {
-    Object.entries(jsonMeta.multiCam.imageLists).forEach(([key, val]) => {
+    Object.entries(jsonMeta.multiCam.cameras).forEach(([key, val]) => {
       if (item.includes(val.basePath)) {
         destLoc = item.replace(val.basePath, projectDirAbsPath);
         destLoc = destLoc.replace(npath.basename(item), `${key}_${npath.basename(item)}`);
@@ -40,9 +40,9 @@ function transcodeMultiCam(
 function writeMultiCamPipelineInputs(jobWorkDir: string, meta: JsonMeta) {
   const InputArgFilePair: Record<string, string> = {};
   if (meta.type === 'image-sequence' || meta.type === 'video') {
-    if (meta.multiCam && meta.multiCam.imageLists) {
+    if (meta.multiCam && meta.multiCam.cameras) {
       let i = 0;
-      Object.values(meta.multiCam.imageLists).forEach((list) => {
+      Object.values(meta.multiCam.cameras).forEach((list) => {
         const { basePath } = list;
         const fileName = `cam${i + 1}_images.txt`; //This is locked in the pipeline for now
         const inputArg = `cam${i + 2}_iread`; // lock for the stereo pipeline as well
@@ -66,9 +66,9 @@ function getMultiCamUrls(
   let videoUrl = '';
   if (projectMetaData.multiCam && projectMetaData.multiCam.display) {
     //Confirm we have a imageList for the display
-    const displayImageList = projectMetaData.multiCam.imageLists[projectMetaData.multiCam.display];
+    const displayImageList = projectMetaData.multiCam.cameras[projectMetaData.multiCam.display];
     if (!displayImageList) {
-      throw new Error(`The default display of ${projectMetaData.multiCam.display} is not in the ImageLists`);
+      throw new Error(`The default display of ${projectMetaData.multiCam.display} is not in the list of cameras`);
     }
     if (projectMetaData.type === 'image-sequence') {
       let displayFilenames = displayImageList.filenames;
@@ -102,8 +102,8 @@ function getMultiCamUrls(
 
 function getMultiCamVideoPath(meta: JsonMeta) {
   if (meta.multiCam && meta.multiCam.display) {
-    if (meta.multiCam.imageLists[meta.multiCam.display]) {
-      const display = meta.multiCam.imageLists[meta.multiCam.display];
+    if (meta.multiCam.cameras[meta.multiCam.display]) {
+      const display = meta.multiCam.cameras[meta.multiCam.display];
       if (display.transcodedVideo) {
         return display.transcodedVideo;
       }
@@ -116,8 +116,8 @@ function getMultiCamVideoPath(meta: JsonMeta) {
 
 function getMultiCamImageFiles(meta: JsonMeta) {
   if (meta.multiCam && meta.multiCam.display) {
-    if (meta.multiCam.imageLists[meta.multiCam.display]) {
-      const display = meta.multiCam.imageLists[meta.multiCam.display];
+    if (meta.multiCam.cameras[meta.multiCam.display]) {
+      const display = meta.multiCam.cameras[meta.multiCam.display];
       return display.filenames;
     }
     throw new Error(`No Image list exists for the display file of ${meta.multiCam.display}`);

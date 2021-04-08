@@ -24,7 +24,7 @@ export interface JsonMetaCache {
   originalVideoFile: string;
   transcodedVideoFile?: string;
   multiCam?: boolean;
-  stereo?: boolean;
+  stereo?: boolean; // Contains stereo left/right pairs and calibration file
 }
 
 /**

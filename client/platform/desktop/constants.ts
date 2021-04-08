@@ -122,7 +122,7 @@ export interface JsonMeta extends DatasetMetaMutable {
   attributes?: Record<string, Attribute>;
 
   multiCam?: {
-    imageLists: Record<string, {
+    cameras: Record<string, {
       basePath: string;
       filenames: string[];
       videoFile: string;
@@ -130,7 +130,7 @@ export interface JsonMeta extends DatasetMetaMutable {
       transcodedVideo?: string;
     }>;
     calibration?: string;
-    display: string;
+    display: string; // Default Display Key for showing multiCam
   };
 }
 
