@@ -34,8 +34,8 @@ export default {
     getPathFromLocation,
     ...mapMutations('Location', ['setLocation']),
     goto(loc) {
-      this.$router.push({ name: 'home', params: loc });
       this.setLocation(loc);
+      this.$router.push({ name: 'home', params: loc });
     },
     onLogout() {
       this.$router.push({ name: 'login' });
