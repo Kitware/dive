@@ -401,7 +401,14 @@ export default class Track {
 
   setType(trackType: string, confidenceVal = 1) {
     const old = this.confidencePairs;
-    this.confidencePairs = [[trackType, confidenceVal]];
+    if (confidenceVal >= 1) {
+      // dont' allow confidence greater than 1
+      this.confidencePairs = [[trackType, 1]];
+    } else {
+      const index = this.confidencePairs.findIndex(([a]) => a === trackType);
+      this.confidencePairs.splice(index, index >= 0 ? 1 : 0, [trackType, confidenceVal]);
+      this.confidencePairs.sort((a, b) => b[1] - a[1]);
+    }
     this.notify('confidencePairs', old);
   }
 

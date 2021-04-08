@@ -358,6 +358,13 @@ export default function useModeManager({
     }
   }
 
+  /**
+   * Unstage a track from the merge list
+   */
+  function handleUnstageFromMerge(trackIds: TrackId[]) {
+    mergeList.value = mergeList.value.filter((trackId) => !trackIds.includes(trackId));
+  }
+
   function handleRemoveTrack(trackIds: TrackId[]) {
     /* Figure out next track ID */
     const maybeNextTrackId = selectNextTrack(1);
@@ -368,6 +375,7 @@ export default function useModeManager({
     trackIds.forEach((trackId) => {
       removeTrack(trackId);
     });
+    handleUnstageFromMerge(trackIds);
     selectTrack(previousOrNext, false);
   }
 
@@ -438,13 +446,6 @@ export default function useModeManager({
       handleToggleMerge();
       handleSelectTrack(track.trackId, false);
     }
-  }
-
-  /**
-   * Unstage a track from the merge list
-   */
-  function handleUnstageFromMerge(trackIds: TrackId[]) {
-    mergeList.value = mergeList.value.filter((trackId) => !trackIds.includes(trackId));
   }
 
   /* Subscribe to recipe activation events */

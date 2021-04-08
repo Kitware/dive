@@ -201,8 +201,9 @@ export default defineComponent({
     });
 
     const allSelectedIds = computed(() => {
-      if (selectedTrackId.value) {
-        return mergeList.value.concat(selectedTrackId.value);
+      const selected = selectedTrackId.value;
+      if (selected !== null) {
+        return mergeList.value.concat(selected);
       }
       return mergeList.value;
     });

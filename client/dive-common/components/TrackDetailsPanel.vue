@@ -233,11 +233,11 @@ export default defineComponent({
       <p>No track selected.</p>
       <p>
         This panel is used for:
-      <ul>
-        <li>Setting attributes on tracks and keyframes</li>
-        <li>Merging several tracks together</li>
-        <li>Viewing and managing class types and conficence values</li>
-      </ul>
+        <ul>
+          <li>Setting attributes on tracks and keyframes</li>
+          <li>Merging several tracks together</li>
+          <li>Viewing and managing class types and conficence values</li>
+        </ul>
       </p>
       <p>Select a track to populate this editor.</p>
       <span

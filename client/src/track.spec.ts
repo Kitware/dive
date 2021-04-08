@@ -120,8 +120,23 @@ describe('Track', () => {
     // Testing type out of range
     expect(() => t.getType(1)).toThrow('Index Error: The requested confidencePairs index does not exist.');
     t.setType('lowType', 0.25);
-    expect(t.getType()).toEqual(['lowType', 0.25]);
+    expect(t.getType()).toEqual(['newType', 1]);
     expect(() => t.getType(20)).toThrow('Index Error: The requested confidencePairs index does not exist.');
+    const track2 = new Track(0, {
+      meta: {},
+      begin: 0,
+      end: 0,
+      confidencePairs: [
+        ['foo', 0.1],
+      ],
+    });
+    track2.setType('foo', 0.2);
+    track2.setType('bar', 0.4);
+    expect(track2.confidencePairs).toEqual([['bar', 0.4], ['foo', 0.2]]);
+    track2.setType('foo', 0.1);
+    expect(track2.confidencePairs).toEqual([['bar', 0.4], ['foo', 0.1]]);
+    track2.setType('baz', 1);
+    expect(track2.confidencePairs).toEqual([['baz', 1]]);
   });
 
   it('merges tracks', () => {
@@ -187,6 +202,7 @@ describe('Track', () => {
     expect(track0.getFeature(10)[0]?.interpolate).toBeFalsy();
     expect(track0.trackId).toBe(0);
     expect(track0.featureIndex.length).toBe(3);
+    expect(track0.confidencePairs).toEqual([['c', 0.3], ['a', 0.2], ['b', 0.2]]);
   });
 });
 
