@@ -98,3 +98,9 @@ docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 
 * It is updated on a schedule by `containrrr/watchtower` using automated image builds from docker hub (above).
 * It includes `linuxserver/duplicati` for nighly backups.
+
+You should scale the girder server up to an appropriate number.  This stack will automatically load-balance across however many instances you bring up.
+
+```bash
+docker-compose -f docker-compose.yml -f docker-compose.prod.yml scale girder=4
+```
