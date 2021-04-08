@@ -2,11 +2,17 @@
 
 DIVE is easiest to set up with docker.
 
+**Docker server installation is only supported on Linux distributions**.
+
+* If you would like to run VIAME pipelines/training on Windows, use the [VIAME Desktop Installation](https://github.com/VIAME/VIAME#installations).
+* If you would just like an annotation tool for MacOS and Windows, try [DIVE Desktop](https://kitware.github.io/dive/Dive-Desktop/)
+
 ## docker-compose
 
-We recommend running DIVE with docker-compose. Clone this repository and configure options in `.env`.
+We recommend running DIVE with docker-compose. Clone this repository and configure options in `.env` .
 
-> **Note:** Pipeline runner requires [Nividia-Docker2 (deprecated)](https://github.com/nvidia/nvidia-docker/wiki/Installation-(version-2.0)) because GPU support for docker-compose has [not yet landed](https://github.com/docker/compose/issues/6691)
+* Install [docker and docker-compose](https://docs.docker.com/engine/install)
+* Install [nvidia-docker2](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html#docker)
 
 ``` bash
 # Change to correct directory
@@ -72,7 +78,7 @@ docker-compose build
 
 ## Addon management
 
-After initial deployment, a DIVE server will only have basic VIAME pipelines available. VIAME addons are installed and upgraded using a celery task that must be triggered by hand. Run this by issueing a `POST /api/v1/viame/upgrade_pipelines` request from the swagger UI at `/girder/api/v1`.
+After initial deployment, a DIVE server will only have basic VIAME pipelines available. VIAME addons are installed and upgraded using a celery task that must be triggered by hand. Run this by issueing a `POST /api/v1/viame/upgrade_pipelines` request from the swagger UI at `/girder/api/v1` .
 
 * Whether you `force` or not, only those pipelines from addons from the exact urls passed will be enabled on the server.
 * An old addon can be disabled by simply omitting its download from the upgrade payload.
@@ -84,7 +90,7 @@ After initial deployment, a DIVE server will only have basic VIAME pipelines ava
 
 ## Production deployment
 
-Our production deployment on https://viame.kitware.com also uses `docker-compose`.
+Our production deployment on https://viame.kitware.com also uses `docker-compose` .
 
 ``` bash
 docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d

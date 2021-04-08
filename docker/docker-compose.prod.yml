@@ -38,7 +38,7 @@ services:
     command: >
       --rolling-restart
       --schedule "0 0 2 * * 4"
-      --label-enable # weekly on thursday morning 2AM
+      --label-enable
     environment:
       - "TZ=${TIMEZONE:-America/New_York}"
     volumes:
