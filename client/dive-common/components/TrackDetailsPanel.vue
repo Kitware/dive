@@ -5,7 +5,7 @@ import {
   Ref,
   ref,
 } from '@vue/composition-api';
-
+import { flatten } from 'lodash';
 import {
   useSelectedTrackId,
   useFrame,
@@ -15,16 +15,17 @@ import {
   useHandler,
   useTrackMap,
   useAttributes,
+  useMergeList,
 } from 'vue-media-annotator/provides';
 import { getTrack } from 'vue-media-annotator/use/useTrackStore';
 import { Attribute } from 'vue-media-annotator/use/useAttributes';
 import TrackItem from 'vue-media-annotator/components/TrackItem.vue';
+import TooltipBtn from 'vue-media-annotator/components/TooltipButton.vue';
 
 import AttributeInput from 'dive-common/components/AttributeInput.vue';
 import AttributeEditor from 'dive-common/components/AttributeEditor.vue';
 import AttributeSubsection from 'dive-common/components/AttributesSubsection.vue';
 import ConfidenceSubsection from 'dive-common/components/ConfidenceSubsection.vue';
-
 
 export default defineComponent({
   components: {
@@ -33,6 +34,7 @@ export default defineComponent({
     AttributeEditor,
     AttributeSubsection,
     ConfidenceSubsection,
+    TooltipBtn,
   },
   props: {
     lockTypes: {
@@ -56,20 +58,26 @@ export default defineComponent({
     const typeStylingRef = useTypeStyling();
     const allTypesRef = useAllTypes();
     const trackMap = useTrackMap();
-    const { trackSelectNext, trackSplit, removeTrack } = useHandler();
+    const mergeList = useMergeList();
+    const mergeInProgress = computed(() => mergeList.value.length > 0);
+    const {
+      trackSelectNext, trackSplit, removeTrack, unstageFromMerge,
+    } = useHandler();
 
     //Edit/Set single value by clicking
     const editIndividual: Ref<Attribute | null> = ref(null);
 
-
     const frameRef = useFrame();
     const selectedTrackIdRef = useSelectedTrackId();
     const { setAttribute, deleteAttribute } = useHandler();
-    const selectedTrack = computed(() => {
-      if (selectedTrackIdRef.value !== null) {
-        return getTrack(trackMap, selectedTrackIdRef.value);
+    const selectedTrackList = computed(() => {
+      if (mergeList.value.length > 0) {
+        return mergeList.value.map((trackId) => getTrack(trackMap, trackId));
       }
-      return null;
+      if (selectedTrackIdRef.value !== null) {
+        return [getTrack(trackMap, selectedTrackIdRef.value)];
+      }
+      return [];
     });
 
     function setEditIndividual(attribute: Attribute | null) {
@@ -188,7 +196,9 @@ export default defineComponent({
       editingError,
       editIndividual,
       /* Selected */
-      selectedTrack,
+      selectedTrackList,
+      mergeList,
+      mergeInProgress,
       /* Update functions */
       closeEditor,
       editAttribute,
@@ -199,25 +209,43 @@ export default defineComponent({
       setEditIndividual,
       resetEditIndividual,
       mouseTrap,
+      flatten,
+      unstageFromMerge,
     };
   },
 });
 </script>
 
 <template>
-  <v-card
-    ref="card"
+  <div
     v-mousetrap="mouseTrap"
-    :width="width"
-    class="d-flex flex-column overflow-hidden"
-    @click.native="resetEditIndividual"
+    :style="{ width: `${width}px` }"
+    class="d-flex flex-column fill-height overflow-hidden"
+    @click="resetEditIndividual"
   >
-    <v-subheader>Track Editor</v-subheader>
+    <v-subheader style="min-height: 48px;">
+      {{ mergeInProgress ? 'Merge Candidates' : 'Track Editor' }}
+    </v-subheader>
     <div
-      v-if="!selectedTrack"
-      class="ml-4 body-2"
+      v-if="!selectedTrackList.length"
+      class="ml-4 body-2 text-caption"
     >
-      No Track selected
+      <p>No track selected.</p>
+      <p>
+        This panel is used for:
+        <ul>
+          <li>Setting attributes on tracks and keyframes</li>
+          <li>Merging several tracks together</li>
+          <li>Viewing and managing class types and conficence values</li>
+        </ul>
+      </p>
+      <p>Select a track to populate this editor.</p>
+      <span
+        style="text-decoration: underline; cursor: pointer;"
+        @click="$emit('back')"
+      >
+        ← back to track list (press `a` to toggle)
+      </span>
     </div>
     <template v-else>
       <datalist id="allTypesOptions">
@@ -229,23 +257,79 @@ export default defineComponent({
           {{ type }}
         </option>
       </datalist>
-      <track-item
-        :solo="true"
-        :track="selectedTrack"
-        :track-type="selectedTrack.confidencePairs[0][0]"
-        :selected="true"
-        :editing="!!editingModeRef"
-        :input-value="true"
-        :color="typeStylingRef.color(selectedTrack.confidencePairs[0][0])"
-        :lock-types="lockTypes"
-        @seek="$emit('track-seek', $event)"
-      />
+      <div class="multi-select-list">
+        <v-card
+          v-for="track in selectedTrackList"
+          :key="track.trackId"
+          class="mx-2 my-2 d-flex align-center"
+          outlined
+          flat
+        >
+          <track-item
+            :solo="true"
+            :merging="mergeInProgress"
+            :track="track"
+            :track-type="track.confidencePairs[0][0]"
+            :selected="true"
+            :editing="!!editingModeRef"
+            :input-value="true"
+            :color="typeStylingRef.color(track.confidencePairs[0][0])"
+            :lock-types="lockTypes"
+            class="grow"
+            @seek="$emit('track-seek', $event)"
+          />
 
+          <tooltip-btn
+            v-if="mergeInProgress"
+            icon="mdi-close"
+            tooltip-text="Remove from merge group"
+            @click="unstageFromMerge([track.trackId])"
+          />
+        </v-card>
+      </div>
+      <div class="d-flex flex-row">
+        <v-btn
+          :color="mergeInProgress ? 'error' : 'primary'"
+          class="mx-2 my-2 grow"
+          depressed
+          x-small
+          @click="$emit('toggle-merge')"
+        >
+          <span v-if="!mergeInProgress">
+            <v-icon
+              small
+              class="pr-1"
+            >
+              mdi-call-merge
+            </v-icon>
+            Begin Track Merge (m)
+          </span>
+          <span v-else>
+            Abort (esc)
+          </span>
+        </v-btn>
+        <v-btn
+          v-if="mergeList.length >= 2"
+          color="success"
+          x-small
+          depressed
+          class="mr-2 my-2 grow"
+          @click="$emit('commit-merge')"
+        >
+          <v-icon class="pr-1">
+            mdi-check
+          </v-icon>
+          commit (shift+m)
+        </v-btn>
+      </div>
       <confidence-subsection
-        style="max-height:33vh"
-        :confidence-pairs="selectedTrack.confidencePairs"
+        style="max-height:33vh;"
+        :confidence-pairs="
+          flatten(selectedTrackList.map((t) => t.confidencePairs)).sort((a, b) => b[1] - a[1])
+        "
       />
       <attribute-subsection
+        v-if="!mergeInProgress"
         mode="Track"
         :attributes="attributes"
         :edit-individual="editIndividual"
@@ -254,6 +338,7 @@ export default defineComponent({
         @add-attribute="addAttribute"
       />
       <attribute-subsection
+        v-if="!mergeInProgress"
         mode="Detection"
         :attributes="attributes"
         :edit-individual="editIndividual"
@@ -262,6 +347,7 @@ export default defineComponent({
         @add-attribute="addAttribute"
       />
     </template>
+    <v-spacer />
     <v-dialog
       :value="editingAttribute != null"
       max-width="550"
@@ -277,5 +363,12 @@ export default defineComponent({
         @delete="deleteAttributeHandler"
       />
     </v-dialog>
-  </v-card>
+  </div>
 </template>
+
+<style lang="scss" scoped>
+.multi-select-list {
+  overflow-y: auto;
+  max-height: 50vh;
+}
+</style>

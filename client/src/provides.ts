@@ -43,6 +43,9 @@ type EditingModeType = Readonly<Ref<false | EditAnnotationTypes>>;
 const FrameSymbol = Symbol('frame');
 type FrameType = Readonly<Ref<number>>;
 
+const MergeListSymbol = Symbol('mergeList');
+type MergeList = Readonly<Ref<readonly TrackId[]>>;
+
 const PendingSaveCountSymbol = Symbol('pendingSaveCount');
 type pendingSaveCountType = Readonly<Ref<number>>;
 
@@ -131,7 +134,13 @@ export interface Handler {
   setAttribute({ data, oldAttribute }:
     {data: Attribute; oldAttribute?: Attribute }, updateAllTracks?: boolean): void;
   /* delete an Attribute in the metaData */
-  deleteAttribute({ data }: {data: Attribute}, removeFromTracks?: boolean): void;
+  deleteAttribute({ data }: { data: Attribute }, removeFromTracks?: boolean): void;
+  /* Commit the staged merge tracks */
+  commitMerge(): void;
+  /* Turn merge mode on and off */
+  toggleMerge(): TrackId[];
+  /* Remove trackIds from merge */
+  unstageFromMerge(ids: TrackId[]): void;
 }
 const HandlerSymbol = Symbol('handler');
 
@@ -165,6 +174,9 @@ function dummyHandler(handle: (name: string, args: unknown[]) => void): Handler 
     updateTypeStyle(...args) { handle('updateTypeStyle', args); },
     setAttribute(...args) { handle('setAttribute', args); },
     deleteAttribute(...args) { handle('deleteAttribute', args); },
+    toggleMerge(...args) { handle('toggleMerge', args); return []; },
+    commitMerge(...args) { handle('commitMerge', args); },
+    unstageFromMerge(...args) { handle('unstageFromMerge', args); },
   };
 }
 
@@ -187,6 +199,7 @@ export interface State {
   filteredTracks: FilteredTracksType;
   frame: FrameType;
   intervalTree: IntervalTreeType;
+  mergeList: MergeList;
   pendingSaveCount: pendingSaveCountType;
   trackMap: TrackMapType;
   typeStyling: TypeStylingType;
@@ -219,6 +232,7 @@ function dummyState(): State {
     filteredTracks: ref([]),
     frame: ref(0),
     intervalTree: new IntervalTree(),
+    mergeList: ref([]),
     pendingSaveCount: ref(0),
     trackMap: new Map<TrackId, Track>(),
     typeStyling: ref({
@@ -257,6 +271,7 @@ function provideAnnotator(state: State, handler: Handler) {
   provide(EditingModeSymbol, state.editingMode);
   provide(FrameSymbol, state.frame);
   provide(IntervalTreeSymbol, state.intervalTree);
+  provide(MergeListSymbol, state.mergeList);
   provide(PendingSaveCountSymbol, state.pendingSaveCount);
   provide(TrackMapSymbol, state.trackMap);
   provide(TracksSymbol, state.filteredTracks);
@@ -322,6 +337,10 @@ function useIntervalTree() {
   return use<IntervalTreeType>(IntervalTreeSymbol);
 }
 
+function useMergeList() {
+  return use<MergeList>(MergeListSymbol);
+}
+
 function usePendingSaveCount() {
   return use<pendingSaveCountType>(PendingSaveCountSymbol);
 }
@@ -369,6 +388,7 @@ export {
   useEditingMode,
   useHandler,
   useIntervalTree,
+  useMergeList,
   usePendingSaveCount,
   useFrame,
   useTrackMap,
