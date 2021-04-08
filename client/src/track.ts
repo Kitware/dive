@@ -254,6 +254,35 @@ export default class Track {
     ];
   }
 
+  /**
+   * Merge other into track at frame, preferring features from
+   * self if there are conflicts
+   */
+  merge(others: Track[]) {
+    others.forEach((other) => {
+      other.confidencePairs.forEach((pair) => {
+        const match = this.confidencePairs.find(([name]) => name === pair[0]);
+        // Only set confidence if greater
+        if (match === undefined || match[1] < pair[1]) {
+          this.setType(...pair);
+        }
+      });
+      other.features.forEach((f) => {
+        if (this.getFeature(f.frame)[0] === null) {
+          this.setFeature(f, f.geometry?.features);
+        }
+      });
+      const { attributes } = other;
+      if (attributes !== undefined) {
+        Object.entries(attributes).forEach(([key, val]) => {
+          if (([null, undefined] as unknown[]).indexOf(this.attributes[key]) !== -1) {
+            this.setAttribute(key, val);
+          }
+        });
+      }
+    });
+  }
+
   setFeature(feature: Feature, geometry: GeoJSON.Feature<TrackSupportedFeature>[] = []): Feature {
     const f = this.features[feature.frame] || {};
     this.features[feature.frame] = {
@@ -372,7 +401,14 @@ export default class Track {
 
   setType(trackType: string, confidenceVal = 1) {
     const old = this.confidencePairs;
-    this.confidencePairs = [[trackType, confidenceVal]];
+    if (confidenceVal >= 1) {
+      // dont' allow confidence greater than 1
+      this.confidencePairs = [[trackType, 1]];
+    } else {
+      const index = this.confidencePairs.findIndex(([a]) => a === trackType);
+      this.confidencePairs.splice(index, index >= 0 ? 1 : 0, [trackType, confidenceVal]);
+      this.confidencePairs.sort((a, b) => b[1] - a[1]);
+    }
     this.notify('confidencePairs', old);
   }
 
@@ -382,6 +418,10 @@ export default class Track {
     this.notify('attributes', { key, value: oldval });
   }
 
+  /**
+   * Returns a 3-tuple of nullable features:
+   * [exact_feature_match, previous_keyframe, next_keyframe]
+   */
   getFeature(frame: number): [Feature | null, Feature | null, Feature | null] {
     // First, try a direct keyframe hit
     const maybeFrame = this.features[frame];

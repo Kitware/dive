@@ -69,6 +69,9 @@ export default function useModeManager({
   const visibleModes = computed(() => (
     uniq(annotationModes.visible.concat(editingMode.value || []))
   ));
+  // Track merge state
+  const mergeList = ref([] as TrackId[]);
+  const mergeInProgress = computed(() => mergeList.value.length > 0);
 
   /**
    * Figure out if a new feature should enable interpolation
@@ -114,7 +117,6 @@ export default function useModeManager({
   }
 
   function handleSelectTrack(trackId: TrackId | null, edit = false) {
-    selectTrack(trackId, edit);
     /**
      * If creating mode and editing and selectedTrackId is the same,
      * don't kick out of creating mode.  This happens when moving between
@@ -123,6 +125,14 @@ export default function useModeManager({
     if (!(creating && edit && trackId === selectedTrackId.value)) {
       creating = false;
     }
+    /**
+     * If merge is in progress, add selected tracks to the merge list
+     */
+    if (trackId !== null && mergeInProgress.value) {
+      mergeList.value = Array.from((new Set(mergeList.value).add(trackId)));
+    }
+    /* Do not allow editing when merge is in progres */
+    selectTrack(trackId, edit && !mergeInProgress.value);
   }
 
   //Handles deselection or hitting escape including while editing
@@ -137,6 +147,7 @@ export default function useModeManager({
         }
       }
     }
+    mergeList.value = [];
     handleSelectTrack(null, false);
   }
 
@@ -347,6 +358,13 @@ export default function useModeManager({
     }
   }
 
+  /**
+   * Unstage a track from the merge list
+   */
+  function handleUnstageFromMerge(trackIds: TrackId[]) {
+    mergeList.value = mergeList.value.filter((trackId) => !trackIds.includes(trackId));
+  }
+
   function handleRemoveTrack(trackIds: TrackId[]) {
     /* Figure out next track ID */
     const maybeNextTrackId = selectNextTrack(1);
@@ -357,6 +375,7 @@ export default function useModeManager({
     trackIds.forEach((trackId) => {
       removeTrack(trackId);
     });
+    handleUnstageFromMerge(trackIds);
     selectTrack(previousOrNext, false);
   }
 
@@ -364,19 +383,20 @@ export default function useModeManager({
   function handleTrackEdit(trackId: TrackId) {
     const track = getTrack(trackMap, trackId);
     seekNearest(track);
-    selectTrack(trackId, trackId === selectedTrackId.value ? (!editingTrack.value) : true);
+    const editing = trackId === selectedTrackId.value ? (!editingTrack.value) : true;
+    handleSelectTrack(trackId, editing);
   }
 
   function handleTrackClick(trackId: TrackId) {
     const track = getTrack(trackMap, trackId);
     seekNearest(track);
-    selectTrack(trackId, editingTrack.value);
+    handleSelectTrack(trackId, editingTrack.value);
   }
 
   function handleSelectNext(delta: number) {
     const newTrack = selectNextTrack(delta);
     if (newTrack !== null) {
-      selectTrack(newTrack, false);
+      handleSelectTrack(newTrack, false);
       seekNearest(getTrack(trackMap, newTrack));
     }
   }
@@ -399,6 +419,35 @@ export default function useModeManager({
     }
   }
 
+  /**
+   * Merge: Enabled whenever there are candidates in the merge list
+   */
+  function handleToggleMerge(): TrackId[] {
+    if (!mergeInProgress.value && selectedTrackId.value !== null) {
+      /* If no merge in progress and there is a selected track id */
+      mergeList.value = [selectedTrackId.value];
+      /* no editing in merge mode */
+      selectTrack(selectedTrackId.value, false);
+    } else {
+      mergeList.value = [];
+    }
+    return mergeList.value;
+  }
+
+  /**
+   * Merge: Commit the merge list
+   */
+  function handleCommitMerge() {
+    if (mergeList.value.length >= 2) {
+      const track = getTrack(trackMap, mergeList.value[0]);
+      const otherTrackIds = mergeList.value.slice(1);
+      track.merge(otherTrackIds.map((trackId) => getTrack(trackMap, trackId)));
+      handleRemoveTrack(otherTrackIds);
+      handleToggleMerge();
+      handleSelectTrack(track.trackId, false);
+    }
+  }
+
   /* Subscribe to recipe activation events */
   recipes.forEach((r) => r.bus.$on('activate', handleSetAnnotationState));
   /* Unsubscribe before unmount */
@@ -408,10 +457,14 @@ export default function useModeManager({
 
   return {
     editingMode,
+    mergeList,
+    mergeInProgress,
     visibleModes,
     selectedFeatureHandle,
     selectedKey,
     handler: {
+      commitMerge: handleCommitMerge,
+      toggleMerge: handleToggleMerge,
       trackAdd: handleAddTrackOrDetection,
       trackAbort: handleEscapeMode,
       trackEdit: handleTrackEdit,
@@ -426,6 +479,7 @@ export default function useModeManager({
       removeAnnotation: handleRemoveAnnotation,
       selectFeatureHandle: handleSelectFeatureHandle,
       setAnnotationState: handleSetAnnotationState,
+      unstageFromMerge: handleUnstageFromMerge,
     },
   };
 }
