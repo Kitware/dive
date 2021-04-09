@@ -5,7 +5,7 @@ from girder.api import access
 from girder.api.describe import Description, autoDescribeRoute, describeRoute
 from girder.api.rest import Resource
 from girder.constants import AccessType
-from girder.exceptions import RestException
+from girder.exceptions import GirderException, RestException
 from girder.models.folder import Folder
 from girder.models.item import Item
 from girder.models.setting import Setting
@@ -22,15 +22,10 @@ from dive_tasks.tasks import (
     upgrade_pipelines,
 )
 from dive_utils import TRUTHY_META_VALUES, asbool, fromMeta, models
-from dive_utils.types import (
-    AvailableJobSchema,
-    GirderModel,
-    PipelineDescription,
-    PipelineJob,
-)
-
-from .constants import (
+from dive_utils.constants import (
     SETTINGS_CONST_JOBS_CONFIGS,
+    DatasetMarker,
+    ForeignMediaIdMarker,
     PublishedMarker,
     TrainedPipelineCategory,
     csvRegex,
@@ -39,18 +34,27 @@ from .constants import (
     videoRegex,
     ymlRegex,
 )
+from dive_utils.types import (
+    AvailableJobSchema,
+    GirderModel,
+    PipelineDescription,
+    PipelineJob,
+)
+
 from .pipelines import load_pipelines, verify_pipe
 from .serializers import meva as meva_serializer
 from .training import ensure_csv_detections_file, training_output_folder
 from .transforms import GetPathFromItemId
 from .utils import (
+    createSoftClone,
     detections_item,
     get_or_create_auxiliary_folder,
+    getCloneRoot,
     getTrackAndAttributesFromCSV,
-    getTrackData,
     move_existing_result_to_auxiliary_folder,
     saveCSVImportAttributes,
     saveTracks,
+    verify_dataset,
 )
 
 JOBCONST_DATASET_ID = 'datset_id'
@@ -66,6 +70,7 @@ class Viame(Resource):
         self.resourceName = "viame"
 
         self.route("GET", ("datasets",), self.list_datasets)
+        self.route("POST", ("dataset", ":id", "clone"), self.clone_dataset)
         self.route("GET", ("brand_data",), self.get_brand_data)
         self.route("GET", ("pipelines",), self.get_pipelines)
         self.route("GET", ("training_configs",), self.get_training_configs)
@@ -152,7 +157,7 @@ class Viame(Resource):
     def list_datasets(self, params):
         limit, offset, sort = self.getPagingParameters(params)
         query = {
-            'meta.annotate': {'$in': TRUTHY_META_VALUES},
+            f'meta.{DatasetMarker}': {'$in': TRUTHY_META_VALUES},
         }
         if self.boolParam(PublishedMarker, params):
             query = {
@@ -164,6 +169,37 @@ class Viame(Resource):
         return Folder().findWithPermissions(
             query, offset=offset, limit=limit, sort=sort, user=self.getCurrentUser()
         )
+
+    @access.user
+    @autoDescribeRoute(
+        Description("Clone a dataset")
+        .modelParam(
+            "id",
+            description="Dataset clone source",
+            model=Folder,
+            level=AccessType.READ,
+        )
+        .modelParam(
+            "parentFolderId",
+            description="Parent folder of the clone",
+            paramType="formData",
+            destName="parentFolder",
+            model=Folder,
+            level=AccessType.WRITE,
+        )
+        .param(
+            "name",
+            "Name for new dataset",
+            paramType="formData",
+            dataType="string",
+            default=None,
+            required=False,
+        )
+    )
+    def clone_dataset(self, folder, parentFolder, name):
+        verify_dataset(folder)
+        owner = self.getCurrentUser()
+        return createSoftClone(owner, folder, parentFolder, name)
 
     @access.user
     @describeRoute(Description("Get available pipeline configurations"))
@@ -200,6 +236,7 @@ class Viame(Resource):
         """
         user = self.getCurrentUser()
         verify_pipe(user, pipeline)
+        getCloneRoot(user, folder)
 
         folder_id_str = str(folder["_id"])
         # First, verify that no other outstanding jobs are running on this dataset
@@ -303,6 +340,7 @@ class Viame(Resource):
             folder = Folder().load(folderId, level=AccessType.READ, user=user)
             if folder is None:
                 raise RestException(f"Cannot access folder {folderId}")
+            getCloneRoot(user, folder)
             folder_names.append(folder['name'])
             # Ensure detection has a csv format
             # TODO: Move this into worker job
@@ -413,8 +451,9 @@ class Viame(Resource):
         """
         user = self.getCurrentUser()
         auxiliary = get_or_create_auxiliary_folder(folder, user)
+        isClone = fromMeta(folder, ForeignMediaIdMarker, None) is not None
 
-        if not skipJobs:
+        if not skipJobs and not isClone:
             token = Token().createToken(user=user, days=2)
             # transcode VIDEO if necessary
             videoItems = Folder().childItems(
@@ -453,7 +492,7 @@ class Viame(Resource):
                 )
 
             elif imageItems.count() > 0:
-                folder["meta"]["annotate"] = True
+                folder["meta"][DatasetMarker] = True
 
             # transform KPF if necessary
             ymlItems = Folder().childItems(
@@ -504,6 +543,7 @@ class Viame(Resource):
         .errorResponse('Using a reserved metadata key', 400)
     )
     def update_metadata(self, folder, data):
+        verify_dataset(folder)
         validated = models.MetadataMutableUpdate(**data)
         for name, value in validated.dict(exclude_none=True).items():
             folder['meta'][name] = value
@@ -529,6 +569,7 @@ class Viame(Resource):
         )
     )
     def save_attributes(self, folder, attributes):
+        verify_dataset(folder)
         upsert = attributes.get('upsert', [])
         delete = attributes.get('delete', [])
         attributes_dict = fromMeta(folder, 'attributes', {})
@@ -563,7 +604,7 @@ class Viame(Resource):
     )
     def get_valid_images(self, folder):
         return Folder().childItems(
-            folder,
+            getCloneRoot(self.getCurrentUser(), folder),
             filters={"lowerName": {"$regex": safeImageRegex}},
             sort=[("lowerName", pymongo.ASCENDING)],
         )

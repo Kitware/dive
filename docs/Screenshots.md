@@ -1,6 +1,6 @@
 # Screenshots
 
-This page provides a general overview of the differences between desktop and web through screenshots.  Detailed usage guides for these features can be found elsewhere in the docs.
+This page provides a general overview of the differences between desktop and web through screenshots.
 
 ## Browse files
 

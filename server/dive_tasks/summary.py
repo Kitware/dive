@@ -5,7 +5,7 @@ from girder_worker.app import app
 from girder_worker.task import Task
 from girder_worker.utils import JobManager
 
-from dive_server.constants import PublishedMarker
+from dive_utils.constants import PublishedMarker
 from dive_utils.models import PublicDataSummary, SummaryItemSchema, Track
 
 

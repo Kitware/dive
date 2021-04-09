@@ -22,7 +22,7 @@ markdown_extensions:
 nav:
   - Home: index.md
   - Screenshots: Screenshots.md
-  - Web Version: Getting-Started.md
+  - Web Version: Web-Version.md
   - Desktop Version: Dive-Desktop.md
   - Annotation Quickstart: Annotation-QuickStart.md
   - Use Cases: Use-Cases.md
@@ -34,11 +34,8 @@ nav:
     - Annotation View: UI-Annotation-View.md
     - Type List: UI-Type-List.md
     - Track List: UI-Track-List.md
-    - Sharing: UI-Sharing.md
     - Interpolation: UI-Interpolation.md
-    - Downloading Data: UI-Downloading-Data.md
     - Attributes: Attributes.md
-  - Concepts and Definitions: Definitions.md
   - Mouse and Keyboard Shortcuts: Mouse-Keyboard-Shortcuts.md
   - Advanced features:
     - Custom Pipeline Upload: Pipeline-Upload.md

@@ -1,9 +1,8 @@
 # DIVE Documentation
 
-This is the user documentation for DIVE, an open-source annotation and analysis platform build for VIAME.
+This is the user documentation for DIVE, an open-source annotation and analysis platform build for VIAME.  If you are looking for the VIAME Toolkit documentation, you can find it [here](https://viame.readthedocs.io/).
 
 [:fontawesome-solid-compass: Try the web version](Getting-Started.md){ .md-button } [:fontawesome-solid-desktop: Get the desktop app](Dive-Desktop.md){ .md-button }
-
 ## Get Help
 
 For feedback, problems, questions, or feature requests, please email <a href="mailto:viame-web@kitware.com">`viame-web@kitware.com`</a>. Our team would be happy to hear from you!

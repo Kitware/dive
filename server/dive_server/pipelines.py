@@ -5,13 +5,13 @@ from girder.models.folder import Folder
 from girder.models.setting import Setting
 from girder.models.user import User
 
-from dive_server.constants import (
+from dive_tasks.tasks import EMPTY_JOB_SCHEMA
+from dive_utils import TRUTHY_META_VALUES
+from dive_utils.constants import (
     SETTINGS_CONST_JOBS_CONFIGS,
     TrainedPipelineCategory,
     TrainedPipelineMarker,
 )
-from dive_tasks.tasks import EMPTY_JOB_SCHEMA
-from dive_utils import TRUTHY_META_VALUES
 from dive_utils.types import AvailableJobSchema, PipelineCategory, PipelineDescription
 
 

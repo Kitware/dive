@@ -3,7 +3,7 @@
 > Why would I want to use DIVE?  
 > What are its capabilities?
 
-This page describes common use cases for DIVE, and provides a good overview for these questions.
+This page describes common use cases for DIVE.
 
 ---
 
@@ -22,7 +22,7 @@ There are two places to look.
 
 > Scenario: You want to upload some data and share it with others
 
-This use case is covered [on the sharing page](UI-Sharing.md).
+This use case is covered [on the sharing page](/Web-Version/#sharing-data-with-teams).
 
 If you want to **publish** your data so that other groups can use it, please email <a href="mailto:viame-web@kitware.com">`viame-web@kitware.com`</a>.
 

@@ -1,7 +1,9 @@
 <script>
 import Vue from 'vue';
 import { mapMutations } from 'vuex';
-import { getLocationType, GirderFileManager } from '@girder/components/src';
+import {
+  getLocationType, GirderFileManager, GirderMarkdown,
+} from '@girder/components/src';
 
 import RunPipelineMenu from 'dive-common/components/RunPipelineMenu.vue';
 import RunTrainingMenu from 'dive-common/components/RunTrainingMenu.vue';
@@ -10,18 +12,39 @@ import { getPathFromLocation, getLocationFromRoute } from '../utils';
 import { deleteResources } from '../api/viame.service';
 import Export from './Export.vue';
 import Upload from './Upload.vue';
+import DataDetails from './DataDetails.vue';
+import Clone from './Clone.vue';
+
+const buttonOptions = {
+  block: true,
+  left: true,
+  depressed: true,
+  color: 'primary',
+  class: ['my-2', 'd-flex', 'justify-start'],
+};
+
+const menuOptions = {
+  offsetX: true,
+  right: true,
+  nudgeRight: 8,
+};
 
 export default Vue.extend({
   name: 'Home',
   components: {
+    Clone,
+    DataDetails,
     Export,
     GirderFileManager,
+    GirderMarkdown,
     Upload,
     RunPipelineMenu,
     RunTrainingMenu,
   },
   inject: ['girderRest'],
   data: () => ({
+    buttonOptions,
+    menuOptions,
     uploaderDialog: false,
     selected: [],
     uploading: false,
@@ -62,12 +85,15 @@ export default Vue.extend({
         if (selected._modelType !== 'folder') {
           return null;
         }
-        return selected._id;
+        return selected;
       }
       if (this.locationIsViameFolder) {
-        return this.location._id;
+        return this.location;
       }
       return null;
+    },
+    exportTargetId() {
+      return this.exportTarget?._id || null;
     },
     locationIsViameFolder() {
       return !!(this.location && this.location.meta && this.location.meta.annotate);
@@ -79,6 +105,9 @@ export default Vue.extend({
     },
     locationInputs() {
       return this.locationIsViameFolder ? [this.location._id] : this.selectedViameFolderIds;
+    },
+    selectedDescription() {
+      return this.location?.description;
     },
   },
   watch: {
@@ -157,50 +186,62 @@ export default Vue.extend({
       height="6"
       :style="{ visibility: loading ? 'visible' : 'hidden' }"
     />
-    <v-container fill-height>
+    <v-container
+      fill-height
+      :fluid="$vuetify.breakpoint.mdAndDown"
+    >
       <v-row
         class="fill-height nowraptable"
-        no-gutters
       >
-        <v-col :cols="12">
+        <v-col cols="3">
+          <DataDetails
+            :value="selected.length ? selected : [location]"
+          >
+            <template #actions>
+              <div class="pa-2">
+                <Clone
+                  :button-options="buttonOptions"
+                  :source="exportTarget"
+                />
+                <run-training-menu
+                  v-bind="{ buttonOptions, menuOptions }"
+                  :selected-dataset-ids="locationInputs"
+                />
+                <run-pipeline-menu
+                  v-bind="{ buttonOptions, menuOptions }"
+                  :selected-dataset-ids="locationInputs"
+                />
+                <export
+                  v-bind="{ buttonOptions, menuOptions }"
+                  :dataset-id="exportTargetId"
+                />
+                <v-btn
+                  :disabled="!selected.length"
+                  v-bind="{ ...buttonOptions }"
+                  color="error"
+                  @click="deleteSelection"
+                >
+                  <v-icon>
+                    mdi-delete
+                  </v-icon>
+                  <span class="pl-1">
+                    Delete
+                  </span>
+                </v-btn>
+              </div>
+            </template>
+          </DataDetails>
+        </v-col>
+        <v-col :cols="9">
           <GirderFileManager
             ref="fileManager"
             v-model="selected"
             :selectable="!locationIsViameFolder"
-            :new-folder-enabled="!selected.length"
+            :new-folder-enabled="!selected.length && !locationIsViameFolder"
             :location.sync="location"
             @dragover.native="dragover"
           >
             <template #headerwidget>
-              <run-training-menu
-                :selected-dataset-ids="locationInputs"
-                small
-              />
-              <run-pipeline-menu
-                :selected-dataset-ids="locationInputs"
-                small
-              />
-              <export
-                v-if="exportTarget"
-                :dataset-id="exportTarget"
-                small
-              />
-              <v-btn
-                v-if="selected.length"
-                class="ma-0"
-                text
-                small
-                @click="deleteSelection"
-              >
-                <v-icon
-                  left
-                  color="accent"
-                  class="mdi-24px mr-1"
-                >
-                  mdi-delete
-                </v-icon>
-                Delete
-              </v-btn>
               <v-dialog
                 v-if="shouldShowUpload"
                 v-model="uploaderDialog"
@@ -241,8 +282,37 @@ export default Vue.extend({
               >
                 Launch Annotator
               </v-btn>
+              <v-chip
+                v-if="(item.meta && item.meta.foreign_media_id)"
+                color="white"
+                x-small
+                outlined
+                disabled
+                class="my-0 mx-3"
+              >
+                cloned
+              </v-chip>
+              <v-chip
+                v-if="(item.meta && item.meta.published)"
+                color="green"
+                x-small
+                outlined
+                disabled
+                class="my-0 mx-3"
+              >
+                published
+              </v-chip>
             </template>
           </GirderFileManager>
+          <v-card
+            v-if="selectedDescription"
+            class="my-4"
+          >
+            <GirderMarkdown
+              :text="selectedDescription"
+              class="pa-3"
+            />
+          </v-card>
         </v-col>
       </v-row>
     </v-container>

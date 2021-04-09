@@ -11,8 +11,21 @@ __all__ = [
 
 
 class GirderModel(TypedDict):
-    name: str
+    """A superset of all the common properties of a girder model"""
+
     _id: str
+    baseParentType: str
+    baseParentId: str
+    created: str
+    creatorId: str
+    description: str
+    meta: Dict[str, Any]
+    name: str
+    parentCollection: str
+    parentId: str
+    public: bool
+    size: int
+    updated: str
 
 
 class PipelineDescription(TypedDict):
