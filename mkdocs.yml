@@ -21,12 +21,13 @@ markdown_extensions:
 
 nav:
   - Home: index.md
+  - Screenshots: Screenshots.md
   - Web Version: Getting-Started.md
   - Desktop Version: Dive-Desktop.md
   - Annotation Quickstart: Annotation-QuickStart.md
   - Use Cases: Use-Cases.md
-  - Pipeline Docs: Pipeline-Documentation.md
-  - User Interface Guide:
+  - Pipelines & Training: Pipeline-Documentation.md
+  - Annotation Interface Guide:
     - Introduction: Annotation-User-Interface-Overview.md
     - Navigation Bar: UI-Navigation-Bar.md
     - Edit Bar: UI-Edit-Bar.md
