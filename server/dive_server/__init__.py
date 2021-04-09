@@ -12,6 +12,7 @@ from .event import check_existing_annotations
 from .viame import Viame
 from .viame_detection import ViameDetection
 from .viame_summary import SummaryItem, ViameSummary
+from .s3subscriber import GCSNotification, GCSNotificationRecord
 
 
 @setting_utilities.validator({SETTINGS_CONST_JOBS_CONFIGS})
@@ -30,10 +31,13 @@ def validateSettings(doc):
 class GirderPlugin(plugin.GirderPlugin):
     def load(self, info):
         ModelImporter.registerModel('summaryItem', SummaryItem, plugin='dive_server')
-
+        ModelImporter.registerModel(
+            GCSNotificationRecord().name, GCSNotificationRecord, plugin='dive_server'
+        )
         info["apiRoot"].viame = Viame()
         info["apiRoot"].viame_detection = ViameDetection()
         info["apiRoot"].viame_summary = ViameSummary()
+        info["apiRoot"].gcs = GCSNotification()
 
         # Relocate Girder
         info["serverRoot"], info["serverRoot"].girder = (

@@ -5,3 +5,5 @@ mkdocs
 mkdocs-material
 mypy
 pytest
+ipykernel
+tabulate

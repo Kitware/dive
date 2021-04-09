@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, Generic, List, Optional, Tuple, TypeVar, Union
 
 from pydantic import BaseModel, Field
 from typing_extensions import Literal
@@ -90,6 +90,28 @@ class SummaryItemSchema(BaseModel):
 
 class PublicDataSummary(BaseModel):
     label_summary_items: List[SummaryItemSchema]
+
+
+class GCSObjectFinalizeNotification(BaseModel):
+    """
+    https://cloud.google.com/storage/docs/pubsub-notifications
+    https://cloud.google.com/storage/docs/object-change-notification#_Notification_Types
+    """
+
+    bucketId: str
+    objectId: str
+    eventType: str
+
+
+class GCSPushNotificationMessage(BaseModel):
+    """
+    https://cloud.google.com/pubsub/docs/push#receiving_messages
+    """
+
+    attributes: GCSObjectFinalizeNotification
+    data: str
+    messageId: str
+    publishTime: str
 
 
 # interpolate all features [a, b)
