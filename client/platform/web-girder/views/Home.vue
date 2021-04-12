@@ -8,6 +8,7 @@ import {
 import RunPipelineMenu from 'dive-common/components/RunPipelineMenu.vue';
 import RunTrainingMenu from 'dive-common/components/RunTrainingMenu.vue';
 
+import { getFolder } from 'platform/web-girder/api/girder.service';
 import { getLocationFromRoute } from '../utils';
 import { deleteResources } from '../api/viame.service';
 import Export from './Export.vue';
@@ -123,6 +124,9 @@ export default Vue.extend({
       };
     }
     this.location = newLocaction;
+    if (this.location._modelType === 'folder') {
+      this.location = await getFolder(this.location._id);
+    }
     this.girderRest.$on('message:job_status', this.handleNotification);
   },
   beforeDestroy() {
