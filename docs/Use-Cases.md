@@ -47,4 +47,4 @@ If no suitable existing analysis exists for your use case or you aren't sure how
 
 > Scenario: You want to start with an OK model, or a model that doesn't perfectly fit your domain or use case, and make it better.
 
-You should find out thorough experimentation whether or not annotation from scratch is faster or slower than running a sub-optimal analysis workflow and then doing manual "clean-up" on the results.  Either way, **the goal is to generate ground-truth annotations** and use them to create or improve a model.
+You should find out through experimentation whether or not annotation from scratch is faster or slower than running a sub-optimal analysis workflow and then doing manual clean-up on the results.  Either way, **the goal is to generate ground-truth annotations** and use them to create or improve a model.

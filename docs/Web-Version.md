@@ -88,7 +88,7 @@ This information will be relevant to teams where several people need to work on 
 
 ### Concepts
 
-By default, data updloaded to your personal user space follows these conventions.
+By default, data uploaded to your personal user space follows these conventions.
 
 * Data in the `Public` folder is readable by all registered users, but writable only by you by default.
 * Data in the `Private` folder is only visible to you by default.
