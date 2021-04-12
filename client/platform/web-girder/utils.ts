@@ -9,7 +9,7 @@ interface Location {
   _modelType?: string;
 }
 
-async function getLocationFromRoute({ params }: { params: GirderModel }) {
+function getLocationFromRoute({ params }: { params: GirderModel }) {
   if (isRootLocation(params)) {
     return {
       type: params._modelType,

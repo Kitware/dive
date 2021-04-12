@@ -1,12 +1,11 @@
 <script>
-import { mapMutations, mapState } from 'vuex';
+import { mapActions, mapState } from 'vuex';
 
 import { GirderSearch } from '@girder/components/src';
 import NavigationTitle from 'dive-common/components/NavigationTitle.vue';
 import UserGuideButton from 'dive-common/components/UserGuideButton.vue';
 
 import JobsTab from './JobsTab.vue';
-import { getPathFromLocation } from '../utils';
 
 export default {
   name: 'GenericNavigationBar',
@@ -31,12 +30,7 @@ export default {
     this.girderRest.$off('logout', this.onLogout);
   },
   methods: {
-    getPathFromLocation,
-    ...mapMutations('Location', ['setLocation']),
-    goto(loc) {
-      this.setLocation(loc);
-      this.$router.push({ name: 'home', params: loc });
-    },
+    ...mapActions('Location', ['route']),
     onLogout() {
       this.$router.push({ name: 'login' });
     },
@@ -56,7 +50,7 @@ export default {
     >
       <v-tab
         exact
-        :to="getPathFromLocation(location)"
+        @click="route(location)"
       >
         Data
         <v-icon>mdi-database</v-icon>
@@ -70,7 +64,7 @@ export default {
       hide-options-menu
       hide-search-icon
       class="mx-2 grow"
-      @select="goto($event)"
+      @select="route"
     />
     <v-btn
       text
