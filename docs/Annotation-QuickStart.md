@@ -125,25 +125,3 @@ While every track is required to have a bounding box a polygon can be added as w
 ## Polygon Demo
 
 ![Polygon Demo](videos/CreationModes/PolygonAnnotation.gif)
-
-## Important Keyboard and Mouse Shortcuts
-
-[In-Depth Mouse/Keyboard Shortcuts](Mouse-Keyboard-Shortcuts.md)
-
-| control              | description                               |
-| -------------------- | ----------------------------------------- |
-| Left Click           | select track/detection                    |
-| Right Click          | toggle edit mode                          |
-| Scroll Wheel         | zoom                                      |
-| Mouse Drag           | pan                                       |
-| `shift` + drag       | select area to zoom                       |
-| `Left Arrow` or `d`  | previous frame                            |
-| `Right Arrow` or `f` | next frame                                |
-| `Up Arrow`           | select previous track in list             |
-| `Down Arrow`         | select next track in list                 |
-| `Delete`             | delete currently selected track/detection |
-| `N`                  | create new track or detection             |
-| `space`              | play/pause                                |
-| `enter`              | go to first frame of selected             |
-| `H`                  | Create Head annotation                    |
-| `T`                  | Create Tail annotation                    |

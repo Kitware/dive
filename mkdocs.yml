@@ -25,7 +25,7 @@ nav:
   - Web Version: Web-Version.md
   - Desktop Version: Dive-Desktop.md
   - Annotation Quickstart: Annotation-QuickStart.md
-  - Use Cases: Use-Cases.md
+  - Mouse and Keyboard Shortcuts: Mouse-Keyboard-Shortcuts.md
   - Pipelines & Training: Pipeline-Documentation.md
   - Annotation Interface Guide:
     - Introduction: Annotation-User-Interface-Overview.md
@@ -36,7 +36,7 @@ nav:
     - Track List: UI-Track-List.md
     - Interpolation: UI-Interpolation.md
     - Attributes: Attributes.md
-  - Mouse and Keyboard Shortcuts: Mouse-Keyboard-Shortcuts.md
+  - Use Cases: Use-Cases.md
   - Advanced features:
     - Custom Pipeline Upload: Pipeline-Upload.md
     - Command Line Tools: Command-Line-Tools.md

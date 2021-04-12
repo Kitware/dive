@@ -67,6 +67,21 @@ Within the annotation viewer itself there is the option to download the same dat
 
 These options are explained in **[Navigation Bar](UI-Navigation-Bar.md)** UI Docs.
 
+### Trained model downloads
+
+You can download your trained models through the administrative interface.  This will be added to the normal interface in a future update.
+
+!!! warning
+    Use caution when modifying data through the admin interface
+
+* Open the admin interface at [https://viame.kitware.com/girder](https://viame.kitware.com/girder) (or `myserver.com/girder` if you host your own instance)
+* Navigate to your personal workspace by clicking `My folders` under your user dropdown in the top right corner.
+    * ![My Folders](images/Girder/my_folders.png)
+* Navigate to the `VIAME/VIAME Training Results` folder and into the folder you wish to download
+    * ![Select All](images/Girder/select_all.png)
+* Select all items and download using the menu
+    * ![Download](images/Girder/download_selected.png)
+
 ## Sharing data with teams
 
 This information will be relevant to teams where several people need to work on the same data.
@@ -147,18 +162,3 @@ A clone is a **shallow copy** of a dataset.
 * Open the dataset you wish to clone in the viewer.
 * Click the `Clone` chip in the top toolbar next to the name
 * Choose a name and location for the clone within your own workspace.
-
-## Trained model downloads
-
-You can download your trained models through the administrative interface.  This will be added to the normal interface in a future update.
-
-!!! warning
-    Use caution when modifying data through the admin interface
-
-* Open the admin interface at [https://viame.kitware.com/girder](https://viame.kitware.com/girder) (or `myserver.com/girder` if you host your own instance)
-* Navigate to your personal workspace by clicking `My folders` under your user dropdown in the top right corner.
-    * ![My Folders](images/Girder/my_folders.png)
-* Navigate to the `VIAME/VIAME Training Results` folder and into the folder you wish to download
-    * ![Select All](images/Girder/select_all.png)
-* Select all items and download using the menu
-    * ![Download](images/Girder/download_selected.png)

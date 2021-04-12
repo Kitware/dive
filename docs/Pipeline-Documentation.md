@@ -12,7 +12,7 @@ Best for a series of images that have no temporal relationship, such as arial ph
 | -------- | -------- |
 | <pre>arctic seal eo yolo</pre> | Detector for color imagery |
 | <pre>arctic seal ir yolo</pre>  | Detector for infrared |
-| <pre>em tuna</pre>  | detector |
+| <pre>em tuna</pre>  | Detector for identifying individual features of tuna |
 | <pre>fish without motion</pre>  | simple single-class fish detector |
 | <pre>generic proposals</pre>  | generic object detector |
 | <pre>motion</pre>  | detector |
@@ -20,6 +20,8 @@ Best for a series of images that have no temporal relationship, such as arial ph
 | <pre>kengcam swfsc</pre>  | detector |
 | <pre>scallop and flatfish</pre>  | detector |
 | <pre>scallop and flatfish left</pre>  | detector |
+| <pre>scallop netharn</pre>  | detector |
+| <pre>scallop netharn left</pre>  | detector |
 | <pre>sea lion multi class</pre>  | detects bulls, cows, pups, etc |
 | <pre>sea lion single class</pre>  | detector |
 | <pre>sefsc bw *</pre>  | black-and-white multi-class fish |
