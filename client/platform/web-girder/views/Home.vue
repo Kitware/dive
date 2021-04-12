@@ -1,6 +1,6 @@
 <script>
 import Vue from 'vue';
-import { mapMutations } from 'vuex';
+import { mapActions } from 'vuex';
 import {
   getLocationType, GirderFileManager, GirderMarkdown,
 } from '@girder/components/src';
@@ -8,7 +8,8 @@ import {
 import RunPipelineMenu from 'dive-common/components/RunPipelineMenu.vue';
 import RunTrainingMenu from 'dive-common/components/RunTrainingMenu.vue';
 
-import { getPathFromLocation, getLocationFromRoute } from '../utils';
+import { getFolder } from 'platform/web-girder/api/girder.service';
+import { getLocationFromRoute } from '../utils';
 import { deleteResources } from '../api/viame.service';
 import Export from './Export.vue';
 import Upload from './Upload.vue';
@@ -63,11 +64,7 @@ export default Vue.extend({
         if (this.locationIsViameFolder && value.name === 'auxiliary') {
           return;
         }
-        const newPath = getPathFromLocation(value);
-        if (this.$route.path !== newPath) {
-          this.$router.push(newPath);
-        }
-        this.setLocation(value);
+        this.route(value);
       },
     },
     shouldShowUpload() {
@@ -119,14 +116,16 @@ export default Vue.extend({
     },
   },
   async created() {
-    this.setLocation(await getLocationFromRoute(this.$route));
-    if (this.location === null) {
-      const newloc = {
+    let newLocaction = getLocationFromRoute(this.$route);
+    if (newLocaction === null) {
+      newLocaction = {
         _id: this.girderRest.user._id,
         _modelType: 'user',
       };
-      this.setLocation(newloc);
-      this.$router.push(getPathFromLocation(newloc));
+    }
+    this.location = newLocaction;
+    if (this.location._modelType === 'folder') {
+      this.location = await getFolder(this.location._id);
     }
     this.girderRest.$on('message:job_status', this.handleNotification);
   },
@@ -134,7 +133,7 @@ export default Vue.extend({
     this.girderRest.$off('message:job_status', this.handleNotification);
   },
   methods: {
-    ...mapMutations('Location', ['setLocation']),
+    ...mapActions('Location', ['route']),
     handleNotification() {
       this.$refs.fileManager.$refs.girderBrowser.refresh();
     },
