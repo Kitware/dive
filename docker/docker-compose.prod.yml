@@ -9,27 +9,17 @@ services:
 
   girder:
     restart: always
-    labels:
-      - "com.centurylinklabs.watchtower.enable=true" 
 
   girder_worker_default:
     restart: always
-    labels:
-      - "com.centurylinklabs.watchtower.enable=true" 
 
   girder_worker_pipelines:
     restart: always
-    labels:
-      - "com.centurylinklabs.watchtower.enable=true" 
 
   girder_worker_training:
     restart: always
-    labels:
-      - "com.centurylinklabs.watchtower.enable=true" 
     environment:
-      - WORKER_WATCHING_QUEUES=training,pipelines
-      - WORKER_CONCURRENCY=${TRAINING_WORKER_CONCURRENCY:-1}
-      - WORKER_GPU_UUID=${TRAINING_GPU_UUID}
+      - "WORKER_WATCHING_QUEUES=training,pipelines"
 
   watchtower:
     image: containrrr/watchtower:latest

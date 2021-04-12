@@ -1,27 +1,28 @@
-import re
-from typing import Dict
-from urllib.parse import urlparse
 import os
-from bson.objectid import ObjectId
+from urllib.parse import urlparse
 
+from bson.objectid import ObjectId
+from dive_server.pipelines import run_pipeline
 from girder.api import access
 from girder.api.describe import Description, autoDescribeRoute
 from girder.api.rest import Resource
-from girder.constants import AccessType, SortDir
+from girder.constants import SortDir
+from girder.exceptions import RestException
+from girder.models.assetstore import Assetstore
 from girder.models.folder import Folder
 from girder.models.user import User
-from girder.models.assetstore import Assetstore
 
-from dive_server.utils import PydanticModel
-from dive_utils import models, constants
+from dive_server.utils import PydanticModel, saveTracks
+from dive_utils import constants, models
 from dive_utils.types import GirderModel
 
 
-def ingest_uri(folder: GirderModel, gcs_uri: str, video=False) -> GirderModel:
+def ingest_uri(
+    folder: GirderModel, msg: models.GCSPushNotificationMessage, video=False
+) -> GirderModel:
     # TODO: verify that the object origin is associated with a user
     # who has opted to subscribe to such notifications
-    parsed = urlparse(gcs_uri)
-    uripath = parsed.path
+    uripath = urlparse(msg.attributes.objectId).path
     parentdir, filename = os.path.split(uripath)
     # TODO find the assetstore given the user configuration
     store = Assetstore().findOne(
@@ -32,7 +33,7 @@ def ingest_uri(folder: GirderModel, gcs_uri: str, video=False) -> GirderModel:
     importdest = Folder().createFolder(
         folder,
         parentdir.lstrip('/').replace('/', '_'),
-        description=f"Imported from GCS bucket {parsed.netloc}",
+        description=f"Imported from GCS bucket {msg.attributes.bucketId}",
         public=False,
         reuseExisting=True,
     )
@@ -42,7 +43,7 @@ def ingest_uri(folder: GirderModel, gcs_uri: str, video=False) -> GirderModel:
 
     if video:
         # Need to create another level of directory
-        importdest = Folder.createFolder(
+        importdest = Folder().createFolder(
             importdest,
             filename,
             description=f"Video GCS import",
@@ -50,8 +51,6 @@ def ingest_uri(folder: GirderModel, gcs_uri: str, video=False) -> GirderModel:
             reuseExisting=False,
         )
     if store is not None:
-        print(store)
-        print(uripath)
         Assetstore().importData(
             store,
             importdest,
@@ -60,7 +59,8 @@ def ingest_uri(folder: GirderModel, gcs_uri: str, video=False) -> GirderModel:
             None,
             user,
         )
-    return importdest
+    saveTracks(importdest, {}, user)
+    return user, importdest
 
 
 class GCSNotificationRecord(PydanticModel):
@@ -78,24 +78,27 @@ class GCSNotification(Resource):
     @access.public
     @autoDescribeRoute(
         Description("Post notification record")
-        .modelParam(
+        .param(
             'folderId',
             description='destination folder id',
-            model=Folder,
-            level=AccessType.NONE,
+            paramType='path',
         )
         .jsonParam("data", "json body", paramType="body", requireObject=True)
     )
-    def save_record(self, folder: GirderModel, data: dict):
+    def save_record(self, folderId: str, data: dict):
         """
         https://cloud.google.com/pubsub/docs/push#receiving_messages
         """
         doc = models.GCSPushNotificationMessage(**data['message'])
         GCSNotificationRecord().create(doc)
+        folder = Folder().findOne({'_id': ObjectId(folderId)})
+        if folder is None:
+            raise RestException(f'No folder with id={folderId}')
         dataset_folder = None
+        user = None
 
         if constants.imageRegex.search(doc.attributes.objectId):
-            dataset_folder = ingest_uri(folder, doc.attributes.objectId)
+            user, dataset_folder = ingest_uri(folder, doc)
             # This is an image
             dataset_folder['meta'] = {
                 constants.DatasetMarker: True,
@@ -103,14 +106,31 @@ class GCSNotification(Resource):
                 'fps': 1,
             }
         elif constants.videoRegex.search(doc.attributes.objectId):
-            dataset_folder = ingest_uri(folder, doc.attributes.objectId, video=True)
+            user, dataset_folder = ingest_uri(folder, doc, video=True)
             dataset_folder['meta'] = {
                 constants.DatasetMarker: True,
                 constants.TypeMarker: constants.VideoType,
                 'fps': constants.DefaultVideoFPS,
             }
+        else:
+            # This event is not meaningful for us
+            print(doc)
+            return doc
 
         Folder().save(dataset_folder)
+        try:
+            run_pipeline(
+                user,
+                dataset_folder,
+                {
+                    'name': 'empty frame lbls 1fr',
+                    'type': 'utility',
+                    'pipe': 'utility_empty_frame_lbls_1fr.pipe',
+                    'folderId': None,
+                },
+            )
+        except RestException:
+            pass
         return dataset_folder
 
     @access.user

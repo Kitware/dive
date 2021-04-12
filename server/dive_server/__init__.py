@@ -9,10 +9,10 @@ from dive_utils.constants import SETTINGS_CONST_JOBS_CONFIGS
 
 from .client_webroot import ClientWebroot
 from .event import check_existing_annotations
+from .gcs_s3_subscriber import GCSNotification, GCSNotificationRecord
 from .viame import Viame
 from .viame_detection import ViameDetection
 from .viame_summary import SummaryItem, ViameSummary
-from .s3subscriber import GCSNotification, GCSNotificationRecord
 
 
 @setting_utilities.validator({SETTINGS_CONST_JOBS_CONFIGS})
