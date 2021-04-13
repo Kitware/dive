@@ -13,6 +13,7 @@ test_tuple = [
             '1000',
             '100a',
             '2',
+            '',
             'first',
             'second',
             '200',
@@ -21,6 +22,7 @@ test_tuple = [
             'and30',
         ],
         [
+            '',
             'first',
             'second',
             '1',
