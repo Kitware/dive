@@ -23,8 +23,40 @@ function filterByGlob(pattern: string, files: string[]) {
   return files.filter((val) => patterns.some((re) => re.test(val)));
 }
 
+/**
+ * Extract numeric value from string.
+ * Ex: input = '1_text00...200'
+ * returns 100200
+ */
+function strNumericKey(input: string) {
+  const matches = Array.from(input.matchAll(/\d+/g));
+  return matches.length
+    ? parseInt(Array.from(matches).join(''), 10)
+    : 0;
+}
+
+/**
+ * Sort compare function where strings are sorted
+ * first by the concatenated value of all numbers,
+ * then, if the numbers are equal, by each character's
+ * unicode value (default string sort)
+ */
+function strNumericCompare(input1: string, input2: string) {
+  if (input1 === input2) {
+    return 0;
+  }
+  const num1 = strNumericKey(input1);
+  const num2 = strNumericKey(input2);
+  if (num1 === num2) {
+    return input1 > input2 ? 1 : -1;
+  }
+  return num1 - num2;
+}
+
 export {
   cleanString,
   filterByGlob,
   makeid,
+  strNumericCompare,
+  strNumericKey,
 };

@@ -1,5 +1,7 @@
-import pytest
 import functools
+
+import pytest
+
 from dive_utils import strNumericCompare
 
 test_tuple = [

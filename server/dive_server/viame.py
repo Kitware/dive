@@ -22,7 +22,7 @@ from dive_tasks.tasks import (
     train_pipeline,
     upgrade_pipelines,
 )
-from dive_utils import TRUTHY_META_VALUES, asbool, fromMeta, strNumericCompare, models
+from dive_utils import TRUTHY_META_VALUES, asbool, fromMeta, models, strNumericCompare
 from dive_utils.constants import (
     SETTINGS_CONST_JOBS_CONFIGS,
     DatasetMarker,
