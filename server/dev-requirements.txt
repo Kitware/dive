@@ -7,3 +7,4 @@ mypy
 pytest
 ipykernel
 tabulate
+python-dotenv
