@@ -1,3 +1,4 @@
+import functools
 from typing import List, Optional
 
 import pymongo
@@ -21,7 +22,7 @@ from dive_tasks.tasks import (
     train_pipeline,
     upgrade_pipelines,
 )
-from dive_utils import TRUTHY_META_VALUES, asbool, fromMeta, models
+from dive_utils import TRUTHY_META_VALUES, asbool, fromMeta, strNumericCompare, models
 from dive_utils.constants import (
     SETTINGS_CONST_JOBS_CONFIGS,
     DatasetMarker,
@@ -603,8 +604,15 @@ class Viame(Resource):
         )
     )
     def get_valid_images(self, folder):
-        return Folder().childItems(
+        images = Folder().childItems(
             getCloneRoot(self.getCurrentUser(), folder),
             filters={"lowerName": {"$regex": safeImageRegex}},
-            sort=[("lowerName", pymongo.ASCENDING)],
+        )
+
+        def unwrapItem(item1, item2):
+            return strNumericCompare(item1['name'], item2['name'])
+
+        return sorted(
+            images,
+            key=functools.cmp_to_key(unwrapItem),
         )
