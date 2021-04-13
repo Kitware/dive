@@ -4,7 +4,7 @@ import { cloneDeep } from 'lodash';
 import { strNumericCompare } from './sharedUtils';
 
 /** Matches tests in python utilities */
-const test_tuple = [
+const testTuple = [
   [
     [
       'and200__1',
@@ -55,10 +55,10 @@ const test_tuple = [
 
 describe('sharedUtils', () => {
   it('sorts based on numeric extracted values', () => {
-    test_tuple.forEach(([input, expected]) => {
+    testTuple.forEach(([input, expected]) => {
       const copy = cloneDeep(input);
       expect(input.sort(strNumericCompare)).toEqual(expected);
       expect(input.sort(strNumericCompare)).not.toEqual(copy);
     });
   });
-})
+});
