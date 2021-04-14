@@ -2,7 +2,7 @@
 import Vue from 'vue';
 import { GirderDropzone, mixins } from '@girder/components/src';
 
-import { ImageSequenceType, VideoType } from 'dive-common/constants';
+import { ImageSequenceType, VideoType, DefaultVideoFPS } from 'dive-common/constants';
 
 import { makeViameFolder, validateUploadGroup, postProcess } from '../api/viame.service';
 import { getResponseError } from '../utils';
@@ -70,7 +70,7 @@ export default Vue.extend({
   data: () => ({
     preUploadErrorMessage: null,
     pendingUploads: [],
-    defaultFPS: '10', // requires string for the input item
+    defaultFPS: `${DefaultVideoFPS}`, // requires string for the input item
     ImageSequenceType,
   }),
   computed: {
@@ -217,7 +217,7 @@ export default Vue.extend({
     },
     async uploadPending(pendingUpload, uploaded) {
       const { name, files, createSubFolders } = pendingUpload;
-      const fps = parseInt(pendingUpload.fps, 10);
+      const fps = parseInt(pendingUpload.fps, DefaultVideoFPS);
 
       // eslint-disable-next-line no-param-reassign
       pendingUpload.uploading = true;

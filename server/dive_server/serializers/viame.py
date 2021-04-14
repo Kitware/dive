@@ -7,7 +7,7 @@ import io
 import re
 from typing import Dict, Generator, List, Tuple, Union
 
-from dive_server.serializers.models import Attribute, Feature, Track, interpolate
+from dive_utils.models import Attribute, Feature, Track, interpolate
 
 
 def writeHeader(writer: '_csv._writer', metadata: Dict):

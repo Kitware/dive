@@ -7,14 +7,14 @@ from girder.models.item import Item
 from girder.models.upload import Upload
 from girder.models.user import User
 
-from dive_server.constants import (
+from dive_server.serializers import viame
+from dive_utils import fromMeta
+from dive_utils.constants import (
     ImageSequenceType,
     ViameDataFolderName,
     VideoType,
     safeImageRegex,
 )
-from dive_server.serializers import viame
-from dive_utils import fromMeta
 from dive_utils.types import GirderModel
 
 TrainingOutputFolderName = "VIAME Training Results"

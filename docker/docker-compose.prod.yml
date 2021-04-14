@@ -35,10 +35,14 @@ services:
     image: containrrr/watchtower:latest
     container_name: watchtower
     restart: always
-    command: --schedule "0 0 2 * * 4" --label-enable # weekly on thursday morning 2AM
+    command: >
+      --rolling-restart
+      --schedule "0 0 2 * * 4"
+      --label-enable
+    environment:
+      - "TZ=${TIMEZONE:-America/New_York}"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - /etc/timezone:/etc/timezone:ro
 
   duplicati:
     image: linuxserver/duplicati:latest
@@ -47,7 +51,7 @@ services:
     ports:
       - "8200:8200" # Port is not exposed outside vpn
     environment:
-      - "TZ=America/New_York"
+      - "TZ=${TIMEZONE:-America/New_York}"
       - "PUID=0" # Requires root to access docker volumes directory
       - "PGID=0" 
     volumes:

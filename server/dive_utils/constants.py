@@ -4,6 +4,7 @@ SETTINGS_CONST_JOBS_CONFIGS = 'jobs_configs'
 
 ImageSequenceType = "image-sequence"
 VideoType = "video"
+DefaultVideoFPS = 10
 
 webValidImageFormats = {"png", "jpg", "jpeg"}
 validImageFormats = {*webValidImageFormats, "tif", "tiff", "sgi", "bmp", "pgm"}
@@ -35,8 +36,15 @@ VideoMimeTypes = {
     "video/x-msvideo",
 }
 
-
+# Metadata markers
+DatasetMarker = "annotate"
+DetectionMarker = "detection"
+PublishedMarker = "published"
+ForeignMediaIdMarker = "foreign_media_id"
 TrainedPipelineMarker = "trained_pipeline"
+TypeMarker = "type"
+
+# Other constants
 TrainedPipelineCategory = "trained"
 
 # The name of the folder where any user specific data should be stored

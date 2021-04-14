@@ -2,12 +2,27 @@
 import {
   defineComponent, onBeforeUnmount, onMounted, ref, toRef, computed,
 } from '@vue/composition-api';
+
 import Viewer from 'dive-common/components/Viewer.vue';
 import NavigationTitle from 'dive-common/components/NavigationTitle.vue';
 import RunPipelineMenu from 'dive-common/components/RunPipelineMenu.vue';
 import JobsTab from './JobsTab.vue';
 import { getPathFromLocation } from '../utils';
 import Export from './Export.vue';
+import Clone from './Clone.vue';
+
+const buttonOptions = {
+  text: true,
+  color: 'grey lighten-1',
+  outlined: true,
+  depressed: true,
+  class: ['mx-1'],
+};
+
+const menuOptions = {
+  offsetY: true,
+  bottom: true,
+};
 
 /**
  * ViewerLoader is responsible for loading
@@ -15,6 +30,7 @@ import Export from './Export.vue';
  */
 export default defineComponent({
   components: {
+    Clone,
     Export,
     JobsTab,
     RunPipelineMenu,
@@ -48,7 +64,13 @@ export default defineComponent({
       window.removeEventListener('beforeunload', viewerRef.value.warnBrowserExit);
     });
 
-    return { viewerRef, dataPath, brandData };
+    return {
+      buttonOptions,
+      menuOptions,
+      viewerRef,
+      dataPath,
+      brandData,
+    };
   },
 });
 </script>
@@ -56,6 +78,7 @@ export default defineComponent({
 <template>
   <Viewer
     :id="id"
+    :key="id"
     ref="viewerRef"
   >
     <template #title>
@@ -73,10 +96,19 @@ export default defineComponent({
       </v-tabs>
     </template>
     <template #title-right>
-      <RunPipelineMenu :selected-dataset-ids="[id]" />
+      <RunPipelineMenu
+        v-bind="{ buttonOptions, menuOptions }"
+        :selected-dataset-ids="[id]"
+      />
       <Export
+        v-bind="{ buttonOptions, menuOptions }"
         :dataset-id="id"
         block-on-unsaved
+      />
+      <Clone
+        v-if="$store.state.Dataset.meta"
+        v-bind="{ buttonOptions }"
+        :source="$store.state.Dataset.meta"
       />
     </template>
   </Viewer>

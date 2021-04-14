@@ -1,11 +1,11 @@
 <script>
-import { mapState } from 'vuex';
+import { mapActions, mapState } from 'vuex';
 
+import { GirderSearch } from '@girder/components/src';
 import NavigationTitle from 'dive-common/components/NavigationTitle.vue';
 import UserGuideButton from 'dive-common/components/UserGuideButton.vue';
 
 import JobsTab from './JobsTab.vue';
-import { getPathFromLocation } from '../utils';
 
 export default {
   name: 'GenericNavigationBar',
@@ -13,6 +13,7 @@ export default {
     NavigationTitle,
     UserGuideButton,
     JobsTab,
+    GirderSearch,
   },
   inject: ['girderRest'],
   data: () => ({
@@ -29,7 +30,7 @@ export default {
     this.girderRest.$off('logout', this.onLogout);
   },
   methods: {
-    getPathFromLocation,
+    ...mapActions('Location', ['route']),
     onLogout() {
       this.$router.push({ name: 'login' });
     },
@@ -48,13 +49,32 @@ export default {
       color="accent"
     >
       <v-tab
-        :to="getPathFromLocation(location)"
+        exact
+        @click="route(location)"
       >
-        Data<v-icon>mdi-database</v-icon>
+        Data
+        <v-icon>mdi-database</v-icon>
       </v-tab>
       <JobsTab />
     </v-tabs>
     <v-spacer />
+    <GirderSearch
+      :search-types="['user', 'folder']"
+      placeholder="search"
+      hide-options-menu
+      hide-search-icon
+      class="mx-2 grow"
+      @select="route"
+    />
+    <v-btn
+      text
+      :to="{ name: 'summary' }"
+    >
+      <v-icon class="pr-2">
+        mdi-format-list-bulleted-square
+      </v-icon>
+      Stats
+    </v-btn>
     <user-guide-button />
     <v-btn
       text

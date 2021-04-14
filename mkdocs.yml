@@ -14,26 +14,29 @@ theme:
 
 markdown_extensions:
   - admonition
+  - attr_list
+  - pymdownx.emoji:
+      emoji_index: !!python/name:materialx.emoji.twemoji
+      emoji_generator: !!python/name:materialx.emoji.to_svg
 
 nav:
   - Home: index.md
-  - Web Version: Getting-Started.md
+  - Screenshots: Screenshots.md
+  - Web Version: Web-Version.md
   - Desktop Version: Dive-Desktop.md
   - Annotation Quickstart: Annotation-QuickStart.md
-  - Pipeline Docs: Pipeline-Documentation.md
-  - User Interface Guide:
+  - Mouse and Keyboard Shortcuts: Mouse-Keyboard-Shortcuts.md
+  - Pipelines & Training: Pipeline-Documentation.md
+  - Annotation Interface Guide:
     - Introduction: Annotation-User-Interface-Overview.md
     - Navigation Bar: UI-Navigation-Bar.md
     - Edit Bar: UI-Edit-Bar.md
     - Annotation View: UI-Annotation-View.md
     - Type List: UI-Type-List.md
     - Track List: UI-Track-List.md
-    - Sharing: UI-Sharing.md
     - Interpolation: UI-Interpolation.md
-    - Downloading Data: UI-Downloading-Data.md
     - Attributes: Attributes.md
-  - Concepts and Definitions: Definitions.md
-  - Mouse and Keyboard Shortcuts: Mouse-Keyboard-Shortcuts.md
+  - Use Cases: Use-Cases.md
   - Advanced features:
     - Custom Pipeline Upload: Pipeline-Upload.md
     - Command Line Tools: Command-Line-Tools.md

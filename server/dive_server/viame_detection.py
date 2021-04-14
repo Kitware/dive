@@ -6,21 +6,29 @@ from girder.api import access
 from girder.api.describe import Description, autoDescribeRoute
 from girder.api.rest import Resource, setContentDisposition, setResponseHeader
 from girder.constants import AccessType, TokenScope
+from girder.exceptions import RestException
 from girder.models.file import File
 from girder.models.folder import Folder
 from girder.models.item import Item
 from girder.utility import ziputil
 
-from dive_server.constants import (
+from dive_server.serializers import viame
+from dive_server.utils import (
+    detections_file,
+    detections_item,
+    getCloneRoot,
+    getTrackData,
+    saveTracks,
+    verify_dataset,
+)
+from dive_utils import fromMeta, models
+from dive_utils.constants import (
     ImageMimeTypes,
     ImageSequenceType,
     VideoMimeTypes,
     VideoType,
     safeImageRegex,
 )
-from dive_server.serializers import models, viame
-from dive_server.utils import detections_file, detections_item, getTrackData, saveTracks
-from dive_utils import fromMeta
 
 
 class ViameDetection(Resource):
@@ -35,13 +43,13 @@ class ViameDetection(Resource):
         self.route("GET", (":id", "export_all"), self.export_all)
 
     def _get_clip_meta(self, folder):
-        detection = detections_item(folder)
         videoUrl = None
         video = None
+
         # Find a video tagged with an h264 codec left by the transcoder
         item = Item().findOne(
             {
-                'folderId': folder['_id'],
+                'folderId': getCloneRoot(self.getCurrentUser(), folder)['_id'],
                 'meta.codec': 'h264',
                 'meta.source_video': {
                     '$in': [
@@ -60,7 +68,7 @@ class ViameDetection(Resource):
 
         return {
             'folder': folder,
-            'detection': detection,
+            'detection': detections_item(folder),
             'video': video,
             'videoUrl': videoUrl,
         }
@@ -120,8 +128,9 @@ class ViameDetection(Resource):
         )
     )
     def get_export_urls(self, folder, excludeBelowThreshold):
+        verify_dataset(folder)
         folderId = str(folder['_id'])
-
+        mediaFolderId = getCloneRoot(self.getCurrentUser(), folder)['_id']
         export_all = f'/api/v1/folder/{folderId}/download'
         export_media = None
         export_detections = None
@@ -143,16 +152,12 @@ class ViameDetection(Resource):
             params = {
                 'mimeFilter': json.dumps(list(VideoMimeTypes)),
             }
-            export_media = (
-                f'/api/v1/folder/{folderId}/download?{urllib.parse.urlencode(params)}'
-            )
+            export_media = f'/api/v1/folder/{mediaFolderId}/download?{urllib.parse.urlencode(params)}'
         elif source_type == ImageSequenceType:
             params = {
                 'mimeFilter': json.dumps(list(ImageMimeTypes)),
             }
-            export_media = (
-                f'/api/v1/folder/{folderId}/download?{urllib.parse.urlencode(params)}'
-            )
+            export_media = f'/api/v1/folder/{mediaFolderId}/download?{urllib.parse.urlencode(params)}'
 
         # No-copy import data does not support mimeFilter.
         # We cannot detect which collections are from no-copy imported data, so
@@ -187,6 +192,7 @@ class ViameDetection(Resource):
         )
     )
     def export_detections(self, folder, excludeBelowThreshold):
+        verify_dataset(folder)
         filename, gen = self._generate_detections(folder, excludeBelowThreshold)
         setContentDisposition(filename)
         return gen
@@ -210,16 +216,34 @@ class ViameDetection(Resource):
         )
     )
     def export_all(self, folder, excludeBelowThreshold):
+        verify_dataset(folder)
         _, gen = self._generate_detections(folder, excludeBelowThreshold)
         setResponseHeader('Content-Type', 'application/zip')
         setContentDisposition(folder['name'] + '.zip')
         user = self.getCurrentUser()
+        mediaFolder = getCloneRoot(user, folder)
 
         def stream():
             z = ziputil.ZipGenerator(folder['name'])
-            for (path, file) in Folder().fileList(folder, user=user, subpath=False):
+            # add media
+            for (path, file) in Folder().fileList(
+                mediaFolder,
+                user=user,
+                subpath=False,
+                mimeFilter=VideoMimeTypes.union(ImageMimeTypes),
+            ):
                 for data in z.addFile(file, path):
                     yield data
+            # add JSON detections
+            for (path, file) in Folder().fileList(
+                folder,
+                user=user,
+                subpath=False,
+                mimeFilter={'application/json'},
+            ):
+                for data in z.addFile(file, path):
+                    yield data
+            # add CSV detections
             for data in z.addFile(gen, "output_tracks.csv"):
                 yield data
             yield z.footer()
@@ -238,11 +262,14 @@ class ViameDetection(Resource):
         )
     )
     def get_detection(self, folder):
+        verify_dataset(folder)
         file = detections_file(folder)
         if file is None:
             return {}
         if "csv" in file["exts"]:
-            return getTrackData(file)
+            raise RestException(
+                'Cannot get detections until postprocessing is complete.'
+            )
         return File().download(file, contentDisposition="inline")
 
     @access.user
@@ -257,6 +284,7 @@ class ViameDetection(Resource):
         )
     )
     def get_clip_meta(self, folder):
+        verify_dataset(folder)
         return self._get_clip_meta(folder)
 
     @access.user
@@ -275,6 +303,7 @@ class ViameDetection(Resource):
         )
     )
     def save_detection(self, folder, tracks):
+        verify_dataset(folder)
         user = self.getCurrentUser()
         upsert: List[dict] = tracks.get('upsert', [])
         delete: List[str] = tracks.get('delete', [])

@@ -7,6 +7,8 @@ const MediaTypes = {
   [VideoType]: 'video',
 };
 
+const DefaultVideoFPS = 10;
+
 export {
   ImageSequenceType,
   VideoType,

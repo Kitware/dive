@@ -35,14 +35,13 @@
   "types": "lib/types/index.d.ts",
   "dependencies": {
     "@flatten-js/interval-tree": "^1.0.11",
-    "@girder/components": "^3.0.1",
+    "@girder/components": "^3.0.3",
     "@mdi/font": "^5.3.45",
     "@sentry/browser": "^5.24.2",
     "@sentry/integrations": "^5.24.2",
-    "@types/mousetrap": "^1.6.3",
-    "@types/source-map": "0.5.2",
     "@vue/composition-api": "^1.0.0-beta.18",
     "axios": "^0.21.1",
+    "color-hash": "^1.0.3",
     "core-js": "^3.6.4",
     "csv-stringify": "^5.6.0",
     "d3": "^5.12.0",
@@ -60,6 +59,7 @@
   "devDependencies": {
     "@types/axios": "^0.14.0",
     "@types/body-parser": "^1.19.0",
+    "@types/color-hash": "^1.0.0",
     "@types/cors": "^2.8.9",
     "@types/csv-parse": "^1.2.2",
     "@types/d3": "^5.7.2",
@@ -71,12 +71,14 @@
     "@types/lodash": "^4.14.151",
     "@types/mime-types": "^2.1.0",
     "@types/mock-fs": "^4.13.0",
+    "@types/mousetrap": "^1.6.3",
     "@types/node": "^14.0.5",
     "@types/proper-lockfile": "^4.1.1",
     "@types/pump": "^1.1.0",
     "@types/range-parser": "^1.2.3",
     "@types/request": "^2.48.5",
     "@types/resize-observer-browser": "^0.1.4",
+    "@types/source-map": "0.5.2",
     "@typescript-eslint/eslint-plugin": "^2.33.0",
     "@typescript-eslint/parser": "^2.33.0",
     "@vue/cli-plugin-babel": "~4.3.1",
@@ -144,7 +146,7 @@
     },
     "globals": {
       "ts-jest": {
-        "tsConfig": "tsconfig.spec.json"
+        "tsconfig": "tsconfig.spec.json"
       }
     },
     "modulePathIgnorePatterns": [

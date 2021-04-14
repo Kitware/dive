@@ -7,7 +7,7 @@ import {
 } from '@vue/composition-api';
 
 import { TypeList, TrackList } from 'vue-media-annotator/components';
-import { useAllTypes } from 'vue-media-annotator/provides';
+import { useAllTypes, useHandler } from 'vue-media-annotator/provides';
 
 import { NewTrackSettings, TypeSettings } from 'dive-common/use/useSettings';
 import TrackDetailsPanel from 'dive-common/components/TrackDetailsPanel.vue';
@@ -40,6 +40,7 @@ export default defineComponent({
 
   setup() {
     const allTypesRef = useAllTypes();
+    const { toggleMerge, commitMerge } = useHandler();
     const data = reactive({
       currentTab: 'tracks' as 'tracks' | 'attributes',
     });
@@ -52,9 +53,17 @@ export default defineComponent({
       }
     }
 
+    function doToggleMerge() {
+      if (toggleMerge().length) {
+        data.currentTab = 'attributes';
+      }
+    }
+
     return {
       allTypesRef,
       swapTabs,
+      doToggleMerge,
+      commitMerge,
       ...toRefs(data),
     };
   },
@@ -71,6 +80,8 @@ export default defineComponent({
     <v-btn
       v-mousetrap="[
         { bind: 'a', handler: swapTabs },
+        { bind: 'm', handler: doToggleMerge },
+        { bind: 'shift+m', handler: commitMerge },
       ]"
       icon
       title="press `a`"
@@ -118,17 +129,16 @@ export default defineComponent({
           </template>
         </track-list>
       </div>
-      <div
+      <track-details-panel
         v-else-if="currentTab === 'attributes'"
-        key="attributes"
-        class="wrapper d-flex"
-      >
-        <track-details-panel
-          :lock-types="typeSettings.lockTypes"
-          :hotkeys-disabled="$prompt.visible()"
-          @track-seek="$emit('track-seek', $event)"
-        />
-      </div>
+        :lock-types="typeSettings.lockTypes"
+        :hotkeys-disabled="$prompt.visible()"
+        :width="width"
+        @track-seek="$emit('track-seek', $event)"
+        @toggle-merge="doToggleMerge"
+        @back="swapTabs"
+        @commit-merge="commitMerge"
+      />
     </v-slide-x-transition>
   </v-card>
 </template>

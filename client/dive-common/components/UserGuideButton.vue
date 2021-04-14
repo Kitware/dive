@@ -46,7 +46,7 @@ export default {
           depressed
           target="_blank"
           color="secondary darken-2"
-          class="mx-3"
+          class="mx-1"
           v-on="on"
         >
           <v-icon>
