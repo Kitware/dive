@@ -28,6 +28,7 @@ from dive_utils import fromMeta
 from dive_utils.constants import (
     DatasetMarker,
     DefaultVideoFPS,
+    FPSMarker,
     ImageSequenceType,
     TrainedPipelineCategory,
     TrainedPipelineMarker,
@@ -224,6 +225,7 @@ def run_pipeline(self: Task, params: PipelineJob):
             f"-s track_writer:file_name={shlex.quote(track_output_file)}",
         ]
     elif input_type == ImageSequenceType:
+        input_fps = fromMeta(input_folder, FPSMarker)
         with open(img_list_path, "w+") as img_list_file:
             img_list_file.write('\n'.join(input_media_list))
         command = [
@@ -231,6 +233,7 @@ def run_pipeline(self: Task, params: PipelineJob):
             "kwiver runner",
             f"-p {shlex.quote(str(pipeline_path))}",
             f"-s input:video_filename={shlex.quote(str(img_list_path))}",
+            f"-s downsampler:target_frame_rate={shlex.quote(str(input_fps))}"
             f"-s detector_writer:file_name={shlex.quote(detector_output_file)}",
             f"-s track_writer:file_name={shlex.quote(track_output_file)}",
         ]
@@ -489,7 +492,7 @@ def convert_video(self: Task, path, folderId, auxiliaryFolderId, itemId):
     gc.addMetadataToFolder(
         folderId,
         {
-            "fps": DefaultVideoFPS,  # TODO: current time system doesn't allow for non-int framerates
+            FPSMarker: DefaultVideoFPS,  # TODO: current time system doesn't allow for non-int framerates
             DatasetMarker: True,  # mark the parent folder as able to annotate.
             "ffprobe_info": videostream[0],
         },

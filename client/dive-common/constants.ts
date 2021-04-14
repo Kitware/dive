@@ -10,6 +10,7 @@ const MediaTypes = {
 const DefaultVideoFPS = 10;
 
 export {
+  DefaultVideoFPS,
   ImageSequenceType,
   VideoType,
   MediaTypes,
