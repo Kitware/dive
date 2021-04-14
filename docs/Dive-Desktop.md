@@ -6,7 +6,7 @@ DIVE Desktop has most of the same UI and features as DIVE **without** requiring 
 
 ## Installation
 
-**[⬇️ Download the latest DIVE Desktop from GitHub.](https://github.com/Kitware/dive/releases/latest)**
+[⬇️ Download the latest DIVE Desktop from GitHub](https://github.com/Kitware/dive/releases/latest){ .md-button .md-button--primary }
 
 Choose an **asset** from the list matching your operating system:
 
@@ -18,6 +18,9 @@ Choose an **asset** from the list matching your operating system:
 | Linux    | .AppImage | Portable executable for all Linux platforms (recommended) |
 | Linux    | .snap     | Ubuntu SnapCraft package |
 
+### Full VIAME Desktop Installation
+
+This is just the installation guide for DIVE.  If you want the full VIAME tool suite, you can get it from [github.com/viame/viame](https://github.com/viame/viame#installations)
 
 ## Features
 
