@@ -9,5 +9,5 @@ services:
       # readwrite because this worker does addon updates
       - ${ADDON_PATH}:/tmp/addons:rw
     environment:
-      - WORKER_WATCHING_QUEUES=${WORKER_WATCHING_QUEUES}
-      - "CELERY_BROKER_URL=amqp://${RABBITMQ_DEFAULT_USER}:${RABBITMQ_DEFAULT_PASS}@${RABBITMQ_HOST}/"
+      - "WORKER_WATCHING_QUEUES=${WORKER_WATCHING_QUEUES}"
+      - "CELERY_BROKER_URL=${CELERY_BROKER_URL}"
