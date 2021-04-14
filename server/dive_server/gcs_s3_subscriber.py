@@ -16,6 +16,7 @@ from dive_server.utils import PydanticModel, saveTracks
 from dive_utils import constants, models
 from dive_utils.types import GirderModel
 
+# Example bucket notification
 """
 {
   "message": {
@@ -24,7 +25,7 @@ from dive_utils.types import GirderModel
       "objectId": "folder3/20160115_MUSKEGET_SSLC0612.JPG",
       "eventType": "OBJECT_FINALIZE"
     },
-    "data": "ewogICJraW5kIjogInN0b3JhZ2Ujb2JqZWN0IiwKICAiaWQiOiAiYnJhbmRvbi1kaXZlLWJ1Y2tldC9mb2xkZXIzLzIwMTYwMTE1X01VU0tFR0VUX1NTTEMwNjExLkpQRy8xNjE4MTAxNjI0ODMwMjI2IiwKICAic2VsZkxpbmsiOiAiaHR0cHM6Ly93d3cuZ29vZ2xlYXBpcy5jb20vc3RvcmFnZS92MS9iL2JyYW5kb24tZGl2ZS1idWNrZXQvby9mb2xkZXIzJTJGMjAxNjAxMTVfTVVTS0VHRVRfU1NMQzA2MTEuSlBHIiwKICAibmFtZSI6ICJmb2xkZXIzLzIwMTYwMTE1X01VU0tFR0VUX1NTTEMwNjExLkpQRyIsCiAgImJ1Y2tldCI6ICJicmFuZG9uLWRpdmUtYnVja2V0IiwKICAiZ2VuZXJhdGlvbiI6ICIxNjE4MTAxNjI0ODMwMjI2IiwKICAibWV0YWdlbmVyYXRpb24iOiAiMSIsCiAgImNvbnRlbnRUeXBlIjogImltYWdlL2pwZWciLAogICJ0aW1lQ3JlYXRlZCI6ICIyMDIxLTA0LTExVDAwOjQwOjI0LjgzNloiLAogICJ1cGRhdGVkIjogIjIwMjEtMDQtMTFUMDA6NDA6MjQuODM2WiIsCiAgInN0b3JhZ2VDbGFzcyI6ICJTVEFOREFSRCIsCiAgInRpbWVTdG9yYWdlQ2xhc3NVcGRhdGVkIjogIjIwMjEtMDQtMTFUMDA6NDA6MjQuODM2WiIsCiAgInNpemUiOiAiOTkzODI4NiIsCiAgIm1kNUhhc2giOiAicWFkNGZ6MEhYd2VMWWxPUjNFK2tsZz09IiwKICAibWVkaWFMaW5rIjogImh0dHBzOi8vd3d3Lmdvb2dsZWFwaXMuY29tL2Rvd25sb2FkL3N0b3JhZ2UvdjEvYi9icmFuZG9uLWRpdmUtYnVja2V0L28vZm9sZGVyMyUyRjIwMTYwMTE1X01VU0tFR0VUX1NTTEMwNjExLkpQRz9nZW5lcmF0aW9uPTE2MTgxMDE2MjQ4MzAyMjYmYWx0PW1lZGlhIiwKICAiY3JjMzJjIjogIkxmVW5NQT09IiwKICAiZXRhZyI6ICJDSkx5dTZUNjlPOENFQUU9Igp9Cg==",
+    "data": "data",
     "messageId": "2161605533400057",
     "publishTime": "2021-04-11T00:40:24.977Z"
   },
