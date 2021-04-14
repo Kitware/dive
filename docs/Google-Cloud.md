@@ -9,7 +9,7 @@ DIVE Web can mirror your data from google cloud storage buckets such that your t
 ### Creating access credentials
 
 1. Create a new [service account](https://cloud.google.com/iam/docs/creating-managing-service-accounts) with read-only access to the bucket(s) and path(s) that you want to map.
-1. In [storage settings](https://console.cloud.google.com/storage/settings) create an access key for your read-only service account.
+1. In [storage settings](https://console.cloud.google.com/storage/settings), in the interoperability tab, create an access key (Service account HMAC) for your read-only service account.
 1. Send the new credentials to the DIVE team by emailing `viame-web@kitware.com`.  Include a list of bucket names and prefix paths that these credentials are provisioned for.
 
 ### Setting up CORS
