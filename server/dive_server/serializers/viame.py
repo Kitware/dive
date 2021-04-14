@@ -7,7 +7,6 @@ import io
 import re
 import json
 from typing import Dict, Generator, List, Tuple, Union
-from dive_utils.constants import FPSMarker
 
 from dive_utils.models import Attribute, Feature, Track, interpolate
 
@@ -28,11 +27,14 @@ def writeHeader(writer: '_csv._writer', metadata: Dict):
             "Confidence Pairs or Attributes",
         ]
     )
-    metadata_dict = {}.update(metadata)
+    metadata_dict = {}
+    metadata_dict.update(metadata)
     metadata_dict['exported_by'] = 'dive:python'
     metadata_dict['exported_time'] = datetime.datetime.now().ctime()
-    metadata_str = json.dumps(metadata)
-    writer.writerow([f'#metadata {metadata_str}'])
+    metadata_list = []
+    for (key, value) in metadata_dict.items():
+        metadata_list.append(f"{key}: {json.dumps(value)}")
+    writer.writerow(['# metadata', *metadata_list])
 
 
 def valueToString(value):
@@ -279,7 +281,7 @@ def export_tracks_as_csv(
     if header:
         metadata = {}
         if fps is not None:
-            metadata[FPSMarker] = fps
+            metadata["fps"] = fps
         writeHeader(writer, metadata)
     for t in track_dict.values():
         track = Track(**t)

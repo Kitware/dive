@@ -89,6 +89,7 @@ async function runPipeline(
       '-s "input:video_reader:type=vidl_ffmpeg"',
       `-p "${pipelinePath}"`,
       `-s input:video_filename="${videoAbsPath}"`,
+      `-s downsampler:target_frame_rate=${meta.fps}`,
       `-s detector_writer:file_name="${detectorOutput}"`,
       `-s track_writer:file_name="${trackOutput}"`,
     ];

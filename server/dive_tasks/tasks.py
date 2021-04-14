@@ -214,6 +214,7 @@ def run_pipeline(self: Task, params: PipelineJob):
     input_media_list = download_source_media(gc, input_folder, input_path)
 
     if input_type == VideoType:
+        input_fps = fromMeta(input_folder, FPSMarker)
         assert len(input_media_list) == 1, "Expected exactly 1 video"
         command = [
             f". {shlex.quote(str(conf.viame_setup_script))} &&",
@@ -221,11 +222,11 @@ def run_pipeline(self: Task, params: PipelineJob):
             "-s input:video_reader:type=vidl_ffmpeg",
             f"-p {shlex.quote(str(pipeline_path))}",
             f"-s input:video_filename={shlex.quote(input_media_list[0])}",
+            f"-s downsampler:target_frame_rate={shlex.quote(str(input_fps))}",
             f"-s detector_writer:file_name={shlex.quote(detector_output_file)}",
             f"-s track_writer:file_name={shlex.quote(track_output_file)}",
         ]
     elif input_type == ImageSequenceType:
-        input_fps = fromMeta(input_folder, FPSMarker)
         with open(img_list_path, "w+") as img_list_file:
             img_list_file.write('\n'.join(input_media_list))
         command = [
@@ -233,7 +234,6 @@ def run_pipeline(self: Task, params: PipelineJob):
             "kwiver runner",
             f"-p {shlex.quote(str(pipeline_path))}",
             f"-s input:video_filename={shlex.quote(str(img_list_path))}",
-            f"-s downsampler:target_frame_rate={shlex.quote(str(input_fps))}"
             f"-s detector_writer:file_name={shlex.quote(detector_output_file)}",
             f"-s track_writer:file_name={shlex.quote(track_output_file)}",
         ]
