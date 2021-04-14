@@ -492,7 +492,6 @@ def convert_video(self: Task, path, folderId, auxiliaryFolderId, itemId):
     gc.addMetadataToFolder(
         folderId,
         {
-            FPSMarker: DefaultVideoFPS,  # TODO: current time system doesn't allow for non-int framerates
             DatasetMarker: True,  # mark the parent folder as able to annotate.
             "ffprobe_info": videostream[0],
         },

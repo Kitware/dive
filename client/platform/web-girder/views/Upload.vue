@@ -70,7 +70,6 @@ export default Vue.extend({
   data: () => ({
     preUploadErrorMessage: null,
     pendingUploads: [],
-    defaultFPS: `${DefaultVideoFPS}`, // requires string for the input item
     ImageSequenceType,
   }),
   computed: {
@@ -144,7 +143,7 @@ export default Vue.extend({
       if (!resp.ok) {
         throw new Error(resp.message);
       }
-      const fps = this.defaultFPS;
+      const fps = resp.type === ImageSequenceType ? 5 : DefaultVideoFPS;
       const defaultFilename = resp.media[0];
       const validFiles = resp.media.concat(resp.annotations);
       // mapping needs to be done for the mixin upload functions
@@ -324,7 +323,8 @@ export default Vue.extend({
               </v-col>
               <v-col>
                 <v-text-field
-                  v-model="pendingUpload.name"
+                  :value="pendingUpload.createSubFolders ? 'default' : pendingUpload.name"
+                  @input="pendingUpload.name = $event"
                   class="upload-name"
                   :rules="[
                     val => (val || '').length > 0 || 'This field is required'
@@ -337,19 +337,20 @@ export default Vue.extend({
                 />
               </v-col>
               <v-col
-                v-if="pendingUpload.type === ImageSequenceType"
                 cols="2"
               >
                 <v-text-field
                   v-model="pendingUpload.fps"
                   type="number"
                   :rules="[
-                    val => (val || '').length > 0 || 'This field is required'
+                    val => `${val}`.length > 0 || 'This field is required',
+                    val => val > 0 && val <= 120,
                   ]"
                   required
                   label="FPS"
-                  hide-details
-                  :disabled="pendingUpload.uploading"
+                  hint="1 to 120"
+                  :disabled="pendingUpload.uploading || pendingUpload.createSubFolders"
+                  persistent-hint
                 />
               </v-col>
 
