@@ -1,8 +1,10 @@
 # Google Cloud
 
-## Bucket Mirroring
+This guide is intended for DIVE Web users who would like to use Google Cloud features like storage and compute to store and process data.  Your data will live in GCS Buckets and can be analyzed on either Kitware's servers or your own service workers.
 
-DIVE Web can mirror your data from google cloud buckets such that your team fully controls upload and data organization, but is able to view, annotation, and run analysis on that data in the DIVE platform.
+## Google Cloud Storage Mirroring
+
+DIVE Web can mirror your data from google cloud storage buckets such that your team fully controls upload and data organization, but is able to view, annotation, and run analysis on that data in the DIVE platform.
 
 ### Creating access credentials
 

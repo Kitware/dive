@@ -93,25 +93,27 @@ class PublicDataSummary(BaseModel):
 
 
 class GCSObjectFinalizeNotification(BaseModel):
-    """
-    https://cloud.google.com/storage/docs/pubsub-notifications
-    https://cloud.google.com/storage/docs/object-change-notification#_Notification_Types
-    """
-
     bucketId: str
     objectId: str
     eventType: str
 
 
 class GCSPushNotificationMessage(BaseModel):
-    """
-    https://cloud.google.com/pubsub/docs/push#receiving_messages
-    """
-
     attributes: GCSObjectFinalizeNotification
     data: str
     messageId: str
     publishTime: str
+
+
+class GCSPushNotificationPayload(BaseModel):
+    """
+    https://cloud.google.com/pubsub/docs/push#receiving_messages
+    https://cloud.google.com/storage/docs/pubsub-notifications
+    https://cloud.google.com/storage/docs/object-change-notification#_Notification_Types
+    """
+
+    message: GCSPushNotificationMessage
+    subscription: str
 
 
 # interpolate all features [a, b)
