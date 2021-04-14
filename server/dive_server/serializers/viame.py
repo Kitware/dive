@@ -4,8 +4,8 @@ VIAME Fish format deserializer
 import csv
 import datetime
 import io
-import re
 import json
+import re
 from typing import Dict, Generator, List, Tuple, Union
 
 from dive_utils.models import Attribute, Feature, Track, interpolate
