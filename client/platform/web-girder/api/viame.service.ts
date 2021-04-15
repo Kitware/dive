@@ -46,7 +46,7 @@ function makeViameFolder({
 }: {
   folderId: string;
   name: string;
-  fps: number | string;
+  fps: number;
   type: string;
 }) {
   return girderRest.post(

@@ -114,9 +114,9 @@ function _parseRow(row: string[]) {
   // Create empty feature collection
   const geoFeatureCollection:
     GeoJSON.FeatureCollection<TrackSupportedFeature, GeoJSON.GeoJsonProperties> = {
-      type: 'FeatureCollection',
-      features: [],
-    };
+    type: 'FeatureCollection',
+    features: [],
+  };
   let attributes: StringKeyObject | undefined;
   const trackAttributes: StringKeyObject = {};
   const cpStarti = 9; // Confidence pairs start at i=9
@@ -297,11 +297,13 @@ async function writeHeader(writer: Writable, meta: JsonMeta) {
     'Confidence Pairs or Attributes',
   ]);
   if (meta.fps) {
-    writer.write([`#meta fps=${meta.fps}`]);
+    writer.write([
+      '# metadata',
+      `fps: ${meta.fps}`,
+      `exported_by: ${JSON.stringify('dive:typescript')}`,
+      `exported_time: ${JSON.stringify((new Date()).toLocaleString())}`,
+    ]);
   }
-  writer.write(
-    [`# Written on ${(new Date()).toLocaleString().replace(',', '')} by dive_writer:typescript`],
-  );
 }
 
 async function serialize(

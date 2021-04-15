@@ -316,7 +316,7 @@ export default Vue.extend({
                   :input-value="pendingUpload.createSubFolders"
                   label="Create Subfolders"
                   disabled
-                  hint="Enabled when many videos are being uploaded"
+                  hint="Enabled when many videos are selected"
                   persistent-hint
                   class="pl-2"
                 />
@@ -324,32 +324,27 @@ export default Vue.extend({
               <v-col>
                 <v-text-field
                   :value="pendingUpload.createSubFolders ? 'default' : pendingUpload.name"
-                  @input="pendingUpload.name = $event"
                   class="upload-name"
-                  :rules="[
-                    val => (val || '').length > 0 || 'This field is required'
-                  ]"
+                  :rules="[val => (val || '').length > 0 || 'This field is required']"
                   required
                   :label="getFilenameInputStateLabel(pendingUpload)"
                   :disabled="getFilenameInputStateDisabled(pendingUpload)"
                   :hint="getFilenameInputStateHint(pendingUpload)"
                   persistent-hint
+                  @input="pendingUpload.name = $event"
                 />
               </v-col>
               <v-col
                 cols="2"
               >
-                <v-text-field
+                <v-select
                   v-model="pendingUpload.fps"
+                  :items="[1, 5, 10, 15, 24, 25, 30, 50, 60]"
+                  :disabled="pendingUpload.uploading"
                   type="number"
-                  :rules="[
-                    val => `${val}`.length > 0 || 'This field is required',
-                    val => val > 0 && val <= 120,
-                  ]"
                   required
                   label="FPS"
-                  hint="1 to 120"
-                  :disabled="pendingUpload.uploading || pendingUpload.createSubFolders"
+                  hint="annotation fps"
                   persistent-hint
                 />
               </v-col>
