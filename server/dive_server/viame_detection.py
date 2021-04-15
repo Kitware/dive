@@ -23,8 +23,10 @@ from dive_server.utils import (
 )
 from dive_utils import fromMeta, models
 from dive_utils.constants import (
+    FPSMarker,
     ImageMimeTypes,
     ImageSequenceType,
+    TypeMarker,
     VideoMimeTypes,
     VideoType,
     safeImageRegex,
@@ -84,9 +86,9 @@ class ViameDetection(Resource):
 
         fps = None
         imageFiles = None
-        source_type = fromMeta(folder, 'type')
+        source_type = fromMeta(folder, TypeMarker)
         if source_type == VideoType:
-            fps = fromMeta(folder, 'fps')
+            fps = fromMeta(folder, FPSMarker)
         elif source_type == ImageSequenceType:
             imageFiles = [
                 f['name']
@@ -147,7 +149,7 @@ class ViameDetection(Resource):
                 f'?excludeBelowThreshold={excludeBelowThreshold}'
             )
 
-        source_type = fromMeta(folder, 'type')
+        source_type = fromMeta(folder, TypeMarker)
         if source_type == VideoType:
             params = {
                 'mimeFilter': json.dumps(list(VideoMimeTypes)),
