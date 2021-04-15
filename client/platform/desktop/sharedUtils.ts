@@ -23,16 +23,18 @@ function filterByGlob(pattern: string, files: string[]) {
   return files.filter((val) => patterns.some((re) => re.test(val)));
 }
 
+/* Zip arrays of unequal length */
+function zip<T>(a: T[], b: T[]) {
+  return Array.from(Array(Math.max(b.length, a.length)), (_, i) => [a[i], b[i]]);
+}
+
 /**
  * Extract numeric value from string.
  * Ex: input = '1_text00...200'
  * returns 100200
  */
 function strNumericKey(input: string) {
-  const matches = Array.from(input.matchAll(/\d+/g));
-  return matches.length
-    ? parseInt(Array.from(matches).join(''), 10)
-    : 0;
+  return Array.from(input.matchAll(/\d+/g)).map((v) => parseInt(v.join(''), 10));
 }
 
 /**
@@ -45,12 +47,18 @@ function strNumericCompare(input1: string, input2: string) {
   if (input1 === input2) {
     return 0;
   }
-  const num1 = strNumericKey(input1);
-  const num2 = strNumericKey(input2);
-  if (num1 === num2) {
-    return input1 > input2 ? 1 : -1;
+  const zipped = zip(
+    strNumericKey(input1),
+    strNumericKey(input2),
+  );
+  for (let i = 0; i < zipped.length; i += 1) {
+    const [a, b] = zipped[i];
+    if (a === b) { continue; }
+    if (a === undefined) return -1;
+    if (b === undefined) return 1;
+    return a - b;
   }
-  return num1 - num2;
+  return input1 > input2 ? 1 : -1;
 }
 
 export {

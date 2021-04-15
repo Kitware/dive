@@ -1,5 +1,5 @@
 """Utilities that are common to both the viame server and tasks package."""
-import math
+import itertools
 import re
 from typing import Any, Dict, Union
 
@@ -26,9 +26,7 @@ def fromMeta(
 
 
 def strNumericKey(input: str) -> int:
-    numbers_str = ''.join(NUMBERS_REGEX.findall(input))
-    numbers_value = int(numbers_str) if numbers_str else 0
-    return numbers_value
+    return [int(num) for num in NUMBERS_REGEX.findall(input)]
 
 
 def strNumericCompare(input1: str, input2: str) -> float:
@@ -43,4 +41,12 @@ def strNumericCompare(input1: str, input2: str) -> float:
     num2 = strNumericKey(input2)
     if num1 == num2:
         return 1 if input1 > input2 else -1
-    return num1 - num2
+    for a, b in itertools.zip_longest(num1, num2, fillvalue=None):
+        if a == b:
+            continue
+        if a is None:
+            return -1
+        if b is None:
+            return 1
+        return a - b
+    return 0
