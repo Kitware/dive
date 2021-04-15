@@ -1,7 +1,13 @@
 from girder.models.folder import Folder
 from girder.models.item import Item
 
-from dive_utils.constants import DatasetMarker, ImageSequenceType, csvRegex
+from dive_utils.constants import (
+    DatasetMarker,
+    DefaultVideoFPS,
+    FPSMarker,
+    ImageSequenceType,
+    csvRegex,
+)
 
 
 def check_existing_annotations(event):
@@ -26,6 +32,6 @@ def check_existing_annotations(event):
         # FPS is hardcoded for now
         folder = Folder().findOne({"_id": item["folderId"]})
         folder["meta"].update(
-            {"type": ImageSequenceType, "fps": 30, DatasetMarker: True}
+            {"type": ImageSequenceType, FPSMarker: DefaultVideoFPS, DatasetMarker: True}
         )
         Folder().save(folder)

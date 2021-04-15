@@ -1,12 +1,12 @@
 import { Module } from 'vuex';
 
-import { ImageSequenceType, VideoType } from 'dive-common/constants';
+import { ImageSequenceType, MediaTypes, VideoType } from 'dive-common/constants';
 import type { FrameImage } from 'dive-common/apispec';
-import type { GirderMetadataStatic, GirderMetadata } from 'platform/web-girder/constants';
 
-import { getFolder, getItemDownloadUri } from '../api/girder.service';
-import { getValidWebImages } from '../api/viame.service';
-import { getClipMeta } from '../api/viameDetection.service';
+import type { GirderMetadataStatic, GirderMetadata } from 'platform/web-girder/constants';
+import { getFolder, getItemDownloadUri } from 'platform/web-girder/api/girder.service';
+import { getValidWebImages } from 'platform/web-girder/api/viame.service';
+import { getClipMeta } from 'platform/web-girder/api/viameDetection.service';
 
 import { DatasetState, RootState } from './types';
 
@@ -15,46 +15,28 @@ function isGirderDatasetMeta(obj: any): obj is GirderMetadataStatic {
   if (obj.annotate !== true) {
     return false;
   }
+  if (!(typeof obj.name === 'string')) {
+    return false;
+  }
   if (!(typeof obj.type === 'string')) {
+    return false;
+  }
+  if (!(obj.type in MediaTypes)) {
     return false;
   }
   if (!(typeof obj.id === 'string')) {
     return false;
   }
+  if (!(typeof obj.fps === 'number')) {
+    return false;
+  }
   return true;
 }
-
-const defaultFrameRate = 30;
 
 const datasetModule: Module<DatasetState, RootState> = {
   namespaced: true,
   state: {
     meta: null,
-  },
-  getters: {
-    frameRate(state): number {
-      const fps = state.meta?.fps;
-      if (fps) {
-        if (typeof fps === 'string') {
-          const parsed = parseInt(fps, 10);
-          if (Number.isNaN(parsed)) {
-            throw new Error(`Cannot parse fps=${fps} as integer`);
-          }
-          return parsed;
-        }
-      }
-      return defaultFrameRate;
-    },
-    annotatorType(state): 'ImageAnnotator'|'VideoAnnotator'|'' {
-      if (!state.meta) {
-        return '';
-      } if (state.meta.type === VideoType) {
-        return 'VideoAnnotator';
-      } if (state.meta.type === ImageSequenceType) {
-        return 'ImageAnnotator';
-      }
-      throw new Error(`Unknown dataset type: ${state.meta.type}`);
-    },
   },
   mutations: {
     set(state, { dataset }: { dataset: GirderMetadata }) {

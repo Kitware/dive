@@ -7,7 +7,7 @@ import { DatasetMeta, DatasetMetaMutable, DatasetType } from 'dive-common/apispe
 interface GirderMetadataStatic extends DatasetMetaMutable {
   id: string;
   type: Readonly<DatasetType>;
-  fps: Readonly<number | string>;
+  fps: Readonly<number>;
   name: string;
   createdAt: string;
   ffprobe_info?: Record<string, string>;

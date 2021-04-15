@@ -34,13 +34,13 @@ import RunPipelineMenu from 'dive-common/components/RunPipelineMenu.vue';
 import DeleteControls from 'dive-common/components/DeleteControls.vue';
 import ControlsContainer from 'dive-common/components/ControlsContainer.vue';
 import Sidebar from 'dive-common/components/Sidebar.vue';
-
 import {
   useModeManager,
   useSave,
   useSettings,
 } from 'dive-common/use';
 import { useApi, FrameImage, DatasetType } from 'dive-common/apispec';
+import { cloneDeep } from 'lodash';
 
 export default defineComponent({
   components: {
@@ -80,7 +80,7 @@ export default defineComponent({
       }
       return {} as MediaController;
     });
-    const fps = ref(10 as string | number);
+    const frameRate = ref(null as number | null);
     const imageData = ref([] as FrameImage[]);
     const datasetType: Ref<DatasetType> = ref('image-sequence');
     const datasetName = ref('');
@@ -91,21 +91,6 @@ export default defineComponent({
     // with stale data from props, for example if a persistent store
     // like vuex is used to drive them.
     const loaded = ref(false);
-    const frameRate = computed(() => {
-      if (fps.value) {
-        if (typeof fps.value === 'string') {
-          const parsed = parseInt(fps.value, 10);
-          if (Number.isNaN(parsed)) {
-            throw new Error(`Cannot parse fps=${fps.value} as integer`);
-          }
-          return parsed;
-        }
-        if (typeof fps.value === 'number') {
-          return fps.value;
-        }
-      }
-      return 10;
-    });
 
     const {
       save: saveToServer,
@@ -348,8 +333,8 @@ export default defineComponent({
         }
         populateConfidenceFilters(meta.confidenceFilters);
         datasetName.value = meta.name;
-        fps.value = meta.fps;
-        imageData.value = meta.imageData;
+        frameRate.value = meta.fps;
+        imageData.value = cloneDeep(meta.imageData) as FrameImage[];
         videoUrl.value = meta.videoUrl;
         datasetType.value = meta.type;
       }),
