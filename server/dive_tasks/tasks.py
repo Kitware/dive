@@ -27,6 +27,8 @@ from dive_tasks.utils import (
 from dive_utils import fromMeta
 from dive_utils.constants import (
     DatasetMarker,
+    DefaultVideoFPS,
+    FPSMarker,
     ImageSequenceType,
     TrainedPipelineCategory,
     TrainedPipelineMarker,
@@ -212,6 +214,7 @@ def run_pipeline(self: Task, params: PipelineJob):
     input_media_list = download_source_media(gc, input_folder, input_path)
 
     if input_type == VideoType:
+        input_fps = fromMeta(input_folder, FPSMarker)
         assert len(input_media_list) == 1, "Expected exactly 1 video"
         command = [
             f". {shlex.quote(str(conf.viame_setup_script))} &&",
@@ -219,6 +222,7 @@ def run_pipeline(self: Task, params: PipelineJob):
             "-s input:video_reader:type=vidl_ffmpeg",
             f"-p {shlex.quote(str(pipeline_path))}",
             f"-s input:video_filename={shlex.quote(input_media_list[0])}",
+            f"-s downsampler:target_frame_rate={shlex.quote(str(input_fps))}",
             f"-s detector_writer:file_name={shlex.quote(detector_output_file)}",
             f"-s track_writer:file_name={shlex.quote(track_output_file)}",
         ]
@@ -488,7 +492,6 @@ def convert_video(self: Task, path, folderId, auxiliaryFolderId, itemId):
     gc.addMetadataToFolder(
         folderId,
         {
-            "fps": 5,  # TODO: current time system doesn't allow for non-int framerates
             DatasetMarker: True,  # mark the parent folder as able to annotate.
             "ffprobe_info": videostream[0],
         },

@@ -10,7 +10,9 @@ from girder.models.user import User
 from dive_server.serializers import viame
 from dive_utils import fromMeta
 from dive_utils.constants import (
+    FPSMarker,
     ImageSequenceType,
+    TypeMarker,
     ViameDataFolderName,
     VideoType,
     safeImageRegex,
@@ -63,9 +65,9 @@ def ensure_csv_detections_file(
 
     fps = None
     imageFiles = None
-    source_type = fromMeta(folder, 'type')
+    source_type = fromMeta(folder, TypeMarker)
     if source_type == VideoType:
-        fps = fromMeta(folder, 'fps')
+        fps = fromMeta(folder, FPSMarker)
     elif source_type == ImageSequenceType:
         imageFiles = [
             f['name']

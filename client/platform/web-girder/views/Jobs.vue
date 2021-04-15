@@ -4,6 +4,18 @@ import { GirderJobList } from '@girder/components/src';
 export default {
   name: 'Jobs',
   components: { GirderJobList },
+  methods: {
+    getId(data) {
+      try {
+        if (typeof data === 'object') {
+          return data.folderId;
+        }
+        return JSON.parse(data).params.input_folder;
+      } catch (err) {
+        return null;
+      }
+    },
+  },
 };
 </script>
 
@@ -13,16 +25,42 @@ export default {
   >
     <GirderJobList>
       <template #jobwidget="{ item }">
-        <span>{{ item.statusText.replace('Inactive', 'Queued') }}</span>
-        <v-btn
-          x-small
-          :href="`/girder/#job/${item._id}`"
-          color="info"
-          outlined
-          class="mx-2"
+        <v-tooltip
+          v-if="getId(item.kwargs)"
+          bottom
         >
-          Manage
-        </v-btn>
+          <template #activator="{on, attrs}">
+            <v-btn
+              v-bind="attrs"
+              x-small
+              depressed
+              :to="{ name: 'viewer', params: { id: getId(item.kwargs) } }"
+              color="info"
+              class="ml-0"
+              v-on="on"
+            >
+              <v-icon small>mdi-eye</v-icon>
+            </v-btn>
+          </template>
+          <span>Launch dataset viewer</span>
+        </v-tooltip>
+        <v-tooltip bottom>
+          <template #activator="{on, attrs}">
+            <v-btn
+              v-bind="attrs"
+              x-small
+              depressed
+              :href="`/girder/#job/${item._id}`"
+              color="info"
+              class="mx-2"
+              v-on="on"
+            >
+              <v-icon small>mdi-text-box-outline</v-icon>
+            </v-btn>
+          </template>
+          <span>View job logs and manage job</span>
+        </v-tooltip>
+        <span>{{ item.statusText.replace('Inactive', 'Queued') }}</span>
       </template>
     </GirderJobList>
     <v-card class="mt-4">

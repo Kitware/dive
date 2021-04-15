@@ -5,3 +5,4 @@ mkdocs
 mkdocs-material
 mypy
 pytest
+pytest-cov
