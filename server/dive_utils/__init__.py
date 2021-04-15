@@ -1,7 +1,7 @@
 """Utilities that are common to both the viame server and tasks package."""
 import itertools
 import re
-from typing import Any, Dict, Union
+from typing import Any, Dict, List, Union
 
 from dive_utils.types import GirderModel
 
@@ -25,7 +25,7 @@ def fromMeta(
         return obj["meta"][key]
 
 
-def strNumericKey(input: str) -> int:
+def strNumericKey(input: str) -> List[int]:
     return [int(num) for num in NUMBERS_REGEX.findall(input)]
 
 

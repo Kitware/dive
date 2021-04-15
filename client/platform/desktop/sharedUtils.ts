@@ -53,10 +53,11 @@ function strNumericCompare(input1: string, input2: string) {
   );
   for (let i = 0; i < zipped.length; i += 1) {
     const [a, b] = zipped[i];
-    if (a === b) { continue; }
-    if (a === undefined) return -1;
-    if (b === undefined) return 1;
-    return a - b;
+    if (a !== b) {
+      if (a === undefined) return -1;
+      if (b === undefined) return 1;
+      return a - b;
+    }
   }
   return input1 > input2 ? 1 : -1;
 }

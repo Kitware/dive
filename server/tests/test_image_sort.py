@@ -5,7 +5,6 @@ import pytest
 
 from dive_utils import strNumericCompare
 
-
 with open('../testutils/imagesort.spec.json', 'r') as fp:
     test_tuple = json.load(fp)
 
