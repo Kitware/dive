@@ -1,6 +1,30 @@
 version: "2.4"
 services:
 
+  traefik:
+    command: >
+      --log.level=${LOG_LEVEL:-DEBUG}
+      --providers.docker=true
+      --providers.docker.exposedByDefault=false
+      --entrypoints.web.address=:80
+      --entrypoints.websecure.address=:443
+      --certificatesresolvers.myresolver.acme.email=${ACME_EMAIL}
+      --certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json
+      --certificatesresolvers.myresolver.acme.httpchallenge=true
+      --certificatesresolvers.myresolver.acme.httpchallenge.entrypoint=web
+      --certificatesresolvers.myresolver.acme.caserver=${ACME_CA_SERVER:-https://acme-staging-v02.api.letsencrypt.org/directory}
+    labels:
+      # Traefik HTTPS Redirect
+      - "traefik.http.routers.http-catchall.entrypoints=web"
+      - "traefik.http.routers.http-catchall.rule=HostRegexp(`{host:.+}`)
+      - "traefik.http.routers.http-catchall.middlewares=redirect-to-https-mddl@docker"
+      - "traefik.http.middlewares.redirect-to-https-mddl.redirectscheme.scheme=https"
+    volumes:
+      - "${LOCAL_MOUNT:-.}/traefik/letsencrypt:/letsencrypt"
+    ports:
+      - "80:80"
+      - "443:443"
+
   rabbit:
     restart: always
 
