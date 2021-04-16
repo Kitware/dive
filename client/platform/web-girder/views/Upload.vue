@@ -2,7 +2,7 @@
 import Vue from 'vue';
 import { GirderDropzone, mixins } from '@girder/components/src';
 
-import { ImageSequenceType, VideoType } from 'dive-common/constants';
+import { ImageSequenceType, VideoType, DefaultVideoFPS } from 'dive-common/constants';
 
 import { makeViameFolder, validateUploadGroup, postProcess } from '../api/viame.service';
 import { getResponseError } from '../utils';
@@ -70,7 +70,6 @@ export default Vue.extend({
   data: () => ({
     preUploadErrorMessage: null,
     pendingUploads: [],
-    defaultFPS: '10', // requires string for the input item
     ImageSequenceType,
   }),
   computed: {
@@ -144,7 +143,7 @@ export default Vue.extend({
       if (!resp.ok) {
         throw new Error(resp.message);
       }
-      const fps = this.defaultFPS;
+      const fps = resp.type === ImageSequenceType ? 5 : DefaultVideoFPS;
       const defaultFilename = resp.media[0];
       const validFiles = resp.media.concat(resp.annotations);
       // mapping needs to be done for the mixin upload functions
@@ -217,7 +216,7 @@ export default Vue.extend({
     },
     async uploadPending(pendingUpload, uploaded) {
       const { name, files, createSubFolders } = pendingUpload;
-      const fps = parseInt(pendingUpload.fps, 10);
+      const fps = parseInt(pendingUpload.fps, DefaultVideoFPS);
 
       // eslint-disable-next-line no-param-reassign
       pendingUpload.uploading = true;
@@ -317,39 +316,36 @@ export default Vue.extend({
                   :input-value="pendingUpload.createSubFolders"
                   label="Create Subfolders"
                   disabled
-                  hint="Enabled when many videos are being uploaded"
+                  hint="Enabled when many videos are selected"
                   persistent-hint
                   class="pl-2"
                 />
               </v-col>
               <v-col>
                 <v-text-field
-                  v-model="pendingUpload.name"
+                  :value="pendingUpload.createSubFolders ? 'default' : pendingUpload.name"
                   class="upload-name"
-                  :rules="[
-                    val => (val || '').length > 0 || 'This field is required'
-                  ]"
+                  :rules="[val => (val || '').length > 0 || 'This field is required']"
                   required
                   :label="getFilenameInputStateLabel(pendingUpload)"
                   :disabled="getFilenameInputStateDisabled(pendingUpload)"
                   :hint="getFilenameInputStateHint(pendingUpload)"
                   persistent-hint
+                  @input="pendingUpload.name = $event"
                 />
               </v-col>
               <v-col
-                v-if="pendingUpload.type === ImageSequenceType"
                 cols="2"
               >
-                <v-text-field
+                <v-select
                   v-model="pendingUpload.fps"
+                  :items="[1, 5, 10, 15, 24, 25, 30, 50, 60]"
+                  :disabled="pendingUpload.uploading"
                   type="number"
-                  :rules="[
-                    val => (val || '').length > 0 || 'This field is required'
-                  ]"
                   required
                   label="FPS"
-                  hide-details
-                  :disabled="pendingUpload.uploading"
+                  hint="annotation fps"
+                  persistent-hint
                 />
               </v-col>
 

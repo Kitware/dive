@@ -45,6 +45,7 @@ TrainedPipelineMarker = "trained_pipeline"
 TypeMarker = "type"
 AssetstoreSourceMarker = "import_source"
 AssetstoreSourcePathMarker = "import_path"
+FPSMarker = "fps"
 
 # Other constants
 TrainedPipelineCategory = "trained"

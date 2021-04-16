@@ -8,3 +8,4 @@ pytest
 ipykernel
 tabulate
 python-dotenv
+pytest-cov

@@ -4,6 +4,7 @@ VIAME Fish format deserializer
 import csv
 import datetime
 import io
+import json
 import re
 from typing import Dict, Generator, List, Tuple, Union
 
@@ -26,13 +27,14 @@ def writeHeader(writer: '_csv._writer', metadata: Dict):
             "Confidence Pairs or Attributes",
         ]
     )
+    metadata_dict = {}
+    metadata_dict.update(metadata)
+    metadata_dict['exported_by'] = 'dive:python'
+    metadata_dict['exported_time'] = datetime.datetime.now().ctime()
     metadata_list = []
-    for (key, value) in metadata.items():
-        metadata_list.append(f" {key}: {value}")
-    metadata_str = ",".join(metadata_list)
-    writer.writerow([f'# metadata -{metadata_str}'])
-
-    writer.writerow([f'# Written on {datetime.datetime.now().ctime()} by: dive:python'])
+    for (key, value) in metadata_dict.items():
+        metadata_list.append(f"{key}: {json.dumps(value)}")
+    writer.writerow(['# metadata', *metadata_list])
 
 
 def valueToString(value):
