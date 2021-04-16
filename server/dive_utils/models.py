@@ -92,30 +92,6 @@ class PublicDataSummary(BaseModel):
     label_summary_items: List[SummaryItemSchema]
 
 
-class GCSObjectFinalizeNotification(BaseModel):
-    bucketId: str
-    objectId: str
-    eventType: str
-
-
-class GCSPushNotificationMessage(BaseModel):
-    attributes: GCSObjectFinalizeNotification
-    data: str
-    messageId: str
-    publishTime: str
-
-
-class GCSPushNotificationPayload(BaseModel):
-    """
-    https://cloud.google.com/pubsub/docs/push#receiving_messages
-    https://cloud.google.com/storage/docs/pubsub-notifications
-    https://cloud.google.com/storage/docs/object-change-notification#_Notification_Types
-    """
-
-    message: GCSPushNotificationMessage
-    subscription: str
-
-
 # interpolate all features [a, b)
 def interpolate(a: Feature, b: Feature) -> List[Feature]:
     if a.interpolate is False:

@@ -43,6 +43,8 @@ PublishedMarker = "published"
 ForeignMediaIdMarker = "foreign_media_id"
 TrainedPipelineMarker = "trained_pipeline"
 TypeMarker = "type"
+AssetstoreSourceMarker = "import_source"
+AssetstoreSourcePathMarker = "import_path"
 
 # Other constants
 TrainedPipelineCategory = "trained"

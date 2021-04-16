@@ -5,7 +5,7 @@ from setuptools import find_packages, setup
 
 requirements = [
     "cheroot>=8.4.5",  # https://github.com/cherrypy/cheroot/issues/312
-    "girder==3.1.0",
+    "girder @ git+https://github.com/girder/girder@server/s3-assetstore-import-fix",
     "diva-boiler",
     "girder_jobs==3.0.3",
     "girder_worker==0.8.0",
@@ -38,7 +38,10 @@ setup(
     version="1.4.1",
     zip_safe=False,
     entry_points={
-        "girder.plugin": ["dive_server = dive_server:GirderPlugin"],
+        "girder.plugin": [
+            "dive_server = dive_server:GirderPlugin",
+            "bucket_notifications = bucket_notifications:GirderPlugin",
+        ],
         "girder_worker_plugins": ["dive_tasks = dive_tasks:DIVEPlugin"],
     },
 )
