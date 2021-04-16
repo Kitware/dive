@@ -6,7 +6,6 @@ from girder.models.folder import Folder
 from girder.models.item import Item
 from girder.models.user import User
 
-<<<<<<< HEAD
 from dive_utils import asbool, fromMeta
 from dive_utils.constants import (
     AssetstoreSourceMarker,
@@ -14,20 +13,13 @@ from dive_utils.constants import (
     DatasetMarker,
     DefaultVideoFPS,
     DetectionMarker,
+    FPSMarker,
     ImageSequenceType,
     TypeMarker,
     VideoType,
     csvRegex,
     imageRegex,
     videoRegex,
-=======
-from dive_utils.constants import (
-    DatasetMarker,
-    DefaultVideoFPS,
-    FPSMarker,
-    ImageSequenceType,
-    csvRegex,
->>>>>>> main
 )
 
 
@@ -82,13 +74,12 @@ def process_assetstore_import(event, meta: dict):
         # FPS is hardcoded for now
         Item().save(item)
         folder = Folder().findOne({"_id": item["folderId"]})
-<<<<<<< HEAD
         root, _ = os.path.split(importPath)
         if not asbool(fromMeta(folder, DatasetMarker)):
             folder["meta"].update(
                 {
                     TypeMarker: dataset_type,
-                    "fps": DefaultVideoFPS,
+                    FPSMarker: DefaultVideoFPS,
                     DatasetMarker: True,
                     AssetstoreSourcePathMarker: root,
                     **meta,
@@ -103,9 +94,3 @@ def process_fs_import(event):
 
 def process_s3_import(event):
     return process_assetstore_import(event, {AssetstoreSourceMarker: 's3'})
-=======
-        folder["meta"].update(
-            {"type": ImageSequenceType, FPSMarker: DefaultVideoFPS, DatasetMarker: True}
-        )
-        Folder().save(folder)
->>>>>>> main
