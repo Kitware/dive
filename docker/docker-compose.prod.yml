@@ -33,6 +33,8 @@ services:
 
   girder:
     restart: always
+    environment:
+      - "WORKER_API_URL=${WORKER_API_URL:-http://girder:8080/api/v1}"
 
   girder_worker_default:
     restart: always

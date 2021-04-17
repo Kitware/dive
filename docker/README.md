@@ -51,11 +51,12 @@ This image contains both the backend and client.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| GIRDER_MONGO_URI | mongodb://mongo:27017/girder | a mongodb connection string |
-| GIRDER_ADMIN_USER | admin | admin username |
-| GIRDER_ADMIN_PASS | letmein | admin password |
-| CELERY_BROKER_URL | amqp://guest:guest@rabbit/ | rabbitmq connection string |
-| BROKER_CONNECTION_TIMEOUT | 2 | rabbitmq connection timeout |
+| GIRDER_MONGO_URI | `mongodb://mongo:27017/girder` | a mongodb connection string |
+| GIRDER_ADMIN_USER | `admin` | admin username |
+| GIRDER_ADMIN_PASS | `letmein` | admin password |
+| CELERY_BROKER_URL | `amqp://guest:guest@rabbit/` | rabbitmq connection string |
+| BROKER_CONNECTION_TIMEOUT | `2` | rabbitmq connection timeout |
+| WORKER_API_URL | `http://girder:8080/api/v1` | Address for workers to reach web server |
 
 [Read more about configuring girder.](https://girder.readthedocs.io/en/latest/)
 
@@ -65,8 +66,27 @@ This image contains a celery worker to run VIAME pipelines and transcoding jobs.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| CELERY_BROKER_URL | amqp://guest:guest@rabbit/ | rabbitmq connection string |
-| BROKER_CONNECTION_TIMEOUT | 2 | rabbitmq connection timeout |
+| CELERY_BROKER_URL | `amqp://guest:guest@rabbit/` | rabbitmq connection string |
+| BROKER_CONNECTION_TIMEOUT | `2` | rabbitmq connection timeout |
+| WORKER_WATCHING_QUEUES | null | one of `celery`, `pipelines`, `training` |
+
+### Girder Worker Standalone
+
+You can run a standalone worker to help process jobs from a remote DIVE Web server.
+
+* It requires a local VIAME installtion to mount in addons.
+* Set the queue(s) you wish to consume.
+* Get the `CELERY_BROKER_URL` from our team.  Email `viame-web@kitware.com`
+
+``` bash
+docker run --rm --name dive_worker \
+  --gpus all \
+  --ipc host \
+  --volume "/opt/noaa/viame/configs/pipelines:/tmp/addons:rw" \
+  -e "WORKER_WATCHING_QUEUES=celery,pipelines,training" \
+  -e "CELERY_BROKER_URL=amqp://guest:guest@rabbit/" \
+  kitware/viame-worker:latest
+```
 
 ## Build your own images
 
