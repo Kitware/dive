@@ -61,6 +61,7 @@ export default defineComponent({
         data.syncedFrame = data.frame;
         commonMedia.geoViewerRef.value.scheduleAnimationFrame(syncWithVideo);
       }
+      data.time = `${new Date(video.currentTime * 1000).toISOString().substr(11, 8)} / ${new Date(video.duration * 1000).toISOString().substr(11, 8)}`;
     }
 
     async function play() {
@@ -86,11 +87,18 @@ export default defineComponent({
       data.playing = false;
     }
 
+    function setVolume(level: number) {
+      video.volume = level;
+      data.volume = video.volume;
+    }
+
     const {
       cursorHandler,
       initializeViewer,
       mediaController,
-    } = commonMedia.initialize({ seek, play, pause });
+    } = commonMedia.initialize({
+      seek, play, pause, setVolume,
+    });
 
     /**
      * Initialize the Quad feature layer once
@@ -119,6 +127,8 @@ export default defineComponent({
       // See https://github.com/Kitware/dive/issues/447 for more details.
       seek(0);
       data.ready = true;
+      data.volume = video.volume;
+      syncWithVideo();
     }
 
     function pendingUpdate() {

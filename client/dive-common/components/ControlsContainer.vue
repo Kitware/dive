@@ -44,6 +44,15 @@ export default defineComponent({
   setup() {
     const currentView = ref('Detections');
     const collapsed = ref(false);
+    const frameTimeDisplay = ref('time');
+
+    function toggleFrameTimeDisplay() {
+      if (frameTimeDisplay.value === 'time') {
+        frameTimeDisplay.value = 'frame';
+      } else {
+        frameTimeDisplay.value = 'time';
+      }
+    }
 
     /**
      * Toggles on and off the individual timeline views
@@ -57,6 +66,8 @@ export default defineComponent({
       currentView,
       toggleView,
       collapsed,
+      toggleFrameTimeDisplay,
+      frameTimeDisplay,
     };
   },
 });
@@ -65,7 +76,7 @@ export default defineComponent({
 <template>
   <div>
     <timeline-wrapper>
-      <template #default="{ maxFrame, frame, seek }">
+      <template #default="{ maxFrame, frame, seek, time, volume, setVolume }">
         <Controls>
           <template slot="timelineControls">
             <div style="min-width: 210px">
@@ -114,6 +125,47 @@ export default defineComponent({
               class="text-middle px-3"
             >
               {{ imageData[frame].filename }}
+            </span>
+            <span v-else-if="datasetType === 'video'">
+              <span class="mr-2">
+                <v-menu
+                  top
+                  offset-y
+                  open-on-hover
+                >
+                  <template v-slot:activator="{ on }">
+                    <v-icon
+                      @click="(!volume && setVolume(1)) || (volume && setVolume(0))"
+                      v-on="on"
+                    > {{ volume === 0 ? 'mdi-volume-off' :'mdi-volume-medium' }}
+                    </v-icon>
+                  </template>
+                  <v-card style="overflow:hidden">
+                    <v-slider
+                      :value="volume"
+                      min="0"
+                      max="1.0"
+                      step="0.05"
+                      vertical
+                      @change="setVolume"
+                    />
+                  </v-card>
+                </v-menu>
+              </span>
+              <span
+                v-if="frameTimeDisplay === 'time'"
+                class="text-middle clickable"
+                @click="toggleFrameTimeDisplay"
+              >
+                {{ time }}
+              </span>
+              <span
+                v-else-if="frameTimeDisplay === 'frame'"
+                class="text-middle clickable"
+                @click="toggleFrameTimeDisplay"
+              >
+                Frame:{{ `${frame}/${maxFrame}` }}
+              </span>
             </span>
           </template>
         </Controls>

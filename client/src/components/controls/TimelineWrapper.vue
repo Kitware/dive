@@ -19,6 +19,9 @@ export default defineComponent({
       :maxFrame="mediaController.maxFrame.value"
       :frame="mediaController.frame.value"
       :seek="mediaController.seek"
+      :time="mediaController.time.value"
+      :volume="mediaController.volume.value"
+      :setVolume="mediaController.setVolume"
     />
   </div>
 </template>
