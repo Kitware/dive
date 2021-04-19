@@ -1,5 +1,7 @@
 <script lang="ts">
-import { defineComponent, PropType } from '@vue/composition-api';
+import {
+  defineComponent, onBeforeUnmount, PropType,
+} from '@vue/composition-api';
 import useMediaController from './useMediaController';
 
 /**
@@ -42,6 +44,7 @@ export default defineComponent({
     },
   },
 
+
   setup(props, { emit }) {
     const commonMedia = useMediaController({ emit });
     const { data } = commonMedia;
@@ -54,6 +57,12 @@ export default defineComponent({
       return video;
     }
     const video = makeVideo();
+
+    onBeforeUnmount(() => {
+      if (video) {
+        video.pause();
+      }
+    });
 
     function syncWithVideo() {
       if (data.playing) {
