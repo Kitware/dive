@@ -128,6 +128,17 @@ export default defineComponent({
           <v-btn
             icon
             small
+            :color="mediaController.lockedCamera.value ? 'primary': 'default'"
+            title="lock camera zoom level"
+            @click="mediaController.toggleLockedCamera"
+          >
+            <v-icon>
+              {{ mediaController.lockedCamera.value ? 'mdi-lock-check' : 'mdi-lock-open' }}
+            </v-icon>
+          </v-btn>
+          <v-btn
+            icon
+            small
             title="(r)eset pan and zoom"
             @click="mediaController.resetZoom"
           >

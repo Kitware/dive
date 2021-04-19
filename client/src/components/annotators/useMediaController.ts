@@ -28,6 +28,7 @@ export default function useMediaController({ emit }: {
     playing: false,
     frame: 0,
     filename: '',
+    lockedCamera: false,
     maxFrame: 0,
     syncedFrame: 0,
     observer: null,
@@ -62,6 +63,12 @@ export default function useMediaController({ emit }: {
     );
     geoViewerRef.value.zoom(zoomAndCenter.zoom);
     geoViewerRef.value.center(zoomAndCenter.center);
+  }
+
+  function toggleLockedCamera() {
+    console.log('setting locked camera');
+    console.log(data.lockedCamera);
+    data.lockedCamera = !data.lockedCamera;
   }
 
   function resetMapDimensions(width: number, height: number, margin = 0.3) {
@@ -129,6 +136,10 @@ export default function useMediaController({ emit }: {
       data.imageCursor = `${newCursor}`;
     }
 
+    function centerOn(coords: { x: number; y: number; z: number }) {
+      geoViewerRef.value.center(coords);
+    }
+
     function initializeViewer(width: number, height: number) {
       const params = geo.util.pixelCoordinateParams(
         containerRef.value, width, height, width, height,
@@ -149,6 +160,14 @@ export default function useMediaController({ emit }: {
           input: { right: true },
           name: 'button edit',
           owner: 'geo.MapInteractor',
+        },
+        {
+          action: geo.geo_action.pan,
+          input: 'middle',
+          modifiers: { shift: false, ctrl: false },
+          owner: 'geo.mapInteractor',
+          name: 'button pan',
+
         },
         interactorOpts.actions[2],
         interactorOpts.actions[6],
@@ -209,6 +228,7 @@ export default function useMediaController({ emit }: {
       playing: toRef(data, 'playing'),
       frame: toRef(data, 'frame'),
       filename: toRef(data, 'filename'),
+      lockedCamera: toRef(data, 'lockedCamera'),
       maxFrame: toRef(data, 'maxFrame'),
       syncedFrame: toRef(data, 'syncedFrame'),
       prevFrame,
@@ -217,6 +237,8 @@ export default function useMediaController({ emit }: {
       pause,
       seek,
       resetZoom,
+      toggleLockedCamera,
+      centerOn,
       setCursor,
       setImageCursor,
     } as MediaController;
