@@ -96,6 +96,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
         showLabels: false,
         continuousPointProximity: false,
         finalPointProximity: 1,
+        adjacentPointProximity: 1,
       });
       // For these we need to use an anonymous function to prevent geoJS from erroring
       this.featureLayer.geoOn(geo.event.annotation.edit_action,
