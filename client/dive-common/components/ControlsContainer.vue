@@ -44,15 +44,6 @@ export default defineComponent({
   setup() {
     const currentView = ref('Detections');
     const collapsed = ref(false);
-    const frameTimeDisplay = ref('time');
-
-    function toggleFrameTimeDisplay() {
-      if (frameTimeDisplay.value === 'time') {
-        frameTimeDisplay.value = 'frame';
-      } else {
-        frameTimeDisplay.value = 'time';
-      }
-    }
 
     /**
      * Toggles on and off the individual timeline views
@@ -66,8 +57,6 @@ export default defineComponent({
       currentView,
       toggleView,
       collapsed,
-      toggleFrameTimeDisplay,
-      frameTimeDisplay,
     };
   },
 });
@@ -158,7 +147,6 @@ export default defineComponent({
               </span>
               <span
                 class="text-middle"
-                @click="toggleFrameTimeDisplay"
               >
                 {{ time }}
               </span>
