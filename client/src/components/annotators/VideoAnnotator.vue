@@ -79,6 +79,7 @@ export default defineComponent({
       video.currentTime = (frame / props.frameRate) + OnePTSTick;
       data.frame = Math.round(video.currentTime * props.frameRate);
       commonMedia.emitFrame();
+      data.time = `${new Date(video.currentTime * 1000).toISOString().substr(11, 8)} / ${new Date(video.duration * 1000).toISOString().substr(11, 8)}`;
     }
 
     function pause() {

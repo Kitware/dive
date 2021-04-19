@@ -131,7 +131,11 @@ export default defineComponent({
                 <v-menu
                   top
                   offset-y
+                  nudge-left="3"
                   open-on-hover
+                  :close-on-content-click="false"
+                  close-delay="500"
+                  rounded="pill"
                 >
                   <template v-slot:activator="{ on }">
                     <v-icon
@@ -140,7 +144,7 @@ export default defineComponent({
                     > {{ volume === 0 ? 'mdi-volume-off' :'mdi-volume-medium' }}
                     </v-icon>
                   </template>
-                  <v-card style="overflow:hidden">
+                  <v-card style="overflow:hidden; width:30px">
                     <v-slider
                       :value="volume"
                       min="0"
@@ -153,18 +157,10 @@ export default defineComponent({
                 </v-menu>
               </span>
               <span
-                v-if="frameTimeDisplay === 'time'"
-                class="text-middle clickable"
+                class="text-middle"
                 @click="toggleFrameTimeDisplay"
               >
                 {{ time }}
-              </span>
-              <span
-                v-else-if="frameTimeDisplay === 'frame'"
-                class="text-middle clickable"
-                @click="toggleFrameTimeDisplay"
-              >
-                Frame:{{ `${frame}/${maxFrame}` }}
               </span>
             </span>
           </template>
