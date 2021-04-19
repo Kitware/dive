@@ -60,9 +60,9 @@ class GirderPlugin(plugin.GirderPlugin):
         )
         Setting().set(
             'worker.broker',
-            os.environ.get('WORKER_BROKER', 'amqp://guest:guest@rabbit/'),
+            os.environ.get('CELERY_BROKER_URL', 'amqp://guest:guest@rabbit/'),
         )
         Setting().set(
             'worker.backend',
-            os.environ.get('WORKER_BACKEND', 'amqp://guest:guest@rabbit/'),
+            os.environ.get('CELERY_BROKER_URL', 'amqp://guest:guest@rabbit/'),
         )
