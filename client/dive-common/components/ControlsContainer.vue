@@ -120,12 +120,13 @@ export default defineComponent({
         <span v-else-if="datasetType === 'video'">
           <span class="mr-2">
             <v-menu
+              :close-on-content-click="false"
               top
               offset-y
               nudge-left="3"
               open-on-hover
-              :close-on-content-click="false"
               close-delay="500"
+              open-delay="250"
               rounded="pill"
             >
               <template v-slot:activator="{ on }">
