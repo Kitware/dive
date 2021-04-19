@@ -70,7 +70,7 @@ export default defineComponent({
         data.syncedFrame = data.frame;
         commonMedia.geoViewerRef.value.scheduleAnimationFrame(syncWithVideo);
       }
-      data.time = `${new Date(video.currentTime * 1000).toISOString().substr(11, 8)} / ${new Date(video.duration * 1000).toISOString().substr(11, 8)}`;
+      data.currentTime = video.currentTime;
     }
 
     async function play() {
@@ -88,7 +88,7 @@ export default defineComponent({
       video.currentTime = (frame / props.frameRate) + OnePTSTick;
       data.frame = Math.round(video.currentTime * props.frameRate);
       commonMedia.emitFrame();
-      data.time = `${new Date(video.currentTime * 1000).toISOString().substr(11, 8)} / ${new Date(video.duration * 1000).toISOString().substr(11, 8)}`;
+      data.currentTime = video.currentTime;
     }
 
     function pause() {
@@ -138,7 +138,8 @@ export default defineComponent({
       seek(0);
       data.ready = true;
       data.volume = video.volume;
-      syncWithVideo();
+      data.currentTime = video.currentTime;
+      data.duration = video.duration;
     }
 
     function pendingUpdate() {

@@ -12,7 +12,8 @@ export interface MediaController {
   playing: Ref<boolean>;
   frame: Ref<number>;
   filename: Ref<string>;
-  time: Ref<string>;
+  currentTime: Ref<number>;
+  duration: Ref<number>;
   volume: Ref<number>;
   maxFrame: Ref<number>;
   /** @deprecated may be removed in a future release */
