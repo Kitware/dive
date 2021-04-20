@@ -4,12 +4,12 @@ variable "project_name" {
 
 variable "region" {
   type    = string
-  default = "us-west1"
+  default = "us-central1"
 }
 
 variable "zone" {
   type    = string
-  default = "us-west1-b"
+  default = "us-central1-b"
 }
 
 variable "node_count" {
@@ -19,7 +19,12 @@ variable "node_count" {
 
 variable "machine_type" {
   type    = string
-  default = "e2-small"
+  default = "a2-highgpu-1g"
+}
+
+variable "disk_size" {
+  type    = number
+  default = 64 # Size in GB
 }
 
 variable "ssh_key" {
@@ -63,6 +68,7 @@ resource "google_compute_instance" "default" {
       # List images:
       # gcloud compute images list
       image = "ubuntu-os-cloud/ubuntu-2004-lts"
+      size  = var.disk_size
     }
   }
 
@@ -72,6 +78,14 @@ resource "google_compute_instance" "default" {
     access_config {
       // Include this section to give the VM an ephemeral external ip address
     }
+  }
+
+  scheduling {
+    # Default true, not supported for GPU nodes, causes failure
+    # https://groups.google.com/g/gce-discussion/c/e9K3h3fQuJk
+    # https://cloud.google.com/compute/docs/instances/live-migration
+    automatic_restart   = false
+    on_host_maintenance = "TERMINATE"
   }
 
   # Ensure firewall rule is provisioned before server, so that SSH doesn't fail.

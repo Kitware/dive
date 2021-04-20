@@ -1,20 +1,24 @@
 # Google Cloud
 
-This guide is intended for DIVE Web users who would like to use Google Cloud resources like storage and compute to store and process data.  Your data will live in GCS Buckets and can be analyzed on either Kitware's servers or your own service workers.
+This guide is intended for VIAME Web users who would like to use Google Cloud resources to store and process data.  Your data will live in GCS Buckets and can be analyzed on either Kitware's servers or your own cloud service workers.
 
 ![Google Cloud Diagram](images/Diagrams/Google-Cloud.png)
 
 ## Concepts
 
-* Kitware maintains viame.kitware.com web server deployment.
+* Kitware maintains [viame.kitware.com](https://viame.kitware.com) web server deployment.
 * You own and manage your data in cloud storage buckets.
-* (optional) You run worker nodes that process your own job queue.
+* (optional) You run worker nodes that process your own personal job queue.
 
 There are several benefits to this configuration:
 
 * Our team can provide support and troubleshooting directly on your data and error logs.
 * Our team manages deployments, updates, and maintenance.
 * Our team can provide recommendatations for annotation and analysis based on your specific data and needs.
+
+## Support
+
+**For questions or support, please reach out to `viame-web@kitware.com`**
 
 ## Google Cloud Storage Mirroring
 
@@ -116,12 +120,16 @@ gcloud auth application-default login
 terraform plan \
   -var "machine_type=e2-small" \
   -var "project_name=<GCloud-Project-Name>"
+  -out create.plan
 
-# Run apply (same args as above)
-terraform apply
+# Run apply
+terraform apply create.plan
 ```
 
 ### Provision with Ansible
+
+!!! warning
+    The playbook takes 20-30 minutes to run because it must install nvidia drivers, download several GB of software packages, etc.
 
 ``` bash
 # install galaxy plugins
@@ -131,6 +139,17 @@ ansible-galaxy install -r ansible/requirements.yml
 ansible-playbook -i inventory ansible/playbook.yml
 ```
 
-### Troubleshooting
+Once provisioning is complete, jobs should begin processing from the job queue.  You can check [viame.kitware.com/#/jobs](https://viame.kitware.com/#/jobs) to see queue progress and logs.
 
-Ansible provisioning can be unreliable.  This playbook uses official NVIDIA-supported roles.  If it gets stuck or fails, just try to run the playbook again.
+### Destroying the stack
+
+When your work is complete, use terraform to destroy your resources.
+
+``` bash
+terraform destroy
+```
+
+## Troubleshooting
+
+* Ansible provisioning is idempotent.  If it fails, run it again once or twice.
+* You may need to change the global `GPUS_ALL_REGIONS` quota in [IAM -> Quotas](https://stackoverflow.com/questions/53415180/gcp-error-quota-gpus-all-regions-exceeded-limit-0-0-globally)
