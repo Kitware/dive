@@ -8,7 +8,6 @@ You can also [run your own](Server-Operator.md).
     **VIAME Web is automatically updated at 2AM EST/EDT every Thursday.**
 
     If you are running a pipeline or training workflow during update, it will be interrupted and started over.
-
 ## Features
 
 * upload and download data
@@ -34,6 +33,9 @@ A user account is required to store data and run pipelines on viame.kitware.com.
 * If you already have `annotations.csv`, select that too.
 * Choose a name for the data, enter the optional video playback frame rate, and press start-upload.
 * In the data browser, a new blue "Launch Annotator" button will appear next to your data.
+
+!!! info
+    All video uploaded to the web server will be transcoded as `mp4/h264`.
 
 ## Downloading Data
 
