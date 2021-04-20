@@ -19,9 +19,7 @@ import {
   JsonMeta, Settings, JsonMetaCurrentVersion, DesktopMetadata, DesktopJobUpdater,
   ConvertMedia, RunTraining, ExportDatasetArgs, MediaImportPayload,
 } from 'platform/desktop/constants';
-import {
-  cleanString, filterByGlob, makeid, strNumericCompare,
-} from 'platform/desktop/sharedUtils';
+import { cleanString, filterByGlob, makeid } from 'platform/desktop/sharedUtils';
 import { Attribute, Attributes } from 'vue-media-annotator/use/useAttributes';
 import processTrackAttributes from './attributeProcessor';
 
@@ -703,15 +701,9 @@ async function finalizeMediaImport(
     foundDetections = processedFiles.length > 0;
   }
 
-  /* custom image sort */
-  jsonMeta.originalImageFiles.sort(strNumericCompare);
-  if (jsonMeta.transcodedImageFiles) {
-    jsonMeta.transcodedImageFiles.sort(strNumericCompare);
-  }
-
   await _saveAsJson(npath.join(projectDirAbsPath, JsonMetaFileName), jsonMeta);
 
-  /* create an empty file as fallback */
+  /* Finally create an empty file as fallback */
   if (!foundDetections) {
     await _saveSerialized(settings, dsId, {}, true);
   }
