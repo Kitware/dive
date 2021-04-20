@@ -1,6 +1,6 @@
 # DIVE Documentation
 
-This is the user documentation for DIVE, an open-source annotation and analysis platform which can be run either as a web or desktop application. DIVE was originally built for, and has deep integration with, the VIAME toolkit (viametoolkit.org), but it can also be integrated with other automated analytics.
+This is the user documentation for DIVE, an open-source annotation and analysis platform which can be run either as a web or desktop application. DIVE was originally built for, and has deep integration with, the [VIAME toolkit](https://www.viametoolkit.org/), but it can also be integrated with other automated analytics.
 
 [:fontawesome-solid-compass: Try the web version](Web-Version.md){ .md-button } [:fontawesome-solid-desktop: Get the desktop app](Dive-Desktop.md){ .md-button }
 ## Get Help
