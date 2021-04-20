@@ -5,7 +5,6 @@
   vars:
     viame_bundle_url: https://viame.kitware.com/api/v1/item/60519746bc3f8f99bba1a5f6/download
     WORKER_WATCHING_QUEUES: celery
-    WORKER_API_URL: https://viame.kitware.com/api/v1
     CELERY_BROKER_URL: amqps://xoaonyrj:62WH0JKC8pAZvwyITjX3GpzVg4MMTpNu@albatross.rmq.cloudamqp.com/xoaonyrj
 
   roles:
@@ -52,4 +51,3 @@
         env:
           WORKER_WATCHING_QUEUES: '{{ WORKER_WATCHING_QUEUES }}'
           CELERY_BROKER_URL: '{{ CELERY_BROKER_URL }}'
-          WORKER_API_URL: '{{ WORKER_API_URL }}'
