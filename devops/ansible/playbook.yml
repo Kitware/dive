@@ -1,0 +1,13 @@
+---
+- name: Install Nvidia Docker
+  hosts: all
+  become: yes
+  roles:
+    - role: geerlingguy.docker
+    - role: nvidia.nvidia_driver
+    - role: nvidia.nvidia_docker
+  tasks:
+    - git:
+        repo: https://github.com/Kitware/dive
+        dest: /opt/dive
+    

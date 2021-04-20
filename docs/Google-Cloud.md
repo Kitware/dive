@@ -80,6 +80,57 @@ Mount point folder:
 Prefix (if applicable):
 ```
 
-## Google Cloud GPU Workers
+## Running VIAME GPU Workloads
 
-Run a GPU worker in Google Cloud (or anywhere you have GPU resources) to process your queue from viame.kitware.com.
+This section will guide you through deploying VIAME to Google Cloud for several use cases.
+
+* Run a GPU worker in Google Cloud (or anywhere you have GPU resources) to process your queue from viame.kitware.com.
+* Run VIAME pipelines from the command line
+
+### Preparation
+
+* [Install Google Cloud SDK](https://cloud.google.com/sdk/docs/install)
+* [Install Terraform](https://learn.hashicorp.com/tutorials/terraform/install-cli)
+* [Install Ansible](https://docs.ansible.com/ansible/latest/installation_guide/intro_installation.html)
+
+``` bash
+# Clone the dive repo
+git clone https://github.com/Kitware/dive.git
+cd dive/devops
+
+# Install ansible
+pip3 install ansible
+
+# Generate an ssh key
+ssh-keygen -t ed25519 -f ~/.ssh/gcloud_key
+```
+
+### Run Terraform
+
+``` bash
+# Authenticate with google cloud
+gcloud auth application-default login
+
+# Run plan
+# See `devops/main.tf` for a complete list of variables
+terraform plan \
+  -var "machine_type=e2-small" \
+  -var "project_name=<GCloud-Project-Name>"
+
+# Run apply (same args as above)
+terraform apply
+```
+
+### Provision with Ansible
+
+``` bash
+# install galaxy plugins
+ansible-galaxy install -r ansible/requirements.yml
+
+# provision
+ansible-playbook -i inventory ansible/playbook.yml
+```
+
+### Troubleshooting
+
+Ansible provisioning can be unreliable.  This playbook uses official NVIDIA-supported roles.  If it gets stuck or fails, just try to run the playbook again.
