@@ -31,10 +31,15 @@ function zip<T>(a: T[], b: T[]) {
 /**
  * Extract numeric value from string.
  * Ex: input = '1_text00...200'
- * returns 100200
+ * returns [1, '_text', 00, '...', 200]
  */
-function strNumericKey(input: string) {
-  return Array.from(input.matchAll(/\d+/g)).map((v) => parseInt(v.join(''), 10));
+function strChunks(input: string) {
+  return Array.from(input.split(/(\d+)/g))
+    .filter((v) => v !== '')
+    .map((v) => {
+      const asInt = parseInt(v, 10);
+      return Number.isNaN(asInt) ? v : asInt;
+    });
 }
 
 /**
@@ -48,24 +53,30 @@ function strNumericCompare(input1: string, input2: string) {
     return 0;
   }
   const zipped = zip(
-    strNumericKey(input1),
-    strNumericKey(input2),
+    strChunks(input1),
+    strChunks(input2),
   );
-  for (let i = 0; i < zipped.length; i += 1) {
-    const [a, b] = zipped[i];
+  for (
+    let i = 0, [a, b] = zipped[0];
+    i < zipped.length;
+    i += 1, [a, b] = zipped[i]
+  ) {
     if (a !== b) {
       if (a === undefined) return -1;
       if (b === undefined) return 1;
-      return a - b;
+      if (typeof a === 'number' && typeof b === 'number') return a - b;
+      if (typeof a === 'number') return -1;
+      if (typeof b === 'number') return 1;
+      return input1 > input2 ? 1 : -1;
     }
   }
-  return input1 > input2 ? 1 : -1;
+  throw new Error('Unreachable');
 }
 
 export {
   cleanString,
   filterByGlob,
   makeid,
+  strChunks,
   strNumericCompare,
-  strNumericKey,
 };
