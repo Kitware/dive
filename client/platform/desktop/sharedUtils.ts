@@ -28,11 +28,7 @@ function zip<T>(a: T[], b: T[]) {
   return Array.from(Array(Math.max(b.length, a.length)), (_, i) => [a[i], b[i]]);
 }
 
-/**
- * Extract numeric value from string.
- * Ex: input = '1_text00...200'
- * returns [1, '_text', 00, '...', 200]
- */
+/* Same as python version */
 function strChunks(input: string) {
   return Array.from(input.split(/(\d+)/g))
     .filter((v) => v !== '')
@@ -42,12 +38,7 @@ function strChunks(input: string) {
     });
 }
 
-/**
- * Sort compare function where strings are sorted
- * first by the concatenated value of all numbers,
- * then, if the numbers are equal, by each character's
- * unicode value (default string sort)
- */
+/* same as python version */
 function strNumericCompare(input1: string, input2: string) {
   if (input1 === input2) {
     return 0;
