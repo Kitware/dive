@@ -1,5 +1,7 @@
 <script lang="ts">
-import { defineComponent, PropType } from '@vue/composition-api';
+import {
+  defineComponent, onBeforeUnmount, PropType,
+} from '@vue/composition-api';
 import useMediaController from './useMediaController';
 
 /**
@@ -42,6 +44,7 @@ export default defineComponent({
     },
   },
 
+
   setup(props, { emit }) {
     const commonMedia = useMediaController({ emit });
     const { data } = commonMedia;
@@ -55,12 +58,19 @@ export default defineComponent({
     }
     const video = makeVideo();
 
+    onBeforeUnmount(() => {
+      if (video) {
+        video.pause();
+      }
+    });
+
     function syncWithVideo() {
       if (data.playing) {
         data.frame = Math.round(video.currentTime * props.frameRate);
         data.syncedFrame = data.frame;
         commonMedia.geoViewerRef.value.scheduleAnimationFrame(syncWithVideo);
       }
+      data.currentTime = video.currentTime;
     }
 
     async function play() {
@@ -78,6 +88,7 @@ export default defineComponent({
       video.currentTime = (frame / props.frameRate) + OnePTSTick;
       data.frame = Math.round(video.currentTime * props.frameRate);
       commonMedia.emitFrame();
+      data.currentTime = video.currentTime;
     }
 
     function pause() {
@@ -86,11 +97,18 @@ export default defineComponent({
       data.playing = false;
     }
 
+    function setVolume(level: number) {
+      video.volume = level;
+      data.volume = video.volume;
+    }
+
     const {
       cursorHandler,
       initializeViewer,
       mediaController,
-    } = commonMedia.initialize({ seek, play, pause });
+    } = commonMedia.initialize({
+      seek, play, pause, setVolume,
+    });
 
     /**
      * Initialize the Quad feature layer once
@@ -119,6 +137,9 @@ export default defineComponent({
       // See https://github.com/Kitware/dive/issues/447 for more details.
       seek(0);
       data.ready = true;
+      data.volume = video.volume;
+      data.currentTime = video.currentTime;
+      data.duration = video.duration;
     }
 
     function pendingUpdate() {

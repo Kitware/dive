@@ -203,6 +203,7 @@ export default defineComponent({
       local.lastFrame = data.frame;
       data.frame = newFrame;
       data.syncedFrame = newFrame;
+      data.filename = props.imageData[data.frame].filename;
       if (data.frame !== 0 && local.lastFrame === data.frame) {
         return;
       }
