@@ -473,7 +473,7 @@ export default defineComponent({
         >
           <template slot="control">
             <controls-container
-              v-bind="{ lineChartData, eventChartData, imageData, datasetType }"
+              v-bind="{ lineChartData, eventChartData, datasetType }"
               @select-track="handler.trackSelect"
             />
           </template>
