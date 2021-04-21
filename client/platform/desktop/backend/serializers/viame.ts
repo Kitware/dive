@@ -114,9 +114,9 @@ function _parseRow(row: string[]) {
   // Create empty feature collection
   const geoFeatureCollection:
     GeoJSON.FeatureCollection<TrackSupportedFeature, GeoJSON.GeoJsonProperties> = {
-    type: 'FeatureCollection',
-    features: [],
-  };
+      type: 'FeatureCollection',
+      features: [],
+    };
   let attributes: StringKeyObject | undefined;
   const trackAttributes: StringKeyObject = {};
   const cpStarti = 9; // Confidence pairs start at i=9
