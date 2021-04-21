@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Union
 from dive_utils.types import GirderModel
 
 TRUTHY_META_VALUES = ['yes', '1', 1, 'true', 't', 'True', True]
-NUMBERS_REGEX = re.compile(r'\d+')
+NUMBERS_REGEX = re.compile(r'(\d+)')
 NOT_NUMBERS_REGEX = re.compile(r'[^\d]+')
 
 
@@ -25,8 +25,16 @@ def fromMeta(
         return obj["meta"][key]
 
 
-def strNumericKey(input: str) -> List[int]:
-    return [int(num) for num in NUMBERS_REGEX.findall(input)]
+def _maybeInt(input: str) -> Union[str, int]:
+    try:
+        return int(input)
+    except ValueError:
+        return input
+
+
+def _strChunks(input: str) -> List[Union[int, str]]:
+    chunks = NUMBERS_REGEX.split(input)
+    return [_maybeInt(v) for v in chunks if v != '']
 
 
 def strNumericCompare(input1: str, input2: str) -> float:
@@ -37,16 +45,20 @@ def strNumericCompare(input1: str, input2: str) -> float:
     """
     if input1 == input2:
         return 0
-    num1 = strNumericKey(input1)
-    num2 = strNumericKey(input2)
-    if num1 == num2:
-        return 1 if input1 > input2 else -1
-    for a, b in itertools.zip_longest(num1, num2, fillvalue=None):
+    for a, b in itertools.zip_longest(
+        _strChunks(input1), _strChunks(input2), fillvalue=None
+    ):
         if a == b:
             continue
         if a is None:
             return -1
         if b is None:
             return 1
-        return a - b
+        if type(a) == int and type(b) == int:
+            return a - b
+        if type(a) == int:
+            return -1
+        if type(b) == int:
+            return 1
+        return 1 if a > b else -1
     return 0
