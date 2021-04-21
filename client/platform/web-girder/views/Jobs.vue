@@ -39,7 +39,9 @@ export default {
               class="ml-0"
               v-on="on"
             >
-              <v-icon small>mdi-eye</v-icon>
+              <v-icon small>
+                mdi-eye
+              </v-icon>
             </v-btn>
           </template>
           <span>Launch dataset viewer</span>
@@ -55,7 +57,9 @@ export default {
               class="mx-2"
               v-on="on"
             >
-              <v-icon small>mdi-text-box-outline</v-icon>
+              <v-icon small>
+                mdi-text-box-outline
+              </v-icon>
             </v-btn>
           </template>
           <span>View job logs and manage job</span>
