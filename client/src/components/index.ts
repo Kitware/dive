@@ -11,7 +11,6 @@ import Controls from './controls/Controls.vue';
 import EventChart from './controls/EventChart.vue';
 import LineChart from './controls/LineChart.vue';
 import Timeline from './controls/Timeline.vue';
-import TimelineWrapper from './controls/TimelineWrapper.vue';
 
 import LayerManager from './LayerManager.vue';
 import TooltipButton from './TooltipButton.vue';
@@ -27,7 +26,6 @@ export {
   EventChart,
   LineChart,
   Timeline,
-  TimelineWrapper,
   LayerManager,
   TooltipButton,
   TrackItem,
