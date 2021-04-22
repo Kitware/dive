@@ -3,7 +3,7 @@ WORKDIR /app
 
 # Install dependencies
 COPY client/package.json client/yarn.lock /app/
-RUN yarn --frozen-lockfile
+RUN yarn install --frozen-lockfile --network-timeout 300000
 # Build
 COPY .git/ /app/.git/
 COPY client/ /app/
