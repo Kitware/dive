@@ -1,5 +1,8 @@
 from girder.models.folder import Folder
 from girder.models.item import Item
+from girder.utility.mail_utils import renderTemplate, sendMail
+from girder.models.setting import Setting
+from girder.settings import SettingKey
 
 from dive_utils.constants import (
     DatasetMarker,
@@ -8,6 +11,14 @@ from dive_utils.constants import (
     ImageSequenceType,
     csvRegex,
 )
+
+
+def send_new_user_email(event):
+    info = event.info
+    email = info.get('email')
+    brandName = Setting().get(SettingKey.BRAND_NAME)
+    rendered = renderTemplate('welcome.mako')
+    sendMail(f'Welcome to {brandName}', rendered, [email])
 
 
 def check_existing_annotations(event):
