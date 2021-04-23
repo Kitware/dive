@@ -46,8 +46,12 @@ const ViameWindowsConstants = {
       '-vf "scale=ceil(iw*sar/2)*2:ceil(ih/2)*2,setsar=1"',
     ].join(' '),
   },
-
 };
+
+function sourceString(settings: Settings) {
+  const setupScriptAbs = npath.join(settings.viamePath, ViameWindowsConstants.setup);
+  return `. "${setupScriptAbs}" >NUL`;
+}
 
 let programFiles = 'C:\\Program Files';
 // There exists no app.getPath('programfiles') so we need to
@@ -180,10 +184,8 @@ async function ffmpegCommand(settings: Settings) {
   if (ViameWindowsConstants.ffmpeg.ready) {
     return;
   }
-  const setupScriptPath = npath.join(settings.viamePath, ViameWindowsConstants.setup);
   const ffmpegPath = npath.join(settings.viamePath, '/bin/ffmpeg.exe');
-  const init = `"${setupScriptPath}" &&`;
-
+  const init = `${sourceString(settings)} &&`;
   //First lets see if the VIAME install has libx264
   const modifiedCommand = `"${ffmpegPath.replace(/\\/g, '\\')}"`;
 
@@ -191,8 +193,8 @@ async function ffmpegCommand(settings: Settings) {
   if (viameffmpeg.output) {
     const ffmpegOutput = viameffmpeg.output;
     if (ffmpegOutput.includes('libx264')) {
-      ViameWindowsConstants.ffmpeg.initialization = `"${setupScriptPath}" >NUL &&`;
-      ViameWindowsConstants.ffmpeg.path = `"${settings.viamePath}/bin/ffmpeg.exe"`;
+      ViameWindowsConstants.ffmpeg.initialization = init;
+      ViameWindowsConstants.ffmpeg.path = ffmpegPath;
       ViameWindowsConstants.ffmpeg.ready = true;
       return;
     }
@@ -207,10 +209,9 @@ async function ffmpegCommand(settings: Settings) {
  */
 async function checkMedia(settings: Settings, file: string): Promise<boolean> {
   await ffmpegCommand(settings);
-  const setupScriptAbs = npath.join(settings.viamePath, ViameWindowsConstants.setup);
   return viame.checkMedia({
     ...ViameWindowsConstants,
-    setupScriptAbs: `. "${setupScriptAbs}"`,
+    setupScriptAbs: sourceString(settings),
   }, file);
 }
 
@@ -218,10 +219,9 @@ async function convertMedia(settings: Settings,
   args: ConversionArgs,
   updater: DesktopJobUpdater): Promise<DesktopJob> {
   await ffmpegCommand(settings);
-  const setupScriptAbs = npath.join(settings.viamePath, ViameWindowsConstants.setup);
   return viame.convertMedia(settings, args, updater, {
     ...ViameWindowsConstants,
-    setupScriptAbs: `. "${setupScriptAbs}"`,
+    setupScriptAbs: sourceString(settings),
   });
 }
 
