@@ -29,6 +29,13 @@ Full Windows and Linux support.  Annotation support for MacOS.
 * Annotate video and images on your computer (Instead of uploading to a server)
 * Run pipelines and training on multiple datasets using locally installed VIAME
 
+## Video Transcoding
+
+DIVE Desktop is an [Electron](https://www.electronjs.org/) application built on web technologies.  Certain video codecs require automatic transcoding to be usable.  Video will be transcoded unless _all_ the following conditions are met.
+
+* `codec` = `h264`
+* `sample_aspect_ratio (SAR)` = `1:1`
+
 ## Usage
 
 DIVE Desktop generally requires a local installtion of the VIAME toolkit to be fully functional.  It works on its own as a media annotator, but requires VIAME to perform analysis pipelines and model training.
