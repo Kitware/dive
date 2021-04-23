@@ -50,7 +50,7 @@ const ViameWindowsConstants = {
 
 function sourceString(settings: Settings) {
   const setupScriptAbs = npath.join(settings.viamePath, ViameWindowsConstants.setup);
-  return `call "${setupScriptAbs}" >NUL`;
+  return `"${setupScriptAbs}" >NUL`;
 }
 
 let programFiles = 'C:\\Program Files';
