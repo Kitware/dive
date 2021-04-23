@@ -50,7 +50,7 @@ const ViameWindowsConstants = {
 
 function sourceString(settings: Settings) {
   const setupScriptAbs = npath.join(settings.viamePath, ViameWindowsConstants.setup);
-  return `. "${setupScriptAbs}" >NUL`;
+  return `call "${setupScriptAbs}" >NUL`;
 }
 
 let programFiles = 'C:\\Program Files';
@@ -199,8 +199,7 @@ async function ffmpegCommand(settings: Settings) {
       return;
     }
   }
-
-  throw new Error('ffmpeg not installed, please download and install VIAME Toolkit from the main page');
+  throw new Error(`ffmpeg not installed, please download and install VIAME Toolkit from the main page: ${viameffmpeg.error}`);
 }
 
 /**
