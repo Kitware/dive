@@ -77,7 +77,11 @@ const urlMapper = (a: string) => `http://localhost:8888/api/media?path=${a}`;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const updater = (update: DesktopJobUpdate) => undefined;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-const checkMedia = async (settingsVal: Settings, file: string) => file.includes('mp4');
+const checkMedia = async (settingsVal: Settings, file: string) => ({
+  websafe: file.includes('mp4'),
+  originalFps: 0,
+  originalFpsString: '0',
+});
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const convertMedia = async (settingsVal: Settings, args: ConversionArgs,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -292,12 +296,15 @@ describe('native.common', () => {
       version: 1,
       type: 'image-sequence',
       fps: 100,
+      originalFps: 0,
       name: 'myproject1_name',
       createdAt: (new Date()).toString(),
       originalBasePath: '/foo/bar/baz',
       id: 'myproject1',
       originalImageFiles: [],
+      transcodedImageFiles: [],
       originalVideoFile: '',
+      transcodedVideoFile: '',
     };
     const result = await common.createKwiverRunWorkingDir(settings, [jsonMeta], 'mypipeline.pipe');
     const stat = fs.statSync(result);

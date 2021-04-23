@@ -6,6 +6,7 @@ import {
   Settings, DesktopJob, RunPipeline, RunTraining, FFProbeResults,
   ConversionArgs,
   DesktopJobUpdater,
+  CheckMediaResults,
 } from 'platform/desktop/constants';
 import { cleanString } from 'platform/desktop/sharedUtils';
 import { serialize } from 'platform/desktop/backend/serializers/viame';
@@ -314,7 +315,7 @@ async function train(
 async function checkMedia(
   viameConstants: ViameConstants,
   file: string,
-): Promise<boolean> {
+): Promise<CheckMediaResults> {
   const ffprobePath = `${viameConstants.ffmpeg.path.replace('ffmpeg', 'ffprobe')}`;
   const command = [
     `${viameConstants.ffmpeg.initialization}`,
@@ -333,14 +334,20 @@ async function checkMedia(
   }
   const returnText = result.output;
   const ffprobeJSON: FFProbeResults = JSON.parse(returnText);
-  if (ffprobeJSON && ffprobeJSON.streams) {
+  if (ffprobeJSON && ffprobeJSON.streams?.length) {
+    if (!ffprobeJSON.streams[0].avg_frame_rate) {
+      throw Error('FFProbe found that video stream 0 has no avg_frame_rate');
+    }
+    const originalFpsString = ffprobeJSON.streams[0].avg_frame_rate;
+    const [dividend, divisor] = originalFpsString.split('/').map(Number.parseInt);
+    const originalFps = dividend / divisor;
     const websafe = ffprobeJSON.streams
       .filter((el) => el.codec_name === 'h264' && el.codec_type === 'video')
       .filter((el) => el.sample_aspect_ratio === '1:1');
 
-    return !!websafe.length;
+    return { websafe: !!websafe.length, originalFps, originalFpsString };
   }
-  return false;
+  throw Error(`FFProbe did not return a valid value for ${file}`);
 }
 
 async function convertMedia(settings: Settings,

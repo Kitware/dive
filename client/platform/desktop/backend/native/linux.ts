@@ -14,6 +14,7 @@ import {
   RunTraining,
   DesktopJobUpdater,
   ConversionArgs,
+  CheckMediaResults,
 } from 'platform/desktop/constants';
 import { observeChild } from 'platform/desktop/backend/native/processManager';
 import * as viame from './viame';
@@ -206,7 +207,7 @@ async function ffmpegCommand(settings: Settings) {
  * Checs the video file for the codec type and
  * returns true if it is x264, if not will return false for media conversion
  */
-async function checkMedia(settings: Settings, file: string): Promise<boolean> {
+async function checkMedia(settings: Settings, file: string): Promise<CheckMediaResults> {
   await ffmpegCommand(settings);
   const setupScriptAbs = npath.join(settings.viamePath, ViameLinuxConstants.setup);
   return viame.checkMedia({
