@@ -7,14 +7,14 @@
     src="http://www.viametoolkit.org/wp-content/uploads/2016/08/viami_logo.png"
   >
 
-  <h2>Getting Started</h2>
+  <h2>Getting started</h2>
 
   <p>
     Thanks for signing up for an account at <a href="${host}">${host}</a>.
     Here are a few resources that can help you get started annotating data and running analysis.
   </p>
 
-  <h2>Published training data</h2>
+  <h2>Public training data</h2>
 
   <p>
     The
@@ -25,9 +25,9 @@
   <h2>Documentation</h2>
 
   <ul>
-    <li><a href="https://www.viametoolkit.org/">Project homepage</a></li>
+    <li><a href="https://www.viametoolkit.org/">VIAME Project homepage</a></li>
     <li><a href="https://kitware.github.io/dive/">Documentation for Web and DIVE Desktop</a></li>
-    <li><a href="https://viame.readthedocs.io/">Documentation for VIAME Toolkit</a></li>
+    <li><a href="https://viame.readthedocs.io/en/latest/section_links/documentation_overview.html">Documentation for VIAME Toolkit</a></li>
   </ul>
 
   <h2>Support</h2>

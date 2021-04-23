@@ -3,9 +3,8 @@ from pathlib import Path
 
 from girder import events, plugin
 from girder.models.setting import Setting
-from girder.utility import setting_utilities
+from girder.utility import mail_utils, setting_utilities
 from girder.utility.model_importer import ModelImporter
-from girder.utility import mail_utils
 
 from dive_utils.constants import SETTINGS_CONST_JOBS_CONFIGS
 

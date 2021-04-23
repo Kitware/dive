@@ -1,8 +1,8 @@
 from girder.models.folder import Folder
 from girder.models.item import Item
-from girder.utility.mail_utils import renderTemplate, sendMail
 from girder.models.setting import Setting
 from girder.settings import SettingKey
+from girder.utility.mail_utils import renderTemplate, sendMail
 
 from dive_utils.constants import (
     DatasetMarker,
