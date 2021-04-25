@@ -329,11 +329,12 @@ def train_pipeline(
             groundtruth_path = organize_folder_for_training(
                 download_path, download_path / groundtruth["name"]
             )
-            input_groundtruth_list.append((download_path, groundtruth_path))
             # Download input media
             input_media_list = download_source_media(gc, source_folder, download_path)
             if fromMeta(source_folder, TypeMarker) == VideoType:
                 download_path = Path(input_media_list[0])
+            # Set media source location
+            input_groundtruth_list.append((download_path, groundtruth_path))
 
         input_folder_file_list = root_data_dir / "input_folder_list.txt"
         ground_truth_file_list = root_data_dir / "input_truth_list.txt"
@@ -346,6 +347,9 @@ def train_pipeline(
         # Completely separate directory from `root_data_dir`
         with tempfile.TemporaryDirectory() as _training_output_path:
             training_output_path = Path(_training_output_path)
+            training_results_path = training_output_path / "category_models"
+            training_results_path.mkdir()
+
             command = [
                 f". {shlex.quote(str(conf.viame_setup_script))} &&",
                 shlex.quote(str(conf.viame_training_executable)),
@@ -375,8 +379,6 @@ def train_pipeline(
             stream_subprocess(process, self, manager, process_err_file)
             if self.canceled:
                 return
-
-            training_results_path = training_output_path / "category_models"
 
             # Check that there are results in the output path
             if len(list(training_results_path.glob("*"))) == 0:
