@@ -125,7 +125,7 @@ def upgrade_pipelines(
     urls: List[str] = UPGRADE_JOB_DEFAULT_URLS,
     force: bool = False,
 ):
-    """ Install addons from zip files over HTTP """
+    """Install addons from zip files over HTTP"""
     conf = Config()
     manager: JobManager = self.job_manager
     gc: GirderClient = self.girder_client
