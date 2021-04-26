@@ -146,7 +146,7 @@ import {
 } from 'vue-media-annotator/lib';
 
 const {
-  VideoAnnotator, LayerManager, Controls, TimelineWrapper, Timeline, LineChart,
+  VideoAnnotator, LayerManager, Controls, Timeline, LineChart,
 } = components;
 ```
 

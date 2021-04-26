@@ -117,7 +117,7 @@ export default defineComponent({
           </v-btn>
         </v-col>
         <v-col
-          class="pl-1 py-1 shrink"
+          class="pl-1 py-1"
         >
           <slot name="middle" />
         </v-col>
