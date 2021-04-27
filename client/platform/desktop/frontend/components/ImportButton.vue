@@ -26,7 +26,12 @@ export default defineComponent({
 </script>
 
 <template>
-  <v-menu offset-y>
+  <v-menu
+    offset-y
+    offset-x
+    nudge-left="180"
+    max-width="180"
+  >
     <template v-slot:activator="{ on }">
       <v-btn
         large
@@ -49,30 +54,32 @@ export default defineComponent({
         </v-icon>
       </v-btn>
     </template>
-    <v-list>
-      <v-list-item
-        style="align-items':'center"
-        @click="$emit('multi-cam',{ stereo: true, openType })"
-      >
-        <v-list-item-icon>
-          <v-icon>mdi-binoculars</v-icon>
-        </v-list-item-icon>
-        <v-list-item-content>
-          <v-list-item-title>Stereoscopic</v-list-item-title>
-        </v-list-item-content>
-      </v-list-item>
-      <v-list-item
-        style="align-items':'center"
-        @click="$emit('multi-cam',{ stereo: false, openType })"
-      >
-        <v-list-item-icon>
-          <v-icon>mdi-camera-burst</v-icon>
-        </v-list-item-icon>
-        <v-list-item-content>
-          <v-list-item-title>MultiCam</v-list-item-title>
-        </v-list-item-content>
-      </v-list-item>
-    </v-list>
+    <v-card outlined>
+      <v-list dense>
+        <v-list-item
+          style="align-items':'center"
+          @click="$emit('multi-cam',{ stereo: true, openType })"
+        >
+          <v-list-item-icon>
+            <v-icon>mdi-binoculars</v-icon>
+          </v-list-item-icon>
+          <v-list-item-content>
+            <v-list-item-title>Stereoscopic</v-list-item-title>
+          </v-list-item-content>
+        </v-list-item>
+        <v-list-item
+          style="align-items':'center"
+          @click="$emit('multi-cam',{ stereo: false, openType })"
+        >
+          <v-list-item-icon>
+            <v-icon>mdi-camera-burst</v-icon>
+          </v-list-item-icon>
+          <v-list-item-content>
+            <v-list-item-title>MultiCam</v-list-item-title>
+          </v-list-item-content>
+        </v-list-item>
+      </v-list>
+    </v-card>
   </v-menu>
 </template>
 
