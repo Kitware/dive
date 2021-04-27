@@ -145,7 +145,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
    * shape that GeoJS is keeps internally.  Emit the shape as update:in-progress-geojson
    */
   setShapeInProgress(e: GeoEvent) {
-    // Allow middle click movement when placing buttons
+    // Allow middle click movement when placing points
     if (e.mouse.buttons.middle && !e.propogated) {
       return;
     }

@@ -69,8 +69,6 @@ export default function useMediaController({ emit }: {
   }
 
   function toggleLockedCamera() {
-    console.log('setting locked camera');
-    console.log(data.lockedCamera);
     data.lockedCamera = !data.lockedCamera;
   }
 
