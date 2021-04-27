@@ -90,7 +90,7 @@ async function runPipeline(
   let command: string[] = [];
   if (metaType === 'video') {
     let videoAbsPath = npath.join(meta.originalBasePath, meta.originalVideoFile);
-    if (meta.type === 'video') {
+    if (meta.type === 'multi') {
       videoAbsPath = getMultiCamVideoPath(meta);
     } else if (meta.transcodedVideoFile) {
       videoAbsPath = npath.join(projectInfo.basePath, meta.transcodedVideoFile);
