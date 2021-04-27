@@ -64,6 +64,11 @@ const ViameBundledFFMPEGVideoArgs = [
   '-vf "scale=ceil(iw*sar/2)*2:ceil(ih/2)*2,setsar=1"',
 ].join(' ');
 
+function sourceString(settings: Settings) {
+  const setupScriptAbs = npath.join(settings.viamePath, ViameLinuxConstants.setup);
+  return `. "${setupScriptAbs}"`;
+}
+
 async function validateViamePath(settings: Settings): Promise<true | string> {
   const setupScriptPath = npath.join(settings.viamePath, ViameLinuxConstants.setup);
   const setupExists = await fs.pathExists(setupScriptPath);
@@ -78,7 +83,7 @@ async function validateViamePath(settings: Settings): Promise<true | string> {
   }
 
   const kwiverExistsOnPath = observeChild(spawn(
-    `source ${setupScriptPath} && which ${ViameLinuxConstants.kwiverExe}`,
+    `${sourceString(settings)} && which ${ViameLinuxConstants.kwiverExe}`,
     { shell: '/bin/bash' },
   ));
   return new Promise((resolve) => {
@@ -97,10 +102,9 @@ async function runPipeline(
   runPipelineArgs: RunPipeline,
   updater: DesktopJobUpdater,
 ): Promise<DesktopJob> {
-  const setupScriptAbs = npath.join(settings.viamePath, ViameLinuxConstants.setup);
   return viame.runPipeline(settings, runPipelineArgs, updater, validateViamePath, {
     ...ViameLinuxConstants,
-    setupScriptAbs: `. "${setupScriptAbs}"`,
+    setupScriptAbs: sourceString(settings),
   });
 }
 
@@ -112,7 +116,7 @@ async function train(
   const setupScriptPath = npath.join(settings.viamePath, ViameLinuxConstants.setup);
   return viame.train(settings, runTrainingArgs, updater, validateViamePath, {
     ...ViameLinuxConstants,
-    setupScriptAbs: `. "${setupScriptPath}"`,
+    setupScriptAbs: sourceString(settings),
   });
 }
 
@@ -153,18 +157,17 @@ async function ffmpegCommand(settings: Settings) {
   if (ViameLinuxConstants.ffmpeg.ready) {
     return;
   }
-  const setupScriptPath = npath.join(settings.viamePath, ViameLinuxConstants.setup);
-  const ffmpegPath = `"${settings.viamePath}/bin/ffmpeg"`;
-  const init = `source ${setupScriptPath} &&`;
+  const ffmpegPathViame = `${settings.viamePath}/bin/ffmpeg`;
+  const init = `${sourceString(settings)} &&`;
   const errorLog = [];
   //First lets see if the VIAME install has libx264
   const ffmpegViameExists = fs.existsSync(`${settings.viamePath}/bin/ffmpeg`);
   if (ffmpegViameExists) {
-    const viameffmpeg = await spawnResult(`${init} ${ffmpegPath} -encoders`, '/bin/bash');
+    const viameffmpeg = await spawnResult(`${init} "${ffmpegPathViame}" -encoders`, '/bin/bash');
     if (viameffmpeg.output) {
       if (viameffmpeg.output.includes('libx264')) {
-        ViameLinuxConstants.ffmpeg.initialization = `source ${setupScriptPath} &&`;
-        ViameLinuxConstants.ffmpeg.path = `"${settings.viamePath}/bin/ffmpeg"`;
+        ViameLinuxConstants.ffmpeg.initialization = init;
+        ViameLinuxConstants.ffmpeg.path = ffmpegPathViame;
         ViameLinuxConstants.ffmpeg.ready = true;
         return;
       }
@@ -189,8 +192,8 @@ async function ffmpegCommand(settings: Settings) {
 
   // As long as VIAMEffmpeg exists we can attempt to use nvida encoding
   if (ffmpegViameExists) {
-    ViameLinuxConstants.ffmpeg.initialization = `source ${setupScriptPath} &&`;
-    ViameLinuxConstants.ffmpeg.path = `"${settings.viamePath}/bin/ffmpeg"`;
+    ViameLinuxConstants.ffmpeg.initialization = init;
+    ViameLinuxConstants.ffmpeg.path = ffmpegPathViame;
     ViameLinuxConstants.ffmpeg.videoArgs = ViameBundledFFMPEGVideoArgs;
     ViameLinuxConstants.ffmpeg.ready = true;
     return;
@@ -208,10 +211,9 @@ async function ffmpegCommand(settings: Settings) {
  */
 async function checkMedia(settings: Settings, file: string): Promise<boolean> {
   await ffmpegCommand(settings);
-  const setupScriptAbs = npath.join(settings.viamePath, ViameLinuxConstants.setup);
   return viame.checkMedia({
     ...ViameLinuxConstants,
-    setupScriptAbs: `. "${setupScriptAbs}"`,
+    setupScriptAbs: sourceString(settings),
   }, file);
 }
 
@@ -219,10 +221,9 @@ async function convertMedia(settings: Settings,
   args: ConversionArgs,
   updater: DesktopJobUpdater): Promise<DesktopJob> {
   await ffmpegCommand(settings);
-  const setupScriptAbs = npath.join(settings.viamePath, ViameLinuxConstants.setup);
   return viame.convertMedia(settings, args, updater, {
     ...ViameLinuxConstants,
-    setupScriptAbs: `. "${setupScriptAbs}"`,
+    setupScriptAbs: sourceString(settings),
   });
 }
 

@@ -13,6 +13,9 @@ export interface MediaController {
   frame: Ref<number>;
   filename: Ref<string>;
   lockedCamera: Ref<boolean>;
+  currentTime: Ref<number>;
+  duration: Ref<number>;
+  volume: Ref<number>;
   maxFrame: Ref<number>;
   /** @deprecated may be removed in a future release */
   syncedFrame: Ref<number>;
@@ -26,4 +29,5 @@ export interface MediaController {
   centerOn(coords: {x: number; y: number; z: number }): void;
   setCursor(c: string): void;
   setImageCursor(c: string): void;
+  setVolume(v: number): void;
 }

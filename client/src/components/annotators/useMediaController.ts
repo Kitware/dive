@@ -29,6 +29,9 @@ export default function useMediaController({ emit }: {
     frame: 0,
     filename: '',
     lockedCamera: false,
+    currentTime: 0,
+    duration: 0,
+    volume: 0,
     maxFrame: 0,
     syncedFrame: 0,
     observer: null,
@@ -123,10 +126,13 @@ export default function useMediaController({ emit }: {
    * chicken-and-egg problem, allowing the function consumer to use
    * the state above to construct the dependencies for the methods below.
    */
-  function initialize({ seek, play, pause }: {
+  function initialize({
+    seek, play, pause, setVolume,
+  }: {
     seek(frame: number): void;
     play(): void;
     pause(): void;
+    setVolume?(level: number): void;
   }) {
     function setCursor(newCursor: string) {
       data.cursor = `${newCursor}`;
@@ -229,6 +235,9 @@ export default function useMediaController({ emit }: {
       frame: toRef(data, 'frame'),
       filename: toRef(data, 'filename'),
       lockedCamera: toRef(data, 'lockedCamera'),
+      currentTime: toRef(data, 'currentTime'),
+      duration: toRef(data, 'duration'),
+      volume: toRef(data, 'volume'),
       maxFrame: toRef(data, 'maxFrame'),
       syncedFrame: toRef(data, 'syncedFrame'),
       prevFrame,
@@ -241,6 +250,7 @@ export default function useMediaController({ emit }: {
       centerOn,
       setCursor,
       setImageCursor,
+      setVolume,
     } as MediaController;
 
     provide(MediaControllerSymbol, mediaController);
