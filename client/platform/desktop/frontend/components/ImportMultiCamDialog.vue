@@ -207,7 +207,7 @@ export default defineComponent({
     style="overflow-x: hidden;"
   >
     <v-card-title class="text-h5">
-      Import Stero Dataset
+      Import {{ stereo ? 'Stereo' : 'MultiCam' }} Dataset
     </v-card-title>
     <v-card-text>
       <div v-if="dataType === 'image-sequence'">
