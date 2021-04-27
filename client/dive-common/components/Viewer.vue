@@ -336,7 +336,7 @@ export default defineComponent({
         frameRate.value = meta.fps;
         imageData.value = cloneDeep(meta.imageData) as FrameImage[];
         videoUrl.value = meta.videoUrl;
-        datasetType.value = meta.type;
+        datasetType.value = meta.type as DatasetType; // TODO: support for multiCam will remove this
       }),
       loadDetections(props.id).then((tracks) => {
         Object.values(tracks).forEach(

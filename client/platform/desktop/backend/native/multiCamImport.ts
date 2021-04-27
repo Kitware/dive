@@ -47,13 +47,14 @@ async function beginMultiCamImport(
   args: MultiCamImportArgs,
   checkMedia: (settings: Settings, path: string) => Promise<boolean>,
 ): Promise<MediaImportPayload> {
-  let datasetType: DatasetType;
+  const datasetType: DatasetType | 'multi' = 'multi';
 
   let mainFolder: string | undefined;
   const cameras: Record<string, {
-    basePath: string;
-    filenames: string[];
-    videoFile: string;
+    originalBasePath: string;
+    originalImageFiles: string[];
+    originalVideoFile: string;
+    type: 'image-sequence' | 'video';
    }> = {};
   if (isFolderArgs(args)) {
     Object.entries(args.folderList).forEach(([key, folder]) => {
@@ -61,10 +62,16 @@ async function beginMultiCamImport(
       if (!folderExists) {
         throw new Error(`file or directory for ${key} not found: ${folder}`);
       }
-      if (args.defaultDisplay === key) {
-        mainFolder = folder;
+      cameras[key] = {
+        originalBasePath: folder, originalImageFiles: [], originalVideoFile: '', type: args.type,
+      };
+      if (args.type === 'video') {
+        // Reset the base path to a folder for videos
+        cameras[key].originalBasePath = npath.dirname(cameras[key].originalBasePath);
       }
-      cameras[key] = { basePath: folder, filenames: [], videoFile: '' };
+      if (args.defaultDisplay === key) {
+        mainFolder = cameras[key].originalBasePath;
+      }
     });
   } else if (isKeywordArgs(args)) {
     const keywordExists = fs.existsSync(args.keywordFolder);
@@ -73,27 +80,16 @@ async function beginMultiCamImport(
     }
     mainFolder = args.keywordFolder;
     Object.entries(args.globList).forEach(([key]) => {
-      cameras[key] = { basePath: args.keywordFolder, filenames: [], videoFile: '' };
+      //All glob pattern matches are image-sequence files
+      cameras[key] = {
+        originalBasePath: args.keywordFolder, originalImageFiles: [], originalVideoFile: '', type: args.type,
+      };
     });
   }
   if (mainFolder === undefined) {
     throw new Error('No main folder defined');
   }
-  const stat = await fs.stat(mainFolder);
-  if (stat.isDirectory()) {
-    datasetType = 'image-sequence';
-  } else if (stat.isFile()) {
-    datasetType = 'video';
-    //Reset the basePaths to folders instead of files
-    Object.keys(cameras).forEach((key) => {
-      const newpath = npath.dirname(cameras[key].basePath);
-      if (typeof (newpath) === 'string') {
-        cameras[key].basePath = newpath;
-      }
-    });
-  } else {
-    throw new Error('Only regular files and directories are supported');
-  }
+
   const dsName = npath.dirname(mainFolder).split(npath.sep).pop();
   if (!dsName) {
     throw new Error(`no parent folder for ${args.defaultDisplay} folder`);
@@ -119,16 +115,10 @@ async function beginMultiCamImport(
     calibration: args.calibrationFile,
     display: args.defaultDisplay,
   };
-
-  if (datasetType === 'video') {
-    // get parent folder, since videos reference a file directly
-    jsonMeta.originalBasePath = npath.dirname(mainFolder);
-  }
-
   /* mediaConvertList is a list of absolute paths of media to convert */
   let mediaConvertList: string[] = [];
   /* Extract and validate media from import path */
-  if (jsonMeta.type === 'video') {
+  if (args.type === 'video') {
     if (isFolderArgs(args)) {
       await asyncForEach(Object.entries(args.folderList),
         async ([key, video]: [string, string]) => {
@@ -145,7 +135,7 @@ async function beginMultiCamImport(
                 mediaConvertList.push(video);
               }
               if (jsonMeta.multiCam && jsonMeta.multiCam.cameras[key] !== undefined) {
-                jsonMeta.multiCam.cameras[key].videoFile = npath.basename(video);
+                jsonMeta.multiCam.cameras[key].originalVideoFile = npath.basename(video);
               }
             } else {
               throw new Error(`unsupported MIME type for video ${mimetype}`);
@@ -157,7 +147,7 @@ async function beginMultiCamImport(
     } else if (isKeywordArgs(args)) {
       throw new Error('glob pattern matching is not supported for multi-cam videos');
     }
-  } else if (datasetType === 'image-sequence') {
+  } else if (args.type === 'image-sequence') {
     if (isFolderArgs(args)) {
       await asyncForEach(Object.entries(args.folderList),
         async ([key, folder]: [string, string]) => {
@@ -166,7 +156,7 @@ async function beginMultiCamImport(
             throw new Error(`no images found in ${folder}`);
           }
           if (jsonMeta.multiCam && jsonMeta.multiCam.cameras[key] !== undefined) {
-            jsonMeta.multiCam.cameras[key].filenames = found.images.map(
+            jsonMeta.multiCam.cameras[key].originalImageFiles = found.images.map(
               (image) => image,
             );
             mediaConvertList = mediaConvertList.concat(found.mediaConvertList);
@@ -176,7 +166,7 @@ async function beginMultiCamImport(
       await asyncForEach(Object.entries(args.globList), async ([key, glob]: [string, string]) => {
         const found = await findImagesInFolder(args.keywordFolder, glob);
         if (jsonMeta.multiCam && jsonMeta.multiCam.cameras[key] !== undefined) {
-          jsonMeta.multiCam.cameras[key].filenames = found.images.map(
+          jsonMeta.multiCam.cameras[key].originalImageFiles = found.images.map(
             (image) => image,
           );
           mediaConvertList = mediaConvertList.concat(found.mediaConvertList);
@@ -186,7 +176,6 @@ async function beginMultiCamImport(
   } else {
     throw new Error('only video and image-sequence types are supported');
   }
-
 
   return {
     jsonMeta,

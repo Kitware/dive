@@ -164,6 +164,7 @@ export default defineComponent({
           defaultDisplay: defaultDisplay.value,
           folderList: folderList.value,
           calibrationFile: calibrationFile.value,
+          type: props.dataType,
         });
       } else if (importType.value === 'keyword') {
         emit('begin-multicam-import', {
@@ -171,6 +172,7 @@ export default defineComponent({
           keywordFolder: keywordFolder.value,
           globList: globList.value,
           calibrationFile: calibrationFile.value,
+          type: 'image-sequence',
         });
       }
     };

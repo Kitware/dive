@@ -189,10 +189,11 @@ async function loadMetadata(
 
   let videoUrl = '';
   let imageData = [] as FrameImage[];
-
+  let { type } = projectMetaData;
   /* Generate URLs against embedded media server from known file paths on disk */
-  if (projectMetaData.multiCam) {
-    ({ videoUrl, imageData } = getMultiCamUrls(
+  if (projectMetaData.type === 'multi') {
+    // Returns the type of the defaultDisplay for the multicam
+    ({ videoUrl, imageData, type } = getMultiCamUrls(
       projectMetaData, projectDirData.basePath, makeMediaUrl,
     ));
   } else if (projectMetaData.type === 'video') {
@@ -219,7 +220,8 @@ async function loadMetadata(
   } else {
     throw new Error(`unexpected project type for id="${datasetId}" type="${projectMetaData.type}"`);
   }
-
+  // Redirecting type to image-sequence or video for multi camera types
+  projectMetaData.type = type;
   return {
     ...projectMetaData,
     videoUrl,
@@ -655,8 +657,8 @@ async function finalizeMediaImport(
     mediaConvertList.forEach((item) => {
       const destLoc = item.replace(jsonMeta.originalBasePath, projectDirAbsPath);
       //If we have multicam we may need to check more than the base folder
-      if (jsonMeta.multiCam) {
-        destAbsPath = transcodeMultiCam(jsonMeta, item, projectDirAbsPath, datasetType, extension);
+      if (datasetType === 'multi') {
+        destAbsPath = transcodeMultiCam(jsonMeta, item, projectDirAbsPath);
       } else {
         destAbsPath = destLoc.replace(npath.extname(item), extension);
         if (datasetType === 'video') {

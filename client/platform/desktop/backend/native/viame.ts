@@ -13,7 +13,10 @@ import { observeChild } from 'platform/desktop/backend/native/processManager';
 
 import * as common from './common';
 import { jobFileEchoMiddleware, spawnResult } from './utils';
-import { getMultiCamImageFiles, getMultiCamVideoPath, writeMultiCamPipelineInputs } from './multiCamUtils';
+import {
+  getMultiCamImageFiles, getMultiCamVideoPath,
+  getTranscodedMultiCamType, writeMultiCamPipelineInputs,
+} from './multiCamUtils';
 
 
 const PipelineRelativeDir = 'configs/pipelines';
@@ -78,10 +81,16 @@ async function runPipeline(
     groundTruthFileStream.end();
   }
 
+  let metaType = meta.type;
+
+  if (metaType === 'multi' && meta.multiCam) {
+    metaType = meta.multiCam.cameras[meta.multiCam.display].type;
+  }
+
   let command: string[] = [];
-  if (meta.type === 'video') {
+  if (metaType === 'video') {
     let videoAbsPath = npath.join(meta.originalBasePath, meta.originalVideoFile);
-    if (meta.multiCam) {
+    if (meta.type === 'video') {
       videoAbsPath = getMultiCamVideoPath(meta);
     } else if (meta.transcodedVideoFile) {
       videoAbsPath = npath.join(projectInfo.basePath, meta.transcodedVideoFile);
@@ -96,12 +105,12 @@ async function runPipeline(
       `-s detector_writer:file_name="${detectorOutput}"`,
       `-s track_writer:file_name="${trackOutput}"`,
     ];
-  } else if (meta.type === 'image-sequence') {
+  } else if (metaType === 'image-sequence') {
     // Create frame image manifest
     const manifestFile = npath.join(jobWorkDir, 'image-manifest.txt');
     // map image file names to absolute paths
     let imageList = meta.originalImageFiles;
-    if (meta.multiCam) {
+    if (meta.type === 'multi') {
       imageList = getMultiCamImageFiles(meta);
     }
     const fileData = imageList
@@ -122,16 +131,17 @@ async function runPipeline(
     command.push(`-s track_reader:file_name="${groundTruthFileName}"`);
   }
 
-  if (meta.multiCam && meta.multiCam.calibration && pipeline.type === 'measurement') {
+  if (meta.multiCam && pipeline.type === 'measurement') {
     const inputArgFilePair = writeMultiCamPipelineInputs(jobWorkDir, meta);
     Object.entries(inputArgFilePair).forEach(([arg, file]) => {
       command.push(`-s ${arg}:video_filename="${npath.join(jobWorkDir, file)}`);
     });
-    if (meta.multiCam && meta.multiCam.calibration) {
+    if (meta.multiCam.calibration) {
       command.push(`-s measure:cal_fpath="${meta.multiCam.calibration}"`);
     }
+  } else {
+    throw new Error('Attempting run a multicam pipeline on non multicam data');
   }
-
 
   const job = observeChild(spawn(command.join(' '), {
     shell: viameConstants.shell,
@@ -361,29 +371,31 @@ async function convertMedia(settings: Settings,
   args: ConversionArgs,
   updater: DesktopJobUpdater,
   viameConstants: ViameConstants,
-  imageIndex = 0,
+  mediaIndex = 0,
   key = '',
   baseWorkDir = ''): Promise<DesktopJob> {
   // Image conversion needs to utilize the baseWorkDir, init or vids create their own directory
   const jobWorkDir = baseWorkDir || await common.createKwiverRunWorkingDir(settings, [args.meta], 'conversion');
   const joblog = npath.join(jobWorkDir, 'runlog.txt');
   const commands = [];
-  if (args.meta.type === 'video' && args.mediaList[0]) {
+
+  let multiType = '';
+  if (args.meta.type === 'multi' && mediaIndex < args.mediaList.length) {
+    multiType = getTranscodedMultiCamType(args.mediaList[mediaIndex][1], args.meta);
+  }
+  commands.push(
+    viameConstants.ffmpeg.initialization,
+    `"${viameConstants.ffmpeg.path}"`,
+    `-i "${args.mediaList[mediaIndex][0]}"`,
+  );
+  if ((args.meta.type === 'video' || multiType === 'video') && mediaIndex < args.mediaList.length) {
     commands.push(
-      viameConstants.ffmpeg.initialization,
-      `"${viameConstants.ffmpeg.path}"`,
-      `-i "${args.mediaList[0][0]}"`,
       viameConstants.ffmpeg.videoArgs,
-      `"${args.mediaList[0][1]}"`,
-    );
-  } else if (args.meta.type === 'image-sequence' && imageIndex < args.mediaList.length) {
-    commands.push(
-      viameConstants.ffmpeg.initialization,
-      `"${viameConstants.ffmpeg.path}"`,
-      `-i "${args.mediaList[imageIndex][0]}"`,
-      `"${args.mediaList[imageIndex][1]}"`,
     );
   }
+  commands.push(
+    `"${args.mediaList[mediaIndex][1]}"`,
+  );
 
   const job = observeChild(spawn(commands.join(' '), { shell: viameConstants.shell }));
   let jobKey = `convert_${job.pid}_${jobWorkDir}`;
@@ -417,7 +429,7 @@ async function convertMedia(settings: Settings,
         exitCode: code,
         endTime: new Date(),
       });
-    } else if (imageIndex === args.mediaList.length - 1) {
+    } else if (mediaIndex === args.mediaList.length - 1) {
       common.completeConversion(settings, args.meta.id, jobKey);
       updater({
         ...jobBase,
@@ -428,9 +440,9 @@ async function convertMedia(settings: Settings,
     } else {
       updater({
         ...jobBase,
-        body: [`Conversion ${imageIndex + 1} of ${args.mediaList.length} Complete`],
+        body: [`Conversion ${mediaIndex + 1} of ${args.mediaList.length} Complete`],
       });
-      convertMedia(settings, args, updater, viameConstants, imageIndex + 1, jobKey, jobWorkDir);
+      convertMedia(settings, args, updater, viameConstants, mediaIndex + 1, jobKey, jobWorkDir);
     }
   });
   return jobBase;
