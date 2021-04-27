@@ -250,7 +250,7 @@ async function getPipelineList(settings: Settings): Promise<Pipelines> {
   /* TODO: fetch trained pipelines */
   const ret: Pipelines = {};
   pipes.forEach((p) => {
-    const parts = p.replace('.pipe', '').replace('.', '_').split('_');
+    const parts = cleanString(p.replace('.pipe', '')).split('_');
     const pipeType = parts[0];
     const pipeName = parts.slice(1).join(' ');
     const pipeInfo = {

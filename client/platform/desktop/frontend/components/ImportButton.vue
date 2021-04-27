@@ -50,28 +50,27 @@ export default defineComponent({
       </v-btn>
     </template>
     <v-list>
-      <v-list-item>
-        <v-btn
-          block
-          color="primary"
-          @click="$emit('multi-cam',{ stereo: true, openType })"
-        >
-          Stereoscopic
-          <v-icon class="ml-2">
-            mdi-binoculars
-          </v-icon>
-        </v-btn>
-      </v-list-item> <v-list-item>
-        <v-btn
-          block
-          color="primary"
-          @click="$emit('multi-cam',{ stereo: false, openType })"
-        >
-          MultiCam
-          <v-icon class="ml-2">
-            mdi-camera-burst
-          </v-icon>
-        </v-btn>
+      <v-list-item
+        style="align-items':'center"
+        @click="$emit('multi-cam',{ stereo: true, openType })"
+      >
+        <v-list-item-icon>
+          <v-icon>mdi-binoculars</v-icon>
+        </v-list-item-icon>
+        <v-list-item-content>
+          <v-list-item-title>Stereoscopic</v-list-item-title>
+        </v-list-item-content>
+      </v-list-item>
+      <v-list-item
+        style="align-items':'center"
+        @click="$emit('multi-cam',{ stereo: false, openType })"
+      >
+        <v-list-item-icon>
+          <v-icon>mdi-camera-burst</v-icon>
+        </v-list-item-icon>
+        <v-list-item-content>
+          <v-list-item-title>MultiCam</v-list-item-title>
+        </v-list-item-content>
       </v-list-item>
     </v-list>
   </v-menu>

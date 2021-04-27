@@ -77,7 +77,7 @@ type FailingKeyword= Record<string, {
   };
 }>;
 
-describe('native.multiCam', () => {
+describe('native.multiCamImport', () => {
   if (multiCamSetup.folderTests) {
     const folderTests = (multiCamSetup.folderTests as FolderTest);
     Object.entries(folderTests).forEach(([key, val]) => {
@@ -117,6 +117,7 @@ describe('native.multiCam', () => {
     });
   }
 });
+
 
 afterAll(() => {
   mockfs.restore();
