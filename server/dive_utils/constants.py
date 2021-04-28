@@ -44,6 +44,8 @@ ForeignMediaIdMarker = "foreign_media_id"
 TrainedPipelineMarker = "trained_pipeline"
 TypeMarker = "type"
 FPSMarker = "fps"
+OriginalFPSMarker = "originalFps"
+OriginalFPSStringMarker = "originalFpsString"
 
 # Other constants
 TrainedPipelineCategory = "trained"
