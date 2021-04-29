@@ -339,7 +339,7 @@ async function checkMedia(
       throw Error('FFProbe found that video stream 0 has no avg_frame_rate');
     }
     const originalFpsString = ffprobeJSON.streams[0].avg_frame_rate;
-    const [dividend, divisor] = originalFpsString.split('/').map(Number.parseInt);
+    const [dividend, divisor] = originalFpsString.split('/').map((v) => Number.parseInt(v, 10));
     const originalFps = dividend / divisor;
     const websafe = ffprobeJSON.streams
       .filter((el) => el.codec_name === 'h264' && el.codec_type === 'video')
