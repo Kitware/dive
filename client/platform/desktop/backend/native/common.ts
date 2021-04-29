@@ -598,8 +598,12 @@ async function beginMediaImport(
         if (!checkMediaResult.websafe || otherVideoTypes.includes(mimetype)) {
           mediaConvertList.push(path);
         }
+        const newAnnotationFps = Math.floor(Math.min(jsonMeta.fps, checkMediaResult.originalFps));
+        if (newAnnotationFps <= 0) {
+          throw new Error('fps < 1 unsupported');
+        }
         jsonMeta.originalFps = checkMediaResult.originalFps;
-        jsonMeta.fps = Math.min(jsonMeta.fps, checkMediaResult.originalFps);
+        jsonMeta.fps = newAnnotationFps;
       } else {
         throw new Error(`unsupported MIME type for video ${mimetype}`);
       }

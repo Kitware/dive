@@ -2,7 +2,9 @@
 import Vue from 'vue';
 import { GirderDropzone, mixins } from '@girder/components/src';
 
-import { ImageSequenceType, VideoType, DefaultVideoFPS } from 'dive-common/constants';
+import {
+  ImageSequenceType, VideoType, DefaultVideoFPS, FPSOptions,
+} from 'dive-common/constants';
 
 import { makeViameFolder, validateUploadGroup, postProcess } from '../api/viame.service';
 import { getResponseError } from '../utils';
@@ -71,6 +73,7 @@ export default Vue.extend({
     preUploadErrorMessage: null,
     pendingUploads: [],
     ImageSequenceType,
+    FPSOptions,
   }),
   computed: {
     uploadEnabled() {
@@ -339,7 +342,7 @@ export default Vue.extend({
               >
                 <v-select
                   v-model="pendingUpload.fps"
-                  :items="[1, 5, 10, 15, 24, 25, 30, 50, 60]"
+                  :items="FPSOptions"
                   :disabled="pendingUpload.uploading"
                   type="number"
                   required

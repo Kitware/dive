@@ -8,10 +8,12 @@ const MediaTypes = {
 };
 
 const DefaultVideoFPS = 10;
+const FPSOptions = [1, 5, 10, 15, 24, 25, 30, 50, 60];
 
 export {
   DefaultVideoFPS,
   ImageSequenceType,
   VideoType,
   MediaTypes,
+  FPSOptions,
 };

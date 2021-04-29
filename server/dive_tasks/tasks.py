@@ -1,5 +1,6 @@
 import contextlib
 import json
+import math
 import os
 import shlex
 import shutil
@@ -460,6 +461,10 @@ def convert_video(self: Task, path, folderId, auxiliaryFolderId, itemId):
     else:
         raise Exception('Expected key avg_frame_rate in ffprobe')
 
+    newAnnotationFps = math.floor(min(requestedFps, originalFps))
+    if newAnnotationFps <= 0:
+        raise Exception('FPS lower than 1 is not supported')
+
     process_err_file = tempfile.TemporaryFile()
     process = Popen(
         [
@@ -515,7 +520,7 @@ def convert_video(self: Task, path, folderId, auxiliaryFolderId, itemId):
             DatasetMarker: True,  # mark the parent folder as able to annotate.
             OriginalFPSMarker: originalFps,
             OriginalFPSStringMarker: avgFpsString,
-            FPSMarker: min(requestedFps, originalFps),
+            FPSMarker: newAnnotationFps,
             "ffprobe_info": videostream[0],
         },
     )
