@@ -5,29 +5,37 @@ import {
 } from '@vue/composition-api';
 
 import type { DatasetType } from 'dive-common/apispec';
-import type { MediaImportPayload } from 'platform/desktop/constants';
+import type { MediaImportPayload, MultiCamImportArgs } from 'platform/desktop/constants';
 
 import * as api from '../api';
-import { recents, setRecents } from '../store/dataset';
+import { JsonMetaCache, recents, setRecents } from '../store/dataset';
 import { setOrGetConversionJob } from '../store/jobs';
 import BrowserLink from './BrowserLink.vue';
 import NavigationBar from './NavigationBar.vue';
+import ImportButton from './ImportButton.vue';
 import ImportDialog from './ImportDialog.vue';
+import ImportMultiCamDialog from './ImportMultiCamDialog.vue';
+
 
 export default defineComponent({
   components: {
     BrowserLink,
+    ImportButton,
     ImportDialog,
     NavigationBar,
+    ImportMultiCamDialog,
   },
 
   setup(_, { root }) {
     const snackbar = ref(false);
+    const importMultiCamDialog = ref(false);
     const pageSize = 12; // Default 12 looks good on default width/height of window
     const limit = ref(pageSize);
     const errorText = ref('');
     const pendingImportPayload: Ref<MediaImportPayload | null> = ref(null);
     const searchText: Ref<string | null> = ref('');
+    const stereo = ref(false);
+    const multiCamOpenType: Ref<'image-sequence'|'video'> = ref('image-sequence');
 
     async function open(dstype: DatasetType) {
       const ret = await api.openFromDisk(dstype);
@@ -62,6 +70,22 @@ export default defineComponent({
       }
     }
 
+    function openMultiCamDialog(args: {stereo: boolean; openType: 'image-sequence' | 'video'}) {
+      stereo.value = args.stereo;
+      multiCamOpenType.value = args.openType;
+      importMultiCamDialog.value = true;
+    }
+
+    async function multiCamImport(args: MultiCamImportArgs) {
+      importMultiCamDialog.value = false;
+      try {
+        pendingImportPayload.value = await api.importMultiCam(args);
+      } catch (err) {
+        snackbar.value = true;
+        errorText.value = err.message;
+      }
+    }
+
     const filteredRecents = computed(() => recents.value
       .filter((v) => v.name.toLowerCase().indexOf((searchText.value || '').toLowerCase()) >= 0));
     const paginatedRecents = computed(() => (filteredRecents.value.slice(0, limit.value)));
@@ -74,15 +98,32 @@ export default defineComponent({
         limit.value = pageSize;
       }
     }
+    function getTypeIcon(recent: JsonMetaCache) {
+      if (!recent.multiCam) {
+        if (recent.type === 'video') {
+          return 'mdi-file-video';
+        }
+        return 'mdi-image-multiple';
+      }
+      if (recent.multiCam && !recent.stereo) {
+        return 'mdi-camera-burst';
+      }
+      return 'mdi-binoculars';
+    }
 
     return {
       // methods
       open,
       finalizeImport,
+      multiCamImport,
       join,
       setOrGetConversionJob,
       toggleMore,
+      openMultiCamDialog,
+      getTypeIcon,
       // state
+      multiCamOpenType,
+      stereo,
       pageSize,
       limit,
       paginatedRecents,
@@ -91,6 +132,7 @@ export default defineComponent({
       searchText,
       snackbar,
       errorText,
+      importMultiCamDialog,
     };
   },
 });
@@ -99,7 +141,7 @@ export default defineComponent({
 <template>
   <v-main>
     <v-dialog
-      :value="pendingImportPayload !== null"
+      :value="pendingImportPayload !== null || importMultiCamDialog"
       persistent
       width="800"
       overlay-opacity="0.95"
@@ -110,6 +152,13 @@ export default defineComponent({
         :import-data="pendingImportPayload"
         @finalize-import="finalizeImport($event)"
         @abort="pendingImportPayload = null"
+      />
+      <ImportMultiCamDialog
+        v-if="importMultiCamDialog"
+        :stereo="stereo"
+        :data-type="multiCamOpenType"
+        @begin-multicam-import="multiCamImport($event)"
+        @abort="importMultiCamDialog = false"
       />
     </v-dialog>
     <navigation-bar />
@@ -153,29 +202,20 @@ export default defineComponent({
             md="4"
             sm="6"
           >
-            <v-btn
-              large
-              block
-              color="primary"
-              class="mb-6"
-              @click="open('image-sequence')"
-            >
-              Open Image Sequence
-              <v-icon class="ml-2">
-                mdi-folder-open
-              </v-icon>
-            </v-btn>
-            <v-btn
-              block
-              large
-              color="primary"
-              @click="open('video')"
-            >
-              Open Video
-              <v-icon class="ml-2">
-                mdi-file-video
-              </v-icon>
-            </v-btn>
+            <import-button
+              name="Open Image Sequence"
+              icon="mdi-folder-open"
+              open-type="image-sequence"
+              @open="open($event)"
+              @multi-cam="openMultiCamDialog"
+            />
+            <import-button
+              name="Open Video"
+              icon="mdi-file-video"
+              open-type="video"
+              @open="open($event)"
+              @multi-cam="openMultiCamDialog"
+            />
           </v-col>
         </v-row>
         <v-row>
@@ -226,11 +266,7 @@ export default defineComponent({
                   class="pr-2"
                   color="primary lighten-2"
                 >
-                  {{
-                    (recent.type === 'video')
-                      ? 'mdi-file-video'
-                      : 'mdi-image-multiple'
-                  }}
+                  {{ getTypeIcon(recent) }}
                 </v-icon>
                 <span v-if="setOrGetConversionJob(recent.id)">
                   <span class="primary--text text--darken-1 text-decoration-none">
@@ -305,3 +341,6 @@ export default defineComponent({
     </v-snackbar>
   </v-main>
 </template>
+
+<style lang="scss">
+</style>

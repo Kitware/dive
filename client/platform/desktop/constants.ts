@@ -24,6 +24,9 @@ export const otherVideoTypes = [
   'video/ogg',
 ];
 
+export const calibrationFileTypes = [
+  'npz',
+];
 export const fileVideoTypes = [
   'mp4',
   'webm',
@@ -67,6 +70,20 @@ export interface Settings {
   dataPath: string;
 }
 
+export interface MultiCam {
+  cameras: Record<string, {
+    type: 'image-sequence' | 'video';
+    originalBasePath: string;
+    originalImageFiles: string[];
+    originalVideoFile: string;
+    transcodedImagesFiles?: string[];
+    transcodedVideoFile?: string;
+  }>;
+  //Calibration file in .npz format used for stereo or other cameras
+  calibration?: string;
+  // Default Display Key for showing multiCam
+  display: string;
+}
 
 /**
  * JsonMeta is a SUBSET of DatasetMeta contained within
@@ -78,7 +95,7 @@ export interface JsonMeta extends DatasetMetaMutable {
   version: number;
 
   // immutable dataset type
-  type: DatasetType;
+  type: DatasetType | 'multi'; // TODO: This needs to be moved into DatasetType once the web version is complete
 
   // immutable datset identifier
   id: string;
@@ -117,6 +134,9 @@ export interface JsonMeta extends DatasetMetaMutable {
 
   //Attributes are not datasetMetaMutable and are stored separate
   attributes?: Record<string, Attribute>;
+
+  // Stereo or multi-camera datasets with uniform type (all images, all video)
+  multiCam?: MultiCam;
 }
 
 export type DesktopMetadata = DatasetMeta & JsonMeta;
@@ -217,3 +237,19 @@ export interface ExportDatasetArgs {
   exclude: boolean;
   path: string;
 }
+export interface MultiCamImportFolderArgs {
+  defaultDisplay: string; // In multicam the default camera to display
+  folderList: Record<string, string>; // Camera name and folder import for images or file for videos
+  calibrationFile?: string; // NPZ calibation matrix file
+  type: 'image-sequence' | 'video';
+}
+
+export interface MultiCamImportKeywordArgs {
+  defaultDisplay: string; // In multicam the default camera to display
+  keywordFolder: string; // Base folder used for import, globList will filter folder
+  globList: Record<string, string>; // Camera name key and glob pattern for keywordfolder
+  calibrationFile?: string; // NPZ calibration matrix file
+  type: 'image-sequence'; // Always image-sequence type for glob matching
+}
+
+export type MultiCamImportArgs = MultiCamImportFolderArgs | MultiCamImportKeywordArgs;
