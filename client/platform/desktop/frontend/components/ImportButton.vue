@@ -17,6 +17,10 @@ export default defineComponent({
       type: String,
       required: true,
     },
+    hidden: { //TODO: Temporarily used to hide the stereo settings from users
+      type: Boolean,
+      default: true,
+    },
   },
   setup() {
     return {
@@ -43,10 +47,11 @@ export default defineComponent({
         <div class="col-11">
           {{ name }}
           <v-icon class="ml-2">
-            {{ icon }}
+            {{ icon }}W
           </v-icon>
         </div>
         <v-icon
+          v-if="!hidden"
           class="justify-right my-auto button-dropdown"
           v-on="on"
         >
