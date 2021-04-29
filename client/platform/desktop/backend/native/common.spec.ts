@@ -239,6 +239,20 @@ mockfs({
         'result_whatever.json': JSON.stringify({}),
         auxiliary: {},
       },
+      projectid5missingMultiCam: {
+        'meta.json': JSON.stringify({
+          version: 1,
+          name: 'missingMulti',
+          id: 'projectid5',
+          type: 'multi',
+          fps: 5,
+          originalVideoFile: 'whatever.mp4',
+          transcodedVideoFile: 'whatever-transcoded.mp4',
+        } as JsonMeta),
+        'result_whatever.json': JSON.stringify({}),
+        auxiliary: {},
+      },
+
     },
   },
 });
@@ -287,6 +301,10 @@ describe('native.common', () => {
       settings.dataPath, 'DIVE_Projects', 'projectid1VideoGood', 'whatever-transcoded.mp4',
     );
     expect(data.videoUrl).toBe(`http://localhost:8888/api/media?path=${videoPath}`);
+  });
+  it('loadJsonMetadata type multi without multiCam', async () => {
+    await expect(common.loadMetadata(settings, 'projectid5missingMultiCam', urlMapper))
+      .rejects.toThrow('Dataset: missingMulti is of type multiCam or stereo but contains no multiCam data');
   });
 
   it('createKwiverRunWorkingDir creates pipeline run directories', async () => {

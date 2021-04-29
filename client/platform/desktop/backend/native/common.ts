@@ -25,6 +25,7 @@ import {
 import { Attribute, Attributes } from 'vue-media-annotator/use/useAttributes';
 import processTrackAttributes from './attributeProcessor';
 import { upgrade } from './migrations';
+import { getMultiCamUrls, transcodeMultiCam } from './multiCamUtils';
 
 const ProjectsFolderName = 'DIVE_Projects';
 const JobsFolderName = 'DIVE_Jobs';
@@ -58,7 +59,7 @@ async function findImagesInFolder(path: string, glob?: string) {
   });
   return {
     images,
-    mediaConvetList: requiresTranscoding
+    mediaConvertList: requiresTranscoding
       ? images.map((filename) => npath.join(path, filename))
       : [],
   };
@@ -183,9 +184,17 @@ async function loadMetadata(
 
   let videoUrl = '';
   let imageData = [] as FrameImage[];
-
+  let { type } = projectMetaData;
   /* Generate URLs against embedded media server from known file paths on disk */
-  if (projectMetaData.type === 'video') {
+  if (projectMetaData.type === 'multi') {
+    // Returns the type of the defaultDisplay for the multicam
+    if (!projectMetaData.multiCam) {
+      throw new Error(`Dataset: ${projectMetaData.name} is of type multiCam or stereo but contains no multiCam data`);
+    }
+    ({ videoUrl, imageData, type } = getMultiCamUrls(
+      projectMetaData, projectDirData.basePath, makeMediaUrl,
+    ));
+  } else if (projectMetaData.type === 'video') {
     /* If the video has been transcoded, use that video */
     if (projectMetaData.transcodedVideoFile) {
       const video = npath.join(projectDirData.basePath, projectMetaData.transcodedVideoFile);
@@ -209,7 +218,8 @@ async function loadMetadata(
   } else {
     throw new Error(`unexpected project type for id="${datasetId}" type="${projectMetaData.type}"`);
   }
-
+  // Redirecting type to image-sequence or video for multi camera types
+  projectMetaData.type = type;
   return {
     ...projectMetaData,
     videoUrl,
@@ -228,7 +238,7 @@ async function loadDetections(settings: Settings, datasetId: string) {
  */
 async function getPipelineList(settings: Settings): Promise<Pipelines> {
   const pipelinePath = npath.join(settings.viamePath, 'configs/pipelines');
-  const allowedPatterns = /^detector_.+|^tracker_.+|^generate_.+|^utility_/;
+  const allowedPatterns = /^detector_.+|^tracker_.+|^generate_.+|^utility_|^measurement\.gmm/;
   const disallowedPatterns = /.*local.*|detector_svm_models.pipe|tracker_svm_models.pipe/;
   const exists = await fs.pathExists(pipelinePath);
   if (!exists) return {};
@@ -238,7 +248,7 @@ async function getPipelineList(settings: Settings): Promise<Pipelines> {
   /* TODO: fetch trained pipelines */
   const ret: Pipelines = {};
   pipes.forEach((p) => {
-    const parts = p.replace('.pipe', '').split('_');
+    const parts = cleanString(p.replace('.pipe', '')).split('_');
     const pipeType = parts[0];
     const pipeName = parts.slice(1).join(' ');
     const pipeInfo = {
@@ -602,7 +612,7 @@ async function beginMediaImport(
       throw new Error(`no images found in ${path}`);
     }
     jsonMeta.originalImageFiles = found.images;
-    mediaConvertList = found.mediaConvetList;
+    mediaConvertList = found.mediaConvertList;
   } else {
     throw new Error('only video and image-sequence types are supported');
   }
@@ -636,7 +646,7 @@ async function finalizeMediaImport(
       throw new Error(`no images in ${jsonMeta.originalBasePath} matched pattern ${globPattern}`);
     }
     jsonMeta.originalImageFiles = found.images;
-    mediaConvertList = found.mediaConvetList;
+    mediaConvertList = found.mediaConvertList;
   }
 
   //Now we will kick off any conversions that are necessary
@@ -644,16 +654,22 @@ async function finalizeMediaImport(
   if (mediaConvertList.length) {
     const srcDstList: [string, string][] = [];
     const extension = datasetType === 'video' ? '.mp4' : '.png';
+    let destAbsPath = '';
     mediaConvertList.forEach((item) => {
       const destLoc = item.replace(jsonMeta.originalBasePath, projectDirAbsPath);
-      const destAbsPath = destLoc.replace(npath.extname(item), extension);
-      if (datasetType === 'video') {
-        jsonMeta.transcodedVideoFile = npath.basename(destAbsPath);
-      } else if (datasetType === 'image-sequence') {
-        if (!jsonMeta.transcodedImageFiles) {
-          jsonMeta.transcodedImageFiles = [];
+      //If we have multicam we may need to check more than the base folder
+      if (datasetType === 'multi') {
+        destAbsPath = transcodeMultiCam(jsonMeta, item, projectDirAbsPath);
+      } else {
+        destAbsPath = destLoc.replace(npath.extname(item), extension);
+        if (datasetType === 'video') {
+          jsonMeta.transcodedVideoFile = npath.basename(destAbsPath);
+        } else if (datasetType === 'image-sequence') {
+          if (!jsonMeta.transcodedImageFiles) {
+            jsonMeta.transcodedImageFiles = [];
+          }
+          jsonMeta.transcodedImageFiles.push(npath.basename(destAbsPath));
         }
-        jsonMeta.transcodedImageFiles.push(npath.basename(destAbsPath));
       }
       srcDstList.push([item, destAbsPath]);
     });
@@ -770,4 +786,5 @@ export {
   completeConversion,
   processTrainedPipeline,
   saveAttributes,
+  findImagesInFolder,
 };

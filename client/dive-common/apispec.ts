@@ -53,7 +53,7 @@ interface DatasetMeta extends DatasetMetaMutable {
   id: Readonly<string>;
   imageData: Readonly<FrameImage[]>;
   videoUrl: Readonly<string | undefined>;
-  type: Readonly<DatasetType>;
+  type: Readonly<DatasetType | 'multi'>;
   fps: Readonly<number>; // this will become mutable in the future.
   name: Readonly<string>;
   createdAt: Readonly<string>;
