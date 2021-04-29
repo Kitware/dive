@@ -23,7 +23,7 @@ export interface JsonMetaCache {
   originalBasePath: string;
   originalVideoFile: string;
   transcodedVideoFile?: string;
-  multiCam?: boolean;
+  multiCam?: boolean; // TODO: when DatasetType is updated we need to swap this to type
   stereo?: boolean; // Contains stereo left/right pairs and calibration file
 }
 

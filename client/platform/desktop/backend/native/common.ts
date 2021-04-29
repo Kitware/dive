@@ -193,6 +193,9 @@ async function loadMetadata(
   /* Generate URLs against embedded media server from known file paths on disk */
   if (projectMetaData.type === 'multi') {
     // Returns the type of the defaultDisplay for the multicam
+    if (!projectMetaData.multiCam) {
+      throw new Error(`Dataset: ${projectMetaData.name} is of type multiCam or stereo but contains no multiCam data`);
+    }
     ({ videoUrl, imageData, type } = getMultiCamUrls(
       projectMetaData, projectDirData.basePath, makeMediaUrl,
     ));
