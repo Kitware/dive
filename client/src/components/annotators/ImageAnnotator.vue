@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  defineComponent, ref, onUnmounted, PropType,
+  defineComponent, ref, onUnmounted, PropType, toRef, watch,
 } from '@vue/composition-api';
 import useMediaController from './useMediaController';
 
@@ -45,9 +45,8 @@ export default defineComponent({
     const commonMedia = useMediaController({ emit });
     const { data } = commonMedia;
     data.maxFrame = props.imageData.length - 1;
-
     // Below are configuration settings we can set until we decide on good numbers to utilize.
-    const local = {
+    let local = {
       playCache: 1, // seconds required to be fully cached before playback
       cacheSeconds: 6, // seconds to cache from the current frame
       frontBackRatio: 0.9, // 90% forward frames, 10% backward frames when caching
@@ -68,6 +67,7 @@ export default defineComponent({
       imgInternal.image.src = '';
       local.pendingImgs.delete(imgInternal);
     }
+
 
     /**
      * When the component is unmounted, cancel all outstanding
@@ -302,6 +302,40 @@ export default defineComponent({
         data.ready = true;
       });
     }
+
+    function init() {
+      data.maxFrame = props.imageData.length - 1;
+
+      // Below are configuration settings we can set until we decide on good numbers to utilize.
+      local = {
+        playCache: 1, // seconds required to be fully cached before playback
+        cacheSeconds: 6, // seconds to cache from the current frame
+        frontBackRatio: 0.9, // 90% forward frames, 10% backward frames when caching
+        imgs: new Array<ImageDataItemInternal | undefined>(props.imageData.length),
+        pendingImgs: new Set<ImageDataItemInternal>(),
+        lastFrame: -1,
+        width: 0,
+        height: 0,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        quadFeature: undefined as any,
+      };
+      if (local.imgs.length) {
+        const imgInternal = cacheFrame(0);
+        imgInternal.onloadPromise.then(() => {
+          initializeViewer(imgInternal.image.naturalWidth, imgInternal.image.naturalHeight);
+          const quadFeatureLayer = commonMedia.geoViewerRef.value.createLayer('feature', {
+            features: ['quad'],
+          });
+          local.quadFeature = quadFeatureLayer.createFeature('quad');
+          seek(0);
+          data.ready = true;
+        });
+      }
+    }
+
+    watch(toRef(props, 'imageData'), () => {
+      init();
+    });
 
     return {
       data,

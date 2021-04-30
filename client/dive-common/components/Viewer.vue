@@ -336,7 +336,7 @@ export default defineComponent({
         frameRate.value = meta.fps;
         imageData.value = cloneDeep(meta.imageData) as FrameImage[];
         videoUrl.value = meta.videoUrl;
-        datasetType.value = meta.type;
+        datasetType.value = meta.type as DatasetType; // TODO: support for multiCam will remove this
       }),
       loadDetections(props.id).then((tracks) => {
         Object.values(tracks).forEach(
@@ -347,7 +347,18 @@ export default defineComponent({
       loaded.value = true;
     }).catch((err) => {
       loaded.value = false;
-      loadError.value = (err.response?.data?.message || err)
+      // Cleaner displaying of interal errors for desktop
+      if (err.response?.data && err.response?.status === 500 && !err.response?.data?.message) {
+        const fullText = err.response.data;
+        const start = fullText.indexOf('Error:');
+        const html = (fullText.substr(start, fullText.indexOf('<br>') - start));
+        const errorEl = document.createElement('div');
+        errorEl.innerHTML = html;
+        loadError.value = errorEl.innerText
+          .concat(". If you don't know how to resolve this, please contact the server administrator.");
+        throw err;
+      }
+      loadError.value = (err.response?.data?.message || err).toString()
         .concat(" If you don't know how to resolve this, please contact the server administrator.");
       throw err;
     });

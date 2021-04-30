@@ -1,0 +1,454 @@
+{
+  "mockfs": {
+    "/opt/viame": {
+      "configs": {
+        "pipelines": {
+          "models": {},
+          "templates": {}
+        }
+      }
+    },
+    "/home/user/data": {
+      "stereoLeftRightCombinedImages": {
+        "left1.png": "",
+        "left2.png": "",
+        "left3.png": "",
+        "right1.png": "",
+        "right2.png": "",
+        "right3.png": "",
+        "tiff": {
+          "left1.tiff": "",
+          "left2.tiff": "",
+          "left3.tiff": "",
+          "right1.tiff": "",
+          "right2.tiff": "",
+          "right3.tiff": ""
+        },
+        "empty": {
+        }
+      },
+      "stereoLeftRightImages": {
+        "left": {
+          "left1.png": "",
+          "left2.png": "",
+          "left3.png": "",
+          "left.mpg": "",
+          "left.mp4": "",
+          "tiff": {
+            "left1.tiff": "",
+            "left2.tiff": "",
+            "left3.tiff": ""
+          },
+          "nomimeleft": {
+            "left.zxy": ""
+          }
+        },
+        "right": {
+          "right1.png": "",
+          "right2.png": "",
+          "right3.png": "",
+          "right.mpg": "",
+          "right.mp4": "",
+          "tiff": {
+            "right1.tiff": "",
+            "right2.tiff": "",
+            "right3.tiff": ""
+          },
+          "same": {
+            "left1.tiff": "",
+            "left2.tiff": "",
+            "left3.tiff": ""
+          },
+          "nomimeright": {
+            "right.zxy": ""
+          }
+        },
+        "calibration.npz": ""
+      }
+    }
+  },
+  "folderTests": {
+    "folderStereoBasicTest": {
+      "input": {
+        "defaultDisplay": "left",
+        "folderList": {
+          "left": "/home/user/data/stereoLeftRightImages/left",
+          "right": "/home/user/data/stereoLeftRightImages/right"
+        },
+        "calibrationFile": "/home/user/data/stereoLeftRightImages/stereoCalibration.npz",
+        "type": "image-sequence"
+      },
+      "output": {
+        "multiCam": {
+          "cameras": {
+            "left": {
+              "type": "image-sequence",
+              "originalBasePath": "/home/user/data/stereoLeftRightImages/left",
+              "originalImageFiles": [
+                "left1.png",
+                "left2.png",
+                "left3.png"
+              ],
+              "originalVideoFile": ""
+            },
+            "right": {
+              "type": "image-sequence",
+              "originalBasePath": "/home/user/data/stereoLeftRightImages/right",
+              "originalImageFiles": [
+                "right1.png",
+                "right2.png",
+                "right3.png"
+              ],
+              "originalVideoFile": ""
+            }
+          },
+          "calibration": "/home/user/data/stereoLeftRightImages/stereoCalibration.npz",
+          "display": "left"
+        },
+        "mediaConvertList": []
+      }
+    },
+    "folderStereoTranscodeTest": {
+      "input": {
+        "defaultDisplay": "left",
+        "folderList": {
+          "left": "/home/user/data/stereoLeftRightImages/left/tiff",
+          "right": "/home/user/data/stereoLeftRightImages/right/tiff"
+        },
+        "calibrationFile": "/home/user/data/stereoLeftRightImages/stereoCalibration.npz",
+        "type": "image-sequence"
+      },
+      "output": {
+        "multiCam": {
+          "cameras": {
+            "left": {
+              "type": "image-sequence",
+              "originalBasePath": "/home/user/data/stereoLeftRightImages/left/tiff",
+              "originalImageFiles": [
+                "left1.tiff",
+                "left2.tiff",
+                "left3.tiff"
+              ],
+              "originalVideoFile": ""
+            },
+            "right": {
+              "type": "image-sequence",
+              "originalBasePath": "/home/user/data/stereoLeftRightImages/right/tiff",
+              "originalImageFiles": [
+                "right1.tiff",
+                "right2.tiff",
+                "right3.tiff"
+              ],
+              "originalVideoFile": ""
+            }
+          },
+          "calibration": "/home/user/data/stereoLeftRightImages/stereoCalibration.npz",
+          "display": "left"
+        },
+        "mediaConvertList": [
+          "/home/user/data/stereoLeftRightImages/left/tiff/left1.tiff",
+          "/home/user/data/stereoLeftRightImages/left/tiff/left2.tiff",
+          "/home/user/data/stereoLeftRightImages/left/tiff/left3.tiff",
+          "/home/user/data/stereoLeftRightImages/right/tiff/right1.tiff",
+          "/home/user/data/stereoLeftRightImages/right/tiff/right2.tiff",
+          "/home/user/data/stereoLeftRightImages/right/tiff/right3.tiff"
+        ]
+      }
+    },
+    "folderStereoTranscodeSameTest": {
+      "input": {
+        "defaultDisplay": "right",
+        "folderList": {
+          "left": "/home/user/data/stereoLeftRightImages/left/tiff",
+          "right": "/home/user/data/stereoLeftRightImages/right/same"
+        },
+        "calibrationFile": "/home/user/data/stereoLeftRightImages/stereoCalibration.npz",
+        "type": "image-sequence"
+      },
+      "output": {
+        "multiCam": {
+          "cameras": {
+            "left": {
+              "type": "image-sequence",
+              "originalBasePath": "/home/user/data/stereoLeftRightImages/left/tiff",
+              "originalImageFiles": [
+                "left1.tiff",
+                "left2.tiff",
+                "left3.tiff"
+              ],
+              "originalVideoFile": ""
+            },
+            "right": {
+              "type": "image-sequence",
+              "originalBasePath": "/home/user/data/stereoLeftRightImages/right/same",
+              "originalImageFiles": [
+                "left1.tiff",
+                "left2.tiff",
+                "left3.tiff"
+              ],
+              "originalVideoFile": ""
+            }
+          },
+          "calibration": "/home/user/data/stereoLeftRightImages/stereoCalibration.npz",
+          "display": "right"
+        },
+        "mediaConvertList": [
+          "/home/user/data/stereoLeftRightImages/left/tiff/left1.tiff",
+          "/home/user/data/stereoLeftRightImages/left/tiff/left2.tiff",
+          "/home/user/data/stereoLeftRightImages/left/tiff/left3.tiff",
+          "/home/user/data/stereoLeftRightImages/right/same/left1.tiff",
+          "/home/user/data/stereoLeftRightImages/right/same/left2.tiff",
+          "/home/user/data/stereoLeftRightImages/right/same/left3.tiff"
+        ]
+      }
+    },
+    "folderStereoVideoTest": {
+      "input": {
+        "defaultDisplay": "left",
+        "folderList": {
+          "left": "/home/user/data/stereoLeftRightImages/left/left.mp4",
+          "right": "/home/user/data/stereoLeftRightImages/right/right.mp4"
+        },
+        "calibrationFile": "/home/user/data/stereoLeftRightImages/stereoCalibration.npz",
+        "type": "video"
+      },
+      "output": {
+        "multiCam": {
+          "cameras": {
+            "left": {
+              "type": "video",
+              "originalBasePath": "/home/user/data/stereoLeftRightImages/left",
+              "originalImageFiles": [],
+              "originalVideoFile": "left.mp4"
+            },
+            "right": {
+              "type": "video",
+              "originalBasePath": "/home/user/data/stereoLeftRightImages/right",
+              "originalImageFiles": [],
+              "originalVideoFile": "right.mp4"
+            }
+          },
+          "calibration": "/home/user/data/stereoLeftRightImages/stereoCalibration.npz",
+          "display": "left"
+        },
+        "mediaConvertList": []
+      }
+    },
+    "folderStereoVideoTranscodeTest": {
+      "input": {
+        "defaultDisplay": "left",
+        "folderList": {
+          "left": "/home/user/data/stereoLeftRightImages/left/left.mpg",
+          "right": "/home/user/data/stereoLeftRightImages/right/right.mpg"
+        },
+        "calibrationFile": "/home/user/data/stereoLeftRightImages/stereoCalibration.npz",
+        "type": "video"
+      },
+      "output": {
+        "multiCam": {
+          "cameras": {
+            "left": {
+              "type": "video",
+              "originalBasePath": "/home/user/data/stereoLeftRightImages/left",
+              "originalImageFiles": [],
+              "originalVideoFile": "left.mpg"
+            },
+            "right": {
+              "type": "video",
+              "originalBasePath": "/home/user/data/stereoLeftRightImages/right",
+              "originalImageFiles": [],
+              "originalVideoFile": "right.mpg"
+            }
+          },
+          "calibration": "/home/user/data/stereoLeftRightImages/stereoCalibration.npz",
+          "display": "left"
+        },
+        "mediaConvertList": [
+          "/home/user/data/stereoLeftRightImages/left/left.mpg",
+          "/home/user/data/stereoLeftRightImages/right/right.mpg"
+        ]
+      }
+    }
+  },
+  "keywordTests": {
+    "keywordStereoBasicTest": {
+      "input": {
+        "defaultDisplay": "left",
+        "keywordFolder": "/home/user/data/stereoLeftRightCombinedImages",
+        "globList": {
+          "left": "*left*.png",
+          "right": "*right*.png"
+        },
+        "calibrationFile": "/home/user/data/stereoLeftRightImages/stereoCalibration.npz",
+        "type": "image-sequence"
+      },
+      "output": {
+        "multiCam": {
+          "cameras": {
+            "left": {
+              "type": "image-sequence",
+              "originalBasePath": "/home/user/data/stereoLeftRightCombinedImages",
+              "originalImageFiles": [
+                "left1.png",
+                "left2.png",
+                "left3.png"
+              ],
+              "originalVideoFile": ""
+            },
+            "right": {
+              "type": "image-sequence",
+              "originalBasePath": "/home/user/data/stereoLeftRightCombinedImages",
+              "originalImageFiles": [
+                "right1.png",
+                "right2.png",
+                "right3.png"
+              ],
+              "originalVideoFile": ""
+            }
+          },
+          "calibration": "/home/user/data/stereoLeftRightImages/stereoCalibration.npz",
+          "display": "left"
+        },
+        "mediaConvertList": []
+      }
+    },
+    "keywordStereoTranscodeTest": {
+      "input": {
+        "defaultDisplay": "left",
+        "keywordFolder": "/home/user/data/stereoLeftRightCombinedImages/tiff",
+        "globList": {
+          "left": "*left*.tiff",
+          "right": "*right*.tiff"
+        },
+        "calibrationFile": "/home/user/data/stereoLeftRightImages/stereoCalibration.npz",
+        "type": "image-sequence"
+      },
+      "output": {
+        "multiCam": {
+          "cameras": {
+            "left": {
+              "type": "image-sequence",
+              "originalBasePath": "/home/user/data/stereoLeftRightCombinedImages/tiff",
+              "originalImageFiles": [
+                "left1.tiff",
+                "left2.tiff",
+                "left3.tiff"
+              ],
+              "originalVideoFile": ""
+            },
+            "right": {
+              "type": "image-sequence",
+              "originalBasePath": "/home/user/data/stereoLeftRightCombinedImages/tiff",
+              "originalImageFiles": [
+                "right1.tiff",
+                "right2.tiff",
+                "right3.tiff"
+              ],
+              "originalVideoFile": ""
+            }
+          },
+          "calibration": "/home/user/data/stereoLeftRightImages/stereoCalibration.npz",
+          "display": "left"
+        },
+        "mediaConvertList": [
+          "/home/user/data/stereoLeftRightCombinedImages/tiff/left1.tiff",
+          "/home/user/data/stereoLeftRightCombinedImages/tiff/left2.tiff",
+          "/home/user/data/stereoLeftRightCombinedImages/tiff/left3.tiff",
+          "/home/user/data/stereoLeftRightCombinedImages/tiff/right1.tiff",
+          "/home/user/data/stereoLeftRightCombinedImages/tiff/right2.tiff",
+          "/home/user/data/stereoLeftRightCombinedImages/tiff/right3.tiff"
+        ]
+      }
+    }
+  },
+  "failingFolderTests": {
+    "missingFolder": {
+      "input": {
+        "defaultDisplay": "left",
+        "folderList": {
+          "left": "/home/user/data/stereoLeftRightImages/left2/left.mpg",
+          "right": "/home/user/data/stereoLeftRightImages/right2/right.mpg"
+        },
+        "calibrationFile": "/home/user/data/stereoLeftRightImages/stereoCalibration.npz",
+        "type": "video"
+      },
+      "output": {
+        "error": "file or directory for left not found:"
+      }
+    },
+    "noMainFolder": {
+      "input": {
+        "defaultDisplay": "left2",
+        "folderList": {
+          "left": "/home/user/data/stereoLeftRightImages/left/left.mp4",
+          "right": "/home/user/data/stereoLeftRightImages/right/right.mp4"
+        },
+        "calibrationFile": "/home/user/data/stereoLeftRightImages/stereoCalibration.npz",
+        "type": "video"
+      },
+      "output": {
+        "error": "No main folder defined"
+      }
+    },
+    "image for video type": {
+      "input": {
+        "defaultDisplay": "left",
+        "folderList": {
+          "left": "/home/user/data/stereoLeftRightImages/left/left1.png",
+          "right": "/home/user/data/stereoLeftRightImages/right/right1.png"
+        },
+        "calibrationFile": "/home/user/data/stereoLeftRightImages/stereoCalibration.npz",
+        "type": "video"
+      },
+      "output": {
+        "error": "User chose image file for video import option"
+      }
+    },
+    "unsupportedMimeType": {
+      "input": {
+        "defaultDisplay": "nomimeleft",
+        "folderList": {
+          "nomimeleft": "/home/user/data/stereoLeftRightImages/left/nomimeleft/left.zxy",
+          "nomimeright": "/home/user/data/stereoLeftRightImages/right/nomimeright/right.zxy"
+        },
+        "calibrationFile": "/home/user/data/stereoLeftRightImages/stereoCalibration.npz",
+        "type": "video"
+      },
+      "output": {
+        "error": "could not determine video MIME type"
+      }
+    },
+    "no images in folder": {
+      "input": {
+        "defaultDisplay": "left",
+        "folderList": {
+          "left": "/home/user/data/stereoLeftRightCombinedImages/empty",
+          "right": "/home/user/data/stereoLeftRightCombinedImages/empty"
+        },
+        "calibrationFile": "/home/user/data/stereoLeftRightImages/stereoCalibration.npz",
+        "type": "image-sequence"
+      },
+      "output": {
+        "error": "no images found in"
+      }
+    }
+
+  },
+  "failingKeywordTests": {
+    "glob not supported in video": {
+      "input": {
+        "defaultDisplay": "left",
+        "keywordFolder": "/home/user/data/stereoLeftRightCombinedImages/tiff",
+        "globList": {
+          "left": "*left*.tiff",
+          "right": "*right*.tiff"
+        },
+        "calibrationFile": "/home/user/data/stereoLeftRightImages/stereoCalibration.npz",
+        "type": "video"
+      },
+      "output": {
+        "error": "glob pattern matching is not supported for multi-cam videos"
+      }
+    }
+  }  
+}
