@@ -2,8 +2,13 @@ import type { GirderModel } from '@girder/components/src';
 
 import {
   DatasetMetaMutable,
+  DatasetType,
   Pipe, Pipelines, SaveAttributeArgs, TrainingConfigs,
 } from 'dive-common/apispec';
+import {
+  calibrationFileTypes, inputAnnotationFileTypes, otherImageTypes,
+  otherVideoTypes, websafeImageTypes, websafeVideoTypes,
+} from 'dive-common/constants';
 import girderRest from '../plugins/girder';
 
 interface ValidationResponse {
@@ -134,6 +139,49 @@ async function getValidWebImages(folderId: string) {
   return data;
 }
 
+async function openFromDisk(datasetType: DatasetType | 'calibration' | 'annotation', defaultFiles?: File[]):
+Promise<{ canceled: boolean; filePaths: string[]; fileList?: File[]}> {
+  const input: HTMLInputElement = document.createElement('input');
+  input.type = 'file';
+  let baseTypes: string[] = [];
+  if (!defaultFiles) {
+    baseTypes = inputAnnotationFileTypes.map((item) => `.${item}`);
+  } else {
+    input.files = {
+      item: (index: number) => defaultFiles[index],
+      length: defaultFiles.length,
+    } as FileList;
+  }
+  input.multiple = datasetType === 'image-sequence';
+  if (datasetType === 'image-sequence') {
+    input.accept = baseTypes.concat(websafeImageTypes).concat(otherImageTypes).join(',');
+  } else if (datasetType === 'video') {
+    input.accept = baseTypes.concat(websafeVideoTypes).concat(otherVideoTypes).join(',');
+  } else if (datasetType === 'calibration') {
+    input.accept = calibrationFileTypes.map((item) => `.${item}`).join(',');
+  }
+  return new Promise(((resolve) => {
+    input.onchange = (event) => {
+      if (event) {
+        const { files } = event.target as HTMLInputElement;
+        if (files) {
+          const fileList = Array.from(files);
+          const response = {
+            canceled: !files.length,
+            fileList,
+            filePaths: fileList.map((item) => item.name),
+          };
+          return resolve(response);
+        }
+      }
+      return resolve({
+        canceled: true,
+        filePaths: [],
+      });
+    };
+    input.click();
+  }));
+}
 
 export {
   clone,
@@ -149,4 +197,5 @@ export {
   saveAttributes,
   validateUploadGroup,
   getValidWebImages,
+  openFromDisk,
 };

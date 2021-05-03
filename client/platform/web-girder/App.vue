@@ -15,6 +15,7 @@ import {
   runTraining,
   saveMetadata,
   saveAttributes,
+  openFromDisk,
 } from './api/viame.service';
 import {
   loadDetections,
@@ -39,6 +40,7 @@ export default defineComponent({
       loadMetadata,
       saveMetadata,
       saveAttributes,
+      openFromDisk,
     });
   },
 });

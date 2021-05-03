@@ -9,10 +9,11 @@ import type {
   Pipe, Pipelines, SaveAttributeArgs, SaveDetectionsArgs, TrainingConfigs,
 } from 'dive-common/apispec';
 
+import { fileVideoTypes, calibrationFileTypes } from 'dive-common/constants';
 import {
   DesktopJob, DesktopMetadata, JsonMeta, NvidiaSmiReply,
-  RunPipeline, RunTraining, fileVideoTypes, ExportDatasetArgs,
-  MediaImportPayload, MultiCamImportArgs, calibrationFileTypes,
+  RunPipeline, RunTraining, ExportDatasetArgs,
+  MediaImportPayload, MultiCamImportArgs,
 } from 'platform/desktop/constants';
 
 
@@ -157,12 +158,12 @@ export {
   saveMetadata,
   saveDetections,
   saveAttributes,
+  openFromDisk,
   /* Nonstandard APIs */
   exportDataset,
   finalizeImport,
   importMedia,
   importMultiCam,
-  openFromDisk,
   openLink,
   nvidiaSmi,
 };

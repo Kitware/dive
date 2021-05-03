@@ -4,12 +4,18 @@ import {
   computed, defineComponent, ref, Ref, PropType,
 } from '@vue/composition-api';
 import { filterByGlob } from 'platform/desktop/sharedUtils';
-import { MediaImportPayload } from 'platform/desktop/constants';
-import { DatasetType } from 'dive-common/apispec';
-import * as api from '../api';
+import { DatasetType, useApi } from 'dive-common/apispec';
 
-import ImportMultiCamAddType from './ImportMultiCamAddType.vue';
+import ImportMultiCamAddType from '../../platform/desktop/frontend/components/ImportMultiCamAddType.vue';
 
+//Custom subset of MediaImportPayload for comaptiblity with web and desktop
+interface CustomMediaImportPayload {
+  jsonMeta: {
+    originalImageFiles: string[];
+  };
+  globPattern: string;
+  mediaConvertList: string[];
+}
 
 export default defineComponent({
   components: {
@@ -25,12 +31,17 @@ export default defineComponent({
       type: String as PropType<'image-sequence' | 'video'>,
       default: 'image-sequence',
     },
+    importMedia: {
+      type: Function as PropType<(path: string) => Promise<CustomMediaImportPayload>>,
+      required: true,
+    },
   },
   setup(props, { emit }) {
+    const { openFromDisk } = useApi();
     const importType: Ref<'multi'|'keyword'| ''> = ref('');
     const folderList: Ref<Record<string, string>> = ref({});
     const keywordFolder = ref('');
-    const pendingImportPayload: Ref<MediaImportPayload | null> = ref(null);
+    const pendingImportPayload: Ref<CustomMediaImportPayload | null> = ref(null);
     const globList: Ref<Record<string, string>> = ref({});
     const calibrationFile = ref('');
     const defaultDisplay = ref('left');
@@ -115,7 +126,7 @@ export default defineComponent({
     });
 
     async function open(dstype: DatasetType | 'calibration', folder: string | 'calibration') {
-      const ret = await api.openFromDisk(dstype);
+      const ret = await openFromDisk(dstype);
       if (!ret.canceled) {
         try {
           const path = ret.filePaths[0];
@@ -125,7 +136,7 @@ export default defineComponent({
             folderList.value[folder] = path;
           } else if (importType.value === 'keyword') {
             keywordFolder.value = path;
-            pendingImportPayload.value = await api.importMedia(ret.filePaths[0]);
+            pendingImportPayload.value = await props.importMedia(ret.filePaths[0]);
           }
         } catch (err) {
           console.error(err);

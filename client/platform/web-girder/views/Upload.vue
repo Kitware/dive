@@ -1,64 +1,22 @@
 <script>
 import Vue from 'vue';
-import { GirderDropzone, mixins } from '@girder/components/src';
+import { mixins } from '@girder/components/src';
 
-import { ImageSequenceType, VideoType, DefaultVideoFPS } from 'dive-common/constants';
+import {
+  ImageSequenceType, VideoType, DefaultVideoFPS, inputAnnotationFileTypes,
+  websafeVideoTypes, otherVideoTypes, websafeImageTypes, otherImageTypes,
+} from 'dive-common/constants';
 
-import { makeViameFolder, validateUploadGroup, postProcess } from '../api/viame.service';
+import ImportButton from 'dive-common/components/ImportButton.vue';
+import ImportMultiCamDialog from 'dive-common/components/ImportMultiCamDialog.vue';
+import {
+  makeViameFolder, validateUploadGroup, postProcess, openFromDisk,
+} from '../api/viame.service';
 import { getResponseError } from '../utils';
-
-function entryToFile(entry) {
-  return new Promise((resolve) => {
-    entry.file((file) => {
-      resolve(file);
-    });
-  });
-}
-
-async function readEntriesPromise(directoryReader) {
-  try {
-    return await new Promise((resolve, reject) => {
-      directoryReader.readEntries(resolve, reject);
-    });
-  } catch (err) {
-    console.error(err);
-    return [];
-  }
-}
-
-async function readDirectoryEntries(entry) {
-  const entries = [];
-  const reader = entry.createReader();
-  let readEntries = await readEntriesPromise(reader);
-  while (readEntries.length > 0) {
-    entries.push(...readEntries);
-    // eslint-disable-next-line no-await-in-loop
-    readEntries = await readEntriesPromise(reader);
-  }
-  return entries;
-}
-
-async function readFilesFromDrop(e) {
-  const item = e.dataTransfer.items[0];
-  const firstEntry = item.webkitGetAsEntry();
-  if (!firstEntry.isDirectory) {
-    return [
-      firstEntry.name,
-      Array.from(e.dataTransfer.items)
-        .filter((_item) => _item.webkitGetAsEntry().isFile)
-        .map((_item) => _item.getAsFile()),
-    ];
-  }
-  const entries = await readDirectoryEntries(firstEntry);
-  return [
-    firstEntry.name,
-    await Promise.all(entries.filter((entry) => entry.isFile).map(entryToFile)),
-  ];
-}
 
 export default Vue.extend({
   name: 'Upload',
-  components: { GirderDropzone },
+  components: { ImportButton, ImportMultiCamDialog },
   mixins: [mixins.fileUploader, mixins.sizeFormatter],
   inject: ['girderRest'],
   props: {
@@ -71,6 +29,9 @@ export default Vue.extend({
     preUploadErrorMessage: null,
     pendingUploads: [],
     ImageSequenceType,
+    stereo: false,
+    multiCamOpenType: 'image-sequence',
+    importMultiCamDialog: false,
   }),
   computed: {
     uploadEnabled() {
@@ -78,6 +39,100 @@ export default Vue.extend({
     },
   },
   methods: {
+    async openImport(dstype) {
+      const ret = await openFromDisk(dstype);
+      if (!ret.canceled) {
+        const processed = this.processImport(ret);
+        if (processed.fullList.length === 0) return;
+        const name = processed.fullList.length === 1 ? processed.fullList[0].name : '';
+        this.preUploadErrorMessage = null;
+        try {
+          await this.addPendingUpload(
+            name, processed.fullList, processed.meta, processed.annotationFile, processed.mediaList,
+          );
+        } catch (err) {
+          this.preUploadErrorMessage = err;
+        }
+      }
+    },
+    processImport(files) {
+      //Check for auto files for meta and annotations
+      const output = {
+        annotationFile: null,
+        metaFile: null,
+        mediaList: null,
+        fullList: null,
+      };
+      const jsonFiles = [];
+      const csvFiles = [];
+      files.filePaths.forEach((item, index) => {
+        if (item.indexOf('.json') !== -1) {
+          jsonFiles.push([item, index]);
+        } else if (item.indexOf('.csv') !== -1) {
+          csvFiles.push([item, index]);
+        }
+      });
+      output.mediaList = files.fileList.filter((item) => (item.name.indexOf('.json') === -1 && item.name.indexOf('.csv') === -1));
+      const metaIndex = jsonFiles.findIndex((item) => (item.indexOf('meta') !== -1));
+      if (metaIndex !== -1) {
+        output.metaFile = files.fileList[jsonFiles[metaIndex][1]];
+      }
+      if (jsonFiles.length === 1 && csvFiles.length === 0 && output.metaFile !== '') {
+        output.annotationFile = files.fileList[jsonFiles[0][1]];
+      } else if (csvFiles.length && jsonFiles.length === 1) {
+        if (jsonFiles[0][0].indexOf('meta') !== -1) {
+          output.annotationFile = files.fileList[csvFiles[0][1]];
+          output.metaFile = files.fileList[jsonFiles[0][1]];
+        }
+      } else if (jsonFiles.length > 1) {
+        //Check for a meta
+        const filtered = jsonFiles.filter((item) => (item.indexOf('meta') === -1));
+        if (filtered.length === 1) {
+          output.annotationFile = files.fileList[filtered[0][1]];
+        }
+      } else if (csvFiles.length) {
+        output.annotationFile = files.fileList[csvFiles[0][1]];
+      }
+      output.fullList = [].concat(output.mediaList);
+      if (output.annotationFile) {
+        output.fullList.push(output.annotationFile);
+      }
+      if (output.metaFile) {
+        output.fullList.push(output.metaFile);
+      }
+      return output;
+    },
+    /**
+     * @param {{ stereo: string, openType: 'image-sequence' | 'video' }} args
+     */
+    openMultiCamDialog(args) {
+      this.stereo = args.stereo;
+      this.multiCamOpenType = args.openType;
+      this.importMultiCamDialog = true;
+    },
+    filterFileUpload(type) {
+      if (type === 'meta') {
+        return '.json';
+      } if (type === 'annotation') {
+        return inputAnnotationFileTypes.map((item) => `.${item}`).join(',');
+      } if (type === 'video') {
+        return websafeVideoTypes.concat(otherVideoTypes);
+      }
+      return websafeImageTypes.concat(otherImageTypes);
+    },
+    multiCamImportCheck(args) {
+      return {
+        jsonMeta: {
+          originalImageFiles: args,
+        },
+        globPattern: '',
+        mediaConvertList: [],
+
+      };
+    },
+    multiCamImport(args) {
+      console.log(args);
+    },
     // Filter to show how many images are left to upload
     filesNotUploaded(item) {
       return item.files.filter(
@@ -95,7 +150,7 @@ export default Vue.extend({
       if (pendingUpload.files.length === 1 && !pendingUpload.uploading) {
         return this.formatSize(pendingUpload.files[0].progress.size);
       } if (pendingUpload.type === ImageSequenceType) {
-        return `${this.filesNotUploaded(pendingUpload)} images`;
+        return `${this.filesNotUploaded(pendingUpload)} files`;
       } if (pendingUpload.type === VideoType && !pendingUpload.uploading) {
         return `${this.filesNotUploaded(pendingUpload)} videos`;
       } if (pendingUpload.type === VideoType && pendingUpload.uploading) {
@@ -117,28 +172,10 @@ export default Vue.extend({
     getFilenameInputStateHint(pendingUpload) {
       return (pendingUpload.createSubFolders ? 'default folder names are used when "Create Subfolders" is selected' : '');
     },
-    async dropped(e) {
-      e.preventDefault();
-      const [name, files] = await readFilesFromDrop(e);
-      if (files.length === 0) return;
-      this.preUploadErrorMessage = null;
-      try {
-        await this.addPendingUpload(name, files);
-      } catch (err) {
-        this.preUploadErrorMessage = err;
-      }
-    },
-    async onFileChange(files) {
-      if (files.length === 0) return;
-      const name = files.length === 1 ? files[0].name : '';
-      this.preUploadErrorMessage = null;
-      try {
-        await this.addPendingUpload(name, files);
-      } catch (err) {
-        this.preUploadErrorMessage = err;
-      }
-    },
-    async addPendingUpload(name, allFiles) {
+    async addPendingUpload(name, allFiles, meta, annotationFile, mediaList) {
+      console.log(name);
+      console.log(allFiles);
+      console.log(meta);
       const resp = await validateUploadGroup(allFiles.map((f) => f.name));
       if (!resp.ok) {
         throw new Error(resp.message);
@@ -174,6 +211,9 @@ export default Vue.extend({
             ? defaultFilename.replace(/\..*/, '')
             : defaultFilename,
         files: internalFiles,
+        meta,
+        annotationFile,
+        mediaList,
         type: resp.type,
         fps,
         uploading: false,
@@ -282,6 +322,21 @@ export default Vue.extend({
 
 <template>
   <div class="upload">
+    <v-dialog
+      :value=" importMultiCamDialog"
+      persistent
+      overlay-opacity="0.95"
+      max-width="80%"
+    >
+      <ImportMultiCamDialog
+        v-if="importMultiCamDialog"
+        :stereo="stereo"
+        :data-type="multiCamOpenType"
+        :import-media="multiCamImportCheck"
+        @begin-multicam-import="multiCamImport($event)"
+        @abort="importMultiCamDialog = false"
+      />
+    </v-dialog>
     <v-form
       v-if="pendingUploads.length"
       ref="form"
@@ -304,68 +359,100 @@ export default Vue.extend({
           Start Upload
         </v-btn>
       </v-toolbar>
-      <v-list class="py-0 pending-uploads">
+      <v-list class="py-2 pending-uploads">
         <v-list-item
           v-for="(pendingUpload, i) of pendingUploads"
           :key="i"
         >
           <v-list-item-content>
-            <v-row>
-              <v-col cols="auto">
-                <v-checkbox
-                  :input-value="pendingUpload.createSubFolders"
-                  label="Create Subfolders"
-                  disabled
-                  hint="Enabled when many videos are selected"
-                  persistent-hint
-                  class="pl-2"
-                />
-              </v-col>
-              <v-col>
-                <v-text-field
-                  :value="pendingUpload.createSubFolders ? 'default' : pendingUpload.name"
-                  class="upload-name"
-                  :rules="[val => (val || '').length > 0 || 'This field is required']"
-                  required
-                  :label="getFilenameInputStateLabel(pendingUpload)"
-                  :disabled="getFilenameInputStateDisabled(pendingUpload)"
-                  :hint="getFilenameInputStateHint(pendingUpload)"
-                  persistent-hint
-                  @input="pendingUpload.name = $event"
-                />
-              </v-col>
-              <v-col
-                cols="2"
-              >
-                <v-select
-                  v-model="pendingUpload.fps"
-                  :items="[1, 5, 10, 15, 24, 25, 30, 50, 60]"
-                  :disabled="pendingUpload.uploading"
-                  type="number"
-                  required
-                  label="FPS"
-                  hint="annotation fps"
-                  persistent-hint
-                />
-              </v-col>
-
-              <v-col cols="1">
-                <v-list-item-action>
-                  <v-btn
-                    class="mt-2"
-                    icon
-                    small
-                    :disabled="pendingUpload.uploading"
-                    @click="remove(pendingUpload)"
+            <v-card>
+              <v-row>
+                <v-col cols="auto">
+                  <v-checkbox
+                    :input-value="pendingUpload.createSubFolders"
+                    label="Create Subfolders"
+                    disabled
+                    hint="Enabled when many videos are selected"
+                    persistent-hint
+                    class="pl-2"
+                  />
+                </v-col>
+                <v-col>
+                  <v-text-field
+                    :value="pendingUpload.createSubFolders ? 'default' : pendingUpload.name"
+                    class="upload-name"
+                    :rules="[val => (val || '').length > 0 || 'This field is required']"
+                    required
+                    :label="getFilenameInputStateLabel(pendingUpload)"
+                    :disabled="getFilenameInputStateDisabled(pendingUpload)"
+                    :hint="getFilenameInputStateHint(pendingUpload)"
+                    persistent-hint
+                    @input="pendingUpload.name = $event"
+                  />
+                </v-col>
+                <v-col cols="1">
+                  <v-list-item-action>
+                    <v-btn
+                      class="mt-2"
+                      icon
+                      small
+                      :disabled="pendingUpload.uploading"
+                      @click="remove(pendingUpload)"
+                    >
+                      <v-icon>mdi-close</v-icon>
+                    </v-btn>
+                  </v-list-item-action>
+                </v-col>
+              </v-row>
+              <v-row>
+                <v-col>
+                  <v-row>
+                    <v-col>
+                      <v-file-input
+                        v-model="pendingUpload.mediaList"
+                        label="Media Files"
+                        multiple
+                        :rules="[val => (val || '').length > 0 || 'Media Files are required']"
+                        :accept="filterFileUpload(pendingUpload.type)"
+                      />
+                    </v-col>
+                    <v-col>
+                      <v-file-input
+                        v-model="pendingUpload.annotationFile"
+                        label="Annotation File"
+                        hint="Optional"
+                        :accept="filterFileUpload('annotation')"
+                      />
+                    </v-col>
+                    <v-col>
+                      <v-file-input
+                        v-model="pendingUpload.meta"
+                        label="Meta File"
+                        hint="Optional"
+                        :accept="filterFileUpload('meta')"
+                      />
+                    </v-col>
+                  </v-row>
+                  <v-col
+                    cols="2"
                   >
-                    <v-icon>mdi-close</v-icon>
-                  </v-btn>
-                </v-list-item-action>
-              </v-col>
-            </v-row>
-            <v-list-item-subtitle>
-              {{ computeUploadProgress(pendingUpload) }}
-            </v-list-item-subtitle>
+                    <v-select
+                      v-model="pendingUpload.fps"
+                      :items="[1, 5, 10, 15, 24, 25, 30, 50, 60]"
+                      :disabled="pendingUpload.uploading"
+                      type="number"
+                      required
+                      label="FPS"
+                      hint="annotation fps"
+                      persistent-hint
+                    />
+                  </v-col>
+                </v-col>
+              </v-row>
+              <v-list-item-subtitle>
+                {{ computeUploadProgress(pendingUpload) }}
+              </v-list-item-subtitle>
+            </v-card>
           </v-list-item-content>
           <v-progress-linear
             :active="pendingUpload.uploading"
@@ -398,21 +485,31 @@ export default Vue.extend({
         </v-btn>
       </v-alert>
     </div>
-    <div class="dropzone-container">
-      <GirderDropzone
-        class="dropzone"
-        multiple
-        message="Drag files or directory here"
-        @drop.native="dropped"
-        @change="onFileChange"
+    <v-card
+      class="pa-6"
+      color="default"
+    >
+      <import-button
+        name="Open Image Sequence"
+        icon="mdi-folder-open"
+        open-type="image-sequence"
+        @open="openImport($event)"
+        @multi-cam="openMultiCamDialog"
       />
-    </div>
+      <import-button
+        name="Open Video"
+        icon="mdi-file-video"
+        open-type="video"
+        @open="openImport($event)"
+        @multi-cam="openMultiCamDialog"
+      />
+    </v-card>
   </div>
 </template>
 
 <style lang="scss" scoped>
 .upload {
-  min-height: 350px;
+  min-height: 50px;
   display: flex;
   flex-direction: column;
 

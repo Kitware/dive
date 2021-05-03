@@ -4,15 +4,14 @@ import mime from 'mime-types';
 import {
   DatasetType,
 } from 'dive-common/apispec';
-
 import {
-  websafeImageTypes, otherImageTypes,
+  websafeImageTypes, websafeVideoTypes, otherImageTypes, otherVideoTypes,
+} from 'dive-common/constants';
+import {
   JsonMeta, Settings, JsonMetaCurrentVersion,
   MediaImportPayload, MultiCamImportFolderArgs,
   MultiCamImportKeywordArgs,
   MultiCamImportArgs,
-  websafeVideoTypes,
-  otherVideoTypes,
 } from 'platform/desktop/constants';
 import { cleanString, makeid } from 'platform/desktop/sharedUtils';
 import { findImagesInFolder } from './common';

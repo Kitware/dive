@@ -74,7 +74,8 @@ interface Api {
   saveDetections(datasetId: string, args: SaveDetectionsArgs): Promise<unknown>;
   saveMetadata(datasetId: string, metadata: DatasetMetaMutable): Promise<unknown>;
   saveAttributes(datasetId: string, args: SaveAttributeArgs): Promise<unknown>;
-}
+  // Non-Endpoint shared functions
+  openFromDisk(datasetType: DatasetType | 'calibration'): Promise<{canceled?: boolean; filePaths: string[]; fileList?: File[]}>;}
 
 const ApiSymbol = Symbol('api');
 
