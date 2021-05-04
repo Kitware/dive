@@ -6,7 +6,7 @@ import {
 import { filterByGlob } from 'platform/desktop/sharedUtils';
 import { DatasetType, useApi } from 'dive-common/apispec';
 
-import ImportMultiCamAddType from '../../platform/desktop/frontend/components/ImportMultiCamAddType.vue';
+import ImportMultiCamAddType from 'dive-common/components/ImportMultiCamAddType.vue';
 
 //Custom subset of MediaImportPayload for comaptiblity with web and desktop
 interface CustomMediaImportPayload {

@@ -45,10 +45,10 @@ export default Vue.extend({
   inject: ['girderRest'],
   data: () => ({
     buttonOptions,
+    uploading: false,
     menuOptions,
     uploaderDialog: false,
     selected: [],
-    uploading: false,
     loading: false,
   }),
   computed: {
@@ -106,14 +106,7 @@ export default Vue.extend({
     selectedDescription() {
       return this.location?.description;
     },
-  },
-  watch: {
-    uploading(newval) {
-      if (!newval) {
-        this.$refs.fileManager.$refs.girderBrowser.refresh();
-        this.uploaderDialog = false;
-      }
-    },
+
   },
   async created() {
     let newLocaction = getLocationFromRoute(this.$route);
@@ -136,6 +129,13 @@ export default Vue.extend({
     ...mapActions('Location', ['route']),
     handleNotification() {
       this.$refs.fileManager.$refs.girderBrowser.refresh();
+    },
+    updateUploading(newval) {
+      this.uploading = newval;
+      if (!newval) {
+        this.$refs.fileManager.$refs.girderBrowser.refresh();
+        this.uploaderDialog = false;
+      }
     },
     isAnnotationFolder(item) {
       // TODO: update to check for other info
@@ -265,7 +265,7 @@ export default Vue.extend({
                 </template>
                 <Upload
                   :location="location"
-                  :uploading.sync="uploading"
+                  @update:uploading="updateUploading"
                 />
               </v-dialog>
             </template>
