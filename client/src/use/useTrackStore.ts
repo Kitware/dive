@@ -91,7 +91,7 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
     } else {
       trackIds.value.push(track.trackId);
     }
-    if (!args || !args.imported) {
+    if (!args?.imported) {
       markChangesPending({ action: 'upsert', track });
     }
   }
