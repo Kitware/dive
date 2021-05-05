@@ -74,7 +74,7 @@ This image contains a celery worker to run VIAME pipelines and transcoding jobs.
 
 You can run a standalone worker to help process jobs from a remote DIVE Web server.
 
-* It requires a local VIAME installtion to mount in addons.
+* It requires a local VIAME installation to mount in addons.
 * Set the queue(s) you wish to consume.
 * Get the `CELERY_BROKER_URL` from our team.  Email `viame-web@kitware.com`
 

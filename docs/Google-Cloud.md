@@ -18,7 +18,7 @@ There are several benefits to this configuration:
 
 ## Support
 
-**For questions or support, please reach out to `viame-web@kitware.com`**
+[Contact us](https://kitware.github.io/dive/#get-help) for support with any of these topics.
 
 ## Google Cloud Storage Mirroring
 
@@ -33,7 +33,7 @@ DIVE Web can mirror your data from google cloud storage buckets such that your t
 
 You'll also need to [configure CORS headers](https://cloud.google.com/storage/docs/configuring-cors) for any buckets where media will be served.
 
-Save the following snippet as `bucket-cors-config.json`.
+Save the following snippet as `bucket-cors-config.json` .
 
 ``` json
 [
@@ -67,13 +67,13 @@ Our server will process events from this subscription to keep your data current.
 
 Choose a folder as a mount-point inside DIVE Web.  This folder should ideally be dedicated to mapping from your GCS buckets.
 
-We recommend creating a `Google Cloud Storage` folder with subfolers named for each bucket in your user's workspace.  You can do this using the `New Folder` button in DIVE Web's File Browser.  You can get the folder ID from the browser's URL bar.
+We recommend creating a `Google Cloud Storage` folder with subfolders named for each bucket in your user's workspace.  You can do this using the `New Folder` button in DIVE Web's File Browser.  You can get the folder ID from the browser's URL bar.
 
 ### Send us the details
 
-Send an email with the following details from above to `viame-web@kitware.com`.
+Send an email with the following details from above to `viame-web@kitware.com` .
 
-```text
+``` text
 subject: Add a google cloud storage bucket mount
 
 Bucket name:
@@ -93,9 +93,13 @@ This section will guide you through deploying VIAME to Google Cloud for several 
 
 ### Preparation
 
+To run the provisioning tools below, you need the following installed on your workstation.
+
 * [Install Google Cloud SDK](https://cloud.google.com/sdk/docs/install)
 * [Install Terraform](https://learn.hashicorp.com/tutorials/terraform/install-cli)
 * [Install Ansible](https://docs.ansible.com/ansible/latest/installation_guide/intro_installation.html)
+
+You **also need** Celery RabbitMQ credentials to establish a secure connection with our queueing service.  [Contact us](https://kitware.github.io/dive/#get-help) with a short description of your intended use to request these.
 
 ``` bash
 # Clone the dive repo
@@ -129,14 +133,16 @@ terraform apply create.plan
 ### Provision with Ansible
 
 !!! warning
+
     The playbook takes 20-30 minutes to run because it must install nvidia drivers, download several GB of software packages, etc.
 
 ``` bash
 # install galaxy plugins
 ansible-galaxy install -r ansible/requirements.yml
 
-# provision
-ansible-playbook -i inventory ansible/playbook.yml
+# provision using inventory file automatically created by terraform and the connection string you got from us
+ansible-playbook -i inventory ansible/playbook.yml \
+  --extra-vars "CELERY_BROKER_URL=amqps://user:password@domain.com/vhost"
 ```
 
 Once provisioning is complete, jobs should begin processing from the job queue.  You can check [viame.kitware.com/#/jobs](https://viame.kitware.com/#/jobs) to see queue progress and logs.

@@ -5,7 +5,7 @@
   vars:
     viame_bundle_url: https://viame.kitware.com/api/v1/item/60519746bc3f8f99bba1a5f6/download
     WORKER_WATCHING_QUEUES: celery
-    CELERY_BROKER_URL: amqps://xoaonyrj:62WH0JKC8pAZvwyITjX3GpzVg4MMTpNu@albatross.rmq.cloudamqp.com/xoaonyrj
+    CELERY_BROKER_URL: CHANGEME
 
   roles:
     - role: geerlingguy.docker
