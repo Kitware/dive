@@ -11,14 +11,16 @@ import type {
 
 import {
   DesktopJob, DesktopMetadata, JsonMeta, NvidiaSmiReply,
-  RunPipeline, RunTraining, fileVideoTypes, ExportDatasetArgs, MediaImportPayload,
+  RunPipeline, RunTraining, fileVideoTypes, ExportDatasetArgs,
+  MediaImportPayload, MultiCamImportArgs, calibrationFileTypes,
 } from 'platform/desktop/constants';
+
 
 /**
  * Native functions that run entirely in the renderer
  */
 
-async function openFromDisk(datasetType: DatasetType) {
+async function openFromDisk(datasetType: DatasetType | 'calibration') {
   let filters: FileFilter[] = [];
   if (datasetType === 'video') {
     filters = [
@@ -26,8 +28,14 @@ async function openFromDisk(datasetType: DatasetType) {
       { name: 'All Files', extensions: ['*'] },
     ];
   }
+  if (datasetType === 'calibration') {
+    filters = [
+      { name: 'calibration', extensions: calibrationFileTypes },
+      { name: 'All Files', extensions: ['*'] },
+    ];
+  }
   const results = await remote.dialog.showOpenDialog({
-    properties: [datasetType === 'video' ? 'openFile' : 'openDirectory'],
+    properties: [datasetType === 'image-sequence' ? 'openDirectory' : 'openFile'],
     filters,
   });
   return results;
@@ -74,6 +82,11 @@ async function runTraining(
 
 function importMedia(path: string): Promise<MediaImportPayload> {
   return ipcRenderer.invoke('import-media', { path });
+}
+
+function importMultiCam(args: MultiCamImportArgs):
+   Promise<MediaImportPayload> {
+  return ipcRenderer.invoke('import-multicam-media', { args });
 }
 
 function finalizeImport(args: MediaImportPayload): Promise<JsonMeta> {
@@ -148,6 +161,7 @@ export {
   exportDataset,
   finalizeImport,
   importMedia,
+  importMultiCam,
   openFromDisk,
   openLink,
   nvidiaSmi,
