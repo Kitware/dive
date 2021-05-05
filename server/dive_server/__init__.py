@@ -8,7 +8,7 @@ from girder.utility.model_importer import ModelImporter
 from dive_utils.constants import SETTINGS_CONST_JOBS_CONFIGS
 
 from .client_webroot import ClientWebroot
-from .event import check_existing_annotations
+from .event import process_fs_import, process_s3_import
 from .viame import Viame
 from .viame_detection import ViameDetection
 from .viame_summary import SummaryItem, ViameSummary
@@ -30,7 +30,6 @@ def validateSettings(doc):
 class GirderPlugin(plugin.GirderPlugin):
     def load(self, info):
         ModelImporter.registerModel('summaryItem', SummaryItem, plugin='dive_server')
-
         info["apiRoot"].viame = Viame()
         info["apiRoot"].viame_detection = ViameDetection()
         info["apiRoot"].viame_summary = ViameSummary()
@@ -44,8 +43,13 @@ class GirderPlugin(plugin.GirderPlugin):
 
         events.bind(
             "filesystem_assetstore_imported",
-            "check_annotations",
-            check_existing_annotations,
+            "process_fs_import",
+            process_fs_import,
+        )
+        events.bind(
+            "s3_assetstore_imported",
+            "process_s3_import",
+            process_s3_import,
         )
 
         # Create dependency on worker
@@ -56,9 +60,9 @@ class GirderPlugin(plugin.GirderPlugin):
         )
         Setting().set(
             'worker.broker',
-            os.environ.get('WORKER_BROKER', 'amqp://guest:guest@rabbit/'),
+            os.environ.get('CELERY_BROKER_URL', 'amqp://guest:guest@rabbit/'),
         )
         Setting().set(
             'worker.backend',
-            os.environ.get('WORKER_BACKEND', 'amqp://guest:guest@rabbit/'),
+            os.environ.get('CELERY_BROKER_URL', 'amqp://guest:guest@rabbit/'),
         )
