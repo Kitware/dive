@@ -26,11 +26,13 @@ from dive_utils import TRUTHY_META_VALUES, asbool, fromMeta, models, strNumericC
 from dive_utils.constants import (
     SETTINGS_CONST_JOBS_CONFIGS,
     DatasetMarker,
+    DetectionMarker,
     ForeignMediaIdMarker,
     PublishedMarker,
     TrainedPipelineCategory,
     csvRegex,
     imageRegex,
+    jsonRegex,
     safeImageRegex,
     videoRegex,
     ymlRegex,
@@ -389,16 +391,20 @@ class Viame(Resource):
         csvs = [f for f in files if csvRegex.search(f)]
         images = [f for f in files if imageRegex.search(f)]
         ymls = [f for f in files if ymlRegex.search(f)]
+        jsons = [f for f in files if jsonRegex.search(f)]
         if len(videos) and len(images):
             ok = False
             message = "Do not upload images and videos in the same batch."
         elif len(csvs) > 1:
             ok = False
             message = "Can only upload a single CSV Annotation per import"
+        elif len(jsons) > 1:
+            ok = False
+            message = "Can only upload a single JSON Annotation per import"
         elif len(csvs) == 1 and len(ymls):
             ok = False
             message = "Cannot mix annotation import types"
-        elif len(videos) > 1 and (len(csvs) or len(ymls)):
+        elif len(videos) > 1 and (len(csvs) or len(ymls) or len(jsons)):
             ok = False
             message = (
                 "Annotation upload is not supported when multiple videos are uploaded"
@@ -416,7 +422,7 @@ class Viame(Resource):
             "message": message,
             "type": mediatype,
             "media": images + videos,
-            "annotations": csvs + ymls,
+            "annotations": csvs + ymls + jsons,
         }
 
     @access.user
@@ -509,20 +515,19 @@ class Viame(Resource):
 
             Folder().save(folder)
 
-        # transform CSV if necessasry
-        csvItems = Folder().childItems(
-            folder,
-            filters={"lowerName": {"$regex": csvRegex}},
-            sort=[("created", pymongo.DESCENDING)],
+        # Find a json if it exists
+        jsonItems = list(
+            Folder().childItems(
+                folder,
+                filters={"lowerName": {"$regex": jsonRegex}},
+                sort=[("created", pymongo.DESCENDING)],
+            )
         )
-        if csvItems.count() >= 1:
-            file = Item().childFiles(csvItems.next())[0]
-            (tracks, attributes) = getTrackAndAttributesFromCSV(file)
-            saveTracks(folder, tracks, user)
-            saveCSVImportAttributes(folder, attributes, user)
-            csvItems.rewind()
-            for item in csvItems:
-                Item().move(item, auxiliary)
+        for item in jsonItems:
+            item['meta'][DetectionMarker] = str(folder['_id'])
+            Item().save(item)
+        if len(jsonItems):
+            move_existing_result_to_auxiliary_folder(folder, user)
 
         return folder
 

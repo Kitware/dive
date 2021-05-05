@@ -18,6 +18,7 @@ from dive_server.utils import (
     detections_item,
     getCloneRoot,
     getTrackData,
+    process_csv,
     saveTracks,
     verify_dataset,
 )
@@ -265,6 +266,7 @@ class ViameDetection(Resource):
     )
     def get_detection(self, folder):
         verify_dataset(folder)
+        process_csv(folder, self.getCurrentUser())
         file = detections_file(folder)
         if file is None:
             return {}
