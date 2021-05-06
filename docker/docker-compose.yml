@@ -8,11 +8,15 @@ x-worker: &base-worker
     context: ../
     dockerfile: docker/girder_worker.Dockerfile
   image: kitware/viame-worker:${TAG:-latest}
+  volumes:
+    - addons:/tmp/addons:ro # readonly
+  labels:
+    - "com.centurylinklabs.watchtower.enable=true" 
   depends_on:
     girder:
-        condition: service_healthy
+      condition: service_healthy
     rabbit:
-        condition: service_started
+      condition: service_started
 
 version: "2.4"
 services:
@@ -68,15 +72,16 @@ services:
         volume:
           nocopy: true
     environment:
-      - GIRDER_MONGO_URI=mongodb://mongo:27017/girder
-      - GIRDER_ADMIN_USER=${GIRDER_ADMIN_USER}
-      - GIRDER_ADMIN_PASS=${GIRDER_ADMIN_PASS}
-      - "CELERY_BROKER_URL=amqp://${RABBITMQ_DEFAULT_USER}:${RABBITMQ_DEFAULT_PASS}@rabbit/"
+      - "GIRDER_MONGO_URI=mongodb://mongo:27017/girder"
+      - "GIRDER_ADMIN_USER=${GIRDER_ADMIN_USER}"
+      - "GIRDER_ADMIN_PASS=${GIRDER_ADMIN_PASS}"
+      - "CELERY_BROKER_URL=${CELERY_BROKER_URL}"
     labels:
-      - traefik.enable=true
-      - traefik.http.services.girder-svc.loadbalancer.server.port=8080
-      - traefik.http.routers.girder-rtr.entrypoints=web
-      - traefik.http.routers.girder-rtr.rule=HostRegexp(`{catchall:.*}`)
+      - "com.centurylinklabs.watchtower.enable=true"
+      - "traefik.enable=true"
+      - "traefik.http.services.girder-svc.loadbalancer.server.port=8080"
+      - "traefik.http.routers.girder-rtr.entrypoints=web"
+      - "traefik.http.routers.girder-rtr.rule=HostRegexp(`{catchall:.*}`)"
 
   # Worker for misc non gpu-bound tasks
   girder_worker_default:
@@ -86,30 +91,27 @@ services:
       # readwrite because this worker does addon updates
       - addons:/tmp/addons:rw
     environment:
-      - WORKER_WATCHING_QUEUES=celery
-      - "CELERY_BROKER_URL=amqp://${RABBITMQ_DEFAULT_USER}:${RABBITMQ_DEFAULT_PASS}@rabbit/"
+      - "WORKER_WATCHING_QUEUES=celery"
+      - "WORKER_CONCURRENCY=${DEFAULT_WORKER_CONCURRENCY:-3}"
+      - "CELERY_BROKER_URL=${CELERY_BROKER_URL}"
 
   girder_worker_pipelines:
     # Merge base-worker object with this config
     << : *base-worker
-    volumes:
-      - addons:/tmp/addons:ro # readonly
     environment:
-      - WORKER_WATCHING_QUEUES=pipelines
-      - WORKER_CONCURRENCY=${PIPELINE_WORKER_CONCURRENCY:-1}
-      - WORKER_GPU_UUID=${PIPELINE_GPU_UUID}
-      - "CELERY_BROKER_URL=amqp://${RABBITMQ_DEFAULT_USER}:${RABBITMQ_DEFAULT_PASS}@rabbit/"
+      - "WORKER_WATCHING_QUEUES=pipelines"
+      - "WORKER_CONCURRENCY=${PIPELINE_WORKER_CONCURRENCY:-1}"
+      - "WORKER_GPU_UUID=${PIPELINE_GPU_UUID}"
+      - "CELERY_BROKER_URL=${CELERY_BROKER_URL}"
 
   girder_worker_training:
     # Merge base-worker object with this config
     << : *base-worker
-    volumes:
-      - addons:/tmp/addons:ro # readonly
     environment:
-      - WORKER_WATCHING_QUEUES=training
-      - WORKER_CONCURRENCY=${TRAINING_WORKER_CONCURRENCY:-1}
-      - WORKER_GPU_UUID=${TRAINING_GPU_UUID}
-      - "CELERY_BROKER_URL=amqp://${RABBITMQ_DEFAULT_USER}:${RABBITMQ_DEFAULT_PASS}@rabbit/"
+      - "WORKER_WATCHING_QUEUES=training"
+      - "WORKER_CONCURRENCY=${TRAINING_WORKER_CONCURRENCY:-1}"
+      - "WORKER_GPU_UUID=${TRAINING_GPU_UUID}"
+      - "CELERY_BROKER_URL=${CELERY_BROKER_URL}"
 
 volumes:
   addons:

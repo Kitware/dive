@@ -3,12 +3,14 @@ import http from 'http';
 import { ipcMain } from 'electron';
 
 import {
-  DesktopJobUpdate, RunPipeline, RunTraining, Settings, ExportDatasetArgs, MediaImportPayload,
+  DesktopJobUpdate, RunPipeline, RunTraining, Settings, ExportDatasetArgs,
+  MediaImportPayload, MultiCamImportArgs,
 } from 'platform/desktop/constants';
 
 import linux from './native/linux';
 import win32 from './native/windows';
 import * as common from './native/common';
+import beginMultiCamImport from './native/multiCamImport';
 import settings from './state/settings';
 import { listen } from './server';
 
@@ -64,6 +66,15 @@ export default function register() {
     );
     return ret;
   });
+
+  ipcMain.handle('import-multicam-media', async (event, { args }:
+    { args: MultiCamImportArgs }) => {
+    const ret = await beginMultiCamImport(
+      settings.get(), args, currentPlatform.checkMedia,
+    );
+    return ret;
+  });
+
 
   ipcMain.handle('finalize-import', async (event, args: MediaImportPayload) => {
     const updater = (update: DesktopJobUpdate) => {

@@ -13,7 +13,7 @@ Vue.use(Install);
  * cached in localStorage for quickly listing
  * known datasets
  */
-interface JsonMetaCache {
+export interface JsonMetaCache {
   version: number;
   type: DatasetType;
   id: string;
@@ -23,6 +23,8 @@ interface JsonMetaCache {
   originalBasePath: string;
   originalVideoFile: string;
   transcodedVideoFile?: string;
+  multiCam?: boolean; // TODO: when DatasetType is updated we need to swap this to type
+  stereo?: boolean; // Contains stereo left/right pairs and calibration file
 }
 
 /**
@@ -96,6 +98,8 @@ function setRecents(meta: JsonMeta) {
     originalBasePath: meta.originalBasePath,
     originalVideoFile: meta.originalVideoFile,
     transcodedVideoFile: meta.transcodedVideoFile,
+    multiCam: !!meta.multiCam,
+    stereo: meta.multiCam && meta.multiCam.calibration,
   } as JsonMetaCache);
   const values = Object.values(datasets.value);
   window.localStorage.setItem(RecentsKey, JSON.stringify(values));
