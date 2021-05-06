@@ -1,5 +1,3 @@
-from typing import List
-
 from girder.api import access
 from girder.api.describe import Description, autoDescribeRoute
 from girder.api.rest import Resource
