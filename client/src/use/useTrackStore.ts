@@ -14,6 +14,11 @@ interface UseTrackStoreParams {
     }) => void;
 }
 
+interface InsertArgs {
+  imported?: boolean;
+  afterId?: TrackId;
+}
+
 export function getTrack(
   trackMap: Readonly<Map<TrackId, Track>>, trackId: Readonly<TrackId>,
 ): Track {
@@ -75,16 +80,19 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
     markChangesPending({ action: 'upsert', track });
   }
 
-  function insertTrack(track: Track, afterId?: TrackId) {
+  function insertTrack(track: Track, args?: InsertArgs) {
     track.bus.$on('notify', onChange);
     trackMap.set(track.trackId, track);
     intervalTree.insert([track.begin, track.end], track.trackId.toString());
-    if (afterId) {
+    if (args && args.afterId) {
       /* Insert specifically after another trackId */
-      const insertIndex = trackIds.value.indexOf(afterId) + 1;
+      const insertIndex = trackIds.value.indexOf(args.afterId) + 1;
       trackIds.value.splice(insertIndex, 0, track.trackId);
     } else {
       trackIds.value.push(track.trackId);
+    }
+    if (!args?.imported) {
+      markChangesPending({ action: 'upsert', track });
     }
   }
 
@@ -94,7 +102,7 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
       end: frame,
       confidencePairs: [[defaultType, 1]],
     });
-    insertTrack(track, afterId);
+    insertTrack(track, { afterId });
     markChangesPending({ action: 'upsert', track });
     return track;
   }

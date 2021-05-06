@@ -1,0 +1,53 @@
+---
+- name: Install Nvidia Docker
+  hosts: all
+  become: yes
+  vars:
+    viame_bundle_url: https://viame.kitware.com/api/v1/item/60519746bc3f8f99bba1a5f6/download
+    WORKER_WATCHING_QUEUES: celery
+    CELERY_BROKER_URL: CHANGEME
+
+  roles:
+    - role: geerlingguy.docker
+    - role: nvidia.nvidia_driver
+    - role: nvidia.nvidia_docker
+
+  tasks:
+
+    - name: Git Clone DIVE
+      git:
+        repo: https://github.com/Kitware/dive
+        dest: /tmp/dive
+
+    - name: Download VIAME
+      get_url:
+        url: '{{ viame_bundle_url }}'
+        dest: /tmp/VIAME.tar.gz
+        mode: u=r,g=r,o=r
+
+    - name: Ensure /opt/noaa
+      file:
+        path: /opt/noaa
+        state: directory
+
+    - name: Extract VIAME
+      ansible.builtin.unarchive:
+        src: /tmp/VIAME.tar.gz
+        dest: /opt/noaa
+
+    - name: Install addons
+      shell: "source /opt/noaa/viame/setup_viame.sh && /opt/noaa/viame/bin/download_viame_addons.sh"
+      args:
+        executable: /bin/bash
+
+    - name: Start worker container
+      docker_container:
+        name: worker
+        image: kitware/viame-worker
+        runtime: nvidia
+        ipc_mode: host
+        volumes:
+          - /opt/noaa/viame/configs/pipelines:/tmp/addons/extracted/configs/pipelines:ro
+        env:
+          WORKER_WATCHING_QUEUES: '{{ WORKER_WATCHING_QUEUES }}'
+          CELERY_BROKER_URL: '{{ CELERY_BROKER_URL }}'

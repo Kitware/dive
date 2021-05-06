@@ -37,6 +37,7 @@ nav:
     - Interpolation: UI-Interpolation.md
     - Attributes: Attributes.md
   - Use Cases: Use-Cases.md
+  - Google Cloud Integration: Google-Cloud.md
   - Advanced features:
     - Custom Pipeline Upload: Pipeline-Upload.md
     - Command Line Tools: Command-Line-Tools.md
