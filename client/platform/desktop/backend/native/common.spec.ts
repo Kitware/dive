@@ -79,8 +79,8 @@ const updater = (update: DesktopJobUpdate) => undefined;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const checkMedia = async (settingsVal: Settings, file: string) => ({
   websafe: file.includes('mp4'),
-  originalFps: 0,
-  originalFpsString: '0',
+  originalFps: 1,
+  originalFpsString: '1',
 });
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const convertMedia = async (settingsVal: Settings, args: ConversionArgs,

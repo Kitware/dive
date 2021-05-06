@@ -3,7 +3,7 @@ import { cloneDeep } from 'lodash';
 import {
   computed, defineComponent, watch, toRef, ref, PropType,
 } from '@vue/composition-api';
-import { MediaTypes } from 'dive-common/constants';
+import { MediaTypes, FPSOptions } from 'dive-common/constants';
 
 import { filterByGlob } from 'platform/desktop/sharedUtils';
 import { MediaImportPayload } from 'platform/desktop/constants';
@@ -49,6 +49,7 @@ export default defineComponent({
       settings,
       showAdvanced,
       MediaTypes,
+      FPSOptions,
     };
   },
 });
@@ -94,16 +95,33 @@ export default defineComponent({
         item(s) in this dataset that will be automatically transcoded on import.
         Dataset will not be available until transcoding is complete.
       </v-alert>
-      <v-text-field
-        v-model="argCopy.jsonMeta.name"
-        label="Name"
-        placeholder="Name for this dataset"
-        hint="Changing the name does not modify the data source directory."
-        persistent-hint
-        outlined
-        dense
-        class="my-2 mt-7"
-      />
+      <v-row class="d-flex my-2 mt-7">
+        <v-col cols="9">
+          <v-text-field
+            v-model="argCopy.jsonMeta.name"
+            label="Name"
+            placeholder="Name for this dataset"
+            hint="Changing the name does not modify the data source directory."
+            persistent-hint
+            outlined
+            dense
+          />
+        </v-col>
+        <v-col cols="3">
+          <v-select
+            v-model="argCopy.jsonMeta.fps"
+            :items="FPSOptions.filter((v) => v <= Math.round(argCopy.jsonMeta.originalFps))"
+            type="number"
+            required
+            outlined
+            dense
+            label="Annotation FPS"
+            hint="downsampling rate"
+            persistent-hint
+            class="shrink"
+          />
+        </v-col>
+      </v-row>
       <p class="mb-5">
         <span
           class="text-body-1"
@@ -181,6 +199,12 @@ export default defineComponent({
               >
                 <b>Note</b> video downsampled annotation framerate is different than raw video FPS
               </span>
+            </td>
+          </tr>
+          <tr v-if="argCopy.jsonMeta.type == 'video'">
+            <td>Raw FPS</td>
+            <td>
+              {{ argCopy.jsonMeta.originalFps }}
             </td>
           </tr>
           <tr v-if="argCopy.jsonMeta.type == 'image-sequence'">
