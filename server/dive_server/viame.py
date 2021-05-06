@@ -1,5 +1,5 @@
 import functools
-from typing import List, Optional
+from typing import List
 
 import pymongo
 from girder.api import access
@@ -18,31 +18,28 @@ from dive_tasks.tasks import (
     UPGRADE_JOB_DEFAULT_URLS,
     convert_images,
     convert_video,
-    run_pipeline,
     train_pipeline,
     upgrade_pipelines,
 )
-from dive_utils import TRUTHY_META_VALUES, asbool, fromMeta, models, strNumericCompare
+from dive_utils import TRUTHY_META_VALUES, fromMeta, models, strNumericCompare
 from dive_utils.constants import (
+    JOBCONST_PIPELINE_NAME,
+    JOBCONST_RESULTS_FOLDER_ID,
+    JOBCONST_TRAINING_CONFIG,
+    JOBCONST_TRAINING_INPUT_IDS,
     SETTINGS_CONST_JOBS_CONFIGS,
     DatasetMarker,
     ForeignMediaIdMarker,
     PublishedMarker,
-    TrainedPipelineCategory,
     csvRegex,
     imageRegex,
     safeImageRegex,
     videoRegex,
     ymlRegex,
 )
-from dive_utils.types import (
-    AvailableJobSchema,
-    GirderModel,
-    PipelineDescription,
-    PipelineJob,
-)
+from dive_utils.types import AvailableJobSchema, PipelineDescription
 
-from .pipelines import load_pipelines, verify_pipe
+from .pipelines import load_pipelines, run_pipeline
 from .serializers import meva as meva_serializer
 from .training import ensure_csv_detections_file, training_output_folder
 from .transforms import GetPathFromItemId
@@ -52,17 +49,10 @@ from .utils import (
     get_or_create_auxiliary_folder,
     getCloneRoot,
     getTrackAndAttributesFromCSV,
-    move_existing_result_to_auxiliary_folder,
     saveCSVImportAttributes,
     saveTracks,
     verify_dataset,
 )
-
-JOBCONST_DATASET_ID = 'datset_id'
-JOBCONST_TRAINING_INPUT_IDS = 'training_input_ids'
-JOBCONST_TRAINING_CONFIG = 'training_config'
-JOBCONST_RESULTS_FOLDER_ID = 'results_folder_id'
-JOBCONST_PIPELINE_NAME = 'pipeline_name'
 
 
 class Viame(Resource):
@@ -229,82 +219,7 @@ class Viame(Resource):
         .jsonParam("pipeline", "The pipeline to run on the dataset", required=True)
     )
     def run_pipeline_task(self, folder, pipeline: PipelineDescription):
-        """
-        Run a pipeline on a dataset.
-
-        :param folder: The girder folder containing the dataset to run on.
-        :param pipeline: The pipeline to run the dataset on.
-        """
-        user = self.getCurrentUser()
-        verify_pipe(user, pipeline)
-        getCloneRoot(user, folder)
-
-        folder_id_str = str(folder["_id"])
-        # First, verify that no other outstanding jobs are running on this dataset
-        existing_jobs = Job().findOne(
-            {
-                JOBCONST_DATASET_ID: folder_id_str,
-                'status': {
-                    # Find jobs that are inactive, queued, or running
-                    # https://github.com/girder/girder/blob/main/plugins/jobs/girder_jobs/constants.py
-                    '$in': [0, 1, 2]
-                },
-            }
-        )
-        if existing_jobs is not None:
-            raise RestException(
-                (
-                    f"A pipeline for {folder_id_str} is already running. "
-                    "Only one outstanding job may be run at a time for "
-                    "a dataset."
-                )
-            )
-
-        token = Token().createToken(user=user, days=14)
-
-        requires_input = False  # include CSV input for pipe
-        if pipeline["type"] == TrainedPipelineCategory:
-            # Verify that the user has READ access to the pipe they want to run
-            pipeFolder = Folder().load(
-                pipeline["folderId"], level=AccessType.READ, user=user
-            )
-            requires_input = asbool(fromMeta(pipeFolder, "requires_input"))
-        elif pipeline["pipe"].startswith('utility_'):
-            # TODO Temporary inclusion of utility pipes which take csv input
-            requires_input = True
-
-        detection_csv: Optional[GirderModel] = None
-        if requires_input:
-            # Ensure detection has a csv detections item
-            detection = detections_item(folder, strict=True)
-            detection_csv = ensure_csv_detections_file(folder, detection, user)
-
-        move_existing_result_to_auxiliary_folder(folder, user)
-
-        params: PipelineJob = {
-            "input_folder": folder_id_str,
-            "input_type": fromMeta(folder, "type", required=True),
-            "output_folder": folder_id_str,
-            "pipeline": pipeline,
-            "pipeline_input": detection_csv,
-        }
-        newjob = run_pipeline.apply_async(
-            queue="pipelines",
-            kwargs=dict(
-                params=params,
-                girder_job_title=f"Running {pipeline['name']} on {str(folder['name'])}",
-                girder_client_token=str(token["_id"]),
-                girder_job_type="pipelines",
-            ),
-        )
-        newjob.job[JOBCONST_DATASET_ID] = folder_id_str
-        newjob.job[JOBCONST_RESULTS_FOLDER_ID] = folder_id_str
-        newjob.job[JOBCONST_PIPELINE_NAME] = pipeline['name']
-        # Allow any users with accecss to the input data to also
-        # see and possibly manage the job
-        Job().copyAccessPolicies(folder, newjob.job)
-        Job().save(newjob.job)
-        return newjob.job
+        return run_pipeline(self.getCurrentUser(), folder, pipeline)
 
     @access.user
     @autoDescribeRoute(

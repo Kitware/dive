@@ -340,7 +340,7 @@ export default defineComponent({
       }),
       loadDetections(props.id).then((tracks) => {
         Object.values(tracks).forEach(
-          (trackData) => insertTrack(Track.fromJSON(trackData)),
+          (trackData) => insertTrack(Track.fromJSON(trackData), { imported: true }),
         );
       }),
     ]).then(() => {

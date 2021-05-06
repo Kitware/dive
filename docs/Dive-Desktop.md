@@ -38,10 +38,10 @@ DIVE Desktop is an [Electron](https://www.electronjs.org/) application built on 
 
 ## Usage
 
-DIVE Desktop generally requires a local installtion of the VIAME toolkit to be fully functional.  It works on its own as a media annotator, but requires VIAME to perform analysis pipelines and model training.
+DIVE Desktop generally requires a local installation of the VIAME toolkit to be fully functional.  It works on its own as a media annotator, but requires VIAME to perform analysis pipelines and model training.
 
 | Name | Default | Description |
 | ---- | ------- | ----------- |
-| DIVE_VIAME_INSTALL_PATH | /opt/noaa/viame (linux/macos) C:\Program Files\VIAME (windows) | location of VIAME installtion.  Users may override this value in the settings pane |
+| DIVE_VIAME_INSTALL_PATH | /opt/noaa/viame (linux/macos) C:\Program Files\VIAME (windows) | location of VIAME installation.  Users may override this value in the settings pane |
 
 ![images/Banner.png](images/Banner.png)
