@@ -24,6 +24,9 @@ export default {
               name: 'Zoom Area', icon: 'mdi-mouse', actions: ['Shift + Mouse Movement'], description: 'Zoom into a specific area',
             },
             {
+              name: 'Pan', icon: 'mdi-mouse', actions: ['Middle Click Mouse'], description: 'Pan the camera',
+            },
+            {
               name: 'Reset zoom', icon: 'mdi-keyboard', actions: ['R Key'], description: 'Reset pan and zoom',
             },
             {
