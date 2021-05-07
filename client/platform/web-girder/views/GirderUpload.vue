@@ -42,11 +42,11 @@ export default Vue.extend({
         this.remove(pendingUpload);
         this.errorMessage = null;
       }
+      this.$emit('update:uploading', false);
     },
     remove(pendingUpload) {
       const index = this.pendingUploads.indexOf(pendingUpload);
       this.$emit('remove-upload', index);
-      //this.pendingUploads.splice(index, 1);
     },
     async upload() {
       if (this.location._modelType !== 'folder') {
@@ -75,8 +75,33 @@ export default Vue.extend({
         this.$emit('update:uploading', false);
       }
     },
+    convertFileToInternal(file) {
+      if (file === null) {
+        return null;
+      }
+      return {
+        file,
+        status: 'pending',
+        progress: {
+          indeterminate: false,
+          current: 0,
+          size: file.size,
+        },
+        upload: null,
+        result: null,
+      };
+    },
     async uploadPending(pendingUpload, uploaded) {
-      const { name, files, createSubFolders } = pendingUpload;
+      const {
+        name, createSubFolders, meta, annotationFile, mediaList,
+      } = pendingUpload;
+      //Combine the files for uploading
+      let files = mediaList.map((item) => this.convertFileToInternal(item));
+      files.push(this.convertFileToInternal(meta));
+      files.push(this.convertFileToInternal(annotationFile));
+      files = files.filter((item) => item !== null);
+      // eslint-disable-next-line no-param-reassign
+      pendingUpload.files = files;
       const fps = parseInt(pendingUpload.fps, DefaultVideoFPS);
 
       // eslint-disable-next-line no-param-reassign

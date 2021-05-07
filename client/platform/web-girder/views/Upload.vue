@@ -15,7 +15,7 @@ import {
 } from '../api/viame.service';
 
 
-interface InteralFiles {
+export interface InteralFiles {
    file: File;
   status: string |'done' | 'pending' | 'error';
   progress: {
@@ -27,7 +27,7 @@ interface InteralFiles {
   result: null; //Mixin stuff
 }
 
-interface PendingUpload {
+export interface PendingUpload {
    createSubFolders: boolean;
     name: string;
     files: InteralFiles[];
@@ -51,6 +51,10 @@ export default defineComponent({
       type: Object,
       required: true,
     },
+    hideMeta: {
+      type: Boolean,
+      default: true,
+    },
   },
   setup() {
     const preUploadErrorMessage: Ref<string | null> = ref(null);
@@ -60,6 +64,9 @@ export default defineComponent({
     const multiCamOpenType = ref('image-sequence');
     const importMultiCamDialog = ref(false);
     const girderUpload: Ref<null | GirderUpload > = ref(null);
+    /**
+     * Initial opening of file dialog
+     */
     const openImport = async (dstype: DatasetType) => {
       const ret = await openFromDisk(dstype);
       if (!ret.canceled && ret.fileList) {
@@ -81,6 +88,12 @@ export default defineComponent({
         }
       }
     };
+    /**
+     * Processes the imported media files to distinguish between
+     * Media Files - Default files that aren't the Annotation or Meta
+     * Annotation File - CSV or JSON file, or more in the future
+     * Meta File - Right now a json file which has 'meta' in the name
+     */
     const processImport = (files: { canceled: boolean; filePaths: string[]; fileList?: File[]}) => {
       //Check for auto files for meta and annotations
       const output: {
@@ -109,7 +122,7 @@ export default defineComponent({
         if (metaIndex !== -1) {
           output.metaFile = files.fileList[jsonFiles[metaIndex][1]];
         }
-        if (jsonFiles.length === 1 && csvFiles.length === 0 && output.metaFile !== null) {
+        if (jsonFiles.length === 1 && csvFiles.length === 0 && output.metaFile === null) {
           output.annotationFile = files.fileList[jsonFiles[0][1]];
         } else if (csvFiles.length && jsonFiles.length === 1) {
           if (jsonFiles[0][0].indexOf('meta') !== -1) {
@@ -162,10 +175,11 @@ export default defineComponent({
     const multiCamImport = (args: string) => {
       console.log(args);
     };
-    // Filter to show how many images are left to upload
+    // Filter to show how many files are left to upload
     const filesNotUploaded = (item: PendingUpload) => item.files.filter(
       (file) => file.status !== 'done' && file.status !== 'error',
     ).length;
+    // Processes the pending upload from the GirderUpload system to determine the progress
     const computeUploadProgress = (pendingUpload: PendingUpload) => {
       // use methods and properties from mixins
       if (girderUpload.value) {
@@ -216,19 +230,7 @@ export default defineComponent({
       const validFiles = resp.media.concat(resp.annotations);
       // mapping needs to be done for the mixin upload functions
       const internalFiles = allFiles
-        .filter((f) => validFiles.includes(f.name))
-        .map((file) => ({
-          file,
-          status: 'pending',
-          progress: {
-            indeterminate: false,
-            current: 0,
-            size: file.size,
-          },
-          upload: null,
-          result: null,
-        }));
-      // decide on the default createSubFolders based on content uploaded
+        .filter((f) => validFiles.includes(f.name));
       let createSubFolders = false;
       if (resp.type === 'video') {
         if (resp.media.length > 1) {
@@ -241,7 +243,7 @@ export default defineComponent({
           internalFiles.length > 1
             ? defaultFilename.replace(/\..*/, '')
             : defaultFilename,
-        files: internalFiles,
+        files: [], //Will be set in the GirderUpload Component
         meta,
         annotationFile,
         mediaList,
@@ -253,6 +255,25 @@ export default defineComponent({
     const remove = (pendingUpload: PendingUpload) => {
       const index = pendingUploads.value.indexOf(pendingUpload);
       pendingUploads.value.splice(index, 1);
+    };
+
+    /**
+     * Changing the processed files needs to update the pending Upload List
+     */
+    const changeFile = async (index: number, type: 'media' | 'annotation' | 'meta', eventFile: File | File[]) => {
+      const validateList: (File | null)[] = pendingUploads.value[index].mediaList;
+      validateList.push(pendingUploads.value[index].annotationFile);
+      validateList.push(pendingUploads.value[index].meta);
+
+      const resp = await validateUploadGroup(
+        (validateList.filter((f) => f !== null) as File[]).map((f) => f.name),
+      );
+      if (!resp.ok) {
+        if (resp.message) {
+          preUploadErrorMessage.value = resp.message;
+        }
+        throw new Error(resp.message);
+      }
     };
     return {
 
@@ -276,6 +297,7 @@ export default defineComponent({
       getFilenameInputStateHint,
       addPendingUpload,
       remove,
+      changeFile,
     };
   },
 });
@@ -295,7 +317,7 @@ export default defineComponent({
         :data-type="multiCamOpenType"
         :import-media="multiCamImportCheck"
         @begin-multicam-import="multiCamImport($event)"
-        @abort="importMultiCamDialog = false"
+        @abort="importMultiCamDialog = false; preUploadErrorMessage = null"
       />
     </v-dialog>
     <girder-upload
@@ -338,6 +360,20 @@ export default defineComponent({
                       @input="pendingUpload.name = $event"
                     />
                   </v-col>
+                  <v-col
+                    cols="2"
+                  >
+                    <v-select
+                      v-model="pendingUpload.fps"
+                      :items="[1, 5, 10, 15, 24, 25, 30, 50, 60]"
+                      :disabled="pendingUpload.uploading"
+                      type="number"
+                      required
+                      label="FPS"
+                      hint="annotation fps"
+                      persistent-hint
+                    />
+                  </v-col>
                   <v-col cols="1">
                     <v-list-item-action>
                       <v-btn
@@ -372,7 +408,7 @@ export default defineComponent({
                           :accept="filterFileUpload('annotation')"
                         />
                       </v-col>
-                      <v-col>
+                      <v-col v-if="!hideMeta">
                         <v-file-input
                           v-model="pendingUpload.meta"
                           label="Meta File"
@@ -381,20 +417,6 @@ export default defineComponent({
                         />
                       </v-col>
                     </v-row>
-                    <v-col
-                      cols="2"
-                    >
-                      <v-select
-                        v-model="pendingUpload.fps"
-                        :items="[1, 5, 10, 15, 24, 25, 30, 50, 60]"
-                        :disabled="pendingUpload.uploading"
-                        type="number"
-                        required
-                        label="FPS"
-                        hint="annotation fps"
-                        persistent-hint
-                      />
-                    </v-col>
                   </v-col>
                 </v-row>
                 <v-list-item-subtitle>
