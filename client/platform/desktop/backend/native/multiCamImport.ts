@@ -136,6 +136,9 @@ async function beginMultiCamImport(
               if (!checkMediaResult.websafe || otherVideoTypes.includes(mimetype)) {
                 mediaConvertList.push(video);
               }
+              if (jsonMeta.multiCam && jsonMeta.multiCam.cameras[key] !== undefined) {
+                jsonMeta.multiCam.cameras[key].originalVideoFile = npath.basename(video);
+              }
               const newAnnotationFps = Math.floor(
                 Math.min(jsonMeta.fps, checkMediaResult.originalFps),
               );

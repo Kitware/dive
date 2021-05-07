@@ -24,7 +24,11 @@ const settings: Settings = {
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const updater = (update: DesktopJobUpdate) => undefined;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-const checkMedia = async (settingsVal: Settings, file: string) => file.includes('mp4');
+const checkMedia = async (settingsVal: Settings, file: string) => ({
+  websafe: file.includes('mp4'),
+  originalFpsString: '30/1',
+  originalFps: 30,
+});
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const convertMedia = async (settingsVal: Settings, args: ConversionArgs,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
