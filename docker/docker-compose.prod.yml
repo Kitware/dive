@@ -16,6 +16,7 @@ services:
       --certificatesresolvers.myresolver.acme.caserver=${ACME_CA_SERVER:-https://acme-staging-v02.api.letsencrypt.org/directory}
     labels:
       # Traefik HTTPS Redirect
+      - "traefik.enable=true"
       - "traefik.http.routers.http-catchall.entrypoints=web"
       - "traefik.http.routers.http-catchall.rule=HostRegexp(`{host:.+}`)"
       - "traefik.http.routers.http-catchall.middlewares=redirect-to-https-mddl@docker"
