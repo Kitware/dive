@@ -6,6 +6,7 @@
 | ---------- | ------------|
 | Left Click | select track/detection |
 | Right Click | toggle edit mode |
+| Middle Click | pan camera |
 | Scroll Wheel | zoom |
 | Mouse Drag | pan |
 | `shift` + mouse drag | select area to zoom |

@@ -129,7 +129,7 @@ export default defineComponent({
             icon
             small
             :color="mediaController.lockedCamera.value ? 'primary': 'default'"
-            title="lock camera zoom level"
+            title="center camera on selected track"
             @click="mediaController.toggleLockedCamera"
           >
             <v-icon>

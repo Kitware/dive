@@ -165,6 +165,8 @@ export default function useMediaController({ emit }: {
           name: 'button edit',
           owner: 'geo.MapInteractor',
         },
+        // The action below adds middle mouse button click to panning
+        // It allows for panning while in the process of polygon editing or creation
         {
           action: geo.geo_action.pan,
           input: 'middle',
