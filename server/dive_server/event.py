@@ -2,9 +2,13 @@ import os
 from datetime import datetime
 
 from bson.objectid import ObjectId
+from girder import logger
 from girder.models.folder import Folder
 from girder.models.item import Item
+from girder.models.setting import Setting
 from girder.models.user import User
+from girder.settings import SettingKey
+from girder.utility.mail_utils import renderTemplate, sendMail
 
 from dive_utils import asbool, fromMeta
 from dive_utils.constants import (
@@ -21,6 +25,17 @@ from dive_utils.constants import (
     imageRegex,
     videoRegex,
 )
+
+
+def send_new_user_email(event):
+    try:
+        info = event.info
+        email = info.get('email')
+        brandName = Setting().get(SettingKey.BRAND_NAME)
+        rendered = renderTemplate('welcome.mako')
+        sendMail(f'Welcome to {brandName}', rendered, [email])
+    except Exception:
+        logger.exception("Failed to send new user email")
 
 
 def process_assetstore_import(event, meta: dict):
