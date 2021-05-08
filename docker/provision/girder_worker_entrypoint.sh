@@ -15,4 +15,8 @@ if [ -n "$WORKER_CONCURRENCY" ]; then
     CONCURRENCY_ARGUMENT="--concurrency $WORKER_CONCURRENCY"
 fi
 
-exec python3.7 -m girder_worker -l info $QUEUE_ARGUMENT $CONCURRENCY_ARGUMENT
+exec python3.7 \
+    -m dive_tasks \
+    -l info \
+    --without-gossip --without-heartbeat --without-mingle \
+    $QUEUE_ARGUMENT $CONCURRENCY_ARGUMENT

@@ -132,6 +132,11 @@ terraform apply create.plan
 
 ### Provision with Ansible
 
+You will need RabbitMQ credentials to establish a secure connection with our queueing service.  [Contact us](https://kitware.github.io/dive/#get-help) with a short description of your intended use to request these.
+
+* `CELERY_BROKER_URL` will be an AMQP connection string, like `amqp://guest:guest@rabbit/`
+* `WORKER_WATCHING_QUEUES` will be your username (not your email address) on VIAME Web.
+
 !!! warning
 
     The playbook takes 20-30 minutes to run because it must install nvidia drivers, download several GB of software packages, etc.
@@ -142,7 +147,7 @@ ansible-galaxy install -r ansible/requirements.yml
 
 # provision using inventory file automatically created by terraform and the connection string you got from us
 ansible-playbook -i inventory ansible/playbook.yml \
-  --extra-vars "CELERY_BROKER_URL=amqps://user:password@domain.com/vhost"
+  --extra-vars "CELERY_BROKER_URL=amqps://user:password@domain.com/vhost WORKER_WATCHING_QUEUES=myusername"
 ```
 
 Once provisioning is complete, jobs should begin processing from the job queue.  You can check [viame.kitware.com/#/jobs](https://viame.kitware.com/#/jobs) to see queue progress and logs.

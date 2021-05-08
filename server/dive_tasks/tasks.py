@@ -27,7 +27,6 @@ from dive_tasks.utils import (
 from dive_utils import fromMeta
 from dive_utils.constants import (
     DatasetMarker,
-    DefaultVideoFPS,
     FPSMarker,
     ImageSequenceType,
     TrainedPipelineCategory,
@@ -119,7 +118,7 @@ class Config:
         return pipeline_path
 
 
-@app.task(bind=True, acks_late=True)
+@app.task(bind=True, acks_late=True, ignore_result=True)
 def upgrade_pipelines(
     self: Task,
     urls: List[str] = UPGRADE_JOB_DEFAULT_URLS,
@@ -145,7 +144,7 @@ def upgrade_pipelines(
         addons_to_update_update.append(zipfile_path)
         if self.canceled:
             manager.updateStatus(JobStatus.CANCELED)
-            return JobStatus.CANCELED
+            return
 
     # remove and recreate the existing addon pipeline directory
     shutil.rmtree(conf.addon_extracted_path)
@@ -168,14 +167,14 @@ def upgrade_pipelines(
         shutil.rmtree(conf.addon_extracted_path)
         manager.updateStatus(JobStatus.CANCELED)
         gc.post('viame/update_job_configs', json=EMPTY_JOB_SCHEMA)
-        return JobStatus.CANCELED
+        return
 
     # finally, crawl the new files and report results
     summary = discover_configs(conf.get_extracted_pipeline_path())
     gc.post('viame/update_job_configs', json=summary)
 
 
-@app.task(bind=True, acks_late=True)
+@app.task(bind=True, acks_late=True, ignore_result=True)
 def run_pipeline(self: Task, params: PipelineJob):
     conf = Config()
     manager: JobManager = self.job_manager
@@ -278,7 +277,7 @@ def run_pipeline(self: Task, params: PipelineJob):
     gc.post(f'viame/postprocess/{output_folder_id}', data={"skipJobs": True})
 
 
-@app.task(bind=True, acks_late=True)
+@app.task(bind=True, acks_late=True, ignore_result=True)
 def train_pipeline(
     self: Task,
     results_folder: GirderModel,
@@ -400,7 +399,7 @@ def train_pipeline(
             gc.upload(f"{training_results_path}/*", girder_output_folder["_id"])
 
 
-@app.task(bind=True, acks_late=True)
+@app.task(bind=True, acks_late=True, ignore_result=True)
 def convert_video(self: Task, path, folderId, auxiliaryFolderId, itemId):
     # Delete is true, so the tempfile is deleted when the block closes.
     # We are only using this to get a name, and recreating it below.
@@ -551,5 +550,3 @@ def convert_images(self: Task, folderId):
         str(folderId),
         {"annotate": True},  # mark the parent folder as able to annotate.
     )
-
-    return count
