@@ -83,6 +83,7 @@ services:
       - "RABBITMQ_MANAGEMENT_PASSWORD=${RABBITMQ_MANAGEMENT_PASSWORD:-guest}"
       - "RABBITMQ_MANAGEMENT_VHOST=${RABBITMQ_MANAGEMENT_VHOST:-default}"
       - "RABBITMQ_MANAGEMENT_URL=${RABBITMQ_MANAGEMENT_URL:-rabbit:15672}"
+      - "RABBITMQ_MANAGEMENT_BROKER_URL_TEMPLATE=${RABBITMQ_MANAGEMENT_BROKER_URL_TEMPLATE}"
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
       - "traefik.enable=true"

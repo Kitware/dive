@@ -8,7 +8,6 @@ RUN chmod +x /tini
 # VIAME install at /opt/noaa/viame/
 # VIAME pipelines at /opt/noaa/viame/configs/pipelines/
 
-ENV CELERY_BROKER_URL amqp://guest:guest@rabbit/
 ENV BROKER_CONNECTION_TIMEOUT 2
 
 WORKDIR /home/viame_girder

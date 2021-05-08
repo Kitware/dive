@@ -93,29 +93,46 @@ This image contains both the backend and client.
 
 This image contains a celery worker to run VIAME pipelines and transcoding jobs.
 
+> **Note**: Either a broker url or DIVE credentials must be supplied.
+
 | Variable | Default | Description |
 |----------|---------|-------------|
-| CELERY_BROKER_URL | `amqp://guest:guest@rabbit/` | rabbitmq connection string |
 | BROKER_CONNECTION_TIMEOUT | `2` | rabbitmq connection timeout |
 | WORKER_WATCHING_QUEUES | null | one of `celery`, `pipelines`, `training` |
+| CELERY_BROKER_URL | null | rabbitmq connection string |
+| DIVE_USERNAME | null | Username to start private queue processor |
+| DIVE_PASSWORD | null | Password for private queue processor |
+| DIVE_API_URL  | `https://viame.kitware.com/api/v1` | Remote URL to authenticate against |
 
-## Running the GPU Worker Standalone
+## Running the GPU Job Runner in standalone mode
 
-You can run a standalone worker to process jobs from a remote DIVE Web server.
+**Linux Only.**
 
-* It requires a local VIAME installation to mount in addons.
-* Set the queue(s) you wish to consume.
-* Get the `CELERY_BROKER_URL` from our team.  Email `viame-web@kitware.com`
+You can run a standalone worker to process private jobs from VIAME Web.
+
+* Install VIAME installation to mount in addons.
+* Enable the private user queue for your jobs by visiting [the jobs page](https://viame.kitware.com/#/jobs)
+* Run a worker using the docker command below
 
 ``` bash
 docker run --rm --name dive_worker \
   --gpus all \
   --ipc host \
-  --volume "/opt/noaa/viame/configs/pipelines:/tmp/addons:rw" \
-  -e "WORKER_WATCHING_QUEUES=celery,pipelines,training,myusername" \
-  -e "CELERY_BROKER_URL=amqp://guest:guest@rabbit/" \
+  --volume "/opt/noaa/viame/:/tmp/addons/extracted:rw" \
+  -e "DIVE_USERNAME=username" \
+  -e "DIVE_PASSWORD=CHANGEME" \
   kitware/viame-worker:latest
 ```
+
+docker run --rm --name dive_worker \
+  --gpus all \
+  --ipc host \
+  --network="dive_default" \
+  --volume "/opt/noaa/viame/:/tmp/addons/extracted:rw" \
+  -e "DIVE_USERNAME=admin" \
+  -e "DIVE_PASSWORD=letmein" \
+  -e "DIVE_API_URL=http://girder:8080/api/v1" \
+  kitware/viame-worker:latest
 
 ## Build your own images
 

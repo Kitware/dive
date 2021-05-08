@@ -1,4 +1,5 @@
 from girder import plugin
+
 from .views import RabbitUserQueue
 
 

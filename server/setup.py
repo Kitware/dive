@@ -11,7 +11,7 @@ requirements = [
     "girder_worker==0.8.0",
     "girder_worker_utils==0.8.5",
     "pydantic==1.8.1",
-    "pyrabbit2==1.0.7", # For rabbitmq_user_queues plugin
+    "pyrabbit2==1.0.7",  # For rabbitmq_user_queues plugin
     "pysnooper",
     "typing_extensions",
     "gputil",

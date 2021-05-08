@@ -1,4 +1,5 @@
 from pydantic import BaseModel
+
 from dive_server.utils import PydanticModel
 
 

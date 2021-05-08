@@ -4,13 +4,14 @@ Generate custom user credentials for girder users to have their own RabbitMQ Cel
 
 ## Configuration
 
-Specify management connection information with env variables
+Specify management connection information with env variables.  See `models.py`
 
 ``` env
 RABBITMQ_MANAGEMENT_USERNAME
 RABBITMQ_MANAGEMENT_PASSWORD
 RABBITMQ_MANAGEMENT_VHOST
 RABBITMQ_MANAGEMENT_URL
+RABBITMQ_MANAGEMENT_BROKER_URL_TEMPLATE
 ```
 
 ## Documentation

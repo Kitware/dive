@@ -1,14 +1,15 @@
-from typing import Tuple
 import uuid
+from typing import Tuple
 
 from girder import logger
-from girder.constants import AccessType
 from girder.api import access
 from girder.api.describe import Description, autoDescribeRoute
 from girder.api.rest import Resource
+from girder.constants import AccessType
 from girder.models.user import User
 from pydantic import ValidationError
 from pyrabbit2 import Client as PyRabbitClient
+
 from dive_utils.types import GirderModel
 
 from .constants import UserQueueMarker
@@ -22,13 +23,12 @@ class RabbitUserQueue(Resource):
         self.route("POST", ("user", ":id"), self.upsert_user_queue)
         self.route("GET", ("ping",), self.ping)
 
-    def getClient(self) -> Tuple[Settings, PyRabbitClient]:
-        s = Settings()
-        return s, PyRabbitClient(
-            s.netloc,
-            s.username,
-            s.password,
-            scheme=s.scheme,
+    def getClient(self, settings: Settings) -> PyRabbitClient:
+        return PyRabbitClient(
+            settings.netloc,
+            settings.username,
+            settings.password,
+            scheme=settings.scheme,
         )
 
     @access.user
@@ -39,15 +39,16 @@ class RabbitUserQueue(Resource):
     )
     def upsert_user_queue(self, user: GirderModel, force):
         existing = user.get(UserQueueMarker, None)
+        settings = Settings()
         if existing is not None and not force:
             try:
                 parsed_credentials = UserQueueModel(**existing)
-                return parsed_credentials.dict()
+                return parsed_credentials.with_broker_url(settings.broker_url_template)
             except ValidationError as e:
                 pass
 
         # Generate new credentials
-        settings, client = self.getClient()
+        client = self.getClient(settings)
         newUserQueue = UserQueueModel(
             **{
                 'username': user['login'],
@@ -64,9 +65,11 @@ class RabbitUserQueue(Resource):
         )
         user[UserQueueMarker] = newUserQueue.dict()
         User().save(user)
-        return user[UserQueueMarker]
+        logger.info(f"Created new RabbitMQ Creds for {newUserQueue.username}")
+        return newUserQueue.with_broker_url(settings.broker_url_template)
 
     @access.admin
     @autoDescribeRoute(Description("Ping"))
     def ping(self, params):
-        return self.getClient()[1].get_overview()
+        settings = Settings()
+        return self.getClient(settings).get_overview()
