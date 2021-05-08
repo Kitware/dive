@@ -2,6 +2,7 @@ from typing import Tuple
 import uuid
 
 from girder import logger
+from girder.constants import AccessType
 from girder.api import access
 from girder.api.describe import Description, autoDescribeRoute
 from girder.api.rest import Resource
@@ -23,31 +24,47 @@ class RabbitUserQueue(Resource):
 
     def getClient(self) -> Tuple[Settings, PyRabbitClient]:
         s = Settings()
-        return s, PyRabbitClient(s.url, s.username, s.password)
+        return s, PyRabbitClient(
+            s.netloc,
+            s.username,
+            s.password,
+            scheme=s.scheme,
+        )
 
     @access.user
     @autoDescribeRoute(
-        Description("Get or create user queue").modelParam(
-            "id", description="User ID", model=User
-        )
+        Description("Get or create user queue")
+        .modelParam("id", description="User ID", model=User, level=AccessType.ADMIN)
+        .param('force', description='Force refresh', default=False, dataType='boolean')
     )
-    def upsert_user_queue(self, user: GirderModel):
-        if user[UserQueueMarker] is not None:
+    def upsert_user_queue(self, user: GirderModel, force):
+        existing = user.get(UserQueueMarker, None)
+        if existing is not None and not force:
             try:
-                parsed_credentials = UserQueueModel(**user[UserQueueMarker])
+                parsed_credentials = UserQueueModel(**existing)
                 return parsed_credentials.dict()
             except ValidationError as e:
                 pass
 
         # Generate new credentials
         settings, client = self.getClient()
-        username = user['login']
-        password = str(uuid.uuid4())
-        client.create_user(username, password=password)
-        pattern = f"{username}.*"
-        client.set_vhost_permissions(
-            settings.vhost, username, pattern, pattern, pattern
+        newUserQueue = UserQueueModel(
+            **{
+                'username': user['login'],
+                'password': str(uuid.uuid4()),
+            }
         )
+        client.create_user(newUserQueue.username, password=newUserQueue.password)
+
+        # Allow remote control queues, since celery docs are wrong and disabling it isn't possible
+        # because celery is a liar https://celery-rabbitmq.readthedocs.io/en/latest/remotecontrol.html
+        pattern = f"^({newUserQueue.username}.*|(celery@)?([a-fA-F0-9-]+\.)?(reply\.)?celery\.pidbox)$"
+        client.set_vhost_permissions(
+            settings.vhost, newUserQueue.username, pattern, pattern, pattern
+        )
+        user[UserQueueMarker] = newUserQueue.dict()
+        User().save(user)
+        return user[UserQueueMarker]
 
     @access.admin
     @autoDescribeRoute(Description("Ping"))

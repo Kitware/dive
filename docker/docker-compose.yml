@@ -37,9 +37,11 @@ services:
     image: rabbitmq:management
     ports:
       - "5672:5672"
+      - "15672:15672"
     environment:
       - RABBITMQ_DEFAULT_USER=${RABBITMQ_DEFAULT_USER:-guest}
       - RABBITMQ_DEFAULT_PASS=${RABBITMQ_DEFAULT_PASS:-guest}
+      - RABBITMQ_DEFAULT_VHOST=${RABBITMQ_DEFAULT_VHOST:-default}
 
   mongo:
     image: mongo:latest
@@ -76,6 +78,11 @@ services:
       - "GIRDER_ADMIN_USER=${GIRDER_ADMIN_USER}"
       - "GIRDER_ADMIN_PASS=${GIRDER_ADMIN_PASS}"
       - "CELERY_BROKER_URL=${CELERY_BROKER_URL}"
+      # Rabbitmq management variables
+      - "RABBITMQ_MANAGEMENT_USERNAME=${RABBITMQ_MANAGEMENT_USERNAME:-guest}"
+      - "RABBITMQ_MANAGEMENT_PASSWORD=${RABBITMQ_MANAGEMENT_PASSWORD:-guest}"
+      - "RABBITMQ_MANAGEMENT_VHOST=${RABBITMQ_MANAGEMENT_VHOST:-default}"
+      - "RABBITMQ_MANAGEMENT_URL=${RABBITMQ_MANAGEMENT_URL:-rabbit:15672}"
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
       - "traefik.enable=true"

@@ -2,11 +2,16 @@ import os
 from pathlib import Path
 
 from girder import events, plugin
+from girder.constants import AccessType
 from girder.models.setting import Setting
+from girder.models.user import User
 from girder.utility import mail_utils, setting_utilities
 from girder.utility.model_importer import ModelImporter
 
-from dive_utils.constants import SETTINGS_CONST_JOBS_CONFIGS
+from dive_utils.constants import (
+    SETTINGS_CONST_JOBS_CONFIGS,
+    UserPrivateQueueEnabledMarker,
+)
 
 from .client_webroot import ClientWebroot
 from .event import process_fs_import, process_s3_import, send_new_user_email
@@ -31,6 +36,8 @@ def validateSettings(doc):
 class GirderPlugin(plugin.GirderPlugin):
     def load(self, info):
         ModelImporter.registerModel('summaryItem', SummaryItem, plugin='dive_server')
+        User().exposeFields(AccessType.READ, UserPrivateQueueEnabledMarker)
+
         info["apiRoot"].viame = Viame()
         info["apiRoot"].viame_detection = ViameDetection()
         info["apiRoot"].viame_summary = ViameSummary()

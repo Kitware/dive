@@ -101,6 +101,7 @@ def run_pipeline(
     user: GirderModel,
     folder: GirderModel,
     pipeline: PipelineDescription,
+    queue: str,
 ) -> GirderModel:
     """
     Run a pipeline on a dataset.
@@ -162,7 +163,7 @@ def run_pipeline(
         "pipeline_input": detection_csv,
     }
     newjob = async_run_pipeline.apply_async(
-        queue="pipelines",
+        queue=queue,
         kwargs=dict(
             params=params,
             girder_job_title=f"Running {pipeline['name']} on {str(folder['name'])}",

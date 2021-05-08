@@ -127,6 +127,10 @@ def upgrade_pipelines(
     """Install addons from zip files over HTTP"""
     conf = Config()
     manager: JobManager = self.job_manager
+    if self.canceled:
+        manager.updateStatus(JobStatus.CANCELED)
+        return
+
     gc: GirderClient = self.girder_client
     # zipfiles to extract after download is complete
     addons_to_update_update: List[Path] = []
@@ -178,6 +182,10 @@ def upgrade_pipelines(
 def run_pipeline(self: Task, params: PipelineJob):
     conf = Config()
     manager: JobManager = self.job_manager
+    if self.canceled:
+        manager.updateStatus(JobStatus.CANCELED)
+        return
+
     gc: GirderClient = self.girder_client
     manager.updateStatus(JobStatus.FETCHING_INPUT)
 
@@ -299,6 +307,9 @@ def train_pipeline(
     conf = Config()
     gc: GirderClient = self.girder_client
     manager: JobManager = self.job_manager
+    if self.canceled:
+        manager.updateStatus(JobStatus.CANCELED)
+        return
 
     pipeline_base_path = Path(conf.get_extracted_pipeline_path())
     config_file = pipeline_base_path / config
@@ -412,6 +423,9 @@ def convert_video(self: Task, path, folderId, auxiliaryFolderId, itemId):
 
     gc: GirderClient = self.girder_client
     manager: JobManager = self.job_manager
+    if self.canceled:
+        manager.updateStatus(JobStatus.CANCELED)
+        return
 
     # Extract metadata
     file_name = os.path.join(path, os.listdir(path)[0])
@@ -512,6 +526,9 @@ def convert_images(self: Task, folderId):
     """
     gc: GirderClient = self.girder_client
     manager: JobManager = self.job_manager
+    if self.canceled:
+        manager.updateStatus(JobStatus.CANCELED)
+        return
 
     items = gc.listItem(folderId)
     skip_item = (

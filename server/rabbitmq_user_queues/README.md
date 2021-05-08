@@ -6,7 +6,7 @@ Generate custom user credentials for girder users to have their own RabbitMQ Cel
 
 Specify management connection information with env variables
 
-```
+``` env
 RABBITMQ_MANAGEMENT_USERNAME
 RABBITMQ_MANAGEMENT_PASSWORD
 RABBITMQ_MANAGEMENT_VHOST
@@ -20,4 +20,3 @@ https://rawcdn.githack.com/rabbitmq/rabbitmq-server/v3.8.16/deps/rabbitmq_manage
 https://www.rabbitmq.com/management.html
 
 https://pyrabbit.readthedocs.io/en/latest/api.html
-

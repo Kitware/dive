@@ -6,7 +6,7 @@ from girder.api import access
 from girder.api.describe import Description, autoDescribeRoute, describeRoute
 from girder.api.rest import Resource
 from girder.constants import AccessType
-from girder.exceptions import GirderException, RestException
+from girder.exceptions import RestException
 from girder.models.folder import Folder
 from girder.models.item import Item
 from girder.models.setting import Setting
@@ -31,13 +31,14 @@ from dive_utils.constants import (
     DatasetMarker,
     ForeignMediaIdMarker,
     PublishedMarker,
+    UserPrivateQueueEnabledMarker,
     csvRegex,
     imageRegex,
     safeImageRegex,
     videoRegex,
     ymlRegex,
 )
-from dive_utils.types import AvailableJobSchema, PipelineDescription
+from dive_utils.types import AvailableJobSchema, GirderModel, PipelineDescription
 
 from .pipelines import load_pipelines, run_pipeline
 from .serializers import meva as meva_serializer
@@ -74,6 +75,13 @@ class Viame(Resource):
         self.route("PUT", ("attributes",), self.save_attributes)
         self.route("POST", ("validate_files",), self.validate_files)
         self.route("GET", ("valid_images",), self.get_valid_images)
+        self.route("PUT", ("user", ":id", "use_private_queue"), self.use_private_queue)
+
+    def _get_queue_name(self, default="celery"):
+        user = self.getCurrentUser()
+        if user.get(UserPrivateQueueEnabledMarker, False):
+            return user['login']
+        return default
 
     @access.admin
     @autoDescribeRoute(
@@ -219,7 +227,8 @@ class Viame(Resource):
         .jsonParam("pipeline", "The pipeline to run on the dataset", required=True)
     )
     def run_pipeline_task(self, folder, pipeline: PipelineDescription):
-        return run_pipeline(self.getCurrentUser(), folder, pipeline)
+        user = self.getCurrentUser()
+        return run_pipeline(user, folder, pipeline, self._get_queue_name("pipelines"))
 
     @access.user
     @autoDescribeRoute(
@@ -269,7 +278,7 @@ class Viame(Resource):
         results_folder = training_output_folder(user)
 
         newjob = train_pipeline.apply_async(
-            queue="training",
+            queue=self._get_queue_name("training"),
             kwargs=dict(
                 results_folder=results_folder,
                 source_folder_list=folder_list,
@@ -377,17 +386,20 @@ class Viame(Resource):
             )
 
             for item in videoItems:
-                convert_video.delay(
-                    path=GetPathFromItemId(str(item["_id"])),
-                    folderId=str(item["folderId"]),
-                    auxiliaryFolderId=auxiliary["_id"],
-                    itemId=str(item["_id"]),
-                    girder_job_title=(
-                        "Converting {} to a web friendly format".format(
-                            str(item["_id"])
-                        )
+                convert_video.apply_async(
+                    queue=self._get_queue_name(),
+                    kwargs=dict(
+                        path=GetPathFromItemId(str(item["_id"])),
+                        folderId=str(item["folderId"]),
+                        auxiliaryFolderId=auxiliary["_id"],
+                        itemId=str(item["_id"]),
+                        girder_job_title=(
+                            "Converting {} to a web friendly format".format(
+                                str(item["_id"])
+                            )
+                        ),
+                        girder_client_token=str(token["_id"]),
                     ),
-                    girder_client_token=str(token["_id"]),
                 )
 
             # transcode IMAGERY if necessary
@@ -399,11 +411,14 @@ class Viame(Resource):
             )
 
             if imageItems.count() > safeImageItems.count():
-                convert_images.delay(
-                    folderId=folder["_id"],
-                    girder_client_token=str(token["_id"]),
-                    girder_job_title=(
-                        f"Converting {folder['_id']} to a web friendly format",
+                convert_images.apply_async(
+                    queue=self._get_queue_name(),
+                    kwargs=dict(
+                        folderId=folder["_id"],
+                        girder_client_token=str(token["_id"]),
+                        girder_job_title=(
+                            f"Converting {folder['_id']} to a web friendly format",
+                        ),
                     ),
                 )
 
@@ -531,3 +546,21 @@ class Viame(Resource):
             images,
             key=functools.cmp_to_key(unwrapItem),
         )
+
+    @access.user
+    @autoDescribeRoute(
+        Description('Set user use private queue')
+        .modelParam("id", description='user id', model=User, level=AccessType.ADMIN)
+        .param(
+            "private_queue_enabled",
+            description="Set private queue enabled",
+            paramType='query',
+            dataType='boolean',
+            default=None,
+        )
+    )
+    def use_private_queue(self, user: GirderModel, private_queue_enabled: bool):
+        if private_queue_enabled is not None:
+            user[UserPrivateQueueEnabledMarker] = private_queue_enabled
+            User().save(user)
+        return user.get(UserPrivateQueueEnabledMarker, False)

@@ -60,3 +60,6 @@ JOBCONST_TRAINING_INPUT_IDS = 'training_input_ids'
 JOBCONST_TRAINING_CONFIG = 'training_config'
 JOBCONST_RESULTS_FOLDER_ID = 'results_folder_id'
 JOBCONST_PIPELINE_NAME = 'pipeline_name'
+
+# User queue constants
+UserPrivateQueueEnabledMarker = 'user_private_queue_enabled'
