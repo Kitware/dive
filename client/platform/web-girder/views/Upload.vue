@@ -1,5 +1,7 @@
 <script lang='ts'>
-import { defineComponent, Ref, ref } from '@vue/composition-api';
+import {
+  defineComponent, Ref, ref, computed,
+} from '@vue/composition-api';
 
 import {
   ImageSequenceType, VideoType, DefaultVideoFPS, inputAnnotationFileTypes,
@@ -9,7 +11,7 @@ import {
 import ImportButton from 'dive-common/components/ImportButton.vue';
 import ImportMultiCamDialog from 'dive-common/components/ImportMultiCamDialog.vue';
 import { DatasetType, MultiCamImportArgs } from 'dive-common/apispec';
-import GirderUpload from './GirderUpload.vue';
+import UploadGirder from './UploadGirder.vue';
 import {
   validateUploadGroup, openFromDisk,
 } from '../api/viame.service';
@@ -41,11 +43,12 @@ export interface PendingUpload {
 interface GirderUpload {
   formatSize: (a: number) => string;
   totalProgress: number;
+  totalProgressPercent: number;
   totalSize: number;
 }
 
 export default defineComponent({
-  components: { ImportButton, ImportMultiCamDialog, GirderUpload },
+  components: { ImportButton, ImportMultiCamDialog, UploadGirder },
   props: {
     location: {
       type: Object,
@@ -59,7 +62,6 @@ export default defineComponent({
   setup() {
     const preUploadErrorMessage: Ref<string | null> = ref(null);
     const pendingUploads: Ref<PendingUpload[]> = ref([]);
-    const imageSequenceType = ref('image-sequence');
     const stereo = ref(false);
     const multiCamOpenType = ref('image-sequence');
     const importMultiCamDialog = ref(false);
@@ -260,12 +262,23 @@ export default defineComponent({
       const index = pendingUploads.value.indexOf(pendingUpload);
       pendingUploads.value.splice(index, 1);
     };
-
+    const buttonAttrs = computed(() => {
+      if (pendingUploads.value.length === 0) {
+        return {
+          block: true,
+          color: 'primary',
+        };
+      }
+      return {
+        block: true,
+        color: 'grey darken-3',
+        depressed: true,
+      };
+    });
     return {
-
+      buttonAttrs,
       preUploadErrorMessage,
       pendingUploads,
-      imageSequenceType,
       stereo,
       multiCamOpenType,
       importMultiCamDialog,
@@ -291,7 +304,7 @@ export default defineComponent({
 <template>
   <div class="upload">
     <v-dialog
-      :value=" importMultiCamDialog"
+      :value="importMultiCamDialog"
       persistent
       overlay-opacity="0.95"
       max-width="80%"
@@ -305,182 +318,183 @@ export default defineComponent({
         @abort="importMultiCamDialog = false; preUploadErrorMessage = null"
       />
     </v-dialog>
-    <girder-upload
-      ref="girderUpload"
-      :pending-uploads="pendingUploads"
-      :pre-upload-error-message="preUploadErrorMessage"
-      :location="location"
-      @remove-upload="remove"
-      @update:uploading="$emit('update:uploading', $event)"
-    >
-      <template slot="upload-list">
-        <v-list class="py-2 pending-uploads">
-          <v-list-item
-            v-for="(pendingUpload, i) of pendingUploads"
-            :key="i"
-          >
-            <v-list-item-content>
-              <v-card>
-                <v-row>
-                  <v-col cols="auto">
-                    <v-checkbox
-                      :input-value="pendingUpload.createSubFolders"
-                      label="Create Subfolders"
-                      disabled
-                      hint="Enabled when many videos are selected"
-                      persistent-hint
-                      class="pl-2"
-                    />
-                  </v-col>
-                  <v-col>
-                    <v-text-field
-                      :value="pendingUpload.createSubFolders ? 'default' : pendingUpload.name"
-                      class="upload-name"
-                      :rules="[val => (val || '').length > 0 || 'This field is required']"
-                      required
-                      :label="getFilenameInputStateLabel(pendingUpload)"
-                      :disabled="getFilenameInputStateDisabled(pendingUpload)"
-                      :hint="getFilenameInputStateHint(pendingUpload)"
-                      persistent-hint
-                      @input="pendingUpload.name = $event"
-                    />
-                  </v-col>
-                  <v-col
-                    cols="2"
-                  >
-                    <v-select
-                      v-model="pendingUpload.fps"
-                      :items="[1, 5, 10, 15, 24, 25, 30, 50, 60]"
-                      :disabled="pendingUpload.uploading"
-                      type="number"
-                      required
-                      label="FPS"
-                      :append-icon="pendingUpload.annotationFile
-                        ? 'mdi-alert' : ''"
-                      :hint="pendingUpload.annotationFile
-                        ? 'match annotation file fps' : 'annotation fps'"
-                      persistent-hint
-                    />
-                  </v-col>
-                  <v-col cols="1">
-                    <v-list-item-action>
-                      <v-btn
-                        class="mt-2"
-                        icon
-                        small
-                        :disabled="pendingUpload.uploading"
-                        @click="remove(pendingUpload)"
-                      >
-                        <v-icon>mdi-close</v-icon>
-                      </v-btn>
-                    </v-list-item-action>
-                  </v-col>
-                </v-row>
-                <v-row v-if="!pendingUpload.createSubFolders">
-                  <v-col>
-                    <v-row>
-                      <v-col>
-                        <v-file-input
-                          v-model="pendingUpload.mediaList"
-                          label="Media Files"
-                          multiple
-                          :rules="[val => (val || '').length > 0 || 'Media Files are required']"
-                          :accept="filterFileUpload(pendingUpload.type)"
-                        />
-                      </v-col>
-                      <v-col>
-                        <v-file-input
-                          v-model="pendingUpload.annotationFile"
-                          label="Annotation File"
-                          hint="Optional"
-                          :accept="filterFileUpload('annotation')"
-                        />
-                      </v-col>
-                      <v-col v-if="!hideMeta">
-                        <v-file-input
-                          v-model="pendingUpload.meta"
-                          label="Meta File"
-                          hint="Optional"
-                          :accept="filterFileUpload('meta')"
-                        />
-                      </v-col>
-                    </v-row>
-                  </v-col>
-                </v-row>
-                <v-list-item-subtitle>
-                  {{ computeUploadProgress(pendingUpload) }}
-                </v-list-item-subtitle>
-              </v-card>
-            </v-list-item-content>
-            <v-progress-linear
-              :active="pendingUpload.uploading"
-              :indeterminate="true"
-              absolute
-              bottom
-            />
-          </v-list-item>
-        </v-list>
-      </template>
-    </girder-upload>
     <v-card
-      class="pa-6"
+      outlined
       color="default"
     >
-      <import-button
-        name="Add Image Sequence"
-        icon="mdi-folder-open"
-        open-type="image-sequence"
-        @open="openImport($event)"
-        @multi-cam="openMultiCamDialog"
-      />
-      <import-button
-        name="Add Video"
-        icon="mdi-file-video"
-        open-type="video"
-        @open="openImport($event)"
-        @multi-cam="openMultiCamDialog"
-      />
+      <v-toolbar
+        flat
+        dark
+      >
+        <v-toolbar-title>Pending upload</v-toolbar-title>
+        <v-spacer />
+        <v-btn
+          icon
+          @click="$emit('close')"
+        >
+          <v-icon>mdi-close</v-icon>
+        </v-btn>
+      </v-toolbar>
+      <upload-girder
+        ref="girderUpload"
+        :pending-uploads="pendingUploads"
+        :pre-upload-error-message="preUploadErrorMessage"
+        :location="location"
+        class="mx-6"
+        @remove-upload="remove"
+        @update:uploading="$emit('update:uploading', $event)"
+      >
+        <template #default="{ upload }">
+          <v-card
+            v-for="(pendingUpload, i) of pendingUploads"
+            :key="i"
+            outlined
+            class="pa-4 my-4"
+          >
+            <v-progress-linear
+              v-if="girderUpload"
+              :value="girderUpload.totalProgressPercent"
+              absolute
+              height="6px"
+              bottom
+            />
+            <v-row class="align-center">
+              <v-col class="py-0">
+                <v-text-field
+                  :value="pendingUpload.createSubFolders ? 'default' : pendingUpload.name"
+                  class="upload-name"
+                  :rules="[val => (val || '').length > 0 || 'This field is required']"
+                  required
+                  :label="getFilenameInputStateLabel(pendingUpload)"
+                  :disabled="getFilenameInputStateDisabled(pendingUpload)"
+                  :hint="getFilenameInputStateHint(pendingUpload)"
+                  persistent-hint
+                  @input="pendingUpload.name = $event"
+                />
+              </v-col>
+              <v-col
+                cols="3"
+                class="py-0"
+              >
+                <v-select
+                  v-model="pendingUpload.fps"
+                  :items="[1, 5, 10, 15, 24, 25, 30, 50, 60]"
+                  :disabled="pendingUpload.uploading"
+                  type="number"
+                  required
+                  label="FPS"
+                  :append-icon="pendingUpload.annotationFile
+                    ? 'mdi-alert' : 'mdi-chevron-down'"
+                  :hint="pendingUpload.annotationFile
+                    ? 'should match annotation fps' : 'annotation fps'"
+                  persistent-hint
+                />
+              </v-col>
+              <v-col
+                cols="1"
+                class="py-0"
+              >
+                <v-btn
+                  icon
+                  outlined
+                  :disabled="pendingUpload.uploading"
+                  @click="remove(pendingUpload)"
+                >
+                  <v-icon>mdi-close</v-icon>
+                </v-btn>
+              </v-col>
+            </v-row>
+            <v-row v-if="!pendingUpload.createSubFolders">
+              <v-col class="py-0">
+                <v-row>
+                  <v-col>
+                    <v-file-input
+                      v-model="pendingUpload.mediaList"
+                      multiple
+                      show-size
+                      counter
+                      :prepend-icon="
+                        pendingUpload.type === 'image-sequence'
+                          ? 'mdi-image-multiple'
+                          : 'mdi-file-video'
+                      "
+                      :label="
+                        pendingUpload.type === 'image-sequence'
+                          ? 'Image files'
+                          : 'Video file'
+                      "
+                      :rules="[val => (val || '').length > 0 || 'Media Files are required']"
+                      :accept="filterFileUpload(pendingUpload.type)"
+                    />
+                  </v-col>
+                  <v-col>
+                    <v-file-input
+                      v-model="pendingUpload.annotationFile"
+                      show-size
+                      counter
+                      prepend-icon="mdi-file-table"
+                      label="Annotation File (Optional)"
+                      hint="Optional"
+                      :accept="filterFileUpload('annotation')"
+                    />
+                  </v-col>
+                  <v-col v-if="!hideMeta">
+                    <v-file-input
+                      v-model="pendingUpload.meta"
+                      show-size
+                      counter
+                      label="Meta File"
+                      hint="Optional"
+                      :accept="filterFileUpload('meta')"
+                    />
+                  </v-col>
+                </v-row>
+              </v-col>
+            </v-row>
+            <span>{{ computeUploadProgress(pendingUpload) }}</span>
+          </v-card>
+          <div
+            class="d-flex my-6"
+            :class="{
+              'flex-column': pendingUploads.length === 0,
+            }"
+          >
+            <import-button
+              :name="`Add ${pendingUploads.length ? 'Another ' : ''}Image Sequence`"
+              icon="mdi-folder-open"
+              open-type="image-sequence"
+              class="grow"
+              :class="[pendingUploads.length ? 'mr-3' : 'my-3']"
+              :button-attrs="buttonAttrs"
+              @open="openImport($event)"
+              @multi-cam="openMultiCamDialog"
+            />
+            <import-button
+              :name="`Add ${pendingUploads.length ? 'Another ' : ''}Video`"
+              icon="mdi-file-video"
+              class="grow"
+              :class="[pendingUploads.length ? 'ml-3' : 'my-3']"
+              open-type="video"
+              :button-attrs="buttonAttrs"
+              @open="openImport($event)"
+              @multi-cam="openMultiCamDialog"
+            />
+          </div>
+          <v-btn
+            v-if="pendingUploads.length"
+            block
+            large
+            color="primary"
+            class="my-6"
+            @click="upload"
+          >
+            <v-icon class="pr-3">
+              mdi-upload
+            </v-icon>
+            Start upload
+          </v-btn>
+        </template>
+      </upload-girder>
     </v-card>
   </div>
 </template>
-
-<style lang="scss" scoped>
-.upload {
-  min-height: 50px;
-  display: flex;
-  flex-direction: column;
-
-  .pending-upload-form {
-    max-height: 65%;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-
-    .pending-uploads {
-      overflow-y: auto;
-    }
-  }
-
-  .dropzone-container {
-    flex: 1;
-    height: 1px;
-  }
-}
-</style>
-
-<style lang="scss">
-.upload {
-  .upload-name {
-    .v-input__slot {
-      padding-left: 0 !important;
-    }
-  }
-}
-
-.v-progress-linear--absolute {
-  margin: 0;
-}
-.hint-color{
-  color: yellow
-}
-</style>

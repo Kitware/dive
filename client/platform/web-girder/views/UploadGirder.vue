@@ -13,7 +13,7 @@ import { getResponseError } from '../utils';
 
 export default Vue.extend({
   name: 'GirderUpload',
-  mixins: [mixins.fileUploader, mixins.sizeFormatter],
+  mixins: [mixins.fileUploader, mixins.sizeFormatter, mixins.progressReporter],
   inject: ['girderRest'],
   props: {
     location: {
@@ -29,8 +29,6 @@ export default Vue.extend({
       default: null,
     },
   },
-  data: () => ({
-  }),
   computed: {
     uploadEnabled() {
       return this.location && this.location._modelType === 'folder';
@@ -50,9 +48,6 @@ export default Vue.extend({
     },
     async upload() {
       if (this.location._modelType !== 'folder') {
-        return;
-      }
-      if (!this.$refs.form.validate()) {
         return;
       }
       const uploaded = [];
@@ -169,36 +164,12 @@ export default Vue.extend({
 
 <template>
   <div>
-    <v-form
-      v-if="pendingUploads.length"
-      ref="form"
-      class="pending-upload-form"
-      @submit.prevent="upload"
-    >
-      <v-toolbar
-        flat
-        color="primary"
-        dark
-        dense
-      >
-        <v-toolbar-title>Pending upload</v-toolbar-title>
-        <v-spacer />
-        <v-btn
-          type="submit"
-          text
-          :disabled="!uploadEnabled"
-        >
-          Start Upload
-        </v-btn>
-      </v-toolbar>
-      <slot name="upload-list" />
-    </v-form>
+    <slot v-bind="{ upload }" />
     <!-- errorMessage is provided by the fileUploader mixin -->
     <div v-if="errorMessage || preUploadErrorMessage">
       <v-alert
         :value="true"
         dark="dark"
-        tile="tile"
         type="error"
         class="mb-0"
       >
@@ -217,37 +188,3 @@ export default Vue.extend({
     </div>
   </div>
 </template>
-
-<style lang="scss" scoped>
-.upload {
-  min-height: 50px;
-  display: flex;
-  flex-direction: column;
-
-  .pending-upload-form {
-    max-height: 65%;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-
-    .pending-uploads {
-      overflow-y: auto;
-    }
-  }
-
-}
-</style>
-
-<style lang="scss">
-.upload {
-  .upload-name {
-    .v-input__slot {
-      padding-left: 0 !important;
-    }
-  }
-}
-
-.v-progress-linear--absolute {
-  margin: 0;
-}
-</style>
