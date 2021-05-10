@@ -12,6 +12,7 @@ export interface MediaController {
   playing: Ref<boolean>;
   frame: Ref<number>;
   filename: Ref<string>;
+  lockedCamera: Ref<boolean>;
   currentTime: Ref<number>;
   duration: Ref<number>;
   volume: Ref<number>;
@@ -24,6 +25,8 @@ export interface MediaController {
   pause(): void;
   seek(frame: number): void;
   resetZoom(): void;
+  toggleLockedCamera(): void;
+  centerOn(coords: {x: number; y: number; z: number }): void;
   setCursor(c: string): void;
   setImageCursor(c: string): void;
   setVolume(v: number): void;

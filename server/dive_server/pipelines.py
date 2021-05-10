@@ -1,18 +1,37 @@
-from typing import Dict
+from typing import Dict, Optional
 
+from girder.constants import AccessType
 from girder.exceptions import RestException
 from girder.models.folder import Folder
 from girder.models.setting import Setting
+from girder.models.token import Token
 from girder.models.user import User
+from girder_jobs.models.job import Job
 
+from dive_server.training import ensure_csv_detections_file
+from dive_server.utils import (
+    detections_item,
+    getCloneRoot,
+    move_existing_result_to_auxiliary_folder,
+)
 from dive_tasks.tasks import EMPTY_JOB_SCHEMA
-from dive_utils import TRUTHY_META_VALUES
+from dive_tasks.tasks import run_pipeline as async_run_pipeline
+from dive_utils import TRUTHY_META_VALUES, asbool, fromMeta
 from dive_utils.constants import (
+    JOBCONST_DATASET_ID,
+    JOBCONST_PIPELINE_NAME,
+    JOBCONST_RESULTS_FOLDER_ID,
     SETTINGS_CONST_JOBS_CONFIGS,
     TrainedPipelineCategory,
     TrainedPipelineMarker,
 )
-from dive_utils.types import AvailableJobSchema, PipelineCategory, PipelineDescription
+from dive_utils.types import (
+    AvailableJobSchema,
+    GirderModel,
+    PipelineCategory,
+    PipelineDescription,
+    PipelineJob,
+)
 
 
 def _load_dynamic_pipelines(user: User) -> Dict[str, PipelineCategory]:
@@ -76,3 +95,86 @@ def verify_pipe(user: User, pipeline: PipelineDescription):
             raise missing_exception
     except KeyError:
         raise missing_exception
+
+
+def run_pipeline(
+    user: GirderModel,
+    folder: GirderModel,
+    pipeline: PipelineDescription,
+) -> GirderModel:
+    """
+    Run a pipeline on a dataset.
+
+    :param folder: The girder folder containing the dataset to run on.
+    :param pipeline: The pipeline to run the dataset on.
+    """
+
+    verify_pipe(user, pipeline)
+    getCloneRoot(user, folder)
+
+    folder_id_str = str(folder["_id"])
+    # First, verify that no other outstanding jobs are running on this dataset
+    existing_jobs = Job().findOne(
+        {
+            JOBCONST_DATASET_ID: folder_id_str,
+            'status': {
+                # Find jobs that are inactive, queued, or running
+                # https://github.com/girder/girder/blob/main/plugins/jobs/girder_jobs/constants.py
+                '$in': [0, 1, 2]
+            },
+        }
+    )
+    if existing_jobs is not None:
+        raise RestException(
+            (
+                f"A pipeline for {folder_id_str} is already running. "
+                "Only one outstanding job may be run at a time for "
+                "a dataset."
+            )
+        )
+
+    token = Token().createToken(user=user, days=14)
+
+    requires_input = False  # include CSV input for pipe
+    if pipeline["type"] == TrainedPipelineCategory:
+        # Verify that the user has READ access to the pipe they want to run
+        pipeFolder = Folder().load(
+            pipeline["folderId"], level=AccessType.READ, user=user
+        )
+        requires_input = asbool(fromMeta(pipeFolder, "requires_input"))
+    elif pipeline["pipe"].startswith('utility_'):
+        # TODO Temporary inclusion of utility pipes which take csv input
+        requires_input = True
+
+    detection_csv: Optional[GirderModel] = None
+    if requires_input:
+        # Ensure detection has a csv detections item
+        detection = detections_item(folder, strict=True)
+        detection_csv = ensure_csv_detections_file(folder, detection, user)
+
+    move_existing_result_to_auxiliary_folder(folder, user)
+
+    params: PipelineJob = {
+        "input_folder": folder_id_str,
+        "input_type": fromMeta(folder, "type", required=True),
+        "output_folder": folder_id_str,
+        "pipeline": pipeline,
+        "pipeline_input": detection_csv,
+    }
+    newjob = async_run_pipeline.apply_async(
+        queue="pipelines",
+        kwargs=dict(
+            params=params,
+            girder_job_title=f"Running {pipeline['name']} on {str(folder['name'])}",
+            girder_client_token=str(token["_id"]),
+            girder_job_type="pipelines",
+        ),
+    )
+    newjob.job[JOBCONST_DATASET_ID] = folder_id_str
+    newjob.job[JOBCONST_RESULTS_FOLDER_ID] = folder_id_str
+    newjob.job[JOBCONST_PIPELINE_NAME] = pipeline['name']
+    # Allow any users with accecss to the input data to also
+    # see and possibly manage the job
+    Job().copyAccessPolicies(folder, newjob.job)
+    Job().save(newjob.job)
+    return newjob.job

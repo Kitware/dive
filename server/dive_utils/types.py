@@ -28,6 +28,11 @@ class GirderModel(TypedDict):
     updated: str
 
 
+class AssetstoreModel(GirderModel):
+    prefix: str
+    bucket: str
+
+
 class PipelineDescription(TypedDict):
     """Describes a pipeline for running on datasets."""
 
