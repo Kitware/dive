@@ -139,20 +139,12 @@ async function getValidWebImages(folderId: string) {
   return data;
 }
 
-async function openFromDisk(datasetType: DatasetType | 'calibration' | 'annotation', defaultFiles?: File[]):
+async function openFromDisk(datasetType: DatasetType | 'calibration' | 'annotation'):
 Promise<{ canceled: boolean; filePaths: string[]; fileList?: File[]}> {
   const input: HTMLInputElement = document.createElement('input');
   input.type = 'file';
-  let baseTypes: string[] = [];
-  if (!defaultFiles) {
-    baseTypes = inputAnnotationFileTypes.map((item) => `.${item}`);
-  } else {
-    input.files = {
-      item: (index: number) => defaultFiles[index],
-      length: defaultFiles.length,
-    } as FileList;
-  }
-  input.multiple = datasetType === 'image-sequence';
+  const baseTypes: string[] = inputAnnotationFileTypes.map((item) => `.${item}`);
+  input.multiple = true;
   if (datasetType === 'image-sequence') {
     input.accept = baseTypes.concat(websafeImageTypes).concat(otherImageTypes).join(',');
   } else if (datasetType === 'video') {

@@ -53,7 +53,7 @@ export default defineComponent({
     },
     hideMeta: {
       type: Boolean,
-      default: true,
+      default: true, // TODO:  Once Meta upload is supported we can remove this
     },
   },
   setup() {
@@ -257,24 +257,6 @@ export default defineComponent({
       pendingUploads.value.splice(index, 1);
     };
 
-    /**
-     * Changing the processed files needs to update the pending Upload List
-     */
-    const changeFile = async (index: number, type: 'media' | 'annotation' | 'meta', eventFile: File | File[]) => {
-      const validateList: (File | null)[] = pendingUploads.value[index].mediaList;
-      validateList.push(pendingUploads.value[index].annotationFile);
-      validateList.push(pendingUploads.value[index].meta);
-
-      const resp = await validateUploadGroup(
-        (validateList.filter((f) => f !== null) as File[]).map((f) => f.name),
-      );
-      if (!resp.ok) {
-        if (resp.message) {
-          preUploadErrorMessage.value = resp.message;
-        }
-        throw new Error(resp.message);
-      }
-    };
     return {
 
       preUploadErrorMessage,
@@ -297,7 +279,6 @@ export default defineComponent({
       getFilenameInputStateHint,
       addPendingUpload,
       remove,
-      changeFile,
     };
   },
 });
@@ -370,7 +351,10 @@ export default defineComponent({
                       type="number"
                       required
                       label="FPS"
-                      hint="annotation fps"
+                      :append-icon="pendingUpload.annotationFile
+                        ? 'mdi-alert' : ''"
+                      :hint="pendingUpload.annotationFile
+                        ? 'match annotation file fps' : 'annotation fps'"
                       persistent-hint
                     />
                   </v-col>
@@ -388,7 +372,7 @@ export default defineComponent({
                     </v-list-item-action>
                   </v-col>
                 </v-row>
-                <v-row>
+                <v-row v-if="!pendingUpload.createSubFolders">
                   <v-col>
                     <v-row>
                       <v-col>
@@ -491,5 +475,8 @@ export default defineComponent({
 
 .v-progress-linear--absolute {
   margin: 0;
+}
+.hint-color{
+  color: yellow
 }
 </style>
