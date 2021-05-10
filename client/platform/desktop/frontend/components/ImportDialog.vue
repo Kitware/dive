@@ -212,5 +212,5 @@ export default defineComponent({
 </template>
 
 <style scoped lang="scss">
-@import './styles/KeyValueTable.scss';
+@import 'dive-common/components/styles/KeyValueTable.scss';
 </style>

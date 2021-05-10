@@ -223,7 +223,7 @@ export default defineComponent({
 </template>
 
 <style lang="scss" scoped>
-@import './styles/KeyValueTable.scss';
+@import 'dive-common/components/styles/KeyValueTable.scss';
 
 .terminal {
   font-family: monospace;
