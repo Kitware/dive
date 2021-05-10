@@ -37,8 +37,8 @@ from dive_utils.constants import (
     videoRegex,
     ymlRegex,
 )
-from dive_utils.types import AvailableJobSchema, PipelineDescription
-
+from dive_utils.types import AvailableJobSchema, PipelineDescription, MultiCamArgs
+from .multicam import process_multicam_folder
 from .pipelines import load_pipelines, run_pipeline
 from .serializers import meva as meva_serializer
 from .training import ensure_csv_detections_file, training_output_folder
@@ -440,6 +440,33 @@ class Viame(Resource):
                 Item().move(item, auxiliary)
 
         return folder
+
+    @access.user
+    @autoDescribeRoute(
+        Description("Processing MultiCam Upload")
+        .modelParam(
+            "id",
+            description="Folder containing the items to process",
+            model=Folder,
+            level=AccessType.WRITE,
+        )
+        .jsonParam(
+            "data",
+            "JSON with the multiCam Metadata",
+            requireObject=True,
+            paramType="body",
+        )
+    )
+    def process_multicam(self, folder, args: MultiCamArgs):
+        """
+        Post-processing to be run after media/annotation multicam import.
+        Will take the import arguments and arrange the data properly into subfolders
+        Set the metadata related to multicam and kick off any transcoding jobs that are necessary
+        """
+        user = self.getCurrentUser()
+        auxiliary = get_or_create_auxiliary_folder(folder, user)
+        # So we need to rearrange the uploaded data into proper sub folders based on the input args
+        process_multicam_folder(folder, args)
 
     @access.user
     @autoDescribeRoute(

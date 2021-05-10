@@ -11,7 +11,7 @@ from girder_worker.task import Task
 from girder_worker.utils import JobManager, JobStatus
 
 from dive_utils import fromMeta
-from dive_utils.constants import ImageSequenceType, TypeMarker, VideoType
+from dive_utils.constants import ImageSequenceType, TypeMarker, VideoType, MultiType
 from dive_utils.types import GirderModel
 
 
@@ -132,5 +132,26 @@ def download_source_media(
         destination_path = str(dest / clip_meta['video']['name'])
         girder_client.downloadFile(str(clip_meta['video']['_id']), destination_path)
         return [destination_path]
+    elif fromMeta(folder, TypeMarker) == MultiType:
+        clip_meta = girder_client.get(
+            "viame_detection/clip_meta", {'folderId': folder['_id']}
+        )
+        cameras = clip_meta['multiCam']['cameras']
+        downloads = []
+        for key in cameras.keys():
+            camera = cameras[key]
+            base = camera['originalBaseId']
+            destination_path = str(dest / key)
+            if camera['type'] == ImageSequenceType:
+                image_items = girder_client.get(
+                    'viame/valid_images', {'folderId': base}
+                )
+                for item in image_items:
+                    girder_client.downloadItem(str(item["_id"]), str(destination_path))
+                    downloads.append(str(destination_path / item['name']))
+            elif camera['type'] == VideoType:
+                girder_client.downloadFile(str(base), destination_path)
+                downloads.append(destination_path)
+        return downloads
     else:
         raise Exception(f"unexpected folder {str(folder)}")

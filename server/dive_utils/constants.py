@@ -4,14 +4,20 @@ SETTINGS_CONST_JOBS_CONFIGS = 'jobs_configs'
 
 ImageSequenceType = "image-sequence"
 VideoType = "video"
+MultiType = 'multi'
 DefaultVideoFPS = 10
 
 webValidImageFormats = {"png", "jpg", "jpeg"}
 validImageFormats = {*webValidImageFormats, "tif", "tiff", "sgi", "bmp", "pgm"}
 validVideoFormats = {"mp4", "avi", "mov", "mpg", "mpeg"}
 
+calibrationFormats = {'npz'}
+
 videoRegex = re.compile(r"(\." + r"|\.".join(validVideoFormats) + ')$', re.IGNORECASE)
 imageRegex = re.compile(r"(\." + r"|\.".join(validImageFormats) + ')$', re.IGNORECASE)
+calibrationRegEx = re.compile(
+    r"(\." + r"|\.".join(validImageFormats) + ')$', re.IGNORECASE
+)
 safeImageRegex = re.compile(
     r"(\." + r"|\.".join(webValidImageFormats) + ')$', re.IGNORECASE
 )
