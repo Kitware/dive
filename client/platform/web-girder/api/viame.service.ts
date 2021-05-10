@@ -6,9 +6,10 @@ import {
   Pipe, Pipelines, SaveAttributeArgs, TrainingConfigs,
 } from 'dive-common/apispec';
 import {
-  calibrationFileTypes, inputAnnotationFileTypes, otherImageTypes,
+  calibrationFileTypes, inputAnnotationFileTypes, inputAnnotationTypes, otherImageTypes,
   otherVideoTypes, websafeImageTypes, websafeVideoTypes,
 } from 'dive-common/constants';
+import { filter } from 'vue/types/umd';
 import girderRest from '../plugins/girder';
 
 interface ValidationResponse {
@@ -127,6 +128,11 @@ function postProcess(folderId: string) {
   return girderRest.post(`viame/postprocess/${folderId}`);
 }
 
+function multiCamPostProcess(folderId: string,
+  args: { defaultDisplay: string; folderList: Record<string, string[]>; calibrationFile: string}) {
+  return girderRest.post(`viame/multicam_postprocess/${folderId}`, args);
+}
+
 async function validateUploadGroup(names: string[]): Promise<ValidationResponse> {
   const { data } = await girderRest.post<ValidationResponse>('viame/validate_files', names);
   return data;
@@ -139,12 +145,18 @@ async function getValidWebImages(folderId: string) {
   return data;
 }
 
-async function openFromDisk(datasetType: DatasetType | 'calibration' | 'annotation'):
-Promise<{ canceled: boolean; filePaths: string[]; fileList?: File[]}> {
+async function openFromDisk(datasetType: DatasetType | 'calibration' | 'annotation', directory = false):
+Promise<{ canceled: boolean; filePaths: string[]; fileList?: File[]; root?: string }> {
   const input: HTMLInputElement = document.createElement('input');
   input.type = 'file';
   const baseTypes: string[] = inputAnnotationFileTypes.map((item) => `.${item}`);
   input.multiple = true;
+  if (directory) {
+    // eslint-disable-next-line @typescript-eslint/ban-ts-ignore
+    //@ts-ignore
+    input.webkitdirectory = true;
+    input.multiple = false;
+  }
   if (datasetType === 'image-sequence') {
     input.accept = baseTypes.concat(websafeImageTypes).concat(otherImageTypes).join(',');
   } else if (datasetType === 'video') {
@@ -157,11 +169,36 @@ Promise<{ canceled: boolean; filePaths: string[]; fileList?: File[]}> {
       if (event) {
         const { files } = event.target as HTMLInputElement;
         if (files) {
-          const fileList = Array.from(files);
+          let fileList = Array.from(files);
+          let root;
+          // Calculate the root and remove any recursive subdirectories
+          if (fileList[0]?.webkitRelativePath !== undefined && directory) {
+            root = fileList[0]?.webkitRelativePath.replace(`/${fileList[0].name}`, '');
+            let filterType = ['application/octet-stream']
+              .concat(inputAnnotationTypes);
+
+            if (datasetType === 'image-sequence') {
+              filterType = filterType
+                .concat(websafeImageTypes)
+                .concat(otherImageTypes);
+            } else if (datasetType === 'video') {
+              filterType = filterType
+                .concat(websafeVideoTypes)
+                .concat(otherVideoTypes);
+            }
+            fileList = fileList.filter((item) => {
+              if (item.webkitRelativePath.split('/').length > 2) {
+                return false;
+              }
+              return filterType.includes(item.type);
+            });
+          }
+          console.log(fileList);
           const response = {
             canceled: !files.length,
             fileList,
             filePaths: fileList.map((item) => item.name),
+            root,
           };
           return resolve(response);
         }
@@ -182,6 +219,7 @@ export {
   getPipelineList,
   makeViameFolder,
   postProcess,
+  multiCamPostProcess,
   runPipeline,
   getTrainingConfigurations,
   runTraining,

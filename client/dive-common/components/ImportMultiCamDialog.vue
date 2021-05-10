@@ -32,7 +32,7 @@ export default defineComponent({
       default: 'image-sequence',
     },
     importMedia: {
-      type: Function as PropType<(path: string) => Promise<CustomMediaImportPayload>>,
+      type: Function as PropType<(path: string | string[]) => Promise<CustomMediaImportPayload>>,
       required: true,
     },
   },
@@ -126,17 +126,22 @@ export default defineComponent({
     });
 
     async function open(dstype: DatasetType | 'calibration', folder: string | 'calibration') {
-      const ret = await openFromDisk(dstype);
+      const ret = await openFromDisk(dstype, dstype === 'image-sequence');
       if (!ret.canceled) {
         try {
           const path = ret.filePaths[0];
           if (folder === 'calibration') {
             calibrationFile.value = path;
-          } else if (importType.value === 'multi') {
-            folderList.value[folder] = path;
-          } else if (importType.value === 'keyword') {
-            keywordFolder.value = path;
-            pendingImportPayload.value = await props.importMedia(ret.filePaths[0]);
+            if (ret.fileList?.length) {
+              emit('add-calibration-file', ret.fileList[0]);
+            }
+          } else if (importType.value === 'multi' && ret.root) {
+            folderList.value[folder] = ret.root;
+            emit('add-multicam-files', { root: ret.root, files: ret.fileList });
+          } else if (importType.value === 'keyword' && ret.root) {
+            keywordFolder.value = ret.root;
+            pendingImportPayload.value = await props.importMedia(ret.filePaths);
+            emit('add-multicam-files', { root: ret.root, files: ret.fileList });
           }
         } catch (err) {
           console.error(err);

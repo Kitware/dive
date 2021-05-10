@@ -37,7 +37,7 @@ from dive_utils.constants import (
     videoRegex,
     ymlRegex,
 )
-from dive_utils.types import AvailableJobSchema, PipelineDescription, MultiCamArgs
+from dive_utils.types import AvailableJobSchema, PipelineDescription
 from .multicam import process_multicam_folder
 from .pipelines import load_pipelines, run_pipeline
 from .serializers import meva as meva_serializer
@@ -70,6 +70,7 @@ class Viame(Resource):
         self.route("POST", ("upgrade_pipelines",), self.upgrade_pipelines)
         self.route("POST", ("update_job_configs",), self.update_job_configs)
         self.route("POST", ("postprocess", ":id"), self.postprocess)
+        self.route("POST", ("multicam_postprocess", ":id"), self.multicam_postprocess)
         self.route("PUT", ("metadata", ":id"), self.update_metadata)
         self.route("PUT", ("attributes",), self.save_attributes)
         self.route("POST", ("validate_files",), self.validate_files)
@@ -451,13 +452,13 @@ class Viame(Resource):
             level=AccessType.WRITE,
         )
         .jsonParam(
-            "data",
+            "args",
             "JSON with the multiCam Metadata",
             requireObject=True,
             paramType="body",
         )
     )
-    def process_multicam(self, folder, args: MultiCamArgs):
+    def multicam_postprocess(self, folder, args):
         """
         Post-processing to be run after media/annotation multicam import.
         Will take the import arguments and arrange the data properly into subfolders
@@ -466,7 +467,11 @@ class Viame(Resource):
         user = self.getCurrentUser()
         auxiliary = get_or_create_auxiliary_folder(folder, user)
         # So we need to rearrange the uploaded data into proper sub folders based on the input args
-        process_multicam_folder(folder, args)
+        print(args)
+        validated = models.MultiCamArgs(**args)
+        output_meta = process_multicam_folder(folder, validated)
+        print(output_meta)
+        return output_meta
 
     @access.user
     @autoDescribeRoute(

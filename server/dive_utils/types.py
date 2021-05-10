@@ -68,9 +68,3 @@ class PipelineCategory(TypedDict):
 class AvailableJobSchema(TypedDict):
     pipelines: Dict[str, PipelineCategory]
     training: TrainingConfigurationSummary
-
-
-class MultiCamArgs(TypedDict):
-    defaultDisplay: str  # In multicam the default camera to display
-    folderList: Dict[str, List[str]]  # Camera name and folder import list of images or files
-    calibrationFile: Optional[str]  # NPZ calibation matrix file

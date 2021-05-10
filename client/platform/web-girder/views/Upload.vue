@@ -34,9 +34,14 @@ export interface PendingUpload {
     meta: null | File;
     annotationFile: null | File;
     mediaList: File[];
-    type: DatasetType;
+    type: DatasetType | 'multi';
     fps: number;
     uploading: boolean;
+    multiCam?: {
+      folderList: Record<string, string[]>;
+      calibrationFile?: string;
+      defaultDisplay: string;
+    };
 }
 interface GirderUpload {
   formatSize: (a: number) => string;
@@ -64,6 +69,8 @@ export default defineComponent({
     const multiCamOpenType = ref('image-sequence');
     const importMultiCamDialog = ref(false);
     const girderUpload: Ref<null | GirderUpload > = ref(null);
+    let multiCamTempList: Record<string, File[]> = {};
+    let multiCamCalibFile: File | null = null;
     /**
      * Initial opening of file dialog
      */
@@ -173,11 +180,50 @@ export default defineComponent({
       globPattern: '',
       mediaConvertList: [],
     });
+    const addMultiCamFiles = ({ root, files }: {root: string; files: File[]}) => {
+      multiCamTempList[root] = files;
+    };
+    const addCalibrationFile = (file: File) => {
+      multiCamCalibFile = file;
+    };
     //TODO:  Implementation of the finalization of the Import.  Requires
     // Creation of an endpoint in the server which supports MultiCamImportArgs
     const multiCamImport = (args: MultiCamImportArgs) => {
       // eslint-disable-next-line no-console
       console.log(args);
+      //Lets go through all files and modify any duplicates
+      let mediaList: File[] = [];
+      const folderList: Record<string, string[]> = {};
+      Object.keys(multiCamTempList).forEach((key) => {
+        mediaList = mediaList.concat(multiCamTempList[key]);
+        folderList[key] = multiCamTempList[key].map((item) => item.name);
+      });
+      const calibrationFile = multiCamCalibFile?.name;
+      if (multiCamCalibFile !== null) {
+        //mediaList.push(multiCamCalibFile);
+      }
+      const fps = DefaultVideoFPS;
+      //So now we take the args and modify the list of files we have to edit them
+      preUploadErrorMessage.value = null;
+      pendingUploads.value.push({
+        createSubFolders: false,
+        name: 'multi',
+        files: [], //Will be set in the GirderUpload Component
+        mediaList,
+        meta: null,
+        annotationFile: null,
+        type: 'multi',
+        fps,
+        uploading: false,
+        multiCam: {
+          folderList,
+          calibrationFile,
+          defaultDisplay: args.defaultDisplay,
+        },
+      });
+      multiCamCalibFile = null;
+      multiCamTempList = {};
+      importMultiCamDialog.value = false;
     };
     // Filter to show how many files are left to upload
     const filesNotUploaded = (item: PendingUpload) => item.files.filter(
@@ -199,6 +245,9 @@ export default defineComponent({
         // For videos we display the total progress when uploading because
         // single videos can be large
           return `${formatSize(totalProgress)} of ${formatSize(totalSize)}`;
+        }
+        if (pendingUpload.type === 'multi') {
+          return `${filesNotUploaded(pendingUpload)} files`;
         }
       }
       throw new Error(`could not determine adequate formatting for ${pendingUpload}`);
@@ -273,16 +322,19 @@ export default defineComponent({
       //methods
       openImport,
       processImport,
-      openMultiCamDialog,
       filterFileUpload,
-      multiCamImportCheck,
-      multiCamImport,
       computeUploadProgress,
       getFilenameInputStateLabel,
       getFilenameInputStateDisabled,
       getFilenameInputStateHint,
       addPendingUpload,
       remove,
+      // MultiCam Methods
+      addMultiCamFiles,
+      openMultiCamDialog,
+      multiCamImportCheck,
+      multiCamImport,
+      addCalibrationFile,
     };
   },
 });
@@ -301,6 +353,8 @@ export default defineComponent({
         :stereo="stereo"
         :data-type="multiCamOpenType"
         :import-media="multiCamImportCheck"
+        @add-calibration-file="addCalibrationFile"
+        @add-multicam-files="addMultiCamFiles"
         @begin-multicam-import="multiCamImport($event)"
         @abort="importMultiCamDialog = false; preUploadErrorMessage = null"
       />
@@ -376,7 +430,7 @@ export default defineComponent({
                     </v-list-item-action>
                   </v-col>
                 </v-row>
-                <v-row v-if="!pendingUpload.createSubFolders">
+                <v-row v-if="!pendingUpload.createSubFolders && pendingUpload.type !== 'multi'">
                   <v-col>
                     <v-row>
                       <v-col>

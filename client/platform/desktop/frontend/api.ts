@@ -21,7 +21,7 @@ import {
  * Native functions that run entirely in the renderer
  */
 
-async function openFromDisk(datasetType: DatasetType | 'calibration') {
+async function openFromDisk(datasetType: DatasetType | 'calibration', directory = false) {
   let filters: FileFilter[] = [];
   if (datasetType === 'video') {
     filters = [
@@ -35,8 +35,9 @@ async function openFromDisk(datasetType: DatasetType | 'calibration') {
       { name: 'All Files', extensions: ['*'] },
     ];
   }
+  const props = datasetType === 'image-sequence' || directory ? 'openDirectory' : 'openFile';
   const results = await remote.dialog.showOpenDialog({
-    properties: [datasetType === 'image-sequence' ? 'openDirectory' : 'openFile'],
+    properties: [props],
     filters,
   });
   return results;
