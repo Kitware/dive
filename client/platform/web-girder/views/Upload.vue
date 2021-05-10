@@ -8,7 +8,7 @@ import {
 
 import ImportButton from 'dive-common/components/ImportButton.vue';
 import ImportMultiCamDialog from 'dive-common/components/ImportMultiCamDialog.vue';
-import { DatasetType } from 'dive-common/apispec';
+import { DatasetType, MultiCamImportArgs } from 'dive-common/apispec';
 import GirderUpload from './GirderUpload.vue';
 import {
   validateUploadGroup, openFromDisk,
@@ -164,15 +164,19 @@ export default defineComponent({
       return websafeImageTypes.concat(otherImageTypes);
     };
 
+    // TODO:  Implementation of initialization organization of multiCam files into a return
+    // of the CustomMediaImportPayload defined in ImportMultiCamDialog.vue
     const multiCamImportCheck = (files: string[]) => ({
       jsonMeta: {
         originalImageFiles: files,
       },
       globPattern: '',
       mediaConvertList: [],
-
     });
-    const multiCamImport = (args: string) => {
+    //TODO:  Implementation of the finalization of the Import.  Requires
+    // Creation of an endpoint in the server which supports MultiCamImportArgs
+    const multiCamImport = (args: MultiCamImportArgs) => {
+      // eslint-disable-next-line no-console
       console.log(args);
     };
     // Filter to show how many files are left to upload

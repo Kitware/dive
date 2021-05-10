@@ -5,7 +5,7 @@ import axios, { AxiosInstance } from 'axios';
 import { ipcRenderer, remote } from 'electron';
 
 import type {
-  DatasetMetaMutable, DatasetType,
+  DatasetMetaMutable, DatasetType, MultiCamImportArgs,
   Pipe, Pipelines, SaveAttributeArgs, SaveDetectionsArgs, TrainingConfigs,
 } from 'dive-common/apispec';
 
@@ -13,7 +13,7 @@ import { fileVideoTypes, calibrationFileTypes } from 'dive-common/constants';
 import {
   DesktopJob, DesktopMetadata, JsonMeta, NvidiaSmiReply,
   RunPipeline, RunTraining, ExportDatasetArgs,
-  MediaImportPayload, MultiCamImportArgs,
+  MediaImportPayload,
 } from 'platform/desktop/constants';
 
 

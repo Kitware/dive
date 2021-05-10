@@ -4,8 +4,8 @@ import {
   computed, defineComponent, ref, Ref,
 } from '@vue/composition-api';
 
-import type { DatasetType } from 'dive-common/apispec';
-import type { MediaImportPayload, MultiCamImportArgs } from 'platform/desktop/constants';
+import type { DatasetType, MultiCamImportArgs } from 'dive-common/apispec';
+import type { MediaImportPayload } from 'platform/desktop/constants';
 
 import ImportButton from 'dive-common/components/ImportButton.vue';
 import ImportMultiCamDialog from 'dive-common/components/ImportMultiCamDialog.vue';

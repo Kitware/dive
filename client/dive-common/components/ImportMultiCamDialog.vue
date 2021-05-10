@@ -434,6 +434,6 @@ export default defineComponent({
   </v-card>
 </template>
 
-<style scoped lang="scss">
-@import './styles/KeyValueTable.scss';
+<style lang="scss" scoped>
+@import 'dive-common/components/styles/KeyValueTable.scss';
 </style>

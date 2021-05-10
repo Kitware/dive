@@ -235,10 +235,6 @@ export default Vue.extend({
     }
   }
 
-  .dropzone-container {
-    flex: 1;
-    height: 1px;
-  }
 }
 </style>
 

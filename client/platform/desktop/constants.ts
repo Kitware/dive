@@ -183,19 +183,3 @@ export interface ExportDatasetArgs {
   exclude: boolean;
   path: string;
 }
-export interface MultiCamImportFolderArgs {
-  defaultDisplay: string; // In multicam the default camera to display
-  folderList: Record<string, string>; // Camera name and folder import for images or file for videos
-  calibrationFile?: string; // NPZ calibation matrix file
-  type: 'image-sequence' | 'video';
-}
-
-export interface MultiCamImportKeywordArgs {
-  defaultDisplay: string; // In multicam the default camera to display
-  keywordFolder: string; // Base folder used for import, globList will filter folder
-  globList: Record<string, string>; // Camera name key and glob pattern for keywordfolder
-  calibrationFile?: string; // NPZ calibration matrix file
-  type: 'image-sequence'; // Always image-sequence type for glob matching
-}
-
-export type MultiCamImportArgs = MultiCamImportFolderArgs | MultiCamImportKeywordArgs;

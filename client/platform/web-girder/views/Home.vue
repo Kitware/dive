@@ -45,10 +45,10 @@ export default Vue.extend({
   inject: ['girderRest'],
   data: () => ({
     buttonOptions,
-    uploading: false,
     menuOptions,
     uploaderDialog: false,
     selected: [],
+    uploading: false,
     loading: false,
   }),
   computed: {
