@@ -266,6 +266,7 @@ export default Vue.extend({
                 <Upload
                   :location="location"
                   @update:uploading="updateUploading"
+                  @close="uploaderDialog = false"
                 />
               </v-dialog>
             </template>
