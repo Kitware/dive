@@ -388,11 +388,7 @@ class Viame(Resource):
                     folderId=str(item["folderId"]),
                     auxiliaryFolderId=auxiliary["_id"],
                     itemId=str(item["_id"]),
-                    girder_job_title=(
-                        "Converting {} to a web friendly format".format(
-                            str(item["_id"])
-                        )
-                    ),
+                    girder_job_title=f"Converting {item['_id']} to a web friendly format",
                     girder_client_token=str(token["_id"]),
                 )
 
@@ -408,9 +404,7 @@ class Viame(Resource):
                 convert_images.delay(
                     folderId=folder["_id"],
                     girder_client_token=str(token["_id"]),
-                    girder_job_title=(
-                        f"Converting {folder['_id']} to a web friendly format",
-                    ),
+                    girder_job_title=f"Converting {folder['_id']} to a web friendly format",
                 )
 
             elif imageItems.count() > 0:
