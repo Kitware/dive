@@ -18,8 +18,8 @@ import {
 
 
 export interface InteralFiles {
-   file: File;
-  status: string |'done' | 'pending' | 'error';
+  file: File;
+  status: string | 'done' | 'pending' | 'error';
   progress: {
     indeterminate: boolean;
     current: number;
@@ -30,16 +30,17 @@ export interface InteralFiles {
 }
 
 export interface PendingUpload {
-   createSubFolders: boolean;
-    name: string;
-    files: InteralFiles[];
-    meta: null | File;
-    annotationFile: null | File;
-    mediaList: File[];
-    type: DatasetType;
-    fps: number;
-    uploading: boolean;
+  createSubFolders: boolean;
+  name: string;
+  files: InteralFiles[];
+  meta: null | File;
+  annotationFile: null | File;
+  mediaList: File[];
+  type: DatasetType;
+  fps: number;
+  uploading: boolean;
 }
+
 interface GirderUpload {
   formatSize: (a: number) => string;
   totalProgress: number;
@@ -59,13 +60,13 @@ export default defineComponent({
       default: true, // TODO:  Once Meta upload is supported we can remove this
     },
   },
-  setup() {
+  setup(_, { emit }) {
     const preUploadErrorMessage: Ref<string | null> = ref(null);
     const pendingUploads: Ref<PendingUpload[]> = ref([]);
     const stereo = ref(false);
     const multiCamOpenType = ref('image-sequence');
     const importMultiCamDialog = ref(false);
-    const girderUpload: Ref<null | GirderUpload > = ref(null);
+    const girderUpload: Ref<null | GirderUpload> = ref(null);
     /**
      * Initial opening of file dialog
      */
@@ -96,7 +97,9 @@ export default defineComponent({
      * Annotation File - CSV or JSON file, or more in the future
      * Meta File - Right now a json file which has 'meta' in the name
      */
-    const processImport = (files: { canceled: boolean; filePaths: string[]; fileList?: File[]}) => {
+    const processImport = (files: {
+      canceled: boolean; filePaths: string[]; fileList?: File[];
+    }) => {
       //Check for auto files for meta and annotations
       const output: {
         annotationFile: null | File;
@@ -119,7 +122,8 @@ export default defineComponent({
             csvFiles.push([item, index]);
           }
         });
-        output.mediaList = files.fileList.filter((item) => (item.name.indexOf('.json') === -1 && item.name.indexOf('.csv') === -1));
+        output.mediaList = files.fileList.filter((item) => (
+          item.name.indexOf('.json') === -1 && item.name.indexOf('.csv') === -1));
         const metaIndex = jsonFiles.findIndex((item) => (item.indexOf('meta') !== -1));
         if (metaIndex !== -1) {
           output.metaFile = files.fileList[jsonFiles[metaIndex][1]];
@@ -132,7 +136,7 @@ export default defineComponent({
             output.metaFile = files.fileList[jsonFiles[0][1]];
           }
         } else if (jsonFiles.length > 1) {
-        //Check for a meta
+          //Check for a meta
           const filtered = jsonFiles.filter((item) => (item.indexOf('meta') === -1));
           if (filtered.length === 1) {
             output.annotationFile = files.fileList[filtered[0][1]];
@@ -150,7 +154,7 @@ export default defineComponent({
       }
       return output;
     };
-    const openMultiCamDialog = (args: {stereo: boolean; openType: 'image-sequence' | 'video'}) => {
+    const openMultiCamDialog = (args: { stereo: boolean; openType: 'image-sequence' | 'video' }) => {
       stereo.value = args.stereo;
       multiCamOpenType.value = args.openType;
       importMultiCamDialog.value = true;
@@ -198,8 +202,8 @@ export default defineComponent({
         } if (pendingUpload.type === VideoType && !pendingUpload.uploading) {
           return `${filesNotUploaded(pendingUpload)} videos`;
         } if (pendingUpload.type === VideoType && pendingUpload.uploading) {
-        // For videos we display the total progress when uploading because
-        // single videos can be large
+          // For videos we display the total progress when uploading because
+          // single videos can be large
           return `${formatSize(totalProgress)} of ${formatSize(totalSize)}`;
         }
       }
@@ -262,17 +266,29 @@ export default defineComponent({
       const index = pendingUploads.value.indexOf(pendingUpload);
       pendingUploads.value.splice(index, 1);
     };
+    function close() {
+      pendingUploads.value.forEach((v) => remove(v));
+      emit('close');
+    }
+    function abort() {
+      if (pendingUploads.value.length === 0) {
+        close();
+      }
+    }
+    const uploading = computed(() => pendingUploads.value.some((v) => v.uploading));
     const buttonAttrs = computed(() => {
       if (pendingUploads.value.length === 0) {
         return {
           block: true,
           color: 'primary',
+          disabled: uploading.value,
         };
       }
       return {
         block: true,
         color: 'grey darken-3',
         depressed: true,
+        disabled: uploading.value,
       };
     });
     return {
@@ -283,7 +299,9 @@ export default defineComponent({
       multiCamOpenType,
       importMultiCamDialog,
       girderUpload,
+      uploading,
       //methods
+      close,
       openImport,
       processImport,
       openMultiCamDialog,
@@ -296,6 +314,7 @@ export default defineComponent({
       getFilenameInputStateHint,
       addPendingUpload,
       remove,
+      abort,
     };
   },
 });
@@ -330,7 +349,7 @@ export default defineComponent({
         <v-spacer />
         <v-btn
           icon
-          @click="$emit('close')"
+          @click="close"
         >
           <v-icon>mdi-close</v-icon>
         </v-btn>
@@ -349,6 +368,7 @@ export default defineComponent({
         class="mx-6"
         @remove-upload="remove"
         @update:uploading="$emit('update:uploading', $event)"
+        @abort="abort"
       >
         <template #default="{ upload }">
           <v-card
@@ -412,6 +432,7 @@ export default defineComponent({
                       multiple
                       show-size
                       counter
+                      :disabled="pendingUpload.uploading"
                       :prepend-icon="
                         pendingUpload.type === 'image-sequence'
                           ? 'mdi-image-multiple'
@@ -434,6 +455,7 @@ export default defineComponent({
                       prepend-icon="mdi-file-table"
                       label="Annotation File (Optional)"
                       hint="Optional"
+                      :disabled="pendingUpload.uploading"
                       :accept="filterFileUpload('annotation')"
                     />
                   </v-col>
@@ -444,13 +466,16 @@ export default defineComponent({
                       counter
                       label="Meta File"
                       hint="Optional"
+                      :disabled="pendingUpload.uploading"
                       :accept="filterFileUpload('meta')"
                     />
                   </v-col>
                 </v-row>
               </v-col>
             </v-row>
-            <span>{{ computeUploadProgress(pendingUpload) }}</span>
+            <span v-if="uploading">
+              {{ computeUploadProgress(pendingUpload) }} remaining
+            </span>
           </v-card>
           <div
             class="d-flex my-6"
@@ -481,6 +506,7 @@ export default defineComponent({
           </div>
           <v-btn
             v-if="pendingUploads.length"
+            :disabled="uploading"
             block
             large
             color="primary"
