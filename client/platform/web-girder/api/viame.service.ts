@@ -9,9 +9,11 @@ import {
   calibrationFileTypes, inputAnnotationFileTypes, inputAnnotationTypes, otherImageTypes,
   otherVideoTypes, websafeImageTypes, websafeVideoTypes,
 } from 'dive-common/constants';
-import { filter } from 'vue/types/umd';
 import girderRest from '../plugins/girder';
 
+interface HTMLFile extends File {
+  webkitRelativePath?: string;
+}
 interface ValidationResponse {
   ok: boolean;
   type: 'video' | 'image-sequence';
@@ -169,7 +171,7 @@ Promise<{ canceled: boolean; filePaths: string[]; fileList?: File[]; root?: stri
       if (event) {
         const { files } = event.target as HTMLInputElement;
         if (files) {
-          let fileList = Array.from(files);
+          let fileList = Array.from(files) as HTMLFile[];
           let root;
           // Calculate the root and remove any recursive subdirectories
           if (fileList[0]?.webkitRelativePath !== undefined && directory) {
@@ -187,13 +189,12 @@ Promise<{ canceled: boolean; filePaths: string[]; fileList?: File[]; root?: stri
                 .concat(otherVideoTypes);
             }
             fileList = fileList.filter((item) => {
-              if (item.webkitRelativePath.split('/').length > 2) {
+              if (item.webkitRelativePath && item.webkitRelativePath.split('/').length > 2) {
                 return false;
               }
               return filterType.includes(item.type);
             });
           }
-          console.log(fileList);
           const response = {
             canceled: !files.length,
             fileList,

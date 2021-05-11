@@ -36,7 +36,7 @@ export interface PendingUpload {
   meta: null | File;
   annotationFile: null | File;
   mediaList: File[];
-  type: DatasetType;
+  type: DatasetType | 'multi';
   fps: number;
   uploading: boolean;
     multiCam?: {
@@ -196,8 +196,6 @@ export default defineComponent({
     //TODO:  Implementation of the finalization of the Import.  Requires
     // Creation of an endpoint in the server which supports MultiCamImportArgs
     const multiCamImport = (args: MultiCamImportArgs) => {
-      // eslint-disable-next-line no-console
-      console.log(args);
       //Lets go through all files and modify any duplicates
       let mediaList: File[] = [];
       const folderList: Record<string, string[]> = {};

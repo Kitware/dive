@@ -154,13 +154,9 @@ export default Vue.extend({
           folder,
           results: data.results,
         });
-        console.log('subtype');
-        console.log(subtype);
-        console.log(multiCam);
         if (subtype !== 'multi') {
           await postProcess(folder._id);
         } else if (multiCam) {
-          console.log('Calling multi Post Process');
           await multiCamPostProcess(folder._id, multiCam);
         }
       };
