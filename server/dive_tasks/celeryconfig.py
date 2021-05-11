@@ -3,7 +3,7 @@ from logging import info, warn
 
 from girder_client import GirderClient
 
-from dive_tasks.tasks import app
+from dive_utils.constants import UserPrivateQueueEnabledMarker
 
 # First, check to see if this is a private user queue runner
 dive_username = os.environ.get('DIVE_USERNAME', None)
@@ -30,7 +30,7 @@ if dive_username and dive_password:
     creds = diveclient.post(f'rabbit_user_queues/user/{me["_id"]}')
     broker_url = creds['broker_url']
     queue_name = creds['username']
-    if not me['user_private_queue_enabled']:
+    if not me[UserPrivateQueueEnabledMarker]:
         warn(" Private queues not enabled for this user.")
         warn(" You can visit https://viame.kitware/com/#jobs to change these settings")
     info(" For support, please email viame-web@kitare.com")

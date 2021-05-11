@@ -1,11 +1,17 @@
-<script>
-import { GirderJobList } from '@girder/components/src';
+<script lang="ts">
+import { defineComponent, ref } from '@vue/composition-api';
+import { GirderModel, GirderJobList } from '@girder/components/src';
+import { restClient } from 'platform/web-girder/api/girder.service';
+import { setUsePrivateQueue } from 'platform/web-girder/api/viame.service';
 
-export default {
+export default defineComponent({
   name: 'Jobs',
   components: { GirderJobList },
-  methods: {
-    getId(data) {
+  setup() {
+    const privateQueueEnabled = ref(restClient.user.user_private_queue_enabled);
+    const loading = ref(false);
+
+    function getId(data: GirderModel | string) {
       try {
         if (typeof data === 'object') {
           return data.folderId;
@@ -14,15 +20,28 @@ export default {
       } catch (err) {
         return null;
       }
-    },
+    }
+
+    async function setPrivateQueueEnabled(value: boolean) {
+      loading.value = true;
+      const resp = await setUsePrivateQueue(restClient.user._id, value);
+      privateQueueEnabled.value = resp.user_private_queue_enabled;
+      loading.value = false;
+    }
+
+    return {
+      privateQueueEnabled,
+      loading,
+      /* methods */
+      getId,
+      setPrivateQueueEnabled,
+    };
   },
-};
+});
 </script>
 
 <template>
-  <v-container
-    :fluid="$vuetify.breakpoint.mdAndDown"
-  >
+  <v-container :fluid="$vuetify.breakpoint.mdAndDown">
     <GirderJobList>
       <template #jobwidget="{ item }">
         <v-tooltip
@@ -67,19 +86,94 @@ export default {
         <span>{{ item.statusText.replace('Inactive', 'Queued') }}</span>
       </template>
     </GirderJobList>
-    <v-card class="mt-4">
-      <v-card-title class="text-h6">
-        Job Runner Info
-      </v-card-title>
-      <v-card-text>
-        <p>
-          The job runner is shared between all users of this system and has
-          limited GPU capacity.  Jobs in queue will be processed in the order in
-          which they are received. You can run your own server and job runner with Docker
-          using the instructions provided
-          <a href="https://github.com/Kitware/dive/tree/main/docker">here</a>.
-        </p>
-      </v-card-text>
+    <v-card class="mt-4 pa-6">
+      <v-card
+        outlined
+        class="mb-6"
+      >
+        <v-card-title>
+          Shared Job Runner
+        </v-card-title>
+        <v-card-text>
+          <p class="white--text">
+            The job runner is shared between all users of this system and has
+            limited GPU capacity. Jobs in queue will be processed in the order in
+            which they are received.
+          </p>
+        </v-card-text>
+      </v-card>
+      <v-card
+        outlined
+      >
+        <v-card-title>
+          Private Job runner
+        </v-card-title>
+        <v-card-text>
+          <p class="white--text">
+            You can run your own personal, dedicated job runner anywhere you have
+            compute resources. This could be a lab workstation or a cloud environment like
+            Google Cloud. You'll need a local installtion of VIAME.
+          </p>
+          <v-switch
+            :input-value="privateQueueEnabled"
+            :loading="loading"
+            label="Enable private runner queue"
+            hide-details
+            @change="setPrivateQueueEnabled"
+          />
+          <v-alert
+            v-if="privateQueueEnabled"
+            type="warning"
+            class="my-5"
+            outlined
+          >
+            You have enabled the private queue. Jobs created by your user
+            account must be processed by a private runner, and will remain
+            queued until you configure one.
+          </v-alert>
+        </v-card-text>
+        <v-card-title>
+          Complete documentation
+        </v-card-title>
+        <v-card-text>
+          <v-btn
+            depressed
+            class="mr-3"
+            href="https://kitware.github.io/dive/Google-Cloud/#running-viame-gpu-workloads"
+          >
+            Google Cloud docs
+          </v-btn>
+          <v-btn
+            depressed
+            href="https://github.com/Kitware/dive/tree/main/docker"
+          >
+            Docker docs
+          </v-btn>
+        </v-card-text>
+        <v-card-title>
+          Docker Quickstart
+        </v-card-title>
+        <v-card-text>
+          <p class="white--text">
+            Run the worker container under nvidia-docker.
+          </p>
+          <pre class="code-container">docker run --rm --name dive_worker \
+      --gpus all \
+      --ipc host \
+      --volume "/opt/noaa/viame/:/tmp/addons/extracted:rw" \
+      -e "DIVE_USERNAME=username" \
+      -e "DIVE_PASSWORD=CHANGEME" \
+      kitware/viame-worker:latest</pre>
+        </v-card-text>
+      </v-card>
     </v-card>
   </v-container>
 </template>
+
+<style lang="scss" scoped>
+.code-container {
+  background-color: black;
+  padding: 10px;
+  border-radius: 5px;
+}
+</style>

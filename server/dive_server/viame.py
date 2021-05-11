@@ -552,15 +552,19 @@ class Viame(Resource):
         Description('Set user use private queue')
         .modelParam("id", description='user id', model=User, level=AccessType.ADMIN)
         .param(
-            "private_queue_enabled",
+            "privateQueueEnabled",
             description="Set private queue enabled",
             paramType='query',
             dataType='boolean',
             default=None,
         )
     )
-    def use_private_queue(self, user: GirderModel, private_queue_enabled: bool):
-        if private_queue_enabled is not None:
-            user[UserPrivateQueueEnabledMarker] = private_queue_enabled
+    def use_private_queue(self, user: GirderModel, privateQueueEnabled: bool):
+        if privateQueueEnabled is not None:
+            user[UserPrivateQueueEnabledMarker] = privateQueueEnabled
             User().save(user)
-        return user.get(UserPrivateQueueEnabledMarker, False)
+        return {
+            UserPrivateQueueEnabledMarker: user.get(
+                UserPrivateQueueEnabledMarker, False
+            ),
+        }
