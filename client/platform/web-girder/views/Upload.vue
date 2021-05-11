@@ -326,7 +326,7 @@ export default defineComponent({
         flat
         dark
       >
-        <v-toolbar-title>Pending upload</v-toolbar-title>
+        <v-toolbar-title>Upload datasets</v-toolbar-title>
         <v-spacer />
         <v-btn
           icon
@@ -335,6 +335,12 @@ export default defineComponent({
           <v-icon>mdi-close</v-icon>
         </v-btn>
       </v-toolbar>
+      <v-progress-linear
+        v-show="girderUpload && girderUpload.totalProgressPercent"
+        :value="girderUpload && girderUpload.totalProgressPercent"
+        absolute
+        height="6px"
+      />
       <upload-girder
         ref="girderUpload"
         :pending-uploads="pendingUploads"
@@ -351,13 +357,6 @@ export default defineComponent({
             outlined
             class="pa-4 my-4"
           >
-            <v-progress-linear
-              v-if="girderUpload"
-              :value="girderUpload.totalProgressPercent"
-              absolute
-              height="6px"
-              bottom
-            />
             <v-row class="align-center">
               <v-col class="py-0">
                 <v-text-field
