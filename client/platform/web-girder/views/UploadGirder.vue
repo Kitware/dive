@@ -1,7 +1,7 @@
 <script>
 import Vue from 'vue';
 import { mixins } from '@girder/components/src';
-
+import { clone } from 'lodash';
 import {
   DefaultVideoFPS,
 } from 'dive-common/constants';
@@ -13,7 +13,7 @@ import { getResponseError } from '../utils';
 
 export default Vue.extend({
   name: 'GirderUpload',
-  mixins: [mixins.fileUploader, mixins.sizeFormatter],
+  mixins: [mixins.fileUploader, mixins.sizeFormatter, mixins.progressReporter],
   inject: ['girderRest'],
   props: {
     location: {
@@ -29,8 +29,6 @@ export default Vue.extend({
       default: null,
     },
   },
-  data: () => ({
-  }),
   computed: {
     uploadEnabled() {
       return this.location && this.location._modelType === 'folder';
@@ -39,10 +37,12 @@ export default Vue.extend({
   methods: {
     abort(pendingUpload) {
       if (this.errorMessage) {
-        this.remove(pendingUpload);
         this.errorMessage = null;
       }
-      this.$emit('update:uploading', false);
+      // eslint-disable-next-line no-param-reassign
+      pendingUpload.uploading = false;
+      this.remove(pendingUpload);
+      this.$emit('abort');
     },
     remove(pendingUpload) {
       const index = this.pendingUploads.indexOf(pendingUpload);
@@ -52,18 +52,16 @@ export default Vue.extend({
       if (this.location._modelType !== 'folder') {
         return;
       }
-      if (!this.$refs.form.validate()) {
-        return;
-      }
       const uploaded = [];
       this.$emit('update:uploading', true);
 
       // This is in a while loop to act like a Queue with it adding new items during upload
       let error = '';
-      while (this.pendingUploads.length > 0) {
+      const pendingUplodsCopy = clone(this.pendingUploads); // SHALLOW COPY
+      for (let i = 0; i < pendingUplodsCopy.length; i += 1) {
         try {
           // eslint-disable-next-line no-await-in-loop
-          await this.uploadPending(this.pendingUploads[0], uploaded);
+          await this.uploadPending(pendingUplodsCopy[i], uploaded);
         } catch (err) {
           // eslint-disable-next-line no-console
           console.error(err);
@@ -146,8 +144,7 @@ export default Vue.extend({
         return data;
       } catch (error) {
         this.errorMessage = getResponseError(error);
-        //throw error;
-        return error;
+        throw error;
       }
     },
     async uploadFiles(name, folder, files, uploaded, subtype, multiCam) {
@@ -181,38 +178,13 @@ export default Vue.extend({
 
 <template>
   <div>
-    <v-form
-      v-if="pendingUploads.length"
-      ref="form"
-      class="pending-upload-form"
-      @submit.prevent="upload"
-    >
-      <v-toolbar
-        flat
-        color="primary"
-        dark
-        dense
-      >
-        <v-toolbar-title>Pending upload</v-toolbar-title>
-        <v-spacer />
-        <v-btn
-          type="submit"
-          text
-          :disabled="!uploadEnabled"
-        >
-          Start Upload
-        </v-btn>
-      </v-toolbar>
-      <slot name="upload-list" />
-    </v-form>
     <!-- errorMessage is provided by the fileUploader mixin -->
     <div v-if="errorMessage || preUploadErrorMessage">
       <v-alert
         :value="true"
         dark="dark"
-        tile="tile"
         type="error"
-        class="mb-0"
+        class="my-3"
       >
         {{ errorMessage || preUploadErrorMessage }}
         <v-btn
@@ -227,39 +199,6 @@ export default Vue.extend({
         </v-btn>
       </v-alert>
     </div>
+    <slot v-bind="{ upload }" />
   </div>
 </template>
-
-<style lang="scss" scoped>
-.upload {
-  min-height: 50px;
-  display: flex;
-  flex-direction: column;
-
-  .pending-upload-form {
-    max-height: 65%;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-
-    .pending-uploads {
-      overflow-y: auto;
-    }
-  }
-
-}
-</style>
-
-<style lang="scss">
-.upload {
-  .upload-name {
-    .v-input__slot {
-      padding-left: 0 !important;
-    }
-  }
-}
-
-.v-progress-linear--absolute {
-  margin: 0;
-}
-</style>

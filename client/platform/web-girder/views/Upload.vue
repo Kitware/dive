@@ -1,5 +1,7 @@
 <script lang='ts'>
-import { defineComponent, Ref, ref } from '@vue/composition-api';
+import {
+  defineComponent, Ref, ref, computed,
+} from '@vue/composition-api';
 
 import {
   ImageSequenceType, VideoType, DefaultVideoFPS, inputAnnotationFileTypes,
@@ -9,15 +11,15 @@ import {
 import ImportButton from 'dive-common/components/ImportButton.vue';
 import ImportMultiCamDialog from 'dive-common/components/ImportMultiCamDialog.vue';
 import { DatasetType, MultiCamImportArgs } from 'dive-common/apispec';
-import GirderUpload from './GirderUpload.vue';
+import UploadGirder from './UploadGirder.vue';
 import {
   validateUploadGroup, openFromDisk,
 } from '../api/viame.service';
 
 
 export interface InteralFiles {
-   file: File;
-  status: string |'done' | 'pending' | 'error';
+  file: File;
+  status: string | 'done' | 'pending' | 'error';
   progress: {
     indeterminate: boolean;
     current: number;
@@ -28,29 +30,32 @@ export interface InteralFiles {
 }
 
 export interface PendingUpload {
-   createSubFolders: boolean;
-    name: string;
-    files: InteralFiles[];
-    meta: null | File;
-    annotationFile: null | File;
-    mediaList: File[];
-    type: DatasetType | 'multi';
-    fps: number;
-    uploading: boolean;
+  createSubFolders: boolean;
+  name: string;
+  files: InteralFiles[];
+  meta: null | File;
+  annotationFile: null | File;
+  mediaList: File[];
+  type: DatasetType;
+  fps: number;
+  uploading: boolean;
     multiCam?: {
       folderList: Record<string, string[]>;
       calibrationFile?: string;
       defaultDisplay: string;
     };
+
 }
+
 interface GirderUpload {
   formatSize: (a: number) => string;
   totalProgress: number;
+  totalProgressPercent: number;
   totalSize: number;
 }
 
 export default defineComponent({
-  components: { ImportButton, ImportMultiCamDialog, GirderUpload },
+  components: { ImportButton, ImportMultiCamDialog, UploadGirder },
   props: {
     location: {
       type: Object,
@@ -61,10 +66,9 @@ export default defineComponent({
       default: true, // TODO:  Once Meta upload is supported we can remove this
     },
   },
-  setup() {
+  setup(_, { emit }) {
     const preUploadErrorMessage: Ref<string | null> = ref(null);
     const pendingUploads: Ref<PendingUpload[]> = ref([]);
-    const imageSequenceType = ref('image-sequence');
     const stereo = ref(false);
     const multiCamOpenType = ref('image-sequence');
     const importMultiCamDialog = ref(false);
@@ -101,7 +105,9 @@ export default defineComponent({
      * Annotation File - CSV or JSON file, or more in the future
      * Meta File - Right now a json file which has 'meta' in the name
      */
-    const processImport = (files: { canceled: boolean; filePaths: string[]; fileList?: File[]}) => {
+    const processImport = (files: {
+      canceled: boolean; filePaths: string[]; fileList?: File[];
+    }) => {
       //Check for auto files for meta and annotations
       const output: {
         annotationFile: null | File;
@@ -124,7 +130,8 @@ export default defineComponent({
             csvFiles.push([item, index]);
           }
         });
-        output.mediaList = files.fileList.filter((item) => (item.name.indexOf('.json') === -1 && item.name.indexOf('.csv') === -1));
+        output.mediaList = files.fileList.filter((item) => (
+          item.name.indexOf('.json') === -1 && item.name.indexOf('.csv') === -1));
         const metaIndex = jsonFiles.findIndex((item) => (item.indexOf('meta') !== -1));
         if (metaIndex !== -1) {
           output.metaFile = files.fileList[jsonFiles[metaIndex][1]];
@@ -137,7 +144,7 @@ export default defineComponent({
             output.metaFile = files.fileList[jsonFiles[0][1]];
           }
         } else if (jsonFiles.length > 1) {
-        //Check for a meta
+          //Check for a meta
           const filtered = jsonFiles.filter((item) => (item.indexOf('meta') === -1));
           if (filtered.length === 1) {
             output.annotationFile = files.fileList[filtered[0][1]];
@@ -155,7 +162,7 @@ export default defineComponent({
       }
       return output;
     };
-    const openMultiCamDialog = (args: {stereo: boolean; openType: 'image-sequence' | 'video'}) => {
+    const openMultiCamDialog = (args: { stereo: boolean; openType: 'image-sequence' | 'video' }) => {
       stereo.value = args.stereo;
       multiCamOpenType.value = args.openType;
       importMultiCamDialog.value = true;
@@ -242,8 +249,8 @@ export default defineComponent({
         } if (pendingUpload.type === VideoType && !pendingUpload.uploading) {
           return `${filesNotUploaded(pendingUpload)} videos`;
         } if (pendingUpload.type === VideoType && pendingUpload.uploading) {
-        // For videos we display the total progress when uploading because
-        // single videos can be large
+          // For videos we display the total progress when uploading because
+          // single videos can be large
           return `${formatSize(totalProgress)} of ${formatSize(totalSize)}`;
         }
         if (pendingUpload.type === 'multi') {
@@ -309,17 +316,41 @@ export default defineComponent({
       const index = pendingUploads.value.indexOf(pendingUpload);
       pendingUploads.value.splice(index, 1);
     };
-
+    function close() {
+      emit('close');
+    }
+    function abort() {
+      if (pendingUploads.value.length === 0) {
+        close();
+      }
+    }
+    const uploading = computed(() => pendingUploads.value.some((v) => v.uploading));
+    const buttonAttrs = computed(() => {
+      if (pendingUploads.value.length === 0) {
+        return {
+          block: true,
+          color: 'primary',
+          disabled: uploading.value,
+        };
+      }
+      return {
+        block: true,
+        color: 'grey darken-3',
+        depressed: true,
+        disabled: uploading.value,
+      };
+    });
     return {
-
+      buttonAttrs,
       preUploadErrorMessage,
       pendingUploads,
-      imageSequenceType,
       stereo,
       multiCamOpenType,
       importMultiCamDialog,
       girderUpload,
+      uploading,
       //methods
+      close,
       openImport,
       processImport,
       filterFileUpload,
@@ -335,6 +366,7 @@ export default defineComponent({
       multiCamImportCheck,
       multiCamImport,
       addCalibrationFile,
+      abort,
     };
   },
 });
@@ -343,7 +375,7 @@ export default defineComponent({
 <template>
   <div class="upload">
     <v-dialog
-      :value=" importMultiCamDialog"
+      :value="importMultiCamDialog"
       persistent
       overlay-opacity="0.95"
       max-width="80%"
@@ -359,61 +391,137 @@ export default defineComponent({
         @abort="importMultiCamDialog = false; preUploadErrorMessage = null"
       />
     </v-dialog>
-    <girder-upload
-      ref="girderUpload"
-      :pending-uploads="pendingUploads"
-      :pre-upload-error-message="preUploadErrorMessage"
-      :location="location"
-      @remove-upload="remove"
-      @update:uploading="$emit('update:uploading', $event)"
+    <v-card
+      outlined
+      color="default"
     >
-      <template slot="upload-list">
-        <v-list class="py-2 pending-uploads">
-          <v-list-item
+      <v-toolbar
+        flat
+        dark
+      >
+        <v-toolbar-title>Upload datasets</v-toolbar-title>
+        <v-spacer />
+        <v-btn
+          icon
+          @click="close"
+        >
+          <v-icon>mdi-close</v-icon>
+        </v-btn>
+      </v-toolbar>
+      <v-progress-linear
+        v-show="girderUpload && girderUpload.totalProgressPercent"
+        :value="girderUpload && girderUpload.totalProgressPercent"
+        absolute
+        height="6px"
+      />
+      <upload-girder
+        ref="girderUpload"
+        :pending-uploads="pendingUploads"
+        :pre-upload-error-message="preUploadErrorMessage"
+        :location="location"
+        class="mx-6"
+        @remove-upload="remove"
+        @update:uploading="$emit('update:uploading', $event)"
+        @abort="abort"
+      >
+        <template #default="{ upload }">
+          <v-card
             v-for="(pendingUpload, i) of pendingUploads"
             :key="i"
+            outlined
+            class="pa-4 my-4"
           >
-            <v-list-item-content>
-              <v-card>
+            <v-row class="align-center">
+              <v-col class="py-0">
+                <v-text-field
+                  :value="pendingUpload.createSubFolders ? 'default' : pendingUpload.name"
+                  class="upload-name"
+                  :rules="[val => (val || '').length > 0 || 'This field is required']"
+                  required
+                  :label="getFilenameInputStateLabel(pendingUpload)"
+                  :disabled="getFilenameInputStateDisabled(pendingUpload)"
+                  :hint="getFilenameInputStateHint(pendingUpload)"
+                  persistent-hint
+                  @input="pendingUpload.name = $event"
+                />
+              </v-col>
+              <v-col
+                cols="3"
+                class="py-0"
+              >
+                <v-select
+                  v-model="pendingUpload.fps"
+                  :items="[1, 5, 10, 15, 24, 25, 30, 50, 60]"
+                  :disabled="pendingUpload.uploading"
+                  type="number"
+                  required
+                  label="FPS"
+                  :append-icon="pendingUpload.annotationFile
+                    ? 'mdi-alert' : 'mdi-chevron-down'"
+                  :hint="pendingUpload.annotationFile
+                    ? 'should match annotation fps' : 'annotation fps'"
+                  persistent-hint
+                />
+              </v-col>
+              <v-col
+                cols="1"
+                class="py-0"
+              >
+                <v-btn
+                  icon
+                  outlined
+                  :disabled="pendingUpload.uploading"
+                  @click="remove(pendingUpload)"
+                >
+                  <v-icon>mdi-close</v-icon>
+                </v-btn>
+              </v-col>
+            </v-row>
+            <v-row v-if="!pendingUpload.createSubFolders">
+              <v-col class="py-0">
                 <v-row>
-                  <v-col cols="auto">
-                    <v-checkbox
-                      :input-value="pendingUpload.createSubFolders"
-                      label="Create Subfolders"
-                      disabled
-                      hint="Enabled when many videos are selected"
-                      persistent-hint
-                      class="pl-2"
+                  <v-col>
+                    <v-file-input
+                      v-model="pendingUpload.mediaList"
+                      multiple
+                      show-size
+                      counter
+                      :disabled="pendingUpload.uploading"
+                      :prepend-icon="
+                        pendingUpload.type === 'image-sequence'
+                          ? 'mdi-image-multiple'
+                          : 'mdi-file-video'
+                      "
+                      :label="
+                        pendingUpload.type === 'image-sequence'
+                          ? 'Image files'
+                          : 'Video file'
+                      "
+                      :rules="[val => (val || '').length > 0 || 'Media Files are required']"
+                      :accept="filterFileUpload(pendingUpload.type)"
                     />
                   </v-col>
                   <v-col>
-                    <v-text-field
-                      :value="pendingUpload.createSubFolders ? 'default' : pendingUpload.name"
-                      class="upload-name"
-                      :rules="[val => (val || '').length > 0 || 'This field is required']"
-                      required
-                      :label="getFilenameInputStateLabel(pendingUpload)"
-                      :disabled="getFilenameInputStateDisabled(pendingUpload)"
-                      :hint="getFilenameInputStateHint(pendingUpload)"
-                      persistent-hint
-                      @input="pendingUpload.name = $event"
+                    <v-file-input
+                      v-model="pendingUpload.annotationFile"
+                      show-size
+                      counter
+                      prepend-icon="mdi-file-table"
+                      label="Annotation File (Optional)"
+                      hint="Optional"
+                      :disabled="pendingUpload.uploading"
+                      :accept="filterFileUpload('annotation')"
                     />
                   </v-col>
-                  <v-col
-                    cols="2"
-                  >
-                    <v-select
-                      v-model="pendingUpload.fps"
-                      :items="[1, 5, 10, 15, 24, 25, 30, 50, 60]"
+                  <v-col v-if="!hideMeta">
+                    <v-file-input
+                      v-model="pendingUpload.meta"
+                      show-size
+                      counter
+                      label="Meta File"
+                      hint="Optional"
                       :disabled="pendingUpload.uploading"
-                      type="number"
-                      required
-                      label="FPS"
-                      :append-icon="pendingUpload.annotationFile
-                        ? 'mdi-alert' : ''"
-                      :hint="pendingUpload.annotationFile
-                        ? 'match annotation file fps' : 'annotation fps'"
-                      persistent-hint
+                      :accept="filterFileUpload('meta')"
                     />
                   </v-col>
                   <v-col cols="1">
@@ -461,80 +569,55 @@ export default defineComponent({
                     </v-row>
                   </v-col>
                 </v-row>
-                <v-list-item-subtitle>
-                  {{ computeUploadProgress(pendingUpload) }}
-                </v-list-item-subtitle>
-              </v-card>
-            </v-list-item-content>
-            <v-progress-linear
-              :active="pendingUpload.uploading"
-              :indeterminate="true"
-              absolute
-              bottom
+              </v-col>
+            </v-row>
+            <span v-if="uploading">
+              {{ computeUploadProgress(pendingUpload) }} remaining
+            </span>
+          </v-card>
+          <div
+            class="d-flex my-6"
+            :class="{
+              'flex-column': pendingUploads.length === 0,
+            }"
+          >
+            <import-button
+              :name="`Add ${pendingUploads.length ? 'Another ' : ''}Image Sequence`"
+              icon="mdi-folder-open"
+              open-type="image-sequence"
+              class="grow"
+              :class="[pendingUploads.length ? 'mr-3' : 'my-3']"
+              :button-attrs="buttonAttrs"
+              @open="openImport($event)"
+              @multi-cam="openMultiCamDialog"
             />
-          </v-list-item>
-        </v-list>
-      </template>
-    </girder-upload>
-    <v-card
-      class="pa-6"
-      color="default"
-    >
-      <import-button
-        name="Add Image Sequence"
-        icon="mdi-folder-open"
-        open-type="image-sequence"
-        @open="openImport($event)"
-        @multi-cam="openMultiCamDialog"
-      />
-      <import-button
-        name="Add Video"
-        icon="mdi-file-video"
-        open-type="video"
-        @open="openImport($event)"
-        @multi-cam="openMultiCamDialog"
-      />
+            <import-button
+              :name="`Add ${pendingUploads.length ? 'Another ' : ''}Video`"
+              icon="mdi-file-video"
+              class="grow"
+              :class="[pendingUploads.length ? 'ml-3' : 'my-3']"
+              open-type="video"
+              :button-attrs="buttonAttrs"
+              @open="openImport($event)"
+              @multi-cam="openMultiCamDialog"
+            />
+          </div>
+          <v-btn
+            v-if="pendingUploads.length"
+            :disabled="uploading"
+            block
+            large
+            color="primary"
+            class="my-6"
+            @click="upload"
+          >
+            <v-icon class="pr-3">
+              mdi-upload
+            </v-icon>
+            Start upload
+          </v-btn>
+        </template>
+      </upload-girder>
     </v-card>
   </div>
 </template>
-
-<style lang="scss" scoped>
-.upload {
-  min-height: 50px;
-  display: flex;
-  flex-direction: column;
-
-  .pending-upload-form {
-    max-height: 65%;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-
-    .pending-uploads {
-      overflow-y: auto;
-    }
-  }
-
-  .dropzone-container {
-    flex: 1;
-    height: 1px;
-  }
-}
-</style>
-
-<style lang="scss">
-.upload {
-  .upload-name {
-    .v-input__slot {
-      padding-left: 0 !important;
-    }
-  }
-}
-
-.v-progress-linear--absolute {
-  margin: 0;
-}
-.hint-color{
-  color: yellow
-}
-</style>

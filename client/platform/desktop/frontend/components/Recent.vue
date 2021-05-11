@@ -121,6 +121,7 @@ export default defineComponent({
       toggleMore,
       openMultiCamDialog,
       getTypeIcon,
+      importMedia: api.importMedia,
       // state
       multiCamOpenType,
       stereo,
@@ -157,7 +158,7 @@ export default defineComponent({
         v-if="importMultiCamDialog"
         :stereo="stereo"
         :data-type="multiCamOpenType"
-        :import-media="api.importMedia"
+        :import-media="importMedia"
         @begin-multicam-import="multiCamImport($event)"
         @abort="importMultiCamDialog = false"
       />
@@ -207,6 +208,7 @@ export default defineComponent({
               name="Open Image Sequence"
               icon="mdi-folder-open"
               open-type="image-sequence"
+              class="my-2"
               @open="open($event)"
               @multi-cam="openMultiCamDialog"
             />
@@ -214,6 +216,7 @@ export default defineComponent({
               name="Open Video"
               icon="mdi-file-video"
               open-type="video"
+              class="my-2"
               @open="open($event)"
               @multi-cam="openMultiCamDialog"
             />
