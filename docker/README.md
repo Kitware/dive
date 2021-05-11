@@ -121,18 +121,9 @@ docker run --rm --name dive_worker \
   --volume "/opt/noaa/viame/:/tmp/addons/extracted:rw" \
   -e "DIVE_USERNAME=username" \
   -e "DIVE_PASSWORD=CHANGEME" \
+  -e "DIVE_API_URL=https://viame.kitware.com/api/v1" \
   kitware/viame-worker:latest
 ```
-
-docker run --rm --name dive_worker \
-  --gpus all \
-  --ipc host \
-  --network="dive_default" \
-  --volume "/opt/noaa/viame/:/tmp/addons/extracted:rw" \
-  -e "DIVE_USERNAME=admin" \
-  -e "DIVE_PASSWORD=letmein" \
-  -e "DIVE_API_URL=http://girder:8080/api/v1" \
-  kitware/viame-worker:latest
 
 ## Build your own images
 
