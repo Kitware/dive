@@ -520,7 +520,12 @@ def convert_images(self: Task, folderId):
     items_to_convert = [
         item
         for item in items
-        if (imageRegex.match(item["name"]) and not safeImageRegex.match(item["name"]))
+        if (
+            (
+                imageRegex.search(item["name"])
+                and not safeImageRegex.search(item["name"])
+            )
+        )
     ]
 
     count = 0

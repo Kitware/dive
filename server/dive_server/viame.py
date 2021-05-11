@@ -50,8 +50,8 @@ from .utils import (
     detections_item,
     get_or_create_auxiliary_folder,
     getCloneRoot,
-    getTrackAndAttributesFromCSV,
-    saveCSVImportAttributes,
+    process_csv,
+    process_json,
     saveTracks,
     verify_dataset,
 )
@@ -430,19 +430,8 @@ class Viame(Resource):
 
             Folder().save(folder)
 
-        # Find a json if it exists
-        jsonItems = list(
-            Folder().childItems(
-                folder,
-                filters={"lowerName": {"$regex": jsonRegex}},
-                sort=[("created", pymongo.DESCENDING)],
-            )
-        )
-        for item in jsonItems:
-            item['meta'][DetectionMarker] = str(folder['_id'])
-            Item().save(item)
-        if len(jsonItems):
-            move_existing_result_to_auxiliary_folder(folder, user)
+        process_csv(folder, user)
+        process_json(folder, user)
 
         return folder
 

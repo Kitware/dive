@@ -24,6 +24,7 @@ from dive_utils.constants import (
     ForeignMediaIdMarker,
     PublishedMarker,
     csvRegex,
+    jsonRegex,
 )
 from dive_utils.types import GirderModel
 
@@ -184,6 +185,26 @@ def process_csv(folder: GirderModel, user: GirderModel):
         csvItems.rewind()
         for item in csvItems:
             Item().move(item, auxiliary)
+        return True
+    return False
+
+
+def process_json(folder: GirderModel, user: GirderModel):
+    # Find a json if it exists
+    jsonItems = list(
+        Folder().childItems(
+            folder,
+            filters={"lowerName": {"$regex": jsonRegex}},
+            sort=[("created", pymongo.DESCENDING)],
+        )
+    )
+    for item in jsonItems:
+        item['meta'][DetectionMarker] = str(folder['_id'])
+        Item().save(item)
+    if len(jsonItems):
+        move_existing_result_to_auxiliary_folder(folder, user)
+        return True
+    return False
 
 
 def getCloneRoot(owner: GirderModel, source_folder: GirderModel):
