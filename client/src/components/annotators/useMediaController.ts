@@ -28,6 +28,7 @@ export default function useMediaController({ emit }: {
     playing: false,
     frame: 0,
     filename: '',
+    lockedCamera: false,
     currentTime: 0,
     duration: 0,
     volume: 0,
@@ -65,6 +66,10 @@ export default function useMediaController({ emit }: {
     );
     geoViewerRef.value.zoom(zoomAndCenter.zoom);
     geoViewerRef.value.center(zoomAndCenter.center);
+  }
+
+  function toggleLockedCamera() {
+    data.lockedCamera = !data.lockedCamera;
   }
 
   function resetMapDimensions(width: number, height: number, margin = 0.3) {
@@ -135,6 +140,10 @@ export default function useMediaController({ emit }: {
       data.imageCursor = `${newCursor}`;
     }
 
+    function centerOn(coords: { x: number; y: number; z: number }) {
+      geoViewerRef.value.center(coords);
+    }
+
     function initializeViewer(width: number, height: number) {
       const params = geo.util.pixelCoordinateParams(
         containerRef.value, width, height, width, height,
@@ -155,6 +164,16 @@ export default function useMediaController({ emit }: {
           input: { right: true },
           name: 'button edit',
           owner: 'geo.MapInteractor',
+        },
+        // The action below adds middle mouse button click to panning
+        // It allows for panning while in the process of polygon editing or creation
+        {
+          action: geo.geo_action.pan,
+          input: 'middle',
+          modifiers: { shift: false, ctrl: false },
+          owner: 'geo.mapInteractor',
+          name: 'button pan',
+
         },
         interactorOpts.actions[2],
         interactorOpts.actions[6],
@@ -215,6 +234,7 @@ export default function useMediaController({ emit }: {
       playing: toRef(data, 'playing'),
       frame: toRef(data, 'frame'),
       filename: toRef(data, 'filename'),
+      lockedCamera: toRef(data, 'lockedCamera'),
       currentTime: toRef(data, 'currentTime'),
       duration: toRef(data, 'duration'),
       volume: toRef(data, 'volume'),
@@ -226,6 +246,8 @@ export default function useMediaController({ emit }: {
       pause,
       seek,
       resetZoom,
+      toggleLockedCamera,
+      centerOn,
       setCursor,
       setImageCursor,
       setVolume,
