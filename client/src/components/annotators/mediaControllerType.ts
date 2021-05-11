@@ -16,6 +16,7 @@ export interface MediaController {
   currentTime: Ref<number>;
   duration: Ref<number>;
   volume: Ref<number>;
+  speed: Ref<number>;
   maxFrame: Ref<number>;
   /** @deprecated may be removed in a future release */
   syncedFrame: Ref<number>;
@@ -30,4 +31,5 @@ export interface MediaController {
   setCursor(c: string): void;
   setImageCursor(c: string): void;
   setVolume(v: number): void;
+  setSpeed(v: number): void;
 }
