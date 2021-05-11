@@ -10,7 +10,7 @@
   <h2>Getting started</h2>
 
   <p>
-    Thanks for signing up for an account at <a href="${host}">${host}</a>.
+    Thanks for signing up for an account at <a href="https://viame.kitware.com/">viame.kitware.com</a>.
     Here are a few resources that can help you get started annotating data and running analysis.
   </p>
 
@@ -18,7 +18,7 @@
 
   <p>
     The
-    <a href="https://viame.kitware.com/#/collection/5e4c256ca0fc86aa03120c34">public training data collection</a>
+    <a href="https://viame.kitware.com/#/collections">public training data collection</a>
     includes labeled datasets for fish, scallops, seals, sea lions, and more.
   </p>
 
