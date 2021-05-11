@@ -1,5 +1,5 @@
 import uuid
-from typing import Tuple
+from typing import Optional, cast
 
 from girder import logger
 from girder.api import access
@@ -9,8 +9,6 @@ from girder.constants import AccessType
 from girder.models.user import User
 from pydantic import ValidationError
 from pyrabbit2 import Client as PyRabbitClient
-
-from dive_utils.types import GirderModel
 
 from .constants import UserQueueMarker
 from .models import Settings, UserQueueModel
@@ -37,8 +35,8 @@ class RabbitUserQueue(Resource):
         .modelParam("id", description="User ID", model=User, level=AccessType.ADMIN)
         .param('force', description='Force refresh', default=False, dataType='boolean')
     )
-    def upsert_user_queue(self, user: GirderModel, force):
-        existing = user.get(UserQueueMarker, None)
+    def upsert_user_queue(self, user: dict, force):
+        existing: Optional[dict] = user.get(UserQueueMarker, None)
         settings = Settings()
         if existing is not None and not force:
             try:

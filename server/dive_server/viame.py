@@ -38,7 +38,7 @@ from dive_utils.constants import (
     videoRegex,
     ymlRegex,
 )
-from dive_utils.types import AvailableJobSchema, GirderModel, PipelineDescription
+from dive_utils.types import AvailableJobSchema, PipelineDescription
 
 from .pipelines import load_pipelines, run_pipeline
 from .serializers import meva as meva_serializer
@@ -559,7 +559,7 @@ class Viame(Resource):
             default=None,
         )
     )
-    def use_private_queue(self, user: GirderModel, privateQueueEnabled: bool):
+    def use_private_queue(self, user: dict, privateQueueEnabled: bool):
         if privateQueueEnabled is not None:
             user[UserPrivateQueueEnabledMarker] = privateQueueEnabled
             User().save(user)
