@@ -267,7 +267,6 @@ export default defineComponent({
       pendingUploads.value.splice(index, 1);
     };
     function close() {
-      pendingUploads.value.forEach((v) => remove(v));
       emit('close');
     }
     function abort() {
