@@ -32,6 +32,7 @@ export default function useMediaController({ emit }: {
     currentTime: 0,
     duration: 0,
     volume: 0,
+    speed: 1.0,
     maxFrame: 0,
     syncedFrame: 0,
     observer: null,
@@ -125,12 +126,13 @@ export default function useMediaController({ emit }: {
    * the state above to construct the dependencies for the methods below.
    */
   function initialize({
-    seek, play, pause, setVolume,
+    seek, play, pause, setVolume, setSpeed,
   }: {
     seek(frame: number): void;
     play(): void;
     pause(): void;
     setVolume?(level: number): void;
+    setSpeed?(level: number): void;
   }) {
     function setCursor(newCursor: string) {
       data.cursor = `${newCursor}`;
@@ -239,6 +241,7 @@ export default function useMediaController({ emit }: {
       duration: toRef(data, 'duration'),
       volume: toRef(data, 'volume'),
       maxFrame: toRef(data, 'maxFrame'),
+      speed: toRef(data, 'speed'),
       syncedFrame: toRef(data, 'syncedFrame'),
       prevFrame,
       nextFrame,
@@ -251,6 +254,7 @@ export default function useMediaController({ emit }: {
       setCursor,
       setImageCursor,
       setVolume,
+      setSpeed,
     } as MediaController;
 
     provide(MediaControllerSymbol, mediaController);

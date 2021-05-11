@@ -102,12 +102,17 @@ export default defineComponent({
       data.volume = video.volume;
     }
 
+    function setSpeed(level: number) {
+      video.playbackRate = level;
+      data.speed = video.playbackRate;
+    }
+
     const {
       cursorHandler,
       initializeViewer,
       mediaController,
     } = commonMedia.initialize({
-      seek, play, pause, setVolume,
+      seek, play, pause, setVolume, setSpeed,
     });
 
     /**
@@ -138,6 +143,7 @@ export default defineComponent({
       seek(0);
       data.ready = true;
       data.volume = video.volume;
+      data.speed = video.playbackRate;
       data.currentTime = video.currentTime;
       data.duration = video.duration;
     }
