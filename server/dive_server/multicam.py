@@ -1,7 +1,8 @@
-from dive_utils.models import MultiCamArgs
 from girder.models.folder import Folder
 from girder.models.item import Item
+
 from dive_utils.constants import calibrationRegEx
+from dive_utils.models import MultiCamArgs
 
 
 def process_multicam_folder(folder, args: MultiCamArgs):

@@ -11,7 +11,7 @@ from girder_worker.task import Task
 from girder_worker.utils import JobManager, JobStatus
 
 from dive_utils import fromMeta
-from dive_utils.constants import ImageSequenceType, TypeMarker, VideoType, MultiType
+from dive_utils.constants import ImageSequenceType, MultiType, TypeMarker, VideoType
 from dive_utils.types import GirderModel
 
 
