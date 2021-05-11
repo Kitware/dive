@@ -132,8 +132,20 @@ export default defineComponent({
               confidencePairs: track.confidencePairs,
             };
             frameData.push(trackFrame);
-            if (trackFrame.selected && (editingTrack)) {
-              editingTracks.push(trackFrame);
+            if (trackFrame.selected) {
+              if (editingTrack) {
+                editingTracks.push(trackFrame);
+              }
+              if (annotator.lockedCamera.value) {
+                if (trackFrame.features?.bounds) {
+                  const coords = {
+                    x: (trackFrame.features.bounds[0] + trackFrame.features.bounds[2]) / 2.0,
+                    y: (trackFrame.features.bounds[1] + trackFrame.features.bounds[3]) / 2.0,
+                    z: 0,
+                  };
+                  annotator.centerOn(coords);
+                }
+              }
             }
           }
         },

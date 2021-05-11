@@ -95,6 +95,8 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
         clickToEdit: true,
         showLabels: false,
         continuousPointProximity: false,
+        finalPointProximity: 1,
+        adjacentPointProximity: 1,
       });
       // For these we need to use an anonymous function to prevent geoJS from erroring
       this.featureLayer.geoOn(geo.event.annotation.edit_action,
@@ -143,6 +145,10 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
    * shape that GeoJS is keeps internally.  Emit the shape as update:in-progress-geojson
    */
   setShapeInProgress(e: GeoEvent) {
+    // Allow middle click movement when placing points
+    if (e.mouse.buttons.middle && !e.propogated) {
+      return;
+    }
     if (this.getMode() === 'creation' && ['LineString', 'Polygon'].includes(this.type)) {
       if (this.shapeInProgress === null) {
         // Initialize a new in-progress shape
