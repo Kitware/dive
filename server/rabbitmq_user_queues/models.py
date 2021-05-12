@@ -1,7 +1,7 @@
 from urllib.parse import quote as urlquote
 from urllib.parse import urlparse
 
-from pydantic import AnyHttpUrl, AnyUrl, BaseModel, BaseSettings
+from pydantic import AnyHttpUrl, BaseModel, BaseSettings
 
 
 class Settings(BaseSettings):
@@ -12,8 +12,8 @@ class Settings(BaseSettings):
     vhost: str = "default"
     # Library author has no idea how to handle urls properly...
     # https://github.com/deslum/pyrabbit2/blob/master/pyrabbit2/http.py#L72
-    url = AnyHttpUrl("http://rabbit:15672")
-    broker_url_template = AnyUrl(r"amqp://{}:{}@rabbit/default")
+    url: AnyHttpUrl = "http://rabbit:15672"
+    broker_url_template: str = r"amqp://{}:{}@rabbit/default"
 
     @property
     def netloc(self):
