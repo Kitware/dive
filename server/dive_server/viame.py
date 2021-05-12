@@ -29,10 +29,12 @@ from dive_utils.constants import (
     JOBCONST_TRAINING_INPUT_IDS,
     SETTINGS_CONST_JOBS_CONFIGS,
     DatasetMarker,
+    DetectionMarker,
     ForeignMediaIdMarker,
     PublishedMarker,
     csvRegex,
     imageRegex,
+    jsonRegex,
     safeImageRegex,
     videoRegex,
     ymlRegex,
@@ -48,8 +50,8 @@ from .utils import (
     detections_item,
     get_or_create_auxiliary_folder,
     getCloneRoot,
-    getTrackAndAttributesFromCSV,
-    saveCSVImportAttributes,
+    process_csv,
+    process_json,
     saveTracks,
     verify_dataset,
 )
@@ -304,16 +306,20 @@ class Viame(Resource):
         csvs = [f for f in files if csvRegex.search(f)]
         images = [f for f in files if imageRegex.search(f)]
         ymls = [f for f in files if ymlRegex.search(f)]
+        jsons = [f for f in files if jsonRegex.search(f)]
         if len(videos) and len(images):
             ok = False
             message = "Do not upload images and videos in the same batch."
         elif len(csvs) > 1:
             ok = False
             message = "Can only upload a single CSV Annotation per import"
+        elif len(jsons) > 1:
+            ok = False
+            message = "Can only upload a single JSON Annotation per import"
         elif len(csvs) == 1 and len(ymls):
             ok = False
             message = "Cannot mix annotation import types"
-        elif len(videos) > 1 and (len(csvs) or len(ymls)):
+        elif len(videos) > 1 and (len(csvs) or len(ymls) or len(jsons)):
             ok = False
             message = (
                 "Annotation upload is not supported when multiple videos are uploaded"
@@ -331,7 +337,7 @@ class Viame(Resource):
             "message": message,
             "type": mediatype,
             "media": images + videos,
-            "annotations": csvs + ymls,
+            "annotations": csvs + ymls + jsons,
         }
 
     @access.user
@@ -382,11 +388,7 @@ class Viame(Resource):
                     folderId=str(item["folderId"]),
                     auxiliaryFolderId=auxiliary["_id"],
                     itemId=str(item["_id"]),
-                    girder_job_title=(
-                        "Converting {} to a web friendly format".format(
-                            str(item["_id"])
-                        )
-                    ),
+                    girder_job_title=f"Converting {item['_id']} to a web friendly format",
                     girder_client_token=str(token["_id"]),
                 )
 
@@ -402,9 +404,7 @@ class Viame(Resource):
                 convert_images.delay(
                     folderId=folder["_id"],
                     girder_client_token=str(token["_id"]),
-                    girder_job_title=(
-                        f"Converting {folder['_id']} to a web friendly format",
-                    ),
+                    girder_job_title=f"Converting {folder['_id']} to a web friendly format",
                 )
 
             elif imageItems.count() > 0:
@@ -424,20 +424,8 @@ class Viame(Resource):
 
             Folder().save(folder)
 
-        # transform CSV if necessasry
-        csvItems = Folder().childItems(
-            folder,
-            filters={"lowerName": {"$regex": csvRegex}},
-            sort=[("created", pymongo.DESCENDING)],
-        )
-        if csvItems.count() >= 1:
-            file = Item().childFiles(csvItems.next())[0]
-            (tracks, attributes) = getTrackAndAttributesFromCSV(file)
-            saveTracks(folder, tracks, user)
-            saveCSVImportAttributes(folder, attributes, user)
-            csvItems.rewind()
-            for item in csvItems:
-                Item().move(item, auxiliary)
+        process_csv(folder, user)
+        process_json(folder, user)
 
         return folder
 
