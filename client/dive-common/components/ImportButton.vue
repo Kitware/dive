@@ -24,7 +24,7 @@ export default defineComponent({
     },
     hidden: { //TODO: Temporarily used to hide the stereo settings from users
       type: Boolean,
-      default: false,
+      default: true,
     },
     buttonAttrs: {
       type: Object,
