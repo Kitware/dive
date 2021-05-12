@@ -27,13 +27,14 @@ from dive_tasks.utils import (
 from dive_utils import fromMeta
 from dive_utils.constants import (
     DatasetMarker,
-    DefaultVideoFPS,
     FPSMarker,
     ImageSequenceType,
     TrainedPipelineCategory,
     TrainedPipelineMarker,
     TypeMarker,
     VideoType,
+    imageRegex,
+    safeImageRegex,
 )
 from dive_utils.types import AvailableJobSchema, GirderModel, PipelineJob
 
@@ -515,12 +516,17 @@ def convert_images(self: Task, folderId):
     manager: JobManager = self.job_manager
 
     items = gc.listItem(folderId)
-    skip_item = (
-        lambda item: item["name"].endswith(".png")
-        or item["name"].endswith(".jpeg")
-        or item["name"].endswith(".jpg")
-    )
-    items_to_convert = [item for item in items if not skip_item(item)]
+    # Start here
+    items_to_convert = [
+        item
+        for item in items
+        if (
+            (
+                imageRegex.search(item["name"])
+                and not safeImageRegex.search(item["name"])
+            )
+        )
+    ]
 
     count = 0
     with tempfile.TemporaryDirectory() as temp:

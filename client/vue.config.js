@@ -14,6 +14,13 @@ function chainWebpack(config) {
   config.resolve.alias.set('dive-common', path.resolve(__dirname, 'dive-common'));
   config.resolve.alias.set('vue-media-annotator', path.resolve(__dirname, 'src'));
   config.resolve.alias.set('platform', path.resolve(__dirname, 'platform'));
+  config.externals({
+    /**
+     * Specify vtkjs as external dependency on global context to
+     * prevent it from being included in bundle (2MB savings)
+     */
+    'vtk.js': 'vtkjs',
+  });
 }
 
 module.exports = {
