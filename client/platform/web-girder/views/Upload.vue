@@ -477,65 +477,6 @@ export default defineComponent({
             </v-row>
             <v-row v-if="!pendingUpload.createSubFolders">
               <v-col class="py-0">
-                <v-row>
-                  <v-col>
-                    <v-file-input
-                      v-model="pendingUpload.mediaList"
-                      multiple
-                      show-size
-                      counter
-                      :disabled="pendingUpload.uploading"
-                      :prepend-icon="
-                        pendingUpload.type === 'image-sequence'
-                          ? 'mdi-image-multiple'
-                          : 'mdi-file-video'
-                      "
-                      :label="
-                        pendingUpload.type === 'image-sequence'
-                          ? 'Image files'
-                          : 'Video file'
-                      "
-                      :rules="[val => (val || '').length > 0 || 'Media Files are required']"
-                      :accept="filterFileUpload(pendingUpload.type)"
-                    />
-                  </v-col>
-                  <v-col>
-                    <v-file-input
-                      v-model="pendingUpload.annotationFile"
-                      show-size
-                      counter
-                      prepend-icon="mdi-file-table"
-                      label="Annotation File (Optional)"
-                      hint="Optional"
-                      :disabled="pendingUpload.uploading"
-                      :accept="filterFileUpload('annotation')"
-                    />
-                  </v-col>
-                  <v-col v-if="!hideMeta">
-                    <v-file-input
-                      v-model="pendingUpload.meta"
-                      show-size
-                      counter
-                      label="Meta File"
-                      hint="Optional"
-                      :disabled="pendingUpload.uploading"
-                      :accept="filterFileUpload('meta')"
-                    />
-                  </v-col>
-                  <v-col cols="1">
-                    <v-list-item-action>
-                      <v-btn
-                        class="mt-2"
-                        icon
-                        small
-                        :disabled="pendingUpload.uploading"
-                        @click="remove(pendingUpload)"
-                      >
-                        <v-icon>mdi-close</v-icon>
-                      </v-btn>
-                    </v-list-item-action>
-                  </v-col>
-                </v-row>
                 <v-row v-if="!pendingUpload.createSubFolders && pendingUpload.type !== 'multi'">
                   <v-col>
                     <v-row>

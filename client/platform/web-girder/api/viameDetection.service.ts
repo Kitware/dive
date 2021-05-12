@@ -60,8 +60,20 @@ async function getClipMeta(folderId: string) {
   return data as ClipMetaResponse;
 }
 
+interface MultiMetaResponse {
+  folderId: string;
+  type: DatasetType;
+}
+async function getMultiMeta(folderId: string) {
+  const { data } = await girderRest.get('viame_detection/multi_meta', {
+    params: { folderId },
+  });
+  return data as MultiMetaResponse;
+}
+
 export {
   getClipMeta,
+  getMultiMeta,
   getExportUrls,
   loadDetections,
   saveDetections,

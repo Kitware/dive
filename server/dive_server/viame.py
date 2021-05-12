@@ -471,7 +471,10 @@ class Viame(Resource):
         print(args)
         validated = models.MultiCamArgs(**args)
         output_meta = process_multicam_folder(folder, validated)
-        print(output_meta)
+        if output_meta is not None:
+            folder['meta']['multiCam'] = output_meta
+            folder["meta"][DatasetMarker] = True
+            Folder().save(folder)
         return output_meta
 
     @access.user
@@ -552,10 +555,16 @@ class Viame(Resource):
         )
     )
     def get_valid_images(self, folder):
-        images = Folder().childItems(
-            getCloneRoot(self.getCurrentUser(), folder),
-            filters={"lowerName": {"$regex": safeImageRegex}},
-        )
+        if folder['meta']['multiCamera'] in TRUTHY_META_VALUES:
+            images = Folder().childItems(
+                folder,
+                filters={"lowerName": {"$regex": safeImageRegex}},
+            )
+        else:
+            images = Folder().childItems(
+                getCloneRoot(self.getCurrentUser(), folder),
+                filters={"lowerName": {"$regex": safeImageRegex}},
+            )
 
         def unwrapItem(item1, item2):
             return strNumericCompare(item1['name'], item2['name'])

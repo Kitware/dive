@@ -6,7 +6,7 @@ import type { FrameImage } from 'dive-common/apispec';
 import type { GirderMetadataStatic, GirderMetadata } from 'platform/web-girder/constants';
 import { getFolder, getItemDownloadUri } from 'platform/web-girder/api/girder.service';
 import { getValidWebImages } from 'platform/web-girder/api/viame.service';
-import { getClipMeta } from 'platform/web-girder/api/viameDetection.service';
+import { getClipMeta, getMultiMeta } from 'platform/web-girder/api/viameDetection.service';
 
 import { DatasetState, RootState } from './types';
 
@@ -63,15 +63,23 @@ const datasetModule: Module<DatasetState, RootState> = {
         throw new Error(`girder folder ${datasetId} could not be parsed as dataset`);
       }
 
+      let baseType = dsMeta.type;
+      let baseFolderId = dsMeta._id;
       /* Load media based on dataset */
-      if (dsMeta.type === VideoType) {
-        const clipMeta = await getClipMeta(dsMeta._id);
+      if (dsMeta.type === 'multi') {
+        //We need to get the default display data type
+        const response = await getMultiMeta(dsMeta._id);
+        baseType = response.type;
+        baseFolderId = response.folderId;
+      }
+      if (baseType === VideoType) {
+        const clipMeta = await getClipMeta(baseFolderId);
         if (!clipMeta.videoUrl) {
           throw new Error('Expected clipMeta.videoUrl, but was empty.');
         }
         videoUrl = clipMeta.videoUrl;
-      } else if (dsMeta.type === ImageSequenceType) {
-        const items = await getValidWebImages(dsMeta._id);
+      } else if (baseType === ImageSequenceType) {
+        const items = await getValidWebImages(baseFolderId);
         imageData = items.map((item) => ({
           url: getItemDownloadUri(item._id),
           filename: item.name,
@@ -85,6 +93,7 @@ const datasetModule: Module<DatasetState, RootState> = {
         videoUrl,
         imageData,
       };
+      meta.type = baseType;
       commit('set', { dataset: meta });
       commit('Location/setLocation', {
         _id: dsMeta.parentId,

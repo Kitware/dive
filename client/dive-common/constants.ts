@@ -1,10 +1,12 @@
 const ImageSequenceType = 'image-sequence';
 const VideoType = 'video';
+const MultiType = 'multi';
 
 const MediaTypes = {
   // friendly media type names
   [ImageSequenceType]: 'image sequence',
   [VideoType]: 'video',
+  [MultiType]: 'multi',
 };
 
 const DefaultVideoFPS = 10;
@@ -79,6 +81,7 @@ export {
   ImageSequenceType,
   VideoType,
   MediaTypes,
+  MultiType,
   calibrationFileTypes,
   fileVideoTypes,
   otherImageTypes,
