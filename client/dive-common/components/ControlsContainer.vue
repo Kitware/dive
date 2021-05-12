@@ -41,6 +41,8 @@ export default defineComponent({
     const currentView = ref('Detections');
     const collapsed = ref(false);
 
+    const ticks = ref([0.25, 0.5, 0.75, 1.0, 2.0, 4.0, 8.0]);
+
     /**
      * Toggles on and off the individual timeline views
      * Resizing is handled by the Annator itself.
@@ -50,7 +52,7 @@ export default defineComponent({
       collapsed.value = false;
     }
     const {
-      maxFrame, frame, seek, volume, setVolume,
+      maxFrame, frame, seek, volume, setVolume, setSpeed, speed,
     } = injectMediaController();
 
     return {
@@ -62,6 +64,9 @@ export default defineComponent({
       seek,
       volume,
       setVolume,
+      speed,
+      setSpeed,
+      ticks,
     };
   },
 });
@@ -148,8 +153,51 @@ export default defineComponent({
               </v-card>
             </v-menu>
           </span>
+          <span class="mr-2">
+            <v-menu
+              :close-on-content-click="false"
+              top
+              offset-y
+              nudge-left="3"
+              open-on-hover
+              close-delay="500"
+              open-delay="250"
+              rounded="lg"
+            >
+              <template v-slot:activator="{ on }">
+                <v-badge
+                  :value="speed != 1.0"
+                  color="#0277bd88"
+                  :content="`${speed}X`"
+                  offset-y="5px"
+                  overlap
+                >
+                  <v-icon
+                    v-on="on"
+                    @click="setSpeed(1)"
+                  > mdi-speedometer
+                  </v-icon>
+                </v-badge>
+              </template>
+              <v-card style="overflow:hidden; width:90px;">
+                <v-slider
+                  :value="ticks.indexOf(speed)"
+                  min="0"
+                  max="6"
+                  step="1"
+                  :tick-labels="ticks"
+                  ticks="always"
+                  :tick-size="4"
+                  style="font-size:0.75em;"
+                  vertical
+                  @change="setSpeed(ticks[$event])"
+                />
+
+              </v-card>
+            </v-menu>
+          </span>
           <file-name-time-display
-            class="text-middle"
+            class="text-middle pl-2"
             display-type="time"
           />
         </span>
