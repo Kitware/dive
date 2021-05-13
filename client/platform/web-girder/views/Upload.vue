@@ -10,7 +10,8 @@ import {
 
 import ImportButton from 'dive-common/components/ImportButton.vue';
 import ImportMultiCamDialog from 'dive-common/components/ImportMultiCamDialog.vue';
-import { DatasetType, MultiCamImportArgs } from 'dive-common/apispec';
+import { DatasetType, MultiCamImportFolderArgs, MultiCamImportKeywordArgs } from 'dive-common/apispec';
+import { filterByGlob } from 'platform/desktop/sharedUtils';
 import UploadGirder from './UploadGirder.vue';
 import {
   validateUploadGroup, openFromDisk,
@@ -195,14 +196,27 @@ export default defineComponent({
     };
     //TODO:  Implementation of the finalization of the Import.  Requires
     // Creation of an endpoint in the server which supports MultiCamImportArgs
-    const multiCamImport = (args: MultiCamImportArgs) => {
+    const multiCamImport = (args: MultiCamImportKeywordArgs | MultiCamImportFolderArgs) => {
       //Lets go through all files and modify any duplicates
       let mediaList: File[] = [];
       const folderList: Record<string, string[]> = {};
-      Object.keys(multiCamTempList).forEach((key) => {
-        mediaList = mediaList.concat(multiCamTempList[key]);
-        folderList[key] = multiCamTempList[key].map((item) => item.name);
-      });
+      console.log(args);
+      if ((args as MultiCamImportKeywordArgs).globList !== undefined) {
+        const keywordArgs = (args as MultiCamImportKeywordArgs);
+        //We need to divide by glob list into different folders
+        mediaList = mediaList.concat(multiCamTempList[keywordArgs.keywordFolder]);
+        Object.entries(keywordArgs.globList).forEach(([key, glob]) => {
+          folderList[key] = filterByGlob(
+            glob,
+            multiCamTempList[keywordArgs.keywordFolder].map((item) => item.name),
+          );
+        });
+      } else {
+        Object.keys(multiCamTempList).forEach((key) => {
+          mediaList = mediaList.concat(multiCamTempList[key]);
+          folderList[key] = multiCamTempList[key].map((item) => item.name);
+        });
+      }
       const calibrationFile = multiCamCalibFile?.name;
       if (multiCamCalibFile !== null) {
         //mediaList.push(multiCamCalibFile);

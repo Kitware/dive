@@ -12,6 +12,8 @@ def process_multicam_folder(folder, args: MultiCamArgs):
     for key in args.folderList.keys():
         upload_folder = args.folderList[key]
         girder_folder = Folder().createFolder(folder, str(key))
+        girder_folder["meta"]["multiCamera"] = True
+        Folder().save(girder_folder)
         for item in upload_folder:
             print(f'Trying to find item with filename {item}')
             print(item)
