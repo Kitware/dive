@@ -20,10 +20,12 @@ from dive_utils import TRUTHY_META_VALUES, asbool, fromMeta
 from dive_utils.constants import (
     JOBCONST_DATASET_ID,
     JOBCONST_PIPELINE_NAME,
+    JOBCONST_PRIVATE_QUEUE,
     JOBCONST_RESULTS_FOLDER_ID,
     SETTINGS_CONST_JOBS_CONFIGS,
     TrainedPipelineCategory,
     TrainedPipelineMarker,
+    UserPrivateQueueEnabledMarker,
 )
 from dive_utils.types import (
     AvailableJobSchema,
@@ -101,6 +103,7 @@ def run_pipeline(
     user: GirderModel,
     folder: GirderModel,
     pipeline: PipelineDescription,
+    queue: str,
 ) -> GirderModel:
     """
     Run a pipeline on a dataset.
@@ -153,6 +156,7 @@ def run_pipeline(
         detection_csv = ensure_csv_detections_file(folder, detection, user)
 
     move_existing_result_to_auxiliary_folder(folder, user)
+    job_is_private = user.get(UserPrivateQueueEnabledMarker, False)
 
     params: PipelineJob = {
         "input_folder": folder_id_str,
@@ -162,14 +166,15 @@ def run_pipeline(
         "pipeline_input": detection_csv,
     }
     newjob = async_run_pipeline.apply_async(
-        queue="pipelines",
+        queue=queue,
         kwargs=dict(
             params=params,
             girder_job_title=f"Running {pipeline['name']} on {str(folder['name'])}",
             girder_client_token=str(token["_id"]),
-            girder_job_type="pipelines",
+            girder_job_type="private" if job_is_private else "pipelines",
         ),
     )
+    newjob.job[JOBCONST_PRIVATE_QUEUE] = job_is_private
     newjob.job[JOBCONST_DATASET_ID] = folder_id_str
     newjob.job[JOBCONST_RESULTS_FOLDER_ID] = folder_id_str
     newjob.job[JOBCONST_PIPELINE_NAME] = pipeline['name']
