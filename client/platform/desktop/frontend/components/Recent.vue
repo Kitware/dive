@@ -4,17 +4,17 @@ import {
   computed, defineComponent, ref, Ref,
 } from '@vue/composition-api';
 
-import type { DatasetType } from 'dive-common/apispec';
-import type { MediaImportPayload, MultiCamImportArgs } from 'platform/desktop/constants';
+import type { DatasetType, MultiCamImportArgs } from 'dive-common/apispec';
+import type { MediaImportPayload } from 'platform/desktop/constants';
 
+import ImportButton from 'dive-common/components/ImportButton.vue';
+import ImportMultiCamDialog from 'dive-common/components/ImportMultiCamDialog.vue';
 import * as api from '../api';
 import { JsonMetaCache, recents, setRecents } from '../store/dataset';
 import { setOrGetConversionJob } from '../store/jobs';
 import BrowserLink from './BrowserLink.vue';
 import NavigationBar from './NavigationBar.vue';
-import ImportButton from './ImportButton.vue';
 import ImportDialog from './ImportDialog.vue';
-import ImportMultiCamDialog from './ImportMultiCamDialog.vue';
 
 
 export default defineComponent({
@@ -121,6 +121,7 @@ export default defineComponent({
       toggleMore,
       openMultiCamDialog,
       getTypeIcon,
+      importMedia: api.importMedia,
       // state
       multiCamOpenType,
       stereo,
@@ -157,6 +158,7 @@ export default defineComponent({
         v-if="importMultiCamDialog"
         :stereo="stereo"
         :data-type="multiCamOpenType"
+        :import-media="importMedia"
         @begin-multicam-import="multiCamImport($event)"
         @abort="importMultiCamDialog = false"
       />
@@ -206,6 +208,7 @@ export default defineComponent({
               name="Open Image Sequence"
               icon="mdi-folder-open"
               open-type="image-sequence"
+              class="my-2"
               @open="open($event)"
               @multi-cam="openMultiCamDialog"
             />
@@ -213,6 +216,7 @@ export default defineComponent({
               name="Open Video"
               icon="mdi-file-video"
               open-type="video"
+              class="my-2"
               @open="open($event)"
               @multi-cam="openMultiCamDialog"
             />

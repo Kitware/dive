@@ -69,5 +69,5 @@ export default defineComponent({
 </template>
 
 <style lang="scss" scoped>
-@import 'platform/desktop/frontend/components/styles/KeyValueTable.scss';
+@import 'dive-common/components/styles/KeyValueTable.scss';
 </style>

@@ -3,60 +3,6 @@ import type {
 } from 'dive-common/apispec';
 import { Attribute } from 'vue-media-annotator/use/useAttributes';
 
-export const websafeVideoTypes = [
-  'video/mp4',
-  'video/webm',
-];
-
-export const otherVideoTypes = [
-  /* avi */
-  'vide/avi',
-  'video/msvideo',
-  'video/x-msvideo',
-  'video/x-ms-wmv',
-  /* mov */
-  'video/quicktime',
-  /* mpeg */
-  'video/mpeg',
-  'video/x-mpeg',
-  'video/x-mpeq2a',
-  /* ogg */
-  'video/ogg',
-];
-
-export const calibrationFileTypes = [
-  'npz',
-];
-export const fileVideoTypes = [
-  'mp4',
-  'webm',
-  'avi',
-  'mov',
-  'wmv',
-  'mpg',
-  'mpeg',
-  'mp2',
-  'ogg',
-];
-
-export const websafeImageTypes = [
-  // 'image/apng',
-  // 'image/bmp',
-  'image/gif',
-  'image/jpeg',
-  'image/png',
-  // 'image/svg+xml',
-  // 'image/webp',
-];
-
-export const otherImageTypes = [
-  'image/avif',
-  'image/tiff',
-  'image/bmp',
-  'image/x-windows-bmp',
-  'image/sgi',
-  'image/x-portable-graymap',
-];
 
 export const JsonMetaCurrentVersion = 1;
 export const SettingsCurrentVersion = 1;
@@ -237,19 +183,3 @@ export interface ExportDatasetArgs {
   exclude: boolean;
   path: string;
 }
-export interface MultiCamImportFolderArgs {
-  defaultDisplay: string; // In multicam the default camera to display
-  folderList: Record<string, string>; // Camera name and folder import for images or file for videos
-  calibrationFile?: string; // NPZ calibation matrix file
-  type: 'image-sequence' | 'video';
-}
-
-export interface MultiCamImportKeywordArgs {
-  defaultDisplay: string; // In multicam the default camera to display
-  keywordFolder: string; // Base folder used for import, globList will filter folder
-  globList: Record<string, string>; // Camera name key and glob pattern for keywordfolder
-  calibrationFile?: string; // NPZ calibration matrix file
-  type: 'image-sequence'; // Always image-sequence type for glob matching
-}
-
-export type MultiCamImportArgs = MultiCamImportFolderArgs | MultiCamImportKeywordArgs;
