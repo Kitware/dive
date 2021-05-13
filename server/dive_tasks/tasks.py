@@ -150,7 +150,7 @@ def upgrade_pipelines(
         else:
             manager.write(f'Skipping download of {zipfile_path}\n')
         addons_to_update_update.append(zipfile_path)
-        if check_canceled(self, context):
+        if check_canceled(self, context, force=False):
             manager.updateStatus(JobStatus.CANCELED)
             return
 

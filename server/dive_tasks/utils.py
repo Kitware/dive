@@ -14,21 +14,30 @@ from dive_utils import fromMeta
 from dive_utils.constants import ImageSequenceType, TypeMarker, VideoType
 from dive_utils.types import GirderModel
 
+TIMEOUT_COUNT = 'timeout_count'
+TIMEOUT_LAST_CHECKED = 'last_checked'
+TIMEOUT_CHECK_INTERVAL = 30
 
-def check_canceled(task: Task, context: dict):
-    # Only check for cancellation up to every 30 seconds
-    # because it's a costly check.
-    if not context.get('timeout_count'):
-        context['timeout_count'] = 0
+
+def check_canceled(task: Task, context: dict, force=True):
+    """
+    Only check for canceled task every interval unless force is true (default).
+    This is an expensive operation that round-trips to the message broker.
+    """
+    if not context.get(TIMEOUT_COUNT):
+        context[TIMEOUT_COUNT] = 0
     now = datetime.now()
-    if now - context.get('last_checked', now) > timedelta(seconds=30):
-        context['last_checked'] = now
+    if (
+        (now - context.get(TIMEOUT_LAST_CHECKED, now))
+        > timedelta(seconds=TIMEOUT_CHECK_INTERVAL)
+    ) or force:
+        context[TIMEOUT_LAST_CHECKED] = now
         try:
             return task.canceled
         except TimeoutError as err:
-            context['timeout_count'] += 1
+            context[TIMEOUT_COUNT] += 1
             print(
-                f"Timeout n={context['timeout_count']} when checking for cancellation. {err}"
+                f"Timeout N={context[TIMEOUT_COUNT]} for this task when checking for cancellation. {err}"
             )
     return False
 
@@ -65,7 +74,7 @@ def stream_subprocess(
         if keep_stdout:
             stdout += line_str
 
-        if check_canceled(task, context):
+        if check_canceled(task, context, force=False):
             # Can never be sure what signal a process will respond to.
             process.send_signal(signal.SIGTERM)
             process.send_signal(signal.SIGKILL)

@@ -49,7 +49,7 @@ worker_send_task_events = False
 # https://docs.celeryproject.org/en/stable/userguide/configuration.html#std-setting-worker_prefetch_multiplier
 worker_prefetch_multiplier = 1
 # https://docs.celeryproject.org/en/v4.4.6/userguide/configuration.html#broker-connection-timeout
-broker_connection_timeout = 12.0
+broker_connection_timeout = 12
 # Remote control is necessary to handle cancellation
 # Needs celery.pidbox, reply.celery.pidbox, uuid.reply.celery.pidbox, celery@uuid.celery.pidbox
 worker_enable_remote_control = True
