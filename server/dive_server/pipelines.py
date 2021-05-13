@@ -20,10 +20,12 @@ from dive_utils import TRUTHY_META_VALUES, asbool, fromMeta
 from dive_utils.constants import (
     JOBCONST_DATASET_ID,
     JOBCONST_PIPELINE_NAME,
+    JOBCONST_PRIVATE_QUEUE,
     JOBCONST_RESULTS_FOLDER_ID,
     SETTINGS_CONST_JOBS_CONFIGS,
     TrainedPipelineCategory,
     TrainedPipelineMarker,
+    UserPrivateQueueEnabledMarker,
 )
 from dive_utils.types import (
     AvailableJobSchema,
@@ -171,6 +173,7 @@ def run_pipeline(
             girder_job_type="pipelines",
         ),
     )
+    newjob.job[JOBCONST_PRIVATE_QUEUE] = user.get(UserPrivateQueueEnabledMarker, False)
     newjob.job[JOBCONST_DATASET_ID] = folder_id_str
     newjob.job[JOBCONST_RESULTS_FOLDER_ID] = folder_id_str
     newjob.job[JOBCONST_PIPELINE_NAME] = pipeline['name']

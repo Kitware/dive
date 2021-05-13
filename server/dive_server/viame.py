@@ -24,6 +24,7 @@ from dive_tasks.tasks import (
 from dive_utils import TRUTHY_META_VALUES, fromMeta, models, strNumericCompare
 from dive_utils.constants import (
     JOBCONST_PIPELINE_NAME,
+    JOBCONST_PRIVATE_QUEUE,
     JOBCONST_RESULTS_FOLDER_ID,
     JOBCONST_TRAINING_CONFIG,
     JOBCONST_TRAINING_INPUT_IDS,
@@ -82,7 +83,7 @@ class Viame(Resource):
     def _get_queue_name(self, default="celery"):
         user = self.getCurrentUser()
         if user.get(UserPrivateQueueEnabledMarker, False):
-            return user['login']
+            return f'{user["login"]}@private'
         return default
 
     @access.admin
@@ -294,6 +295,9 @@ class Viame(Resource):
                 girder_job_type="training",
             ),
         )
+        newjob.job[JOBCONST_PRIVATE_QUEUE] = user.get(
+            UserPrivateQueueEnabledMarker, False
+        )
         newjob.job[JOBCONST_TRAINING_INPUT_IDS] = folderIds
         newjob.job[JOBCONST_RESULTS_FOLDER_ID] = str(results_folder['_id'])
         newjob.job[JOBCONST_TRAINING_CONFIG] = config
@@ -392,7 +396,7 @@ class Viame(Resource):
             )
 
             for item in videoItems:
-                convert_video.apply_async(
+                newjob = convert_video.apply_async(
                     queue=self._get_queue_name(),
                     kwargs=dict(
                         path=GetPathFromItemId(str(item["_id"])),
@@ -403,6 +407,10 @@ class Viame(Resource):
                         girder_client_token=str(token["_id"]),
                     ),
                 )
+                newjob.job[JOBCONST_PRIVATE_QUEUE] = user.get(
+                    UserPrivateQueueEnabledMarker, False
+                )
+                Job().save(newjob.job)
 
             # transcode IMAGERY if necessary
             imageItems = Folder().childItems(
@@ -413,7 +421,7 @@ class Viame(Resource):
             )
 
             if imageItems.count() > safeImageItems.count():
-                convert_images.apply_async(
+                newjob = convert_images.apply_async(
                     queue=self._get_queue_name(),
                     kwargs=dict(
                         folderId=folder["_id"],
@@ -421,6 +429,10 @@ class Viame(Resource):
                         girder_job_title=f"Converting {folder['_id']} to a web friendly format",
                     ),
                 )
+                newjob.job[JOBCONST_PRIVATE_QUEUE] = user.get(
+                    UserPrivateQueueEnabledMarker, False
+                )
+                Job().save(newjob.job)
 
             elif imageItems.count() > 0:
                 folder["meta"][DatasetMarker] = True

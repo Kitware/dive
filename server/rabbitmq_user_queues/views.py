@@ -49,15 +49,21 @@ class RabbitUserQueue(Resource):
         client = self.getClient(settings)
         newUserQueue = UserQueueModel(
             **{
-                'username': user['login'],
+                # To allow users across multiple environments
+                'username': f'g-{settings.vhost}-{user["login"]}',
                 'password': str(uuid.uuid4()),
             }
         )
         client.create_user(newUserQueue.username, password=newUserQueue.password)
 
-        # Allow remote control queues, since celery docs are wrong and disabling it isn't possible
-        # because celery is a liar https://celery-rabbitmq.readthedocs.io/en/latest/remotecontrol.html
-        pattern = f"^({newUserQueue.username}.*|(celery@)?([a-fA-F0-9-]+\.)?(reply\.)?celery\.pidbox)$"
+        # Allow remote control queues because girder worker requires this feature for cancellation
+        # https://celery-rabbitmq.readthedocs.io/en/latest/remotecontrol.html
+        #
+        # Security feature: prefix separeted by character not in prefix group
+        # example: regular user j@ke can access j@ke@whatever
+        #          evil user j can access j@whatever
+        # because whatever is [a-zA-Z0-9] and does not include @, user permissions work.
+        pattern = f"^({user['login']}@[a-zA-Z0-9]+|(celery@)?([a-fA-F0-9-]+\.)?(reply\.)?celery\.pidbox)$"
         client.set_vhost_permissions(
             settings.vhost, newUserQueue.username, pattern, pattern, pattern
         )

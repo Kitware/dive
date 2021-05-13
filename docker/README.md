@@ -110,15 +110,18 @@ This image contains a celery worker to run VIAME pipelines and transcoding jobs.
 
 You can run a standalone worker to process private jobs from VIAME Web.
 
-* Install VIAME installation to mount in addons.
+* Install VIAME from [the github page](https://github.com/VIAME/VIAME) to `/opt/noaa/viame`.
+* Install VIAME pipeline addons by running `bin/download_viame_addons.sh` from the VIAME install.
 * Enable the private user queue for your jobs by visiting [the jobs page](https://viame.kitware.com/#/jobs)
 * Run a worker using the docker command below
+
+> **Note**: The `--volume` mount maps the host installtion to `/tmp/addons/extracted:ro`.  You may need to change the source from `/opt/noaa/viame` depending on your install location, but **you should not** change the destination.
 
 ``` bash
 docker run --rm --name dive_worker \
   --gpus all \
   --ipc host \
-  --volume "/opt/noaa/viame/:/tmp/addons/extracted:rw" \
+  --volume "/opt/noaa/viame/:/tmp/addons/extracted:ro" \
   -e "DIVE_USERNAME=username" \
   -e "DIVE_PASSWORD=CHANGEME" \
   -e "DIVE_API_URL=https://viame.kitware.com/api/v1" \

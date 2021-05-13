@@ -88,8 +88,17 @@ Prefix (if applicable):
 
 This section will guide you through deploying VIAME to Google Cloud for several use cases.
 
+* Run VIAME pipelines in Google Cloud from the command line.
 * Run a GPU worker in Google Cloud (or anywhere you have GPU resources) to process your queue from viame.kitware.com.
-* Run VIAME pipelines from the command line
+
+### How it works
+
+* You must [toggle your private queue](https://viame.kitware.com/#jobs)
+* When you trigger jobs (like transcoding, pipelines, or training), they go into a special queue just for your user account.
+* You are responsible for running a worker.  Your worker is a Celery process that will connect to our public RabbitMQ server.
+* Jobs submitted through the interface at viame.kitware.com will run on your compute resources.  This involves automatically downloading the video or images and annotation files, running a kwiver pipeline, and uploading the results.
+
+> **NOTE**: To run the worker on existing compute resources using docker, [see the docker standalone worker docs](https://github.com/Kitware/dive/blob/main/docker/README.md).
 
 ### Preparation
 

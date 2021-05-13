@@ -1,10 +1,10 @@
 import shutil
 import signal
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from subprocess import Popen
 from tempfile import mktemp
-from typing import IO, Callable, List, Optional, Union
+from typing import IO, Callable, List, Optional
 
 from girder_client import GirderClient
 from girder_worker.task import Task
@@ -34,6 +34,7 @@ def stream_subprocess(
     :param cleanup: a function to invoke if job errors or is canceled
     """
     start_time = datetime.now()
+    last_check = datetime.now()
     stdout = ""
 
     if process.stdout is None:
@@ -45,11 +46,22 @@ def stream_subprocess(
         manager.write(line_str)
         if keep_stdout:
             stdout += line_str
-        if task.canceled:
-            # Can never be sure what signal a process will respond to.
-            process.send_signal(signal.SIGTERM)
-            process.send_signal(signal.SIGKILL)
-            break
+
+        if (datetime.now() - last_check) > timedelta(seconds=30):
+            # Only check for cancellation up to every 30 seconds
+            # because it's a costly check.
+            last_check = datetime.now()
+            try:
+                if task.canceled:
+                    # Can never be sure what signal a process will respond to.
+                    process.send_signal(signal.SIGTERM)
+                    process.send_signal(signal.SIGKILL)
+                    break
+            except TimeoutError as err:
+                print(
+                    f"Timeout when checking for cancellation.  You may have errors reaching RabbitMQ. {err}"
+                )
+                pass
 
     # flush logs
     manager._flush()

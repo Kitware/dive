@@ -1,7 +1,7 @@
 import os
-from logging import info, warn
+from logging import info, warn, error
 
-from girder_client import GirderClient
+from girder_client import AuthenticationError, GirderClient
 
 from dive_utils.constants import UserPrivateQueueEnabledMarker
 
@@ -14,27 +14,31 @@ broker_url = os.environ.get('CELERY_BROKER_URL', None)
 if dive_username and dive_password:
     info(
         """
-        _    _________    __  _________   _       __           __
-        | |  / /  _/   |  /  |/  / ____/  | |     / /___  _____/ /_____  _____
-        | | / // // /| | / /|_/ / __/     | | /| / / __ \/ ___/ //_/ _ \/ ___/
-        | |/ // // ___ |/ /  / / /___     | |/ |/ / /_/ / /  / ,< /  __/ /
-        |___/___/_/  |_/_/  /_/_____/     |__/|__/\____/_/  /_/|_|\___/_/
-        """
+     _    _________    __  _________   _       __           __
+    | |  / /  _/   |  /  |/  / ____/  | |     / /___  _____/ /_____  _____
+    | | / // // /| | / /|_/ / __/     | | /| / / __ \/ ___/ //_/ _ \/ ___/
+    | |/ // // ___ |/ /  / / /___     | |/ |/ / /_/ / /  / ,< /  __/ /
+    |___/___/_/  |_/_/  /_/_____/     |__/|__/\____/_/  /_/|_|\___/_/
+
+    You are running in private standalone mode.
+
+    Troubleshooting: Try running `docker pull kitware/viame-worker` to get the latest image
+    Documentation: https://github.com/Kitware/dive/blob/main/docker/README.md
+    Issues: https://github.com/Kitware/dive/issues
+    Support: please email viame-web@kitare.com
+    """
     )
-    info(" You are running in private standalone mode.")
-    info(" Authenticating...")
     # Fetch Celery broker credentials from server
     diveclient = GirderClient(apiUrl=dive_api_url)
     diveclient.authenticate(username=dive_username, password=dive_password)
     me = diveclient.get('user/me')
     creds = diveclient.post(f'rabbit_user_queues/user/{me["_id"]}')
     broker_url = creds['broker_url']
-    queue_name = creds['username']
+    queue_name = f"{me['login']}@private"
     if not me[UserPrivateQueueEnabledMarker]:
         warn(" Private queues not enabled for this user.")
         warn(" You can visit https://viame.kitware/com/#jobs to change these settings")
-    info(" For support, please email viame-web@kitare.com")
-    info("-------------------------------")
+        exit(1)
     task_default_queue = queue_name
 
 if broker_url is None:

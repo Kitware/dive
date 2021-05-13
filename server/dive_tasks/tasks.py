@@ -82,7 +82,7 @@ class Config:
         )
 
         self.viame_install_path = Path(self.viame_install_directory)
-        assert self.viame_install_path.exists(), "VIAME Base install directory missing"
+        assert self.viame_install_path.exists(), "VIAME Base install directory missing."
         self.viame_setup_script = self.viame_install_path / "setup_viame.sh"
         assert self.viame_setup_script.is_file(), "VIAME Setup Script missing"
         self.viame_training_executable = (
@@ -95,7 +95,7 @@ class Config:
         # The subdirectory within VIAME_INSTALL_PATH where pipelines can be found
         self.pipeline_subdir = 'configs/pipelines'
         self.viame_pipeine_path = self.viame_install_path / self.pipeline_subdir
-        assert self.viame_pipeine_path.exists(), "VIAME common pipe directory missing"
+        assert self.viame_pipeine_path.exists(), "VIAME common pipe directory missing."
 
         self.addon_root_path = Path(self.addon_root_directory)
         self.addon_zip_path = self.addon_root_path / 'zips'
@@ -217,6 +217,12 @@ def run_pipeline(self: Task, params: PipelineJob):
         pipeline_path = trained_pipeline_folder / pipeline["pipe"]
     else:
         pipeline_path = conf.get_extracted_pipeline_path() / pipeline["pipe"]
+
+    assert pipeline_path.exists(), (
+        "Requested pipeline could not be found."
+        " Make sure that VIAME is installed correctly and all addons have loaded."
+        f" Job asked for {pipeline_path} but it does not exist"
+    )
 
     # Download source media
     input_folder: GirderModel = gc.getFolder(input_folder_id)
