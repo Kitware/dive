@@ -127,6 +127,17 @@ function postProcess(folderId: string) {
   return girderRest.post(`viame/postprocess/${folderId}`);
 }
 
+async function setUsePrivateQueue(userId: string, value = false): Promise<{
+  'user_private_queue_enabled': boolean;
+}> {
+  const { data } = await girderRest.put(`viame/user/${userId}/use_private_queue`, null, {
+    params: {
+      privateQueueEnabled: value,
+    },
+  });
+  return data;
+}
+
 async function validateUploadGroup(names: string[]): Promise<ValidationResponse> {
   const { data } = await girderRest.post<ValidationResponse>('viame/validate_files', names);
   return data;
@@ -187,6 +198,7 @@ export {
   runTraining,
   saveMetadata,
   saveAttributes,
+  setUsePrivateQueue,
   validateUploadGroup,
   getValidWebImages,
   openFromDisk,

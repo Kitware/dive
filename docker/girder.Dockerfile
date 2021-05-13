@@ -17,11 +17,9 @@ ENV TINI_VERSION v0.19.0
 ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini /tini
 RUN chmod +x /tini
 
+# Defaults are different between normal and docker installations
 ENV GIRDER_MONGO_URI mongodb://mongo:27017/girder
-ENV GIRDER_ADMIN_USER admin
-ENV GIRDER_ADMIN_PASSWORD viame
 ENV CELERY_BROKER_URL amqp://guest:guest@rabbit/
-ENV BROKER_CONNECTION_TIMEOUT 2
 
 # Initialize python virtual environment
 RUN apt-get update && apt-get install -y python3.7-venv
