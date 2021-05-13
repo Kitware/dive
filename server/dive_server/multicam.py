@@ -1,30 +1,22 @@
-from girder.models import upload
-import dive_utils
 from typing import Any, Dict
 
+from girder.models import upload
 from girder.models.folder import Folder
 from girder.models.item import Item
 from girder.models.token import Token
 
+import dive_utils
+from dive_tasks.tasks import UPGRADE_JOB_DEFAULT_URLS, convert_images, convert_video
 from dive_utils.constants import (
-    validVideoFormats,
     imageRegex,
-    videoRegex,
     safeImageRegex,
+    validVideoFormats,
+    videoRegex,
 )
-
 from dive_utils.models import MultiCamArgs
 
-from dive_tasks.tasks import (
-    UPGRADE_JOB_DEFAULT_URLS,
-    convert_images,
-    convert_video,
-)
-from .utils import (
-    get_or_create_auxiliary_folder,
-)
-
 from .transforms import GetPathFromItemId
+from .utils import get_or_create_auxiliary_folder
 
 
 def process_multicam_folder(user, folder, args: MultiCamArgs):

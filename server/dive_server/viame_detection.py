@@ -22,7 +22,7 @@ from dive_server.utils import (
     saveTracks,
     verify_dataset,
 )
-from dive_utils import fromMeta, models, TRUTHY_META_VALUES
+from dive_utils import TRUTHY_META_VALUES, fromMeta, models
 from dive_utils.constants import (
     FPSMarker,
     ImageMimeTypes,
