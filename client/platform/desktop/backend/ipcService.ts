@@ -1,10 +1,10 @@
 import OS from 'os';
 import http from 'http';
 import { ipcMain } from 'electron';
-
+import { MultiCamImportArgs } from 'dive-common/apispec';
 import {
   DesktopJobUpdate, RunPipeline, RunTraining, Settings, ExportDatasetArgs,
-  MediaImportPayload, MultiCamImportArgs,
+  MediaImportPayload,
 } from 'platform/desktop/constants';
 
 import linux from './native/linux';
