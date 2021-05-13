@@ -6,7 +6,8 @@ import {
   Pipe, Pipelines, SaveAttributeArgs, TrainingConfigs,
 } from 'dive-common/apispec';
 import {
-  calibrationFileTypes, inputAnnotationFileTypes, inputAnnotationTypes, otherImageTypes,
+  calibrationFileTypes, fileVideoTypes, inputAnnotationFileTypes,
+  inputAnnotationTypes, otherImageTypes,
   otherVideoTypes, websafeImageTypes, websafeVideoTypes,
 } from 'dive-common/constants';
 import girderRest from '../plugins/girder';
@@ -162,7 +163,8 @@ Promise<{ canceled: boolean; filePaths: string[]; fileList?: File[]; root?: stri
   if (datasetType === 'image-sequence') {
     input.accept = baseTypes.concat(websafeImageTypes).concat(otherImageTypes).join(',');
   } else if (datasetType === 'video') {
-    input.accept = baseTypes.concat(websafeVideoTypes).concat(otherVideoTypes).join(',');
+    input.accept = baseTypes.concat(websafeVideoTypes).concat(otherVideoTypes)
+      .concat(fileVideoTypes.map((item) => `.${item}`)).join(',');
   } else if (datasetType === 'calibration') {
     input.accept = calibrationFileTypes.map((item) => `.${item}`).join(',');
   }
