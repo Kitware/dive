@@ -135,9 +135,14 @@ export default defineComponent({
             if (ret.fileList?.length) {
               emit('add-calibration-file', ret.fileList[0]);
             }
-          } else if (importType.value === 'multi' && ret.root) {
-            folderList.value[folder] = ret.root;
-            emit('add-multicam-files', { root: ret.root, files: ret.fileList });
+          } else if (importType.value === 'multi') {
+            if (ret.root) {
+              folderList.value[folder] = ret.root;
+              emit('add-multicam-files', { root: folder, files: ret.fileList });
+            } else {
+              folderList.value[folder] = path;
+              emit('add-multicam-files', { root: folder, files: ret.fileList });
+            }
           } else if (importType.value === 'keyword' && ret.root) {
             keywordFolder.value = ret.root;
             pendingImportPayload.value = await props.importMedia(ret.filePaths);

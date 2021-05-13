@@ -470,7 +470,7 @@ class Viame(Resource):
         # So we need to rearrange the uploaded data into proper sub folders based on the input args
         print(args)
         validated = models.MultiCamArgs(**args)
-        output_meta = process_multicam_folder(folder, validated)
+        output_meta = process_multicam_folder(user, folder, validated)
         if output_meta is not None:
             folder['meta']['multiCam'] = output_meta
             folder["meta"][DatasetMarker] = True

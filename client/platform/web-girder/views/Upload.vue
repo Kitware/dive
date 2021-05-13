@@ -200,7 +200,6 @@ export default defineComponent({
       //Lets go through all files and modify any duplicates
       let mediaList: File[] = [];
       const folderList: Record<string, string[]> = {};
-      console.log(args);
       if ((args as MultiCamImportKeywordArgs).globList !== undefined) {
         const keywordArgs = (args as MultiCamImportKeywordArgs);
         //We need to divide by glob list into different folders

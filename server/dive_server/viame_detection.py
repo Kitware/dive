@@ -22,7 +22,7 @@ from dive_server.utils import (
     saveTracks,
     verify_dataset,
 )
-from dive_utils import fromMeta, models
+from dive_utils import fromMeta, models, TRUTHY_META_VALUES
 from dive_utils.constants import (
     FPSMarker,
     ImageMimeTypes,
@@ -50,20 +50,35 @@ class ViameDetection(Resource):
         videoUrl = None
         video = None
 
+        if folder['meta']['multiCamera'] in TRUTHY_META_VALUES:
+            item = Item().findOne(
+                {
+                    'folderId': folder['_id'],
+                    'meta.codec': 'h264',
+                    'meta.source_video': {
+                        '$in': [
+                            # In a previous version, source_video was unset
+                            None,
+                            False,
+                        ]
+                    },
+                }
+            )
         # Find a video tagged with an h264 codec left by the transcoder
-        item = Item().findOne(
-            {
-                'folderId': getCloneRoot(self.getCurrentUser(), folder)['_id'],
-                'meta.codec': 'h264',
-                'meta.source_video': {
-                    '$in': [
-                        # In a previous version, source_video was unset
-                        None,
-                        False,
-                    ]
-                },
-            }
-        )
+        else:
+            item = Item().findOne(
+                {
+                    'folderId': getCloneRoot(self.getCurrentUser(), folder)['_id'],
+                    'meta.codec': 'h264',
+                    'meta.source_video': {
+                        '$in': [
+                            # In a previous version, source_video was unset
+                            None,
+                            False,
+                        ]
+                    },
+                }
+            )
         if item:
             video = Item().childFiles(item)[0]
             videoUrl = (
