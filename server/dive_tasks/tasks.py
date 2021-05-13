@@ -20,6 +20,7 @@ from GPUtil import getGPUs
 
 from dive_tasks.pipeline_discovery import discover_configs
 from dive_tasks.utils import (
+    check_canceled,
     download_source_media,
     organize_folder_for_training,
     stream_subprocess,
@@ -128,8 +129,9 @@ def upgrade_pipelines(
 ):
     """Install addons from zip files over HTTP"""
     conf = Config()
+    context: dict = {}
     manager: JobManager = self.job_manager
-    if self.canceled:
+    if check_canceled(self, context):
         manager.updateStatus(JobStatus.CANCELED)
         return
 
@@ -148,7 +150,7 @@ def upgrade_pipelines(
         else:
             manager.write(f'Skipping download of {zipfile_path}\n')
         addons_to_update_update.append(zipfile_path)
-        if self.canceled:
+        if check_canceled(self, context):
             manager.updateStatus(JobStatus.CANCELED)
             return
 
@@ -168,7 +170,7 @@ def upgrade_pipelines(
         z = zipfile.ZipFile(zipfile_path)
         z.extractall(conf.addon_extracted_path)
 
-    if self.canceled:
+    if check_canceled(self, context):
         # Remove everything
         shutil.rmtree(conf.addon_extracted_path)
         manager.updateStatus(JobStatus.CANCELED)
@@ -183,8 +185,9 @@ def upgrade_pipelines(
 @app.task(bind=True, acks_late=True, ignore_result=True)
 def run_pipeline(self: Task, params: PipelineJob):
     conf = Config()
+    context: dict = {}
     manager: JobManager = self.job_manager
-    if self.canceled:
+    if check_canceled(self, context):
         manager.updateStatus(JobStatus.CANCELED)
         return
 
@@ -277,8 +280,10 @@ def run_pipeline(self: Task, params: PipelineJob):
         executable='/bin/bash',
         env=conf.gpu_process_env,
     )
-    stream_subprocess(process, self, manager, process_err_file, cleanup=cleanup)
-    if self.canceled:
+    stream_subprocess(
+        process, self, context, manager, process_err_file, cleanup=cleanup
+    )
+    if check_canceled(self, context):
         return
 
     if Path(track_output_file).exists() and os.path.getsize(track_output_file):
@@ -313,9 +318,10 @@ def train_pipeline(
     :param config: string name of the input configuration
     """
     conf = Config()
+    context: dict = {}
     gc: GirderClient = self.girder_client
     manager: JobManager = self.job_manager
-    if self.canceled:
+    if check_canceled(self, context):
         manager.updateStatus(JobStatus.CANCELED)
         return
 
@@ -394,8 +400,8 @@ def train_pipeline(
                 cwd=training_output_path,
                 env=conf.gpu_process_env,
             )
-            stream_subprocess(process, self, manager, process_err_file)
-            if self.canceled:
+            stream_subprocess(process, self, context, manager, process_err_file)
+            if check_canceled(self, context):
                 return
 
             # Check that there are results in the output path
@@ -429,9 +435,10 @@ def convert_video(self: Task, path, folderId, auxiliaryFolderId, itemId):
         with contextlib.suppress(FileNotFoundError):
             os.remove(output_path)
 
+    context: dict = {}
     gc: GirderClient = self.girder_client
     manager: JobManager = self.job_manager
-    if self.canceled:
+    if check_canceled(self, context):
         manager.updateStatus(JobStatus.CANCELED)
         return
 
@@ -455,9 +462,9 @@ def convert_video(self: Task, path, folderId, auxiliaryFolderId, itemId):
         stderr=process_err_file,
     )
     stdout = stream_subprocess(
-        process, self, manager, process_err_file, keep_stdout=True
+        process, self, context, manager, process_err_file, keep_stdout=True
     )
-    if self.canceled:
+    if check_canceled(self, context):
         return
 
     jsoninfo = json.loads(stdout)
@@ -491,8 +498,10 @@ def convert_video(self: Task, path, folderId, auxiliaryFolderId, itemId):
         stderr=process_err_file,
     )
 
-    stream_subprocess(process, self, manager, process_err_file, cleanup=cleanup)
-    if self.canceled:
+    stream_subprocess(
+        process, self, context, manager, process_err_file, cleanup=cleanup
+    )
+    if check_canceled(self, context):
         return
 
     manager.updateStatus(JobStatus.PUSHING_OUTPUT)
@@ -532,9 +541,10 @@ def convert_images(self: Task, folderId):
 
     Returns the number of images successfully converted.
     """
+    context: dict = {}
     gc: GirderClient = self.girder_client
     manager: JobManager = self.job_manager
-    if self.canceled:
+    if check_canceled(self, context):
         manager.updateStatus(JobStatus.CANCELED)
         return
 
@@ -568,8 +578,8 @@ def convert_images(self: Task, folderId):
                 stdout=subprocess.PIPE,
                 stderr=process_err_file,
             )
-            stream_subprocess(process, self, manager, process_err_file)
-            if self.canceled:
+            stream_subprocess(process, self, context, manager, process_err_file)
+            if check_canceled(self, context):
                 return
 
             gc.uploadFileToFolder(folderId, new_item_path)

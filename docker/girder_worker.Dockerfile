@@ -8,8 +8,6 @@ RUN chmod +x /tini
 # VIAME install at /opt/noaa/viame/
 # VIAME pipelines at /opt/noaa/viame/configs/pipelines/
 
-ENV BROKER_CONNECTION_TIMEOUT 2
-
 WORKDIR /home/viame_girder
 
 # BEGIN: Porting girder worker install from girder/girder_worker Dockerfile.py3

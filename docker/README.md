@@ -84,10 +84,9 @@ This image contains both the backend and client.
 | GIRDER_ADMIN_USER | `admin` | admin username |
 | GIRDER_ADMIN_PASS | `letmein` | admin password |
 | CELERY_BROKER_URL | `amqp://guest:guest@rabbit/` | rabbitmq connection string |
-| BROKER_CONNECTION_TIMEOUT | `2` | rabbitmq connection timeout |
 | WORKER_API_URL | `http://girder:8080/api/v1` | Address for workers to reach web server |
 
-[Read more about configuring girder.](https://girder.readthedocs.io/en/latest/)
+You can also pass [girder configuration](https://girder.readthedocs.io/en/latest/) and [celery configuration](https://docs.celeryproject.org/en/stable/userguide/configuration.html#std-setting-broker_connection_timeout).
 
 ### Worker config
 
@@ -97,12 +96,15 @@ This image contains a celery worker to run VIAME pipelines and transcoding jobs.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| BROKER_CONNECTION_TIMEOUT | `2` | rabbitmq connection timeout |
 | WORKER_WATCHING_QUEUES | null | one of `celery`, `pipelines`, `training` |
+| WORKER_CONCURRENCY | `# of CPU cores` | max concurrnet jobs. **Change this if you run training** |
+| WORKER_GPU_UUID | null | leave empty to use all GPUs.  Specify UUID to use specific device |
 | CELERY_BROKER_URL | null | rabbitmq connection string |
 | DIVE_USERNAME | null | Username to start private queue processor |
 | DIVE_PASSWORD | null | Password for private queue processor |
 | DIVE_API_URL  | `https://viame.kitware.com/api/v1` | Remote URL to authenticate against |
+
+You can also pass [regular celery configuration variables](https://docs.celeryproject.org/en/stable/userguide/configuration.html#std-setting-broker_connection_timeout).
 
 ## Running the GPU Job Runner in standalone mode
 
@@ -115,13 +117,14 @@ You can run a standalone worker to process private jobs from VIAME Web.
 * Enable the private user queue for your jobs by visiting [the jobs page](https://viame.kitware.com/#/jobs)
 * Run a worker using the docker command below
 
-> **Note**: The `--volume` mount maps the host installtion to `/tmp/addons/extracted:ro`.  You may need to change the source from `/opt/noaa/viame` depending on your install location, but **you should not** change the destination.
+> **Note**: The `--volume` mount maps to the host installtion.  You may need to change the source from `/opt/noaa/viame` depending on your install location, but **you should not** change the destination from `/tmp/addons/extracted`.
 
 ``` bash
 docker run --rm --name dive_worker \
   --gpus all \
   --ipc host \
   --volume "/opt/noaa/viame/:/tmp/addons/extracted:ro" \
+  -e "WORKER_CONCURRENCY=4" \
   -e "DIVE_USERNAME=username" \
   -e "DIVE_PASSWORD=CHANGEME" \
   -e "DIVE_API_URL=https://viame.kitware.com/api/v1" \

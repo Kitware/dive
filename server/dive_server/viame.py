@@ -30,7 +30,6 @@ from dive_utils.constants import (
     JOBCONST_TRAINING_INPUT_IDS,
     SETTINGS_CONST_JOBS_CONFIGS,
     DatasetMarker,
-    DetectionMarker,
     ForeignMediaIdMarker,
     PublishedMarker,
     UserPrivateQueueEnabledMarker,
@@ -279,7 +278,7 @@ class Viame(Resource):
 
         # Ensure the folder to upload results to exists
         results_folder = training_output_folder(user)
-
+        job_is_private = user.get(UserPrivateQueueEnabledMarker, False)
         newjob = train_pipeline.apply_async(
             queue=self._get_queue_name("training"),
             kwargs=dict(
@@ -292,12 +291,10 @@ class Viame(Resource):
                 girder_job_title=(
                     f"Running training on folder: {', '.join(folder_names)}"
                 ),
-                girder_job_type="training",
+                girder_job_type="private" if job_is_private else "training",
             ),
         )
-        newjob.job[JOBCONST_PRIVATE_QUEUE] = user.get(
-            UserPrivateQueueEnabledMarker, False
-        )
+        newjob.job[JOBCONST_PRIVATE_QUEUE] = job_is_private
         newjob.job[JOBCONST_TRAINING_INPUT_IDS] = folderIds
         newjob.job[JOBCONST_RESULTS_FOLDER_ID] = str(results_folder['_id'])
         newjob.job[JOBCONST_TRAINING_CONFIG] = config
@@ -385,6 +382,7 @@ class Viame(Resource):
             Conversion of CSV annotations into track JSON
         """
         user = self.getCurrentUser()
+        job_is_private = user.get(UserPrivateQueueEnabledMarker, False)
         auxiliary = get_or_create_auxiliary_folder(folder, user)
         isClone = fromMeta(folder, ForeignMediaIdMarker, None) is not None
 
@@ -405,11 +403,10 @@ class Viame(Resource):
                         itemId=str(item["_id"]),
                         girder_job_title=f"Converting {item['_id']} to a web friendly format",
                         girder_client_token=str(token["_id"]),
+                        girder_job_type="private" if job_is_private else "convert",
                     ),
                 )
-                newjob.job[JOBCONST_PRIVATE_QUEUE] = user.get(
-                    UserPrivateQueueEnabledMarker, False
-                )
+                newjob.job[JOBCONST_PRIVATE_QUEUE] = job_is_private
                 Job().save(newjob.job)
 
             # transcode IMAGERY if necessary
@@ -427,11 +424,10 @@ class Viame(Resource):
                         folderId=folder["_id"],
                         girder_client_token=str(token["_id"]),
                         girder_job_title=f"Converting {folder['_id']} to a web friendly format",
+                        girder_job_type="private" if job_is_private else "convert",
                     ),
                 )
-                newjob.job[JOBCONST_PRIVATE_QUEUE] = user.get(
-                    UserPrivateQueueEnabledMarker, False
-                )
+                newjob.job[JOBCONST_PRIVATE_QUEUE] = job_is_private
                 Job().save(newjob.job)
 
             elif imageItems.count() > 0:

@@ -8,8 +8,8 @@ export default defineComponent({
   name: 'Jobs',
   components: { GirderJobList },
   setup() {
-    const privateQueueEnabled = ref(restClient.user.user_private_queue_enabled);
-    const loading = ref(false);
+    const privateQueueEnabled = ref(false);
+    const loading = ref(true);
 
     function getId(data: GirderModel | string) {
       try {
@@ -28,6 +28,12 @@ export default defineComponent({
       privateQueueEnabled.value = resp.user_private_queue_enabled;
       loading.value = false;
     }
+
+    restClient.fetchUser()
+      .then((user) => {
+        privateQueueEnabled.value = user.user_private_queue_enabled;
+        loading.value = false;
+      });
 
     return {
       privateQueueEnabled,
@@ -117,6 +123,7 @@ export default defineComponent({
           <v-switch
             :input-value="privateQueueEnabled"
             :loading="loading"
+            :disabled="loading"
             label="Enable private runner queue"
             hide-details
             @change="setPrivateQueueEnabled"
@@ -160,7 +167,7 @@ export default defineComponent({
           <pre class="code-container">docker run --rm --name dive_worker \
       --gpus all \
       --ipc host \
-      --volume "/opt/noaa/viame/:/tmp/addons/extracted:rw" \
+      --volume "/opt/noaa/viame:/tmp/addons/extracted:ro" \
       -e "DIVE_USERNAME=username" \
       -e "DIVE_PASSWORD=CHANGEME" \
       kitware/viame-worker:latest</pre>

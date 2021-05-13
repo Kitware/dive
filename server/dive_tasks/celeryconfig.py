@@ -1,7 +1,7 @@
 import os
-from logging import error, info, warn
+from logging import info, warn
 
-from girder_client import AuthenticationError, GirderClient
+from girder_client import GirderClient
 
 from dive_utils.constants import UserPrivateQueueEnabledMarker
 
@@ -35,10 +35,10 @@ if dive_username and dive_password:
     creds = diveclient.post(f'rabbit_user_queues/user/{me["_id"]}')
     broker_url = creds['broker_url']
     queue_name = f"{me['login']}@private"
-    if not me[UserPrivateQueueEnabledMarker]:
+    if not me.get(UserPrivateQueueEnabledMarker, False):
         warn(" Private queues not enabled for this user.")
         warn(" You can visit https://viame.kitware/com/#jobs to change these settings")
-        exit(1)
+    info("========================")
     task_default_queue = queue_name
 
 if broker_url is None:
@@ -46,7 +46,10 @@ if broker_url is None:
 
 broker_heartbeat = False
 worker_send_task_events = False
-
+# https://docs.celeryproject.org/en/stable/userguide/configuration.html#std-setting-worker_prefetch_multiplier
+worker_prefetch_multiplier = 1
+# https://docs.celeryproject.org/en/v4.4.6/userguide/configuration.html#broker-connection-timeout
+broker_connection_timeout = 12.0
 # Remote control is necessary to handle cancellation
 # Needs celery.pidbox, reply.celery.pidbox, uuid.reply.celery.pidbox, celery@uuid.celery.pidbox
 worker_enable_remote_control = True

@@ -15,9 +15,28 @@ from dive_utils.constants import ImageSequenceType, TypeMarker, VideoType
 from dive_utils.types import GirderModel
 
 
+def check_canceled(task: Task, context: dict):
+    # Only check for cancellation up to every 30 seconds
+    # because it's a costly check.
+    if not context.get('timeout_count'):
+        context['timeout_count'] = 0
+    now = datetime.now()
+    if now - context.get('last_checked', now) > timedelta(seconds=30):
+        context['last_checked'] = now
+        try:
+            return task.canceled
+        except TimeoutError as err:
+            context['timeout_count'] += 1
+            print(
+                f"Timeout n={context['timeout_count']} when checking for cancellation. {err}"
+            )
+    return False
+
+
 def stream_subprocess(
     process: Popen,
     task: Task,
+    context: dict,
     manager: JobManager,
     stderr_file: IO[bytes],
     keep_stdout: bool = False,
@@ -34,7 +53,6 @@ def stream_subprocess(
     :param cleanup: a function to invoke if job errors or is canceled
     """
     start_time = datetime.now()
-    last_check = datetime.now()
     stdout = ""
 
     if process.stdout is None:
@@ -47,28 +65,17 @@ def stream_subprocess(
         if keep_stdout:
             stdout += line_str
 
-        if (datetime.now() - last_check) > timedelta(seconds=30):
-            # Only check for cancellation up to every 30 seconds
-            # because it's a costly check.
-            last_check = datetime.now()
-            try:
-                if task.canceled:
-                    # Can never be sure what signal a process will respond to.
-                    process.send_signal(signal.SIGTERM)
-                    process.send_signal(signal.SIGKILL)
-                    break
-            except TimeoutError as err:
-                print(
-                    f"Timeout when checking for cancellation.  You may have errors reaching RabbitMQ. {err}"
-                )
-                pass
+        if check_canceled(task, context):
+            # Can never be sure what signal a process will respond to.
+            process.send_signal(signal.SIGTERM)
+            process.send_signal(signal.SIGKILL)
 
     # flush logs
     manager._flush()
     # Wait for exit up to 30 seconds after kill
     code = process.wait(30)
 
-    if task.canceled:
+    if check_canceled(task, context):
         manager.write('\nCanceled during subprocess run.\n')
         manager.updateStatus(JobStatus.CANCELED)
         stderr_file.close()

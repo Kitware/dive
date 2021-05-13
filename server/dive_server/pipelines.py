@@ -156,6 +156,7 @@ def run_pipeline(
         detection_csv = ensure_csv_detections_file(folder, detection, user)
 
     move_existing_result_to_auxiliary_folder(folder, user)
+    job_is_private = user.get(UserPrivateQueueEnabledMarker, False)
 
     params: PipelineJob = {
         "input_folder": folder_id_str,
@@ -170,10 +171,10 @@ def run_pipeline(
             params=params,
             girder_job_title=f"Running {pipeline['name']} on {str(folder['name'])}",
             girder_client_token=str(token["_id"]),
-            girder_job_type="pipelines",
+            girder_job_type="private" if job_is_private else "pipelines",
         ),
     )
-    newjob.job[JOBCONST_PRIVATE_QUEUE] = user.get(UserPrivateQueueEnabledMarker, False)
+    newjob.job[JOBCONST_PRIVATE_QUEUE] = job_is_private
     newjob.job[JOBCONST_DATASET_ID] = folder_id_str
     newjob.job[JOBCONST_RESULTS_FOLDER_ID] = folder_id_str
     newjob.job[JOBCONST_PIPELINE_NAME] = pipeline['name']
