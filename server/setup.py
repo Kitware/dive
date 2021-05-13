@@ -8,7 +8,7 @@ requirements = [
     "girder==3.1.5.dev8",
     "diva-boiler",
     "girder_jobs==3.0.3",
-    "girder-worker==0.8.1",
+    "girder_worker==0.8.1",
     "girder_worker_utils==0.8.5",
     "pydantic==1.8.1",
     "pyrabbit2==1.0.7",  # For rabbitmq_user_queues plugin
