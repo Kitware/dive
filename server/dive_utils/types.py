@@ -19,6 +19,7 @@ class GirderModel(TypedDict):
     created: str
     creatorId: str
     description: str
+    login: str
     meta: Dict[str, Any]
     name: str
     parentCollection: str

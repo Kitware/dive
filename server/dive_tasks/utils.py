@@ -1,10 +1,10 @@
 import shutil
 import signal
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from subprocess import Popen
 from tempfile import mktemp
-from typing import IO, Callable, List, Optional, Union
+from typing import IO, Callable, List, Optional
 
 from girder_client import GirderClient
 from girder_worker.task import Task
@@ -14,10 +14,38 @@ from dive_utils import fromMeta
 from dive_utils.constants import ImageSequenceType, TypeMarker, VideoType
 from dive_utils.types import GirderModel
 
+TIMEOUT_COUNT = 'timeout_count'
+TIMEOUT_LAST_CHECKED = 'last_checked'
+TIMEOUT_CHECK_INTERVAL = 30
+
+
+def check_canceled(task: Task, context: dict, force=True):
+    """
+    Only check for canceled task every interval unless force is true (default).
+    This is an expensive operation that round-trips to the message broker.
+    """
+    if not context.get(TIMEOUT_COUNT):
+        context[TIMEOUT_COUNT] = 0
+    now = datetime.now()
+    if (
+        (now - context.get(TIMEOUT_LAST_CHECKED, now))
+        > timedelta(seconds=TIMEOUT_CHECK_INTERVAL)
+    ) or force:
+        context[TIMEOUT_LAST_CHECKED] = now
+        try:
+            return task.canceled
+        except TimeoutError as err:
+            context[TIMEOUT_COUNT] += 1
+            print(
+                f"Timeout N={context[TIMEOUT_COUNT]} for this task when checking for cancellation. {err}"
+            )
+    return False
+
 
 def stream_subprocess(
     process: Popen,
     task: Task,
+    context: dict,
     manager: JobManager,
     stderr_file: IO[bytes],
     keep_stdout: bool = False,
@@ -45,18 +73,18 @@ def stream_subprocess(
         manager.write(line_str)
         if keep_stdout:
             stdout += line_str
-        if task.canceled:
+
+        if check_canceled(task, context, force=False):
             # Can never be sure what signal a process will respond to.
             process.send_signal(signal.SIGTERM)
             process.send_signal(signal.SIGKILL)
-            break
 
     # flush logs
     manager._flush()
     # Wait for exit up to 30 seconds after kill
     code = process.wait(30)
 
-    if task.canceled:
+    if check_canceled(task, context):
         manager.write('\nCanceled during subprocess run.\n')
         manager.updateStatus(JobStatus.CANCELED)
         stderr_file.close()
