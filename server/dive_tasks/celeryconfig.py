@@ -1,5 +1,5 @@
 import os
-from logging import info, warn, error
+from logging import error, info, warn
 
 from girder_client import AuthenticationError, GirderClient
 
