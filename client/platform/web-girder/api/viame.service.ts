@@ -134,6 +134,8 @@ function postProcess(folderId: string) {
 function multiCamPostProcess(folderId: string,
   args: { defaultDisplay: string; folderList: Record<string, string[]>; calibrationFile: string}) {
   return girderRest.post(`viame/multicam_postprocess/${folderId}`, args);
+}
+
 async function setUsePrivateQueue(userId: string, value = false): Promise<{
   'user_private_queue_enabled': boolean;
 }> {
@@ -156,7 +158,6 @@ async function getValidWebImages(folderId: string) {
   });
   return data;
 }
-
 async function openFromDisk(datasetType: DatasetType | 'calibration' | 'annotation', directory = false):
 Promise<{ canceled: boolean; filePaths: string[]; fileList?: File[]; root?: string }> {
   const input: HTMLInputElement = document.createElement('input');
@@ -177,7 +178,7 @@ Promise<{ canceled: boolean; filePaths: string[]; fileList?: File[]; root?: stri
   } else if (datasetType === 'calibration') {
     input.accept = calibrationFileTypes.map((item) => `.${item}`).join(',');
   }
-  return new Promise(((resolve) => {
+  return new Promise((resolve) => {
     input.onchange = (event) => {
       if (event) {
         const { files } = event.target as HTMLInputElement;
@@ -221,7 +222,7 @@ Promise<{ canceled: boolean; filePaths: string[]; fileList?: File[]; root?: stri
       });
     };
     input.click();
-  }));
+  });
 }
 
 export {
