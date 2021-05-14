@@ -134,6 +134,15 @@ function postProcess(folderId: string) {
 function multiCamPostProcess(folderId: string,
   args: { defaultDisplay: string; folderList: Record<string, string[]>; calibrationFile: string}) {
   return girderRest.post(`viame/multicam_postprocess/${folderId}`, args);
+async function setUsePrivateQueue(userId: string, value = false): Promise<{
+  'user_private_queue_enabled': boolean;
+}> {
+  const { data } = await girderRest.put(`viame/user/${userId}/use_private_queue`, null, {
+    params: {
+      privateQueueEnabled: value,
+    },
+  });
+  return data;
 }
 
 async function validateUploadGroup(names: string[]): Promise<ValidationResponse> {
@@ -228,6 +237,7 @@ export {
   runTraining,
   saveMetadata,
   saveAttributes,
+  setUsePrivateQueue,
   validateUploadGroup,
   getValidWebImages,
   openFromDisk,

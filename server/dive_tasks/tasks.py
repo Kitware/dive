@@ -20,6 +20,7 @@ from GPUtil import getGPUs
 
 from dive_tasks.pipeline_discovery import discover_configs
 from dive_tasks.utils import (
+    check_canceled,
     download_source_media,
     organize_folder_for_training,
     stream_subprocess,
@@ -27,13 +28,14 @@ from dive_tasks.utils import (
 from dive_utils import fromMeta
 from dive_utils.constants import (
     DatasetMarker,
-    DefaultVideoFPS,
     FPSMarker,
     ImageSequenceType,
     TrainedPipelineCategory,
     TrainedPipelineMarker,
     TypeMarker,
     VideoType,
+    imageRegex,
+    safeImageRegex,
 )
 from dive_utils.types import AvailableJobSchema, GirderModel, PipelineJob
 
@@ -81,7 +83,7 @@ class Config:
         )
 
         self.viame_install_path = Path(self.viame_install_directory)
-        assert self.viame_install_path.exists(), "VIAME Base install directory missing"
+        assert self.viame_install_path.exists(), "VIAME Base install directory missing."
         self.viame_setup_script = self.viame_install_path / "setup_viame.sh"
         assert self.viame_setup_script.is_file(), "VIAME Setup Script missing"
         self.viame_training_executable = (
@@ -94,7 +96,7 @@ class Config:
         # The subdirectory within VIAME_INSTALL_PATH where pipelines can be found
         self.pipeline_subdir = 'configs/pipelines'
         self.viame_pipeine_path = self.viame_install_path / self.pipeline_subdir
-        assert self.viame_pipeine_path.exists(), "VIAME common pipe directory missing"
+        assert self.viame_pipeine_path.exists(), "VIAME common pipe directory missing."
 
         self.addon_root_path = Path(self.addon_root_directory)
         self.addon_zip_path = self.addon_root_path / 'zips'
@@ -119,7 +121,7 @@ class Config:
         return pipeline_path
 
 
-@app.task(bind=True, acks_late=True)
+@app.task(bind=True, acks_late=True, ignore_result=True)
 def upgrade_pipelines(
     self: Task,
     urls: List[str] = UPGRADE_JOB_DEFAULT_URLS,
@@ -127,7 +129,12 @@ def upgrade_pipelines(
 ):
     """Install addons from zip files over HTTP"""
     conf = Config()
+    context: dict = {}
     manager: JobManager = self.job_manager
+    if check_canceled(self, context):
+        manager.updateStatus(JobStatus.CANCELED)
+        return
+
     gc: GirderClient = self.girder_client
     # zipfiles to extract after download is complete
     addons_to_update_update: List[Path] = []
@@ -143,9 +150,9 @@ def upgrade_pipelines(
         else:
             manager.write(f'Skipping download of {zipfile_path}\n')
         addons_to_update_update.append(zipfile_path)
-        if self.canceled:
+        if check_canceled(self, context, force=False):
             manager.updateStatus(JobStatus.CANCELED)
-            return JobStatus.CANCELED
+            return
 
     # remove and recreate the existing addon pipeline directory
     shutil.rmtree(conf.addon_extracted_path)
@@ -163,22 +170,27 @@ def upgrade_pipelines(
         z = zipfile.ZipFile(zipfile_path)
         z.extractall(conf.addon_extracted_path)
 
-    if self.canceled:
+    if check_canceled(self, context):
         # Remove everything
         shutil.rmtree(conf.addon_extracted_path)
         manager.updateStatus(JobStatus.CANCELED)
         gc.post('viame/update_job_configs', json=EMPTY_JOB_SCHEMA)
-        return JobStatus.CANCELED
+        return
 
     # finally, crawl the new files and report results
     summary = discover_configs(conf.get_extracted_pipeline_path())
     gc.post('viame/update_job_configs', json=summary)
 
 
-@app.task(bind=True, acks_late=True)
+@app.task(bind=True, acks_late=True, ignore_result=True)
 def run_pipeline(self: Task, params: PipelineJob):
     conf = Config()
+    context: dict = {}
     manager: JobManager = self.job_manager
+    if check_canceled(self, context):
+        manager.updateStatus(JobStatus.CANCELED)
+        return
+
     gc: GirderClient = self.girder_client
     manager.updateStatus(JobStatus.FETCHING_INPUT)
 
@@ -208,6 +220,12 @@ def run_pipeline(self: Task, params: PipelineJob):
         pipeline_path = trained_pipeline_folder / pipeline["pipe"]
     else:
         pipeline_path = conf.get_extracted_pipeline_path() / pipeline["pipe"]
+
+    assert pipeline_path.exists(), (
+        "Requested pipeline could not be found."
+        " Make sure that VIAME is installed correctly and all addons have loaded."
+        f" Job asked for {pipeline_path} but it does not exist"
+    )
 
     # Download source media
     input_folder: GirderModel = gc.getFolder(input_folder_id)
@@ -262,8 +280,10 @@ def run_pipeline(self: Task, params: PipelineJob):
         executable='/bin/bash',
         env=conf.gpu_process_env,
     )
-    stream_subprocess(process, self, manager, process_err_file, cleanup=cleanup)
-    if self.canceled:
+    stream_subprocess(
+        process, self, context, manager, process_err_file, cleanup=cleanup
+    )
+    if check_canceled(self, context):
         return
 
     if Path(track_output_file).exists() and os.path.getsize(track_output_file):
@@ -278,7 +298,7 @@ def run_pipeline(self: Task, params: PipelineJob):
     gc.post(f'viame/postprocess/{output_folder_id}', data={"skipJobs": True})
 
 
-@app.task(bind=True, acks_late=True)
+@app.task(bind=True, acks_late=True, ignore_result=True)
 def train_pipeline(
     self: Task,
     results_folder: GirderModel,
@@ -298,8 +318,12 @@ def train_pipeline(
     :param config: string name of the input configuration
     """
     conf = Config()
+    context: dict = {}
     gc: GirderClient = self.girder_client
     manager: JobManager = self.job_manager
+    if check_canceled(self, context):
+        manager.updateStatus(JobStatus.CANCELED)
+        return
 
     pipeline_base_path = Path(conf.get_extracted_pipeline_path())
     config_file = pipeline_base_path / config
@@ -376,8 +400,8 @@ def train_pipeline(
                 cwd=training_output_path,
                 env=conf.gpu_process_env,
             )
-            stream_subprocess(process, self, manager, process_err_file)
-            if self.canceled:
+            stream_subprocess(process, self, context, manager, process_err_file)
+            if check_canceled(self, context):
                 return
 
             # Check that there are results in the output path
@@ -400,7 +424,7 @@ def train_pipeline(
             gc.upload(f"{training_results_path}/*", girder_output_folder["_id"])
 
 
-@app.task(bind=True, acks_late=True)
+@app.task(bind=True, acks_late=True, ignore_result=True)
 def convert_video(self: Task, path, folderId, auxiliaryFolderId, itemId):
     # Delete is true, so the tempfile is deleted when the block closes.
     # We are only using this to get a name, and recreating it below.
@@ -411,8 +435,12 @@ def convert_video(self: Task, path, folderId, auxiliaryFolderId, itemId):
         with contextlib.suppress(FileNotFoundError):
             os.remove(output_path)
 
+    context: dict = {}
     gc: GirderClient = self.girder_client
     manager: JobManager = self.job_manager
+    if check_canceled(self, context):
+        manager.updateStatus(JobStatus.CANCELED)
+        return
 
     # Extract metadata
     file_name = os.path.join(path, os.listdir(path)[0])
@@ -434,9 +462,9 @@ def convert_video(self: Task, path, folderId, auxiliaryFolderId, itemId):
         stderr=process_err_file,
     )
     stdout = stream_subprocess(
-        process, self, manager, process_err_file, keep_stdout=True
+        process, self, context, manager, process_err_file, keep_stdout=True
     )
-    if self.canceled:
+    if check_canceled(self, context):
         return
 
     jsoninfo = json.loads(stdout)
@@ -470,8 +498,10 @@ def convert_video(self: Task, path, folderId, auxiliaryFolderId, itemId):
         stderr=process_err_file,
     )
 
-    stream_subprocess(process, self, manager, process_err_file, cleanup=cleanup)
-    if self.canceled:
+    stream_subprocess(
+        process, self, context, manager, process_err_file, cleanup=cleanup
+    )
+    if check_canceled(self, context):
         return
 
     manager.updateStatus(JobStatus.PUSHING_OUTPUT)
@@ -511,16 +541,25 @@ def convert_images(self: Task, folderId):
 
     Returns the number of images successfully converted.
     """
+    context: dict = {}
     gc: GirderClient = self.girder_client
     manager: JobManager = self.job_manager
+    if check_canceled(self, context):
+        manager.updateStatus(JobStatus.CANCELED)
+        return
 
     items = gc.listItem(folderId)
-    skip_item = (
-        lambda item: item["name"].endswith(".png")
-        or item["name"].endswith(".jpeg")
-        or item["name"].endswith(".jpg")
-    )
-    items_to_convert = [item for item in items if not skip_item(item)]
+    # Start here
+    items_to_convert = [
+        item
+        for item in items
+        if (
+            (
+                imageRegex.search(item["name"])
+                and not safeImageRegex.search(item["name"])
+            )
+        )
+    ]
 
     count = 0
     with tempfile.TemporaryDirectory() as temp:
@@ -539,8 +578,8 @@ def convert_images(self: Task, folderId):
                 stdout=subprocess.PIPE,
                 stderr=process_err_file,
             )
-            stream_subprocess(process, self, manager, process_err_file)
-            if self.canceled:
+            stream_subprocess(process, self, context, manager, process_err_file)
+            if check_canceled(self, context):
                 return
 
             gc.uploadFileToFolder(folderId, new_item_path)
@@ -551,5 +590,3 @@ def convert_images(self: Task, folderId):
         str(folderId),
         {"annotate": True},  # mark the parent folder as able to annotate.
     )
-
-    return count

@@ -6,7 +6,7 @@ from girder.api import access
 from girder.api.describe import Description, autoDescribeRoute, describeRoute
 from girder.api.rest import Resource
 from girder.constants import AccessType
-from girder.exceptions import GirderException, RestException
+from girder.exceptions import RestException
 from girder.models.folder import Folder
 from girder.models.item import Item
 from girder.models.setting import Setting
@@ -24,6 +24,7 @@ from dive_tasks.tasks import (
 from dive_utils import TRUTHY_META_VALUES, fromMeta, models, strNumericCompare
 from dive_utils.constants import (
     JOBCONST_PIPELINE_NAME,
+    JOBCONST_PRIVATE_QUEUE,
     JOBCONST_RESULTS_FOLDER_ID,
     JOBCONST_TRAINING_CONFIG,
     JOBCONST_TRAINING_INPUT_IDS,
@@ -31,8 +32,10 @@ from dive_utils.constants import (
     DatasetMarker,
     ForeignMediaIdMarker,
     PublishedMarker,
+    UserPrivateQueueEnabledMarker,
     csvRegex,
     imageRegex,
+    jsonRegex,
     safeImageRegex,
     videoRegex,
     ymlRegex,
@@ -49,8 +52,8 @@ from .utils import (
     detections_item,
     get_or_create_auxiliary_folder,
     getCloneRoot,
-    getTrackAndAttributesFromCSV,
-    saveCSVImportAttributes,
+    process_csv,
+    process_json,
     saveTracks,
     verify_dataset,
 )
@@ -76,6 +79,13 @@ class Viame(Resource):
         self.route("PUT", ("attributes",), self.save_attributes)
         self.route("POST", ("validate_files",), self.validate_files)
         self.route("GET", ("valid_images",), self.get_valid_images)
+        self.route("PUT", ("user", ":id", "use_private_queue"), self.use_private_queue)
+
+    def _get_queue_name(self, default="celery"):
+        user = self.getCurrentUser()
+        if user.get(UserPrivateQueueEnabledMarker, False):
+            return f'{user["login"]}@private'
+        return default
 
     @access.admin
     @autoDescribeRoute(
@@ -221,7 +231,8 @@ class Viame(Resource):
         .jsonParam("pipeline", "The pipeline to run on the dataset", required=True)
     )
     def run_pipeline_task(self, folder, pipeline: PipelineDescription):
-        return run_pipeline(self.getCurrentUser(), folder, pipeline)
+        user = self.getCurrentUser()
+        return run_pipeline(user, folder, pipeline, self._get_queue_name("pipelines"))
 
     @access.user
     @autoDescribeRoute(
@@ -269,9 +280,9 @@ class Viame(Resource):
 
         # Ensure the folder to upload results to exists
         results_folder = training_output_folder(user)
-
+        job_is_private = user.get(UserPrivateQueueEnabledMarker, False)
         newjob = train_pipeline.apply_async(
-            queue="training",
+            queue=self._get_queue_name("training"),
             kwargs=dict(
                 results_folder=results_folder,
                 source_folder_list=folder_list,
@@ -282,9 +293,10 @@ class Viame(Resource):
                 girder_job_title=(
                     f"Running training on folder: {', '.join(folder_names)}"
                 ),
-                girder_job_type="training",
+                girder_job_type="private" if job_is_private else "training",
             ),
         )
+        newjob.job[JOBCONST_PRIVATE_QUEUE] = job_is_private
         newjob.job[JOBCONST_TRAINING_INPUT_IDS] = folderIds
         newjob.job[JOBCONST_RESULTS_FOLDER_ID] = str(results_folder['_id'])
         newjob.job[JOBCONST_TRAINING_CONFIG] = config
@@ -306,16 +318,20 @@ class Viame(Resource):
         csvs = [f for f in files if csvRegex.search(f)]
         images = [f for f in files if imageRegex.search(f)]
         ymls = [f for f in files if ymlRegex.search(f)]
+        jsons = [f for f in files if jsonRegex.search(f)]
         if len(videos) and len(images):
             ok = False
             message = "Do not upload images and videos in the same batch."
         elif len(csvs) > 1:
             ok = False
             message = "Can only upload a single CSV Annotation per import"
+        elif len(jsons) > 1:
+            ok = False
+            message = "Can only upload a single JSON Annotation per import"
         elif len(csvs) == 1 and len(ymls):
             ok = False
             message = "Cannot mix annotation import types"
-        elif len(videos) > 1 and (len(csvs) or len(ymls)):
+        elif len(videos) > 1 and (len(csvs) or len(ymls) or len(jsons)):
             ok = False
             message = (
                 "Annotation upload is not supported when multiple videos are uploaded"
@@ -333,7 +349,7 @@ class Viame(Resource):
             "message": message,
             "type": mediatype,
             "media": images + videos,
-            "annotations": csvs + ymls,
+            "annotations": csvs + ymls + jsons,
         }
 
     @access.user
@@ -368,6 +384,7 @@ class Viame(Resource):
             Conversion of CSV annotations into track JSON
         """
         user = self.getCurrentUser()
+        job_is_private = user.get(UserPrivateQueueEnabledMarker, False)
         auxiliary = get_or_create_auxiliary_folder(folder, user)
         isClone = fromMeta(folder, ForeignMediaIdMarker, None) is not None
 
@@ -379,18 +396,20 @@ class Viame(Resource):
             )
 
             for item in videoItems:
-                convert_video.delay(
-                    path=GetPathFromItemId(str(item["_id"])),
-                    folderId=str(item["folderId"]),
-                    auxiliaryFolderId=auxiliary["_id"],
-                    itemId=str(item["_id"]),
-                    girder_job_title=(
-                        "Converting {} to a web friendly format".format(
-                            str(item["_id"])
-                        )
+                newjob = convert_video.apply_async(
+                    queue=self._get_queue_name(),
+                    kwargs=dict(
+                        path=GetPathFromItemId(str(item["_id"])),
+                        folderId=str(item["folderId"]),
+                        auxiliaryFolderId=auxiliary["_id"],
+                        itemId=str(item["_id"]),
+                        girder_job_title=f"Converting {item['_id']} to a web friendly format",
+                        girder_client_token=str(token["_id"]),
+                        girder_job_type="private" if job_is_private else "convert",
                     ),
-                    girder_client_token=str(token["_id"]),
                 )
+                newjob.job[JOBCONST_PRIVATE_QUEUE] = job_is_private
+                Job().save(newjob.job)
 
             # transcode IMAGERY if necessary
             imageItems = Folder().childItems(
@@ -401,13 +420,17 @@ class Viame(Resource):
             )
 
             if imageItems.count() > safeImageItems.count():
-                convert_images.delay(
-                    folderId=folder["_id"],
-                    girder_client_token=str(token["_id"]),
-                    girder_job_title=(
-                        f"Converting {folder['_id']} to a web friendly format",
+                newjob = convert_images.apply_async(
+                    queue=self._get_queue_name(),
+                    kwargs=dict(
+                        folderId=folder["_id"],
+                        girder_client_token=str(token["_id"]),
+                        girder_job_title=f"Converting {folder['_id']} to a web friendly format",
+                        girder_job_type="private" if job_is_private else "convert",
                     ),
                 )
+                newjob.job[JOBCONST_PRIVATE_QUEUE] = job_is_private
+                Job().save(newjob.job)
 
             elif imageItems.count() > 0:
                 folder["meta"][DatasetMarker] = True
@@ -426,20 +449,8 @@ class Viame(Resource):
 
             Folder().save(folder)
 
-        # transform CSV if necessasry
-        csvItems = Folder().childItems(
-            folder,
-            filters={"lowerName": {"$regex": csvRegex}},
-            sort=[("created", pymongo.DESCENDING)],
-        )
-        if csvItems.count() >= 1:
-            file = Item().childFiles(csvItems.next())[0]
-            (tracks, attributes) = getTrackAndAttributesFromCSV(file)
-            saveTracks(folder, tracks, user)
-            saveCSVImportAttributes(folder, attributes, user)
-            csvItems.rewind()
-            for item in csvItems:
-                Item().move(item, auxiliary)
+        process_csv(folder, user)
+        process_json(folder, user)
 
         return folder
 
@@ -573,3 +584,25 @@ class Viame(Resource):
             images,
             key=functools.cmp_to_key(unwrapItem),
         )
+
+    @access.user
+    @autoDescribeRoute(
+        Description('Set user use private queue')
+        .modelParam("id", description='user id', model=User, level=AccessType.ADMIN)
+        .param(
+            "privateQueueEnabled",
+            description="Set private queue enabled",
+            paramType='query',
+            dataType='boolean',
+            default=None,
+        )
+    )
+    def use_private_queue(self, user: dict, privateQueueEnabled: bool):
+        if privateQueueEnabled is not None:
+            user[UserPrivateQueueEnabledMarker] = privateQueueEnabled
+            User().save(user)
+        return {
+            UserPrivateQueueEnabledMarker: user.get(
+                UserPrivateQueueEnabledMarker, False
+            ),
+        }

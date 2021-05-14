@@ -1,4 +1,4 @@
-from typing import Any, Dict, Generic, List, Optional, Tuple, TypeVar, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from pydantic import BaseModel, Field
 from typing_extensions import Literal
@@ -98,6 +98,11 @@ class SummaryItemSchema(BaseModel):
 
 class PublicDataSummary(BaseModel):
     label_summary_items: List[SummaryItemSchema]
+
+
+class PrivateQueueEnabledResponse(BaseModel):
+    enabled: bool
+    token: Optional[dict]
 
 
 # interpolate all features [a, b)

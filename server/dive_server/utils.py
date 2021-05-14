@@ -5,6 +5,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, Optional, Tuple, Type
 
+import pymongo
 from girder.constants import AccessType
 from girder.exceptions import GirderException, RestException
 from girder.models.file import File
@@ -22,6 +23,8 @@ from dive_utils.constants import (
     DetectionMarker,
     ForeignMediaIdMarker,
     PublishedMarker,
+    csvRegex,
+    jsonRegex,
 )
 from dive_utils.types import GirderModel
 
@@ -164,6 +167,44 @@ def verify_dataset(folder: GirderModel):
     if not asbool(fromMeta(folder, DatasetMarker, False)):
         raise RestException(f'Source folder is not a valid DIVE dataset')
     return True
+
+
+def process_csv(folder: GirderModel, user: GirderModel):
+    """If there's a CSV in the folder, process it as a detections object"""
+    csvItems = Folder().childItems(
+        folder,
+        filters={"lowerName": {"$regex": csvRegex}},
+        sort=[("created", pymongo.DESCENDING)],
+    )
+    if csvItems.count() >= 1:
+        auxiliary = get_or_create_auxiliary_folder(folder, user)
+        file = Item().childFiles(csvItems.next())[0]
+        (tracks, attributes) = getTrackAndAttributesFromCSV(file)
+        saveTracks(folder, tracks, user)
+        saveCSVImportAttributes(folder, attributes, user)
+        csvItems.rewind()
+        for item in csvItems:
+            Item().move(item, auxiliary)
+        return True
+    return False
+
+
+def process_json(folder: GirderModel, user: GirderModel):
+    # Find a json if it exists
+    jsonItems = list(
+        Folder().childItems(
+            folder,
+            filters={"lowerName": {"$regex": jsonRegex}},
+            sort=[("created", pymongo.DESCENDING)],
+        )
+    )
+    for item in jsonItems:
+        item['meta'][DetectionMarker] = str(folder['_id'])
+        Item().save(item)
+    if len(jsonItems):
+        move_existing_result_to_auxiliary_folder(folder, user)
+        return True
+    return False
 
 
 def getCloneRoot(owner: GirderModel, source_folder: GirderModel):
