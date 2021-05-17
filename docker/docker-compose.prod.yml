@@ -6,6 +6,7 @@ services:
       --log.level=${LOG_LEVEL:-DEBUG}
       --providers.docker=true
       --providers.docker.exposedByDefault=false
+      --providers.file.filename=/var/traefik/dynamic.yml
       --entrypoints.web.address=:80
       --entrypoints.websecure.address=:443
       --entrypoints.websecure.http.tls.certresolver=myresolver
@@ -21,14 +22,15 @@ services:
       - "traefik.http.routers.http-catchall.rule=HostRegexp(`{host:.+}`)"
       - "traefik.http.routers.http-catchall.middlewares=redirect-to-https-mddl@docker"
       - "traefik.http.middlewares.redirect-to-https-mddl.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.redirect-to-viame-mddl.redirectregex.regex="
     volumes:
       - "${LOCAL_MOUNT:-.}/traefik/letsencrypt:/letsencrypt"
+      - "./dynamic.yml:/var/traefik/dynamic.yml:ro"
     ports:
       - "80:80"
       - "443:443"
 
   rabbit:
-    command: /bin/true
     restart: always
 
   mongo:
