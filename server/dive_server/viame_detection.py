@@ -27,6 +27,8 @@ from dive_utils.constants import (
     FPSMarker,
     ImageMimeTypes,
     ImageSequenceType,
+    MultiCamMarker,
+    SingleMultiCamMarker,
     TypeMarker,
     VideoMimeTypes,
     VideoType,
@@ -50,7 +52,7 @@ class ViameDetection(Resource):
         videoUrl = None
         video = None
 
-        if folder['meta']['multiCamera'] in TRUTHY_META_VALUES:
+        if fromMeta(folder, SingleMultiCamMarker) in TRUTHY_META_VALUES:
             item = Item().findOne(
                 {
                     'folderId': folder['_id'],
@@ -319,8 +321,8 @@ class ViameDetection(Resource):
     )
     def get_multi_meta(self, folder):
         verify_dataset(folder)
-        if folder['meta']['multiCam'] is not None:
-            multiCam = folder['meta']['multiCam']
+        if folder['meta'][MultiCamMarker] is not None:
+            multiCam = folder['meta'][MultiCamMarker]
             base = multiCam['display']
             base_meta = multiCam['cameras'][base]
             if base_meta is not None:

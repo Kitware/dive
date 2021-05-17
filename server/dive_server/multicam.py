@@ -1,22 +1,33 @@
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from girder.models import upload
 from girder.models.folder import Folder
 from girder.models.item import Item
 from girder.models.token import Token
 
-import dive_utils
-from dive_tasks.tasks import UPGRADE_JOB_DEFAULT_URLS, convert_images, convert_video
+from dive_tasks.tasks import convert_images, convert_video
+from dive_utils import fromMeta
 from dive_utils.constants import (
+    CalibrationMarker,
+    MultiCamMarker,
+    SingleMultiCamMarker,
     imageRegex,
     safeImageRegex,
     validVideoFormats,
     videoRegex,
 )
 from dive_utils.models import MultiCamArgs
+from dive_utils.types import GirderModel
 
 from .transforms import GetPathFromItemId
 from .utils import get_or_create_auxiliary_folder
+
+
+def get_multicam_default_folder_id(folder):
+    if folder.get("meta", {}).get(MultiCamMarker):
+        multiCam = folder["meta"][MultiCamMarker]
+        if multiCam["cameras"][multiCam['display']]:
+            return multiCam["cameras"][multiCam['display']]['originalBaseId']
 
 
 def process_multicam_folder(user, folder, args: MultiCamArgs):
@@ -25,8 +36,6 @@ def process_multicam_folder(user, folder, args: MultiCamArgs):
     for key in args.folderList.keys():
         upload_folder = args.folderList[key]
         girder_folder = Folder().createFolder(folder, str(key))
-        girder_folder["meta"]["multiCamera"] = True
-        Folder().save(girder_folder)
         data_type = 'image-sequence'
         # If we have a single file most likely it is a video do a check on extension
         if len(upload_folder) == 1 and upload_folder[0].endswith(
@@ -46,12 +55,15 @@ def process_multicam_folder(user, folder, args: MultiCamArgs):
             'originalBaseId': girder_folder['_id'],
             'type': data_type,
         }
+        girder_folder["meta"][SingleMultiCamMarker] = True
+        girder_folder["meta"]["type"] = data_type
+        Folder().save(girder_folder)
         transcode_items(user, girder_folder)
     calibration_file = Item().findOne(
-        {'parentId': folder['_id'], "lowerName": args.calibrationFile}
+        {'folderId': folder['_id'], "name": args.calibrationFile}
     )
     if calibration_file is not None:
-        output_meta['calibration'] = calibration_file['_id']
+        output_meta[CalibrationMarker] = calibration_file['_id']
     return output_meta
 
 

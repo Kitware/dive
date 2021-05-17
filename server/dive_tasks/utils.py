@@ -1,3 +1,5 @@
+import pathlib
+import shlex
 import shutil
 import signal
 from datetime import datetime, timedelta
@@ -11,7 +13,14 @@ from girder_worker.task import Task
 from girder_worker.utils import JobManager, JobStatus
 
 from dive_utils import fromMeta
-from dive_utils.constants import ImageSequenceType, MultiType, TypeMarker, VideoType
+from dive_utils.constants import (
+    CalibrationMarker,
+    ImageSequenceType,
+    MultiCamMarker,
+    MultiType,
+    TypeMarker,
+    VideoType,
+)
 from dive_utils.types import GirderModel
 
 TIMEOUT_COUNT = 'timeout_count'
@@ -161,13 +170,13 @@ def download_source_media(
         girder_client.downloadFile(str(clip_meta['video']['_id']), destination_path)
         return [destination_path]
     elif fromMeta(folder, TypeMarker) == MultiType:
-        clip_meta = girder_client.get(
-            "viame_detection/clip_meta", {'folderId': folder['_id']}
-        )
-        cameras = clip_meta['multiCam']['cameras']
+        cameras = fromMeta(folder, MultiCamMarker)['cameras']
+        print(cameras)
         downloads = []
         for key in cameras.keys():
             camera = cameras[key]
+            camera_folder = Path(dest / key)
+            camera_folder.mkdir()
             base = camera['originalBaseId']
             destination_path = str(dest / key)
             if camera['type'] == ImageSequenceType:
@@ -176,10 +185,61 @@ def download_source_media(
                 )
                 for item in image_items:
                     girder_client.downloadItem(str(item["_id"]), str(destination_path))
-                    downloads.append(str(destination_path / item['name']))
+                    downloads.append(str(camera_folder / item['name']))
             elif camera['type'] == VideoType:
+                clip_meta = girder_client.get(
+                    "viame_detection/clip_meta", {'folderId': folder['_id']}
+                )
+                destination_path = str(camera_folder / clip_meta['video']['name'])
                 girder_client.downloadFile(str(base), destination_path)
                 downloads.append(destination_path)
+        # Multicamera calibration matrix addition
+        calibration_id = fromMeta(folder, MultiCamMarker)[CalibrationMarker]
+        if calibration_id is not None:
+            calibration_data = girder_client.get(f'item/{calibration_id}')
+            if calibration_data is not None:
+                girder_client.downloadItem(calibration_id, str(dest))
+                downloads.append(str(dest / calibration_data['name']))
+
         return downloads
     else:
         raise Exception(f"unexpected folder {str(folder)}")
+
+
+def write_multiCam_pipeline_inputs(
+    base_path: Path, image_media_list: List[str], input_folder: GirderModel
+):
+    multicam_meta = fromMeta(input_folder, MultiCamMarker)
+    cameras = multicam_meta['cameras']
+    counter = 0
+    input_arg_pair = {}
+    # media_list contains a sub folder for each item which needs to be written out
+    for key in cameras.keys():
+        file_name = f'{str(base_path)}/cam{counter + 1}_images.txt'  # This is locked in the pipeline for now
+        input_arg = f'cam{counter + 1}_iread'  # lock for the stereo pipeline as well
+        input_arg_pair[input_arg] = file_name
+        # Now we filter and write the image files
+        with open(base_path / f'cam{counter + 1}_images.txt', "w+") as img_list_file:
+            for item in image_media_list:
+                if f'/{key}/' in item:
+                    img_list_file.write(f'{item}\n')
+        counter = counter + 1
+
+    return input_arg_pair
+
+
+def get_multiCam_calibration_arg(
+    girder_client: GirderClient, image_media_list: List[str], input_folder: GirderModel
+):
+    multicam_meta = fromMeta(input_folder, MultiCamMarker)
+    if multicam_meta[CalibrationMarker] is not None:
+        calibration_id = multicam_meta[CalibrationMarker]
+        calibration_data = girder_client.get(f'item/{calibration_id}')
+        print(calibration_data)
+        if calibration_data is not None:
+            calibration_name = calibration_data['name']
+            print(f'Calibration Name: {calibration_name}')
+            for item in image_media_list:
+                if calibration_name in item:
+                    return f' -s measure:cal_fpath="{item}"'
+    return ''

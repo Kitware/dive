@@ -138,6 +138,7 @@ async function runPipeline(
     });
     if (meta.multiCam.calibration) {
       command.push(`-s measure:cal_fpath="${meta.multiCam.calibration}"`);
+      command.push(`-s measure:output_fpath="${trackOutput}"`);
     }
   } else if (pipeline.type === 'measurement') {
     throw new Error('Attempting run a multicam pipeline on non multicam data');

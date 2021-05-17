@@ -218,7 +218,7 @@ export default defineComponent({
       }
       const calibrationFile = multiCamCalibFile?.name;
       if (multiCamCalibFile !== null) {
-        //mediaList.push(multiCamCalibFile);
+        mediaList.push(multiCamCalibFile);
       }
       const fps = DefaultVideoFPS;
       //So now we take the args and modify the list of files we have to edit them

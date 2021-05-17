@@ -55,9 +55,14 @@ TypeMarker = "type"
 AssetstoreSourceMarker = "import_source"
 AssetstoreSourcePathMarker = "import_path"
 FPSMarker = "fps"
+# MultiCam Metadata markers
+MultiCamMarker = "multiCam"  # Metadata Marker for Group of Cam
+SingleMultiCamMarker = "multiCamera"  # Marker for data for one camera in multicam
+CalibrationMarker = "calibration"
 
 # Other constants
 TrainedPipelineCategory = "trained"
+StereoPipelineMarker = "measurement"
 
 # The name of the folder where any user specific data should be stored
 # (created as a folder of that user)

@@ -31,7 +31,9 @@ from dive_utils.constants import (
     SETTINGS_CONST_JOBS_CONFIGS,
     DatasetMarker,
     ForeignMediaIdMarker,
+    MultiCamMarker,
     PublishedMarker,
+    SingleMultiCamMarker,
     UserPrivateQueueEnabledMarker,
     csvRegex,
     imageRegex,
@@ -483,7 +485,7 @@ class Viame(Resource):
         validated = models.MultiCamArgs(**args)
         output_meta = process_multicam_folder(user, folder, validated)
         if output_meta is not None:
-            folder['meta']['multiCam'] = output_meta
+            folder['meta'][MultiCamMarker] = output_meta
             folder["meta"][DatasetMarker] = True
             Folder().save(folder)
         return output_meta
@@ -566,7 +568,7 @@ class Viame(Resource):
         )
     )
     def get_valid_images(self, folder):
-        if folder['meta']['multiCamera'] in TRUTHY_META_VALUES:
+        if folder['meta'][SingleMultiCamMarker] in TRUTHY_META_VALUES:
             images = Folder().childItems(
                 folder,
                 filters={"lowerName": {"$regex": safeImageRegex}},

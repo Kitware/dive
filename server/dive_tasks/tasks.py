@@ -22,14 +22,18 @@ from dive_tasks.pipeline_discovery import discover_configs
 from dive_tasks.utils import (
     check_canceled,
     download_source_media,
+    get_multiCam_calibration_arg,
     organize_folder_for_training,
     stream_subprocess,
+    write_multiCam_pipeline_inputs,
 )
 from dive_utils import fromMeta
 from dive_utils.constants import (
     DatasetMarker,
     FPSMarker,
     ImageSequenceType,
+    MultiType,
+    StereoPipelineMarker,
     TrainedPipelineCategory,
     TrainedPipelineMarker,
     TypeMarker,
@@ -255,6 +259,25 @@ def run_pipeline(self: Task, params: PipelineJob):
             f"-s detector_writer:file_name={shlex.quote(detector_output_file)}",
             f"-s track_writer:file_name={shlex.quote(track_output_file)}",
         ]
+    elif input_type == MultiType and pipeline["type"] == StereoPipelineMarker:
+        input_args = write_multiCam_pipeline_inputs(
+            input_path, input_media_list, input_folder
+        )
+        command = [
+            f"cd {input_path} &&",
+            f". {shlex.quote(str(conf.viame_setup_script))} &&",
+            "kwiver runner",
+            f"-p {shlex.quote(str(pipeline_path))}",
+            f"-s input:video_filename={shlex.quote(str(img_list_path))}",
+            f"-s detector_writer:file_name={shlex.quote(detector_output_file)}",
+            f"-s track_writer:file_name={shlex.quote(track_output_file)}",
+        ]
+        for arg in input_args.keys():
+            input_command = f'-s {arg}:video_filename="{input_args[arg]}"'
+            command.append(input_command)
+        # May require a calibration file
+        command.append(get_multiCam_calibration_arg(gc, input_media_list, input_folder))
+        command.append(f"-s measure:output_fpath={shlex.quote(track_output_file)}")
     else:
         raise ValueError('Unknown input type: {}'.format(input_type))
 
