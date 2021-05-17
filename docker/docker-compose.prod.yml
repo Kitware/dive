@@ -22,7 +22,6 @@ services:
       - "traefik.http.routers.http-catchall.rule=HostRegexp(`{host:.+}`)"
       - "traefik.http.routers.http-catchall.middlewares=redirect-to-https-mddl@docker"
       - "traefik.http.middlewares.redirect-to-https-mddl.redirectscheme.scheme=https"
-      - "traefik.http.middlewares.redirect-to-viame-mddl.redirectregex.regex="
     volumes:
       - "${LOCAL_MOUNT:-.}/traefik/letsencrypt:/letsencrypt"
       - "./dynamic.yml:/var/traefik/dynamic.yml:ro"
