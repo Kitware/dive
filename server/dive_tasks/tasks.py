@@ -85,6 +85,10 @@ class Config:
             'ADDON_ROOT_DIR',
             '/tmp/addons',
         )
+        self.kwiver_log_level = os.environ.get(
+            'KWIVER_DEFAULT_LOG_LEVEL',
+            'warn',
+        )
 
         self.viame_install_path = Path(self.viame_install_directory)
         assert self.viame_install_path.exists(), "VIAME Base install directory missing."
@@ -240,6 +244,7 @@ def run_pipeline(self: Task, params: PipelineJob):
         assert len(input_media_list) == 1, "Expected exactly 1 video"
         command = [
             f". {shlex.quote(str(conf.viame_setup_script))} &&",
+            f"KWIVER_DEFAULT_LOG_LEVEL={shlex.quote(conf.kwiver_log_level)}",
             "kwiver runner",
             "-s input:video_reader:type=vidl_ffmpeg",
             f"-p {shlex.quote(str(pipeline_path))}",
@@ -253,6 +258,7 @@ def run_pipeline(self: Task, params: PipelineJob):
             img_list_file.write('\n'.join(input_media_list))
         command = [
             f". {shlex.quote(str(conf.viame_setup_script))} &&",
+            f"KWIVER_DEFAULT_LOG_LEVEL={shlex.quote(conf.kwiver_log_level)}",
             "kwiver runner",
             f"-p {shlex.quote(str(pipeline_path))}",
             f"-s input:video_filename={shlex.quote(str(img_list_path))}",
@@ -399,6 +405,7 @@ def train_pipeline(
 
             command = [
                 f". {shlex.quote(str(conf.viame_setup_script))} &&",
+                f"KWIVER_DEFAULT_LOG_LEVEL={shlex.quote(conf.kwiver_log_level)}",
                 shlex.quote(str(conf.viame_training_executable)),
                 "-il",
                 shlex.quote(str(input_folder_file_list)),
