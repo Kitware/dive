@@ -16,7 +16,7 @@ calibrationFormats = {'npz'}
 videoRegex = re.compile(r"(\." + r"|\.".join(validVideoFormats) + ')$', re.IGNORECASE)
 imageRegex = re.compile(r"(\." + r"|\.".join(validImageFormats) + ')$', re.IGNORECASE)
 calibrationRegEx = re.compile(
-    r"(\." + r"|\.".join(validImageFormats) + ')$', re.IGNORECASE
+    r"(\." + r"|\.".join(calibrationFormats) + ')$', re.IGNORECASE
 )
 safeImageRegex = re.compile(
     r"(\." + r"|\.".join(webValidImageFormats) + ')$', re.IGNORECASE
@@ -56,7 +56,7 @@ AssetstoreSourceMarker = "import_source"
 AssetstoreSourcePathMarker = "import_path"
 FPSMarker = "fps"
 # MultiCam Metadata markers
-MultiCamMarker = "multiCam"  # Metadata Marker for Group of Cam
+MultiCamMarker = "multiCam"  # Metadata Marker for Group of Cameras
 SingleMultiCamMarker = "multiCamera"  # Marker for data for one camera in multicam
 CalibrationMarker = "calibration"
 

@@ -73,7 +73,7 @@ export default defineComponent({
     const stereo = ref(false);
     const multiCamOpenType = ref('image-sequence');
     const importMultiCamDialog = ref(false);
-    const girderUpload: Ref<null | GirderUpload > = ref(null);
+    const girderUpload: Ref<null | GirderUpload> = ref(null);
     let multiCamTempList: Record<string, File[]> = {};
     let multiCamCalibFile: File | null = null;
     /**

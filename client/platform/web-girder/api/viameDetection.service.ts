@@ -65,7 +65,7 @@ interface MultiMetaResponse {
   type: DatasetType;
 }
 async function getMultiMeta(folderId: string) {
-  const { data } = await girderRest.get('viame_detection/multi_meta', {
+  const { data } = await girderRest.get('viame_detection/multicam_meta', {
     params: { folderId },
   });
   return data as MultiMetaResponse;

@@ -43,7 +43,7 @@ class ViameDetection(Resource):
         self.route("GET", (), self.get_detection)
         self.route("PUT", (), self.save_detection)
         self.route("GET", ("clip_meta",), self.get_clip_meta)
-        self.route("GET", ("multi_meta",), self.get_multi_meta)
+        self.route("GET", ("multicam_meta",), self.get_multicam_meta)
         self.route("GET", (":id", "export"), self.get_export_urls)
         self.route("GET", (":id", "export_detections"), self.export_detections)
         self.route("GET", (":id", "export_all"), self.export_all)
@@ -319,7 +319,7 @@ class ViameDetection(Resource):
             level=AccessType.READ,
         )
     )
-    def get_multi_meta(self, folder):
+    def get_multicam_meta(self, folder):
         verify_dataset(folder)
         if folder['meta'][MultiCamMarker] is not None:
             multiCam = folder['meta'][MultiCamMarker]

@@ -56,7 +56,7 @@ function writeMultiCamPipelineInputs(jobWorkDir: string, meta: JsonMeta) {
     Object.values(meta.multiCam.cameras).forEach((list) => {
       const { originalBasePath } = list;
       const fileName = `cam${i + 1}_images.txt`; //This is locked in the pipeline for now
-      const inputArg = `cam${i + 1}_iread`; // lock for the stereo pipeline as well
+      const inputArg = `cam${i + 1}_imread`; // lock for the stereo pipeline as well
       InputArgFilePair[inputArg] = fileName;
       const inputFile = fs.createWriteStream(npath.join(jobWorkDir, fileName));
       list.originalImageFiles.forEach((image) => inputFile.write(`${npath.join(originalBasePath, image)}\n`));

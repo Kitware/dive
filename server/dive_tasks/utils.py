@@ -1,5 +1,3 @@
-import pathlib
-import shlex
 import shutil
 import signal
 from datetime import datetime, timedelta

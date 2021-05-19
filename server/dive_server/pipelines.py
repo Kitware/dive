@@ -71,8 +71,6 @@ def load_pipelines(user: User) -> Dict[str, PipelineCategory]:
     )
     static_pipelines = static_job_configs.get('pipelines', {})
     dynamic_pipelines = _load_dynamic_pipelines(user)
-    print(static_pipelines)
-    print(dynamic_pipelines)
     static_pipelines.update(dynamic_pipelines)
     return static_pipelines
 
