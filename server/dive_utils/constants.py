@@ -59,10 +59,14 @@ FPSMarker = "fps"
 MultiCamMarker = "multiCam"  # Metadata Marker for Group of Cameras
 SingleMultiCamMarker = "multiCamera"  # Marker for data for one camera in multicam
 CalibrationMarker = "calibration"
+SubTypeMarker = 'subType'
+StereoSubTypeMarker = 'stereo'
+MultiCamSubTypeMarker = 'multicam'
 
 # Other constants
 TrainedPipelineCategory = "trained"
 StereoPipelineMarker = "measurement"
+MultiCamPipelineMarker = ""  # Placeholder
 
 # The name of the folder where any user specific data should be stored
 # (created as a folder of that user)

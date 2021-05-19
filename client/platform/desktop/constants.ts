@@ -16,7 +16,7 @@ export interface Settings {
   dataPath: string;
 }
 
-export interface MultiCam {
+export interface MultiCamDesktop {
   cameras: Record<string, {
     type: 'image-sequence' | 'video';
     originalBasePath: string;
@@ -82,7 +82,7 @@ export interface JsonMeta extends DatasetMetaMutable {
   attributes?: Record<string, Attribute>;
 
   // Stereo or multi-camera datasets with uniform type (all images, all video)
-  multiCam?: MultiCam;
+  multiCam?: MultiCamDesktop;
 }
 
 export type DesktopMetadata = DatasetMeta & JsonMeta;

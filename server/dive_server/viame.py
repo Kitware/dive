@@ -568,7 +568,7 @@ class Viame(Resource):
         )
     )
     def get_valid_images(self, folder):
-        if folder['meta'][SingleMultiCamMarker] in TRUTHY_META_VALUES:
+        if fromMeta(folder, SingleMultiCamMarker) in TRUTHY_META_VALUES:
             images = Folder().childItems(
                 folder,
                 filters={"lowerName": {"$regex": safeImageRegex}},

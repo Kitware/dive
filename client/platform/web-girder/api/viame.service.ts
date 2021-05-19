@@ -12,6 +12,15 @@ import {
 } from 'dive-common/constants';
 import girderRest from '../plugins/girder';
 
+
+export interface MultiCamWeb {
+  cameras: Record<string, {
+    originalBaseId: string;
+    type: DatasetType;
+  }>;
+  display: string;
+  calibration: string;
+}
 interface HTMLFile extends File {
   webkitRelativePath?: string;
 }
@@ -165,6 +174,7 @@ Promise<{ canceled: boolean; filePaths: string[]; fileList?: File[]; root?: stri
   const baseTypes: string[] = inputAnnotationFileTypes.map((item) => `.${item}`);
   input.multiple = true;
   if (directory) {
+    // Webkit directory is necessary for loading a folder
     // eslint-disable-next-line @typescript-eslint/ban-ts-ignore
     //@ts-ignore
     input.webkitdirectory = true;

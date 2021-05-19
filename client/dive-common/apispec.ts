@@ -45,7 +45,7 @@ export interface MultiCamImportFolderArgs {
   defaultDisplay: string; // In multicam the default camera to display
   folderList: Record<string, string>; // Camera name and folder import for images or file for videos
   calibrationFile?: string; // NPZ calibation matrix file
-  type: 'image-sequence' | 'video';
+  type: DatasetType;
 }
 
 export interface MultiCamImportKeywordArgs {
@@ -57,6 +57,16 @@ export interface MultiCamImportKeywordArgs {
 }
 
 export type MultiCamImportArgs = MultiCamImportFolderArgs | MultiCamImportKeywordArgs;
+
+
+interface MultiCamMedia {
+  cameras: Record<string, {
+    type: DatasetType;
+    imageData: FrameImage[];
+    videoUrl: string | undefined;
+  }>;
+  display: string;
+}
 
 /**
  * The parts of metadata a user should be able to modify.
@@ -75,6 +85,8 @@ interface DatasetMeta extends DatasetMetaMutable {
   name: Readonly<string>;
   createdAt: Readonly<string>;
   attributes?: Readonly<Record<string, Attribute>>;
+  subType?: Readonly<'stereo' | 'multicam'>; // In future this could have stuff like IR/EO for other pipeline filtering
+  multiCamMedia?: Readonly<MultiCamMedia | null>;
 }
 
 interface Api {
@@ -127,4 +139,5 @@ export type {
   SaveDetectionsArgs,
   SaveAttributeArgs,
   TrainingConfigs,
+  MultiCamMedia,
 };

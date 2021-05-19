@@ -138,11 +138,10 @@ export default defineComponent({
           } else if (importType.value === 'multi') {
             if (ret.root) {
               folderList.value[folder] = ret.root;
-              emit('add-multicam-files', { root: folder, files: ret.fileList });
             } else {
               folderList.value[folder] = path;
-              emit('add-multicam-files', { root: folder, files: ret.fileList });
             }
+            emit('add-multicam-files', { root: folder, files: ret.fileList });
           } else if (importType.value === 'keyword' && ret.root) {
             keywordFolder.value = ret.root;
             pendingImportPayload.value = await props.importMedia(ret.filePaths);

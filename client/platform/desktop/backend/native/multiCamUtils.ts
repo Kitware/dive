@@ -1,8 +1,8 @@
 import npath from 'path';
 import fs from 'fs-extra';
 import {
-  DatasetType,
   FrameImage,
+  MultiCamMedia,
 } from 'dive-common/apispec';
 
 import { JsonMeta } from 'platform/desktop/constants';
@@ -72,45 +72,52 @@ function getMultiCamUrls(
   projectBasePath: string,
   makeMediaUrl: (path: string) => string,
 ) {
-  let imageData = [] as FrameImage[];
-  let videoUrl = '';
-  let type: DatasetType = 'image-sequence';
   if (projectMetaData.multiCam && projectMetaData.multiCam.display) {
     //Confirm we have a imageList for the display
     const displayCamera = projectMetaData.multiCam.cameras[projectMetaData.multiCam.display];
     if (!displayCamera) {
       throw new Error(`The default display of ${projectMetaData.multiCam.display} is not in the list of cameras`);
     }
-    if (displayCamera.type === 'image-sequence') {
-      let displayFilenames = displayCamera.originalImageFiles;
-      let { originalBasePath } = displayCamera;
-      // Filter transcoded images to use left/right files)
-      if (displayCamera.transcodedImagesFiles && displayCamera.transcodedImagesFiles.length) {
-        displayFilenames = displayCamera.transcodedImagesFiles;
-        originalBasePath = projectBasePath;
+    const multiCamMedia: MultiCamMedia = {
+      cameras: {},
+      display: projectMetaData.multiCam.display,
+    };
+
+    Object.entries(projectMetaData.multiCam.cameras).forEach(([key, value]) => {
+      let imageData = [] as FrameImage[];
+      let videoUrl = '';
+      if (value.type === 'image-sequence') {
+        let displayFilenames = value.originalImageFiles;
+        let { originalBasePath } = value;
+        // Filter transcoded images to use left/right files)
+        if (value.transcodedImagesFiles && value.transcodedImagesFiles.length) {
+          displayFilenames = value.transcodedImagesFiles;
+          originalBasePath = projectBasePath;
+        }
+        imageData = displayFilenames.map((filename: string) => ({
+          url: makeMediaUrl(npath.join(originalBasePath, filename)),
+          filename,
+        }));
+      } else if (value.type === 'video') {
+        let displayFilename = value.originalVideoFile;
+        let { originalBasePath } = displayCamera;
+        if (value.transcodedVideoFile) {
+          displayFilename = `${value.transcodedVideoFile}`;
+          originalBasePath = projectBasePath;
+        }
+        videoUrl = makeMediaUrl(npath.join(originalBasePath, displayFilename));
+      } else {
+        throw new Error('There is no default display for the multicam dataset');
       }
-      imageData = displayFilenames.map((filename: string) => ({
-        url: makeMediaUrl(npath.join(originalBasePath, filename)),
-        filename,
-      }));
-    } else if (displayCamera.type === 'video') {
-      let displayFilename = displayCamera.originalVideoFile;
-      let { originalBasePath } = displayCamera;
-      if (displayCamera.transcodedVideoFile) {
-        displayFilename = `${displayCamera.transcodedVideoFile}`;
-        originalBasePath = projectBasePath;
-      }
-      videoUrl = makeMediaUrl(npath.join(originalBasePath, displayFilename));
-    }
-    type = displayCamera.type;
-  } else {
-    throw new Error('There is no default display for the multicam dataset');
+      multiCamMedia.cameras[key] = {
+        imageData,
+        videoUrl,
+        type: value.type,
+      };
+    });
+    return multiCamMedia;
   }
-  return {
-    imageData,
-    videoUrl,
-    type,
-  };
+  throw new Error('There is no multiCam data associated with this');
 }
 
 function getMultiCamVideoPath(meta: JsonMeta) {

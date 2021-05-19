@@ -1,12 +1,14 @@
 import { Module } from 'vuex';
 
-import { ImageSequenceType, MediaTypes, VideoType } from 'dive-common/constants';
-import type { FrameImage } from 'dive-common/apispec';
+import {
+  ImageSequenceType, MediaTypes, VideoType,
+} from 'dive-common/constants';
+import type { FrameImage, MultiCamMedia } from 'dive-common/apispec';
 
 import type { GirderMetadataStatic, GirderMetadata } from 'platform/web-girder/constants';
 import { getFolder, getItemDownloadUri } from 'platform/web-girder/api/girder.service';
-import { getValidWebImages } from 'platform/web-girder/api/viame.service';
-import { getClipMeta, getMultiMeta } from 'platform/web-girder/api/viameDetection.service';
+import { getValidWebImages, MultiCamWeb } from 'platform/web-girder/api/viame.service';
+import { getClipMeta } from 'platform/web-girder/api/viameDetection.service';
 
 import { DatasetState, RootState } from './types';
 
@@ -33,6 +35,21 @@ function isGirderDatasetMeta(obj: any): obj is GirderMetadataStatic {
   return true;
 }
 
+async function getImageSequence(baseFolderId: string) {
+  const items = await getValidWebImages(baseFolderId);
+  return items.map((item) => ({
+    url: getItemDownloadUri(item._id),
+    filename: item.name,
+  }));
+}
+
+async function getVideoUrl(baseFolderId: string) {
+  const clipMeta = await getClipMeta(baseFolderId);
+  if (!clipMeta.videoUrl) {
+    throw new Error('Expected clipMeta.videoUrl, but was empty.');
+  }
+  return clipMeta.videoUrl;
+}
 const datasetModule: Module<DatasetState, RootState> = {
   namespaced: true,
   state: {
@@ -54,6 +71,7 @@ const datasetModule: Module<DatasetState, RootState> = {
 
       let videoUrl = '';
       let imageData = [] as FrameImage[];
+      let multiCamMedia: MultiCamMedia | null = null;
 
       if (!dsMeta) {
         throw new Error(`could not fetch dataset for id ${datasetId}`);
@@ -63,27 +81,42 @@ const datasetModule: Module<DatasetState, RootState> = {
         throw new Error(`girder folder ${datasetId} could not be parsed as dataset`);
       }
 
-      let baseType = dsMeta.type;
-      let baseFolderId = dsMeta._id;
+      const baseType = dsMeta.type;
+      const baseFolderId = dsMeta._id;
       /* Load media based on dataset */
-      if (dsMeta.type === 'multi') {
+      if (dsMeta.type === 'multi' && dsMeta.meta.multiCam) {
         //We need to get the default display data type
-        const response = await getMultiMeta(dsMeta._id);
-        baseType = response.type;
-        baseFolderId = response.folderId;
-      }
-      if (baseType === VideoType) {
-        const clipMeta = await getClipMeta(baseFolderId);
-        if (!clipMeta.videoUrl) {
-          throw new Error('Expected clipMeta.videoUrl, but was empty.');
+        const multiCam = (dsMeta.meta.multiCam as MultiCamWeb);
+        if (multiCam.cameras) {
+          const pairs = Object.entries(multiCam.cameras);
+          multiCamMedia = {
+            cameras: {},
+            display: multiCam.display,
+          };
+          for (let i = 0; i < pairs.length; i += 1) {
+            const [key, item] = pairs[i];
+            let subVideoUrl = '';
+            let subImageData = [] as FrameImage[];
+            if (item.type === VideoType) {
+              // eslint-disable-next-line no-await-in-loop
+              subVideoUrl = await getVideoUrl(item.originalBaseId);
+            } else if (item.type === ImageSequenceType) {
+              // eslint-disable-next-line no-await-in-loop
+              subImageData = await getImageSequence(item.originalBaseId);
+            } else {
+              throw new Error(`Unable to load media for dataset type: ${dsMeta.type}`);
+            }
+            multiCamMedia.cameras[key] = {
+              type: item.type,
+              videoUrl: subVideoUrl,
+              imageData: subImageData,
+            };
+          }
         }
-        videoUrl = clipMeta.videoUrl;
+      } else if (baseType === VideoType) {
+        videoUrl = await getVideoUrl(baseFolderId);
       } else if (baseType === ImageSequenceType) {
-        const items = await getValidWebImages(baseFolderId);
-        imageData = items.map((item) => ({
-          url: getItemDownloadUri(item._id),
-          filename: item.name,
-        }));
+        imageData = await getImageSequence(baseFolderId);
       } else {
         throw new Error(`Unable to load media for dataset type: ${dsMeta.type}`);
       }
@@ -92,6 +125,7 @@ const datasetModule: Module<DatasetState, RootState> = {
         ...dsMeta,
         videoUrl,
         imageData,
+        multiCamMedia,
       };
       meta.type = baseType;
       commit('set', { dataset: meta });

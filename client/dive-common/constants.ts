@@ -76,6 +76,9 @@ const inputAnnotationFileTypes = [
   'csv',
 ];
 
+const stereoPipelineMarker = 'measurement';
+const multiCamPipelineMarker = ''; //Placeholder
+
 export {
   DefaultVideoFPS,
   ImageSequenceType,
@@ -90,4 +93,6 @@ export {
   websafeVideoTypes,
   inputAnnotationTypes,
   inputAnnotationFileTypes,
+  stereoPipelineMarker,
+  multiCamPipelineMarker,
 };

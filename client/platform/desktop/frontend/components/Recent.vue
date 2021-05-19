@@ -99,16 +99,16 @@ export default defineComponent({
       }
     }
     function getTypeIcon(recent: JsonMetaCache) {
-      if (!recent.multiCam) {
-        if (recent.type === 'video') {
-          return 'mdi-file-video';
+      if (recent.type === 'multi') {
+        if (recent.subType === 'stereo') {
+          return 'mdi-binoculars';
         }
-        return 'mdi-image-multiple';
-      }
-      if (recent.multiCam && !recent.stereo) {
         return 'mdi-camera-burst';
       }
-      return 'mdi-binoculars';
+      if (recent.type === 'video') {
+        return 'mdi-file-video';
+      }
+      return 'mdi-image-multiple';
     }
 
     return {

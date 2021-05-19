@@ -15,7 +15,7 @@ Vue.use(Install);
  */
 export interface JsonMetaCache {
   version: number;
-  type: DatasetType;
+  type: DatasetType | 'multi';
   id: string;
   fps: number;
   name: string;
@@ -23,8 +23,7 @@ export interface JsonMetaCache {
   originalBasePath: string;
   originalVideoFile: string;
   transcodedVideoFile?: string;
-  multiCam?: boolean; // TODO: when DatasetType is updated we need to swap this to type
-  stereo?: boolean; // Contains stereo left/right pairs and calibration file
+  subType?: 'multicam' | 'stereo';
 }
 
 /**
@@ -88,6 +87,13 @@ function locateDuplicates(meta: JsonMeta) {
  * @param id dataset id path
  */
 function setRecents(meta: JsonMeta) {
+  let subType;
+  if (meta.multiCam?.cameras && meta.multiCam.cameras.left
+    && meta.multiCam.cameras.right && meta.multiCam.calibration) {
+    subType = 'stereo';
+  } else if (meta.multiCam) {
+    subType = 'mulitcam';
+  }
   Vue.set(datasets.value, meta.id, {
     version: meta.version,
     type: meta.type,
@@ -98,8 +104,7 @@ function setRecents(meta: JsonMeta) {
     originalBasePath: meta.originalBasePath,
     originalVideoFile: meta.originalVideoFile,
     transcodedVideoFile: meta.transcodedVideoFile,
-    multiCam: !!meta.multiCam,
-    stereo: meta.multiCam && meta.multiCam.calibration,
+    subType,
   } as JsonMetaCache);
   const values = Object.values(datasets.value);
   window.localStorage.setItem(RecentsKey, JSON.stringify(values));

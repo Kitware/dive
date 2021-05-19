@@ -11,6 +11,7 @@ import lockfile from 'proper-lockfile';
 import {
   DatasetType, MultiTrackRecord, Pipelines, SaveDetectionsArgs,
   FrameImage, DatasetMetaMutable, TrainingConfigs, SaveAttributeArgs,
+  MultiCamMedia,
 } from 'dive-common/apispec';
 import * as viameSerializers from 'platform/desktop/backend/serializers/viame';
 import {
@@ -190,16 +191,17 @@ async function loadMetadata(
 
   let videoUrl = '';
   let imageData = [] as FrameImage[];
-  let { type } = projectMetaData;
+  let multiCamMedia: MultiCamMedia | null = null;
+  const { type } = projectMetaData;
   /* Generate URLs against embedded media server from known file paths on disk */
   if (projectMetaData.type === 'multi') {
     // Returns the type of the defaultDisplay for the multicam
     if (!projectMetaData.multiCam) {
       throw new Error(`Dataset: ${projectMetaData.name} is of type multiCam or stereo but contains no multiCam data`);
     }
-    ({ videoUrl, imageData, type } = getMultiCamUrls(
+    multiCamMedia = getMultiCamUrls(
       projectMetaData, projectDirData.basePath, makeMediaUrl,
-    ));
+    );
   } else if (projectMetaData.type === 'video') {
     /* If the video has been transcoded, use that video */
     if (projectMetaData.transcodedVideoFile) {
@@ -230,6 +232,7 @@ async function loadMetadata(
     ...projectMetaData,
     videoUrl,
     imageData,
+    multiCamMedia,
   };
 }
 

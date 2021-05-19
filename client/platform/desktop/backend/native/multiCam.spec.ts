@@ -13,7 +13,7 @@ import type {
   DesktopJobUpdate,
   DesktopJobUpdater,
   Settings,
-  MultiCam,
+  MultiCamDesktop,
 } from 'platform/desktop/constants';
 
 import beginMultiCamImport from './multiCamImport';
@@ -52,7 +52,7 @@ mockfs(multiCamSetup.mockfs);
 type FolderTest = Record<string, {
   input: MultiCamImportFolderArgs;
   output: {
-    multiCam: MultiCam;
+    multiCam: MultiCamDesktop;
     mediaConvertList?: string[];
   };
 }>;
@@ -60,7 +60,7 @@ type FolderTest = Record<string, {
 type Keyword = Record<string, {
   input: MultiCamImportKeywordArgs;
   output: {
-    multiCam: MultiCam;
+    multiCam: MultiCamDesktop;
     mediaConvertList?: string[];
   };
 }>;

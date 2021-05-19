@@ -1,5 +1,6 @@
 from typing import Any, Dict, List
 
+import girder
 from girder.models import upload
 from girder.models.folder import Folder
 from girder.models.item import Item
@@ -10,7 +11,10 @@ from dive_utils import fromMeta
 from dive_utils.constants import (
     CalibrationMarker,
     MultiCamMarker,
+    MultiCamSubTypeMarker,
     SingleMultiCamMarker,
+    StereoSubTypeMarker,
+    SubTypeMarker,
     imageRegex,
     safeImageRegex,
     validVideoFormats,
@@ -64,6 +68,18 @@ def process_multicam_folder(user, folder, args: MultiCamArgs):
     )
     if calibration_file is not None:
         output_meta[CalibrationMarker] = calibration_file['_id']
+    # Classify the subType as either stereo or multicam for enabling proper pipelines
+    if (
+        'left' in args.folderList.keys()
+        and 'right' in args.folderList.keys()
+        and calibration_file is not None
+    ):
+        girder_folder["meta"][SubTypeMarker] = StereoSubTypeMarker
+    else:
+        girder_folder["meta"][SubTypeMarker] = MultiCamSubTypeMarker
+
+    Folder().save(girder_folder)
+
     return output_meta
 
 
