@@ -18,5 +18,5 @@ fi
 exec python3.7 \
     -m dive_tasks \
     -l info \
-    --without-gossip --without-heartbeat --without-mingle \
+    --without-gossip --without-mingle \
     $QUEUE_ARGUMENT $CONCURRENCY_ARGUMENT

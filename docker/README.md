@@ -100,6 +100,7 @@ This image contains a celery worker to run VIAME pipelines and transcoding jobs.
 | WORKER_CONCURRENCY | `# of CPU cores` | max concurrnet jobs. **Change this if you run training** |
 | WORKER_GPU_UUID | null | leave empty to use all GPUs.  Specify UUID to use specific device |
 | CELERY_BROKER_URL | null | rabbitmq connection string |
+| KWIVER_DEFAULT_LOG_LEVEL | `warn` | kwiver log level |
 | DIVE_USERNAME | null | Username to start private queue processor |
 | DIVE_PASSWORD | null | Password for private queue processor |
 | DIVE_API_URL  | `https://viame.kitware.com/api/v1` | Remote URL to authenticate against |
