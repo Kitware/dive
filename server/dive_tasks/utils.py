@@ -216,7 +216,7 @@ def write_multiCam_pipeline_inputs(
     # media_list contains a sub folder for each item which needs to be written out
     for key in cameras.keys():
         file_name = f'{str(base_path)}/cam{counter + 1}_images.txt'  # This is locked in the pipeline for now
-        input_arg = f'cam{counter + 1}_iread'  # lock for the stereo pipeline as well
+        input_arg = f'cam{counter + 1}_imread'  # lock for the stereo pipeline as well
         input_arg_pair[input_arg] = file_name
         # Now we filter and write the image files
         with open(base_path / f'cam{counter + 1}_images.txt', "w+") as img_list_file:

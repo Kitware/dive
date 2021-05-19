@@ -264,7 +264,6 @@ def run_pipeline(self: Task, params: PipelineJob):
             input_path, input_media_list, input_folder
         )
         command = [
-            f"cd {input_path} &&",
             f". {shlex.quote(str(conf.viame_setup_script))} &&",
             "kwiver runner",
             f"-p {shlex.quote(str(pipeline_path))}",
