@@ -284,7 +284,7 @@ export default Vue.extend({
               </v-btn>
               <v-chip
                 v-if="(item.meta && item.meta.subType)"
-                color="green"
+                color="blue"
                 x-small
                 outlined
                 class="my-0 mx-3"

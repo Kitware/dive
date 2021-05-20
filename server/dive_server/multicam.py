@@ -74,11 +74,11 @@ def process_multicam_folder(user, folder, args: MultiCamArgs):
         and 'right' in args.folderList.keys()
         and calibration_file is not None
     ):
-        girder_folder["meta"][SubTypeMarker] = StereoSubTypeMarker
+        folder["meta"][SubTypeMarker] = StereoSubTypeMarker
     else:
-        girder_folder["meta"][SubTypeMarker] = MultiCamSubTypeMarker
+        folder["meta"][SubTypeMarker] = MultiCamSubTypeMarker
 
-    Folder().save(girder_folder)
+    Folder().save(folder)
 
     return output_meta
 
