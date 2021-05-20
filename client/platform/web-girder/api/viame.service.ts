@@ -145,6 +145,38 @@ function multiCamPostProcess(folderId: string,
   return girderRest.post(`viame/multicam_postprocess/${folderId}`, args);
 }
 
+async function importAnnotation(parentId: string, file: HTMLFile) {
+  const resp = await girderRest.post('/file', null, {
+    params: {
+      parentType: 'folder',
+      parentId,
+      name: file.name,
+      size: file.size,
+      mimeType: file.type,
+    },
+  });
+  if (resp.status === 200) {
+    const uploadResponse = await girderRest.post('file/chunk', file, {
+      params: {
+        uploadId: resp.data._id,
+        offset: 0,
+      },
+      headers: { 'Content-Type': 'application/octet-stream' },
+    });
+    if (uploadResponse.status === 200) {
+      const final = await girderRest.post(`viame/postprocess/${parentId}`, null, {
+        params: {
+          skipJobs: true,
+        },
+      });
+      if (final.status === 200) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 async function setUsePrivateQueue(userId: string, value = false): Promise<{
   'user_private_queue_enabled': boolean;
 }> {
@@ -187,6 +219,9 @@ Promise<{ canceled: boolean; filePaths: string[]; fileList?: File[]; root?: stri
       .concat(fileVideoTypes.map((item) => `.${item}`)).join(',');
   } else if (datasetType === 'calibration') {
     input.accept = calibrationFileTypes.map((item) => `.${item}`).join(',');
+  } else if (datasetType === 'annotation') {
+    input.accept = inputAnnotationTypes
+      .concat(inputAnnotationFileTypes.map((item) => `.${item}`)).join(',');
   }
   return new Promise((resolve) => {
     input.onchange = (event) => {
@@ -243,6 +278,7 @@ export {
   makeViameFolder,
   postProcess,
   multiCamPostProcess,
+  importAnnotation,
   runPipeline,
   getTrainingConfigurations,
   runTraining,

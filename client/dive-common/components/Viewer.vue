@@ -127,6 +127,7 @@ export default defineComponent({
       removeTrack,
       getNewTrackId,
       removeTrack: tsRemoveTrack,
+      clearAllTracks,
     } = useTrackStore({ markChangesPending });
 
     const {
@@ -322,57 +323,65 @@ export default defineComponent({
     );
 
     /** Trigger data load */
-    Promise.all([
-      loadMetadata(props.id).then((meta) => {
-        populateTypeStyles(meta.customTypeStyling);
-        if (meta.customTypeStyling) {
-          importTypes(Object.keys(meta.customTypeStyling), false);
-        }
-        if (meta.attributes) {
-          loadAttributes(meta.attributes);
-        }
-        populateConfidenceFilters(meta.confidenceFilters);
-        datasetName.value = meta.name;
-        frameRate.value = meta.fps;
-        imageData.value = cloneDeep(meta.imageData) as FrameImage[];
-        videoUrl.value = meta.videoUrl;
-        datasetType.value = meta.type as DatasetType;
-        // TODO: Data is ready for MultiView, just setting it to default display for now
-        if (meta.multiCamMedia) {
-          if (meta.multiCamMedia.cameras[meta.multiCamMedia.display]) {
-            const defaultCamera = meta.multiCamMedia.cameras[meta.multiCamMedia.display];
-            imageData.value = cloneDeep(defaultCamera.imageData) as FrameImage[];
-            videoUrl.value = defaultCamera.videoUrl;
-            datasetType.value = defaultCamera.type;
+    const loadData = async () => (
+      Promise.all([
+        loadMetadata(props.id).then((meta) => {
+          populateTypeStyles(meta.customTypeStyling);
+          if (meta.customTypeStyling) {
+            importTypes(Object.keys(meta.customTypeStyling), false);
           }
+          if (meta.attributes) {
+            loadAttributes(meta.attributes);
+          }
+          populateConfidenceFilters(meta.confidenceFilters);
+          datasetName.value = meta.name;
+          frameRate.value = meta.fps;
+          imageData.value = cloneDeep(meta.imageData) as FrameImage[];
+          videoUrl.value = meta.videoUrl;
+          datasetType.value = meta.type as DatasetType;
+          // TODO: Data is ready for MultiView, just setting it to default display for now
+          if (meta.multiCamMedia) {
+            if (meta.multiCamMedia.cameras[meta.multiCamMedia.display]) {
+              const defaultCamera = meta.multiCamMedia.cameras[meta.multiCamMedia.display];
+              imageData.value = cloneDeep(defaultCamera.imageData) as FrameImage[];
+              videoUrl.value = defaultCamera.videoUrl;
+              datasetType.value = defaultCamera.type;
+            }
+          }
+        }),
+        loadDetections(props.id).then((tracks) => {
+          Object.values(tracks).forEach(
+            (trackData) => insertTrack(Track.fromJSON(trackData), { imported: true }),
+          );
+        }),
+      ]).then(() => {
+        loaded.value = true;
+      }).catch((err) => {
+        loaded.value = false;
+        // Cleaner displaying of interal errors for desktop
+        if (err.response?.data && err.response?.status === 500 && !err.response?.data?.message) {
+          const fullText = err.response.data;
+          const start = fullText.indexOf('Error:');
+          const html = (fullText.substr(start, fullText.indexOf('<br>') - start));
+          const errorEl = document.createElement('div');
+          errorEl.innerHTML = html;
+          loadError.value = errorEl.innerText
+            .concat(". If you don't know how to resolve this, please contact the server administrator.");
+          throw err;
         }
-      }),
-      loadDetections(props.id).then((tracks) => {
-        Object.values(tracks).forEach(
-          (trackData) => insertTrack(Track.fromJSON(trackData), { imported: true }),
-        );
-      }),
-    ]).then(() => {
-      loaded.value = true;
-    }).catch((err) => {
-      loaded.value = false;
-      // Cleaner displaying of interal errors for desktop
-      if (err.response?.data && err.response?.status === 500 && !err.response?.data?.message) {
-        const fullText = err.response.data;
-        const start = fullText.indexOf('Error:');
-        const html = (fullText.substr(start, fullText.indexOf('<br>') - start));
-        const errorEl = document.createElement('div');
-        errorEl.innerHTML = html;
-        loadError.value = errorEl.innerText
-          .concat(". If you don't know how to resolve this, please contact the server administrator.");
+        loadError.value = (err.response?.data?.message || err).toString()
+          .concat(" If you don't know how to resolve this, please contact the server administrator.");
         throw err;
-      }
-      loadError.value = (err.response?.data?.message || err).toString()
-        .concat(" If you don't know how to resolve this, please contact the server administrator.");
-      throw err;
-    });
-
+      })
+    );
+    loadData();
+    const reloadData = async () => {
+      clearAllTracks();
+      loaded.value = false;
+      await loadData();
+    };
     return {
+      reloadData,
       /* props */
       confidenceThreshold,
       datasetName,

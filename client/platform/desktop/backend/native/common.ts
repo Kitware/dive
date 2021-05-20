@@ -543,7 +543,6 @@ async function _initializeProjectDir(settings: Settings, jsonMeta: JsonMeta): Pr
   await fs.ensureDir(projectDir);
   return projectDir;
 }
-
 /**
  * Begin a dataset import.
  */
@@ -739,6 +738,57 @@ async function finalizeMediaImport(
   return jsonMeta;
 }
 
+async function annotationImport(
+  settings: Settings,
+  id: string,
+  annotationPath: string,
+  allowEmpty = true,
+) {
+  const projectInfo = getProjectDir(settings, id);
+  const validatedInfo = await getValidatedProjectDir(settings, id);
+  // If it is a json file we need to make sure it has the proper name
+  if (JsonTrackFileName.test(npath.basename(annotationPath))) {
+    const statResult = await fs.stat(annotationPath);
+    if (statResult.isFile()) {
+      const release = await _acquireLock(projectInfo.basePath, projectInfo.basePath, 'tracks');
+      try {
+        await fs.move(
+          validatedInfo.trackFileAbsPath,
+          npath.join(
+            validatedInfo.auxDirAbsPath,
+            npath.basename(validatedInfo.trackFileAbsPath),
+          ),
+        );
+      } catch (err) {
+        // Some part of the project dir didn't exist
+        if (!allowEmpty) throw err;
+      }
+      const time = moment().format('MM-DD-YYYY_hh-mm-ss.SSS');
+      const newFileName = `result_${time}.json`;
+
+      const newPath = npath.join(projectInfo.basePath, npath.basename(newFileName));
+      await fs.copy(
+        annotationPath,
+        newPath,
+      );
+      await release();
+      return true;
+    }
+    return false;
+  }
+  // If not a JSON we do a process for the CSV
+  const newPath = npath.join(projectInfo.basePath, npath.basename(annotationPath));
+  await fs.copy(
+    annotationPath,
+    newPath,
+  );
+  const results = await processOtherAnnotationFiles(settings, id, [newPath]);
+  if (results.processedFiles) {
+    return true;
+  }
+  return false;
+}
+
 /**
  * After media conversion we need to remove the transcodingKey to signify it is done
  */
@@ -774,6 +824,7 @@ export {
   ProjectsFolderName,
   JobsFolderName,
   beginMediaImport,
+  annotationImport,
   createKwiverRunWorkingDir,
   exportDataset,
   finalizeMediaImport,

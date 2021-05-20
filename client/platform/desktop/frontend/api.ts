@@ -9,7 +9,7 @@ import type {
   Pipe, Pipelines, SaveAttributeArgs, SaveDetectionsArgs, TrainingConfigs,
 } from 'dive-common/apispec';
 
-import { fileVideoTypes, calibrationFileTypes } from 'dive-common/constants';
+import { fileVideoTypes, calibrationFileTypes, inputAnnotationFileTypes } from 'dive-common/constants';
 import {
   DesktopJob, DesktopMetadata, JsonMeta, NvidiaSmiReply,
   RunPipeline, RunTraining, ExportDatasetArgs,
@@ -21,7 +21,7 @@ import {
  * Native functions that run entirely in the renderer
  */
 
-async function openFromDisk(datasetType: DatasetType | 'calibration', directory = false) {
+async function openFromDisk(datasetType: DatasetType | 'calibration' | 'annotation', directory = false) {
   let filters: FileFilter[] = [];
   if (datasetType === 'video') {
     filters = [
@@ -32,6 +32,12 @@ async function openFromDisk(datasetType: DatasetType | 'calibration', directory 
   if (datasetType === 'calibration') {
     filters = [
       { name: 'calibration', extensions: calibrationFileTypes },
+      { name: 'All Files', extensions: ['*'] },
+    ];
+  }
+  if (datasetType === 'annotation') {
+    filters = [
+      { name: 'annotation', extensions: inputAnnotationFileTypes },
       { name: 'All Files', extensions: ['*'] },
     ];
   }
@@ -89,6 +95,10 @@ function importMedia(path: string): Promise<MediaImportPayload> {
 function importMultiCam(args: MultiCamImportArgs):
    Promise<MediaImportPayload> {
   return ipcRenderer.invoke('import-multicam-media', { args });
+}
+
+function importAnnotation(id: string, path: string): Promise<boolean> {
+  return ipcRenderer.invoke('import-annotation', { id, path });
 }
 
 function finalizeImport(args: MediaImportPayload): Promise<JsonMeta> {
@@ -165,6 +175,7 @@ export {
   finalizeImport,
   importMedia,
   importMultiCam,
+  importAnnotation,
   openLink,
   nvidiaSmi,
 };
