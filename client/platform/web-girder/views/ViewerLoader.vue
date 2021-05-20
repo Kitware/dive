@@ -57,6 +57,12 @@ export default defineComponent({
     const brandData = toRef(root.$store.state.Brand, 'brandData');
     const location = toRef(root.$store.state.Location, 'location');
     const dataPath = computed(() => getPathFromLocation(location.value));
+    const subType = computed(() => {
+      if (root.$store.state.meta && root.$store.state.meta.subType) {
+        return [root.$store.state.meta.subType];
+      }
+      return [''];
+    });
     onMounted(() => {
       window.addEventListener('beforeunload', viewerRef.value.warnBrowserExit);
     });
@@ -70,6 +76,7 @@ export default defineComponent({
       viewerRef,
       dataPath,
       brandData,
+      subType,
     };
   },
 });
@@ -99,6 +106,7 @@ export default defineComponent({
       <RunPipelineMenu
         v-bind="{ buttonOptions, menuOptions }"
         :selected-dataset-ids="[id]"
+        :sub-type-list="subType"
       />
       <Export
         v-bind="{ buttonOptions, menuOptions }"

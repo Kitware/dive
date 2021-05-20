@@ -6,6 +6,7 @@ import { Attribute } from 'vue-media-annotator/use/useAttributes';
 import { CustomStyle } from 'vue-media-annotator/use/useStyling';
 
 type DatasetType = 'image-sequence' | 'video';
+type SubType = '' | 'stereo' | 'multicam';
 type MultiTrackRecord = Record<string, TrackData>;
 
 interface Pipe {
@@ -85,7 +86,7 @@ interface DatasetMeta extends DatasetMetaMutable {
   name: Readonly<string>;
   createdAt: Readonly<string>;
   attributes?: Readonly<Record<string, Attribute>>;
-  subType?: Readonly<'stereo' | 'multicam'>; // In future this could have stuff like IR/EO for other pipeline filtering
+  subType?: Readonly<SubType>; // In future this could have stuff like IR/EO
   multiCamMedia?: Readonly<MultiCamMedia | null>;
 }
 
@@ -132,6 +133,7 @@ export type {
   DatasetMeta,
   DatasetMetaMutable,
   DatasetType,
+  SubType,
   FrameImage,
   MultiTrackRecord,
   Pipe,

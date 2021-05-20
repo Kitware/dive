@@ -196,18 +196,18 @@ export default Vue.extend({
           <DataDetails
             :value="selected.length ? selected : [location]"
           >
-            <template #actions>
+            <template #actions="{ subTypeList }">
               <div class="pa-2">
                 <Clone
                   :button-options="buttonOptions"
                   :source="exportTarget"
                 />
                 <run-training-menu
-                  v-bind="{ buttonOptions, menuOptions }"
+                  v-bind="{ buttonOptions, menuOptions, subTypeList }"
                   :selected-dataset-ids="locationInputs"
                 />
                 <run-pipeline-menu
-                  v-bind="{ buttonOptions, menuOptions }"
+                  v-bind="{ buttonOptions, menuOptions, subTypeList }"
                   :selected-dataset-ids="locationInputs"
                 />
                 <export
@@ -282,6 +282,15 @@ export default Vue.extend({
               >
                 Launch Annotator
               </v-btn>
+              <v-chip
+                v-if="(item.meta && item.meta.subType)"
+                color="green"
+                x-small
+                outlined
+                class="my-0 mx-3"
+              >
+                {{ item.meta.subType }}
+              </v-chip>
               <v-chip
                 v-if="(item.meta && item.meta.foreign_media_id)"
                 color="white"

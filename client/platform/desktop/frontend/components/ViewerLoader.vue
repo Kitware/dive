@@ -1,5 +1,5 @@
 <script lang="ts">
-import { defineComponent } from '@vue/composition-api';
+import { computed, defineComponent } from '@vue/composition-api';
 
 import Viewer from 'dive-common/components/Viewer.vue';
 import RunPipelineMenu from 'dive-common/components/RunPipelineMenu.vue';
@@ -22,8 +22,14 @@ export default defineComponent({
       required: true,
     },
   },
-  setup() {
-    return { datasets };
+  setup(props) {
+    const subType = computed(() => {
+      if (datasets.value[props.id] && datasets.value[props.id].subType) {
+        return [datasets.value[props.id].subType];
+      }
+      return [''];
+    });
+    return { datasets, subType };
   },
 });
 </script>
@@ -50,7 +56,10 @@ export default defineComponent({
       </v-tabs>
     </template>
     <template #title-right>
-      <RunPipelineMenu :selected-dataset-ids="[id]" />
+      <RunPipelineMenu
+        :selected-dataset-ids="[id]"
+        :sub-type-list="subType"
+      />
       <Export
         v-if="datasets[id]"
         :id="id"

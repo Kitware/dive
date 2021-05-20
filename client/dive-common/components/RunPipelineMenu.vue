@@ -18,6 +18,10 @@ export default defineComponent({
       type: Object,
       default: () => ({}),
     },
+    subTypeList: {
+      type: Array,
+      default: () => (['']),
+    },
   },
 
   setup(props) {
@@ -48,7 +52,15 @@ export default defineComponent({
           }
           return 0;
         });
-        sortedPipelines[name] = category;
+        // Filter out unsupported pipelines based on subTypeList
+        // measurement can only be operated on stereo subtypes
+        if (name === 'measurement') {
+          if (props.subTypeList.length === props.subTypeList.filter((item) => item === 'stereo').length) {
+            sortedPipelines[name] = category;
+          }
+        } else {
+          sortedPipelines[name] = category;
+        }
       });
       return sortedPipelines;
     });

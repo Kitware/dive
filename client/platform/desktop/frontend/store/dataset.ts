@@ -1,7 +1,7 @@
 import Vue from 'vue';
 import Install, { ref, computed } from '@vue/composition-api';
 import { JsonMeta } from 'platform/desktop/constants';
-import { DatasetType } from 'dive-common/apispec';
+import { DatasetType, SubType } from 'dive-common/apispec';
 
 const RecentsKey = 'desktop.recent';
 
@@ -23,7 +23,7 @@ export interface JsonMetaCache {
   originalBasePath: string;
   originalVideoFile: string;
   transcodedVideoFile?: string;
-  subType?: 'multicam' | 'stereo';
+  subType?: SubType;
 }
 
 /**
