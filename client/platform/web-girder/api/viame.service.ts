@@ -2,8 +2,13 @@ import type { GirderModel } from '@girder/components/src';
 
 import {
   DatasetMetaMutable,
+  DatasetType,
   Pipe, Pipelines, SaveAttributeArgs, TrainingConfigs,
 } from 'dive-common/apispec';
+import {
+  calibrationFileTypes, inputAnnotationFileTypes, otherImageTypes,
+  otherVideoTypes, websafeImageTypes, websafeVideoTypes,
+} from 'dive-common/constants';
 import girderRest from '../plugins/girder';
 
 interface ValidationResponse {
@@ -122,6 +127,17 @@ function postProcess(folderId: string) {
   return girderRest.post(`viame/postprocess/${folderId}`);
 }
 
+async function setUsePrivateQueue(userId: string, value = false): Promise<{
+  'user_private_queue_enabled': boolean;
+}> {
+  const { data } = await girderRest.put(`viame/user/${userId}/use_private_queue`, null, {
+    params: {
+      privateQueueEnabled: value,
+    },
+  });
+  return data;
+}
+
 async function validateUploadGroup(names: string[]): Promise<ValidationResponse> {
   const { data } = await girderRest.post<ValidationResponse>('viame/validate_files', names);
   return data;
@@ -134,6 +150,41 @@ async function getValidWebImages(folderId: string) {
   return data;
 }
 
+async function openFromDisk(datasetType: DatasetType | 'calibration' | 'annotation'):
+Promise<{ canceled: boolean; filePaths: string[]; fileList?: File[]}> {
+  const input: HTMLInputElement = document.createElement('input');
+  input.type = 'file';
+  const baseTypes: string[] = inputAnnotationFileTypes.map((item) => `.${item}`);
+  input.multiple = true;
+  if (datasetType === 'image-sequence') {
+    input.accept = baseTypes.concat(websafeImageTypes).concat(otherImageTypes).join(',');
+  } else if (datasetType === 'video') {
+    input.accept = baseTypes.concat(websafeVideoTypes).concat(otherVideoTypes).join(',');
+  } else if (datasetType === 'calibration') {
+    input.accept = calibrationFileTypes.map((item) => `.${item}`).join(',');
+  }
+  return new Promise(((resolve) => {
+    input.onchange = (event) => {
+      if (event) {
+        const { files } = event.target as HTMLInputElement;
+        if (files) {
+          const fileList = Array.from(files);
+          const response = {
+            canceled: !files.length,
+            fileList,
+            filePaths: fileList.map((item) => item.name),
+          };
+          return resolve(response);
+        }
+      }
+      return resolve({
+        canceled: true,
+        filePaths: [],
+      });
+    };
+    input.click();
+  }));
+}
 
 export {
   clone,
@@ -147,6 +198,8 @@ export {
   runTraining,
   saveMetadata,
   saveAttributes,
+  setUsePrivateQueue,
   validateUploadGroup,
   getValidWebImages,
+  openFromDisk,
 };

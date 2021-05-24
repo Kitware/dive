@@ -114,7 +114,6 @@ async function train(
   runTrainingArgs: RunTraining,
   updater: DesktopJobUpdater,
 ): Promise<DesktopJob> {
-  const setupScriptPath = npath.join(settings.viamePath, ViameLinuxConstants.setup);
   return viame.train(settings, runTrainingArgs, updater, validateViamePath, {
     ...ViameLinuxConstants,
     setupScriptAbs: sourceString(settings),

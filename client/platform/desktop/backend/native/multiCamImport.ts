@@ -1,19 +1,17 @@
 import npath from 'path';
 import fs from 'fs-extra';
 import mime from 'mime-types';
+import { DatasetType } from 'dive-common/apispec';
 import {
-  DatasetType,
-} from 'dive-common/apispec';
-
+  websafeImageTypes, websafeVideoTypes, otherImageTypes, otherVideoTypes,
+} from 'dive-common/constants';
 import {
-  websafeImageTypes, otherImageTypes,
   JsonMeta, Settings, JsonMetaCurrentVersion,
-  MediaImportPayload, MultiCamImportFolderArgs,
+  MultiCamImportFolderArgs,
   MultiCamImportKeywordArgs,
   MultiCamImportArgs,
-  websafeVideoTypes,
-  otherVideoTypes,
   CheckMediaResults,
+  MediaImportPayload,
 } from 'platform/desktop/constants';
 import { cleanString, makeid } from 'platform/desktop/sharedUtils';
 import { findImagesInFolder } from './common';

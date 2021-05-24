@@ -3,60 +3,6 @@ import type {
 } from 'dive-common/apispec';
 import { Attribute } from 'vue-media-annotator/use/useAttributes';
 
-export const websafeVideoTypes = [
-  'video/mp4',
-  'video/webm',
-];
-
-export const otherVideoTypes = [
-  /* avi */
-  'vide/avi',
-  'video/msvideo',
-  'video/x-msvideo',
-  'video/x-ms-wmv',
-  /* mov */
-  'video/quicktime',
-  /* mpeg */
-  'video/mpeg',
-  'video/x-mpeg',
-  'video/x-mpeq2a',
-  /* ogg */
-  'video/ogg',
-];
-
-export const calibrationFileTypes = [
-  'npz',
-];
-export const fileVideoTypes = [
-  'mp4',
-  'webm',
-  'avi',
-  'mov',
-  'wmv',
-  'mpg',
-  'mpeg',
-  'mp2',
-  'ogg',
-];
-
-export const websafeImageTypes = [
-  // 'image/apng',
-  // 'image/bmp',
-  'image/gif',
-  'image/jpeg',
-  'image/png',
-  // 'image/svg+xml',
-  // 'image/webp',
-];
-
-export const otherImageTypes = [
-  'image/avif',
-  'image/tiff',
-  'image/bmp',
-  'image/x-windows-bmp',
-  'image/sgi',
-  'image/x-portable-graymap',
-];
 
 export const JsonMetaCurrentVersion = 1;
 export const SettingsCurrentVersion = 1;

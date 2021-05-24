@@ -6,6 +6,7 @@ services:
       --log.level=${LOG_LEVEL:-DEBUG}
       --providers.docker=true
       --providers.docker.exposedByDefault=false
+      --providers.file.filename=/var/traefik/dynamic.yml
       --entrypoints.web.address=:80
       --entrypoints.websecure.address=:443
       --entrypoints.websecure.http.tls.certresolver=myresolver
@@ -23,6 +24,7 @@ services:
       - "traefik.http.middlewares.redirect-to-https-mddl.redirectscheme.scheme=https"
     volumes:
       - "${LOCAL_MOUNT:-.}/traefik/letsencrypt:/letsencrypt"
+      - "./dynamic.yml:/var/traefik/dynamic.yml:ro"
     ports:
       - "80:80"
       - "443:443"

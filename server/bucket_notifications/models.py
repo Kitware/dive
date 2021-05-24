@@ -1,6 +1,3 @@
-from typing import List
-
-from bson.objectid import ObjectId
 from pydantic import BaseModel
 
 from dive_server.utils import PydanticModel

@@ -8,9 +8,10 @@ requirements = [
     "girder==3.1.5.dev8",
     "diva-boiler",
     "girder_jobs==3.0.3",
-    "girder_worker==0.8.0",
+    "girder_worker==0.8.1",
     "girder_worker_utils==0.8.5",
-    "pydantic",
+    "pydantic==1.8.2",
+    "pyrabbit2==1.0.7",  # For rabbitmq_user_queues plugin
     "pysnooper",
     "typing_extensions",
     "gputil",
@@ -43,6 +44,7 @@ setup(
         "girder.plugin": [
             "dive_server = dive_server:GirderPlugin",
             "bucket_notifications = bucket_notifications:GirderPlugin",
+            "rabbit_user_queues = rabbitmq_user_queues:GirderPlugin",
         ],
         "girder_worker_plugins": ["dive_tasks = dive_tasks:DIVEPlugin"],
     },

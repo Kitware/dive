@@ -2,11 +2,16 @@ import os
 from pathlib import Path
 
 from girder import events, plugin
+from girder.constants import AccessType
 from girder.models.setting import Setting
+from girder.models.user import User
 from girder.utility import mail_utils, setting_utilities
 from girder.utility.model_importer import ModelImporter
 
-from dive_utils.constants import SETTINGS_CONST_JOBS_CONFIGS
+from dive_utils.constants import (
+    SETTINGS_CONST_JOBS_CONFIGS,
+    UserPrivateQueueEnabledMarker,
+)
 
 from .client_webroot import ClientWebroot
 from .event import process_fs_import, process_s3_import, send_new_user_email
@@ -31,6 +36,8 @@ def validateSettings(doc):
 class GirderPlugin(plugin.GirderPlugin):
     def load(self, info):
         ModelImporter.registerModel('summaryItem', SummaryItem, plugin='dive_server')
+        User().exposeFields(AccessType.READ, UserPrivateQueueEnabledMarker)
+
         info["apiRoot"].viame = Viame()
         info["apiRoot"].viame_detection = ViameDetection()
         info["apiRoot"].viame_summary = ViameSummary()
@@ -67,11 +74,8 @@ class GirderPlugin(plugin.GirderPlugin):
             'worker.api_url',
             os.environ.get('WORKER_API_URL', 'http://girder:8080/api/v1'),
         )
-        Setting().set(
-            'worker.broker',
-            os.environ.get('CELERY_BROKER_URL', 'amqp://guest:guest@rabbit/'),
-        )
-        Setting().set(
-            'worker.backend',
-            os.environ.get('CELERY_BROKER_URL', 'amqp://guest:guest@rabbit/'),
-        )
+
+        broker_url = os.environ.get('CELERY_BROKER_URL', None)
+        if broker_url is None:
+            raise RuntimeError('CELERY_BROKER_URL must be set')
+        Setting().set('worker.broker', broker_url)

@@ -1,4 +1,5 @@
 import logging
+import os
 
 from girder_worker import GirderWorkerPluginABC
 

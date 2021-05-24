@@ -4,14 +4,16 @@ import fs from 'fs-extra';
 import { Console } from 'console';
 
 import type {
+  MultiCamImportFolderArgs,
+  MultiCamImportKeywordArgs,
+} from 'dive-common/apispec';
+import type {
   ConversionArgs,
   DesktopJob,
   DesktopJobUpdate,
   DesktopJobUpdater,
   Settings,
-  MultiCamImportFolderArgs,
   MultiCam,
-  MultiCamImportKeywordArgs,
 } from 'platform/desktop/constants';
 
 import beginMultiCamImport from './multiCamImport';
