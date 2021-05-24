@@ -34,7 +34,7 @@ def check_canceled(task: Task, context: dict, force=True):
         context[TIMEOUT_LAST_CHECKED] = now
         try:
             return task.canceled
-        except TimeoutError as err:
+        except (TimeoutError, ConnectionError) as err:
             context[TIMEOUT_COUNT] += 1
             print(
                 f"Timeout N={context[TIMEOUT_COUNT]} for this task when checking for cancellation. {err}"
