@@ -455,7 +455,7 @@ async function processOtherAnnotationFiles(
   datasetId: string,
   absPaths: string[],
 ): Promise<{ fps?: number; processedFiles: string[]; attributes?: Attributes }> {
-  const fps = undefined;
+  let fps: number | undefined;
   const processedFiles = []; // which files were processed to generate the detections
   let attributes: Attributes = {};
 
@@ -469,8 +469,9 @@ async function processOtherAnnotationFiles(
       // Attempt to process the file
       try {
         // eslint-disable-next-line no-await-in-loop
-        const tracks = await viameSerializers.parseFile(path);
-        const processed = processTrackAttributes(tracks);
+        const data = await viameSerializers.parseFile(path);
+        const processed = processTrackAttributes(data.tracks);
+        fps = fps || data.fps;
         attributes = processed.attributes;
         // eslint-disable-next-line no-await-in-loop
         await _saveSerialized(settings, datasetId, processed.data, true);
@@ -563,12 +564,13 @@ async function beginMediaImport(
   const dsName = npath.parse(path).name;
   const dsId = `${cleanString(dsName).substr(0, 20)}_${makeid(10)}`;
 
+  const _defaultFps = datasetType === 'video' ? 5 : 1;
   const jsonMeta: JsonMeta = {
     version: JsonMetaCurrentVersion,
     type: datasetType,
     id: dsId,
-    fps: 5, // TODO
-    originalFps: 5,
+    fps: _defaultFps, // adjusted below
+    originalFps: _defaultFps, // adjusted below
     originalBasePath: path,
     originalVideoFile: '',
     createdAt: (new Date()).toString(),
@@ -599,10 +601,10 @@ async function beginMediaImport(
         if (!checkMediaResult.websafe || otherVideoTypes.includes(mimetype)) {
           mediaConvertList.push(path);
         }
-        const newAnnotationFps = Math.floor(Math.min(jsonMeta.fps, checkMediaResult.originalFps));
-        if (newAnnotationFps <= 0) {
-          throw new Error('fps < 1 unsupported');
-        }
+        const newAnnotationFps = Math.floor(
+          // Prevent FPS smaller than 1
+          Math.max(1, Math.min(jsonMeta.fps, checkMediaResult.originalFps)),
+        );
         jsonMeta.originalFps = checkMediaResult.originalFps;
         jsonMeta.fps = newAnnotationFps;
       } else {
@@ -653,6 +655,12 @@ async function finalizeMediaImport(
     jsonMeta.originalImageFiles = found.images;
     mediaConvertList = found.mediaConvertList;
   }
+
+  // Verify that the user didn't choose an FPS value higher than originalFPS
+  // This shouldn't be possible in the UI, but we should still prevent it here.
+  jsonMeta.fps = Math.floor(
+    Math.max(1, Math.min(jsonMeta.fps, jsonMeta.originalFps)),
+  );
 
   //Now we will kick off any conversions that are necessary
   let jobBase = null;

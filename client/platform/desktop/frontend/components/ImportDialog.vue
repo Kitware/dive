@@ -110,7 +110,10 @@ export default defineComponent({
         <v-col cols="3">
           <v-select
             v-model="argCopy.jsonMeta.fps"
-            :items="FPSOptions.filter((v) => v <= Math.round(argCopy.jsonMeta.originalFps))"
+            :items="argCopy.jsonMeta.type === 'video'
+              ? FPSOptions.filter((v) => v <= Math.round(argCopy.jsonMeta.originalFps))
+              : FPSOptions
+            "
             type="number"
             required
             outlined

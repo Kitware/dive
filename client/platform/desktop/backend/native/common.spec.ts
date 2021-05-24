@@ -79,8 +79,8 @@ const updater = (update: DesktopJobUpdate) => undefined;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const checkMedia = async (settingsVal: Settings, file: string) => ({
   websafe: file.includes('mp4'),
-  originalFps: 1,
-  originalFpsString: '1',
+  originalFps: 30,
+  originalFpsString: '30/1',
 });
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const convertMedia = async (settingsVal: Settings, args: ConversionArgs,
@@ -123,6 +123,11 @@ mockfs({
       'bar.png': '',
       notanimage: '',
       'notanimage.txt': '',
+    },
+    imageSuccessWithAnnotations: {
+      'foo.png': '',
+      'bar.png': '',
+      'file1.csv': '# comment line\n# metadata,fps: 32,"whateever"\n#comment line',
     },
     videoSuccess: {
       'video1.avi': '',
@@ -302,6 +307,7 @@ describe('native.common', () => {
     );
     expect(data.videoUrl).toBe(`http://localhost:8888/api/media?path=${videoPath}`);
   });
+
   it('loadJsonMetadata type multi without multiCam', async () => {
     await expect(common.loadMetadata(settings, 'projectid5missingMultiCam', urlMapper))
       .rejects.toThrow('Dataset: missingMulti is of type multiCam or stereo but contains no multiCam data');
@@ -340,12 +346,34 @@ describe('native.common', () => {
     expect(payload.jsonMeta.originalBasePath).toBe('/home/user/data/imageSuccess');
   });
 
+  it('import with CSV annotations', async () => {
+    const payload = await common.beginMediaImport(settings, '/home/user/data/imageSuccessWithAnnotations', checkMedia);
+    payload.jsonMeta.fps = 12; // simulate user specify FPS action
+    await common.finalizeMediaImport(settings, payload, updater, convertMedia);
+    const meta = await common.loadMetadata(settings, payload.jsonMeta.id, urlMapper);
+    expect(meta.fps).toBe(32);
+  });
+
+  it('import with user selected FPS > originalFPS', async () => {
+    const payload = await common.beginMediaImport(settings, '/home/user/data/videoSuccess/video1.mp4', checkMedia);
+    payload.jsonMeta.fps = 50; // above 30
+    await common.finalizeMediaImport(settings, payload, updater, convertMedia);
+    const meta1 = await common.loadMetadata(settings, payload.jsonMeta.id, urlMapper);
+    expect(meta1.fps).toBe(30);
+
+    payload.jsonMeta.fps = -1; // above 30
+    await common.finalizeMediaImport(settings, payload, updater, convertMedia);
+    const meta2 = await common.loadMetadata(settings, payload.jsonMeta.id, urlMapper);
+    expect(meta2.fps).toBe(1);
+  });
+
   it('importMedia video success', async () => {
     const payload = await common.beginMediaImport(settings, '/home/user/data/videoSuccess/video1.mp4', checkMedia);
     expect(payload.jsonMeta.name).toBe('video1');
     expect(payload.jsonMeta.originalImageFiles.length).toBe(0);
     expect(payload.jsonMeta.originalVideoFile).toBe('video1.mp4');
     expect(payload.jsonMeta.originalBasePath).toBe('/home/user/data/videoSuccess');
+    expect(payload.jsonMeta.fps).toBe(5); // 5 is still the default
   });
 
   it('importMedia empty json file success', async () => {
