@@ -358,15 +358,17 @@ async function checkMedia(
   }
   const returnText = result.output;
   const ffprobeJSON: FFProbeResults = JSON.parse(returnText);
+
   if (ffprobeJSON && ffprobeJSON.streams?.length) {
-    if (!ffprobeJSON.streams[0].avg_frame_rate) {
-      throw Error('FFProbe found that video stream 0 has no avg_frame_rate');
+    const videoStream = ffprobeJSON.streams.filter((el) => el.codec_type === 'video');
+    if (videoStream.length === 0 || !videoStream[0].avg_frame_rate) {
+      throw Error('FFProbe found that video stream has no avg_frame_rate');
     }
-    const originalFpsString = ffprobeJSON.streams[0].avg_frame_rate;
+    const originalFpsString = videoStream[0].avg_frame_rate;
     const [dividend, divisor] = originalFpsString.split('/').map((v) => Number.parseInt(v, 10));
     const originalFps = dividend / divisor;
-    const websafe = ffprobeJSON.streams
-      .filter((el) => el.codec_name === 'h264' && el.codec_type === 'video')
+    const websafe = videoStream
+      .filter((el) => el.codec_name === 'h264')
       .filter((el) => el.sample_aspect_ratio === '1:1');
 
     return { websafe: !!websafe.length, originalFps, originalFpsString };
