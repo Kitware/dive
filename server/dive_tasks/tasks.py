@@ -1,5 +1,6 @@
 import contextlib
 import json
+import math
 import os
 import shlex
 import shutil
@@ -30,6 +31,8 @@ from dive_utils.constants import (
     DatasetMarker,
     FPSMarker,
     ImageSequenceType,
+    OriginalFPSMarker,
+    OriginalFPSStringMarker,
     TrainedPipelineCategory,
     TrainedPipelineMarker,
     TypeMarker,
@@ -449,6 +452,9 @@ def convert_video(self: Task, path, folderId, auxiliaryFolderId, itemId):
         manager.updateStatus(JobStatus.CANCELED)
         return
 
+    folderData = gc.getFolder(folderId)
+    requestedFps = fromMeta(folderData, FPSMarker)
+
     # Extract metadata
     file_name = os.path.join(path, os.listdir(path)[0])
     command = [
@@ -480,6 +486,19 @@ def convert_video(self: Task, path, folderId, auxiliaryFolderId, itemId):
     )
     if len(videostream) != 1:
         raise Exception('Expected 1 video stream, found {}'.format(len(videostream)))
+
+    # Extract average framerate
+    avgFpsString: str = videostream[0]["avg_frame_rate"]
+    originalFps = None
+    if avgFpsString:
+        dividend, divisor = [int(v) for v in avgFpsString.split('/')]
+        originalFps = dividend / divisor
+    else:
+        raise Exception('Expected key avg_frame_rate in ffprobe')
+
+    newAnnotationFps = math.floor(min(requestedFps, originalFps))
+    if newAnnotationFps <= 0:
+        raise Exception('FPS lower than 1 is not supported')
 
     process_err_file = tempfile.TemporaryFile()
     process = Popen(
@@ -518,6 +537,8 @@ def convert_video(self: Task, path, folderId, auxiliaryFolderId, itemId):
         {
             "source_video": False,
             "transcoder": "ffmpeg",
+            OriginalFPSMarker: originalFps,
+            OriginalFPSStringMarker: avgFpsString,
             "codec": "h264",
         },
     )
@@ -525,6 +546,8 @@ def convert_video(self: Task, path, folderId, auxiliaryFolderId, itemId):
         itemId,
         {
             "source_video": True,
+            OriginalFPSMarker: originalFps,
+            OriginalFPSStringMarker: avgFpsString,
             "codec": videostream[0]["codec_name"],
         },
     )
@@ -532,6 +555,9 @@ def convert_video(self: Task, path, folderId, auxiliaryFolderId, itemId):
         folderId,
         {
             DatasetMarker: True,  # mark the parent folder as able to annotate.
+            OriginalFPSMarker: originalFps,
+            OriginalFPSStringMarker: avgFpsString,
+            FPSMarker: newAnnotationFps,
             "ffprobe_info": videostream[0],
         },
     )
