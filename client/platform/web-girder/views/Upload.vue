@@ -4,8 +4,9 @@ import {
 } from '@vue/composition-api';
 
 import {
-  ImageSequenceType, VideoType, DefaultVideoFPS, inputAnnotationFileTypes,
-  websafeVideoTypes, otherVideoTypes, websafeImageTypes, otherImageTypes,
+  ImageSequenceType, VideoType, DefaultVideoFPS, FPSOptions,
+  inputAnnotationFileTypes, websafeVideoTypes, otherVideoTypes,
+  websafeImageTypes, otherImageTypes,
 } from 'dive-common/constants';
 
 import ImportButton from 'dive-common/components/ImportButton.vue';
@@ -353,6 +354,7 @@ export default defineComponent({
     });
     return {
       buttonAttrs,
+      FPSOptions,
       preUploadErrorMessage,
       pendingUploads,
       stereo,
@@ -462,7 +464,7 @@ export default defineComponent({
               >
                 <v-select
                   v-model="pendingUpload.fps"
-                  :items="[1, 5, 10, 15, 24, 25, 30, 50, 60]"
+                  :items="FPSOptions"
                   :disabled="pendingUpload.uploading"
                   type="number"
                   required

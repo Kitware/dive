@@ -19,13 +19,14 @@ import {
 } from 'dive-common/constants';
 import {
   JsonMeta, Settings, JsonMetaCurrentVersion, DesktopMetadata, DesktopJobUpdater,
-  ConvertMedia, RunTraining, ExportDatasetArgs, MediaImportPayload,
+  ConvertMedia, RunTraining, ExportDatasetArgs, MediaImportPayload, CheckMediaResults,
 } from 'platform/desktop/constants';
 import {
   cleanString, filterByGlob, makeid, strNumericCompare,
 } from 'platform/desktop/sharedUtils';
 import { Attribute, Attributes } from 'vue-media-annotator/use/useAttributes';
 import processTrackAttributes from './attributeProcessor';
+import { upgrade } from './migrations';
 import { getMultiCamUrls, transcodeMultiCam } from './multiCamUtils';
 
 const ProjectsFolderName = 'DIVE_Projects';
@@ -149,13 +150,7 @@ async function loadJsonMetadata(metaAbsPath: string): Promise<JsonMeta> {
     throw new Error(`Unable to parse ${metaAbsPath}: ${err}`);
   }
   /* check if this file meets the current schema version */
-  if ('version' in metaJson) {
-    const { version } = metaJson;
-    if (version !== JsonMetaCurrentVersion) {
-      // TODO: schema migration for older schema versions
-      throw new Error('outdated meta schema version found, migration not implemented');
-    }
-  }
+  upgrade(metaJson);
   return metaJson as JsonMeta;
 }
 
@@ -409,7 +404,7 @@ async function _saveAsJson(absPath: string, data: unknown) {
 }
 
 async function saveMetadata(settings: Settings, datasetId: string,
-  args: DatasetMetaMutable & { attributes?: Record<string, Attribute>}) {
+  args: DatasetMetaMutable & { attributes?: Record<string, Attribute> }) {
   const projectDirInfo = await getValidatedProjectDir(settings, datasetId);
   const release = await _acquireLock(projectDirInfo.basePath, projectDirInfo.metaFileAbsPath, 'meta');
   const existing = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
@@ -463,7 +458,7 @@ async function processOtherAnnotationFiles(
   datasetId: string,
   absPaths: string[],
 ): Promise<{ fps?: number; processedFiles: string[]; attributes?: Attributes }> {
-  const fps = undefined;
+  let fps: number | undefined;
   const processedFiles = []; // which files were processed to generate the detections
   let attributes: Attributes = {};
 
@@ -477,8 +472,9 @@ async function processOtherAnnotationFiles(
       // Attempt to process the file
       try {
         // eslint-disable-next-line no-await-in-loop
-        const tracks = await viameSerializers.parseFile(path);
-        const processed = processTrackAttributes(tracks);
+        const data = await viameSerializers.parseFile(path);
+        const processed = processTrackAttributes(data.tracks);
+        fps = fps || data.fps;
         attributes = processed.attributes;
         // eslint-disable-next-line no-await-in-loop
         await _saveSerialized(settings, datasetId, processed.data, true);
@@ -550,7 +546,7 @@ async function _initializeProjectDir(settings: Settings, jsonMeta: JsonMeta): Pr
 async function beginMediaImport(
   settings: Settings,
   path: string,
-  checkMedia: (settings: Settings, path: string) => Promise<boolean>,
+  checkMedia: (settings: Settings, path: string) => Promise<CheckMediaResults>,
 ): Promise<MediaImportPayload> {
   let datasetType: DatasetType;
 
@@ -571,11 +567,13 @@ async function beginMediaImport(
   const dsName = npath.parse(path).name;
   const dsId = `${cleanString(dsName).substr(0, 20)}_${makeid(10)}`;
 
+  const _defaultFps = datasetType === 'video' ? 5 : 1;
   const jsonMeta: JsonMeta = {
     version: JsonMetaCurrentVersion,
     type: datasetType,
     id: dsId,
-    fps: 5, // TODO
+    fps: _defaultFps, // adjusted below
+    originalFps: _defaultFps, // adjusted below
     originalBasePath: path,
     originalVideoFile: '',
     createdAt: (new Date()).toString(),
@@ -602,10 +600,16 @@ async function beginMediaImport(
       if (websafeImageTypes.includes(mimetype) || otherImageTypes.includes(mimetype)) {
         throw new Error('User chose image file for video import option');
       } else if (websafeVideoTypes.includes(mimetype) || otherVideoTypes.includes(mimetype)) {
-        const webSafeVideo = await checkMedia(settings, path);
-        if (!webSafeVideo || otherVideoTypes.includes(mimetype)) {
+        const checkMediaResult = await checkMedia(settings, path);
+        if (!checkMediaResult.websafe || otherVideoTypes.includes(mimetype)) {
           mediaConvertList.push(path);
         }
+        const newAnnotationFps = Math.floor(
+          // Prevent FPS smaller than 1
+          Math.max(1, Math.min(jsonMeta.fps, checkMediaResult.originalFps)),
+        );
+        jsonMeta.originalFps = checkMediaResult.originalFps;
+        jsonMeta.fps = newAnnotationFps;
       } else {
         throw new Error(`unsupported MIME type for video ${mimetype}`);
       }
@@ -654,6 +658,12 @@ async function finalizeMediaImport(
     jsonMeta.originalImageFiles = found.images;
     mediaConvertList = found.mediaConvertList;
   }
+
+  // Verify that the user didn't choose an FPS value higher than originalFPS
+  // This shouldn't be possible in the UI, but we should still prevent it here.
+  jsonMeta.fps = Math.floor(
+    Math.max(1, Math.min(jsonMeta.fps, jsonMeta.originalFps)),
+  );
 
   //Now we will kick off any conversions that are necessary
   let jobBase = null;

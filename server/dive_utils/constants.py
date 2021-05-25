@@ -62,6 +62,8 @@ CalibrationMarker = "calibration"
 SubTypeMarker = 'subType'
 StereoSubTypeMarker = 'stereo'
 MultiCamSubTypeMarker = 'multicam'
+OriginalFPSMarker = "originalFps"
+OriginalFPSStringMarker = "originalFpsString"
 
 # Other constants
 TrainedPipelineCategory = "trained"
