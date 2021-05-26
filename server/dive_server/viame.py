@@ -479,9 +479,7 @@ class Viame(Resource):
         Set the metadata related to multicam and kick off any transcoding jobs that are necessary
         """
         user = self.getCurrentUser()
-        auxiliary = get_or_create_auxiliary_folder(folder, user)
         # So we need to rearrange the uploaded data into proper sub folders based on the input args
-        print(args)
         validated = models.MultiCamArgs(**args)
         output_meta = process_multicam_folder(user, folder, validated)
         if output_meta is not None:

@@ -12,7 +12,7 @@ from dive_utils.types import (
 DefaultTrainingConfiguration = "train_netharn_cascade.viame_csv.conf"
 AllowedTrainingConfigs = r".*\.viame_csv\.conf$"
 AllowedStaticPipelines = (
-    r"^detector_.+|^tracker_.+|^utility_.+|^generate_.+|^measurement\.gmm+"
+    r"^detector_.+|^tracker_.+|^utility_.+|^generate_.+|^measurement_gmm_.+"
 )
 DisallowedStaticPipelines = (
     # Remove utilities pipes which hold no meaning in web
@@ -40,7 +40,7 @@ def load_static_pipelines(search_path: Path) -> Dict[str, PipelineCategory]:
     ]
 
     for pipe in pipelist:
-        pipe_type, *nameparts = pipe.replace(".pipe", "").replace('.', '_').split("_")
+        pipe_type, *nameparts = pipe.replace(".pipe", "").split("_")
         pipe_info: PipelineDescription = {
             "name": " ".join(nameparts),
             "type": pipe_type,
