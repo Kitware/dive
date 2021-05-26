@@ -49,22 +49,25 @@ function getTranscodedMultiCamType(imageListFile: string, jsonMeta: JsonMeta) {
   throw new Error(`No associate type for ${imageListFile} in multiCam data`);
 }
 
-function writeMultiCamPipelineInputs(jobWorkDir: string, meta: JsonMeta) {
-  const InputArgFilePair: Record<string, string> = {};
+function writeMultiCamStereoPipelineInputs(jobWorkDir: string, meta: JsonMeta) {
+  const ArgFilePair: Record<string, string> = {};
   if (meta.multiCam && meta.multiCam.cameras) {
     let i = 0;
     Object.values(meta.multiCam.cameras).forEach((list) => {
       const { originalBasePath } = list;
-      const fileName = `cam${i + 1}_images.txt`; //This is locked in the pipeline for now
-      const inputArg = `cam${i + 1}_imread`; // lock for the stereo pipeline as well
-      InputArgFilePair[inputArg] = fileName;
-      const inputFile = fs.createWriteStream(npath.join(jobWorkDir, fileName));
+      const inputFileName = `input${i + 1}_images.txt`; //This is locked in the pipeline for now
+      const inputArg = `input${i + 1}:video_filename`; // lock for the stereo pipeline as well
+      const outputFileName = `computed_detections${i + 1}.csv`; //This is locked in the pipeline for now
+      const outputArg = `detector_writer${i + 1}:video_filename`; // lock for the stereo pipeline as well
+      ArgFilePair[inputArg] = inputFileName;
+      ArgFilePair[outputArg] = outputFileName;
+      const inputFile = fs.createWriteStream(npath.join(jobWorkDir, inputFileName));
       list.originalImageFiles.forEach((image) => inputFile.write(`${npath.join(originalBasePath, image)}\n`));
       inputFile.end();
       i += 1;
     });
   }
-  return InputArgFilePair;
+  return ArgFilePair;
 }
 
 function getMultiCamUrls(
@@ -147,7 +150,7 @@ function getMultiCamImageFiles(meta: JsonMeta) {
 
 export {
   transcodeMultiCam,
-  writeMultiCamPipelineInputs,
+  writeMultiCamStereoPipelineInputs,
   getMultiCamVideoPath,
   getMultiCamImageFiles,
   getMultiCamUrls,

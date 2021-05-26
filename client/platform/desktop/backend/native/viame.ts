@@ -133,12 +133,12 @@ async function runPipeline(
   }
 
   if (meta.multiCam && pipeline.type === 'measurement') {
-    const inputArgFilePair = writeMultiCamPipelineInputs(jobWorkDir, meta);
+    const inputArgFilePair = writeMultiCamStereoPipelineInputs(jobWorkDir, meta);
     Object.entries(inputArgFilePair).forEach(([arg, file]) => {
-      command.push(`-s ${arg}:video_filename="${npath.join(jobWorkDir, file)}`);
+      command.push(`-s ${arg}="${npath.join(jobWorkDir, file)}`);
     });
     if (meta.multiCam.calibration) {
-      command.push(`-s measure:cal_fpath="${meta.multiCam.calibration}"`);
+      command.push(`-s measure:calibration_file="${meta.multiCam.calibration}"`);
       command.push(`-s measure:output_fpath="${trackOutput}"`);
     }
   } else if (pipeline.type === 'measurement') {
