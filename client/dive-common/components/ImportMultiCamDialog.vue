@@ -138,13 +138,13 @@ export default defineComponent({
               folderList.value[folder] = path;
             }
             if (ret.fileList) {
-              htmlFileReferences.mediaHTMLFileList.folder = ret.fileList;
+              htmlFileReferences.mediaHTMLFileList[folder] = ret.fileList;
             }
           } else if (importType.value === 'keyword' && ret.root) {
             keywordFolder.value = ret.root;
             pendingImportPayload.value = await importMedia(ret.filePaths);
             if (ret.fileList) {
-              htmlFileReferences.mediaHTMLFileList.folder = ret.fileList;
+              htmlFileReferences.mediaHTMLFileList[folder] = ret.fileList;
             }
           }
         } catch (err) {

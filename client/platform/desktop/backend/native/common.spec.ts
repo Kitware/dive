@@ -329,6 +329,7 @@ describe('native.common', () => {
       transcodedImageFiles: [],
       originalVideoFile: '',
       transcodedVideoFile: '',
+      multiCam: null,
     };
     const result = await common.createKwiverRunWorkingDir(settings, [jsonMeta], 'mypipeline.pipe');
     const stat = fs.statSync(result);

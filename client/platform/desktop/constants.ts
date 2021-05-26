@@ -85,7 +85,7 @@ export interface JsonMeta extends DatasetMetaMutable {
   attributes?: Record<string, Attribute>;
 
   // Stereo or multi-camera datasets with uniform type (all images, all video)
-  multiCam?: MultiCamDesktop;
+  multiCam: MultiCamDesktop | null;
 }
 
 export type DesktopMetadata = DatasetMeta & JsonMeta;
