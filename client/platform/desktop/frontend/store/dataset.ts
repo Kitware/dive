@@ -23,7 +23,7 @@ export interface JsonMetaCache {
   originalBasePath: string;
   originalVideoFile: string;
   transcodedVideoFile?: string;
-  subType?: SubType;
+  subType: SubType;
 }
 
 /**
