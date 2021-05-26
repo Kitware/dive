@@ -56,23 +56,25 @@ function writeMultiCamStereoPipelineArgs(jobWorkDir: string, meta: JsonMeta) {
     let i = 0;
     Object.entries(meta.multiCam.cameras).forEach(([key, list]) => {
       const { originalBasePath } = list;
-      const inputFileName = `input${i + 1}_images.txt`; //This is locked in the pipeline for now
-      const inputArg = `input${i + 1}:video_filename`; // lock for the stereo pipeline as well
-      const outputFileName = `computed_tracks_${key}.csv`; //This is locked in the pipeline for now
-      const outputArg = `detector_writer${i + 1}:file_name`; // lock for the stereo pipeline as well
-      argFilePair[inputArg] = inputFileName;
+      const outputFileName = `computed_tracks_${key}.csv`;
+      const outputArg = `detector_writer${i + 1}:file_name`;
       argFilePair[outputArg] = outputFileName;
       outFiles[key] = outputFileName;
-      const inputFile = fs.createWriteStream(npath.join(jobWorkDir, inputFileName));
+      const inputArg = `input${i + 1}:video_filename`;
       if (list.type === 'image-sequence') {
+        const inputFileName = npath.join(jobWorkDir, `input${i + 1}_images.txt`);
+        const inputFile = fs.createWriteStream(inputFileName);
         list.originalImageFiles.forEach((image) => inputFile.write(`${npath.join(originalBasePath, image)}\n`));
+        inputFile.end();
+        argFilePair[inputArg] = inputFileName;
       } else if (list.originalVideoFile) {
-        //TODO This doesn't seem to work yet for video files
         const vidFile = list.transcodedVideoFile
           ? list.transcodedVideoFile : list.originalVideoFile;
-        inputFile.write(`${npath.join(originalBasePath, vidFile)}\n`);
+        const vidTypeArg = `input${i + 1}:video_reader:type`;
+        const vidType = 'vidl_ffmpeg';
+        argFilePair[vidTypeArg] = vidType;
+        argFilePair[inputArg] = npath.join(originalBasePath, vidFile);
       }
-      inputFile.end();
       i += 1;
     });
   }

@@ -135,7 +135,7 @@ async function runPipeline(
   if (meta.multiCam && pipeline.type === 'measurement') {
     const { argFilePair, outFiles } = writeMultiCamStereoPipelineArgs(jobWorkDir, meta);
     Object.entries(argFilePair).forEach(([arg, file]) => {
-      command.push(`-s ${arg}="${npath.join(jobWorkDir, file)}"`);
+      command.push(`-s ${arg}="${file}"`);
     });
     trackOutput = npath.join(jobWorkDir, outFiles[meta.multiCam.display]);
     if (meta.multiCam.calibration) {
