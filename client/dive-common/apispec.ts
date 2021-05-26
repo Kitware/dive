@@ -86,7 +86,7 @@ interface DatasetMeta extends DatasetMetaMutable {
   name: Readonly<string>;
   createdAt: Readonly<string>;
   attributes?: Readonly<Record<string, Attribute>>;
-  subType?: Readonly<SubType>; // In future this could have stuff like IR/EO
+  subType: Readonly<SubType>; // In future this could have stuff like IR/EO
   multiCamMedia?: Readonly<MultiCamMedia | null>;
 }
 
