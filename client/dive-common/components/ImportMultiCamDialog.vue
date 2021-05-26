@@ -126,7 +126,6 @@ export default defineComponent({
       if (!ret.canceled) {
         try {
           const path = ret.filePaths[0];
-          console.log(ret);
           if (folder === 'calibration') {
             calibrationFile.value = path;
             if (ret.fileList?.length) {

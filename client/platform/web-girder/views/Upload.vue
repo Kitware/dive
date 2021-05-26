@@ -196,14 +196,13 @@ export default defineComponent({
       if ((args as MultiCamImportKeywordArgs).globList !== undefined) {
         const keywordArgs = (args as MultiCamImportKeywordArgs);
         //We need to divide by glob list into different folders
-        if (args.htmlFileReferences?.mediaHTMLFileList[keywordArgs.keywordFolder]) {
+        if (args.htmlFileReferences?.mediaHTMLFileList.keyword) {
           const { mediaHTMLFileList } = args.htmlFileReferences;
-          mediaList = mediaList.concat(mediaHTMLFileList[keywordArgs.keywordFolder]);
-
+          mediaList = mediaList.concat(mediaHTMLFileList.keyword);
           Object.entries(keywordArgs.globList).forEach(([key, glob]) => {
             folderList[key] = filterByGlob(
               glob,
-              mediaHTMLFileList[keywordArgs.keywordFolder].map((item) => item.name),
+              mediaHTMLFileList.keyword.map((item) => item.name),
             );
           });
         }

@@ -205,8 +205,8 @@ def download_source_media(
 
 
 def write_multiCam_pipeline_args(
-    base_path: Path, image_media_list: List[str], input_folder: GirderModel
-) -> Tuple[dict, dict]: 
+    base_path: Path, input_media_list: List[str], input_folder: GirderModel
+) -> Tuple[dict, dict]:
     multicam_meta = fromMeta(input_folder, MultiCamMarker)
     cameras = multicam_meta['cameras']
     counter = 0
@@ -215,7 +215,9 @@ def write_multiCam_pipeline_args(
     # media_list contains a sub folder for each item which needs to be written out
     for key in cameras.keys():
         file_name = f'{str(base_path)}/input{counter + 1}_images.txt'  # This is locked in the pipeline for now
-        input_arg = f'input{counter + 1}:video_filename'  # lock for the stereo pipeline as well
+        input_arg = (
+            f'input{counter + 1}:video_filename'  # lock for the stereo pipeline as well
+        )
         output_filename = f'computed_tracks_{key}.csv'
         output_arg = f"detector_writer{counter +1}:file_name"
         arg_pair[input_arg] = file_name
@@ -223,9 +225,10 @@ def write_multiCam_pipeline_args(
         out_files[key] = output_filename
         # Now we filter and write the image files
         with open(base_path / f'cam{counter + 1}_images.txt', "w+") as img_list_file:
-            for item in image_media_list:
+            for item in input_media_list:
                 if f'/{key}/' in item:
                     img_list_file.write(f'{item}\n')
+
         counter = counter + 1
 
     return arg_pair, out_files

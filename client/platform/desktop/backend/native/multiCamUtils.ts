@@ -64,7 +64,14 @@ function writeMultiCamStereoPipelineArgs(jobWorkDir: string, meta: JsonMeta) {
       argFilePair[outputArg] = outputFileName;
       outFiles[key] = outputFileName;
       const inputFile = fs.createWriteStream(npath.join(jobWorkDir, inputFileName));
-      list.originalImageFiles.forEach((image) => inputFile.write(`${npath.join(originalBasePath, image)}\n`));
+      if (list.type === 'image-sequence') {
+        list.originalImageFiles.forEach((image) => inputFile.write(`${npath.join(originalBasePath, image)}\n`));
+      } else if (list.originalVideoFile) {
+        //TODO This doesn't seem to work yet for video files
+        const vidFile = list.transcodedVideoFile
+          ? list.transcodedVideoFile : list.originalVideoFile;
+        inputFile.write(`${npath.join(originalBasePath, vidFile)}\n`);
+      }
       inputFile.end();
       i += 1;
     });

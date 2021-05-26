@@ -284,7 +284,7 @@ def run_pipeline(self: Task, params: PipelineJob):
         for (key, arg) in multicam_args.items():
             input_command = f'-s {key}="{arg}"'
             command.append(input_command)
-        if (len(out_files) > 0):
+        if len(out_files) > 0:
             multicam_meta = fromMeta(input_folder, MultiCamMarker)
             track_output_file = out_files[multicam_meta['display']]
         # May require a calibration file
