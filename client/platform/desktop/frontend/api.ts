@@ -35,7 +35,7 @@ async function openFromDisk(datasetType: DatasetType | 'calibration', directory 
       { name: 'All Files', extensions: ['*'] },
     ];
   }
-  const props = datasetType === 'image-sequence' || directory ? 'openDirectory' : 'openFile';
+  const props = (datasetType === 'image-sequence' || directory) ? 'openDirectory' : 'openFile';
   const results = await remote.dialog.showOpenDialog({
     properties: [props],
     filters,
