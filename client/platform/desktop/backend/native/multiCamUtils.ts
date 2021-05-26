@@ -49,22 +49,27 @@ function getTranscodedMultiCamType(imageListFile: string, jsonMeta: JsonMeta) {
   throw new Error(`No associate type for ${imageListFile} in multiCam data`);
 }
 
-function writeMultiCamPipelineInputs(jobWorkDir: string, meta: JsonMeta) {
-  const InputArgFilePair: Record<string, string> = {};
+function writeMultiCamStereoPipelineArgs(jobWorkDir: string, meta: JsonMeta) {
+  const argFilePair: Record<string, string> = {};
+  const outFiles: Record<string, string> = {};
   if (meta.multiCam && meta.multiCam.cameras) {
     let i = 0;
-    Object.values(meta.multiCam.cameras).forEach((list) => {
+    Object.entries(meta.multiCam.cameras).forEach(([key, list]) => {
       const { originalBasePath } = list;
-      const fileName = `cam${i + 1}_images.txt`; //This is locked in the pipeline for now
-      const inputArg = `cam${i + 1}_imread`; // lock for the stereo pipeline as well
-      InputArgFilePair[inputArg] = fileName;
-      const inputFile = fs.createWriteStream(npath.join(jobWorkDir, fileName));
+      const inputFileName = `input${i + 1}_images.txt`; //This is locked in the pipeline for now
+      const inputArg = `input${i + 1}:video_filename`; // lock for the stereo pipeline as well
+      const outputFileName = `computed_tracks_${key}.csv`; //This is locked in the pipeline for now
+      const outputArg = `detector_writer${i + 1}:file_name`; // lock for the stereo pipeline as well
+      argFilePair[inputArg] = inputFileName;
+      argFilePair[outputArg] = outputFileName;
+      outFiles[key] = outputFileName;
+      const inputFile = fs.createWriteStream(npath.join(jobWorkDir, inputFileName));
       list.originalImageFiles.forEach((image) => inputFile.write(`${npath.join(originalBasePath, image)}\n`));
       inputFile.end();
       i += 1;
     });
   }
-  return InputArgFilePair;
+  return { argFilePair, outFiles };
 }
 
 function getMultiCamUrls(
@@ -147,7 +152,7 @@ function getMultiCamImageFiles(meta: JsonMeta) {
 
 export {
   transcodeMultiCam,
-  writeMultiCamPipelineInputs,
+  writeMultiCamStereoPipelineArgs,
   getMultiCamVideoPath,
   getMultiCamImageFiles,
   getMultiCamUrls,
