@@ -26,13 +26,14 @@ from dive_tasks.utils import (
     get_multiCam_calibration_arg,
     organize_folder_for_training,
     stream_subprocess,
-    write_multiCam_pipeline_inputs,
+    write_multiCam_pipeline_args,
 )
 from dive_utils import fromMeta
 from dive_utils.constants import (
     DatasetMarker,
     FPSMarker,
     ImageSequenceType,
+    MultiCamMarker,
     MultiType,
     OriginalFPSMarker,
     OriginalFPSStringMarker,
@@ -269,7 +270,7 @@ def run_pipeline(self: Task, params: PipelineJob):
             f"-s track_writer:file_name={shlex.quote(track_output_file)}",
         ]
     elif input_type == MultiType and pipeline["type"] == StereoPipelineMarker:
-        input_args = write_multiCam_pipeline_inputs(
+        multicam_args, out_files = write_multiCam_pipeline_args(
             input_path, input_media_list, input_folder
         )
         command = [
@@ -280,12 +281,14 @@ def run_pipeline(self: Task, params: PipelineJob):
             f"-s detector_writer:file_name={shlex.quote(detector_output_file)}",
             f"-s track_writer:file_name={shlex.quote(track_output_file)}",
         ]
-        for arg in input_args.keys():
-            input_command = f'-s {arg}:video_filename="{input_args[arg]}"'
+        for (key, arg) in multicam_args.items():
+            input_command = f'-s {key}="{arg}"'
             command.append(input_command)
+        if (len(out_files) > 0):
+            multicam_meta = fromMeta(input_folder, MultiCamMarker)
+            track_output_file = out_files[multicam_meta['display']]
         # May require a calibration file
         command.append(get_multiCam_calibration_arg(gc, input_media_list, input_folder))
-        command.append(f"-s measure:output_fpath={shlex.quote(track_output_file)}")
     else:
         raise ValueError('Unknown input type: {}'.format(input_type))
 

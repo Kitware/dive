@@ -591,6 +591,7 @@ async function beginMediaImport(
     transcodedImageFiles: [],
     name: dsName,
     multiCam: null,
+    subType: null,
   };
 
   /* TODO: Look for an EXISTING meta.json file to override the above */

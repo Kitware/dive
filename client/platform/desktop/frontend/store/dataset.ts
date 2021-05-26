@@ -88,13 +88,6 @@ function locateDuplicates(meta: JsonMeta) {
  * @param id dataset id path
  */
 function setRecents(meta: JsonMeta) {
-  let subType: SubType = null;
-  if (meta.multiCam?.cameras && meta.multiCam.cameras.left
-    && meta.multiCam.cameras.right && meta.multiCam.calibration) {
-    subType = 'stereo';
-  } else if (meta.multiCam) {
-    subType = 'multicam';
-  }
   Vue.set(datasets.value, meta.id, {
     version: meta.version,
     type: meta.type,
@@ -105,7 +98,7 @@ function setRecents(meta: JsonMeta) {
     originalBasePath: meta.originalBasePath,
     originalVideoFile: meta.originalVideoFile,
     transcodedVideoFile: meta.transcodedVideoFile,
-    subType,
+    subType: meta.subType,
   } as JsonMetaCache);
   const values = Object.values(datasets.value);
   window.localStorage.setItem(RecentsKey, JSON.stringify(values));

@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from subprocess import Popen
 from tempfile import mktemp
-from typing import IO, Callable, List, Optional
+from typing import IO, Callable, List, Optional, Tuple
 
 from girder_client import GirderClient
 from girder_worker.task import Task
@@ -204,18 +204,23 @@ def download_source_media(
         raise Exception(f"unexpected folder {str(folder)}")
 
 
-def write_multiCam_pipeline_inputs(
+def write_multiCam_pipeline_args(
     base_path: Path, image_media_list: List[str], input_folder: GirderModel
-):
+) -> Tuple[dict, dict]: 
     multicam_meta = fromMeta(input_folder, MultiCamMarker)
     cameras = multicam_meta['cameras']
     counter = 0
-    input_arg_pair = {}
+    arg_pair = {}
+    out_files = {}
     # media_list contains a sub folder for each item which needs to be written out
     for key in cameras.keys():
-        file_name = f'{str(base_path)}/cam{counter + 1}_images.txt'  # This is locked in the pipeline for now
-        input_arg = f'cam{counter + 1}_imread'  # lock for the stereo pipeline as well
-        input_arg_pair[input_arg] = file_name
+        file_name = f'{str(base_path)}/input{counter + 1}_images.txt'  # This is locked in the pipeline for now
+        input_arg = f'input{counter + 1}:video_filename'  # lock for the stereo pipeline as well
+        output_filename = f'computed_tracks_{key}.csv'
+        output_arg = f"detector_writer{counter +1}:file_name"
+        arg_pair[input_arg] = file_name
+        arg_pair[output_arg] = output_filename
+        out_files[key] = output_filename
         # Now we filter and write the image files
         with open(base_path / f'cam{counter + 1}_images.txt', "w+") as img_list_file:
             for item in image_media_list:
@@ -223,7 +228,7 @@ def write_multiCam_pipeline_inputs(
                     img_list_file.write(f'{item}\n')
         counter = counter + 1
 
-    return input_arg_pair
+    return arg_pair, out_files
 
 
 def get_multiCam_calibration_arg(
@@ -239,5 +244,5 @@ def get_multiCam_calibration_arg(
             print(f'Calibration Name: {calibration_name}')
             for item in image_media_list:
                 if calibration_name in item:
-                    return f' -s measure:cal_fpath="{item}"'
+                    return f' -s measurer:calibration_file="{item}"'
     return ''

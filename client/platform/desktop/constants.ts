@@ -1,5 +1,5 @@
 import type {
-  DatasetMeta, DatasetMetaMutable, DatasetType, Pipe,
+  DatasetMeta, DatasetMetaMutable, DatasetType, Pipe, SubType,
 } from 'dive-common/apispec';
 import { Attribute } from 'vue-media-annotator/use/useAttributes';
 
@@ -86,6 +86,9 @@ export interface JsonMeta extends DatasetMetaMutable {
 
   // Stereo or multi-camera datasets with uniform type (all images, all video)
   multiCam: MultiCamDesktop | null;
+
+  // Stereo or multi-camera datasets with uniform type (all images, all video)
+  subType: SubType;
 }
 
 export type DesktopMetadata = DatasetMeta & JsonMeta;

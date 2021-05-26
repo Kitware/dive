@@ -126,6 +126,7 @@ export default defineComponent({
       if (!ret.canceled) {
         try {
           const path = ret.filePaths[0];
+          console.log(ret);
           if (folder === 'calibration') {
             calibrationFile.value = path;
             if (ret.fileList?.length) {
@@ -140,8 +141,11 @@ export default defineComponent({
             if (ret.fileList) {
               htmlFileReferences.mediaHTMLFileList[folder] = ret.fileList;
             }
-          } else if (importType.value === 'keyword' && ret.root) {
-            keywordFolder.value = ret.root;
+          } else if (importType.value === 'keyword') {
+            [keywordFolder.value] = ret.filePaths;
+            if (ret.root) {
+              keywordFolder.value = ret.root;
+            }
             pendingImportPayload.value = await importMedia(ret.filePaths);
             if (ret.fileList) {
               htmlFileReferences.mediaHTMLFileList[folder] = ret.fileList;
