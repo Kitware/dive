@@ -336,13 +336,11 @@ export default defineComponent({
         videoUrl.value = meta.videoUrl;
         datasetType.value = meta.type as DatasetType;
         // TODO: Data is ready for MultiView, just setting it to default display for now
-        if (meta.multiCamMedia) {
-          if (meta.multiCamMedia.cameras[meta.multiCamMedia.display]) {
-            const defaultCamera = meta.multiCamMedia.cameras[meta.multiCamMedia.display];
-            imageData.value = cloneDeep(defaultCamera.imageData) as FrameImage[];
-            videoUrl.value = defaultCamera.videoUrl;
-            datasetType.value = defaultCamera.type;
-          }
+        const defaultCamera = meta.multiCamMedia?.cameras[meta.multiCamMedia.display];
+        if (defaultCamera) {
+          imageData.value = cloneDeep(defaultCamera.imageData) as FrameImage[];
+          videoUrl.value = defaultCamera.videoUrl;
+          datasetType.value = defaultCamera.type;
         }
       }),
       loadDetections(props.id).then((tracks) => {

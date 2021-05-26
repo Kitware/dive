@@ -108,6 +108,7 @@ async function beginMultiCamImport(
     transcodedVideoFile: '',
     transcodedImageFiles: [],
     name: dsName,
+    multiCam: null,
   };
 
   jsonMeta.multiCam = {

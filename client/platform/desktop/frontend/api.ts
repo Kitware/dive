@@ -35,7 +35,7 @@ async function openFromDisk(datasetType: DatasetType | 'calibration', directory 
       { name: 'All Files', extensions: ['*'] },
     ];
   }
-  const props = datasetType === 'image-sequence' || directory ? 'openDirectory' : 'openFile';
+  const props = (datasetType === 'image-sequence' || directory) ? 'openDirectory' : 'openFile';
   const results = await remote.dialog.showOpenDialog({
     properties: [props],
     filters,
@@ -82,8 +82,8 @@ async function runTraining(
   return ipcRenderer.invoke('run-training', args);
 }
 
-function importMedia(path: string): Promise<MediaImportPayload> {
-  return ipcRenderer.invoke('import-media', { path });
+function importMedia(path: string[]): Promise<MediaImportPayload> {
+  return ipcRenderer.invoke('import-media', { path: path[0] });
 }
 
 function importMultiCam(args: MultiCamImportArgs):

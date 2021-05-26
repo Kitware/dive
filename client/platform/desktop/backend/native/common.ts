@@ -12,6 +12,7 @@ import {
   DatasetType, MultiTrackRecord, Pipelines, SaveDetectionsArgs,
   FrameImage, DatasetMetaMutable, TrainingConfigs, SaveAttributeArgs,
   MultiCamMedia,
+  SubType,
 } from 'dive-common/apispec';
 import * as viameSerializers from 'platform/desktop/backend/serializers/viame';
 import {
@@ -187,6 +188,7 @@ async function loadMetadata(
   let videoUrl = '';
   let imageData = [] as FrameImage[];
   let multiCamMedia: MultiCamMedia | null = null;
+  let subType: SubType = null;
   const { type } = projectMetaData;
   /* Generate URLs against embedded media server from known file paths on disk */
   if (projectMetaData.type === 'multi') {
@@ -197,6 +199,12 @@ async function loadMetadata(
     multiCamMedia = getMultiCamUrls(
       projectMetaData, projectDirData.basePath, makeMediaUrl,
     );
+    if (projectMetaData.multiCam?.cameras && projectMetaData.multiCam.cameras.left
+      && projectMetaData.multiCam.cameras.right && projectMetaData.multiCam.calibration) {
+      subType = 'stereo';
+    } else if (projectMetaData.multiCam) {
+      subType = 'multicam';
+    }
   } else if (projectMetaData.type === 'video') {
     /* If the video has been transcoded, use that video */
     if (projectMetaData.transcodedVideoFile) {
@@ -228,6 +236,7 @@ async function loadMetadata(
     videoUrl,
     imageData,
     multiCamMedia,
+    subType,
   };
 }
 
@@ -581,6 +590,7 @@ async function beginMediaImport(
     transcodedVideoFile: '',
     transcodedImageFiles: [],
     name: dsName,
+    multiCam: null,
   };
 
   /* TODO: Look for an EXISTING meta.json file to override the above */

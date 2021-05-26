@@ -23,7 +23,7 @@ export interface JsonMetaCache {
   originalBasePath: string;
   originalVideoFile: string;
   transcodedVideoFile?: string;
-  subType?: SubType;
+  subType: SubType;
 }
 
 /**
@@ -34,6 +34,7 @@ function hydrateJsonMetaCacheValue(input: any): JsonMetaCache {
   return {
     originalVideoFile: '',
     transcodedVideoFile: '',
+    subType: null,
     ...input,
   };
 }
@@ -87,12 +88,12 @@ function locateDuplicates(meta: JsonMeta) {
  * @param id dataset id path
  */
 function setRecents(meta: JsonMeta) {
-  let subType;
+  let subType: SubType = null;
   if (meta.multiCam?.cameras && meta.multiCam.cameras.left
     && meta.multiCam.cameras.right && meta.multiCam.calibration) {
     subType = 'stereo';
   } else if (meta.multiCam) {
-    subType = 'mulitcam';
+    subType = 'multicam';
   }
   Vue.set(datasets.value, meta.id, {
     version: meta.version,

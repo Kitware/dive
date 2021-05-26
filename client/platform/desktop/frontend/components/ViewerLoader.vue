@@ -35,12 +35,7 @@ export default defineComponent({
     },
   },
   setup(props) {
-    const subType = computed(() => {
-      if (datasets.value[props.id] && datasets.value[props.id].subType) {
-        return [datasets.value[props.id].subType];
-      }
-      return [''];
-    });
+    const subType = computed(() => [datasets.value[props.id]?.subType || null]);
     return {
       datasets,
       subType,

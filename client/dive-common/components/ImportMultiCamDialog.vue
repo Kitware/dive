@@ -4,18 +4,15 @@ import {
   computed, defineComponent, ref, Ref, PropType,
 } from '@vue/composition-api';
 import { filterByGlob } from 'platform/desktop/sharedUtils';
-import { DatasetType, useApi } from 'dive-common/apispec';
+import {
+  CustomMediaImportPayload,
+  DatasetType,
+  HTMLFileReferences,
+  useApi,
+} from 'dive-common/apispec';
 
 import ImportMultiCamAddType from 'dive-common/components/ImportMultiCamAddType.vue';
 
-//Custom subset of MediaImportPayload for comaptiblity with web and desktop
-interface CustomMediaImportPayload {
-  jsonMeta: {
-    originalImageFiles: string[];
-  };
-  globPattern: string;
-  mediaConvertList: string[];
-}
 
 export default defineComponent({
   components: {
@@ -31,13 +28,9 @@ export default defineComponent({
       type: String as PropType<'image-sequence' | 'video'>,
       default: 'image-sequence',
     },
-    importMedia: {
-      type: Function as PropType<(path: string | string[]) => Promise<CustomMediaImportPayload>>,
-      required: true,
-    },
   },
   setup(props, { emit }) {
-    const { openFromDisk } = useApi();
+    const { openFromDisk, importMedia } = useApi();
     const importType: Ref<'multi'|'keyword'| ''> = ref('');
     const folderList: Ref<Record<string, string>> = ref({});
     const keywordFolder = ref('');
@@ -48,6 +41,9 @@ export default defineComponent({
     const addNewToggle = ref(false);
     const newSetName = ref('');
 
+    const htmlFileReferences: HTMLFileReferences = {
+      mediaHTMLFileList: {},
+    }; //Used to store fileReferences for Web version
     if (props.stereo) {
       folderList.value = {
         left: '',
@@ -133,7 +129,7 @@ export default defineComponent({
           if (folder === 'calibration') {
             calibrationFile.value = path;
             if (ret.fileList?.length) {
-              emit('add-calibration-file', ret.fileList[0]);
+              [htmlFileReferences.calibrationHTMLFile] = ret.fileList;
             }
           } else if (importType.value === 'multi') {
             if (ret.root) {
@@ -141,11 +137,15 @@ export default defineComponent({
             } else {
               folderList.value[folder] = path;
             }
-            emit('add-multicam-files', { root: folder, files: ret.fileList });
+            if (ret.fileList) {
+              htmlFileReferences.mediaHTMLFileList[folder] = ret.fileList;
+            }
           } else if (importType.value === 'keyword' && ret.root) {
             keywordFolder.value = ret.root;
-            pendingImportPayload.value = await props.importMedia(ret.filePaths);
-            emit('add-multicam-files', { root: ret.root, files: ret.fileList });
+            pendingImportPayload.value = await importMedia(ret.filePaths);
+            if (ret.fileList) {
+              htmlFileReferences.mediaHTMLFileList[folder] = ret.fileList;
+            }
           }
         } catch (err) {
           console.error(err);
@@ -185,6 +185,7 @@ export default defineComponent({
           folderList: folderList.value,
           calibrationFile: calibrationFile.value,
           type: props.dataType,
+          htmlFileReferences,
         });
       } else if (importType.value === 'keyword') {
         emit('begin-multicam-import', {
@@ -193,6 +194,7 @@ export default defineComponent({
           globList: globList.value,
           calibrationFile: calibrationFile.value,
           type: 'image-sequence',
+          htmlFileReferences,
         });
       }
     };
