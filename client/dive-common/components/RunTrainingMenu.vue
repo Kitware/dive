@@ -22,7 +22,7 @@ export default defineComponent({
     },
     subTypeList: {
       type: Array,
-      default: () => (['']),
+      default: () => ([]),
     },
   },
 

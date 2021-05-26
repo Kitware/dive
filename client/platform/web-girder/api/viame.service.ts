@@ -1,6 +1,7 @@
 import type { GirderModel } from '@girder/components/src';
 
 import {
+  CustomMediaImportPayload,
   DatasetMetaMutable,
   DatasetType,
   Pipe, Pipelines, SaveAttributeArgs, TrainingConfigs,
@@ -234,6 +235,15 @@ Promise<{ canceled: boolean; filePaths: string[]; fileList?: File[]; root?: stri
     input.click();
   });
 }
+async function importMedia(files: string[]): Promise<CustomMediaImportPayload> {
+  return {
+    jsonMeta: {
+      originalImageFiles: files,
+    },
+    globPattern: '',
+    mediaConvertList: [],
+  };
+}
 
 export {
   clone,
@@ -252,4 +262,5 @@ export {
   validateUploadGroup,
   getValidWebImages,
   openFromDisk,
+  importMedia,
 };

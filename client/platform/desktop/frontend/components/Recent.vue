@@ -41,7 +41,7 @@ export default defineComponent({
       const ret = await api.openFromDisk(dstype);
       if (!ret.canceled) {
         try {
-          pendingImportPayload.value = await api.importMedia(ret.filePaths[0]);
+          pendingImportPayload.value = await api.importMedia(ret.filePaths);
         } catch (err) {
           snackbar.value = true;
           errorText.value = err.message;
@@ -158,7 +158,6 @@ export default defineComponent({
         v-if="importMultiCamDialog"
         :stereo="stereo"
         :data-type="multiCamOpenType"
-        :import-media="importMedia"
         @begin-multicam-import="multiCamImport($event)"
         @abort="importMultiCamDialog = false"
       />
