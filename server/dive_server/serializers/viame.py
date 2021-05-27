@@ -142,6 +142,18 @@ def _parse_row(row: List[str]) -> Tuple[Dict, Dict, Dict, List]:
 
     if len(head_tail) == 2:
         create_geoJSONFeature(features, 'LineString', head_tail, 'HeadTails')
+
+    # ensure confidence pairs list is not empty
+    if len(sorted_confidence_pairs) == 0:
+        # extract Detection or Length Confidence field
+        try:
+            confidence = float(row[7])
+        except ValueError: # in case field is empty
+            confidence = 1.0
+
+        # add a dummy 'unknown' pair
+        sorted_confidence_pairs.append(['unknown', confidence])
+
     return features, attributes, track_attributes, sorted_confidence_pairs
 
 
