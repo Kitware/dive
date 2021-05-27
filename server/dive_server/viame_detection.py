@@ -64,9 +64,7 @@ class ViameDetection(Resource):
         )
         if item:
             video = Item().childFiles(item)[0]
-            videoUrl = (
-                f'/api/v1/file/{str(video["_id"])}/download?contentDisposition=inline'
-            )
+            videoUrl = f'/api/v1/file/{str(video["_id"])}/download'
 
         return {
             'folder': folder,
@@ -132,7 +130,6 @@ class ViameDetection(Resource):
     def get_export_urls(self, folder, excludeBelowThreshold):
         verify_dataset(folder)
         folderId = str(folder['_id'])
-        mediaFolderId = getCloneRoot(self.getCurrentUser(), folder)['_id']
         export_all = f'/api/v1/folder/{folderId}/download'
         export_media = None
         export_detections = None
@@ -253,11 +250,10 @@ class ViameDetection(Resource):
                     mediaFolder,
                     filters={"lowerName": {"$regex": mediaRegex}},
                 ):
-                    for file in Item().childFiles(item, limit=1):
-                        path = File().getLocalFilePath(file)
-                        data_generator = File().download(file)
-                        for data in z.addFile(data_generator, path):
+                    for (path, file) in Item().fileList(item):
+                        for data in z.addFile(file, path):
                             yield data
+                        break  # Media items should only have 1 valid file
 
             if includeDetections:
                 # add JSON detections
