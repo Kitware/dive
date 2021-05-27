@@ -6,7 +6,7 @@ from girder.api import access
 from girder.api.describe import Description, autoDescribeRoute
 from girder.api.rest import Resource, setContentDisposition, setResponseHeader
 from girder.constants import AccessType, TokenScope
-from girder.exceptions import RestException
+from girder.exceptions import GirderException, RestException
 from girder.models.file import File
 from girder.models.folder import Folder
 from girder.models.item import Item
@@ -24,12 +24,12 @@ from dive_server.utils import (
 from dive_utils import fromMeta, models
 from dive_utils.constants import (
     FPSMarker,
-    ImageMimeTypes,
     ImageSequenceType,
     TypeMarker,
-    VideoMimeTypes,
     VideoType,
+    imageRegex,
     safeImageRegex,
+    videoRegex,
 )
 
 
@@ -64,9 +64,7 @@ class ViameDetection(Resource):
         )
         if item:
             video = Item().childFiles(item)[0]
-            videoUrl = (
-                f'/api/v1/file/{str(video["_id"])}/download?contentDisposition=inline'
-            )
+            videoUrl = f'/api/v1/file/{str(video["_id"])}/download'
 
         return {
             'folder': folder,
@@ -132,7 +130,6 @@ class ViameDetection(Resource):
     def get_export_urls(self, folder, excludeBelowThreshold):
         verify_dataset(folder)
         folderId = str(folder['_id'])
-        mediaFolderId = getCloneRoot(self.getCurrentUser(), folder)['_id']
         export_all = f'/api/v1/folder/{folderId}/download'
         export_media = None
         export_detections = None
@@ -151,15 +148,12 @@ class ViameDetection(Resource):
 
         source_type = fromMeta(folder, TypeMarker)
         if source_type == VideoType:
-            params = {
-                'mimeFilter': json.dumps(list(VideoMimeTypes)),
-            }
-            export_media = f'/api/v1/folder/{mediaFolderId}/download?{urllib.parse.urlencode(params)}'
+            export_media = clipMeta.get('videoUrl')
         elif source_type == ImageSequenceType:
-            params = {
-                'mimeFilter': json.dumps(list(ImageMimeTypes)),
-            }
-            export_media = f'/api/v1/folder/{mediaFolderId}/download?{urllib.parse.urlencode(params)}'
+            export_media = (
+                f'/api/v1/viame_detection/{folderId}/export_all'
+                f'?excludeBelowThreshold={excludeBelowThreshold}&includeDetections=false'
+            )
 
         # No-copy import data does not support mimeFilter.
         # We cannot detect which collections are from no-copy imported data, so
@@ -210,6 +204,20 @@ class ViameDetection(Resource):
             level=AccessType.READ,
         )
         .param(
+            "includeMedia",
+            "Include media content",
+            paramType="query",
+            dataType="boolean",
+            default=True,
+        )
+        .param(
+            "includeDetections",
+            "Include detection content",
+            paramType="query",
+            dataType="boolean",
+            default=True,
+        )
+        .param(
             "excludeBelowThreshold",
             "Exclude tracks with confidencePairs below set threshold",
             paramType="query",
@@ -217,37 +225,49 @@ class ViameDetection(Resource):
             default=False,
         )
     )
-    def export_all(self, folder, excludeBelowThreshold):
+    def export_all(
+        self, folder, includeMedia, includeDetections, excludeBelowThreshold
+    ):
         verify_dataset(folder)
         _, gen = self._generate_detections(folder, excludeBelowThreshold)
         setResponseHeader('Content-Type', 'application/zip')
         setContentDisposition(folder['name'] + '.zip')
         user = self.getCurrentUser()
         mediaFolder = getCloneRoot(user, folder)
+        source_type = fromMeta(mediaFolder, TypeMarker)
+        mediaRegex = None
+        if source_type == ImageSequenceType:
+            mediaRegex = imageRegex
+        elif source_type == VideoType:
+            mediaRegex = videoRegex
 
         def stream():
             z = ziputil.ZipGenerator(folder['name'])
-            # add media
-            for (path, file) in Folder().fileList(
-                mediaFolder,
-                user=user,
-                subpath=False,
-                mimeFilter=VideoMimeTypes.union(ImageMimeTypes),
-            ):
-                for data in z.addFile(file, path):
+
+            if includeMedia:
+                # Add media
+                for item in Folder().childItems(
+                    mediaFolder,
+                    filters={"lowerName": {"$regex": mediaRegex}},
+                ):
+                    for (path, file) in Item().fileList(item):
+                        for data in z.addFile(file, path):
+                            yield data
+                        break  # Media items should only have 1 valid file
+
+            if includeDetections:
+                # add JSON detections
+                for (path, file) in Folder().fileList(
+                    folder,
+                    user=user,
+                    subpath=False,
+                    mimeFilter={'application/json'},
+                ):
+                    for data in z.addFile(file, path):
+                        yield data
+                # add CSV detections
+                for data in z.addFile(gen, "output_tracks.csv"):
                     yield data
-            # add JSON detections
-            for (path, file) in Folder().fileList(
-                folder,
-                user=user,
-                subpath=False,
-                mimeFilter={'application/json'},
-            ):
-                for data in z.addFile(file, path):
-                    yield data
-            # add CSV detections
-            for data in z.addFile(gen, "output_tracks.csv"):
-                yield data
             yield z.footer()
 
         return stream
