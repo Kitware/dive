@@ -49,6 +49,8 @@ TypeMarker = "type"
 AssetstoreSourceMarker = "import_source"
 AssetstoreSourcePathMarker = "import_path"
 FPSMarker = "fps"
+OriginalFPSMarker = "originalFps"
+OriginalFPSStringMarker = "originalFpsString"
 
 # Other constants
 TrainedPipelineCategory = "trained"

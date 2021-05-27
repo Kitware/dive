@@ -25,11 +25,16 @@ const TailRegex = /^\(kp\) tail ([0-9]+\.*[0-9]*) ([0-9]+\.*[0-9]*)/g;
 const AttrRegex = /^\(atr\) (.*?)\s(.+)/g;
 const TrackAttrRegex = /^\(trk-atr\) (.*?)\s(.+)/g;
 const PolyRegex = /^(\(poly\)) ((?:[0-9]+\.*[0-9]*\s*)+)/g;
-
+const FpsRegex = /fps:\s*(\d+(\.\d+)?)/ig;
 const AtrToken = '(atr)';
 const TrackAtrToken = '(trk-atr)';
 const PolyToken = '(poly)';
 const KeypointToken = '(kp)';
+
+interface AnnotationFileData {
+  tracks: TrackData[];
+  fps?: number;
+}
 
 // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/matchAll
 function getCaptureGroups(regexp: RegExp, str: string) {
@@ -47,11 +52,11 @@ function getCaptureGroups(regexp: RegExp, str: string) {
 }
 
 function _rowInfo(row: string[]) {
+  if (row[0].match(CommentRegex) !== null) {
+    throw new Error('comment row');
+  }
   if (row.length < 9) {
     throw new Error('malformed row: too few columns');
-  }
-  if (row[0].match(CommentRegex) !== null) {
-    throw new Error('malformed row: comment row');
   }
   return {
     trackId: parseInt(row[0], 10),
@@ -63,6 +68,16 @@ function _rowInfo(row: string[]) {
     ),
     fishLength: parseFloat(row[8]),
   };
+}
+
+function parseCommentRow(row: string[]) {
+  const fullrow = row.join(' ');
+  const matches = getCaptureGroups(FpsRegex, fullrow);
+  let fps: undefined | number;
+  if (matches !== null && matches.length >= 2) {
+    fps = Number.parseFloat(matches[1]);
+  }
+  return { fps };
 }
 
 function _deduceType(value: string): boolean | number | string {
@@ -213,22 +228,22 @@ function _parseFeature(row: string[]) {
   };
 }
 
-async function parse(input: Readable): Promise<TrackData[]> {
+async function parse(input: Readable): Promise<AnnotationFileData> {
   const parser = csvparser({
     delimiter: ',',
     // comment lines may not have the correct number of columns
     relaxColumnCount: true,
   });
-
+  let fps: number | undefined;
   const dataMap = new Map<number, TrackData>();
 
-  return new Promise<TrackData[]>((resolve, reject) => {
+  return new Promise<AnnotationFileData>((resolve, reject) => {
     pipeline(input, parser, (err) => {
       // undefined err indicates successful exit
       if (err !== undefined) {
         reject(err);
       }
-      resolve(Array.from(dataMap.values()));
+      resolve({ tracks: Array.from(dataMap.values()), fps });
     });
     parser.on('readable', () => {
       let record: string[];
@@ -263,8 +278,11 @@ async function parse(input: Readable): Promise<TrackData[]> {
             track.attributes[key] = val;
           });
         } catch (err) {
-          // Allow malformed row errors
-          if (!err.toString().includes('malformed row')) {
+          if (err.toString().includes('comment row')) {
+            // parse comment row
+            fps = fps || parseCommentRow(record).fps;
+          } else if (!err.toString().includes('malformed row')) {
+            // Allow malformed row errors
             throw err;
           }
         }
@@ -277,7 +295,7 @@ async function parse(input: Readable): Promise<TrackData[]> {
   });
 }
 
-async function parseFile(path: string): Promise<TrackData[]> {
+async function parseFile(path: string): Promise<AnnotationFileData> {
   const stream = fs.createReadStream(path);
   return parse(stream);
 }

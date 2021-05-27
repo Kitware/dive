@@ -91,12 +91,15 @@ export default defineComponent({
       <v-tooltip bottom>
         <template #activator="{ on: tooltipOn }">
           <v-btn
-            class="ma-0"
+            outlined
+            depressed
+            color="grey"
             text
+            class="mx-1"
             :small="small"
             v-on="{ ...tooltipOn, ...menuOn }"
           >
-            <v-icon color="accent">
+            <v-icon>
               mdi-export
             </v-icon>
             <span

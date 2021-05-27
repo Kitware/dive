@@ -1,15 +1,16 @@
 import npath from 'path';
 import fs from 'fs-extra';
 import mime from 'mime-types';
-import {
-  DatasetType, MultiCamImportFolderArgs,
-  MultiCamImportKeywordArgs, MultiCamImportArgs,
-} from 'dive-common/apispec';
+import { DatasetType } from 'dive-common/apispec';
 import {
   websafeImageTypes, websafeVideoTypes, otherImageTypes, otherVideoTypes,
 } from 'dive-common/constants';
 import {
   JsonMeta, Settings, JsonMetaCurrentVersion,
+  MultiCamImportFolderArgs,
+  MultiCamImportKeywordArgs,
+  MultiCamImportArgs,
+  CheckMediaResults,
   MediaImportPayload,
 } from 'platform/desktop/constants';
 import { cleanString, makeid } from 'platform/desktop/sharedUtils';
@@ -43,7 +44,7 @@ async function asyncForEach(array: any[], callback: Function) {
 async function beginMultiCamImport(
   settings: Settings,
   args: MultiCamImportArgs,
-  checkMedia: (settings: Settings, path: string) => Promise<boolean>,
+  checkMedia: (settings: Settings, path: string) => Promise<CheckMediaResults>,
 ): Promise<MediaImportPayload> {
   const datasetType: DatasetType | 'multi' = 'multi';
 
@@ -99,6 +100,7 @@ async function beginMultiCamImport(
     type: datasetType,
     id: dsId,
     fps: 5, // TODO
+    originalFps: 5,
     originalBasePath: mainFolder,
     originalVideoFile: '',
     createdAt: (new Date()).toString(),
@@ -128,13 +130,21 @@ async function beginMultiCamImport(
             if (websafeImageTypes.includes(mimetype) || otherImageTypes.includes(mimetype)) {
               throw new Error('User chose image file for video import option');
             } else if (websafeVideoTypes.includes(mimetype) || otherVideoTypes.includes(mimetype)) {
-              const webSafeVideo = await checkMedia(settings, video);
-              if (!webSafeVideo || otherVideoTypes.includes(mimetype)) {
+              const checkMediaResult = await checkMedia(settings, video);
+              if (!checkMediaResult.websafe || otherVideoTypes.includes(mimetype)) {
                 mediaConvertList.push(video);
               }
               if (jsonMeta.multiCam && jsonMeta.multiCam.cameras[key] !== undefined) {
                 jsonMeta.multiCam.cameras[key].originalVideoFile = npath.basename(video);
               }
+              const newAnnotationFps = Math.floor(
+                Math.min(jsonMeta.fps, checkMediaResult.originalFps),
+              );
+              if (newAnnotationFps <= 0) {
+                throw new Error('fps < 1 unsupported');
+              }
+              jsonMeta.originalFps = checkMediaResult.originalFps;
+              jsonMeta.fps = newAnnotationFps;
             } else {
               throw new Error(`unsupported MIME type for video ${mimetype}`);
             }

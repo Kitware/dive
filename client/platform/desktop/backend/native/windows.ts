@@ -11,7 +11,7 @@ import { observeChild } from 'platform/desktop/backend/native/processManager';
 import {
   Settings, SettingsCurrentVersion,
   DesktopJob, RunPipeline, NvidiaSmiReply, RunTraining,
-  ConversionArgs, DesktopJobUpdater,
+  ConversionArgs, DesktopJobUpdater, CheckMediaResults,
 } from 'platform/desktop/constants';
 
 import * as viame from './viame';
@@ -206,7 +206,7 @@ async function ffmpegCommand(settings: Settings) {
  * Checks the video file for the codec type and
  * returns true if it is x264, if not will return false for media conversion
  */
-async function checkMedia(settings: Settings, file: string): Promise<boolean> {
+async function checkMedia(settings: Settings, file: string): Promise<CheckMediaResults> {
   await ffmpegCommand(settings);
   return viame.checkMedia({
     ...ViameWindowsConstants,
