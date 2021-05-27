@@ -1,6 +1,6 @@
 import re
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from dive_utils.types import (
     AvailableJobSchema,
@@ -56,7 +56,7 @@ def load_static_pipelines(search_path: Path) -> Dict[str, PipelineCategory]:
 
 def load_training_configurations(search_path: Path) -> TrainingConfigurationSummary:
     configurations: List[str] = []
-    default_config: str = None
+    default_config: Optional[str] = None
 
     for pipe in search_path.glob("./*.conf"):
         pipe_name = pipe.name
