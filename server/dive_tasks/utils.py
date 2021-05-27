@@ -169,27 +169,28 @@ def download_source_media(
         return [destination_path]
     elif fromMeta(folder, TypeMarker) == MultiType:
         cameras = fromMeta(folder, MultiCamMarker)['cameras']
-        print(cameras)
         downloads = []
         for key in cameras.keys():
             camera = cameras[key]
             camera_folder = Path(dest / key)
             camera_folder.mkdir()
-            base = camera['originalBaseId']
+            baseId = camera['originalBaseId']
             destination_path = str(dest / key)
             if camera['type'] == ImageSequenceType:
                 image_items = girder_client.get(
-                    'viame/valid_images', {'folderId': base}
+                    'viame/valid_images', {'folderId': baseId}
                 )
                 for item in image_items:
                     girder_client.downloadItem(str(item["_id"]), str(destination_path))
                     downloads.append(str(camera_folder / item['name']))
             elif camera['type'] == VideoType:
                 clip_meta = girder_client.get(
-                    "viame_detection/clip_meta", {'folderId': folder['_id']}
+                    "viame_detection/clip_meta", {'folderId': baseId}
                 )
                 destination_path = str(camera_folder / clip_meta['video']['name'])
-                girder_client.downloadFile(str(base), destination_path)
+                girder_client.downloadFile(
+                    str(clip_meta['video']['_id']), destination_path
+                )
                 downloads.append(destination_path)
         # Multicamera calibration matrix addition
         calibration_id = fromMeta(folder, MultiCamMarker)[CalibrationMarker]
@@ -220,14 +221,13 @@ def write_multiCam_pipeline_args(
         )
 
         output_filename = f'computed_tracks_{key}.csv'
+        output_filename = str(base_path / output_filename)
         output_arg = f"detector_writer{counter +1}:file_name"
         arg_pair[output_arg] = output_filename
         out_files[key] = output_filename
         if camera['type'] == ImageSequenceType:
             file_name = f'{str(base_path)}/input{counter + 1}_images.txt'  # This is locked in the pipeline for now
-            with open(
-                base_path / f'cam{counter + 1}_images.txt', "w+"
-            ) as img_list_file:
+            with open(file_name, "w+") as img_list_file:
                 for item in input_media_list:
                     if f'/{key}/' in item:
                         img_list_file.write(f'{item}\n')
@@ -236,7 +236,7 @@ def write_multiCam_pipeline_args(
             # Each video file should be in a folder which has the camera name
             for media_file in input_media_list:
                 path = Path(media_file)
-                if key == str(path.parent):
+                if key == str(path.parent).replace(f'{str(base_path)}/', ''):
                     vid_type_arg = f'input{counter +1}:video_reader_type'
                     vid_type = 'vidl_ffmpeg'
                     arg_pair[vid_type_arg] = vid_type
@@ -260,5 +260,5 @@ def get_multiCam_calibration_arg(
             print(f'Calibration Name: {calibration_name}')
             for item in image_media_list:
                 if calibration_name in item:
-                    return f' -s measurer:calibration_file="{item}"'
+                    return f'-s measurer:calibration_file="{item}"'
     return ''

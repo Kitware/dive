@@ -9,7 +9,7 @@ from dive_utils.types import (
     TrainingConfigurationSummary,
 )
 
-DefaultTrainingConfiguration = "train_netharn_cascade.viame_csv.conf"
+DefaultTrainingConfiguration = "train_detector_netharn_cfrnn.viame_csv.conf"
 AllowedTrainingConfigs = r".*\.viame_csv\.conf$"
 AllowedStaticPipelines = (
     r"^detector_.+|^tracker_.+|^utility_.+|^generate_.+|^measurement_gmm_.+"
