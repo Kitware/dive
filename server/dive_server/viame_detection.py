@@ -80,7 +80,7 @@ class ViameDetection(Resource):
         if "csv" in file["exts"]:
             return File().download(file)
 
-        filename = ".".join([file["name"].split(".")[:-1][0], "csv"])
+        filename = folder["name"] + ".csv"
 
         fps = None
         imageFiles = None
