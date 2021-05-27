@@ -36,6 +36,7 @@ async function createWindow() {
     width: Math.min(size.width, 1300),
     height: Math.min(size.height - 200, 900),
     autoHideMenuBar: true,
+    title: 'VIAME DIVE Desktop',
     webPreferences: {
       // Use pluginOptions.nodeIntegration, leave this alone
       // See nklayman.github.io/vue-cli-plugin-electron-builder/guide/security.html

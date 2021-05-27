@@ -30,7 +30,6 @@ import HeadTail from 'dive-common/recipes/headtail';
 import EditorMenu from 'dive-common/components/EditorMenu.vue';
 import ConfidenceFilter from 'dive-common/components/ConfidenceFilter.vue';
 import UserGuideButton from 'dive-common/components/UserGuideButton.vue';
-import RunPipelineMenu from 'dive-common/components/RunPipelineMenu.vue';
 import DeleteControls from 'dive-common/components/DeleteControls.vue';
 import ControlsContainer from 'dive-common/components/ControlsContainer.vue';
 import Sidebar from 'dive-common/components/Sidebar.vue';
@@ -51,7 +50,6 @@ export default defineComponent({
     VideoAnnotator,
     ImageAnnotator,
     ConfidenceFilter,
-    RunPipelineMenu,
     UserGuideButton,
     EditorMenu,
   },

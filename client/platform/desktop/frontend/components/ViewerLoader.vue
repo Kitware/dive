@@ -9,6 +9,18 @@ import JobTab from './JobTab.vue';
 
 import { datasets } from '../store/dataset';
 
+const buttonOptions = {
+  outlined: true,
+  color: 'grey lighten-1',
+  depressed: true,
+  text: true,
+  class: ['mx-1'],
+};
+
+const menuOptions = {
+  offsetY: true,
+};
+
 export default defineComponent({
   components: {
     Export,
@@ -23,7 +35,11 @@ export default defineComponent({
     },
   },
   setup() {
-    return { datasets };
+    return {
+      buttonOptions,
+      datasets,
+      menuOptions,
+    };
   },
 });
 </script>
@@ -50,10 +66,14 @@ export default defineComponent({
       </v-tabs>
     </template>
     <template #title-right>
-      <RunPipelineMenu :selected-dataset-ids="[id]" />
+      <RunPipelineMenu
+        :selected-dataset-ids="[id]"
+        v-bind="{ buttonOptions, menuOptions }"
+      />
       <Export
         v-if="datasets[id]"
         :id="id"
+        :button-options="buttonOptions"
       />
     </template>
   </Viewer>
