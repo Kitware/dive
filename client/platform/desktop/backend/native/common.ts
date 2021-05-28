@@ -270,7 +270,7 @@ async function getPipelineList(settings: Settings): Promise<Pipelines> {
   });
 
   // Now lets add to it the trained pipelines by recursively looking in the dir
-  const allowedTrainedPatterns = /^detector.+|^tracker.+|^generate.+|^trained_detector\.zip|^trained_tracker\.zip|^trained_generate\.zip/;
+  const allowedTrainedPatterns = /^detector.+|^tracker.+|^generate.+|^trained_detector\.zip|^trained_tracker\.zip|^trained_generate\.zip|^.*\.svm/;
   const trainedPipelinePath = npath.join(settings.dataPath, PipelinesFolderName);
   const trainedExists = await fs.pathExists(trainedPipelinePath);
   if (!trainedExists) return ret;
