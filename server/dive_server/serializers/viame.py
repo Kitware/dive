@@ -148,10 +148,10 @@ def _parse_row(row: List[str]) -> Tuple[Dict, Dict, Dict, List]:
         # extract Detection or Length Confidence field
         try:
             confidence = float(row[7])
-        except ValueError: # in case field is empty
+        except ValueError:  # in case field is empty
             confidence = 1.0
 
-        # add a dummy 'unknown' pair
+        # add a dummy pair with a default type
         sorted_confidence_pairs.append(['unknown', confidence])
 
     return features, attributes, track_attributes, sorted_confidence_pairs
