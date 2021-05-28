@@ -239,7 +239,9 @@ async function loadDetections(settings: Settings, datasetId: string) {
  */
 async function getPipelineList(settings: Settings): Promise<Pipelines> {
   const pipelinePath = npath.join(settings.viamePath, 'configs/pipelines');
-  const allowedPatterns = /^detector_.+|^tracker_.+|^generate_.+|^utility_|^measurement\.gmm/;
+  // const allowedPatterns = /^detector_.+|^tracker_.+|^generate_.+|^utility_|^measurement\.gmm/;
+  // Disable measurement for now.
+  const allowedPatterns = /^detector_.+|^tracker_.+|^generate_.+|^utility_/;
   const disallowedPatterns = /.*local.*|detector_svm_models.pipe|tracker_svm_models.pipe/;
   const exists = await fs.pathExists(pipelinePath);
   if (!exists) return {};
@@ -656,11 +658,13 @@ async function finalizeMediaImport(
     mediaConvertList = found.mediaConvertList;
   }
 
-  // Verify that the user didn't choose an FPS value higher than originalFPS
-  // This shouldn't be possible in the UI, but we should still prevent it here.
-  jsonMeta.fps = Math.floor(
-    Math.max(1, Math.min(jsonMeta.fps, jsonMeta.originalFps)),
-  );
+  if (jsonMeta.type === 'video') {
+    // Verify that the user didn't choose an FPS value higher than originalFPS
+    // This shouldn't be possible in the UI, but we should still prevent it here.
+    jsonMeta.fps = Math.floor(
+      Math.max(1, Math.min(jsonMeta.fps, jsonMeta.originalFps)),
+    );
+  }
 
   //Now we will kick off any conversions that are necessary
   let jobBase = null;
