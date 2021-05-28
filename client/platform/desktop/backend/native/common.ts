@@ -270,7 +270,17 @@ async function getPipelineList(settings: Settings): Promise<Pipelines> {
   });
 
   // Now lets add to it the trained pipelines by recursively looking in the dir
-  const allowedTrainedPatterns = /^detector.+|^tracker.+|^generate.+|^trained_detector\.zip|^trained_tracker\.zip|^trained_generate\.zip|^.*\.svm/;
+  const allowedTrainedPatterns = new RegExp([
+    '^detector.+',
+    '^tracker.+',
+    '^generate.+',
+    'trained_detector\\.zip',
+    '^trained_tracker\\.zip',
+    '^trained_generate\\.zip',
+    '^.*\\.svm',
+    '^.*\\.lbl',
+    '^.*\\.cfg',
+  ].join('|'));
   const trainedPipelinePath = npath.join(settings.dataPath, PipelinesFolderName);
   const trainedExists = await fs.pathExists(trainedPipelinePath);
   if (!trainedExists) return ret;
@@ -312,13 +322,14 @@ async function getPipelineList(settings: Settings): Promise<Pipelines> {
 async function getTrainingConfigs(settings: Settings): Promise<TrainingConfigs> {
   const pipelinePath = npath.join(settings.viamePath, 'configs/pipelines');
   const allowedPatterns = /\.viame_csv\.conf$/;
+  const disallowedPatterns = /.*_nf\.viame_csv\.conf$/;
   const exists = await fs.pathExists(pipelinePath);
   if (!exists) {
     throw new Error('Path does not exist');
   }
   let configs = await fs.readdir(pipelinePath);
   configs = configs
-    .filter((p) => p.match(allowedPatterns))
+    .filter((p) => (p.match(allowedPatterns) && !p.match(disallowedPatterns)))
     .sort((a, b) => a.localeCompare(b));
   return {
     default: configs[0],
