@@ -185,7 +185,15 @@ export default defineComponent({
             </template>
           </v-card-text>
           <v-card-actions>
-            <v-spacer />
+            <v-btn
+              depressed
+              block
+              :disabled="!exportUrls.exportDetectionsUrl"
+              @click="doExport({ url: exportUrls && exportUrls.exportDetectionsUrl })"
+            >
+              <span v-if="exportUrls.exportDetectionsUrl">detections</span>
+              <span v-else>detections unavailable</span>
+            </v-btn>
             <v-btn
               depressed
               block
