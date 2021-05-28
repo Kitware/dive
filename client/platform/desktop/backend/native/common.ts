@@ -283,7 +283,7 @@ async function getPipelineList(settings: Settings): Promise<Pipelines> {
     pipesInFolder = pipesInFolder.filter(
       (p: string) => p.match(allowedTrainedPatterns) && !p.match(disallowedPatterns),
     );
-    if (pipesInFolder.length >= 1) {
+    if (pipesInFolder.length >= 2) {
       const pipeName = pipesInFolder.find((pipe) => pipe && pipe.indexOf('.pipe') !== -1);
       if (pipeName) {
         const pipeInfo = {
