@@ -11,6 +11,7 @@ import RunTrainingMenu from 'dive-common/components/RunTrainingMenu.vue';
 import { getFolder } from 'platform/web-girder/api/girder.service';
 import { getLocationFromRoute } from '../utils';
 import { deleteResources } from '../api/viame.service';
+import { getMaxNSummaryUrl } from '../api/summary.service';
 import Export from './Export.vue';
 import Upload from './Upload.vue';
 import DataDetails from './DataDetails.vue';
@@ -106,7 +107,9 @@ export default Vue.extend({
     selectedDescription() {
       return this.location?.description;
     },
-
+    summaryUrl() {
+      return getMaxNSummaryUrl(this.locationInputs);
+    },
   },
   async created() {
     let newLocaction = getLocationFromRoute(this.$route);
@@ -214,6 +217,19 @@ export default Vue.extend({
                   v-bind="{ buttonOptions, menuOptions }"
                   :dataset-id="exportTargetId"
                 />
+                <v-btn
+                  :disabled="!locationInputs.length"
+                  v-bind="{ ...buttonOptions }"
+                  :href="summaryUrl"
+                  target="_blank"
+                >
+                  <v-icon>
+                    mdi-file-chart
+                  </v-icon>
+                  <span class="pl-1">
+                    Generate Summary
+                  </span>
+                </v-btn>
                 <v-btn
                   :disabled="!selected.length"
                   v-bind="{ ...buttonOptions }"

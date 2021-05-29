@@ -12,7 +12,12 @@ async function getSummary() {
   return data;
 }
 
+function getMaxNSummaryUrl(ids: string[]) {
+  return `${girderRest.apiRoot}/viame_summary/max_n?folder_ids=${JSON.stringify(ids)}`;
+}
+
 export {
   SummaryItem,
   getSummary,
+  getMaxNSummaryUrl,
 };

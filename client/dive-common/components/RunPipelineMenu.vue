@@ -132,6 +132,10 @@ export default defineComponent({
               >
                 Run pipeline
               </span>
+              <v-spacer />
+              <v-icon v-if="menuOptions.right">
+                mdi-chevron-right
+              </v-icon>
             </v-btn>
           </template>
           <span>Run CV algorithm pipelines on this data</span>

@@ -1,12 +1,68 @@
+import csv
+import io
+from typing import Callable, Generator, List
+
 from girder.api import access
 from girder.api.describe import Description, autoDescribeRoute
-from girder.api.rest import Resource
-from girder.constants import SortDir
+from girder.api.rest import Resource, setContentDisposition
+from girder.constants import AccessType, SortDir, TokenScope
+from girder.models.folder import Folder
 from girder.models.token import Token
 
-from dive_server.utils import PydanticModel
-from dive_tasks.summary import generate_summary
-from dive_utils import models
+from dive_server.serializers.viame import format_timestamp
+from dive_server.utils import PydanticModel, detections_file, getTrackData
+from dive_tasks.summary import generate_max_n_summary, generate_summary
+from dive_utils import fromMeta, models
+from dive_utils.types import GirderModel
+
+
+def generate_max_n_summary_csv(
+    folders: List[GirderModel],
+) -> Callable[[], Generator[str, None, None]]:
+    csvFile = io.StringIO()
+    writer = csv.writer(csvFile)
+    writer.writerow(
+        [
+            (
+                '# Max N Counts summary indicates the single frame with'
+                ' the maximum number of detections of a particular type'
+                ' for each type within each dataset'
+            )
+        ]
+    )
+    writer.writerow(
+        [
+            '# video or sequence name',
+            'dataset_id',
+            'annotation_fps',
+            'time_id',
+            'frame_id',
+            'detection_type',
+            'detection_count',
+        ]
+    )
+
+    def gen():
+        for folder in folders:
+            track_data = getTrackData(detections_file(folder))
+            annotation_fps = fromMeta(folder, 'fps')
+            for detection_type, result in generate_max_n_summary(track_data).items():
+                writer.writerow(
+                    [
+                        folder['name'],
+                        folder['_id'],
+                        annotation_fps,
+                        format_timestamp(annotation_fps, result['frame']),
+                        result['frame'],
+                        detection_type,
+                        result['count'],
+                    ]
+                )
+                yield csvFile.getvalue()
+                csvFile.seek(0)
+                csvFile.truncate(0)
+
+    return gen
 
 
 class SummaryItem(PydanticModel):
@@ -21,6 +77,7 @@ class ViameSummary(Resource):
 
         self.route("GET", (), self.get_summary)
         self.route("POST", (), self.save_summary)
+        self.route("GET", ('max_n',), self.max_n)
         self.route("POST", ("generate",), self.regenerate_summary)
 
     @access.admin
@@ -57,4 +114,19 @@ class ViameSummary(Resource):
         limit, offset, sort = self.getPagingParameters(params)
         return SummaryItem().findWithPermissions(
             offset=offset, limit=limit, sort=sort, user=self.getCurrentUser()
+        )
+
+    @access.public(scope=TokenScope.DATA_READ, cookie=True)
+    @autoDescribeRoute(
+        Description("Export summary of multiple datasets").jsonParam(
+            'folder_ids', 'dataset IDs', paramType='query', requireArray=True
+        )
+    )
+    def max_n(self, folder_ids: List[str]):
+        setContentDisposition("max_n_summary.csv")
+        return generate_max_n_summary_csv(
+            [
+                Folder().load(id, level=AccessType.READ, user=self.getCurrentUser())
+                for id in folder_ids
+            ]
         )
