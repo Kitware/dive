@@ -394,6 +394,7 @@ def train_pipeline(
                 "-c",
                 shlex.quote(str(config_file)),
                 "--no-query",
+                "--no-embedded-pipe",
             ]
 
             manager.updateStatus(JobStatus.RUNNING)
