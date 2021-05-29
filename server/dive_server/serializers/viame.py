@@ -11,6 +11,10 @@ from typing import Dict, Generator, List, Tuple, Union
 from dive_utils.models import Attribute, Feature, Track, interpolate
 
 
+def format_timestamp(fps: int, frame: int) -> str:
+    return str(datetime.datetime.utcfromtimestamp(frame / fps).strftime(r'%H:%M:%S.%f'))
+
+
 def writeHeader(writer: '_csv._writer', metadata: Dict):
     writer.writerow(
         [
@@ -313,9 +317,7 @@ def export_tracks_as_csv(
 
                     # If FPS is set, column 2 will be video timestamp
                     if fps is not None and fps > 0:
-                        columns[1] = datetime.datetime.utcfromtimestamp(
-                            feature.frame / fps
-                        ).strftime(r'%H:%M:%S.%f')
+                        columns[1] = format_timestamp(fps, feature.frame)
                     # else if filenames is set, column 2 will be image file name
                     elif filenames and feature.frame < len(filenames):
                         columns[1] = filenames[feature.frame]

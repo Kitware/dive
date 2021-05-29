@@ -1,4 +1,4 @@
-from typing import Any, Dict, List
+from typing import List
 
 from girder.api import access
 from girder.api.describe import Description, autoDescribeRoute
@@ -19,7 +19,6 @@ from dive_server.utils import (
     saveTracks,
     verify_dataset,
 )
-from dive_tasks.summary import generate_max_n_summary
 from dive_utils import fromMeta, models
 from dive_utils.constants import (
     FPSMarker,
@@ -40,7 +39,6 @@ class ViameDetection(Resource):
         self.route("PUT", (), self.save_detection)
         self.route("GET", ("clip_meta",), self.get_clip_meta)
         self.route("GET", (":id", "export"), self.get_export_urls)
-        self.route("GET", ("export_summary",), self.export_summary)
         self.route("GET", (":id", "export_detections"), self.export_detections)
         self.route("GET", (":id", "export_all"), self.export_all)
 
@@ -192,24 +190,6 @@ class ViameDetection(Resource):
         filename, gen = self._generate_detections(folder, excludeBelowThreshold)
         setContentDisposition(filename)
         return gen
-
-    @access.public(scope=TokenScope.DATA_READ, cookie=True)
-    @autoDescribeRoute(
-        Description("Export summary of multiple datasets").jsonParam(
-            'folder_ids', 'dataset IDs', paramType='query', requireArray=True
-        )
-    )
-    def export_summary(self, folder_ids: List[str]):
-        user = self.getCurrentUser()
-        summary: Dict[str, Any] = {}
-        for id in folder_ids:
-            folder = Folder().load(id, level=AccessType.READ, user=user)
-            track_data = getTrackData(detections_file(folder))
-            summary[folder['name']] = {
-                "summary": generate_max_n_summary(track_data),
-                "meta": folder['meta'],
-            }
-        return summary
 
     @access.public(scope=TokenScope.DATA_READ, cookie=True)
     @autoDescribeRoute(

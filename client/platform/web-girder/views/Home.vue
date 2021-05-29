@@ -106,7 +106,9 @@ export default Vue.extend({
     selectedDescription() {
       return this.location?.description;
     },
-
+    summaryUrl() {
+      return `/api/v1/viame_summary/max_n?folder_ids=${JSON.stringify(this.locationInputs)}`;
+    },
   },
   async created() {
     let newLocaction = getLocationFromRoute(this.$route);
@@ -214,6 +216,19 @@ export default Vue.extend({
                   v-bind="{ buttonOptions, menuOptions }"
                   :dataset-id="exportTargetId"
                 />
+                <v-btn
+                  :disabled="!locationInputs.length"
+                  v-bind="{ ...buttonOptions }"
+                  :href="summaryUrl"
+                  target="_blank"
+                >
+                  <v-icon>
+                    mdi-file-chart
+                  </v-icon>
+                  <span class="pl-1">
+                    Generate Summary
+                  </span>
+                </v-btn>
                 <v-btn
                   :disabled="!selected.length"
                   v-bind="{ ...buttonOptions }"
