@@ -201,6 +201,14 @@ function _parseRow(row: string[]) {
     geoFeatureCollection.features.push(_createGeoJsonFeature('LineString', headTail, 'HeadTails'));
   }
 
+  // ensure confidence pairs list is not empty
+  if (confidencePairs.length === 0) {
+    // extract Detection or Length Confidence field
+    const confidence = parseFloat(row[7]) || 1.0;
+    // add a dummy pair with a default type
+    confidencePairs.push(['unknown', confidence] as ConfidencePair);
+  }
+
   return {
     attributes, trackAttributes, confidencePairs, geoFeatureCollection,
   };
