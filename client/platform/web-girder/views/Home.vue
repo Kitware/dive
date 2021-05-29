@@ -11,6 +11,7 @@ import RunTrainingMenu from 'dive-common/components/RunTrainingMenu.vue';
 import { getFolder } from 'platform/web-girder/api/girder.service';
 import { getLocationFromRoute } from '../utils';
 import { deleteResources } from '../api/viame.service';
+import { getMaxNSummaryUrl } from '../api/summary.service';
 import Export from './Export.vue';
 import Upload from './Upload.vue';
 import DataDetails from './DataDetails.vue';
@@ -107,7 +108,7 @@ export default Vue.extend({
       return this.location?.description;
     },
     summaryUrl() {
-      return `/api/v1/viame_summary/max_n?folder_ids=${JSON.stringify(this.locationInputs)}`;
+      return getMaxNSummaryUrl(this.locationInputs);
     },
   },
   async created() {
