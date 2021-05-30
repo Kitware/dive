@@ -5,3 +5,4 @@ venv/
 docker/girder_data
 *.Dockerfile
 docker-compose.*
+docker/traefik

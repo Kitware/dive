@@ -1,6 +1,6 @@
 import re
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from dive_utils.types import (
     AvailableJobSchema,
@@ -9,8 +9,9 @@ from dive_utils.types import (
     TrainingConfigurationSummary,
 )
 
-DefaultTrainingConfiguration = "train_detector_netharn_cfrnn.viame_csv.conf"
+DefaultTrainingConfiguration = "train_detector_default.viame_csv.conf"
 AllowedTrainingConfigs = r".*\.viame_csv\.conf$"
+DisallowedTrainingConfigs = r".*_nf\.viame_csv\.conf$"
 AllowedStaticPipelines = (
     r"^detector_.+|^tracker_.+|^utility_.+|^generate_.+|^measurement_gmm_.+"
 )
@@ -58,7 +59,7 @@ def load_static_pipelines(search_path: Path) -> Dict[str, PipelineCategory]:
 
 def load_training_configurations(search_path: Path) -> TrainingConfigurationSummary:
     configurations: List[str] = []
-    default_config: str
+    default_config: Optional[str] = None
 
     for pipe in search_path.glob("./*.conf"):
         pipe_name = pipe.name
@@ -68,11 +69,16 @@ def load_training_configurations(search_path: Path) -> TrainingConfigurationSumm
             default_config = pipe_name
 
     # Filter out stuff that doesn't match allowed patterns
-    configurations = [c for c in configurations if re.match(AllowedTrainingConfigs, c)]
+    configurations = [
+        c
+        for c in configurations
+        if re.match(AllowedTrainingConfigs, c)
+        and not re.match(DisallowedTrainingConfigs, c)
+    ]
 
     return {
         "configs": configurations,
-        "default": default_config,
+        "default": default_config or pipe_name,
     }
 
 
