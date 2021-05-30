@@ -64,9 +64,9 @@ Run model training on ground truth annotations.  Currently, training configurati
 
 ### Important notes
 
-* All object detector training configurations require annotations labeled `fish`.
+* Object detector training configurations require annotations labeled `fish`.
 * Full-frame classifiers can be trained on arbitrary multi-class labels.  It's helpful to start with `empty frame lbls` utility pipe and add type annotations to each generated frame.
-* Object classifiers
+* Object classifiers are trained on bounding boxes with arbitrary multi-class labels.
 
 ### Overview
 
