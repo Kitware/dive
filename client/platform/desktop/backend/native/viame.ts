@@ -132,17 +132,22 @@ async function runPipeline(
     command.push(`-s track_reader:file_name="${groundTruthFileName}"`);
   }
 
+  let multiOutFiles: Record<string, string>;
   if (meta.multiCam && pipeline.type === 'measurement') {
     const { argFilePair, outFiles } = writeMultiCamStereoPipelineArgs(jobWorkDir, meta);
     Object.entries(argFilePair).forEach(([arg, file]) => {
       command.push(`-s ${arg}="${file}"`);
+    });
+    multiOutFiles = {};
+    Object.entries(outFiles).forEach(([key, val]) => {
+      multiOutFiles[key] = npath.join(jobWorkDir, val);
     });
     trackOutput = npath.join(jobWorkDir, outFiles[meta.multiCam.display]);
     if (meta.multiCam.calibration) {
       command.push(`-s measurer:calibration_file="${meta.multiCam.calibration}"`);
     }
   } else if (pipeline.type === 'measurement') {
-    throw new Error('Attempting run a multicam pipeline on non multicam data');
+    throw new Error('Attempting to run a multicam pipeline on non multicam data');
   }
 
   const job = observeChild(spawn(command.join(' '), {
@@ -177,7 +182,7 @@ async function runPipeline(
     if (code === 0) {
       try {
         const { attributes } = await common.processOtherAnnotationFiles(
-          settings, datasetId, [trackOutput, detectorOutput],
+          settings, datasetId, [trackOutput, detectorOutput], multiOutFiles,
         );
         if (attributes) {
           meta.attributes = attributes;

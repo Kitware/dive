@@ -22,7 +22,7 @@ export interface MultiCamDesktop {
     originalBasePath: string;
     originalImageFiles: string[];
     originalVideoFile: string;
-    transcodedImagesFiles?: string[];
+    transcodedImageFiles?: string[];
     transcodedVideoFile?: string;
   }>;
   //Calibration file in .npz format used for stereo or other cameras

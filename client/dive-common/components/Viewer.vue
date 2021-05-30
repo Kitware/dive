@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  defineComponent, ref, toRef, computed, Ref,
+  defineComponent, ref, computed, Ref,
 } from '@vue/composition-api';
 import type { Vue } from 'vue/types/vue';
 
@@ -68,6 +68,9 @@ export default defineComponent({
     const prompt = ctx.root.$prompt;
     const loadError = ref('');
     const playbackComponent = ref(undefined as Vue | undefined);
+    const currentId: Ref<string> = ref(props.id); // CurrentId, but used for resetting for multiCam
+    const multiCamList: Ref<string[]> = ref([]);
+    const defaultCamera: Ref<string> = ref('');
     const mediaController = computed(() => {
       if (playbackComponent.value) {
         // TODO: Bug in composition-api types incorrectly organizes the static members of a Vue
@@ -94,7 +97,7 @@ export default defineComponent({
       save: saveToServer,
       markChangesPending,
       pendingSaveCount,
-    } = useSave(toRef(props, 'id'));
+    } = useSave(currentId);
 
     const recipes = [
       new PolygonBase(),
@@ -255,7 +258,7 @@ export default defineComponent({
     }
 
     function saveThreshold() {
-      saveMetadata(props.id, {
+      saveMetadata(currentId.value, {
         confidenceFilters: confidenceFilters.value,
       });
     }
@@ -299,7 +302,7 @@ export default defineComponent({
       {
         attributes,
         allTypes,
-        datasetId: ref(props.id),
+        datasetId: currentId,
         usedTypes,
         checkedTrackIds,
         checkedTypes,
@@ -321,63 +324,85 @@ export default defineComponent({
     );
 
     /** Trigger data load */
-    const loadData = async () => (
-      Promise.all([
-        loadMetadata(props.id).then((meta) => {
-          populateTypeStyles(meta.customTypeStyling);
-          if (meta.customTypeStyling) {
-            importTypes(Object.keys(meta.customTypeStyling), false);
+    const loadData = async (id = props.id) => {
+      currentId.value = id;
+      return (
+        Promise.all([
+          loadMetadata(currentId.value).then((meta) => {
+            populateTypeStyles(meta.customTypeStyling);
+            if (meta.customTypeStyling) {
+              importTypes(Object.keys(meta.customTypeStyling), false);
+            }
+            if (meta.attributes) {
+              loadAttributes(meta.attributes);
+            }
+            populateConfidenceFilters(meta.confidenceFilters);
+            datasetName.value = meta.name;
+            frameRate.value = meta.fps;
+            imageData.value = cloneDeep(meta.imageData) as FrameImage[];
+            videoUrl.value = meta.videoUrl;
+            datasetType.value = meta.type as DatasetType;
+            // TODO: Data is ready for MultiView, just setting it to default display for now
+            const defaultCameraMeta = meta.multiCamMedia?.cameras[meta.multiCamMedia.display];
+            const cameras = meta.multiCamMedia?.cameras;
+            if (defaultCameraMeta && cameras && meta.multiCamMedia) {
+              defaultCamera.value = meta.multiCamMedia.display;
+              multiCamList.value = Object.keys(cameras).concat(['MultiCam Base']);
+              imageData.value = cloneDeep(defaultCameraMeta.imageData) as FrameImage[];
+              videoUrl.value = defaultCameraMeta.videoUrl;
+              datasetType.value = defaultCameraMeta.type;
+              currentId.value = `${props.id}/${defaultCamera.value}`;
+            }
+            loadDetections(currentId.value).then((tracks) => {
+              Object.values(tracks).forEach(
+                (trackData) => insertTrack(Track.fromJSON(trackData), { imported: true }),
+              );
+            });
+          }),
+        ]).then(() => {
+          loaded.value = true;
+        }).catch((err) => {
+          loaded.value = false;
+          // Cleaner displaying of interal errors for desktop
+          if (err.response?.data && err.response?.status === 500 && !err.response?.data?.message) {
+            const fullText = err.response.data;
+            const start = fullText.indexOf('Error:');
+            const html = (fullText.substr(start, fullText.indexOf('<br>') - start));
+            const errorEl = document.createElement('div');
+            errorEl.innerHTML = html;
+            loadError.value = errorEl.innerText
+              .concat(". If you don't know how to resolve this, please contact the server administrator.");
+            throw err;
           }
-          if (meta.attributes) {
-            loadAttributes(meta.attributes);
-          }
-          populateConfidenceFilters(meta.confidenceFilters);
-          datasetName.value = meta.name;
-          frameRate.value = meta.fps;
-          imageData.value = cloneDeep(meta.imageData) as FrameImage[];
-          videoUrl.value = meta.videoUrl;
-          datasetType.value = meta.type as DatasetType;
-          // TODO: Data is ready for MultiView, just setting it to default display for now
-          const defaultCamera = meta.multiCamMedia?.cameras[meta.multiCamMedia.display];
-          if (defaultCamera) {
-            imageData.value = cloneDeep(defaultCamera.imageData) as FrameImage[];
-            videoUrl.value = defaultCamera.videoUrl;
-            datasetType.value = defaultCamera.type;
-          }
-        }),
-        loadDetections(props.id).then((tracks) => {
-          Object.values(tracks).forEach(
-            (trackData) => insertTrack(Track.fromJSON(trackData), { imported: true }),
-          );
-        }),
-      ]).then(() => {
-        loaded.value = true;
-      }).catch((err) => {
-        loaded.value = false;
-        // Cleaner displaying of interal errors for desktop
-        if (err.response?.data && err.response?.status === 500 && !err.response?.data?.message) {
-          const fullText = err.response.data;
-          const start = fullText.indexOf('Error:');
-          const html = (fullText.substr(start, fullText.indexOf('<br>') - start));
-          const errorEl = document.createElement('div');
-          errorEl.innerHTML = html;
-          loadError.value = errorEl.innerText
-            .concat(". If you don't know how to resolve this, please contact the server administrator.");
+          loadError.value = (err.response?.data?.message || err).toString()
+            .concat(" If you don't know how to resolve this, please contact the server administrator.");
           throw err;
-        }
-        loadError.value = (err.response?.data?.message || err).toString()
-          .concat(" If you don't know how to resolve this, please contact the server administrator.");
-        throw err;
-      })
-    );
+        })
+      );
+    };
     loadData();
     const reloadData = async () => {
       clearAllTracks();
       loaded.value = false;
       await loadData();
     };
+
+    const changeCamera = async (camera: string) => {
+      if (camera !== 'MultiCam Base') {
+        currentId.value = `${props.id}/${camera}`;
+      } else {
+        currentId.value = props.id;
+      }
+      clearAllTracks();
+      loaded.value = false;
+      ctx.emit('updateId', currentId.value);
+      await loadData(currentId.value);
+    };
     return {
       reloadData,
+      multiCamList,
+      defaultCamera,
+      changeCamera,
       /* props */
       confidenceThreshold,
       datasetName,
@@ -430,6 +455,17 @@ export default defineComponent({
       >
         {{ datasetName }}
       </span>
+      <div
+        v-if="multiCamList.length"
+        class="px-2 mt-6"
+      >
+        <v-select
+          :value="defaultCamera"
+          :items="multiCamList"
+          label="Camera"
+          @change="changeCamera"
+        />
+      </div>
       <v-spacer />
       <template #extension>
         <span>Viewer/Edit Controls</span>

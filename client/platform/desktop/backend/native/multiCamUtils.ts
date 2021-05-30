@@ -14,22 +14,29 @@ function transcodeMultiCam(
 ) {
   let destLoc = '';
   if (jsonMeta.multiCam) {
+    let breakFlag = false;
     Object.entries(jsonMeta.multiCam.cameras).forEach(([key, val]) => {
-      if (item.includes(val.originalBasePath)) {
-        destLoc = item.replace(val.originalBasePath, projectDirAbsPath);
-        destLoc = destLoc.replace(npath.basename(item), `${key}_${npath.basename(item)}`);
+      if (item.includes(val.originalBasePath) && !breakFlag) {
         const extension = val.type === 'video' ? '.mp4' : '.png';
-        destLoc = destLoc.replace(npath.extname(item), extension);
+        destLoc = item.replace(npath.extname(item), extension);
 
         if (val.type === 'image-sequence') {
-          if (!val.transcodedImagesFiles) {
-            // eslint-disable-next-line no-param-reassign
-            val.transcodedImagesFiles = [];
-          }
-          val.transcodedImagesFiles.push(npath.basename(destLoc));
-        } else if (val.type === 'video') {
+          if (!val.transcodedImageFiles) {
           // eslint-disable-next-line no-param-reassign
-          val.transcodedVideoFile = npath.basename(destLoc);
+            val.transcodedImageFiles = [];
+          }
+          if (val.originalImageFiles.includes(npath.basename(item))) {
+            destLoc = destLoc.replace(val.originalBasePath, `${projectDirAbsPath}/${key}`);
+            val.transcodedImageFiles.push(npath.basename(destLoc));
+            breakFlag = true;
+          }
+        } else if (val.type === 'video') {
+          if (item === npath.join(val.originalBasePath, val.originalVideoFile)) {
+            destLoc = destLoc.replace(val.originalBasePath, `${projectDirAbsPath}/${key}`);
+            // eslint-disable-next-line no-param-reassign
+            val.transcodedVideoFile = npath.basename(destLoc);
+            breakFlag = true;
+          }
         }
       }
     });
@@ -40,10 +47,18 @@ function transcodeMultiCam(
 function getTranscodedMultiCamType(imageListFile: string, jsonMeta: JsonMeta) {
   // Look through cameras trying to find the match for the key/name and type to return back the type
   if (jsonMeta.multiCam) {
-    const keys = Object.keys(jsonMeta.multiCam.cameras);
-    const split = npath.basename(imageListFile).split('_');
-    if (split.length && keys.includes(split[0])) {
-      return jsonMeta.multiCam.cameras[split[0]] && jsonMeta.multiCam.cameras[split[0]].type;
+    const base = npath.basename(imageListFile).replace(npath.extname(imageListFile), '');
+    let type;
+    Object.values(jsonMeta.multiCam.cameras).forEach((val) => {
+      if (val.originalImageFiles.map((item) => item.replace(npath.extname(item), '')).includes(base)) {
+        type = val.type;
+      }
+      if (val.originalVideoFile.includes(base)) {
+        type = val.type;
+      }
+    });
+    if (type) {
+      return type;
     }
   }
   throw new Error(`No associate type for ${imageListFile} in multiCam data`);
@@ -104,9 +119,9 @@ function getMultiCamUrls(
         let displayFilenames = value.originalImageFiles;
         let { originalBasePath } = value;
         // Filter transcoded images to use left/right files)
-        if (value.transcodedImagesFiles && value.transcodedImagesFiles.length) {
-          displayFilenames = value.transcodedImagesFiles;
-          originalBasePath = projectBasePath;
+        if (value.transcodedImageFiles && value.transcodedImageFiles.length) {
+          displayFilenames = value.transcodedImageFiles;
+          originalBasePath = npath.join(projectBasePath, key);
         }
         imageData = displayFilenames.map((filename: string) => ({
           url: makeMediaUrl(npath.join(originalBasePath, filename)),
@@ -117,7 +132,7 @@ function getMultiCamUrls(
         let { originalBasePath } = displayCamera;
         if (value.transcodedVideoFile) {
           displayFilename = `${value.transcodedVideoFile}`;
-          originalBasePath = projectBasePath;
+          originalBasePath = npath.join(projectBasePath, key);
         }
         videoUrl = makeMediaUrl(npath.join(originalBasePath, displayFilename));
       } else {

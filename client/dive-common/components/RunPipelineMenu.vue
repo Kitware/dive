@@ -2,7 +2,9 @@
 import {
   defineComponent, computed, PropType, ref, onBeforeMount, reactive,
 } from '@vue/composition-api';
-import { Pipelines, Pipe, useApi } from 'dive-common/apispec';
+import {
+  Pipelines, Pipe, useApi, SubType,
+} from 'dive-common/apispec';
 
 export default defineComponent({
   props: {
@@ -19,7 +21,7 @@ export default defineComponent({
       default: () => ({}),
     },
     subTypeList: {
-      type: Array,
+      type: Array as PropType<SubType[]>,
       default: () => ([]),
     },
   },
@@ -58,7 +60,9 @@ export default defineComponent({
           if (props.subTypeList.length === props.subTypeList.filter((item) => item === 'stereo').length) {
             sortedPipelines[name] = category;
           }
-        } else {
+        } else if (
+          props.subTypeList.length === props.subTypeList.filter((item) => item === null).length
+        ) {
           sortedPipelines[name] = category;
         }
       });

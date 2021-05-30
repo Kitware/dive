@@ -150,7 +150,7 @@ async function saveMetadata(id: string, args: DatasetMetaMutable) {
 
 async function saveDetections(id: string, args: SaveDetectionsArgs) {
   const client = await getClient();
-  return client.post(`dataset/${id}/detections`, args);
+  return client.post(`dataset/${encodeURIComponent(id)}/detections`, args);
 }
 
 

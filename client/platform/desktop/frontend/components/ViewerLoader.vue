@@ -40,20 +40,26 @@ export default defineComponent({
   },
   setup(props) {
     const viewerRef = ref();
-    const subType = computed(() => [datasets.value[props.id]?.subType || null]);
+    const currentId = ref(props.id);
+    const subType = computed(() => [datasets.value[currentId.value]?.subType || null]);
     const importAnnotationFile = async (id: string, path: string) => {
       const result = await api.importAnnotation(id, path);
       if (result) {
         viewerRef.value.reloadData();
       }
     };
+    const updateId = (id: string) => {
+      currentId.value = id;
+    };
     return {
+      currentId,
       datasets,
       subType,
       importAnnotationFile,
       viewerRef,
       buttonOptions,
       menuOptions,
+      updateId,
     };
   },
 });
@@ -63,6 +69,7 @@ export default defineComponent({
   <Viewer
     :id="id"
     ref="viewerRef"
+    @updateId="updateId"
   >
     <template #title>
       <v-tabs
@@ -85,18 +92,19 @@ export default defineComponent({
     </template>
     <template #title-right>
       <RunPipelineMenu
-        :selected-dataset-ids="[id]"
+        :selected-dataset-ids="[currentId]"
         :sub-type-list="subType"
         v-bind="{ buttonOptions, menuOptions }"
       />
       <ImportAnnotations
-        :dataset-id="id"
+        :dataset-id="currentId"
         block-on-unsaved
+        v-bind="{ buttonOptions, menuOptions }"
         @import-annotation-file="importAnnotationFile"
       />
       <Export
-        v-if="datasets[id]"
-        :id="id"
+        v-if="datasets[currentId] || currentId"
+        :id="currentId"
         :button-options="buttonOptions"
       />
     </template>
