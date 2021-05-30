@@ -22,7 +22,7 @@ export default defineComponent({
     },
     subTypeList: {
       type: Array,
-      default: () => (['']),
+      default: () => ([]),
     },
   },
 
@@ -43,7 +43,7 @@ export default defineComponent({
         return true;
       }
       // All subTypes need to be the same to enable training and we don't support training on stereo
-      if (props.subTypeList.indexOf('stereo') !== -1 || props.subTypeList.indexOf('multicam') !== -1) {
+      if (props.subTypeList.some((v) => v !== null)) {
         return true;
       }
       return false;

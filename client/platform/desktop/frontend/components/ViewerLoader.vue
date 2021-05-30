@@ -12,6 +12,18 @@ import JobTab from './JobTab.vue';
 
 import { datasets } from '../store/dataset';
 
+const buttonOptions = {
+  outlined: true,
+  color: 'grey lighten-1',
+  depressed: true,
+  text: true,
+  class: ['mx-1'],
+};
+
+const menuOptions = {
+  offsetY: true,
+};
+
 export default defineComponent({
   components: {
     Export,
@@ -28,12 +40,7 @@ export default defineComponent({
   },
   setup(props) {
     const viewerRef = ref();
-    const subType = computed(() => {
-      if (datasets.value[props.id] && datasets.value[props.id].subType) {
-        return [datasets.value[props.id].subType];
-      }
-      return [''];
-    });
+    const subType = computed(() => [datasets.value[props.id]?.subType || null]);
     const importAnnotationFile = async (id: string, path: string) => {
       const result = await api.importAnnotation(id, path);
       if (result) {
@@ -45,6 +52,8 @@ export default defineComponent({
       subType,
       importAnnotationFile,
       viewerRef,
+      buttonOptions,
+      menuOptions,
     };
   },
 });
@@ -78,6 +87,7 @@ export default defineComponent({
       <RunPipelineMenu
         :selected-dataset-ids="[id]"
         :sub-type-list="subType"
+        v-bind="{ buttonOptions, menuOptions }"
       />
       <ImportAnnotations
         :dataset-id="id"
@@ -87,6 +97,7 @@ export default defineComponent({
       <Export
         v-if="datasets[id]"
         :id="id"
+        :button-options="buttonOptions"
       />
     </template>
   </Viewer>

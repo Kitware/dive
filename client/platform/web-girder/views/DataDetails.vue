@@ -175,7 +175,7 @@ export default Vue.extend({
     // Used to pass to Taining/Cloning/Pipelines for filtering stereo/multicam features
     subTypeList() {
       if (this.details) {
-        if (this.details.meta.subType) {
+        if (this.details.meta?.subType) {
           return [this.details.meta.subType];
         }
       } else if (this.value.length > 1) {

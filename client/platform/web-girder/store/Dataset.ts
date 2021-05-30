@@ -83,10 +83,12 @@ const datasetModule: Module<DatasetState, RootState> = {
 
       const baseType = dsMeta.type;
       const baseFolderId = dsMeta._id;
+      let subType = null;
       /* Load media based on dataset */
       if (dsMeta.type === 'multi' && dsMeta.meta.multiCam) {
         //We need to get the default display data type
         const multiCam = (dsMeta.meta.multiCam as MultiCamWeb);
+        subType = dsMeta.meta.subType || null;
         if (multiCam.cameras) {
           const pairs = Object.entries(multiCam.cameras);
           multiCamMedia = {
@@ -126,6 +128,7 @@ const datasetModule: Module<DatasetState, RootState> = {
         videoUrl,
         imageData,
         multiCamMedia,
+        subType,
       };
       meta.type = baseType;
       commit('set', { dataset: meta });

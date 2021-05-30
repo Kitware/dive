@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from subprocess import Popen
 from tempfile import mktemp
-from typing import IO, Callable, List, Optional
+from typing import IO, Callable, List, Optional, Tuple
 
 from girder_client import GirderClient
 from girder_worker.task import Task
@@ -169,27 +169,28 @@ def download_source_media(
         return [destination_path]
     elif fromMeta(folder, TypeMarker) == MultiType:
         cameras = fromMeta(folder, MultiCamMarker)['cameras']
-        print(cameras)
         downloads = []
         for key in cameras.keys():
             camera = cameras[key]
             camera_folder = Path(dest / key)
             camera_folder.mkdir()
-            base = camera['originalBaseId']
+            baseId = camera['originalBaseId']
             destination_path = str(dest / key)
             if camera['type'] == ImageSequenceType:
                 image_items = girder_client.get(
-                    'viame/valid_images', {'folderId': base}
+                    'viame/valid_images', {'folderId': baseId}
                 )
                 for item in image_items:
                     girder_client.downloadItem(str(item["_id"]), str(destination_path))
                     downloads.append(str(camera_folder / item['name']))
             elif camera['type'] == VideoType:
                 clip_meta = girder_client.get(
-                    "viame_detection/clip_meta", {'folderId': folder['_id']}
+                    "viame_detection/clip_meta", {'folderId': baseId}
                 )
                 destination_path = str(camera_folder / clip_meta['video']['name'])
-                girder_client.downloadFile(str(base), destination_path)
+                girder_client.downloadFile(
+                    str(clip_meta['video']['_id']), destination_path
+                )
                 downloads.append(destination_path)
         # Multicamera calibration matrix addition
         calibration_id = fromMeta(folder, MultiCamMarker)[CalibrationMarker]
@@ -204,26 +205,46 @@ def download_source_media(
         raise Exception(f"unexpected folder {str(folder)}")
 
 
-def write_multiCam_pipeline_inputs(
-    base_path: Path, image_media_list: List[str], input_folder: GirderModel
-):
+def write_multiCam_pipeline_args(
+    base_path: Path, input_media_list: List[str], input_folder: GirderModel
+) -> Tuple[dict, dict]:
     multicam_meta = fromMeta(input_folder, MultiCamMarker)
     cameras = multicam_meta['cameras']
     counter = 0
-    input_arg_pair = {}
+    arg_pair = {}
+    out_files = {}
     # media_list contains a sub folder for each item which needs to be written out
     for key in cameras.keys():
-        file_name = f'{str(base_path)}/cam{counter + 1}_images.txt'  # This is locked in the pipeline for now
-        input_arg = f'cam{counter + 1}_imread'  # lock for the stereo pipeline as well
-        input_arg_pair[input_arg] = file_name
+        camera = cameras[key]
+        input_arg = (
+            f'input{counter + 1}:video_filename'  # lock for the stereo pipeline as well
+        )
+
+        output_filename = f'computed_tracks_{key}.csv'
+        output_filename = str(base_path / output_filename)
+        output_arg = f"detector_writer{counter +1}:file_name"
+        arg_pair[output_arg] = output_filename
+        out_files[key] = output_filename
+        if camera['type'] == ImageSequenceType:
+            file_name = f'{str(base_path)}/input{counter + 1}_images.txt'  # This is locked in the pipeline for now
+            with open(file_name, "w+") as img_list_file:
+                for item in input_media_list:
+                    if f'/{key}/' in item:
+                        img_list_file.write(f'{item}\n')
+            arg_pair[input_arg] = file_name
+        elif camera['type'] == VideoType:
+            # Each video file should be in a folder which has the camera name
+            for media_file in input_media_list:
+                path = Path(media_file)
+                if key == str(path.parent).replace(f'{str(base_path)}/', ''):
+                    vid_type_arg = f'input{counter +1}:video_reader_type'
+                    vid_type = 'vidl_ffmpeg'
+                    arg_pair[vid_type_arg] = vid_type
+                    arg_pair[input_arg] = media_file
         # Now we filter and write the image files
-        with open(base_path / f'cam{counter + 1}_images.txt', "w+") as img_list_file:
-            for item in image_media_list:
-                if f'/{key}/' in item:
-                    img_list_file.write(f'{item}\n')
         counter = counter + 1
 
-    return input_arg_pair
+    return arg_pair, out_files
 
 
 def get_multiCam_calibration_arg(
@@ -239,5 +260,5 @@ def get_multiCam_calibration_arg(
             print(f'Calibration Name: {calibration_name}')
             for item in image_media_list:
                 if calibration_name in item:
-                    return f' -s measure:cal_fpath="{item}"'
+                    return f'-s measurer:calibration_file="{item}"'
     return ''

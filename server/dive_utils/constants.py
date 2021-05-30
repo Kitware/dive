@@ -62,11 +62,12 @@ CalibrationMarker = "calibration"
 SubTypeMarker = 'subType'
 StereoSubTypeMarker = 'stereo'
 MultiCamSubTypeMarker = 'multicam'
+OriginalFPSMarker = "originalFps"
+OriginalFPSStringMarker = "originalFpsString"
 
 # Other constants
 TrainedPipelineCategory = "trained"
 StereoPipelineMarker = "measurement"
-MultiCamPipelineMarker = ""  # Placeholder
 
 # The name of the folder where any user specific data should be stored
 # (created as a folder of that user)

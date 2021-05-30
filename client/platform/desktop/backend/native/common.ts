@@ -12,6 +12,7 @@ import {
   DatasetType, MultiTrackRecord, Pipelines, SaveDetectionsArgs,
   FrameImage, DatasetMetaMutable, TrainingConfigs, SaveAttributeArgs,
   MultiCamMedia,
+  SubType,
 } from 'dive-common/apispec';
 import * as viameSerializers from 'platform/desktop/backend/serializers/viame';
 import {
@@ -19,13 +20,14 @@ import {
 } from 'dive-common/constants';
 import {
   JsonMeta, Settings, JsonMetaCurrentVersion, DesktopMetadata, DesktopJobUpdater,
-  ConvertMedia, RunTraining, ExportDatasetArgs, MediaImportPayload,
+  ConvertMedia, RunTraining, ExportDatasetArgs, MediaImportPayload, CheckMediaResults,
 } from 'platform/desktop/constants';
 import {
   cleanString, filterByGlob, makeid, strNumericCompare,
 } from 'platform/desktop/sharedUtils';
 import { Attribute, Attributes } from 'vue-media-annotator/use/useAttributes';
 import processTrackAttributes from './attributeProcessor';
+import { upgrade } from './migrations';
 import { getMultiCamUrls, transcodeMultiCam } from './multiCamUtils';
 
 const ProjectsFolderName = 'DIVE_Projects';
@@ -149,13 +151,7 @@ async function loadJsonMetadata(metaAbsPath: string): Promise<JsonMeta> {
     throw new Error(`Unable to parse ${metaAbsPath}: ${err}`);
   }
   /* check if this file meets the current schema version */
-  if ('version' in metaJson) {
-    const { version } = metaJson;
-    if (version !== JsonMetaCurrentVersion) {
-      // TODO: schema migration for older schema versions
-      throw new Error('outdated meta schema version found, migration not implemented');
-    }
-  }
+  upgrade(metaJson);
   return metaJson as JsonMeta;
 }
 
@@ -192,6 +188,7 @@ async function loadMetadata(
   let videoUrl = '';
   let imageData = [] as FrameImage[];
   let multiCamMedia: MultiCamMedia | null = null;
+  let subType: SubType = null;
   const { type } = projectMetaData;
   /* Generate URLs against embedded media server from known file paths on disk */
   if (projectMetaData.type === 'multi') {
@@ -202,6 +199,12 @@ async function loadMetadata(
     multiCamMedia = getMultiCamUrls(
       projectMetaData, projectDirData.basePath, makeMediaUrl,
     );
+    if (projectMetaData.multiCam?.cameras && projectMetaData.multiCam.cameras.left
+      && projectMetaData.multiCam.cameras.right && projectMetaData.multiCam.calibration) {
+      subType = 'stereo';
+    } else if (projectMetaData.multiCam) {
+      subType = 'multicam';
+    }
   } else if (projectMetaData.type === 'video') {
     /* If the video has been transcoded, use that video */
     if (projectMetaData.transcodedVideoFile) {
@@ -233,6 +236,7 @@ async function loadMetadata(
     videoUrl,
     imageData,
     multiCamMedia,
+    subType,
   };
 }
 
@@ -247,7 +251,7 @@ async function loadDetections(settings: Settings, datasetId: string) {
  */
 async function getPipelineList(settings: Settings): Promise<Pipelines> {
   const pipelinePath = npath.join(settings.viamePath, 'configs/pipelines');
-  const allowedPatterns = /^detector_.+|^tracker_.+|^generate_.+|^utility_|^measurement\.gmm/;
+  const allowedPatterns = /^detector_.+|^tracker_.+|^generate_.+|^utility_|^measurement_gmm_.+/;
   const disallowedPatterns = /.*local.*|detector_svm_models.pipe|tracker_svm_models.pipe/;
   const exists = await fs.pathExists(pipelinePath);
   if (!exists) return {};
@@ -276,7 +280,15 @@ async function getPipelineList(settings: Settings): Promise<Pipelines> {
   });
 
   // Now lets add to it the trained pipelines by recursively looking in the dir
-  const allowedTrainedPatterns = /^detector.+|^tracker.+|^generate.+|^trained_detector\.zip|^trained_tracker\.zip|^trained_generate\.zip/;
+  const allowedTrainedPatterns = new RegExp([
+    '^detector.+',
+    '^tracker.+',
+    '^generate.+',
+    '^.*\\.zip',
+    '^.*\\.svm',
+    '^.*\\.lbl',
+    '^.*\\.cfg',
+  ].join('|'));
   const trainedPipelinePath = npath.join(settings.dataPath, PipelinesFolderName);
   const trainedExists = await fs.pathExists(trainedPipelinePath);
   if (!trainedExists) return ret;
@@ -318,13 +330,14 @@ async function getPipelineList(settings: Settings): Promise<Pipelines> {
 async function getTrainingConfigs(settings: Settings): Promise<TrainingConfigs> {
   const pipelinePath = npath.join(settings.viamePath, 'configs/pipelines');
   const allowedPatterns = /\.viame_csv\.conf$/;
+  const disallowedPatterns = /.*_nf\.viame_csv\.conf$/;
   const exists = await fs.pathExists(pipelinePath);
   if (!exists) {
     throw new Error('Path does not exist');
   }
   let configs = await fs.readdir(pipelinePath);
   configs = configs
-    .filter((p) => p.match(allowedPatterns))
+    .filter((p) => (p.match(allowedPatterns) && !p.match(disallowedPatterns)))
     .sort((a, b) => a.localeCompare(b));
   return {
     default: configs[0],
@@ -409,7 +422,7 @@ async function _saveAsJson(absPath: string, data: unknown) {
 }
 
 async function saveMetadata(settings: Settings, datasetId: string,
-  args: DatasetMetaMutable & { attributes?: Record<string, Attribute>}) {
+  args: DatasetMetaMutable & { attributes?: Record<string, Attribute> }) {
   const projectDirInfo = await getValidatedProjectDir(settings, datasetId);
   const release = await _acquireLock(projectDirInfo.basePath, projectDirInfo.metaFileAbsPath, 'meta');
   const existing = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
@@ -463,7 +476,7 @@ async function processOtherAnnotationFiles(
   datasetId: string,
   absPaths: string[],
 ): Promise<{ fps?: number; processedFiles: string[]; attributes?: Attributes }> {
-  const fps = undefined;
+  let fps: number | undefined;
   const processedFiles = []; // which files were processed to generate the detections
   let attributes: Attributes = {};
 
@@ -477,8 +490,9 @@ async function processOtherAnnotationFiles(
       // Attempt to process the file
       try {
         // eslint-disable-next-line no-await-in-loop
-        const tracks = await viameSerializers.parseFile(path);
-        const processed = processTrackAttributes(tracks);
+        const data = await viameSerializers.parseFile(path);
+        const processed = processTrackAttributes(data.tracks);
+        fps = fps || data.fps;
         attributes = processed.attributes;
         // eslint-disable-next-line no-await-in-loop
         await _saveSerialized(settings, datasetId, processed.data, true);
@@ -549,7 +563,7 @@ async function _initializeProjectDir(settings: Settings, jsonMeta: JsonMeta): Pr
 async function beginMediaImport(
   settings: Settings,
   path: string,
-  checkMedia: (settings: Settings, path: string) => Promise<boolean>,
+  checkMedia: (settings: Settings, path: string) => Promise<CheckMediaResults>,
 ): Promise<MediaImportPayload> {
   let datasetType: DatasetType;
 
@@ -570,11 +584,13 @@ async function beginMediaImport(
   const dsName = npath.parse(path).name;
   const dsId = `${cleanString(dsName).substr(0, 20)}_${makeid(10)}`;
 
+  const _defaultFps = datasetType === 'video' ? 5 : 1;
   const jsonMeta: JsonMeta = {
     version: JsonMetaCurrentVersion,
     type: datasetType,
     id: dsId,
-    fps: 5, // TODO
+    fps: _defaultFps, // adjusted below
+    originalFps: _defaultFps, // adjusted below
     originalBasePath: path,
     originalVideoFile: '',
     createdAt: (new Date()).toString(),
@@ -582,6 +598,8 @@ async function beginMediaImport(
     transcodedVideoFile: '',
     transcodedImageFiles: [],
     name: dsName,
+    multiCam: null,
+    subType: null,
   };
 
   /* TODO: Look for an EXISTING meta.json file to override the above */
@@ -601,10 +619,16 @@ async function beginMediaImport(
       if (websafeImageTypes.includes(mimetype) || otherImageTypes.includes(mimetype)) {
         throw new Error('User chose image file for video import option');
       } else if (websafeVideoTypes.includes(mimetype) || otherVideoTypes.includes(mimetype)) {
-        const webSafeVideo = await checkMedia(settings, path);
-        if (!webSafeVideo || otherVideoTypes.includes(mimetype)) {
+        const checkMediaResult = await checkMedia(settings, path);
+        if (!checkMediaResult.websafe || otherVideoTypes.includes(mimetype)) {
           mediaConvertList.push(path);
         }
+        const newAnnotationFps = Math.floor(
+          // Prevent FPS smaller than 1
+          Math.max(1, Math.min(jsonMeta.fps, checkMediaResult.originalFps)),
+        );
+        jsonMeta.originalFps = checkMediaResult.originalFps;
+        jsonMeta.fps = newAnnotationFps;
       } else {
         throw new Error(`unsupported MIME type for video ${mimetype}`);
       }
@@ -652,6 +676,14 @@ async function finalizeMediaImport(
     }
     jsonMeta.originalImageFiles = found.images;
     mediaConvertList = found.mediaConvertList;
+  }
+
+  if (jsonMeta.type === 'video') {
+    // Verify that the user didn't choose an FPS value higher than originalFPS
+    // This shouldn't be possible in the UI, but we should still prevent it here.
+    jsonMeta.fps = Math.floor(
+      Math.max(1, Math.min(jsonMeta.fps, jsonMeta.originalFps)),
+    );
   }
 
   //Now we will kick off any conversions that are necessary

@@ -10,6 +10,7 @@ const MediaTypes = {
 };
 
 const DefaultVideoFPS = 10;
+const FPSOptions = [1, 5, 10, 15, 24, 25, 30, 50, 60];
 
 const websafeVideoTypes = [
   'video/mp4',
@@ -85,6 +86,7 @@ export {
   VideoType,
   MediaTypes,
   MultiType,
+  FPSOptions,
   calibrationFileTypes,
   fileVideoTypes,
   otherImageTypes,

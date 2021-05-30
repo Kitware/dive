@@ -10,6 +10,7 @@ from dive_tasks.tasks import convert_images, convert_video
 from dive_utils import fromMeta
 from dive_utils.constants import (
     CalibrationMarker,
+    FPSMarker,
     MultiCamMarker,
     MultiCamSubTypeMarker,
     SingleMultiCamMarker,
@@ -49,6 +50,7 @@ def process_multicam_folder(user, folder, args: MultiCamArgs):
             file_item = Item().findOne(
                 {'folderId': folder['_id'], 'name': upload_folder[0]}
             )
+            girder_folder["meta"][FPSMarker] = folder["meta"][FPSMarker]
             Item().move(file_item, girder_folder)
         else:
             for item in upload_folder:

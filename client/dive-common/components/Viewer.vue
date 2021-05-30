@@ -30,7 +30,6 @@ import HeadTail from 'dive-common/recipes/headtail';
 import EditorMenu from 'dive-common/components/EditorMenu.vue';
 import ConfidenceFilter from 'dive-common/components/ConfidenceFilter.vue';
 import UserGuideButton from 'dive-common/components/UserGuideButton.vue';
-import RunPipelineMenu from 'dive-common/components/RunPipelineMenu.vue';
 import DeleteControls from 'dive-common/components/DeleteControls.vue';
 import ControlsContainer from 'dive-common/components/ControlsContainer.vue';
 import Sidebar from 'dive-common/components/Sidebar.vue';
@@ -51,7 +50,6 @@ export default defineComponent({
     VideoAnnotator,
     ImageAnnotator,
     ConfidenceFilter,
-    RunPipelineMenu,
     UserGuideButton,
     EditorMenu,
   },
@@ -340,13 +338,11 @@ export default defineComponent({
           videoUrl.value = meta.videoUrl;
           datasetType.value = meta.type as DatasetType;
           // TODO: Data is ready for MultiView, just setting it to default display for now
-          if (meta.multiCamMedia) {
-            if (meta.multiCamMedia.cameras[meta.multiCamMedia.display]) {
-              const defaultCamera = meta.multiCamMedia.cameras[meta.multiCamMedia.display];
-              imageData.value = cloneDeep(defaultCamera.imageData) as FrameImage[];
-              videoUrl.value = defaultCamera.videoUrl;
-              datasetType.value = defaultCamera.type;
-            }
+          const defaultCamera = meta.multiCamMedia?.cameras[meta.multiCamMedia.display];
+          if (defaultCamera) {
+            imageData.value = cloneDeep(defaultCamera.imageData) as FrameImage[];
+            videoUrl.value = defaultCamera.videoUrl;
+            datasetType.value = defaultCamera.type;
           }
         }),
         loadDetections(props.id).then((tracks) => {

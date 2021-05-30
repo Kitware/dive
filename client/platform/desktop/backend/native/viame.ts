@@ -6,6 +6,7 @@ import {
   Settings, DesktopJob, RunPipeline, RunTraining, FFProbeResults,
   ConversionArgs,
   DesktopJobUpdater,
+  CheckMediaResults,
 } from 'platform/desktop/constants';
 import { cleanString } from 'platform/desktop/sharedUtils';
 import { serialize } from 'platform/desktop/backend/serializers/viame';
@@ -15,7 +16,7 @@ import * as common from './common';
 import { jobFileEchoMiddleware, spawnResult } from './utils';
 import {
   getMultiCamImageFiles, getMultiCamVideoPath,
-  getTranscodedMultiCamType, writeMultiCamPipelineInputs,
+  getTranscodedMultiCamType, writeMultiCamStereoPipelineArgs,
 } from './multiCamUtils';
 
 
@@ -62,7 +63,7 @@ async function runPipeline(
   const jobWorkDir = await common.createKwiverRunWorkingDir(settings, [meta], pipeline.name);
 
   const detectorOutput = npath.join(jobWorkDir, 'detector_output.csv');
-  const trackOutput = npath.join(jobWorkDir, 'track_output.csv');
+  let trackOutput = npath.join(jobWorkDir, 'track_output.csv');
   const joblog = npath.join(jobWorkDir, 'runlog.txt');
 
   //TODO: TEMPORARY FIX FOR DEMO PURPOSES
@@ -132,13 +133,13 @@ async function runPipeline(
   }
 
   if (meta.multiCam && pipeline.type === 'measurement') {
-    const inputArgFilePair = writeMultiCamPipelineInputs(jobWorkDir, meta);
-    Object.entries(inputArgFilePair).forEach(([arg, file]) => {
-      command.push(`-s ${arg}:video_filename="${npath.join(jobWorkDir, file)}`);
+    const { argFilePair, outFiles } = writeMultiCamStereoPipelineArgs(jobWorkDir, meta);
+    Object.entries(argFilePair).forEach(([arg, file]) => {
+      command.push(`-s ${arg}="${file}"`);
     });
+    trackOutput = npath.join(jobWorkDir, outFiles[meta.multiCam.display]);
     if (meta.multiCam.calibration) {
-      command.push(`-s measure:cal_fpath="${meta.multiCam.calibration}"`);
-      command.push(`-s measure:output_fpath="${trackOutput}"`);
+      command.push(`-s measurer:calibration_file="${meta.multiCam.calibration}"`);
     }
   } else if (pipeline.type === 'measurement') {
     throw new Error('Attempting run a multicam pipeline on non multicam data');
@@ -175,9 +176,13 @@ async function runPipeline(
   job.on('exit', async (code) => {
     if (code === 0) {
       try {
-        await common.processOtherAnnotationFiles(
+        const { attributes } = await common.processOtherAnnotationFiles(
           settings, datasetId, [trackOutput, detectorOutput],
         );
+        if (attributes) {
+          meta.attributes = attributes;
+          await common.saveMetadata(settings, datasetId, meta);
+        }
       } catch (err) {
         console.error(err);
       }
@@ -339,7 +344,7 @@ async function train(
 async function checkMedia(
   viameConstants: ViameConstants,
   file: string,
-): Promise<boolean> {
+): Promise<CheckMediaResults> {
   const ffprobePath = `${viameConstants.ffmpeg.path.replace('ffmpeg', 'ffprobe')}`;
   const command = [
     viameConstants.ffmpeg.initialization,
@@ -358,14 +363,22 @@ async function checkMedia(
   }
   const returnText = result.output;
   const ffprobeJSON: FFProbeResults = JSON.parse(returnText);
-  if (ffprobeJSON && ffprobeJSON.streams) {
-    const websafe = ffprobeJSON.streams
-      .filter((el) => el.codec_name === 'h264' && el.codec_type === 'video')
+
+  if (ffprobeJSON && ffprobeJSON.streams?.length) {
+    const videoStream = ffprobeJSON.streams.filter((el) => el.codec_type === 'video');
+    if (videoStream.length === 0 || !videoStream[0].avg_frame_rate) {
+      throw Error('FFProbe found that video stream has no avg_frame_rate');
+    }
+    const originalFpsString = videoStream[0].avg_frame_rate;
+    const [dividend, divisor] = originalFpsString.split('/').map((v) => Number.parseInt(v, 10));
+    const originalFps = dividend / divisor;
+    const websafe = videoStream
+      .filter((el) => el.codec_name === 'h264')
       .filter((el) => el.sample_aspect_ratio === '1:1');
 
-    return !!websafe.length;
+    return { websafe: !!websafe.length, originalFps, originalFpsString };
   }
-  return false;
+  throw Error(`FFProbe did not return a valid value for ${file}`);
 }
 
 async function convertMedia(settings: Settings,

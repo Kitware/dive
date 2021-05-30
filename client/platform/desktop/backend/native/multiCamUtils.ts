@@ -49,22 +49,36 @@ function getTranscodedMultiCamType(imageListFile: string, jsonMeta: JsonMeta) {
   throw new Error(`No associate type for ${imageListFile} in multiCam data`);
 }
 
-function writeMultiCamPipelineInputs(jobWorkDir: string, meta: JsonMeta) {
-  const InputArgFilePair: Record<string, string> = {};
+function writeMultiCamStereoPipelineArgs(jobWorkDir: string, meta: JsonMeta) {
+  const argFilePair: Record<string, string> = {};
+  const outFiles: Record<string, string> = {};
   if (meta.multiCam && meta.multiCam.cameras) {
     let i = 0;
-    Object.values(meta.multiCam.cameras).forEach((list) => {
+    Object.entries(meta.multiCam.cameras).forEach(([key, list]) => {
       const { originalBasePath } = list;
-      const fileName = `cam${i + 1}_images.txt`; //This is locked in the pipeline for now
-      const inputArg = `cam${i + 1}_imread`; // lock for the stereo pipeline as well
-      InputArgFilePair[inputArg] = fileName;
-      const inputFile = fs.createWriteStream(npath.join(jobWorkDir, fileName));
-      list.originalImageFiles.forEach((image) => inputFile.write(`${npath.join(originalBasePath, image)}\n`));
-      inputFile.end();
+      const outputFileName = `computed_tracks_${key}.csv`;
+      const outputArg = `detector_writer${i + 1}:file_name`;
+      argFilePair[outputArg] = outputFileName;
+      outFiles[key] = outputFileName;
+      const inputArg = `input${i + 1}:video_filename`;
+      if (list.type === 'image-sequence') {
+        const inputFileName = npath.join(jobWorkDir, `input${i + 1}_images.txt`);
+        const inputFile = fs.createWriteStream(inputFileName);
+        list.originalImageFiles.forEach((image) => inputFile.write(`${npath.join(originalBasePath, image)}\n`));
+        inputFile.end();
+        argFilePair[inputArg] = inputFileName;
+      } else if (list.originalVideoFile) {
+        const vidFile = list.transcodedVideoFile
+          ? list.transcodedVideoFile : list.originalVideoFile;
+        const vidTypeArg = `input${i + 1}:video_reader:type`;
+        const vidType = 'vidl_ffmpeg';
+        argFilePair[vidTypeArg] = vidType;
+        argFilePair[inputArg] = npath.join(originalBasePath, vidFile);
+      }
       i += 1;
     });
   }
-  return InputArgFilePair;
+  return { argFilePair, outFiles };
 }
 
 function getMultiCamUrls(
@@ -147,7 +161,7 @@ function getMultiCamImageFiles(meta: JsonMeta) {
 
 export {
   transcodeMultiCam,
-  writeMultiCamPipelineInputs,
+  writeMultiCamStereoPipelineArgs,
   getMultiCamVideoPath,
   getMultiCamImageFiles,
   getMultiCamUrls,

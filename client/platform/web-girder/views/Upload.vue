@@ -4,8 +4,9 @@ import {
 } from '@vue/composition-api';
 
 import {
-  ImageSequenceType, VideoType, DefaultVideoFPS, inputAnnotationFileTypes,
-  websafeVideoTypes, otherVideoTypes, websafeImageTypes, otherImageTypes,
+  ImageSequenceType, VideoType, DefaultVideoFPS, FPSOptions,
+  inputAnnotationFileTypes, websafeVideoTypes, otherVideoTypes,
+  websafeImageTypes, otherImageTypes,
 } from 'dive-common/constants';
 
 import ImportButton from 'dive-common/components/ImportButton.vue';
@@ -74,8 +75,6 @@ export default defineComponent({
     const multiCamOpenType = ref('image-sequence');
     const importMultiCamDialog = ref(false);
     const girderUpload: Ref<null | GirderUpload> = ref(null);
-    let multiCamTempList: Record<string, File[]> = {};
-    let multiCamCalibFile: File | null = null;
     /**
      * Initial opening of file dialog
      */
@@ -188,12 +187,6 @@ export default defineComponent({
       globPattern: '',
       mediaConvertList: [],
     });
-    const addMultiCamFiles = ({ root, files }: {root: string; files: File[]}) => {
-      multiCamTempList[root] = files;
-    };
-    const addCalibrationFile = (file: File) => {
-      multiCamCalibFile = file;
-    };
     //TODO:  Implementation of the finalization of the Import.  Requires
     // Creation of an endpoint in the server which supports MultiCamImportArgs
     const multiCamImport = (args: MultiCamImportKeywordArgs | MultiCamImportFolderArgs) => {
@@ -203,22 +196,28 @@ export default defineComponent({
       if ((args as MultiCamImportKeywordArgs).globList !== undefined) {
         const keywordArgs = (args as MultiCamImportKeywordArgs);
         //We need to divide by glob list into different folders
-        mediaList = mediaList.concat(multiCamTempList[keywordArgs.keywordFolder]);
-        Object.entries(keywordArgs.globList).forEach(([key, glob]) => {
-          folderList[key] = filterByGlob(
-            glob,
-            multiCamTempList[keywordArgs.keywordFolder].map((item) => item.name),
-          );
-        });
-      } else {
-        Object.keys(multiCamTempList).forEach((key) => {
-          mediaList = mediaList.concat(multiCamTempList[key]);
-          folderList[key] = multiCamTempList[key].map((item) => item.name);
+        if (args.htmlFileReferences?.mediaHTMLFileList.keyword) {
+          const { mediaHTMLFileList } = args.htmlFileReferences;
+          mediaList = mediaList.concat(mediaHTMLFileList.keyword);
+          Object.entries(keywordArgs.globList).forEach(([key, glob]) => {
+            folderList[key] = filterByGlob(
+              glob,
+              mediaHTMLFileList.keyword.map((item) => item.name),
+            );
+          });
+        }
+      } else if (args.htmlFileReferences?.mediaHTMLFileList) {
+        const { mediaHTMLFileList } = args.htmlFileReferences;
+        Object.keys(mediaHTMLFileList).forEach((key) => {
+          mediaList = mediaList.concat(mediaHTMLFileList[key]);
+          folderList[key] = mediaHTMLFileList[key].map((item) => item.name);
         });
       }
-      const calibrationFile = multiCamCalibFile?.name;
-      if (multiCamCalibFile !== null) {
-        mediaList.push(multiCamCalibFile);
+
+      const calibrationFile = args.htmlFileReferences?.calibrationHTMLFile?.name;
+
+      if (args.htmlFileReferences?.calibrationHTMLFile) {
+        mediaList.push(args.htmlFileReferences.calibrationHTMLFile);
       }
       const fps = DefaultVideoFPS;
       //So now we take the args and modify the list of files we have to edit them
@@ -239,8 +238,6 @@ export default defineComponent({
           defaultDisplay: args.defaultDisplay,
         },
       });
-      multiCamCalibFile = null;
-      multiCamTempList = {};
       importMultiCamDialog.value = false;
     };
     // Filter to show how many files are left to upload
@@ -353,6 +350,7 @@ export default defineComponent({
     });
     return {
       buttonAttrs,
+      FPSOptions,
       preUploadErrorMessage,
       pendingUploads,
       stereo,
@@ -372,11 +370,9 @@ export default defineComponent({
       addPendingUpload,
       remove,
       // MultiCam Methods
-      addMultiCamFiles,
       openMultiCamDialog,
       multiCamImportCheck,
       multiCamImport,
-      addCalibrationFile,
       abort,
     };
   },
@@ -395,9 +391,6 @@ export default defineComponent({
         v-if="importMultiCamDialog"
         :stereo="stereo"
         :data-type="multiCamOpenType"
-        :import-media="multiCamImportCheck"
-        @add-calibration-file="addCalibrationFile"
-        @add-multicam-files="addMultiCamFiles"
         @begin-multicam-import="multiCamImport($event)"
         @abort="importMultiCamDialog = false; preUploadErrorMessage = null"
       />
@@ -462,7 +455,7 @@ export default defineComponent({
               >
                 <v-select
                   v-model="pendingUpload.fps"
-                  :items="[1, 5, 10, 15, 24, 25, 30, 50, 60]"
+                  :items="FPSOptions"
                   :disabled="pendingUpload.uploading"
                   type="number"
                   required
