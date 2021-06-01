@@ -52,6 +52,9 @@ class Track(BaseModel):
             ]
         )
 
+    def __hash__(self):
+        return self.trackId
+
 
 class Attribute(BaseModel):
     belongs: Literal['track', 'detection']

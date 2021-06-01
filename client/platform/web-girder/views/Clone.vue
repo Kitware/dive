@@ -106,6 +106,8 @@ export default defineComponent({
             >
               Clone
             </span>
+            <v-spacer />
+            <v-icon>mdi-dock-window</v-icon>
           </v-btn>
         </template>
         <span>Create a clone of this data</span>

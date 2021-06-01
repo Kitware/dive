@@ -117,6 +117,8 @@ export default defineComponent({
             >
               Run Training
             </span>
+            <v-spacer />
+            <v-icon>mdi-chevron-right</v-icon>
           </v-btn>
         </template>
         <span>Train a detector model on this data</span>

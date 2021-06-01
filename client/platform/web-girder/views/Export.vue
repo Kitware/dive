@@ -119,6 +119,10 @@ export default defineComponent({
             >
               Download
             </span>
+            <v-spacer />
+            <v-icon v-if="menuOptions.right">
+              mdi-chevron-right
+            </v-icon>
           </v-btn>
         </template>
         <span>Download media and annotations</span>
@@ -185,7 +189,6 @@ export default defineComponent({
             </template>
           </v-card-text>
           <v-card-actions>
-            <v-spacer />
             <v-btn
               depressed
               block

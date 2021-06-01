@@ -387,13 +387,14 @@ def train_pipeline(
                 f". {shlex.quote(str(conf.viame_setup_script))} &&",
                 f"KWIVER_DEFAULT_LOG_LEVEL={shlex.quote(conf.kwiver_log_level)}",
                 shlex.quote(str(conf.viame_training_executable)),
-                "-il",
+                "--input-list",
                 shlex.quote(str(input_folder_file_list)),
-                "-it",
+                "--input-truth",
                 shlex.quote(str(ground_truth_file_list)),
-                "-c",
+                "--config",
                 shlex.quote(str(config_file)),
                 "--no-query",
+                "--no-embedded-pipe",
             ]
 
             manager.updateStatus(JobStatus.RUNNING)

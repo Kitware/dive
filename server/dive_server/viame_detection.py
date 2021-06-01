@@ -1,12 +1,10 @@
-import json
-import urllib
 from typing import List
 
 from girder.api import access
 from girder.api.describe import Description, autoDescribeRoute
 from girder.api.rest import Resource, setContentDisposition, setResponseHeader
 from girder.constants import AccessType, TokenScope
-from girder.exceptions import GirderException, RestException
+from girder.exceptions import RestException
 from girder.models.file import File
 from girder.models.folder import Folder
 from girder.models.item import Item

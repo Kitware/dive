@@ -11,6 +11,7 @@ from dive_utils.types import (
 
 DefaultTrainingConfiguration = "train_detector_default.viame_csv.conf"
 AllowedTrainingConfigs = r".*\.viame_csv\.conf$"
+DisallowedTrainingConfigs = r".*_nf\.viame_csv\.conf$"
 AllowedStaticPipelines = r"^detector_.+|^tracker_.+|^utility_.+|^generate_.+"
 DisallowedStaticPipelines = (
     # Remove utilities pipes which hold no meaning in web
@@ -66,7 +67,12 @@ def load_training_configurations(search_path: Path) -> TrainingConfigurationSumm
             default_config = pipe_name
 
     # Filter out stuff that doesn't match allowed patterns
-    configurations = [c for c in configurations if re.match(AllowedTrainingConfigs, c)]
+    configurations = [
+        c
+        for c in configurations
+        if re.match(AllowedTrainingConfigs, c)
+        and not re.match(DisallowedTrainingConfigs, c)
+    ]
 
     return {
         "configs": configurations,
