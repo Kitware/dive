@@ -302,7 +302,7 @@ def get_annotation_csv_generator(
     if source_type == VideoType:
         fps = fromMeta(folder, FPSMarker)
     elif source_type == ImageSequenceType:
-        imageFiles = valid_images(folder, user)
+        imageFiles = [img['name'] for img in valid_images(folder, user)]
 
     thresholds = fromMeta(folder, "confidenceFilters", {})
     annotation_file = detections_file(folder, strict=True)
