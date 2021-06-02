@@ -1,7 +1,5 @@
-import functools
 from typing import List
 
-import pymongo
 from girder.api import access
 from girder.api.describe import Description, autoDescribeRoute, describeRoute
 from girder.api.rest import Resource
@@ -21,7 +19,7 @@ from dive_tasks.tasks import (
     train_pipeline,
     upgrade_pipelines,
 )
-from dive_utils import TRUTHY_META_VALUES, fromMeta, models, strNumericCompare
+from dive_utils import TRUTHY_META_VALUES, fromMeta, models
 from dive_utils.constants import (
     JOBCONST_PIPELINE_NAME,
     JOBCONST_PRIVATE_QUEUE,
@@ -54,6 +52,7 @@ from .utils import (
     process_csv,
     process_json,
     saveTracks,
+    valid_images,
     verify_dataset,
 )
 
@@ -530,18 +529,7 @@ class Viame(Resource):
         )
     )
     def get_valid_images(self, folder):
-        images = Folder().childItems(
-            getCloneRoot(self.getCurrentUser(), folder),
-            filters={"lowerName": {"$regex": safeImageRegex}},
-        )
-
-        def unwrapItem(item1, item2):
-            return strNumericCompare(item1['name'], item2['name'])
-
-        return sorted(
-            images,
-            key=functools.cmp_to_key(unwrapItem),
-        )
+        return valid_images(folder, self.getCurrentUser())
 
     @access.user
     @autoDescribeRoute(

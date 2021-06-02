@@ -14,6 +14,7 @@ from dive_server.serializers import viame
 from dive_server.utils import (
     detections_file,
     detections_item,
+    get_annotation_csv_generator,
     getCloneRoot,
     getTrackData,
     saveTracks,
@@ -21,12 +22,10 @@ from dive_server.utils import (
 )
 from dive_utils import fromMeta, models
 from dive_utils.constants import (
-    FPSMarker,
     ImageSequenceType,
     TypeMarker,
     VideoType,
     imageRegex,
-    safeImageRegex,
     videoRegex,
 )
 
@@ -70,42 +69,6 @@ class ViameDetection(Resource):
             'video': video,
             'videoUrl': videoUrl,
         }
-
-    def _generate_detections(self, folder, excludeBelowThreshold):
-        file = detections_file(folder, strict=True)
-
-        # TODO: deprecated, remove after we migrate everyone to json
-        if "csv" in file["exts"]:
-            return File().download(file)
-
-        filename = folder["name"] + ".csv"
-
-        fps = None
-        imageFiles = None
-        source_type = fromMeta(folder, TypeMarker)
-        if source_type == VideoType:
-            fps = fromMeta(folder, FPSMarker)
-        elif source_type == ImageSequenceType:
-            imageFiles = [
-                f['name']
-                for f in Folder()
-                .childItems(folder, filters={"lowerName": {"$regex": safeImageRegex}})
-                .sort("lowerName")
-            ]
-        thresholds = fromMeta(folder, "confidenceFilters", {})
-        track_dict = getTrackData(file)
-
-        def downloadGenerator():
-            for data in viame.export_tracks_as_csv(
-                track_dict,
-                excludeBelowThreshold,
-                thresholds=thresholds,
-                filenames=imageFiles,
-                fps=fps,
-            ):
-                yield data
-
-        return filename, downloadGenerator
 
     @access.user
     @autoDescribeRoute(
@@ -187,7 +150,9 @@ class ViameDetection(Resource):
     )
     def export_detections(self, folder, excludeBelowThreshold):
         verify_dataset(folder)
-        filename, gen = self._generate_detections(folder, excludeBelowThreshold)
+        filename, gen = get_annotation_csv_generator(
+            folder, self.getCurrentUser(), excludeBelowThreshold
+        )
         setContentDisposition(filename)
         return gen
 
@@ -227,7 +192,9 @@ class ViameDetection(Resource):
         self, folder, includeMedia, includeDetections, excludeBelowThreshold
     ):
         verify_dataset(folder)
-        _, gen = self._generate_detections(folder, excludeBelowThreshold)
+        _, gen = get_annotation_csv_generator(
+            folder, self.getCurrentUser(), excludeBelowThreshold
+        )
         setResponseHeader('Content-Type', 'application/zip')
         setContentDisposition(folder['name'] + '.zip')
         user = self.getCurrentUser()
