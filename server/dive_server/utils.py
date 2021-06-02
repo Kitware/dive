@@ -1,9 +1,10 @@
+import functools
 import io
 import json
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Callable, Dict, Generator, Optional, Tuple, Type
+from typing import Callable, Dict, Generator, List, Optional, Tuple, Type
 
 import pymongo
 from girder.constants import AccessType
@@ -17,7 +18,7 @@ from pydantic.main import BaseModel
 from pymongo.cursor import Cursor
 
 from dive_server.serializers import viame
-from dive_utils import asbool, fromMeta, models
+from dive_utils import asbool, fromMeta, models, strNumericCompare
 from dive_utils.constants import (
     DatasetMarker,
     DetectionMarker,
@@ -263,6 +264,29 @@ def createSoftClone(
     return cloned_folder
 
 
+def valid_images(
+    folder: GirderModel,
+    user: GirderModel,
+) -> List[GirderModel]:
+    """
+    Any time images are used where frame alignment
+    matters, this function must be used
+    """
+
+    images = Folder().childItems(
+        getCloneRoot(user, folder),
+        filters={"lowerName": {"$regex": safeImageRegex}},
+    )
+
+    def unwrapItem(item1, item2):
+        return strNumericCompare(item1['name'], item2['name'])
+
+    return sorted(
+        images,
+        key=functools.cmp_to_key(unwrapItem),
+    )
+
+
 def get_annotation_csv_generator(
     folder: GirderModel,
     user: GirderModel,
@@ -278,15 +302,7 @@ def get_annotation_csv_generator(
     if source_type == VideoType:
         fps = fromMeta(folder, FPSMarker)
     elif source_type == ImageSequenceType:
-        imageFiles = [
-            f['name']
-            for f in Folder()
-            .childItems(
-                getCloneRoot(user, folder),
-                filters={"lowerName": {"$regex": safeImageRegex}},
-            )
-            .sort("lowerName")
-        ]
+        imageFiles = valid_images(folder, user)
 
     thresholds = fromMeta(folder, "confidenceFilters", {})
     annotation_file = detections_file(folder, strict=True)
