@@ -3,11 +3,11 @@ import json
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Optional, Tuple, Type
+from typing import Callable, Dict, Generator, Optional, Tuple, Type
 
 import pymongo
 from girder.constants import AccessType
-from girder.exceptions import GirderException, RestException
+from girder.exceptions import RestException
 from girder.models.file import File
 from girder.models.folder import Folder
 from girder.models.item import Item
@@ -22,9 +22,14 @@ from dive_utils.constants import (
     DatasetMarker,
     DetectionMarker,
     ForeignMediaIdMarker,
+    FPSMarker,
+    ImageSequenceType,
     PublishedMarker,
+    TypeMarker,
+    VideoType,
     csvRegex,
     jsonRegex,
+    safeImageRegex,
 )
 from dive_utils.types import GirderModel
 
@@ -256,3 +261,46 @@ def createSoftClone(
         cloned_detection_item['meta'][DetectionMarker] = str(cloned_folder['_id'])
         Item().save(cloned_detection_item)
     return cloned_folder
+
+
+def get_annotation_csv_generator(
+    folder: GirderModel,
+    user: GirderModel,
+    excludeBelowThreshold=False,
+) -> Tuple[str, Callable[[], Generator[str, None, None]]]:
+    """
+    Get the annotation generator for a folder
+    """
+    fps = None
+    imageFiles = None
+
+    source_type = fromMeta(folder, TypeMarker)
+    if source_type == VideoType:
+        fps = fromMeta(folder, FPSMarker)
+    elif source_type == ImageSequenceType:
+        imageFiles = [
+            f['name']
+            for f in Folder()
+            .childItems(
+                getCloneRoot(user, folder),
+                filters={"lowerName": {"$regex": safeImageRegex}},
+            )
+            .sort("lowerName")
+        ]
+
+    thresholds = fromMeta(folder, "confidenceFilters", {})
+    annotation_file = detections_file(folder, strict=True)
+    track_dict = getTrackData(annotation_file)
+
+    def downloadGenerator():
+        for data in viame.export_tracks_as_csv(
+            track_dict,
+            excludeBelowThreshold,
+            thresholds=thresholds,
+            filenames=imageFiles,
+            fps=fps,
+        ):
+            yield data
+
+    filename = folder["name"] + ".csv"
+    return filename, downloadGenerator
