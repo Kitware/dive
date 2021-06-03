@@ -114,7 +114,8 @@ You can also pass [regular celery configuration variables](https://docs.celerypr
 You can run a standalone worker to process private jobs from VIAME Web.
 
 * Install VIAME from [the github page](https://github.com/VIAME/VIAME) to `/opt/noaa/viame`.
-* Install VIAME pipeline addons by running `bin/download_viame_addons.sh` from the VIAME install.
+* Activate the install with `source setup_viame.sh`.
+* Install VIAME pipeline addons by running `cd bin && download_viame_addons.sh` from the VIAME install directory.
 * Enable the private user queue for your jobs by visiting [the jobs page](https://viame.kitware.com/#/jobs)
 * Run a worker using the docker command below
 
