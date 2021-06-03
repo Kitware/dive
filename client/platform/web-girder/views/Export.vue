@@ -3,7 +3,7 @@ import {
   computed, defineComponent, watch, ref, toRef,
 } from '@vue/composition-api';
 
-import { usePendingSaveCount, useHandler } from 'vue-media-annotator/provides';
+import { usePendingSaveCount, useHandler, useCheckedTypes } from 'vue-media-annotator/provides';
 import AutosavePrompt from 'dive-common/components/AutosavePrompt.vue';
 import { MediaTypes } from 'dive-common/constants';
 import { withRestError } from 'platform/web-girder/utils';
@@ -34,15 +34,18 @@ export default defineComponent({
   setup(props) {
     const menuOpen = ref(false);
     const excludeFiltered = ref(false);
+    const excludeUncheckedTypes = ref(false);
     const exportUrls = ref(null as null | ExportUrlsResponse);
     const savePrompt = ref(false);
     const currentSaveUrl = ref('');
     let save = () => Promise.resolve();
     let pendingSaveCount = ref(0);
+    let checkedTypes = ref([] as readonly string[]);
 
     if (props.blockOnUnsaved) {
       save = useHandler().save;
       pendingSaveCount = usePendingSaveCount();
+      checkedTypes = useCheckedTypes();
     }
 
     async function doExport({ forceSave = false, url }: { url?: string; forceSave?: boolean }) {
@@ -68,10 +71,13 @@ export default defineComponent({
 
     const { func: updateExportUrls, error } = withRestError(async () => {
       if (menuOpen.value) {
-        exportUrls.value = await getExportUrls(props.datasetId, excludeFiltered.value);
+        const typeFilter = JSON.stringify(excludeUncheckedTypes.value ? checkedTypes.value : []);
+        exportUrls.value = await getExportUrls(
+          props.datasetId, excludeFiltered.value, typeFilter,
+        );
       }
     });
-    watch([toRef(props, 'datasetId'), excludeFiltered, menuOpen], updateExportUrls);
+    watch([toRef(props, 'datasetId'), excludeFiltered, excludeUncheckedTypes, menuOpen], updateExportUrls);
     updateExportUrls();
 
     const mediaType = computed(() => (exportUrls.value
@@ -82,10 +88,12 @@ export default defineComponent({
     return {
       error,
       excludeFiltered,
+      excludeUncheckedTypes,
       menuOpen,
       exportUrls,
       mediaType,
       thresholds,
+      checkedTypes,
       savePrompt,
       doExport,
     };
@@ -187,7 +195,16 @@ export default defineComponent({
                 </span>
               </div>
             </template>
+            <template v-if="checkedTypes.length">
+              <v-checkbox
+                v-model="excludeUncheckedTypes"
+                label="exclude unchecked types"
+                dense
+                hide-details
+              />
+            </template>
           </v-card-text>
+
           <v-card-actions>
             <v-btn
               depressed

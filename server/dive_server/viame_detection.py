@@ -112,12 +112,12 @@ class ViameDetection(Resource):
             export_detections = (
                 f'/api/v1/viame_detection/{folderId}/export_detections'
                 f'?excludeBelowThreshold={excludeBelowThreshold}'
-                f'?typeFilter={json.dumps(typeFilter)}'
+                f'&typeFilter={json.dumps(typeFilter)}'
             )
             export_all = (
                 f'/api/v1/viame_detection/{folderId}/export_all'
                 f'?excludeBelowThreshold={excludeBelowThreshold}'
-                f'?typeFilter={json.dumps(typeFilter)}'
+                f'&typeFilter={json.dumps(typeFilter)}'
             )
 
         source_type = fromMeta(folder, TypeMarker)
