@@ -104,11 +104,14 @@ This section will guide you through deploying VIAME to Google Cloud for several 
 
 To run the provisioning tools below, you need the following installed on your workstation.
 
+!!! warning
+
+    Google Cloud worker provisioning can **only be done** from an Ubuntu Linux 18.04+ host.  Ansible and terraform should work on Windows Subsystem for Linux (WSL) if you only have a windows host.  You could also use a cheap CPU-only cloud instance to run these tools.
+
 * [Install Google Cloud SDK](https://cloud.google.com/sdk/docs/install)
 * [Install Terraform](https://learn.hashicorp.com/tutorials/terraform/install-cli)
 * [Install Ansible](https://docs.ansible.com/ansible/latest/installation_guide/intro_installation.html)
-
-You **also need** Celery RabbitMQ credentials to establish a secure connection with our queueing service.  [Contact us](https://kitware.github.io/dive/#get-help) with a short description of your intended use to request these.
+* find your google cloud project id.  It looks like `project-name-123456`.
 
 ``` bash
 # Clone the dive repo
@@ -126,13 +129,25 @@ ssh-keygen -t ed25519 -f ~/.ssh/gcloud_key
 
 ``` bash
 # Authenticate with google cloud
+
 gcloud auth application-default login
+
+# Verify your GPU Quota
+# https://cloud.google.com/compute/docs/gpus/create-vm-with-gpus
+# REGION might change.
+
+gcloud compute regions describe us-central1
 
 # Run plan
 # See `devops/main.tf` for a complete list of variables
+# change machine_type to a2-highgpu-1g (default) or any other type.
+#    In this example, a CPU node is used and will not be able to run many kinds of training.
+#    This is done to prevent you from accidentally creating very expensive hardware without
+#    intentionally switching to a GPU node.
+
 terraform plan \
-  -var "machine_type=e2-small" \
-  -var "project_name=<GCloud-Project-Name>"
+  -var "machine_type=e2-highcpu-4" \
+  -var "project_name=<GCloud-Project-Id>" \
   -out create.plan
 
 # Run apply
@@ -141,32 +156,64 @@ terraform apply create.plan
 
 ### Provision with Ansible
 
-You will need RabbitMQ credentials to establish a secure connection with our queueing service.  [Contact us](https://kitware.github.io/dive/#get-help) with a short description of your intended use to request these.
-
-* `CELERY_BROKER_URL` will be an AMQP connection string, like `amqp://guest:guest@rabbit/`
-* `WORKER_WATCHING_QUEUES` will be your username (not your email address) on VIAME Web.
+This step will prepare the new host to run a VIAME worker by installing nvidia drivers, docker, and downloading VIAME and all optional addons.
 
 !!! warning
 
-    The playbook takes 20-30 minutes to run because it must install nvidia drivers, download several GB of software packages, etc.
+    The playbook may take 30 minutes or more to run because it must install nvidia drivers and download several GB of software packages.
+
+#### Extra Vars
+
+The supported extra vars to pass to ansible.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| DIVE_USERNAME | null | Required. Username to start private queue processor |
+| DIVE_PASSWORD | null | Required. Password for private queue processor |
+| WORKER_CONCURRENCY | `2` | Optional. max concurrnet jobs. **Change this to 1 if you run training** |
+| KWIVER_DEFAULT_LOG_LEVEL | `warn` | Optional. kwiver log level |
+| DIVE_API_URL  | `https://viame.kitware.com/api/v1` | Optional. Remote URL to authenticate against. |
+| viame_bundle_url | latest bundle url | Optional.  Change to install a different version of VIAME.  This should be a link to the latest Ubuntu Desktop (18/20) binaries from viame.kitware.com (Mirror 1) |
 
 ``` bash
 # install galaxy plugins
 ansible-galaxy install -r ansible/requirements.yml
 
 # provision using inventory file automatically created by terraform and the connection string you got from us
-ansible-playbook -i inventory ansible/playbook.yml \
-  --extra-vars "CELERY_BROKER_URL=amqps://user:password@domain.com/vhost WORKER_WATCHING_QUEUES=myusername"
+ansible-playbook -i inventory ansible/playbook.yml --extra-vars "DIVE_USERNAME=username DIVE_PASSWORD=changeme"
 ```
 
 Once provisioning is complete, jobs should begin processing from the job queue.  You can check [viame.kitware.com/#/jobs](https://viame.kitware.com/#/jobs) to see queue progress and logs.
+
+#### Digression: Provision local hardware with Ansible
+
+If you want to run the VIAME Worker node on a workstation, shared server, or in another cloud environment, you can run the worker in standalone mode using the [docker docs](https://github.com/Kitware/dive/tree/main/docker#running-the-gpu-job-runner-in-standalone-mode). You may even still be able to provision the target host using this ansible playbook.
+
+This ansible playbook is runnable from any Ubuntu 18.04+ host to any Ubuntu 18.04+ target.  To run it locally, use the `inventory.local` file instead.  If you already have nvidia or docker installed, you can comment out these lines in the playbook.
+
+```bash
+ansible-playbook --ask-become-pass -i inventory ansible/playbook.yml --extra-vars "DIVE_USERNAME=username DIVE_PASSWORD=changeme"
+```
+
+#### Checking that it worked
+
+``` bash
+# Log in with the ip address from the inventory file (or google cloud dashboard)
+ssh -i ~/.ssh/gcloud_key viame@ip-address
+
+# See if viame started
+# You should see "celery@identifier ready." in the logs
+sudo docker logs -f worker
+```
+
+You can [enable your private queue on the jobs page](https://viame.kitware.com/#jobs) and begin running jobs.
 
 ### Destroying the stack
 
 When your work is complete, use terraform to destroy your resources.
 
 ``` bash
-terraform destroy
+terraform destroy -var "project_name=<GCloud-Project-Id>"
 ```
 
 ## Troubleshooting
