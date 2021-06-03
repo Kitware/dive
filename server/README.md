@@ -2,11 +2,20 @@
 
 ## Development
 
+Install the development requirements
+
+```bash
+pip install -e .[dev]
+```
+
 Install https://github.com/Kitware/ldc
 
 ```bash
-# copy .env.example and make any changes
-cp .env.example .env
+# Change to correct directory
+cd ../docker/
+
+# copy .env.default and make any changes
+cp .env.default .env
 
 # bring the server up
 ldc up -d
@@ -27,21 +36,37 @@ ldc dev up girder_worker_training
 ldc dev run mc
 ```
 
-To run local verification of all tests, linting, and formatting
-
-```bash
-# install tox
-pip install tox
-
-# run tox
-tox -e format, type, test
-```
+Access the server at http://localhost:8010
 
 To work on the Vue client, see development instructions in `../client`.
 
+
+## Testing
+
+All tests are run using tox which is installed with the `dev` packages. 
+
+To run local verification of all tests, linting, and formatting
+
+```bash
+# run all tests
+tox
+
+# run only linting check tests
+tox -e check
+
+# run only type check tests
+tox -e type
+
+# run only pytest-driven tests
+tox -e test
+
+# to automatically format all code to comply to linting checks
+tox -e format
+```
+
 ## Metadata properties
 
-This document explains the metadata properties used to record application state in Girder.  These properties can be modified through the Girder UI editor.
+This section explains the metadata properties used to record application state in Girder.  These properties can be modified through the Girder UI editor.
 
 ### Dataset
 
