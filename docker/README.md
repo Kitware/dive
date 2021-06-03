@@ -96,13 +96,13 @@ This image contains a celery worker to run VIAME pipelines and transcoding jobs.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| WORKER_WATCHING_QUEUES | null | one of `celery`, `pipelines`, `training` |
+| WORKER_WATCHING_QUEUES | null | one of `celery`, `pipelines`, `training`.  Ignored in standalone mode. |
 | WORKER_CONCURRENCY | `# of CPU cores` | max concurrnet jobs. **Change this if you run training** |
 | WORKER_GPU_UUID | null | leave empty to use all GPUs.  Specify UUID to use specific device |
-| CELERY_BROKER_URL | null | rabbitmq connection string |
+| CELERY_BROKER_URL | null | rabbitmq connection string. Ignored in standalone mode. |
 | KWIVER_DEFAULT_LOG_LEVEL | `warn` | kwiver log level |
-| DIVE_USERNAME | null | Username to start private queue processor |
-| DIVE_PASSWORD | null | Password for private queue processor |
+| DIVE_USERNAME | null | Username to start private queue processor. Providing this enables standalone mode. |
+| DIVE_PASSWORD | null | Password for private queue processor. Providing this enables standalone mode. |
 | DIVE_API_URL  | `https://viame.kitware.com/api/v1` | Remote URL to authenticate against |
 
 You can also pass [regular celery configuration variables](https://docs.celeryproject.org/en/stable/userguide/configuration.html#std-setting-broker_connection_timeout).
@@ -114,7 +114,8 @@ You can also pass [regular celery configuration variables](https://docs.celerypr
 You can run a standalone worker to process private jobs from VIAME Web.
 
 * Install VIAME from [the github page](https://github.com/VIAME/VIAME) to `/opt/noaa/viame`.
-* Install VIAME pipeline addons by running `bin/download_viame_addons.sh` from the VIAME install.
+* Activate the install with `source setup_viame.sh`.
+* Install VIAME pipeline addons by running `cd bin && download_viame_addons.sh` from the VIAME install directory.
 * Enable the private user queue for your jobs by visiting [the jobs page](https://viame.kitware.com/#/jobs)
 * Run a worker using the docker command below
 
@@ -125,8 +126,8 @@ docker run --rm --name dive_worker \
   --gpus all \
   --ipc host \
   --volume "/opt/noaa/viame/:/tmp/addons/extracted:ro" \
-  -e "WORKER_CONCURRENCY=4" \
-  -e "DIVE_USERNAME=username" \
+  -e "WORKER_CONCURRENCY=2" \
+  -e "DIVE_USERNAME=CHANGEME" \
   -e "DIVE_PASSWORD=CHANGEME" \
   -e "DIVE_API_URL=https://viame.kitware.com/api/v1" \
   kitware/viame-worker:latest

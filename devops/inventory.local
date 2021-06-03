@@ -1,0 +1,2 @@
+[mylocalhost]
+localhost ansible_connection=local ansible_python_interpreter=auto_legacy_silent
