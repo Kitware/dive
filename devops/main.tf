@@ -24,7 +24,7 @@ variable "machine_type" {
 
 variable "disk_size" {
   type    = number
-  default = 64 # Size in GB
+  default = 128 # Size in GB
 }
 
 variable "ssh_key" {
@@ -69,6 +69,7 @@ resource "google_compute_instance" "default" {
       # gcloud compute images list
       image = "ubuntu-os-cloud/ubuntu-2004-lts"
       size  = var.disk_size
+      type  = "pd-ssd" # regular block device is too slow
     }
   }
 
@@ -85,7 +86,11 @@ resource "google_compute_instance" "default" {
     # https://groups.google.com/g/gce-discussion/c/e9K3h3fQuJk
     # https://cloud.google.com/compute/docs/instances/live-migration
     automatic_restart   = false
-    on_host_maintenance = "TERMINATE"
+    
+    # Migrate if machine type is cpu, else terminate if gpu
+    # https://cloud.google.com/compute/docs/gpus/create-vm-with-gpus
+    # > VMs with GPUs cannot live migrate, make sure that you set the --maintenance-policy TERMINATE flag.
+    on_host_maintenance = "${ length(split("highgpu", var.machine_type)) == 1 ? "MIGRATE" : "TERMINATE"}"
   }
 
   # Ensure firewall rule is provisioned before server, so that SSH doesn't fail.

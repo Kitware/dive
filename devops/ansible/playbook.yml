@@ -1,16 +1,22 @@
 ---
-- name: Install Nvidia Docker
+- name: Install VIAME Worker with Nvidia Docker
   hosts: all
   become: yes
   vars:
-    viame_bundle_url: https://viame.kitware.com/api/v1/item/60519746bc3f8f99bba1a5f6/download
-    WORKER_WATCHING_QUEUES: celery
-    CELERY_BROKER_URL: CHANGEME
+    run_worker_container: yes
+    viame_bundle_url: https://viame.kitware.com/api/v1/item/60b2fbaed3ee6142d91c8351/download
+    DIVE_USERNAME: ''
+    DIVE_PASSWORD: ''
+    WORKER_CONCURRENCY: '2'
+    KWIVER_DEFAULT_LOG_LEVEL: 'warn'
+    DIVE_API_URL: 'https://viame.kitware.com/api/v1'
 
   roles:
     - role: geerlingguy.docker
+      when: run_worker_container | bool
     - role: nvidia.nvidia_driver
     - role: nvidia.nvidia_docker
+      when: run_worker_container | bool
 
   tasks:
 
@@ -32,6 +38,7 @@
 
     - name: Extract VIAME
       ansible.builtin.unarchive:
+        remote_src: yes
         src: /tmp/VIAME.tar.gz
         dest: /opt/noaa
 
@@ -40,7 +47,18 @@
       args:
         executable: /bin/bash
 
+    - name: Install Python 3
+      apt:
+        name: python3-pip
+
+    - name: Install Docker SDK for Python 3
+      pip:
+        name: "docker" 
+
     - name: Start worker container
+      when: run_worker_container | bool
+      vars:
+        ansible_python_interpreter: /bin/python3
       docker_container:
         name: worker
         image: kitware/viame-worker
@@ -49,5 +67,8 @@
         volumes:
           - /opt/noaa/viame/configs/pipelines:/tmp/addons/extracted/configs/pipelines:ro
         env:
-          WORKER_WATCHING_QUEUES: '{{ WORKER_WATCHING_QUEUES }}'
-          CELERY_BROKER_URL: '{{ CELERY_BROKER_URL }}'
+          DIVE_USERNAME: '{{ DIVE_USERNAME }}'
+          DIVE_PASSWORD: '{{ DIVE_PASSWORD }}'
+          WORKER_CONCURRENCY: '{{ WORKER_CONCURRENCY }}'
+          KWIVER_DEFAULT_LOG_LEVEL: '{{ KWIVER_DEFAULT_LOG_LEVEL }}'
+          DIVE_API_URL: '{{ DIVE_API_URL }}'
