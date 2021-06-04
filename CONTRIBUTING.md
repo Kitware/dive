@@ -50,32 +50,3 @@ Our team has a single weekly meeting. The goals of this meeting, in order of pri
 1. To verify the correctness of `Ready`
 2. To verify the correctness of `Backlog`, and promote work to `Ready` if appropriate.
 3. To review `Done` and verify that requirements have been met.
-
-## Development
-
-Install https://github.com/Kitware/ldc
-
-```bash
-# copy .env.example and make any changes
-cp .env.example .env
-
-# bring the server up
-ldc up -d
-
-# replace a pre-built image with the development version
-# for example, here's how to work on the girder server code
-# girder has hot reload, so code changes will be detected.
-ldc dev up girder
-
-# girder worker does not, so code changes require re-launch
-ldc dev up girder_worker_default
-# or
-ldc dev up girder_worker_pipelines
-# or
-ldc dev up girder_worker_training
-
-# launch a mongo client to query the database
-ldc dev run mc
-```
-
-To work on the Vue client, see development instructions in `./client`.

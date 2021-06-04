@@ -1,8 +1,72 @@
 # Server architecture
 
+## Development
+
+Install the development requirements
+
+```bash
+pip install -e .[dev]
+```
+
+Install https://github.com/Kitware/ldc
+
+```bash
+# Change to correct directory
+cd ../docker/
+
+# copy .env.default and make any changes
+cp .env.default .env
+
+# bring the server up
+ldc up -d
+
+# replace a pre-built image with the development version
+# for example, here's how to work on the girder server code
+# girder has hot reload, so code changes will be detected.
+ldc dev up girder
+
+# girder worker does not, so code changes require re-launch
+ldc dev up girder_worker_default
+# or
+ldc dev up girder_worker_pipelines
+# or
+ldc dev up girder_worker_training
+
+# launch a mongo client to query the database
+ldc dev run mc
+```
+
+Access the server at http://localhost:8010
+
+To work on the Vue client, see development instructions in `../client`.
+
+
+## Testing
+
+All tests are run using tox which is installed with the `dev` packages. 
+
+To run local verification of all tests, linting, and formatting
+
+```bash
+# run all tests
+tox
+
+# run only linting check tests
+tox -e check
+
+# run only type check tests
+tox -e type
+
+# run only pytest-driven tests
+tox -e test
+
+# to automatically format all code to comply to linting checks
+tox -e format
+```
+
 ## Metadata properties
 
-This document explains the metadata properties used to record application state in Girder.  These properties can be modified through the Girder UI editor.
+This section explains the metadata properties used to record application state in Girder.  These properties can be modified through the Girder UI editor.
 
 ### Dataset
 
