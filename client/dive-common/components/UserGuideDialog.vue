@@ -69,10 +69,10 @@ export default {
               name: 'Play', icon: 'mdi-keyboard', actions: ['Spacebar'], description: 'Spacebar will pause and start playback',
             },
             {
-              name: 'Prev Frame', icon: 'mdi-keyboard', actions: ['F Key', 'Left Arrow'], description: 'skip ahead 1 frame',
+              name: 'Prev Frame', icon: 'mdi-keyboard', actions: ['D Key', 'Left Arrow'], description: 'skip back 1 frame',
             },
             {
-              name: 'Next Frame', icon: 'mdi-keyboard', actions: ['D Key', 'Right Arrow'], description: 'skip back 1 frame',
+              name: 'Next Frame', icon: 'mdi-keyboard', actions: ['F Key', 'Right Arrow'], description: 'skip ahead 1 frame',
             },
           ],
         },
