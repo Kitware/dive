@@ -351,7 +351,8 @@ export default defineComponent({
               imageData.value = cloneDeep(defaultCameraMeta.imageData) as FrameImage[];
               videoUrl.value = defaultCameraMeta.videoUrl;
               datasetType.value = defaultCameraMeta.type;
-              currentId.value = `${props.id}/${defaultCamera.value}`;
+              defaultCamera.value = 'MultiCam Base';
+              currentId.value = `${props.id}`;
             }
             loadDetections(currentId.value).then((tracks) => {
               Object.values(tracks).forEach(
