@@ -71,10 +71,8 @@ export default defineComponent({
 
     const { func: updateExportUrls, error } = withRestError(async () => {
       if (menuOpen.value) {
-        const typeFilter = JSON.stringify(excludeUncheckedTypes.value ? checkedTypes.value : []);
-        exportUrls.value = await getExportUrls(
-          props.datasetId, excludeFiltered.value, typeFilter,
-        );
+        const typeFilter = excludeUncheckedTypes.value ? checkedTypes.value : [];
+        exportUrls.value = await getExportUrls(props.datasetId, excludeFiltered.value, typeFilter);
       }
     });
     watch([toRef(props, 'datasetId'), excludeFiltered, excludeUncheckedTypes, menuOpen], updateExportUrls);
@@ -195,10 +193,11 @@ export default defineComponent({
                 </span>
               </div>
             </template>
+
             <template v-if="checkedTypes.length">
               <v-checkbox
                 v-model="excludeUncheckedTypes"
-                label="exclude unchecked types"
+                label="export checked types only"
                 dense
                 hide-details
               />

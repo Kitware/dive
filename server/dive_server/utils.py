@@ -305,7 +305,6 @@ def get_annotation_csv_generator(
     thresholds = fromMeta(folder, "confidenceFilters", {})
     annotation_file = detections_file(folder, strict=True)
     track_dict = getTrackData(annotation_file)
-    filterByTypes = bool(typeFilter)
     typeFilterSet = set(typeFilter)
 
     def downloadGenerator():
@@ -315,7 +314,6 @@ def get_annotation_csv_generator(
             thresholds=thresholds,
             filenames=imageFiles,
             fps=fps,
-            filterByTypes=filterByTypes,
             typeFilter=typeFilterSet,
         ):
             yield data

@@ -280,13 +280,12 @@ def export_tracks_as_csv(
     filenames=None,
     fps=None,
     header=True,
-    filterByTypes=False,
     typeFilter=set(),
 ) -> Generator[str, None, None]:
     """Export track json to a CSV format.
     :excludeBelowThreshold: omit tracks below a certain confidence.  Requires thresholds.
 
-    :thresholds: key/value paris with threshold values
+    :thresholds: key/value pairs with threshold values
 
     :filenames: list of string file names.  filenames[n] should be the image at frame n
 
@@ -294,9 +293,7 @@ def export_tracks_as_csv(
 
     :header: include or omit header
 
-    :filterByTypes: omit tracks not of specified types.  Requires typeFilter
-
-    :typeFilter: set of track types to only export
+    :typeFilter: set of track types to only export if not empty
     """
     csvFile = io.StringIO()
     writer = csv.writer(csvFile)
@@ -310,12 +307,12 @@ def export_tracks_as_csv(
         if (not excludeBelowThreshold) or track.exceeds_thresholds(thresholds):
 
             # filter by types if applicable
-            if filterByTypes:
+            if typeFilter:
                 confidence_pairs = [
                     item for item in track.confidencePairs if item[0] in typeFilter
                 ]
                 # skip line if no confidence pairs
-                if len(confidence_pairs) == 0:
+                if not confidence_pairs:
                     continue
             else:
                 confidence_pairs = track.confidencePairs
