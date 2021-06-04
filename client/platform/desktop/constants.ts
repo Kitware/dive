@@ -187,6 +187,7 @@ export interface ExportDatasetArgs {
   id: string;
   exclude: boolean;
   path: string;
+  typeFilter: Set<string>;
 }
 
 export interface CheckMediaResults {

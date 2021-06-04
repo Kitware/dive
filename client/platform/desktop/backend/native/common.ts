@@ -784,7 +784,7 @@ async function exportDataset(
   const projectDirInfo = await getValidatedProjectDir(settings, args.id);
   const meta = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
   const data = await loadJsonTracks(projectDirInfo.trackFileAbsPath);
-  return viameSerializers.serializeFile(args.path, data, meta, {
+  return viameSerializers.serializeFile(args.path, data, meta, args.typeFilter, {
     excludeBelowThreshold: args.exclude,
     header: true,
   });

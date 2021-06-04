@@ -3,7 +3,7 @@ import {
   defineComponent, reactive, computed, toRef, watch, ref,
 } from '@vue/composition-api';
 
-import { usePendingSaveCount, useHandler } from 'vue-media-annotator/provides';
+import { usePendingSaveCount, useHandler, useCheckedTypes } from 'vue-media-annotator/provides';
 import AutosavePrompt from 'dive-common/components/AutosavePrompt.vue';
 import { loadMetadata, exportDataset } from 'platform/desktop/frontend/api';
 import type { JsonMeta } from 'platform/desktop/constants';
@@ -28,6 +28,7 @@ export default defineComponent({
     const data = reactive({
       menuOpen: false,
       excludeFiltered: false,
+      excludeUncheckedTypes: false,
       activator: 0,
       err: null as unknown,
       meta: null as JsonMeta | null,
@@ -37,6 +38,7 @@ export default defineComponent({
 
     const pendingSaveCount = usePendingSaveCount();
     const { save } = useHandler();
+    const checkedTypes = useCheckedTypes();
 
     watch(toRef(data, 'menuOpen'), async (newval) => {
       if (newval) {
@@ -61,8 +63,9 @@ export default defineComponent({
         return;
       }
       try {
+        const typeFilter = data.excludeUncheckedTypes ? checkedTypes.value : [];
         data.err = null;
-        data.outPath = await exportDataset(props.id, data.excludeFiltered);
+        data.outPath = await exportDataset(props.id, data.excludeFiltered, typeFilter);
       } catch (err) {
         data.err = err;
         throw err;
@@ -74,6 +77,7 @@ export default defineComponent({
       doExport,
       savePrompt,
       thresholds,
+      checkedTypes,
     };
   },
 });
@@ -182,6 +186,15 @@ export default defineComponent({
                 ({{ key }}, {{ val }})
               </span>
             </div>
+          </template>
+
+          <template v-if="checkedTypes.length">
+            <v-checkbox
+              v-model="data.excludeUncheckedTypes"
+              label="export checked types only"
+              dense
+              hide-details
+            />
           </template>
         </v-card-text>
         <v-card-actions>

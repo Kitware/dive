@@ -94,14 +94,16 @@ function finalizeImport(args: MediaImportPayload): Promise<JsonMeta> {
   return ipcRenderer.invoke('finalize-import', args);
 }
 
-async function exportDataset(id: string, exclude: boolean): Promise<string> {
+async function exportDataset(
+  id: string, exclude: boolean, typeFilter: readonly string[],
+): Promise<string> {
   const location = await remote.dialog.showSaveDialog({
     title: 'Export Dataset',
     defaultPath: npath.join(remote.app.getPath('home'), `result_${id}.csv`),
   });
   if (!location.canceled && location.filePath) {
     const args: ExportDatasetArgs = {
-      id, exclude, path: location.filePath,
+      id, exclude, path: location.filePath, typeFilter: new Set(typeFilter),
     };
     return ipcRenderer.invoke('export-dataset', args);
   }
