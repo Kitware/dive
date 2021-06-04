@@ -55,6 +55,11 @@
       pip:
         name: "docker" 
 
+    - name: Restart docker daemon for config changes
+      ansible.builtin.systemd:
+        state: restarted
+        name: docker
+
     - name: Start worker container
       when: run_worker_container | bool
       vars:
