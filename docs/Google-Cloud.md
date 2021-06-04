@@ -108,6 +108,10 @@ To run the provisioning tools below, you need the following installed on your wo
 
     Google Cloud worker provisioning can **only be done** from an Ubuntu Linux 18.04+ host.  Ansible and terraform should work on Windows Subsystem for Linux (WSL) if you only have a windows host.  You could also use a cheap CPU-only cloud instance to run these tools.
 
+!!! warning
+
+    Google Cloud imposes GPU Quotas.  You may need to [request a quota increase](https://cloud.google.com/compute/quotas).  Anecdotally, request increases of 1 unit are approved automatically, but more are rejected.
+
 * [Install Google Cloud SDK](https://cloud.google.com/sdk/docs/install)
 * [Install Terraform](https://learn.hashicorp.com/tutorials/terraform/install-cli)
 * [Install Ansible](https://docs.ansible.com/ansible/latest/installation_guide/intro_installation.html)
@@ -127,6 +131,10 @@ ssh-keygen -t ed25519 -f ~/.ssh/gcloud_key
 
 ### Run Terraform
 
+!!! warning
+
+    GPU resources cost money.  Make sure you are familiar with the cost of the machine and gpu you choose.  See main.tf for default values.
+
 ``` bash
 # Authenticate with google cloud
 
@@ -140,15 +148,9 @@ gcloud compute regions describe us-central1
 
 # Run plan
 # See `devops/main.tf` for a complete list of variables
-# change machine_type to a2-highgpu-1g (default) or any other type.
-#    In this example, a CPU node is used and will not be able to run many kinds of training.
-#    This is done to prevent you from accidentally creating very expensive hardware without
-#    intentionally switching to a GPU node.
+# the default macine_type and gpu_type can be overridden
 
-terraform plan \
-  -var "machine_type=e2-highcpu-4" \
-  -var "project_name=<GCloud-Project-Id>" \
-  -out create.plan
+terraform plan -var "project_name=<GCloud-Project-Id>" -out create.plan
 
 # Run apply
 terraform apply create.plan
