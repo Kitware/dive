@@ -123,7 +123,7 @@ export default defineComponent({
           Export options
         </v-card-title>
 
-        <v-card-text class="pb-0">
+        <v-card-text class="pb-2">
           <v-dialog
             max-width="600"
             persistent
@@ -175,7 +175,7 @@ export default defineComponent({
             />
             <div
               v-if="data.meta && data.meta.confidenceFilters"
-              class="py-2"
+              class="pt-2"
             >
               <div>Current thresholds:</div>
               <span
@@ -194,6 +194,7 @@ export default defineComponent({
               label="export checked types only"
               dense
               hide-details
+              class="pt-0"
             />
           </template>
         </v-card-text>

@@ -173,7 +173,7 @@ export default defineComponent({
             </v-btn>
           </v-card-actions>
 
-          <v-card-text class="pb-0">
+          <v-card-text class="pb-2">
             <div>Get latest detections csv only</div>
             <template v-if="thresholds.length">
               <v-checkbox
@@ -182,7 +182,7 @@ export default defineComponent({
                 dense
                 hide-details
               />
-              <div class="py-2">
+              <div class="pt-2">
                 <span>Current thresholds:</span>
                 <span
                   v-for="(val, key) in exportUrls.currentThresholds"
@@ -200,6 +200,7 @@ export default defineComponent({
                 label="export checked types only"
                 dense
                 hide-details
+                class="pt-0"
               />
             </template>
           </v-card-text>
