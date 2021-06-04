@@ -36,12 +36,12 @@ nav:
     - Track List: UI-Track-List.md
     - Interpolation: UI-Interpolation.md
     - Attributes: Attributes.md
-  - Use Cases: Use-Cases.md
   - Google Cloud Integration: Google-Cloud.md
   - Advanced features:
     - Custom Pipeline Upload: Pipeline-Upload.md
     - Command Line Tools: Command-Line-Tools.md
     - Server Operator Guide: Server-Operator.md
+  - Frequently Asked Questions: FAQ.md
 
 google_analytics:
   - UA-6042509-43
