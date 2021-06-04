@@ -4,6 +4,8 @@ DIVE is available as an electron based desktop application with deep [VIAME](htt
 
 DIVE Desktop has most of the same UI and features as DIVE **without** requiring a network connection or a server installation.
 
+![images/Banner.png](images/Banner.png)
+
 ## Installation
 
 [⬇️ Download the latest DIVE Desktop from GitHub](https://github.com/Kitware/dive/releases/latest){ .md-button .md-button--primary }
@@ -36,12 +38,23 @@ DIVE Desktop is an [Electron](https://www.electronjs.org/) application built on 
 * `codec` = `h264`
 * `sample_aspect_ratio (SAR)` = `1:1`
 
-## Usage
+## Configuration
 
-DIVE Desktop generally requires a local installation of the VIAME toolkit to be fully functional.  It works on its own as a media annotator, but requires VIAME to perform analysis pipelines and model training.
+DIVE Desktop requires a local installation of the VIAME toolkit to run pipelines, train, and do transcoding.
+
+![Desktop Settings](images/General/desktop-settings.png)
+
+* `VIAME Install Path` is set automatically if you use `examples/annotation_and_visualization/launch_dive_interface` from the VIAME install.  Otherwise, you may need to set this yourself.  Use `Choose` to choose the base installation path, then click save.
+* `Project Data Storage Path` defaults to a subfolder in your user workspace and should generally not be changed.
+
+### Configuration with env
+
+DIVE Desktop looks for the these environment variables on launch.
 
 | Name | Default | Description |
 | ---- | ------- | ----------- |
 | DIVE_VIAME_INSTALL_PATH | /opt/noaa/viame (linux/macos) C:\Program Files\VIAME (windows) | location of VIAME installation.  Users may override this value in the settings pane |
 
-![images/Banner.png](images/Banner.png)
+## Troubleshooting
+
+If you're experience problems or have questions about DIVE Desktop, [contact us](index.md#get-help) and include the content from the settings page such as `Build Version` as well as your currently installed VIAME version.
