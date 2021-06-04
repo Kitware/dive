@@ -19,6 +19,21 @@ requirements = [
     "urllib3<1.26",
 ]
 
+dev_requirements = [
+    "black>=20.8b0",
+    "flake8",
+    "isort",
+    "mkdocs",
+    "mkdocs-material",
+    "mypy",
+    "pytest",
+    "ipykernel",
+    "tabulate",
+    "python-dotenv",
+    "pytest-cov",
+    "tox",
+]
+
 setup(
     author_email="viame-web@kitware.com",
     classifiers=[
@@ -30,6 +45,7 @@ setup(
     description="DIVE Data Server",
     install_requires=requirements,
     python_requires=">=3.7",
+    extra_require={"dev": dev_requirements},
     license="Apache Software License 2.0",
     package_data={
         "": ["**/*.mako"],
