@@ -1,51 +1,88 @@
-<script>
+<script lang="ts">
+import {
+  ref, Ref, watch, nextTick,
+} from '@vue/composition-api';
+
 export default {
   name: 'Prompt',
-  vuetify: null,
   props: {},
-  data: () => ({
-    show: false,
-    title: '',
-    text: '',
-    positiveButton: 'Confirm',
-    negativeButton: 'Cancel',
-    selected: 'positive',
-    confirm: false,
-    resolve: null,
-  }),
-  watch: {
-    show(value) {
+  setup() {
+    const show = ref(false);
+    const title = ref('');
+    const text = ref('');
+    const positiveButton = ref('Confirm');
+    const negativeButton = ref('Cancel');
+    const selected = ref('positive');
+    const confirm = ref(false);
+    const resolve = ref((value: boolean) => Promise.resolve(value));
+
+    const positive: Ref<HTMLFormElement | null> = ref(null);
+    const negative: Ref<HTMLFormElement | null> = ref(null);
+
+    async function clickPositive() {
+      show.value = false;
+      resolve.value(true);
+    }
+
+    async function clickNegative() {
+      show.value = false;
+      resolve.value(false);
+    }
+
+    async function select() {
+      if (selected.value === 'positive') {
+        clickPositive();
+      } else {
+        clickNegative();
+      }
+    }
+
+    async function focusPositive() {
+      if (positive.value) {
+        // vuetify 2 hack: need to add extra .$el property, may be removed in vuetify 3
+        positive.value.$el.focus();
+        selected.value = 'positive';
+      }
+    }
+
+    async function focusNegative() {
+      if (negative.value) {
+        // vuetify 2 hack: need to add extra .$el property, may be removed in vuetify 3
+        negative.value.$el.focus();
+        selected.value = 'negative';
+      }
+    }
+
+    watch(show, async (value) => {
       if (!value) {
-        this.resolve(false);
-      } else {
+        resolve.value(false);
+      } else if (positive.value) {
+        selected.value = 'positive';
         // Needs to mount and then dialog transition, single tick doesn't work
-        this.selected = 'positive';
-        this.$nextTick(() => this.$nextTick(() => this.$refs.positive.$el.focus()));
+        await nextTick();
+        await nextTick();
+        // vuetify 2 hack: need to add extra .$el property, may be removed in vuetify 3
+        positive.value.$el.focus();
       }
-    },
-  },
-  methods: {
-    negative() {
-      this.show = false;
-      this.resolve(false);
-    },
-    positive() {
-      this.show = false;
-      this.resolve(true);
-    },
-    focus(direction) {
-      if (this.$refs[direction]) {
-        this.$refs[direction].$el.focus();
-        this.selected = direction;
-      }
-    },
-    select() {
-      if (this.selected === 'positive') {
-        this.positive();
-      } else {
-        this.negative();
-      }
-    },
+    });
+
+    return {
+      show,
+      title,
+      text,
+      positiveButton,
+      negativeButton,
+      selected,
+      confirm,
+      resolve,
+      clickPositive,
+      clickNegative,
+      select,
+      positive,
+      negative,
+      focusPositive,
+      focusNegative,
+    };
   },
 };
 </script>
@@ -59,8 +96,8 @@ export default {
       <v-card-title
         v-if="title"
         v-mousetrap="[
-          { bind: 'left', handler: () => focus('negative'), disable: !show },
-          { bind: 'right', handler: () => focus('positive'), disable: !show },
+          { bind: 'left', handler: () => focusNegative(), disable: !show },
+          { bind: 'right', handler: () => focusPositive(), disable: !show },
           { bind: 'enter', handler: () => select(), disable: !show },
         ]"
         class="title"
@@ -84,7 +121,7 @@ export default {
           v-if="confirm"
           ref="negative"
           text
-          @click="negative"
+          @click="clickNegative"
         >
           {{ negativeButton }}
         </v-btn>
@@ -92,7 +129,7 @@ export default {
           ref="positive"
           color="primary"
           text
-          @click="positive"
+          @click="clickPositive"
         >
           {{ positiveButton }}
         </v-btn>
