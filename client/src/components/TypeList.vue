@@ -128,8 +128,8 @@ export default defineComponent({
     }
 
     const typeCounts = computed(() => filteredTracksRef.value.reduce((acc, filteredTrack) => {
-      const type = filteredTrack.track.getType(filteredTrack.context.confidencePairIndex);
-      const trackType = type ? type[0] : '';
+      const confidencePair = filteredTrack.track.getType(filteredTrack.context.confidencePairIndex);
+      const trackType = confidencePair[0];
       acc.set(trackType, (acc.get(trackType) || 0) + 1);
 
       return acc;
@@ -241,7 +241,7 @@ export default defineComponent({
               :input-value="checkedTypesRef"
               :value="type"
               :color="typeStylingRef.color(type)"
-              :label="`${type} ${typeCounts.has(type) ? `(${typeCounts.get(type)})` : ''}`"
+              :label="`${type} (${typeCounts.get(type) || 0})`"
               dense
               shrink
               hide-details
