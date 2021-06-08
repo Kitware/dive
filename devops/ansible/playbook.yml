@@ -55,6 +55,11 @@
       pip:
         name: "docker" 
 
+    - name: Restart docker daemon for config changes
+      ansible.builtin.systemd:
+        state: restarted
+        name: docker
+
     - name: Start worker container
       when: run_worker_container | bool
       vars:
@@ -64,6 +69,7 @@
         image: kitware/viame-worker
         runtime: nvidia
         ipc_mode: host
+        restart_policy: unless-stopped
         volumes:
           - /opt/noaa/viame/configs/pipelines:/tmp/addons/extracted/configs/pipelines:ro
         env:

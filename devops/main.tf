@@ -19,7 +19,17 @@ variable "node_count" {
 
 variable "machine_type" {
   type    = string
-  default = "a2-highgpu-1g"
+  default = "n1-standard-4"
+}
+
+variable "gpu_type" {
+  type    = string
+  default = "nvidia-tesla-t4"
+}
+
+variable "gpu_count" {
+  type    = number
+  default = 1
 }
 
 variable "disk_size" {
@@ -81,6 +91,11 @@ resource "google_compute_instance" "default" {
     }
   }
 
+  guest_accelerator {
+    type  = var.gpu_type
+    count = var.gpu_count
+  }
+
   scheduling {
     # Default true, not supported for GPU nodes, causes failure
     # https://groups.google.com/g/gce-discussion/c/e9K3h3fQuJk
@@ -90,7 +105,7 @@ resource "google_compute_instance" "default" {
     # Migrate if machine type is cpu, else terminate if gpu
     # https://cloud.google.com/compute/docs/gpus/create-vm-with-gpus
     # > VMs with GPUs cannot live migrate, make sure that you set the --maintenance-policy TERMINATE flag.
-    on_host_maintenance = "${ length(split("highgpu", var.machine_type)) == 1 ? "MIGRATE" : "TERMINATE"}"
+    on_host_maintenance = "${ var.gpu_count >= 1 ? "TERMINATE" : "MIGRATE"}"
   }
 
   # Ensure firewall rule is provisioned before server, so that SSH doesn't fail.
