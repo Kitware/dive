@@ -193,7 +193,8 @@ export default defineComponent({
               v-model="data.excludeUncheckedTypes"
               label="export checked types only"
               dense
-              hide-details
+              hint="Export only the track types currently enabled in the type filter"
+              persistent-hint
               class="pt-0"
             />
           </template>

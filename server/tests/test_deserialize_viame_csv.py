@@ -436,6 +436,53 @@ test_tuple = [
             },
         },
     ),
+    (
+        [
+            # test that missing track object types is handled properly
+            "0,1.png,0,884,510,1219,737,1.0,-1,",
+            "0,2.png,1,111,222,3333,444,1.0,-1,,",
+            "1,1.png,0,747,457,1039,633,0.8,-1",
+        ],
+        {
+            "0": {
+                "trackId": 0,
+                "attributes": {},
+                "confidencePairs": [["unknown", 1.0]],
+                "features": [
+                    {
+                        "frame": 0,
+                        "bounds": [884, 510, 1219, 737],
+                        "keyframe": True,
+                        "interpolate": False,
+                    },
+                    {
+                        "frame": 1,
+                        "bounds": [111, 222, 3333, 444],
+                        "keyframe": True,
+                        "interpolate": False,
+                    },
+                ],
+                "begin": 0,
+                "end": 1,
+            },
+            "1": {
+                "trackId": 1,
+                "attributes": {},
+                "confidencePairs": [["unknown", 0.8]],
+                "features": [
+                    {
+                        "frame": 0,
+                        "bounds": [747, 457, 1039, 633],
+                        "keyframe": True,
+                        "interpolate": False,
+                    }
+                ],
+                "begin": 0,
+                "end": 0,
+            },
+        },
+        {},
+    ),
 ]
 
 
