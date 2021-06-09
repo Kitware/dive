@@ -62,9 +62,10 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
   }
 
   function getNewTrackId() {
-    return trackIds.value.length
-      ? Math.max(...trackIds.value) + 1
-      : 0;
+    if (trackIds.value.length) {
+      return trackIds.value.reduce((prev, current) => Math.max(prev, current)) + 1;
+    }
+    return 0;
   }
 
   function onChange(
