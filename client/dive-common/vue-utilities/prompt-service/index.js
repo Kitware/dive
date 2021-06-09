@@ -3,7 +3,7 @@
 
 import Vue2 from 'vue';
 import {
-  provide, inject,
+  provide, inject, watch,
 } from '@vue/composition-api';
 import Prompt from './Prompt.vue';
 
@@ -12,6 +12,16 @@ class PromptService {
     const PromptComponent = Vue2.extend(Prompt);
     const component = new PromptComponent();
     this.component = component;
+  }
+
+  set(title, text, positiveButton, negativeButton, confirm, resolve) {
+    this.component.title = title;
+    this.component.text = text;
+    this.component.positiveButton = positiveButton;
+    this.component.negativeButton = negativeButton;
+    this.component.confirm = confirm;
+    this.component.resolve = resolve;
+    this.component.show = true;
   }
 
   show({
@@ -25,21 +35,13 @@ class PromptService {
     const p = new Promise((_resolve) => {
       resolve = _resolve;
     });
-    function set(component) {
-      component.title = title;
-      component.text = text;
-      component.positiveButton = positiveButton;
-      component.negativeButton = negativeButton;
-      component.confirm = confirm;
-      component.resolve = resolve;
-      component.show = true;
-    }
-    if (!this.component.$data.show) {
-      set(this.component);
+
+    if (!this.component.show) {
+      this.set(title, text, positiveButton, negativeButton, confirm, resolve);
     } else {
-      const unwatch = this.component.$watch('show', () => {
+      const unwatch = watch(this.component.show, () => {
         unwatch();
-        set(this.component);
+        this.set(title, text, positiveButton, negativeButton, confirm, resolve);
       });
     }
     return p;
@@ -86,40 +88,6 @@ export default function (vuetify) {
       this.$el.appendChild(div);
       component.$mount(div);
       return this;
-    };
-    Vue.prototype.$prompt = ({
-      title,
-      text,
-      positiveButton = 'Confirm',
-      negativeButton = 'Cancel',
-      confirm = false,
-    } = {}) => {
-      let resolve;
-      const p = new Promise((_resolve) => {
-        resolve = _resolve;
-      });
-      function set() {
-        component.$data.title = title;
-        component.$data.text = text;
-        component.$data.positiveButton = positiveButton;
-        component.$data.negativeButton = negativeButton;
-        component.$data.confirm = confirm;
-        component.$data.resolve = resolve;
-        component.$data.show = true;
-      }
-      if (!component.$data.show) {
-        set();
-      } else {
-        const unwatch = component.$watch('show', () => {
-          unwatch();
-          set();
-        });
-      }
-      return p;
-    };
-    Vue.prototype.$prompt.visible = () => component.$data.show;
-    Vue.prototype.$prompt.hide = () => {
-      component.$data.show = false;
     };
   };
 }

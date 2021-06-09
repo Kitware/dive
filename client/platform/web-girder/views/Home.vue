@@ -1,5 +1,8 @@
 <script>
-import Vue from 'vue';
+import {
+  defineComponent,
+  ref,
+} from '@vue/composition-api';
 import { mapActions } from 'vuex';
 import {
   getLocationType, GirderFileManager, GirderMarkdown,
@@ -7,6 +10,7 @@ import {
 
 import RunPipelineMenu from 'dive-common/components/RunPipelineMenu.vue';
 import RunTrainingMenu from 'dive-common/components/RunTrainingMenu.vue';
+import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 
 import { getFolder } from 'platform/web-girder/api/girder.service';
 import { getLocationFromRoute } from '../utils';
@@ -31,7 +35,7 @@ const menuOptions = {
   nudgeRight: 8,
 };
 
-export default Vue.extend({
+export default defineComponent({
   name: 'Home',
   components: {
     Clone,
@@ -43,15 +47,33 @@ export default Vue.extend({
     RunPipelineMenu,
     RunTrainingMenu,
   },
+  setup() {
+    const uploaderDialog = ref(false);
+    const selected = ref([]);
+    const uploading = ref(false);
+    const loading = ref(false);
+
+    const prompt = usePrompt();
+
+    // should be removed and incorporated into deleteSelection()
+    async function promptShow(args) {
+      await prompt.show(args);
+    }
+
+    return {
+      // data
+      buttonOptions,
+      menuOptions,
+      uploaderDialog,
+      selected,
+      uploading,
+      loading,
+      // methods
+      promptShow,
+    };
+  },
+  // everything below needs to be refactored to composition-api
   inject: ['girderRest'],
-  data: () => ({
-    buttonOptions,
-    menuOptions,
-    uploaderDialog: false,
-    selected: [],
-    uploading: false,
-    loading: false,
-  }),
   computed: {
     location: {
       get() {
@@ -145,7 +167,7 @@ export default Vue.extend({
       return item._modelType === 'folder' && item.meta.annotate;
     },
     async deleteSelection() {
-      const result = await this.$prompt({
+      const result = await this.promptShow({
         title: 'Confirm',
         text: 'Do you want to delete selected items?',
         confirm: true,
@@ -163,7 +185,7 @@ export default Vue.extend({
         if (err.response && err.response.status === 403) {
           text = 'You do not have permission to delete selected resource(s).';
         }
-        this.$prompt({
+        this.promptShow({
           title: 'Delete Failed',
           text,
           positiveButton: 'OK',
