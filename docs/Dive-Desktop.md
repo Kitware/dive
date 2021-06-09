@@ -36,7 +36,7 @@ Full Windows and Linux support.  Annotation support for MacOS.
 * For video, DIVE will ask you to point directly to a file.
 * For images, DIVE Desktop imports **entire directories**.  That means all images from a single folder will be imported as a dataset.  You can use globbing to filter the contents of an image directory during import.
 
-**Annotation Files** - In either case, either a `*.csv` or a `result*.json` annotaton file should be located in the same directory as the source media, and will be automatically discovered during import.  Annotation files are not required.r
+**Annotation Files** - In either case, either a `*.csv` or a `result*.json` annotaton file should be located in the same directory as the source media, and will be automatically discovered during import.  Annotation files are not required.
 
 ## Video Transcoding
 
