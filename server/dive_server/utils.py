@@ -288,9 +288,7 @@ def valid_images(
 
 
 def get_annotation_csv_generator(
-    folder: GirderModel,
-    user: GirderModel,
-    excludeBelowThreshold=False,
+    folder: GirderModel, user: GirderModel, excludeBelowThreshold=False, typeFilter=[]
 ) -> Tuple[str, Callable[[], Generator[str, None, None]]]:
     """
     Get the annotation generator for a folder
@@ -307,6 +305,7 @@ def get_annotation_csv_generator(
     thresholds = fromMeta(folder, "confidenceFilters", {})
     annotation_file = detections_file(folder, strict=True)
     track_dict = getTrackData(annotation_file)
+    typeFilterSet = set(typeFilter)
 
     def downloadGenerator():
         for data in viame.export_tracks_as_csv(
@@ -315,6 +314,7 @@ def get_annotation_csv_generator(
             thresholds=thresholds,
             filenames=imageFiles,
             fps=fps,
+            typeFilter=typeFilterSet,
         ):
             yield data
 

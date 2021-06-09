@@ -1,3 +1,4 @@
+import json
 from typing import List
 
 from girder.api import access
@@ -87,8 +88,18 @@ class ViameDetection(Resource):
             dataType="boolean",
             default=False,
         )
+        .jsonParam(
+            "typeFilter",
+            "List of track types to filter by",
+            paramType="query",
+            required=False,
+            default=[],
+            requireArray=True,
+        )
     )
-    def get_export_urls(self, folder, excludeBelowThreshold):
+    def get_export_urls(
+        self, folder, excludeBelowThreshold: bool, typeFilter: List[str]
+    ):
         verify_dataset(folder)
         folderId = str(folder['_id'])
         export_all = f'/api/v1/folder/{folderId}/download'
@@ -101,10 +112,12 @@ class ViameDetection(Resource):
             export_detections = (
                 f'/api/v1/viame_detection/{folderId}/export_detections'
                 f'?excludeBelowThreshold={excludeBelowThreshold}'
+                f'&typeFilter={json.dumps(typeFilter)}'
             )
             export_all = (
                 f'/api/v1/viame_detection/{folderId}/export_all'
                 f'?excludeBelowThreshold={excludeBelowThreshold}'
+                f'&typeFilter={json.dumps(typeFilter)}'
             )
 
         source_type = fromMeta(folder, TypeMarker)
@@ -147,11 +160,21 @@ class ViameDetection(Resource):
             dataType="boolean",
             default=False,
         )
+        .jsonParam(
+            "typeFilter",
+            "List of track types to filter by",
+            paramType="query",
+            required=False,
+            default=[],
+            requireArray=True,
+        )
     )
-    def export_detections(self, folder, excludeBelowThreshold):
+    def export_detections(
+        self, folder, excludeBelowThreshold: bool, typeFilter: List[str]
+    ):
         verify_dataset(folder)
         filename, gen = get_annotation_csv_generator(
-            folder, self.getCurrentUser(), excludeBelowThreshold
+            folder, self.getCurrentUser(), excludeBelowThreshold, typeFilter
         )
         setContentDisposition(filename)
         return gen
@@ -187,13 +210,26 @@ class ViameDetection(Resource):
             dataType="boolean",
             default=False,
         )
+        .jsonParam(
+            "typeFilter",
+            "List of track types to filter by",
+            paramType="query",
+            required=False,
+            default=[],
+            requireArray=True,
+        )
     )
     def export_all(
-        self, folder, includeMedia, includeDetections, excludeBelowThreshold
+        self,
+        folder,
+        includeMedia: bool,
+        includeDetections: bool,
+        excludeBelowThreshold: bool,
+        typeFilter: List[str],
     ):
         verify_dataset(folder)
         _, gen = get_annotation_csv_generator(
-            folder, self.getCurrentUser(), excludeBelowThreshold
+            folder, self.getCurrentUser(), excludeBelowThreshold, typeFilter
         )
         setResponseHeader('Content-Type', 'application/zip')
         setContentDisposition(folder['name'] + '.zip')

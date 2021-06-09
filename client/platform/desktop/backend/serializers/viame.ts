@@ -336,6 +336,7 @@ async function serialize(
   stream: Writable,
   data: MultiTrackRecord,
   meta: JsonMeta,
+  typeFilter = new Set<string>(),
   options = {
     excludeBelowThreshold: false,
     header: true,
@@ -357,8 +358,11 @@ async function serialize(
       const confidencePairs = options.excludeBelowThreshold
         ? Track.trackExceedsThreshold(track.confidencePairs, filters)
         : track.confidencePairs;
-      if (confidencePairs.length) {
-        const sortedPairs = confidencePairs.sort((a, b) => a[1] - b[1]);
+      const filteredPairs = typeFilter.size > 0
+        ? confidencePairs.filter((x) => typeFilter.has(x[0]))
+        : confidencePairs;
+      if (filteredPairs.length) {
+        const sortedPairs = filteredPairs.sort((a, b) => a[1] - b[1]);
         track.features.forEach((keyframeFeature, index) => {
           const interpolatedFeatures = [keyframeFeature];
 
@@ -436,13 +440,14 @@ async function serializeFile(
   path: string,
   data: MultiTrackRecord,
   meta: JsonMeta,
+  typeFilter = new Set<string>(),
   options = {
     excludeBelowThreshold: false,
     header: true,
   },
 ) {
   const stream = fs.createWriteStream(path);
-  await serialize(stream, data, meta, options);
+  await serialize(stream, data, meta, typeFilter, options);
   return path;
 }
 

@@ -3,7 +3,7 @@ import {
   computed, defineComponent, watch, ref, toRef,
 } from '@vue/composition-api';
 
-import { usePendingSaveCount, useHandler } from 'vue-media-annotator/provides';
+import { usePendingSaveCount, useHandler, useCheckedTypes } from 'vue-media-annotator/provides';
 import AutosavePrompt from 'dive-common/components/AutosavePrompt.vue';
 import { MediaTypes } from 'dive-common/constants';
 import { withRestError } from 'platform/web-girder/utils';
@@ -34,15 +34,18 @@ export default defineComponent({
   setup(props) {
     const menuOpen = ref(false);
     const excludeFiltered = ref(false);
+    const excludeUncheckedTypes = ref(false);
     const exportUrls = ref(null as null | ExportUrlsResponse);
     const savePrompt = ref(false);
     const currentSaveUrl = ref('');
     let save = () => Promise.resolve();
     let pendingSaveCount = ref(0);
+    let checkedTypes = ref([] as readonly string[]);
 
     if (props.blockOnUnsaved) {
       save = useHandler().save;
       pendingSaveCount = usePendingSaveCount();
+      checkedTypes = useCheckedTypes();
     }
 
     async function doExport({ forceSave = false, url }: { url?: string; forceSave?: boolean }) {
@@ -68,10 +71,11 @@ export default defineComponent({
 
     const { func: updateExportUrls, error } = withRestError(async () => {
       if (menuOpen.value) {
-        exportUrls.value = await getExportUrls(props.datasetId, excludeFiltered.value);
+        const typeFilter = excludeUncheckedTypes.value ? checkedTypes.value : [];
+        exportUrls.value = await getExportUrls(props.datasetId, excludeFiltered.value, typeFilter);
       }
     });
-    watch([toRef(props, 'datasetId'), excludeFiltered, menuOpen], updateExportUrls);
+    watch([toRef(props, 'datasetId'), excludeFiltered, excludeUncheckedTypes, menuOpen], updateExportUrls);
     updateExportUrls();
 
     const mediaType = computed(() => (exportUrls.value
@@ -82,10 +86,12 @@ export default defineComponent({
     return {
       error,
       excludeFiltered,
+      excludeUncheckedTypes,
       menuOpen,
       exportUrls,
       mediaType,
       thresholds,
+      checkedTypes,
       savePrompt,
       doExport,
     };
@@ -167,7 +173,7 @@ export default defineComponent({
             </v-btn>
           </v-card-actions>
 
-          <v-card-text class="pb-0">
+          <v-card-text class="pb-2">
             <div>Get latest detections csv only</div>
             <template v-if="thresholds.length">
               <v-checkbox
@@ -176,7 +182,7 @@ export default defineComponent({
                 dense
                 hide-details
               />
-              <div class="py-2">
+              <div class="pt-2">
                 <span>Current thresholds:</span>
                 <span
                   v-for="(val, key) in exportUrls.currentThresholds"
@@ -187,7 +193,19 @@ export default defineComponent({
                 </span>
               </div>
             </template>
+
+            <template v-if="checkedTypes.length">
+              <v-checkbox
+                v-model="excludeUncheckedTypes"
+                label="export checked types only"
+                dense
+                hint="Export only the track types currently enabled in the type filter"
+                persistent-hint
+                class="pt-0"
+              />
+            </template>
           </v-card-text>
+
           <v-card-actions>
             <v-btn
               depressed
