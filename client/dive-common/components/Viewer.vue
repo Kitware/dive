@@ -39,6 +39,7 @@ import {
   useSettings,
 } from 'dive-common/use';
 import { useApi, FrameImage, DatasetType } from 'dive-common/apispec';
+import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { cloneDeep } from 'lodash';
 
 export default defineComponent({
@@ -61,11 +62,8 @@ export default defineComponent({
       required: true,
     },
   },
-  setup(props, ctx) {
-    // TODO: eventually we will have to migrate away from this style
-    // and use the new plugin pattern:
-    // https://vue-composition-api-rfc.netlify.com/#plugin-development
-    const prompt = ctx.root.$prompt;
+  setup(props) {
+    const prompt = usePrompt();
     const loadError = ref('');
     const playbackComponent = ref(undefined as Vue | undefined);
     const mediaController = computed(() => {
@@ -206,14 +204,14 @@ export default defineComponent({
         try {
           newtracks = track.split(_frame, getNewTrackId(), getNewTrackId() + 1);
         } catch (err) {
-          await prompt({
+          await prompt.show({
             title: 'Error while splitting track',
             text: err,
             positiveButton: 'OK',
           });
           return;
         }
-        const result = await prompt({
+        const result = await prompt.show({
           title: 'Confirm',
           text: 'Do you want to split the selected track?',
           confirm: true,
@@ -244,7 +242,7 @@ export default defineComponent({
         if (err.response && err.response.status === 403) {
           text = 'You do not have permission to Save Data to this Folder.';
         }
-        await prompt({
+        await prompt.show({
           title: 'Error while Saving Data',
           text,
           positiveButton: 'OK',
@@ -269,7 +267,7 @@ export default defineComponent({
     async function navigateAwayGuard(): Promise<boolean> {
       let result = true;
       if (pendingSaveCount.value > 0) {
-        result = await prompt({
+        result = await prompt.show({
           title: 'Save Items',
           text: 'There is unsaved data, would you like to continue or cancel and save?',
           positiveButton: 'Discard and Leave',

@@ -3,6 +3,7 @@ import {
   computed, defineComponent, PropType, Ref, ref,
 } from '@vue/composition-api';
 import { Attribute } from 'vue-media-annotator/use/useAttributes';
+import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 
 
 export default defineComponent({
@@ -17,7 +18,8 @@ export default defineComponent({
       default: '',
     },
   },
-  setup(props, { root, emit }) {
+  setup(props, { emit }) {
+    const prompt = usePrompt();
     const name: Ref<string> = ref(props.selectedAttribute.name);
     const belongs: Ref<string> = ref(props.selectedAttribute.belongs);
     const datatype: Ref<string> = ref(props.selectedAttribute.datatype);
@@ -74,7 +76,7 @@ export default defineComponent({
     }
 
     async function deleteAttribute() {
-      const result = await root.$prompt({
+      const result = await prompt.show({
         title: 'Confirm',
         text: 'Do you want to delete this attribute?',
         confirm: true,

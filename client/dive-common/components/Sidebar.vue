@@ -13,6 +13,7 @@ import { NewTrackSettings, TypeSettings } from 'dive-common/use/useSettings';
 import TrackDetailsPanel from 'dive-common/components/TrackDetailsPanel.vue';
 import CreationMode from 'dive-common/components/CreationMode.vue';
 import TypeSettingsPanel from 'dive-common/components/TypeSettingsPanel.vue';
+import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 
 export default defineComponent({
   props: {
@@ -39,6 +40,7 @@ export default defineComponent({
   },
 
   setup() {
+    const prompt = usePrompt();
     const allTypesRef = useAllTypes();
     const { toggleMerge, commitMerge } = useHandler();
     const data = reactive({
@@ -59,12 +61,17 @@ export default defineComponent({
       }
     }
 
+    function visible() {
+      return prompt.visible();
+    }
+
     return {
       allTypesRef,
       swapTabs,
       doToggleMerge,
       commitMerge,
       ...toRefs(data),
+      visible,
     };
   },
 });
@@ -117,7 +124,7 @@ export default defineComponent({
           :new-track-mode="newTrackSettings.mode"
           :new-track-type="newTrackSettings.type"
           :lock-types="typeSettings.lockTypes"
-          :hotkeys-disabled="$prompt.visible()"
+          :hotkeys-disabled="visible()"
           @track-seek="$emit('track-seek', $event)"
         >
           <template slot="settings">
@@ -132,7 +139,7 @@ export default defineComponent({
       <track-details-panel
         v-else-if="currentTab === 'attributes'"
         :lock-types="typeSettings.lockTypes"
-        :hotkeys-disabled="$prompt.visible()"
+        :hotkeys-disabled="visible()"
         :width="width"
         @track-seek="$emit('track-seek', $event)"
         @toggle-merge="doToggleMerge"

@@ -4,6 +4,7 @@ import {
 } from '@vue/composition-api';
 
 import { useApi, TrainingConfigs } from 'dive-common/apispec';
+import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 
 
 export default defineComponent({
@@ -24,6 +25,7 @@ export default defineComponent({
 
   setup(props, { root }) {
     const { getTrainingConfigurations, runTraining } = useApi();
+    const prompt = usePrompt();
 
     const trainingConfigurations = ref<TrainingConfigs | null>(null);
     const selectedTrainingConfig = ref<string | null>(null);
@@ -70,7 +72,7 @@ export default defineComponent({
           text = 'You do not have permission to run training on the selected resource(s).';
         }
 
-        root.$prompt({
+        prompt.show({
           title: 'Training Failed',
           text,
           positiveButton: 'OK',

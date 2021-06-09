@@ -1,5 +1,7 @@
 <script lang="ts">
 import { computed, defineComponent, reactive } from '@vue/composition-api';
+import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
+
 import {
   useCheckedTypes, useAllTypes, useTypeStyling, useHandler, useUsedTypes,
 } from '../provides';
@@ -14,8 +16,8 @@ export default defineComponent({
   },
   name: 'TypeList',
 
-  setup(props, { root }) {
-    const prompt = root.$prompt;
+  setup(props) {
+    const prompt = usePrompt();
 
     const data = reactive({
       showPicker: false,
@@ -66,7 +68,7 @@ export default defineComponent({
         text.push(item.toString());
       });
 
-      const result = await prompt({
+      const result = await prompt.show({
         title: 'Confirm',
         text,
         confirm: true,
@@ -79,7 +81,7 @@ export default defineComponent({
     async function clickDeleteType(type: string) {
       const text = `Do you want to delete this empty Type: ${type}`;
 
-      const result = await prompt({
+      const result = await prompt.show({
         title: 'Confirm',
         text,
         confirm: true,
