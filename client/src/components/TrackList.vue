@@ -116,7 +116,7 @@ export default defineComponent({
       Vue.nextTick(() => scrollToTrack(selectedTrackIdRef.value));
     }
 
-    //If we mount with selected we scroll to it automatically
+    // If we mount with selected we scroll to it automatically
     scrollToSelectedTrack();
 
     function scrollPreventDefault(
@@ -135,8 +135,10 @@ export default defineComponent({
     }
 
     function getItemProps(item: VirtualListItem) {
-      const type = item.filteredTrack.track.getType(item.filteredTrack.context.confidencePairIndex);
-      const trackType = type ? type[0] : '';
+      const confidencePair = item.filteredTrack.track.getType(
+        item.filteredTrack.context.confidencePairIndex,
+      );
+      const trackType = confidencePair[0];
       const selected = item.selectedTrackId === item.filteredTrack.track.trackId;
       return {
         trackType,

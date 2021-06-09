@@ -1,7 +1,7 @@
 <script lang="ts">
 import { computed, defineComponent, reactive } from '@vue/composition-api';
 import {
-  useCheckedTypes, useAllTypes, useTypeStyling, useHandler, useUsedTypes,
+  useCheckedTypes, useAllTypes, useTypeStyling, useHandler, useUsedTypes, useFilteredTracks,
 } from '../provides';
 
 
@@ -33,6 +33,7 @@ export default defineComponent({
     const allTypesRef = useAllTypes();
     const usedTypesRef = useUsedTypes();
     const typeStylingRef = useTypeStyling();
+    const filteredTracksRef = useFilteredTracks();
     const {
       updateTypeName,
       updateTypeStyle,
@@ -126,6 +127,14 @@ export default defineComponent({
       setCheckedTypes([]);
     }
 
+    const typeCounts = computed(() => filteredTracksRef.value.reduce((acc, filteredTrack) => {
+      const confidencePair = filteredTrack.track.getType(filteredTrack.context.confidencePairIndex);
+      const trackType = confidencePair[0];
+      acc.set(trackType, (acc.get(trackType) || 0) + 1);
+
+      return acc;
+    }, new Map<string, number>()));
+
 
     return {
       visibleTypes,
@@ -141,6 +150,7 @@ export default defineComponent({
       headCheckState,
       headCheckClicked,
       setCheckedTypes,
+      typeCounts,
     };
   },
 });
@@ -231,7 +241,7 @@ export default defineComponent({
               :input-value="checkedTypesRef"
               :value="type"
               :color="typeStylingRef.color(type)"
-              :label="type"
+              :label="`${type} (${typeCounts.get(type) || 0})`"
               dense
               shrink
               hide-details
