@@ -280,17 +280,20 @@ def export_tracks_as_csv(
     filenames=None,
     fps=None,
     header=True,
+    typeFilter=set(),
 ) -> Generator[str, None, None]:
     """Export track json to a CSV format.
-    :exlcudeBelowThreshold: omit tracks below a certain confidence.  Requires thresholds.
+    :excludeBelowThreshold: omit tracks below a certain confidence.  Requires thresholds.
 
-    :thresholds: key/value paris with threshold values
+    :thresholds: key/value pairs with threshold values
 
     :filenames: list of string file names.  filenames[n] should be the image at frame n
 
     :fps: if FPS is set, column 2 will be video timestamp derived from (frame / fps)
 
     :header: include or omit header
+
+    :typeFilter: set of track types to only export if not empty
     """
     csvFile = io.StringIO()
     writer = csv.writer(csvFile)
@@ -303,8 +306,19 @@ def export_tracks_as_csv(
         track = Track(**t)
         if (not excludeBelowThreshold) or track.exceeds_thresholds(thresholds):
 
+            # filter by types if applicable
+            if typeFilter:
+                confidence_pairs = [
+                    item for item in track.confidencePairs if item[0] in typeFilter
+                ]
+                # skip line if no confidence pairs
+                if not confidence_pairs:
+                    continue
+            else:
+                confidence_pairs = track.confidencePairs
+
             sorted_confidence_pairs = sorted(
-                track.confidencePairs, key=lambda item: item[1], reverse=True
+                confidence_pairs, key=lambda item: item[1], reverse=True
             )
 
             for index, keyframe in enumerate(track.features):

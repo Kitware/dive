@@ -17,9 +17,10 @@ interface SerializedTrackstore {
 async function getExportUrls(
   id: string,
   excludeBelowThreshold: boolean,
+  typeFilter: readonly string[],
 ): Promise<ExportUrlsResponse> {
   return (await girderRest.get<ExportUrlsResponse>(`viame_detection/${id}/export`, {
-    params: { excludeBelowThreshold },
+    params: { excludeBelowThreshold, typeFilter: JSON.stringify(typeFilter) },
   })).data;
 }
 

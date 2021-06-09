@@ -13,9 +13,11 @@ Vue.use(Install);
 
 interface DesktopJobHistory {
   job: DesktopJob;
-  logs: string[];
+  truncatedLogs: string[];
+  totalLogLength: number;
 }
 
+const truncateOutputAtLines = 500;
 const jobHistory: Ref<Record<string, DesktopJobHistory>> = ref({});
 const recentHistory = computed(() => Object.values(jobHistory.value));
 const runningJobs = computed(() => recentHistory.value.filter((v) => v.job.exitCode === null));
@@ -25,12 +27,16 @@ function updateHistory(args: DesktopJobUpdate) {
   if (!existing) {
     set<DesktopJobHistory>(jobHistory.value, args.key, {
       job: args,
-      logs: [],
+      truncatedLogs: [],
+      totalLogLength: 0,
     });
     existing = jobHistory.value[args.key];
   }
   if (args.body) {
-    existing.logs.push(...args.body);
+    /* Prevent logs filling memory and causing render slowdowns */
+    existing.truncatedLogs.push(...args.body);
+    existing.truncatedLogs.splice(0, existing.truncatedLogs.length - truncateOutputAtLines);
+    existing.totalLogLength += args.body.length;
   }
   existing.job.exitCode = args.exitCode;
   existing.job.endTime = args.endTime;
@@ -71,4 +77,5 @@ export {
   recentHistory,
   runningJobs,
   setOrGetConversionJob,
+  truncateOutputAtLines,
 };

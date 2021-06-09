@@ -8,7 +8,7 @@ import { DesktopJob } from 'platform/desktop/constants';
 import BrowserLink from './BrowserLink.vue';
 import NavigationBar from './NavigationBar.vue';
 import { datasets } from '../store/dataset';
-import { recentHistory } from '../store/jobs';
+import { recentHistory, truncateOutputAtLines } from '../store/jobs';
 
 export default defineComponent({
   components: {
@@ -25,7 +25,6 @@ export default defineComponent({
     }, 1000);
     onBeforeUnmount(() => clearInterval(clockDriverInterval));
 
-    const truncateOutputAtLines = 500;
 
     function toggleVisibleOutput(job: DesktopJob) {
       if (job.key === visibleOutput.value) {
@@ -195,14 +194,14 @@ export default defineComponent({
                   style="overflow-y: auto;"
                 >
                   <p
-                    v-for="(line, i) in job.logs.slice(-1 * truncateOutputAtLines, -1).reverse()"
+                    v-for="(line, i) in job.truncatedLogs.slice().reverse()"
                     :key="line + i"
                     class="my-1 terminal"
                   >
-                    {{ job.logs.length - i - 1 }}. {{ line.replace('\n', '') }}
+                    {{ job.totalLogLength - i - 1 }}. {{ line.replace('\n', '') }}
                   </p>
                   <p
-                    v-if="job.logs.length > truncateOutputAtLines"
+                    v-if="job.totalLogLength >= truncateOutputAtLines"
                     class="my-1 terminal terminal-meta"
                   >
                     ______________________________

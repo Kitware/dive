@@ -538,8 +538,8 @@ async function _initializeAppDataDir(settings: Settings) {
 }
 
 /**
- * Intialize a new project directory
- * @returns absolute path to new project dcirectory
+ * Initialize a new project directory
+ * @returns absolute path to new project directory
  */
 async function _initializeProjectDir(settings: Settings, jsonMeta: JsonMeta): Promise<string> {
   const projectDir = npath.join(settings.dataPath, ProjectsFolderName, jsonMeta.id);
@@ -777,14 +777,11 @@ async function openLink(url: string) {
   shell.openExternal(url);
 }
 
-async function exportDataset(
-  settings: Settings,
-  args: ExportDatasetArgs,
-) {
+async function exportDataset(settings: Settings, args: ExportDatasetArgs) {
   const projectDirInfo = await getValidatedProjectDir(settings, args.id);
   const meta = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
   const data = await loadJsonTracks(projectDirInfo.trackFileAbsPath);
-  return viameSerializers.serializeFile(args.path, data, meta, {
+  return viameSerializers.serializeFile(args.path, data, meta, args.typeFilter, {
     excludeBelowThreshold: args.exclude,
     header: true,
   });
