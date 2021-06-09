@@ -114,7 +114,7 @@ Trained models are kept in `${Project Data Storage Path}/DIVE_Pipelines` as desc
 * The pipe file can be one of `detector.pipe`, `tracker.pipe`, or `generate.pipe`.
 * Other files can be `.zip`, `.svm`, `.lbl`, or `.cfg`.
 
-You can use exteranally trained models in DIVE by creating a folder containing these files.
+You can use exteranally trained models in DIVE by creating a folder containing these files.  The name of the configuration or pipeline in dive will be the folder name you create.
 
 ## Troubleshooting
 
