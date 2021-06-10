@@ -1,0 +1,42 @@
+# Frequently Asked Questions
+
+## How do I find existing data to use?
+
+There are two places to look.
+
+* The [Training Data Collection](https://viame.kitware.com/#/collection/5e4c256ca0fc86aa03120c34) is organized rougly by domain and collection method.
+* The [Stats Summary Page](https://viame.kitware.com/#/summary) lists every published dataset organized by object label.
+
+## How do I share data with others?
+
+This use case is covered [on the sharing page](/Web-Version/#sharing-data-with-teams).
+
+If you want to **publish** your data so that other groups can use it, please email <a href="mailto:viame-web@kitware.com">`viame-web@kitware.com`</a>.
+
+## How do I run analysis workflows on my data?
+
+In DIVE, these are called pipelines.  You'll need to see what sorts of analysis workflows are currently available [on the pipeline page](Pipeline-Documentation.md).
+
+These sorts of artifical intelligence (AI) workflows are the final goal for most users.  They allow the user to quickly perform quantitative analysis to answer questions like **_how many individuals of each type appear on each image or video frame?_**
+
+If no suitable existing analysis exists for your use case or you aren't sure how to proceed, you're welcome to email our team and ask for help at <a href="mailto:viame-web@kitware.com">`viame-web@kitware.com`</a>.
+
+## How do I create new models?
+
+You want to perform analysis (detection, tracking, measurement, etc) on object types not yet covered by the community data and pre-trained analysis pipelines available. This will involve training new models based on ground-truth annotations.
+
+Training configurations are listed [on the pipeline page](Pipeline-Documentation.md).
+
+## How can I load data incrementally?
+
+If you have data in lots of places or it arrives at different times, it's probably best to break these batches or groups into individual datasets and annotate each individually.  Using the checkboxes in web, you can use multiple datasets to generate a trained model.
+
+Breaking large amounts of data up into manageable groups is generally a good idea.
+
+## Do users need to transcode their own data?
+
+No. VIAME Web and DIVE Desktop perform automatic transcoding if it is necessary.
+
+## Can I request new features or provide feedback?
+
+Yes!  Please contact us at `viame-web@kitare.com` or log an issue [directly on the issue tracker](https://github.com/Kitware/dive/issues).
