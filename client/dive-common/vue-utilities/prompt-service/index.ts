@@ -2,16 +2,36 @@
 /* eslint-disable no-param-reassign,func-names */
 
 import { watch } from '@vue/composition-api';
+import { VueConstructor } from 'vue';
+import Vuetify from 'vuetify/lib';
 import Prompt from './Prompt.vue';
 
+interface PromptParams {
+  title: string;
+  text: string | string[];
+  positiveButton?: string;
+  negativeButton?: string;
+  confirm?: boolean;
+}
+
 class PromptService {
-  constructor(Vue) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private component: any;
+
+  constructor(Vue: VueConstructor) {
     const PromptComponent = Vue.extend(Prompt);
     const component = new PromptComponent();
     this.component = component;
   }
 
-  set(title, text, positiveButton, negativeButton, confirm, resolve) {
+  set(
+    title: string,
+    text: string | string[],
+    positiveButton: string,
+    negativeButton: string,
+    confirm: boolean,
+    resolve: (value: boolean) => void,
+  ): void {
     this.component.title = title;
     this.component.text = text;
     this.component.positiveButton = positiveButton;
@@ -27,9 +47,9 @@ class PromptService {
     positiveButton = 'Confirm',
     negativeButton = 'Cancel',
     confirm = false,
-  } = {}) {
-    let resolve;
-    const p = new Promise((_resolve) => {
+  }: PromptParams): Promise<boolean> {
+    let resolve: (value: boolean) => void = (value: boolean) => Promise.resolve(value);
+    const p = new Promise<boolean>((_resolve: (value: boolean) => void) => {
       resolve = _resolve;
     });
 
@@ -44,35 +64,42 @@ class PromptService {
     return p;
   }
 
-  visible() {
+  visible(): boolean {
     return this.component.show;
   }
 
-  invisible() {
+  invisible(): boolean {
     return !this.component.show;
   }
 
-  hide() {
+  hide(): void {
     this.component.show = false;
+  }
+
+  mount(element: HTMLElement) {
+    this.component.$mount(element);
   }
 }
 
 // in vue 3 should use provide/inject with symbol
-let promptService = null;
+let promptService: PromptService;
 
 export function usePrompt() {
+  // in vue 3 should use inject instead of singleton
   return promptService;
 }
 
-export default function (vuetify) {
-  return function install(Vue) {
-    Prompt.vuetify = vuetify;
+export default function (vuetify: Vuetify) {
+  return function install(Vue: VueConstructor) {
+    Vue.extend({ vuetify, ...Prompt });
     // in vue 3 should use provide instead of singleton
     promptService = new PromptService(Vue);
     Vue.prototype.$promptAttach = function () {
       const div = document.createElement('div');
       this.$el.appendChild(div);
-      promptService.component.$mount(div);
+      if (promptService) {
+        promptService.mount(div);
+      }
       return this;
     };
   };

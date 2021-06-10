@@ -9,7 +9,7 @@ export default {
   setup() {
     const show = ref(false);
     const title = ref('');
-    const text = ref('');
+    const text: Ref<string | string[]> = ref('');
     const positiveButton = ref('Confirm');
     const negativeButton = ref('Cancel');
     const selected = ref('positive');
