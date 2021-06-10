@@ -1,15 +1,12 @@
 /* disabled this rule for Vue.prototype.FOO = */
 /* eslint-disable no-param-reassign,func-names */
 
-import Vue2 from 'vue';
-import {
-  provide, inject, watch,
-} from '@vue/composition-api';
+import { watch } from '@vue/composition-api';
 import Prompt from './Prompt.vue';
 
 class PromptService {
-  constructor() {
-    const PromptComponent = Vue2.extend(Prompt);
+  constructor(Vue) {
+    const PromptComponent = Vue.extend(Prompt);
     const component = new PromptComponent();
     this.component = component;
   }
@@ -60,33 +57,22 @@ class PromptService {
   }
 }
 
-const promptSymbol = Symbol('prompt-service');
-
-export function providePrompt() {
-  const promptService = new PromptService();
-  Vue2.prototype.$promptAttach = function () {
-    const div = document.createElement('div');
-    this.$el.appendChild(div);
-    promptService.component.$mount(div);
-    return this;
-  };
-  provide(promptSymbol, promptService);
-}
+// in vue 3 should use provide/inject with symbol
+let promptService = null;
 
 export function usePrompt() {
-  const prompt = inject(promptSymbol);
-  return prompt;
+  return promptService;
 }
 
 export default function (vuetify) {
   return function install(Vue) {
     Prompt.vuetify = vuetify;
-    const PromptComponent = Vue.extend(Prompt);
-    const component = new PromptComponent();
-    Vue.prototype.$promptAttachOld = function () {
+    // in vue 3 should use provide instead of singleton
+    promptService = new PromptService(Vue);
+    Vue.prototype.$promptAttach = function () {
       const div = document.createElement('div');
       this.$el.appendChild(div);
-      component.$mount(div);
+      promptService.component.$mount(div);
       return this;
     };
   };
