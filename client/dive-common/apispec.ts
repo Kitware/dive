@@ -7,6 +7,7 @@ import { CustomStyle } from 'vue-media-annotator/use/useStyling';
 
 type DatasetType = 'image-sequence' | 'video';
 type MultiTrackRecord = Record<string, TrackData>;
+type SubType = 'stereo' | 'multicam' | null;
 
 interface Pipe {
   name: string;
@@ -58,6 +59,27 @@ export interface MultiCamImportKeywordArgs {
 
 export type MultiCamImportArgs = MultiCamImportFolderArgs | MultiCamImportKeywordArgs;
 
+export interface HTMLFileReferences {
+  mediaHTMLFileList: Record<string, File[]>;
+  calibrationHTMLFile?: File;
+}
+
+interface MultiCamMedia {
+  cameras: Record<string, {
+    type: DatasetType;
+    imageData: FrameImage[];
+    videoUrl: string;
+  }>;
+  display: string;
+}
+
+interface CustomMediaImportPayload {
+  jsonMeta: {
+    originalImageFiles: string[];
+  };
+  globPattern: string;
+  mediaConvertList: string[];
+}
 /**
  * The parts of metadata a user should be able to modify.
  */
@@ -92,8 +114,13 @@ interface Api {
   saveMetadata(datasetId: string, metadata: DatasetMetaMutable): Promise<unknown>;
   saveAttributes(datasetId: string, args: SaveAttributeArgs): Promise<unknown>;
   // Non-Endpoint shared functions
-  openFromDisk(datasetType: DatasetType | 'calibration'): Promise<{canceled?: boolean; filePaths: string[]; fileList?: File[]}>;}
-
+  openFromDisk(datasetType: DatasetType | 'calibration' | 'annotation', directory?: boolean):
+  Promise<{canceled?: boolean; filePaths: string[]; fileList?: File[]; root?: string}>;
+  /*
+  * This will be included when updating to import annotation files
+  importMedia(path: string[]): Promise<CustomMediaImportPayload>;
+  */
+}
 const ApiSymbol = Symbol('api');
 
 /**
@@ -119,6 +146,7 @@ export type {
   DatasetMeta,
   DatasetMetaMutable,
   DatasetType,
+  SubType,
   FrameImage,
   MultiTrackRecord,
   Pipe,
@@ -126,4 +154,6 @@ export type {
   SaveDetectionsArgs,
   SaveAttributeArgs,
   TrainingConfigs,
+  MultiCamMedia,
+  CustomMediaImportPayload,
 };

@@ -1,5 +1,5 @@
 <script lang="ts">
-import { defineComponent } from '@vue/composition-api';
+import { computed, defineComponent } from '@vue/composition-api';
 
 import Viewer from 'dive-common/components/Viewer.vue';
 import RunPipelineMenu from 'dive-common/components/RunPipelineMenu.vue';
@@ -34,11 +34,13 @@ export default defineComponent({
       required: true,
     },
   },
-  setup() {
+  setup(props) {
+    const subType = computed(() => [datasets.value[props.id]?.subType] || []);
     return {
       buttonOptions,
       datasets,
       menuOptions,
+      subType,
     };
   },
 });
@@ -68,6 +70,7 @@ export default defineComponent({
     <template #title-right>
       <RunPipelineMenu
         :selected-dataset-ids="[id]"
+        :sub-type-list="subType"
         v-bind="{ buttonOptions, menuOptions }"
       />
       <Export

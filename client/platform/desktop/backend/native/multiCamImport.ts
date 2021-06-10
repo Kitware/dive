@@ -108,6 +108,8 @@ async function beginMultiCamImport(
     transcodedVideoFile: '',
     transcodedImageFiles: [],
     name: dsName,
+    multiCam: null,
+    subType: null,
   };
 
   jsonMeta.multiCam = {
@@ -183,6 +185,13 @@ async function beginMultiCamImport(
     }
   } else {
     throw new Error('only video and image-sequence types are supported');
+  }
+
+  if (jsonMeta.multiCam?.cameras && jsonMeta.multiCam.cameras.left
+    && jsonMeta.multiCam.cameras.right && jsonMeta.multiCam.calibration) {
+    jsonMeta.subType = 'stereo';
+  } else if (jsonMeta.multiCam) {
+    jsonMeta.subType = 'multicam';
   }
 
   return {
