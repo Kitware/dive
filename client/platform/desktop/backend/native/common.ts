@@ -11,11 +11,11 @@ import lockfile from 'proper-lockfile';
 import {
   DatasetType, MultiTrackRecord, Pipelines, SaveDetectionsArgs,
   FrameImage, DatasetMetaMutable, TrainingConfigs, SaveAttributeArgs,
-  MultiCamMedia, SubType,
+  MultiCamMedia,
 } from 'dive-common/apispec';
 import * as viameSerializers from 'platform/desktop/backend/serializers/viame';
 import {
-  websafeImageTypes, websafeVideoTypes, otherImageTypes, otherVideoTypes, multiCamPipelineMarker,
+  websafeImageTypes, websafeVideoTypes, otherImageTypes, otherVideoTypes,
 } from 'dive-common/constants';
 import {
   JsonMeta, Settings, JsonMetaCurrentVersion, DesktopMetadata, DesktopJobUpdater,

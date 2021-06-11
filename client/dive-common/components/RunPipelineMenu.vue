@@ -8,6 +8,7 @@ import {
   useApi,
   SubType,
 } from 'dive-common/apispec';
+import { stereoPipelineMarker } from 'dive-common/constants';
 
 export default defineComponent({
   props: {
@@ -59,7 +60,7 @@ export default defineComponent({
         });
         // Filter out unsupported pipelines based on subTypeList
         // measurement can only be operated on stereo subtypes
-        if (name === 'measurement') {
+        if (name === stereoPipelineMarker) {
           if (props.subTypeList.length === props.subTypeList.filter((item) => item === 'stereo').length) {
             sortedPipelines[name] = category;
           }

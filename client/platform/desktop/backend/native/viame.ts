@@ -12,6 +12,7 @@ import { cleanString } from 'platform/desktop/sharedUtils';
 import { serialize } from 'platform/desktop/backend/serializers/viame';
 import { observeChild } from 'platform/desktop/backend/native/processManager';
 
+import { stereoPipelineMarker } from 'dive-common/constants';
 import * as common from './common';
 import { jobFileEchoMiddleware, spawnResult } from './utils';
 import {
@@ -133,7 +134,7 @@ async function runPipeline(
   }
 
   let multiOutFiles: Record<string, string>;
-  if (meta.multiCam && pipeline.type === 'measurement') {
+  if (meta.multiCam && pipeline.type === stereoPipelineMarker) {
     const { argFilePair, outFiles } = writeMultiCamStereoPipelineArgs(jobWorkDir, meta);
     Object.entries(argFilePair).forEach(([arg, file]) => {
       command.push(`-s ${arg}="${file}"`);
@@ -147,7 +148,7 @@ async function runPipeline(
     if (meta.multiCam.calibration) {
       command.push(`-s measurer:calibration_file="${meta.multiCam.calibration}"`);
     }
-  } else if (pipeline.type === 'measurement') {
+  } else if (pipeline.type === stereoPipelineMarker) {
     throw new Error('Attempting to run a multicam pipeline on non multicam data');
   }
 
