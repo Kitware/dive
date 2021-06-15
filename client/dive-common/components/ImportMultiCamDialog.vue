@@ -262,6 +262,7 @@ export default defineComponent({
           <v-list-item
             v-for="(item, key) in folderList"
             :key="key"
+            class="my-4"
           >
             <v-btn
               v-if="!stereo"
@@ -275,8 +276,10 @@ export default defineComponent({
               :label="`${key}:`"
               :placeholder="dataType === 'image-sequence' ? 'Choose Folder' : 'Choose Video' "
               disabled
+              outlined
+              hide-details
               :value="folderList[key]"
-              class="mx-4"
+              class="mx-4 my-auto"
             />
             <v-btn
               color="primary"
@@ -288,15 +291,20 @@ export default defineComponent({
               </v-icon>
             </v-btn>
           </v-list-item>
-          <v-list-item v-if="!stereo">
+          <v-list-item
+            v-if="!stereo"
+            class="mt-3"
+          >
             <v-btn
-              x-small
+              small
+              class="my-auto mr-2"
               color="primary"
               :disabled="addNewToggle"
               @click="addNewToggle = true"
             >
-              <v-icon>
-                mdi-plus
+              Add Camera
+              <v-icon class="ml-1">
+                mdi-camera
               </v-icon>
             </v-btn>
             <import-multi-cam-add-type
@@ -315,6 +323,8 @@ export default defineComponent({
             label="Folder:"
             placeholder="Choose Folder"
             disabled
+            outlined
+            hide-details
             :value="keywordFolder"
             class="mx-4"
           />
@@ -331,6 +341,7 @@ export default defineComponent({
         <v-list-item
           v-for="(item, key) in globList"
           :key="key"
+          class="my-4"
         >
           <v-btn
             v-if="!stereo"
@@ -396,12 +407,15 @@ export default defineComponent({
           dense
         >
           Visualization currently doesn't support multi views so please choose
-          a list of images to display by default when viewing
+          a list of images or video to display by default when viewing
         </v-alert>
         <v-list>
           <v-list-item>
             Default Display:
-            <v-radio-group v-model="defaultDisplay">
+            <v-radio-group
+              v-model="defaultDisplay"
+              class="ml-2"
+            >
               <v-radio
                 v-for="(item,index) in displayKeys"
                 :key="index"
@@ -416,6 +430,8 @@ export default defineComponent({
               label="Calibration File:"
               placeholder="Choose File"
               disabled
+              outlined
+              hide-details
               :value="calibrationFile"
               class="mx-4"
             />

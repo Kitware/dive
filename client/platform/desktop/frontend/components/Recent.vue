@@ -168,7 +168,7 @@ export default defineComponent({
       <v-col>
         <v-row>
           <v-col
-            md="8"
+            md="6"
             sm="6"
           >
             <h1 class="text-h3 mb-4 font-weight-light">
@@ -201,7 +201,7 @@ export default defineComponent({
             </div>
           </v-col>
           <v-col
-            md="4"
+            md="6"
             sm="6"
           >
             <import-button
