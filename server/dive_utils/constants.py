@@ -51,6 +51,7 @@ AssetstoreSourcePathMarker = "import_path"
 FPSMarker = "fps"
 OriginalFPSMarker = "originalFps"
 OriginalFPSStringMarker = "originalFpsString"
+ConfidenceFiltersMarker = "confidenceFilters"
 
 # Other constants
 TrainedPipelineCategory = "trained"
