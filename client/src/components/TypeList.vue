@@ -17,7 +17,7 @@ export default defineComponent({
   name: 'TypeList',
 
   setup(props) {
-    const prompt = usePrompt();
+    const { prompt } = usePrompt();
 
     const data = reactive({
       showPicker: false,
@@ -69,7 +69,7 @@ export default defineComponent({
         text.push(item.toString());
       });
 
-      const result = await prompt.show({
+      const result = await prompt({
         title: 'Confirm',
         text,
         confirm: true,
@@ -82,7 +82,7 @@ export default defineComponent({
     async function clickDeleteType(type: string) {
       const text = `Do you want to delete this empty Type: ${type}`;
 
-      const result = await prompt.show({
+      const result = await prompt({
         title: 'Confirm',
         text,
         confirm: true,

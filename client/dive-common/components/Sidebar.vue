@@ -40,9 +40,10 @@ export default defineComponent({
   },
 
   setup() {
-    const prompt = usePrompt();
     const allTypesRef = useAllTypes();
     const { toggleMerge, commitMerge } = useHandler();
+    const { visible } = usePrompt();
+
     const data = reactive({
       currentTab: 'tracks' as 'tracks' | 'attributes',
     });
@@ -59,10 +60,6 @@ export default defineComponent({
       if (toggleMerge().length) {
         data.currentTab = 'attributes';
       }
-    }
-
-    function visible() {
-      return prompt.visible();
     }
 
     return {

@@ -63,7 +63,7 @@ export default defineComponent({
     },
   },
   setup(props) {
-    const prompt = usePrompt();
+    const { prompt } = usePrompt();
     const loadError = ref('');
     const playbackComponent = ref(undefined as Vue | undefined);
     const mediaController = computed(() => {
@@ -204,14 +204,14 @@ export default defineComponent({
         try {
           newtracks = track.split(_frame, getNewTrackId(), getNewTrackId() + 1);
         } catch (err) {
-          await prompt.show({
+          await prompt({
             title: 'Error while splitting track',
             text: err,
             positiveButton: 'OK',
           });
           return;
         }
-        const result = await prompt.show({
+        const result = await prompt({
           title: 'Confirm',
           text: 'Do you want to split the selected track?',
           confirm: true,
@@ -242,7 +242,7 @@ export default defineComponent({
         if (err.response && err.response.status === 403) {
           text = 'You do not have permission to Save Data to this Folder.';
         }
-        await prompt.show({
+        await prompt({
           title: 'Error while Saving Data',
           text,
           positiveButton: 'OK',
@@ -267,7 +267,7 @@ export default defineComponent({
     async function navigateAwayGuard(): Promise<boolean> {
       let result = true;
       if (pendingSaveCount.value > 0) {
-        result = await prompt.show({
+        result = await prompt({
           title: 'Save Items',
           text: 'There is unsaved data, would you like to continue or cancel and save?',
           positiveButton: 'Discard and Leave',

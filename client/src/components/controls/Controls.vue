@@ -13,7 +13,7 @@ export default defineComponent({
     });
 
     const mediaController = injectMediaController();
-    const prompt = usePrompt();
+    const { visible } = usePrompt();
 
     watch(mediaController.frame, (frame) => {
       if (!data.dragging) {
@@ -41,10 +41,6 @@ export default defineComponent({
       }
     }
 
-    function visible() {
-      return prompt.visible();
-    }
-
     return {
       data,
       mediaController,
@@ -61,7 +57,7 @@ export default defineComponent({
   <div
     v-mousetrap="[
       { bind: 'left', handler: mediaController.prevFrame, disabled: visible() },
-      { bind: 'right', handler: mediaController.nextFrame, disabled: visible()},
+      { bind: 'right', handler: mediaController.nextFrame, disabled: visible() },
       { bind: 'space', handler: togglePlay, disabled: visible() },
       { bind: 'f', handler: mediaController.nextFrame, disabled: visible() },
       { bind: 'd', handler: mediaController.prevFrame, disabled: visible() },

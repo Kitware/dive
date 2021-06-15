@@ -19,7 +19,7 @@ export default defineComponent({
     },
   },
   setup(props, { emit }) {
-    const prompt = usePrompt();
+    const { prompt } = usePrompt();
     const name: Ref<string> = ref(props.selectedAttribute.name);
     const belongs: Ref<string> = ref(props.selectedAttribute.belongs);
     const datatype: Ref<string> = ref(props.selectedAttribute.datatype);
@@ -76,7 +76,7 @@ export default defineComponent({
     }
 
     async function deleteAttribute() {
-      const result = await prompt.show({
+      const result = await prompt({
         title: 'Confirm',
         text: 'Do you want to delete this attribute?',
         confirm: true,

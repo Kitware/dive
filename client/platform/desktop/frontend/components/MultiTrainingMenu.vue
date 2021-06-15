@@ -14,7 +14,7 @@ import { datasets } from '../store/dataset';
 export default defineComponent({
   setup(_, { root }) {
     const { getPipelineList, getTrainingConfigurations, runTraining } = useApi();
-    const prompt = usePrompt();
+    const { prompt } = usePrompt();
 
     const unsortedPipelines = ref({} as Pipelines);
     onBeforeMount(async () => {
@@ -103,7 +103,7 @@ export default defineComponent({
         if (err.response && err.response.status === 403) {
           text = 'You do not have permission to run training on the selected resource(s).';
         }
-        prompt.show({
+        prompt({
           title: 'Training Failed',
           text,
           positiveButton: 'OK',

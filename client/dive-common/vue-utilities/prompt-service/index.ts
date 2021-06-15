@@ -1,8 +1,8 @@
 /* disabled this rule for Vue.prototype.FOO = */
 /* eslint-disable no-param-reassign,func-names */
 
-import { watch } from '@vue/composition-api';
 import { VueConstructor } from 'vue';
+import { watch } from '@vue/composition-api';
 import Vuetify from 'vuetify/lib';
 import Prompt from './Prompt.vue';
 
@@ -76,7 +76,7 @@ class PromptService {
     this.component.show = false;
   }
 
-  mount(element: HTMLElement) {
+  mount(element: HTMLElement): void {
     this.component.$mount(element);
   }
 }
@@ -86,7 +86,14 @@ let promptService: PromptService;
 
 export function usePrompt() {
   // in vue 3 should use inject instead of singleton
-  return promptService;
+  const prompt = (params: PromptParams) => promptService.show(params);
+  const visible = () => promptService.visible();
+  const invisible = () => promptService.invisible();
+  const hide = () => promptService.hide();
+
+  return {
+    prompt, visible, invisible, hide,
+  };
 }
 
 export default function (vuetify: Vuetify) {

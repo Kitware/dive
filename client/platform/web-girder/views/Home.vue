@@ -53,11 +53,11 @@ export default defineComponent({
     const uploading = ref(false);
     const loading = ref(false);
 
-    const prompt = usePrompt();
+    const { prompt } = usePrompt();
 
     // should be removed and incorporated into deleteSelection()
     async function promptShow(args) {
-      await prompt.show(args);
+      await prompt(args);
     }
 
     return {

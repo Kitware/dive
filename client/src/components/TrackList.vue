@@ -56,7 +56,7 @@ export default defineComponent({
   components: { TrackItem },
 
   setup(props) {
-    const prompt = usePrompt();
+    const { prompt } = usePrompt();
     const allTypesRef = useAllTypes();
     const checkedTrackIdsRef = useCheckedTrackIds();
     const editingModeRef = useEditingMode();
@@ -175,7 +175,7 @@ export default defineComponent({
         text.push(`And ${count - limit} more tracks...`);
       }
 
-      const result = await prompt.show({
+      const result = await prompt({
         title: 'Confirm',
         text,
         confirm: true,

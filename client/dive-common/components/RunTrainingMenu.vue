@@ -25,7 +25,7 @@ export default defineComponent({
 
   setup(props, { root }) {
     const { getTrainingConfigurations, runTraining } = useApi();
-    const prompt = usePrompt();
+    const { prompt } = usePrompt();
 
     const trainingConfigurations = ref<TrainingConfigs | null>(null);
     const selectedTrainingConfig = ref<string | null>(null);
@@ -72,7 +72,7 @@ export default defineComponent({
           text = 'You do not have permission to run training on the selected resource(s).';
         }
 
-        prompt.show({
+        prompt({
           title: 'Training Failed',
           text,
           positiveButton: 'OK',
