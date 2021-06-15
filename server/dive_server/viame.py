@@ -46,6 +46,7 @@ from .training import ensure_csv_detections_file, training_output_folder
 from .transforms import GetPathFromItemId
 from .utils import (
     createSoftClone,
+    detections_file,
     detections_item,
     get_or_create_auxiliary_folder,
     getCloneRoot,
@@ -448,6 +449,10 @@ class Viame(Resource):
 
         process_csv(folder, user)
         process_json(folder, user)
+
+        # If no detections file exists create one
+        if detections_file(folder) is None:
+            saveTracks(folder, {}, user)
 
         return folder
 
