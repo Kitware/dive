@@ -1,9 +1,9 @@
 <script lang="ts">
 import {
-  ref, Ref, watch, nextTick,
+  ref, Ref, watch, nextTick, defineComponent,
 } from '@vue/composition-api';
 
-export default {
+export default defineComponent({
   name: 'Prompt',
   props: {},
   setup() {
@@ -14,19 +14,28 @@ export default {
     const negativeButton = ref('Cancel');
     const selected = ref('positive');
     const confirm = ref(false);
-    const resolve = ref((value: boolean) => Promise.resolve(value));
+
+    /**
+     * Placeholder resolver function.  Wrapped in object so that
+     * its reference isn't changed on reassign.
+     */
+    const functions = {
+      resolve(val: boolean) {
+        return val;
+      },
+    };
 
     const positive: Ref<HTMLFormElement | null> = ref(null);
     const negative: Ref<HTMLFormElement | null> = ref(null);
 
     async function clickPositive() {
       show.value = false;
-      resolve.value(true);
+      functions.resolve(true);
     }
 
     async function clickNegative() {
       show.value = false;
-      resolve.value(false);
+      functions.resolve(false);
     }
 
     async function select() {
@@ -55,7 +64,7 @@ export default {
 
     watch(show, async (value) => {
       if (!value) {
-        resolve.value(false);
+        functions.resolve(false);
       } else if (positive.value) {
         selected.value = 'positive';
         // Needs to mount and then dialog transition, single tick doesn't work
@@ -74,7 +83,7 @@ export default {
       negativeButton,
       selected,
       confirm,
-      resolve,
+      functions,
       clickPositive,
       clickNegative,
       select,
@@ -84,7 +93,7 @@ export default {
       focusNegative,
     };
   },
-};
+});
 </script>
 
 <template>

@@ -30,14 +30,14 @@ class PromptService {
     positiveButton: string,
     negativeButton: string,
     confirm: boolean,
-    resolve: (value: boolean) => void,
+    resolve: (value: boolean) => unknown,
   ): void {
     this.component.title = title;
     this.component.text = text;
     this.component.positiveButton = positiveButton;
     this.component.negativeButton = negativeButton;
     this.component.confirm = confirm;
-    this.component.resolve = resolve;
+    this.component.functions.resolve = resolve;
     this.component.show = true;
   }
 
@@ -48,20 +48,16 @@ class PromptService {
     negativeButton = 'Cancel',
     confirm = false,
   }: PromptParams): Promise<boolean> {
-    let resolve: (value: boolean) => void = (value: boolean) => Promise.resolve(value);
-    const p = new Promise<boolean>((_resolve: (value: boolean) => void) => {
-      resolve = _resolve;
-    });
-
-    if (!this.component.show) {
-      this.set(title, text, positiveButton, negativeButton, confirm, resolve);
-    } else {
-      const unwatch = watch(this.component.show, () => {
-        unwatch();
+    return new Promise<boolean>((resolve) => {
+      if (!this.component.show) {
         this.set(title, text, positiveButton, negativeButton, confirm, resolve);
-      });
-    }
-    return p;
+      } else {
+        const unwatch = watch(this.component.show, () => {
+          unwatch();
+          this.set(title, text, positiveButton, negativeButton, confirm, resolve);
+        });
+      }
+    });
   }
 
   visible(): boolean {
