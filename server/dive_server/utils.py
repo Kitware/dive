@@ -266,6 +266,8 @@ def createSoftClone(
         )
         cloned_detection_item['meta'][DetectionMarker] = str(cloned_folder['_id'])
         Item().save(cloned_detection_item)
+    else:
+        saveTracks(cloned_folder, {}, owner)
     return cloned_folder
 
 

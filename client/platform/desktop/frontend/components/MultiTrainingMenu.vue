@@ -7,14 +7,15 @@ import {
 import {
   DatasetMeta, Pipelines, TrainingConfigs, useApi,
 } from 'dive-common/apispec';
+import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 
 import { datasets } from '../store/dataset';
 
 export default defineComponent({
   setup(_, { root }) {
-    const { getTrainingConfigurations, runTraining } = useApi();
+    const { getPipelineList, getTrainingConfigurations, runTraining } = useApi();
+    const { prompt } = usePrompt();
 
-    const { getPipelineList } = useApi();
     const unsortedPipelines = ref({} as Pipelines);
     onBeforeMount(async () => {
       unsortedPipelines.value = await getPipelineList();
@@ -102,7 +103,7 @@ export default defineComponent({
         if (err.response && err.response.status === 403) {
           text = 'You do not have permission to run training on the selected resource(s).';
         }
-        root.$prompt({
+        prompt({
           title: 'Training Failed',
           text,
           positiveButton: 'OK',

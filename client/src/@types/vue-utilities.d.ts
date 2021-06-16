@@ -1,13 +1,5 @@
 import Vue2 from 'vue';
 
-interface PromptParams {
-  title: string;
-  text: string | string[];
-  positiveButton?: string;
-  negativeButton?: string;
-  confirm?: boolean;
-}
-
 interface SnackBarParams{
   text: string;
   title?: string;
@@ -26,11 +18,6 @@ interface SnackBarMethods {
 declare module 'vue/types/vue' {
   interface Vue {
     $promptAttach(): Vue2;
-    $prompt: {
-      (arg: PromptParams): Promise<boolean>;
-      visible: () => boolean;
-      hide: () => void;
-    };
     $snackbarAttach(): Vue2;
     $snackbar: ((arg: SnackBarParams) => Promise<unknown>) & SnackBarMethods;
   }
