@@ -39,6 +39,7 @@ import {
   useSettings,
 } from 'dive-common/use';
 import { useApi, FrameImage, DatasetType } from 'dive-common/apispec';
+import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { cloneDeep } from 'lodash';
 
 export default defineComponent({
@@ -61,11 +62,8 @@ export default defineComponent({
       required: true,
     },
   },
-  setup(props, ctx) {
-    // TODO: eventually we will have to migrate away from this style
-    // and use the new plugin pattern:
-    // https://vue-composition-api-rfc.netlify.com/#plugin-development
-    const prompt = ctx.root.$prompt;
+  setup(props) {
+    const { prompt } = usePrompt();
     const loadError = ref('');
     const playbackComponent = ref(undefined as Vue | undefined);
     const mediaController = computed(() => {

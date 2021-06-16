@@ -5,6 +5,8 @@ import {
 } from '@vue/composition-api';
 
 import { TrackWithContext } from 'vue-media-annotator/use/useTrackFilters';
+import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
+
 import { TrackId } from '../track';
 import {
   useAllTypes,
@@ -53,8 +55,8 @@ export default defineComponent({
 
   components: { TrackItem },
 
-  setup(props, { root }) {
-    const prompt = root.$prompt;
+  setup(props) {
+    const { prompt } = usePrompt();
     const allTypesRef = useAllTypes();
     const checkedTrackIdsRef = useCheckedTrackIds();
     const editingModeRef = useEditingMode();
