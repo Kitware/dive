@@ -76,6 +76,15 @@ async function _acquireLock(dir: string, resource: string, lockname: 'meta' | 't
   return release;
 }
 
+
+async function _findCSVTrackFiles(originalBasePath: string) {
+  const contents = await fs.readdir(originalBasePath);
+  const csvFileCandidates = contents
+    .filter((v) => CsvFileName.test(v))
+    .map((filename) => npath.join(originalBasePath, filename));
+  return csvFileCandidates;
+}
+
 /**
  * locate json track file in a directory
  * @param path path to a directory
@@ -675,10 +684,18 @@ async function beginMediaImport(
     throw new Error('only video and image-sequence types are supported');
   }
 
+  let trackFileAbsPath = await _findJsonTrackFile(jsonMeta.originalBasePath);
+  if (!trackFileAbsPath) {
+    const csvFileCandidates = await _findCSVTrackFiles(jsonMeta.originalBasePath);
+    if (csvFileCandidates.length) {
+      [trackFileAbsPath] = csvFileCandidates;
+    }
+  }
   return {
     jsonMeta,
     globPattern: '',
     mediaConvertList,
+    trackFileAbsPath,
   };
 }
 
@@ -706,13 +723,7 @@ async function _importTrackFile(
   }
   /* Look for other types of annotation files as a second priority */
   if (!foundDetections) {
-    const contents = await fs.readdir(jsonMeta.originalBasePath);
-    const csvFileCandidates = contents
-      .filter((v) => CsvFileName.test(v))
-      .map((filename) => npath.join(jsonMeta.originalBasePath, filename));
-    if (csvFileCandidates.length > 1) {
-      throw new Error(`too many CSV files found in ${jsonMeta.originalBasePath}, expected at most 1`);
-    }
+    const csvFileCandidates = await _findCSVTrackFiles(jsonMeta.originalBasePath);
     const { fps, processedFiles, attributes } = await processOtherAnnotationFiles(
       settings, dsId, csvFileCandidates,
     );
@@ -750,7 +761,6 @@ async function finalizeMediaImport(
   const { jsonMeta, globPattern } = args;
   let { mediaConvertList } = args;
   const { type: datasetType, id: dsId } = jsonMeta;
-
   const projectDirAbsPath = await _initializeProjectDir(settings, jsonMeta);
 
   // Filter all parts of the input based on glob pattern
@@ -826,7 +836,41 @@ async function finalizeMediaImport(
       await _importTrackFile(settings, jsonClone.id, cameraDirAbsPath, jsonClone);
     }
   }
-  const finalJsonMeta = await _importTrackFile(settings, dsId, projectDirAbsPath, jsonMeta);
+  let foundDetections = false;
+  let finalJsonMeta: JsonMeta;
+  // If we have a specified file we load that instead of a custom one
+  if (args.trackFileAbsPath) {
+    if (JsonTrackFileName.test(args.trackFileAbsPath)) {
+      const tracks = await loadJsonTracks(args.trackFileAbsPath);
+      const { attributes } = processTrackAttributes(Object.values(tracks));
+      if (attributes) jsonMeta.attributes = attributes;
+      foundDetections = true;
+    }
+    if (!foundDetections && CsvFileName.test(args.trackFileAbsPath)) {
+      const { fps, processedFiles, attributes } = await processOtherAnnotationFiles(
+        settings, dsId, [args.trackFileAbsPath],
+      );
+      // eslint-disable-next-line no-param-reassign
+      if (fps) jsonMeta.fps = fps;
+      // eslint-disable-next-line no-param-reassign
+      if (attributes) jsonMeta.attributes = attributes;
+      foundDetections = processedFiles.length > 0;
+    }
+    jsonMeta.originalImageFiles.sort(strNumericCompare);
+    if (jsonMeta.transcodedImageFiles) {
+      jsonMeta.transcodedImageFiles.sort(strNumericCompare);
+    }
+
+    await _saveAsJson(npath.join(projectDirAbsPath, JsonMetaFileName), jsonMeta);
+
+    /* create an empty file as fallback */
+    if (!foundDetections) {
+      await _saveSerialized(settings, dsId, {}, true);
+    }
+    finalJsonMeta = jsonMeta;
+  } else {
+    finalJsonMeta = await _importTrackFile(settings, dsId, projectDirAbsPath, jsonMeta);
+  }
   return finalJsonMeta;
 }
 

@@ -139,7 +139,7 @@ mockfs({
       'video1.mp4': '',
       'result_foo.json': '',
     },
-    annotationFail: {
+    multiCSV: {
       'video1.mp4': '',
       'file1.csv': '',
       'file2.csv': '',
@@ -394,12 +394,13 @@ describe('native.common', () => {
       .rejects.toThrow('unsupported MIME type');
     await expect(common.beginMediaImport(settings, '/home/user/data/videoSuccess/nomime', checkMedia))
       .rejects.toThrow('could not determine video MIME');
-
-    const payload = await common.beginMediaImport(settings, '/home/user/data/annotationFail/video1.mp4', checkMedia);
-    await expect(common.finalizeMediaImport(settings, payload, updater, convertMedia))
-      .rejects.toThrow('too many CSV');
   });
-
+  it('import first CSV in list', async () => {
+    const payload = await common.beginMediaImport(settings, '/home/user/data/multiCSV/video1.mp4', checkMedia);
+    await common.finalizeMediaImport(settings, payload, updater, convertMedia);
+    const tracks = await common.loadDetections(settings, payload.jsonMeta.id);
+    expect(tracks).toEqual({});
+  });
   it('importMedia video, start conversion', async () => {
     const payload = await common.beginMediaImport(settings, '/home/user/data/videoSuccess/video1.avi', checkMedia);
     await common.finalizeMediaImport(settings, payload, updater, convertMedia);
