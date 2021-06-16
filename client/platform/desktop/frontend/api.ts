@@ -97,6 +97,10 @@ function importMultiCam(args: MultiCamImportArgs):
   return ipcRenderer.invoke('import-multicam-media', { args });
 }
 
+function importAnnotation(id: string, path: string): Promise<boolean> {
+  return ipcRenderer.invoke('import-annotation', { id, path });
+}
+
 function finalizeImport(args: MediaImportPayload): Promise<JsonMeta> {
   return ipcRenderer.invoke('finalize-import', args);
 }
@@ -172,6 +176,7 @@ export {
   exportDataset,
   finalizeImport,
   importMedia,
+  importAnnotation,
   importMultiCam,
   openLink,
   nvidiaSmi,

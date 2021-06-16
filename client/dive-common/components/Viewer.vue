@@ -125,6 +125,7 @@ export default defineComponent({
       removeTrack,
       getNewTrackId,
       removeTrack: tsRemoveTrack,
+      clearAllTracks,
     } = useTrackStore({ markChangesPending });
 
     const {
@@ -320,46 +321,54 @@ export default defineComponent({
     );
 
     /** Trigger data load */
-    Promise.all([
-      loadMetadata(props.id).then((meta) => {
-        populateTypeStyles(meta.customTypeStyling);
-        if (meta.customTypeStyling) {
-          importTypes(Object.keys(meta.customTypeStyling), false);
+    const loadData = async () => (
+      Promise.all([
+        loadMetadata(props.id).then((meta) => {
+          populateTypeStyles(meta.customTypeStyling);
+          if (meta.customTypeStyling) {
+            importTypes(Object.keys(meta.customTypeStyling), false);
+          }
+          if (meta.attributes) {
+            loadAttributes(meta.attributes);
+          }
+          populateConfidenceFilters(meta.confidenceFilters);
+          datasetName.value = meta.name;
+          frameRate.value = meta.fps;
+          imageData.value = cloneDeep(meta.imageData) as FrameImage[];
+          videoUrl.value = meta.videoUrl;
+          datasetType.value = meta.type as DatasetType;
+        }),
+        loadDetections(props.id).then((tracks) => {
+          Object.values(tracks).forEach(
+            (trackData) => insertTrack(Track.fromJSON(trackData), { imported: true }),
+          );
+        }),
+      ]).then(() => {
+        loaded.value = true;
+      }).catch((err) => {
+        loaded.value = false;
+        // Cleaner displaying of interal errors for desktop
+        if (err.response?.data && err.response?.status === 500 && !err.response?.data?.message) {
+          const fullText = err.response.data;
+          const start = fullText.indexOf('Error:');
+          const html = (fullText.substr(start, fullText.indexOf('<br>') - start));
+          const errorEl = document.createElement('div');
+          errorEl.innerHTML = html;
+          loadError.value = errorEl.innerText
+            .concat(". If you don't know how to resolve this, please contact the server administrator.");
+          throw err;
         }
-        if (meta.attributes) {
-          loadAttributes(meta.attributes);
-        }
-        populateConfidenceFilters(meta.confidenceFilters);
-        datasetName.value = meta.name;
-        frameRate.value = meta.fps;
-        imageData.value = cloneDeep(meta.imageData) as FrameImage[];
-        videoUrl.value = meta.videoUrl;
-        datasetType.value = meta.type as DatasetType; // TODO: support for multiCam will remove this
-      }),
-      loadDetections(props.id).then((tracks) => {
-        Object.values(tracks).forEach(
-          (trackData) => insertTrack(Track.fromJSON(trackData), { imported: true }),
-        );
-      }),
-    ]).then(() => {
-      loaded.value = true;
-    }).catch((err) => {
-      loaded.value = false;
-      // Cleaner displaying of interal errors for desktop
-      if (err.response?.data && err.response?.status === 500 && !err.response?.data?.message) {
-        const fullText = err.response.data;
-        const start = fullText.indexOf('Error:');
-        const html = (fullText.substr(start, fullText.indexOf('<br>') - start));
-        const errorEl = document.createElement('div');
-        errorEl.innerHTML = html;
-        loadError.value = errorEl.innerText
-          .concat(". If you don't know how to resolve this, please contact the server administrator.");
+        loadError.value = (err.response?.data?.message || err).toString()
+          .concat(" If you don't know how to resolve this, please contact the server administrator.");
         throw err;
-      }
-      loadError.value = (err.response?.data?.message || err).toString()
-        .concat(" If you don't know how to resolve this, please contact the server administrator.");
-      throw err;
-    });
+      }));
+    loadData();
+
+    const reloadData = async () => {
+      clearAllTracks();
+      loaded.value = false;
+      await loadData();
+    };
 
     return {
       /* props */
@@ -400,6 +409,8 @@ export default defineComponent({
       // For Navigation Guarding
       navigateAwayGuard,
       warnBrowserExit,
+      // Reloading/Importing Data
+      reloadData,
     };
   },
 });

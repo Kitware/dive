@@ -1,8 +1,10 @@
 <script lang="ts">
-import { computed, defineComponent } from '@vue/composition-api';
+import { computed, defineComponent, ref } from '@vue/composition-api';
 
 import Viewer from 'dive-common/components/Viewer.vue';
 import RunPipelineMenu from 'dive-common/components/RunPipelineMenu.vue';
+import ImportAnnotations from 'dive-common//components/ImportAnnotations.vue';
+import * as api from '../api';
 
 import Export from './Export.vue';
 import JobTab from './JobTab.vue';
@@ -27,6 +29,7 @@ export default defineComponent({
     JobTab,
     RunPipelineMenu,
     Viewer,
+    ImportAnnotations,
   },
   props: {
     id: {
@@ -35,19 +38,31 @@ export default defineComponent({
     },
   },
   setup(props) {
+    const viewerRef = ref();
     const subType = computed(() => [datasets.value[props.id]?.subType] || []);
+    const importAnnotationFile = async (id: string, path: string) => {
+      const result = await api.importAnnotation(id, path);
+      if (result) {
+        viewerRef.value.reloadData();
+      }
+    };
     return {
-      buttonOptions,
       datasets,
-      menuOptions,
       subType,
+      importAnnotationFile,
+      viewerRef,
+      buttonOptions,
+      menuOptions,
     };
   },
 });
 </script>
 
 <template>
-  <Viewer :id="id">
+  <Viewer
+    :id="id"
+    ref="viewerRef"
+  >
     <template #title>
       <v-tabs
         icons-and-text
@@ -72,6 +87,12 @@ export default defineComponent({
         :selected-dataset-ids="[id]"
         :sub-type-list="subType"
         v-bind="{ buttonOptions, menuOptions }"
+      />
+      <ImportAnnotations
+        :dataset-id="id"
+        v-bind="{ buttonOptions, menuOptions }"
+        block-on-unsaved
+        @import-annotation-file="importAnnotationFile"
       />
       <Export
         v-if="datasets[id]"
