@@ -14,7 +14,7 @@ let vuetify = new Vuetify();
 Vue.use(promptService(vuetify));
 ```
 
-Attach container element to DOM after Vue app initialization:
+Attach container element to DOM after Vue app initialization using `$promptAttach()`:
 
 ```JavaScript
 new Vue({
@@ -40,9 +40,6 @@ Not all functions need to be received, only get what is needed:
 ```
 
 ## Usage
-
-After being received from the `getPrompt()` function, the four functions `prompt({...})`, `visible()`, `invisible()`, and `hide()` all have their own usage.
-
 
 ### Showing the prompt box
 
