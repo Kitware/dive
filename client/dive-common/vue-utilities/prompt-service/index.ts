@@ -18,8 +18,8 @@ class PromptService {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private component: any;
 
-  constructor(Vue: VueConstructor) {
-    const PromptComponent = Vue.extend(Prompt);
+  constructor(Vue: VueConstructor, vuetify: Vuetify) {
+    const PromptComponent = Vue.extend({ vuetify, ...Prompt });
     const component = new PromptComponent();
     this.component = component;
   }
@@ -98,9 +98,9 @@ export function usePrompt() {
 
 export default function (vuetify: Vuetify) {
   return function install(Vue: VueConstructor) {
-    Vue.extend({ vuetify, ...Prompt });
     // in vue 3 should use provide instead of singleton
-    promptService = new PromptService(Vue);
+    promptService = new PromptService(Vue, vuetify);
+
     Vue.prototype.$promptAttach = function () {
       const div = document.createElement('div');
       this.$el.appendChild(div);
