@@ -27,7 +27,7 @@ export default defineComponent({
   setup(props) {
     const data = reactive({
       menuOpen: false,
-      excludeFiltered: false,
+      excludeBelowThreshold: true,
       excludeUncheckedTypes: false,
       activator: 0,
       err: null as unknown,
@@ -65,7 +65,7 @@ export default defineComponent({
       try {
         const typeFilter = data.excludeUncheckedTypes ? checkedTypes.value : [];
         data.err = null;
-        data.outPath = await exportDataset(props.id, data.excludeFiltered, typeFilter);
+        data.outPath = await exportDataset(props.id, data.excludeBelowThreshold, typeFilter);
       } catch (err) {
         data.err = err;
         throw err;
@@ -168,7 +168,7 @@ export default defineComponent({
           <div>Export to VIAME CSV format</div>
           <template v-if="thresholds.length">
             <v-checkbox
-              v-model="data.excludeFiltered"
+              v-model="data.excludeBelowThreshold"
               label="exclude tracks below confidence threshold"
               dense
               hide-details

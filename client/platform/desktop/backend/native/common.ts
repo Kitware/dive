@@ -589,6 +589,7 @@ async function beginMediaImport(
     transcodedVideoFile: '',
     transcodedImageFiles: [],
     name: dsName,
+    confidenceFilters: { default: 0.1 },
   };
 
   /* TODO: Look for an EXISTING meta.json file to override the above */
