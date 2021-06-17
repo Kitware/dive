@@ -55,11 +55,6 @@ export default defineComponent({
 
     const { prompt } = usePrompt();
 
-    // should be removed and incorporated into deleteSelection()
-    async function promptShow(args) {
-      await prompt(args);
-    }
-
     return {
       // data
       buttonOptions,
@@ -69,7 +64,7 @@ export default defineComponent({
       uploading,
       loading,
       // methods
-      promptShow,
+      prompt,
     };
   },
   // everything below needs to be refactored to composition-api
@@ -167,7 +162,7 @@ export default defineComponent({
       return item._modelType === 'folder' && item.meta.annotate;
     },
     async deleteSelection() {
-      const result = await this.promptShow({
+      const result = await this.prompt({
         title: 'Confirm',
         text: 'Do you want to delete selected items?',
         confirm: true,
@@ -185,7 +180,7 @@ export default defineComponent({
         if (err.response && err.response.status === 403) {
           text = 'You do not have permission to delete selected resource(s).';
         }
-        this.promptShow({
+        this.prompt({
           title: 'Delete Failed',
           text,
           positiveButton: 'OK',
