@@ -6,7 +6,7 @@ import datetime
 import io
 import json
 import re
-from typing import Dict, Generator, List, Tuple, Union
+from typing import Any, Dict, Generator, List, Tuple, Union
 
 from dive_utils.models import Attribute, Feature, Track, interpolate
 
@@ -72,7 +72,9 @@ def _deduceType(value: str) -> Union[bool, float, str]:
         return value
 
 
-def create_geoJSONFeature(features: Feature, type: str, coords: List[float], key=''):
+def create_geoJSONFeature(
+    features: Dict[str, Any], type: str, coords: List[float], key=''
+):
     feature = {}
     if "geometry" not in features:
         features["geometry"] = {"type": "FeatureCollection", "features": []}
@@ -205,9 +207,8 @@ def create_attributes(
 def calculate_attribute_types(
     metadata_attributes: Dict[str, Attribute], test_vals: Dict[str, int]
 ):
-    predefined_min_count = (
-        3  # count all keys must have a value to convert to predefined
-    )
+    # count all keys must have a value to convert to predefined
+    predefined_min_count = 3
     for attributeKey in metadata_attributes.keys():
         if attributeKey in test_vals:
             attribute_type = 'number'
@@ -239,7 +240,7 @@ def load_csv_as_tracks_and_attributes(rows: List[str]) -> Tuple[dict, dict]:
     reader = csv.reader(row for row in rows if (not row.startswith("#") and row))
     tracks: Dict[int, Track] = {}
     metadata_attributes: Dict[str, Attribute] = {}
-    test_vals = {}
+    test_vals: Dict[str, int] = {}
     for row in reader:
         (
             feature,
