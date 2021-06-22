@@ -102,7 +102,7 @@ class PrivateQueueEnabledResponse(BaseModel):
 
 class CocoMetadata(BaseModel):
     categories: Dict[int, dict]
-    kp_categories: Dict[int, dict]
+    keypoint_categories: Dict[int, dict]
     images: Dict[int, dict]
     videos: Dict[int, dict]
 

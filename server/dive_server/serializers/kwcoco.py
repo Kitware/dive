@@ -1,15 +1,11 @@
 """
 KWCOCO JSON format deserializer
 """
-import csv
-import datetime
-import io
 import json
-import re
-from typing import Any, Dict, Generator, List, Tuple, Union
+from typing import Any, Dict, List, Tuple
 
 from dive_server.serializers import viame
-from dive_utils.models import Attribute, CocoMetadata, Feature, Track, interpolate
+from dive_utils.models import Attribute, CocoMetadata, Feature, Track
 
 
 def annotation_info(
@@ -43,6 +39,36 @@ def _parse_annotation(
     class_name = meta.categories[category_id]['name']
     confidence_pair = (class_name, score)
 
+    # parse keypoints
+    keypoints = annotation.get('keypoints', [])
+    head_tail = []
+    for keypoint in keypoints:
+        if type(keypoint) is not dict:  # [x1, y1, v1, ...] coco format
+            keypoint_labels = meta.categories[category_id].get('keypoints', [])
+            n = min(len(keypoint_labels), int(len(keypoints) / 3)) # stopping index
+            for i in range(n):
+                point = keypoints[3 * i:3 * i + 2] # [x, y] pair
+                label = keypoint_labels[i]
+                if label in ('head', 'tail'): # only allow head and tail keypoints
+                    head_tail.append(point)
+                    viame.create_geoJSONFeature(features, 'Point', point, label)
+            break
+
+        # dictionary kwcoco format
+        keypoint_category_id = keypoint['keypoint_category_id']
+        label = meta.keypoint_categories[keypoint_category_id]['name']
+        point = keypoint['xy']
+        if label in ('head', 'tail'):  # only allow head and tail keypoints
+            head_tail.append(keypoint['xy'])
+            viame.create_geoJSONFeature(features, 'Point', point, label)
+    
+    # create head-tail line if keypoints exist
+    if len(head_tail) == 2:
+        viame.create_geoJSONFeature(features, 'LineString', head_tail, 'HeadTails')
+
+    # parse polygons
+    segmentation = annotation.get('segmentation', [])
+
     # TODO: process attributes and track_attributes
 
     return features, attributes, track_attributes, [confidence_pair]
@@ -52,7 +78,7 @@ def _parse_annotation_for_tracks(
     annotation: dict, meta: CocoMetadata
 ) -> Tuple[Feature, dict, dict, list]:
     (
-        head_tail_feature,
+        features,
         attributes,
         track_attributes,
         confidence_pairs,
@@ -64,7 +90,7 @@ def _parse_annotation_for_tracks(
         bounds=bounds,
         attributes=attributes or None,
         fishLength=None,
-        **head_tail_feature,
+        **features,
     )
 
     # Pass the rest of the unchanged info through as well
@@ -73,12 +99,12 @@ def _parse_annotation_for_tracks(
 
 def load_coco_metadata(coco: Dict[str, List[dict]]) -> CocoMetadata:
     categories = {x['id']: x for x in coco.get('categories', [])}
-    kp_categories = {x['id']: x for x in coco.get('keypoint_categories', [])}
+    keypoint_categories = {x['id']: x for x in coco.get('keypoint_categories', [])}
     images = {x['id']: x for x in coco.get('images', [])}
     videos = {x['id']: x for x in coco.get('videos', [])}
     return CocoMetadata(
         categories=categories,
-        kp_categories=kp_categories,
+        keypoint_categories=keypoint_categories,
         images=images,
         videos=videos,
     )
