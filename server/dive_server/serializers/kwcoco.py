@@ -8,6 +8,11 @@ from dive_server.serializers import viame
 from dive_utils.models import Attribute, CocoMetadata, Feature, Track
 
 
+def is_coco_json(coco: Dict[str, Any]):
+    keys = ['categories', 'keypoint_categories', 'images', 'videos', 'annotations']
+    return any(key in coco for key in keys)
+
+
 def annotation_info(
     annotation: dict, meta: CocoMetadata
 ) -> Tuple[int, str, int, List[int]]:
@@ -49,7 +54,7 @@ def _parse_annotation(
             for i in range(n):
                 point = keypoints[3 * i:3 * i + 2] # [x, y] pair
                 label = keypoint_labels[i]
-                if label in ('head', 'tail'): # only allow head and tail keypoints
+                if label in ('head', 'tail'):  # only allow head and tail keypoints
                     head_tail.append(point)
                     viame.create_geoJSONFeature(features, 'Point', point, label)
             break
@@ -62,12 +67,35 @@ def _parse_annotation(
             head_tail.append(keypoint['xy'])
             viame.create_geoJSONFeature(features, 'Point', point, label)
     
-    # create head-tail line if keypoints exist
-    if len(head_tail) == 2:
+    # create head-tail line if keypoint pair exists
+    if len(head_tail) > 2:
+        raise ValueError("Multiple head/tail keypoints per annotation not supported")
+    elif len(head_tail) == 2:
         viame.create_geoJSONFeature(features, 'LineString', head_tail, 'HeadTails')
 
     # parse polygons
     segmentation = annotation.get('segmentation', [])
+    rle = bool(annotation.get('iscrowd', False)) or type(segmentation) is dict
+    
+    if segmentation:
+        if rle:  # run-length encoding polygon 
+            raise ValueError('Run-Length Encoding not supported')
+        else:  # standard coordinates polygon
+            if len(segmentation) > 1:
+                raise ValueError("Multiple polygons per annotation not supported")
+            polygon = segmentation[0]
+            if type(polygon) is dict:  # dictionary kwcoco format
+                coords = polygon.get('exterior', [])
+                hole = polygon.get('interior', [])
+                if hole:
+                    raise ValueError("Polygon with hole not supported")
+            elif type(polygon) is list:  # list coco format
+                coords = list(zip(polygon[::2], polygon[1::2]))
+            else:
+                raise ValueError("Incorrect polygon segmentation")
+
+            if coords:
+                viame.create_geoJSONFeature(features, 'Polygon', coords)
 
     # TODO: process attributes and track_attributes
 
