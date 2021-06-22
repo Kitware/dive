@@ -1,5 +1,6 @@
 <script lang="ts">
 import { defineComponent, reactive, watch } from '@vue/composition-api';
+import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { injectMediaController } from '../annotators/useMediaController';
 
 export default defineComponent({
@@ -12,6 +13,7 @@ export default defineComponent({
     });
 
     const mediaController = injectMediaController();
+    const { visible } = usePrompt();
 
     watch(mediaController.frame, (frame) => {
       if (!data.dragging) {
@@ -45,6 +47,7 @@ export default defineComponent({
       dragHandler,
       input,
       togglePlay,
+      visible,
     };
   },
 });
@@ -53,11 +56,11 @@ export default defineComponent({
 <template>
   <div
     v-mousetrap="[
-      { bind: 'left', handler: mediaController.prevFrame, disabled: $prompt.visible() },
-      { bind: 'right', handler: mediaController.nextFrame, disabled: $prompt.visible()},
-      { bind: 'space', handler: togglePlay, disabled: $prompt.visible() },
-      { bind: 'f', handler: mediaController.nextFrame, disabled: $prompt.visible() },
-      { bind: 'd', handler: mediaController.prevFrame, disabled: $prompt.visible() },
+      { bind: 'left', handler: mediaController.prevFrame, disabled: visible() },
+      { bind: 'right', handler: mediaController.nextFrame, disabled: visible() },
+      { bind: 'space', handler: togglePlay, disabled: visible() },
+      { bind: 'f', handler: mediaController.nextFrame, disabled: visible() },
+      { bind: 'd', handler: mediaController.prevFrame, disabled: visible() },
     ]"
   >
     <v-card class="px-4 py-1">

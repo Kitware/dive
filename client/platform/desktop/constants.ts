@@ -62,7 +62,7 @@ export interface JsonMeta extends DatasetMetaMutable {
   originalBasePath: string;
 
   // video file path
-  // relateive to originalBasePath
+  // relative to originalBasePath
   originalVideoFile: string;
 
   // output of web safe transcoding
@@ -81,8 +81,11 @@ export interface JsonMeta extends DatasetMetaMutable {
   // key that ran transcoding
   transcodingJobKey?: string;
 
-  //Attributes are not datasetMetaMutable and are stored separate
+  // attributes are not datasetMetaMutable and are stored separate
   attributes?: Record<string, Attribute>;
+
+  // confidence filter threshold for exporting
+  confidenceFilters?: Record<string, number>;
 
   // Stereo or multi-camera datasets with uniform type (all images, all video)
   multiCam: MultiCamDesktop | null;

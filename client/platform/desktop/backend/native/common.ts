@@ -629,6 +629,7 @@ async function beginMediaImport(
     name: dsName,
     multiCam: null,
     subType: null,
+    confidenceFilters: { default: 0.1 },
   };
 
   /* TODO: Look for an EXISTING meta.json file to override the above */
