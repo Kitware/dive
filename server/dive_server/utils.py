@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Callable, Dict, Generator, List, Optional, Tuple, Type
 
 import pymongo
+from cherrypy.lib.reprconf import attributes
 from girder.constants import AccessType
 from girder.exceptions import RestException
 from girder.models.file import File
@@ -17,7 +18,7 @@ from girder.models.upload import Upload
 from pydantic.main import BaseModel
 from pymongo.cursor import Cursor
 
-from dive_server.serializers import viame
+from dive_server.serializers import kwcoco, viame
 from dive_utils import asbool, fromMeta, models, strNumericCompare
 from dive_utils.constants import (
     ConfidenceFiltersMarker,
@@ -135,13 +136,29 @@ def getTrackAndAttributesFromCSV(file: File) -> Tuple[dict, dict]:
     return ({}, {})
 
 
+def get_track_and_attributes_from_coco(file: File) -> Tuple[dict, dict, bool]:
+    if file is None:
+        return {}, {}, False
+    if 'json' in file['exts']:
+        with File().open(file) as fh:
+            coco = json.load(fh)
+            if kwcoco.is_coco_json(coco):
+                tracks, attributes = kwcoco.load_coco_as_tracks_and_attributes(coco)
+                return tracks, attributes, True
+            else:
+                return {}, {}, False
+    return {}, {}, False
+
+
 def saveTracks(folder, tracks, user):
     timestamp = datetime.now().strftime("%m-%d-%Y_%H:%M:%S")
     item_name = f"result_{timestamp}.json"
 
     move_existing_result_to_auxiliary_folder(folder, user)
     newResultItem = Item().createItem(item_name, user, folder)
-    Item().setMetadata(newResultItem, {"detection": str(folder["_id"])}, allowNull=True)
+    Item().setMetadata(
+        newResultItem, {DetectionMarker: str(folder["_id"])}, allowNull=True
+    )
 
     json_bytes = json.dumps(tracks).encode()
     byteIO = io.BytesIO(json_bytes)
@@ -156,9 +173,9 @@ def saveTracks(folder, tracks, user):
     )
 
 
-def saveCSVImportAttributes(folder, attributes, user):
+def saveImportAttributes(folder, attributes, user):
     attributes_dict = fromMeta(folder, 'attributes', {})
-    # we dont overwrite any existing meta attributes
+    # we don't overwrite any existing meta attributes
     for attribute in attributes.values():
         validated: models.Attribute = models.Attribute(**attribute)
         if attribute['key'] not in attributes_dict:
@@ -188,7 +205,7 @@ def process_csv(folder: GirderModel, user: GirderModel):
         file = Item().childFiles(csvItems.next())[0]
         (tracks, attributes) = getTrackAndAttributesFromCSV(file)
         saveTracks(folder, tracks, user)
-        saveCSVImportAttributes(folder, attributes, user)
+        saveImportAttributes(folder, attributes, user)
         csvItems.rewind()
         for item in csvItems:
             Item().move(item, auxiliary)
@@ -205,10 +222,18 @@ def process_json(folder: GirderModel, user: GirderModel):
             sort=[("created", pymongo.DESCENDING)],
         )
     )
+    auxiliary = get_or_create_auxiliary_folder(folder, user)
     for item in jsonItems:
-        item['meta'][DetectionMarker] = str(folder['_id'])
-        Item().save(item)
-    if len(jsonItems):
+        file = Item().childFiles(item)[0]
+        tracks, attributes, is_coco = get_track_and_attributes_from_coco(file)
+        if is_coco:  # coco json
+            saveTracks(folder, tracks, user)
+            saveImportAttributes(folder, attributes, user)
+            Item().move(item, auxiliary)
+        else:  # dive json
+            item['meta'][DetectionMarker] = str(folder['_id'])
+            Item().save(item)
+    if len(jsonItems) > 0:
         move_existing_result_to_auxiliary_folder(folder, user)
         return True
     return False

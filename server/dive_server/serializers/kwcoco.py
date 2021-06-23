@@ -13,6 +13,12 @@ def is_coco_json(coco: Dict[str, Any]):
     return any(key in coco for key in keys)
 
 
+def is_coco_string(coco: str):
+    data = json.loads(coco)
+    keys = ['categories', 'keypoint_categories', 'images', 'videos', 'annotations']
+    return any(key in data for key in keys)
+
+
 def annotation_info(
     annotation: dict, meta: CocoMetadata
 ) -> Tuple[int, str, int, List[int]]:
@@ -50,9 +56,9 @@ def _parse_annotation(
     for keypoint in keypoints:
         if type(keypoint) is not dict:  # [x1, y1, v1, ...] coco format
             keypoint_labels = meta.categories[category_id].get('keypoints', [])
-            n = min(len(keypoint_labels), int(len(keypoints) / 3)) # stopping index
+            n = min(len(keypoint_labels), int(len(keypoints) / 3))  # stopping index
             for i in range(n):
-                point = keypoints[3 * i:3 * i + 2] # [x, y] pair
+                point = keypoints[3 * i : 3 * i + 2]  # [x, y] pair
                 label = keypoint_labels[i]
                 if label in ('head', 'tail'):  # only allow head and tail keypoints
                     head_tail.append(point)
@@ -66,7 +72,7 @@ def _parse_annotation(
         if label in ('head', 'tail'):  # only allow head and tail keypoints
             head_tail.append(keypoint['xy'])
             viame.create_geoJSONFeature(features, 'Point', point, label)
-    
+
     # create head-tail line if keypoint pair exists
     if len(head_tail) > 2:
         raise ValueError("Multiple head/tail keypoints per annotation not supported")
@@ -76,9 +82,9 @@ def _parse_annotation(
     # parse polygons
     segmentation = annotation.get('segmentation', [])
     rle = bool(annotation.get('iscrowd', False)) or type(segmentation) is dict
-    
+
     if segmentation:
-        if rle:  # run-length encoding polygon 
+        if rle:  # run-length encoding polygon
             raise ValueError('Run-Length Encoding not supported')
         else:  # standard coordinates polygon
             if len(segmentation) > 1:
