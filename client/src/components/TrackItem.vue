@@ -218,6 +218,7 @@ export default defineComponent({
   <div
     v-mousetrap="[
       { bind: 'shift+enter', handler: focusType },
+      { bind: 'k', handler:toggleKeyframe}
     ]"
     class="track-item d-flex flex-column align-start hover-show-parent px-1"
     :style="style"

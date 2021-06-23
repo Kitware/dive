@@ -60,6 +60,16 @@ export default {
             {
               name: 'Edit Type', icon: 'mdi-keyboard', actions: ['Shift + Enter'], description: 'Choose/Edit track type',
             },
+            {
+              name: 'Toggle Keyframe', icon: 'mdi-keyboard', actions: ['K'], description: 'Toggle Keyframe',
+            },
+            {
+              name: 'Split Track', icon: 'mdi-keyboard', actions: ['X'], description: 'Split Track',
+            },
+            {
+              name: 'Merge Mode', icon: 'mdi-keyboard', actions: ['M'], description: 'Enter Merge Mode, commit with Shift+M',
+            },
+
           ],
         },
         {
