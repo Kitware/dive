@@ -35,24 +35,10 @@ export default {
           ],
         },
         {
-          name: 'Editing Mode',
-          data: [
-            {
-              name: 'New Track', icon: 'mdi-keyboard', actions: ['N Key'], description: 'Create a new Track/Detection',
-            },
-            {
-              name: 'Edit Track', icon: 'mdi-mouse', actions: ['Right Click Mouse'], description: 'Right click a track to enter Edit Mode',
-            },
-            {
-              name: 'Add Head/Tail', icon: 'mdi-keyboard', actions: ['H Key - Head', 'T Key - Tail'], description: 'While a track is selected add head/tail annotations',
-            },
-          ],
-        },
-        {
           name: 'Selected Mode',
           data: [
             {
-              name: 'First Frame', icon: 'mdi-keyboard', actions: ['Enter'], description: 'Go to first frame of selected track',
+              name: 'First/Last Frame', icon: 'mdi-keyboard', actions: ['Home or End'], description: 'Go to first or last frame of selected track',
             },
             {
               name: 'Delete', icon: 'mdi-keyboard', actions: ['Delete'], description: 'Delete selected track',
@@ -61,8 +47,12 @@ export default {
               name: 'Edit Type', icon: 'mdi-keyboard', actions: ['Shift + Enter'], description: 'Choose/Edit track type',
             },
             {
-              name: 'Toggle Keyframe', icon: 'mdi-keyboard', actions: ['K'], description: 'Toggle Keyframe',
+              name: 'Toggle Keyframe', icon: 'mdi-keyboard', actions: ['K'], description: 'Toggle Current Frame Keyframe',
             },
+            {
+              name: 'Toggle Interpolation', icon: 'mdi-keyboard', actions: ['I'], description: 'Toggle Interpolation On/Off',
+            },
+
             {
               name: 'Split Track', icon: 'mdi-keyboard', actions: ['X'], description: 'Split Track',
             },
@@ -83,6 +73,20 @@ export default {
             },
             {
               name: 'Next Frame', icon: 'mdi-keyboard', actions: ['F Key', 'Right Arrow'], description: 'skip ahead 1 frame',
+            },
+          ],
+        },
+        {
+          name: 'Editing Mode',
+          data: [
+            {
+              name: 'New Track', icon: 'mdi-keyboard', actions: ['N Key'], description: 'Create a new Track/Detection',
+            },
+            {
+              name: 'Edit Track', icon: 'mdi-mouse', actions: ['Right Click Mouse'], description: 'Right click a track to enter Edit Mode',
+            },
+            {
+              name: 'Add Head/Tail', icon: 'mdi-keyboard', actions: ['H Key - Head', 'T Key - Tail'], description: 'While a track is selected add head/tail annotations',
             },
           ],
         },

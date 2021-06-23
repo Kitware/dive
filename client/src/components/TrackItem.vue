@@ -104,7 +104,6 @@ export default defineComponent({
     watch(trackTypeRef, (val) => { data.trackTypeValue = val; });
 
     function focusType() {
-      console.log('focusTypeCalled');
       if (props.selected && typeInputBoxRef.value !== undefined) {
         data.skipOnFocus = true;
         typeInputBoxRef.value.focus();
@@ -318,6 +317,7 @@ export default defineComponent({
           v-mousetrap="[
             { bind: 'shift+enter', handler: focusType },
             { bind: 'k', handler:toggleKeyframe},
+            { bind: 'i', handler:toggleInterpolation},
             { bind: 'home', handler: () => $emit('seek', track.begin)},
             { bind: 'end', handler: () => $emit('seek', track.end)},
           ]"
