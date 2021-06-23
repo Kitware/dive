@@ -249,6 +249,7 @@ export default defineComponent({
           text,
           positiveButton: 'OK',
         });
+        saveInProgress.value = false;
         throw err;
       }
       saveInProgress.value = false;

@@ -4,7 +4,7 @@ import {
 } from '@vue/composition-api';
 import TooltipBtn from './TooltipButton.vue';
 import { useFrame, useHandler, useAllTypes } from '../provides';
-import Track from '../track';
+import Track, { Feature } from '../track';
 
 export default defineComponent({
   name: 'TrackItem',
@@ -146,7 +146,21 @@ export default defineComponent({
           frame: frameRef.value,
           keyframe: true,
         });
-      } else {
+      } else if ((f.lower || f.upper) && !f.isKeyframe) {
+        let interFeature: Feature | null = null;
+        if (f.upper && frameRef.value > f.upper.frame) {
+          interFeature = f.upper;
+        } else if (f.lower && frameRef.value < f.lower.frame) {
+          interFeature = f.lower;
+        }
+        if (interFeature) {
+          props.track.setFeature({
+            ...interFeature,
+            frame: frameRef.value,
+            keyframe: true,
+          });
+        }
+      } else if (f.isKeyframe) {
         props.track.deleteFeature(frameRef.value);
       }
     }
@@ -218,7 +232,7 @@ export default defineComponent({
   <div
     v-mousetrap="[
       { bind: 'shift+enter', handler: focusType },
-      { bind: 'k', handler:toggleKeyframe}
+      { bind: 'k', handler: () => selected && toggleKeyframe()}
     ]"
     class="track-item d-flex flex-column align-start hover-show-parent px-1"
     :style="style"
@@ -323,7 +337,7 @@ export default defineComponent({
           :icon="(feature.isKeyframe)
             ? 'mdi-star'
             : 'mdi-star-outline'"
-          :disabled="!feature.real"
+          :disabled="!feature.real && !feature.shouldInterpolate"
           tooltip-text="Toggle keyframe"
           @click="toggleKeyframe"
         />
