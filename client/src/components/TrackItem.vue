@@ -104,6 +104,7 @@ export default defineComponent({
     watch(trackTypeRef, (val) => { data.trackTypeValue = val; });
 
     function focusType() {
+      console.log('focusTypeCalled');
       if (props.selected && typeInputBoxRef.value !== undefined) {
         data.skipOnFocus = true;
         typeInputBoxRef.value.focus();
@@ -230,10 +231,6 @@ export default defineComponent({
 
 <template>
   <div
-    v-mousetrap="[
-      { bind: 'shift+enter', handler: focusType },
-      { bind: 'k', handler: () => selected && toggleKeyframe()}
-    ]"
     class="track-item d-flex flex-column align-start hover-show-parent px-1"
     :style="style"
   >
@@ -316,6 +313,15 @@ export default defineComponent({
     >
       <v-spacer v-if="!isTrack" />
       <template v-if="selected">
+        <span
+          v-show="false"
+          v-mousetrap="[
+            { bind: 'shift+enter', handler: focusType },
+            { bind: 'k', handler:toggleKeyframe},
+            { bind: 'home', handler: () => $emit('seek', track.begin)},
+            { bind: 'end', handler: () => $emit('seek', track.end)},
+          ]"
+        />
         <tooltip-btn
           color="error"
           icon="mdi-delete"
