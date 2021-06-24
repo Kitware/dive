@@ -139,40 +139,11 @@ export default defineComponent({
     }
 
     function toggleKeyframe() {
-      const f = feature.value;
-      if (f.real && !f.isKeyframe) {
-        props.track.setFeature({
-          ...f.real,
-          frame: frameRef.value,
-          keyframe: true,
-        });
-      } else if ((f.lower || f.upper) && !f.isKeyframe) {
-        let interFeature: Feature | null = null;
-        if (f.upper && frameRef.value > f.upper.frame) {
-          interFeature = f.upper;
-        } else if (f.lower && frameRef.value < f.lower.frame) {
-          interFeature = f.lower;
-        }
-        if (interFeature) {
-          props.track.setFeature({
-            ...interFeature,
-            frame: frameRef.value,
-            keyframe: true,
-          });
-        }
-      } else if (f.isKeyframe) {
-        props.track.deleteFeature(frameRef.value);
-      }
+      props.track.toggleKeyframe(frameRef.value);
     }
 
     function toggleInterpolation() {
-      const f = feature.value;
-      if (f.targetKeyframe) {
-        props.track.setFeature({
-          ...f.targetKeyframe,
-          interpolate: !f.shouldInterpolate,
-        });
-      }
+      props.track.toggleInterpolation(frameRef.value);
     }
 
     function gotoNext() {

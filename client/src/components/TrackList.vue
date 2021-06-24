@@ -55,7 +55,7 @@ export default defineComponent({
 
   components: { TrackItem },
 
-  setup(props, { emit }) {
+  setup(props) {
     const { prompt } = usePrompt();
     const allTypesRef = useAllTypes();
     const checkedTrackIdsRef = useCheckedTrackIds();
