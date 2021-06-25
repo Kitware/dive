@@ -283,6 +283,46 @@ export default class Track {
     });
   }
 
+  toggleKeyframe(frame: number) {
+    const { features } = this.canInterpolate(frame);
+    const [real, lower, upper] = features;
+    if (real && !real.keyframe) {
+      this.setFeature({
+        ...real,
+        frame,
+        keyframe: true,
+      });
+    } else if ((lower || upper) && !real?.keyframe) {
+      let interFeature: Feature | null = null;
+      if (upper && frame > upper.frame) {
+        interFeature = upper;
+      } else if (lower && frame < lower.frame) {
+        interFeature = lower;
+      }
+      if (interFeature) {
+        this.setFeature({
+          ...interFeature,
+          frame,
+          keyframe: true,
+        });
+      }
+    } else if (real?.keyframe) {
+      this.deleteFeature(frame);
+    }
+  }
+
+  toggleInterpolation(frame: number) {
+    const { features, interpolate } = this.canInterpolate(frame);
+    const [real, lower, upper] = features;
+    const targetKeyframe = real?.keyframe ? real : (lower || upper);
+    if (targetKeyframe) {
+      this.setFeature({
+        ...targetKeyframe,
+        interpolate: !interpolate,
+      });
+    }
+  }
+
   setFeature(feature: Feature, geometry: GeoJSON.Feature<TrackSupportedFeature>[] = []): Feature {
     const f = this.features[feature.frame] || {};
     this.features[feature.frame] = {
