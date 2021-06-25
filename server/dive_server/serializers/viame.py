@@ -120,26 +120,35 @@ def _parse_row(row: List[str]) -> Tuple[Dict, Dict, Dict, List]:
     start = 9 + len(sorted_confidence_pairs) * 2
 
     for j in range(start, len(row)):
+        # (kp) head x y
         head_regex = re.match(
             r"^\(kp\) head ([0-9]+\.*[0-9]*) ([0-9]+\.*[0-9]*)", row[j]
         )
         if head_regex:
-            head_tail.insert(0, [float(head_regex[1]), float(head_regex[2])])
-            create_geoJSONFeature(features, 'Point', head_tail[0], 'head')
+            point = [float(head_regex[1]), float(head_regex[2])]
+            head_tail.append(point)
+            create_geoJSONFeature(features, 'Point', point, 'head')
+
+        # (kp) tail x y
         tail_regex = re.match(
             r"^\(kp\) tail ([0-9]+\.*[0-9]*) ([0-9]+\.*[0-9]*)", row[j]
         )
         if tail_regex:
-            head_tail.insert(1, [float(tail_regex[1]), float(tail_regex[2])])
-            create_geoJSONFeature(
-                features, 'Point', head_tail[len(head_tail) - 1], 'tail'
-            )
+            point = [float(tail_regex[1]), float(tail_regex[2])]
+            head_tail.append(point)
+            create_geoJSONFeature(features, 'Point', point, 'tail')
+
+        # (atr) text
         atr_regex = re.match(r"^\(atr\) (.*?)\s(.+)", row[j])
         if atr_regex:
             attributes[atr_regex[1]] = _deduceType(atr_regex[2])
+
+        # (trk-atr) text
         trk_regex = re.match(r"^\(trk-atr\) (.*?)\s(.+)", row[j])
         if trk_regex:
             track_attributes[trk_regex[1]] = _deduceType(trk_regex[2])
+
+        # (poly) x1 y1 x2 y2 ...
         poly_regex = re.match(r"^(\(poly\)) ((?:[0-9]+\.*[0-9]*\s*)+)", row[j])
         if poly_regex:
             temp = [float(x) for x in poly_regex[2].split()]

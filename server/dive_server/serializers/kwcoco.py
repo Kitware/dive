@@ -1,10 +1,12 @@
 """
 KWCOCO JSON format deserializer
 """
+import functools
 import json
 from typing import Any, Dict, List, Tuple
 
 from dive_server.serializers import viame
+from dive_utils import strNumericCompare
 from dive_utils.models import Attribute, CocoMetadata, Feature, Track
 
 
@@ -54,11 +56,11 @@ def _parse_annotation(
     keypoints = annotation.get('keypoints', [])
     head_tail = []
     for keypoint in keypoints:
-        if type(keypoint) is not dict:  # [x1, y1, v1, ...] coco format
+        if isinstance(keypoint, (int, float)):  # [x1, y1, v1, ...] coco format
             keypoint_labels = meta.categories[category_id].get('keypoints', [])
             n = min(len(keypoint_labels), int(len(keypoints) / 3))  # stopping index
             for i in range(n):
-                point = keypoints[3 * i : 3 * i + 2]  # [x, y] pair
+                point = keypoints[3 * i : 3 * i + 2]  # extract [x, y] pair
                 label = keypoint_labels[i]
                 if label in ('head', 'tail'):  # only allow head and tail keypoints
                     head_tail.append(point)
@@ -81,21 +83,32 @@ def _parse_annotation(
 
     # parse polygons
     segmentation = annotation.get('segmentation', [])
-    rle = bool(annotation.get('iscrowd', False)) or type(segmentation) is dict
+    rle = bool(annotation.get('iscrowd', False)) or isinstance(segmentation, dict)
+
+    if rle:  # run-length encoding polygon
+        raise ValueError('Run-Length Encoding not supported')
 
     if segmentation:
         if rle:  # run-length encoding polygon
             raise ValueError('Run-Length Encoding not supported')
         else:  # standard coordinates polygon
+            # expected [[x1, y1, ...], [x1, y1, ...], ...] standard format
+
             if len(segmentation) > 1:
-                raise ValueError("Multiple polygons per annotation not supported")
-            polygon = segmentation[0]
-            if type(polygon) is dict:  # dictionary kwcoco format
+                if isinstance(segmentation[0], (int, float)):
+                    # received [x1, y1, ...] format
+                    polygon = segmentation
+                else:
+                    raise ValueError("Multiple polygons per annotation not supported")
+            else:
+                polygon = segmentation[0]  # get first polygon only
+
+            if isinstance(polygon, dict):  # dictionary kwcoco format
                 coords = polygon.get('exterior', [])
                 hole = polygon.get('interior', [])
                 if hole:
                     raise ValueError("Polygon with hole not supported")
-            elif type(polygon) is list:  # list coco format
+            elif isinstance(polygon, list):  # list coco format
                 coords = list(zip(polygon[::2], polygon[1::2]))
             else:
                 raise ValueError("Incorrect polygon segmentation")
@@ -132,15 +145,34 @@ def _parse_annotation_for_tracks(
 
 
 def load_coco_metadata(coco: Dict[str, List[dict]]) -> CocoMetadata:
-    categories = {x['id']: x for x in coco.get('categories', [])}
-    keypoint_categories = {x['id']: x for x in coco.get('keypoint_categories', [])}
-    images = {x['id']: x for x in coco.get('images', [])}
-    videos = {x['id']: x for x in coco.get('videos', [])}
+    categories_map = {x['id']: x for x in coco.get('categories', [])}
+    keypoint_categories_map = {x['id']: x for x in coco.get('keypoint_categories', [])}
+    videos_map = {x['id']: x for x in coco.get('videos', [])}
+
+    images = coco.get('keypoint_categories', [])
+    sorted_images = sorted(
+        images,
+        key=functools.cmp_to_key(
+            lambda a, b: strNumericCompare(a['file_name'], b['file_name'])
+        ),
+    )
+
+    # TODO: check if track ids are given
+    max_frame_index = max(image.get('frame_index', 0) for image in sorted_images)
+    if max_frame_index == len(images):
+        if images != sorted_images:
+            raise ValueError('track id exists and frame index do not match')
+
+    for i, image in enumerate(sorted_images):
+        if 'frame_index' not in image:
+            image['frame_index'] = i
+    images_map = {x['id']: x for x in sorted_images}
+
     return CocoMetadata(
-        categories=categories,
-        keypoint_categories=keypoint_categories,
-        images=images,
-        videos=videos,
+        categories=categories_map,
+        keypoint_categories=keypoint_categories_map,
+        images=images_map,
+        videos=videos_map,
     )
 
 
