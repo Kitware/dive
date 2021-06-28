@@ -145,28 +145,41 @@ def _parse_annotation_for_tracks(
 
 
 def load_coco_metadata(coco: Dict[str, List[dict]]) -> CocoMetadata:
-    categories_map = {x['id']: x for x in coco.get('categories', [])}
-    keypoint_categories_map = {x['id']: x for x in coco.get('keypoint_categories', [])}
-    videos_map = {x['id']: x for x in coco.get('videos', [])}
+    categories = coco.get('categories', [])
+    keypoint_categories = coco.get('keypoint_categories', [])
+    images = coco.get('images', [])
+    videos = coco.get('videos', [])
+    annotations = coco.get('annotations', [])
 
-    images = coco.get('keypoint_categories', [])
-    sorted_images = sorted(
-        images,
-        key=functools.cmp_to_key(
-            lambda a, b: strNumericCompare(a['file_name'], b['file_name'])
-        ),
-    )
+    # check if annotations have track IDs
+    has_track_id = annotations and 'track_id' in annotations[0]
+    # if any videos exist, can assume the images have frame indices
+    is_video = len(videos) > 0
 
-    # TODO: check if track ids are given
-    max_frame_index = max(image.get('frame_index', 0) for image in sorted_images)
-    if max_frame_index == len(images):
-        if images != sorted_images:
-            raise ValueError('track id exists and frame index do not match')
+    def file_name_cmp(item1, item2):
+        return strNumericCompare(item1['file_name'], item2['file_name'])
 
-    for i, image in enumerate(sorted_images):
+    # sort images by "dive order"
+    dive_sorted_images = sorted(images, key=functools.cmp_to_key(file_name_cmp))
+
+    # assign frame_index to all images
+    for i, image in enumerate(dive_sorted_images):
         if 'frame_index' not in image:
             image['frame_index'] = i
-    images_map = {x['id']: x for x in sorted_images}
+
+    if not is_video and has_track_id:  # sort order matters
+        # sort images by frame_index
+        frame_sorted_images = sorted(dive_sorted_images, key=lambda x: x['frame_index'])
+
+        if frame_sorted_images != dive_sorted_images:
+            raise ValueError(
+                'Image track IDs exists and frame index do not match DIVE sort order'
+            )
+
+    categories_map = {x['id']: x for x in categories}
+    keypoint_categories_map = {x['id']: x for x in keypoint_categories}
+    images_map = {x['id']: x for x in dive_sorted_images}
+    videos_map = {x['id']: x for x in videos}
 
     return CocoMetadata(
         categories=categories_map,
