@@ -16,19 +16,20 @@ export interface Settings {
   dataPath: string;
 }
 
+// Handles Importing and storing of multi camera data
 export interface MultiCamDesktop {
   cameras: Record<string, {
     type: 'image-sequence' | 'video';
     originalBasePath: string;
     originalImageFiles: string[];
     originalVideoFile: string;
-    transcodedImageFiles?: string[];
-    transcodedVideoFile?: string;
+    transcodedImageFiles: string[];
+    transcodedVideoFile: string;
   }>;
   //Calibration file in .npz format used for stereo or other cameras
   calibration?: string;
   // Default Display Key for showing multiCam
-  display: string;
+  defaultDisplay: string;
 }
 
 /**

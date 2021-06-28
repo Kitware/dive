@@ -199,7 +199,7 @@ async function loadMetadata(
       projectMetaData, projectDirData.basePath, makeMediaUrl,
     );
     /* TODO: Done temporarily before we support true display of items */
-    const defaultDisplay = multiCamMedia.cameras[multiCamMedia.display];
+    const defaultDisplay = multiCamMedia.cameras[multiCamMedia.defaultDisplay];
     imageData = defaultDisplay.imageData;
     videoUrl = defaultDisplay.videoUrl;
     type = defaultDisplay.type;
@@ -247,8 +247,6 @@ async function loadDetections(settings: Settings, datasetId: string) {
  */
 async function getPipelineList(settings: Settings): Promise<Pipelines> {
   const pipelinePath = npath.join(settings.viamePath, 'configs/pipelines');
-  // const allowedPatterns = /^detector_.+|^tracker_.+|^generate_.+|^utility_|^measurement\.gmm/;
-  // Disable measurement for now.
   const allowedPatterns = /^detector_.+|^tracker_.+|^generate_.+|^utility_|^measurement_gmm_.+/;
   const disallowedPatterns = /.*local.*|detector_svm_models.pipe|tracker_svm_models.pipe/;
   const exists = await fs.pathExists(pipelinePath);
@@ -459,6 +457,34 @@ async function saveAttributes(settings: Settings, datasetId: string, args: SaveA
 }
 
 
+async function processAnnotationFilePath(
+  settings: Settings,
+  datasetId: string,
+  path: string,
+) {
+  if (!fs.existsSync(path)) {
+    return {};
+  }
+  if (fs.statSync(path).size > 0) {
+    // Attempt to process the file
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      const data = await viameSerializers.parseFile(path);
+      const processed = processTrackAttributes(data.tracks);
+      const { fps } = data;
+      const { attributes } = processed;
+      // eslint-disable-next-line no-await-in-loop
+      await _saveSerialized(settings, datasetId, processed.data, true);
+      return {
+        fps, attributes, path,
+      };
+    } catch (err) {
+      // eslint-disable-next-line no-continue
+    }
+    return {};
+  }
+  return { };
+}
 /**
  * processOtherAnnotationFiles imports data from external annotation formats
  * given a list of candidate file paths.
@@ -468,6 +494,9 @@ async function saveAttributes(settings: Settings, datasetId: string, args: SaveA
  *
  * @param paths paths to possible input annotation files
  * @param datasetId dataset id path
+ * @param absPaths list of paths to check for annotation files
+ * @param multiCamResults Objec where the keys are Camera names
+ * and the value is the path to a result file
  */
 async function processOtherAnnotationFiles(
   settings: Settings,
@@ -481,53 +510,35 @@ async function processOtherAnnotationFiles(
 
   for (let i = 0; i < absPaths.length; i += 1) {
     const path = absPaths[i];
-    if (!fs.existsSync(path)) {
-      // eslint-disable-next-line no-continue
-      continue;
+    // eslint-disable-next-line no-await-in-loop
+    const result = await processAnnotationFilePath(settings, datasetId, path);
+    if (result.fps) {
+      fps = fps || result.fps;
     }
-    if (fs.statSync(path).size > 0) {
-      // Attempt to process the file
-      try {
-        // eslint-disable-next-line no-await-in-loop
-        const data = await viameSerializers.parseFile(path);
-        const processed = processTrackAttributes(data.tracks);
-        fps = fps || data.fps;
-        attributes = processed.attributes;
-        // eslint-disable-next-line no-await-in-loop
-        await _saveSerialized(settings, datasetId, processed.data, true);
-        processedFiles.push(path);
-        break; // Exit on first successful detection load
-      } catch (err) {
-        // eslint-disable-next-line no-continue
-        continue;
-      }
+    if (result.attributes) {
+      attributes = result.attributes;
+    }
+    if (result.path) {
+      processedFiles.push(result.path);
     }
   }
   //Processing of multiCam results:
   if (multiCamResults) {
-    const pairs = Object.entries(multiCamResults);
-    for (let i = 0; i < pairs.length; i += 1) {
-      const path = pairs[i][1];
-      const camera = pairs[i][0];
-      if (!fs.existsSync(path)) {
-        // eslint-disable-next-line no-continue
-        continue;
+    const cameraAndPath = Object.entries(multiCamResults);
+    for (let i = 0; i < cameraAndPath.length; i += 1) {
+      const cameraName = cameraAndPath[i][0];
+      const path = cameraAndPath[i][1];
+      const cameraDatasetId = `${datasetId}/${cameraName}`;
+      // eslint-disable-next-line no-await-in-loop
+      const result = await processAnnotationFilePath(settings, cameraDatasetId, path);
+      if (result.fps) {
+        fps = fps || result.fps;
       }
-      if (fs.statSync(path).size > 0) {
-        // Attempt to process the file
-        try {
-          // eslint-disable-next-line no-await-in-loop
-          const data = await viameSerializers.parseFile(path);
-          const processed = processTrackAttributes(data.tracks);
-          fps = fps || data.fps;
-          attributes = processed.attributes;
-          // eslint-disable-next-line no-await-in-loop
-          await _saveSerialized(settings, `${datasetId}/${camera}`, processed.data, true);
-          processedFiles.push(path);
-        } catch (err) {
-          // eslint-disable-next-line no-continue
-          continue;
-        }
+      if (result.attributes) {
+        attributes = result.attributes;
+      }
+      if (result.path) {
+        processedFiles.push(result.path);
       }
     }
   }
@@ -809,16 +820,16 @@ async function finalizeMediaImport(
 
   //We need to create datasets for each of the multiCam folders as well
   if (datasetType === 'multi' && jsonMeta.multiCam?.cameras) {
-    const pairs = Object.entries(jsonMeta.multiCam.cameras);
-    for (let i = 0; i < pairs.length; i += 1) {
-      const val = pairs[i][1];
-      const key = pairs[i][0];
+    const cameraNameAndData = Object.entries(jsonMeta.multiCam.cameras);
+    for (let i = 0; i < cameraNameAndData.length; i += 1) {
+      const cameraName = cameraNameAndData[i][0];
+      const cameraData = cameraNameAndData[i][1];
 
-      const jsonClone = { ...cloneDeep(jsonMeta), ...val };
+      const jsonClone = { ...cloneDeep(jsonMeta), ...cameraData };
       jsonClone.multiCam = null;
-      jsonClone.id = `${jsonMeta.id}/${key}`;
-      jsonClone.transcodedVideoFile = val.transcodedVideoFile || '';
-      jsonClone.transcodedImageFiles = val.transcodedImageFiles || [];
+      jsonClone.id = `${jsonMeta.id}/${cameraName}`;
+      jsonClone.transcodedVideoFile = cameraData.transcodedVideoFile || '';
+      jsonClone.transcodedImageFiles = cameraData.transcodedImageFiles || [];
       jsonClone.subType = null;
 
       // eslint-disable-next-line no-await-in-loop

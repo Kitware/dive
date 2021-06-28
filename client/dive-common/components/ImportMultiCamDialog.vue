@@ -5,7 +5,7 @@ import {
 } from '@vue/composition-api';
 import { filterByGlob } from 'platform/desktop/sharedUtils';
 import {
-  CustomMediaImportPayload,
+  MediaImportResponse,
   DatasetType,
   HTMLFileReferences,
   useApi,
@@ -29,7 +29,7 @@ export default defineComponent({
       default: 'image-sequence',
     },
     importMedia: {
-      type: Function as PropType<(path: string) => Promise<CustomMediaImportPayload>>,
+      type: Function as PropType<(path: string) => Promise<MediaImportResponse>>,
       required: true,
     },
   },
@@ -38,7 +38,7 @@ export default defineComponent({
     const importType: Ref<'multi'|'keyword'| ''> = ref('');
     const folderList: Ref<Record<string, string>> = ref({});
     const keywordFolder = ref('');
-    const pendingImportPayload: Ref<CustomMediaImportPayload | null> = ref(null);
+    const pendingImportPayload: Ref<MediaImportResponse | null> = ref(null);
     const globList: Ref<Record<string, string>> = ref({});
     const calibrationFile = ref('');
     const defaultDisplay = ref('left');
