@@ -15,8 +15,8 @@ function transcodeMultiCam(
   let destLoc = '';
   if (jsonMeta.multiCam) {
     const entries = Object.entries(jsonMeta.multiCam.cameras);
-    // eslint-disable-next-line no-restricted-syntax
-    for (const [cameraName, cameraData] of entries) {
+    for (let i = 0; i < entries.length; i += 1) {
+      const [cameraName, cameraData] = entries[i];
       if (item.includes(cameraData.originalBasePath)) {
         const extension = cameraData.type === 'video' ? '.mp4' : '.png';
         destLoc = item.replace(npath.extname(item), extension);
