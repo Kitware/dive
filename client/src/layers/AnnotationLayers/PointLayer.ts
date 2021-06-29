@@ -16,7 +16,7 @@ export default class PointLayer extends BaseLayer<PointGeoJSData> {
     const layer = this.annotator.geoViewerRef.value.createLayer('feature', {
       features: ['point'],
     });
-    this.featureLayer = layer.createFeature('point', { selectionAPI: true });
+    this.featureLayer = layer.createFeature('point');
     super.initialize();
   }
 
