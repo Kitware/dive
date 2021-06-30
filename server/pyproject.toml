@@ -2,10 +2,23 @@
 line-length = 88
 skip-string-normalization = true
 target-version = ['py38']
-exclude='\.eggs|\.git|\.mypy_cache|\.tox|\.venv|_build|buck-out|build|dist|venv'
+exclude = '\.eggs|\.git|\.mypy_cache|\.tox|\.env|\.venv|env|venv|_build|buck-out|build|dist'
 
 [tool.isort]
 line_length = 88
 use_parentheses = true
 include_trailing_comma = true
 multi_line_output = 3
+
+[tool.mypy]
+python_version = 3.8
+ignore_missing_imports = true
+show_error_context = true
+show_column_numbers = true
+show_error_codes = true
+pretty = true
+exclude = '\.eggs|\.git|\.mypy_cache|\.tox|\.env|\.venv|env|venv|_build|buck-out|build|dist'
+
+[[tool.mypy.overrides]]
+module = 'dive_server.serializers.viame'
+ignore_errors = true

@@ -43,8 +43,8 @@ setup(
         "Programming Language :: Python :: 3.8",
     ],
     description="DIVE Data Server",
-    install_requires=requirements,
     python_requires=">=3.7",
+    install_requires=requirements,
     extra_require={"dev": dev_requirements},
     license="Apache Software License 2.0",
     package_data={
