@@ -88,11 +88,15 @@ You can create a track by starting with a head/tail annotation or just a single 
 
 1. After clicking "+Track" you can switch the editing mode into the line tool.
     1. ![Line Tool](images/CreationMode/LineTool.png)
-1. This will allow you place a single pointt intially by clicking
+1. This will allow you place a single point initially by clicking
 1. You can then either hit escape and a bounding box will appear around that point
 1. Or you can place the second point and a new bounding box will be created which can be edited.
 
 Notes:
+
+* The head point is denoted by a filled circle, while the tail point is denoted by a hollow circle.
+
+    ![Tail Mode](images/CreationMode/HeadTail.png)
 
 * You can also start with the tail: tap `t`
     * ![Tail Mode](images/CreationMode/TailMode.png) - Indicates you are in tail mode and are going to place the tail point.
@@ -117,7 +121,7 @@ While every track is required to have a bounding box a polygon can be added as w
 
 ### Polygon Editing
 
-1. In edit mode for a polygon you can select any large circle to move it.  This will move the point to a new posittion and recalculate the bounding box.
+1. In edit mode for a polygon you can select any large circle to move it.  This will move the point to a new position and recalculate the bounding box.
 1. The smaller circles allow you you to create new points which can be used to adjust the polygon and make it appear smoother.
 1. A single click on a point will select a point which can then be deleted by using the delete button
     1. ![Delete Point](images/EditBar/deletePointMenu.png)

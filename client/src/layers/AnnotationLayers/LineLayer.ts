@@ -17,7 +17,7 @@ interface LineGeoJSData{
 export default class LineLayer extends BaseLayer<LineGeoJSData> {
   constructor(params: BaseLayerParams) {
     super(params);
-    //Only initialize once, prevents recreating Layer each edit
+    // Only initialize once, prevents recreating Layer each edit
     this.initialize();
   }
 
@@ -25,8 +25,7 @@ export default class LineLayer extends BaseLayer<LineGeoJSData> {
     const layer = this.annotator.geoViewerRef.value.createLayer('feature', {
       features: ['point', 'line'],
     });
-    this.featureLayer = layer
-      .createFeature('line', { selectionAPI: true });
+    this.featureLayer = layer.createFeature('line');
     super.initialize();
   }
 
@@ -51,7 +50,7 @@ export default class LineLayer extends BaseLayer<LineGeoJSData> {
   }
 
   static dashLine(coordinates: GeoJSON.Position[], dashLength = 5) {
-    //Iterate over and dash each segement
+    // Iterate over and dash each segment
     let dashed: GeoJSON.Position[] = [];
     for (let i = 0; i + 1 < coordinates.length; i += 1) {
       const segment = LineLayer.dashSegment(coordinates[i], coordinates[i + 1], dashLength);
