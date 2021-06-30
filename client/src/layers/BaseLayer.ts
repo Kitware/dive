@@ -12,13 +12,13 @@ export type ObjectFunction<T, D> = T | ((data: D, index: number) => T | undefine
 export type PointFunction<T, D> = T | ((data: D) => T | undefined);
 
 export interface LayerStyle<D> {
-  strokeWidth?: StyleFunction<number, D>;
-  strokeOffset?: StyleFunction<number, D>;
-  strokeOpacity?: StyleFunction<number, D>;
-  strokeColor?: StyleFunction<string, D>;
-  position?: (point: [number, number]) => { x: number; y: number };
+  strokeWidth?: StyleFunction<number, D> | PointFunction<number, D>;
+  strokeOffset?: StyleFunction<number, D> | PointFunction<string, D>;
+  strokeOpacity?: StyleFunction<number, D> | PointFunction<string, D>;
+  strokeColor?: StyleFunction<string, D> | PointFunction<string, D>;
   fillColor?: StyleFunction<string, D> | PointFunction<string, D>;
-  fillOpacity?: StyleFunction<number, D>;
+  fillOpacity?: StyleFunction<number, D> | PointFunction<number, D>;
+  position?: (point: [number, number]) => { x: number; y: number };
   color?: (data: D) => string;
   textOpacity?: (data: D) => number;
   offset?: (data: D) => { x: number; y: number };
