@@ -36,7 +36,7 @@ def _flush(self):
             )
             req.raise_for_status()
         except requests.exceptions.HTTPError as err:
-            if err.response.status_code >= 500:
+            if err.response.status_code >= 500 or err.response.status_code == 413:
                 # Any 500 level error
                 # The job record size has been exceeded.  Attempt to truncate the log
                 data['overwrite'] = True
