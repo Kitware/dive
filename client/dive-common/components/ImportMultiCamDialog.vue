@@ -185,6 +185,22 @@ export default defineComponent({
       newSetName.value = '';
       addNewToggle.value = false;
     };
+    const clearCameraSet = () => {
+      keywordFolder.value = '';
+      if (props.stereo) {
+        folderList.value = {
+          left: '',
+          right: '',
+        };
+        globList.value = {
+          left: '',
+          right: '',
+        };
+      } else {
+        folderList.value = {};
+        globList.value = {};
+      }
+    };
 
     const prepForImport = () => {
       if (importType.value === 'multi') {
@@ -224,6 +240,7 @@ export default defineComponent({
       open,
       prepForImport,
       addNewSet,
+      clearCameraSet,
       deleteSet,
     };
   },
@@ -242,7 +259,10 @@ export default defineComponent({
     <v-card-text>
       <div v-if="dataType === 'image-sequence'">
         Please Select an import type.
-        <v-radio-group v-model="importType">
+        <v-radio-group
+          v-model="importType"
+          @change="clearCameraSet"
+        >
           <v-radio
             value="multi"
             :label="
