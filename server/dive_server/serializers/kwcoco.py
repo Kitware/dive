@@ -15,25 +15,22 @@ def is_coco_json(coco: Dict[str, Any]):
     return any(key in coco for key in keys)
 
 
-def is_coco_string(coco: str):
-    data = json.loads(coco)
-    keys = ['categories', 'keypoint_categories', 'images', 'videos', 'annotations']
-    return any(key in data for key in keys)
-
-
 def annotation_info(
     annotation: dict, meta: CocoMetadata
 ) -> Tuple[int, str, int, List[int]]:
+    # these fields will always exist
     annotation_id = annotation['id']
     image_id = annotation['image_id']
     filename = meta.images[image_id]['file_name']
+    frame = meta.images[image_id]['frame_index']
 
-    # may not exist, fall back to default values
-    trackId = annotation.get('track_id', annotation_id)
-    frame = meta.images[image_id].get('frame_index', image_id)
+    # track ID may not exist so use annotation ID as replacement
+    # track ID may be of type int, string, UUID
+    # handle int and string types, throw error on UUID
+    trackId = int(annotation.get('track_id', annotation_id))
 
     bounds = annotation['bbox']
-    # update from width/height to bottom right corner point
+    # update from [TL_x, TL_y, width, height] to [TL_x, TL_y, BR_x, BR_y]
     bounds[2] += bounds[0]
     bounds[3] += bounds[1]
 
@@ -48,7 +45,7 @@ def _parse_annotation(
     track_attributes: Dict[str, Any] = {}
 
     category_id = annotation['category_id']
-    score = annotation.get('score', 1.0)  # may not exit, default to 1.0
+    score = annotation.get('score', 1.0)  # may not exist, default to 1.0
     class_name = meta.categories[category_id]['name']
     confidence_pair = (class_name, score)
 

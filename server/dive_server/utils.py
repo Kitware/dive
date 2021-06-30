@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import Callable, Dict, Generator, List, Optional, Tuple, Type
 
 import pymongo
-from cherrypy.lib.reprconf import attributes
 from girder.constants import AccessType
 from girder.exceptions import RestException
 from girder.models.file import File
