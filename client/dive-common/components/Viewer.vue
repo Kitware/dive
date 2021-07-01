@@ -90,9 +90,16 @@ export default defineComponent({
       // like vuex is used to drive them.
       loaded: false,
       // Tracks loaded
-      progress: -1,
+      progress: 0,
       // Total tracks
-      total: -1,
+      total: 0,
+    });
+
+    const progressValue = computed(() => {
+      if (progress.total > 0 && (progress.progress !== progress.total)) {
+        return Math.round((progress.progress / progress.total) * 100);
+      }
+      return 0;
     });
 
     const {
@@ -358,8 +365,6 @@ export default defineComponent({
         }
       }),
     ]).then(() => {
-      progress.progress = -1;
-      progress.total = -1;
       progress.loaded = true;
     }).catch((err) => {
       progress.loaded = false;
@@ -398,6 +403,7 @@ export default defineComponent({
       typeSettings: clientSettings.typeSettings,
       pendingSaveCount,
       progress,
+      progressValue,
       saveInProgress,
       playbackComponent,
       recipes,
@@ -523,15 +529,16 @@ export default defineComponent({
           </v-alert>
           <v-progress-circular
             v-else
-            :indeterminate="progress.progress < 0"
-            :value="Math.round(progress.progress / progress.total * 100)"
+            :indeterminate="progressValue === 0"
+            :value="progressValue"
             size="100"
             width="15"
             color="light-blue"
             class="main-progress-linear"
+            rotate="-90"
           >
-            <span v-if="progress.progress < 0">Loading</span>
-            <span v-else>{{ Math.round(progress.progress / progress.total * 100) }}%</span>
+            <span v-if="progressValue === 0">Loading</span>
+            <span v-else>{{ progressValue }}%</span>
           </v-progress-circular>
         </div>
       </v-col>
