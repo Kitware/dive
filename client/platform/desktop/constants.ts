@@ -1,5 +1,5 @@
 import type {
-  DatasetMeta, DatasetMetaMutable, DatasetType, Pipe,
+  DatasetMeta, DatasetMetaMutable, DatasetType, Pipe, SubType,
 } from 'dive-common/apispec';
 import { Attribute } from 'vue-media-annotator/use/useAttributes';
 
@@ -16,19 +16,20 @@ export interface Settings {
   dataPath: string;
 }
 
-export interface MultiCam {
+// Handles Importing and storing of multi camera data
+export interface MultiCamDesktop {
   cameras: Record<string, {
     type: 'image-sequence' | 'video';
     originalBasePath: string;
     originalImageFiles: string[];
     originalVideoFile: string;
-    transcodedImagesFiles?: string[];
-    transcodedVideoFile?: string;
+    transcodedImageFiles: string[];
+    transcodedVideoFile: string;
   }>;
   //Calibration file in .npz format used for stereo or other cameras
   calibration?: string;
   // Default Display Key for showing multiCam
-  display: string;
+  defaultDisplay: string;
 }
 
 /**
@@ -88,7 +89,10 @@ export interface JsonMeta extends DatasetMetaMutable {
   confidenceFilters?: Record<string, number>;
 
   // Stereo or multi-camera datasets with uniform type (all images, all video)
-  multiCam?: MultiCam;
+  multiCam: MultiCamDesktop | null;
+
+  // Stereo or multi-camera datasets with uniform type (all images, all video)
+  subType: SubType;
 }
 
 export type DesktopMetadata = DatasetMeta & JsonMeta;

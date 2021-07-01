@@ -22,9 +22,9 @@ export default defineComponent({
       type: String,
       required: true,
     },
-    hidden: { //TODO: Temporarily used to hide the stereo settings from users
+    multiCamImport: { //TODO: Temporarily used to hide the stereo settings from users
       type: Boolean,
-      default: true,
+      default: false,
     },
     buttonAttrs: {
       type: Object,
@@ -60,7 +60,7 @@ export default defineComponent({
             </v-icon>
           </div>
           <v-icon
-            v-if="!hidden"
+            v-if="multiCamImport"
             class="button-dropdown col-1"
             v-on="on"
           >

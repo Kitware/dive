@@ -38,3 +38,46 @@ Several kinds of inter-process communication are used between renderer and main.
 ## Platform-specific methods
 
 Due to tight OS coupling, some methods will have to be implemented to target a single platform. See `backend/platforms`.
+
+## MultiCamera and Stereo Data Organization
+
+Desktop has the capability to import and run pipelines on stereo and multicamera pipelines.  There is a Root folder as well as individual folders for each camera.  To achieve this the folder structure for storage of data is slightly different.
+
+* Root Folder - Base folder which contains the multicamera dataset.  It is tied to a single camera folder which is known as the `defaultDisplay`.  The `defaultDisplay` is the camera that is shown by default when the dataset is loaded.  The Root Folder `meta.json` file will contain a parmeter called `multiCam` and this will point to the multicams in the dataset as well as provide the `defaultDisplay`
+* Camera Folders - Individual folders for each camera which behave like their own dataset with their own meta.json and annotations file.  This is achieved by giving them a dataset id of `RootFolder/CameraName`.
+
+``` text
+DIVE_Projects
+├── stereodataset_jp7hq88vfv
+│  ├── meta.json
+│  ├── result_06-01-2021_10-55-38.627.json
+│  ├── left
+|  |  ├── auxiliary
+|  │  │  └── result_06-01-2021_10-52-28.347.json
+│  │  ├── meta.json
+│  │  └── result_06-01-2021_10-55-38.627.json
+│  └── right
+|     ├── auxiliary
+|     │  └── result_06-01-2021_10-52-28.347.json
+│     ├── meta.json
+│     └── result_06-01-2021_10-55-38.627.json
+└── multicamera_jrgdq760gu
+   ├── meta.json
+   ├── result_06-18-2021_22-50-38.435.json
+   ├── camera1
+   |  ├── auxiliary
+   │  ├── meta.json
+   │  └── result_06-18-2021_22-50-38.435.json
+   ├── camera2
+   |  ├── auxiliary
+   │  ├── meta.json
+   │  └── result_06-18-2021_22-50-38.234.json
+   └──── camera3
+      ├── auxiliary
+      ├── meta.json
+      └── result_06-18-2021_22-50-38.126.json
+```
+
+### Using MultiCamera Pipelines
+
+When multicamera pipelines are run they will create individual annotation files for each camera folder.  The `defaultDisplay` annotations will be copied to the root folder as well.  Viewing the dataset in the annotation folder will bring up the camera assocaited with the `defaultDisplay` as well as the annotations that were copied from the pipeline run.

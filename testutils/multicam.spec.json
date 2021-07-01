@@ -89,7 +89,9 @@
                 "left2.png",
                 "left3.png"
               ],
-              "originalVideoFile": ""
+              "originalVideoFile": "",
+              "transcodedImageFiles": [],
+              "transcodedVideoFile": ""
             },
             "right": {
               "type": "image-sequence",
@@ -99,11 +101,14 @@
                 "right2.png",
                 "right3.png"
               ],
-              "originalVideoFile": ""
+              "originalVideoFile": "",
+              "transcodedImageFiles": [],
+              "transcodedVideoFile": ""
+      
             }
           },
           "calibration": "/home/user/data/stereoLeftRightImages/stereoCalibration.npz",
-          "display": "left"
+          "defaultDisplay": "left"
         },
         "mediaConvertList": []
       }
@@ -129,7 +134,9 @@
                 "left2.tiff",
                 "left3.tiff"
               ],
-              "originalVideoFile": ""
+              "originalVideoFile": "",
+              "transcodedImageFiles": [],
+              "transcodedVideoFile": ""
             },
             "right": {
               "type": "image-sequence",
@@ -139,11 +146,13 @@
                 "right2.tiff",
                 "right3.tiff"
               ],
-              "originalVideoFile": ""
+              "originalVideoFile": "",
+              "transcodedImageFiles": [],
+              "transcodedVideoFile": ""
             }
           },
           "calibration": "/home/user/data/stereoLeftRightImages/stereoCalibration.npz",
-          "display": "left"
+          "defaultDisplay": "left"
         },
         "mediaConvertList": [
           "/home/user/data/stereoLeftRightImages/left/tiff/left1.tiff",
@@ -176,7 +185,9 @@
                 "left2.tiff",
                 "left3.tiff"
               ],
-              "originalVideoFile": ""
+              "originalVideoFile": "",
+              "transcodedImageFiles": [],
+              "transcodedVideoFile": ""
             },
             "right": {
               "type": "image-sequence",
@@ -186,11 +197,13 @@
                 "left2.tiff",
                 "left3.tiff"
               ],
-              "originalVideoFile": ""
+              "originalVideoFile": "",
+              "transcodedImageFiles": [],
+              "transcodedVideoFile": ""
             }
           },
           "calibration": "/home/user/data/stereoLeftRightImages/stereoCalibration.npz",
-          "display": "right"
+          "defaultDisplay": "right"
         },
         "mediaConvertList": [
           "/home/user/data/stereoLeftRightImages/left/tiff/left1.tiff",
@@ -219,17 +232,22 @@
               "type": "video",
               "originalBasePath": "/home/user/data/stereoLeftRightImages/left",
               "originalImageFiles": [],
-              "originalVideoFile": "left.mp4"
+              "originalVideoFile": "left.mp4",
+              "transcodedImageFiles": [],
+              "transcodedVideoFile": ""
             },
             "right": {
               "type": "video",
               "originalBasePath": "/home/user/data/stereoLeftRightImages/right",
               "originalImageFiles": [],
-              "originalVideoFile": "right.mp4"
+              "originalVideoFile": "right.mp4",
+              "transcodedImageFiles": [],
+              "transcodedVideoFile": ""
+
             }
           },
           "calibration": "/home/user/data/stereoLeftRightImages/stereoCalibration.npz",
-          "display": "left"
+          "defaultDisplay": "left"
         },
         "mediaConvertList": []
       }
@@ -251,17 +269,21 @@
               "type": "video",
               "originalBasePath": "/home/user/data/stereoLeftRightImages/left",
               "originalImageFiles": [],
-              "originalVideoFile": "left.mpg"
+              "originalVideoFile": "left.mpg",
+              "transcodedImageFiles": [],
+              "transcodedVideoFile": ""
             },
             "right": {
               "type": "video",
               "originalBasePath": "/home/user/data/stereoLeftRightImages/right",
               "originalImageFiles": [],
-              "originalVideoFile": "right.mpg"
+              "originalVideoFile": "right.mpg",
+              "transcodedImageFiles": [],
+              "transcodedVideoFile": ""
             }
           },
           "calibration": "/home/user/data/stereoLeftRightImages/stereoCalibration.npz",
-          "display": "left"
+          "defaultDisplay": "left"
         },
         "mediaConvertList": [
           "/home/user/data/stereoLeftRightImages/left/left.mpg",
@@ -293,7 +315,10 @@
                 "left2.png",
                 "left3.png"
               ],
-              "originalVideoFile": ""
+              "originalVideoFile": "",
+              "transcodedImageFiles": [],
+              "transcodedVideoFile": ""
+
             },
             "right": {
               "type": "image-sequence",
@@ -303,11 +328,13 @@
                 "right2.png",
                 "right3.png"
               ],
-              "originalVideoFile": ""
+              "originalVideoFile": "",
+              "transcodedImageFiles": [],
+              "transcodedVideoFile": ""
             }
           },
           "calibration": "/home/user/data/stereoLeftRightImages/stereoCalibration.npz",
-          "display": "left"
+          "defaultDisplay": "left"
         },
         "mediaConvertList": []
       }
@@ -334,7 +361,9 @@
                 "left2.tiff",
                 "left3.tiff"
               ],
-              "originalVideoFile": ""
+              "originalVideoFile": "",
+              "transcodedImageFiles": [],
+              "transcodedVideoFile": ""
             },
             "right": {
               "type": "image-sequence",
@@ -344,11 +373,13 @@
                 "right2.tiff",
                 "right3.tiff"
               ],
-              "originalVideoFile": ""
+              "originalVideoFile": "",
+              "transcodedImageFiles": [],
+              "transcodedVideoFile": ""
             }
           },
           "calibration": "/home/user/data/stereoLeftRightImages/stereoCalibration.npz",
-          "display": "left"
+          "defaultDisplay": "left"
         },
         "mediaConvertList": [
           "/home/user/data/stereoLeftRightCombinedImages/tiff/left1.tiff",
