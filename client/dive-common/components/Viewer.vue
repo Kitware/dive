@@ -354,17 +354,17 @@ export default defineComponent({
           datasetType.value = meta.type as DatasetType;
         }),
         loadDetections(props.id).then(async (trackData) => {
-        const tracks = Object.values(trackData);
-        progress.total = tracks.length;
-        for (let i = 0; i < tracks.length; i += 1) {
-          if (i % 4000 === 0) {
+          const tracks = Object.values(trackData);
+          progress.total = tracks.length;
+          for (let i = 0; i < tracks.length; i += 1) {
+            if (i % 4000 === 0) {
             /* Every N tracks, yeild some cycles for other scheduled tasks */
-            progress.progress = i;
-            // eslint-disable-next-line no-await-in-loop
-            await new Promise((resolve) => window.setTimeout(resolve, 500));
+              progress.progress = i;
+              // eslint-disable-next-line no-await-in-loop
+              await new Promise((resolve) => window.setTimeout(resolve, 500));
+            }
+            insertTrack(Track.fromJSON(tracks[i]), { imported: true });
           }
-          insertTrack(Track.fromJSON(tracks[i]), { imported: true });
-        }
         }),
       ]).then(() => {
         progress.loaded = true;
