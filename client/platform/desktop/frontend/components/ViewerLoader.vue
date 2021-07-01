@@ -39,7 +39,7 @@ export default defineComponent({
   },
   setup(props) {
     const viewerRef = ref();
-    const subType = computed(() => [datasets.value[props.id]?.subType] || []);
+    const subTypeList = computed(() => [datasets.value[props.id]?.subType] || []);
     const importAnnotationFile = async (id: string, path: string) => {
       const result = await api.importAnnotation(id, path);
       if (result) {
@@ -48,11 +48,11 @@ export default defineComponent({
     };
     return {
       datasets,
-      subType,
       importAnnotationFile,
       viewerRef,
       buttonOptions,
       menuOptions,
+      subTypeList,
     };
   },
 });
@@ -85,7 +85,7 @@ export default defineComponent({
     <template #title-right>
       <RunPipelineMenu
         :selected-dataset-ids="[id]"
-        :sub-type-list="subType"
+        :sub-type-list="subTypeList"
         v-bind="{ buttonOptions, menuOptions }"
       />
       <ImportAnnotations

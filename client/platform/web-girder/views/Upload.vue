@@ -172,7 +172,7 @@ export default defineComponent({
     };
 
     // TODO:  Implementation of initialization organization of multiCam files into a return
-    // of the CustomMediaImportPayload defined in ImportMultiCamDialog.vue
+    // of the MediaImportResponse defined in ImportMultiCamDialog.vue
     const multiCamImportCheck = (files: string[]) => ({
       jsonMeta: {
         originalImageFiles: files,

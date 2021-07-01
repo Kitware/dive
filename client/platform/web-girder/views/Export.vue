@@ -33,7 +33,7 @@ export default defineComponent({
 
   setup(props) {
     const menuOpen = ref(false);
-    const excludeFiltered = ref(false);
+    const excludeBelowThreshold = ref(true);
     const excludeUncheckedTypes = ref(false);
     const exportUrls = ref(null as null | ExportUrlsResponse);
     const savePrompt = ref(false);
@@ -72,10 +72,12 @@ export default defineComponent({
     const { func: updateExportUrls, error } = withRestError(async () => {
       if (menuOpen.value) {
         const typeFilter = excludeUncheckedTypes.value ? checkedTypes.value : [];
-        exportUrls.value = await getExportUrls(props.datasetId, excludeFiltered.value, typeFilter);
+        exportUrls.value = await getExportUrls(
+          props.datasetId, excludeBelowThreshold.value, typeFilter,
+        );
       }
     });
-    watch([toRef(props, 'datasetId'), excludeFiltered, excludeUncheckedTypes, menuOpen], updateExportUrls);
+    watch([toRef(props, 'datasetId'), excludeBelowThreshold, excludeUncheckedTypes, menuOpen], updateExportUrls);
     updateExportUrls();
 
     const mediaType = computed(() => (exportUrls.value
@@ -85,7 +87,7 @@ export default defineComponent({
 
     return {
       error,
-      excludeFiltered,
+      excludeBelowThreshold,
       excludeUncheckedTypes,
       menuOpen,
       exportUrls,
@@ -177,7 +179,7 @@ export default defineComponent({
             <div>Get latest detections csv only</div>
             <template v-if="thresholds.length">
               <v-checkbox
-                v-model="excludeFiltered"
+                v-model="excludeBelowThreshold"
                 label="exclude tracks below confidence threshold"
                 dense
                 hide-details

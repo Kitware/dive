@@ -39,6 +39,7 @@ import {
   useSettings,
 } from 'dive-common/use';
 import { useApi, FrameImage, DatasetType } from 'dive-common/apispec';
+import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { cloneDeep } from 'lodash';
 
 export default defineComponent({
@@ -61,11 +62,8 @@ export default defineComponent({
       required: true,
     },
   },
-  setup(props, ctx) {
-    // TODO: eventually we will have to migrate away from this style
-    // and use the new plugin pattern:
-    // https://vue-composition-api-rfc.netlify.com/#plugin-development
-    const prompt = ctx.root.$prompt;
+  setup(props) {
+    const { prompt } = usePrompt();
     const loadError = ref('');
     const playbackComponent = ref(undefined as Vue | undefined);
     const mediaController = computed(() => {
@@ -82,6 +80,7 @@ export default defineComponent({
     const imageData = ref([] as FrameImage[]);
     const datasetType: Ref<DatasetType> = ref('image-sequence');
     const datasetName = ref('');
+    const saveInProgress = ref(false);
     const videoUrl = ref(undefined as undefined | string);
     const frame = ref(0); // the currently displayed frame number
     const { loadDetections, loadMetadata, saveMetadata } = useApi();
@@ -233,6 +232,7 @@ export default defineComponent({
 
     async function save() {
       // If editing the track, disable editing mode before save
+      saveInProgress.value = true;
       if (editingTrack.value) {
         handler.trackSelect(selectedTrackId.value, false);
       }
@@ -250,8 +250,10 @@ export default defineComponent({
           text,
           positiveButton: 'OK',
         });
+        saveInProgress.value = false;
         throw err;
       }
+      saveInProgress.value = false;
     }
 
     function saveThreshold() {
@@ -389,6 +391,7 @@ export default defineComponent({
       newTrackSettings: clientSettings.newTrackSettings,
       typeSettings: clientSettings.typeSettings,
       pendingSaveCount,
+      saveInProgress,
       playbackComponent,
       recipes,
       selectedFeatureHandle,
@@ -453,7 +456,7 @@ export default defineComponent({
       >
         <v-btn
           icon
-          :disabled="pendingSaveCount === 0"
+          :disabled="pendingSaveCount === 0 || saveInProgress"
           @click="save"
         >
           <v-icon>mdi-content-save</v-icon>

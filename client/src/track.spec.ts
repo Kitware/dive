@@ -204,6 +204,65 @@ describe('Track', () => {
     expect(track0.featureIndex.length).toBe(3);
     expect(track0.confidencePairs).toEqual([['c', 0.3], ['a', 0.2], ['b', 0.2]]);
   });
+  it('toggleInterpolation(frame) and toggleKeyframe(frame)', () => {
+    const itrack: TrackData = {
+      attributes: {},
+      begin: 6,
+      end: 12,
+      confidencePairs: [
+        ['foo', 1],
+        ['bar', 0.9],
+      ],
+      features: [
+        {
+          frame: 6,
+          bounds: [0, 0, 0, 0],
+        },
+        {
+          frame: 12,
+          bounds: [100, 100, 100, 100],
+        },
+      ],
+      meta: {},
+      trackId: 1,
+    };
+    const t = Track.fromJSON(itrack);
+    t.toggleInterpolation(9);
+    expect(t.getFeature(9)[0]?.bounds).toEqual([50, 50, 50, 50]);
+    // Add in feature beyond interpolation range and test
+    const feature = {
+      frame: 18,
+      bounds: [300, 300, 300, 300] as RectBounds,
+      keyframe: true,
+    };
+    t.setFeature(feature);
+    expect(t.getFeature(15)[0]).toEqual(null);
+    expect(t.getFeature(15)[1]?.bounds).toEqual([100, 100, 100, 100]);
+    expect(t.getFeature(15)[2]?.bounds).toEqual([300, 300, 300, 300]);
+    // Turn interpolation on for new range
+    t.toggleInterpolation(12); // Turn interpolation on
+    expect(t.getFeature(15)[0]?.bounds).toEqual([200, 200, 200, 200]);
+    t.toggleInterpolation(6); // Turn interpolation for lower range off
+    expect(t.getFeature(7)[0]).toEqual(null);
+    expect(t.getFeature(7)[1]?.bounds).toEqual([0, 0, 0, 0]);
+    expect(t.getFeature(7)[2]?.bounds).toEqual([100, 100, 100, 100]);
+    t.toggleInterpolation(6); // Turn interpolation back on
+    // toggleKeyframe() testing
+    t.toggleKeyframe(12); // remove keyframe at 12, 6=0,0,0,0 and 18=300,300,300,300
+    expect(t.getFeature(12)[0]?.bounds).toEqual([150, 150, 150, 150]);
+    expect(t.getFeature(12)[0]?.keyframe).toEqual(false);
+    t.toggleKeyframe(12); // locks interpolated frame as a new keyframe
+    expect(t.getFeature(12)[0]?.bounds).toEqual([150, 150, 150, 150]);
+    expect(t.getFeature(12)[0]?.keyframe).toEqual(true);
+    // toggle keyframe at beginning/end and track length adjusts
+    t.toggleKeyframe(6);
+    expect(t.begin).toEqual(12);
+    // toggleKeyframe outside current track temporal bounds
+    t.toggleKeyframe(6);
+    expect(t.begin).toEqual(6);
+    expect(t.getFeature(12)[0]?.bounds).toEqual([150, 150, 150, 150]);
+    expect(t.getFeature(12)[0]?.keyframe).toEqual(true);
+  });
 });
 
 describe('trackExceedsThreshold', () => {

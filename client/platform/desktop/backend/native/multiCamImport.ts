@@ -53,6 +53,8 @@ async function beginMultiCamImport(
     originalBasePath: string;
     originalImageFiles: string[];
     originalVideoFile: string;
+    transcodedImageFiles: string[];
+    transcodedVideoFile: string;
     type: 'image-sequence' | 'video';
    }> = {};
   if (isFolderArgs(args)) {
@@ -62,7 +64,12 @@ async function beginMultiCamImport(
         throw new Error(`file or directory for ${key} not found: ${folder}`);
       }
       cameras[key] = {
-        originalBasePath: folder, originalImageFiles: [], originalVideoFile: '', type: args.type,
+        type: args.type,
+        originalBasePath: folder,
+        originalImageFiles: [],
+        originalVideoFile: '',
+        transcodedImageFiles: [],
+        transcodedVideoFile: '',
       };
       if (args.type === 'video') {
         // Reset the base path to a folder for videos
@@ -81,7 +88,12 @@ async function beginMultiCamImport(
     Object.entries(args.globList).forEach(([key]) => {
       //All glob pattern matches are image-sequence files
       cameras[key] = {
-        originalBasePath: args.keywordFolder, originalImageFiles: [], originalVideoFile: '', type: args.type,
+        type: args.type,
+        originalBasePath: args.keywordFolder,
+        originalImageFiles: [],
+        originalVideoFile: '',
+        transcodedImageFiles: [],
+        transcodedVideoFile: '',
       };
     });
   }
@@ -115,7 +127,7 @@ async function beginMultiCamImport(
   jsonMeta.multiCam = {
     cameras,
     calibration: args.calibrationFile,
-    display: args.defaultDisplay,
+    defaultDisplay: args.defaultDisplay,
   };
   /* mediaConvertList is a list of absolute paths of media to convert */
   let mediaConvertList: string[] = [];
