@@ -19,6 +19,7 @@ from girder_worker.task import Task
 from girder_worker.utils import JobManager, JobStatus
 from GPUtil import getGPUs
 
+from dive_tasks.manager import patch_manager
 from dive_tasks.pipeline_discovery import discover_configs
 from dive_tasks.utils import (
     check_canceled,
@@ -137,7 +138,7 @@ def upgrade_pipelines(
     """Install addons from zip files over HTTP"""
     conf = Config()
     context: dict = {}
-    manager: JobManager = self.job_manager
+    manager: JobManager = patch_manager(self.job_manager)
     if check_canceled(self, context):
         manager.updateStatus(JobStatus.CANCELED)
         return
@@ -193,7 +194,7 @@ def upgrade_pipelines(
 def run_pipeline(self: Task, params: PipelineJob):
     conf = Config()
     context: dict = {}
-    manager: JobManager = self.job_manager
+    manager: JobManager = patch_manager(self.job_manager)
     if check_canceled(self, context):
         manager.updateStatus(JobStatus.CANCELED)
         return
@@ -329,7 +330,7 @@ def train_pipeline(
     conf = Config()
     context: dict = {}
     gc: GirderClient = self.girder_client
-    manager: JobManager = self.job_manager
+    manager: JobManager = patch_manager(self.job_manager)
     if check_canceled(self, context):
         manager.updateStatus(JobStatus.CANCELED)
         return
@@ -448,7 +449,7 @@ def convert_video(self: Task, path, folderId, auxiliaryFolderId, itemId):
 
     context: dict = {}
     gc: GirderClient = self.girder_client
-    manager: JobManager = self.job_manager
+    manager: JobManager = patch_manager(self.job_manager)
     if check_canceled(self, context):
         manager.updateStatus(JobStatus.CANCELED)
         return
@@ -577,7 +578,7 @@ def convert_images(self: Task, folderId):
     """
     context: dict = {}
     gc: GirderClient = self.girder_client
-    manager: JobManager = self.job_manager
+    manager: JobManager = patch_manager(self.job_manager)
     if check_canceled(self, context):
         manager.updateStatus(JobStatus.CANCELED)
         return
