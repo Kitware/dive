@@ -27,6 +27,7 @@ class GirderModel(TypedDict):
     public: bool
     size: int
     updated: str
+    exts: str
 
 
 class AssetstoreModel(GirderModel):

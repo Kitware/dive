@@ -2,7 +2,6 @@
 KWCOCO JSON format deserializer
 """
 import functools
-import json
 from typing import Any, Dict, List, Tuple
 
 from dive_server.serializers import viame
@@ -217,7 +216,16 @@ def load_coco_as_tracks_and_attributes(
         track.features.append(feature)
         track.confidencePairs = confidence_pairs
 
-        # TODO: process attributes and track_attributes
+        for (key, val) in track_attributes.items():
+            track.attributes[key] = val
+            viame.create_attributes(metadata_attributes, test_vals, 'track', key, val)
+        for (key, val) in attributes.items():
+            viame.create_attributes(
+                metadata_attributes, test_vals, 'detection', key, val
+            )
+
+    # Now we process all the metadata_attributes for the types
+    viame.calculate_attribute_types(metadata_attributes, test_vals)
 
     track_json = {
         trackId: track.dict(exclude_none=True) for trackId, track in tracks.items()

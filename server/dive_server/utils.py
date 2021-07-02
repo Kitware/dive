@@ -123,7 +123,7 @@ def getTrackData(file: Optional[File]) -> Dict[str, dict]:
     return json.loads(b"".join(list(File().download(file, headers=False)())).decode())
 
 
-def getTrackAndAttributesFromCSV(file: File) -> Tuple[dict, dict]:
+def getTrackAndAttributesFromCSV(file: GirderModel) -> Tuple[dict, dict]:
     if file is None:
         return ({}, {})
     if "csv" in file["exts"]:
@@ -135,7 +135,7 @@ def getTrackAndAttributesFromCSV(file: File) -> Tuple[dict, dict]:
     return ({}, {})
 
 
-def get_track_and_attributes_from_coco(file: File) -> Tuple[dict, dict, bool]:
+def get_track_and_attributes_from_coco(file: GirderModel) -> Tuple[dict, dict, bool]:
     if file is None:
         return {}, {}, False
     if 'json' in file['exts']:
@@ -144,8 +144,6 @@ def get_track_and_attributes_from_coco(file: File) -> Tuple[dict, dict, bool]:
             if kwcoco.is_coco_json(coco):
                 tracks, attributes = kwcoco.load_coco_as_tracks_and_attributes(coco)
                 return tracks, attributes, True
-            else:
-                return {}, {}, False
     return {}, {}, False
 
 
