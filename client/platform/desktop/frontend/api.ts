@@ -9,7 +9,7 @@ import type {
   Pipe, Pipelines, SaveAttributeArgs, SaveDetectionsArgs, TrainingConfigs,
 } from 'dive-common/apispec';
 
-import { fileVideoTypes, calibrationFileTypes } from 'dive-common/constants';
+import { fileVideoTypes, calibrationFileTypes, inputAnnotationFileTypes } from 'dive-common/constants';
 import {
   DesktopJob, DesktopMetadata, JsonMeta, NvidiaSmiReply,
   RunPipeline, RunTraining, ExportDatasetArgs,
@@ -21,7 +21,7 @@ import {
  * Native functions that run entirely in the renderer
  */
 
-async function openFromDisk(datasetType: DatasetType | 'calibration') {
+async function openFromDisk(datasetType: DatasetType | 'calibration' | 'annotation', directory = false) {
   let filters: FileFilter[] = [];
   if (datasetType === 'video') {
     filters = [
@@ -35,8 +35,15 @@ async function openFromDisk(datasetType: DatasetType | 'calibration') {
       { name: 'All Files', extensions: ['*'] },
     ];
   }
+  if (datasetType === 'annotation') {
+    filters = [
+      { name: 'annotation', extensions: inputAnnotationFileTypes },
+      { name: 'All Files', extensions: ['*'] },
+    ];
+  }
+  const props = datasetType === 'image-sequence' || directory ? 'openDirectory' : 'openFile';
   const results = await remote.dialog.showOpenDialog({
-    properties: [datasetType === 'image-sequence' ? 'openDirectory' : 'openFile'],
+    properties: [props],
     filters,
   });
   return results;

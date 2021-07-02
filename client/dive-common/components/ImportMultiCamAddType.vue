@@ -27,7 +27,7 @@ export default defineComponent({
 
 <template>
   <v-row
-    class="align-center"
+    align="center"
   >
     <v-text-field
       v-model="newSetName"
@@ -36,19 +36,22 @@ export default defineComponent({
         v => !v.includes(' ') || 'No spaces',
         v => !nameList.includes(v) || 'No duplicate Names']"
       label="name"
-      placeholder="Choose a name"
+      placeholder="Choose a Camera Name"
+      outlined
+      dense
       class="mx-4"
+      hide-details
     />
     <v-btn
       color="error"
-      class="mx-2"
+      class="mx-2 my-auto"
       @click="newSetName=''; $emit('cancel')"
     >
       Cancel
     </v-btn>
     <v-btn
       color="success"
-      class="mx-2"
+      class="mx-2 my-auto"
       @click="addNewSet"
     >
       Submit
