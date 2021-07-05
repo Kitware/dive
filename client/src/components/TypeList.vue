@@ -1,5 +1,7 @@
 <script lang="ts">
 import { computed, defineComponent, reactive } from '@vue/composition-api';
+import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
+
 import {
   useCheckedTypes, useAllTypes, useTypeStyling, useHandler, useUsedTypes, useFilteredTracks,
 } from '../provides';
@@ -14,8 +16,8 @@ export default defineComponent({
   },
   name: 'TypeList',
 
-  setup(props, { root }) {
-    const prompt = root.$prompt;
+  setup(props) {
+    const { prompt } = usePrompt();
 
     const data = reactive({
       showPicker: false,

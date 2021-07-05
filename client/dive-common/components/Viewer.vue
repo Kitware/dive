@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  defineComponent, ref, toRef, computed, Ref,
+  defineComponent, ref, toRef, computed, Ref, reactive,
 } from '@vue/composition-api';
 import type { Vue } from 'vue/types/vue';
 
@@ -39,6 +39,7 @@ import {
   useSettings,
 } from 'dive-common/use';
 import { useApi, FrameImage, DatasetType } from 'dive-common/apispec';
+import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { cloneDeep } from 'lodash';
 
 export default defineComponent({
@@ -61,11 +62,8 @@ export default defineComponent({
       required: true,
     },
   },
-  setup(props, ctx) {
-    // TODO: eventually we will have to migrate away from this style
-    // and use the new plugin pattern:
-    // https://vue-composition-api-rfc.netlify.com/#plugin-development
-    const prompt = ctx.root.$prompt;
+  setup(props) {
+    const { prompt } = usePrompt();
     const loadError = ref('');
     const playbackComponent = ref(undefined as Vue | undefined);
     const mediaController = computed(() => {
@@ -82,13 +80,27 @@ export default defineComponent({
     const imageData = ref([] as FrameImage[]);
     const datasetType: Ref<DatasetType> = ref('image-sequence');
     const datasetName = ref('');
+    const saveInProgress = ref(false);
     const videoUrl = ref(undefined as undefined | string);
     const frame = ref(0); // the currently displayed frame number
     const { loadDetections, loadMetadata, saveMetadata } = useApi();
-    // Loaded flag prevents annotator window from populating
-    // with stale data from props, for example if a persistent store
-    // like vuex is used to drive them.
-    const loaded = ref(false);
+    const progress = reactive({
+      // Loaded flag prevents annotator window from populating
+      // with stale data from props, for example if a persistent store
+      // like vuex is used to drive them.
+      loaded: false,
+      // Tracks loaded
+      progress: 0,
+      // Total tracks
+      total: 0,
+    });
+
+    const progressValue = computed(() => {
+      if (progress.total > 0 && (progress.progress !== progress.total)) {
+        return Math.round((progress.progress / progress.total) * 100);
+      }
+      return 0;
+    });
 
     const {
       save: saveToServer,
@@ -233,6 +245,7 @@ export default defineComponent({
 
     async function save() {
       // If editing the track, disable editing mode before save
+      saveInProgress.value = true;
       if (editingTrack.value) {
         handler.trackSelect(selectedTrackId.value, false);
       }
@@ -250,8 +263,10 @@ export default defineComponent({
           text,
           positiveButton: 'OK',
         });
+        saveInProgress.value = false;
         throw err;
       }
+      saveInProgress.value = false;
     }
 
     function saveThreshold() {
@@ -338,15 +353,23 @@ export default defineComponent({
           videoUrl.value = meta.videoUrl;
           datasetType.value = meta.type as DatasetType;
         }),
-        loadDetections(props.id).then((tracks) => {
-          Object.values(tracks).forEach(
-            (trackData) => insertTrack(Track.fromJSON(trackData), { imported: true }),
-          );
+        loadDetections(props.id).then(async (trackData) => {
+          const tracks = Object.values(trackData);
+          progress.total = tracks.length;
+          for (let i = 0; i < tracks.length; i += 1) {
+            if (i % 4000 === 0) {
+            /* Every N tracks, yeild some cycles for other scheduled tasks */
+              progress.progress = i;
+              // eslint-disable-next-line no-await-in-loop
+              await new Promise((resolve) => window.setTimeout(resolve, 500));
+            }
+            insertTrack(Track.fromJSON(tracks[i]), { imported: true });
+          }
         }),
       ]).then(() => {
-        loaded.value = true;
+        progress.loaded = true;
       }).catch((err) => {
-        loaded.value = false;
+        progress.loaded = false;
         // Cleaner displaying of interal errors for desktop
         if (err.response?.data && err.response?.status === 500 && !err.response?.data?.message) {
           const fullText = err.response.data;
@@ -358,15 +381,12 @@ export default defineComponent({
             .concat(". If you don't know how to resolve this, please contact the server administrator.");
           throw err;
         }
-        loadError.value = (err.response?.data?.message || err).toString()
-          .concat(" If you don't know how to resolve this, please contact the server administrator.");
-        throw err;
       }));
     loadData();
 
     const reloadData = async () => {
       clearAllTracks();
-      loaded.value = false;
+      progress.loaded = false;
       await loadData();
     };
 
@@ -382,13 +402,15 @@ export default defineComponent({
       frameRate,
       imageData,
       lineChartData,
-      loaded,
       loadError,
       mediaController,
       mergeMode: mergeInProgress,
       newTrackSettings: clientSettings.newTrackSettings,
       typeSettings: clientSettings.typeSettings,
       pendingSaveCount,
+      progress,
+      progressValue,
+      saveInProgress,
       playbackComponent,
       recipes,
       selectedFeatureHandle,
@@ -453,7 +475,7 @@ export default defineComponent({
       >
         <v-btn
           icon
-          :disabled="pendingSaveCount === 0"
+          :disabled="pendingSaveCount === 0 || saveInProgress"
           @click="save"
         >
           <v-icon>mdi-content-save</v-icon>
@@ -480,7 +502,7 @@ export default defineComponent({
       <v-col style="position: relative">
         <component
           :is="datasetType === 'image-sequence' ? 'image-annotator' : 'video-annotator'"
-          v-if="(imageData.length || videoUrl) && loaded"
+          v-if="(imageData.length || videoUrl) && progress.loaded"
           ref="playbackComponent"
           v-mousetrap="[
             { bind: 'n', handler: () => handler.trackAdd() },
@@ -515,12 +537,16 @@ export default defineComponent({
           </v-alert>
           <v-progress-circular
             v-else
-            indeterminate
+            :indeterminate="progressValue === 0"
+            :value="progressValue"
             size="100"
             width="15"
             color="light-blue"
+            class="main-progress-linear"
+            rotate="-90"
           >
-            Loading
+            <span v-if="progressValue === 0">Loading</span>
+            <span v-else>{{ progressValue }}%</span>
           </v-progress-circular>
         </div>
       </v-col>

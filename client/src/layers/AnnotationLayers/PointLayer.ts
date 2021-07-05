@@ -54,8 +54,19 @@ export default class PointLayer extends BaseLayer<PointGeoJSData> {
   createStyle(): LayerStyle<PointGeoJSData> {
     return {
       ...super.createStyle(),
-      fill: true,
-      fillColor: (data: PointGeoJSData) => (data.feature === 'tail' ? 'orange' : 'blue'),
+      fill: (data: PointGeoJSData) => data.feature === 'head',
+      fillColor: (data: PointGeoJSData) => {
+        if (data.trackType) {
+          return this.typeStyling.value.color(data.trackType[0]);
+        }
+        return this.typeStyling.value.color('');
+      },
+      fillOpacity: (data: PointGeoJSData) => {
+        if (data.trackType) {
+          return this.typeStyling.value.opacity(data.trackType[0]);
+        }
+        return this.stateStyling.standard.opacity;
+      },
       radius: (data: PointGeoJSData) => {
         if (data.selected) {
           return this.stateStyling.selected.strokeWidth * 2;
@@ -64,6 +75,24 @@ export default class PointLayer extends BaseLayer<PointGeoJSData> {
           return this.typeStyling.value.strokeWidth(data.trackType[0]) * 2;
         }
         return this.stateStyling.standard.strokeWidth * 2;
+      },
+      strokeWidth: (data: PointGeoJSData) => {
+        if (data.selected) {
+          return this.stateStyling.selected.strokeWidth;
+        }
+        if (data.trackType) {
+          return this.typeStyling.value.strokeWidth(data.trackType[0]);
+        }
+        return this.stateStyling.standard.strokeWidth;
+      },
+      strokeColor: (data: PointGeoJSData) => {
+        if (data.selected) {
+          return this.stateStyling.selected.color;
+        }
+        if (data.trackType) {
+          return this.typeStyling.value.color(data.trackType[0]);
+        }
+        return this.typeStyling.value.color('');
       },
     };
   }

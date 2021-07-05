@@ -86,7 +86,7 @@ async function runPipeline(
   let metaType = meta.type;
 
   if (metaType === 'multi' && meta.multiCam) {
-    metaType = meta.multiCam.cameras[meta.multiCam.display].type;
+    metaType = meta.multiCam.cameras[meta.multiCam.defaultDisplay].type;
   }
 
   let command: string[] = [];
@@ -140,10 +140,10 @@ async function runPipeline(
       command.push(`-s ${arg}="${file}"`);
     });
     multiOutFiles = {};
-    Object.entries(outFiles).forEach(([key, val]) => {
-      multiOutFiles[key] = npath.join(jobWorkDir, val);
+    Object.entries(outFiles).forEach(([cameraName, fileName]) => {
+      multiOutFiles[cameraName] = npath.join(jobWorkDir, fileName);
     });
-    trackOutput = npath.join(jobWorkDir, outFiles[meta.multiCam.display]);
+    trackOutput = npath.join(jobWorkDir, outFiles[meta.multiCam.defaultDisplay]);
 
     if (meta.multiCam.calibration) {
       command.push(`-s measurer:calibration_file="${meta.multiCam.calibration}"`);

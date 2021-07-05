@@ -14,6 +14,7 @@ import settings from './state/settings';
 import * as common from './native/common';
 
 const app = express();
+app.use(express.json({ limit: '250MB' }));
 const apirouter = express.Router();
 let server: http.Server;
 

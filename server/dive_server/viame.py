@@ -27,6 +27,7 @@ from dive_utils.constants import (
     JOBCONST_TRAINING_CONFIG,
     JOBCONST_TRAINING_INPUT_IDS,
     SETTINGS_CONST_JOBS_CONFIGS,
+    ConfidenceFiltersMarker,
     DatasetMarker,
     ForeignMediaIdMarker,
     PublishedMarker,
@@ -46,6 +47,7 @@ from .training import ensure_csv_detections_file, training_output_folder
 from .transforms import GetPathFromItemId
 from .utils import (
     createSoftClone,
+    detections_file,
     detections_item,
     get_or_create_auxiliary_folder,
     getCloneRoot,
@@ -287,9 +289,7 @@ class Viame(Resource):
                 pipeline_name=pipelineName,
                 config=config,
                 girder_client_token=str(token["_id"]),
-                girder_job_title=(
-                    f"Running training on folder: {', '.join(folder_names)}"
-                ),
+                girder_job_title=(f"Running training on {len(folder_list)} datasets"),
                 girder_job_type="private" if job_is_private else "training",
             ),
         )
@@ -384,6 +384,8 @@ class Viame(Resource):
         job_is_private = user.get(UserPrivateQueueEnabledMarker, False)
         auxiliary = get_or_create_auxiliary_folder(folder, user)
         isClone = fromMeta(folder, ForeignMediaIdMarker, None) is not None
+        # add default confidence filter threshold to folder metadata
+        folder['meta'][ConfidenceFiltersMarker] = {'default': 0.1}
 
         if not skipJobs and not isClone:
             token = Token().createToken(user=user, days=2)
@@ -448,6 +450,10 @@ class Viame(Resource):
 
         process_csv(folder, user)
         process_json(folder, user)
+
+        # If no detections file exists create one
+        if detections_file(folder) is None:
+            saveTracks(folder, {}, user)
 
         return folder
 

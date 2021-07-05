@@ -57,7 +57,9 @@ export default function useMediaController({ emit }: {
     const size = containerRef.value.getBoundingClientRect();
     const mapSize = geoViewerRef.value.size();
     if (size.width !== mapSize.width || size.height !== mapSize.height) {
-      geoViewerRef.value.size(size);
+      window.requestAnimationFrame(() => {
+        geoViewerRef.value.size(size);
+      });
     }
   }
 

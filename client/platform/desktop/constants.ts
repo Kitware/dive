@@ -16,19 +16,20 @@ export interface Settings {
   dataPath: string;
 }
 
+// Handles Importing and storing of multi camera data
 export interface MultiCamDesktop {
   cameras: Record<string, {
     type: 'image-sequence' | 'video';
     originalBasePath: string;
     originalImageFiles: string[];
     originalVideoFile: string;
-    transcodedImageFiles?: string[];
-    transcodedVideoFile?: string;
+    transcodedImageFiles: string[];
+    transcodedVideoFile: string;
   }>;
   //Calibration file in .npz format used for stereo or other cameras
   calibration?: string;
   // Default Display Key for showing multiCam
-  display: string;
+  defaultDisplay: string;
 }
 
 /**
@@ -62,7 +63,7 @@ export interface JsonMeta extends DatasetMetaMutable {
   originalBasePath: string;
 
   // video file path
-  // relateive to originalBasePath
+  // relative to originalBasePath
   originalVideoFile: string;
 
   // output of web safe transcoding
@@ -81,8 +82,11 @@ export interface JsonMeta extends DatasetMetaMutable {
   // key that ran transcoding
   transcodingJobKey?: string;
 
-  //Attributes are not datasetMetaMutable and are stored separate
+  // attributes are not datasetMetaMutable and are stored separate
   attributes?: Record<string, Attribute>;
+
+  // confidence filter threshold for exporting
+  confidenceFilters?: Record<string, number>;
 
   // Stereo or multi-camera datasets with uniform type (all images, all video)
   multiCam: MultiCamDesktop | null;
@@ -162,7 +166,7 @@ export interface MediaImportPayload {
   jsonMeta: JsonMeta;
   globPattern: string;
   mediaConvertList: string[];
-  trackFileAbsPath?: string | null;
+  trackFileAbsPath: string | null;
 }
 
 export interface DesktopJobUpdate extends DesktopJob {

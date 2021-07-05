@@ -139,26 +139,11 @@ export default defineComponent({
     }
 
     function toggleKeyframe() {
-      const f = feature.value;
-      if (f.real && !f.isKeyframe) {
-        props.track.setFeature({
-          ...f.real,
-          frame: frameRef.value,
-          keyframe: true,
-        });
-      } else {
-        props.track.deleteFeature(frameRef.value);
-      }
+      props.track.toggleKeyframe(frameRef.value);
     }
 
     function toggleInterpolation() {
-      const f = feature.value;
-      if (f.targetKeyframe) {
-        props.track.setFeature({
-          ...f.targetKeyframe,
-          interpolate: !f.shouldInterpolate,
-        });
-      }
+      props.track.toggleInterpolation(frameRef.value);
     }
 
     function gotoNext() {
@@ -216,9 +201,6 @@ export default defineComponent({
 
 <template>
   <div
-    v-mousetrap="[
-      { bind: 'shift+enter', handler: focusType },
-    ]"
     class="track-item d-flex flex-column align-start hover-show-parent px-1"
     :style="style"
   >
@@ -301,6 +283,16 @@ export default defineComponent({
     >
       <v-spacer v-if="!isTrack" />
       <template v-if="selected">
+        <span
+          v-show="false"
+          v-mousetrap="[
+            { bind: 'shift+enter', handler: focusType },
+            { bind: 'k', handler:toggleKeyframe},
+            { bind: 'i', handler:toggleInterpolation},
+            { bind: 'home', handler: () => $emit('seek', track.begin)},
+            { bind: 'end', handler: () => $emit('seek', track.end)},
+          ]"
+        />
         <tooltip-btn
           color="error"
           icon="mdi-delete"
@@ -322,7 +314,7 @@ export default defineComponent({
           :icon="(feature.isKeyframe)
             ? 'mdi-star'
             : 'mdi-star-outline'"
-          :disabled="!feature.real"
+          :disabled="!feature.real && !feature.shouldInterpolate"
           tooltip-text="Toggle keyframe"
           @click="toggleKeyframe"
         />

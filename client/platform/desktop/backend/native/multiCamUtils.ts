@@ -14,32 +14,33 @@ function transcodeMultiCam(
 ) {
   let destLoc = '';
   if (jsonMeta.multiCam) {
-    let breakFlag = false;
-    Object.entries(jsonMeta.multiCam.cameras).forEach(([key, val]) => {
-      if (item.includes(val.originalBasePath) && !breakFlag) {
-        const extension = val.type === 'video' ? '.mp4' : '.png';
+    const entries = Object.entries(jsonMeta.multiCam.cameras);
+    for (let i = 0; i < entries.length; i += 1) {
+      const [cameraName, cameraData] = entries[i];
+      if (item.includes(cameraData.originalBasePath)) {
+        const extension = cameraData.type === 'video' ? '.mp4' : '.png';
         destLoc = item.replace(npath.extname(item), extension);
 
-        if (val.type === 'image-sequence') {
-          if (!val.transcodedImageFiles) {
+        if (cameraData.type === 'image-sequence') {
+          if (!cameraData.transcodedImageFiles) {
           // eslint-disable-next-line no-param-reassign
-            val.transcodedImageFiles = [];
+            cameraData.transcodedImageFiles = [];
           }
-          if (val.originalImageFiles.includes(npath.basename(item))) {
-            destLoc = destLoc.replace(val.originalBasePath, `${projectDirAbsPath}/${key}`);
-            val.transcodedImageFiles.push(npath.basename(destLoc));
-            breakFlag = true;
+          if (cameraData.originalImageFiles.includes(npath.basename(item))) {
+            destLoc = destLoc.replace(cameraData.originalBasePath, `${projectDirAbsPath}/${cameraName}`);
+            cameraData.transcodedImageFiles.push(npath.basename(destLoc));
+            break;
           }
-        } else if (val.type === 'video') {
-          if (item === npath.join(val.originalBasePath, val.originalVideoFile)) {
-            destLoc = destLoc.replace(val.originalBasePath, `${projectDirAbsPath}/${key}`);
+        } else if (cameraData.type === 'video') {
+          if (item === npath.join(cameraData.originalBasePath, cameraData.originalVideoFile)) {
+            destLoc = destLoc.replace(cameraData.originalBasePath, `${projectDirAbsPath}/${cameraName}`);
             // eslint-disable-next-line no-param-reassign
-            val.transcodedVideoFile = npath.basename(destLoc);
-            breakFlag = true;
+            cameraData.transcodedVideoFile = npath.basename(destLoc);
+            break;
           }
         }
       }
-    });
+    }
   }
   return destLoc;
 }
@@ -101,15 +102,15 @@ function getMultiCamUrls(
   projectBasePath: string,
   makeMediaUrl: (path: string) => string,
 ) {
-  if (projectMetaData.multiCam && projectMetaData.multiCam.display) {
+  if (projectMetaData.multiCam && projectMetaData.multiCam.defaultDisplay) {
     //Confirm we have a imageList for the display
-    const displayCamera = projectMetaData.multiCam.cameras[projectMetaData.multiCam.display];
+    const displayCamera = projectMetaData.multiCam.cameras[projectMetaData.multiCam.defaultDisplay];
     if (!displayCamera) {
-      throw new Error(`The default display of ${projectMetaData.multiCam.display} is not in the list of cameras`);
+      throw new Error(`The default display of ${projectMetaData.multiCam.defaultDisplay} is not in the list of cameras`);
     }
     const multiCamMedia: MultiCamMedia = {
       cameras: {},
-      display: projectMetaData.multiCam.display,
+      defaultDisplay: projectMetaData.multiCam.defaultDisplay,
     };
 
     Object.entries(projectMetaData.multiCam.cameras).forEach(([key, value]) => {
@@ -150,26 +151,26 @@ function getMultiCamUrls(
 }
 
 function getMultiCamVideoPath(meta: JsonMeta) {
-  if (meta.multiCam && meta.multiCam.display) {
-    if (meta.multiCam.cameras[meta.multiCam.display]) {
-      const display = meta.multiCam.cameras[meta.multiCam.display];
+  if (meta.multiCam && meta.multiCam.defaultDisplay) {
+    if (meta.multiCam.cameras[meta.multiCam.defaultDisplay]) {
+      const display = meta.multiCam.cameras[meta.multiCam.defaultDisplay];
       if (display.transcodedVideoFile) {
         return display.transcodedVideoFile;
       }
       return display.originalVideoFile;
     }
-    throw new Error(`No video exists for the display file of ${meta.multiCam.display}`);
+    throw new Error(`No video exists for the display file of ${meta.multiCam.defaultDisplay}`);
   }
   throw new Error(`${meta.id} does not contain multiCam data`);
 }
 
 function getMultiCamImageFiles(meta: JsonMeta) {
-  if (meta.multiCam && meta.multiCam.display) {
-    if (meta.multiCam.cameras[meta.multiCam.display]) {
-      const display = meta.multiCam.cameras[meta.multiCam.display];
+  if (meta.multiCam && meta.multiCam.defaultDisplay) {
+    if (meta.multiCam.cameras[meta.multiCam.defaultDisplay]) {
+      const display = meta.multiCam.cameras[meta.multiCam.defaultDisplay];
       return display.originalImageFiles;
     }
-    throw new Error(`No Image list exists for the display file of ${meta.multiCam.display}`);
+    throw new Error(`No Image list exists for the display file of ${meta.multiCam.defaultDisplay}`);
   }
   throw new Error(`${meta.id} does not contain multiCam data`);
 }

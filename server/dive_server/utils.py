@@ -20,6 +20,7 @@ from pymongo.cursor import Cursor
 from dive_server.serializers import viame
 from dive_utils import asbool, fromMeta, models, strNumericCompare
 from dive_utils.constants import (
+    ConfidenceFiltersMarker,
     DatasetMarker,
     DetectionMarker,
     ForeignMediaIdMarker,
@@ -252,6 +253,10 @@ def createSoftClone(
     media_source_folder = getCloneRoot(owner, source_folder)
     cloned_folder['meta'][ForeignMediaIdMarker] = str(media_source_folder['_id'])
     cloned_folder['meta'][PublishedMarker] = False
+    # ensure confidence filter metadata exists
+    if ConfidenceFiltersMarker not in cloned_folder['meta']:
+        cloned_folder['meta'][ConfidenceFiltersMarker] = {'default': 0.1}
+
     Folder().save(cloned_folder)
     get_or_create_auxiliary_folder(cloned_folder, owner)
     source_detections = detections_item(source_folder)
@@ -261,6 +266,8 @@ def createSoftClone(
         )
         cloned_detection_item['meta'][DetectionMarker] = str(cloned_folder['_id'])
         Item().save(cloned_detection_item)
+    else:
+        saveTracks(cloned_folder, {}, owner)
     return cloned_folder
 
 

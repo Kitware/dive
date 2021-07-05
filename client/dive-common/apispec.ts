@@ -7,7 +7,7 @@ import { CustomStyle } from 'vue-media-annotator/use/useStyling';
 
 type DatasetType = 'image-sequence' | 'video';
 type MultiTrackRecord = Record<string, TrackData>;
-type SubType = 'stereo' | 'multicam' | null;
+type SubType = 'stereo' | 'multicam' | null; // Additional type info used for UI display enabled pipelines
 
 interface Pipe {
   name: string;
@@ -70,10 +70,10 @@ interface MultiCamMedia {
     imageData: FrameImage[];
     videoUrl: string;
   }>;
-  display: string;
+  defaultDisplay: string; // Default camera for displaying the MultiCamMedia
 }
 
-interface CustomMediaImportPayload {
+interface MediaImportResponse {
   jsonMeta: {
     originalImageFiles: string[];
   };
@@ -152,5 +152,5 @@ export type {
   SaveAttributeArgs,
   TrainingConfigs,
   MultiCamMedia,
-  CustomMediaImportPayload,
+  MediaImportResponse,
 };

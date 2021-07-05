@@ -15,7 +15,7 @@ def format_timestamp(fps: int, frame: int) -> str:
     return str(datetime.datetime.utcfromtimestamp(frame / fps).strftime(r'%H:%M:%S.%f'))
 
 
-def writeHeader(writer: '_csv._writer', metadata: Dict):
+def writeHeader(writer: 'csv._writer', metadata: Dict):
     writer.writerow(
         [
             "# 1: Detection or Track-id",
