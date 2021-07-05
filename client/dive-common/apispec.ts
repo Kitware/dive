@@ -115,11 +115,8 @@ interface Api {
   saveAttributes(datasetId: string, args: SaveAttributeArgs): Promise<unknown>;
   // Non-Endpoint shared functions
   openFromDisk(datasetType: DatasetType | 'calibration' | 'annotation', directory?: boolean):
-  Promise<{canceled?: boolean; filePaths: string[]; fileList?: File[]; root?: string}>;
-  /*
-  * This will be included when updating to import annotation files
-  importMedia(path: string[]): Promise<CustomMediaImportPayload>;
-  */
+    Promise<{canceled?: boolean; filePaths: string[]; fileList?: File[]; root?: string}>;
+  importAnnotationFile(id: string, path: string, file?: File): Promise<boolean>;
 }
 const ApiSymbol = Symbol('api');
 

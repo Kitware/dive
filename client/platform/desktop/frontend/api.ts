@@ -49,6 +49,7 @@ async function openFromDisk(datasetType: DatasetType | 'calibration' | 'annotati
   return results;
 }
 
+
 /**
  * IPC api for small-body messages
  */
@@ -97,7 +98,7 @@ function importMultiCam(args: MultiCamImportArgs):
   return ipcRenderer.invoke('import-multicam-media', { args });
 }
 
-function importAnnotation(id: string, path: string): Promise<boolean> {
+function importAnnotationFile(id: string, path: string): Promise<boolean> {
   return ipcRenderer.invoke('import-annotation', { id, path });
 }
 
@@ -176,7 +177,7 @@ export {
   exportDataset,
   finalizeImport,
   importMedia,
-  importAnnotation,
+  importAnnotationFile,
   importMultiCam,
   openLink,
   nvidiaSmi,

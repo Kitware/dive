@@ -126,7 +126,10 @@ function saveAttributes(folderId: string, args: SaveAttributeArgs) {
   });
 }
 
-async function importAnnotation(parentId: string, file: HTMLFile) {
+async function importAnnotationFile(parentId: string, path: string, file?: HTMLFile) {
+  if (file === undefined) {
+    return false;
+  }
   const resp = await girderRest.post('/file', null, {
     params: {
       parentType: 'folder',
@@ -230,7 +233,7 @@ export {
   deleteResources,
   getPipelineList,
   makeViameFolder,
-  importAnnotation,
+  importAnnotationFile,
   postProcess,
   runPipeline,
   getTrainingConfigurations,

@@ -23,15 +23,19 @@ export default defineComponent({
     },
   },
   setup(props, { emit }) {
-    const { openFromDisk } = useApi();
+    const { openFromDisk, importAnnotationFile } = useApi();
     const openUpload = async () => {
       const ret = await openFromDisk('annotation');
       if (!ret.canceled) {
         const path = ret.filePaths[0];
+        let importFile = false;
         if (ret.fileList?.length) {
-          emit('import-annotation-file', props.datasetId, ret.fileList[0]);
+          importFile = await importAnnotationFile(props.datasetId, path, ret.fileList[0]);
         } else {
-          emit('import-annotation-file', props.datasetId, path);
+          importFile = await importAnnotationFile(props.datasetId, path);
+        }
+        if (importFile) {
+          emit('reimport-annotation-file');
         }
       }
     };

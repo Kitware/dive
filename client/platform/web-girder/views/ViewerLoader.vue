@@ -7,7 +7,6 @@ import Viewer from 'dive-common/components/Viewer.vue';
 import NavigationTitle from 'dive-common/components/NavigationTitle.vue';
 import RunPipelineMenu from 'dive-common/components/RunPipelineMenu.vue';
 import ImportAnnotations from 'dive-common/components/ImportAnnotations.vue';
-import { importAnnotation } from 'platform/web-girder/api/viame.service';
 import JobsTab from './JobsTab.vue';
 import { getPathFromLocation } from '../utils';
 import Export from './Export.vue';
@@ -66,9 +65,8 @@ export default defineComponent({
     onBeforeUnmount(() => {
       window.removeEventListener('beforeunload', viewerRef.value.warnBrowserExit);
     });
-    const importAnnotationFile = async (id: string, file: File) => {
-      const result = await importAnnotation(id, file);
-      if (result) {
+    const reImport = async () => {
+      if (viewerRef.value) {
         viewerRef.value.reloadData();
       }
     };
@@ -80,7 +78,7 @@ export default defineComponent({
       viewerRef,
       dataPath,
       brandData,
-      importAnnotationFile,
+      reImport,
     };
   },
 });
@@ -115,7 +113,7 @@ export default defineComponent({
         v-bind="{ buttonOptions, menuOptions }"
         :dataset-id="id"
         block-on-unsaved
-        @import-annotation-file="importAnnotationFile"
+        @reimport-annotation-file="reImport()"
       />
       <Export
         v-bind="{ buttonOptions, menuOptions }"

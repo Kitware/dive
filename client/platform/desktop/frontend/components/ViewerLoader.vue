@@ -4,7 +4,6 @@ import { computed, defineComponent, ref } from '@vue/composition-api';
 import Viewer from 'dive-common/components/Viewer.vue';
 import RunPipelineMenu from 'dive-common/components/RunPipelineMenu.vue';
 import ImportAnnotations from 'dive-common//components/ImportAnnotations.vue';
-import * as api from '../api';
 
 import Export from './Export.vue';
 import JobTab from './JobTab.vue';
@@ -40,16 +39,15 @@ export default defineComponent({
   setup(props) {
     const viewerRef = ref();
     const subType = computed(() => [datasets.value[props.id]?.subType] || []);
-    const importAnnotationFile = async (id: string, path: string) => {
-      const result = await api.importAnnotation(id, path);
-      if (result) {
+    const reImport = async () => {
+      if (viewerRef.value) {
         viewerRef.value.reloadData();
       }
     };
     return {
       datasets,
       subType,
-      importAnnotationFile,
+      reImport,
       viewerRef,
       buttonOptions,
       menuOptions,
@@ -92,7 +90,7 @@ export default defineComponent({
         :dataset-id="id"
         v-bind="{ buttonOptions, menuOptions }"
         block-on-unsaved
-        @import-annotation-file="importAnnotationFile"
+        @reimport-annotation-file="reImport"
       />
       <Export
         v-if="datasets[id]"
