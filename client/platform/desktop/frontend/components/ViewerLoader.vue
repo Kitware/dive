@@ -46,12 +46,11 @@ export default defineComponent({
     };
     return {
       datasets,
-      subType,
-      reImport,
       viewerRef,
       buttonOptions,
       menuOptions,
       subTypeList,
+      reImport,
     };
   },
 });
