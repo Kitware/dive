@@ -1,6 +1,7 @@
 <script lang="ts">
 import { defineComponent } from '@vue/composition-api';
 import { useApi } from 'dive-common/apispec';
+import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 
 export default defineComponent({
   name: 'ImportAnnotations',
@@ -24,6 +25,7 @@ export default defineComponent({
   },
   setup(props, { emit }) {
     const { openFromDisk, importAnnotationFile } = useApi();
+    const { prompt } = usePrompt();
     const openUpload = async () => {
       const ret = await openFromDisk('annotation');
       if (!ret.canceled) {
@@ -36,6 +38,13 @@ export default defineComponent({
         }
         if (importFile) {
           emit('reimport-annotation-file');
+        } else {
+          const text = `Import of File ${path} failed`;
+          prompt({
+            title: 'Import Failed',
+            text,
+            positiveButton: 'OK',
+          });
         }
       }
     };

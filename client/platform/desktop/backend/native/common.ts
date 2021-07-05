@@ -926,7 +926,7 @@ async function annotationImport(
     newPath,
   );
   const results = await processOtherAnnotationFiles(settings, id, [newPath]);
-  if (results.processedFiles) {
+  if (results.processedFiles.length) {
     return true;
   }
   return false;
