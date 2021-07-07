@@ -58,22 +58,28 @@ export default defineComponent({
 </script>
 
 <template>
-  <v-btn
-    class="ma-0"
-    v-bind="buttonOptions"
-    :disabled="!datasetId"
-    @click="openUpload"
-  >
-    <v-icon>
-      mdi-application-import
-    </v-icon>
-    <span
-      v-show="!$vuetify.breakpoint.mdAndDown || buttonOptions.block"
-      class="pl-1"
-    >
-      Import Data
-    </span>
-  </v-btn>
+  <v-tooltip bottom>
+    <template #activator="{ on }">
+      <v-btn
+        class="ma-0"
+        v-bind="buttonOptions"
+        :disabled="!datasetId"
+        @click="openUpload"
+        v-on="on"
+      >
+        <v-icon>
+          mdi-application-import
+        </v-icon>
+        <span
+          v-show="!$vuetify.breakpoint.mdAndDown || buttonOptions.block"
+          class="pl-1"
+        >
+          Import
+        </span>
+      </v-btn>
+    </template>
+    <span> Import Annotation Data </span>
+  </v-tooltip>
 </template>
 
 <style scoped lang="scss">

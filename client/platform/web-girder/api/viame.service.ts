@@ -193,7 +193,9 @@ Promise<{ canceled: boolean; filePaths: string[]; fileList?: File[]}> {
   const input: HTMLInputElement = document.createElement('input');
   input.type = 'file';
   const baseTypes: string[] = inputAnnotationFileTypes.map((item) => `.${item}`);
-  input.multiple = true;
+  if (!['calbiration', 'annotation'].includes(datasetType)) {
+    input.multiple = true;
+  }
   if (datasetType === 'image-sequence') {
     input.accept = baseTypes.concat(websafeImageTypes).concat(otherImageTypes).join(',');
   } else if (datasetType === 'video') {
