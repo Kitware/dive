@@ -39,18 +39,12 @@ export default defineComponent({
   setup(props) {
     const viewerRef = ref();
     const subTypeList = computed(() => [datasets.value[props.id]?.subType] || []);
-    const reImport = async () => {
-      if (viewerRef.value) {
-        viewerRef.value.reloadData();
-      }
-    };
     return {
       datasets,
       viewerRef,
       buttonOptions,
       menuOptions,
       subTypeList,
-      reImport,
     };
   },
 });
@@ -90,7 +84,6 @@ export default defineComponent({
         :dataset-id="id"
         v-bind="{ buttonOptions, menuOptions }"
         block-on-unsaved
-        @reimport-annotation-file="reImport"
       />
       <Export
         v-if="datasets[id]"

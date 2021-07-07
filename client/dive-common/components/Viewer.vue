@@ -296,47 +296,8 @@ export default defineComponent({
       return result;
     }
 
-    const globalHandler = {
-      ...handler,
-      save,
-      setCheckedTypes: updateCheckedTypes,
-      trackSplit,
-      trackEnable: updateCheckedTrackId,
-      updateTypeName,
-      updateTypeStyle,
-      removeTypeTracks,
-      deleteType,
-      setAttribute,
-      deleteAttribute,
-    };
-
-    provideAnnotator(
-      {
-        attributes,
-        allTypes,
-        datasetId: ref(props.id),
-        usedTypes,
-        checkedTrackIds,
-        checkedTypes,
-        editingMode,
-        enabledTracks,
-        frame,
-        intervalTree,
-        mergeList,
-        pendingSaveCount,
-        trackMap,
-        filteredTracks,
-        typeStyling,
-        selectedKey,
-        selectedTrackId,
-        stateStyles: stateStyling,
-        visibleModes,
-      },
-      globalHandler,
-    );
-
     /** Trigger data load */
-    const loadData = async () => (
+    const loadData = () => (
       Promise.all([
         loadMetadata(props.id).then((meta) => {
           populateTypeStyles(meta.customTypeStyling);
@@ -384,11 +345,51 @@ export default defineComponent({
       }));
     loadData();
 
-    const reloadData = async () => {
+    const reloadAnnotations = async () => {
       clearAllTracks();
       progress.loaded = false;
       await loadData();
     };
+
+    const globalHandler = {
+      ...handler,
+      save,
+      setCheckedTypes: updateCheckedTypes,
+      trackSplit,
+      trackEnable: updateCheckedTrackId,
+      updateTypeName,
+      updateTypeStyle,
+      removeTypeTracks,
+      deleteType,
+      setAttribute,
+      deleteAttribute,
+      reloadAnnotations,
+    };
+
+    provideAnnotator(
+      {
+        attributes,
+        allTypes,
+        datasetId: ref(props.id),
+        usedTypes,
+        checkedTrackIds,
+        checkedTypes,
+        editingMode,
+        enabledTracks,
+        frame,
+        intervalTree,
+        mergeList,
+        pendingSaveCount,
+        trackMap,
+        filteredTracks,
+        typeStyling,
+        selectedKey,
+        selectedTrackId,
+        stateStyles: stateStyling,
+        visibleModes,
+      },
+      globalHandler,
+    );
 
     return {
       /* props */
@@ -431,8 +432,6 @@ export default defineComponent({
       // For Navigation Guarding
       navigateAwayGuard,
       warnBrowserExit,
-      // Reloading/Importing Data
-      reloadData,
     };
   },
 });

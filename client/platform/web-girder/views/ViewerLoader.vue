@@ -65,11 +65,6 @@ export default defineComponent({
     onBeforeUnmount(() => {
       window.removeEventListener('beforeunload', viewerRef.value.warnBrowserExit);
     });
-    const reImport = async () => {
-      if (viewerRef.value) {
-        viewerRef.value.reloadData();
-      }
-    };
 
 
     return {
@@ -78,7 +73,6 @@ export default defineComponent({
       viewerRef,
       dataPath,
       brandData,
-      reImport,
     };
   },
 });
@@ -113,13 +107,11 @@ export default defineComponent({
         v-bind="{ buttonOptions, menuOptions }"
         :dataset-id="id"
         block-on-unsaved
-        @reimport-annotation-file="reImport()"
       />
       <Export
         v-bind="{ buttonOptions, menuOptions }"
         :dataset-id="id"
-        block-on-
-        unsaved
+        block-on-unsaved
       />
       <Clone
         v-if="$store.state.Dataset.meta"

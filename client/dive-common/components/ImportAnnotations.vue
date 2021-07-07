@@ -2,6 +2,7 @@
 import { defineComponent } from '@vue/composition-api';
 import { useApi } from 'dive-common/apispec';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
+import { useHandler } from 'vue-media-annotator/provides';
 
 export default defineComponent({
   name: 'ImportAnnotations',
@@ -23,8 +24,9 @@ export default defineComponent({
       default: () => ({}),
     },
   },
-  setup(props, { emit }) {
+  setup(props) {
     const { openFromDisk, importAnnotationFile } = useApi();
+    const { reloadAnnotations } = useHandler();
     const { prompt } = usePrompt();
     const openUpload = async () => {
       const ret = await openFromDisk('annotation');
@@ -37,7 +39,7 @@ export default defineComponent({
           importFile = await importAnnotationFile(props.datasetId, path);
         }
         if (importFile) {
-          emit('reimport-annotation-file');
+          await reloadAnnotations();
         } else {
           const text = `Import of File ${path} failed`;
           prompt({
@@ -69,7 +71,7 @@ export default defineComponent({
       v-show="!$vuetify.breakpoint.mdAndDown || buttonOptions.block"
       class="pl-1"
     >
-      Import
+      Import Data
     </span>
   </v-btn>
 </template>
