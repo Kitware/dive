@@ -9,6 +9,8 @@ import { filterByGlob } from 'platform/desktop/sharedUtils';
 import { MediaImportPayload } from 'platform/desktop/constants';
 import { locateDuplicates } from 'platform/desktop/frontend/store/dataset';
 import { settings } from 'platform/desktop/frontend/store/settings';
+import { useApi } from 'dive-common/apispec';
+import Vue from 'vue';
 
 
 export default defineComponent({
@@ -41,6 +43,17 @@ export default defineComponent({
       return true;
     });
 
+    const { openFromDisk } = useApi();
+    const openUpload = async () => {
+      const ret = await openFromDisk('annotation');
+      if (!ret.canceled) {
+        if (ret.filePaths?.length) {
+          const path = ret.filePaths[0];
+          Vue.set(argCopy.value, 'trackFileAbsPath', path);
+        }
+      }
+    };
+
     return {
       argCopy,
       duplicates,
@@ -50,6 +63,7 @@ export default defineComponent({
       showAdvanced,
       MediaTypes,
       FPSOptions,
+      openUpload,
     };
   },
 });
@@ -124,6 +138,20 @@ export default defineComponent({
             class="shrink"
           />
         </v-col>
+      </v-row>
+      <v-row
+        v-if="!argCopy.jsonMeta.multiCam"
+        class="d-flex my-2 mt-2"
+      >
+        <v-text-field
+          :value="argCopy.trackFileAbsPath"
+          show-size
+          counter
+          prepend-icon="mdi-file-table"
+          label="Annotation File (Optional)"
+          hint="Optional"
+          @click="openUpload"
+        />
       </v-row>
       <p class="mb-5">
         <span

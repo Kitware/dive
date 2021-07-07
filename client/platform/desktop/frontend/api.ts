@@ -49,6 +49,7 @@ async function openFromDisk(datasetType: DatasetType | 'calibration' | 'annotati
   return results;
 }
 
+
 /**
  * IPC api for small-body messages
  */
@@ -95,6 +96,10 @@ function importMedia(path: string): Promise<MediaImportPayload> {
 function importMultiCam(args: MultiCamImportArgs):
    Promise<MediaImportPayload> {
   return ipcRenderer.invoke('import-multicam-media', { args });
+}
+
+function importAnnotationFile(id: string, path: string): Promise<boolean> {
+  return ipcRenderer.invoke('import-annotation', { id, path });
 }
 
 function finalizeImport(args: MediaImportPayload): Promise<JsonMeta> {
@@ -172,6 +177,7 @@ export {
   exportDataset,
   finalizeImport,
   importMedia,
+  importAnnotationFile,
   importMultiCam,
   openLink,
   nvidiaSmi,

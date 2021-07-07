@@ -210,6 +210,7 @@ async function beginMultiCamImport(
     jsonMeta,
     globPattern: '',
     mediaConvertList,
+    trackFileAbsPath: null,
   };
 }
 

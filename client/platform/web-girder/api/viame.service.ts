@@ -6,7 +6,7 @@ import {
   Pipe, Pipelines, SaveAttributeArgs, TrainingConfigs,
 } from 'dive-common/apispec';
 import {
-  calibrationFileTypes, inputAnnotationFileTypes, otherImageTypes,
+  calibrationFileTypes, inputAnnotationFileTypes, inputAnnotationTypes, otherImageTypes,
   otherVideoTypes, websafeImageTypes, websafeVideoTypes,
 } from 'dive-common/constants';
 import girderRest from '../plugins/girder';
@@ -25,6 +25,9 @@ export interface BrandData {
   logo: string;
   name: string;
   loginMessage: string;
+}
+interface HTMLFile extends File {
+  webkitRelativePath?: string;
 }
 
 async function getBrandData(): Promise<BrandData> {
@@ -123,6 +126,41 @@ function saveAttributes(folderId: string, args: SaveAttributeArgs) {
   });
 }
 
+async function importAnnotationFile(parentId: string, path: string, file?: HTMLFile) {
+  if (file === undefined) {
+    return false;
+  }
+  const resp = await girderRest.post('/file', null, {
+    params: {
+      parentType: 'folder',
+      parentId,
+      name: file.name,
+      size: file.size,
+      mimeType: file.type,
+    },
+  });
+  if (resp.status === 200) {
+    const uploadResponse = await girderRest.post('file/chunk', file, {
+      params: {
+        uploadId: resp.data._id,
+        offset: 0,
+      },
+      headers: { 'Content-Type': 'application/octet-stream' },
+    });
+    if (uploadResponse.status === 200) {
+      const final = await girderRest.post(`viame/postprocess/${parentId}`, null, {
+        params: {
+          skipJobs: true,
+        },
+      });
+      if (final.status === 200) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 function postProcess(folderId: string) {
   return girderRest.post(`viame/postprocess/${folderId}`);
 }
@@ -155,13 +193,18 @@ Promise<{ canceled: boolean; filePaths: string[]; fileList?: File[]}> {
   const input: HTMLInputElement = document.createElement('input');
   input.type = 'file';
   const baseTypes: string[] = inputAnnotationFileTypes.map((item) => `.${item}`);
-  input.multiple = true;
+  if (!['calbiration', 'annotation'].includes(datasetType)) {
+    input.multiple = true;
+  }
   if (datasetType === 'image-sequence') {
     input.accept = baseTypes.concat(websafeImageTypes).concat(otherImageTypes).join(',');
   } else if (datasetType === 'video') {
     input.accept = baseTypes.concat(websafeVideoTypes).concat(otherVideoTypes).join(',');
   } else if (datasetType === 'calibration') {
     input.accept = calibrationFileTypes.map((item) => `.${item}`).join(',');
+  } else if (datasetType === 'annotation') {
+    input.accept = inputAnnotationTypes
+      .concat(inputAnnotationFileTypes.map((item) => `.${item}`)).join(',');
   }
   return new Promise(((resolve) => {
     input.onchange = (event) => {
@@ -192,6 +235,7 @@ export {
   deleteResources,
   getPipelineList,
   makeViameFolder,
+  importAnnotationFile,
   postProcess,
   runPipeline,
   getTrainingConfigurations,

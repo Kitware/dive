@@ -137,6 +137,7 @@ export default defineComponent({
       removeTrack,
       getNewTrackId,
       removeTrack: tsRemoveTrack,
+      clearAllTracks,
     } = useTrackStore({ markChangesPending });
 
     const {
@@ -295,6 +296,61 @@ export default defineComponent({
       return result;
     }
 
+    /** Trigger data load */
+    const loadData = () => (
+      Promise.all([
+        loadMetadata(props.id).then((meta) => {
+          populateTypeStyles(meta.customTypeStyling);
+          if (meta.customTypeStyling) {
+            importTypes(Object.keys(meta.customTypeStyling), false);
+          }
+          if (meta.attributes) {
+            loadAttributes(meta.attributes);
+          }
+          populateConfidenceFilters(meta.confidenceFilters);
+          datasetName.value = meta.name;
+          frameRate.value = meta.fps;
+          imageData.value = cloneDeep(meta.imageData) as FrameImage[];
+          videoUrl.value = meta.videoUrl;
+          datasetType.value = meta.type as DatasetType;
+        }),
+        loadDetections(props.id).then(async (trackData) => {
+          const tracks = Object.values(trackData);
+          progress.total = tracks.length;
+          for (let i = 0; i < tracks.length; i += 1) {
+            if (i % 4000 === 0) {
+            /* Every N tracks, yeild some cycles for other scheduled tasks */
+              progress.progress = i;
+              // eslint-disable-next-line no-await-in-loop
+              await new Promise((resolve) => window.setTimeout(resolve, 500));
+            }
+            insertTrack(Track.fromJSON(tracks[i]), { imported: true });
+          }
+        }),
+      ]).then(() => {
+        progress.loaded = true;
+      }).catch((err) => {
+        progress.loaded = false;
+        // Cleaner displaying of interal errors for desktop
+        if (err.response?.data && err.response?.status === 500 && !err.response?.data?.message) {
+          const fullText = err.response.data;
+          const start = fullText.indexOf('Error:');
+          const html = (fullText.substr(start, fullText.indexOf('<br>') - start));
+          const errorEl = document.createElement('div');
+          errorEl.innerHTML = html;
+          loadError.value = errorEl.innerText
+            .concat(". If you don't know how to resolve this, please contact the server administrator.");
+          throw err;
+        }
+      }));
+    loadData();
+
+    const reloadAnnotations = async () => {
+      clearAllTracks();
+      progress.loaded = false;
+      await loadData();
+    };
+
     const globalHandler = {
       ...handler,
       save,
@@ -307,6 +363,7 @@ export default defineComponent({
       deleteType,
       setAttribute,
       deleteAttribute,
+      reloadAnnotations,
     };
 
     provideAnnotator(
@@ -333,56 +390,6 @@ export default defineComponent({
       },
       globalHandler,
     );
-
-    /** Trigger data load */
-    Promise.all([
-      loadMetadata(props.id).then((meta) => {
-        populateTypeStyles(meta.customTypeStyling);
-        if (meta.customTypeStyling) {
-          importTypes(Object.keys(meta.customTypeStyling), false);
-        }
-        if (meta.attributes) {
-          loadAttributes(meta.attributes);
-        }
-        populateConfidenceFilters(meta.confidenceFilters);
-        datasetName.value = meta.name;
-        frameRate.value = meta.fps;
-        imageData.value = cloneDeep(meta.imageData) as FrameImage[];
-        videoUrl.value = meta.videoUrl;
-        datasetType.value = meta.type as DatasetType; // TODO: support for multiCam will remove this
-      }),
-      loadDetections(props.id).then(async (trackData) => {
-        const tracks = Object.values(trackData);
-        progress.total = tracks.length;
-        for (let i = 0; i < tracks.length; i += 1) {
-          if (i % 4000 === 0) {
-            /* Every N tracks, yeild some cycles for other scheduled tasks */
-            progress.progress = i;
-            // eslint-disable-next-line no-await-in-loop
-            await new Promise((resolve) => window.setTimeout(resolve, 500));
-          }
-          insertTrack(Track.fromJSON(tracks[i]), { imported: true });
-        }
-      }),
-    ]).then(() => {
-      progress.loaded = true;
-    }).catch((err) => {
-      progress.loaded = false;
-      // Cleaner displaying of interal errors for desktop
-      if (err.response?.data && err.response?.status === 500 && !err.response?.data?.message) {
-        const fullText = err.response.data;
-        const start = fullText.indexOf('Error:');
-        const html = (fullText.substr(start, fullText.indexOf('<br>') - start));
-        const errorEl = document.createElement('div');
-        errorEl.innerHTML = html;
-        loadError.value = errorEl.innerText
-          .concat(". If you don't know how to resolve this, please contact the server administrator.");
-        throw err;
-      }
-      loadError.value = (err.response?.data?.message || err).toString()
-        .concat(" If you don't know how to resolve this, please contact the server administrator.");
-      throw err;
-    });
 
     return {
       /* props */

@@ -141,6 +141,8 @@ export interface Handler {
   toggleMerge(): TrackId[];
   /* Remove trackIds from merge */
   unstageFromMerge(ids: TrackId[]): void;
+  /* Reload Annotation File */
+  reloadAnnotations(): Promise<void>;
 }
 const HandlerSymbol = Symbol('handler');
 
@@ -177,6 +179,7 @@ function dummyHandler(handle: (name: string, args: unknown[]) => void): Handler 
     toggleMerge(...args) { handle('toggleMerge', args); return []; },
     commitMerge(...args) { handle('commitMerge', args); },
     unstageFromMerge(...args) { handle('unstageFromMerge', args); },
+    reloadAnnotations(...args) { handle('reloadTracks', args); return Promise.resolve(); },
   };
 }
 

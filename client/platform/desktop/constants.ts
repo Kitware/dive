@@ -166,6 +166,7 @@ export interface MediaImportPayload {
   jsonMeta: JsonMeta;
   globPattern: string;
   mediaConvertList: string[];
+  trackFileAbsPath: string | null;
 }
 
 export interface DesktopJobUpdate extends DesktopJob {

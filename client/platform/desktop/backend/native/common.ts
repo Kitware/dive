@@ -76,6 +76,15 @@ async function _acquireLock(dir: string, resource: string, lockname: 'meta' | 't
   return release;
 }
 
+
+async function _findCSVTrackFiles(originalBasePath: string) {
+  const contents = await fs.readdir(originalBasePath);
+  const csvFileCandidates = contents
+    .filter((v) => CsvFileName.test(v))
+    .map((filename) => npath.join(originalBasePath, filename));
+  return csvFileCandidates;
+}
+
 /**
  * locate json track file in a directory
  * @param path path to a directory
@@ -93,9 +102,7 @@ async function _findJsonTrackFile(basePath: string): Promise<string | null> {
       }
     }
   }));
-  if (jsonFileCandidates.length > 1) {
-    throw new Error(`too many matches for json annotation file in ${basePath}.  cannot determine correct choice.  please verify only 1 json annotation file exists.`);
-  } else if (jsonFileCandidates.length === 1) {
+  if (jsonFileCandidates.length > 0) {
     return jsonFileCandidates[0];
   }
   return null;
@@ -687,10 +694,18 @@ async function beginMediaImport(
     throw new Error('only video and image-sequence types are supported');
   }
 
+  let trackFileAbsPath = await _findJsonTrackFile(jsonMeta.originalBasePath);
+  if (!trackFileAbsPath) {
+    const csvFileCandidates = await _findCSVTrackFiles(jsonMeta.originalBasePath);
+    if (csvFileCandidates.length) {
+      [trackFileAbsPath] = csvFileCandidates;
+    }
+  }
   return {
     jsonMeta,
     globPattern: '',
     mediaConvertList,
+    trackFileAbsPath,
   };
 }
 
@@ -722,9 +737,6 @@ async function _importTrackFile(
     const csvFileCandidates = contents
       .filter((v) => CsvFileName.test(v))
       .map((filename) => npath.join(jsonMeta.originalBasePath, filename));
-    if (csvFileCandidates.length > 1) {
-      throw new Error(`too many CSV files found in ${jsonMeta.originalBasePath}, expected at most 1`);
-    }
     const { fps, processedFiles, attributes } = await processOtherAnnotationFiles(
       settings, dsId, csvFileCandidates,
     );
@@ -762,7 +774,6 @@ async function finalizeMediaImport(
   const { jsonMeta, globPattern } = args;
   let { mediaConvertList } = args;
   const { type: datasetType, id: dsId } = jsonMeta;
-
   const projectDirAbsPath = await _initializeProjectDir(settings, jsonMeta);
 
   // Filter all parts of the input based on glob pattern
@@ -870,10 +881,62 @@ async function exportDataset(settings: Settings, args: ExportDatasetArgs) {
   });
 }
 
+async function annotationImport(
+  settings: Settings,
+  id: string,
+  annotationPath: string,
+  allowEmpty = true,
+) {
+  const projectInfo = getProjectDir(settings, id);
+  const validatedInfo = await getValidatedProjectDir(settings, id);
+  // If it is a json file we need to make sure it has the proper name
+  if (JsonTrackFileName.test(npath.basename(annotationPath))) {
+    const statResult = await fs.stat(annotationPath);
+    if (statResult.isFile()) {
+      const release = await _acquireLock(projectInfo.basePath, projectInfo.basePath, 'tracks');
+      try {
+        await fs.move(
+          validatedInfo.trackFileAbsPath,
+          npath.join(
+            validatedInfo.auxDirAbsPath,
+            npath.basename(validatedInfo.trackFileAbsPath),
+          ),
+        );
+      } catch (err) {
+        // Some part of the project dir didn't exist
+        if (!allowEmpty) throw err;
+      }
+      const time = moment().format('MM-DD-YYYY_hh-mm-ss.SSS');
+      const newFileName = `result_${time}.json`;
+
+      const newPath = npath.join(projectInfo.basePath, npath.basename(newFileName));
+      await fs.copy(
+        annotationPath,
+        newPath,
+      );
+      await release();
+      return true;
+    }
+    return false;
+  }
+  // If not a JSON we do a process for the CSV
+  const newPath = npath.join(projectInfo.basePath, npath.basename(annotationPath));
+  await fs.copy(
+    annotationPath,
+    newPath,
+  );
+  const results = await processOtherAnnotationFiles(settings, id, [newPath]);
+  if (results.processedFiles.length) {
+    return true;
+  }
+  return false;
+}
+
 export {
   ProjectsFolderName,
   JobsFolderName,
   beginMediaImport,
+  annotationImport,
   createKwiverRunWorkingDir,
   exportDataset,
   finalizeMediaImport,
