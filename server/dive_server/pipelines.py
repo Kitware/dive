@@ -38,7 +38,6 @@ from dive_utils.types import (
 
 def _load_dynamic_pipelines(user: User) -> Dict[str, PipelineCategory]:
     """Add any additional dynamic pipelines to the existing pipeline list."""
-
     pipelines: Dict[str, PipelineCategory] = {}
     pipelines[TrainedPipelineCategory] = {"pipes": [], "description": ""}
     for folder in Folder().findWithPermissions(
@@ -111,7 +110,6 @@ def run_pipeline(
     :param folder: The girder folder containing the dataset to run on.
     :param pipeline: The pipeline to run the dataset on.
     """
-
     verify_pipe(user, pipeline)
     getCloneRoot(user, folder)
 

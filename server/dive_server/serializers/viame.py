@@ -2,6 +2,7 @@
 VIAME Fish format deserializer
 """
 import csv
+import _csv
 import datetime
 import io
 import json
@@ -15,7 +16,7 @@ def format_timestamp(fps: int, frame: int) -> str:
     return str(datetime.datetime.utcfromtimestamp(frame / fps).strftime(r'%H:%M:%S.%f'))
 
 
-def writeHeader(writer: 'csv._writer', metadata: Dict):
+def writeHeader(writer: _csv._writer, metadata: Dict):
     writer.writerow(
         [
             "# 1: Detection or Track-id",
@@ -73,7 +74,7 @@ def _deduceType(value: str) -> Union[bool, float, str]:
 
 
 def create_geoJSONFeature(
-    features: Dict[str, Any], type: str, coords: List[float], key=''
+    features: Dict[str, Any], type: str, coords: List[Any], key=''
 ):
     feature = {}
     if "geometry" not in features:
@@ -93,7 +94,7 @@ def create_geoJSONFeature(
             "properties": {"key": key},
             "geometry": {"type": type},
         }
-    if "Polygon" == type:
+    if type == 'Polygon':
         feature["geometry"]['coordinates'] = [coords]
     elif type in ["LineString", "Point"]:
         feature['geometry']['coordinates'] = coords
@@ -103,13 +104,13 @@ def create_geoJSONFeature(
 
 def _parse_row(row: List[str]) -> Tuple[Dict, Dict, Dict, List]:
     """
-    parse a single CSV line into its composite track and detection parts
+    Parse a single CSV line into its composite track and detection parts
     """
-    features = {}
-    attributes = {}
-    track_attributes = {}
-    confidence_pairs = [
-        [row[i], float(row[i + 1])]
+    features: Dict[str, Any] = {}
+    attributes: Dict[str, Any] = {}
+    track_attributes: Dict[str, Any] = {}
+    confidence_pairs: List[Tuple[str, float]] = [
+        (row[i], float(row[i + 1]))
         for i in range(9, len(row), 2)
         if i + 1 < len(row) and row[i] and row[i + 1] and not row[i].startswith("(")
     ]
@@ -167,7 +168,7 @@ def _parse_row(row: List[str]) -> Tuple[Dict, Dict, Dict, List]:
             confidence = 1.0
 
         # add a dummy pair with a default type
-        sorted_confidence_pairs.append(['unknown', confidence])
+        sorted_confidence_pairs.append(('unknown', confidence))
 
     return features, attributes, track_attributes, sorted_confidence_pairs
 
@@ -292,18 +293,20 @@ def export_tracks_as_csv(
     header=True,
     typeFilter=set(),
 ) -> Generator[str, None, None]:
-    """Export track json to a CSV format.
-    :excludeBelowThreshold: omit tracks below a certain confidence.  Requires thresholds.
+    """
+    Export track json to a CSV format.
 
-    :thresholds: key/value pairs with threshold values
+    :param excludeBelowThreshold: omit tracks below a certain confidence.  Requires thresholds.
 
-    :filenames: list of string file names.  filenames[n] should be the image at frame n
+    :param thresholds: key/value pairs with threshold values
 
-    :fps: if FPS is set, column 2 will be video timestamp derived from (frame / fps)
+    :param filenames: list of string file names.  filenames[n] should be the image at frame n
 
-    :header: include or omit header
+    :param fps: if FPS is set, column 2 will be video timestamp derived from (frame / fps)
 
-    :typeFilter: set of track types to only export if not empty
+    :param header: include or omit header
+
+    :param typeFilter: set of track types to only export if not empty
     """
     csvFile = io.StringIO()
     writer = csv.writer(csvFile)

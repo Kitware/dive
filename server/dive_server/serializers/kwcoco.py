@@ -39,6 +39,9 @@ def annotation_info(
 def _parse_annotation(
     annotation: dict, meta: CocoMetadata
 ) -> Tuple[dict, dict, dict, list]:
+    """
+    Parse a single KWCOCO annotation into its composite track and detection parts
+    """
     features: Dict[str, Any] = {}
     attributes: Dict[str, Any] = {}
     track_attributes: Dict[str, Any] = {}

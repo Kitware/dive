@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
-from boiler import models
+from boiler import BoilerError, models
 from boiler.definitions import ActorType
 from boiler.serialization import kpf
 from girder.models.file import File
@@ -199,7 +199,7 @@ def deserialize_activities(file, activity_map, actor_map):
 
 def _deserialize_activity(activity_packet, actor_map):
     """
-    returns activity instanceActor(
+    Returns activity instanceActor
     """
     activity = activity_packet[kpf.ACTIVITY]
     timespans = activity[kpf.TIMESPANS]

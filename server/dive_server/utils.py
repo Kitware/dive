@@ -53,7 +53,7 @@ class PydanticModel(AccessControlledModel):
 
 
 def all_detections_items(folder: Folder) -> Cursor:
-    """caller is responsible for verifying access permissions"""
+    """Caller is responsible for verifying access permissions"""
     return (
         Item()
         .find({f"meta.{DetectionMarker}": str(folder['_id'])})
@@ -184,9 +184,8 @@ def saveImportAttributes(folder, attributes, user):
 
 def verify_dataset(folder: GirderModel):
     """Verify that a given folder is a DIVE dataset"""
-
     if not asbool(fromMeta(folder, DatasetMarker, False)):
-        raise RestException(f'Source folder is not a valid DIVE dataset')
+        raise RestException('Source folder is not a valid DIVE dataset')
     return True
 
 
@@ -241,7 +240,7 @@ def getCloneRoot(owner: GirderModel, source_folder: GirderModel):
     verify_dataset(source_folder)
     next_id = fromMeta(source_folder, ForeignMediaIdMarker, False)
     while next_id is not False:
-        """Recurse through source folders to find the root, allowing clones of clones"""
+        # Recurse through source folders to find the root, allowing clones of clones
         source_folder = Folder().load(
             next_id,
             level=AccessType.READ,
@@ -264,7 +263,6 @@ def createSoftClone(
     name: str = None,
 ):
     """Create a no-copy clone of folder with source_id for owner"""
-
     cloned_folder = Folder().createFolder(
         parent_folder,
         name or source_folder['name'],
@@ -298,10 +296,8 @@ def valid_images(
     user: GirderModel,
 ) -> List[GirderModel]:
     """
-    Any time images are used where frame alignment
-    matters, this function must be used
+    Any time images are used where frame alignment matters, this function must be used
     """
-
     images = Folder().childItems(
         getCloneRoot(user, folder),
         filters={"lowerName": {"$regex": safeImageRegex}},

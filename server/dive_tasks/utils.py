@@ -119,7 +119,6 @@ def organize_folder_for_training(data_dir: Path, downloaded_groundtruth: Path):
     Relevant documentation:
     https://viame.readthedocs.io/en/latest/section_links/object_detector_training.html
     """
-
     if downloaded_groundtruth.is_dir():
         files = list(downloaded_groundtruth.glob("*.csv"))
 

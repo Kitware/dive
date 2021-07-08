@@ -147,7 +147,7 @@ def upgrade_pipelines(
     # zipfiles to extract after download is complete
     addons_to_update_update: List[Path] = []
 
-    for idx, addon in enumerate(urls):
+    for addon in urls:
         download_name = urlparse(addon).path.replace('/', '_')
         zipfile_path = conf.addon_zip_path / f'{download_name}.zip'
         if not zipfile_path.exists() or force:

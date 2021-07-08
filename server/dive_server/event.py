@@ -40,8 +40,7 @@ def send_new_user_email(event):
 
 def process_assetstore_import(event, meta: dict):
     """
-    function for appending the appropriate metadata
-    to no-copy import data
+    Function for appending the appropriate metadata to no-copy import data
     """
     info = event.info
     objectType = info.get("type")

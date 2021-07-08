@@ -14,7 +14,6 @@ TrainingOutputFolderName = "VIAME Training Results"
 
 def training_output_folder(user: User):
     """Ensure that the user has a training results folder."""
-
     viameFolder = Folder().createFolder(
         user,
         ViameDataFolderName,

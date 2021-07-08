@@ -8,7 +8,7 @@ from dive_server.serializers import viame
 test_tuple: List[Tuple[list, dict, dict]] = [
     (
         [
-            # all frames in a track must be of the same type, so the type name for 0 will be ignored
+            # all frames in a track must be the same type, so the type name for 0 will be ignored
             "0,1.png,0,884.66,510,1219.66,737.66,1,-1,ignored,0.98",
             "0,2.png,1,111,222,3333,444,1,-1,typestring,0.55",
             "1,1.png,0,747,457,1039,633,1,-1,type2,1",

@@ -1,5 +1,5 @@
 import uuid
-from typing import Optional, cast
+from typing import Optional
 
 from girder import logger
 from girder.api import access
@@ -42,7 +42,7 @@ class RabbitUserQueue(Resource):
             try:
                 parsed_credentials = UserQueueModel(**existing)
                 return parsed_credentials.with_broker_url(settings.broker_url_template)
-            except ValidationError as e:
+            except ValidationError:
                 pass
 
         # Generate new credentials
