@@ -211,9 +211,7 @@ class Viame(Resource):
     @access.user
     @autoDescribeRoute(Description("Get available training configs"))
     def get_training_configs(self, params):
-        static_job_configs: AvailableJobSchema = (
-            Setting().get(SETTINGS_CONST_JOBS_CONFIGS) or {}
-        )
+        static_job_configs: AvailableJobSchema = Setting().get(SETTINGS_CONST_JOBS_CONFIGS) or {}
         return static_job_configs.get('training', {})
 
     @access.user
@@ -330,9 +328,7 @@ class Viame(Resource):
             message = "Cannot mix annotation import types"
         elif len(videos) > 1 and (len(csvs) or len(ymls) or len(jsons)):
             ok = False
-            message = (
-                "Annotation upload is not supported when multiple videos are uploaded"
-            )
+            message = "Annotation upload is not supported when multiple videos are uploaded"
         elif (not len(videos)) and (not len(images)):
             ok = False
             message = "No supported media-type files found"
@@ -390,9 +386,7 @@ class Viame(Resource):
         if not skipJobs and not isClone:
             token = Token().createToken(user=user, days=2)
             # transcode VIDEO if necessary
-            videoItems = Folder().childItems(
-                folder, filters={"lowerName": {"$regex": videoRegex}}
-            )
+            videoItems = Folder().childItems(folder, filters={"lowerName": {"$regex": videoRegex}})
 
             for item in videoItems:
                 newjob = convert_video.apply_async(
@@ -411,9 +405,7 @@ class Viame(Resource):
                 Job().save(newjob.job)
 
             # transcode IMAGERY if necessary
-            imageItems = Folder().childItems(
-                folder, filters={"lowerName": {"$regex": imageRegex}}
-            )
+            imageItems = Folder().childItems(folder, filters={"lowerName": {"$regex": imageRegex}})
             safeImageItems = Folder().childItems(
                 folder, filters={"lowerName": {"$regex": safeImageRegex}}
             )
@@ -435,9 +427,7 @@ class Viame(Resource):
                 folder["meta"][DatasetMarker] = True
 
             # transform KPF if necessary
-            ymlItems = Folder().childItems(
-                folder, filters={"lowerName": {"$regex": ymlRegex}}
-            )
+            ymlItems = Folder().childItems(folder, filters={"lowerName": {"$regex": ymlRegex}})
             if ymlItems.count() > 0:
                 # There might be up to 3 yamls
                 allFiles = [Item().childFiles(item)[0] for item in ymlItems]
@@ -554,7 +544,5 @@ class Viame(Resource):
             user[UserPrivateQueueEnabledMarker] = privateQueueEnabled
             User().save(user)
         return {
-            UserPrivateQueueEnabledMarker: user.get(
-                UserPrivateQueueEnabledMarker, False
-            ),
+            UserPrivateQueueEnabledMarker: user.get(UserPrivateQueueEnabledMarker, False),
         }

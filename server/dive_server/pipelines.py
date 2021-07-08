@@ -14,8 +14,7 @@ from dive_server.utils import (
     getCloneRoot,
     move_existing_result_to_auxiliary_folder,
 )
-from dive_tasks.tasks import EMPTY_JOB_SCHEMA
-from dive_tasks.tasks import run_pipeline as async_run_pipeline
+from dive_tasks.tasks import EMPTY_JOB_SCHEMA, run_pipeline as async_run_pipeline
 from dive_utils import TRUTHY_META_VALUES, asbool, fromMeta
 from dive_utils.constants import (
     JOBCONST_DATASET_ID,
@@ -139,9 +138,7 @@ def run_pipeline(
     requires_input = False  # include CSV input for pipe
     if pipeline["type"] == TrainedPipelineCategory:
         # Verify that the user has READ access to the pipe they want to run
-        pipeFolder = Folder().load(
-            pipeline["folderId"], level=AccessType.READ, user=user
-        )
+        pipeFolder = Folder().load(pipeline["folderId"], level=AccessType.READ, user=user)
         requires_input = asbool(fromMeta(pipeFolder, "requires_input"))
     elif pipeline["pipe"].startswith('utility_'):
         # TODO Temporary inclusion of utility pipes which take csv input

@@ -21,13 +21,7 @@ from dive_server.utils import (
     verify_dataset,
 )
 from dive_utils import fromMeta, models
-from dive_utils.constants import (
-    ImageSequenceType,
-    TypeMarker,
-    VideoType,
-    imageRegex,
-    videoRegex,
-)
+from dive_utils.constants import ImageSequenceType, TypeMarker, VideoType, imageRegex, videoRegex
 
 
 class ViameDetection(Resource):
@@ -96,9 +90,7 @@ class ViameDetection(Resource):
             requireArray=True,
         )
     )
-    def get_export_urls(
-        self, folder, excludeBelowThreshold: bool, typeFilter: List[str]
-    ):
+    def get_export_urls(self, folder, excludeBelowThreshold: bool, typeFilter: List[str]):
         verify_dataset(folder)
         folderId = str(folder['_id'])
         export_all = f'/api/v1/folder/{folderId}/download'
@@ -168,9 +160,7 @@ class ViameDetection(Resource):
             requireArray=True,
         )
     )
-    def export_detections(
-        self, folder, excludeBelowThreshold: bool, typeFilter: List[str]
-    ):
+    def export_detections(self, folder, excludeBelowThreshold: bool, typeFilter: List[str]):
         verify_dataset(folder)
         filename, gen = get_annotation_csv_generator(
             folder, self.getCurrentUser(), excludeBelowThreshold, typeFilter
@@ -289,9 +279,7 @@ class ViameDetection(Resource):
         if file is None:
             return {}
         if "csv" in file["exts"]:
-            raise RestException(
-                'Cannot get detections until postprocessing is complete.'
-            )
+            raise RestException('Cannot get detections until postprocessing is complete.')
         return File().download(file, contentDisposition="inline")
 
     @access.user
@@ -320,9 +308,7 @@ class ViameDetection(Resource):
             required=True,
             level=AccessType.WRITE,
         )
-        .jsonParam(
-            "tracks", "upsert and delete tracks", paramType="body", requireObject=True
-        )
+        .jsonParam("tracks", "upsert and delete tracks", paramType="body", requireObject=True)
     )
     def save_detection(self, folder, tracks):
         verify_dataset(folder)

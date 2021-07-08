@@ -296,9 +296,7 @@ test_tuple: List[Tuple[dict, list, list]] = [
 
 
 @pytest.mark.parametrize("input,expected,typeFilter", test_tuple)
-def test_write_viame_csv(
-    input: Dict[str, dict], expected: List[str], typeFilter: List[str]
-):
+def test_write_viame_csv(input: Dict[str, dict], expected: List[str], typeFilter: List[str]):
     for i, line in enumerate(
         viame.export_tracks_as_csv(
             input, filenames=filenames, header=False, typeFilter=set(typeFilter)

@@ -2,12 +2,13 @@
 VIAME Fish format deserializer
 """
 import csv
-import _csv
 import datetime
 import io
 import json
 import re
 from typing import Any, Dict, Generator, List, Tuple, Union
+
+import _csv
 
 from dive_utils.models import Attribute, Feature, Track, interpolate
 
@@ -16,7 +17,7 @@ def format_timestamp(fps: int, frame: int) -> str:
     return str(datetime.datetime.utcfromtimestamp(frame / fps).strftime(r'%H:%M:%S.%f'))
 
 
-def writeHeader(writer: _csv._writer, metadata: Dict):
+def writeHeader(writer: '_csv._writer', metadata: Dict):
     writer.writerow(
         [
             "# 1: Detection or Track-id",
@@ -73,9 +74,7 @@ def _deduceType(value: str) -> Union[bool, float, str]:
         return value
 
 
-def create_geoJSONFeature(
-    features: Dict[str, Any], type: str, coords: List[Any], key=''
-):
+def create_geoJSONFeature(features: Dict[str, Any], type: str, coords: List[Any], key=''):
     feature = {}
     if "geometry" not in features:
         features["geometry"] = {"type": "FeatureCollection", "features": []}
@@ -114,26 +113,20 @@ def _parse_row(row: List[str]) -> Tuple[Dict, Dict, Dict, List]:
         for i in range(9, len(row), 2)
         if i + 1 < len(row) and row[i] and row[i + 1] and not row[i].startswith("(")
     ]
-    sorted_confidence_pairs = sorted(
-        confidence_pairs, key=lambda item: item[1], reverse=True
-    )
+    sorted_confidence_pairs = sorted(confidence_pairs, key=lambda item: item[1], reverse=True)
     head_tail = []
     start = 9 + len(sorted_confidence_pairs) * 2
 
     for j in range(start, len(row)):
         # (kp) head x y
-        head_regex = re.match(
-            r"^\(kp\) head ([0-9]+\.*[0-9]*) ([0-9]+\.*[0-9]*)", row[j]
-        )
+        head_regex = re.match(r"^\(kp\) head ([0-9]+\.*[0-9]*) ([0-9]+\.*[0-9]*)", row[j])
         if head_regex:
             point = [float(head_regex[1]), float(head_regex[2])]
             head_tail.append(point)
             create_geoJSONFeature(features, 'Point', point, 'head')
 
         # (kp) tail x y
-        tail_regex = re.match(
-            r"^\(kp\) tail ([0-9]+\.*[0-9]*) ([0-9]+\.*[0-9]*)", row[j]
-        )
+        tail_regex = re.match(r"^\(kp\) tail ([0-9]+\.*[0-9]*) ([0-9]+\.*[0-9]*)", row[j])
         if tail_regex:
             point = [float(tail_regex[1]), float(tail_regex[2])]
             head_tail.append(point)
@@ -191,7 +184,7 @@ def _parse_row_for_tracks(row: List[str]) -> Tuple[Feature, Dict, Dict, List]:
 
 def create_attributes(
     metadata_attributes: Dict[str, Attribute],
-    test_vals: Dict[str, int],
+    test_vals: Dict[str, Dict[str, int]],
     atr_type: str,
     key: str,
     val,
@@ -215,7 +208,7 @@ def create_attributes(
 
 
 def calculate_attribute_types(
-    metadata_attributes: Dict[str, Attribute], test_vals: Dict[str, int]
+    metadata_attributes: Dict[str, Attribute], test_vals: Dict[str, Dict[str, int]]
 ):
     # count all keys must have a value to convert to predefined
     predefined_min_count = 3
@@ -250,7 +243,7 @@ def load_csv_as_tracks_and_attributes(rows: List[str]) -> Tuple[dict, dict]:
     reader = csv.reader(row for row in rows if (not row.startswith("#") and row))
     tracks: Dict[int, Track] = {}
     metadata_attributes: Dict[str, Attribute] = {}
-    test_vals: Dict[str, int] = {}
+    test_vals: Dict[str, Dict[str, int]] = {}
     for row in reader:
         (
             feature,
@@ -278,9 +271,7 @@ def load_csv_as_tracks_and_attributes(rows: List[str]) -> Tuple[dict, dict]:
     # Now we process all the metadata_attributes for the types
     calculate_attribute_types(metadata_attributes, test_vals)
 
-    track_json = {
-        trackId: track.dict(exclude_none=True) for trackId, track in tracks.items()
-    }
+    track_json = {trackId: track.dict(exclude_none=True) for trackId, track in tracks.items()}
     return track_json, metadata_attributes
 
 
@@ -321,9 +312,7 @@ def export_tracks_as_csv(
 
             # filter by types if applicable
             if typeFilter:
-                confidence_pairs = [
-                    item for item in track.confidencePairs if item[0] in typeFilter
-                ]
+                confidence_pairs = [item for item in track.confidencePairs if item[0] in typeFilter]
                 # skip line if no confidence pairs
                 if not confidence_pairs:
                     continue
@@ -372,18 +361,13 @@ def export_tracks_as_csv(
                         for key, val in track.attributes.items():
                             columns.append(f"(trk-atr) {key} {valueToString(val)}")
 
-                    if (
-                        feature.geometry
-                        and "FeatureCollection" == feature.geometry.type
-                    ):
+                    if feature.geometry and "FeatureCollection" == feature.geometry.type:
                         for geoJSONFeature in feature.geometry.features:
                             if 'Polygon' == geoJSONFeature.geometry.type:
                                 # Coordinates need to be flattened out from their list of tuples
                                 coordinates = [
                                     item
-                                    for sublist in geoJSONFeature.geometry.coordinates[
-                                        0
-                                    ]
+                                    for sublist in geoJSONFeature.geometry.coordinates[0]
                                     for item in sublist
                                 ]
                                 columns.append(

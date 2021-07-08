@@ -1,5 +1,5 @@
-import os
 from datetime import datetime
+import os
 
 from bson.objectid import ObjectId
 from girder import logger
@@ -72,9 +72,7 @@ def process_assetstore_import(event, meta: dict):
         userId = parentFolder['creatorId'] or parentFolder['baseParentId']
         user = User().findOne({'_id': ObjectId(userId)})
         foldername = f'Video {item["name"]}'
-        dest = Folder().createFolder(
-            parentFolder, foldername, creator=user, reuseExisting=True
-        )
+        dest = Folder().createFolder(parentFolder, foldername, creator=user, reuseExisting=True)
         if dest['created'] < now:
             # Remove the old item, replace it with the new one.
             oldItem = Item().findOne({'folderId': dest['_id'], 'name': item['name']})

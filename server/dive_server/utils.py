@@ -1,12 +1,11 @@
+from datetime import datetime
 import functools
 import io
 import json
 import os
-from datetime import datetime
 from pathlib import Path
 from typing import Callable, Dict, Generator, List, Optional, Tuple, Type
 
-import pymongo
 from girder.constants import AccessType
 from girder.exceptions import RestException
 from girder.models.file import File
@@ -15,6 +14,7 @@ from girder.models.item import Item
 from girder.models.model_base import AccessControlledModel
 from girder.models.upload import Upload
 from pydantic.main import BaseModel
+import pymongo
 from pymongo.cursor import Cursor
 
 from dive_server.serializers import kwcoco, viame
@@ -54,11 +54,7 @@ class PydanticModel(AccessControlledModel):
 
 def all_detections_items(folder: Folder) -> Cursor:
     """Caller is responsible for verifying access permissions"""
-    return (
-        Item()
-        .find({f"meta.{DetectionMarker}": str(folder['_id'])})
-        .sort([("created", -1)])
-    )
+    return Item().find({f"meta.{DetectionMarker}": str(folder['_id'])}).sort([("created", -1)])
 
 
 def detections_item(folder: Folder, strict=False) -> Optional[GirderModel]:
@@ -115,9 +111,7 @@ def getTrackData(file: Optional[File]) -> Dict[str, dict]:
         return {}
     if "csv" in file["exts"]:
         (tracks, attributes) = viame.load_csv_as_tracks_and_attributes(
-            b"".join(list(File().download(file, headers=False)()))
-            .decode("utf-8")
-            .splitlines()
+            b"".join(list(File().download(file, headers=False)())).decode("utf-8").splitlines()
         )
         return tracks
     return json.loads(b"".join(list(File().download(file, headers=False)())).decode())
@@ -128,9 +122,7 @@ def getTrackAndAttributesFromCSV(file: GirderModel) -> Tuple[dict, dict]:
         return ({}, {})
     if "csv" in file["exts"]:
         return viame.load_csv_as_tracks_and_attributes(
-            b"".join(list(File().download(file, headers=False)()))
-            .decode("utf-8")
-            .splitlines()
+            b"".join(list(File().download(file, headers=False)())).decode("utf-8").splitlines()
         )
     return ({}, {})
 
@@ -153,9 +145,7 @@ def saveTracks(folder, tracks, user):
 
     move_existing_result_to_auxiliary_folder(folder, user)
     newResultItem = Item().createItem(item_name, user, folder)
-    Item().setMetadata(
-        newResultItem, {DetectionMarker: str(folder["_id"])}, allowNull=True
-    )
+    Item().setMetadata(newResultItem, {DetectionMarker: str(folder["_id"])}, allowNull=True)
 
     json_bytes = json.dumps(tracks).encode()
     byteIO = io.BytesIO(json_bytes)

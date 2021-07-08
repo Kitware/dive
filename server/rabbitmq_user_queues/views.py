@@ -1,5 +1,5 @@
-import uuid
 from typing import Optional
+import uuid
 
 from girder import logger
 from girder.api import access
@@ -63,7 +63,9 @@ class RabbitUserQueue(Resource):
         # example: regular user j@ke can access j@ke@whatever
         #          evil user j can access j@whatever
         # because whatever is [a-zA-Z0-9] and does not include @, user permissions work.
-        pattern = f"^({user['login']}@[a-zA-Z0-9]+|(celery@)?([a-fA-F0-9-]+\.)?(reply\.)?celery\.pidbox)$"
+        pattern = (
+            f"^({user['login']}@[a-zA-Z0-9]+|(celery@)?([a-fA-F0-9-]+\.)?(reply\.)?celery\.pidbox)$"
+        )
         client.set_vhost_permissions(
             settings.vhost, newUserQueue.username, pattern, pattern, pattern
         )

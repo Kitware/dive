@@ -8,10 +8,7 @@ from girder.models.user import User
 from girder.utility import mail_utils, setting_utilities
 from girder.utility.model_importer import ModelImporter
 
-from dive_utils.constants import (
-    SETTINGS_CONST_JOBS_CONFIGS,
-    UserPrivateQueueEnabledMarker,
-)
+from dive_utils.constants import SETTINGS_CONST_JOBS_CONFIGS, UserPrivateQueueEnabledMarker
 
 from .client_webroot import ClientWebroot
 from .event import process_fs_import, process_s3_import, send_new_user_email
