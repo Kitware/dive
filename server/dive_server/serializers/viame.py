@@ -278,11 +278,11 @@ def load_csv_as_tracks_and_attributes(rows: List[str]) -> Tuple[dict, dict]:
 def export_tracks_as_csv(
     track_dict,
     excludeBelowThreshold=False,
-    thresholds={},
+    thresholds=None,
     filenames=None,
     fps=None,
     header=True,
-    typeFilter=set(),
+    typeFilter=None,
 ) -> Generator[str, None, None]:
     """
     Export track json to a CSV format.
@@ -299,6 +299,11 @@ def export_tracks_as_csv(
 
     :param typeFilter: set of track types to only export if not empty
     """
+    if thresholds is None:
+        thresholds = {}
+    if typeFilter is None:
+        typeFilter = set()
+
     csvFile = io.StringIO()
     writer = csv.writer(csvFile)
     if header:
@@ -376,9 +381,11 @@ def export_tracks_as_csv(
                             if 'Point' == geoJSONFeature.geometry.type:
                                 coordinates = geoJSONFeature.geometry.coordinates
                                 columns.append(
-                                    f"(kp) {geoJSONFeature.properties['key']} {round(coordinates[0])} {round(coordinates[1])}"
+                                    f"(kp) {geoJSONFeature.properties['key']} "
+                                    f"{round(coordinates[0])} {round(coordinates[1])}"
                                 )
-                            # TODO: support for multiple GeoJSON Objects of the same type once the CSV supports it
+                            # TODO: support for multiple GeoJSON Objects of the same type
+                            # once the CSV supports it
 
                     writer.writerow(columns)
                     yield csvFile.getvalue()

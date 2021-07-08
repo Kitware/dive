@@ -197,8 +197,10 @@ test_tuple: List[Tuple[dict, list, list]] = [
             },
         },
         [
-            "0,1.png,0,884,510,1219,737,1.0,-1,typestring,1.0,(atr) detectionAttr frame 0 attr,(trk-atr) trackATTR TestTrack ATTR With Space",
-            "0,2.png,1,111,222,3333,444,1.0,-1,typestring,1.0,(atr) detectionAttr frame 1 attr,(trk-atr) trackATTR TestTrack ATTR With Space",
+            "0,1.png,0,884,510,1219,737,1.0,-1,typestring,1.0,(atr) detectionAttr frame 0 attr,"
+            "(trk-atr) trackATTR TestTrack ATTR With Space",
+            "0,2.png,1,111,222,3333,444,1.0,-1,typestring,1.0,(atr) detectionAttr frame 1 attr,"
+            "(trk-atr) trackATTR TestTrack ATTR With Space",
         ],
         [],
     ),
