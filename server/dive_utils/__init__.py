@@ -37,9 +37,9 @@ def _strChunks(input: str) -> List[Union[int, str]]:
     return [_maybeInt(v) for v in chunks if v != '']
 
 
-def strNumericCompare(input1: str, input2: str) -> float:
+def strNumericCompare(input1: str, input2: str) -> int:
     """
-    Convert a string to a float key for sorting
+    Convert a string to an int key for sorting
     Where its numerical components are weighted above
     its non-numerical components
     """

@@ -139,7 +139,7 @@ mockfs({
       'video1.mp4': '',
       'result_foo.json': '',
     },
-    annotationFail: {
+    multiCSV: {
       'video1.mp4': '',
       'file1.csv': '',
       'file2.csv': '',
@@ -282,14 +282,17 @@ describe('native.common', () => {
     expect(dir.auxDirAbsPath).toBe(npath.join(settings.dataPath, basedir, 'auxiliary'));
     expect(dir.trackFileAbsPath).toBe(npath.join(settings.dataPath, basedir, 'result_whatever.json'));
   });
+  it('getValidatedProjectDir loads initial track.json', async () => {
+    const basedir = 'DIVE_Projects/projectid4Bad';
+    const dir = await common.getValidatedProjectDir(settings, 'projectid4Bad');
+    expect(dir.trackFileAbsPath).toBe(npath.join(settings.dataPath, basedir, 'result_1.json'));
+  });
 
   it('getValidatedProjectDir fails to load project directory for invalid contents', async () => {
     await expect(common.getValidatedProjectDir(settings, 'projectid2Bad'))
       .rejects.toThrow('missing track json file');
     await expect(common.getValidatedProjectDir(settings, 'projectid3Bad'))
       .rejects.toThrow('missing metadata json file');
-    await expect(common.getValidatedProjectDir(settings, 'projectid4Bad'))
-      .rejects.toThrow('too many matches');
   });
 
   it('loadJsonMetadata loads metadata from file', async () => {
@@ -329,6 +332,8 @@ describe('native.common', () => {
       transcodedImageFiles: [],
       originalVideoFile: '',
       transcodedVideoFile: '',
+      multiCam: null,
+      subType: null,
     };
     const result = await common.createKwiverRunWorkingDir(settings, [jsonMeta], 'mypipeline.pipe');
     const stat = fs.statSync(result);
@@ -392,12 +397,13 @@ describe('native.common', () => {
       .rejects.toThrow('unsupported MIME type');
     await expect(common.beginMediaImport(settings, '/home/user/data/videoSuccess/nomime', checkMedia))
       .rejects.toThrow('could not determine video MIME');
-
-    const payload = await common.beginMediaImport(settings, '/home/user/data/annotationFail/video1.mp4', checkMedia);
-    await expect(common.finalizeMediaImport(settings, payload, updater, convertMedia))
-      .rejects.toThrow('too many CSV');
   });
-
+  it('import first CSV in list', async () => {
+    const payload = await common.beginMediaImport(settings, '/home/user/data/multiCSV/video1.mp4', checkMedia);
+    await common.finalizeMediaImport(settings, payload, updater, convertMedia);
+    const tracks = await common.loadDetections(settings, payload.jsonMeta.id);
+    expect(tracks).toEqual({});
+  });
   it('importMedia video, start conversion', async () => {
     const payload = await common.beginMediaImport(settings, '/home/user/data/videoSuccess/video1.avi', checkMedia);
     await common.finalizeMediaImport(settings, payload, updater, convertMedia);

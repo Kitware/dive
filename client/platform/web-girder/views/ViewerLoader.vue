@@ -6,6 +6,7 @@ import {
 import Viewer from 'dive-common/components/Viewer.vue';
 import NavigationTitle from 'dive-common/components/NavigationTitle.vue';
 import RunPipelineMenu from 'dive-common/components/RunPipelineMenu.vue';
+import ImportAnnotations from 'dive-common/components/ImportAnnotations.vue';
 import JobsTab from './JobsTab.vue';
 import { getPathFromLocation } from '../utils';
 import Export from './Export.vue';
@@ -36,6 +37,7 @@ export default defineComponent({
     RunPipelineMenu,
     NavigationTitle,
     Viewer,
+    ImportAnnotations,
   },
 
   props: {
@@ -63,6 +65,7 @@ export default defineComponent({
     onBeforeUnmount(() => {
       window.removeEventListener('beforeunload', viewerRef.value.warnBrowserExit);
     });
+
 
     return {
       buttonOptions,
@@ -99,6 +102,11 @@ export default defineComponent({
       <RunPipelineMenu
         v-bind="{ buttonOptions, menuOptions }"
         :selected-dataset-ids="[id]"
+      />
+      <ImportAnnotations
+        v-bind="{ buttonOptions, menuOptions }"
+        :dataset-id="id"
+        block-on-unsaved
       />
       <Export
         v-bind="{ buttonOptions, menuOptions }"

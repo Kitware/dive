@@ -4,7 +4,7 @@ import {
 } from '@vue/composition-api';
 import TooltipBtn from './TooltipButton.vue';
 import { useFrame, useHandler, useAllTypes } from '../provides';
-import Track, { Feature } from '../track';
+import Track from '../track';
 
 export default defineComponent({
   name: 'TrackItem',

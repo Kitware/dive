@@ -4,18 +4,15 @@ import {
   computed, defineComponent, ref, Ref, PropType,
 } from '@vue/composition-api';
 import { filterByGlob } from 'platform/desktop/sharedUtils';
-import { DatasetType, useApi } from 'dive-common/apispec';
+import {
+  MediaImportResponse,
+  DatasetType,
+  HTMLFileReferences,
+  useApi,
+} from 'dive-common/apispec';
 
 import ImportMultiCamAddType from 'dive-common/components/ImportMultiCamAddType.vue';
 
-//Custom subset of MediaImportPayload for comaptiblity with web and desktop
-interface CustomMediaImportPayload {
-  jsonMeta: {
-    originalImageFiles: string[];
-  };
-  globPattern: string;
-  mediaConvertList: string[];
-}
 
 export default defineComponent({
   components: {
@@ -32,7 +29,7 @@ export default defineComponent({
       default: 'image-sequence',
     },
     importMedia: {
-      type: Function as PropType<(path: string) => Promise<CustomMediaImportPayload>>,
+      type: Function as PropType<(path: string) => Promise<MediaImportResponse>>,
       required: true,
     },
   },
@@ -41,12 +38,16 @@ export default defineComponent({
     const importType: Ref<'multi'|'keyword'| ''> = ref('');
     const folderList: Ref<Record<string, string>> = ref({});
     const keywordFolder = ref('');
-    const pendingImportPayload: Ref<CustomMediaImportPayload | null> = ref(null);
+    const pendingImportPayload: Ref<MediaImportResponse | null> = ref(null);
     const globList: Ref<Record<string, string>> = ref({});
     const calibrationFile = ref('');
     const defaultDisplay = ref('left');
     const addNewToggle = ref(false);
     const newSetName = ref('');
+
+    const htmlFileReferences: HTMLFileReferences = {
+      mediaHTMLFileList: {},
+    }; //Used to store fileReferences for Web version
 
     if (props.stereo) {
       folderList.value = {
@@ -126,17 +127,33 @@ export default defineComponent({
     });
 
     async function open(dstype: DatasetType | 'calibration', folder: string | 'calibration') {
-      const ret = await openFromDisk(dstype);
+      const ret = await openFromDisk(dstype, dstype === 'image-sequence');
       if (!ret.canceled) {
         try {
           const path = ret.filePaths[0];
           if (folder === 'calibration') {
             calibrationFile.value = path;
+            if (ret.fileList?.length) {
+              [htmlFileReferences.calibrationHTMLFile] = ret.fileList;
+            }
           } else if (importType.value === 'multi') {
-            folderList.value[folder] = path;
+            if (ret.root) {
+              folderList.value[folder] = ret.root;
+            } else {
+              folderList.value[folder] = path;
+            }
+            if (ret.fileList) {
+              htmlFileReferences.mediaHTMLFileList[folder] = ret.fileList;
+            }
           } else if (importType.value === 'keyword') {
-            keywordFolder.value = path;
+            [keywordFolder.value] = ret.filePaths;
+            if (ret.root) {
+              keywordFolder.value = ret.root;
+            }
             pendingImportPayload.value = await props.importMedia(ret.filePaths[0]);
+            if (ret.fileList) {
+              htmlFileReferences.mediaHTMLFileList[folder] = ret.fileList;
+            }
           }
         } catch (err) {
           console.error(err);
@@ -168,6 +185,22 @@ export default defineComponent({
       newSetName.value = '';
       addNewToggle.value = false;
     };
+    const clearCameraSet = () => {
+      keywordFolder.value = '';
+      if (props.stereo) {
+        folderList.value = {
+          left: '',
+          right: '',
+        };
+        globList.value = {
+          left: '',
+          right: '',
+        };
+      } else {
+        folderList.value = {};
+        globList.value = {};
+      }
+    };
 
     const prepForImport = () => {
       if (importType.value === 'multi') {
@@ -176,6 +209,7 @@ export default defineComponent({
           folderList: folderList.value,
           calibrationFile: calibrationFile.value,
           type: props.dataType,
+          htmlFileReferences,
         });
       } else if (importType.value === 'keyword') {
         emit('begin-multicam-import', {
@@ -184,6 +218,7 @@ export default defineComponent({
           globList: globList.value,
           calibrationFile: calibrationFile.value,
           type: 'image-sequence',
+          htmlFileReferences,
         });
       }
     };
@@ -205,6 +240,7 @@ export default defineComponent({
       open,
       prepForImport,
       addNewSet,
+      clearCameraSet,
       deleteSet,
     };
   },
@@ -223,7 +259,10 @@ export default defineComponent({
     <v-card-text>
       <div v-if="dataType === 'image-sequence'">
         Please Select an import type.
-        <v-radio-group v-model="importType">
+        <v-radio-group
+          v-model="importType"
+          @change="clearCameraSet"
+        >
           <v-radio
             value="multi"
             :label="
@@ -243,6 +282,7 @@ export default defineComponent({
           <v-list-item
             v-for="(item, key) in folderList"
             :key="key"
+            class="my-4"
           >
             <v-btn
               v-if="!stereo"
@@ -256,8 +296,10 @@ export default defineComponent({
               :label="`${key}:`"
               :placeholder="dataType === 'image-sequence' ? 'Choose Folder' : 'Choose Video' "
               disabled
+              outlined
+              hide-details
               :value="folderList[key]"
-              class="mx-4"
+              class="mx-4 my-auto"
             />
             <v-btn
               color="primary"
@@ -269,15 +311,20 @@ export default defineComponent({
               </v-icon>
             </v-btn>
           </v-list-item>
-          <v-list-item v-if="!stereo">
+          <v-list-item
+            v-if="!stereo"
+            class="mt-3"
+          >
             <v-btn
-              x-small
+              small
+              class="my-auto mr-2"
               color="primary"
               :disabled="addNewToggle"
               @click="addNewToggle = true"
             >
-              <v-icon>
-                mdi-plus
+              Add Camera
+              <v-icon class="ml-1">
+                mdi-camera
               </v-icon>
             </v-btn>
             <import-multi-cam-add-type
@@ -296,6 +343,8 @@ export default defineComponent({
             label="Folder:"
             placeholder="Choose Folder"
             disabled
+            outlined
+            hide-details
             :value="keywordFolder"
             class="mx-4"
           />
@@ -312,6 +361,7 @@ export default defineComponent({
         <v-list-item
           v-for="(item, key) in globList"
           :key="key"
+          class="my-4"
         >
           <v-btn
             v-if="!stereo"
@@ -377,12 +427,15 @@ export default defineComponent({
           dense
         >
           Visualization currently doesn't support multi views so please choose
-          a list of images to display by default when viewing
+          a list of images or video to display by default when viewing
         </v-alert>
         <v-list>
           <v-list-item>
             Default Display:
-            <v-radio-group v-model="defaultDisplay">
+            <v-radio-group
+              v-model="defaultDisplay"
+              class="ml-2"
+            >
               <v-radio
                 v-for="(item,index) in displayKeys"
                 :key="index"
@@ -397,6 +450,8 @@ export default defineComponent({
               label="Calibration File:"
               placeholder="Choose File"
               disabled
+              outlined
+              hide-details
               :value="calibrationFile"
               class="mx-4"
             />

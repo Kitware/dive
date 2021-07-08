@@ -1,8 +1,9 @@
 <script lang="ts">
-import { defineComponent } from '@vue/composition-api';
+import { computed, defineComponent, ref } from '@vue/composition-api';
 
 import Viewer from 'dive-common/components/Viewer.vue';
 import RunPipelineMenu from 'dive-common/components/RunPipelineMenu.vue';
+import ImportAnnotations from 'dive-common//components/ImportAnnotations.vue';
 
 import Export from './Export.vue';
 import JobTab from './JobTab.vue';
@@ -27,6 +28,7 @@ export default defineComponent({
     JobTab,
     RunPipelineMenu,
     Viewer,
+    ImportAnnotations,
   },
   props: {
     id: {
@@ -34,18 +36,25 @@ export default defineComponent({
       required: true,
     },
   },
-  setup() {
+  setup(props) {
+    const viewerRef = ref();
+    const subTypeList = computed(() => [datasets.value[props.id]?.subType] || []);
     return {
-      buttonOptions,
       datasets,
+      viewerRef,
+      buttonOptions,
       menuOptions,
+      subTypeList,
     };
   },
 });
 </script>
 
 <template>
-  <Viewer :id="id">
+  <Viewer
+    :id="id"
+    ref="viewerRef"
+  >
     <template #title>
       <v-tabs
         icons-and-text
@@ -68,7 +77,13 @@ export default defineComponent({
     <template #title-right>
       <RunPipelineMenu
         :selected-dataset-ids="[id]"
+        :sub-type-list="subTypeList"
         v-bind="{ buttonOptions, menuOptions }"
+      />
+      <ImportAnnotations
+        :dataset-id="id"
+        v-bind="{ buttonOptions, menuOptions }"
+        block-on-unsaved
       />
       <Export
         v-if="datasets[id]"

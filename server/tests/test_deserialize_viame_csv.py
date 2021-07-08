@@ -1,11 +1,11 @@
 import json
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 import pytest
 
 from dive_server.serializers import viame
 
-test_tuple = [
+test_tuple: List[Tuple[list, dict, dict]] = [
     (
         [
             # all frames in a track must be of the same type, so the type name for 0 will be ignored
@@ -487,7 +487,7 @@ test_tuple = [
 
 
 @pytest.mark.parametrize("input,expected_tracks,expected_attributes", test_tuple)
-def test_read_csv(
+def test_read_viame_csv(
     input: List[str],
     expected_tracks: Dict[str, dict],
     expected_attributes: Dict[str, dict],

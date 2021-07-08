@@ -289,9 +289,7 @@ class Viame(Resource):
                 pipeline_name=pipelineName,
                 config=config,
                 girder_client_token=str(token["_id"]),
-                girder_job_title=(
-                    f"Running training on folder: {', '.join(folder_names)}"
-                ),
+                girder_job_title=(f"Running training on {len(folder_list)} datasets"),
                 girder_job_type="private" if job_is_private else "training",
             ),
         )

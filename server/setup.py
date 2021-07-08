@@ -16,6 +16,7 @@ requirements = [
     "typing_extensions",
     "gputil",
     # botocore requirement conflict
+    "requests>=2.20.0",  # Match girder_worker_utils
     "urllib3<1.26",
 ]
 

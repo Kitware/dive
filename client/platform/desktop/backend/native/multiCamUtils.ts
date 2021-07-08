@@ -1,8 +1,8 @@
 import npath from 'path';
 import fs from 'fs-extra';
 import {
-  DatasetType,
   FrameImage,
+  MultiCamMedia,
 } from 'dive-common/apispec';
 
 import { JsonMeta } from 'platform/desktop/constants';
@@ -14,25 +14,33 @@ function transcodeMultiCam(
 ) {
   let destLoc = '';
   if (jsonMeta.multiCam) {
-    Object.entries(jsonMeta.multiCam.cameras).forEach(([key, val]) => {
-      if (item.includes(val.originalBasePath)) {
-        destLoc = item.replace(val.originalBasePath, projectDirAbsPath);
-        destLoc = destLoc.replace(npath.basename(item), `${key}_${npath.basename(item)}`);
-        const extension = val.type === 'video' ? '.mp4' : '.png';
-        destLoc = destLoc.replace(npath.extname(item), extension);
+    const entries = Object.entries(jsonMeta.multiCam.cameras);
+    for (let i = 0; i < entries.length; i += 1) {
+      const [cameraName, cameraData] = entries[i];
+      if (item.includes(cameraData.originalBasePath)) {
+        const extension = cameraData.type === 'video' ? '.mp4' : '.png';
+        destLoc = item.replace(npath.extname(item), extension);
 
-        if (val.type === 'image-sequence') {
-          if (!val.transcodedImagesFiles) {
-            // eslint-disable-next-line no-param-reassign
-            val.transcodedImagesFiles = [];
-          }
-          val.transcodedImagesFiles.push(npath.basename(destLoc));
-        } else if (val.type === 'video') {
+        if (cameraData.type === 'image-sequence') {
+          if (!cameraData.transcodedImageFiles) {
           // eslint-disable-next-line no-param-reassign
-          val.transcodedVideoFile = npath.basename(destLoc);
+            cameraData.transcodedImageFiles = [];
+          }
+          if (cameraData.originalImageFiles.includes(npath.basename(item))) {
+            destLoc = destLoc.replace(cameraData.originalBasePath, `${projectDirAbsPath}/${cameraName}`);
+            cameraData.transcodedImageFiles.push(npath.basename(destLoc));
+            break;
+          }
+        } else if (cameraData.type === 'video') {
+          if (item === npath.join(cameraData.originalBasePath, cameraData.originalVideoFile)) {
+            destLoc = destLoc.replace(cameraData.originalBasePath, `${projectDirAbsPath}/${cameraName}`);
+            // eslint-disable-next-line no-param-reassign
+            cameraData.transcodedVideoFile = npath.basename(destLoc);
+            break;
+          }
         }
       }
-    });
+    }
   }
   return destLoc;
 }
@@ -40,31 +48,53 @@ function transcodeMultiCam(
 function getTranscodedMultiCamType(imageListFile: string, jsonMeta: JsonMeta) {
   // Look through cameras trying to find the match for the key/name and type to return back the type
   if (jsonMeta.multiCam) {
-    const keys = Object.keys(jsonMeta.multiCam.cameras);
-    const split = npath.basename(imageListFile).split('_');
-    if (split.length && keys.includes(split[0])) {
-      return jsonMeta.multiCam.cameras[split[0]] && jsonMeta.multiCam.cameras[split[0]].type;
+    const base = npath.basename(imageListFile).replace(npath.extname(imageListFile), '');
+    let type;
+    Object.values(jsonMeta.multiCam.cameras).forEach((val) => {
+      if (val.originalImageFiles.map((item) => item.replace(npath.extname(item), '')).includes(base)) {
+        type = val.type;
+      }
+      if (val.originalVideoFile.includes(base)) {
+        type = val.type;
+      }
+    });
+    if (type) {
+      return type;
     }
   }
   throw new Error(`No associate type for ${imageListFile} in multiCam data`);
 }
 
-function writeMultiCamPipelineInputs(jobWorkDir: string, meta: JsonMeta) {
-  const InputArgFilePair: Record<string, string> = {};
+function writeMultiCamStereoPipelineArgs(jobWorkDir: string, meta: JsonMeta) {
+  const argFilePair: Record<string, string> = {};
+  const outFiles: Record<string, string> = {};
   if (meta.multiCam && meta.multiCam.cameras) {
     let i = 0;
-    Object.values(meta.multiCam.cameras).forEach((list) => {
+    Object.entries(meta.multiCam.cameras).forEach(([key, list]) => {
       const { originalBasePath } = list;
-      const fileName = `cam${i + 1}_images.txt`; //This is locked in the pipeline for now
-      const inputArg = `cam${i + 2}_iread`; // lock for the stereo pipeline as well
-      InputArgFilePair[inputArg] = fileName;
-      const inputFile = fs.createWriteStream(npath.join(jobWorkDir, fileName));
-      list.originalImageFiles.forEach((image) => inputFile.write(`${npath.join(originalBasePath, image)}\n`));
-      inputFile.end();
+      const outputFileName = `computed_tracks_${key}.csv`;
+      const outputArg = `detector_writer${i + 1}:file_name`;
+      argFilePair[outputArg] = outputFileName;
+      outFiles[key] = outputFileName;
+      const inputArg = `input${i + 1}:video_filename`;
+      if (list.type === 'image-sequence') {
+        const inputFileName = npath.join(jobWorkDir, `input${i + 1}_images.txt`);
+        const inputFile = fs.createWriteStream(inputFileName);
+        list.originalImageFiles.forEach((image) => inputFile.write(`${npath.join(originalBasePath, image)}\n`));
+        inputFile.end();
+        argFilePair[inputArg] = inputFileName;
+      } else if (list.originalVideoFile) {
+        const vidFile = list.transcodedVideoFile
+          ? list.transcodedVideoFile : list.originalVideoFile;
+        const vidTypeArg = `input${i + 1}:video_reader:type`;
+        const vidType = 'vidl_ffmpeg';
+        argFilePair[vidTypeArg] = vidType;
+        argFilePair[inputArg] = npath.join(originalBasePath, vidFile);
+      }
       i += 1;
     });
   }
-  return InputArgFilePair;
+  return { argFilePair, outFiles };
 }
 
 function getMultiCamUrls(
@@ -72,75 +102,82 @@ function getMultiCamUrls(
   projectBasePath: string,
   makeMediaUrl: (path: string) => string,
 ) {
-  let imageData = [] as FrameImage[];
-  let videoUrl = '';
-  let type: DatasetType = 'image-sequence';
-  if (projectMetaData.multiCam && projectMetaData.multiCam.display) {
+  if (projectMetaData.multiCam && projectMetaData.multiCam.defaultDisplay) {
     //Confirm we have a imageList for the display
-    const displayCamera = projectMetaData.multiCam.cameras[projectMetaData.multiCam.display];
+    const displayCamera = projectMetaData.multiCam.cameras[projectMetaData.multiCam.defaultDisplay];
     if (!displayCamera) {
-      throw new Error(`The default display of ${projectMetaData.multiCam.display} is not in the list of cameras`);
+      throw new Error(`The default display of ${projectMetaData.multiCam.defaultDisplay} is not in the list of cameras`);
     }
-    if (displayCamera.type === 'image-sequence') {
-      let displayFilenames = displayCamera.originalImageFiles;
-      let { originalBasePath } = displayCamera;
-      // Filter transcoded images to use left/right files)
-      if (displayCamera.transcodedImagesFiles && displayCamera.transcodedImagesFiles.length) {
-        displayFilenames = displayCamera.transcodedImagesFiles;
-        originalBasePath = projectBasePath;
+    const multiCamMedia: MultiCamMedia = {
+      cameras: {},
+      defaultDisplay: projectMetaData.multiCam.defaultDisplay,
+    };
+
+    Object.entries(projectMetaData.multiCam.cameras).forEach(([key, value]) => {
+      let imageData = [] as FrameImage[];
+      let videoUrl = '';
+      if (value.type === 'image-sequence') {
+        let displayFilenames = value.originalImageFiles;
+        let { originalBasePath } = value;
+        // Filter transcoded images to use left/right files)
+        if (value.transcodedImageFiles && value.transcodedImageFiles.length) {
+          displayFilenames = value.transcodedImageFiles;
+          originalBasePath = npath.join(projectBasePath, key);
+        }
+        imageData = displayFilenames.map((filename: string) => ({
+          url: makeMediaUrl(npath.join(originalBasePath, filename)),
+          filename,
+        }));
+      } else if (value.type === 'video') {
+        let displayFilename = value.originalVideoFile;
+        let { originalBasePath } = displayCamera;
+        if (value.transcodedVideoFile) {
+          displayFilename = `${value.transcodedVideoFile}`;
+          originalBasePath = npath.join(projectBasePath, key);
+        }
+        videoUrl = makeMediaUrl(npath.join(originalBasePath, displayFilename));
+      } else {
+        throw new Error('There is no default display for the multicam dataset');
       }
-      imageData = displayFilenames.map((filename: string) => ({
-        url: makeMediaUrl(npath.join(originalBasePath, filename)),
-        filename,
-      }));
-    } else if (displayCamera.type === 'video') {
-      let displayFilename = displayCamera.originalVideoFile;
-      let { originalBasePath } = displayCamera;
-      if (displayCamera.transcodedVideoFile) {
-        displayFilename = `${displayCamera.transcodedVideoFile}`;
-        originalBasePath = projectBasePath;
-      }
-      videoUrl = makeMediaUrl(npath.join(originalBasePath, displayFilename));
-    }
-    type = displayCamera.type;
-  } else {
-    throw new Error('There is no default display for the multicam dataset');
+      multiCamMedia.cameras[key] = {
+        imageData,
+        videoUrl,
+        type: value.type,
+      };
+    });
+    return multiCamMedia;
   }
-  return {
-    imageData,
-    videoUrl,
-    type,
-  };
+  throw new Error('There is no multiCam data associated with this');
 }
 
 function getMultiCamVideoPath(meta: JsonMeta) {
-  if (meta.multiCam && meta.multiCam.display) {
-    if (meta.multiCam.cameras[meta.multiCam.display]) {
-      const display = meta.multiCam.cameras[meta.multiCam.display];
+  if (meta.multiCam && meta.multiCam.defaultDisplay) {
+    if (meta.multiCam.cameras[meta.multiCam.defaultDisplay]) {
+      const display = meta.multiCam.cameras[meta.multiCam.defaultDisplay];
       if (display.transcodedVideoFile) {
         return display.transcodedVideoFile;
       }
       return display.originalVideoFile;
     }
-    throw new Error(`No video exists for the display file of ${meta.multiCam.display}`);
+    throw new Error(`No video exists for the display file of ${meta.multiCam.defaultDisplay}`);
   }
   throw new Error(`${meta.id} does not contain multiCam data`);
 }
 
 function getMultiCamImageFiles(meta: JsonMeta) {
-  if (meta.multiCam && meta.multiCam.display) {
-    if (meta.multiCam.cameras[meta.multiCam.display]) {
-      const display = meta.multiCam.cameras[meta.multiCam.display];
+  if (meta.multiCam && meta.multiCam.defaultDisplay) {
+    if (meta.multiCam.cameras[meta.multiCam.defaultDisplay]) {
+      const display = meta.multiCam.cameras[meta.multiCam.defaultDisplay];
       return display.originalImageFiles;
     }
-    throw new Error(`No Image list exists for the display file of ${meta.multiCam.display}`);
+    throw new Error(`No Image list exists for the display file of ${meta.multiCam.defaultDisplay}`);
   }
   throw new Error(`${meta.id} does not contain multiCam data`);
 }
 
 export {
   transcodeMultiCam,
-  writeMultiCamPipelineInputs,
+  writeMultiCamStereoPipelineArgs,
   getMultiCamVideoPath,
   getMultiCamImageFiles,
   getMultiCamUrls,

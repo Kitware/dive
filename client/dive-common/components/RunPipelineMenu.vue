@@ -2,7 +2,13 @@
 import {
   defineComponent, computed, PropType, ref, onBeforeMount, reactive,
 } from '@vue/composition-api';
-import { Pipelines, Pipe, useApi } from 'dive-common/apispec';
+import {
+  Pipelines,
+  Pipe,
+  useApi,
+  SubType,
+} from 'dive-common/apispec';
+import { stereoPipelineMarker } from 'dive-common/constants';
 
 export default defineComponent({
   props: {
@@ -17,6 +23,10 @@ export default defineComponent({
     menuOptions: {
       type: Object,
       default: () => ({}),
+    },
+    subTypeList: {
+      type: Array as PropType<SubType[]>,
+      default: () => ([]),
     },
   },
 
@@ -48,7 +58,17 @@ export default defineComponent({
           }
           return 0;
         });
-        sortedPipelines[name] = category;
+        // Filter out unsupported pipelines based on subTypeList
+        // measurement can only be operated on stereo subtypes
+        if (name === stereoPipelineMarker) {
+          if (props.subTypeList.length === props.subTypeList.filter((item) => item === 'stereo').length) {
+            sortedPipelines[name] = category;
+          }
+        } else if (
+          props.subTypeList.length === props.subTypeList.filter((item) => item === null).length
+        ) {
+          sortedPipelines[name] = category;
+        }
       });
       return sortedPipelines;
     });
