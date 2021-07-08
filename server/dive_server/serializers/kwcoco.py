@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Tuple
 
 from dive_server.serializers import viame
 from dive_utils import strNumericCompare
-from dive_utils.models import Attribute, CocoMetadata, Feature, Track
+from dive_utils.models import CocoMetadata, Feature, Track
 
 
 def is_coco_json(coco: Dict[str, Any]):
@@ -187,7 +187,7 @@ def load_coco_as_tracks_and_attributes(coco: Dict[str, List[dict]]) -> Tuple[dic
     Convert KWCOCO json to DIVE json tracks.
     """
     tracks: Dict[int, Track] = {}
-    metadata_attributes: Dict[str, Attribute] = {}
+    metadata_attributes: Dict[str, Dict[str, Any]] = {}
     test_vals: Dict[str, Dict[str, int]] = {}
     meta = load_coco_metadata(coco)
     annotations = coco.get('annotations', [])

@@ -8,16 +8,14 @@ import json
 import re
 from typing import Any, Dict, Generator, List, Tuple, Union
 
-import _csv
-
-from dive_utils.models import Attribute, Feature, Track, interpolate
+from dive_utils.models import Feature, Track, interpolate
 
 
 def format_timestamp(fps: int, frame: int) -> str:
     return str(datetime.datetime.utcfromtimestamp(frame / fps).strftime(r'%H:%M:%S.%f'))
 
 
-def writeHeader(writer: '_csv._writer', metadata: Dict):
+def writeHeader(writer: 'csv._writer', metadata: Dict):  # type: ignore
     writer.writerow(
         [
             "# 1: Detection or Track-id",
@@ -183,7 +181,7 @@ def _parse_row_for_tracks(row: List[str]) -> Tuple[Feature, Dict, Dict, List]:
 
 
 def create_attributes(
-    metadata_attributes: Dict[str, Attribute],
+    metadata_attributes: Dict[str, Dict[str, Any]],
     test_vals: Dict[str, Dict[str, int]],
     atr_type: str,
     key: str,
@@ -208,7 +206,7 @@ def create_attributes(
 
 
 def calculate_attribute_types(
-    metadata_attributes: Dict[str, Attribute], test_vals: Dict[str, Dict[str, int]]
+    metadata_attributes: Dict[str, Dict[str, Any]], test_vals: Dict[str, Dict[str, int]]
 ):
     # count all keys must have a value to convert to predefined
     predefined_min_count = 3
@@ -242,7 +240,7 @@ def load_csv_as_tracks_and_attributes(rows: List[str]) -> Tuple[dict, dict]:
     """
     reader = csv.reader(row for row in rows if (not row.startswith("#") and row))
     tracks: Dict[int, Track] = {}
-    metadata_attributes: Dict[str, Attribute] = {}
+    metadata_attributes: Dict[str, Dict[str, Any]] = {}
     test_vals: Dict[str, Dict[str, int]] = {}
     for row in reader:
         (
@@ -372,14 +370,16 @@ def export_tracks_as_csv(
                                 # Coordinates need to be flattened out from their list of tuples
                                 coordinates = [
                                     item
-                                    for sublist in geoJSONFeature.geometry.coordinates[0]
-                                    for item in sublist
+                                    for sublist in geoJSONFeature.geometry.coordinates[
+                                        0
+                                    ]  # type: ignore
+                                    for item in sublist  # type: ignore
                                 ]
                                 columns.append(
                                     f"(poly) {' '.join(map(lambda x: str(round(x)), coordinates))}"
                                 )
                             if 'Point' == geoJSONFeature.geometry.type:
-                                coordinates = geoJSONFeature.geometry.coordinates
+                                coordinates = geoJSONFeature.geometry.coordinates  # type: ignore
                                 columns.append(
                                     f"(kp) {geoJSONFeature.properties['key']} "
                                     f"{round(coordinates[0])} {round(coordinates[1])}"
