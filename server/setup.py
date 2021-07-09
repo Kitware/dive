@@ -21,41 +21,33 @@ requirements = [
 ]
 
 dev_requirements = [
-    "black>=20.8b0",
-    "flake8",
-    "isort",
+    "ipykernel",
     "mkdocs",
     "mkdocs-material",
-    "mypy",
-    "pytest",
-    "ipykernel",
-    "tabulate",
-    "python-dotenv",
-    "pytest-cov",
     "tox",
 ]
 
 setup(
+    name="dive_server",
+    version="1.4.1",
+    description="DIVE Data Server",
+    author='Kitware, Inc.',
     author_email="viame-web@kitware.com",
+    url="https://github.com/Kitware/dive",
+    license="Apache Software License 2.0",
+    keywords="DIVE, VIAME, VIAME-Web, Annotation",
     classifiers=[
         "License :: OSI Approved :: Apache Software License",
         "Natural Language :: English",
         "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3.8",
     ],
-    description="DIVE Data Server",
     python_requires=">=3.7",
-    install_requires=requirements,
-    extra_require={"dev": dev_requirements},
-    license="Apache Software License 2.0",
+    packages=find_packages(exclude=["test", "test.*"]),
     package_data={
         "": ["**/*.mako"],
     },
-    keywords="DIVE, VIAME, VIAME-Web, Annotation",
-    name="dive_server",
-    packages=find_packages(exclude=["test", "test.*"]),
-    url="https://github.com/Kitware/dive",
-    version="1.4.1",
+    include_package_data=True,
     zip_safe=False,
     entry_points={
         "girder.plugin": [
@@ -65,4 +57,6 @@ setup(
         ],
         "girder_worker_plugins": ["dive_tasks = dive_tasks:DIVEPlugin"],
     },
+    install_requires=requirements,
+    extras_require={"dev": dev_requirements},
 )
