@@ -38,7 +38,7 @@ export default defineComponent({
   },
   setup(props) {
     const viewerRef = ref();
-    const subTypeList = computed(() => [datasets.value[props.id]?.subType] || []);
+    const subTypeList = computed(() => [datasets.value[props.id]?.subType || null]);
     return {
       datasets,
       viewerRef,
