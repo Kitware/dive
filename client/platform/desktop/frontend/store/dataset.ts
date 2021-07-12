@@ -63,8 +63,6 @@ function load(): JsonMetaCache[] {
         maybeArr.forEach((meta: JsonMetaCache) => (
           Vue.set(datasets.value, meta.id, hydrateJsonMetaCacheValue(meta))
         ));
-        const values = Object.values(datasets.value);
-        window.localStorage.setItem(RecentsKey, JSON.stringify(values));
         return maybeArr;
       }
     }
