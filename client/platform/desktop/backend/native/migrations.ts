@@ -11,6 +11,9 @@ function upgrade(meta: JsonMeta) {
     if (meta.multiCam === undefined) {
       meta.multiCam = null;
     }
+    if (meta.subType === undefined) {
+      meta.subType = null;
+    }
   } else if (meta.version < JsonMetaCurrentVersion) {
     /* Perform major version upgrade */
     console.error('Impossible schema', meta);
