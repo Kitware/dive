@@ -6,7 +6,7 @@ import {
 import { remote } from 'electron';
 import { NvidiaSmiReply } from 'platform/desktop/constants';
 
-import { settings, setSettings, validateSettings } from '../store/settings';
+import { getSettings, setSettings, validateSettings } from '../store/settings';
 import { nvidiaSmi } from '../api';
 
 import BrowserLink from './BrowserLink.vue';
@@ -20,7 +20,7 @@ export default defineComponent({
   setup() {
     // null values indicate initialization has not completed
     const smi = ref(null as NvidiaSmiReply | null);
-    const localSettings = settings;
+    const localSettings = ref(getSettings());
     const { arch, platform, version } = process;
     const settingsAreValid = ref(true as boolean | string);
     const gitHash = process.env.VUE_APP_GIT_HASH;
@@ -41,7 +41,7 @@ export default defineComponent({
     }
 
     async function save() {
-      if (settings.value !== null) {
+      if (localSettings.value !== null) {
         settingsAreValid.value = false;
         settingsAreValid.value = await validateSettings(localSettings.value);
         setSettings(localSettings.value);

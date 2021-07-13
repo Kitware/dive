@@ -451,6 +451,7 @@ export default defineComponent({
         {{ datasetName }}
       </span>
       <v-spacer />
+
       <template #extension>
         <span>Viewer/Edit Controls</span>
         <editor-menu
@@ -466,26 +467,29 @@ export default defineComponent({
         <v-spacer />
         <slot name="extension-right" />
       </template>
+
       <slot name="title-right" />
       <user-guide-button annotating />
 
-      <v-tooltip bottom>
+      <v-tooltip
+        bottom
+        :disabled="!readonlyMode"
+      >
         <template v-slot:activator="{ on }">
           <v-badge
             overlap
             bottom
             :color="readonlyMode ? 'warning' : undefined"
             :icon="readonlyMode ? 'mdi-exclamation-thick' : undefined"
-            :content="pendingSaveCount"
-            :value="pendingSaveCount > 0 || readonlyMode"
+            :content="!readonlyMode ? pendingSaveCount : undefined"
+            :value="readonlyMode || pendingSaveCount > 0"
             offset-x="14"
             offset-y="18"
           >
             <div v-on="on">
               <v-btn
                 icon
-                :disabled="pendingSaveCount === 0 || saveInProgress"
-                v-on="on"
+                :disabled="readonlyMode || pendingSaveCount === 0 || saveInProgress"
                 @click="save"
               >
                 <v-icon>mdi-content-save</v-icon>

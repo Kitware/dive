@@ -79,27 +79,26 @@ export default function useSave(
       attribute?: Attribute;
     } = { action: 'meta' },
   ) {
-    // if (readonlyMode.value) {
-    //   throw new Error('attempted to make state changes in read only mode');
-    // }
-    if (action === 'meta') {
-      pendingChangeMap.meta += 1;
-    } else if (track !== undefined) {
-      _updatePendingChangeMap(
-        track.trackId, track, action, pendingChangeMap.upsert, pendingChangeMap.delete,
-      );
-    } else if (attribute !== undefined) {
-      _updatePendingChangeMap(
-        attribute.key,
-        attribute,
-        action,
-        pendingChangeMap.attributeUpsert,
-        pendingChangeMap.attributeDelete,
-      );
-    } else {
-      throw new Error(`Arguments inconsistent with pending change type: ${action} cannot be performed without additional arguments`);
+    if (!readonlyMode.value) {
+      if (action === 'meta') {
+        pendingChangeMap.meta += 1;
+      } else if (track !== undefined) {
+        _updatePendingChangeMap(
+          track.trackId, track, action, pendingChangeMap.upsert, pendingChangeMap.delete,
+        );
+      } else if (attribute !== undefined) {
+        _updatePendingChangeMap(
+          attribute.key,
+          attribute,
+          action,
+          pendingChangeMap.attributeUpsert,
+          pendingChangeMap.attributeDelete,
+        );
+      } else {
+        throw new Error(`Arguments inconsistent with pending change type: ${action} cannot be performed without additional arguments`);
+      }
+      pendingSaveCount.value += 1;
     }
-    pendingSaveCount.value += 1;
   }
 
   return { save, markChangesPending, pendingSaveCount };

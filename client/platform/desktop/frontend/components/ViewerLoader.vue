@@ -54,10 +54,9 @@ export default defineComponent({
 </script>
 
 <template>
-  <!-- TODO: remove hard coded readonlyMode: true -->
   <Viewer
     ref="viewerRef"
-    v-bind="{ id, readonlyMode: true }"
+    v-bind="{ id, readonlyMode }"
   >
     <template #title>
       <v-tabs
