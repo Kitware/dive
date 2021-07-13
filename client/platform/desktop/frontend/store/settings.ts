@@ -54,6 +54,9 @@ async function init() {
   if (settingsvalue.overrides.viamePath !== undefined) {
     settingsvalue.viamePath = settingsvalue.overrides.viamePath;
   }
+  if (settingsvalue.overrides.readonlyMode !== undefined) {
+    settingsvalue.readonlyMode = settingsvalue.overrides.readonlyMode;
+  }
   settings.value = settingsvalue;
   ipcRenderer.send('update-settings', settings.value);
 }

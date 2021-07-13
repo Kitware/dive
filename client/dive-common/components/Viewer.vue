@@ -61,6 +61,10 @@ export default defineComponent({
       type: String,
       required: true,
     },
+    readonlyMode: {
+      type: Boolean,
+      default: false,
+    },
   },
   setup(props) {
     const { prompt } = usePrompt();
@@ -106,7 +110,7 @@ export default defineComponent({
       save: saveToServer,
       markChangesPending,
       pendingSaveCount,
-    } = useSave(toRef(props, 'id'));
+    } = useSave(toRef(props, 'id'), toRef(props, 'readonlyMode'));
 
     const recipes = [
       new PolygonBase(),
@@ -464,23 +468,35 @@ export default defineComponent({
       </template>
       <slot name="title-right" />
       <user-guide-button annotating />
-      <v-badge
-        overlap
-        bottom
-        :content="pendingSaveCount"
-        :value="pendingSaveCount > 0"
-        offset-x="14"
-        offset-y="18"
-      >
-        <v-btn
-          icon
-          :disabled="pendingSaveCount === 0 || saveInProgress"
-          @click="save"
-        >
-          <v-icon>mdi-content-save</v-icon>
-        </v-btn>
-      </v-badge>
+
+      <v-tooltip bottom>
+        <template v-slot:activator="{ on }">
+          <v-badge
+            overlap
+            bottom
+            :color="readonlyMode ? 'warning' : undefined"
+            :icon="readonlyMode ? 'mdi-exclamation-thick' : undefined"
+            :content="pendingSaveCount"
+            :value="pendingSaveCount > 0 || readonlyMode"
+            offset-x="14"
+            offset-y="18"
+          >
+            <div v-on="on">
+              <v-btn
+                icon
+                :disabled="pendingSaveCount === 0 || saveInProgress"
+                v-on="on"
+                @click="save"
+              >
+                <v-icon>mdi-content-save</v-icon>
+              </v-btn>
+            </div>
+          </v-badge>
+        </template>
+        <span>Read only mode, cannot save changes</span>
+      </v-tooltip>
     </v-app-bar>
+
     <v-row
       no-gutters
       class="fill-height"

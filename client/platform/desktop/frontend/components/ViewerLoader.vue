@@ -9,6 +9,7 @@ import Export from './Export.vue';
 import JobTab from './JobTab.vue';
 
 import { datasets } from '../store/dataset';
+import { getSettings } from '../store/settings';
 
 const buttonOptions = {
   outlined: true,
@@ -39,21 +40,24 @@ export default defineComponent({
   setup(props) {
     const viewerRef = ref();
     const subTypeList = computed(() => [datasets.value[props.id]?.subType || null]);
+    const readonlyMode = computed(() => getSettings().readonlyMode);
     return {
       datasets,
       viewerRef,
       buttonOptions,
       menuOptions,
       subTypeList,
+      readonlyMode,
     };
   },
 });
 </script>
 
 <template>
+  <!-- TODO: remove hard coded readonlyMode: true -->
   <Viewer
-    :id="id"
     ref="viewerRef"
+    v-bind="{ id, readonlyMode: true }"
   >
     <template #title>
       <v-tabs

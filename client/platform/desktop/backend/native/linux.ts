@@ -24,9 +24,18 @@ const DefaultSettings: Settings = {
   // The current settings schema config
   version: SettingsCurrentVersion,
   // A path to the VIAME base install
-  viamePath: process.env.DIVE_VIAME_INSTALL_PATH || '/opt/noaa/viame',
+  viamePath: '/opt/noaa/viame',
+  // read only mode flag
+  readonlyMode: false,
   // Path to a user data folder
   dataPath: npath.join(os.homedir(), 'VIAME_DATA'),
+  // environment overrides
+  overrides: {
+    // override VIAME install path from env
+    viamePath: process.env.DIVE_VIAME_INSTALL_PATH,
+    // override readonly mode flag
+    readonlyMode: process.env.DIVE_READONLY_MODE?.toLowerCase() === 'true',
+  },
 };
 
 const ViameLinuxConstants = {
