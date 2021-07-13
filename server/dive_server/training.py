@@ -14,7 +14,6 @@ TrainingOutputFolderName = "VIAME Training Results"
 
 def training_output_folder(user: User):
     """Ensure that the user has a training results folder."""
-
     viameFolder = Folder().createFolder(
         user,
         ViameDataFolderName,
@@ -35,9 +34,7 @@ def training_output_folder(user: User):
     )
 
 
-def ensure_csv_detections_file(
-    folder: Folder, detection_item: Item, user: User
-) -> GirderModel:
+def ensure_csv_detections_file(folder: Folder, detection_item: Item, user: User) -> GirderModel:
     """
     Ensures that the detection item has a file which is a csv.
     Attach the newly created .csv to the existing detection_item.
@@ -46,9 +43,7 @@ def ensure_csv_detections_file(
     TODO: move this to the training job code instead of keeping it
     in the request thread
     """
-    filename, gen = get_annotation_csv_generator(
-        folder, user, excludeBelowThreshold=True
-    )
+    filename, gen = get_annotation_csv_generator(folder, user, excludeBelowThreshold=True)
     csv_bytes = ("".join([line for line in gen()])).encode()
     new_file = File().createFile(
         user,

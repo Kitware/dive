@@ -1,5 +1,4 @@
-from urllib.parse import quote as urlquote
-from urllib.parse import urlparse
+from urllib.parse import quote as urlquote, urlparse
 
 from pydantic import BaseModel, BaseSettings
 
@@ -38,7 +37,5 @@ class UserQueueModel(BaseModel):
 
     def with_broker_url(self, template: str) -> dict:
         value = self.dict()
-        value['broker_url'] = template.format(
-            urlquote(self.username), urlquote(self.password)
-        )
+        value['broker_url'] = template.format(urlquote(self.username), urlquote(self.password))
         return value

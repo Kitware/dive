@@ -1,7 +1,7 @@
 import datetime
 
-import requests
 from girder_worker.utils import JobManager
+import requests
 
 
 def _flush(self):
@@ -40,9 +40,7 @@ def _flush(self):
                 # Any 500 level error
                 # The job record size has been exceeded.  Attempt to truncate the log
                 data['overwrite'] = True
-                data[
-                    'log'
-                ] = f'Log overflowed and was truncated at {datetime.datetime.utcnow()}'
+                data['log'] = f'Log overflowed and was truncated at {datetime.datetime.utcnow()}'
                 req_2 = requests.request(
                     self.method.upper(),
                     self.url,

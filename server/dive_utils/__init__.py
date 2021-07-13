@@ -45,9 +45,7 @@ def strNumericCompare(input1: str, input2: str) -> int:
     """
     if input1 == input2:
         return 0
-    for a, b in itertools.zip_longest(
-        _strChunks(input1), _strChunks(input2), fillvalue=None
-    ):
+    for a, b in itertools.zip_longest(_strChunks(input1), _strChunks(input2), fillvalue=None):
         if a == b:
             continue
         if a is None:

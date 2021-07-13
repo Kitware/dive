@@ -204,9 +204,7 @@ test_tuple: List[Tuple[dict, dict, dict]] = [
                 },
                 {
                     "segmentation": [{"exterior": [], "interiors": []}],
-                    "keypoints": [
-                        {"xy": [136.825, 131.145], "keypoint_category_id": 3}
-                    ],
+                    "keypoints": [{"xy": [136.825, 131.145], "keypoint_category_id": 3}],
                     "bbox": [73, 125, 69, 59],
                     "id": 2,
                     "image_id": 2,
@@ -721,9 +719,5 @@ def test_read_kwcoco_json(
     (tracks, attributes) = kwcoco.load_coco_as_tracks_and_attributes(input)
     print(expected_tracks.keys())
     print(tracks.keys())
-    assert json.dumps(tracks, sort_keys=True) == json.dumps(
-        expected_tracks, sort_keys=True
-    )
-    assert json.dumps(attributes, sort_keys=True) == json.dumps(
-        expected_attributes, sort_keys=True
-    )
+    assert json.dumps(tracks, sort_keys=True) == json.dumps(expected_tracks, sort_keys=True)
+    assert json.dumps(attributes, sort_keys=True) == json.dumps(expected_attributes, sort_keys=True)

@@ -14,11 +14,7 @@ from girder.models.user import User
 from dive_utils.types import AssetstoreModel, GirderModel
 
 from .constants import AssetstoreRuleMarker
-from .models import (
-    GCSNotificationRecord,
-    GCSPushNotificationPayload,
-    NotificationRouterRule,
-)
+from .models import GCSNotificationRecord, GCSPushNotificationPayload, NotificationRouterRule
 
 
 class BucketNotification(Resource):
@@ -31,9 +27,7 @@ class BucketNotification(Resource):
         self.route("POST", ('gcs',), self.gcs_save_record)
 
     @staticmethod
-    def processNotification(
-        store: AssetstoreModel, rootFolder: GirderModel, importPath: str
-    ):
+    def processNotification(store: AssetstoreModel, rootFolder: GirderModel, importPath: str):
         """
         Import at proper location
         """

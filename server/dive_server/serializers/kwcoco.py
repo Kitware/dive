@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Tuple
 
 from dive_server.serializers import viame
 from dive_utils import strNumericCompare
-from dive_utils.models import Attribute, CocoMetadata, Feature, Track
+from dive_utils.models import CocoMetadata, Feature, Track
 
 
 def is_coco_json(coco: Dict[str, Any]):
@@ -14,9 +14,7 @@ def is_coco_json(coco: Dict[str, Any]):
     return any(key in coco for key in keys)
 
 
-def annotation_info(
-    annotation: dict, meta: CocoMetadata
-) -> Tuple[int, str, int, List[int]]:
+def annotation_info(annotation: dict, meta: CocoMetadata) -> Tuple[int, str, int, List[int]]:
     # these fields will always exist
     annotation_id = annotation['id']
     image_id = annotation['image_id']
@@ -36,9 +34,10 @@ def annotation_info(
     return trackId, filename, frame, bounds
 
 
-def _parse_annotation(
-    annotation: dict, meta: CocoMetadata
-) -> Tuple[dict, dict, dict, list]:
+def _parse_annotation(annotation: dict, meta: CocoMetadata) -> Tuple[dict, dict, dict, list]:
+    """
+    Parse a single KWCOCO annotation into its composite track and detection parts
+    """
     features: Dict[str, Any] = {}
     attributes: Dict[str, Any] = {}
     track_attributes: Dict[str, Any] = {}
@@ -73,7 +72,7 @@ def _parse_annotation(
 
     # create head-tail line if keypoint pair exists
     if len(head_tail) > 2:
-        raise ValueError("Multiple head/tail keypoints per annotation not supported")
+        raise ValueError('Multiple head/tail keypoints per annotation not supported')
     elif len(head_tail) == 2:
         viame.create_geoJSONFeature(features, 'LineString', head_tail, 'HeadTails')
 
@@ -95,7 +94,7 @@ def _parse_annotation(
                     # received [x1, y1, ...] format
                     polygon = segmentation
                 else:
-                    raise ValueError("Multiple polygons per annotation not supported")
+                    raise ValueError('Multiple polygons per annotation not supported')
             else:
                 polygon = segmentation[0]  # get first polygon only
 
@@ -103,11 +102,11 @@ def _parse_annotation(
                 coords = polygon.get('exterior', [])
                 hole = polygon.get('interior', [])
                 if hole:
-                    raise ValueError("Polygon with hole not supported")
+                    raise ValueError('Polygon with hole not supported')
             elif isinstance(polygon, list):  # list coco format
                 coords = list(zip(polygon[::2], polygon[1::2]))
             else:
-                raise ValueError("Incorrect polygon segmentation")
+                raise ValueError('Incorrect polygon segmentation')
 
             if coords:
                 viame.create_geoJSONFeature(features, 'Polygon', coords)
@@ -168,9 +167,7 @@ def load_coco_metadata(coco: Dict[str, List[dict]]) -> CocoMetadata:
         frame_sorted_images = sorted(dive_sorted_images, key=lambda x: x['frame_index'])
 
         if frame_sorted_images != dive_sorted_images:
-            raise ValueError(
-                'Image track IDs exists and frame index do not match DIVE sort order'
-            )
+            raise ValueError('Image track IDs exists and frame index do not match DIVE sort order')
 
     categories_map = {x['id']: x for x in categories}
     keypoint_categories_map = {x['id']: x for x in keypoint_categories}
@@ -185,15 +182,13 @@ def load_coco_metadata(coco: Dict[str, List[dict]]) -> CocoMetadata:
     )
 
 
-def load_coco_as_tracks_and_attributes(
-    coco: Dict[str, List[dict]]
-) -> Tuple[dict, dict]:
+def load_coco_as_tracks_and_attributes(coco: Dict[str, List[dict]]) -> Tuple[dict, dict]:
     """
     Convert KWCOCO json to DIVE json tracks.
     """
     tracks: Dict[int, Track] = {}
-    metadata_attributes: Dict[str, Attribute] = {}
-    test_vals: Dict[str, int] = {}
+    metadata_attributes: Dict[str, Dict[str, Any]] = {}
+    test_vals: Dict[str, Dict[str, int]] = {}
     meta = load_coco_metadata(coco)
     annotations = coco.get('annotations', [])
 
@@ -220,14 +215,10 @@ def load_coco_as_tracks_and_attributes(
             track.attributes[key] = val
             viame.create_attributes(metadata_attributes, test_vals, 'track', key, val)
         for (key, val) in attributes.items():
-            viame.create_attributes(
-                metadata_attributes, test_vals, 'detection', key, val
-            )
+            viame.create_attributes(metadata_attributes, test_vals, 'detection', key, val)
 
     # Now we process all the metadata_attributes for the types
     viame.calculate_attribute_types(metadata_attributes, test_vals)
 
-    track_json = {
-        trackId: track.dict(exclude_none=True) for trackId, track in tracks.items()
-    }
+    track_json = {trackId: track.dict(exclude_none=True) for trackId, track in tracks.items()}
     return track_json, metadata_attributes
