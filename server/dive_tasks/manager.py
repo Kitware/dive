@@ -68,5 +68,5 @@ def patch_manager(manager):
     This patch should be included with any celery job where the
     job manager is used.
     """
-    manager.flush = _flush.__get__(manager, JobManager)
+    manager._flush = _flush.__get__(manager, JobManager)
     return manager
