@@ -2,22 +2,22 @@ import contextlib
 import json
 import math
 import os
+from pathlib import Path
 import shlex
 import shutil
 import subprocess
-import tempfile
-import zipfile
-from pathlib import Path
 from subprocess import Popen
+import tempfile
 from typing import Dict, List, Tuple
 from urllib import request
 from urllib.parse import urlparse
+import zipfile
 
+from GPUtil import getGPUs
 from girder_client import GirderClient
 from girder_worker.app import app
 from girder_worker.task import Task
 from girder_worker.utils import JobManager, JobStatus
-from GPUtil import getGPUs
 
 from dive_tasks.manager import patch_manager
 from dive_tasks.pipeline_discovery import discover_configs
@@ -94,12 +94,8 @@ class Config:
         assert self.viame_install_path.exists(), "VIAME Base install directory missing."
         self.viame_setup_script = self.viame_install_path / "setup_viame.sh"
         assert self.viame_setup_script.is_file(), "VIAME Setup Script missing"
-        self.viame_training_executable = (
-            self.viame_install_path / "bin" / "viame_train_detector"
-        )
-        assert (
-            self.viame_training_executable.is_file()
-        ), "VIAME Training Executable missing"
+        self.viame_training_executable = self.viame_install_path / "bin" / "viame_train_detector"
+        assert self.viame_training_executable.is_file(), "VIAME Training Executable missing"
 
         # The subdirectory within VIAME_INSTALL_PATH where pipelines can be found
         self.pipeline_subdir = 'configs/pipelines'
@@ -147,7 +143,7 @@ def upgrade_pipelines(
     # zipfiles to extract after download is complete
     addons_to_update_update: List[Path] = []
 
-    for idx, addon in enumerate(urls):
+    for addon in urls:
         download_name = urlparse(addon).path.replace('/', '_')
         zipfile_path = conf.addon_zip_path / f'{download_name}.zip'
         if not zipfile_path.exists() or force:
@@ -165,16 +161,12 @@ def upgrade_pipelines(
     # remove and recreate the existing addon pipeline directory
     shutil.rmtree(conf.addon_extracted_path)
     # copy over data from built image, which causes mkdir() for all parents
-    shutil.copytree(
-        conf.viame_pipeine_path, conf.get_extracted_pipeline_path(missing_ok=True)
-    )
+    shutil.copytree(conf.viame_pipeine_path, conf.get_extracted_pipeline_path(missing_ok=True))
     # Extract zipfiles over newly copied files.  Right now the zip archives
     # MUST contain the pipeline subdir (e.g. configs/pipelines) in their
     # internal structure.
     for zipfile_path in addons_to_update_update:
-        manager.write(
-            f'Extracting {zipfile_path} to {str(conf.addon_extracted_path)}\n'
-        )
+        manager.write(f'Extracting {zipfile_path} to {str(conf.addon_extracted_path)}\n')
         z = zipfile.ZipFile(zipfile_path)
         z.extractall(conf.addon_extracted_path)
 
@@ -290,9 +282,7 @@ def run_pipeline(self: Task, params: PipelineJob):
         executable='/bin/bash',
         env=conf.gpu_process_env,
     )
-    stream_subprocess(
-        process, self, context, manager, process_err_file, cleanup=cleanup
-    )
+    stream_subprocess(process, self, context, manager, process_err_file, cleanup=cleanup)
     if check_canceled(self, context):
         return
 
@@ -418,9 +408,7 @@ def train_pipeline(
 
             # Check that there are results in the output path
             if len(list(training_results_path.glob("*"))) == 0:
-                raise RuntimeError(
-                    "Training output didn't produce results, discarding..."
-                )
+                raise RuntimeError("Training output didn't produce results, discarding...")
 
             manager.updateStatus(JobStatus.PUSHING_OUTPUT)
             # This is the name of the folder that is uploaded to the
@@ -476,16 +464,12 @@ def convert_video(self: Task, path, folderId, auxiliaryFolderId, itemId):
         stdout=subprocess.PIPE,
         stderr=process_err_file,
     )
-    stdout = stream_subprocess(
-        process, self, context, manager, process_err_file, keep_stdout=True
-    )
+    stdout = stream_subprocess(process, self, context, manager, process_err_file, keep_stdout=True)
     if check_canceled(self, context):
         return
 
     jsoninfo = json.loads(stdout)
-    videostream = list(
-        filter(lambda x: x["codec_type"] == "video", jsoninfo["streams"])
-    )
+    videostream = list(filter(lambda x: x["codec_type"] == "video", jsoninfo["streams"]))
     if len(videostream) != 1:
         raise Exception('Expected 1 video stream, found {}'.format(len(videostream)))
 
@@ -526,9 +510,7 @@ def convert_video(self: Task, path, folderId, auxiliaryFolderId, itemId):
         stderr=process_err_file,
     )
 
-    stream_subprocess(
-        process, self, context, manager, process_err_file, cleanup=cleanup
-    )
+    stream_subprocess(process, self, context, manager, process_err_file, cleanup=cleanup)
     if check_canceled(self, context):
         return
 
@@ -588,12 +570,7 @@ def convert_images(self: Task, folderId):
     items_to_convert = [
         item
         for item in items
-        if (
-            (
-                imageRegex.search(item["name"])
-                and not safeImageRegex.search(item["name"])
-            )
-        )
+        if ((imageRegex.search(item["name"]) and not safeImageRegex.search(item["name"])))
     ]
 
     count = 0

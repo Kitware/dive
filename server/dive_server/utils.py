@@ -1,12 +1,11 @@
+from datetime import datetime
 import functools
 import io
 import json
 import os
-from datetime import datetime
 from pathlib import Path
 from typing import Callable, Dict, Generator, List, Optional, Tuple, Type
 
-import pymongo
 from girder.constants import AccessType
 from girder.exceptions import RestException
 from girder.models.file import File
@@ -15,6 +14,7 @@ from girder.models.item import Item
 from girder.models.model_base import AccessControlledModel
 from girder.models.upload import Upload
 from pydantic.main import BaseModel
+import pymongo
 from pymongo.cursor import Cursor
 
 from dive_server.serializers import kwcoco, viame
@@ -53,12 +53,8 @@ class PydanticModel(AccessControlledModel):
 
 
 def all_detections_items(folder: Folder) -> Cursor:
-    """caller is responsible for verifying access permissions"""
-    return (
-        Item()
-        .find({f"meta.{DetectionMarker}": str(folder['_id'])})
-        .sort([("created", -1)])
-    )
+    """Caller is responsible for verifying access permissions"""
+    return Item().find({f"meta.{DetectionMarker}": str(folder['_id'])}).sort([("created", -1)])
 
 
 def detections_item(folder: Folder, strict=False) -> Optional[GirderModel]:
@@ -115,9 +111,7 @@ def getTrackData(file: Optional[File]) -> Dict[str, dict]:
         return {}
     if "csv" in file["exts"]:
         (tracks, attributes) = viame.load_csv_as_tracks_and_attributes(
-            b"".join(list(File().download(file, headers=False)()))
-            .decode("utf-8")
-            .splitlines()
+            b"".join(list(File().download(file, headers=False)())).decode("utf-8").splitlines()
         )
         return tracks
     return json.loads(b"".join(list(File().download(file, headers=False)())).decode())
@@ -128,9 +122,7 @@ def getTrackAndAttributesFromCSV(file: GirderModel) -> Tuple[dict, dict]:
         return ({}, {})
     if "csv" in file["exts"]:
         return viame.load_csv_as_tracks_and_attributes(
-            b"".join(list(File().download(file, headers=False)()))
-            .decode("utf-8")
-            .splitlines()
+            b"".join(list(File().download(file, headers=False)())).decode("utf-8").splitlines()
         )
     return ({}, {})
 
@@ -153,9 +145,7 @@ def saveTracks(folder, tracks, user):
 
     move_existing_result_to_auxiliary_folder(folder, user)
     newResultItem = Item().createItem(item_name, user, folder)
-    Item().setMetadata(
-        newResultItem, {DetectionMarker: str(folder["_id"])}, allowNull=True
-    )
+    Item().setMetadata(newResultItem, {DetectionMarker: str(folder["_id"])}, allowNull=True)
 
     json_bytes = json.dumps(tracks).encode()
     byteIO = io.BytesIO(json_bytes)
@@ -184,9 +174,8 @@ def saveImportAttributes(folder, attributes, user):
 
 def verify_dataset(folder: GirderModel):
     """Verify that a given folder is a DIVE dataset"""
-
     if not asbool(fromMeta(folder, DatasetMarker, False)):
-        raise RestException(f'Source folder is not a valid DIVE dataset')
+        raise RestException('Source folder is not a valid DIVE dataset')
     return True
 
 
@@ -199,7 +188,7 @@ def process_csv(folder: GirderModel, user: GirderModel):
     )
     if csvItems.count() >= 1:
         auxiliary = get_or_create_auxiliary_folder(folder, user)
-        file = Item().childFiles(csvItems.next())[0]
+        file = Item().childFiles(next(csvItems))[0]
         (tracks, attributes) = getTrackAndAttributesFromCSV(file)
         saveTracks(folder, tracks, user)
         saveImportAttributes(folder, attributes, user)
@@ -241,7 +230,7 @@ def getCloneRoot(owner: GirderModel, source_folder: GirderModel):
     verify_dataset(source_folder)
     next_id = fromMeta(source_folder, ForeignMediaIdMarker, False)
     while next_id is not False:
-        """Recurse through source folders to find the root, allowing clones of clones"""
+        # Recurse through source folders to find the root, allowing clones of clones
         source_folder = Folder().load(
             next_id,
             level=AccessType.READ,
@@ -264,7 +253,6 @@ def createSoftClone(
     name: str = None,
 ):
     """Create a no-copy clone of folder with source_id for owner"""
-
     cloned_folder = Folder().createFolder(
         parent_folder,
         name or source_folder['name'],
@@ -298,10 +286,8 @@ def valid_images(
     user: GirderModel,
 ) -> List[GirderModel]:
     """
-    Any time images are used where frame alignment
-    matters, this function must be used
+    Any time images are used where frame alignment matters, this function must be used
     """
-
     images = Folder().childItems(
         getCloneRoot(user, folder),
         filters={"lowerName": {"$regex": safeImageRegex}},
@@ -317,7 +303,7 @@ def valid_images(
 
 
 def get_annotation_csv_generator(
-    folder: GirderModel, user: GirderModel, excludeBelowThreshold=False, typeFilter=[]
+    folder: GirderModel, user: GirderModel, excludeBelowThreshold=False, typeFilter=None
 ) -> Tuple[str, Callable[[], Generator[str, None, None]]]:
     """
     Get the annotation generator for a folder
@@ -334,7 +320,6 @@ def get_annotation_csv_generator(
     thresholds = fromMeta(folder, "confidenceFilters", {})
     annotation_file = detections_file(folder, strict=True)
     track_dict = getTrackData(annotation_file)
-    typeFilterSet = set(typeFilter)
 
     def downloadGenerator():
         for data in viame.export_tracks_as_csv(
@@ -343,7 +328,7 @@ def get_annotation_csv_generator(
             thresholds=thresholds,
             filenames=imageFiles,
             fps=fps,
-            typeFilter=typeFilterSet,
+            typeFilter=typeFilter,
         ):
             yield data
 

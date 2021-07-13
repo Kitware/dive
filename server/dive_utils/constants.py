@@ -12,9 +12,7 @@ validVideoFormats = {"mp4", "avi", "mov", "mpg", "mpeg", "wmv", "flv"}
 
 videoRegex = re.compile(r"(\." + r"|\.".join(validVideoFormats) + ')$', re.IGNORECASE)
 imageRegex = re.compile(r"(\." + r"|\.".join(validImageFormats) + ')$', re.IGNORECASE)
-safeImageRegex = re.compile(
-    r"(\." + r"|\.".join(webValidImageFormats) + ')$', re.IGNORECASE
-)
+safeImageRegex = re.compile(r"(\." + r"|\.".join(webValidImageFormats) + ')$', re.IGNORECASE)
 csvRegex = re.compile(r"\.csv$", re.IGNORECASE)
 jsonRegex = re.compile(r"\.json$", re.IGNORECASE)
 ymlRegex = re.compile(r"\.ya?ml$", re.IGNORECASE)

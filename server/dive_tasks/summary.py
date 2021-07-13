@@ -1,14 +1,11 @@
-import csv
-from typing import Any, Dict, Set, Tuple
+from typing import Any, Dict, Set
 
 from girder_client import GirderClient
 from girder_worker.app import app
 from girder_worker.task import Task
-from girder_worker.utils import JobManager
 
 from dive_utils.constants import PublishedMarker
 from dive_utils.models import PublicDataSummary, SummaryItemSchema, Track
-from dive_utils.types import GirderModel
 
 
 def summarize_annotations(
@@ -69,7 +66,6 @@ def generate_max_n_summary(trackData: Dict[str, Any]):
 
 @app.task(bind=True, acks_late=True)
 def generate_summary(self: Task):
-    manager: JobManager = self.job_manager
     gc: GirderClient = self.girder_client
 
     limit = 50

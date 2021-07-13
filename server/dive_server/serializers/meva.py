@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
-from boiler import models
+from boiler import BoilerError, models
 from boiler.definitions import ActorType
 from boiler.serialization import kpf
 from girder.models.file import File
@@ -44,9 +44,7 @@ def load_kpf_as_tracks(ymls):
     error_report = {}
     try:
         for file in ymls:
-            rows = b"".join(list(File().download(file, headers=False)())).decode(
-                "utf-8"
-            )
+            rows = b"".join(list(File().download(file, headers=False)())).decode("utf-8")
             yml = kpf.load_yaml(rows)
             for row in yml:
                 if kpf.TYPES in row:
@@ -74,9 +72,7 @@ def load_kpf_as_tracks(ymls):
             print("WARNING: activity yaml was not given")
 
         tracks = parse_actor_map_to_tracks(actor_map)
-        return {
-            trackId: track.dict(exclude_none=True) for trackId, track in tracks.items()
-        }
+        return {trackId: track.dict(exclude_none=True) for trackId, track in tracks.items()}
     except Exception as e:
         error_report['error'] = str(e)
         return error_report
@@ -99,9 +95,7 @@ def parse_actor_map_to_tracks(actor_map) -> Dict[int, Track]:
                 'timestamp': detection.timestamp,
                 'geom_id': detection.geom_id,
             }
-            feature = Feature(
-                frame=detection.frame, bounds=bounds, attributes=feat_attributes
-            )
+            feature = Feature(frame=detection.frame, bounds=bounds, attributes=feat_attributes)
 
             # Create a new track per actor id
             if actor_id not in ids:
@@ -138,9 +132,7 @@ def deserialize_types(file, actor_map):
             cset3 = kpf_types[kpf.CSET3]
             cset3keys = list(cset3.keys())
             if len(cset3keys) != 1:
-                raise BoilerError(
-                    f'{kpf.CSET3} should only have 1 key, found {cset3keys}'
-                )
+                raise BoilerError(f'{kpf.CSET3} should only have 1 key, found {cset3keys}')
             name = cset3keys[0]
             if id1 in actor_map:
                 actor_map[id1].actor_type = name
@@ -199,7 +191,7 @@ def deserialize_activities(file, activity_map, actor_map):
 
 def _deserialize_activity(activity_packet, actor_map):
     """
-    returns activity instanceActor(
+    Returns activity instanceActor
     """
     activity = activity_packet[kpf.ACTIVITY]
     timespans = activity[kpf.TIMESPANS]
@@ -236,9 +228,7 @@ def _deserialize_activity(activity_packet, actor_map):
     )
 
 
-def _deserialize_actor(
-    actor, actor_map, activity_id, activity_type, confidence, status
-):
+def _deserialize_actor(actor, actor_map, activity_id, activity_type, confidence, status):
     if kpf.ACTOR_ID not in actor:
         raise BoilerError(f'actor {actor} missing {kpf.ACTOR_ID}')
     if kpf.TIMESPANS not in actor:

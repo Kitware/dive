@@ -1,5 +1,5 @@
-import re
 from pathlib import Path
+import re
 from typing import Dict, List, Optional
 
 from dive_utils.types import (
@@ -70,8 +70,7 @@ def load_training_configurations(search_path: Path) -> TrainingConfigurationSumm
     configurations = [
         c
         for c in configurations
-        if re.match(AllowedTrainingConfigs, c)
-        and not re.match(DisallowedTrainingConfigs, c)
+        if re.match(AllowedTrainingConfigs, c) and not re.match(DisallowedTrainingConfigs, c)
     ]
 
     return {

@@ -1,5 +1,5 @@
-import os
 from logging import info, warn
+import os
 
 from girder_client import GirderClient
 

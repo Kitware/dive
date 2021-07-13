@@ -8,14 +8,14 @@ import json
 import re
 from typing import Any, Dict, Generator, List, Tuple, Union
 
-from dive_utils.models import Attribute, Feature, Track, interpolate
+from dive_utils.models import Feature, Track, interpolate
 
 
 def format_timestamp(fps: int, frame: int) -> str:
     return str(datetime.datetime.utcfromtimestamp(frame / fps).strftime(r'%H:%M:%S.%f'))
 
 
-def writeHeader(writer: 'csv._writer', metadata: Dict):
+def writeHeader(writer: 'csv._writer', metadata: Dict):  # type: ignore
     writer.writerow(
         [
             "# 1: Detection or Track-id",
@@ -72,9 +72,7 @@ def _deduceType(value: str) -> Union[bool, float, str]:
         return value
 
 
-def create_geoJSONFeature(
-    features: Dict[str, Any], type: str, coords: List[float], key=''
-):
+def create_geoJSONFeature(features: Dict[str, Any], type: str, coords: List[Any], key=''):
     feature = {}
     if "geometry" not in features:
         features["geometry"] = {"type": "FeatureCollection", "features": []}
@@ -93,7 +91,7 @@ def create_geoJSONFeature(
             "properties": {"key": key},
             "geometry": {"type": type},
         }
-    if "Polygon" == type:
+    if type == 'Polygon':
         feature["geometry"]['coordinates'] = [coords]
     elif type in ["LineString", "Point"]:
         feature['geometry']['coordinates'] = coords
@@ -103,36 +101,30 @@ def create_geoJSONFeature(
 
 def _parse_row(row: List[str]) -> Tuple[Dict, Dict, Dict, List]:
     """
-    parse a single CSV line into its composite track and detection parts
+    Parse a single CSV line into its composite track and detection parts
     """
-    features = {}
-    attributes = {}
-    track_attributes = {}
-    confidence_pairs = [
-        [row[i], float(row[i + 1])]
+    features: Dict[str, Any] = {}
+    attributes: Dict[str, Any] = {}
+    track_attributes: Dict[str, Any] = {}
+    confidence_pairs: List[Tuple[str, float]] = [
+        (row[i], float(row[i + 1]))
         for i in range(9, len(row), 2)
         if i + 1 < len(row) and row[i] and row[i + 1] and not row[i].startswith("(")
     ]
-    sorted_confidence_pairs = sorted(
-        confidence_pairs, key=lambda item: item[1], reverse=True
-    )
+    sorted_confidence_pairs = sorted(confidence_pairs, key=lambda item: item[1], reverse=True)
     head_tail = []
     start = 9 + len(sorted_confidence_pairs) * 2
 
     for j in range(start, len(row)):
         # (kp) head x y
-        head_regex = re.match(
-            r"^\(kp\) head ([0-9]+\.*[0-9]*) ([0-9]+\.*[0-9]*)", row[j]
-        )
+        head_regex = re.match(r"^\(kp\) head ([0-9]+\.*[0-9]*) ([0-9]+\.*[0-9]*)", row[j])
         if head_regex:
             point = [float(head_regex[1]), float(head_regex[2])]
             head_tail.append(point)
             create_geoJSONFeature(features, 'Point', point, 'head')
 
         # (kp) tail x y
-        tail_regex = re.match(
-            r"^\(kp\) tail ([0-9]+\.*[0-9]*) ([0-9]+\.*[0-9]*)", row[j]
-        )
+        tail_regex = re.match(r"^\(kp\) tail ([0-9]+\.*[0-9]*) ([0-9]+\.*[0-9]*)", row[j])
         if tail_regex:
             point = [float(tail_regex[1]), float(tail_regex[2])]
             head_tail.append(point)
@@ -167,7 +159,7 @@ def _parse_row(row: List[str]) -> Tuple[Dict, Dict, Dict, List]:
             confidence = 1.0
 
         # add a dummy pair with a default type
-        sorted_confidence_pairs.append(['unknown', confidence])
+        sorted_confidence_pairs.append(('unknown', confidence))
 
     return features, attributes, track_attributes, sorted_confidence_pairs
 
@@ -189,8 +181,8 @@ def _parse_row_for_tracks(row: List[str]) -> Tuple[Feature, Dict, Dict, List]:
 
 
 def create_attributes(
-    metadata_attributes: Dict[str, Attribute],
-    test_vals: Dict[str, int],
+    metadata_attributes: Dict[str, Dict[str, Any]],
+    test_vals: Dict[str, Dict[str, int]],
     atr_type: str,
     key: str,
     val,
@@ -214,7 +206,7 @@ def create_attributes(
 
 
 def calculate_attribute_types(
-    metadata_attributes: Dict[str, Attribute], test_vals: Dict[str, int]
+    metadata_attributes: Dict[str, Dict[str, Any]], test_vals: Dict[str, Dict[str, int]]
 ):
     # count all keys must have a value to convert to predefined
     predefined_min_count = 3
@@ -248,8 +240,8 @@ def load_csv_as_tracks_and_attributes(rows: List[str]) -> Tuple[dict, dict]:
     """
     reader = csv.reader(row for row in rows if (not row.startswith("#") and row))
     tracks: Dict[int, Track] = {}
-    metadata_attributes: Dict[str, Attribute] = {}
-    test_vals: Dict[str, int] = {}
+    metadata_attributes: Dict[str, Dict[str, Any]] = {}
+    test_vals: Dict[str, Dict[str, int]] = {}
     for row in reader:
         (
             feature,
@@ -277,34 +269,39 @@ def load_csv_as_tracks_and_attributes(rows: List[str]) -> Tuple[dict, dict]:
     # Now we process all the metadata_attributes for the types
     calculate_attribute_types(metadata_attributes, test_vals)
 
-    track_json = {
-        trackId: track.dict(exclude_none=True) for trackId, track in tracks.items()
-    }
+    track_json = {trackId: track.dict(exclude_none=True) for trackId, track in tracks.items()}
     return track_json, metadata_attributes
 
 
 def export_tracks_as_csv(
     track_dict,
     excludeBelowThreshold=False,
-    thresholds={},
+    thresholds=None,
     filenames=None,
     fps=None,
     header=True,
-    typeFilter=set(),
+    typeFilter=None,
 ) -> Generator[str, None, None]:
-    """Export track json to a CSV format.
-    :excludeBelowThreshold: omit tracks below a certain confidence.  Requires thresholds.
-
-    :thresholds: key/value pairs with threshold values
-
-    :filenames: list of string file names.  filenames[n] should be the image at frame n
-
-    :fps: if FPS is set, column 2 will be video timestamp derived from (frame / fps)
-
-    :header: include or omit header
-
-    :typeFilter: set of track types to only export if not empty
     """
+    Export track json to a CSV format.
+
+    :param excludeBelowThreshold: omit tracks below a certain confidence.  Requires thresholds.
+
+    :param thresholds: key/value pairs with threshold values
+
+    :param filenames: list of string file names.  filenames[n] should be the image at frame n
+
+    :param fps: if FPS is set, column 2 will be video timestamp derived from (frame / fps)
+
+    :param header: include or omit header
+
+    :param typeFilter: set of track types to only export if not empty
+    """
+    if thresholds is None:
+        thresholds = {}
+    if typeFilter is None:
+        typeFilter = set()
+
     csvFile = io.StringIO()
     writer = csv.writer(csvFile)
     if header:
@@ -318,9 +315,7 @@ def export_tracks_as_csv(
 
             # filter by types if applicable
             if typeFilter:
-                confidence_pairs = [
-                    item for item in track.confidencePairs if item[0] in typeFilter
-                ]
+                confidence_pairs = [item for item in track.confidencePairs if item[0] in typeFilter]
                 # skip line if no confidence pairs
                 if not confidence_pairs:
                     continue
@@ -369,10 +364,7 @@ def export_tracks_as_csv(
                         for key, val in track.attributes.items():
                             columns.append(f"(trk-atr) {key} {valueToString(val)}")
 
-                    if (
-                        feature.geometry
-                        and "FeatureCollection" == feature.geometry.type
-                    ):
+                    if feature.geometry and "FeatureCollection" == feature.geometry.type:
                         for geoJSONFeature in feature.geometry.features:
                             if 'Polygon' == geoJSONFeature.geometry.type:
                                 # Coordinates need to be flattened out from their list of tuples
@@ -380,18 +372,20 @@ def export_tracks_as_csv(
                                     item
                                     for sublist in geoJSONFeature.geometry.coordinates[
                                         0
-                                    ]
-                                    for item in sublist
+                                    ]  # type: ignore
+                                    for item in sublist  # type: ignore
                                 ]
                                 columns.append(
                                     f"(poly) {' '.join(map(lambda x: str(round(x)), coordinates))}"
                                 )
                             if 'Point' == geoJSONFeature.geometry.type:
-                                coordinates = geoJSONFeature.geometry.coordinates
+                                coordinates = geoJSONFeature.geometry.coordinates  # type: ignore
                                 columns.append(
-                                    f"(kp) {geoJSONFeature.properties['key']} {round(coordinates[0])} {round(coordinates[1])}"
+                                    f"(kp) {geoJSONFeature.properties['key']} "
+                                    f"{round(coordinates[0])} {round(coordinates[1])}"
                                 )
-                            # TODO: support for multiple GeoJSON Objects of the same type once the CSV supports it
+                            # TODO: support for multiple GeoJSON Objects of the same type
+                            # once the CSV supports it
 
                     writer.writerow(columns)
                     yield csvFile.getvalue()

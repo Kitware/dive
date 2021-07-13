@@ -1,12 +1,8 @@
-import csv
-import io
-import os
 from typing import Dict, List, Tuple
 
 import pytest
 
 from dive_server.serializers import viame
-from dive_utils import models
 
 # Test cases can use this by staying under frame 100
 filenames = [f"{str(i)}.png" for i in range(1, 100)]
@@ -300,9 +296,7 @@ test_tuple: List[Tuple[dict, list, list]] = [
 
 
 @pytest.mark.parametrize("input,expected,typeFilter", test_tuple)
-def test_write_viame_csv(
-    input: Dict[str, dict], expected: List[str], typeFilter: List[str]
-):
+def test_write_viame_csv(input: Dict[str, dict], expected: List[str], typeFilter: List[str]):
     for i, line in enumerate(
         viame.export_tracks_as_csv(
             input, filenames=filenames, header=False, typeFilter=set(typeFilter)

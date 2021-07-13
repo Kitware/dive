@@ -8,7 +8,7 @@ Install the development requirements
 pip install -e .[dev]
 ```
 
-Install https://github.com/Kitware/ldc
+Install <https://github.com/Kitware/ldc>
 
 ```bash
 # Change to correct directory
@@ -36,32 +36,34 @@ ldc dev up girder_worker_training
 ldc dev run mc
 ```
 
-Access the server at http://localhost:8010
+Access the server at <http://localhost:8010>
 
 To work on the Vue client, see development instructions in `../client`.
 
-
 ## Testing
 
-All tests are run using tox which is installed with the `dev` packages. 
+All tests are run using tox which is installed with the `dev` packages.
 
 To run local verification of all tests, linting, and formatting
 
 ```bash
-# run all tests
-tox
-
-# run only linting check tests
+# run only lint checks
 tox -e check
 
-# run only type check tests
+# run only type checks
 tox -e type
 
 # run only pytest-driven tests
 tox -e test
 
-# to automatically format all code to comply to linting checks
+# run all three tests above
+tox
+
+# automatically format all code to comply to linting checks
 tox -e format
+
+# run mkdocs and serve the documentation page
+tox -e docs
 ```
 
 ## Metadata properties

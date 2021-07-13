@@ -1,7 +1,7 @@
-import shutil
-import signal
 from datetime import datetime, timedelta
 from pathlib import Path
+import shutil
+import signal
 from subprocess import Popen
 from tempfile import mktemp
 from typing import IO, Callable, List, Optional
@@ -28,8 +28,7 @@ def check_canceled(task: Task, context: dict, force=True):
         context[TIMEOUT_COUNT] = 0
     now = datetime.now()
     if (
-        (now - context.get(TIMEOUT_LAST_CHECKED, now))
-        > timedelta(seconds=TIMEOUT_CHECK_INTERVAL)
+        (now - context.get(TIMEOUT_LAST_CHECKED, now)) > timedelta(seconds=TIMEOUT_CHECK_INTERVAL)
     ) or force:
         context[TIMEOUT_LAST_CHECKED] = now
         try:
@@ -37,7 +36,8 @@ def check_canceled(task: Task, context: dict, force=True):
         except (TimeoutError, ConnectionError) as err:
             context[TIMEOUT_COUNT] += 1
             print(
-                f"Timeout N={context[TIMEOUT_COUNT]} for this task when checking for cancellation. {err}"
+                f"Timeout N={context[TIMEOUT_COUNT]} for this task when checking for "
+                f"cancellation. {err}"
             )
     return False
 
@@ -99,9 +99,7 @@ def stream_subprocess(
         if cleanup:
             cleanup()
         raise RuntimeError(
-            'Pipeline exited with nonzero status code {}: {}'.format(
-                process.returncode, stderr
-            )
+            'Pipeline exited with nonzero status code {}: {}'.format(process.returncode, stderr)
         )
     else:
         end_time = datetime.now()
@@ -119,7 +117,6 @@ def organize_folder_for_training(data_dir: Path, downloaded_groundtruth: Path):
     Relevant documentation:
     https://viame.readthedocs.io/en/latest/section_links/object_detector_training.html
     """
-
     if downloaded_groundtruth.is_dir():
         files = list(downloaded_groundtruth.glob("*.csv"))
 
@@ -147,16 +144,12 @@ def download_source_media(
     Download source media for folder from girder
     """
     if fromMeta(folder, TypeMarker) == ImageSequenceType:
-        image_items = girder_client.get(
-            'viame/valid_images', {'folderId': folder["_id"]}
-        )
+        image_items = girder_client.get('viame/valid_images', {'folderId': folder["_id"]})
         for item in image_items:
             girder_client.downloadItem(str(item["_id"]), str(dest))
         return [str(dest / item['name']) for item in image_items]
     elif fromMeta(folder, TypeMarker) == VideoType:
-        clip_meta = girder_client.get(
-            "viame_detection/clip_meta", {'folderId': folder['_id']}
-        )
+        clip_meta = girder_client.get("viame_detection/clip_meta", {'folderId': folder['_id']})
         destination_path = str(dest / clip_meta['video']['name'])
         girder_client.downloadFile(str(clip_meta['video']['_id']), destination_path)
         return [destination_path]
