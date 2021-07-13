@@ -12,7 +12,6 @@ requirements = [
     "girder_worker_utils==0.8.5",
     "pydantic==1.8.2",
     "pyrabbit2==1.0.7",  # For rabbitmq_user_queues plugin
-    "pysnooper",
     "typing_extensions",
     "gputil",
     # botocore requirement conflict
@@ -21,15 +20,13 @@ requirements = [
 ]
 
 dev_requirements = [
-    "mkdocs",
-    "mkdocs-material",
     "pytest",
     "tox",
 ]
 
 setup(
     name="dive_server",
-    version="1.4.1",
+    version="1.5.0",
     description="DIVE Data Server",
     author='Kitware, Inc.',
     author_email="viame-web@kitware.com",
