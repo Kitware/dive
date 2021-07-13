@@ -8,7 +8,7 @@ DefaultVideoFPS = 10
 
 webValidImageFormats = {"png", "jpg", "jpeg"}
 validImageFormats = {*webValidImageFormats, "tif", "tiff", "sgi", "bmp", "pgm"}
-validVideoFormats = {"mp4", "avi", "mov", "mpg", "mpeg", "wmv", "flv"}
+validVideoFormats = {"mp4", "avi", "mov", "mpg", "mpeg", "wmv", "flv", "webm"}
 
 videoRegex = re.compile(r"(\." + r"|\.".join(validVideoFormats) + ')$', re.IGNORECASE)
 imageRegex = re.compile(r"(\." + r"|\.".join(validImageFormats) + ')$', re.IGNORECASE)
@@ -33,6 +33,7 @@ ImageMimeTypes = {
 VideoMimeTypes = {
     "video/mpeg",
     "video/mp4",
+    "video/webm",
     "video/quicktime",
     "video/x-msvideo",
     "video/x-flv",
