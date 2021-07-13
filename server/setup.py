@@ -21,9 +21,9 @@ requirements = [
 ]
 
 dev_requirements = [
-    "ipykernel",
     "mkdocs",
     "mkdocs-material",
+    "pytest",
     "tox",
 ]
 
