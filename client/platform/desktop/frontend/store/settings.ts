@@ -1,5 +1,5 @@
 import Vue from 'vue';
-import Install, { ref } from '@vue/composition-api';
+import Install, { Ref, ref } from '@vue/composition-api';
 import { ipcRenderer } from 'electron';
 import { Settings } from 'platform/desktop/constants';
 
@@ -8,7 +8,7 @@ Vue.use(Install);
 
 const SettingsKey = 'desktop.settings';
 
-const settings = ref({} as Settings);
+const settings: Ref<Settings | null> = ref(null);
 
 function getDefaultSettings(): Promise<Settings> {
   return ipcRenderer.invoke('default-settings');
@@ -30,27 +30,39 @@ function isSettings(s: any): s is Settings {
   return true;
 }
 
+// Settings initialization involves a handoff between renderer and background.
+// This function should be called at application startup.
 async function init() {
-  const settingsStr = window.localStorage.getItem(SettingsKey);
+  // Client asks for default settings and external force overrides from background
   let settingsvalue = await getDefaultSettings();
   try {
-    if (settingsStr) {
-      const maybeSettings = JSON.parse(settingsStr);
-      if (isSettings(maybeSettings)) {
-        settingsvalue = {
-          // Populate from defaults to include any missing properties
-          ...settingsvalue,
-          // Overwrite with explicitly persisted settings
-          ...maybeSettings,
-        };
-      }
+    // Client applies user-configured settings from localstorage
+    const settingsStr = window.localStorage.getItem(SettingsKey) || '{}';
+    const maybeSettings = JSON.parse(settingsStr);
+    if (isSettings(maybeSettings)) {
+      settingsvalue = {
+        // Populate from defaults to include any missing properties
+        ...settingsvalue,
+        // Overwrite with explicitly persisted settings
+        ...maybeSettings,
+      };
     }
   } catch {
     // pass
   }
+  // Client applies external force overrides
+  if (settingsvalue.overrides.viamePath !== undefined) {
+    settingsvalue.viamePath = settingsvalue.overrides.viamePath;
+  }
   settings.value = settingsvalue;
-
   ipcRenderer.send('update-settings', settings.value);
+}
+
+function getSettings(): Settings {
+  if (settings.value === null) {
+    throw new Error('Settings requested before initialization!');
+  }
+  return settings.value;
 }
 
 async function setSettings(s: Settings) {
@@ -63,6 +75,7 @@ init();
 
 export {
   settings,
+  getSettings,
   setSettings,
   validateSettings,
 };

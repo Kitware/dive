@@ -77,6 +77,7 @@ export default defineComponent({
                 label="VIAME Install Base Path"
                 hint="download from https://viametoolkit.com"
                 dense
+                :disabled="localSettings"
                 persistent-hint
               />
             </v-col>
