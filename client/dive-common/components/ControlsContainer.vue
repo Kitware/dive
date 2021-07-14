@@ -214,7 +214,11 @@ export default defineComponent({
               mdi-information
             </v-icon>
           </template>
-          <span>annotation framerate may be subsampled. frame numbers start at zero.</span>
+          <span>
+            annotation framerate may be downsampled.
+            <br>
+            frame numbers start at zero.
+          </span>
         </v-tooltip>
       </template>
     </Controls>

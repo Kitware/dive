@@ -37,9 +37,7 @@ export default defineComponent({
     <span>
       {{ display }}
     </span>
-    <span class="border-radius">
-      frame {{ frame }}
-    </span>
+    <span class="border-radius">frame {{ frame }}</span>
   </span>
 </template>
 
