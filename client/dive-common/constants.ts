@@ -31,11 +31,14 @@ const otherVideoTypes = [
   'video/x-mpeq2a',
   /* ogg */
   'video/ogg',
+  /* flv */
+  'video/x-flv',
 ];
 
 const calibrationFileTypes = [
   'npz',
 ];
+
 const fileVideoTypes = [
   'mp4',
   'webm',
@@ -46,6 +49,7 @@ const fileVideoTypes = [
   'mpeg',
   'mp2',
   'ogg',
+  'flv',
 ];
 
 const websafeImageTypes = [
