@@ -20,6 +20,7 @@ export interface StringKeyObject {
 /* Frame feature for both TrackData and Track */
 export interface Feature {
   frame: number;
+  flick?: Readonly<number>;
   interpolate?: boolean;
   keyframe?: boolean;
   bounds?: RectBounds;

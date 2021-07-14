@@ -2,6 +2,8 @@
 import {
   defineComponent, onBeforeUnmount, PropType,
 } from '@vue/composition-api';
+
+import { Flick, SetTimeFunc } from 'vue-media-annotator/use/useTimeObserver';
 import useMediaController from './useMediaController';
 
 /**
@@ -26,6 +28,45 @@ import useMediaController from './useMediaController';
  */
 const OnePTSTick = 1 / (90 * 1000);
 
+/**
+ * The Kwiver seek function performs seek based on
+ * downsampled frame number such that the converse of the
+ * function (maping timestamp to downsampled frame)
+ * is consistent with the implementation in kwiver:
+ *
+ * https://github.com/Kitware/kwiver/blob/1c97ad72c8b6237cb4b9618665d042be16825005/sprokit/processes/core/downsample_process.cxx#L267
+ */
+function kwiverSeek(frame: number, frameRate: number, originalFps: number) {
+  /**
+   * requestedTimeInSeconds is the position, in seconds, that was
+   * requested for seek
+   */
+  const requestedTimeInSeconds = frame / frameRate;
+  /**
+   * RequestedTrueVideoFrame is the floating point frame number
+   * expected to be found at requested time
+   */
+  const requestedTrueVideoFrame = requestedTimeInSeconds * originalFps;
+  /**
+   * nextTrueFrameBoundary is the time, in seconds, of the
+   * next frame transition boundary ASSUMING even frame spacing.
+   *
+   * For videos with b frames or inconsistent frame widths, this
+   * will only be an aggregate approximation
+   */
+  const nextTrueFrameBoundary = (
+    Math.ceil(requestedTrueVideoFrame) / originalFps
+  );
+  /**
+   * trueFrameWidth is the width, in seconds, of a real video frame
+   */
+  // const trueFrameWidth = 1 / originalFps;
+  /**
+   * Return one tick past the next boundary
+   */
+  return nextTrueFrameBoundary + OnePTSTick;
+}
+
 export default defineComponent({
   name: 'VideoAnnotator',
 
@@ -42,11 +83,18 @@ export default defineComponent({
       type: Number,
       required: true,
     },
+    updateTime: {
+      type: Function as PropType<SetTimeFunc>,
+      required: true,
+    },
+    originalFps: {
+      type: Number as PropType<number | null>,
+      default: null,
+    },
   },
 
-
-  setup(props, { emit }) {
-    const commonMedia = useMediaController({ emit });
+  setup(props) {
+    const commonMedia = useMediaController();
     const { data } = commonMedia;
 
     function makeVideo() {
@@ -67,6 +115,7 @@ export default defineComponent({
     function syncWithVideo() {
       if (data.playing) {
         data.frame = Math.round(video.currentTime * props.frameRate);
+        data.flick = Math.round(video.currentTime * Flick);
         data.syncedFrame = data.frame;
         commonMedia.geoViewerRef.value.scheduleAnimationFrame(syncWithVideo);
       }
@@ -84,11 +133,17 @@ export default defineComponent({
     }
 
     async function seek(frame: number) {
-      // ref: PTS precision note above
-      video.currentTime = (frame / props.frameRate) + OnePTSTick;
-      data.frame = Math.round(video.currentTime * props.frameRate);
-      commonMedia.emitFrame();
-      data.currentTime = video.currentTime;
+      if (props.originalFps) {
+        /** If the video's true FPS is known */
+        data.currentTime = kwiverSeek(frame, props.frameRate, props.originalFps);
+      } else {
+        /** Else fall back to a reasonable default */
+        data.currentTime = (frame / props.frameRate) + OnePTSTick;
+      }
+      video.currentTime = data.currentTime;
+      data.frame = Math.round(data.currentTime * props.frameRate);
+      data.flick = Math.round(data.currentTime * Flick);
+      props.updateTime(data);
     }
 
     function pause() {

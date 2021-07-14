@@ -8,18 +8,19 @@ import type { Ref } from '@vue/composition-api';
  */
 export interface MediaController {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  geoViewerRef: Ref<any>;
-  playing: Ref<boolean>;
-  frame: Ref<number>;
-  filename: Ref<string>;
-  lockedCamera: Ref<boolean>;
-  currentTime: Ref<number>;
-  duration: Ref<number>;
-  volume: Ref<number>;
-  speed: Ref<number>;
-  maxFrame: Ref<number>;
+  currentTime: Readonly<Ref<number>>;
+  geoViewerRef: Readonly<Ref<any>>;
+  playing: Readonly<Ref<boolean>>;
+  frame: Readonly<Ref<number>>;
+  flick: Readonly<Ref<number>>;
+  filename: Readonly<Ref<string>>;
+  lockedCamera: Readonly<Ref<boolean>>;
+  duration: Readonly<Ref<number>>;
+  volume: Readonly<Ref<number>>;
+  speed: Readonly<Ref<number>>;
+  maxFrame: Readonly<Ref<number>>;
   /** @deprecated may be removed in a future release */
-  syncedFrame: Ref<number>;
+  syncedFrame: Readonly<Ref<number>>;
   prevFrame(): void;
   nextFrame(): void;
   play(): void;
