@@ -24,6 +24,7 @@ export default defineComponent({
     const { arch, platform, version } = process;
     const settingsAreValid = ref(true as boolean | string);
     const gitHash = process.env.VUE_APP_GIT_HASH;
+    const readonlyMode = ref(localSettings.value.readonlyMode);
 
     onBeforeMount(async () => {
       settingsAreValid.value = await validateSettings(localSettings.value);
@@ -45,6 +46,7 @@ export default defineComponent({
         settingsAreValid.value = false;
         settingsAreValid.value = await validateSettings(localSettings.value);
         setSettings(localSettings.value);
+        readonlyMode.value = localSettings.value.readonlyMode;
       }
     }
 
@@ -56,6 +58,7 @@ export default defineComponent({
       settingsAreValid,
       smi,
       version,
+      readonlyMode,
       openPath,
       save,
     };
@@ -153,6 +156,7 @@ export default defineComponent({
           Not all checks must pass in order to use this application.
           Warnings are intended to help with debugging.
         </v-card-subtitle>
+
         <v-alert
           dense
           text
@@ -173,6 +177,7 @@ export default defineComponent({
             Could not determine your GPU compatibility: {{ smi.error }}
           </span>
         </v-alert>
+
         <v-alert
           dense
           text
@@ -180,7 +185,7 @@ export default defineComponent({
           :type="settingsAreValid ===
             false ? 'info' : settingsAreValid === true ? 'success' : 'warning'"
         >
-          <span v-if="settingsAreValid === false ">
+          <span v-if="settingsAreValid === false">
             Checking for Kwiver
             <v-progress-linear
               indeterminate
@@ -194,6 +199,17 @@ export default defineComponent({
             Could not initialize kwiver: {{ settingsAreValid }}
           </span>
         </v-alert>
+
+        <v-alert
+          v-if="readonlyMode"
+          dense
+          text
+          class="mx-4"
+          :type="'warning'"
+        >
+          Read only mode is on
+        </v-alert>
+
         <v-card-text>
           <div>
             Build Version:

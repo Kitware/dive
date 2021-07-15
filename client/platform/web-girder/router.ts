@@ -1,5 +1,5 @@
 import Vue from 'vue';
-import Router from 'vue-router';
+import Router, { Route } from 'vue-router';
 
 import girderRest from './plugins/girder';
 import Home from './views/Home.vue';
@@ -11,7 +11,7 @@ import ViewerLoader from './views/ViewerLoader.vue';
 
 Vue.use(Router);
 
-function beforeEnter(to, from, next) {
+function beforeEnter(to: Route, from: Route, next: Function) {
   if (!girderRest.user) {
     next('/login');
   } else {
@@ -30,8 +30,10 @@ const router = new Router({
       path: '/viewer/:id',
       name: 'viewer',
       component: ViewerLoader,
-      props: true,
-      beforeEnter,
+      props: (route: Route) => ({
+        id: route.params.id,
+        readonlyMode: !girderRest.user,
+      }),
     },
     {
       path: '/',

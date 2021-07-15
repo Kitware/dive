@@ -45,6 +45,10 @@ export default defineComponent({
       type: String,
       required: true,
     },
+    readonlyMode: {
+      type: Boolean,
+      default: false,
+    },
   },
 
   // TODO: This will require an import from vue-router for Vue3 compatibility
@@ -59,13 +63,14 @@ export default defineComponent({
     const brandData = toRef(root.$store.state.Brand, 'brandData');
     const location = toRef(root.$store.state.Location, 'location');
     const dataPath = computed(() => getPathFromLocation(location.value));
+
     onMounted(() => {
       window.addEventListener('beforeunload', viewerRef.value.warnBrowserExit);
     });
+
     onBeforeUnmount(() => {
       window.removeEventListener('beforeunload', viewerRef.value.warnBrowserExit);
     });
-
 
     return {
       buttonOptions,
@@ -80,9 +85,8 @@ export default defineComponent({
 
 <template>
   <Viewer
-    :id="id"
-    :key="id"
     ref="viewerRef"
+    v-bind="{ id, readonlyMode, key: id }"
   >
     <template #title>
       <NavigationTitle :name="brandData.name" />
