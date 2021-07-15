@@ -40,7 +40,7 @@ export default defineComponent({
   setup(props) {
     const viewerRef = ref();
     const subTypeList = computed(() => [datasets.value[props.id]?.subType || null]);
-    const readonlyMode = computed(() => getSettings().readonlyMode);
+    const readonlyMode = computed(() => getSettings().value.readonlyMode);
     return {
       datasets,
       viewerRef,
@@ -56,7 +56,7 @@ export default defineComponent({
 <template>
   <Viewer
     ref="viewerRef"
-    v-bind="{ id, readonlyMode }"
+    v-bind="{ id, readonlyMode: true }"
   >
     <template #title>
       <v-tabs

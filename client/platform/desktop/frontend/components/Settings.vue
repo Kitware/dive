@@ -20,7 +20,7 @@ export default defineComponent({
   setup() {
     // null values indicate initialization has not completed
     const smi = ref(null as NvidiaSmiReply | null);
-    const localSettings = ref(getSettings());
+    const localSettings = getSettings();
     const { arch, platform, version } = process;
     const settingsAreValid = ref(true as boolean | string);
     const gitHash = process.env.VUE_APP_GIT_HASH;
@@ -52,12 +52,12 @@ export default defineComponent({
       arch,
       gitHash,
       platform,
-      save,
       localSettings,
       settingsAreValid,
       smi,
       version,
       openPath,
+      save,
     };
   },
 });
@@ -69,24 +69,26 @@ export default defineComponent({
     <v-container>
       <v-card>
         <v-card-title>Settings</v-card-title>
+
         <v-card-text>
-          <v-row>
+          <v-row class="mb-6">
             <v-col cols="9">
               <v-text-field
                 v-model="localSettings.viamePath"
                 label="VIAME Install Base Path"
                 hint="download from https://viametoolkit.com"
                 dense
-                :disabled="localSettings"
+                :disabled="!!localSettings.overrides.viamePath"
                 persistent-hint
               />
             </v-col>
+
             <v-col cols="3">
               <v-btn
                 large
                 block
                 color="primary"
-                class="mb-6"
+                :disabled="!!localSettings.overrides.viamePath"
                 @click="openPath('viamePath')"
               >
                 Choose
@@ -96,7 +98,8 @@ export default defineComponent({
               </v-btn>
             </v-col>
           </v-row>
-          <v-row>
+
+          <v-row class>
             <v-col cols="9">
               <v-text-field
                 v-model="localSettings.dataPath"
@@ -106,12 +109,12 @@ export default defineComponent({
                 persistent-hint
               />
             </v-col>
+
             <v-col>
               <v-btn
                 large
                 block
                 color="primary"
-                class="mb-6"
                 @click="openPath('dataPath')"
               >
                 Choose
@@ -121,7 +124,18 @@ export default defineComponent({
               </v-btn>
             </v-col>
           </v-row>
+
+          <v-row>
+            <v-col class="d-flex">
+              <v-switch
+                v-model="localSettings.readonlyMode"
+                color="primary"
+                :label="'Read only mode'"
+              />
+            </v-col>
+          </v-row>
         </v-card-text>
+
         <v-card-text>
           <v-btn
             color="primary"
@@ -133,6 +147,7 @@ export default defineComponent({
             Save
           </v-btn>
         </v-card-text>
+
         <v-card-title>Platform support</v-card-title>
         <v-card-subtitle>
           Not all checks must pass in order to use this application.

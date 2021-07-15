@@ -34,7 +34,7 @@ export default function wrap(): Api {
    * to the client using something like https://github.com/uhop/stream-json
    */
   async function loadDetections(datasetId: string) {
-    return common.loadDetections(getSettings(), datasetId);
+    return common.loadDetections(getSettings().value, datasetId);
   }
 
   return {

@@ -61,11 +61,11 @@ async function init() {
   ipcRenderer.send('update-settings', settings.value);
 }
 
-function getSettings(): Settings {
+function getSettings(): Ref<Settings> {
   if (settings.value === null) {
     throw new Error('Settings requested before initialization!');
   }
-  return settings.value;
+  return settings as Ref<Settings>;
 }
 
 async function setSettings(s: Settings) {
