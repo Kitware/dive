@@ -83,6 +83,14 @@ function locateDuplicates(meta: JsonMeta) {
   ));
 }
 
+function removeRecents(datasetId: string) {
+  if (datasets.value[datasetId]) {
+    Vue.delete(datasets.value, datasetId);
+  }
+  const values = Object.values(datasets.value);
+  window.localStorage.setItem(RecentsKey, JSON.stringify(values));
+}
+
 /**
  * Add ID to recent datasets
  * @param id dataset id path
@@ -115,5 +123,6 @@ export {
   load,
   locateDuplicates,
   setRecents,
+  removeRecents,
   clearRecents,
 };

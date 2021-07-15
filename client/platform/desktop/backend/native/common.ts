@@ -605,6 +605,23 @@ async function _initializeProjectDir(settings: Settings, jsonMeta: JsonMeta): Pr
 }
 
 /**
+ * @param settings Delete Dataset
+ */
+async function deleteDataset(
+  settings: Settings,
+  datasetId: string,
+): Promise<boolean> {
+  // confirm dataset Id exists
+  const projectDirInfo = await getValidatedProjectDir(settings, datasetId);
+  try {
+    fs.rmdirSync(projectDirInfo.basePath, { recursive: true });
+    return true;
+  } catch (e) {
+    console.error(e);
+    return false;
+  }
+}
+/**
  * Begin a dataset import.
  */
 async function beginMediaImport(
@@ -936,6 +953,7 @@ export {
   ProjectsFolderName,
   JobsFolderName,
   beginMediaImport,
+  deleteDataset,
   annotationImport,
   createKwiverRunWorkingDir,
   exportDataset,

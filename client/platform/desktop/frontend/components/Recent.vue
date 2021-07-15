@@ -9,8 +9,11 @@ import type { MediaImportPayload } from 'platform/desktop/constants';
 
 import ImportButton from 'dive-common/components/ImportButton.vue';
 import ImportMultiCamDialog from 'dive-common/components/ImportMultiCamDialog.vue';
+import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import * as api from '../api';
-import { JsonMetaCache, recents, setRecents } from '../store/dataset';
+import {
+  JsonMetaCache, recents, removeRecents, setRecents,
+} from '../store/dataset';
 import { setOrGetConversionJob } from '../store/jobs';
 import BrowserLink from './BrowserLink.vue';
 import NavigationBar from './NavigationBar.vue';
@@ -36,6 +39,7 @@ export default defineComponent({
     const searchText: Ref<string | null> = ref('');
     const stereo = ref(false);
     const multiCamOpenType: Ref<'image-sequence'|'video'> = ref('image-sequence');
+    const { prompt } = usePrompt();
 
     async function open(dstype: DatasetType) {
       const ret = await api.openFromDisk(dstype);
@@ -86,6 +90,26 @@ export default defineComponent({
       }
     }
 
+    async function confirmDeleteDataset(datasetId: string, datasetName: string) {
+      const result = await prompt({
+        title: 'Confirm',
+        text: `Do you want to delete dataset ${datasetName}`,
+        confirm: true,
+      });
+      if (!result) {
+        return;
+      }
+      try {
+        api.deleteDataset(datasetId);
+        //Now we need to update recents by removing the dataset from localStorage
+        removeRecents(datasetId);
+      } catch (err) {
+        snackbar.value = true;
+        errorText.value = err.message;
+      }
+    }
+
+
     const filteredRecents = computed(() => recents.value
       .filter((v) => v.name.toLowerCase().indexOf((searchText.value || '').toLowerCase()) >= 0));
     const paginatedRecents = computed(() => (filteredRecents.value.slice(0, limit.value)));
@@ -122,6 +146,7 @@ export default defineComponent({
       openMultiCamDialog,
       getTypeIcon,
       importMedia: api.importMedia,
+      confirmDeleteDataset,
       // state
       multiCamOpenType,
       stereo,
@@ -295,6 +320,16 @@ export default defineComponent({
                 <span class="grey--text px-4">
                   {{ recent.originalBasePath }}
                 </span>
+                <v-btn
+                  small
+                  color="error"
+                  icon
+                  @click="confirmDeleteDataset(recent.id, recent.name)"
+                >
+                  <v-icon small>
+                    mdi-delete
+                  </v-icon>
+                </v-btn>
               </h3>
             </div>
             <div
