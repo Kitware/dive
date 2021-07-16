@@ -74,6 +74,13 @@ export default function register() {
     return ret;
   });
 
+  ipcMain.handle('check-dataset', async (event, { datasetId }: { datasetId: string }) => {
+    const ret = await common.checkDataset(
+      settings.get(), datasetId,
+    );
+    return ret;
+  });
+
   ipcMain.handle('import-multicam-media', async (event, { args }:
     { args: MultiCamImportArgs }) => {
     const ret = await beginMultiCamImport(

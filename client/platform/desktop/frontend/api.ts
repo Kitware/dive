@@ -97,6 +97,10 @@ function deleteDataset(datasetId: string): Promise<boolean> {
   return ipcRenderer.invoke('delete-dataset', { datasetId });
 }
 
+function checkDataset(datasetId: string): Promise<boolean> {
+  return ipcRenderer.invoke('check-dataset', { datasetId });
+}
+
 function importMultiCam(args: MultiCamImportArgs):
    Promise<MediaImportPayload> {
   return ipcRenderer.invoke('import-multicam-media', { args });
@@ -182,6 +186,7 @@ export {
   finalizeImport,
   importMedia,
   deleteDataset,
+  checkDataset,
   importAnnotationFile,
   importMultiCam,
   openLink,

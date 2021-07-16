@@ -20,6 +20,7 @@ export interface JsonMetaCache {
   fps: number;
   name: string;
   createdAt: string;
+  accessedAt: string;
   originalBasePath: string;
   originalVideoFile: string;
   transcodedVideoFile?: string;
@@ -34,6 +35,7 @@ function hydrateJsonMetaCacheValue(input: any): JsonMetaCache {
   return {
     originalVideoFile: '',
     transcodedVideoFile: '',
+    accessedAt: input.createdAt,
     subType: null,
     ...input,
   };
@@ -43,7 +45,7 @@ const datasets = ref({} as Record<string, JsonMetaCache>);
 
 const recents = computed(() => {
   const list = Object.values(datasets.value)
-    .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
+    .sort((a, b) => Date.parse(b.accessedAt) - Date.parse(a.accessedAt));
   return list;
 });
 
@@ -95,7 +97,7 @@ function removeRecents(datasetId: string) {
  * Add ID to recent datasets
  * @param id dataset id path
  */
-function setRecents(meta: JsonMeta) {
+function setRecents(meta: JsonMeta, accessTime?: string) {
   Vue.set(datasets.value, meta.id, {
     version: meta.version,
     type: meta.type,
@@ -103,6 +105,7 @@ function setRecents(meta: JsonMeta) {
     fps: meta.fps,
     name: meta.name,
     createdAt: meta.createdAt,
+    accessedAt: accessTime || meta.createdAt,
     originalBasePath: meta.originalBasePath,
     originalVideoFile: meta.originalVideoFile,
     transcodedVideoFile: meta.transcodedVideoFile,

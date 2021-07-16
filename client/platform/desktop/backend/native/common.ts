@@ -604,9 +604,6 @@ async function _initializeProjectDir(settings: Settings, jsonMeta: JsonMeta): Pr
   return projectDir;
 }
 
-/**
- * @param settings Delete Dataset
- */
 async function deleteDataset(
   settings: Settings,
   datasetId: string,
@@ -621,6 +618,21 @@ async function deleteDataset(
     return false;
   }
 }
+
+async function checkDataset(
+  settings: Settings,
+  datasetId: string,
+): Promise<boolean> {
+  const projectDirData = await getValidatedProjectDir(settings, datasetId);
+  const projectMetaData = await loadJsonMetadata(projectDirData.metaFileAbsPath);
+  //Check folder exists for data
+  const exists = await fs.pathExists(projectMetaData.originalBasePath);
+  if (!exists) {
+    throw new Error(`Dataset ${projectMetaData.name} does not contain source files at ${projectMetaData.originalBasePath}`);
+  }
+  return true;
+}
+
 /**
  * Begin a dataset import.
  */
@@ -954,6 +966,7 @@ export {
   JobsFolderName,
   beginMediaImport,
   deleteDataset,
+  checkDataset,
   annotationImport,
   createKwiverRunWorkingDir,
   exportDataset,

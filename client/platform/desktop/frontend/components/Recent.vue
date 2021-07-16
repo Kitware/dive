@@ -135,6 +135,33 @@ export default defineComponent({
       return 'mdi-image-multiple';
     }
 
+    async function preloadCheck(recent: JsonMetaCache) {
+      //Attempts to preload the data to see if there are any isues
+      try {
+        await api.checkDataset(recent.id);
+      } catch (e) {
+        const result = await prompt({
+          title: 'Error Loading Data',
+          text: e,
+          confirm: true,
+          positiveButton: 'Delete',
+          negativeButton: 'Cancel',
+        });
+        if (result) {
+          try {
+            await api.deleteDataset(recent.id);
+            //Now we need to update recents by removing the dataset from localStorage
+          } catch (err) {
+            snackbar.value = true;
+            errorText.value = err.message;
+          }
+          removeRecents(recent.id);
+        }
+        return;
+      }
+      root.$router.push({ name: 'viewer', params: { id: recent.id } });
+    }
+
     return {
       // methods
       open,
@@ -147,6 +174,7 @@ export default defineComponent({
       getTypeIcon,
       importMedia: api.importMedia,
       confirmDeleteDataset,
+      preloadCheck,
       // state
       multiCamOpenType,
       stereo,
@@ -287,50 +315,85 @@ export default defineComponent({
             >
               Open images or video to get started
             </h2>
+            <v-row>
+              <v-col class="icon-col" />
+              <v-col cols="3">
+                Name
+              </v-col>
+              <v-col>
+                Last Access
+              </v-col>
+              <v-col>
+                Location
+              </v-col>
+              <v-col class="icon-col" />
+            </v-row>
+            <v-divider class="mb-1" />
+            <v-divider />
             <div
               v-for="recent in paginatedRecents"
               :key="recent.id"
-              class="pa-1"
+              class="pa-1 text-body-1"
+              dense
             >
-              <h3 class="text-body-1">
-                <v-icon
-                  class="pr-2"
-                  color="primary lighten-2"
+              <v-row>
+                <v-col class="icon-col">
+                  <v-icon
+                    class="pr-2"
+                    color="primary lighten-2"
+                  >
+                    {{ getTypeIcon(recent) }}
+                  </v-icon>
+                </v-col>
+                <v-col
+                  class="text-body-1"
+                  cols="3"
                 >
-                  {{ getTypeIcon(recent) }}
-                </v-icon>
-                <span v-if="setOrGetConversionJob(recent.id)">
-                  <span class="primary--text text--darken-1 text-decoration-none">
+                  <span v-if="setOrGetConversionJob(recent.id)">
+                    <span class="primary--text text--darken-1 text-decoration-none">
+                      {{ recent.name }}
+                    </span>
+                    <span class="pl-4">
+                      Converting
+                      <v-icon>
+                        mdi-spin mdi-sync
+                      </v-icon>
+                    </span>
+                  </span>
+                  <span
+                    v-else
+                    class="link primary--text text--lighten-3"
+                    @click="preloadCheck(recent)"
+                  >
                     {{ recent.name }}
                   </span>
-                  <span class="pl-4">
-                    Converting
-                    <v-icon>
-                      mdi-spin mdi-sync
-                    </v-icon>
+                </v-col>
+                <v-col>
+                  <span class="grey--text text-body-2">
+                    {{ new Date(recent.accessedAt).toLocaleString() }}
                   </span>
-                </span>
-                <router-link
-                  v-else
-                  :to="{ name: 'viewer', params: { id: recent.id } }"
-                  class="primary--text text--lighten-3 text-decoration-none"
-                >
-                  {{ recent.name }}
-                </router-link>
-                <span class="grey--text px-4">
-                  {{ recent.originalBasePath }}
-                </span>
-                <v-btn
-                  small
-                  color="error"
-                  icon
-                  @click="confirmDeleteDataset(recent.id, recent.name)"
-                >
-                  <v-icon small>
-                    mdi-delete
-                  </v-icon>
-                </v-btn>
-              </h3>
+                </v-col>
+                <v-col cols="6">
+                  <span
+                    class="grey--text"
+                    s
+                  >
+                    {{ recent.originalBasePath }}
+                  </span>
+                </v-col>
+                <v-col class="icon-col">
+                  <v-btn
+                    color="error"
+                    icon
+                    @click="confirmDeleteDataset(recent.id, recent.name)"
+                  >
+                    <v-icon>
+                      mdi-delete
+                    </v-icon>
+                  </v-btn>
+                </v-col>
+              </v-row>
+              <v-divider />
             </div>
             <div
               v-if="pageSize < totalRecents"
@@ -384,4 +447,13 @@ export default defineComponent({
 </template>
 
 <style lang="scss">
+.icon-col {
+  max-width: 40px;
+}
+.link {
+  &:hover{
+    cursor: pointer;
+    text-decoration: underline;
+  }
+}
 </style>
