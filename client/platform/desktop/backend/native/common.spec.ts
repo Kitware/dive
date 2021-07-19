@@ -212,6 +212,45 @@ mockfs({
         'result_2.json': '',
         auxiliary: {},
       },
+      projectid5Bad: {
+        // Too many results
+        'meta.json': '{}',
+        auxiliary: {},
+      },
+      projectid6Delete: {
+        'meta.json': '{}',
+        // Too many results
+        'result_1.json': '',
+        'result_2.json': '',
+        auxiliary: {},
+      },
+      stereoDataset: {
+        'meta.json': {
+          type: 'multi',
+          multiCam: {
+            cameras: {
+              left: {
+                type: 'image-sequence',
+                originalBasePath: '/home/user/viamedata/DIVE_Projects/stereoDataset/left',
+              },
+              right: {
+                type: 'image-sequence',
+                originalBasePath: '/home/user/viamedata/DIVE_Projects/stereoDataset/right',
+              },
+            },
+          },
+        },
+        'result_1.json': '',
+        auxiliary: {},
+        left: {
+          'meta.json': '{}',
+          'result_1.json': '',
+        },
+        right: {
+          'meta.json': '{}',
+          'result_1.json': '',
+        },
+      },
       metaAttributesID: {
         'meta.json': JSON.stringify({
           version: 1,
@@ -409,6 +448,45 @@ describe('native.common', () => {
     await common.finalizeMediaImport(settings, payload, updater, convertMedia);
     expect(payload.jsonMeta.transcodingJobKey).toBe('jobKey');
     expect(payload.jsonMeta.type).toBe('video');
+  });
+
+  it('check Dastset existence', async () => {
+    await expect(common.checkDataset(settings, 'projectid3Bad')).rejects.toThrow('missing metadata');
+    await expect(common.checkDataset(settings, 'projectid5Bad')).rejects.toThrow('missing track json file');
+    await expect(common.checkDataset(settings, 'missingFolder')).rejects.toThrow('missing metadata');
+  });
+
+  it('delete datasets', async () => {
+    await expect(common.deleteDataset(settings, 'missingFolder')).rejects.toThrow('missing metadata');
+    let exists = fs.existsSync('/home/user/viamedata/DIVE_Projects/projectid5Bad');
+    expect(exists).toBe(true);
+    await expect(common.deleteDataset(settings, 'projectid5Bad')).rejects.toThrow('missing track json file');
+    exists = fs.existsSync('/home/user/viamedata/DIVE_Projects/projectid5Bad');
+    expect(exists).toBe(true);
+    exists = fs.existsSync('/home/user/viamedata/DIVE_Projects/projectid6Delete');
+    expect(exists).toBe(true);
+    const deleted = await common.deleteDataset(settings, 'projectid6Delete');
+    expect(deleted).toBe(true);
+    exists = fs.existsSync('/home/user/viamedata/DIVE_Projects/projectid6Delete');
+    expect(exists).toBe(false);
+  });
+
+  it('delete stereo dataset', async () => {
+    let exists = fs.existsSync('/home/user/viamedata/DIVE_Projects/stereoDataset');
+    let leftExists = fs.existsSync('/home/user/viamedata/DIVE_Projects/stereoDataset/left');
+    expect(exists).toBe(true);
+    expect(leftExists).toBe(true);
+    let deleted = await common.deleteDataset(settings, 'stereoDataset/left');
+    expect(deleted).toBe(true);
+    leftExists = fs.existsSync('/home/user/viamedata/DIVE_Projects/stereoDataset/left');
+    let rightExists = fs.existsSync('/home/user/viamedata/DIVE_Projects/stereoDataset/right');
+    expect(rightExists).toBe(true);
+    deleted = await common.deleteDataset(settings, 'stereoDataset');
+    expect(deleted).toBe(true);
+    rightExists = fs.existsSync('/home/user/viamedata/DIVE_Projects/stereoDataset/right');
+    expect(rightExists).toBe(false);
+    exists = fs.existsSync('/home/user/viamedata/DIVE_Projects/stereoDataset');
+    expect(exists).toBe(false);
   });
 
   it('processing good Trained Pipeline folder', async () => {

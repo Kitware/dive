@@ -610,13 +610,8 @@ async function deleteDataset(
 ): Promise<boolean> {
   // confirm dataset Id exists
   const projectDirInfo = await getValidatedProjectDir(settings, datasetId);
-  try {
-    fs.rmdirSync(projectDirInfo.basePath, { recursive: true });
-    return true;
-  } catch (e) {
-    console.error(e);
-    return false;
-  }
+  fs.rmdirSync(projectDirInfo.basePath, { recursive: true });
+  return true;
 }
 
 async function checkDataset(
