@@ -1,5 +1,5 @@
 import {
-  computed, reactive, Ref, toRefs,
+  reactive, Ref, toRefs,
 } from '@vue/composition-api';
 import { throttle } from 'lodash';
 
@@ -36,15 +36,15 @@ export default function useTimeObserver() {
   const data = reactive({
     frame: 0,
     flick: 0,
-    frameRate: null as number | null,
+    frameRate: NaN,
     originalFps: null as number | null,
   });
 
   function initialize({ frameRate, originalFps }: {
     frameRate: number; originalFps: number | null;
   }) {
-    if (data.frameRate !== null) {
-      throw new Error('frameRate can only be initialized once');
+    if (typeof frameRate !== 'number') {
+      throw new Error(`frameRate=${frameRate} is not a number`);
     }
     data.frameRate = frameRate;
     data.originalFps = originalFps;
@@ -55,15 +55,7 @@ export default function useTimeObserver() {
     data.flick = flick;
   });
 
-  const time: Time = {
-    ...toRefs(data),
-    frameRate: computed(() => {
-      if (data.frameRate === null) {
-        throw new Error('frameRate was read before initialization');
-      }
-      return data.frameRate;
-    }),
-  };
+  const time: Time = toRefs(data);
 
   return {
     initialize,

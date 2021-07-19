@@ -417,9 +417,10 @@ export default defineComponent({
       selectedFeatureHandle,
       selectedTrackId,
       selectedKey,
-      time,
       videoUrl,
       visibleModes,
+      frameRate: time.frameRate,
+      originalFps: time.originalFps,
       /* methods */
       handler: globalHandler,
       save,
@@ -510,11 +511,7 @@ export default defineComponent({
             { bind: 'r', handler: () => mediaController.resetZoom() },
             { bind: 'esc', handler: () => handler.trackAbort() },
           ]"
-          v-bind="{
-            imageData, videoUrl, updateTime,
-            frameRate: time.frameRate,
-            originalFps: time.originalFps
-          }"
+          v-bind="{ imageData, videoUrl, updateTime, frameRate, originalFps }"
           class="playback-component"
         >
           <template slot="control">

@@ -38,6 +38,11 @@ const OnePTSTick = 1 / (90 * 1000);
  */
 function kwiverSeek(frame: number, frameRate: number, originalFps: number) {
   /**
+   * If the downsample rate is truly lower than the original,
+   * ceiling to find the sample boundary, else floor
+   */
+  const roundOrFloor = frameRate < originalFps ? Math.ceil : Math.floor;
+  /**
    * requestedTimeInSeconds is the position, in seconds, that was
    * requested for seek
    */
@@ -55,14 +60,11 @@ function kwiverSeek(frame: number, frameRate: number, originalFps: number) {
    * will only be an aggregate approximation
    */
   const nextTrueFrameBoundary = (
-    Math.ceil(requestedTrueVideoFrame) / originalFps
+    roundOrFloor(requestedTrueVideoFrame) / originalFps
   );
+
   /**
-   * trueFrameWidth is the width, in seconds, of a real video frame
-   */
-  // const trueFrameWidth = 1 / originalFps;
-  /**
-   * Return one tick past the next boundary
+   * Return one tick over the appropriate boundary
    */
   return nextTrueFrameBoundary + OnePTSTick;
 }
@@ -114,7 +116,7 @@ export default defineComponent({
 
     function syncWithVideo() {
       if (data.playing) {
-        data.frame = Math.round(video.currentTime * props.frameRate);
+        data.frame = Math.floor(video.currentTime * props.frameRate);
         data.flick = Math.round(video.currentTime * Flick);
         data.syncedFrame = data.frame;
         commonMedia.geoViewerRef.value.scheduleAnimationFrame(syncWithVideo);
@@ -133,6 +135,9 @@ export default defineComponent({
     }
 
     async function seek(frame: number) {
+      /** Only perform seek for whole frame numbers */
+      const requestedFrame = Math.round(frame);
+
       if (props.originalFps) {
         /** If the video's true FPS is known */
         data.currentTime = kwiverSeek(frame, props.frameRate, props.originalFps);
@@ -141,7 +146,7 @@ export default defineComponent({
         data.currentTime = (frame / props.frameRate) + OnePTSTick;
       }
       video.currentTime = data.currentTime;
-      data.frame = Math.round(data.currentTime * props.frameRate);
+      data.frame = requestedFrame;
       data.flick = Math.round(data.currentTime * Flick);
       props.updateTime(data);
     }

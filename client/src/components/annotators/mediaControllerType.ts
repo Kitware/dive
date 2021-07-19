@@ -7,8 +7,8 @@ import type { Ref } from '@vue/composition-api';
  * See components/annotators/README.md for docs.
  */
 export interface MediaController {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   currentTime: Readonly<Ref<number>>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   geoViewerRef: Readonly<Ref<any>>;
   playing: Readonly<Ref<boolean>>;
   frame: Readonly<Ref<number>>;
