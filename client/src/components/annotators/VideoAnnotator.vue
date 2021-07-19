@@ -114,30 +114,10 @@ export default defineComponent({
       }
     });
 
-    function syncWithVideo() {
-      if (data.playing) {
-        data.frame = Math.floor(video.currentTime * props.frameRate);
-        data.flick = Math.round(video.currentTime * Flick);
-        data.syncedFrame = data.frame;
-        commonMedia.geoViewerRef.value.scheduleAnimationFrame(syncWithVideo);
-      }
-      data.currentTime = video.currentTime;
-    }
-
-    async function play() {
-      try {
-        await video.play();
-        data.playing = true;
-        syncWithVideo();
-      } catch (ex) {
-        console.error(ex);
-      }
-    }
-
     async function seek(frame: number) {
       /** Only perform seek for whole frame numbers */
       const requestedFrame = Math.round(frame);
-
+      /** Different seek approaches based on known information */
       if (props.originalFps) {
         /** If the video's true FPS is known */
         data.currentTime = kwiverSeek(frame, props.frameRate, props.originalFps);
@@ -155,6 +135,33 @@ export default defineComponent({
       video.pause();
       seek(data.frame); // snap to frame boundary
       data.playing = false;
+    }
+
+    function syncWithVideo() {
+      if (data.playing) {
+        const newFrame = video.currentTime * props.frameRate;
+        if (newFrame > data.maxFrame) {
+          /** Video has played past its allowed truncated end, seek to end */
+          data.frame = data.maxFrame;
+          pause();
+          return;
+        }
+        data.frame = Math.floor(newFrame);
+        data.flick = Math.round(video.currentTime * Flick);
+        data.syncedFrame = data.frame;
+        commonMedia.geoViewerRef.value.scheduleAnimationFrame(syncWithVideo);
+      }
+      data.currentTime = video.currentTime;
+    }
+
+    async function play() {
+      try {
+        await video.play();
+        data.playing = true;
+        syncWithVideo();
+      } catch (ex) {
+        console.error(ex);
+      }
     }
 
     function setVolume(level: number) {
@@ -183,7 +190,21 @@ export default defineComponent({
       video.removeEventListener('loadedmetadata', loadedMetadata);
       const width = video.videoWidth;
       const height = video.videoHeight;
-      data.maxFrame = props.frameRate * video.duration;
+      const maybeMaxFrame = Math.floor(props.frameRate * video.duration);
+
+      if (props.originalFps !== null) {
+        /**
+         * Don't allow the user to seek past the final frame as defined by kwiver.
+         */
+        if (kwiverSeek(maybeMaxFrame, props.frameRate, props.originalFps) > video.duration) {
+          data.maxFrame = maybeMaxFrame - 1;
+        } else {
+          data.maxFrame = maybeMaxFrame;
+        }
+      } else {
+        console.warn('Dataset loaded without originalFps, seeking accuracy will be impacted');
+        data.maxFrame = maybeMaxFrame;
+      }
       initializeViewer(width, height);
       const quadFeatureLayer = commonMedia.geoViewerRef.value.createLayer('feature', {
         features: ['quad.video'],
