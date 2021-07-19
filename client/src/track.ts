@@ -286,7 +286,7 @@ export default class Track {
   toggleKeyframe(frame: number) {
     const { features } = this.canInterpolate(frame);
     const [real, lower, upper] = features;
-    if (real && real.keyframe && this.begin === this.end && frame === this.begin) {
+    if (real && this.length === 1) {
       throw new Error(`This is the only keyframe in Track:${this.trackId} it cannot be removed`);
     }
     if (real && !real.keyframe) {
