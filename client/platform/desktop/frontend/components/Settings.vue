@@ -1,12 +1,13 @@
 <script lang="ts">
 import {
-  defineComponent, onBeforeMount, ref,
+  defineComponent, onBeforeMount, ref, computed,
 } from '@vue/composition-api';
 
 import { remote } from 'electron';
 import { NvidiaSmiReply } from 'platform/desktop/constants';
+import { cloneDeep } from 'lodash';
 
-import { getSettings, setSettings, validateSettings } from '../store/settings';
+import { settings, updateSettings, validateSettings } from '../store/settings';
 import { nvidiaSmi } from '../api';
 
 import BrowserLink from './BrowserLink.vue';
@@ -20,11 +21,12 @@ export default defineComponent({
   setup() {
     // null values indicate initialization has not completed
     const smi = ref(null as NvidiaSmiReply | null);
-    const localSettings = getSettings();
+    // create a local copy of the global settings
+    const localSettings = cloneDeep(settings);
     const { arch, platform, version } = process;
     const settingsAreValid = ref(true as boolean | string);
     const gitHash = process.env.VUE_APP_GIT_HASH;
-    const readonlyMode = ref(localSettings.value.readonlyMode);
+    const readonlyMode = computed(() => settings.value.readonlyMode);
 
     onBeforeMount(async () => {
       settingsAreValid.value = await validateSettings(localSettings.value);
@@ -42,11 +44,12 @@ export default defineComponent({
     }
 
     async function save() {
-      if (localSettings.value !== null) {
+      if (localSettings.value !== null || localSettings.value !== undefined) {
         settingsAreValid.value = false;
         settingsAreValid.value = await validateSettings(localSettings.value);
-        setSettings(localSettings.value);
-        readonlyMode.value = localSettings.value.readonlyMode;
+        updateSettings(localSettings.value);
+        // copy local changes back to global settings
+        settings.value = cloneDeep(localSettings.value);
       }
     }
 
@@ -134,6 +137,7 @@ export default defineComponent({
                 v-model="localSettings.readonlyMode"
                 color="primary"
                 :label="'Read only mode'"
+                hide-details
               />
             </v-col>
           </v-row>

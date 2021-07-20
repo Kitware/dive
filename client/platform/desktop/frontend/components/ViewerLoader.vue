@@ -9,7 +9,7 @@ import Export from './Export.vue';
 import JobTab from './JobTab.vue';
 
 import { datasets } from '../store/dataset';
-import { getSettings } from '../store/settings';
+import { settings } from '../store/settings';
 
 const buttonOptions = {
   outlined: true,
@@ -40,7 +40,7 @@ export default defineComponent({
   setup(props) {
     const viewerRef = ref();
     const subTypeList = computed(() => [datasets.value[props.id]?.subType || null]);
-    const readonlyMode = computed(() => getSettings().value.readonlyMode);
+    const readonlyMode = computed(() => settings.value.readonlyMode);
     return {
       datasets,
       viewerRef,

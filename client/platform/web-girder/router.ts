@@ -30,10 +30,8 @@ const router = new Router({
       path: '/viewer/:id',
       name: 'viewer',
       component: ViewerLoader,
-      props: (route: Route) => ({
-        id: route.params.id,
-        readonlyMode: !girderRest.user,
-      }),
+      props: true,
+      beforeEnter,
     },
     {
       path: '/',

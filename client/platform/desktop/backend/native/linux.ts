@@ -34,7 +34,9 @@ const DefaultSettings: Settings = {
     // override VIAME install path from env
     viamePath: process.env.DIVE_VIAME_INSTALL_PATH,
     // override readonly mode flag
-    readonlyMode: process.env.DIVE_READONLY_MODE?.toLowerCase() === 'true',
+    readonlyMode: process.env.DIVE_READONLY_MODE
+      ? process.env.DIVE_READONLY_MODE?.toLowerCase() === 'true'
+      : undefined,
   },
 };
 
