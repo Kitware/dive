@@ -11,17 +11,22 @@ export default defineComponent({
     },
   },
   setup(props) {
-    const { currentTime, duration, filename } = injectMediaController();
+    const {
+      currentTime, duration, filename, frame,
+    } = injectMediaController();
     const display = computed(() => {
+      let value = 'unsupported display';
       if (props.displayType === 'filename') {
-        return filename.value;
+        value = filename.value;
       } if (props.displayType === 'time') {
-        return `${new Date(currentTime.value * 1000).toISOString().substr(11, 8)} / ${new Date(duration.value * 1000).toISOString().substr(11, 8)}`;
+        value = `${new Date(currentTime.value * 1000).toISOString().substr(11, 8)} / ${new Date(duration.value * 1000).toISOString().substr(11, 8)}`;
       }
-      return 'unsupported display';
+      return value;
     });
     return {
       display,
+      frame,
+      currentTime,
     };
   },
 });
@@ -29,6 +34,17 @@ export default defineComponent({
 
 <template>
   <span>
-    {{ display }}
+    <span>
+      {{ display }}
+    </span>
+    <span class="border-radius">frame {{ frame }}</span>
   </span>
 </template>
+
+<style scoped>
+.border-radius {
+  border: 1px solid #888888;
+  padding: 2px 5px;
+  border-radius: 5px;
+}
+</style>
