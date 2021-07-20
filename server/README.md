@@ -66,6 +66,16 @@ tox -e format
 tox -e docs
 ```
 
+## Debug utils and command line tools
+
+``` bash
+# install debugging packages
+pip3 install -e .[dev,debug]
+
+# show options
+dive --help
+```
+
 ## Metadata properties
 
 This section explains the metadata properties used to record application state in Girder.  These properties can be modified through the Girder UI editor.

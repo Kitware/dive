@@ -1,7 +1,6 @@
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from pydantic import BaseModel, Field, validator
-from pydantic.types import ConstrainedInt, conlist
 from typing_extensions import Literal
 
 
@@ -45,12 +44,12 @@ class Track(BaseModel):
     attributes: Dict[str, Any] = Field(default_factory=lambda: {})
 
     @validator('features')
+    @classmethod
     def validateFeatures(cls, v: List[Feature], values: dict):
         if len(v) > 0:
             trackId = values.get('trackId')
             begin = values.get('begin')
             end = values.get('end')
-            print(trackId, begin, end)
             if v[0].frame != begin:
                 raise ValueError(
                     f'trackId={trackId} begin={begin} does not match features[0]={v[0].frame}'

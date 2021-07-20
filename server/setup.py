@@ -20,14 +20,20 @@ requirements = [
     "urllib3<1.26",
 ]
 
+# For running tests, linting, etc.
 dev_requirements = [
     "pytest",
-    "ipykernel",
-    "tabulate",
-    "opencv-python",
-    "python-dotenv",
     "pytest-cov",
     "tox",
+]
+
+# For running debugging command line tools
+# and notebooks
+debug_requirements = [
+    "ipykernel",
+    "opencv-python",
+    "numpy",
+    "python-dotenv",
 ]
 
 setup(
@@ -62,5 +68,8 @@ setup(
         "girder_worker_plugins": ["dive_tasks = dive_tasks:DIVEPlugin"],
     },
     install_requires=requirements,
-    extras_require={"dev": dev_requirements},
+    extras_require={
+        "dev": dev_requirements,
+        "debug": debug_requirements,
+    },
 )
