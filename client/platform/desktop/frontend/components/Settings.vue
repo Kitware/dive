@@ -24,7 +24,7 @@ export default defineComponent({
     // create a local copy of the global settings
     const localSettings = cloneDeep(settings);
     const { arch, platform, version } = process;
-    const settingsAreValid = ref(true as boolean | string);
+    const settingsAreValid = ref(false as boolean | string);
     const gitHash = process.env.VUE_APP_GIT_HASH;
     const readonlyMode = computed(() => settings.value.readonlyMode);
 
@@ -84,7 +84,7 @@ export default defineComponent({
                 label="VIAME Install Base Path"
                 hint="download from https://viametoolkit.com"
                 dense
-                :disabled="!!localSettings.overrides.viamePath"
+                :disabled="!!(localSettings.overrides && localSettings.overrides.viamePath)"
                 persistent-hint
               />
             </v-col>
@@ -94,7 +94,7 @@ export default defineComponent({
                 large
                 block
                 color="primary"
-                :disabled="!!localSettings.overrides.viamePath"
+                :disabled="!!(localSettings.overrides && localSettings.overrides.viamePath)"
                 @click="openPath('viamePath')"
               >
                 Choose
