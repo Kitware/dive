@@ -1,10 +1,9 @@
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import ByteString, Dict, Iterable, List, Optional
 
 from boiler import BoilerError, models
 from boiler.definitions import ActorType
 from boiler.serialization import kpf
-from girder.models.file import File
 
 from dive_utils.models import Feature, Track
 
@@ -34,51 +33,7 @@ class Actor:
     src_status: Optional[str] = None
 
 
-def load_kpf_as_tracks(ymls):
-    types = None
-    activity = None
-    geom = None
-
-    actor_map = {}
-    activity_map = {}
-    error_report = {}
-    try:
-        for file in ymls:
-            rows = b"".join(list(File().download(file, headers=False)())).decode("utf-8")
-            yml = kpf.load_yaml(rows)
-            for row in yml:
-                if kpf.TYPES in row:
-                    types = rows
-                    break
-                elif kpf.GEOM in row:
-                    geom = rows
-                    break
-                elif kpf.ACTIVITY in row:
-                    activity = rows
-                    break
-
-        if types:
-            deserialize_types(types, actor_map)
-        else:
-            print("WARNING: types yaml was not given")
-        if geom:
-            deserialize_geom(geom, actor_map)
-        else:
-            print("WARNING: geom yaml was not given")
-            raise BoilerError('GEOM yaml needed to create Tracks')
-        if activity:
-            deserialize_activities(activity, activity_map, actor_map)
-        else:
-            print("WARNING: activity yaml was not given")
-
-        tracks = parse_actor_map_to_tracks(actor_map)
-        return {trackId: track.dict(exclude_none=True) for trackId, track in tracks.items()}
-    except Exception as e:
-        error_report['error'] = str(e)
-        return error_report
-
-
-def parse_actor_map_to_tracks(actor_map) -> Dict[int, Track]:
+def parse_actor_map_to_tracks(actor_map: Dict[int, Actor]) -> Dict[int, Track]:
     tracks = {}
     ids = {}
     i = 1
@@ -123,7 +78,7 @@ def parse_actor_map_to_tracks(actor_map) -> Dict[int, Track]:
     return tracks
 
 
-def deserialize_types(file, actor_map):
+def deserialize_types(file, actor_map: Dict[int, Actor]):
     yml = kpf.load_yaml(file)
     for type_packet in yml:
         if kpf.TYPES in type_packet:
@@ -143,7 +98,7 @@ def deserialize_types(file, actor_map):
                 )  # type: ignore
 
 
-def deserialize_geom(file, actor_map):
+def deserialize_geom(file, actor_map: Dict[int, Actor]):
     # kpf.deserialize_geom(file, actor_map)
     yml = kpf.load_yaml(file)
     for geom_packet in yml:
@@ -181,7 +136,7 @@ def deserialize_geom(file, actor_map):
                 )
 
 
-def deserialize_activities(file, activity_map, actor_map):
+def deserialize_activities(file, activity_map, actor_map: Dict[int, Actor]):
     yml = kpf.load_yaml(file)
     for activity_packet in yml:
         if kpf.ACTIVITY in activity_packet:
@@ -189,7 +144,7 @@ def deserialize_activities(file, activity_map, actor_map):
             activity_map[activity.activity_id] = activity
 
 
-def _deserialize_activity(activity_packet, actor_map):
+def _deserialize_activity(activity_packet, actor_map: Dict[int, Actor]):
     """
     Returns activity instanceActor
     """
@@ -228,7 +183,14 @@ def _deserialize_activity(activity_packet, actor_map):
     )
 
 
-def _deserialize_actor(actor, actor_map, activity_id, activity_type, confidence, status):
+def _deserialize_actor(
+    actor,
+    actor_map: Dict[int, Actor],
+    activity_id: int,
+    activity_type: str,
+    confidence: float,
+    status: Optional[str],
+):
     if kpf.ACTOR_ID not in actor:
         raise BoilerError(f'actor {actor} missing {kpf.ACTOR_ID}')
     if kpf.TIMESPANS not in actor:
@@ -254,3 +216,47 @@ def _deserialize_actor(actor, actor_map, activity_id, activity_type, confidence,
             confidence=confidence,
         )
     return actor_map[actor_id]
+
+
+def load_kpf_as_tracks(readers: List[Iterable[ByteString]]):
+    types = None
+    activity = None
+    geom = None
+
+    actor_map: Dict[int, Actor] = {}
+    activity_map: Dict[int, models.Activity] = {}
+    error_report: Dict[str, str] = {}
+    try:
+        for reader in readers:
+            rows = b"".join(list(reader)).decode("utf-8")
+            yml = kpf.load_yaml(rows)
+            for row in yml:
+                if kpf.TYPES in row:
+                    types = rows
+                    break
+                elif kpf.GEOM in row:
+                    geom = rows
+                    break
+                elif kpf.ACTIVITY in row:
+                    activity = rows
+                    break
+
+        if types:
+            deserialize_types(types, actor_map)
+        else:
+            print("WARNING: types yaml was not given")
+        if geom:
+            deserialize_geom(geom, actor_map)
+        else:
+            print("WARNING: geom yaml was not given")
+            raise ValueError('GEOM yaml needed to create Tracks')
+        if activity:
+            deserialize_activities(activity, activity_map, actor_map)
+        else:
+            print("WARNING: activity yaml was not given")
+
+        tracks = parse_actor_map_to_tracks(actor_map)
+        return {trackId: track.dict(exclude_none=True) for trackId, track in tracks.items()}
+    except Exception as e:
+        error_report['error'] = str(e)
+        return error_report

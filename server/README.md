@@ -1,4 +1,11 @@
-# Server architecture
+# DIVE Python Packages
+
+There are several important python packages in this application
+
+* `dive_server` is a collection of girder plugins for the web server
+* `dive_tasks` is a collection of girder worker plugins for the celery worker
+* `scripts` has general command-line utilities
+* `dive_utils` is shared code between the above packages
 
 ## Development
 
@@ -68,12 +75,14 @@ tox -e docs
 
 ## Debug utils and command line tools
 
-``` bash
-# install debugging packages
-pip3 install -e .[dev,debug]
+Requires the development installation above
 
+``` bash
 # show options
 dive --help
+
+# build the standalone executable into ./dist
+tox -e buildcli
 ```
 
 ## Metadata properties

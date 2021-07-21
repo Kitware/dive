@@ -17,7 +17,6 @@ from pydantic.main import BaseModel
 import pymongo
 from pymongo.cursor import Cursor
 
-from dive_server.serializers import kwcoco, viame
 from dive_utils import asbool, fromMeta, models, strNumericCompare
 from dive_utils.constants import (
     ConfidenceFiltersMarker,
@@ -33,6 +32,7 @@ from dive_utils.constants import (
     jsonRegex,
     safeImageRegex,
 )
+from dive_utils.serializers import kwcoco, viame
 from dive_utils.types import GirderModel
 
 

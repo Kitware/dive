@@ -38,7 +38,7 @@ def create_video(
         raise RuntimeError("Stdout must not be none")
     for line in iter(process.stdout.readline, b""):
         line_str = line.decode("utf-8")
-        print(line_str)
+        click.echo(line_str)
 
     # Iterate over the list of filepaths & remove each file.
     for filePath in fileList:
