@@ -3,7 +3,7 @@ from typing import Dict, List, Tuple
 
 import pytest
 
-from dive_server.serializers import kwcoco
+from dive_utils.serializers import kwcoco
 
 test_tuple: List[Tuple[dict, dict, dict]] = [
     (

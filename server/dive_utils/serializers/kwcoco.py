@@ -4,9 +4,10 @@ KWCOCO JSON format deserializer
 import functools
 from typing import Any, Dict, List, Tuple
 
-from dive_server.serializers import viame
 from dive_utils import strNumericCompare
 from dive_utils.models import CocoMetadata, Feature, Track
+
+from . import viame
 
 
 def is_coco_json(coco: Dict[str, Any]):

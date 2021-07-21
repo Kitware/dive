@@ -9,10 +9,10 @@ from girder.constants import AccessType, SortDir, TokenScope
 from girder.models.folder import Folder
 from girder.models.token import Token
 
-from dive_server.serializers.viame import format_timestamp
 from dive_server.utils import PydanticModel, detections_file, getTrackData
 from dive_tasks.summary import generate_max_n_summary, generate_summary
 from dive_utils import fromMeta, models
+from dive_utils.serializers.viame import format_timestamp
 from dive_utils.types import GirderModel
 
 
