@@ -59,13 +59,14 @@ export default defineComponent({
     const brandData = toRef(root.$store.state.Brand, 'brandData');
     const location = toRef(root.$store.state.Location, 'location');
     const dataPath = computed(() => getPathFromLocation(location.value));
+
     onMounted(() => {
       window.addEventListener('beforeunload', viewerRef.value.warnBrowserExit);
     });
+
     onBeforeUnmount(() => {
       window.removeEventListener('beforeunload', viewerRef.value.warnBrowserExit);
     });
-
 
     return {
       buttonOptions,

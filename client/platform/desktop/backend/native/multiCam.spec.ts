@@ -22,6 +22,8 @@ const settings: Settings = {
   version: 1,
   dataPath: '/home/user/viamedata',
   viamePath: '/opt/viame',
+  readonlyMode: false,
+  overrides: {},
 };
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const updater = (update: DesktopJobUpdate) => undefined;

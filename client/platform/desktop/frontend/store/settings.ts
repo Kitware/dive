@@ -30,30 +30,38 @@ function isSettings(s: any): s is Settings {
   return true;
 }
 
+// Settings initialization involves a handoff between renderer and background.
+// This function should be called at application startup.
 async function init() {
-  const settingsStr = window.localStorage.getItem(SettingsKey);
-  let settingsvalue = await getDefaultSettings();
+  // Client asks for default settings and external force overrides from background
+  let settingsValue = await getDefaultSettings();
   try {
-    if (settingsStr) {
-      const maybeSettings = JSON.parse(settingsStr);
-      if (isSettings(maybeSettings)) {
-        settingsvalue = {
-          // Populate from defaults to include any missing properties
-          ...settingsvalue,
-          // Overwrite with explicitly persisted settings
-          ...maybeSettings,
-        };
-      }
+    // Client applies user-configured settings from localstorage
+    const settingsStr = window.localStorage.getItem(SettingsKey) || '{}';
+    const maybeSettings = JSON.parse(settingsStr);
+    if (isSettings(maybeSettings)) {
+      settingsValue = {
+        // Populate from defaults to include any missing properties
+        ...settingsValue,
+        // Overwrite with explicitly persisted settings
+        ...maybeSettings,
+      };
     }
   } catch {
     // pass
   }
-  settings.value = settingsvalue;
-
+  // Client applies external force overrides
+  if (settingsValue.overrides.viamePath !== undefined) {
+    settingsValue.viamePath = settingsValue.overrides.viamePath;
+  }
+  if (settingsValue.overrides.readonlyMode !== undefined) {
+    settingsValue.readonlyMode = settingsValue.overrides.readonlyMode;
+  }
+  settings.value = settingsValue;
   ipcRenderer.send('update-settings', settings.value);
 }
 
-async function setSettings(s: Settings) {
+async function updateSettings(s: Settings) {
   window.localStorage.setItem(SettingsKey, JSON.stringify(s));
   ipcRenderer.send('update-settings', settings.value);
 }
@@ -63,6 +71,6 @@ init();
 
 export {
   settings,
-  setSettings,
+  updateSettings,
   validateSettings,
 };

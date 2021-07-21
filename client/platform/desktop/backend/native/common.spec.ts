@@ -72,6 +72,8 @@ const settings: Settings = {
   version: 1,
   dataPath: '/home/user/viamedata',
   viamePath: '/opt/viame',
+  readonlyMode: false,
+  overrides: {},
 };
 const urlMapper = (a: string) => `http://localhost:8888/api/media?path=${a}`;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars

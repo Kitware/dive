@@ -1,12 +1,13 @@
 <script lang="ts">
 import {
-  defineComponent, onBeforeMount, ref,
+  defineComponent, onBeforeMount, ref, computed,
 } from '@vue/composition-api';
 
 import { remote } from 'electron';
 import { NvidiaSmiReply } from 'platform/desktop/constants';
+import { cloneDeep } from 'lodash';
 
-import { settings, setSettings, validateSettings } from '../store/settings';
+import { settings, updateSettings, validateSettings } from '../store/settings';
 import { nvidiaSmi } from '../api';
 
 import BrowserLink from './BrowserLink.vue';
@@ -20,10 +21,12 @@ export default defineComponent({
   setup() {
     // null values indicate initialization has not completed
     const smi = ref(null as NvidiaSmiReply | null);
-    const localSettings = settings;
+    // create a local copy of the global settings
+    const localSettings = cloneDeep(settings);
     const { arch, platform, version } = process;
-    const settingsAreValid = ref(true as boolean | string);
+    const settingsAreValid = ref(false as boolean | string);
     const gitHash = process.env.VUE_APP_GIT_HASH;
+    const readonlyMode = computed(() => settings.value.readonlyMode);
 
     onBeforeMount(async () => {
       settingsAreValid.value = await validateSettings(localSettings.value);
@@ -41,10 +44,12 @@ export default defineComponent({
     }
 
     async function save() {
-      if (settings.value !== null) {
+      if (localSettings.value !== null || localSettings.value !== undefined) {
         settingsAreValid.value = false;
         settingsAreValid.value = await validateSettings(localSettings.value);
-        setSettings(localSettings.value);
+        updateSettings(localSettings.value);
+        // copy local changes back to global settings
+        settings.value = cloneDeep(localSettings.value);
       }
     }
 
@@ -52,12 +57,13 @@ export default defineComponent({
       arch,
       gitHash,
       platform,
-      save,
       localSettings,
       settingsAreValid,
       smi,
       version,
+      readonlyMode,
       openPath,
+      save,
     };
   },
 });
@@ -69,23 +75,26 @@ export default defineComponent({
     <v-container>
       <v-card>
         <v-card-title>Settings</v-card-title>
+
         <v-card-text>
-          <v-row>
+          <v-row class="mb-6">
             <v-col cols="9">
               <v-text-field
                 v-model="localSettings.viamePath"
                 label="VIAME Install Base Path"
                 hint="download from https://viametoolkit.com"
                 dense
+                :disabled="!!(localSettings.overrides && localSettings.overrides.viamePath)"
                 persistent-hint
               />
             </v-col>
+
             <v-col cols="3">
               <v-btn
                 large
                 block
                 color="primary"
-                class="mb-6"
+                :disabled="!!(localSettings.overrides && localSettings.overrides.viamePath)"
                 @click="openPath('viamePath')"
               >
                 Choose
@@ -95,7 +104,8 @@ export default defineComponent({
               </v-btn>
             </v-col>
           </v-row>
-          <v-row>
+
+          <v-row class>
             <v-col cols="9">
               <v-text-field
                 v-model="localSettings.dataPath"
@@ -105,12 +115,12 @@ export default defineComponent({
                 persistent-hint
               />
             </v-col>
+
             <v-col>
               <v-btn
                 large
                 block
                 color="primary"
-                class="mb-6"
                 @click="openPath('dataPath')"
               >
                 Choose
@@ -120,7 +130,19 @@ export default defineComponent({
               </v-btn>
             </v-col>
           </v-row>
+
+          <v-row>
+            <v-col class="d-flex">
+              <v-switch
+                v-model="localSettings.readonlyMode"
+                color="primary"
+                :label="'Read only mode'"
+                hide-details
+              />
+            </v-col>
+          </v-row>
         </v-card-text>
+
         <v-card-text>
           <v-btn
             color="primary"
@@ -132,11 +154,13 @@ export default defineComponent({
             Save
           </v-btn>
         </v-card-text>
+
         <v-card-title>Platform support</v-card-title>
         <v-card-subtitle>
           Not all checks must pass in order to use this application.
           Warnings are intended to help with debugging.
         </v-card-subtitle>
+
         <v-alert
           dense
           text
@@ -157,6 +181,7 @@ export default defineComponent({
             Could not determine your GPU compatibility: {{ smi.error }}
           </span>
         </v-alert>
+
         <v-alert
           dense
           text
@@ -164,7 +189,7 @@ export default defineComponent({
           :type="settingsAreValid ===
             false ? 'info' : settingsAreValid === true ? 'success' : 'warning'"
         >
-          <span v-if="settingsAreValid === false ">
+          <span v-if="settingsAreValid === false">
             Checking for Kwiver
             <v-progress-linear
               indeterminate
@@ -178,6 +203,17 @@ export default defineComponent({
             Could not initialize kwiver: {{ settingsAreValid }}
           </span>
         </v-alert>
+
+        <v-alert
+          v-if="readonlyMode"
+          dense
+          text
+          class="mx-4"
+          :type="'warning'"
+        >
+          Read only mode is on
+        </v-alert>
+
         <v-card-text>
           <div>
             Build Version:
