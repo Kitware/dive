@@ -18,7 +18,7 @@ def create_video(
 ):
     os.mkdir(directory)
 
-    with click.progressbar(range(int(frames))) as bar:
+    with click.progressbar(range(frames)) as bar:
         for i in bar:
             # Random gray image in resolution width by height.
             img = np.random.randint(0, 255, (height, width), np.uint8)

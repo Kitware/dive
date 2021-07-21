@@ -6,8 +6,7 @@ Debug cli needs [dev] extra_require from setuptools.
 """
 import click
 
-from scripts import generateLargeDataset
-from scripts.cli import cli
+from scripts import cli, generateLargeDataset
 
 
 @cli.command(name="generate-data", help="Generate fake datasets for testing")

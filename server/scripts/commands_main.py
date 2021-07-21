@@ -9,7 +9,7 @@ import click
 
 from dive_utils import models, strNumericCompare
 from dive_utils.serializers import kwcoco, meva, viame
-from scripts.cli import cli
+from scripts import cli
 
 
 @cli.command(name='verify-dive-json', help="Verify a DIVE json schema file for correctness")
@@ -42,7 +42,7 @@ def convert_kpf(inputs: List[BinaryIO], output: TextIO):
             yield data
 
     tracks = meva.load_kpf_as_tracks([read_in_chunks(file) for file in inputs])
-    json.dump(tracks, output, indent=4)
+    json.dump(tracks, output)
     click.secho(f'wrote output {output.name}', fg='green')
 
 
@@ -53,7 +53,7 @@ def convert_kpf(inputs: List[BinaryIO], output: TextIO):
 def convert_coco(input: TextIO, output: TextIO, output_attrs: TextIO):
     coco_json = json.load(input)
     tracks, attributes = kwcoco.load_coco_as_tracks_and_attributes(coco_json)
-    json.dump(tracks, output, indent=4)
+    json.dump(tracks, output)
     json.dump(attributes, output_attrs, indent=4)
     click.secho(f'wrote output {output.name}', fg='green')
     click.secho(f'wrote attrib {output_attrs.name}', fg='green')
@@ -66,7 +66,7 @@ def convert_coco(input: TextIO, output: TextIO, output_attrs: TextIO):
 def convert_viame_csv(input: TextIO, output: TextIO, output_attrs: TextIO):
     rows = input.readlines()
     tracks, attributes = viame.load_csv_as_tracks_and_attributes(rows)
-    json.dump(tracks, output, indent=4)
+    json.dump(tracks, output)
     json.dump(attributes, output_attrs, indent=4)
     click.secho(f'wrote output {output.name}', fg='green')
     click.secho(f'wrote attrib {output_attrs.name}', fg='green')

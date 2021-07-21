@@ -24,7 +24,6 @@ dev_requirements = [
     "numpy",
     "opencv-python",
     "pytest",
-    "pytest-cov",
     "tox",
 ]
 
@@ -51,7 +50,7 @@ setup(
     include_package_data=True,
     zip_safe=False,
     entry_points={
-        "console_scripts": ["dive=scripts.cli_dev:cli"],
+        "console_scripts": ["dive=scripts.entrypoint_dev:cli"],
         "girder.plugin": [
             "dive_server = dive_server:GirderPlugin",
             "bucket_notifications = bucket_notifications:GirderPlugin",
