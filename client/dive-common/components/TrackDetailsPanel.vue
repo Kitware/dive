@@ -8,7 +8,6 @@ import {
 import { flatten } from 'lodash';
 import {
   useSelectedTrackId,
-  useFrame,
   useEditingMode,
   useTypeStyling,
   useAllTypes,
@@ -16,6 +15,7 @@ import {
   useTrackMap,
   useAttributes,
   useMergeList,
+  useTime,
 } from 'vue-media-annotator/provides';
 import { getTrack } from 'vue-media-annotator/use/useTrackStore';
 import { Attribute } from 'vue-media-annotator/use/useAttributes';
@@ -67,7 +67,7 @@ export default defineComponent({
     //Edit/Set single value by clicking
     const editIndividual: Ref<Attribute | null> = ref(null);
 
-    const frameRef = useFrame();
+    const { frame: frameRef } = useTime();
     const selectedTrackIdRef = useSelectedTrackId();
     const { setAttribute, deleteAttribute } = useHandler();
     const selectedTrackList = computed(() => {

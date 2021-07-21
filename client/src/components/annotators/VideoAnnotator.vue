@@ -2,6 +2,8 @@
 import {
   defineComponent, onBeforeUnmount, PropType,
 } from '@vue/composition-api';
+
+import { Flick, SetTimeFunc } from 'vue-media-annotator/use/useTimeObserver';
 import useMediaController from './useMediaController';
 
 /**
@@ -26,6 +28,47 @@ import useMediaController from './useMediaController';
  */
 const OnePTSTick = 1 / (90 * 1000);
 
+/**
+ * The Kwiver seek function performs seek based on
+ * downsampled frame number such that the converse of the
+ * function (maping timestamp to downsampled frame)
+ * is consistent with the implementation in kwiver:
+ *
+ * https://github.com/Kitware/kwiver/blob/1c97ad72c8b6237cb4b9618665d042be16825005/sprokit/processes/core/downsample_process.cxx#L267
+ */
+function kwiverSeek(frame: number, frameRate: number, originalFps: number) {
+  /**
+   * If the downsample rate is truly lower than the original,
+   * ceiling to find the sample boundary, else floor
+   */
+  const roundOrFloor = frameRate < originalFps ? Math.ceil : Math.floor;
+  /**
+   * requestedTimeInSeconds is the position, in seconds, that was
+   * requested for seek
+   */
+  const requestedTimeInSeconds = frame / frameRate;
+  /**
+   * RequestedTrueVideoFrame is the floating point frame number
+   * expected to be found at requested time
+   */
+  const requestedTrueVideoFrame = requestedTimeInSeconds * originalFps;
+  /**
+   * nextTrueFrameBoundary is the time, in seconds, of the
+   * next frame transition boundary ASSUMING even frame spacing.
+   *
+   * For videos with b frames or inconsistent frame widths, this
+   * will only be an aggregate approximation
+   */
+  const nextTrueFrameBoundary = (
+    roundOrFloor(requestedTrueVideoFrame) / originalFps
+  );
+
+  /**
+   * Return one tick over the appropriate boundary
+   */
+  return nextTrueFrameBoundary + OnePTSTick;
+}
+
 export default defineComponent({
   name: 'VideoAnnotator',
 
@@ -42,11 +85,18 @@ export default defineComponent({
       type: Number,
       required: true,
     },
+    updateTime: {
+      type: Function as PropType<SetTimeFunc>,
+      required: true,
+    },
+    originalFps: {
+      type: Number as PropType<number | null>,
+      default: null,
+    },
   },
 
-
-  setup(props, { emit }) {
-    const commonMedia = useMediaController({ emit });
+  setup(props) {
+    const commonMedia = useMediaController();
     const { data } = commonMedia;
 
     function makeVideo() {
@@ -64,9 +114,40 @@ export default defineComponent({
       }
     });
 
+    async function seek(frame: number) {
+      /** Only perform seek for whole frame numbers */
+      const requestedFrame = Math.round(frame);
+      /** Different seek approaches based on known information */
+      if (props.originalFps) {
+        /** If the video's true FPS is known */
+        data.currentTime = kwiverSeek(frame, props.frameRate, props.originalFps);
+      } else {
+        /** Else fall back to a reasonable default */
+        data.currentTime = (frame / props.frameRate) + OnePTSTick;
+      }
+      video.currentTime = data.currentTime;
+      data.frame = requestedFrame;
+      data.flick = Math.round(data.currentTime * Flick);
+      props.updateTime(data);
+    }
+
+    function pause() {
+      video.pause();
+      seek(data.frame); // snap to frame boundary
+      data.playing = false;
+    }
+
     function syncWithVideo() {
       if (data.playing) {
-        data.frame = Math.round(video.currentTime * props.frameRate);
+        const newFrame = video.currentTime * props.frameRate;
+        if (newFrame > data.maxFrame) {
+          /** Video has played past its allowed truncated end, seek to end */
+          data.frame = data.maxFrame;
+          pause();
+          return;
+        }
+        data.frame = Math.floor(newFrame);
+        data.flick = Math.round(video.currentTime * Flick);
         data.syncedFrame = data.frame;
         commonMedia.geoViewerRef.value.scheduleAnimationFrame(syncWithVideo);
       }
@@ -81,20 +162,6 @@ export default defineComponent({
       } catch (ex) {
         console.error(ex);
       }
-    }
-
-    async function seek(frame: number) {
-      // ref: PTS precision note above
-      video.currentTime = (frame / props.frameRate) + OnePTSTick;
-      data.frame = Math.round(video.currentTime * props.frameRate);
-      commonMedia.emitFrame();
-      data.currentTime = video.currentTime;
-    }
-
-    function pause() {
-      video.pause();
-      seek(data.frame); // snap to frame boundary
-      data.playing = false;
     }
 
     function setVolume(level: number) {
@@ -123,7 +190,21 @@ export default defineComponent({
       video.removeEventListener('loadedmetadata', loadedMetadata);
       const width = video.videoWidth;
       const height = video.videoHeight;
-      data.maxFrame = props.frameRate * video.duration;
+      const maybeMaxFrame = Math.floor(props.frameRate * video.duration);
+
+      if (props.originalFps !== null) {
+        /**
+         * Don't allow the user to seek past the final frame as defined by kwiver.
+         */
+        if (kwiverSeek(maybeMaxFrame, props.frameRate, props.originalFps) > video.duration) {
+          data.maxFrame = maybeMaxFrame - 1;
+        } else {
+          data.maxFrame = maybeMaxFrame;
+        }
+      } else {
+        console.warn('Dataset loaded without originalFps, seeking accuracy will be impacted');
+        data.maxFrame = maybeMaxFrame;
+      }
       initializeViewer(width, height);
       const quadFeatureLayer = commonMedia.geoViewerRef.value.createLayer('feature', {
         features: ['quad.video'],

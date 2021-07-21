@@ -97,6 +97,7 @@ interface DatasetMeta extends DatasetMetaMutable {
   name: Readonly<string>;
   createdAt: Readonly<string>;
   attributes?: Readonly<Record<string, Attribute>>;
+  originalFps?: Readonly<number>;
 }
 
 interface Api {

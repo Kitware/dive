@@ -2,6 +2,7 @@
 import {
   defineComponent, ref, onUnmounted, PropType, toRef, watch,
 } from '@vue/composition-api';
+import { SetTimeFunc } from 'vue-media-annotator/use/useTimeObserver';
 import useMediaController from './useMediaController';
 
 export interface ImageDataItem {
@@ -33,16 +34,20 @@ export default defineComponent({
       type: Number,
       required: true,
     },
+    updateTime: {
+      type: Function as PropType<SetTimeFunc>,
+      required: true,
+    },
     loadImageFunc: {
       type: Function as PropType<(imageDataItem: ImageDataItem, img: HTMLImageElement) => void>,
       default: loadImageFunc,
     },
   },
 
-  setup(props, { emit }) {
+  setup(props) {
     const loadingVideo = ref(false);
     const loadingImage = ref(true);
-    const commonMedia = useMediaController({ emit });
+    const commonMedia = useMediaController();
     const { data } = commonMedia;
     data.maxFrame = props.imageData.length - 1;
     // Below are configuration settings we can set until we decide on good numbers to utilize.
@@ -208,7 +213,8 @@ export default defineComponent({
         return;
       }
 
-      commonMedia.emitFrame();
+      props.updateTime(data);
+
       cacheImages();
       const imgInternal = expectFrame(newFrame);
       drawImage(imgInternal.image);
@@ -284,11 +290,21 @@ export default defineComponent({
       }
     }
 
+    function unimplemented() {
+      throw new Error('Method unimplemented!');
+    }
+
     const {
       cursorHandler,
       initializeViewer,
       mediaController,
-    } = commonMedia.initialize({ seek, play, pause });
+    } = commonMedia.initialize({
+      seek,
+      play,
+      pause,
+      setVolume: unimplemented,
+      setSpeed: unimplemented,
+    });
 
     if (local.imgs.length) {
       const imgInternal = cacheFrame(0);
@@ -352,9 +368,7 @@ export default defineComponent({
 </script>
 
 <template>
-  <div
-    class="video-annotator"
-  >
+  <div class="video-annotator">
     <div
       ref="imageCursorRef"
       class="imageCursor"

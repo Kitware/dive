@@ -13,6 +13,7 @@ import {
   useTrackFilters,
   useTrackSelectionControls,
   useTrackStore,
+  useTimeObserver,
   useEventChart,
 } from 'vue-media-annotator/use';
 import { getTrack } from 'vue-media-annotator/use/useTrackStore';
@@ -76,13 +77,12 @@ export default defineComponent({
       }
       return {} as MediaController;
     });
-    const frameRate = ref(null as number | null);
+    const { time, updateTime, initialize: initTime } = useTimeObserver();
     const imageData = ref([] as FrameImage[]);
     const datasetType: Ref<DatasetType> = ref('image-sequence');
     const datasetName = ref('');
     const saveInProgress = ref(false);
     const videoUrl = ref(undefined as undefined | string);
-    const frame = ref(0); // the currently displayed frame number
     const { loadDetections, loadMetadata, saveMetadata } = useApi();
     const progress = reactive({
       // Loaded flag prevents annotator window from populating
@@ -186,7 +186,6 @@ export default defineComponent({
       recipes,
       selectedTrackId,
       editingTrack,
-      frame,
       trackMap,
       mediaController,
       newTrackSettings: clientSettings.newTrackSettings.value,
@@ -212,12 +211,12 @@ export default defineComponent({
       enabledTracks, selectedTrackIds: allSelectedIds, typeStyling,
     });
 
-    async function trackSplit(trackId: TrackId | null, _frame: number) {
+    async function trackSplit(trackId: TrackId | null, frame: number) {
       if (typeof trackId === 'number') {
         const track = getTrack(trackMap, trackId);
         let newtracks: [Track, Track];
         try {
-          newtracks = track.split(_frame, getNewTrackId(), getNewTrackId() + 1);
+          newtracks = track.split(frame, getNewTrackId(), getNewTrackId() + 1);
         } catch (err) {
           await prompt({
             title: 'Error while splitting track',
@@ -309,7 +308,10 @@ export default defineComponent({
           }
           populateConfidenceFilters(meta.confidenceFilters);
           datasetName.value = meta.name;
-          frameRate.value = meta.fps;
+          initTime({
+            frameRate: meta.fps,
+            originalFps: meta.originalFps || null,
+          });
           imageData.value = cloneDeep(meta.imageData) as FrameImage[];
           videoUrl.value = meta.videoUrl;
           datasetType.value = meta.type as DatasetType;
@@ -376,7 +378,6 @@ export default defineComponent({
         checkedTypes,
         editingMode,
         enabledTracks,
-        frame,
         intervalTree,
         mergeList,
         pendingSaveCount,
@@ -386,6 +387,7 @@ export default defineComponent({
         selectedKey,
         selectedTrackId,
         stateStyles: stateStyling,
+        time,
         visibleModes,
       },
       globalHandler,
@@ -399,8 +401,6 @@ export default defineComponent({
       editingTrack,
       editingMode,
       eventChartData,
-      frame,
-      frameRate,
       imageData,
       lineChartData,
       loadError,
@@ -419,11 +419,14 @@ export default defineComponent({
       selectedKey,
       videoUrl,
       visibleModes,
+      frameRate: time.frameRate,
+      originalFps: time.originalFps,
       /* methods */
       handler: globalHandler,
       save,
       saveThreshold,
       updateNewTrackSettings,
+      updateTime,
       updateTypeSettings,
       updateTypeStyle,
       updateTypeName,
@@ -508,9 +511,8 @@ export default defineComponent({
             { bind: 'r', handler: () => mediaController.resetZoom() },
             { bind: 'esc', handler: () => handler.trackAbort() },
           ]"
-          v-bind="{ imageData, videoUrl, frameRate }"
+          v-bind="{ imageData, videoUrl, updateTime, frameRate, originalFps }"
           class="playback-component"
-          @frame-update="frame = $event"
         >
           <template slot="control">
             <controls-container

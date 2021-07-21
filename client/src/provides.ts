@@ -10,6 +10,7 @@ import { VisibleAnnotationTypes } from './layers';
 import { RectBounds } from './utils';
 import { Attribute } from './use/useAttributes';
 import { TrackWithContext } from './use/useTrackFilters';
+import { Time } from './use/useTimeObserver';
 
 /**
  * Type definitions are read only because injectors may mutate internal state,
@@ -40,9 +41,6 @@ type EnabledTracksType = Readonly<Ref<readonly TrackWithContext[]>>;
 const EditingModeSymbol = Symbol('editingMode');
 type EditingModeType = Readonly<Ref<false | EditAnnotationTypes>>;
 
-const FrameSymbol = Symbol('frame');
-type FrameType = Readonly<Ref<number>>;
-
 const MergeListSymbol = Symbol('mergeList');
 type MergeList = Readonly<Ref<readonly TrackId[]>>;
 
@@ -69,6 +67,9 @@ type SelectedTrackIdType = Readonly<Ref<TrackId | null>>;
 
 const StateStylesSymbol = Symbol('stateStyles');
 type StateStylesType = Readonly<StateStyles>;
+
+const TimeSymbol = Symbol('time');
+type TimeType = Readonly<Time>;
 
 const VisibleModesSymbol = Symbol('visibleModes');
 type VisibleModesType = Readonly<Ref<readonly VisibleAnnotationTypes[]>>;
@@ -99,12 +100,14 @@ export interface Handler {
   /* update Rectangle bounds for track */
   updateRectBounds(
     frameNum: number,
+    flickNum: number,
     bounds: RectBounds,
   ): void;
   /* update geojson for track */
   updateGeoJSON(
     eventType: 'in-progress' | 'editing',
     frameNum: number,
+    flickNum: number,
     data: GeoJSON.Feature,
     key?: string,
     preventInterrupt?: () => void,
@@ -200,7 +203,6 @@ export interface State {
   editingMode: EditingModeType;
   enabledTracks: EnabledTracksType;
   filteredTracks: FilteredTracksType;
-  frame: FrameType;
   intervalTree: IntervalTreeType;
   mergeList: MergeList;
   pendingSaveCount: pendingSaveCountType;
@@ -209,6 +211,7 @@ export interface State {
   selectedKey: SelectedKeyType;
   selectedTrackId: SelectedTrackIdType;
   stateStyles: StateStylesType;
+  time: TimeType;
   visibleModes: VisibleModesType;
 }
 
@@ -233,7 +236,6 @@ function dummyState(): State {
     editingMode: ref(false),
     enabledTracks: ref([]),
     filteredTracks: ref([]),
-    frame: ref(0),
     intervalTree: new IntervalTree(),
     mergeList: ref([]),
     pendingSaveCount: ref(0),
@@ -250,6 +252,12 @@ function dummyState(): State {
       disabled: style,
       selected: style,
       standard: style,
+    },
+    time: {
+      frame: ref(0),
+      flick: ref(0),
+      frameRate: ref(0),
+      originalFps: ref(null),
     },
     visibleModes: ref(['rectangle', 'text'] as VisibleAnnotationTypes[]),
   };
@@ -272,7 +280,6 @@ function provideAnnotator(state: State, handler: Handler) {
   provide(CheckedTypesSymbol, state.checkedTypes);
   provide(EnabledTracksSymbol, state.enabledTracks);
   provide(EditingModeSymbol, state.editingMode);
-  provide(FrameSymbol, state.frame);
   provide(IntervalTreeSymbol, state.intervalTree);
   provide(MergeListSymbol, state.mergeList);
   provide(PendingSaveCountSymbol, state.pendingSaveCount);
@@ -282,6 +289,7 @@ function provideAnnotator(state: State, handler: Handler) {
   provide(SelectedKeySymbol, state.selectedKey);
   provide(SelectedTrackIdSymbol, state.selectedTrackId);
   provide(StateStylesSymbol, state.stateStyles);
+  provide(TimeSymbol, state.time);
   provide(VisibleModesSymbol, state.visibleModes);
   provide(HandlerSymbol, handler);
 }
@@ -328,10 +336,6 @@ function useEditingMode() {
   return use<EditingModeType>(EditingModeSymbol);
 }
 
-function useFrame() {
-  return use<FrameType>(FrameSymbol);
-}
-
 function useHandler() {
   return use<Handler>(HandlerSymbol);
 }
@@ -372,6 +376,10 @@ function useStateStyles() {
   return use<StateStylesType>(StateStylesSymbol);
 }
 
+function useTime() {
+  return use<TimeType>(TimeSymbol);
+}
+
 function useVisibleModes() {
   return use<VisibleModesType>(VisibleModesSymbol);
 }
@@ -393,12 +401,12 @@ export {
   useIntervalTree,
   useMergeList,
   usePendingSaveCount,
-  useFrame,
   useTrackMap,
   useFilteredTracks,
   useTypeStyling,
   useSelectedKey,
   useSelectedTrackId,
   useStateStyles,
+  useTime,
   useVisibleModes,
 };

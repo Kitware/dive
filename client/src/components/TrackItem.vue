@@ -3,7 +3,7 @@ import {
   defineComponent, computed, watch, reactive, PropType, toRef, ref,
 } from '@vue/composition-api';
 import TooltipBtn from './TooltipButton.vue';
-import { useFrame, useHandler, useAllTypes } from '../provides';
+import { useHandler, useAllTypes, useTime } from '../provides';
 import Track from '../track';
 
 export default defineComponent({
@@ -52,7 +52,7 @@ export default defineComponent({
 
   setup(props, { root, emit }) {
     const vuetify = root.$vuetify;
-    const frameRef = useFrame();
+    const { frame: frameRef } = useTime();
     const handler = useHandler();
     const allTypesRef = useAllTypes();
     const trackTypeRef = toRef(props, 'trackType');
@@ -63,7 +63,11 @@ export default defineComponent({
       inputError: false,
     });
 
-    /* Use of revision is safe because it will only create a dependency when track is selected */
+    /**
+     * Use of revision is safe because it will only create a
+     * dependency when track is selected.  DO NOT use this computed
+     * value except inside if (props.selected === true) blocks!
+     */
     const feature = computed(() => {
       if (props.track.revision.value) {
         const { features, interpolate } = props.track.canInterpolate(frameRef.value);
