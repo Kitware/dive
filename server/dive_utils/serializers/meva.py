@@ -33,6 +33,50 @@ class Actor:
     src_status: Optional[str] = None
 
 
+def load_kpf_as_tracks(readers: List[Iterable[ByteString]]):
+    types = None
+    activity = None
+    geom = None
+
+    actor_map: Dict[int, Actor] = {}
+    activity_map: Dict[int, models.Activity] = {}
+    error_report: Dict[str, str] = {}
+    try:
+        for reader in readers:
+            rows = b"".join(list(reader)).decode("utf-8")
+            yml = kpf.load_yaml(rows)
+            for row in yml:
+                if kpf.TYPES in row:
+                    types = rows
+                    break
+                elif kpf.GEOM in row:
+                    geom = rows
+                    break
+                elif kpf.ACTIVITY in row:
+                    activity = rows
+                    break
+
+        if types:
+            deserialize_types(types, actor_map)
+        else:
+            print("WARNING: types yaml was not given")
+        if geom:
+            deserialize_geom(geom, actor_map)
+        else:
+            print("WARNING: geom yaml was not given")
+            raise ValueError('GEOM yaml needed to create Tracks')
+        if activity:
+            deserialize_activities(activity, activity_map, actor_map)
+        else:
+            print("WARNING: activity yaml was not given")
+
+        tracks = parse_actor_map_to_tracks(actor_map)
+        return {trackId: track.dict(exclude_none=True) for trackId, track in tracks.items()}
+    except Exception as e:
+        error_report['error'] = str(e)
+        return error_report
+
+
 def parse_actor_map_to_tracks(actor_map: Dict[int, Actor]) -> Dict[int, Track]:
     tracks = {}
     ids = {}
@@ -216,47 +260,3 @@ def _deserialize_actor(
             confidence=confidence,
         )
     return actor_map[actor_id]
-
-
-def load_kpf_as_tracks(readers: List[Iterable[ByteString]]):
-    types = None
-    activity = None
-    geom = None
-
-    actor_map: Dict[int, Actor] = {}
-    activity_map: Dict[int, models.Activity] = {}
-    error_report: Dict[str, str] = {}
-    try:
-        for reader in readers:
-            rows = b"".join(list(reader)).decode("utf-8")
-            yml = kpf.load_yaml(rows)
-            for row in yml:
-                if kpf.TYPES in row:
-                    types = rows
-                    break
-                elif kpf.GEOM in row:
-                    geom = rows
-                    break
-                elif kpf.ACTIVITY in row:
-                    activity = rows
-                    break
-
-        if types:
-            deserialize_types(types, actor_map)
-        else:
-            print("WARNING: types yaml was not given")
-        if geom:
-            deserialize_geom(geom, actor_map)
-        else:
-            print("WARNING: geom yaml was not given")
-            raise ValueError('GEOM yaml needed to create Tracks')
-        if activity:
-            deserialize_activities(activity, activity_map, actor_map)
-        else:
-            print("WARNING: activity yaml was not given")
-
-        tracks = parse_actor_map_to_tracks(actor_map)
-        return {trackId: track.dict(exclude_none=True) for trackId, track in tracks.items()}
-    except Exception as e:
-        error_report['error'] = str(e)
-        return error_report
