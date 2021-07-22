@@ -5,7 +5,7 @@ import {
 
 import { remote } from 'electron';
 import { NvidiaSmiReply } from 'platform/desktop/constants';
-import { cloneDeep } from 'lodash';
+import { cloneDeep, isEqual } from 'lodash';
 
 import { settings, updateSettings, validateSettings } from '../store/settings';
 import { nvidiaSmi } from '../api';
@@ -23,12 +23,13 @@ export default defineComponent({
     const gitHash = process.env.VUE_APP_GIT_HASH;
 
     // local copy of the global settings
-    const localSettings = cloneDeep(settings);
+    const localSettings = ref(cloneDeep(settings.value));
     // null values indicate initialization has not completed
     const smi = ref(null as NvidiaSmiReply | null);
     const settingsAreValid = ref(false as boolean | string);
     const viameOverride = computed(() => settings.value.overrides?.viamePath);
     const readonlyMode = computed(() => settings.value.readonlyMode);
+    const pendingChanges = computed(() => isEqual(localSettings.value, settings.value));
 
     onBeforeMount(async () => {
       settingsAreValid.value = await validateSettings(localSettings.value);
@@ -46,7 +47,7 @@ export default defineComponent({
     }
 
     async function save() {
-      if (localSettings.value !== null || localSettings.value !== undefined) {
+      if (localSettings.value !== null && localSettings.value !== undefined) {
         settingsAreValid.value = false;
         settingsAreValid.value = await validateSettings(localSettings.value);
         updateSettings(localSettings.value);
@@ -65,6 +66,7 @@ export default defineComponent({
       version,
       viameOverride,
       readonlyMode,
+      pendingChanges,
       openPath,
       save,
     };
@@ -149,6 +151,7 @@ export default defineComponent({
         <v-card-text>
           <v-btn
             color="primary"
+            :disabled="pendingChanges"
             @click="save"
           >
             <v-icon class="mr-2">
@@ -214,7 +217,7 @@ export default defineComponent({
           class="mx-4"
           :type="'info'"
         >
-          VIAME install path environment variables found, locking changes
+          VIAME install path environment variable found, locking changes
         </v-alert>
 
         <v-alert

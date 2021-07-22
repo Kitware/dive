@@ -39,6 +39,7 @@ async function init() {
     // Client applies user-configured settings from localstorage
     const settingsStr = window.localStorage.getItem(SettingsKey) || '{}';
     const maybeSettings = JSON.parse(settingsStr);
+    delete maybeSettings.overrides;
     if (isSettings(maybeSettings)) {
       settingsValue = {
         // Populate from defaults to include any missing properties
