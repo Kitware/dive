@@ -26,7 +26,6 @@ export default defineComponent({
     return {
       display,
       frame,
-      flick,
       currentTime,
     };
   },
