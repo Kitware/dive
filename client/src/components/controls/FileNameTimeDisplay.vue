@@ -12,7 +12,7 @@ export default defineComponent({
   },
   setup(props) {
     const {
-      currentTime, duration, filename, frame, flick,
+      currentTime, duration, filename, frame,
     } = injectMediaController();
     const display = computed(() => {
       let value = 'unsupported display';
@@ -39,7 +39,6 @@ export default defineComponent({
       {{ display }}
     </span>
     <span class="border-radius mr-1">frame {{ frame }}</span>
-    <span class="border-radius">flick {{ flick }}</span>
   </span>
 </template>
 
