@@ -56,6 +56,7 @@ export default defineComponent({
 
     const annotator = injectMediaController();
     const frameNumberRef = annotator.frame;
+    const flickNumberRef = annotator.flick;
 
     const rectAnnotationLayer = new RectangleLayer({
       annotator,
@@ -280,9 +281,9 @@ export default defineComponent({
       if (type === 'rectangle') {
         const bounds = geojsonToBound(data as GeoJSON.Feature<GeoJSON.Polygon>);
         cb();
-        handler.updateRectBounds(frameNumberRef.value, bounds);
+        handler.updateRectBounds(frameNumberRef.value, flickNumberRef.value, bounds);
       } else {
-        handler.updateGeoJSON(mode, frameNumberRef.value, data, key, cb);
+        handler.updateGeoJSON(mode, frameNumberRef.value, flickNumberRef.value, data, key, cb);
       }
       // Jump into edit mode if we completed a new shape
       if (geometryCompleteEvent) {

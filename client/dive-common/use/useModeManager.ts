@@ -29,7 +29,6 @@ interface SetAnnotationStateArgs {
 export default function useModeManager({
   selectedTrackId,
   editingTrack,
-  frame,
   trackMap,
   mediaController,
   newTrackSettings,
@@ -41,7 +40,6 @@ export default function useModeManager({
 }: {
   selectedTrackId: Ref<TrackId | null>;
   editingTrack: Ref<boolean>;
-  frame: Ref<number>;
   trackMap: Map<TrackId, Track>;
   mediaController: Ref<MediaController>;
   newTrackSettings: NewTrackSettings;
@@ -92,6 +90,7 @@ export default function useModeManager({
 
   function seekNearest(track: Track) {
     // Seek to the nearest point in the track.
+    const { frame } = mediaController.value;
     if (frame.value < track.begin) {
       mediaController.value.seek(track.begin);
     } else if (frame.value > track.end) {
@@ -153,6 +152,7 @@ export default function useModeManager({
 
   function handleAddTrackOrDetection(): TrackId {
     // Handles adding a new track with the NewTrack Settings
+    const { frame } = mediaController.value;
     const newTrackId = addTrack(
       frame.value, newTrackSettings.type, selectedTrackId.value || undefined,
     ).trackId;
@@ -186,7 +186,7 @@ export default function useModeManager({
     creating = newCreatingValue;
   }
 
-  function handleUpdateRectBounds(frameNum: number, bounds: RectBounds) {
+  function handleUpdateRectBounds(frameNum: number, flickNum: number, bounds: RectBounds) {
     if (selectedTrackId.value !== null) {
       const track = trackMap.get(selectedTrackId.value);
       if (track) {
@@ -195,6 +195,7 @@ export default function useModeManager({
 
         track.setFeature({
           frame: frameNum,
+          flick: flickNum,
           bounds,
           keyframe: true,
           interpolate: _shouldInterpolate(interpolate),
@@ -207,6 +208,7 @@ export default function useModeManager({
   function handleUpdateGeoJSON(
     eventType: 'in-progress' | 'editing',
     frameNum: number,
+    flickNum: number,
     // Type alias this
     data: SupportedFeature,
     key?: string,
@@ -298,6 +300,7 @@ export default function useModeManager({
         if (somethingChanged) {
           track.setFeature({
             frame: frameNum,
+            flick: flickNum,
             keyframe: true,
             bounds: updateBounds(real?.bounds, update.union, update.unionWithoutBounds),
             interpolate,
@@ -330,6 +333,7 @@ export default function useModeManager({
       if (track) {
         recipes.forEach((r) => {
           if (r.active.value) {
+            const { frame } = mediaController.value;
             r.deletePoint(
               frame.value,
               track,
@@ -349,6 +353,7 @@ export default function useModeManager({
     if (selectedTrackId.value !== null) {
       const track = trackMap.get(selectedTrackId.value);
       if (track) {
+        const { frame } = mediaController.value;
         recipes.forEach((r) => {
           if (r.active.value) {
             r.delete(frame.value, track, selectedKey.value, annotationModes.editing);
