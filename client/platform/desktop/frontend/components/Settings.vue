@@ -19,13 +19,15 @@ export default defineComponent({
     NavigationBar,
   },
   setup() {
+    const { arch, platform, version } = process;
+    const gitHash = process.env.VUE_APP_GIT_HASH;
+
+    // local copy of the global settings
+    const localSettings = cloneDeep(settings);
     // null values indicate initialization has not completed
     const smi = ref(null as NvidiaSmiReply | null);
-    // create a local copy of the global settings
-    const localSettings = cloneDeep(settings);
-    const { arch, platform, version } = process;
     const settingsAreValid = ref(false as boolean | string);
-    const gitHash = process.env.VUE_APP_GIT_HASH;
+    const viameOverride = computed(() => settings.value.overrides?.viamePath);
     const readonlyMode = computed(() => settings.value.readonlyMode);
 
     onBeforeMount(async () => {
@@ -61,6 +63,7 @@ export default defineComponent({
       settingsAreValid,
       smi,
       version,
+      viameOverride,
       readonlyMode,
       openPath,
       save,
@@ -84,7 +87,7 @@ export default defineComponent({
                 label="VIAME Install Base Path"
                 hint="download from https://viametoolkit.com"
                 dense
-                :disabled="!!(localSettings.overrides && localSettings.overrides.viamePath)"
+                :disabled="!!viameOverride"
                 persistent-hint
               />
             </v-col>
@@ -94,7 +97,7 @@ export default defineComponent({
                 large
                 block
                 color="primary"
-                :disabled="!!(localSettings.overrides && localSettings.overrides.viamePath)"
+                :disabled="!!viameOverride"
                 @click="openPath('viamePath')"
               >
                 Choose
@@ -202,6 +205,16 @@ export default defineComponent({
           <span v-else>
             Could not initialize kwiver: {{ settingsAreValid }}
           </span>
+        </v-alert>
+
+        <v-alert
+          v-if="!!viameOverride"
+          dense
+          text
+          class="mx-4"
+          :type="'info'"
+        >
+          VIAME install path environment variables found, locking changes
         </v-alert>
 
         <v-alert
