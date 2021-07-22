@@ -75,9 +75,10 @@ tox -e docs
 
 ## Debug utils and command line tools
 
-Requires the development installation above
-
 ``` bash
+# Requires the development installation above
+pip install -e .[dev]
+
 # show options
 dive --help
 
