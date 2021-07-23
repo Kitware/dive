@@ -163,7 +163,7 @@ export default defineComponent({
         sortable: true,
       },
       {
-        text: 'Access',
+        text: 'Accessed',
         value: 'accessedAt',
         sortable: true,
       },
