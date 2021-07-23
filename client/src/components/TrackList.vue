@@ -12,12 +12,12 @@ import {
   useAllTypes,
   useCheckedTrackIds,
   useEditingMode,
-  useFrame,
   useHandler,
   useSelectedTrackId,
   useTrackMap,
   useFilteredTracks,
   useTypeStyling,
+  useTime,
 } from '../provides';
 import TrackItem from './TrackItem.vue';
 
@@ -30,6 +30,8 @@ interface VirtualListItem {
 }
 
 export default defineComponent({
+  name: 'TrackList',
+
   props: {
     newTrackMode: {
       type: String,
@@ -64,7 +66,7 @@ export default defineComponent({
     const trackMap = useTrackMap();
     const filteredTracksRef = useFilteredTracks();
     const typeStylingRef = useTypeStyling();
-    const frameRef = useFrame();
+    const { frame: frameRef } = useTime();
     const {
       trackSelectNext, trackSplit, removeTrack, trackAdd,
     } = useHandler();

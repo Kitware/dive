@@ -11,7 +11,7 @@ There are two places to look.
 
 This use case is covered [on the sharing page](/Web-Version/#sharing-data-with-teams).
 
-If you want to **publish** your data so that other groups can use it, please email <a href="mailto:viame-web@kitware.com">`viame-web@kitware.com`</a>.
+If you want to **publish** your data so that other groups can use it, please email <a href="mailto:viame-web@kitware.com"> `viame-web@kitware.com` </a>.
 
 ## How do I run analysis workflows on my data?
 
@@ -19,7 +19,7 @@ In DIVE, these are called pipelines.  You'll need to see what sorts of analysis 
 
 These sorts of artifical intelligence (AI) workflows are the final goal for most users.  They allow the user to quickly perform quantitative analysis to answer questions like **_how many individuals of each type appear on each image or video frame?_**
 
-If no suitable existing analysis exists for your use case or you aren't sure how to proceed, you're welcome to email our team and ask for help at <a href="mailto:viame-web@kitware.com">`viame-web@kitware.com`</a>.
+If no suitable existing analysis exists for your use case or you aren't sure how to proceed, you're welcome to email our team and ask for help at <a href="mailto:viame-web@kitware.com"> `viame-web@kitware.com` </a>.
 
 ## How do I create new models?
 
@@ -36,6 +36,34 @@ Breaking large amounts of data up into manageable groups is generally a good ide
 ## Do users need to transcode their own data?
 
 No. VIAME Web and DIVE Desktop perform automatic transcoding if it is necessary.
+
+## How does video frame alignment work?
+
+When you annotate a video in DIVE, the true video is played in the browser using a native HTML5 video player.
+
+Web browsers report and control time in floating point seconds rather than using frame numbers, but annotations are created using frame numbers as their time indicators, so it's important to make sure these line up.
+
+Most of the time, videos are **downsampled** for annotation, meaning that the true video framerate (30hz, for example) is annotated at a lower rate, such as 5hz or 10hz.  Kwiver (the computer vision tool behind VIAME) uses a downsampling approach that sorts actual frames into downsampled buckets based on the start time of the frame.
+
+An implementation of this approach is described here.
+
+```python
+def get_frame_from_timestamp(timestamp, true_fps, downsample_fps):
+  downsampled_frame = timestamp * downsample_fps
+  real_frame = 
+
+  if downsample_fps >= true_fps:
+    # This is a true downsample
+    next_true_frame_boundary = Math.ceil(timestamp * true_fps)
+    return Math.floor(next_true_frame_boundary / downsample_fps)
+  
+  raise Exception('Real video framerate must be GTE downsample rate')
+```
+
+There are caveats with this approach.
+
+* It does not handle padding properly.  If a video begins or ends with padding, you may see a black screen in DIVE, but kwiver will wait for the first true frame to use as the representative for the bucket.
+* It does not handle variable width frames properly.  If a video has variable width frames, the assumptions about the locations of true frame boundaries do not hold and kwiver training may have alignment issues.
 
 ## Can I request new features or provide feedback?
 
