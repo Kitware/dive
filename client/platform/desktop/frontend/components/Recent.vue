@@ -10,6 +10,7 @@ import type { MediaImportPayload } from 'platform/desktop/constants';
 import ImportButton from 'dive-common/components/ImportButton.vue';
 import ImportMultiCamDialog from 'dive-common/components/ImportMultiCamDialog.vue';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
+import { DataTableHeader } from 'vuetify';
 import * as api from '../api';
 import {
   JsonMetaCache, recents, removeRecents, setRecents,
@@ -32,8 +33,6 @@ export default defineComponent({
   setup(_, { root }) {
     const snackbar = ref(false);
     const importMultiCamDialog = ref(false);
-    const pageSize = 12; // Default 12 looks good on default width/height of window
-    const limit = ref(pageSize);
     const errorText = ref('');
     const pendingImportPayload: Ref<MediaImportPayload | null> = ref(null);
     const searchText: Ref<string | null> = ref('');
@@ -73,7 +72,6 @@ export default defineComponent({
         errorText.value = err.message;
       }
     }
-
     function openMultiCamDialog(args: {stereo: boolean; openType: 'image-sequence' | 'video'}) {
       stereo.value = args.stereo;
       multiCamOpenType.value = args.openType;
@@ -112,16 +110,6 @@ export default defineComponent({
 
     const filteredRecents = computed(() => recents.value
       .filter((v) => v.name.toLowerCase().indexOf((searchText.value || '').toLowerCase()) >= 0));
-    const paginatedRecents = computed(() => (filteredRecents.value.slice(0, limit.value)));
-    const totalRecents = computed(() => filteredRecents.value.length);
-
-    function toggleMore() {
-      if (limit.value < recents.value.length) {
-        limit.value = recents.value.length;
-      } else {
-        limit.value = pageSize;
-      }
-    }
     function getTypeIcon(recent: JsonMetaCache) {
       if (recent.type === 'multi') {
         if (recent.subType === 'stereo') {
@@ -162,6 +150,40 @@ export default defineComponent({
       root.$router.push({ name: 'viewer', params: { id: recent.id } });
     }
 
+    const headers: DataTableHeader[] = [
+      {
+        text: 'Type',
+        value: 'type',
+        sortable: false,
+        width: 40,
+      },
+      {
+        text: 'Name',
+        value: 'name',
+        sortable: true,
+      },
+      {
+        text: 'Access',
+        value: 'accessedAt',
+        sortable: true,
+      },
+      {
+        text: 'Delete',
+        value: 'delete',
+        sortable: false,
+      },
+    ];
+    const toDisplayString = (dateString: string) => new Date(dateString).toLocaleString('en-US',
+      {
+        hour12: false,
+        month: '2-digit',
+        day: '2-digit',
+        year: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+
+
     return {
       // methods
       open,
@@ -169,24 +191,22 @@ export default defineComponent({
       multiCamImport,
       join,
       setOrGetConversionJob,
-      toggleMore,
       openMultiCamDialog,
       getTypeIcon,
       importMedia: api.importMedia,
       confirmDeleteDataset,
       preloadCheck,
+      toDisplayString,
       // state
       multiCamOpenType,
       stereo,
-      pageSize,
-      limit,
-      paginatedRecents,
+      filteredRecents,
       pendingImportPayload,
-      totalRecents,
       searchText,
       snackbar,
       errorText,
       importMultiCamDialog,
+      headers,
     };
   },
 });
@@ -283,7 +303,7 @@ export default defineComponent({
             min-width="100%"
           >
             <div
-              v-if="totalRecents > 0 || searchText"
+              v-if="filteredRecents.length > 0 || searchText"
               class="d-flex flex-row"
             >
               <div class="text-h4 font-weight-light mb-2">
@@ -315,43 +335,26 @@ export default defineComponent({
             >
               Open images or video to get started
             </h2>
-            <v-row>
-              <v-col class="icon-col" />
-              <v-col cols="3">
-                Name
-              </v-col>
-              <v-col>
-                Last Access
-              </v-col>
-              <v-col>
-                Location
-              </v-col>
-              <v-col class="icon-col" />
-            </v-row>
-            <v-divider class="mb-1" />
-            <v-divider />
-            <div
-              v-for="recent in paginatedRecents"
-              :key="recent.id"
-              class="pa-1 text-body-1"
+            <v-data-table
               dense
+              v-bind="{ headers: headers, items: filteredRecents }"
+              :footer-props="{ itemsPerPageOptions: [10, 30, -1] }"
+              no-data-text="No data loaded"
             >
-              <v-row>
-                <v-col class="icon-col">
-                  <v-icon
-                    class="pr-2"
-                    color="primary lighten-2"
-                  >
-                    {{ getTypeIcon(recent) }}
-                  </v-icon>
-                </v-col>
-                <v-col
-                  class="text-body-1"
-                  cols="3"
+              <template #[`item.type`]="{ item }">
+                <v-icon
+                  :key="item.id"
+                  class="pr-2"
+                  color="primary lighten-2"
                 >
-                  <span v-if="setOrGetConversionJob(recent.id)">
+                  {{ getTypeIcon(item) }}
+                </v-icon>
+              </template>
+              <template #[`item.name`]="{ item }">
+                <span :key="item.id">
+                  <div v-if="setOrGetConversionJob(item.id)">
                     <span class="primary--text text--darken-1 text-decoration-none">
-                      {{ recent.name }}
+                      {{ item.name }}
                     </span>
                     <span class="pl-4">
                       Converting
@@ -359,70 +362,40 @@ export default defineComponent({
                         mdi-spin mdi-sync
                       </v-icon>
                     </span>
-                  </span>
-                  <span
+                  </div>
+                  <div
                     v-else
                     class="link primary--text text--lighten-3"
-                    @click="preloadCheck(recent)"
+                    @click="preloadCheck(item)"
                   >
-                    {{ recent.name }}
-                  </span>
-                </v-col>
-                <v-col>
-                  <span class="grey--text text-body-2">
-                    {{ new Date(recent.accessedAt).toLocaleString() }}
-                  </span>
-                </v-col>
-                <v-col cols="6">
-                  <span
-                    class="grey--text"
-                    s
-                  >
-                    {{ recent.originalBasePath }}
-                  </span>
-                </v-col>
-                <v-col class="icon-col">
-                  <v-btn
-                    color="error"
-                    icon
-                    @click="confirmDeleteDataset(recent.id, recent.name)"
-                  >
-                    <v-icon>
-                      mdi-delete
-                    </v-icon>
-                  </v-btn>
-                </v-col>
-              </v-row>
-              <v-divider />
-            </div>
-            <div
-              v-if="pageSize < totalRecents"
-              class="mx-1"
-            >
-              <v-divider class="my-2" />
-              <h3
-                class="text-body-1"
-                style="cursor: pointer;"
-                @click="toggleMore"
-              >
-                <v-icon
-                  class="pr-2"
-                  color="primary lighten-3"
-                >
-                  {{ (limit === totalRecents) ? 'mdi-chevron-up' : 'mdi-chevron-down' }}
-                </v-icon>
-                <span
-                  class="primary--text text--lighten-3"
-                >
-                  <span v-if="limit < totalRecents">
-                    Show {{ totalRecents - pageSize }} more
-                  </span>
-                  <span v-else>
-                    Show less
-                  </span>
+                    {{ item.name }}
+                  </div>
+                  <div class="grey--text">
+                    {{ item.originalBasePath }}
+                  </div>
                 </span>
-              </h3>
-            </div>
+              </template>
+              <template #[`item.accessedAt`]="{ item }">
+                <span
+                  :key="item.id"
+                  class="grey--text text-body-2"
+                >
+                  {{ toDisplayString(item.accessedAt) }}
+                </span>
+              </template>
+              <template #[`item.delete`]="{ item }">
+                <v-btn
+                  :key="item.id"
+                  color="error"
+                  icon
+                  @click="confirmDeleteDataset(item.id, item.name)"
+                >
+                  <v-icon>
+                    mdi-delete
+                  </v-icon>
+                </v-btn>
+              </template>
+            </v-data-table>
           </v-card>
         </v-row>
       </v-col>
