@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  defineComponent, onBeforeMount, ref, computed,
+  defineComponent, onBeforeMount, ref, computed, set, watch,
 } from '@vue/composition-api';
 
 import { remote } from 'electron';
@@ -24,11 +24,12 @@ export default defineComponent({
 
     // local copy of the global settings
     const localSettings = ref(cloneDeep(settings.value));
+
     // null values indicate initialization has not completed
     const smi = ref(null as NvidiaSmiReply | null);
     const settingsAreValid = ref(false as boolean | string);
-    const viameOverride = computed(() => settings.value.overrides?.viamePath);
-    const readonlyMode = computed(() => settings.value.readonlyMode);
+    const viameOverride = computed(() => settings.value?.overrides?.viamePath);
+    const readonlyMode = computed(() => settings.value?.readonlyMode);
     const pendingChanges = computed(() => isEqual(localSettings.value, settings.value));
 
     onBeforeMount(async () => {
@@ -37,24 +38,28 @@ export default defineComponent({
     });
 
     async function openPath(name: 'viamePath' | 'dataPath') {
+      const defaultPath = localSettings.value?.[name];
       const result = await remote.dialog.showOpenDialog({
         properties: ['openDirectory'],
-        defaultPath: localSettings.value[name],
+        defaultPath,
       });
-      if (!result.canceled) {
-        [localSettings.value[name]] = result.filePaths;
+      if (!result.canceled && defaultPath !== undefined) {
+        set(localSettings.value, name, result.filePaths[0]);
       }
     }
 
     async function save() {
-      if (localSettings.value !== null && localSettings.value !== undefined) {
+      if (localSettings.value !== null) {
         settingsAreValid.value = false;
         settingsAreValid.value = await validateSettings(localSettings.value);
         updateSettings(localSettings.value);
-        // copy local changes back to global settings
-        settings.value = cloneDeep(localSettings.value);
       }
     }
+
+    watch([settings], async () => {
+      localSettings.value = cloneDeep(settings.value);
+      settingsAreValid.value = await validateSettings(localSettings.value);
+    });
 
     return {
       arch,
@@ -78,7 +83,7 @@ export default defineComponent({
   <v-main>
     <navigation-bar />
     <v-container>
-      <v-card>
+      <v-card v-if="localSettings">
         <v-card-title>Settings</v-card-title>
 
         <v-card-text>
