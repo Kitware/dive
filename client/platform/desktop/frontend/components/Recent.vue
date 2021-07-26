@@ -1,11 +1,14 @@
 <script lang="ts">
 import { join } from 'path';
+import moment from 'moment';
 import {
   computed, defineComponent, ref, Ref,
 } from '@vue/composition-api';
 
 import type { DatasetType, MultiCamImportArgs } from 'dive-common/apispec';
 import type { MediaImportPayload } from 'platform/desktop/constants';
+
+import TooltipBtn from 'vue-media-annotator/components/TooltipButton.vue';
 
 import ImportButton from 'dive-common/components/ImportButton.vue';
 import ImportMultiCamDialog from 'dive-common/components/ImportMultiCamDialog.vue';
@@ -28,6 +31,7 @@ export default defineComponent({
     ImportDialog,
     NavigationBar,
     ImportMultiCamDialog,
+    TooltipBtn,
   },
 
   setup(_, { root }) {
@@ -90,8 +94,12 @@ export default defineComponent({
 
     async function confirmDeleteDataset(datasetId: string, datasetName: string) {
       const result = await prompt({
-        title: 'Confirm',
-        text: `Do you want to delete dataset ${datasetName}`,
+        title: 'Warning Deleting Dataset',
+        text: [`Do you want to delete dataset ${datasetName}?`,
+          '1.  Deleting dataset will not remove source media, such as images or video.',
+          '2.  It will not remove annotations files that were imported when the dataset was created.',
+          '3.  This will remove any annotations that bave been created in DIVE for this dataset',
+          '4.  Use the Export button for the dataset to create a copy of the last set of annotations'],
         confirm: true,
       });
       if (!result) {
@@ -128,23 +136,13 @@ export default defineComponent({
       try {
         await api.checkDataset(recent.id);
       } catch (e) {
-        const result = await prompt({
+        await prompt({
           title: 'Error Loading Data',
-          text: e,
-          confirm: true,
-          positiveButton: 'Delete',
-          negativeButton: 'Cancel',
+          text: [`There was an error loading data from ${recent.name}`,
+            'Correct the error using the Error Details or delete and re-import the dataset',
+            e],
+          positiveButton: 'Okay',
         });
-        if (result) {
-          try {
-            await api.deleteDataset(recent.id);
-            //Now we need to update recents by removing the dataset from localStorage
-          } catch (err) {
-            snackbar.value = true;
-            errorText.value = err.message;
-          }
-          removeRecents(recent.id);
-        }
         return;
       }
       root.$router.push({ name: 'viewer', params: { id: recent.id } });
@@ -166,22 +164,17 @@ export default defineComponent({
         text: 'Accessed',
         value: 'accessedAt',
         sortable: true,
+        sort: (a: string, b: string) => Date.parse(b) - Date.parse(a),
+        width: 140,
       },
       {
-        text: 'Delete',
+        text: '',
         value: 'delete',
         sortable: false,
+        width: 40,
       },
     ];
-    const toDisplayString = (dateString: string) => new Date(dateString).toLocaleString('en-US',
-      {
-        hour12: false,
-        month: '2-digit',
-        day: '2-digit',
-        year: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-      });
+    const toDisplayString = (dateString: string) => moment(dateString).format('MM/DD/YY HH:mm');
 
 
     return {
@@ -338,17 +331,18 @@ export default defineComponent({
             <v-data-table
               dense
               v-bind="{ headers: headers, items: filteredRecents }"
+              sort-by="accessedAt"
               :footer-props="{ itemsPerPageOptions: [10, 30, -1] }"
               no-data-text="No data loaded"
             >
               <template #[`item.type`]="{ item }">
-                <v-icon
+                <tooltip-btn
                   :key="item.id"
                   class="pr-2"
                   color="primary lighten-2"
-                >
-                  {{ getTypeIcon(item) }}
-                </v-icon>
+                  :tooltip-text="item.subType ? item.subType : item.type"
+                  :icon="getTypeIcon(item)"
+                />
               </template>
               <template #[`item.name`]="{ item }">
                 <span :key="item.id">
@@ -365,12 +359,13 @@ export default defineComponent({
                   </div>
                   <div
                     v-else
-                    class="link primary--text text--lighten-3"
+                    class="link primary--text text--lighten-3 text-subtitle-1 pt-1"
+                    style="line-height: initial;"
                     @click="preloadCheck(item)"
                   >
                     {{ item.name }}
                   </div>
-                  <div class="grey--text">
+                  <div class="grey--text text-caption">
                     {{ item.originalBasePath }}
                   </div>
                 </span>
@@ -384,16 +379,13 @@ export default defineComponent({
                 </span>
               </template>
               <template #[`item.delete`]="{ item }">
-                <v-btn
+                <tooltip-btn
                   :key="item.id"
                   color="error"
-                  icon
+                  icon="mdi-delete"
+                  :tooltip-text="'Delete'"
                   @click="confirmDeleteDataset(item.id, item.name)"
-                >
-                  <v-icon>
-                    mdi-delete
-                  </v-icon>
-                </v-btn>
+                />
               </template>
             </v-data-table>
           </v-card>

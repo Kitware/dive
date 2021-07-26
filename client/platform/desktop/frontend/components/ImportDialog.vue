@@ -95,7 +95,7 @@ export default defineComponent({
           {{ (new Date(duplicate.createdAt)).toLocaleString() }}
         </p>
         <b>Cancel</b>
-        to return to the recents list.
+        to return to the dataset list.
         <br><b>Finish Import</b>
         to ignore the warning and create a new dataset.
       </v-alert>

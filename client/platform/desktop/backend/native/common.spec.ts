@@ -213,13 +213,12 @@ mockfs({
         auxiliary: {},
       },
       projectid5Bad: {
-        // Too many results
+        // Missing Track JSON File
         'meta.json': '{}',
         auxiliary: {},
       },
       projectid6Delete: {
         'meta.json': '{}',
-        // Too many results
         'result_1.json': '',
         'result_2.json': '',
         auxiliary: {},

@@ -43,11 +43,7 @@ function hydrateJsonMetaCacheValue(input: any): JsonMetaCache {
 
 const datasets = ref({} as Record<string, JsonMetaCache>);
 
-const recents = computed(() => {
-  const list = Object.values(datasets.value)
-    .sort((a, b) => Date.parse(b.accessedAt) - Date.parse(a.accessedAt));
-  return list;
-});
+const recents = computed(() => (Object.values(datasets.value)));
 
 /**
  * Load recent datasets from localstorage.
@@ -93,10 +89,6 @@ function removeRecents(datasetId: string) {
   window.localStorage.setItem(RecentsKey, JSON.stringify(values));
 }
 
-/**
- * Add ID to recent datasets
- * @param id dataset id path
- */
 function setRecents(meta: JsonMeta, accessTime?: string) {
   Vue.set(datasets.value, meta.id, {
     version: meta.version,
