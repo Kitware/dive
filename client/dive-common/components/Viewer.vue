@@ -335,6 +335,7 @@ export default defineComponent({
         progress.loaded = true;
       }).catch((err) => {
         progress.loaded = false;
+        console.error(err);
         // Cleaner displaying of interal errors for desktop
         if (err.response?.data && err.response?.status === 500 && !err.response?.data?.message) {
           const fullText = err.response.data;

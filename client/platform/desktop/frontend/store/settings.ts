@@ -2,19 +2,23 @@ import Vue from 'vue';
 import Install, { ref } from '@vue/composition-api';
 import { ipcRenderer } from 'electron';
 import { Settings } from 'platform/desktop/constants';
+import { cloneDeep } from 'lodash';
 
 // TODO remove this: this won't be necessary in Vue 3
 Vue.use(Install);
 
 const SettingsKey = 'desktop.settings';
 
-const settings = ref({} as Settings);
+const settings = ref(null as Settings | null);
 
 function getDefaultSettings(): Promise<Settings> {
   return ipcRenderer.invoke('default-settings');
 }
 
-function validateSettings(s: Settings): Promise<string | boolean> {
+function validateSettings(s: Settings | null): Promise<string | boolean> {
+  if (s === null) {
+    return Promise.resolve(false);
+  }
   return ipcRenderer.invoke('validate-settings', s);
 }
 
@@ -60,17 +64,20 @@ async function init() {
   }
   settings.value = settingsValue;
   ipcRenderer.send('update-settings', settings.value);
+  return settings.value;
 }
 
 async function updateSettings(s: Settings) {
   window.localStorage.setItem(SettingsKey, JSON.stringify(s));
   ipcRenderer.send('update-settings', settings.value);
+  settings.value = cloneDeep(s);
 }
 
 // Will be initialized on first import
-init();
+const ready = init();
 
 export {
+  ready,
   settings,
   updateSettings,
   validateSettings,

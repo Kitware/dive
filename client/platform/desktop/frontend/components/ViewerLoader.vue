@@ -40,7 +40,7 @@ export default defineComponent({
   setup(props) {
     const viewerRef = ref();
     const subTypeList = computed(() => [datasets.value[props.id]?.subType || null]);
-    const readonlyMode = computed(() => settings.value.readonlyMode);
+    const readonlyMode = computed(() => settings.value?.readonlyMode || false);
     return {
       datasets,
       viewerRef,
