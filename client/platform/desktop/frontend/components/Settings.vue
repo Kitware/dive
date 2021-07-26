@@ -33,8 +33,13 @@ export default defineComponent({
     const pendingChanges = computed(() => isEqual(localSettings.value, settings.value));
 
     onBeforeMount(async () => {
-      settingsAreValid.value = await validateSettings(localSettings.value);
       smi.value = await nvidiaSmi();
+      settingsAreValid.value = await validateSettings(localSettings.value);
+    });
+
+    watch([settings], async () => {
+      localSettings.value = cloneDeep(settings.value);
+      settingsAreValid.value = await validateSettings(localSettings.value);
     });
 
     async function openPath(name: 'viamePath' | 'dataPath') {
@@ -55,11 +60,6 @@ export default defineComponent({
         updateSettings(localSettings.value);
       }
     }
-
-    watch([settings], async () => {
-      localSettings.value = cloneDeep(settings.value);
-      settingsAreValid.value = await validateSettings(localSettings.value);
-    });
 
     return {
       arch,
@@ -173,6 +173,16 @@ export default defineComponent({
         </v-card-subtitle>
 
         <v-alert
+          v-if="!!viameOverride"
+          dense
+          text
+          class="mx-4"
+          :type="'info'"
+        >
+          VIAME install path environment variable detected, locking changes
+        </v-alert>
+
+        <v-alert
           dense
           text
           :type="smi === null ? 'info' : smi.exitCode === 0 ? 'success' : 'warning'"
@@ -213,16 +223,6 @@ export default defineComponent({
           <span v-else>
             Could not initialize kwiver: {{ settingsAreValid }}
           </span>
-        </v-alert>
-
-        <v-alert
-          v-if="!!viameOverride"
-          dense
-          text
-          class="mx-4"
-          :type="'info'"
-        >
-          VIAME install path environment variable found, locking changes
         </v-alert>
 
         <v-alert

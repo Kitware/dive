@@ -4,7 +4,7 @@ import * as api from 'platform/desktop/frontend/api';
 /* Warning, this import involves node.js code for loadDetections (below) */
 import * as common from 'platform/desktop/backend/native/common';
 
-import { ready } from './settings';
+import { initializedSettings } from './settings';
 import { load, setRecents } from './dataset';
 
 /* Run forward migrations on any client-side data stores */
@@ -34,7 +34,7 @@ export default function wrap(): Api {
    * to the client using something like https://github.com/uhop/stream-json
    */
   async function loadDetections(datasetId: string) {
-    const settings = await ready;
+    const settings = await initializedSettings;
     return common.loadDetections(settings, datasetId);
   }
 

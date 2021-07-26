@@ -8,7 +8,6 @@ import { MediaTypes, FPSOptions } from 'dive-common/constants';
 import { filterByGlob } from 'platform/desktop/sharedUtils';
 import { MediaImportPayload } from 'platform/desktop/constants';
 import { locateDuplicates } from 'platform/desktop/frontend/store/dataset';
-import { settings } from 'platform/desktop/frontend/store/settings';
 import { useApi } from 'dive-common/apispec';
 import Vue from 'vue';
 
@@ -59,7 +58,6 @@ export default defineComponent({
       duplicates,
       filteredImages,
       ready,
-      settings,
       showAdvanced,
       MediaTypes,
       FPSOptions,

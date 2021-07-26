@@ -43,7 +43,9 @@ async function init() {
     // Client applies user-configured settings from localstorage
     const settingsStr = window.localStorage.getItem(SettingsKey) || '{}';
     const maybeSettings = JSON.parse(settingsStr);
+    // Remove any previously saved overrides so environment variables apply
     delete maybeSettings.overrides;
+
     if (isSettings(maybeSettings)) {
       settingsValue = {
         // Populate from defaults to include any missing properties
@@ -74,11 +76,11 @@ async function updateSettings(s: Settings) {
 }
 
 // Will be initialized on first import
-const ready = init();
+const initializedSettings = init();
 
 export {
-  ready,
   settings,
+  initializedSettings,
   updateSettings,
   validateSettings,
 };
