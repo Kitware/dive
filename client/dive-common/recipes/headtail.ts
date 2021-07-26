@@ -12,21 +12,21 @@ export const TailPointKey = 'tail';
 const EmptyResponse: UpdateResponse = { data: {}, union: [], unionWithoutBounds: [] };
 
 /* Standard 10% padding */
-// const PaddingVector10Percent: [number, number][] = [
-//   [-0.1, -0.1],
-//   [-0.1, 0.1],
-//   [1.1, -0.1],
-//   [1.1, 0.1],
-//   [-0.1, -0.1],
-// ];
-/* No padding */
-const PaddingVectorZero: [number, number][] = [
-  [0, 0],
-  [0, 0],
-  [1, 0],
-  [1, 0],
-  [0, 0],
+const PaddingVector15Percent: [number, number][] = [
+  [-0.15, -0.15],
+  [-0.15, 0.15],
+  [1.15, -0.15],
+  [1.15, 0.15],
+  [-0.15, -0.15],
 ];
+/* No padding */
+// const PaddingVectorZero: [number, number][] = [
+//   [0, 0],
+//   [0, 0],
+//   [1, 0],
+//   [1, 0],
+//   [0, 0],
+// ];
 
 export default class HeadTail implements Recipe {
   active: Ref<boolean>;
@@ -181,7 +181,7 @@ export default class HeadTail implements Recipe {
             data: HeadTail.makeGeom(geom, this.startWithHead),
             newSelectedKey: HeadTailLineKey,
             done: true,
-            union: HeadTail.findBounds(geom, PaddingVectorZero),
+            union: HeadTail.findBounds(geom, PaddingVector15Percent),
           } as UpdateResponse;
         }
         if (geom.coordinates.length === 1) {
@@ -189,7 +189,7 @@ export default class HeadTail implements Recipe {
           return {
             ...EmptyResponse,
             data: HeadTail.makeGeom(geom, this.startWithHead),
-            union: HeadTail.findBounds(geom, PaddingVectorZero),
+            union: HeadTail.findBounds(geom, PaddingVector15Percent),
             done: false,
           };
         }
@@ -201,7 +201,7 @@ export default class HeadTail implements Recipe {
         return {
           ...EmptyResponse,
           data: HeadTail.makeGeom(linestring.geometry, true),
-          union: HeadTail.findBounds(linestring.geometry, PaddingVectorZero),
+          union: HeadTail.findBounds(linestring.geometry, PaddingVector15Percent),
           done: true,
         };
       }
