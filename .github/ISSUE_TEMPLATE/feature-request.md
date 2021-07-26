@@ -2,7 +2,7 @@
 name: "\U0001F6A7 Feature request"
 about: Feature addition or enhancement request
 title: "[FEATURE]"
-labels: enhancement
+labels: 'Type: Feature Request'
 assignees: ''
 
 ---
