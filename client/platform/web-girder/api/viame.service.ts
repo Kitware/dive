@@ -9,6 +9,7 @@ import {
   calibrationFileTypes, inputAnnotationFileTypes, inputAnnotationTypes, otherImageTypes,
   otherVideoTypes, websafeImageTypes, websafeVideoTypes,
 } from 'dive-common/constants';
+import { GirderDatasetModel } from 'platform/web-girder/constants';
 import girderRest from '../plugins/girder';
 
 interface ValidationResponse {
@@ -46,6 +47,11 @@ async function clone({ folderId, name, parentFolderId }: {
     formData.set('name', name);
   }
   const { data } = await girderRest.post<GirderModel>(`viame/dataset/${folderId}/clone`, formData);
+  return data;
+}
+
+async function getDatasets(): Promise<GirderDatasetModel[]> {
+  const { data } = await girderRest.get<GirderDatasetModel[]>('viame/datasets');
   return data;
 }
 
@@ -231,6 +237,7 @@ Promise<{ canceled: boolean; filePaths: string[]; fileList?: File[]}> {
 
 export {
   clone,
+  getDatasets,
   getBrandData,
   deleteResources,
   getPipelineList,

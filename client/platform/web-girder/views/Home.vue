@@ -20,6 +20,8 @@ import Export from './Export.vue';
 import Upload from './Upload.vue';
 import DataDetails from './DataDetails.vue';
 import Clone from './Clone.vue';
+import ShareTab from './ShareTab.vue';
+import SharedData from './SharedData.vue';
 
 const buttonOptions = {
   block: true,
@@ -46,17 +48,20 @@ export default defineComponent({
     Upload,
     RunPipelineMenu,
     RunTrainingMenu,
+    SharedData,
+    ShareTab,
   },
   setup() {
+    const activeTab = ref(0);
     const uploaderDialog = ref(false);
     const selected = ref([]);
     const uploading = ref(false);
     const loading = ref(false);
 
     const { prompt } = usePrompt();
-
     return {
       // data
+      activeTab,
       buttonOptions,
       menuOptions,
       uploaderDialog,
@@ -196,6 +201,7 @@ export default defineComponent({
     },
   },
 });
+
 </script>
 
 <template>
@@ -209,6 +215,7 @@ export default defineComponent({
       fill-height
       :fluid="$vuetify.breakpoint.mdAndDown"
     >
+      <ShareTab v-model="activeTab" />
       <v-row
         class="fill-height nowraptable"
       >
@@ -266,6 +273,7 @@ export default defineComponent({
         </v-col>
         <v-col :cols="9">
           <GirderFileManager
+            v-if="activeTab === 0"
             ref="fileManager"
             v-model="selected"
             :selectable="!locationIsViameFolder"
@@ -337,6 +345,13 @@ export default defineComponent({
               </v-chip>
             </template>
           </GirderFileManager>
+          <div v-else>
+            <SharedData
+              v-model="selected"
+              :selectable="!locationIsViameFolder"
+              :new-folder-enabled="!selected.length && !locationIsViameFolder"
+            />
+          </div>
           <v-card
             v-if="selectedDescription"
             class="my-4"
