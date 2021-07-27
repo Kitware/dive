@@ -53,6 +53,7 @@ DIVE Desktop requires a local installation of the VIAME toolkit to run pipelines
 
 * `VIAME Install Path` is set automatically if you use `examples/annotation_and_visualization/launch_dive_interface` from the VIAME install.  Otherwise, you may need to set this yourself.  Use `Choose` to choose the base installation path, then click save.
 * `Project Data Storage Path` defaults to a subfolder in your user workspace and should generally not be changed.
+* `Read only mode` disables the ability to save when using the annotator.
 
 ### Data Storage Path
 
@@ -105,7 +106,8 @@ DIVE Desktop looks for the these environment variables on launch.
 
 | Name | Default | Description |
 | ---- | ------- | ----------- |
-| DIVE_VIAME_INSTALL_PATH | /opt/noaa/viame (linux/macos) C:\Program Files\VIAME (windows) | location of VIAME installation.  Users may override this value in the settings pane |
+| DIVE_VIAME_INSTALL_PATH | /opt/noaa/viame (Linux/macOS) C:\Program Files\VIAME (Windows) | Overrides the location of the VIAME installation.  Users may not change this value in the settings pane if provided. |
+| DIVE_READONLY_MODE | None | Overrides read only mode to true or false.  Users may still change this value in the settings pane if provided. |
 
 ## Import/Export of Models
 

@@ -20,7 +20,10 @@ function _updatePendingChangeMap<K, V>(
   }
 }
 
-export default function useSave(datasetId: Ref<Readonly<string>>) {
+export default function useSave(
+  datasetId: Ref<Readonly<string>>,
+  readonlyMode: Ref<Readonly<boolean>>,
+) {
   const pendingSaveCount = ref(0);
   const pendingChangeMap = {
     upsert: new Map<TrackId, Track>(),
@@ -34,6 +37,9 @@ export default function useSave(datasetId: Ref<Readonly<string>>) {
   async function save(
     datasetMeta?: DatasetMetaMutable,
   ) {
+    if (readonlyMode.value) {
+      throw new Error('attempted to save in read only mode');
+    }
     const promiseList: Promise<unknown>[] = [];
     if (pendingChangeMap.upsert.size || pendingChangeMap.delete.size) {
       promiseList.push(saveDetections(datasetId.value, {
@@ -73,24 +79,26 @@ export default function useSave(datasetId: Ref<Readonly<string>>) {
       attribute?: Attribute;
     } = { action: 'meta' },
   ) {
-    if (action === 'meta') {
-      pendingChangeMap.meta += 1;
-    } else if (track !== undefined) {
-      _updatePendingChangeMap(
-        track.trackId, track, action, pendingChangeMap.upsert, pendingChangeMap.delete,
-      );
-    } else if (attribute !== undefined) {
-      _updatePendingChangeMap(
-        attribute.key,
-        attribute,
-        action,
-        pendingChangeMap.attributeUpsert,
-        pendingChangeMap.attributeDelete,
-      );
-    } else {
-      throw new Error(`Arguments inconsistent with pending change type: ${action} cannot be performed without additional arguments`);
+    if (!readonlyMode.value) {
+      if (action === 'meta') {
+        pendingChangeMap.meta += 1;
+      } else if (track !== undefined) {
+        _updatePendingChangeMap(
+          track.trackId, track, action, pendingChangeMap.upsert, pendingChangeMap.delete,
+        );
+      } else if (attribute !== undefined) {
+        _updatePendingChangeMap(
+          attribute.key,
+          attribute,
+          action,
+          pendingChangeMap.attributeUpsert,
+          pendingChangeMap.attributeDelete,
+        );
+      } else {
+        throw new Error(`Arguments inconsistent with pending change type: ${action} cannot be performed without additional arguments`);
+      }
+      pendingSaveCount.value += 1;
     }
-    pendingSaveCount.value += 1;
   }
 
   return { save, markChangesPending, pendingSaveCount };

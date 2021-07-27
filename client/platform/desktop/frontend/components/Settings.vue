@@ -1,12 +1,13 @@
 <script lang="ts">
 import {
-  defineComponent, onBeforeMount, ref,
+  defineComponent, onBeforeMount, ref, computed, set, watch,
 } from '@vue/composition-api';
 
 import { remote } from 'electron';
 import { NvidiaSmiReply } from 'platform/desktop/constants';
+import { cloneDeep, isEqual } from 'lodash';
 
-import { settings, setSettings, validateSettings } from '../store/settings';
+import { settings, updateSettings, validateSettings } from '../store/settings';
 import { nvidiaSmi } from '../api';
 
 import BrowserLink from './BrowserLink.vue';
@@ -18,33 +19,45 @@ export default defineComponent({
     NavigationBar,
   },
   setup() {
+    const { arch, platform, version } = process;
+    const gitHash = process.env.VUE_APP_GIT_HASH;
+
+    // local copy of the global settings
+    const localSettings = ref(cloneDeep(settings.value));
+
     // null values indicate initialization has not completed
     const smi = ref(null as NvidiaSmiReply | null);
-    const localSettings = settings;
-    const { arch, platform, version } = process;
-    const settingsAreValid = ref(true as boolean | string);
-    const gitHash = process.env.VUE_APP_GIT_HASH;
+    const settingsAreValid = ref(false as boolean | string);
+    const viameOverride = computed(() => settings.value?.overrides?.viamePath);
+    const readonlyMode = computed(() => settings.value?.readonlyMode);
+    const pendingChanges = computed(() => isEqual(localSettings.value, settings.value));
 
     onBeforeMount(async () => {
       settingsAreValid.value = await validateSettings(localSettings.value);
       smi.value = await nvidiaSmi();
     });
 
+    watch([settings], async () => {
+      localSettings.value = cloneDeep(settings.value);
+      settingsAreValid.value = await validateSettings(localSettings.value);
+    });
+
     async function openPath(name: 'viamePath' | 'dataPath') {
+      const defaultPath = localSettings.value?.[name];
       const result = await remote.dialog.showOpenDialog({
         properties: ['openDirectory'],
-        defaultPath: localSettings.value[name],
+        defaultPath,
       });
-      if (!result.canceled) {
-        [localSettings.value[name]] = result.filePaths;
+      if (!result.canceled && defaultPath !== undefined) {
+        set(localSettings.value, name, result.filePaths[0]);
       }
     }
 
     async function save() {
-      if (settings.value !== null) {
+      if (localSettings.value !== null) {
         settingsAreValid.value = false;
         settingsAreValid.value = await validateSettings(localSettings.value);
-        setSettings(localSettings.value);
+        updateSettings(localSettings.value);
       }
     }
 
@@ -52,12 +65,15 @@ export default defineComponent({
       arch,
       gitHash,
       platform,
-      save,
       localSettings,
       settingsAreValid,
       smi,
       version,
+      viameOverride,
+      readonlyMode,
+      pendingChanges,
       openPath,
+      save,
     };
   },
 });
@@ -67,25 +83,28 @@ export default defineComponent({
   <v-main>
     <navigation-bar />
     <v-container>
-      <v-card>
+      <v-card v-if="localSettings">
         <v-card-title>Settings</v-card-title>
+
         <v-card-text>
-          <v-row>
+          <v-row class="mb-6">
             <v-col cols="9">
               <v-text-field
                 v-model="localSettings.viamePath"
                 label="VIAME Install Base Path"
                 hint="download from https://viametoolkit.com"
                 dense
+                :disabled="!!viameOverride"
                 persistent-hint
               />
             </v-col>
+
             <v-col cols="3">
               <v-btn
                 large
                 block
                 color="primary"
-                class="mb-6"
+                :disabled="!!viameOverride"
                 @click="openPath('viamePath')"
               >
                 Choose
@@ -95,7 +114,8 @@ export default defineComponent({
               </v-btn>
             </v-col>
           </v-row>
-          <v-row>
+
+          <v-row class>
             <v-col cols="9">
               <v-text-field
                 v-model="localSettings.dataPath"
@@ -105,12 +125,12 @@ export default defineComponent({
                 persistent-hint
               />
             </v-col>
+
             <v-col>
               <v-btn
                 large
                 block
                 color="primary"
-                class="mb-6"
                 @click="openPath('dataPath')"
               >
                 Choose
@@ -120,10 +140,23 @@ export default defineComponent({
               </v-btn>
             </v-col>
           </v-row>
+
+          <v-row>
+            <v-col class="d-flex">
+              <v-switch
+                v-model="localSettings.readonlyMode"
+                color="primary"
+                :label="'Read only mode'"
+                hide-details
+              />
+            </v-col>
+          </v-row>
         </v-card-text>
+
         <v-card-text>
           <v-btn
             color="primary"
+            :disabled="pendingChanges"
             @click="save"
           >
             <v-icon class="mr-2">
@@ -132,11 +165,23 @@ export default defineComponent({
             Save
           </v-btn>
         </v-card-text>
+
         <v-card-title>Platform support</v-card-title>
         <v-card-subtitle>
           Not all checks must pass in order to use this application.
           Warnings are intended to help with debugging.
         </v-card-subtitle>
+
+        <v-alert
+          v-if="!!viameOverride"
+          dense
+          text
+          class="mx-4"
+          :type="'info'"
+        >
+          VIAME install path environment variable detected, locking changes
+        </v-alert>
+
         <v-alert
           dense
           text
@@ -157,6 +202,7 @@ export default defineComponent({
             Could not determine your GPU compatibility: {{ smi.error }}
           </span>
         </v-alert>
+
         <v-alert
           dense
           text
@@ -164,7 +210,7 @@ export default defineComponent({
           :type="settingsAreValid ===
             false ? 'info' : settingsAreValid === true ? 'success' : 'warning'"
         >
-          <span v-if="settingsAreValid === false ">
+          <span v-if="settingsAreValid === false">
             Checking for Kwiver
             <v-progress-linear
               indeterminate
@@ -178,6 +224,17 @@ export default defineComponent({
             Could not initialize kwiver: {{ settingsAreValid }}
           </span>
         </v-alert>
+
+        <v-alert
+          v-if="readonlyMode"
+          dense
+          text
+          class="mx-4"
+          :type="'warning'"
+        >
+          Read only mode is on
+        </v-alert>
+
         <v-card-text>
           <div>
             Build Version:
