@@ -20,6 +20,7 @@ export interface JsonMetaCache {
   fps: number;
   name: string;
   createdAt: string;
+  accessedAt: string;
   originalBasePath: string;
   originalVideoFile: string;
   transcodedVideoFile?: string;
@@ -34,6 +35,7 @@ function hydrateJsonMetaCacheValue(input: any): JsonMetaCache {
   return {
     originalVideoFile: '',
     transcodedVideoFile: '',
+    accessedAt: input.createdAt,
     subType: null,
     ...input,
   };
@@ -41,11 +43,7 @@ function hydrateJsonMetaCacheValue(input: any): JsonMetaCache {
 
 const datasets = ref({} as Record<string, JsonMetaCache>);
 
-const recents = computed(() => {
-  const list = Object.values(datasets.value)
-    .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
-  return list;
-});
+const recents = computed(() => (Object.values(datasets.value)));
 
 /**
  * Load recent datasets from localstorage.
@@ -83,11 +81,15 @@ function locateDuplicates(meta: JsonMeta) {
   ));
 }
 
-/**
- * Add ID to recent datasets
- * @param id dataset id path
- */
-function setRecents(meta: JsonMeta) {
+function removeRecents(datasetId: string) {
+  if (datasets.value[datasetId]) {
+    Vue.delete(datasets.value, datasetId);
+  }
+  const values = Object.values(datasets.value);
+  window.localStorage.setItem(RecentsKey, JSON.stringify(values));
+}
+
+function setRecents(meta: JsonMeta, accessTime?: string) {
   Vue.set(datasets.value, meta.id, {
     version: meta.version,
     type: meta.type,
@@ -95,6 +97,7 @@ function setRecents(meta: JsonMeta) {
     fps: meta.fps,
     name: meta.name,
     createdAt: meta.createdAt,
+    accessedAt: accessTime || meta.createdAt,
     originalBasePath: meta.originalBasePath,
     originalVideoFile: meta.originalVideoFile,
     transcodedVideoFile: meta.transcodedVideoFile,
@@ -115,5 +118,6 @@ export {
   load,
   locateDuplicates,
   setRecents,
+  removeRecents,
   clearRecents,
 };

@@ -1,5 +1,6 @@
 <script lang="ts">
 import { join } from 'path';
+import moment from 'moment';
 import {
   computed, defineComponent, ref, Ref,
 } from '@vue/composition-api';
@@ -7,10 +8,16 @@ import {
 import type { DatasetType, MultiCamImportArgs } from 'dive-common/apispec';
 import type { MediaImportPayload } from 'platform/desktop/constants';
 
+import TooltipBtn from 'vue-media-annotator/components/TooltipButton.vue';
+
 import ImportButton from 'dive-common/components/ImportButton.vue';
 import ImportMultiCamDialog from 'dive-common/components/ImportMultiCamDialog.vue';
+import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
+import { DataTableHeader } from 'vuetify';
 import * as api from '../api';
-import { JsonMetaCache, recents, setRecents } from '../store/dataset';
+import {
+  JsonMetaCache, recents, removeRecents, setRecents,
+} from '../store/dataset';
 import { setOrGetConversionJob } from '../store/jobs';
 import BrowserLink from './BrowserLink.vue';
 import NavigationBar from './NavigationBar.vue';
@@ -24,18 +31,18 @@ export default defineComponent({
     ImportDialog,
     NavigationBar,
     ImportMultiCamDialog,
+    TooltipBtn,
   },
 
   setup(_, { root }) {
     const snackbar = ref(false);
     const importMultiCamDialog = ref(false);
-    const pageSize = 12; // Default 12 looks good on default width/height of window
-    const limit = ref(pageSize);
     const errorText = ref('');
     const pendingImportPayload: Ref<MediaImportPayload | null> = ref(null);
     const searchText: Ref<string | null> = ref('');
     const stereo = ref(false);
     const multiCamOpenType: Ref<'image-sequence'|'video'> = ref('image-sequence');
+    const { prompt } = usePrompt();
 
     async function open(dstype: DatasetType) {
       const ret = await api.openFromDisk(dstype);
@@ -69,7 +76,6 @@ export default defineComponent({
         errorText.value = err.message;
       }
     }
-
     function openMultiCamDialog(args: {stereo: boolean; openType: 'image-sequence' | 'video'}) {
       stereo.value = args.stereo;
       multiCamOpenType.value = args.openType;
@@ -86,30 +92,91 @@ export default defineComponent({
       }
     }
 
-    const filteredRecents = computed(() => recents.value
-      .filter((v) => v.name.toLowerCase().indexOf((searchText.value || '').toLowerCase()) >= 0));
-    const paginatedRecents = computed(() => (filteredRecents.value.slice(0, limit.value)));
-    const totalRecents = computed(() => filteredRecents.value.length);
-
-    function toggleMore() {
-      if (limit.value < recents.value.length) {
-        limit.value = recents.value.length;
-      } else {
-        limit.value = pageSize;
+    async function confirmDeleteDataset(datasetId: string, datasetName: string) {
+      const result = await prompt({
+        title: 'Warning Deleting Dataset',
+        text: [`Do you want to delete dataset ${datasetName}?`,
+          '1.  Deleting dataset will not remove source media, such as images or video.',
+          '2.  It will not remove annotations files that were imported when the dataset was created.',
+          '3.  This will remove any annotations that bave been created in DIVE for this dataset',
+          '4.  Use the Export button for the dataset to create a copy of the last set of annotations'],
+        confirm: true,
+      });
+      if (!result) {
+        return;
+      }
+      try {
+        api.deleteDataset(datasetId);
+        //Now we need to update recents by removing the dataset from localStorage
+        removeRecents(datasetId);
+      } catch (err) {
+        snackbar.value = true;
+        errorText.value = err.message;
       }
     }
+
+
+    const filteredRecents = computed(() => recents.value
+      .filter((v) => v.name.toLowerCase().indexOf((searchText.value || '').toLowerCase()) >= 0));
     function getTypeIcon(recent: JsonMetaCache) {
-      if (recent.type === 'multi') {
+      if (recent.subType) {
         if (recent.subType === 'stereo') {
           return 'mdi-binoculars';
+        } if (recent.subType === 'multicam') {
+          return 'mdi-camera-burst';
         }
-        return 'mdi-camera-burst';
       }
       if (recent.type === 'video') {
         return 'mdi-file-video';
       }
       return 'mdi-image-multiple';
     }
+
+    async function preloadCheck(recent: JsonMetaCache) {
+      //Attempts to preload the data to see if there are any isues
+      try {
+        await api.checkDataset(recent.id);
+      } catch (e) {
+        await prompt({
+          title: 'Error Loading Data',
+          text: [`There was an error loading data from ${recent.name}`,
+            'Correct the error using the Error Details or delete and re-import the dataset',
+            e],
+          positiveButton: 'Okay',
+        });
+        return;
+      }
+      root.$router.push({ name: 'viewer', params: { id: recent.id } });
+    }
+
+    const headers: DataTableHeader[] = [
+      {
+        text: 'Type',
+        value: 'type',
+        sortable: false,
+        width: 40,
+      },
+      {
+        text: 'Name',
+        value: 'name',
+        sortable: true,
+      },
+      {
+        text: 'Accessed',
+        value: 'accessedAt',
+        sortable: true,
+        sort: (a: string, b: string) => Date.parse(b) - Date.parse(a),
+        width: 140,
+      },
+      {
+        text: '',
+        value: 'delete',
+        sortable: false,
+        width: 40,
+      },
+    ];
+    const toDisplayString = (dateString: string) => moment(dateString).format('MM/DD/YY HH:mm');
+
 
     return {
       // methods
@@ -118,22 +185,22 @@ export default defineComponent({
       multiCamImport,
       join,
       setOrGetConversionJob,
-      toggleMore,
       openMultiCamDialog,
       getTypeIcon,
       importMedia: api.importMedia,
+      confirmDeleteDataset,
+      preloadCheck,
+      toDisplayString,
       // state
       multiCamOpenType,
       stereo,
-      pageSize,
-      limit,
-      paginatedRecents,
+      filteredRecents,
       pendingImportPayload,
-      totalRecents,
       searchText,
       snackbar,
       errorText,
       importMultiCamDialog,
+      headers,
     };
   },
 });
@@ -230,7 +297,7 @@ export default defineComponent({
             min-width="100%"
           >
             <div
-              v-if="totalRecents > 0 || searchText"
+              v-if="filteredRecents.length > 0 || searchText"
               class="d-flex flex-row"
             >
               <div class="text-h4 font-weight-light mb-2">
@@ -262,69 +329,66 @@ export default defineComponent({
             >
               Open images or video to get started
             </h2>
-            <div
-              v-for="recent in paginatedRecents"
-              :key="recent.id"
-              class="pa-1"
+            <v-data-table
+              dense
+              v-bind="{ headers: headers, items: filteredRecents }"
+              sort-by="accessedAt"
+              :footer-props="{ itemsPerPageOptions: [10, 30, -1] }"
+              no-data-text="No data loaded"
             >
-              <h3 class="text-body-1">
-                <v-icon
+              <template #[`item.type`]="{ item }">
+                <tooltip-btn
+                  :key="item.id"
                   class="pr-2"
                   color="primary lighten-2"
-                >
-                  {{ getTypeIcon(recent) }}
-                </v-icon>
-                <span v-if="setOrGetConversionJob(recent.id)">
-                  <span class="primary--text text--darken-1 text-decoration-none">
-                    {{ recent.name }}
-                  </span>
-                  <span class="pl-4">
-                    Converting
-                    <v-icon>
-                      mdi-spin mdi-sync
-                    </v-icon>
-                  </span>
+                  :tooltip-text="item.subType ? item.subType : item.type"
+                  :icon="getTypeIcon(item)"
+                />
+              </template>
+              <template #[`item.name`]="{ item }">
+                <span :key="item.id">
+                  <div v-if="setOrGetConversionJob(item.id)">
+                    <span class="primary--text text--darken-1 text-decoration-none">
+                      {{ item.name }}
+                    </span>
+                    <span class="pl-4">
+                      Converting
+                      <v-icon>
+                        mdi-spin mdi-sync
+                      </v-icon>
+                    </span>
+                  </div>
+                  <div
+                    v-else
+                    class="link primary--text text--lighten-3 text-subtitle-1 pt-1"
+                    style="line-height: initial;"
+                    @click="preloadCheck(item)"
+                  >
+                    {{ item.name }}
+                  </div>
+                  <div class="grey--text text-caption">
+                    {{ item.originalBasePath }}
+                  </div>
                 </span>
-                <router-link
-                  v-else
-                  :to="{ name: 'viewer', params: { id: recent.id } }"
-                  class="primary--text text--lighten-3 text-decoration-none"
-                >
-                  {{ recent.name }}
-                </router-link>
-                <span class="grey--text px-4">
-                  {{ recent.originalBasePath }}
-                </span>
-              </h3>
-            </div>
-            <div
-              v-if="pageSize < totalRecents"
-              class="mx-1"
-            >
-              <v-divider class="my-2" />
-              <h3
-                class="text-body-1"
-                style="cursor: pointer;"
-                @click="toggleMore"
-              >
-                <v-icon
-                  class="pr-2"
-                  color="primary lighten-3"
-                >
-                  {{ (limit === totalRecents) ? 'mdi-chevron-up' : 'mdi-chevron-down' }}
-                </v-icon>
+              </template>
+              <template #[`item.accessedAt`]="{ item }">
                 <span
-                  class="primary--text text--lighten-3"
+                  :key="item.id"
+                  class="grey--text text-body-2"
                 >
-                  <span v-if="limit < totalRecents">
-                    Show {{ totalRecents - pageSize }} more
-                  </span>
-                  <span v-else>
-                    Show less
-                  </span>
+                  {{ toDisplayString(item.accessedAt) }}
                 </span>
-              </h3>
-            </div>
+              </template>
+              <template #[`item.delete`]="{ item }">
+                <tooltip-btn
+                  :key="item.id"
+                  color="error"
+                  icon="mdi-delete"
+                  :tooltip-text="'Delete'"
+                  @click="confirmDeleteDataset(item.id, item.name)"
+                />
+              </template>
+            </v-data-table>
           </v-card>
         </v-row>
       </v-col>
@@ -349,4 +413,13 @@ export default defineComponent({
 </template>
 
 <style lang="scss">
+.icon-col {
+  max-width: 40px;
+}
+.link {
+  &:hover{
+    cursor: pointer;
+    text-decoration: underline;
+  }
+}
 </style>
