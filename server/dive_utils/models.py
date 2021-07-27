@@ -25,6 +25,7 @@ class Feature(BaseModel):
     """Feature represents a single detection in a track."""
 
     frame: int
+    flick: Optional[int]
     bounds: List[int]
     attributes: Optional[Dict[str, Union[bool, float, str]]]
     geometry: Optional[GeoJSONFeatureCollection] = None
