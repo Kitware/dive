@@ -119,11 +119,12 @@ export default defineComponent({
     const filteredRecents = computed(() => recents.value
       .filter((v) => v.name.toLowerCase().indexOf((searchText.value || '').toLowerCase()) >= 0));
     function getTypeIcon(recent: JsonMetaCache) {
-      if (recent.type === 'multi') {
+      if (recent.subType) {
         if (recent.subType === 'stereo') {
           return 'mdi-binoculars';
+        } if (recent.subType === 'multicam') {
+          return 'mdi-camera-burst';
         }
-        return 'mdi-camera-burst';
       }
       if (recent.type === 'video') {
         return 'mdi-file-video';
