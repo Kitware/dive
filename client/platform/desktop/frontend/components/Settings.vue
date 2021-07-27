@@ -33,8 +33,8 @@ export default defineComponent({
     const pendingChanges = computed(() => isEqual(localSettings.value, settings.value));
 
     onBeforeMount(async () => {
-      smi.value = await nvidiaSmi();
       settingsAreValid.value = await validateSettings(localSettings.value);
+      smi.value = await nvidiaSmi();
     });
 
     watch([settings], async () => {
