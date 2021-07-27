@@ -292,6 +292,10 @@ async function train(
     '--no-embedded-pipe',
   ];
 
+  if (runTrainingArgs.annotatedFramesOnly) {
+    command.push('--gt-frames-only');
+  }
+
   const job = observeChild(spawn(command.join(' '), {
     shell: viameConstants.shell,
     cwd: jobWorkDir,

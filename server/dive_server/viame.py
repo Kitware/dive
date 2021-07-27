@@ -296,7 +296,7 @@ class Viame(Resource):
                 groundtruth_list=detection_list,
                 pipeline_name=pipelineName,
                 config=config,
-                annotatedFramesOnly=annotatedFramesOnly,
+                annotated_frames_only=annotatedFramesOnly,
                 girder_client_token=str(token["_id"]),
                 girder_job_title=(f"Running training on {len(folder_list)} datasets"),
                 girder_job_type="private" if job_is_private else "training",

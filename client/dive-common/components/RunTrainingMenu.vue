@@ -29,7 +29,7 @@ export default defineComponent({
 
     const trainingConfigurations = ref<TrainingConfigs | null>(null);
     const selectedTrainingConfig = ref<string | null>(null);
-    const annotatedFramesOnly = ref<boolean>(true);
+    const annotatedFramesOnly = ref<boolean>(false);
 
     onBeforeMount(async () => {
       const resp = await getTrainingConfigurations();

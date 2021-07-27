@@ -316,7 +316,7 @@ def train_pipeline(
     groundtruth_list: List[GirderModel],
     pipeline_name: str,
     config: str,
-    annotatedFramesOnly: bool = False,
+    annotated_frames_only: bool = False,
 ):
     """
     Train a pipeline by making a call to viame_train_detector
@@ -327,6 +327,7 @@ def train_pipeline(
         or a folder containing that file.
     :param pipeline_name: The base name of the resulting pipeline.
     :param config: string name of the input configuration
+    :param annotated_frames_only: Only use annotated frames for training
     """
     conf = Config()
     context: dict = {}
@@ -398,6 +399,9 @@ def train_pipeline(
                 "--no-query",
                 "--no-embedded-pipe",
             ]
+
+            if annotated_frames_only:
+                command.append("--gt-frames-only")
 
             manager.updateStatus(JobStatus.RUNNING)
             cmd = " ".join(command)

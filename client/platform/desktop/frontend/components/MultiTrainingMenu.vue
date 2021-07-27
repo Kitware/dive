@@ -40,7 +40,7 @@ export default defineComponent({
         configs: [],
         default: '',
       } as TrainingConfigs,
-      annotatedFramesOnly: true,
+      annotatedFramesOnly: false,
     });
 
     const headersTmpl: DataTableHeader[] = [
