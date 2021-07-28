@@ -258,6 +258,7 @@ def createSoftClone(
         name or source_folder['name'],
         description=f'Clone of {source_folder["name"]}.',
         reuseExisting=False,
+        creator=owner,
     )
     cloned_folder['meta'] = source_folder['meta']
     media_source_folder = getCloneRoot(owner, source_folder)

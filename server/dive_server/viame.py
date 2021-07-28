@@ -31,6 +31,7 @@ from dive_utils.constants import (
     DatasetMarker,
     ForeignMediaIdMarker,
     PublishedMarker,
+    SharedMarker,
     UserPrivateQueueEnabledMarker,
     csvRegex,
     imageRegex,
@@ -155,22 +156,45 @@ class Viame(Resource):
             default=False,
             dataType='boolean',
         )
+        .param(
+            SharedMarker,
+            'Return only datasets shared with me',
+            required=False,
+            default=False,
+            dataType='boolean',
+        )
     )
     def list_datasets(self, params):
         limit, offset, sort = self.getPagingParameters(params)
+        user = self.getCurrentUser()
         query = {
-            f'meta.{DatasetMarker}': {'$in': TRUTHY_META_VALUES},
+            '$and': [
+                {f'meta.{DatasetMarker}': {'$in': TRUTHY_META_VALUES}},
+            ],
         }
         if self.boolParam(PublishedMarker, params):
-            query = {
-                '$and': [
-                    query,
-                    {f'meta.{PublishedMarker}': {'$in': TRUTHY_META_VALUES}},
-                ]
-            }
-        return Folder().findWithPermissions(
-            query, offset=offset, limit=limit, sort=sort, user=self.getCurrentUser()
-        )
+            query['$and'] += [{f'meta.{PublishedMarker}': {'$in': TRUTHY_META_VALUES}}]
+        if self.boolParam(SharedMarker, params):
+            query['$and'] += [
+                {
+                    # Find datasets not owned by the current user
+                    '$nor': [
+                        {'creatorId': {'$eq': user['_id']}},
+                        {'creatorId': {'$eq': None}},
+                    ],
+                },
+                {
+                    # But where the current user still has access
+                    'access.users': {
+                        '$elemMatch': {
+                            'id': user['_id'],
+                        }
+                    },
+                },
+            ]
+        # Use findwithpermissions as a backstop for filtering out
+        # datasets we don't have access to
+        return Folder().findWithPermissions(query, offset=offset, limit=limit, sort=sort, user=user)
 
     @access.user
     @describeRoute(
