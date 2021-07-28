@@ -173,6 +173,13 @@ class Viame(Resource):
         )
 
     @access.user
+    @describeRoute(
+        Description('find things that are shared with me')
+        .pagingParams('created')
+    )
+    def find_shared_with_me()
+
+    @access.user
     @autoDescribeRoute(
         Description("Clone a dataset")
         .modelParam(

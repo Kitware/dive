@@ -1,11 +1,11 @@
 import Vue from 'vue';
 import Vuex from 'vuex';
+
 import router from '../router';
 import { RootState } from './types';
 import Location from './Location';
 import Dataset from './Dataset';
 import Brand from './Brand';
-
 
 Vue.use(Vuex);
 

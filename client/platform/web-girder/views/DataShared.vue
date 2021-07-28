@@ -46,9 +46,9 @@ export default defineComponent({
       :headers="headers"
       :options.sync="tableOptions"
       :items="dataList"
-      item-key="name"
+      item-key="_id"
       show-select
-      @contextmenu="$emit('row-right-click', props.item, $event)"
+      @input="$emit('input', $event)"
     />
   </div>
 </template>

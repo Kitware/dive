@@ -3,7 +3,7 @@ import {
   defineComponent,
   ref,
 } from '@vue/composition-api';
-import { mapActions } from 'vuex';
+import { mapActions, mapGetters } from 'vuex';
 import {
   getLocationType, GirderFileManager, GirderMarkdown,
 } from '@girder/components/src';
@@ -21,7 +21,7 @@ import Upload from './Upload.vue';
 import DataDetails from './DataDetails.vue';
 import Clone from './Clone.vue';
 import ShareTab from './ShareTab.vue';
-import SharedData from './SharedData.vue';
+import SharedData from './DataShared.vue';
 
 const buttonOptions = {
   block: true,
@@ -52,21 +52,13 @@ export default defineComponent({
     ShareTab,
   },
   setup() {
-    const activeTab = ref(0);
-    const uploaderDialog = ref(false);
-    const selected = ref([]);
-    const uploading = ref(false);
     const loading = ref(false);
-
     const { prompt } = usePrompt();
+
     return {
       // data
-      activeTab,
       buttonOptions,
       menuOptions,
-      uploaderDialog,
-      selected,
-      uploading,
       loading,
       // methods
       prompt,
@@ -134,17 +126,6 @@ export default defineComponent({
     },
   },
   async created() {
-    let newLocaction = getLocationFromRoute(this.$route);
-    if (newLocaction === null) {
-      newLocaction = {
-        _id: this.girderRest.user._id,
-        _modelType: 'user',
-      };
-    }
-    this.location = newLocaction;
-    if (this.location._modelType === 'folder') {
-      this.location = await getFolder(this.location._id);
-    }
     this.girderRest.$on('message:job_status', this.handleNotification);
   },
   beforeDestroy() {
@@ -152,16 +133,6 @@ export default defineComponent({
   },
   methods: {
     ...mapActions('Location', ['route']),
-    handleNotification() {
-      this.$refs.fileManager.$refs.girderBrowser.refresh();
-    },
-    updateUploading(newval) {
-      this.uploading = newval;
-      if (!newval) {
-        this.$refs.fileManager.$refs.girderBrowser.refresh();
-        this.uploaderDialog = false;
-      }
-    },
     isAnnotationFolder(item) {
       // TODO: update to check for other info
       return item._modelType === 'folder' && item.meta.annotate;
@@ -194,11 +165,6 @@ export default defineComponent({
         this.loading = false;
       }
     },
-    dragover() {
-      if (this.shouldShowUpload) {
-        this.uploaderDialog = true;
-      }
-    },
   },
 });
 
@@ -215,7 +181,6 @@ export default defineComponent({
       fill-height
       :fluid="$vuetify.breakpoint.mdAndDown"
     >
-      <ShareTab v-model="activeTab" />
       <v-row
         class="fill-height nowraptable"
       >
@@ -272,86 +237,12 @@ export default defineComponent({
           </DataDetails>
         </v-col>
         <v-col :cols="9">
-          <GirderFileManager
-            v-if="activeTab === 0"
-            ref="fileManager"
-            v-model="selected"
-            :selectable="!locationIsViameFolder"
-            :new-folder-enabled="!selected.length && !locationIsViameFolder"
-            :location.sync="location"
-            @dragover.native="dragover"
-          >
-            <template #headerwidget>
-              <v-dialog
-                v-if="shouldShowUpload"
-                v-model="uploaderDialog"
-                max-width="800px"
-                :persistent="uploading"
-              >
-                <template #activator="{on}">
-                  <v-btn
-                    class="ma-0"
-                    text
-                    small
-                    v-on="on"
-                  >
-                    <v-icon
-                      left
-                      color="accent"
-                    >
-                      mdi-file-upload
-                    </v-icon>
-                    Upload
-                  </v-btn>
-                </template>
-                <Upload
-                  :location="location"
-                  @update:uploading="updateUploading"
-                  @close="uploaderDialog = false"
-                />
-              </v-dialog>
-            </template>
-            <template #row-widget="{item}">
-              <v-btn
-                v-if="isAnnotationFolder(item)"
-                class="ml-2"
-                x-small
-                color="primary"
-                depressed
-                :to="{ name: 'viewer', params: { id: item._id } }"
-                @click.stop="openClip(item)"
-              >
-                Launch Annotator
-              </v-btn>
-              <v-chip
-                v-if="(item.meta && item.meta.foreign_media_id)"
-                color="white"
-                x-small
-                outlined
-                disabled
-                class="my-0 mx-3"
-              >
-                cloned
-              </v-chip>
-              <v-chip
-                v-if="(item.meta && item.meta.published)"
-                color="green"
-                x-small
-                outlined
-                disabled
-                class="my-0 mx-3"
-              >
-                published
-              </v-chip>
-            </template>
-          </GirderFileManager>
-          <div v-else>
-            <SharedData
-              v-model="selected"
-              :selectable="!locationIsViameFolder"
-              :new-folder-enabled="!selected.length && !locationIsViameFolder"
+          <v-toolbar dense class="mb-4" rounded="">
+            <ShareTab
+              v-model="activeTab"
             />
-          </div>
+          </v-toolbar>
+          <router-view />
           <v-card
             v-if="selectedDescription"
             class="my-4"

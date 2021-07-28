@@ -49,6 +49,7 @@ Promise.all([
     store,
     vuetify,
     provide: {
+      store,
       girderRest,
       notificationBus: girderRest, // gwc.JobList expects this
       vuetify,
