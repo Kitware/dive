@@ -23,9 +23,9 @@ export default defineComponent({
         Published Annotation Data
       </v-card-title>
       <v-card-text class="text-subtitle-1">
-        Summary information for the annotated labels across all datasets located in the root
-        level Training Data folder. To publish your imagery to this folder and have it
-        included in this summary, please contact
+        Summary information for the annotated labels across all datasets located in
+        the root-level Training Data folder. To publish your imagery to this folder
+        and have it included in this summary, please contact
         <a href="mailto:viame-web@kitware.com">viame-web@kitware.com</a>.
       </v-card-text>
       <v-card-text>
