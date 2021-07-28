@@ -119,7 +119,7 @@ You can run a standalone worker to process private jobs from VIAME Web.
 * Enable the private user queue for your jobs by visiting [the jobs page](https://viame.kitware.com/#/jobs)
 * Run a worker using the docker command below
 
-> **Note**: The `--volume` mount maps to the host installtion.  You may need to change the source from `/opt/noaa/viame` depending on your install location, but **you should not** change the destination from `/tmp/addons/extracted`.
+> **Note**: The `--volume` mount maps to the host installation.  You may need to change the source from `/opt/noaa/viame` depending on your install location, but **you should not** change the destination from `/tmp/addons/extracted`.
 
 ``` bash
 docker run --rm --name dive_worker \
