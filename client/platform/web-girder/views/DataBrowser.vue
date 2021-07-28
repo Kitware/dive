@@ -3,7 +3,7 @@ import {
   computed, defineComponent, inject, ref,
 } from '@vue/composition-api';
 import {
-  getLocationType, RestClient, GirderModel, GirderModelType,
+  GirderFileManager, getLocationType, RestClient, GirderModel, GirderModelType,
 } from '@girder/components/src';
 
 import { getFolder } from 'platform/web-girder/api/girder.service';
@@ -11,13 +11,17 @@ import { isGirderModel, useStore } from 'platform/web-girder/store/types';
 import { getLocationFromRoute } from '../utils';
 
 export default defineComponent({
+  components: {
+    GirderFileManager,
+  },
+
   setup(_, { root }) {
     const fileManager = ref();
     const store = useStore();
     const uploading = ref(false);
     const uploaderDialog = ref(false);
     const locationStore = store.state.Location;
-    const locationGetters = store?.getters.Location;
+    const { getters } = store;
     const girderRest = inject('girderRest') as RestClient;
 
     const location = computed({
@@ -30,10 +34,10 @@ export default defineComponent({
        */
       set(value: null | GirderModel | { type: GirderModelType }) {
         /* Prevent navigation into auxiliary folder */
-        if (isGirderModel(value) && locationGetters.locationIsViameFolder && value?.name === 'auxiliary') {
+        if (isGirderModel(value) && getters.locationIsViameFolder && value?.name === 'auxiliary') {
           return;
         }
-        store.dispatch('route', value);
+        store.dispatch('Location/route', value);
       },
     });
 
@@ -49,9 +53,14 @@ export default defineComponent({
       }
     }
 
+    function isAnnotationFolder(item: GirderModel) {
+      // TODO: update to check for other info
+      return item._modelType === 'folder' && item.meta.annotate;
+    }
+
     const shouldShowUpload = computed(() => (
       location.value
-      && !locationGetters.locationIsViameFolder
+      && !getters.locationIsViameFolder
       && getLocationType(location.value) === 'folder'
       && !locationStore.selected.length
     ));
@@ -79,12 +88,14 @@ export default defineComponent({
 
     return {
       fileManager,
+      location,
       locationStore,
-      locationGetters,
+      getters,
       shouldShowUpload,
       uploaderDialog,
       uploading,
       /* methods */
+      isAnnotationFolder,
       handleNotification,
       updateUploading,
     };
@@ -96,9 +107,11 @@ export default defineComponent({
 <template>
   <GirderFileManager
     ref="fileManager"
-    v-model="selected"
-    :selectable="!locationGetters.locationIsViameFolder"
-    :new-folder-enabled="!selected.length && !locationGetters.locationIsViameFolder"
+    v-model="locationStore.selected"
+    :selectable="!getters.locationIsViameFolder"
+    :new-folder-enabled="
+      !locationStore.selected.length && !getters.locationIsViameFolder
+    "
     :location.sync="location"
   >
     <template #headerwidget>
