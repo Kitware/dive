@@ -34,7 +34,7 @@ services:
       - "8010:80"
 
   rabbit:
-    image: rabbitmq:management
+    image: rabbitmq:3.8-management
     ports:
       - "5672:5672"
       - "15672:15672"

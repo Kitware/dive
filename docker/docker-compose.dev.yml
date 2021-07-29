@@ -25,5 +25,5 @@ services:
       - ../server:/home/viame_girder
 
   mc:
-    image: mongo
+    image: mongo:latest
     command: ["mongo", "mongodb://mongo:27017/girder"]
