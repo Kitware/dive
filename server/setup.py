@@ -20,7 +20,6 @@ requirements = [
 ]
 
 dev_requirements = [
-    "pysnooper",  # required for girder dev mode
     "pytest",
     "tox",
 ]
