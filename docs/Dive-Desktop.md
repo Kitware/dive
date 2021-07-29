@@ -126,7 +126,7 @@ See [Importing images and video above](#importing-images-videos).
 
 > ffmpeg not installed, please download and install VIAME Toolkit from the main page
 
-DIVE Desktop relies on an installtion of `ffmpeg` for transcoding videos and some images.  This tool comes with the VIAME installtion.  Verify your VIAME Install Base Path is correct.
+DIVE Desktop relies on an installation of `ffmpeg` for transcoding videos and some images.  This tool comes with the VIAME installation.  Verify your VIAME Install Base Path is correct.
 
 > Some VIAME canned pipelines are missing?
 
