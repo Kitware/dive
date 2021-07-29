@@ -15,7 +15,7 @@ Choose an **asset** from the list matching your operating system:
 | Windows  | .exe      | Portable executable (recommended) |
 | Windows  | .msi      | Installer file |
 | MacOS    | .dmg      | MacOS DiskImage (Intel only, M1 not supported) |
-| Linux    | . AppImage | Portable executable for all Linux platforms (recommended) |
+| Linux    | .AppImage | Portable executable for all Linux platforms (recommended) |
 | Linux    | .snap     | Ubuntu SnapCraft package |
 
 ### Full VIAME Desktop Installation
@@ -67,7 +67,7 @@ A typical data storage directory has 3 subfolders:
 
 Here's an example of structure you might find in the storage path.
 
-```text
+``` text
 VIAME_DATA
 ├── DIVE_Jobs
 │  ├── Scallop_1_scallop and flatfish_06-01-2021_11-02-11.585
