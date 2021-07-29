@@ -132,6 +132,10 @@ DIVE Desktop relies on an installation of `ffmpeg` for transcoding videos and so
 
 If you don't see some pipelines you expect, you may not have installed the addons (also called Optional Patches) yet.  Download and install these based on the [VIAME installation docs](https://github.com/viame/VIAME#installations).  
 
-> Other issues
+> Advanced troubleshooting
 
 If you're experience problems or have questions about DIVE Desktop, [contact us](index.md#get-help) and include the content from the settings page such as `Build Version` as well as your currently installed VIAME version.
+
+To help us address errors and exceptions, it's helpful to look in the debug console.  Press `CTRL + SHIFT + i` to launch the Dev Tools and look under the console tab.  Errors and warnings will appear in red and yellow.  You can right-click in the console area and click "Save As" to save the log file to email to us.
+
+![Debugging Desktop](images/General/desktop-debug.png)
