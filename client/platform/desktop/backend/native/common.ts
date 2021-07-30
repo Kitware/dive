@@ -733,23 +733,82 @@ async function beginMediaImport(
   };
 }
 
+async function annotationImport(
+  settings: Settings,
+  id: string,
+  annotationPath: string,
+  allowEmpty = true,
+) {
+  const projectInfo = getProjectDir(settings, id);
+  const validatedInfo = await getValidatedProjectDir(settings, id);
+  // If it is a json file we need to make sure it has the proper name
+  if (JsonTrackFileName.test(npath.basename(annotationPath))) {
+    const statResult = await fs.stat(annotationPath);
+    if (statResult.isFile()) {
+      const release = await _acquireLock(projectInfo.basePath, projectInfo.basePath, 'tracks');
+      try {
+        await fs.move(
+          validatedInfo.trackFileAbsPath,
+          npath.join(
+            validatedInfo.auxDirAbsPath,
+            npath.basename(validatedInfo.trackFileAbsPath),
+          ),
+        );
+      } catch (err) {
+        // Some part of the project dir didn't exist
+        if (!allowEmpty) throw err;
+      }
+      const time = moment().format('MM-DD-YYYY_hh-mm-ss.SSS');
+      const newFileName = `result_${time}.json`;
+
+      const newPath = npath.join(projectInfo.basePath, npath.basename(newFileName));
+      await fs.copy(
+        annotationPath,
+        newPath,
+      );
+      await release();
+      return true;
+    }
+    return false;
+  }
+  // If not a JSON we do a process for the CSV
+  const newPath = npath.join(projectInfo.basePath, npath.basename(annotationPath));
+  await fs.copy(
+    annotationPath,
+    newPath,
+  );
+  const results = await processOtherAnnotationFiles(settings, id, [newPath]);
+  if (results.processedFiles.length) {
+    return true;
+  }
+  return false;
+}
+
 async function _importTrackFile(
   settings: Settings,
   dsId: string,
   projectDirAbsPath: string,
   jsonMeta: JsonMeta,
+  userTrackFileAbsPath?: string | null,
 ) {
   /* Look for JSON track file as first priority */
   let foundDetections = false;
-  const trackFileAbsPath = await _findJsonTrackFile(jsonMeta.originalBasePath);
-  if (trackFileAbsPath !== null) {
+  const foundTrackFileAbsPath = await _findJsonTrackFile(jsonMeta.originalBasePath);
+  const trackFileAbsPath = userTrackFileAbsPath !== undefined
+    ? userTrackFileAbsPath : foundTrackFileAbsPath;
+  if (trackFileAbsPath !== null && !CsvFileName.test(trackFileAbsPath)) {
     /* Move the track file into the new project directory */
+    const time = moment().format('MM-DD-YYYY_hh-mm-ss.SSS');
+    const newFileName = `result_${time}.json`;
+
+    const newPath = npath.join(projectDirAbsPath, npath.basename(newFileName));
+
     await fs.copy(
       trackFileAbsPath,
-      npath.join(projectDirAbsPath, npath.basename(trackFileAbsPath)),
+      newPath,
     );
     //Load tracks to generate attributes
-    const tracks = await loadJsonTracks(trackFileAbsPath);
+    const tracks = await loadJsonTracks(newPath);
     const { attributes } = processTrackAttributes(Object.values(tracks));
     // eslint-disable-next-line no-param-reassign
     if (attributes) jsonMeta.attributes = attributes;
@@ -758,13 +817,17 @@ async function _importTrackFile(
   /* Look for other types of annotation files as a second priority */
   if (!foundDetections) {
     const contents = await fs.readdir(jsonMeta.originalBasePath);
-    const csvFileCandidates = contents
+    let csvFileCandidates = contents
       .filter((v) => CsvFileName.test(v))
       .map((filename) => npath.join(jsonMeta.originalBasePath, filename));
+
+    if (userTrackFileAbsPath && CsvFileName.test(userTrackFileAbsPath)) {
+      csvFileCandidates = [userTrackFileAbsPath];
+    }
     const { fps, processedFiles, attributes } = await processOtherAnnotationFiles(
       settings, dsId, csvFileCandidates,
     );
-    // eslint-disable-next-line no-param-reassign
+      // eslint-disable-next-line no-param-reassign
     if (fps) jsonMeta.fps = fps;
     // eslint-disable-next-line no-param-reassign
     if (attributes) jsonMeta.attributes = attributes;
@@ -873,7 +936,9 @@ async function finalizeMediaImport(
       await _importTrackFile(settings, jsonClone.id, cameraDirAbsPath, jsonClone);
     }
   }
-  const finalJsonMeta = await _importTrackFile(settings, dsId, projectDirAbsPath, jsonMeta);
+  const finalJsonMeta = await _importTrackFile(
+    settings, dsId, projectDirAbsPath, jsonMeta, args.trackFileAbsPath,
+  );
   return finalJsonMeta;
 }
 
@@ -903,57 +968,6 @@ async function exportDataset(settings: Settings, args: ExportDatasetArgs) {
     excludeBelowThreshold: args.exclude,
     header: true,
   });
-}
-
-async function annotationImport(
-  settings: Settings,
-  id: string,
-  annotationPath: string,
-  allowEmpty = true,
-) {
-  const projectInfo = getProjectDir(settings, id);
-  const validatedInfo = await getValidatedProjectDir(settings, id);
-  // If it is a json file we need to make sure it has the proper name
-  if (JsonTrackFileName.test(npath.basename(annotationPath))) {
-    const statResult = await fs.stat(annotationPath);
-    if (statResult.isFile()) {
-      const release = await _acquireLock(projectInfo.basePath, projectInfo.basePath, 'tracks');
-      try {
-        await fs.move(
-          validatedInfo.trackFileAbsPath,
-          npath.join(
-            validatedInfo.auxDirAbsPath,
-            npath.basename(validatedInfo.trackFileAbsPath),
-          ),
-        );
-      } catch (err) {
-        // Some part of the project dir didn't exist
-        if (!allowEmpty) throw err;
-      }
-      const time = moment().format('MM-DD-YYYY_hh-mm-ss.SSS');
-      const newFileName = `result_${time}.json`;
-
-      const newPath = npath.join(projectInfo.basePath, npath.basename(newFileName));
-      await fs.copy(
-        annotationPath,
-        newPath,
-      );
-      await release();
-      return true;
-    }
-    return false;
-  }
-  // If not a JSON we do a process for the CSV
-  const newPath = npath.join(projectInfo.basePath, npath.basename(annotationPath));
-  await fs.copy(
-    annotationPath,
-    newPath,
-  );
-  const results = await processOtherAnnotationFiles(settings, id, [newPath]);
-  if (results.processedFiles.length) {
-    return true;
-  }
-  return false;
 }
 
 export {

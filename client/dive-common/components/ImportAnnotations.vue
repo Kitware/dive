@@ -1,7 +1,8 @@
 <script lang="ts">
-import { defineComponent } from '@vue/composition-api';
+import { defineComponent, ref } from '@vue/composition-api';
 import { useApi } from 'dive-common/apispec';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
+import { stubFalse } from 'lodash';
 import { useHandler } from 'vue-media-annotator/provides';
 
 export default defineComponent({
@@ -28,17 +29,20 @@ export default defineComponent({
     const { openFromDisk, importAnnotationFile } = useApi();
     const { reloadAnnotations } = useHandler();
     const { prompt } = usePrompt();
+    const processing = ref(false);
     const openUpload = async () => {
       const ret = await openFromDisk('annotation');
       if (!ret.canceled) {
         const path = ret.filePaths[0];
         let importFile = false;
+        processing.value = true;
         if (ret.fileList?.length) {
           importFile = await importAnnotationFile(props.datasetId, path, ret.fileList[0]);
         } else {
           importFile = await importAnnotationFile(props.datasetId, path);
         }
         if (importFile) {
+          processing.value = false;
           await reloadAnnotations();
         } else {
           const text = `Import of File ${path} failed`;
@@ -52,6 +56,7 @@ export default defineComponent({
     };
     return {
       openUpload,
+      processing,
     };
   },
 });
@@ -64,18 +69,23 @@ export default defineComponent({
         class="ma-0"
         v-bind="buttonOptions"
         :disabled="!datasetId"
+        :color=" processing ? 'warning': ''"
         @click="openUpload"
         v-on="on"
       >
-        <v-icon>
-          mdi-application-import
-        </v-icon>
-        <span
-          v-show="!$vuetify.breakpoint.mdAndDown || buttonOptions.block"
-          class="pl-1"
-        >
-          Import
-        </span>
+        <div>
+          <v-icon
+            :color=" processing ? 'warning': ''"
+          >
+            {{ processing ? 'mdi-spin mdi-sync' : 'mdi-application-import' }}
+          </v-icon>
+          <span
+            v-show="!$vuetify.breakpoint.mdAndDown || buttonOptions.block"
+            class="pl-1"
+          >
+            Import
+          </span>
+        </div>
       </v-btn>
     </template>
     <span> Import Annotation Data </span>
