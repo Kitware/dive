@@ -67,9 +67,12 @@ export default defineComponent({
       default: false,
     },
   },
-  setup(props) {
+  setup(props, ctx) {
     const { prompt } = usePrompt();
     const loadError = ref('');
+    const currentId = ref(props.id);
+    const multiCamList: Ref<string[]> = ref([]);
+    const defaultCamera: Ref<string> = ref('');
     const playbackComponent = ref(undefined as Vue | undefined);
     const mediaController = computed(() => {
       if (playbackComponent.value) {
@@ -273,7 +276,7 @@ export default defineComponent({
     }
 
     function saveThreshold() {
-      saveMetadata(props.id, {
+      saveMetadata(currentId.value, {
         confidenceFilters: confidenceFilters.value,
       });
     }
@@ -302,7 +305,7 @@ export default defineComponent({
     /** Trigger data load */
     const loadData = () => (
       Promise.all([
-        loadMetadata(props.id).then((meta) => {
+        loadMetadata(currentId.value).then((meta) => {
           populateTypeStyles(meta.customTypeStyling);
           if (meta.customTypeStyling) {
             importTypes(Object.keys(meta.customTypeStyling), false);
@@ -319,8 +322,18 @@ export default defineComponent({
           imageData.value = cloneDeep(meta.imageData) as FrameImage[];
           videoUrl.value = meta.videoUrl;
           datasetType.value = meta.type as DatasetType;
+          const defaultCameraMeta = meta.multiCamMedia?.cameras[meta.multiCamMedia.defaultDisplay];
+          const cameras = meta.multiCamMedia?.cameras;
+          if (defaultCameraMeta && cameras && meta.multiCamMedia) {
+            multiCamList.value = Object.keys(cameras).concat(['MultiCam Base']);
+            defaultCamera.value = 'MultiCam Base';
+            imageData.value = cloneDeep(defaultCameraMeta.imageData) as FrameImage[];
+            videoUrl.value = defaultCameraMeta.videoUrl;
+            datasetType.value = defaultCameraMeta.type;
+            currentId.value = `${props.id}`;
+          }
         }),
-        loadDetections(props.id).then(async (trackData) => {
+        loadDetections(currentId.value).then(async (trackData) => {
           const tracks = Object.values(trackData);
           progress.total = tracks.length;
           for (let i = 0; i < tracks.length; i += 1) {
@@ -358,6 +371,19 @@ export default defineComponent({
       await loadData();
     };
 
+    const changeCamera = async (camera: string) => {
+      if (camera !== 'MultiCam Base') {
+        currentId.value = `${props.id}/${camera}`;
+      } else {
+        currentId.value = props.id;
+      }
+      clearAllTracks();
+      progress.loaded = false;
+      ctx.emit('updateId', currentId.value);
+      await reloadAnnotations();
+    };
+
+
     const globalHandler = {
       ...handler,
       save,
@@ -377,7 +403,7 @@ export default defineComponent({
       {
         attributes,
         allTypes,
-        datasetId: ref(props.id),
+        datasetId: currentId,
         usedTypes,
         checkedTrackIds,
         checkedTypes,
@@ -437,6 +463,10 @@ export default defineComponent({
       updateTypeName,
       removeTypeTracks,
       importTypes,
+      // multicam
+      multiCamList,
+      defaultCamera,
+      changeCamera,
       // For Navigation Guarding
       navigateAwayGuard,
       warnBrowserExit,
@@ -454,6 +484,18 @@ export default defineComponent({
       >
         {{ datasetName }}
       </span>
+      <div
+        v-if="multiCamList.length"
+        class="px-2 mt-6"
+      >
+        <v-select
+          :value="defaultCamera"
+          :items="multiCamList"
+          label="Camera"
+          @change="changeCamera"
+        />
+      </div>
+
       <v-spacer />
 
       <template #extension>

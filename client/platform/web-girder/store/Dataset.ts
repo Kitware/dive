@@ -79,11 +79,21 @@ const datasetModule: Module<DatasetState, RootState> = {
       } else {
         throw new Error(`Unable to load media for dataset type: ${dsMeta.type}`);
       }
+      let multiCamMedia = null;
+      if (dsMeta.meta.multiCamMedia) {
+        multiCamMedia = dsMeta.meta.multiCamMedia;
+      }
+      let subType = null;
+      if (dsMeta.meta.subType) {
+        subType = dsMeta.meta.subType;
+      }
       // These aren't part of the native girder meta, must derive them
       const meta: GirderMetadata = {
         ...dsMeta,
         videoUrl,
         imageData,
+        multiCamMedia,
+        subType,
       };
       commit('set', { dataset: meta });
       commit('Location/setLocation', {

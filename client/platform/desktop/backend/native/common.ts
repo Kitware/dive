@@ -195,7 +195,7 @@ async function loadMetadata(
   let videoUrl = '';
   let imageData = [] as FrameImage[];
   let multiCamMedia: MultiCamMedia | null = null;
-  let { type } = projectMetaData;
+  const { subType } = projectMetaData;
   /* Generate URLs against embedded media server from known file paths on disk */
   if (projectMetaData.type === 'multi') {
     // Returns the type of the defaultDisplay for the multicam
@@ -209,7 +209,6 @@ async function loadMetadata(
     const defaultDisplay = multiCamMedia.cameras[multiCamMedia.defaultDisplay];
     imageData = defaultDisplay.imageData;
     videoUrl = defaultDisplay.videoUrl;
-    type = defaultDisplay.type;
   } else if (projectMetaData.type === 'video') {
     /* If the video has been transcoded, use that video */
     if (projectMetaData.transcodedVideoFile) {
@@ -235,11 +234,12 @@ async function loadMetadata(
     throw new Error(`unexpected project type for id="${datasetId}" type="${projectMetaData.type}"`);
   }
   // Redirecting type to image-sequence or video for multi camera types
-  projectMetaData.type = type;
   return {
     ...projectMetaData,
     videoUrl,
     imageData,
+    multiCamMedia,
+    subType,
   };
 }
 

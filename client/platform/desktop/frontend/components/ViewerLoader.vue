@@ -39,15 +39,22 @@ export default defineComponent({
   },
   setup(props) {
     const viewerRef = ref();
-    const subTypeList = computed(() => [datasets.value[props.id]?.subType || null]);
+    const currentId = ref(props.id);
+    const subTypeList = computed(() => [datasets.value[currentId.value]?.subType || null]);
     const readonlyMode = computed(() => settings.value?.readonlyMode || false);
+    const updateId = (id: string) => {
+      currentId.value = id;
+    };
+
     return {
+      currentId,
       datasets,
       viewerRef,
       buttonOptions,
       menuOptions,
       subTypeList,
       readonlyMode,
+      updateId,
     };
   },
 });
@@ -57,6 +64,7 @@ export default defineComponent({
   <Viewer
     ref="viewerRef"
     v-bind="{ id, readonlyMode }"
+    @updateId="updateId"
   >
     <template #title>
       <v-tabs
@@ -79,18 +87,18 @@ export default defineComponent({
     </template>
     <template #title-right>
       <RunPipelineMenu
-        :selected-dataset-ids="[id]"
+        :selected-dataset-ids="[currentId]"
         :sub-type-list="subTypeList"
         v-bind="{ buttonOptions, menuOptions }"
       />
       <ImportAnnotations
-        :dataset-id="id"
+        :dataset-id="currentId"
         v-bind="{ buttonOptions, menuOptions }"
         block-on-unsaved
       />
       <Export
         v-if="datasets[id]"
-        :id="id"
+        :id="currentId"
         :button-options="buttonOptions"
       />
     </template>
