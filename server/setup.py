@@ -5,6 +5,7 @@ from setuptools import find_packages, setup
 
 requirements = [
     "cheroot>=8.4.5",  # https://github.com/cherrypy/cheroot/issues/312
+    "click",
     "girder==3.1.5.dev8",
     "diva-boiler",
     "girder_jobs==3.0.3",
@@ -20,6 +21,8 @@ requirements = [
 ]
 
 dev_requirements = [
+    "numpy",
+    "opencv-python",
     "pytest",
     "tox",
 ]
@@ -49,6 +52,7 @@ setup(
     },
     zip_safe=False,
     entry_points={
+        "console_scripts": ["dive=scripts.entrypoint_dev:cli"],
         "girder.plugin": [
             "dive_server = dive_server:GirderPlugin",
             "bucket_notifications = bucket_notifications:GirderPlugin",
