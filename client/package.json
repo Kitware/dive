@@ -5,8 +5,9 @@
     "name": "Kitware, Inc.",
     "email": "viame-web@kitware.com"
   },
+  "repository": "https://github.com/Kitware/dive",
   "description": "DIVE annotation platform",
-  "homepage": "https://github.com/Kitware/dive",
+  "homepage": "https://kitware.github.io/dive",
   "license": "Apache-2.0",
   "scripts": {
     "serve": "vue-cli-service serve platform/web-girder/main.ts",

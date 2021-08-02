@@ -1,4 +1,5 @@
 import Vue from 'vue';
+import { ipcRenderer } from 'electron';
 import Install, { ref, computed } from '@vue/composition-api';
 import { JsonMeta } from 'platform/desktop/constants';
 import { DatasetType, SubType } from 'dive-common/apispec';
@@ -45,6 +46,15 @@ const datasets = ref({} as Record<string, JsonMetaCache>);
 
 const recents = computed(() => (Object.values(datasets.value)));
 
+async function autoDiscover() {
+  datasets.value = {};
+  /* Nothing came from localStorage, try to populate from autodiscovery */
+  const discovered: JsonMeta[] = await ipcRenderer.invoke('autodiscover-data');
+  discovered.forEach((d) => {
+    Vue.set(datasets.value, d.id, hydrateJsonMetaCacheValue(d));
+  });
+}
+
 /**
  * Load recent datasets from localstorage.
  *
@@ -52,21 +62,24 @@ const recents = computed(() => (Object.values(datasets.value)));
  * The real dataset JsonMeta must be loaded from disk through the
  * loadMetadata() backend method.
  */
-function load(): JsonMetaCache[] {
+async function load() {
+  let loaded = [];
   try {
     const arr = window.localStorage.getItem(RecentsKey);
     if (arr) {
       const maybeArr = JSON.parse(arr);
-      if (maybeArr.length) {
+      if (maybeArr.length) { // verify maybeArr is an array
         maybeArr.forEach((meta: JsonMetaCache) => (
           Vue.set(datasets.value, meta.id, hydrateJsonMetaCacheValue(meta))
         ));
-        return maybeArr;
+        loaded = maybeArr;
       }
     }
-    return [];
   } catch (err) {
     throw new Error(`could not load meta from localstorage: ${err}`);
+  }
+  if (loaded.length === 0) {
+    autoDiscover();
   }
 }
 
@@ -115,6 +128,7 @@ function clearRecents() {
 export {
   datasets,
   recents,
+  autoDiscover,
   load,
   locateDuplicates,
   setRecents,

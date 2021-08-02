@@ -1,5 +1,5 @@
 import {
-  app, protocol, screen, BrowserWindow,
+  app, protocol, screen, BrowserWindow, session,
 } from 'electron';
 import { createProtocol } from 'vue-cli-plugin-electron-builder/lib';
 import installExtension, { VUEJS_DEVTOOLS } from 'electron-devtools-installer';
@@ -44,6 +44,9 @@ async function createWindow() {
       nodeIntegration: (!!process.env.ELECTRON_NODE_INTEGRATION),
       plugins: true,
       enableRemoteModule: true,
+      // Fix session such that every instance of the applicaton loads
+      // the same session i.e.localStorage
+      session: session.fromPartition('persist:dive'),
     },
   });
 

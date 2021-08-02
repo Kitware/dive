@@ -249,6 +249,29 @@ async function loadDetections(settings: Settings, datasetId: string) {
 }
 
 /**
+ * Look through DIVE project path, find subfolders that
+ * look like datasets, and return them.
+ */
+async function autodiscoverData(settings: Settings): Promise<JsonMeta[]> {
+  const dspath = npath.join(settings.dataPath, ProjectsFolderName);
+  const dsids = await fs.readdir(dspath);
+  const metas: JsonMeta[] = [];
+  /* eslint-disable no-await-in-loop,no-continue */
+  for (let i = 0; i < dsids.length; i += 1) {
+    const datasetId = dsids[i];
+    try {
+      const projectDirData = await getValidatedProjectDir(settings, datasetId);
+      const metadata = await loadJsonMetadata(projectDirData.metaFileAbsPath);
+      metas.push(metadata);
+    } catch {
+      // noop, dataset was invalid
+    }
+  }
+  /* eslint-enable */
+  return metas;
+}
+
+/**
  * Get all runnable pipelines
  * @param settings app settings
  */
@@ -959,6 +982,7 @@ async function annotationImport(
 export {
   ProjectsFolderName,
   JobsFolderName,
+  autodiscoverData,
   beginMediaImport,
   deleteDataset,
   checkDataset,
