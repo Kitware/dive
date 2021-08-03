@@ -3,6 +3,7 @@ import { ipcRenderer } from 'electron';
 import Install, { ref, computed } from '@vue/composition-api';
 import { JsonMeta } from 'platform/desktop/constants';
 import { DatasetType, SubType } from 'dive-common/apispec';
+import { initializedSettings } from './settings';
 
 const RecentsKey = 'desktop.recent';
 
@@ -46,13 +47,31 @@ const datasets = ref({} as Record<string, JsonMetaCache>);
 
 const recents = computed(() => (Object.values(datasets.value)));
 
+function setRecents(meta: JsonMeta, accessTime?: string) {
+  Vue.set(datasets.value, meta.id, {
+    version: meta.version,
+    type: meta.type,
+    id: meta.id,
+    fps: meta.fps,
+    name: meta.name,
+    createdAt: meta.createdAt,
+    accessedAt: accessTime || meta.createdAt,
+    originalBasePath: meta.originalBasePath,
+    originalVideoFile: meta.originalVideoFile,
+    transcodedVideoFile: meta.transcodedVideoFile,
+    subType: meta.subType,
+  } as JsonMetaCache);
+  const values = Object.values(datasets.value);
+  window.localStorage.setItem(RecentsKey, JSON.stringify(values));
+}
+
 async function autoDiscover() {
   datasets.value = {};
+  /* Make sure settings are ready on backend */
+  await initializedSettings;
   /* Nothing came from localStorage, try to populate from autodiscovery */
   const discovered: JsonMeta[] = await ipcRenderer.invoke('autodiscover-data');
-  discovered.forEach((d) => {
-    Vue.set(datasets.value, d.id, hydrateJsonMetaCacheValue(d));
-  });
+  discovered.forEach((d) => setRecents(d));
 }
 
 /**
@@ -98,24 +117,6 @@ function removeRecents(datasetId: string) {
   if (datasets.value[datasetId]) {
     Vue.delete(datasets.value, datasetId);
   }
-  const values = Object.values(datasets.value);
-  window.localStorage.setItem(RecentsKey, JSON.stringify(values));
-}
-
-function setRecents(meta: JsonMeta, accessTime?: string) {
-  Vue.set(datasets.value, meta.id, {
-    version: meta.version,
-    type: meta.type,
-    id: meta.id,
-    fps: meta.fps,
-    name: meta.name,
-    createdAt: meta.createdAt,
-    accessedAt: accessTime || meta.createdAt,
-    originalBasePath: meta.originalBasePath,
-    originalVideoFile: meta.originalVideoFile,
-    transcodedVideoFile: meta.transcodedVideoFile,
-    subType: meta.subType,
-  } as JsonMetaCache);
   const values = Object.values(datasets.value);
   window.localStorage.setItem(RecentsKey, JSON.stringify(values));
 }

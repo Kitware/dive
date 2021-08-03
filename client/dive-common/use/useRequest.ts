@@ -1,8 +1,9 @@
 import { ref } from '@vue/composition-api';
 
 export default function useRequest() {
-  const loading = ref(false);
-  const error = ref(null);
+  const loading = ref(false); // indicates request in progres
+  const error = ref(null); // indicates request failure
+  const count = ref(0); // indicates number of successful calls
 
   async function request<T>(func: () => Promise<T>) {
     try {
@@ -10,6 +11,7 @@ export default function useRequest() {
       error.value = null;
       const val = await func();
       loading.value = false;
+      count.value += 1;
       return val;
     } catch (err) {
       loading.value = false;
@@ -19,6 +21,7 @@ export default function useRequest() {
   }
 
   return {
+    count,
     loading,
     error,
     request,

@@ -35,8 +35,8 @@ export default defineComponent({
     const viameOverride = computed(() => settings.value?.overrides?.viamePath);
     const readonlyMode = computed(() => settings.value?.readonlyMode);
     const pendingChanges = computed(() => isEqual(localSettings.value, settings.value));
-    const { request: _syncRequest, loading: autodiscoverLoading } = useRequest();
-    const doAutodiscover = () => _syncRequest(autoDiscover);
+    const autoDiscoverState = useRequest();
+    const doAutodiscover = () => autoDiscoverState.request(autoDiscover);
 
     onBeforeMount(async () => {
       settingsAreValid.value = await validateSettings(localSettings.value);
@@ -70,7 +70,7 @@ export default defineComponent({
     return {
       appversion,
       arch,
-      autodiscoverLoading,
+      autoDiscoverState,
       gitHash,
       platform,
       settings,
@@ -263,10 +263,21 @@ export default defineComponent({
           text
           outlined
           class="mx-4"
+          :disabled="autoDiscoverState.loading.value"
           @click="doAutodiscover"
         >
-          <v-icon class="pr-2">
-            mdi-sync {{ autodiscoverLoading ? 'mdi-spin' : '' }}
+          <v-icon
+            v-if="autoDiscoverState.loading.value || autoDiscoverState.count.value === 0"
+            class="pr-2"
+          >
+            mdi-sync {{ autoDiscoverState.loading.value ? 'mdi-spin' : '' }}
+          </v-icon>
+          <v-icon
+            v-else-if="autoDiscoverState.count.value > 0"
+            color="success"
+            class="pr-2"
+          >
+            mdi-check-circle
           </v-icon>
           Sync recents with Project Data
         </v-btn>

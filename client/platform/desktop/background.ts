@@ -34,7 +34,7 @@ async function createWindow() {
   // Create the browser window.
   win = new BrowserWindow({
     width: Math.min(size.width, 1300),
-    height: Math.min(size.height - 200, 900),
+    height: Math.min(size.height - 200, 960),
     autoHideMenuBar: true,
     title: 'VIAME DIVE Desktop',
     webPreferences: {
