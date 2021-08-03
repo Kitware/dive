@@ -18,7 +18,9 @@ import * as api from '../api';
 import {
   JsonMetaCache, recents, removeRecents, setRecents,
 } from '../store/dataset';
-import { upgradedVersion, downgradedVersion, acknowledgeVersion } from '../store/settings';
+import {
+  upgradedVersion, downgradedVersion, acknowledgeVersion, knownVersion,
+} from '../store/settings';
 import { setOrGetConversionJob } from '../store/jobs';
 import BrowserLink from './BrowserLink.vue';
 import NavigationBar from './NavigationBar.vue';
@@ -205,6 +207,7 @@ export default defineComponent({
       headers,
       upgradedVersion,
       downgradedVersion,
+      knownVersion,
     };
   },
 });
@@ -263,7 +266,8 @@ export default defineComponent({
           <h3>
             Downgrade detected
           </h3>
-          You're using {{ downgradedVersion }}, but  a newer version has been launched before.
+          You're using {{ downgradedVersion }}, but a newer version
+          {{ knownVersion }} has been launched before.  Downgrading is not recommended.
         </v-alert>
         <v-row>
           <v-col

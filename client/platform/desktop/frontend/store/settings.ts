@@ -13,7 +13,7 @@ const VersionKey = 'desktop.currentVersion';
 
 const settings = ref(null as Settings | null);
 const currentVersion = remote.app.getVersion();
-const knownVersion = ref(null as string | null);
+const knownVersion = ref(window.localStorage.getItem(VersionKey));
 
 /**
  * upgradedVersion indicates that the currently launched instance
@@ -21,6 +21,10 @@ const knownVersion = ref(null as string | null);
  */
 const upgradedVersion = computed(() => {
   const known = knownVersion.value;
+  if (known === null) {
+    // all versions are greater than null
+    return currentVersion;
+  }
   if (known && semver.gt(currentVersion, known)) {
     return currentVersion;
   }
@@ -94,13 +98,6 @@ async function init() {
   }
   settings.value = settingsValue;
   ipcRenderer.send('update-settings', settings.value);
-
-  /* Populate last acknowledged version */
-  const lastKnownVersion = window.localStorage.getItem(VersionKey);
-  if (lastKnownVersion !== null) {
-    knownVersion.value = lastKnownVersion;
-  }
-
   return settings.value;
 }
 
@@ -123,6 +120,7 @@ export {
   initializedSettings,
   upgradedVersion,
   downgradedVersion,
+  knownVersion,
   acknowledgeVersion,
   updateSettings,
   validateSettings,
