@@ -1,15 +1,43 @@
 import Vue from 'vue';
-import Install, { ref } from '@vue/composition-api';
-import { ipcRenderer } from 'electron';
+import Install, { ref, computed } from '@vue/composition-api';
+import { ipcRenderer, remote } from 'electron';
 import { Settings } from 'platform/desktop/constants';
 import { cloneDeep } from 'lodash';
+import * as semver from 'semver';
 
 // TODO remove this: this won't be necessary in Vue 3
 Vue.use(Install);
 
 const SettingsKey = 'desktop.settings';
+const VersionKey = 'desktop.currentVersion';
 
 const settings = ref(null as Settings | null);
+const currentVersion = remote.app.getVersion();
+const knownVersion = ref(null as string | null);
+
+/**
+ * upgradedVersion indicates that the currently launched instance
+ * is an upgrade since the last time the user acknowledged an instnace of dive.
+ */
+const upgradedVersion = computed(() => {
+  const known = knownVersion.value;
+  if (known && semver.gt(currentVersion, known)) {
+    return currentVersion;
+  }
+  return null;
+});
+
+/**
+ * downgradedVersion indicates that the currently launched instance
+ * is a downgrade of a previously acknowledged instance of dive.
+ */
+const downgradedVersion = computed(() => {
+  const known = knownVersion.value;
+  if (known && semver.lt(currentVersion, known)) {
+    return currentVersion;
+  }
+  return null;
+});
 
 function getDefaultSettings(): Promise<Settings> {
   return ipcRenderer.invoke('default-settings');
@@ -66,6 +94,13 @@ async function init() {
   }
   settings.value = settingsValue;
   ipcRenderer.send('update-settings', settings.value);
+
+  /* Populate last acknowledged version */
+  const lastKnownVersion = window.localStorage.getItem(VersionKey);
+  if (lastKnownVersion !== null) {
+    knownVersion.value = lastKnownVersion;
+  }
+
   return settings.value;
 }
 
@@ -75,12 +110,20 @@ async function updateSettings(s: Settings) {
   settings.value = cloneDeep(s);
 }
 
+async function acknowledgeVersion() {
+  window.localStorage.setItem(VersionKey, currentVersion);
+  knownVersion.value = currentVersion;
+}
+
 // Will be initialized on first import
 const initializedSettings = init();
 
 export {
   settings,
   initializedSettings,
+  upgradedVersion,
+  downgradedVersion,
+  acknowledgeVersion,
   updateSettings,
   validateSettings,
 };
