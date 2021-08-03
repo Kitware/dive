@@ -816,45 +816,47 @@ async function _importTrackFile(
 ) {
   /* Look for JSON track file as first priority */
   let foundDetections = false;
-  const foundTrackFileAbsPath = await _findJsonTrackFile(jsonMeta.originalBasePath);
-  const trackFileAbsPath = userTrackFileAbsPath !== undefined
-    ? userTrackFileAbsPath : foundTrackFileAbsPath;
-  if (trackFileAbsPath !== null && !CsvFileName.test(trackFileAbsPath)) {
+  if (userTrackFileAbsPath !== null) {
+    const foundTrackFileAbsPath = await _findJsonTrackFile(jsonMeta.originalBasePath);
+    const trackFileAbsPath = userTrackFileAbsPath !== undefined
+      ? userTrackFileAbsPath : foundTrackFileAbsPath;
+    if (trackFileAbsPath && !CsvFileName.test(trackFileAbsPath)) {
     /* Move the track file into the new project directory */
-    const time = moment().format('MM-DD-YYYY_hh-mm-ss.SSS');
-    const newFileName = `result_${time}.json`;
+      const time = moment().format('MM-DD-YYYY_hh-mm-ss.SSS');
+      const newFileName = `result_${time}.json`;
 
-    const newPath = npath.join(projectDirAbsPath, npath.basename(newFileName));
+      const newPath = npath.join(projectDirAbsPath, npath.basename(newFileName));
 
-    await fs.copy(
-      trackFileAbsPath,
-      newPath,
-    );
-    //Load tracks to generate attributes
-    const tracks = await loadJsonTracks(newPath);
-    const { attributes } = processTrackAttributes(Object.values(tracks));
-    // eslint-disable-next-line no-param-reassign
-    if (attributes) jsonMeta.attributes = attributes;
-    foundDetections = true;
-  }
-  /* Look for other types of annotation files as a second priority */
-  if (!foundDetections) {
-    const contents = await fs.readdir(jsonMeta.originalBasePath);
-    let csvFileCandidates = contents
-      .filter((v) => CsvFileName.test(v))
-      .map((filename) => npath.join(jsonMeta.originalBasePath, filename));
-
-    if (userTrackFileAbsPath && CsvFileName.test(userTrackFileAbsPath)) {
-      csvFileCandidates = [userTrackFileAbsPath];
-    }
-    const { fps, processedFiles, attributes } = await processOtherAnnotationFiles(
-      settings, dsId, csvFileCandidates,
-    );
+      await fs.copy(
+        trackFileAbsPath,
+        newPath,
+      );
+      //Load tracks to generate attributes
+      const tracks = await loadJsonTracks(newPath);
+      const { attributes } = processTrackAttributes(Object.values(tracks));
       // eslint-disable-next-line no-param-reassign
-    if (fps) jsonMeta.fps = fps;
-    // eslint-disable-next-line no-param-reassign
-    if (attributes) jsonMeta.attributes = attributes;
-    foundDetections = processedFiles.length > 0;
+      if (attributes) jsonMeta.attributes = attributes;
+      foundDetections = true;
+    }
+    /* Look for other types of annotation files as a second priority */
+    if (!foundDetections) {
+      const contents = await fs.readdir(jsonMeta.originalBasePath);
+      let csvFileCandidates = contents
+        .filter((v) => CsvFileName.test(v))
+        .map((filename) => npath.join(jsonMeta.originalBasePath, filename));
+
+      if (userTrackFileAbsPath && CsvFileName.test(userTrackFileAbsPath)) {
+        csvFileCandidates = [userTrackFileAbsPath];
+      }
+      const { fps, processedFiles, attributes } = await processOtherAnnotationFiles(
+        settings, dsId, csvFileCandidates,
+      );
+      // eslint-disable-next-line no-param-reassign
+      if (fps) jsonMeta.fps = fps;
+      // eslint-disable-next-line no-param-reassign
+      if (attributes) jsonMeta.attributes = attributes;
+      foundDetections = processedFiles.length > 0;
+    }
   }
 
   /* custom image sort */
