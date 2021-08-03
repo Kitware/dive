@@ -252,8 +252,16 @@ class Viame(Resource):
             paramType="query",
             required=True,
         )
+        .param(
+            "annotatedFramesOnly",
+            description="Train only using frames with annotations",
+            paramType="query",
+            dataType="boolean",
+            default=False,
+            required=False,
+        )
     )
-    def run_training(self, folderIds, pipelineName, config):
+    def run_training(self, folderIds, pipelineName, config, annotatedFramesOnly):
         user = self.getCurrentUser()
         token = Token().createToken(user=user, days=14)
 
@@ -287,6 +295,7 @@ class Viame(Resource):
                 groundtruth_list=detection_list,
                 pipeline_name=pipelineName,
                 config=config,
+                annotated_frames_only=annotatedFramesOnly,
                 girder_client_token=str(token["_id"]),
                 girder_job_title=(f"Running training on {len(folder_list)} datasets"),
                 girder_job_type="private" if job_is_private else "training",
