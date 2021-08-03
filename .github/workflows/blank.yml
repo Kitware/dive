@@ -9,20 +9,58 @@ jobs:
     defaults:
       run:
         working-directory: client
+    strategy:
+      matrix:
+        target: ['web', 'lib', 'electron']
+
     name: Client Tests
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
-    - uses: actions/setup-node@v1
+    -
+      uses: actions/checkout@v2
+    - 
+      uses: actions/setup-node@v1
       with:
         node-version: '14.x'
-    - run: yarn install --frozen-lockfile
-    - run: yarn lint
-    - run: yarn lint:templates
-    - run: yarn test --collect-coverage
-    - run: yarn build:web
-    - run: yarn build:lib
-    - run: yarn build:electron
+    -
+      name: Get yarn cache directory path
+      id: yarn-cache-dir-path
+      run: echo "::set-output name=dir::$(yarn cache dir)"
+    -
+      uses: actions/cache@v2
+      id: yarn-cache # use this to check for `cache-hit` (`steps.yarn-cache.outputs.cache-hit != 'true'`)
+      with:
+        path: ${{ steps.yarn-cache-dir-path.outputs.dir }}
+        key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-yarn-
+    - 
+      name: Yarn install
+      run: yarn install --frozen-lockfile
+    -
+      name: Lint
+      if: ${{ matrix.target == 'web' }}
+      run: yarn lint
+    -
+      name: Lint templates
+      if: ${{ matrix.target == 'web' }}
+      run: yarn lint:templates
+    - 
+      name: Run tests
+      if: ${{ matrix.target == 'web' }}
+      run: yarn test --collect-coverage
+    -
+      name: Build Web
+      if: ${{ matrix.target == 'web' }}
+      run: yarn build:web
+    - 
+      name: Build lib
+      if: ${{ matrix.target == 'lib' }}
+      run: yarn build:lib
+    -
+      name: Build electron
+      if: ${{ matrix.target == 'electron' }}
+      run: yarn build:electron
 
   test-server:
     defaults:

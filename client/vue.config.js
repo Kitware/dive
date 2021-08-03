@@ -54,7 +54,7 @@ module.exports = {
           main: 'background.js',
         },
         linux: {
-          target: ['AppImage', 'snap', 'tar.gz'],
+          target: ['AppImage', 'tar.gz'],
           // eslint-disable-next-line no-template-curly-in-string
           artifactName: 'DIVE-Desktop-${version}.${ext}',
         },

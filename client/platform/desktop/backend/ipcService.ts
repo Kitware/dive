@@ -46,6 +46,10 @@ export default function register() {
     const ret = await common.exportDataset(settings.get(), args);
     return ret;
   });
+  ipcMain.handle('autodiscover-data', async () => {
+    const ret = await common.autodiscoverData(settings.get());
+    return ret;
+  });
 
   /**
    * Platform-dependent methods
