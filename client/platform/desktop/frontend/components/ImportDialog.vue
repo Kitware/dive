@@ -141,15 +141,19 @@ export default defineComponent({
         v-if="!argCopy.jsonMeta.multiCam"
         class="d-flex my-2 mt-2"
       >
-        <v-text-field
-          :value="argCopy.trackFileAbsPath"
-          show-size
-          counter
-          prepend-icon="mdi-file-table"
-          label="Annotation File (Optional)"
-          hint="Optional"
-          @click="openUpload"
-        />
+        <v-col>
+          <v-text-field
+            :value="argCopy.trackFileAbsPath"
+            outlined
+            clearable
+            prepend-inner-icon="mdi-file-table"
+            label="Annotation File (Optional)"
+            hint="Optional"
+            @click="openUpload"
+            @click:prepend-inner="openUpload"
+            @click:clear="argCopy.trackFileAbsPath=null"
+          />
+        </v-col>
       </v-row>
       <p class="mb-5">
         <span
