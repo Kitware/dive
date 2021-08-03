@@ -68,14 +68,11 @@ export default defineComponent({
         class="ma-0"
         v-bind="buttonOptions"
         :disabled="!datasetId || processing"
-        :color=" processing ? 'warning': ''"
         @click="openUpload"
         v-on="on"
       >
         <div>
-          <v-icon
-            :color=" processing ? 'warning': ''"
-          >
+          <v-icon>
             {{ processing ? 'mdi-spin mdi-sync' : 'mdi-application-import' }}
           </v-icon>
           <span
