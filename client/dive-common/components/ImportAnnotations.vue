@@ -2,7 +2,6 @@
 import { defineComponent, ref } from '@vue/composition-api';
 import { useApi } from 'dive-common/apispec';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
-import { stubFalse } from 'lodash';
 import { useHandler } from 'vue-media-annotator/provides';
 
 export default defineComponent({
@@ -68,7 +67,7 @@ export default defineComponent({
       <v-btn
         class="ma-0"
         v-bind="buttonOptions"
-        :disabled="!datasetId"
+        :disabled="!datasetId || processing"
         :color=" processing ? 'warning': ''"
         @click="openUpload"
         v-on="on"
