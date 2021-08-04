@@ -17,7 +17,6 @@ from pydantic.main import BaseModel
 import pymongo
 from pymongo.cursor import Cursor
 
-from dive_server.serializers import kwcoco, viame
 from dive_utils import asbool, fromMeta, models, strNumericCompare
 from dive_utils.constants import (
     ConfidenceFiltersMarker,
@@ -33,6 +32,7 @@ from dive_utils.constants import (
     jsonRegex,
     safeImageRegex,
 )
+from dive_utils.serializers import kwcoco, viame
 from dive_utils.types import GirderModel
 
 
@@ -131,11 +131,10 @@ def get_track_and_attributes_from_coco(file: GirderModel) -> Tuple[dict, dict, b
     if file is None:
         return {}, {}, False
     if 'json' in file['exts']:
-        with File().open(file) as fh:
-            coco = json.load(fh)
-            if kwcoco.is_coco_json(coco):
-                tracks, attributes = kwcoco.load_coco_as_tracks_and_attributes(coco)
-                return tracks, attributes, True
+        coco = json.loads(b"".join(list(File().download(file, headers=False)())).decode())
+        if kwcoco.is_coco_json(coco):
+            tracks, attributes = kwcoco.load_coco_as_tracks_and_attributes(coco)
+            return tracks, attributes, True
     return {}, {}, False
 
 

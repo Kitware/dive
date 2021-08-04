@@ -20,6 +20,7 @@ export interface StringKeyObject {
 /* Frame feature for both TrackData and Track */
 export interface Feature {
   frame: number;
+  flick?: Readonly<number>;
   interpolate?: boolean;
   keyframe?: boolean;
   bounds?: RectBounds;
@@ -286,6 +287,9 @@ export default class Track {
   toggleKeyframe(frame: number) {
     const { features } = this.canInterpolate(frame);
     const [real, lower, upper] = features;
+    if (real && this.length === 1) {
+      throw new Error(`This is the only keyframe in Track:${this.trackId} it cannot be removed`);
+    }
     if (real && !real.keyframe) {
       this.setFeature({
         ...real,

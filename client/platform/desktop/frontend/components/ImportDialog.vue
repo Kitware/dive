@@ -8,7 +8,6 @@ import { MediaTypes, FPSOptions } from 'dive-common/constants';
 import { filterByGlob } from 'platform/desktop/sharedUtils';
 import { MediaImportPayload } from 'platform/desktop/constants';
 import { locateDuplicates } from 'platform/desktop/frontend/store/dataset';
-import { settings } from 'platform/desktop/frontend/store/settings';
 import { useApi } from 'dive-common/apispec';
 import Vue from 'vue';
 
@@ -59,7 +58,6 @@ export default defineComponent({
       duplicates,
       filteredImages,
       ready,
-      settings,
       showAdvanced,
       MediaTypes,
       FPSOptions,
@@ -95,7 +93,7 @@ export default defineComponent({
           {{ (new Date(duplicate.createdAt)).toLocaleString() }}
         </p>
         <b>Cancel</b>
-        to return to the recents list.
+        to return to the dataset list.
         <br><b>Finish Import</b>
         to ignore the warning and create a new dataset.
       </v-alert>
@@ -143,15 +141,19 @@ export default defineComponent({
         v-if="!argCopy.jsonMeta.multiCam"
         class="d-flex my-2 mt-2"
       >
-        <v-text-field
-          :value="argCopy.trackFileAbsPath"
-          show-size
-          counter
-          prepend-icon="mdi-file-table"
-          label="Annotation File (Optional)"
-          hint="Optional"
-          @click="openUpload"
-        />
+        <v-col>
+          <v-text-field
+            :value="argCopy.trackFileAbsPath"
+            outlined
+            clearable
+            prepend-inner-icon="mdi-file-table"
+            label="Annotation File (Optional)"
+            hint="Optional"
+            @click="openUpload"
+            @click:prepend-inner="openUpload"
+            @click:clear="argCopy.trackFileAbsPath=null"
+          />
+        </v-col>
       </v-row>
       <p class="mb-5">
         <span

@@ -5,6 +5,7 @@ from girder.api.describe import Description, autoDescribeRoute, describeRoute
 from girder.api.rest import Resource
 from girder.constants import AccessType
 from girder.exceptions import RestException
+from girder.models.file import File
 from girder.models.folder import Folder
 from girder.models.item import Item
 from girder.models.setting import Setting
@@ -40,10 +41,10 @@ from dive_utils.constants import (
     videoRegex,
     ymlRegex,
 )
+from dive_utils.serializers import meva
 from dive_utils.types import AvailableJobSchema, PipelineDescription
 
 from .pipelines import load_pipelines, run_pipeline
-from .serializers import meva as meva_serializer
 from .training import ensure_csv_detections_file, training_output_folder
 from .transforms import GetPathFromItemId
 from .utils import (
@@ -282,8 +283,16 @@ class Viame(Resource):
             paramType="query",
             required=True,
         )
+        .param(
+            "annotatedFramesOnly",
+            description="Train only using frames with annotations",
+            paramType="query",
+            dataType="boolean",
+            default=False,
+            required=False,
+        )
     )
-    def run_training(self, folderIds, pipelineName, config):
+    def run_training(self, folderIds, pipelineName, config, annotatedFramesOnly):
         user = self.getCurrentUser()
         token = Token().createToken(user=user, days=14)
 
@@ -317,6 +326,7 @@ class Viame(Resource):
                 groundtruth_list=detection_list,
                 pipeline_name=pipelineName,
                 config=config,
+                annotated_frames_only=annotatedFramesOnly,
                 girder_client_token=str(token["_id"]),
                 girder_job_title=(f"Running training on {len(folder_list)} datasets"),
                 girder_job_type="private" if job_is_private else "training",
@@ -461,8 +471,12 @@ class Viame(Resource):
             ymlItems = Folder().childItems(folder, filters={"lowerName": {"$regex": ymlRegex}})
             if ymlItems.count() > 0:
                 # There might be up to 3 yamls
-                allFiles = [Item().childFiles(item)[0] for item in ymlItems]
-                saveTracks(folder, meva_serializer.load_kpf_as_tracks(allFiles), user)
+                def make_file_generator(item):
+                    file = Item().childFiles(item)[0]
+                    return File().download(file, headers=False)()
+
+                allFiles = [make_file_generator(item) for item in ymlItems]
+                saveTracks(folder, meva.load_kpf_as_tracks(allFiles), user)
                 ymlItems.rewind()
                 for item in ymlItems:
                     Item().move(item, auxiliary)

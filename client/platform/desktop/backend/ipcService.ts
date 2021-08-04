@@ -46,6 +46,10 @@ export default function register() {
     const ret = await common.exportDataset(settings.get(), args);
     return ret;
   });
+  ipcMain.handle('autodiscover-data', async () => {
+    const ret = await common.autodiscoverData(settings.get());
+    return ret;
+  });
 
   /**
    * Platform-dependent methods
@@ -63,6 +67,20 @@ export default function register() {
   ipcMain.handle('import-media', async (event, { path }: { path: string }) => {
     const ret = await common.beginMediaImport(
       settings.get(), path, currentPlatform.checkMedia,
+    );
+    return ret;
+  });
+
+  ipcMain.handle('delete-dataset', async (event, { datasetId }: { datasetId: string }) => {
+    const ret = await common.deleteDataset(
+      settings.get(), datasetId,
+    );
+    return ret;
+  });
+
+  ipcMain.handle('check-dataset', async (event, { datasetId }: { datasetId: string }) => {
+    const ret = await common.checkDataset(
+      settings.get(), datasetId,
     );
     return ret;
   });

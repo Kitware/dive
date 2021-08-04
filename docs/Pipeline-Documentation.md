@@ -68,7 +68,13 @@ Run model training on ground truth annotations.  Currently, training configurati
 * [NetHarn](https://gitlab.kitware.com/computer-vision/netharn) is a pytorch deep learning framework that requires more input data: on the order of thousands of target examples.  There are two architectures used.  Netharn models can take up to several days to train.
     * Cascade Faster R-CNN (cfrnn) for training box detectors
     * Mask R-CNN for training pixel classification and box detection
-    * ResNet (Residual Network) for training full frame or secondary object classifiers 
+    * ResNet (Residual Network) for training full frame or secondary object classifiers
+
+### Options
+
+* Output Name - a recognizeable name for the pipeline that results from the training run.
+* Configuration File - chosen from the options below
+* Use anootation Frames Only - by default, training runs include all frames from the chosen input datasets, and frames without annotations are considered negatives examples.  If you choose to use annotated frames only, frames or images with zero annotations will be discarded.  This option is useful for trying to train on datasets that are only partially annotated.
 
 ### Configurations
 

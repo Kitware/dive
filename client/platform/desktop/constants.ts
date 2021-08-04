@@ -14,6 +14,15 @@ export interface Settings {
   viamePath: string;
   // dataPath path to a userspace data directory
   dataPath: string;
+  // readonly flag
+  readonlyMode: boolean;
+  // overrides of user-provided settings
+  overrides: {
+    // externally force the VIAME path
+    viamePath?: string;
+    // externally force read only mode flag
+    readonlyMode?: boolean;
+  };
 }
 
 // Handles Importing and storing of multi camera data
@@ -130,6 +139,8 @@ export interface RunTraining {
   pipelineName: string;
   // training configuration file name
   trainingConfig: string;
+  // train only on annotated frames
+  annotatedFramesOnly: boolean;
 }
 
 export interface ConversionArgs {

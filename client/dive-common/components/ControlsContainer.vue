@@ -201,6 +201,25 @@ export default defineComponent({
             display-type="time"
           />
         </span>
+        <v-tooltip
+          open-delay="200"
+          bottom
+        >
+          <template #activator="{ on }">
+            <v-icon
+              small
+              class="mx-2"
+              v-on="on"
+            >
+              mdi-information
+            </v-icon>
+          </template>
+          <span>
+            annotation framerate may be downsampled.
+            <br>
+            frame numbers start at zero.
+          </span>
+        </v-tooltip>
       </template>
     </Controls>
     <Timeline

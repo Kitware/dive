@@ -1,12 +1,16 @@
 <script lang="ts">
 import {
-  defineComponent, onBeforeMount, ref,
+  defineComponent, onBeforeMount, ref, computed, set, watch,
 } from '@vue/composition-api';
 
 import { remote } from 'electron';
-import { NvidiaSmiReply } from 'platform/desktop/constants';
 
-import { settings, setSettings, validateSettings } from '../store/settings';
+import { useRequest } from 'dive-common/use';
+import { NvidiaSmiReply } from 'platform/desktop/constants';
+import { cloneDeep, isEqual } from 'lodash';
+
+import { autoDiscover } from '../store/dataset';
+import { settings, updateSettings, validateSettings } from '../store/settings';
 import { nvidiaSmi } from '../api';
 
 import BrowserLink from './BrowserLink.vue';
@@ -18,46 +22,68 @@ export default defineComponent({
     NavigationBar,
   },
   setup() {
+    const { arch, platform, version } = process;
+    const gitHash = process.env.VUE_APP_GIT_HASH;
+    const appversion = remote.app.getVersion();
+
+    // local copy of the global settings
+    const localSettings = ref(cloneDeep(settings.value));
+
     // null values indicate initialization has not completed
     const smi = ref(null as NvidiaSmiReply | null);
-    const localSettings = settings;
-    const { arch, platform, version } = process;
-    const settingsAreValid = ref(true as boolean | string);
-    const gitHash = process.env.VUE_APP_GIT_HASH;
+    const settingsAreValid = ref(false as boolean | string);
+    const viameOverride = computed(() => settings.value?.overrides?.viamePath);
+    const readonlyMode = computed(() => settings.value?.readonlyMode);
+    const pendingChanges = computed(() => isEqual(localSettings.value, settings.value));
+    const autoDiscoverState = useRequest();
+    const doAutodiscover = () => autoDiscoverState.request(autoDiscover);
 
     onBeforeMount(async () => {
       settingsAreValid.value = await validateSettings(localSettings.value);
       smi.value = await nvidiaSmi();
     });
 
+    watch([settings], async () => {
+      localSettings.value = cloneDeep(settings.value);
+      settingsAreValid.value = await validateSettings(localSettings.value);
+    });
+
     async function openPath(name: 'viamePath' | 'dataPath') {
+      const defaultPath = localSettings.value?.[name];
       const result = await remote.dialog.showOpenDialog({
         properties: ['openDirectory'],
-        defaultPath: localSettings.value[name],
+        defaultPath,
       });
-      if (!result.canceled) {
-        [localSettings.value[name]] = result.filePaths;
+      if (!result.canceled && defaultPath !== undefined) {
+        set(localSettings.value, name, result.filePaths[0]);
       }
     }
 
     async function save() {
-      if (settings.value !== null) {
+      if (localSettings.value !== null) {
         settingsAreValid.value = false;
         settingsAreValid.value = await validateSettings(localSettings.value);
-        setSettings(localSettings.value);
+        updateSettings(localSettings.value);
       }
     }
 
     return {
+      appversion,
       arch,
+      autoDiscoverState,
       gitHash,
       platform,
-      save,
+      settings,
       localSettings,
       settingsAreValid,
       smi,
       version,
+      viameOverride,
+      readonlyMode,
+      pendingChanges,
+      doAutodiscover,
       openPath,
+      save,
     };
   },
 });
@@ -67,8 +93,9 @@ export default defineComponent({
   <v-main>
     <navigation-bar />
     <v-container>
-      <v-card>
+      <v-card v-if="localSettings">
         <v-card-title>Settings</v-card-title>
+
         <v-card-text>
           <v-row>
             <v-col cols="9">
@@ -77,15 +104,17 @@ export default defineComponent({
                 label="VIAME Install Base Path"
                 hint="download from https://viametoolkit.com"
                 dense
+                outlined
+                :disabled="!!viameOverride"
                 persistent-hint
               />
             </v-col>
+
             <v-col cols="3">
               <v-btn
-                large
                 block
                 color="primary"
-                class="mb-6"
+                :disabled="!!viameOverride"
                 @click="openPath('viamePath')"
               >
                 Choose
@@ -95,6 +124,7 @@ export default defineComponent({
               </v-btn>
             </v-col>
           </v-row>
+
           <v-row>
             <v-col cols="9">
               <v-text-field
@@ -102,15 +132,15 @@ export default defineComponent({
                 label="Project Data Storage Path"
                 hint="project annotation and metadata goes here."
                 dense
+                outlined
                 persistent-hint
               />
             </v-col>
-            <v-col>
+
+            <v-col class="my-0">
               <v-btn
-                large
                 block
                 color="primary"
-                class="mb-6"
                 @click="openPath('dataPath')"
               >
                 Choose
@@ -120,10 +150,24 @@ export default defineComponent({
               </v-btn>
             </v-col>
           </v-row>
+
+          <v-row>
+            <v-col>
+              <v-switch
+                v-model="localSettings.readonlyMode"
+                color="primary"
+                :label="'Read only mode'"
+                hide-details
+                class="my-0"
+              />
+            </v-col>
+          </v-row>
         </v-card-text>
+
         <v-card-text>
           <v-btn
             color="primary"
+            :disabled="pendingChanges"
             @click="save"
           >
             <v-icon class="mr-2">
@@ -132,11 +176,23 @@ export default defineComponent({
             Save
           </v-btn>
         </v-card-text>
+
         <v-card-title>Platform support</v-card-title>
         <v-card-subtitle>
           Not all checks must pass in order to use this application.
           Warnings are intended to help with debugging.
         </v-card-subtitle>
+
+        <v-alert
+          v-if="!!viameOverride"
+          dense
+          text
+          class="mx-4"
+          :type="'info'"
+        >
+          VIAME install path environment variable detected, locking changes
+        </v-alert>
+
         <v-alert
           dense
           text
@@ -157,6 +213,7 @@ export default defineComponent({
             Could not determine your GPU compatibility: {{ smi.error }}
           </span>
         </v-alert>
+
         <v-alert
           dense
           text
@@ -164,7 +221,7 @@ export default defineComponent({
           :type="settingsAreValid ===
             false ? 'info' : settingsAreValid === true ? 'success' : 'warning'"
         >
-          <span v-if="settingsAreValid === false ">
+          <span v-if="settingsAreValid === false">
             Checking for Kwiver
             <v-progress-linear
               indeterminate
@@ -178,11 +235,67 @@ export default defineComponent({
             Could not initialize kwiver: {{ settingsAreValid }}
           </span>
         </v-alert>
+
+        <v-alert
+          v-if="readonlyMode"
+          dense
+          text
+          class="mx-4"
+          :type="'warning'"
+        >
+          Read only mode is on
+        </v-alert>
+
+        <v-card-title>Synchronize Recents</v-card-title>
+        <v-card-subtitle v-if="settings">
+          Scan project directory (<b><u>{{ settings.dataPath }}</u></b>) to rediscover
+          datasets and update Recents page.  This is useful if you've manually deleted or moved
+          dataset folders around.  DIVE Desktop stores annotation files, metadata, and possibly
+          trancoded copies of your source media here.
+          <browser-link
+            display="inline"
+            href="https://kitware.github.io/dive/Dive-Desktop"
+          >
+            Check the docs for more info about the Project Data Storage Path.
+          </browser-link>
+        </v-card-subtitle>
+        <v-btn
+          text
+          outlined
+          class="mx-4"
+          :disabled="autoDiscoverState.loading.value"
+          @click="doAutodiscover"
+        >
+          <v-icon
+            v-if="autoDiscoverState.loading.value || autoDiscoverState.count.value === 0"
+            class="pr-2"
+          >
+            mdi-sync {{ autoDiscoverState.loading.value ? 'mdi-spin' : '' }}
+          </v-icon>
+          <v-icon
+            v-else-if="autoDiscoverState.count.value > 0"
+            color="success"
+            class="pr-2"
+          >
+            mdi-check-circle
+          </v-icon>
+          Sync recents with Project Data
+        </v-btn>
+
         <v-card-text>
           <div>
-            Build Version:
+            Application Version:
             <browser-link
-              :href="`https://github.com/Kitware/dive`"
+              href="https://github.com/Kitware/dive/releases"
+              display="inline"
+            >
+              {{ appversion }}
+            </browser-link>
+          </div>
+          <div>
+            Build Commit:
+            <browser-link
+              :href="`https://github.com/Kitware/dive/commit/${gitHash}`"
               display="inline"
             >
               {{ gitHash }}

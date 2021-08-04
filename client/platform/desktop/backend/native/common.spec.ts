@@ -72,6 +72,8 @@ const settings: Settings = {
   version: 1,
   dataPath: '/home/user/viamedata',
   viamePath: '/opt/viame',
+  readonlyMode: false,
+  overrides: {},
 };
 const urlMapper = (a: string) => `http://localhost:8888/api/media?path=${a}`;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -211,6 +213,44 @@ mockfs({
         'result_1.json': '',
         'result_2.json': '',
         auxiliary: {},
+      },
+      projectid5Bad: {
+        // Missing Track JSON File
+        'meta.json': '{}',
+        auxiliary: {},
+      },
+      projectid6Delete: {
+        'meta.json': '{}',
+        'result_1.json': '',
+        'result_2.json': '',
+        auxiliary: {},
+      },
+      stereoDataset: {
+        'meta.json': {
+          type: 'multi',
+          multiCam: {
+            cameras: {
+              left: {
+                type: 'image-sequence',
+                originalBasePath: '/home/user/viamedata/DIVE_Projects/stereoDataset/left',
+              },
+              right: {
+                type: 'image-sequence',
+                originalBasePath: '/home/user/viamedata/DIVE_Projects/stereoDataset/right',
+              },
+            },
+          },
+        },
+        'result_1.json': '',
+        auxiliary: {},
+        left: {
+          'meta.json': '{}',
+          'result_1.json': '',
+        },
+        right: {
+          'meta.json': '{}',
+          'result_1.json': '',
+        },
       },
       metaAttributesID: {
         'meta.json': JSON.stringify({
@@ -411,11 +451,51 @@ describe('native.common', () => {
     expect(payload.jsonMeta.type).toBe('video');
   });
 
+  it('check Dastset existence', async () => {
+    await expect(common.checkDataset(settings, 'projectid3Bad')).rejects.toThrow('missing metadata');
+    await expect(common.checkDataset(settings, 'projectid5Bad')).rejects.toThrow('missing track json file');
+    await expect(common.checkDataset(settings, 'missingFolder')).rejects.toThrow('missing metadata');
+  });
+
+  it('delete datasets', async () => {
+    await expect(common.deleteDataset(settings, 'missingFolder')).rejects.toThrow('missing metadata');
+    let exists = fs.existsSync('/home/user/viamedata/DIVE_Projects/projectid5Bad');
+    expect(exists).toBe(true);
+    await expect(common.deleteDataset(settings, 'projectid5Bad')).rejects.toThrow('missing track json file');
+    exists = fs.existsSync('/home/user/viamedata/DIVE_Projects/projectid5Bad');
+    expect(exists).toBe(true);
+    exists = fs.existsSync('/home/user/viamedata/DIVE_Projects/projectid6Delete');
+    expect(exists).toBe(true);
+    const deleted = await common.deleteDataset(settings, 'projectid6Delete');
+    expect(deleted).toBe(true);
+    exists = fs.existsSync('/home/user/viamedata/DIVE_Projects/projectid6Delete');
+    expect(exists).toBe(false);
+  });
+
+  it('delete stereo dataset', async () => {
+    let exists = fs.existsSync('/home/user/viamedata/DIVE_Projects/stereoDataset');
+    let leftExists = fs.existsSync('/home/user/viamedata/DIVE_Projects/stereoDataset/left');
+    expect(exists).toBe(true);
+    expect(leftExists).toBe(true);
+    let deleted = await common.deleteDataset(settings, 'stereoDataset/left');
+    expect(deleted).toBe(true);
+    leftExists = fs.existsSync('/home/user/viamedata/DIVE_Projects/stereoDataset/left');
+    let rightExists = fs.existsSync('/home/user/viamedata/DIVE_Projects/stereoDataset/right');
+    expect(rightExists).toBe(true);
+    deleted = await common.deleteDataset(settings, 'stereoDataset');
+    expect(deleted).toBe(true);
+    rightExists = fs.existsSync('/home/user/viamedata/DIVE_Projects/stereoDataset/right');
+    expect(rightExists).toBe(false);
+    exists = fs.existsSync('/home/user/viamedata/DIVE_Projects/stereoDataset');
+    expect(exists).toBe(false);
+  });
+
   it('processing good Trained Pipeline folder', async () => {
     const trainingArgs: RunTraining = {
       datasetIds: ['randomID'],
       pipelineName: 'trainedPipelineName',
       trainingConfig: 'trainingConfig',
+      annotatedFramesOnly: false,
     };
     const contents = await common.processTrainedPipeline(settings, trainingArgs, '/home/user/viamedata/DIVE_Jobs/goodTrainingJob/');
     expect(contents).toEqual(['detector.pipe', 'trained_detector.zip']);
@@ -435,6 +515,7 @@ describe('native.common', () => {
       datasetIds: ['randomID'],
       pipelineName: 'trainedBadPipelineName',
       trainingConfig: 'trainingConfig',
+      annotatedFramesOnly: false,
     };
     expect(common.processTrainedPipeline(settings, trainingArgs, '/home/user/viamedata/DIVE_Jobs/badTrainingJob/')).rejects.toThrow(
       'Path: /home/user/viamedata/DIVE_Jobs/badTrainingJob/category_models does not exist',

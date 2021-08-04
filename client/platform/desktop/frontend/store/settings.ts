@@ -1,20 +1,56 @@
 import Vue from 'vue';
-import Install, { ref } from '@vue/composition-api';
-import { ipcRenderer } from 'electron';
+import Install, { ref, computed } from '@vue/composition-api';
+import { ipcRenderer, remote } from 'electron';
 import { Settings } from 'platform/desktop/constants';
+import { cloneDeep } from 'lodash';
+import * as semver from 'semver';
 
 // TODO remove this: this won't be necessary in Vue 3
 Vue.use(Install);
 
 const SettingsKey = 'desktop.settings';
+const VersionKey = 'desktop.currentVersion';
 
-const settings = ref({} as Settings);
+const settings = ref(null as Settings | null);
+const currentVersion = remote.app.getVersion();
+const knownVersion = ref(window.localStorage.getItem(VersionKey));
+
+/**
+ * upgradedVersion indicates that the currently launched instance
+ * is an upgrade since the last time the user acknowledged an instnace of dive.
+ */
+const upgradedVersion = computed(() => {
+  const known = knownVersion.value;
+  if (known === null) {
+    // all versions are greater than null
+    return currentVersion;
+  }
+  if (known && semver.gt(currentVersion, known)) {
+    return currentVersion;
+  }
+  return null;
+});
+
+/**
+ * downgradedVersion indicates that the currently launched instance
+ * is a downgrade of a previously acknowledged instance of dive.
+ */
+const downgradedVersion = computed(() => {
+  const known = knownVersion.value;
+  if (known && semver.lt(currentVersion, known)) {
+    return currentVersion;
+  }
+  return null;
+});
 
 function getDefaultSettings(): Promise<Settings> {
   return ipcRenderer.invoke('default-settings');
 }
 
-function validateSettings(s: Settings): Promise<string | boolean> {
+function validateSettings(s: Settings | null): Promise<string | boolean> {
+  if (s === null) {
+    return Promise.resolve(false);
+  }
   return ipcRenderer.invoke('validate-settings', s);
 }
 
@@ -30,39 +66,62 @@ function isSettings(s: any): s is Settings {
   return true;
 }
 
+// Settings initialization involves a handoff between renderer and background.
+// This function should be called at application startup.
 async function init() {
-  const settingsStr = window.localStorage.getItem(SettingsKey);
-  let settingsvalue = await getDefaultSettings();
+  // Client asks for default settings and external force overrides from background
+  let settingsValue = await getDefaultSettings();
   try {
-    if (settingsStr) {
-      const maybeSettings = JSON.parse(settingsStr);
-      if (isSettings(maybeSettings)) {
-        settingsvalue = {
-          // Populate from defaults to include any missing properties
-          ...settingsvalue,
-          // Overwrite with explicitly persisted settings
-          ...maybeSettings,
-        };
-      }
+    // Client applies user-configured settings from localstorage
+    const settingsStr = window.localStorage.getItem(SettingsKey) || '{}';
+    const maybeSettings = JSON.parse(settingsStr);
+    // Remove any previously saved overrides so environment variables apply
+    delete maybeSettings.overrides;
+
+    if (isSettings(maybeSettings)) {
+      settingsValue = {
+        // Populate from defaults to include any missing properties
+        ...settingsValue,
+        // Overwrite with explicitly persisted settings
+        ...maybeSettings,
+      };
     }
   } catch {
     // pass
   }
-  settings.value = settingsvalue;
-
+  // Client applies external force overrides
+  if (settingsValue.overrides.viamePath !== undefined) {
+    settingsValue.viamePath = settingsValue.overrides.viamePath;
+  }
+  if (settingsValue.overrides.readonlyMode !== undefined) {
+    settingsValue.readonlyMode = settingsValue.overrides.readonlyMode;
+  }
+  settings.value = settingsValue;
   ipcRenderer.send('update-settings', settings.value);
+  return settings.value;
 }
 
-async function setSettings(s: Settings) {
+async function updateSettings(s: Settings) {
   window.localStorage.setItem(SettingsKey, JSON.stringify(s));
   ipcRenderer.send('update-settings', settings.value);
+  settings.value = cloneDeep(s);
+}
+
+async function acknowledgeVersion() {
+  window.localStorage.setItem(VersionKey, currentVersion);
+  knownVersion.value = currentVersion;
 }
 
 // Will be initialized on first import
-init();
+const initializedSettings = init();
 
 export {
   settings,
-  setSettings,
+  initializedSettings,
+  upgradedVersion,
+  downgradedVersion,
+  knownVersion,
+  acknowledgeVersion,
+  updateSettings,
   validateSettings,
 };

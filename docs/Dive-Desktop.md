@@ -53,6 +53,7 @@ DIVE Desktop requires a local installation of the VIAME toolkit to run pipelines
 
 * `VIAME Install Path` is set automatically if you use `examples/annotation_and_visualization/launch_dive_interface` from the VIAME install.  Otherwise, you may need to set this yourself.  Use `Choose` to choose the base installation path, then click save.
 * `Project Data Storage Path` defaults to a subfolder in your user workspace and should generally not be changed.
+* `Read only mode` disables the ability to save when using the annotator.
 
 ### Data Storage Path
 
@@ -105,7 +106,8 @@ DIVE Desktop looks for the these environment variables on launch.
 
 | Name | Default | Description |
 | ---- | ------- | ----------- |
-| DIVE_VIAME_INSTALL_PATH | /opt/noaa/viame (linux/macos) C:\Program Files\VIAME (windows) | location of VIAME installation.  Users may override this value in the settings pane |
+| DIVE_VIAME_INSTALL_PATH | /opt/noaa/viame (Linux/macOS) C:\Program Files\VIAME (Windows) | Overrides the location of the VIAME installation.  Users may not change this value in the settings pane if provided. |
+| DIVE_READONLY_MODE | None | Overrides read only mode to true or false.  Users may still change this value in the settings pane if provided. |
 
 ## Import/Export of Models
 
@@ -124,12 +126,16 @@ See [Importing images and video above](#importing-images-videos).
 
 > ffmpeg not installed, please download and install VIAME Toolkit from the main page
 
-DIVE Desktop relies on an installtion of `ffmpeg` for transcoding videos and some images.  This tool comes with the VIAME installtion.  Verify your VIAME Install Base Path is correct.
+DIVE Desktop relies on an installation of `ffmpeg` for transcoding videos and some images.  This tool comes with the VIAME installation.  Verify your VIAME Install Base Path is correct.
 
 > Some VIAME canned pipelines are missing?
 
 If you don't see some pipelines you expect, you may not have installed the addons (also called Optional Patches) yet.  Download and install these based on the [VIAME installation docs](https://github.com/viame/VIAME#installations).  
 
-> Other issues
+> Advanced troubleshooting
 
 If you're experience problems or have questions about DIVE Desktop, [contact us](index.md#get-help) and include the content from the settings page such as `Build Version` as well as your currently installed VIAME version.
+
+To help us address errors and exceptions, it's helpful to look in the debug console.  Press `CTRL + SHIFT + i` to launch the Dev Tools and look under the console tab.  Errors and warnings will appear in red and yellow.  You can right-click in the console area and click "Save As" to save the log file to email to us.
+
+![Debugging Desktop](images/General/desktop-debug.png)

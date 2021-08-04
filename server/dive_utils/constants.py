@@ -8,7 +8,18 @@ DefaultVideoFPS = 10
 
 webValidImageFormats = {"png", "jpg", "jpeg"}
 validImageFormats = {*webValidImageFormats, "tif", "tiff", "sgi", "bmp", "pgm"}
-validVideoFormats = {"mp4", "avi", "mov", "mpg", "mpeg", "wmv", "flv"}
+validVideoFormats = {
+    "mp4",
+    "webm",
+    "avi",
+    "mov",
+    "wmv",
+    "mpg",
+    "mpeg",
+    "mp2",
+    "ogg",
+    "flv",
+}
 
 videoRegex = re.compile(r"(\." + r"|\.".join(validVideoFormats) + ')$', re.IGNORECASE)
 imageRegex = re.compile(r"(\." + r"|\.".join(validImageFormats) + ')$', re.IGNORECASE)
@@ -29,12 +40,24 @@ ImageMimeTypes = {
 }
 
 VideoMimeTypes = {
-    "video/mpeg",
+    # web-safe
+    "video/webm",
     "video/mp4",
-    "video/quicktime",
+    # avi
+    "video/avi",
+    "video/msvideo",
     "video/x-msvideo",
-    "video/x-flv",
     "video/x-ms-wmv",
+    # mov
+    "video/quicktime",
+    # mpeg
+    "video/mpeg",
+    "video/x-mpeg",
+    "video/x-mpeq2a"
+    # ogg
+    "video/ogg",
+    # flv
+    "video/x-flv",
 }
 
 # Metadata markers

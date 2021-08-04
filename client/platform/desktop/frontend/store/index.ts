@@ -4,7 +4,7 @@ import * as api from 'platform/desktop/frontend/api';
 /* Warning, this import involves node.js code for loadDetections (below) */
 import * as common from 'platform/desktop/backend/native/common';
 
-import { settings } from './settings';
+import { initializedSettings } from './settings';
 import { load, setRecents } from './dataset';
 
 /* Run forward migrations on any client-side data stores */
@@ -19,7 +19,7 @@ export async function migrate() {
 export default function wrap(): Api {
   async function loadMetadata(datasetId: string) {
     const meta = await api.loadMetadata(datasetId);
-    setRecents(meta);
+    setRecents(meta, (new Date()).toString());
     return meta;
   }
 
@@ -34,7 +34,8 @@ export default function wrap(): Api {
    * to the client using something like https://github.com/uhop/stream-json
    */
   async function loadDetections(datasetId: string) {
-    return common.loadDetections(settings.value, datasetId);
+    const settings = await initializedSettings;
+    return common.loadDetections(settings, datasetId);
   }
 
   return {

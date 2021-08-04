@@ -79,18 +79,27 @@ async function runPipeline(itemId: string, pipeline: Pipe): Promise<DesktopJob> 
 }
 
 async function runTraining(
-  folderIds: string[], pipelineName: string, config: string,
+  folderIds: string[], pipelineName: string, config: string, annotatedFramesOnly: boolean,
 ): Promise<DesktopJob> {
   const args: RunTraining = {
     datasetIds: folderIds,
     pipelineName,
     trainingConfig: config,
+    annotatedFramesOnly,
   };
   return ipcRenderer.invoke('run-training', args);
 }
 
 function importMedia(path: string): Promise<MediaImportPayload> {
   return ipcRenderer.invoke('import-media', { path });
+}
+
+function deleteDataset(datasetId: string): Promise<boolean> {
+  return ipcRenderer.invoke('delete-dataset', { datasetId });
+}
+
+function checkDataset(datasetId: string): Promise<boolean> {
+  return ipcRenderer.invoke('check-dataset', { datasetId });
 }
 
 function importMultiCam(args: MultiCamImportArgs):
@@ -177,6 +186,8 @@ export {
   exportDataset,
   finalizeImport,
   importMedia,
+  deleteDataset,
+  checkDataset,
   importAnnotationFile,
   importMultiCam,
   openLink,

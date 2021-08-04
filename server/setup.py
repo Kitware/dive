@@ -5,6 +5,7 @@ from setuptools import find_packages, setup
 
 requirements = [
     "cheroot>=8.4.5",  # https://github.com/cherrypy/cheroot/issues/312
+    "click",
     "girder==3.1.5.dev8",
     "diva-boiler",
     "girder_jobs==3.0.3",
@@ -20,33 +21,38 @@ requirements = [
 ]
 
 dev_requirements = [
+    "numpy",
+    "opencv-python",
     "pytest",
     "tox",
 ]
 
 setup(
     name="dive_server",
-    version="1.5.0",
+    version="1.0.0",
     description="DIVE Data Server",
     author='Kitware, Inc.',
     author_email="viame-web@kitware.com",
     url="https://github.com/Kitware/dive",
-    license="Apache Software License 2.0",
+    license="Apache 2.0",
     keywords="DIVE, VIAME, VIAME-Web, Annotation",
     classifiers=[
         "License :: OSI Approved :: Apache Software License",
         "Natural Language :: English",
+        "Programming Language :: Python",
         "Programming Language :: Python :: 3",
+        "Programming Language :: Python :: 3.7",
         "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.9",
     ],
     python_requires=">=3.7",
-    packages=find_packages(exclude=["test", "test.*"]),
+    packages=find_packages(exclude=["tests", "tests.*"]),
     package_data={
         "": ["**/*.mako"],
     },
-    include_package_data=True,
     zip_safe=False,
     entry_points={
+        "console_scripts": ["dive=scripts.entrypoint_dev:cli"],
         "girder.plugin": [
             "dive_server = dive_server:GirderPlugin",
             "bucket_notifications = bucket_notifications:GirderPlugin",

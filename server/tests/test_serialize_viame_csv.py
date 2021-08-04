@@ -2,7 +2,7 @@ from typing import Dict, List, Tuple
 
 import pytest
 
-from dive_server.serializers import viame
+from dive_utils.serializers import viame
 
 # Test cases can use this by staying under frame 100
 filenames = [f"{str(i)}.png" for i in range(1, 100)]

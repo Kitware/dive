@@ -1,7 +1,9 @@
 import Vue from 'vue';
+import { ipcRenderer } from 'electron';
 import Install, { ref, computed } from '@vue/composition-api';
 import { JsonMeta } from 'platform/desktop/constants';
 import { DatasetType, SubType } from 'dive-common/apispec';
+import { initializedSettings } from './settings';
 
 const RecentsKey = 'desktop.recent';
 
@@ -20,6 +22,7 @@ export interface JsonMetaCache {
   fps: number;
   name: string;
   createdAt: string;
+  accessedAt: string;
   originalBasePath: string;
   originalVideoFile: string;
   transcodedVideoFile?: string;
@@ -34,6 +37,7 @@ function hydrateJsonMetaCacheValue(input: any): JsonMetaCache {
   return {
     originalVideoFile: '',
     transcodedVideoFile: '',
+    accessedAt: input.createdAt,
     subType: null,
     ...input,
   };
@@ -41,11 +45,34 @@ function hydrateJsonMetaCacheValue(input: any): JsonMetaCache {
 
 const datasets = ref({} as Record<string, JsonMetaCache>);
 
-const recents = computed(() => {
-  const list = Object.values(datasets.value)
-    .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
-  return list;
-});
+const recents = computed(() => (Object.values(datasets.value)));
+
+function setRecents(meta: JsonMeta, accessTime?: string) {
+  Vue.set(datasets.value, meta.id, {
+    version: meta.version,
+    type: meta.type,
+    id: meta.id,
+    fps: meta.fps,
+    name: meta.name,
+    createdAt: meta.createdAt,
+    accessedAt: accessTime || meta.createdAt,
+    originalBasePath: meta.originalBasePath,
+    originalVideoFile: meta.originalVideoFile,
+    transcodedVideoFile: meta.transcodedVideoFile,
+    subType: meta.subType,
+  } as JsonMetaCache);
+  const values = Object.values(datasets.value);
+  window.localStorage.setItem(RecentsKey, JSON.stringify(values));
+}
+
+async function autoDiscover() {
+  datasets.value = {};
+  /* Make sure settings are ready on backend */
+  await initializedSettings;
+  /* Nothing came from localStorage, try to populate from autodiscovery */
+  const discovered: JsonMeta[] = await ipcRenderer.invoke('autodiscover-data');
+  discovered.forEach((d) => setRecents(d));
+}
 
 /**
  * Load recent datasets from localstorage.
@@ -54,21 +81,24 @@ const recents = computed(() => {
  * The real dataset JsonMeta must be loaded from disk through the
  * loadMetadata() backend method.
  */
-function load(): JsonMetaCache[] {
+async function load() {
+  let loaded = [];
   try {
     const arr = window.localStorage.getItem(RecentsKey);
     if (arr) {
       const maybeArr = JSON.parse(arr);
-      if (maybeArr.length) {
+      if (maybeArr.length) { // verify maybeArr is an array
         maybeArr.forEach((meta: JsonMetaCache) => (
           Vue.set(datasets.value, meta.id, hydrateJsonMetaCacheValue(meta))
         ));
-        return maybeArr;
+        loaded = maybeArr;
       }
     }
-    return [];
   } catch (err) {
     throw new Error(`could not load meta from localstorage: ${err}`);
+  }
+  if (loaded.length === 0) {
+    autoDiscover();
   }
 }
 
@@ -83,23 +113,10 @@ function locateDuplicates(meta: JsonMeta) {
   ));
 }
 
-/**
- * Add ID to recent datasets
- * @param id dataset id path
- */
-function setRecents(meta: JsonMeta) {
-  Vue.set(datasets.value, meta.id, {
-    version: meta.version,
-    type: meta.type,
-    id: meta.id,
-    fps: meta.fps,
-    name: meta.name,
-    createdAt: meta.createdAt,
-    originalBasePath: meta.originalBasePath,
-    originalVideoFile: meta.originalVideoFile,
-    transcodedVideoFile: meta.transcodedVideoFile,
-    subType: meta.subType,
-  } as JsonMetaCache);
+function removeRecents(datasetId: string) {
+  if (datasets.value[datasetId]) {
+    Vue.delete(datasets.value, datasetId);
+  }
   const values = Object.values(datasets.value);
   window.localStorage.setItem(RecentsKey, JSON.stringify(values));
 }
@@ -112,8 +129,10 @@ function clearRecents() {
 export {
   datasets,
   recents,
+  autoDiscover,
   load,
   locateDuplicates,
   setRecents,
+  removeRecents,
   clearRecents,
 };
