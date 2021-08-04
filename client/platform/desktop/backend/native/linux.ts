@@ -54,7 +54,8 @@ const ViameLinuxConstants = {
     videoArgs: [
       '-c:v libx264',
       '-preset slow',
-      '-crf 26',
+      // https://github.com/Kitware/dive/issues/855
+      '-crf 22',
       // https://askubuntu.com/questions/1315697/could-not-find-tag-for-codec-pcm-s16le-in-stream-1-codec-not-currently-support
       '-c:a aac',
       /**

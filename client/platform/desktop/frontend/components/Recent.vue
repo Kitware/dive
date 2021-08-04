@@ -384,7 +384,7 @@ export default defineComponent({
               <template #[`item.name`]="{ item }">
                 <span :key="item.id">
                   <div v-if="setOrGetConversionJob(item.id)">
-                    <span class="primary--text text--darken-1 text-decoration-none">
+                    <span class="primary--text text--darken-1 text-subtitle-1 pt-1">
                       {{ item.name }}
                     </span>
                     <span class="pl-4">
