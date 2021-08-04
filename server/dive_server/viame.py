@@ -168,9 +168,11 @@ class Viame(Resource):
     def list_datasets(self, params):
         limit, offset, sort = self.getPagingParameters(params)
         user = self.getCurrentUser()
+        permissionsClause = Folder().permissionClauses(user=user, level=AccessType.READ)
         query = {
             '$and': [
                 {f'meta.{DatasetMarker}': {'$in': TRUTHY_META_VALUES}},
+                permissionsClause,
             ],
         }
         if self.boolParam(PublishedMarker, params):
@@ -193,9 +195,23 @@ class Viame(Resource):
                     },
                 },
             ]
-        # Use findwithpermissions as a backstop for filtering out
-        # datasets we don't have access to
-        return Folder().findWithPermissions(query, offset=offset, limit=limit, sort=sort, user=user)
+        pipeline = [
+            {'$match': query},
+            {'$skip': offset},
+            {'$limit': limit},
+            {
+                '$lookup': {
+                    'from': 'user',
+                    'localField': 'creatorId',
+                    'foreignField': '_id',
+                    'as': 'user',
+                },
+            },
+            {'$set': {'user': {'$first': '$user'}}},
+            {'$set': {'user': '$user.login'}},
+        ]
+        response = Folder().collection.aggregate(pipeline)
+        return [Folder().filter(doc, additionalKeys=['user']) for doc in response]
 
     @access.user
     @autoDescribeRoute(
