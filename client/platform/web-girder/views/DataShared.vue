@@ -22,7 +22,7 @@ export default defineComponent({
     const headers = [
       { text: 'File Name', value: 'name' },
       { text: '', value: 'annotator', sortable: false },
-      { text: 'File Size', value: 'size' },
+      { text: 'File Size', value: 'formattedSize' },
       { text: 'Shared By', value: 'creatorId' },
     ];
 
@@ -33,7 +33,7 @@ export default defineComponent({
       dataList.value = await getDatasets(true);
       dataList.value.forEach((element) => {
         // eslint-disable-next-line no-param-reassign
-        element.size = fixSize.formatSize(element.size);
+        element.formattedSize = fixSize.formatSize(element.size);
       });
     };
 

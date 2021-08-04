@@ -50,10 +50,11 @@ async function clone({ folderId, name, parentFolderId }: {
   return data;
 }
 
-async function getDatasets(shared: boolean): Promise<GirderDatasetModel[]> {
+async function getDatasets(sharedData: boolean): Promise<GirderDatasetModel[]> {
   const { data } = await girderRest.get<GirderDatasetModel[]>('viame/datasets', {
     params: {
-      SharedMaker: shared,
+      published: false,
+      shared: sharedData,
     },
   });
   data.forEach((element) => {
