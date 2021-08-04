@@ -7,12 +7,15 @@ import {
 } from '@girder/components/src';
 
 import { getFolder } from 'platform/web-girder/api/girder.service';
+
 import { isGirderModel, useStore } from 'platform/web-girder/store/types';
+import Upload from './Upload.vue';
 import { getLocationFromRoute } from '../utils';
 
 export default defineComponent({
   components: {
     GirderFileManager,
+    Upload,
   },
 
   setup(_, { root }) {

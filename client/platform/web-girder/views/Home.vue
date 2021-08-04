@@ -19,7 +19,7 @@ import Upload from './Upload.vue';
 import DataDetails from './DataDetails.vue';
 import Clone from './Clone.vue';
 import ShareTab from './ShareTab.vue';
-import SharedData from './DataShared.vue';
+import DataShared from './DataShared.vue';
 
 
 const buttonOptions = {
@@ -47,7 +47,7 @@ export default defineComponent({
     Upload,
     RunPipelineMenu,
     RunTrainingMenu,
-    SharedData,
+    DataShared,
     ShareTab,
   },
   setup() {
@@ -210,7 +210,11 @@ export default defineComponent({
           </DataDetails>
         </v-col>
         <v-col :cols="9">
-          <v-toolbar dense class="mb-4" rounded="">
+          <v-toolbar
+            dense
+            class="mb-4"
+            rounded=""
+          >
             <ShareTab :value="0" />
           </v-toolbar>
           <router-view />

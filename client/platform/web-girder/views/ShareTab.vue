@@ -14,14 +14,13 @@ export default defineComponent({
 
 <template>
   <v-tabs
-    :value="value"
     right
     @change="$emit('input', $event)"
   >
-    <v-tab>
+    <v-tab :to="{name: 'home'}">
       Browse Data
     </v-tab>
-    <v-tab>
+    <v-tab :to="{name: 'shared'}">
       Shared with Me
     </v-tab>
   </v-tabs>
