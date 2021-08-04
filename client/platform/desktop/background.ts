@@ -31,6 +31,7 @@ async function cleanup() {
 
 async function createWindow() {
   const size = screen.getPrimaryDisplay().workAreaSize;
+  const partitionSession = session.fromPartition('persist:dive');
   // Create the browser window.
   win = new BrowserWindow({
     width: Math.min(size.width, 1300),
@@ -46,7 +47,7 @@ async function createWindow() {
       enableRemoteModule: true,
       // Fix session such that every instance of the applicaton loads
       // the same session i.e.localStorage
-      session: session.fromPartition('persist:dive'),
+      session: partitionSession,
     },
   });
 
@@ -66,7 +67,7 @@ async function createWindow() {
     await win.loadURL(process.env.WEBPACK_DEV_SERVER_URL as string);
     if (!process.env.IS_TEST) win.webContents.openDevTools();
   } else {
-    createProtocol('app');
+    createProtocol('app', partitionSession.protocol);
     // Load the index.html when not in development
     win.loadURL(`file://${__dirname}/index.html`);
   }
