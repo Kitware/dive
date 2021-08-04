@@ -204,14 +204,14 @@ class Viame(Resource):
                     'from': 'user',
                     'localField': 'creatorId',
                     'foreignField': '_id',
-                    'as': 'user',
+                    'as': 'owner_login',
                 },
             },
-            {'$set': {'user': {'$first': '$user'}}},
-            {'$set': {'user': '$user.login'}},
+            {'$set': {'owner_login': {'$first': '$owner_login'}}},
+            {'$set': {'owner_login': '$owner_login.login'}},
         ]
         response = Folder().collection.aggregate(pipeline)
-        return [Folder().filter(doc, additionalKeys=['user']) for doc in response]
+        return [Folder().filter(doc, additionalKeys=['owner_login']) for doc in response]
 
     @access.user
     @autoDescribeRoute(
