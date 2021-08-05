@@ -51,7 +51,7 @@ interface NistActivity {
 }
 
 
-function confirmNist(data: NistFile) {
+function confirmNistFormat(data: NistFile) {
   return data.activities && data.filesProcessed && data.processingReport;
 }
 
@@ -133,7 +133,10 @@ function loadActivity(
   return null;
 }
 
-async function loadNistFile(filename: string): Promise<AnnotationFileData> {
+async function loadNistFile(
+  filename: string,
+  fullFrameBounds: RectBounds = [0, 0, 1920, 1080],
+): Promise<AnnotationFileData> {
   let nistFile: NistFile;
   const rawBuffer = await fs.readFile(filename, 'utf-8');
   if (rawBuffer.length === 0) {
@@ -144,7 +147,7 @@ async function loadNistFile(filename: string): Promise<AnnotationFileData> {
   } catch (err) {
     throw new Error(`Unable to parse ${filename}: ${err}`);
   }
-  if (!confirmNist(nistFile)) {
+  if (!confirmNistFormat(nistFile)) {
     throw new Error(`Unable to confirm ${filename} is a Nist File`);
   }
   if (nistFile.filesProcessed.length > 1) {
@@ -156,7 +159,6 @@ async function loadNistFile(filename: string): Promise<AnnotationFileData> {
   const baseFilename = nistFile.filesProcessed[0];
   // Now lets process the activities to make sure they are correct
   const trackData: TrackData[] = [];
-  const fullFrameBounds: RectBounds = [0, 0, 1920, 1080];
   const { activities } = nistFile;
   for (let i = 0; i < activities.length; i += 1) {
     const activity = activities[i];
@@ -257,5 +259,5 @@ async function exportNist(trackData: MultiTrackRecord, videoFileName: string) {
 export {
   loadNistFile,
   exportNist,
-  confirmNist,
+  confirmNistFormat,
 };
