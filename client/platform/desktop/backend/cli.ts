@@ -86,6 +86,12 @@ const { argv } = yargs
     });
     yargs.demandOption(['file', 'meta']);
   })
+  .command('checkmedia [file]', 'Run checkMedia', () => {
+    yargs.positional('file', {
+      description: 'The video to check',
+      type: 'string',
+    }).demandOption('file');
+  })
   .command('list-config', 'List viame pipeline configuration', settingsArgs)
   .command('run-pipeline', 'Run a pipeline', () => {
     settingsArgs();
@@ -138,6 +144,13 @@ if (argv._.includes('viame2json')) {
   parseViameFile(argv.file as string);
 } else if (argv._.includes('json2viame')) {
   parseJsonFile(argv.file as string, argv.meta as string);
+} else if (argv._.includes('checkmedia')) {
+  const settings = getSettings();
+  const run = async () => {
+    const out = await settings.platform.checkMedia(settings, argv.file as string);
+    console.log(out);
+  };
+  run();
 } else if (argv._.includes('list-config')) {
   const settings = getSettings();
   const run = async () => {
