@@ -4,9 +4,12 @@ import {
 } from '@vue/composition-api';
 
 import { remote } from 'electron';
+
+import { useRequest } from 'dive-common/use';
 import { NvidiaSmiReply } from 'platform/desktop/constants';
 import { cloneDeep, isEqual } from 'lodash';
 
+import { autoDiscover } from '../store/dataset';
 import { settings, updateSettings, validateSettings } from '../store/settings';
 import { nvidiaSmi } from '../api';
 
@@ -21,6 +24,7 @@ export default defineComponent({
   setup() {
     const { arch, platform, version } = process;
     const gitHash = process.env.VUE_APP_GIT_HASH;
+    const appversion = remote.app.getVersion();
 
     // local copy of the global settings
     const localSettings = ref(cloneDeep(settings.value));
@@ -31,6 +35,8 @@ export default defineComponent({
     const viameOverride = computed(() => settings.value?.overrides?.viamePath);
     const readonlyMode = computed(() => settings.value?.readonlyMode);
     const pendingChanges = computed(() => isEqual(localSettings.value, settings.value));
+    const autoDiscoverState = useRequest();
+    const doAutodiscover = () => autoDiscoverState.request(autoDiscover);
 
     onBeforeMount(async () => {
       settingsAreValid.value = await validateSettings(localSettings.value);
@@ -62,9 +68,12 @@ export default defineComponent({
     }
 
     return {
+      appversion,
       arch,
+      autoDiscoverState,
       gitHash,
       platform,
+      settings,
       localSettings,
       settingsAreValid,
       smi,
@@ -72,6 +81,7 @@ export default defineComponent({
       viameOverride,
       readonlyMode,
       pendingChanges,
+      doAutodiscover,
       openPath,
       save,
     };
@@ -87,13 +97,14 @@ export default defineComponent({
         <v-card-title>Settings</v-card-title>
 
         <v-card-text>
-          <v-row class="mb-6">
+          <v-row>
             <v-col cols="9">
               <v-text-field
                 v-model="localSettings.viamePath"
                 label="VIAME Install Base Path"
                 hint="download from https://viametoolkit.com"
                 dense
+                outlined
                 :disabled="!!viameOverride"
                 persistent-hint
               />
@@ -101,7 +112,6 @@ export default defineComponent({
 
             <v-col cols="3">
               <v-btn
-                large
                 block
                 color="primary"
                 :disabled="!!viameOverride"
@@ -115,20 +125,20 @@ export default defineComponent({
             </v-col>
           </v-row>
 
-          <v-row class>
+          <v-row>
             <v-col cols="9">
               <v-text-field
                 v-model="localSettings.dataPath"
                 label="Project Data Storage Path"
                 hint="project annotation and metadata goes here."
                 dense
+                outlined
                 persistent-hint
               />
             </v-col>
 
-            <v-col>
+            <v-col class="my-0">
               <v-btn
-                large
                 block
                 color="primary"
                 @click="openPath('dataPath')"
@@ -142,12 +152,13 @@ export default defineComponent({
           </v-row>
 
           <v-row>
-            <v-col class="d-flex">
+            <v-col>
               <v-switch
                 v-model="localSettings.readonlyMode"
                 color="primary"
                 :label="'Read only mode'"
                 hide-details
+                class="my-0"
               />
             </v-col>
           </v-row>
@@ -235,11 +246,56 @@ export default defineComponent({
           Read only mode is on
         </v-alert>
 
+        <v-card-title>Synchronize Recents</v-card-title>
+        <v-card-subtitle v-if="settings">
+          Scan project directory (<b><u>{{ settings.dataPath }}</u></b>) to rediscover
+          datasets and update Recents page.  This is useful if you've manually deleted or moved
+          dataset folders around.  DIVE Desktop stores annotation files, metadata, and possibly
+          trancoded copies of your source media here.
+          <browser-link
+            display="inline"
+            href="https://kitware.github.io/dive/Dive-Desktop"
+          >
+            Check the docs for more info about the Project Data Storage Path.
+          </browser-link>
+        </v-card-subtitle>
+        <v-btn
+          text
+          outlined
+          class="mx-4"
+          :disabled="autoDiscoverState.loading.value"
+          @click="doAutodiscover"
+        >
+          <v-icon
+            v-if="autoDiscoverState.loading.value || autoDiscoverState.count.value === 0"
+            class="pr-2"
+          >
+            mdi-sync {{ autoDiscoverState.loading.value ? 'mdi-spin' : '' }}
+          </v-icon>
+          <v-icon
+            v-else-if="autoDiscoverState.count.value > 0"
+            color="success"
+            class="pr-2"
+          >
+            mdi-check-circle
+          </v-icon>
+          Sync recents with Project Data
+        </v-btn>
+
         <v-card-text>
           <div>
-            Build Version:
+            Application Version:
             <browser-link
-              :href="`https://github.com/Kitware/dive`"
+              href="https://github.com/Kitware/dive/releases"
+              display="inline"
+            >
+              {{ appversion }}
+            </browser-link>
+          </div>
+          <div>
+            Build Commit:
+            <browser-link
+              :href="`https://github.com/Kitware/dive/commit/${gitHash}`"
               display="inline"
             >
               {{ gitHash }}

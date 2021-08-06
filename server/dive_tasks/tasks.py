@@ -306,6 +306,7 @@ def train_pipeline(
     groundtruth_list: List[GirderModel],
     pipeline_name: str,
     config: str,
+    annotated_frames_only: bool = False,
 ):
     """
     Train a pipeline by making a call to viame_train_detector
@@ -316,6 +317,7 @@ def train_pipeline(
         or a folder containing that file.
     :param pipeline_name: The base name of the resulting pipeline.
     :param config: string name of the input configuration
+    :param annotated_frames_only: Only use annotated frames for training
     """
     conf = Config()
     context: dict = {}
@@ -387,6 +389,9 @@ def train_pipeline(
                 "--no-query",
                 "--no-embedded-pipe",
             ]
+
+            if annotated_frames_only:
+                command.append("--gt-frames-only")
 
             manager.updateStatus(JobStatus.RUNNING)
             cmd = " ".join(command)
@@ -496,8 +501,9 @@ def convert_video(self: Task, path, folderId, auxiliaryFolderId, itemId):
             "libx264",
             "-preset",
             "slow",
+            # https://github.com/Kitware/dive/issues/855
             "-crf",
-            "26",
+            "22",
             # https://askubuntu.com/questions/1315697/could-not-find-tag-for-codec-pcm-s16le-in-stream-1-codec-not-currently-support
             "-c:a",
             "aac",

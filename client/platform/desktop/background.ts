@@ -1,5 +1,5 @@
 import {
-  app, protocol, screen, BrowserWindow,
+  app, protocol, screen, BrowserWindow, session,
 } from 'electron';
 import { createProtocol } from 'vue-cli-plugin-electron-builder/lib';
 import installExtension, { VUEJS_DEVTOOLS } from 'electron-devtools-installer';
@@ -31,10 +31,11 @@ async function cleanup() {
 
 async function createWindow() {
   const size = screen.getPrimaryDisplay().workAreaSize;
+  const partitionSession = session.fromPartition('persist:dive');
   // Create the browser window.
   win = new BrowserWindow({
     width: Math.min(size.width, 1300),
-    height: Math.min(size.height - 200, 900),
+    height: Math.min(size.height - 200, 960),
     autoHideMenuBar: true,
     title: 'VIAME DIVE Desktop',
     webPreferences: {
@@ -44,6 +45,9 @@ async function createWindow() {
       nodeIntegration: (!!process.env.ELECTRON_NODE_INTEGRATION),
       plugins: true,
       enableRemoteModule: true,
+      // Fix session such that every instance of the applicaton loads
+      // the same session i.e.localStorage
+      session: partitionSession,
     },
   });
 
@@ -63,7 +67,7 @@ async function createWindow() {
     await win.loadURL(process.env.WEBPACK_DEV_SERVER_URL as string);
     if (!process.env.IS_TEST) win.webContents.openDevTools();
   } else {
-    createProtocol('app');
+    createProtocol('app', partitionSession.protocol);
     // Load the index.html when not in development
     win.loadURL(`file://${__dirname}/index.html`);
   }

@@ -86,6 +86,12 @@ const { argv } = yargs
     });
     yargs.demandOption(['file', 'meta']);
   })
+  .command('checkmedia [file]', 'Run checkMedia', () => {
+    yargs.positional('file', {
+      description: 'The video to check',
+      type: 'string',
+    }).demandOption('file');
+  })
   .command('list-config', 'List viame pipeline configuration', settingsArgs)
   .command('run-pipeline', 'Run a pipeline', () => {
     settingsArgs();
@@ -111,6 +117,11 @@ const { argv } = yargs
     yargs.option('name', {
       describe: 'New pipeline name created by training',
     });
+    yargs.option('annotatedFramesOnly', {
+      describe: 'Train only on annotated frames',
+      type: 'boolean',
+      default: false,
+    });
     yargs.demandOption(['id', 'config', 'name']);
   })
   .command('stats', 'Show stats on existing data', () => {
@@ -133,6 +144,13 @@ if (argv._.includes('viame2json')) {
   parseViameFile(argv.file as string);
 } else if (argv._.includes('json2viame')) {
   parseJsonFile(argv.file as string, argv.meta as string);
+} else if (argv._.includes('checkmedia')) {
+  const settings = getSettings();
+  const run = async () => {
+    const out = await settings.platform.checkMedia(settings, argv.file as string);
+    console.log(out);
+  };
+  run();
 } else if (argv._.includes('list-config')) {
   const settings = getSettings();
   const run = async () => {
@@ -165,6 +183,7 @@ if (argv._.includes('viame2json')) {
     datasetIds: argv.id as string[],
     trainingConfig: argv.config as string,
     pipelineName: argv.name as string,
+    annotatedFramesOnly: argv.annotatedFramesOnly as boolean,
   };
   const run = async () => {
     const job = await settings.platform.train(settings, trainargs, updater);

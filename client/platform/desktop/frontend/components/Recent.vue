@@ -18,6 +18,9 @@ import * as api from '../api';
 import {
   JsonMetaCache, recents, removeRecents, setRecents,
 } from '../store/dataset';
+import {
+  upgradedVersion, downgradedVersion, acknowledgeVersion, knownVersion,
+} from '../store/settings';
 import { setOrGetConversionJob } from '../store/jobs';
 import BrowserLink from './BrowserLink.vue';
 import NavigationBar from './NavigationBar.vue';
@@ -180,6 +183,7 @@ export default defineComponent({
 
     return {
       // methods
+      acknowledgeVersion,
       open,
       finalizeImport,
       multiCamImport,
@@ -201,6 +205,9 @@ export default defineComponent({
       errorText,
       importMultiCamDialog,
       headers,
+      upgradedVersion,
+      downgradedVersion,
+      knownVersion,
     };
   },
 });
@@ -233,6 +240,35 @@ export default defineComponent({
     <navigation-bar />
     <v-container>
       <v-col>
+        <v-alert
+          v-if="upgradedVersion"
+          color="success darken-2"
+          dismissible
+          @input="acknowledgeVersion"
+        >
+          <h2>
+            Upgraded to DIVE Desktop Release {{ upgradedVersion }}
+          </h2>
+          Read the
+          <browser-link
+            href="https://github.com/Kitware/dive/releases"
+            display="inline"
+          >
+            release logs
+          </browser-link>
+          to find out what's new.
+        </v-alert>
+        <v-alert
+          v-if="downgradedVersion"
+          type="warning"
+          color="warning darken-1"
+        >
+          <h3>
+            Downgrade detected
+          </h3>
+          You're using {{ downgradedVersion }}, but a newer version
+          {{ knownVersion }} has been launched before.  Downgrading is not recommended.
+        </v-alert>
         <v-row>
           <v-col
             md="6"
@@ -348,7 +384,7 @@ export default defineComponent({
               <template #[`item.name`]="{ item }">
                 <span :key="item.id">
                   <div v-if="setOrGetConversionJob(item.id)">
-                    <span class="primary--text text--darken-1 text-decoration-none">
+                    <span class="primary--text text--darken-1 text-subtitle-1 pt-1">
                       {{ item.name }}
                     </span>
                     <span class="pl-4">

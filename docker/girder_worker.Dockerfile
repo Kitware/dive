@@ -12,6 +12,9 @@ WORKDIR /home/viame_girder
 
 # BEGIN: Porting girder worker install from girder/girder_worker Dockerfile.py3
 RUN apt-get update && \
+  apt-get install -qy software-properties-common && \
+  add-apt-repository ppa:savoury1/ffmpeg4 && \
+  apt-get update && \
 	export DEBIAN_FRONTEND=noninteractive && \
   apt-get install -qy software-properties-common python3-software-properties && \
   apt-get update && apt-get install -qy \
