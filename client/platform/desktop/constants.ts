@@ -216,7 +216,7 @@ export interface CheckMediaResults {
 }
 export interface MultiCamImportFolderArgs {
   defaultDisplay: string; // In multicam the default camera to display
-  folderList: Record<string, string>; // Camera name and folder import for images or file for videos
+  folderList: Record<string, {folder: string; trackFile: string}>;
   calibrationFile?: string; // NPZ calibation matrix file
   type: 'image-sequence' | 'video';
 }
@@ -224,7 +224,7 @@ export interface MultiCamImportFolderArgs {
 export interface MultiCamImportKeywordArgs {
   defaultDisplay: string; // In multicam the default camera to display
   keywordFolder: string; // Base folder used for import, globList will filter folder
-  globList: Record<string, string>; // Camera name key and glob pattern for keywordfolder
+  globList: Record<string, {glob: string; trackFile: string}>;
   calibrationFile?: string; // NPZ calibration matrix file
   type: 'image-sequence'; // Always image-sequence type for glob matching
 }

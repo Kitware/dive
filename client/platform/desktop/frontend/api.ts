@@ -70,6 +70,11 @@ async function getTrainingConfigurations(): Promise<TrainingConfigs> {
   return ipcRenderer.invoke('get-training-configs');
 }
 
+async function getTrackFileinFolder(path: string): Promise<string | null> {
+  return ipcRenderer.invoke('find-track-file-in-folder', path);
+}
+
+
 async function runPipeline(itemId: string, pipeline: Pipe): Promise<DesktopJob> {
   const args: RunPipeline = {
     pipeline,
@@ -192,4 +197,5 @@ export {
   importMultiCam,
   openLink,
   nvidiaSmi,
+  getTrackFileinFolder,
 };

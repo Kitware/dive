@@ -50,6 +50,10 @@ export default function register() {
     const ret = await common.autodiscoverData(settings.get());
     return ret;
   });
+  ipcMain.handle('find-track-file-in-folder', async (_, path: string) => {
+    const ret = await common.findTrackFileinFolder(path);
+    return ret;
+  });
 
   /**
    * Platform-dependent methods

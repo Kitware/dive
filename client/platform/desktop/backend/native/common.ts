@@ -651,6 +651,17 @@ async function checkDataset(
   return true;
 }
 
+
+async function findTrackFileinFolder(path: string) {
+  let trackFileAbsPath = await _findJsonTrackFile(path);
+  if (!trackFileAbsPath) {
+    const csvFileCandidates = await _findCSVTrackFiles(path);
+    if (csvFileCandidates.length) {
+      [trackFileAbsPath] = csvFileCandidates;
+    }
+  }
+  return trackFileAbsPath;
+}
 /**
  * Begin a dataset import.
  */
@@ -741,13 +752,7 @@ async function beginMediaImport(
     throw new Error('only video and image-sequence types are supported');
   }
 
-  let trackFileAbsPath = await _findJsonTrackFile(jsonMeta.originalBasePath);
-  if (!trackFileAbsPath) {
-    const csvFileCandidates = await _findCSVTrackFiles(jsonMeta.originalBasePath);
-    if (csvFileCandidates.length) {
-      [trackFileAbsPath] = csvFileCandidates;
-    }
-  }
+  const trackFileAbsPath = await findTrackFileinFolder(jsonMeta.originalBasePath);
   return {
     jsonMeta,
     globPattern: '',
@@ -1022,4 +1027,5 @@ export {
   processTrainedPipeline,
   saveAttributes,
   findImagesInFolder,
+  findTrackFileinFolder,
 };

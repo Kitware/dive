@@ -72,8 +72,8 @@
       "input": {
         "defaultDisplay": "left",
         "folderList": {
-          "left": "/home/user/data/stereoLeftRightImages/left",
-          "right": "/home/user/data/stereoLeftRightImages/right"
+          "left": {"folder": "/home/user/data/stereoLeftRightImages/left", "trackFile": "" },
+          "right": { "folder": "/home/user/data/stereoLeftRightImages/right", "trackFile": ""}
         },
         "calibrationFile": "/home/user/data/stereoLeftRightImages/stereoCalibration.npz",
         "type": "image-sequence"
@@ -117,8 +117,8 @@
       "input": {
         "defaultDisplay": "left",
         "folderList": {
-          "left": "/home/user/data/stereoLeftRightImages/left/tiff",
-          "right": "/home/user/data/stereoLeftRightImages/right/tiff"
+          "left": {"folder": "/home/user/data/stereoLeftRightImages/left/tiff", "trackFile": "" },
+          "right": { "folder": "/home/user/data/stereoLeftRightImages/right/tiff", "trackFile": ""}
         },
         "calibrationFile": "/home/user/data/stereoLeftRightImages/stereoCalibration.npz",
         "type": "image-sequence"
@@ -168,8 +168,8 @@
       "input": {
         "defaultDisplay": "right",
         "folderList": {
-          "left": "/home/user/data/stereoLeftRightImages/left/tiff",
-          "right": "/home/user/data/stereoLeftRightImages/right/same"
+          "left": {"folder": "/home/user/data/stereoLeftRightImages/left/tiff", "trackFile": ""},
+          "right": {"folder": "/home/user/data/stereoLeftRightImages/right/same", "trackFile": ""}
         },
         "calibrationFile": "/home/user/data/stereoLeftRightImages/stereoCalibration.npz",
         "type": "image-sequence"
@@ -219,8 +219,8 @@
       "input": {
         "defaultDisplay": "left",
         "folderList": {
-          "left": "/home/user/data/stereoLeftRightImages/left/left.mp4",
-          "right": "/home/user/data/stereoLeftRightImages/right/right.mp4"
+          "left": {"folder": "/home/user/data/stereoLeftRightImages/left/left.mp4", "trackFile": ""},
+          "right": {"folder": "/home/user/data/stereoLeftRightImages/right/right.mp4", "trackFile": ""}
         },
         "calibrationFile": "/home/user/data/stereoLeftRightImages/stereoCalibration.npz",
         "type": "video"
@@ -256,8 +256,8 @@
       "input": {
         "defaultDisplay": "left",
         "folderList": {
-          "left": "/home/user/data/stereoLeftRightImages/left/left.mpg",
-          "right": "/home/user/data/stereoLeftRightImages/right/right.mpg"
+          "left": {"folder": "/home/user/data/stereoLeftRightImages/left/left.mpg", "trackFile":""},
+          "right": {"folder": "/home/user/data/stereoLeftRightImages/right/right.mpg", "trackFile":""}
         },
         "calibrationFile": "/home/user/data/stereoLeftRightImages/stereoCalibration.npz",
         "type": "video"
@@ -298,8 +298,8 @@
         "defaultDisplay": "left",
         "keywordFolder": "/home/user/data/stereoLeftRightCombinedImages",
         "globList": {
-          "left": "*left*.png",
-          "right": "*right*.png"
+          "left": {"glob": "*left*.png", "trackFile": "" },
+          "right": {"glob": "*right*.png", "trackFile": "" }
         },
         "calibrationFile": "/home/user/data/stereoLeftRightImages/stereoCalibration.npz",
         "type": "image-sequence"
@@ -344,8 +344,8 @@
         "defaultDisplay": "left",
         "keywordFolder": "/home/user/data/stereoLeftRightCombinedImages/tiff",
         "globList": {
-          "left": "*left*.tiff",
-          "right": "*right*.tiff"
+          "left": {"glob": "*left*.tiff", "trackFile": "" },
+          "right": {"glob": "*right*.tiff", "trackFile": "" }
         },
         "calibrationFile": "/home/user/data/stereoLeftRightImages/stereoCalibration.npz",
         "type": "image-sequence"
@@ -397,8 +397,8 @@
       "input": {
         "defaultDisplay": "left",
         "folderList": {
-          "left": "/home/user/data/stereoLeftRightImages/left2/left.mpg",
-          "right": "/home/user/data/stereoLeftRightImages/right2/right.mpg"
+          "left": {"folder": "/home/user/data/stereoLeftRightImages/left2/left.mpg", "trackFile": ""},
+          "right": {"folder": "/home/user/data/stereoLeftRightImages/right2/right.mpg", "trackFile": ""}
         },
         "calibrationFile": "/home/user/data/stereoLeftRightImages/stereoCalibration.npz",
         "type": "video"
@@ -411,8 +411,8 @@
       "input": {
         "defaultDisplay": "left2",
         "folderList": {
-          "left": "/home/user/data/stereoLeftRightImages/left/left.mp4",
-          "right": "/home/user/data/stereoLeftRightImages/right/right.mp4"
+          "left": {"folder": "/home/user/data/stereoLeftRightImages/left/left.mp4", "trackFile": ""},
+          "right":{"folder": "/home/user/data/stereoLeftRightImages/right/right.mp4", "trackFile": ""}
         },
         "calibrationFile": "/home/user/data/stereoLeftRightImages/stereoCalibration.npz",
         "type": "video"
@@ -425,8 +425,8 @@
       "input": {
         "defaultDisplay": "left",
         "folderList": {
-          "left": "/home/user/data/stereoLeftRightImages/left/left1.png",
-          "right": "/home/user/data/stereoLeftRightImages/right/right1.png"
+          "left": {"folder": "/home/user/data/stereoLeftRightImages/left/left1.png", "trackFile": ""},
+          "right": {"folder": "/home/user/data/stereoLeftRightImages/right/right1.png", "trackFile": ""}
         },
         "calibrationFile": "/home/user/data/stereoLeftRightImages/stereoCalibration.npz",
         "type": "video"
@@ -439,8 +439,8 @@
       "input": {
         "defaultDisplay": "nomimeleft",
         "folderList": {
-          "nomimeleft": "/home/user/data/stereoLeftRightImages/left/nomimeleft/left.zxy",
-          "nomimeright": "/home/user/data/stereoLeftRightImages/right/nomimeright/right.zxy"
+          "nomimeleft": {"folder": "/home/user/data/stereoLeftRightImages/left/nomimeleft/left.zxy", "trackFile": "" },
+          "nomimeright": {"folder": "/home/user/data/stereoLeftRightImages/right/nomimeright/right.zxy", "trackFile": ""}
         },
         "calibrationFile": "/home/user/data/stereoLeftRightImages/stereoCalibration.npz",
         "type": "video"
@@ -453,8 +453,8 @@
       "input": {
         "defaultDisplay": "left",
         "folderList": {
-          "left": "/home/user/data/stereoLeftRightCombinedImages/empty",
-          "right": "/home/user/data/stereoLeftRightCombinedImages/empty"
+          "left": {"folder": "/home/user/data/stereoLeftRightCombinedImages/empty", "trackFile" : "" },
+          "right": {"folder": "/home/user/data/stereoLeftRightCombinedImages/empty", "trackFile": "" }
         },
         "calibrationFile": "/home/user/data/stereoLeftRightImages/stereoCalibration.npz",
         "type": "image-sequence"
@@ -471,8 +471,8 @@
         "defaultDisplay": "left",
         "keywordFolder": "/home/user/data/stereoLeftRightCombinedImages/tiff",
         "globList": {
-          "left": "*left*.tiff",
-          "right": "*right*.tiff"
+          "left": {"glob": "*left*.png", "trackFile": "" },
+          "right": {"glob": "*right*.png", "trackFile": "" }
         },
         "calibrationFile": "/home/user/data/stereoLeftRightImages/stereoCalibration.npz",
         "type": "video"
