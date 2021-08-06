@@ -4,10 +4,22 @@ import fs from 'fs-extra';
 import { AnnotationFileData } from 'platform/desktop/backend/serializers/viame';
 
 
-import Track, {
+import {
   TrackData, Feature, StringKeyObject,
 } from 'vue-media-annotator/track';
 import { RectBounds } from 'vue-media-annotator/utils';
+
+
+interface TrackJSON {
+  begin: number;
+  end: number;
+  trackId: number;
+  meta: StringKeyObject;
+  attributes: StringKeyObject;
+  confidencePairs: [string, number][];
+  features: Feature[];
+
+}
 
 type ActivityLocalization = Record<string, Record<string, number>>;
 // { filename: '123':0, '234':1} object with key equal to
@@ -23,10 +35,10 @@ type ObjectLocalization = Record<string,
     >
 >;
 
-interface NistFile {
+export interface NistFile {
     filesProcessed: string[];
     processingReport: {
-        filesStatuses: Record<string, {
+        fileStatuses: Record<string, {
             status: 'success' | 'fail';
             message: string;
         }>;
@@ -50,9 +62,22 @@ interface NistActivity {
     objects?: NistObject[];
 }
 
-
 function confirmNistFormat(data: NistFile) {
   return data.activities && data.filesProcessed && data.processingReport;
+}
+
+async function confirmNistFile(filename: string) {
+  const rawBuffer = await fs.readFile(filename, 'utf-8');
+  let nistFile: NistFile;
+  if (rawBuffer.length === 0) {
+    return { tracks: [] }; // Return empty object if file was empty
+  }
+  try {
+    nistFile = JSON.parse(rawBuffer) as NistFile;
+  } catch (err) {
+    throw new Error(`Unable to parse ${filename}: ${err}`);
+  }
+  return confirmNistFormat(nistFile);
 }
 
 function loadObjects(objects: NistObject[], baseFileName: string): Feature[] {
@@ -66,7 +91,7 @@ function loadObjects(objects: NistObject[], baseFileName: string): Feature[] {
           const bbox = bounds.boundingBox;
           const adjustedBounds: RectBounds = [bbox.x, bbox.y, bbox.x + bbox.w, bbox.y + bbox.h];
           features.push({
-            frame: parseInt(frame, 10),
+            frame: parseInt(frame, 10) - 1,
             keyframe: true,
             bounds: adjustedBounds,
             attributes: {
@@ -88,8 +113,15 @@ function loadActivity(
 ): TrackData | null {
   const tracks = Object.entries(activity.localization).map(([key, localization]) => {
     if (baseFileName === key) {
-      const track = new Track(activity.activityID,
-        { confidencePairs: [[activity.activity, activity.presenceConf]] });
+      const track: TrackJSON = {
+        begin: 0,
+        end: 0,
+        trackId: activity.activityID,
+        meta: {},
+        attributes: {},
+        confidencePairs: [[activity.activity, activity.presenceConf]],
+        features: [],
+      };
       let features: Feature[] = [];
       // Now we determine fram numbers
       Object.entries(localization).forEach(([frame, val]) => {
@@ -99,6 +131,7 @@ function loadActivity(
             frame: parseInt(frame, 10) - 1,
             bounds: fullFrameBounds,
             keyframe: true,
+            interpolate: true,
           });
         } else if (val === 1) {
           track.end = parseInt(key, 10) - 1;
@@ -116,10 +149,23 @@ function loadActivity(
       };
       //Need to add in any objectIds if they exist
       if (activity.objects) {
-        features = features.concat(loadObjects(activity.objects, baseFileName));
+        const objectFeatures = loadObjects(activity.objects, baseFileName);
+        const objectMap: Record<number, Feature> = {};
+        objectFeatures.forEach((feature) => {
+          objectMap[feature.frame] = feature;
+        });
+        features.forEach((feature) => {
+          if (objectMap[feature.frame] && !feature.interpolate) {
+            objectMap[feature.frame].interpolate = feature.interpolate;
+          } else {
+            objectMap[feature.frame] = feature;
+          }
+        });
+        features = Object.values(objectMap);
       }
       // Make sure features is in the right order:
       features.sort((a, b) => a.frame - b.frame);
+      // Filter out duplicates between Activity and Objects
       track.begin = features[0].frame;
       track.end = features[features.length - 1].frame;
       track.features = features;
@@ -133,20 +179,11 @@ function loadActivity(
   return null;
 }
 
-async function loadNistFile(
+function convertNisttoJSON(
+  nistFile: NistFile,
   filename: string,
   fullFrameBounds: RectBounds = [0, 0, 1920, 1080],
-): Promise<AnnotationFileData> {
-  let nistFile: NistFile;
-  const rawBuffer = await fs.readFile(filename, 'utf-8');
-  if (rawBuffer.length === 0) {
-    return { tracks: [] }; // Return empty object if file was empty
-  }
-  try {
-    nistFile = JSON.parse(rawBuffer) as NistFile;
-  } catch (err) {
-    throw new Error(`Unable to parse ${filename}: ${err}`);
-  }
+) {
   if (!confirmNistFormat(nistFile)) {
     throw new Error(`Unable to confirm ${filename} is a Nist File`);
   }
@@ -172,15 +209,37 @@ async function loadNistFile(
   };
 }
 
-function createObject(features: Feature[], filename: string) {
+async function loadNistFile(
+  filename: string,
+  fullFrameBounds: RectBounds = [0, 0, 1920, 1080],
+): Promise<AnnotationFileData> {
+  let nistFile: NistFile;
+  const rawBuffer = await fs.readFile(filename, 'utf-8');
+  if (rawBuffer.length === 0) {
+    return { tracks: [] }; // Return empty object if file was empty
+  }
+  try {
+    nistFile = JSON.parse(rawBuffer) as NistFile;
+  } catch (err) {
+    throw new Error(`Unable to parse ${filename}: ${err}`);
+  }
+  return convertNisttoJSON(nistFile, filename, fullFrameBounds);
+}
+
+function createObject(
+  features: Feature[],
+  filename: string,
+  objectTypeBase: string,
+  objectIDBase: number,
+) {
   const localization: ObjectLocalization = {};
   localization[filename] = {};
-  let objectID = 0;
-  let objectType = '';
+  let objectID = objectIDBase;
+  let objectType = objectTypeBase;
   features.forEach((feature) => {
     if (feature.bounds) {
       const bbox = feature.bounds;
-      localization[filename][feature.frame.toString()] = {
+      localization[filename][(feature.frame + 1).toString()] = {
         boundingBox: {
           x: bbox[0],
           y: bbox[1],
@@ -202,6 +261,7 @@ function createObject(features: Feature[], filename: string) {
 function createActivity(
   track: TrackData,
   filename: string,
+  useObjects = false,
 ) {
   const activityID = track.trackId;
   const activity = track.confidencePairs[0][0];
@@ -211,15 +271,29 @@ function createActivity(
   const { features } = track;
   const localization: ActivityLocalization = {};
   localization[filename] = {};
-  localization[filename][track.begin.toString()] = 1;
-  localization[filename][track.end.toString()] = 0;
+  localization[filename][(track.begin + 1).toString()] = 1;
+  localization[filename][(track.end + 1).toString()] = 0;
   //Any other times are considered objects and should be transferred into objects.
   const objects: NistObject[] = [];
-  if (features.length > 2) {
-    const featureList = features.filter(
-      (feature) => feature.frame !== track.begin && feature.frame !== track.end,
-    );
-    objects.push(createObject(featureList, filename));
+  if (useObjects) {
+    objects.push(createObject(features, filename, activity, activityID));
+  }
+  // Need to pick up any gabs in the time if there are multiple 1-0 pairs
+  if (track.features.length % 2 === 0) { //This can only be true if there is an even number
+    const offFrames = track.features.filter((feature) => !feature.interpolate);
+    const onFrames = track.features.filter((feature) => feature.interpolate);
+    if (offFrames.length > 0) {
+      offFrames.forEach((feature) => {
+        if (feature.frame !== track.end && feature.frame !== track.begin) {
+          localization[filename][(feature.frame + 1).toString()] = 0;
+        }
+      });
+      onFrames.forEach((feature) => {
+        if (feature.frame !== track.end && feature.frame !== track.begin) {
+          localization[filename][(feature.frame + 1).toString()] = 1;
+        }
+      });
+    }
   }
   const nistActivity: NistActivity = {
     activityID,
@@ -228,13 +302,17 @@ function createActivity(
     alertFrame,
     localization,
   };
-  if (objects) {
+  if (objects.length) {
     nistActivity.objects = objects;
   }
   return nistActivity;
 }
 
-async function exportNist(trackData: MultiTrackRecord, videoFileName: string) {
+async function exportNist(
+  trackData: MultiTrackRecord,
+  videoFileName: string,
+  useObjects = false,
+) {
   const status: Record<string, {status: 'success' | 'fail'; message: string}> = {};
   status[videoFileName] = {
     status: 'success',
@@ -243,21 +321,22 @@ async function exportNist(trackData: MultiTrackRecord, videoFileName: string) {
   const nistFile: NistFile = {
     filesProcessed: [videoFileName],
     processingReport: {
-      filesStatuses: status,
+      fileStatuses: status,
     },
     activities: [],
   };
   const activities: NistActivity[] = [];
   Object.values(trackData).forEach((track) => {
-    activities.push(createActivity(track, videoFileName));
+    activities.push(createActivity(track, videoFileName, useObjects));
   });
   nistFile.activities = activities;
   return nistFile;
 }
 
-
 export {
   loadNistFile,
+  convertNisttoJSON,
   exportNist,
   confirmNistFormat,
+  confirmNistFile,
 };

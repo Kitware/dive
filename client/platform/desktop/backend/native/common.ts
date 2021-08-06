@@ -14,6 +14,7 @@ import {
   MultiCamMedia,
 } from 'dive-common/apispec';
 import * as viameSerializers from 'platform/desktop/backend/serializers/viame';
+import * as nistSerializers from 'platform/desktop/backend/serializers/nist';
 import {
   websafeImageTypes, websafeVideoTypes, otherImageTypes, otherVideoTypes,
 } from 'dive-common/constants';
@@ -94,8 +95,8 @@ async function _findJsonTrackFile(basePath: string): Promise<string | null> {
   const contents = await fs.readdir(basePath);
   const jsonFileCandidates: string[] = [];
   await Promise.all(contents.map(async (name) => {
+    const fullPath = npath.join(basePath, name);
     if (JsonTrackFileName.test(name)) {
-      const fullPath = npath.join(basePath, name);
       const statResult = await fs.stat(fullPath);
       if (statResult.isFile()) {
         jsonFileCandidates.push(fullPath);
@@ -497,9 +498,14 @@ async function processAnnotationFilePath(
   }
   if (fs.statSync(path).size > 0) {
     // Attempt to process the file
+    let data: viameSerializers.AnnotationFileData;
+    if (npath.extname(path) === '.json' && await nistSerializers.confirmNistFile(path)) {
+      data = await nistSerializers.loadNistFile(path);
+    } else {
+      data = await viameSerializers.parseFile(path);
+    }
     try {
       // eslint-disable-next-line no-await-in-loop
-      const data = await viameSerializers.parseFile(path);
       const processed = processTrackAttributes(data.tracks);
       const { fps } = data;
       const { attributes } = processed;

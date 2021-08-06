@@ -1,0 +1,378 @@
+{
+"inputTrackJSON": {
+    "0": {
+        "begin": 0,
+        "end": 4,
+        "trackId": 0,
+        "meta": {},
+        "attributes": {
+            "alertFrame": 0
+        },
+        "confidencePairs": [
+            [
+                "test1",
+                0.134
+            ]
+        ],
+        "features": [
+            {
+                "frame": 0,
+                "bounds": [
+                    0,
+                    0,
+                    1920,
+                    1080
+                ],
+                "keyframe": true,
+                "interpolate": true,
+                "attributes":{            
+                    "objectID": 0,
+                    "objectType": "test1"
+                }
+            },
+            {
+                "frame": 4,
+                "bounds": [
+                    0,
+                    0,
+                    1920,
+                    1080
+                ],
+                "keyframe": true,
+                "interpolate": true,
+                "attributes":{            
+                    "objectID": 0,
+                    "objectType": "test1"
+                }
+
+            }
+        ]
+    },
+    "1": {
+        "trackId": 1,
+        "meta": {},
+        "attributes": {
+            "alertFrame": 8
+        },
+        "confidencePairs": [
+            [
+                "test2",
+                1
+            ]
+        ],
+        "features": [
+            {
+                "keyframe": true,
+                "frame": 8,
+                "bounds": [
+                    290,
+                    286,
+                    914,
+                    838
+                ],
+                "interpolate": true,
+                "attributes":{            
+                    "objectID": 1,
+                    "objectType": "test2"
+                }
+            },
+            {
+                "keyframe": true,
+                "frame": 9,
+                "bounds": [
+                    480,
+                    286,
+                    1029,
+                    765
+                ],
+                "interpolate": false,
+                "attributes":{            
+                    "objectID": 1,
+                    "objectType": "test2"
+                }
+            },
+            {
+                "keyframe": true,
+                "frame": 12,
+                "bounds": [
+                    645,
+                    413,
+                    1359,
+                    846
+                ],
+                "interpolate": true,
+                "attributes":{            
+                    "objectID": 1,
+                    "objectType": "test2"
+                }
+            },
+            {
+                "keyframe": true,
+                "frame": 15,
+                "bounds": [
+                    588,
+                    409,
+                    1463,
+                    811
+                ],
+                "interpolate": false,
+                "attributes":{            
+                    "objectID": 1,
+                    "objectType": "test2"
+                }
+            }
+        ],
+        "begin": 8,
+        "end": 15
+    }
+},
+"outputNistJSON": {
+    "filesProcessed": [
+        "testVideo.mp4"
+    ],
+    "processingReport": {
+        "fileStatuses": {
+            "testVideo.mp4": {
+                "status": "success",
+                "message": "exported from DIVE"
+            }
+        }
+    },
+    "activities": [
+        {
+            "activityID": 0,
+            "presenceConf": 0.134,
+            "activity": "test1",
+            "alertFrame": 0,
+            "localization": {
+                "testVideo.mp4": {
+                    "1": 1,
+                    "5": 0
+                }
+            }
+        },
+        {
+            "activityID": 1,
+            "presenceConf": 1,
+            "activity": "test2",
+            "alertFrame": 8,
+            "localization": {
+                "testVideo.mp4": {
+                    "9": 1,
+                    "10": 0,
+                    "13": 1,
+                    "16": 0
+                }
+            }
+        }
+    ]
+},
+"inputNistObjects": {
+    "filesProcessed": [
+        "testVideo.mp4"
+    ],
+    "processingReport": {
+        "filesStatuses": {
+            "testVideo.mp4": {
+                "status": "success",
+                "message": "exported from DIVE"
+            }
+        }
+    },
+    "activities": [
+        {
+            "activityID": 0,
+            "presenceConf": 0.134,
+            "activity": "test1",
+            "alertFrame": 0,
+            "localization": {
+                "testVideo.mp4": {
+                    "1": 1,
+                    "5": 0
+                }
+            },
+            "objects": [
+                {
+                    "objectID": 0,
+                    "objectType": "test1",
+                    "localization": {
+                        "testVideo.mp4": {
+                            "1": {
+                                "boundingBox": {
+                                    "x": 0,
+                                    "y": 0,
+                                    "w": 1920,
+                                    "h": 1080
+                                }
+                            },
+                            "5": {
+                                "boundingBox": {
+                                    "x": 0,
+                                    "y": 0,
+                                    "w": 1920,
+                                    "h": 1080
+                                }
+                            }
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "activityID": 1,
+            "presenceConf": 1,
+            "activity": "test2",
+            "alertFrame": 8,
+            "localization": {
+                "testVideo.mp4": {
+                    "9": 1,
+                    "10": 0,
+                    "13": 1,
+                    "16": 0
+                }
+            },
+            "objects": [
+                {
+                    "objectID": 1,
+                    "objectType": "test2",
+                    "localization": {
+                        "testVideo.mp4": {
+                            "9": {
+                                "boundingBox": {
+                                    "x": 290,
+                                    "y": 286,
+                                    "w": 624,
+                                    "h": 552
+                                }
+                            },
+                            "10": {
+                                "boundingBox": {
+                                    "x": 480,
+                                    "y": 286,
+                                    "w": 549,
+                                    "h": 479
+                                }
+                            },
+                            "13": {
+                                "boundingBox": {
+                                    "x": 645,
+                                    "y": 413,
+                                    "w": 714,
+                                    "h": 433
+                                }
+                            },
+                            "16": {
+                                "boundingBox": {
+                                    "x": 588,
+                                    "y": 409,
+                                    "w": 875,
+                                    "h": 402
+                                }
+                            }
+                        }
+                    }
+                }
+            ]
+        }
+    ]
+},
+"nistToTracks": [
+    {
+        "begin": 0,
+        "end": 4,
+        "trackId": 0,
+        "meta": {},
+        "attributes": {
+            "alertFrame": 0
+        },
+        "confidencePairs": [
+            [
+                "test1",
+                0.134
+            ]
+        ],
+        "features": [
+            {
+                "frame": 0,
+                "bounds": [
+                    0,
+                    0,
+                    1920,
+                    1080
+                ],
+                "keyframe": true,
+                "interpolate": true
+            },
+            {
+                "frame": 4,
+                "bounds": [
+                    0,
+                    0,
+                    1920,
+                    1080
+                ],
+                "keyframe": true
+            }
+        ]
+    },
+    {
+        "begin": 8,
+        "end": 15,
+        "trackId": 1,
+        "meta": {},
+        "attributes": {
+            "alertFrame": 8
+        },
+        "confidencePairs": [
+            [
+                "test2",
+                1
+            ]
+        ],
+        "features": [
+            {
+                "frame": 8,
+                "bounds": [
+                    0,
+                    0,
+                    1920,
+                    1080
+                ],
+                "keyframe": true,
+                "interpolate": true
+            },
+            {
+                "frame": 9,
+                "bounds": [
+                    0,
+                    0,
+                    1920,
+                    1080
+                ],
+                "keyframe": true
+            },
+            {
+                "frame": 12,
+                "bounds": [
+                    0,
+                    0,
+                    1920,
+                    1080
+                ],
+                "keyframe": true,
+                "interpolate": true
+            },
+            {
+                "frame": 15,
+                "bounds": [
+                    0,
+                    0,
+                    1920,
+                    1080
+                ],
+                "keyframe": true
+            }
+        ]
+    }
+]
+}

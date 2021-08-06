@@ -194,6 +194,8 @@ export interface FFProbeResults {
     codec_type?: string;
     codec_name?: string;
     sample_aspect_ratio?: string;
+    width?: number;
+    height?: number;
   }];
 }
 
@@ -213,6 +215,7 @@ export interface CheckMediaResults {
   websafe: boolean;
   originalFpsString: string;
   originalFps: number;
+  videoDimensions: {width: number; height: number};
 }
 export interface MultiCamImportFolderArgs {
   defaultDisplay: string; // In multicam the default camera to display

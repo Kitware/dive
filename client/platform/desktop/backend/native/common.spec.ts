@@ -83,6 +83,8 @@ const checkMedia = async (settingsVal: Settings, file: string) => ({
   websafe: file.includes('mp4'),
   originalFps: 30,
   originalFpsString: '30/1',
+  videoDimensions: { width: 1920, height: 1080 },
+
 });
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const convertMedia = async (settingsVal: Settings, args: ConversionArgs,
