@@ -393,6 +393,7 @@ describe('native.common', () => {
 
   it('import with CSV annotations without specifying track file', async () => {
     const payload = await common.beginMediaImport(settings, '/home/user/data/imageSuccessWithAnnotations', checkMedia);
+    payload.trackFileAbsPath = ''; //It returns null be default but users change it.
     payload.jsonMeta.fps = 12; // simulate user specify FPS action
     await common.finalizeMediaImport(settings, payload, updater, convertMedia);
     const meta = await common.loadMetadata(settings, payload.jsonMeta.id, urlMapper);
@@ -404,7 +405,7 @@ describe('native.common', () => {
     payload.jsonMeta.fps = 12; // simulate user specify FPS action
     await common.finalizeMediaImport(settings, payload, updater, convertMedia);
     const meta = await common.loadMetadata(settings, payload.jsonMeta.id, urlMapper);
-    expect(meta.fps).toBe(12);
+    expect(meta.fps).toBe(32);
   });
 
   it('import with user selected FPS > originalFPS', async () => {

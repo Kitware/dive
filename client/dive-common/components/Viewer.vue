@@ -113,7 +113,7 @@ export default defineComponent({
       save: saveToServer,
       markChangesPending,
       pendingSaveCount,
-    } = useSave(toRef(props, 'id'), toRef(props, 'readonlyMode'));
+    } = useSave(currentId, toRef(props, 'readonlyMode'));
 
     const recipes = [
       new PolygonBase(),
@@ -367,6 +367,7 @@ export default defineComponent({
 
     const reloadAnnotations = async () => {
       clearAllTracks();
+      pendingSaveCount.value = 0;
       progress.loaded = false;
       await loadData();
     };

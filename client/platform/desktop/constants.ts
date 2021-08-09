@@ -177,7 +177,7 @@ export interface MediaImportPayload {
   jsonMeta: JsonMeta;
   globPattern: string;
   mediaConvertList: string[];
-  trackFileAbsPath: string | null;
+  trackFileAbsPath: string;
   multiCamTrackFiles: null | Record<string, string>;
 }
 
