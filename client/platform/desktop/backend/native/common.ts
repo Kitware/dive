@@ -88,9 +88,9 @@ async function _findCSVTrackFiles(originalBasePath: string) {
 /**
  * locate json track file in a directory
  * @param path path to a directory
- * @returns absolute path to json file or null
+ * @returns absolute path to json file or empty string
  */
-async function _findJsonTrackFile(basePath: string): Promise<string | null> {
+async function _findJsonTrackFile(basePath: string): Promise<string> {
   const contents = await fs.readdir(basePath);
   const jsonFileCandidates: string[] = [];
   await Promise.all(contents.map(async (name) => {
@@ -105,7 +105,7 @@ async function _findJsonTrackFile(basePath: string): Promise<string | null> {
   if (jsonFileCandidates.length > 0) {
     return jsonFileCandidates[0];
   }
-  return null;
+  return '';
 }
 
 /**
@@ -136,7 +136,7 @@ async function getValidatedProjectDir(settings: Settings, datasetId: string) {
     throw new Error(`missing metadata json file ${projectInfo.metaFileAbsPath}`);
   }
   const trackFileAbsPath = await _findJsonTrackFile(projectInfo.basePath);
-  if (trackFileAbsPath === null) {
+  if (trackFileAbsPath === '') {
     throw new Error(`missing track json file in ${projectInfo.basePath}`);
   }
   return {
@@ -752,10 +752,7 @@ async function beginMediaImport(
     throw new Error('only video and image-sequence types are supported');
   }
 
-  let trackFileAbsPath = await findTrackFileinFolder(jsonMeta.originalBasePath);
-  if (!trackFileAbsPath) { //Needs to be reset if not found
-    trackFileAbsPath = '';
-  }
+  const trackFileAbsPath = await findTrackFileinFolder(jsonMeta.originalBasePath);
   return {
     jsonMeta,
     globPattern: '',
