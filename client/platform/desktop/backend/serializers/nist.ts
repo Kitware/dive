@@ -80,18 +80,38 @@ async function confirmNistFile(filename: string) {
   return confirmNistFormat(nistFile);
 }
 
-function loadObjects(objects: NistObject[], baseFileName: string): Feature[] {
+function loadObjects(
+  objects: NistObject[],
+  baseFileName: string,
+  activity: NistActivity,
+  trackCount: number,
+): TrackJSON[] {
   const features: Feature[] = [];
+  const tracks: TrackJSON[] = [];
   for (let i = 0; i < objects.length; i += 1) {
     const object = objects[i];
     const { localization, objectID, objectType } = object;
+    let count = 1;
     Object.entries(localization).forEach(([key, annotations]) => {
       if (key === baseFileName) {
+        const track: TrackJSON = {
+          begin: -Infinity,
+          end: Infinity,
+          trackId: trackCount + count,
+          meta: {},
+          attributes: { activity: activity.activity, activityId: activity.activityID },
+          confidencePairs: [[objectType, activity.presenceConf]],
+          features: [],
+        };
+        count += 1;
         Object.entries(annotations).forEach(([frame, bounds]) => {
           const bbox = bounds.boundingBox;
           const adjustedBounds: RectBounds = [bbox.x, bbox.y, bbox.x + bbox.w, bbox.y + bbox.h];
+          const frameNum = parseInt(frame, 10) - 1;
+          track.end = Math.max(track.end, frameNum);
+          track.begin = Math.min(track.begin, frameNum);
           features.push({
-            frame: parseInt(frame, 10) - 1,
+            frame: frameNum,
             keyframe: true,
             bounds: adjustedBounds,
             attributes: {
@@ -100,30 +120,39 @@ function loadObjects(objects: NistObject[], baseFileName: string): Feature[] {
             },
           });
         });
+        tracks.push(track);
       }
     });
   }
-  return features;
+  // Create a track based on the features
+
+  return tracks;
 }
 
 function loadActivity(
   activity: NistActivity,
   baseFileName: string,
   fullFrameBounds: RectBounds = [0, 0, 1920, 1080],
-): TrackData | null {
-  const tracks = Object.entries(activity.localization).map(([key, localization]) => {
+  currentLength: number,
+): TrackData[] {
+  const tracks: TrackJSON[] = [];
+  Object.entries(activity.localization).forEach(([key, localization]) => {
     if (baseFileName === key) {
+      let trackId = activity.activityID;
+      if (trackId < tracks.length + currentLength) {
+        trackId = tracks.length + currentLength + 1;
+      }
       const track: TrackJSON = {
         begin: 0,
         end: 0,
-        trackId: activity.activityID,
+        trackId,
         meta: {},
-        attributes: {},
+        attributes: { activityID: activity.activityID },
         confidencePairs: [[activity.activity, activity.presenceConf]],
         features: [],
       };
-      let features: Feature[] = [];
-      // Now we determine fram numbers
+      const features: Feature[] = [];
+      // Now we determine frame numbers
       Object.entries(localization).forEach(([frame, val]) => {
         if (val === 0) {
           track.begin = parseInt(key, 10) - 1;
@@ -149,34 +178,22 @@ function loadActivity(
       };
       //Need to add in any objectIds if they exist
       if (activity.objects) {
-        const objectFeatures = loadObjects(activity.objects, baseFileName);
-        const objectMap: Record<number, Feature> = {};
-        objectFeatures.forEach((feature) => {
-          objectMap[feature.frame] = feature;
+        const objectTracks = loadObjects(activity.objects, baseFileName, activity, trackId);
+        objectTracks.forEach((objectTrack) => {
+          tracks.push(objectTrack);
         });
-        features.forEach((feature) => {
-          if (objectMap[feature.frame] && !feature.interpolate) {
-            objectMap[feature.frame].interpolate = feature.interpolate;
-          } else {
-            objectMap[feature.frame] = feature;
-          }
-        });
-        features = Object.values(objectMap);
       }
+
       // Make sure features is in the right order:
       features.sort((a, b) => a.frame - b.frame);
       // Filter out duplicates between Activity and Objects
       track.begin = features[0].frame;
       track.end = features[features.length - 1].frame;
       track.features = features;
-      return track;
+      tracks.push(track);
     }
-    return null;
   });
-  if (tracks.length === 1 && tracks[0] !== null) {
-    return tracks[0];
-  }
-  return null;
+  return tracks;
 }
 
 function convertNisttoJSON(
@@ -195,13 +212,13 @@ function convertNisttoJSON(
   }
   const baseFilename = nistFile.filesProcessed[0];
   // Now lets process the activities to make sure they are correct
-  const trackData: TrackData[] = [];
+  let trackData: TrackData[] = [];
   const { activities } = nistFile;
   for (let i = 0; i < activities.length; i += 1) {
     const activity = activities[i];
-    const track = loadActivity(activity, baseFilename, fullFrameBounds);
-    if (track) {
-      trackData.push(track);
+    const tracks = loadActivity(activity, baseFilename, fullFrameBounds, trackData.length);
+    if (tracks) {
+      trackData = trackData.concat(tracks);
     }
   }
   return {
