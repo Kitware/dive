@@ -44,6 +44,7 @@ interface FrameImage {
 
 export interface MultiCamImportFolderArgs {
   defaultDisplay: string; // In multicam the default camera to display
+  baseTrackFile: string;
   folderList: Record<string, {folder: string; trackFile: string}>;
   calibrationFile?: string; // NPZ calibation matrix file
   type: 'image-sequence' | 'video';
@@ -51,6 +52,7 @@ export interface MultiCamImportFolderArgs {
 
 export interface MultiCamImportKeywordArgs {
   defaultDisplay: string; // In multicam the default camera to display
+  baseTrackFile: string;
   keywordFolder: string; // Base folder used for import, globList will filter folder
   globList: Record<string, { glob: string; trackFile: string }>;
   type: 'image-sequence'; // Always image-sequence type for glob matching

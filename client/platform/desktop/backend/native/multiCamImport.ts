@@ -57,6 +57,9 @@ async function beginMultiCamImport(
     transcodedVideoFile: string;
     type: 'image-sequence' | 'video';
    }> = {};
+  const { baseTrackFile } = args;
+  let multiCamTrackFiles: null | Record<string, string> = {};
+  let trackFileCount = 0;
   if (isFolderArgs(args)) {
     Object.entries(args.folderList).forEach(([key, item]) => {
       const folderExists = fs.existsSync(item.folder);
@@ -136,6 +139,10 @@ async function beginMultiCamImport(
     if (isFolderArgs(args)) {
       await asyncForEach(Object.entries(args.folderList),
         async ([key, item]: [string, {folder: string; trackFile: string}]) => {
+          if (item.trackFile && multiCamTrackFiles) {
+            multiCamTrackFiles[key] = item.trackFile;
+            trackFileCount += 1;
+          }
           const video = item.folder;
           const mimetype = mime.lookup(video);
           if (key === args.defaultDisplay) {
@@ -174,6 +181,10 @@ async function beginMultiCamImport(
     if (isFolderArgs(args)) {
       await asyncForEach(Object.entries(args.folderList),
         async ([key, item]: [string, {folder: string; trackFile: string}]) => {
+          if (item.trackFile && multiCamTrackFiles) {
+            multiCamTrackFiles[key] = item.trackFile;
+            trackFileCount += 1;
+          }
           const found = await findImagesInFolder(item.folder);
           if (found.images.length === 0) {
             throw new Error(`no images found in ${item.folder}`);
@@ -207,12 +218,16 @@ async function beginMultiCamImport(
   } else if (jsonMeta.multiCam) {
     jsonMeta.subType = 'multicam';
   }
+  if (trackFileCount === 0) {
+    multiCamTrackFiles = null;
+  }
 
   return {
     jsonMeta,
     globPattern: '',
     mediaConvertList,
-    trackFileAbsPath: null,
+    trackFileAbsPath: baseTrackFile,
+    multiCamTrackFiles,
   };
 }
 

@@ -19,7 +19,9 @@ export async function migrate() {
 export default function wrap(): Api {
   async function loadMetadata(datasetId: string) {
     const meta = await api.loadMetadata(datasetId);
-    setRecents(meta, (new Date()).toString());
+    if (!datasetId.includes('/')) { // Only update if not multiCam
+      setRecents(meta, (new Date()).toString());
+    }
     return meta;
   }
 

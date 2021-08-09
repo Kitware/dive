@@ -45,6 +45,8 @@ export default defineComponent({
     const defaultDisplay = ref('left');
     const addNewToggle = ref(false);
     const newSetName = ref('');
+    const importAnnotationFilesCheck = ref(false);
+    const baseTrackFile: Ref<string> = ref('');
 
     const htmlFileReferences: HTMLFileReferences = {
       mediaHTMLFileList: {},
@@ -127,12 +129,16 @@ export default defineComponent({
       return false;
     });
 
-    async function openAnnotationFile(folder: string) {
+    async function openAnnotationFile(folder: string, baseFile = false) {
       const ret = await openFromDisk('annotation');
       if (!ret.canceled) {
         if (ret.filePaths?.length) {
           const path = ret.filePaths[0];
-          folderList.value[folder].trackFile = path;
+          if (!baseFile) {
+            folderList.value[folder].trackFile = path;
+          } else {
+            baseTrackFile.value = path;
+          }
         }
       }
     }
@@ -218,9 +224,16 @@ export default defineComponent({
     };
 
     const prepForImport = () => {
+      if (!importAnnotationFilesCheck.value) {
+        Object.keys(folderList.value).forEach((key) => {
+          folderList.value[key].trackFile = '';
+        });
+        baseTrackFile.value = '';
+      }
       if (importType.value === 'multi') {
         emit('begin-multicam-import', {
           defaultDisplay: defaultDisplay.value,
+          baseTrackFile,
           folderList: folderList.value,
           calibrationFile: calibrationFile.value,
           type: props.dataType,
@@ -229,6 +242,7 @@ export default defineComponent({
       } else if (importType.value === 'keyword') {
         emit('begin-multicam-import', {
           defaultDisplay: defaultDisplay.value,
+          baseTrackFile,
           keywordFolder: keywordFolder.value,
           globList: globList.value,
           calibrationFile: calibrationFile.value,
@@ -251,6 +265,8 @@ export default defineComponent({
       displayKeys,
       addNewToggle,
       newSetName,
+      importAnnotationFilesCheck,
+      baseTrackFile,
       //Methods
       open,
       prepForImport,
@@ -330,7 +346,7 @@ export default defineComponent({
                 </v-btn>
               </v-row>
               <v-row
-                v-if="item.folder"
+                v-if="item.folder && importAnnotationFilesCheck"
                 class="ma-2"
               >
                 <v-text-field
@@ -428,7 +444,7 @@ export default defineComponent({
                 out of {{ pendingImportPayload.jsonMeta.originalImageFiles.length }} images
               </v-chip>
             </v-row>
-            <v-row>
+            <v-row v-if="item.glob && importAnnotationFilesCheck">
               <v-text-field
                 :value="item.trackFile"
                 outlined
@@ -518,9 +534,30 @@ export default defineComponent({
               </v-icon>
             </v-btn>
           </v-list-item>
+          <v-list-item v-if="importAnnotationFilesCheck">
+            <v-text-field
+              :value="baseTrackFile"
+              outlined
+              clearable
+              prepend-inner-icon="mdi-file-table"
+              label="Annotation File (Base)"
+              class="pt-3"
+              @click="openAnnotationFile('base', true)"
+              @click:prepend-inner="openAnnotationFile('base', true)"
+              @click:clear="baseTrackFile=''"
+            />
+          </v-list-item>
         </v-list>
       </div>
       <div class="d-flex flex-row mt-4">
+        <v-checkbox
+          v-if="importType"
+          v-model="importAnnotationFilesCheck"
+          label="Import Annotations"
+          dense
+          persistent-hint
+          class="mb-1 mt-0"
+        />
         <v-spacer />
         <v-btn
           text

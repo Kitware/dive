@@ -758,6 +758,7 @@ async function beginMediaImport(
     globPattern: '',
     mediaConvertList,
     trackFileAbsPath,
+    multiCamTrackFiles: null,
   };
 }
 
@@ -817,14 +818,12 @@ async function _importTrackFile(
   dsId: string,
   projectDirAbsPath: string,
   jsonMeta: JsonMeta,
-  userTrackFileAbsPath?: string | null,
+  userTrackFileAbsPath: string | null, // null means find automatically
 ) {
   /* Look for JSON track file as first priority */
   let foundDetections = false;
-  if (userTrackFileAbsPath !== null) {
-    const foundTrackFileAbsPath = await _findJsonTrackFile(jsonMeta.originalBasePath);
-    const trackFileAbsPath = userTrackFileAbsPath !== undefined
-      ? userTrackFileAbsPath : foundTrackFileAbsPath;
+  if (userTrackFileAbsPath === null) {
+    const trackFileAbsPath = await _findJsonTrackFile(jsonMeta.originalBasePath);
     if (trackFileAbsPath && !CsvFileName.test(trackFileAbsPath)) {
     /* Move the track file into the new project directory */
       const time = moment().format('MM-DD-YYYY_hh-mm-ss.SSS');
@@ -962,8 +961,13 @@ async function finalizeMediaImport(
 
       // eslint-disable-next-line no-await-in-loop
       const cameraDirAbsPath = await _initializeProjectDir(settings, jsonClone);
+      let multiCamTrackFile = '';
+      if (args.multiCamTrackFiles && args.multiCamTrackFiles[cameraName]) {
+        multiCamTrackFile = args.multiCamTrackFiles[cameraName];
+      }
       // eslint-disable-next-line no-await-in-loop
-      await _importTrackFile(settings, jsonClone.id, cameraDirAbsPath, jsonClone);
+      await _importTrackFile(settings, jsonClone.id,
+        cameraDirAbsPath, jsonClone, multiCamTrackFile);
     }
   }
   const finalJsonMeta = await _importTrackFile(
