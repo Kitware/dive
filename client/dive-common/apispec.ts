@@ -86,6 +86,7 @@ interface MediaImportResponse {
 interface DatasetMetaMutable {
   customTypeStyling?: Record<string, CustomStyle>;
   confidenceFilters?: Record<string, number>;
+  attributes?: Readonly<Record<string, Attribute>>;
 }
 
 interface DatasetMeta extends DatasetMetaMutable {
@@ -96,7 +97,6 @@ interface DatasetMeta extends DatasetMetaMutable {
   fps: Readonly<number>; // this will become mutable in the future.
   name: Readonly<string>;
   createdAt: Readonly<string>;
-  attributes?: Readonly<Record<string, Attribute>>;
   originalFps?: Readonly<number>;
   subType: Readonly<SubType>; // In future this could have stuff like IR/EO
   multiCamMedia: Readonly<MultiCamMedia | null>;

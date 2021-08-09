@@ -9,7 +9,7 @@ from girder.constants import AccessType, SortDir, TokenScope
 from girder.models.folder import Folder
 from girder.models.token import Token
 
-from dive_server.utils import PydanticModel, detections_file, getTrackData
+from dive_server.crud import PydanticModel, detections_file, getTrackData
 from dive_tasks.summary import generate_max_n_summary, generate_summary
 from dive_utils import fromMeta, models
 from dive_utils.serializers.viame import format_timestamp
@@ -70,10 +70,10 @@ class SummaryItem(PydanticModel):
         return super().initialize("summaryItem", models.SummaryItemSchema)
 
 
-class ViameSummary(Resource):
-    def __init__(self):
-        super(ViameSummary, self).__init__()
-        self.resourceName = "viame_summary"
+class SummaryResource(Resource):
+    def __init__(self, resourceName: str):
+        super(SummaryResource, self).__init__()
+        self.resourceName = resourceName
 
         self.route("GET", (), self.get_summary)
         self.route("POST", (), self.save_summary)
