@@ -12,8 +12,6 @@ import {
 } from 'dive-common/apispec';
 
 import ImportMultiCamAddType from 'dive-common/components/ImportMultiCamAddType.vue';
-import { getTrackFileinFolder } from 'platform/desktop/frontend/api';
-
 
 export default defineComponent({
   components: {
@@ -162,10 +160,7 @@ export default defineComponent({
             if (ret.fileList) {
               htmlFileReferences.mediaHTMLFileList[folder] = ret.fileList;
             }
-            const trackFile = await getTrackFileinFolder(folderList.value[folder].folder);
-            if (trackFile) {
-              folderList.value[folder].trackFile = trackFile;
-            }
+            folderList.value[folder].trackFile = '';
           } else if (importType.value === 'keyword') {
             [keywordFolder.value] = ret.filePaths;
             if (ret.root) {
@@ -233,7 +228,7 @@ export default defineComponent({
       if (importType.value === 'multi') {
         emit('begin-multicam-import', {
           defaultDisplay: defaultDisplay.value,
-          baseTrackFile,
+          baseTrackFile: baseTrackFile.value,
           folderList: folderList.value,
           calibrationFile: calibrationFile.value,
           type: props.dataType,
@@ -242,7 +237,7 @@ export default defineComponent({
       } else if (importType.value === 'keyword') {
         emit('begin-multicam-import', {
           defaultDisplay: defaultDisplay.value,
-          baseTrackFile,
+          baseTrackFile: baseTrackFile.value,
           keywordFolder: keywordFolder.value,
           globList: globList.value,
           calibrationFile: calibrationFile.value,
