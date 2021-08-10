@@ -25,6 +25,7 @@ import win32 from './native/windows';
 import * as common from './native/common';
 import { parseFile, serialize } from './serializers/viame';
 import { exportNist, loadNistFile } from './serializers/nist';
+import { MultiTrackRecord } from 'dive-common/apispec';
 
 function getCurrentPlatform() {
   const platform = OS.platform() === 'win32' ? win32 : linux;
@@ -62,7 +63,12 @@ async function parseJsonFile(filepath: string, metapath: string) {
 
 async function parseNistFile(filepath: string, bounds: RectBounds) {
   const trackData = await loadNistFile(filepath, bounds);
-  stdout.write(JSON.stringify(trackData.tracks));
+  const trackStructure: MultiTrackRecord = {};
+  for (let i = 0; i < trackData.tracks.length; i += 1) {
+    const track = trackData.tracks[i];
+    trackStructure[track.trackId] = track;
+  }
+  stdout.write(JSON.stringify(trackStructure));
 }
 
 async function convertJSONtoNist(filepath: string, meta: string, useObjects = false) {

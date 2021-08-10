@@ -38,6 +38,7 @@ const PipelinesFolderName = 'DIVE_Pipelines';
 const AuxFolderName = 'auxiliary';
 
 const JsonTrackFileName = /^result(_.*)?\.json$/;
+const JsonFileName = /^.*\.json$/;
 const JsonMetaFileName = 'meta.json';
 const CsvFileName = /^.*\.csv$/;
 
@@ -771,7 +772,7 @@ async function annotationImport(
   const projectInfo = getProjectDir(settings, id);
   const validatedInfo = await getValidatedProjectDir(settings, id);
   // If it is a json file we need to make sure it has the proper name
-  if (JsonTrackFileName.test(npath.basename(annotationPath))) {
+  if (JsonFileName.test(npath.basename(annotationPath))) {
     const statResult = await fs.stat(annotationPath);
     if (statResult.isFile()) {
       const release = await _acquireLock(projectInfo.basePath, projectInfo.basePath, 'tracks');
@@ -791,10 +792,21 @@ async function annotationImport(
       const newFileName = `result_${time}.json`;
 
       const newPath = npath.join(projectInfo.basePath, npath.basename(newFileName));
-      await fs.copy(
-        annotationPath,
-        newPath,
-      );
+      if (await nistSerializers.confirmNistFile(annotationPath)) {
+        const trackData = await nistSerializers.loadNistFile(annotationPath);
+        const trackStructure: MultiTrackRecord = {};
+        for (let i = 0; i < trackData.tracks.length; i += 1) {
+          const track = trackData.tracks[i];
+          trackStructure[track.trackId] = track;
+        }
+        const serialized = JSON.stringify(trackStructure, null, 2);
+        await fs.writeFile(newPath, serialized);
+      } else {
+        await fs.copy(
+          annotationPath,
+          newPath,
+        );
+      }
       await release();
       return true;
     }

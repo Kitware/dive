@@ -63,7 +63,7 @@ interface NistActivity {
 }
 
 function confirmNistFormat(data: NistFile) {
-  return data.activities && data.filesProcessed && data.processingReport;
+  return data.activities && data.filesProcessed;
 }
 
 async function confirmNistFile(filename: string) {
@@ -86,7 +86,6 @@ function loadObjects(
   activity: NistActivity,
   trackCount: number,
 ): TrackJSON[] {
-  const features: Feature[] = [];
   const tracks: TrackJSON[] = [];
   for (let i = 0; i < objects.length; i += 1) {
     const object = objects[i];
@@ -95,8 +94,8 @@ function loadObjects(
     Object.entries(localization).forEach(([key, annotations]) => {
       if (key === baseFileName) {
         const track: TrackJSON = {
-          begin: -Infinity,
-          end: Infinity,
+          begin: Infinity,
+          end: -Infinity,
           trackId: trackCount + count,
           meta: {},
           attributes: { activity: activity.activity, activityId: activity.activityID },
@@ -110,7 +109,7 @@ function loadObjects(
           const frameNum = parseInt(frame, 10) - 1;
           track.end = Math.max(track.end, frameNum);
           track.begin = Math.min(track.begin, frameNum);
-          features.push({
+          track.features.push({
             frame: frameNum,
             keyframe: true,
             bounds: adjustedBounds,
@@ -134,6 +133,7 @@ function loadActivity(
   baseFileName: string,
   fullFrameBounds: RectBounds = [0, 0, 1920, 1080],
   currentLength: number,
+  activityPos: number,
 ): TrackData[] {
   const tracks: TrackJSON[] = [];
   Object.entries(activity.localization).forEach(([key, localization]) => {
@@ -143,8 +143,8 @@ function loadActivity(
         trackId = tracks.length + currentLength + 1;
       }
       const track: TrackJSON = {
-        begin: 0,
-        end: 0,
+        begin: Infinity,
+        end: -Infinity,
         trackId,
         meta: {},
         attributes: { activityID: activity.activityID },
@@ -153,12 +153,25 @@ function loadActivity(
       };
       const features: Feature[] = [];
       // Now we determine frame numbers
+      const lineHeight = 30;
+      const lineWidth = 40;
+      const frameHeight = fullFrameBounds[3];
+      const bounds: RectBounds = [0, 0, 0, 0];
+      const maxActivitiesPerCol = Math.floor(frameHeight / lineHeight);
+      let rowPos = 0;
+      if (activityPos < maxActivitiesPerCol) {
+        rowPos = Math.floor(activityPos / maxActivitiesPerCol);
+      }
+      bounds[0] = rowPos * lineWidth;
+      bounds[1] = (activityPos - (rowPos * maxActivitiesPerCol)) * lineHeight;
+      bounds[2] = bounds[0] + 1;
+      bounds[3] = bounds[1] + 1;
       Object.entries(localization).forEach(([frame, val]) => {
         if (val === 0) {
           track.begin = parseInt(key, 10) - 1;
           features.push({
             frame: parseInt(frame, 10) - 1,
-            bounds: fullFrameBounds,
+            bounds,
             keyframe: true,
             interpolate: true,
           });
@@ -166,7 +179,7 @@ function loadActivity(
           track.end = parseInt(key, 10) - 1;
           features.push({
             frame: parseInt(frame, 10) - 1,
-            bounds: fullFrameBounds,
+            bounds,
             keyframe: true,
             interpolate: true,
           });
@@ -175,15 +188,8 @@ function loadActivity(
       const { alertFrame } = activity;
       track.attributes = {
         alertFrame,
+        activityID: activity.activityID,
       };
-      //Need to add in any objectIds if they exist
-      if (activity.objects) {
-        const objectTracks = loadObjects(activity.objects, baseFileName, activity, trackId);
-        objectTracks.forEach((objectTrack) => {
-          tracks.push(objectTrack);
-        });
-      }
-
       // Make sure features is in the right order:
       features.sort((a, b) => a.frame - b.frame);
       // Filter out duplicates between Activity and Objects
@@ -191,6 +197,14 @@ function loadActivity(
       track.end = features[features.length - 1].frame;
       track.features = features;
       tracks.push(track);
+
+      //Need to add in any objectIds if they exist
+      if (activity.objects) {
+        const objectTracks = loadObjects(activity.objects, baseFileName, activity, trackId);
+        objectTracks.forEach((objectTrack) => {
+          tracks.push(objectTrack);
+        });
+      }
     }
   });
   return tracks;
@@ -201,6 +215,8 @@ function convertNisttoJSON(
   filename: string,
   fullFrameBounds: RectBounds = [0, 0, 1920, 1080],
 ) {
+  const activityTypePos: Record<string, number> = {};
+  let uniqueActivities = 0;
   if (!confirmNistFormat(nistFile)) {
     throw new Error(`Unable to confirm ${filename} is a Nist File`);
   }
@@ -216,7 +232,12 @@ function convertNisttoJSON(
   const { activities } = nistFile;
   for (let i = 0; i < activities.length; i += 1) {
     const activity = activities[i];
-    const tracks = loadActivity(activity, baseFilename, fullFrameBounds, trackData.length);
+    if (activityTypePos[activity.activity] === undefined) {
+      activityTypePos[activity.activity] = uniqueActivities;
+      uniqueActivities += 1;
+    }
+    const tracks = loadActivity(activity, baseFilename, fullFrameBounds,
+      trackData.length, activityTypePos[activity.activity]);
     if (tracks) {
       trackData = trackData.concat(tracks);
     }
