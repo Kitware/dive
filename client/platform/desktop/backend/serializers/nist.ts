@@ -98,7 +98,13 @@ function loadObjects(
           end: -Infinity,
           trackId: trackCount + count,
           meta: {},
-          attributes: { activity: activity.activity, activityId: activity.activityID },
+          attributes: {
+            activity: activity.activity,
+            activityID: activity.activityID,
+            isObject: true,
+            objectType,
+            objectID,
+          },
           confidencePairs: [[objectType, activity.presenceConf]],
           features: [],
         };
@@ -147,7 +153,7 @@ function loadActivity(
         end: -Infinity,
         trackId,
         meta: {},
-        attributes: { activityID: activity.activityID },
+        attributes: {},
         confidencePairs: [[activity.activity, activity.presenceConf]],
         features: [],
       };
@@ -189,6 +195,7 @@ function loadActivity(
       track.attributes = {
         alertFrame,
         activityID: activity.activityID,
+        isActivity: true,
       };
       // Make sure features is in the right order:
       features.sort((a, b) => a.frame - b.frame);
@@ -265,15 +272,14 @@ async function loadNistFile(
 }
 
 function createObject(
-  features: Feature[],
+  track: TrackData,
   filename: string,
-  objectTypeBase: string,
-  objectIDBase: number,
-) {
+): NistObject {
   const localization: ObjectLocalization = {};
   localization[filename] = {};
-  let objectID = objectIDBase;
-  let objectType = objectTypeBase;
+  const { features } = track;
+  let objectID = track.attributes.objectID as number;
+  let objectType = track.attributes.objectType as string;
   features.forEach((feature) => {
     if (feature.bounds) {
       const bbox = feature.bounds;
@@ -285,7 +291,7 @@ function createObject(
           h: bbox[3] - bbox[1],
         },
       };
-      if (feature.attributes?.objectId) {
+      if (feature.attributes?.objectID) {
         objectID = feature.attributes.objectID as number;
       }
       if (feature.attributes?.objectType) {
@@ -299,23 +305,17 @@ function createObject(
 function createActivity(
   track: TrackData,
   filename: string,
-  useObjects = false,
 ) {
-  const activityID = track.trackId;
+  const activityID = track.attributes.activityID as number;
   const activity = track.confidencePairs[0][0];
   const presenceConf = track.confidencePairs[0][1];
-  const alertFrame = track.begin;
+  const alertFrame = track.begin + 1;
   // If all features are full frame there are no objects
-  const { features } = track;
   const localization: ActivityLocalization = {};
   localization[filename] = {};
   localization[filename][(track.begin + 1).toString()] = 1;
   localization[filename][(track.end + 1).toString()] = 0;
-  //Any other times are considered objects and should be transferred into objects.
   const objects: NistObject[] = [];
-  if (useObjects) {
-    objects.push(createObject(features, filename, activity, activityID));
-  }
   // Need to pick up any gabs in the time if there are multiple 1-0 pairs
   if (track.features.length % 2 === 0) { //This can only be true if there is an even number
     const offFrames = track.features.filter((feature) => !feature.interpolate);
@@ -340,16 +340,13 @@ function createActivity(
     alertFrame,
     localization,
   };
-  if (objects.length) {
-    nistActivity.objects = objects;
-  }
+  nistActivity.objects = objects;
   return nistActivity;
 }
 
 async function exportNist(
   trackData: MultiTrackRecord,
   videoFileName: string,
-  useObjects = false,
 ) {
   const status: Record<string, {status: 'success' | 'fail'; message: string}> = {};
   status[videoFileName] = {
@@ -363,11 +360,23 @@ async function exportNist(
     },
     activities: [],
   };
-  const activities: NistActivity[] = [];
+  const activitiesMap: Record<string, NistActivity> = {};
   Object.values(trackData).forEach((track) => {
-    activities.push(createActivity(track, videoFileName, useObjects));
+    if (track.attributes.isActivity && track.attributes.activityID !== undefined) {
+      activitiesMap[track.attributes.activityID as number] = createActivity(track, videoFileName);
+    }
   });
-  nistFile.activities = activities;
+  Object.values(trackData).forEach((track) => {
+    if (track.attributes.isObject && track.attributes.activityID !== undefined) {
+      const currrentActivity = activitiesMap[track.attributes.activityID as number];
+      if (!currrentActivity.objects) {
+        currrentActivity.objects = [];
+      }
+      currrentActivity.objects.push(createObject(track, videoFileName));
+    }
+  });
+
+  nistFile.activities = Object.values(activitiesMap);
   return nistFile;
 }
 

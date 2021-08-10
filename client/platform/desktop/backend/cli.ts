@@ -20,12 +20,12 @@ import Track from 'vue-media-annotator/track';
 import { DesktopJobUpdate, RunPipeline, RunTraining } from 'platform/desktop/constants';
 import { loadJsonTracks, loadJsonMetadata } from 'platform/desktop/backend/native/common';
 import { RectBounds } from 'vue-media-annotator/utils';
+import { MultiTrackRecord } from 'dive-common/apispec';
 import linux from './native/linux';
 import win32 from './native/windows';
 import * as common from './native/common';
 import { parseFile, serialize } from './serializers/viame';
 import { exportNist, loadNistFile } from './serializers/nist';
-import { MultiTrackRecord } from 'dive-common/apispec';
 
 function getCurrentPlatform() {
   const platform = OS.platform() === 'win32' ? win32 : linux;
@@ -71,7 +71,7 @@ async function parseNistFile(filepath: string, bounds: RectBounds) {
   stdout.write(JSON.stringify(trackStructure));
 }
 
-async function convertJSONtoNist(filepath: string, meta: string, useObjects = false) {
+async function convertJSONtoNist(filepath: string, meta: string) {
   const metaData = await loadJsonMetadata(meta);
   const trackData = await loadJsonTracks(filepath);
 
@@ -79,7 +79,7 @@ async function convertJSONtoNist(filepath: string, meta: string, useObjects = fa
   if (!videoFile) {
     throw new Error(`No video file exists for metadata ${meta}`);
   }
-  const output = await exportNist(trackData, videoFile, useObjects);
+  const output = await exportNist(trackData, videoFile);
   stdout.write(JSON.stringify(output));
 }
 
@@ -130,11 +130,6 @@ const { argv } = yargs
     yargs.positional('meta', {
       description: 'meta file to get video file name',
       type: 'string',
-    });
-    yargs.option('useObjects', {
-      describe: 'Create objects in the NIST file format',
-      type: 'boolean',
-      default: false,
     });
     yargs.demandOption(['file', 'meta']);
   })
@@ -207,7 +202,7 @@ if (argv._.includes('viame2json')) {
   };
   run();
 } else if (argv._.includes('json2nist')) {
-  convertJSONtoNist(argv.file as string, argv.meta as string, argv.useObjects as boolean);
+  convertJSONtoNist(argv.file as string, argv.meta as string);
 } else if (argv._.includes('checkmedia')) {
   const settings = getSettings();
   const run = async () => {
