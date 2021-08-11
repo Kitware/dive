@@ -1,25 +1,45 @@
 import type { GirderModel } from '@girder/components/src';
-import restClient from '../plugins/girder';
+import girderRest from 'platform/web-girder/plugins/girder';
 
-async function getItemsInFolder(folderId: string, limit: number) {
-  const { data: items } = await restClient.get('item', {
+function deleteResources(resources: Array<GirderModel>) {
+  const formData = new FormData();
+  formData.set(
+    'resources',
+    JSON.stringify({
+      folder: resources
+        .filter((resource) => resource._modelType === 'folder')
+        .map((resource) => resource._id),
+      item: resources
+        .filter((resource) => resource._modelType === 'item')
+        .map((resource) => resource._id),
+    }),
+  );
+  return girderRest.post('resource', formData, {
+    headers: { 'X-HTTP-Method-Override': 'DELETE' },
+  });
+}
+
+function getItemsInFolder(folderId: string, limit: number) {
+  return girderRest.get<GirderModel[]>('item', {
     params: { folderId, limit },
   });
-  return items as GirderModel[];
 }
 
-async function getFolder(folderId: string) {
-  return (await restClient.get(`folder/${folderId}`)).data as GirderModel;
+function getFolder(folderId: string) {
+  return girderRest.get<GirderModel>(`folder/${folderId}`);
 }
 
-function getItemDownloadUri(itemId: string, inline = false) {
-  const contentDisposition = inline ? '?contentDisposition=inline' : '';
-  return `${restClient.apiRoot}/item/${itemId}/download${contentDisposition}`;
+function setUsePrivateQueue(userId: string, value = false) {
+  return girderRest.put(`user/${userId}/use_private_queue`, null, {
+    params: {
+      privateQueueEnabled: value,
+    },
+  });
 }
 
 export {
-  restClient,
+  deleteResources,
   getItemsInFolder,
-  getItemDownloadUri,
   getFolder,
+  setUsePrivateQueue,
 };

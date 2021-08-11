@@ -15,7 +15,7 @@ export default function useRequest() {
       return val;
     } catch (err) {
       loading.value = false;
-      error.value = err;
+      error.value = err?.response?.data?.message || err?.response?.data || err;
       throw err;
     }
   }

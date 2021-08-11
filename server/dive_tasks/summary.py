@@ -72,7 +72,7 @@ def generate_summary(self: Task):
     offset = 0
     total = int(
         gc.get(
-            'viame/datasets',
+            'dive_dataset',
             parameters={'limit': 1, PublishedMarker: True},
             jsonResp=False,
         ).headers['girder-total-count']
@@ -82,7 +82,7 @@ def generate_summary(self: Task):
     summary: Dict[str, SummaryItemSchema] = {}
     while offset < total:
         page = gc.get(
-            'viame/datasets',
+            'dive_dataset',
             parameters={
                 'limit': limit,
                 'offset': offset,
@@ -98,6 +98,6 @@ def generate_summary(self: Task):
             )
     print(summary)
     gc.post(
-        'viame_summary',
+        'dive_summary',
         data=PublicDataSummary(label_summary_items=list(summary.values())).json(),
     )

@@ -1,3 +1,4 @@
+import json
 from typing import List, Optional
 
 from girder.models.folder import Folder
@@ -48,7 +49,7 @@ def createSoftClone(
     return cloned_folder
 
 
-def list_datasets(user: types.GirderModel, published: bool, limit: int, offset: int, sort: str):
+def list_datasets(user: types.GirderUserModel, published: bool, limit: int, offset: int, sort: str):
     """Enumerate all public and private data the user can access"""
     query: dict = {
         f'meta.{constants.DatasetMarker}': {'$in': TRUTHY_META_VALUES},
@@ -64,11 +65,23 @@ def list_datasets(user: types.GirderModel, published: bool, limit: int, offset: 
 
 
 def get_dataset(
-    dsFolder: types.GirderModel, user: types.GirderModel
+    dsFolder: types.GirderModel, user: types.GirderUserModel
 ) -> models.GirderMetadataStatic:
     """Transform a girder folder into a dataset metadata object"""
-    videoUrl = None
-    imageData: List[models.FrameImage] = []
+    crud.verify_dataset(dsFolder)
+    return models.GirderMetadataStatic(
+        id=str(dsFolder['_id']),
+        createdAt=str(dsFolder['created']),
+        name=dsFolder['name'],
+        **dsFolder['meta'],
+    )
+
+
+def get_media(
+    dsFolder: types.GirderModel, user: types.GirderUserModel
+) -> models.DatasetSourceMedia:
+    videoResource = None
+    imageData: List[models.MediaResource] = []
     crud.verify_dataset(dsFolder)
     source_type = fromMeta(dsFolder, constants.TypeMarker)
 
@@ -82,11 +95,16 @@ def get_dataset(
             }
         )
         if videoItem:
-            videoFile = Item().childFiles(videoItem)[0]
-            videoUrl = get_url(videoFile)
+            videoFile: types.GirderModel = Item().childFiles(videoItem)[0]
+            videoResource = models.MediaResource(
+                id=str(videoFile['_id']),
+                url=get_url(videoFile),
+                filename=videoFile['name'],
+            )
     elif source_type == constants.ImageSequenceType:
         imageData = [
-            models.FrameImage(
+            models.MediaResource(
+                id=str(image["_id"]),
                 url=get_url(image, modelType='item'),
                 filename=image['name'],
             )
@@ -95,13 +113,9 @@ def get_dataset(
     else:
         raise ValueError(f'Unrecognized source type: {source_type}')
 
-    return models.GirderMetadataStatic(
-        id=str(dsFolder['_id']),
+    return models.DatasetSourceMedia(
         imageData=imageData,
-        videoUrl=videoUrl,
-        createdAt=str(dsFolder['created']),
-        name=dsFolder['name'],
-        **dsFolder['meta'],
+        video=videoResource,
     )
 
 
@@ -157,7 +171,7 @@ def update_attributes(dsFolder: types.GirderModel, data: dict):
 
 def export_dataset_zipstream(
     dsFolder: types.GirderModel,
-    user: types.GirderModel,
+    user: types.GirderUserModel,
     includeMedia: bool,
     includeDetections: bool,
     excludeBelowThreshold: bool,
@@ -173,13 +187,23 @@ def export_dataset_zipstream(
         mediaRegex = constants.videoRegex
 
     def makeMetajson():
-        yield get_dataset(dsFolder, user).json(exclude_none=True)
+        """Include dataset metadtata file with full export"""
+        meta = get_dataset(dsFolder, user)
+        media = get_media(dsFolder, user)
+        yield json.dumps(
+            {
+                **meta.dict(exclude_none=True),
+                **media.dict(exclude_none=True),
+            },
+            indent=2,
+        )
 
     def stream():
         z = ziputil.ZipGenerator(dsFolder['name'])
 
         # Always add the metadata file
-        z.addFile(makeMetajson, 'meta.json')
+        for data in z.addFile(makeMetajson, 'meta.json'):
+            yield data
 
         if includeMedia:
             # Add media

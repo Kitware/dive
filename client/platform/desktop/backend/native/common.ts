@@ -15,7 +15,7 @@ import {
 } from 'dive-common/apispec';
 import * as viameSerializers from 'platform/desktop/backend/serializers/viame';
 import {
-  websafeImageTypes, websafeVideoTypes, otherImageTypes, otherVideoTypes,
+  websafeImageTypes, websafeVideoTypes, otherImageTypes, otherVideoTypes, MultiType,
 } from 'dive-common/constants';
 import {
   JsonMeta, Settings, JsonMetaCurrentVersion, DesktopMetadata, DesktopJobUpdater,
@@ -197,7 +197,7 @@ async function loadMetadata(
   let multiCamMedia: MultiCamMedia | null = null;
   const { subType } = projectMetaData;
   /* Generate URLs against embedded media server from known file paths on disk */
-  if (projectMetaData.type === 'multi') {
+  if (projectMetaData.type === MultiType) {
     // Returns the type of the defaultDisplay for the multicam
     if (!projectMetaData.multiCam) {
       throw new Error(`Dataset: ${projectMetaData.name} is of type multiCam or stereo but contains no multiCam data`);
@@ -911,7 +911,7 @@ async function finalizeMediaImport(
     mediaConvertList.forEach((item) => {
       const destLoc = item.replace(jsonMeta.originalBasePath, projectDirAbsPath);
       //If we have multicam we may need to check more than the base folder
-      if (datasetType === 'multi') {
+      if (datasetType === MultiType) {
         destAbsPath = transcodeMultiCam(jsonMeta, item, projectDirAbsPath);
       } else {
         destAbsPath = destLoc.replace(npath.extname(item), extension);
@@ -938,7 +938,7 @@ async function finalizeMediaImport(
   }
 
   //We need to create datasets for each of the multiCam folders as well
-  if (datasetType === 'multi' && jsonMeta.multiCam?.cameras) {
+  if (datasetType === MultiType && jsonMeta.multiCam?.cameras) {
     const cameraNameAndData = Object.entries(jsonMeta.multiCam.cameras);
     for (let i = 0; i < cameraNameAndData.length; i += 1) {
       const cameraName = cameraNameAndData[i][0];

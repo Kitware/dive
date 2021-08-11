@@ -13,13 +13,20 @@ from dive_utils import constants, models, types
 
 
 @setting_utilities.validator({constants.SETTINGS_CONST_JOBS_CONFIGS})
-def validateSettings(doc):
+def validateJobConfigs(doc):
     """Handle plugin-specific system settings. Right now we don't do any validation."""
     val = doc['value']
     if val is not None:
         # TODO: replace with real schema validation
         assert 'training' in val, '"training" missing from doc'
         assert 'pipelines' in val, '"piplines" missing from doc'
+
+
+@setting_utilities.validator({constants.BRAND_DATA_CONFIG})
+def validateBrandData(doc):
+    val = doc['value']
+    if val is not None:
+        crud.get_validated_model(models.BrandData, **val)
 
 
 class ConfigurationResource(Resource):
@@ -63,8 +70,7 @@ class ConfigurationResource(Resource):
         )
     )
     def update_brand_data(self, data):
-        validated: models.BrandData = crud.get_validated_model(models.BrandData, **data)
-        Setting().set(constants.BRAND_DATA_CONFIG, validated.dict(exclude_none=True))
+        Setting().set(constants.BRAND_DATA_CONFIG, data)
 
     @access.admin
     @autoDescribeRoute(

@@ -98,31 +98,30 @@ class MetadataMutable(BaseModel):
     attributes: Optional[Dict[str, Attribute]]
 
 
-class FrameImage(BaseModel):
-    url: str
-    filename: str
-
-
 class GirderMetadataStatic(MetadataMutable):
-    """
-    GirderMetadataStatic is compatible with
-    """
-
     # Required
     id: str
-    imageData: List[FrameImage]
     name: str
     createdAt: str
     type: str
     fps: Union[int, float]
+    annotate: bool
 
     # Optional
-    videoUrl: Optional[str]
     originalFps: Optional[Union[int, float]]
     ffprobe_info: Optional[Dict[str, Any]]
     foreign_media_id: Optional[str]
 
-    # Inherits other properties from MetadataMutable
+
+class MediaResource(BaseModel):
+    url: str
+    id: str
+    filename: str
+
+
+class DatasetSourceMedia(BaseModel):
+    imageData: List[MediaResource]
+    video: Optional[MediaResource]
 
 
 class SummaryItemSchema(BaseModel):
@@ -154,6 +153,9 @@ class BrandData(BaseModel):
     logo: Optional[str]
     name: Optional[str]
     loginMessage: Optional[str]
+
+    class Config:
+        extra = 'forbid'
 
 
 # interpolate all features [a, b)

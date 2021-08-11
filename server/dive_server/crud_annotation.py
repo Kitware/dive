@@ -26,7 +26,7 @@ class AnnotationUpdateArgs(BaseModel):
         extra = 'forbid'
 
 
-def save_annotations(dsFolder: types.GirderModel, user: types.GirderModel, data: dict):
+def save_annotations(dsFolder: types.GirderModel, user: types.GirderUserModel, data: dict):
     crud.verify_dataset(dsFolder)
     track_dict = crud.getTrackData(crud.detections_file(dsFolder))
     validated: AnnotationUpdateArgs = crud.get_validated_model(AnnotationUpdateArgs, **data)

@@ -1,8 +1,10 @@
+import { DatasetType } from "./apispec";
+
 const ImageSequenceType = 'image-sequence';
 const VideoType = 'video';
 const MultiType = 'multi';
 
-const MediaTypes = {
+const MediaTypes: Record<DatasetType, string> = {
   // friendly media type names
   [ImageSequenceType]: 'image sequence',
   [VideoType]: 'video',

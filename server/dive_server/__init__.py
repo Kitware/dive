@@ -13,6 +13,7 @@ from dive_utils.constants import UserPrivateQueueEnabledMarker
 from .client_webroot import ClientWebroot
 from .event import process_fs_import, process_s3_import, send_new_user_email
 from .views_annotation import AnnotationResource
+from .views_configuration import ConfigurationResource
 from .views_dataset import DatasetResource
 from .views_override import use_private_queue
 from .views_rpc import RpcResource
@@ -25,11 +26,12 @@ class GirderPlugin(plugin.GirderPlugin):
 
         info["apiRoot"].dive_summary = SummaryResource("dive_summary")
         info["apiRoot"].dive_annotation = AnnotationResource("dive_annotation")
+        info["apiRoot"].dive_configuration = ConfigurationResource("dive_configuration")
         info["apiRoot"].dive_dataset = DatasetResource("dive_dataset")
         info["apiRoot"].dive_rpc = RpcResource("dive_rpc")
 
         # Setup route additions for exsting resources
-        info["apiRoot"].user.route("GET", (":id", "use_private_queue"), use_private_queue)
+        info["apiRoot"].user.route("PUT", (":id", "use_private_queue"), use_private_queue)
         User().exposeFields(AccessType.READ, UserPrivateQueueEnabledMarker)
 
         DIVE_MAIL_TEMPLATES = Path(os.path.realpath(__file__)).parent / 'mail_templates'

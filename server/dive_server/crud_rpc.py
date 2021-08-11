@@ -9,7 +9,6 @@ from girder.models.item import Item
 from girder.models.setting import Setting
 from girder.models.token import Token
 from girder.models.upload import Upload
-from girder.models.user import User
 from girder_jobs.models.job import Job
 
 from dive_server import crud
@@ -18,13 +17,13 @@ from dive_utils import TRUTHY_META_VALUES, asbool, constants, fromMeta, types
 from dive_utils.serializers import meva
 
 
-def _get_queue_name(user: types.GirderModel, default="celery") -> str:
+def _get_queue_name(user: types.GirderUserModel, default="celery") -> str:
     if user.get(constants.UserPrivateQueueEnabledMarker, False):
         return f'{user["login"]}@private'
     return default
 
 
-def _load_dynamic_pipelines(user: User) -> Dict[str, types.PipelineCategory]:
+def _load_dynamic_pipelines(user: types.GirderUserModel) -> Dict[str, types.PipelineCategory]:
     """Add any additional dynamic pipelines to the existing pipeline list."""
     pipelines: Dict[str, types.PipelineCategory] = {}
     pipelines[constants.TrainedPipelineCategory] = {"pipes": [], "description": ""}
@@ -48,7 +47,7 @@ def _load_dynamic_pipelines(user: User) -> Dict[str, types.PipelineCategory]:
     return pipelines
 
 
-def load_pipelines(user: User) -> Dict[str, types.PipelineCategory]:
+def load_pipelines(user: types.GirderUserModel) -> Dict[str, types.PipelineCategory]:
     """Load all static and dynamic pipelines"""
     static_job_configs: types.AvailableJobSchema = (
         Setting().get(constants.SETTINGS_CONST_JOBS_CONFIGS) or tasks.EMPTY_JOB_SCHEMA
@@ -59,7 +58,7 @@ def load_pipelines(user: User) -> Dict[str, types.PipelineCategory]:
     return static_pipelines
 
 
-def verify_pipe(user: User, pipeline: types.PipelineDescription):
+def verify_pipe(user: types.GirderUserModel, pipeline: types.PipelineDescription):
     """Verify a pipeline exists and is runnable"""
     missing_exception = RestException(
         (
@@ -87,7 +86,7 @@ def verify_pipe(user: User, pipeline: types.PipelineDescription):
 
 
 def run_pipeline(
-    user: types.GirderModel,
+    user: types.GirderUserModel,
     folder: types.GirderModel,
     pipeline: types.PipelineDescription,
 ) -> types.GirderModel:
@@ -168,7 +167,7 @@ def run_pipeline(
     return newjob.job
 
 
-def training_output_folder(user: User) -> types.GirderModel:
+def training_output_folder(user: types.GirderUserModel) -> types.GirderModel:
     """Ensure that the user has a training results folder."""
     viameFolder = Folder().createFolder(
         user,
@@ -191,7 +190,7 @@ def training_output_folder(user: User) -> types.GirderModel:
 
 
 def ensure_csv_detections_file(
-    folder: Folder, detection_item: Item, user: User
+    folder: types.GirderModel, detection_item: Item, user: types.GirderUserModel
 ) -> types.GirderModel:
     """
     Ensures that the detection item has a file which is a csv.
@@ -217,7 +216,7 @@ def ensure_csv_detections_file(
 
 
 def run_training(
-    user: types.GirderModel,
+    user: types.GirderUserModel,
     token: types.GirderModel,
     folderIds: List[str],
     pipelineName: str,
@@ -270,7 +269,7 @@ def run_training(
 
 
 def postprocess(
-    user: types.GirderModel, dsFolder: types.GirderModel, skipJobs: bool
+    user: types.GirderUserModel, dsFolder: types.GirderModel, skipJobs: bool
 ) -> types.GirderModel:
     """
     Post-processing to be run after media/annotation import
@@ -301,7 +300,6 @@ def postprocess(
                 queue=_get_queue_name(user),
                 kwargs=dict(
                     folderId=str(item["folderId"]),
-                    auxiliaryFolderId=auxiliary["_id"],
                     itemId=str(item["_id"]),
                     girder_job_title=f"Converting {item['_id']} to a web friendly format",
                     girder_client_token=str(token["_id"]),

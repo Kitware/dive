@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 
 from girder.api import access
 from girder.api.describe import Description, autoDescribeRoute
@@ -29,10 +29,13 @@ class DatasetResource(Resource):
 
         self.route("GET", (), self.list_datasets)
         self.route("GET", (":id",), self.get_meta)
+        self.route("GET", (":id", "media"), self.get_media)
         self.route("GET", (":id", "export"), self.export)
         self.route("GET", ("validate_files",), self.validate_files)
 
-        self.route("PATCH", (":id", "metadata"), self.patch_metadata)
+        self.route("PATCH", (":id",), self.patch_metadata)
+
+        # do we make this another resource in girder?
         self.route("PATCH", (":id", "attributes"), self.patch_attributes)
 
     @access.user
@@ -81,11 +84,10 @@ class DatasetResource(Resource):
             dataType='boolean',
         )
     )
-    def list_datasets(self, params):
-        limit, offset, sort = self.getPagingParameters(params)
+    def list_datasets(self, limit, offset, sort, published: bool):
         return crud_dataset.list_datasets(
             self.getCurrentUser(),
-            self.boolParam(constants.PublishedMarker, params),
+            published,
             limit,
             offset,
             sort,
@@ -96,10 +98,18 @@ class DatasetResource(Resource):
         Description("Get dataset metadata").modelParam(
             "id", level=AccessType.READ, **DatasetModelParam
         )
-        # TODO add a "camera" query param
     )
     def get_meta(self, folder):
         return crud_dataset.get_dataset(folder, self.getCurrentUser()).dict(exclude_none=True)
+
+    @access.user
+    @autoDescribeRoute(
+        Description("Get dataset source media").modelParam(
+            "id", level=AccessType.READ, **DatasetModelParam
+        )
+    )
+    def get_media(self, folder):
+        return crud_dataset.get_media(folder, self.getCurrentUser()).dict(exclude_none=True)
 
     @access.public(scope=TokenScope.DATA_READ, cookie=True)
     @autoDescribeRoute(
@@ -131,7 +141,7 @@ class DatasetResource(Resource):
             "List of track types to filter by",
             paramType="query",
             required=False,
-            default=[],
+            default=None,
             requireArray=True,
         )
     )
@@ -141,11 +151,9 @@ class DatasetResource(Resource):
         includeMedia: bool,
         includeDetections: bool,
         excludeBelowThreshold: bool,
-        typeFilter: List[str],
+        typeFilter: Optional[List[str]],
     ):
-        setResponseHeader('Content-Type', 'application/zip')
-        setContentDisposition(folder['name'] + '.zip')
-        return crud_dataset.export_dataset_zipstream(
+        gen = crud_dataset.export_dataset_zipstream(
             folder,
             self.getCurrentUser(),
             includeMedia=includeMedia,
@@ -153,11 +161,14 @@ class DatasetResource(Resource):
             excludeBelowThreshold=excludeBelowThreshold,
             typeFilter=typeFilter,
         )
+        setResponseHeader('Content-Type', 'application/zip')
+        setContentDisposition(folder['name'] + '.zip')
+        return gen
 
     @access.user
     @autoDescribeRoute(
         Description("Test whether or not a set of files are safe to upload").jsonParam(
-            "files", "", paramType="body", requireArray=True
+            "files", "", paramType="query", requireArray=True
         )
     )
     def validate_files(self, files):
@@ -169,13 +180,13 @@ class DatasetResource(Resource):
         .modelParam("id", level=AccessType.WRITE, **DatasetModelParam)
         .jsonParam(
             "data",
-            description="JSON with the metadata to set",
+            description="schema: MetadataMutableUpdateArgs",
             requireObject=True,
             paramType="body",
         )
     )
     def patch_metadata(self, folder, data):
-        return crud_dataset.update_dataset(folder, data)
+        return crud_dataset.update_metadata(folder, data)
 
     @access.user
     @autoDescribeRoute(
@@ -183,7 +194,7 @@ class DatasetResource(Resource):
         .modelParam("id", level=AccessType.WRITE, **DatasetModelParam)
         .jsonParam(
             "data",
-            description="upsert and delete",
+            description="schema: AttributeUpdateArgs",
             requireObject=True,
             paramType="body",
         )

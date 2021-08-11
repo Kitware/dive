@@ -5,7 +5,7 @@ import { TrackData, TrackId } from 'vue-media-annotator/track';
 import { Attribute } from 'vue-media-annotator/use/useAttributes';
 import { CustomStyle } from 'vue-media-annotator/use/useStyling';
 
-type DatasetType = 'image-sequence' | 'video';
+type DatasetType = 'image-sequence' | 'video' | 'multi';
 type MultiTrackRecord = Record<string, TrackData>;
 type SubType = 'stereo' | 'multicam' | null; // Additional type info used for UI display enabled pipelines
 

@@ -1,8 +1,8 @@
-from typing import List
+from typing import List, Optional
 
 from girder.api import access
 from girder.api.describe import Description, autoDescribeRoute
-from girder.api.rest import Resource, setContentDisposition, setResponseHeader
+from girder.api.rest import Resource, setContentDisposition
 from girder.constants import AccessType, TokenScope
 from girder.models.folder import Folder
 
@@ -53,18 +53,18 @@ class AnnotationResource(Resource):
             "List of track types to filter by",
             paramType="query",
             required=False,
-            default=[],
+            default=None,
             requireArray=True,
         )
     )
-    def export(self, folder, excludeBelowThreshold: bool, typeFilter: List[str]):
+    def export(self, folder, excludeBelowThreshold: bool, typeFilter: Optional[List[str]]):
+        crud.verify_dataset(folder)
         filename, gen = crud.get_annotation_csv_generator(
             folder,
             self.getCurrentUser(),
             excludeBelowThreshold=excludeBelowThreshold,
             typeFilter=typeFilter,
         )
-        setResponseHeader('Content-Type', 'application/zip')
         setContentDisposition(filename)
         return gen
 

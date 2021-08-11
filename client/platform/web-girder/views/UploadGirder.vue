@@ -6,9 +6,7 @@ import {
   DefaultVideoFPS,
 } from 'dive-common/constants';
 
-import {
-  makeViameFolder, postProcess,
-} from '../api/viame.service';
+import { makeViameFolder, postProcess } from 'platform/web-girder/api';
 import { getResponseError } from '../utils';
 
 export default Vue.extend({

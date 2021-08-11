@@ -8,7 +8,7 @@ import {
   MultiCamImportArgs,
 } from 'dive-common/apispec';
 import {
-  websafeImageTypes, websafeVideoTypes, otherImageTypes, otherVideoTypes,
+  websafeImageTypes, websafeVideoTypes, otherImageTypes, otherVideoTypes, MultiType,
 } from 'dive-common/constants';
 import {
   JsonMeta, Settings, JsonMetaCurrentVersion,
@@ -48,7 +48,7 @@ async function beginMultiCamImport(
   args: MultiCamImportArgs,
   checkMedia: (settings: Settings, path: string) => Promise<CheckMediaResults>,
 ): Promise<MediaImportPayload> {
-  const datasetType: DatasetType | 'multi' = 'multi';
+  const datasetType: DatasetType = MultiType;
 
   let mainFolder: string | undefined;
   const cameras: Record<string, {

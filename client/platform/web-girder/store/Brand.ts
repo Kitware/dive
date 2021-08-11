@@ -1,10 +1,10 @@
 import { merge } from 'lodash';
 import { Module } from 'vuex';
 
-import { BrandData, getBrandData } from 'platform/web-girder/api/viame.service';
+import { BrandData, getBrandData } from 'platform/web-girder/api';
 import defaultLogo from 'dive-common/assets/logo.png';
 
-import { BrandState, RootState } from './types';
+import type { BrandState, RootState } from './types';
 
 function setFavicon(href: string) {
   let faviconLink = document.querySelector("link[rel~='icon']");
@@ -47,7 +47,7 @@ const brandModule: Module<BrandState, RootState> = {
   },
   actions: {
     async loadBrand({ commit }) {
-      commit('setBrandData', await getBrandData());
+      commit('setBrandData', (await getBrandData()).data);
     },
   },
 };

@@ -19,7 +19,6 @@ class GirderModel(TypedDict):
     created: str
     creatorId: str
     description: str
-    login: str
     meta: Dict[str, Any]
     name: str
     parentCollection: str
@@ -33,6 +32,10 @@ class GirderModel(TypedDict):
 class AssetstoreModel(GirderModel):
     prefix: str
     bucket: str
+
+
+class GirderUserModel(GirderModel):
+    login: str
 
 
 class PipelineDescription(TypedDict):
