@@ -1,5 +1,6 @@
 from typing import List
 
+import cherrypy
 from girder.api import access
 from girder.api.describe import Description, autoDescribeRoute, describeRoute
 from girder.api.rest import Resource
@@ -166,7 +167,8 @@ class Viame(Resource):
         )
     )
     def list_datasets(self, params):
-        limit, offset, sort = self.getPagingParameters(params)
+        limit, offset, sortParams = self.getPagingParameters(params)
+        sort, sortDir = (sortParams or [['created', 1]])[0]
         user = self.getCurrentUser()
         permissionsClause = Folder().permissionClauses(user=user, level=AccessType.READ)
         query = {
@@ -195,23 +197,34 @@ class Viame(Resource):
                     },
                 },
             ]
+        # based on https://stackoverflow.com/a/49483919
         pipeline = [
             {'$match': query},
-            {'$skip': offset},
-            {'$limit': limit},
             {
-                '$lookup': {
-                    'from': 'user',
-                    'localField': 'creatorId',
-                    'foreignField': '_id',
-                    'as': 'ownerLogin',
+                '$facet': {
+                    'results': [
+                        {'$sort': {sort: sortDir}},
+                        {'$skip': offset},
+                        {'$limit': limit},
+                        {
+                            '$lookup': {
+                                'from': 'user',
+                                'localField': 'creatorId',
+                                'foreignField': '_id',
+                                'as': 'ownerLogin',
+                            },
+                        },
+                        {'$set': {'ownerLogin': {'$first': '$ownerLogin'}}},
+                        {'$set': {'ownerLogin': '$ownerLogin.login'}},
+                    ],
+                    'totalCount': [{'$count': 'count'}],
                 },
             },
-            {'$set': {'ownerLogin': {'$first': '$ownerLogin'}}},
-            {'$set': {'ownerLogin': '$ownerLogin.login'}},
         ]
-        response = Folder().collection.aggregate(pipeline)
-        return [Folder().filter(doc, additionalKeys=['ownerLogin']) for doc in response]
+        response = Folder().collection.aggregate(pipeline).next()
+        total = response['totalCount'][0]['count'] if len(response['results']) > 0 else 0
+        cherrypy.response.headers['Girder-Total-Count'] = total
+        return [Folder().filter(doc, additionalKeys=['ownerLogin']) for doc in response['results']]
 
     @access.user
     @autoDescribeRoute(
