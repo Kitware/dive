@@ -845,10 +845,21 @@ async function _importTrackFile(
 
       const newPath = npath.join(projectDirAbsPath, npath.basename(newFileName));
 
-      await fs.copy(
-        trackFileAbsPath,
-        newPath,
-      );
+      if (jsonMeta.originalVideoFile && await nistSerializers.confirmNistFile(trackFileAbsPath)) {
+        const trackData = await nistSerializers.loadNistFile(trackFileAbsPath);
+        const trackStructure: MultiTrackRecord = {};
+        for (let i = 0; i < trackData.tracks.length; i += 1) {
+          const track = trackData.tracks[i];
+          trackStructure[track.trackId] = track;
+        }
+        const serialized = JSON.stringify(trackStructure);
+        await fs.writeFile(newPath, serialized);
+      } else {
+        await fs.copy(
+          trackFileAbsPath,
+          newPath,
+        );
+      }
       //Load tracks to generate attributes
       const tracks = await loadJsonTracks(newPath);
       const { attributes } = processTrackAttributes(Object.values(tracks));

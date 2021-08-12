@@ -179,7 +179,7 @@ function loadActivity(
             frame: parseInt(frame, 10) - 1,
             bounds,
             keyframe: true,
-            interpolate: true,
+            interpolate: false,
           });
         } else if (val === 1) {
           track.end = parseInt(key, 10) - 1;
@@ -193,10 +193,12 @@ function loadActivity(
       });
       const { alertFrame } = activity;
       track.attributes = {
-        alertFrame,
         activityID: activity.activityID,
         isActivity: true,
       };
+      if (alertFrame) {
+        track.attributes.alertFrame = alertFrame - 1;
+      }
       // Make sure features is in the right order:
       features.sort((a, b) => a.frame - b.frame);
       // Filter out duplicates between Activity and Objects
