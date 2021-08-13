@@ -38,6 +38,10 @@ You can run the data viewer without needing GPU support as well
 docker-compose up girder
 ```
 
+## General Architecture
+
+![DIVE-Web-Architecture-Diagram.svg](/docs/images/Diagrams/DIVE-Web-Architecture-Diagram.svg)
+
 ## Production deployment with docker-compose
 
 If you have a server with a **domain name** and a **public-facing IP address**, you should be able to use our production deployment configuration.  This is the way we deploy on https://viame.kitware.com.
