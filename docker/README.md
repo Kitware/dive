@@ -33,6 +33,7 @@ docker-compose up
 VIAME server will be running at http://localhost:8010/
 
 You can run the data viewer without needing GPU support as well
+> **Note:** Video import is unsupported in this mode.
 
 ``` bash
 docker-compose up girder
