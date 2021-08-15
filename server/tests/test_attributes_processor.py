@@ -17,7 +17,7 @@ def test_read_viame_attributes(
 ):
     rows = []
     text = ''
-    for i, line in enumerate(
+    for _i, line in enumerate(
         export_tracks_as_csv(
             input,
         )
