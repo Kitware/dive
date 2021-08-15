@@ -9,7 +9,8 @@ import { EditAnnotationTypes, VisibleAnnotationTypes } from 'vue-media-annotator
 import { MediaController } from 'vue-media-annotator/components/annotators/mediaControllerType';
 
 import Recipe from 'vue-media-annotator/recipe';
-import { NewTrackSettings } from './useSettings';
+import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
+import { TrackSettings } from './useSettings';
 
 type SupportedFeature = GeoJSON.Feature<GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString>;
 
@@ -31,7 +32,7 @@ export default function useModeManager({
   editingTrack,
   trackMap,
   mediaController,
-  newTrackSettings,
+  trackSettings,
   recipes,
   selectTrack,
   selectNextTrack,
@@ -42,7 +43,7 @@ export default function useModeManager({
   editingTrack: Ref<boolean>;
   trackMap: Map<TrackId, Track>;
   mediaController: Ref<MediaController>;
-  newTrackSettings: NewTrackSettings;
+  trackSettings: TrackSettings;
   recipes: Recipe[];
   selectTrack: (trackId: TrackId | null, edit: boolean) => void;
   selectNextTrack: (delta?: number) => TrackId | null;
@@ -71,6 +72,7 @@ export default function useModeManager({
   const mergeList = ref([] as TrackId[]);
   const mergeInProgress = computed(() => mergeList.value.length > 0);
 
+  const { prompt } = usePrompt();
   /**
    * Figure out if a new feature should enable interpolation
    * based on current state and the result of canInterolate.
@@ -80,10 +82,10 @@ export default function useModeManager({
     // is determined by newTrackSettings (if new track)
     // or canInterpolate (if existing track)
     const interpolateTrack = creating
-      ? newTrackSettings.modeSettings.Track.interpolate
+      ? trackSettings.newTrackSettings.modeSettings.Track.interpolate
       : canInterpolate;
     // if detection, interpolate is always false
-    return newTrackSettings.mode === 'Detection'
+    return trackSettings.newTrackSettings.mode === 'Detection'
       ? false
       : interpolateTrack;
   }
@@ -154,7 +156,7 @@ export default function useModeManager({
     // Handles adding a new track with the NewTrack Settings
     const { frame } = mediaController.value;
     const newTrackId = addTrack(
-      frame.value, newTrackSettings.type, selectedTrackId.value || undefined,
+      frame.value, trackSettings.newTrackSettings.type, selectedTrackId.value || undefined,
     ).trackId;
     selectTrack(newTrackId, true);
     creating = true;
@@ -168,15 +170,16 @@ export default function useModeManager({
   }
 
   function newTrackSettingsAfterLogic(addedTrack: Track) {
-    // Default settings which are updated by the CreationMode component
+    // Default settings which are updated by the TrackSettings component
     let newCreatingValue = false; // by default, disable creating at the end of this function
     if (creating) {
-      if (addedTrack && newTrackSettings !== null) {
-        if (newTrackSettings.mode === 'Track' && newTrackSettings.modeSettings.Track.autoAdvanceFrame) {
+      if (addedTrack && trackSettings.newTrackSettings !== null) {
+        if (trackSettings.newTrackSettings.mode === 'Track'
+        && trackSettings.newTrackSettings.modeSettings.Track.autoAdvanceFrame) {
           mediaController.value.nextFrame();
           newCreatingValue = true;
-        } else if (newTrackSettings.mode === 'Detection') {
-          if (newTrackSettings.modeSettings.Detection.continuous) {
+        } else if (trackSettings.newTrackSettings.mode === 'Detection') {
+          if (trackSettings.newTrackSettings.modeSettings.Detection.continuous) {
             handleAddTrackOrDetection();
             newCreatingValue = true; // don't disable creating mode
           }
@@ -370,13 +373,29 @@ export default function useModeManager({
     mergeList.value = mergeList.value.filter((trackId) => !trackIds.includes(trackId));
   }
 
-  function handleRemoveTrack(trackIds: TrackId[]) {
+  async function handleRemoveTrack(trackIds: TrackId[], promptOverride = false) {
     /* Figure out next track ID */
     const maybeNextTrackId = selectNextTrack(1);
     const previousOrNext = maybeNextTrackId !== null
       ? maybeNextTrackId
       : selectNextTrack(-1);
     /* Delete track */
+    if (!promptOverride && trackSettings.deletionSettings.promptUser) {
+      const trackStrings = trackIds.map((track) => track.toString());
+      const text = (['Would you like to delete the following tracks:']).concat(trackStrings);
+      text.push('');
+      text.push('This setting can be changed under the Track Settings');
+      const result = await prompt({
+        title: 'Delete Confirmation',
+        text,
+        positiveButton: 'OK',
+        negativeButton: 'Cancel',
+        confirm: true,
+      });
+      if (!result) {
+        return;
+      }
+    }
     trackIds.forEach((trackId) => {
       removeTrack(trackId);
     });

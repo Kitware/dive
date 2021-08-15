@@ -4,21 +4,22 @@ import {
   reactive,
   toRefs,
   PropType,
+  computed,
 } from '@vue/composition-api';
 
 import { TypeList, TrackList } from 'vue-media-annotator/components';
 import { useAllTypes, useHandler } from 'vue-media-annotator/provides';
 
-import { NewTrackSettings, TypeSettings } from 'dive-common/use/useSettings';
+import { TrackSettings, TypeSettings } from 'dive-common/use/useSettings';
 import TrackDetailsPanel from 'dive-common/components/TrackDetailsPanel.vue';
-import CreationMode from 'dive-common/components/CreationMode.vue';
+import TrackSettingsPanel from 'dive-common/components/TrackSettingsPanel.vue';
 import TypeSettingsPanel from 'dive-common/components/TypeSettingsPanel.vue';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 
 export default defineComponent({
   props: {
-    newTrackSettings: {
-      type: Object as PropType<NewTrackSettings>,
+    trackSettings: {
+      type: Object as PropType<TrackSettings>,
       required: true,
     },
     typeSettings: {
@@ -33,13 +34,13 @@ export default defineComponent({
 
   components: {
     TrackDetailsPanel,
-    CreationMode,
+    TrackSettingsPanel,
     TypeList,
     TrackList,
     TypeSettingsPanel,
   },
 
-  setup() {
+  setup(props) {
     const allTypesRef = useAllTypes();
     const { toggleMerge, commitMerge } = useHandler();
     const { visible } = usePrompt();
@@ -61,9 +62,11 @@ export default defineComponent({
         data.currentTab = 'attributes';
       }
     }
+    const newTrackSettings = computed(() => props.trackSettings.newTrackSettings);
 
     return {
       allTypesRef,
+      newTrackSettings,
       swapTabs,
       doToggleMerge,
       commitMerge,
@@ -125,10 +128,11 @@ export default defineComponent({
           @track-seek="$emit('track-seek', $event)"
         >
           <template slot="settings">
-            <creation-mode
+            <track-settings-panel
               :all-types="allTypesRef"
-              :new-track-settings="newTrackSettings"
+              :track-settings="trackSettings"
               @update-new-track-settings="$emit('update-new-track-settings',$event)"
+              @update-deletion-track-settings="$emit('update-deletion-track-settings',$event)"
             />
           </template>
         </track-list>

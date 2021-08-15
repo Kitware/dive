@@ -3,6 +3,14 @@ import {
   reactive, toRefs, Ref, watch,
 } from '@vue/composition-api';
 
+export interface TrackSettings {
+  newTrackSettings: NewTrackSettings;
+  deletionSettings: DeletionSettings;
+}
+
+export interface DeletionSettings{
+  promptUser: boolean;
+}
 export interface NewTrackSettings {
   mode: 'Track' | 'Detection';
   type: string;
@@ -37,6 +45,9 @@ export default function useSettings(allTypes: Ref<Readonly<string[]>>) {
         },
       },
     },
+    deleteSettings: {
+      promptUser: true,
+    },
     typeSettings: {
       showEmptyTypes: false,
       lockTypes: false,
@@ -50,6 +61,12 @@ export default function useSettings(allTypes: Ref<Readonly<string[]>>) {
   function updateNewTrackSettings(updatedNewTrackSettings: NewTrackSettings) {
     clientSettings.newTrackSettings = merge(
       clientSettings.newTrackSettings, updatedNewTrackSettings,
+    );
+    saveSettings();
+  }
+  function updateDeletionSettings(updatedDeleteTrackSettings: DeletionSettings) {
+    clientSettings.deleteSettings = merge(
+      clientSettings.deleteSettings, updatedDeleteTrackSettings,
     );
     saveSettings();
   }
@@ -74,8 +91,13 @@ export default function useSettings(allTypes: Ref<Readonly<string[]>>) {
   if (storedSettings) {
     const defaultSettings = JSON.parse(storedSettings);
     updateNewTrackSettings(defaultSettings.newTrackSettings);
+    updateDeletionSettings(defaultSettings.deleteSettings);
     updateTypeSettings(defaultSettings.typeSettings);
   }
-
-  return { clientSettings: toRefs(clientSettings), updateNewTrackSettings, updateTypeSettings };
+  return {
+    clientSettings: toRefs(clientSettings),
+    updateNewTrackSettings,
+    updateTypeSettings,
+    updateDeletionSettings,
+  };
 }

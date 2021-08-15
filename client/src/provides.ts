@@ -113,7 +113,7 @@ export interface Handler {
     preventInterrupt?: () => void,
   ): void;
   /* Remove a whole track */
-  removeTrack(trackIds: TrackId[]): void;
+  removeTrack(trackIds: TrackId[], promptOverride?: boolean): void;
   /* Remove a single point from selected track's geometry by selected index */
   removePoint(): void;
   /* Remove an entire annotation from selected track by selected key */

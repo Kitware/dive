@@ -1,18 +1,18 @@
 <script lang="ts">
 import Vue, { PropType } from 'vue';
 import { cloneDeep } from 'lodash';
-import { NewTrackSettings } from 'dive-common/use/useSettings';
+import { TrackSettings, NewTrackSettings, DeletionSettings } from 'dive-common/use/useSettings';
 
 export default Vue.extend({
-  name: 'CreationMode',
+  name: 'TrackSettingsPanel',
 
   props: {
     allTypes: {
       type: Array as PropType<Array<string>>,
       required: true,
     },
-    newTrackSettings: {
-      type: Object as PropType<NewTrackSettings>,
+    trackSettings: {
+      type: Object as PropType<TrackSettings>,
       required: true,
     },
   },
@@ -28,6 +28,7 @@ export default Vue.extend({
       autoAdvanceFrame: 'After creating a track advance to the next frame.  Hit Esc to exit.',
       interpolate: 'Whether new tracks should have interpolation enabled by default',
       continuous: 'Immediately stay in detection creation mode after creating a new track.  Hit Esc to exit.',
+      prompt: 'Prompt user before deleting a track?',
     },
     modes: ['Track', 'Detection'],
   }),
@@ -36,12 +37,15 @@ export default Vue.extend({
       // Add unknown as the default type to the typeList
       return ['unknown'].concat(this.allTypes);
     },
+    newTrackSettings() {
+      return this.trackSettings.newTrackSettings;
+    },
   },
   methods: {
     /** Reduces the number of update functions utilizing Vuex by indicating the target type */
     saveTypeSettings(event: 'Track' | 'Detection', target: 'mode' | 'type') {
       // Copy the newTrackSettings for modification
-      const copy: NewTrackSettings = cloneDeep(this.newTrackSettings);
+      const copy: NewTrackSettings = cloneDeep(this.trackSettings.newTrackSettings);
       copy[target] = event; // Modify the value
       this.$emit('update-new-track-settings', copy);
     },
@@ -49,26 +53,75 @@ export default Vue.extend({
      * Each submodule because of Typescript needs to be referenced like this
      * Allows us to add more sub settings in the future
      */
-    saveTrackSubSettings(event: true | null, target: 'autoAdvanceFrame' | 'interpolate') {
+    saveNewTrackSubSettings(event: true | null, target: 'autoAdvanceFrame' | 'interpolate') {
       // Copy the newTrackSettings for modification
-      const copy: NewTrackSettings = cloneDeep(this.newTrackSettings);
+      const copy: NewTrackSettings = cloneDeep(this.trackSettings.newTrackSettings);
       const modeSettings = copy.modeSettings.Track;
       modeSettings[target] = !!event; // Modify the value
       this.$emit('update-new-track-settings', copy);
     },
     saveDetectionSubSettings(event: true | null, target: 'continuous') {
       // Copy the newTrackSettings for modification
-      const copy: NewTrackSettings = cloneDeep(this.newTrackSettings);
+      const copy: NewTrackSettings = cloneDeep(this.trackSettings.newTrackSettings);
       const modeSettings = copy.modeSettings.Detection;
       modeSettings[target] = !!event; // Modify the value
       this.$emit('update-new-track-settings', copy);
+    },
+    saveDeletionSettings(event: true, target: 'promptUser') {
+      const copy: DeletionSettings = cloneDeep(this.trackSettings.deletionSettings);
+      copy[target] = !!event;
+      this.$emit('update-deletion-track-settings', copy);
     },
   },
 });
 </script>
 
 <template>
-  <div class="CreationMode mb-2">
+  <div class="TrackSettings mb-2">
+    <v-card
+      outlined
+      class="pa-2 pb-0 mt-3"
+    >
+      <div class="subheading">
+        Deletion Settings
+      </div>
+      <v-row
+        align="end"
+        dense
+      >
+        <v-col class="py-1">
+          <v-switch
+            :input-value="
+              trackSettings.deletionSettings.promptUser"
+            class="my-0 ml-1 pt-0"
+            dense
+            label="Prompt User"
+            hide-details
+            @change="saveDeletionSettings($event,'promptUser')"
+          />
+        </v-col>
+        <v-col
+          cols="2"
+          class="py-1"
+          align="right"
+        >
+          <v-tooltip
+            open-delay="200"
+            bottom
+          >
+            <template #activator="{ on }">
+              <v-icon
+                small
+                v-on="on"
+              >
+                mdi-help
+              </v-icon>
+            </template>
+            <span>{{ help.prompt }}</span>
+          </v-tooltip>
+        </v-col>
+      </v-row>
+    </v-card>
     <v-card
       outlined
       class="pa-2 pb-0 mt-3"
@@ -171,7 +224,7 @@ export default Vue.extend({
             dense
             label="Advance Frame"
             hide-details
-            @change="saveTrackSubSettings($event,'autoAdvanceFrame')"
+            @change="saveNewTrackSubSettings($event,'autoAdvanceFrame')"
           />
         </v-col>
         <v-col
@@ -202,7 +255,7 @@ export default Vue.extend({
             dense
             label="Interpolate"
             hide-details
-            @change="saveTrackSubSettings($event,'interpolate')"
+            @change="saveNewTrackSubSettings($event,'interpolate')"
           />
         </v-col>
         <v-col
