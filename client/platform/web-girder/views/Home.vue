@@ -215,7 +215,9 @@ export default defineComponent({
             class="mb-4"
             rounded=""
           >
-            <ShareTab :value="0" />
+            <ShareTab
+              :value="0"
+            />
           </v-toolbar>
           <router-view />
           <v-card

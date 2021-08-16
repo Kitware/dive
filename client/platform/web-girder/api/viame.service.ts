@@ -50,18 +50,28 @@ async function clone({ folderId, name, parentFolderId }: {
   return data;
 }
 
-async function getDatasets(sharedData: boolean): Promise<GirderDatasetModel[]> {
-  const { data } = await girderRest.get<GirderDatasetModel[]>('viame/datasets', {
+async function getDatasets(
+  limit: number,
+  offset: number,
+  sort: string,
+  sortDir: number,
+  shared: boolean,
+) {
+  const response = await girderRest.get<GirderDatasetModel[]>('viame/datasets', {
     params: {
+      limit,
+      offset,
+      sort,
+      sortDir,
       published: false,
-      shared: sharedData,
+      shared,
     },
   });
-  data.forEach((element) => {
+  response.data.forEach((element) => {
     // eslint-disable-next-line no-param-reassign
     element._modelType = 'folder';
   });
-  return data;
+  return response;
 }
 
 function makeViameFolder({

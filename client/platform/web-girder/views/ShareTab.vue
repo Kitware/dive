@@ -1,5 +1,7 @@
 <script lang="ts">
 import { defineComponent } from '@vue/composition-api';
+import { useStore } from 'platform/web-girder/store/types';
+
 
 export default defineComponent({
   name: 'ShareTab',
@@ -9,13 +11,26 @@ export default defineComponent({
       required: true,
     },
   },
+  setup() {
+    const store = useStore();
+    const locationStore = store.state.Location;
+
+    const clearSelected = () => {
+      locationStore.selected = [];
+    };
+
+    return {
+      locationStore,
+      clearSelected,
+    };
+  },
 });
 </script>
 
 <template>
   <v-tabs
     right
-    @change="$emit('input', $event)"
+    @change="clearSelected"
   >
     <v-tab :to="{name: 'home'}">
       Browse Data
