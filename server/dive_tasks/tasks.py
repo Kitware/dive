@@ -520,6 +520,122 @@ def convert_video(self: Task, path, folderId, auxiliaryFolderId, itemId):
     if check_canceled(self, context):
         return
 
+    # Check to see if frame alignment remains the same
+    process_err_file = tempfile.TemporaryFile()
+    process = Popen(
+        [
+            "ffprobe",
+            output_path,
+            "-hide_banner",
+            "-read_intervals",
+            "%+5",
+            "-show_entries",
+            "frame=best_effort_timestamp_time,pkt_dts_time,pkt_pts_time\
+                ,repeat_pict,pkt_duration_time",
+            "-print_format",
+            "json",
+        ],
+        stdout=subprocess.PIPE,
+        stderr=process_err_file,
+    )
+
+    stdout = stream_subprocess(process, self, context, manager, process_err_file, keep_stdout=True)
+    if check_canceled(self, context):
+        return
+    framejsoninfo = json.loads(stdout)
+    if 'frames' not in framejsoninfo:
+        raise Exception('Could not read ffprobe frames in {}'.format(len(videostream)))
+    frame_data = framejsoninfo['frames']
+    previous_TS = -1
+    base_pkt_dur = -1
+    misaligned_frames = False
+    for frame in frame_data:
+        current_TS = frame['best_effort_timestamp_time']
+        if previous_TS != -1 and previous_TS == current_TS:
+            misaligned_frames = True
+            break
+        previous_TS = current_TS
+        current_base_pkt_dur = frame['pkt_duration_time']
+        if base_pkt_dur != -1 and base_pkt_dur != current_base_pkt_dur:
+            misaligned_frames = True
+            break
+    if misaligned_frames is True:
+        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=True) as temp:
+            aligned_file = temp.name
+        process_err_file = tempfile.TemporaryFile()
+        process = Popen(
+            [
+                "ffmpeg",
+                "-i",
+                output_path,
+                "-ss",
+                "0",
+                "-c:v",
+                "libx264",
+                "-preset",
+                "slow",
+                # lossless secondary encoding
+                "-crf",
+                "18",
+                "-c:a",
+                "copy",
+                aligned_file,
+            ],
+            stdout=subprocess.PIPE,
+            stderr=process_err_file,
+        )
+        stream_subprocess(process, self, context, manager, process_err_file, cleanup=cleanup)
+        if check_canceled(self, context):
+            return
+        output_path = aligned_file
+
+        # Secondary Pass to ensure frame alignment is fixed
+        process_err_file = tempfile.TemporaryFile()
+        process = Popen(
+            [
+                "ffprobe",
+                output_path,
+                "-hide_banner",
+                "-read_intervals",
+                "%+5",
+                "-show_entries",
+                "frame=best_effort_timestamp_time,pkt_dts_time,pkt_pts_time\
+                    ,repeat_pict,pkt_duration_time",
+                "-print_format",
+                "json",
+            ],
+            stdout=subprocess.PIPE,
+            stderr=process_err_file,
+        )
+
+        stdout = stream_subprocess(
+            process, self, context, manager, process_err_file, keep_stdout=True
+        )
+        if check_canceled(self, context):
+            return
+        framejsoninfo = json.loads(stdout)
+        if 'frames' not in framejsoninfo:
+            raise Exception('Could not read ffprobe frames in {}'.format(len(videostream)))
+        frame_data = framejsoninfo['frames']
+        previous_TS = -1
+        base_pkt_dur = -1
+        secondary_misaligned = False
+        for frame in frame_data:
+            current_TS = frame['best_effort_timestamp_time']
+            if previous_TS != -1 and previous_TS == current_TS:
+                secondary_misaligned = True
+                break
+            previous_TS = current_TS
+            current_base_pkt_dur = frame['pkt_duration_time']
+            if base_pkt_dur != -1 and base_pkt_dur != current_base_pkt_dur:
+                secondary_misaligned = True
+                break
+        if secondary_misaligned is True:
+            raise Exception(
+                "There is a frame alignment error in the video.\
+                      Either extra padding at the beginning or uneven frame durations."
+            )
+
     manager.updateStatus(JobStatus.PUSHING_OUTPUT)
     new_file = gc.uploadFileToFolder(folderId, output_path)
     gc.addMetadataToItem(
