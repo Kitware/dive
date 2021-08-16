@@ -1,5 +1,7 @@
 <script lang="ts">
-import { computed, defineComponent, reactive } from '@vue/composition-api';
+import {
+  computed, defineComponent, reactive, Ref,
+} from '@vue/composition-api';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 
 import {
@@ -18,6 +20,7 @@ export default defineComponent({
 
   setup(props) {
     const { prompt } = usePrompt();
+    const sortingMethods = ['Alphabetical', 'Count'];
 
     const data = reactive({
       showPicker: false,
@@ -30,6 +33,7 @@ export default defineComponent({
       editingOpacity: 1.0,
       valid: true,
       settingsActive: false,
+      sortingMethod: sortingMethods[0],
     });
     const checkedTypesRef = useCheckedTypes();
     const allTypesRef = useAllTypes();
@@ -44,12 +48,6 @@ export default defineComponent({
       deleteType,
     } = useHandler();
 
-    const visibleTypes = computed(() => {
-      if (props.showEmptyTypes) {
-        return allTypesRef.value;
-      }
-      return usedTypesRef.value;
-    });
     function clickEdit(type: string) {
       data.selectedType = type;
       data.editingType = data.selectedType;
@@ -112,6 +110,34 @@ export default defineComponent({
       });
     }
 
+    const typeCounts = computed(() => filteredTracksRef.value.reduce((acc, filteredTrack) => {
+      const confidencePair = filteredTrack.track.getType(filteredTrack.context.confidencePairIndex);
+      const trackType = confidencePair[0];
+      acc.set(trackType, (acc.get(trackType) || 0) + 1);
+
+      return acc;
+    }, new Map<string, number>()));
+
+    function sortTypes(types: Ref<readonly string[]>) {
+      switch (data.sortingMethod) {
+        case 'Alphabetical':
+          return [...types.value].sort();
+        case 'Count':
+          return [...types.value].sort(
+            (a, b) => (typeCounts.value.get(b) || 0) - (typeCounts.value.get(a) || 0),
+          );
+        default:
+          return types.value;
+      }
+    }
+
+    const visibleTypes = computed(() => {
+      if (props.showEmptyTypes) {
+        return sortTypes(allTypesRef);
+      }
+      return sortTypes(usedTypesRef);
+    });
+
     const headCheckState = computed(() => {
       if (checkedTypesRef.value.length === visibleTypes.value.length) {
         return 1;
@@ -129,14 +155,6 @@ export default defineComponent({
       setCheckedTypes([]);
     }
 
-    const typeCounts = computed(() => filteredTracksRef.value.reduce((acc, filteredTrack) => {
-      const confidencePair = filteredTrack.track.getType(filteredTrack.context.confidencePairIndex);
-      const trackType = confidencePair[0];
-      acc.set(trackType, (acc.get(trackType) || 0) + 1);
-
-      return acc;
-    }, new Map<string, number>()));
-
 
     return {
       visibleTypes,
@@ -153,6 +171,7 @@ export default defineComponent({
       headCheckClicked,
       setCheckedTypes,
       typeCounts,
+      sortingMethods,
     };
   },
 });
@@ -184,6 +203,19 @@ export default defineComponent({
           />
           <b class="mt-1">Visibility</b>
           <v-spacer />
+          <select
+            ref="sortingMethodInputBoxRef"
+            v-model="data.sortingMethod"
+            class="input-box select-input"
+          >
+            <option
+              v-for="item in sortingMethods"
+              :key="item"
+              :value="item"
+            >
+              {{ item }}
+            </option>
+          </select>
           <v-btn
             icon
             small
@@ -419,6 +451,19 @@ export default defineComponent({
 </template>
 
 <style scoped lang='scss'>
+.input-box {
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  padding: 0 6px;
+  color: white;
+}
+
+.select-input {
+  width: 110px;
+  background-color: #1e1e1e;
+  appearance: menulist;
+}
+
 .border-highlight {
    border-bottom: 1px solid gray;
    border-top: 1px solid gray;
