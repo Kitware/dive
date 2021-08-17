@@ -44,17 +44,17 @@ interface FrameImage {
 
 export interface MultiCamImportFolderArgs {
   defaultDisplay: string; // In multicam the default camera to display
-  baseTrackFile: string;
-  folderList: Record<string, {folder: string; trackFile: string}>;
+  baseTrackFile: string; // multiCam camera default display track (output from multicam pipelines)
+  folderList: Record<string, {folder: string; trackFile: string}>; // path/track file per camera
   calibrationFile?: string; // NPZ calibation matrix file
   type: 'image-sequence' | 'video';
 }
 
 export interface MultiCamImportKeywordArgs {
   defaultDisplay: string; // In multicam the default camera to display
-  baseTrackFile: string;
+  baseTrackFile: string; // multiCam camera default display track (output from multicam pipelines)
   keywordFolder: string; // Base folder used for import, globList will filter folder
-  globList: Record<string, { glob: string; trackFile: string }>;
+  globList: Record<string, { glob: string; trackFile: string }>; // glob pattern for base folder
   type: 'image-sequence'; // Always image-sequence type for glob matching
 }
 

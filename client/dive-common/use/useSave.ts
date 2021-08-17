@@ -1,4 +1,4 @@
-import { ref, Ref } from '@vue/composition-api';
+import { readonly, ref, Ref } from '@vue/composition-api';
 
 import Track, { TrackId } from 'vue-media-annotator/track';
 import { Attribute } from 'vue-media-annotator/use/useAttributes';
@@ -101,5 +101,16 @@ export default function useSave(
     }
   }
 
-  return { save, markChangesPending, pendingSaveCount };
+  function discardChanges() {
+    pendingChangeMap.upsert.clear();
+    pendingChangeMap.delete.clear();
+    pendingChangeMap.attributeUpsert.clear();
+    pendingChangeMap.attributeDelete.clear();
+    pendingChangeMap.meta = 0;
+    pendingSaveCount.value = 0;
+  }
+
+  return {
+    save, markChangesPending, discardChanges, pendingSaveCount: readonly(pendingSaveCount),
+  };
 }

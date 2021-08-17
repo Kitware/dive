@@ -43,7 +43,7 @@ Due to tight OS coupling, some methods will have to be implemented to target a s
 
 Desktop has the capability to import and run pipelines on stereo and multicamera pipelines.  There is a Root folder as well as individual folders for each camera.  To achieve this the folder structure for storage of data is slightly different.
 
-* Root Folder - Base folder which contains the multicamera dataset.  It is tied to a single camera folder which is known as the `defaultDisplay`.  The `defaultDisplay` is the camera that is shown by default when the dataset is loaded.  The Root Folder `meta.json` file will contain a parmeter called `multiCam` and this will point to the multicams in the dataset as well as provide the `defaultDisplay`
+* Root Folder - Base folder which contains the multicamera dataset.  It is tied to a single camera folder which is known as the `defaultDisplay`.  The `defaultDisplay` is the camera that is shown by default when the dataset is loaded.  The Root Folder `meta.json` file will contain a parmeter called `multiCam` and this will point to the multicams in the dataset as well as provide the `defaultDisplay`.  When viewing cameras the cameraName for the `defaultDisplay` is 'Base MultiCam'.
 * Camera Folders - Individual folders for each camera which behave like their own dataset with their own meta.json and annotations file.  This is achieved by giving them a dataset id of `RootFolder/CameraName`.
 
 ``` text
@@ -81,3 +81,24 @@ DIVE_Projects
 ### Using MultiCamera Pipelines
 
 When multicamera pipelines are run they will create individual annotation files for each camera folder.  The `defaultDisplay` annotations will be copied to the root folder as well.  Viewing the dataset in the annotation folder will bring up the camera assocaited with the `defaultDisplay` as well as the annotations that were copied from the pipeline run.
+
+### MultiCamera Ids and Requests
+
+Internally to reference difference cameras the system creates a datasetId which combines the base datasetId with the cameraName.  So in the example above `stereodataset_jp7hq88vfv` and the `left` camera would be referenced by `stereodataset_jp7hq88vfv/left`.  That is the Id that would be used to loadMetadata, saveMetadata, loadDetections and saveDetections.
+
+### MultiCamera Display/Loading Process
+
+When a dataset loads and the  metadata type is deteremined to be `multi` the system will look in the metadata to see if there is an object called `multiCam` and then will look in the sub object `cameras` for the names of the cameras in the system.  The `defaultDisplay` is also referenced from the `multiCam` metadata and used to display the default camera.  The camera names are populated into a list which is used to switch between cameras.
+
+When a user selects another camera the Viewer.vue component will change it's current datasetId to be `{datasetId}/{cameraName}` and will load the associated metadata and detections for that camera while removing the previous metadata and detections.  This will also cause `Viewer.vue` to emit a signal to the ViewerLoader.vue indicating the change in Id.  This is necessary for the `ViewerLoader.vue` to change the export/import/pipeline options based on the updatedID.
+
+Viewer.vue has the responsibility of managing the current camera and changes to the camera behave like loading another dataset.
+
+* Benefits with this structure:
+  * Nearly all existing endpoints (loading/saving/pipelines/importing/exporting) don't need to be modified.  They still call an ID the id is now compounded and specific implementations are updated to point to the proper location.
+  * There is an advantage to using the `{datasetId}/{cameraName}` on desktop because the folder structure is already structured in that format.  Instead of opening folder `{datasetId} the same call is used to open a dataset within that folder.
+  * isolation between cameras for interactions that are directly linked between cameras.  Adjusting a box in one camera doesn't affect another camera (currently, but in the future there may be toggles to connect them)
+* Disadvantages with this structure:
+  * When a datasetId is sent to the server there is no explicit argument indicating that it is attempting to work upon a camera instead of a base dataset.
+  * There can be some confusion on the desktop loading of metaData because the datasetId may be reconstructed into a single string to take advantage of the folder structure.  I.E.  The request to `loadMetadata` on the desktop has the structure of `/dataset/:id/:camera?/meta` with the optional `:camera?` parameter.  The Id is reconstructed from the `:id` and `:camera?` into a single string (`{:id}/{:camera]`) because the desktop expects a path while opening a folder.
+

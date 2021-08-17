@@ -79,10 +79,7 @@ const datasetModule: Module<DatasetState, RootState> = {
       } else {
         throw new Error(`Unable to load media for dataset type: ${dsMeta.type}`);
       }
-      let multiCamMedia = null;
-      if (dsMeta.meta.multiCamMedia) {
-        multiCamMedia = dsMeta.meta.multiCamMedia;
-      }
+      const { multiCamMedia } = dsMeta.meta;
       let subType = null;
       if (dsMeta.meta.subType) {
         subType = dsMeta.meta.subType;
