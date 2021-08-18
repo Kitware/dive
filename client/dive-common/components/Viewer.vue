@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  defineComponent, ref, toRef, computed, Ref, reactive,
+  defineComponent, ref, toRef, computed, Ref, reactive, watch,
 } from '@vue/composition-api';
 import type { Vue } from 'vue/types/vue';
 
@@ -68,12 +68,13 @@ export default defineComponent({
     },
   },
   setup(props, ctx) {
-    const multiCamBase = 'MultiCam Base';
     const { prompt } = usePrompt();
     const loadError = ref('');
+    const baseMulticamDatasetId = ref(null as string | null);
     const datasetId = toRef(props, 'id');
     const multiCamList: Ref<string[]> = ref([]);
-    const defaultCamera: Ref<string> = ref('');
+    const defaultCamera = ref('');
+    const currentCamera = ref('');
     const playbackComponent = ref(undefined as Vue | undefined);
     const mediaController = computed(() => {
       if (playbackComponent.value) {
@@ -305,52 +306,55 @@ export default defineComponent({
     }
 
     /** Trigger data load */
-    const loadData = () => (
-      Promise.all([
-        loadMetadata(datasetId.value).then((meta) => {
-          populateTypeStyles(meta.customTypeStyling);
-          if (meta.customTypeStyling) {
-            importTypes(Object.keys(meta.customTypeStyling), false);
+    const loadData = async () => {
+      try {
+        const meta = await loadMetadata(datasetId.value);
+        const defaultCameraMeta = meta.multiCamMedia?.cameras[meta.multiCamMedia.defaultDisplay];
+        if (defaultCameraMeta !== undefined && meta.multiCamMedia) {
+          /* We're loading a multicamera dataset */
+          const { cameras } = meta.multiCamMedia;
+          multiCamList.value = Object.keys(cameras);
+          defaultCamera.value = meta.multiCamMedia.defaultDisplay;
+          currentCamera.value = defaultCamera.value;
+          baseMulticamDatasetId.value = datasetId.value;
+          if (!currentCamera.value) {
+            throw new Error('Multicamera dataset without default camera specified.');
           }
-          if (meta.attributes) {
-            loadAttributes(meta.attributes);
+          ctx.emit('update:id', `${props.id}/${currentCamera.value}`);
+          return;
+        }
+        /* Otherwise, complete loading of the dataset */
+        populateTypeStyles(meta.customTypeStyling);
+        if (meta.customTypeStyling) {
+          importTypes(Object.keys(meta.customTypeStyling), false);
+        }
+        if (meta.attributes) {
+          loadAttributes(meta.attributes);
+        }
+        populateConfidenceFilters(meta.confidenceFilters);
+        datasetName.value = meta.name;
+        initTime({
+          frameRate: meta.fps,
+          originalFps: meta.originalFps || null,
+        });
+        imageData.value = cloneDeep(meta.imageData) as FrameImage[];
+        videoUrl.value = meta.videoUrl;
+        datasetType.value = meta.type as DatasetType;
+
+        const trackData = await loadDetections(datasetId.value);
+        const tracks = Object.values(trackData);
+        progress.total = tracks.length;
+        for (let i = 0; i < tracks.length; i += 1) {
+          if (i % 4000 === 0) {
+          /* Every N tracks, yeild some cycles for other scheduled tasks */
+            progress.progress = i;
+            // eslint-disable-next-line no-await-in-loop
+            await new Promise((resolve) => window.setTimeout(resolve, 500));
           }
-          populateConfidenceFilters(meta.confidenceFilters);
-          datasetName.value = meta.name;
-          initTime({
-            frameRate: meta.fps,
-            originalFps: meta.originalFps || null,
-          });
-          imageData.value = cloneDeep(meta.imageData) as FrameImage[];
-          videoUrl.value = meta.videoUrl;
-          datasetType.value = meta.type as DatasetType;
-          const defaultCameraMeta = meta.multiCamMedia?.cameras[meta.multiCamMedia.defaultDisplay];
-          const cameras = meta.multiCamMedia?.cameras;
-          if (defaultCameraMeta && cameras && meta.multiCamMedia) {
-            multiCamList.value = Object.keys(cameras).concat([multiCamBase]);
-            defaultCamera.value = multiCamBase;
-            imageData.value = cloneDeep(defaultCameraMeta.imageData) as FrameImage[];
-            videoUrl.value = defaultCameraMeta.videoUrl;
-            datasetType.value = defaultCameraMeta.type;
-            datasetId.value = `${props.id}`;
-          }
-        }),
-        loadDetections(datasetId.value).then(async (trackData) => {
-          const tracks = Object.values(trackData);
-          progress.total = tracks.length;
-          for (let i = 0; i < tracks.length; i += 1) {
-            if (i % 4000 === 0) {
-            /* Every N tracks, yeild some cycles for other scheduled tasks */
-              progress.progress = i;
-              // eslint-disable-next-line no-await-in-loop
-              await new Promise((resolve) => window.setTimeout(resolve, 500));
-            }
-            insertTrack(Track.fromJSON(tracks[i]), { imported: true });
-          }
-        }),
-      ]).then(() => {
+          insertTrack(Track.fromJSON(tracks[i]), { imported: true });
+        }
         progress.loaded = true;
-      }).catch((err) => {
+      } catch (err) {
         progress.loaded = false;
         console.error(err);
         // Cleaner displaying of interal errors for desktop
@@ -364,7 +368,8 @@ export default defineComponent({
             .concat(". If you don't know how to resolve this, please contact the server administrator.");
           throw err;
         }
-      }));
+      }
+    };
     loadData();
 
     const reloadAnnotations = async () => {
@@ -374,18 +379,15 @@ export default defineComponent({
       await loadData();
     };
 
-    const changeCamera = async (camera: string) => {
-      if (camera !== multiCamBase) {
-        datasetId.value = `${props.id}/${camera}`;
-      } else {
-        datasetId.value = props.id;
-      }
-      clearAllTracks();
-      progress.loaded = false;
-      ctx.emit('updateId', datasetId.value);
-      await reloadAnnotations();
-    };
+    watch(datasetId, reloadAnnotations);
 
+    const changeCamera = async (camera: string) => {
+      if (!camera || !baseMulticamDatasetId.value) {
+        throw new Error('Attempted to change camera to invalid value or baseMultiCamDatasetId was missing');
+      }
+      const newId = `${baseMulticamDatasetId.value}/${camera}`;
+      ctx.emit('update:id', newId);
+    };
 
     const globalHandler = {
       ...handler,
@@ -487,25 +489,13 @@ export default defineComponent({
       >
         {{ datasetName }}
       </span>
-      <div
-        v-if="multiCamList.length"
-        class="px-2 mt-6"
-      >
-        <v-select
-          :value="defaultCamera"
-          :items="multiCamList"
-          label="Camera"
-          @change="changeCamera"
-        />
-      </div>
-
       <v-spacer />
 
       <template #extension>
-        <span>Viewer/Edit Controls</span>
+        <v-spacer style="max-width: 300px;" />
         <editor-menu
           v-bind="{ editingMode, visibleModes, editingTrack, recipes, mergeMode }"
-          class="shrink px-6"
+          class="shrink pr-2"
           @set-annotation-state="handler.setAnnotationState"
         />
         <delete-controls
@@ -513,8 +503,21 @@ export default defineComponent({
           @delete-point="handler.removePoint"
           @delete-annotation="handler.removeAnnotation"
         />
-        <v-spacer />
-        <slot name="extension-right" />
+        <v-select
+          v-if="multiCamList.length"
+          :value="defaultCamera"
+          :items="multiCamList"
+          label="Camera"
+          class="shrink"
+          outlined
+          hide-details
+          dense
+          @change="changeCamera"
+        >
+          <template #item="{ item }">
+            {{ item }} {{ item === defaultCamera ? '(Default)': '' }}
+          </template>
+        </v-select>
       </template>
 
       <slot name="title-right" />
