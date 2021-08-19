@@ -818,7 +818,7 @@ async function _importTrackFile(
   dsId: string,
   projectDirAbsPath: string,
   jsonMeta: JsonMeta,
-  userTrackFileAbsPath: string, // null means find automatically
+  userTrackFileAbsPath: string,
 ) {
   /* Look for JSON track file as first priority */
   let foundDetections = false;

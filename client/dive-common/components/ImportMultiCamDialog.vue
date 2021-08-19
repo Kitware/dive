@@ -343,7 +343,7 @@ export default defineComponent({
               clearable
               :value="item.trackFile"
               class="mx-4 my-auto"
-              @click:clear="item.trackAbs=null"
+              @click:clear="item.trackFile=''"
             />
             <v-btn
               color="primary"
@@ -448,7 +448,7 @@ export default defineComponent({
               clearable
               :value="item.trackFile"
               class="mx-8 mb-3 "
-              @click:clear="item.trackAbs=null"
+              @click:clear="item.trackFile=''"
             />
             <v-btn
               color="primary"
