@@ -20,7 +20,10 @@ export default defineComponent({
 
   setup(props) {
     const { prompt } = usePrompt();
-    const sortingMethods = ['Alphabetical', 'Count'];
+
+    // Ordering of these lists should match
+    const sortingMethods = ['a-z', 'count'];
+    const sortingMethodIcons = ['mdi-sort-alphabetical-ascending', 'mdi-sort-numeric-ascending'];
 
     const data = reactive({
       showPicker: false,
@@ -33,7 +36,7 @@ export default defineComponent({
       editingOpacity: 1.0,
       valid: true,
       settingsActive: false,
-      sortingMethod: sortingMethods[0],
+      sortingMethod: 0, // index into sortingMethods
     });
     const checkedTypesRef = useCheckedTypes();
     const allTypesRef = useAllTypes();
@@ -91,6 +94,10 @@ export default defineComponent({
       }
     }
 
+    function clickSortToggle() {
+      data.sortingMethod = (data.sortingMethod + 1) % sortingMethods.length;
+    }
+
     function acceptChanges() {
       data.showPicker = false;
       if (data.editingType !== data.selectedType) {
@@ -119,11 +126,11 @@ export default defineComponent({
     }, new Map<string, number>()));
 
     function sortTypes(types: Ref<readonly string[]>) {
-      switch (data.sortingMethod) {
-        case 'Alphabetical':
-          return [...types.value].sort();
-        case 'Count':
-          return [...types.value].sort(
+      switch (sortingMethods[data.sortingMethod]) {
+        case 'a-z':
+          return types.value.slice(0).sort();
+        case 'count':
+          return types.value.slice(0).sort(
             (a, b) => (typeCounts.value.get(b) || 0) - (typeCounts.value.get(a) || 0),
           );
         default:
@@ -157,21 +164,23 @@ export default defineComponent({
 
 
     return {
-      visibleTypes,
-      usedTypesRef,
       checkedTypesRef,
       data,
+      headCheckState,
+      sortingMethods,
+      sortingMethodIcons,
       typeStylingRef,
+      typeCounts,
+      usedTypesRef,
+      visibleTypes,
       /* methods */
       acceptChanges,
       clickEdit,
       clickDeleteType,
       clickDelete,
-      headCheckState,
+      clickSortToggle,
       headCheckClicked,
       setCheckedTypes,
-      typeCounts,
-      sortingMethods,
     };
   },
 });
@@ -179,9 +188,6 @@ export default defineComponent({
 
 <template>
   <div class="d-flex flex-column">
-    <v-subheader class="flex-shrink-0">
-      Type Filter
-    </v-subheader>
     <v-container
       dense
       class="py-0"
@@ -190,7 +196,7 @@ export default defineComponent({
         class="border-highlight"
         align="center"
       >
-        <v-col class="d-flex flex-row align-center py-0">
+        <v-col class="d-flex flex-row align-center py-0 mr-8">
           <v-checkbox
             :input-value="headCheckState !== -1 ? headCheckState : false"
             :indeterminate="headCheckState === -1"
@@ -201,25 +207,21 @@ export default defineComponent({
             class="my-1 type-checkbox"
             @change="headCheckClicked"
           />
-          <b class="mt-1">Visibility</b>
+          <b>Type Filter</b>
           <v-spacer />
-          <select
-            ref="sortingMethodInputBoxRef"
-            v-model="data.sortingMethod"
-            class="input-box select-input"
-          >
-            <option
-              v-for="item in sortingMethods"
-              :key="item"
-              :value="item"
-            >
-              {{ item }}
-            </option>
-          </select>
           <v-btn
             icon
             small
-            class="mr-2"
+            @click="clickSortToggle"
+          >
+            <v-icon>
+              {{ sortingMethodIcons[data.sortingMethod] }}
+            </v-icon>
+          </v-btn>
+          <v-btn
+            icon
+            small
+            class="mx-2"
             @click="data.settingsActive = !data.settingsActive"
           >
             <v-icon
@@ -451,22 +453,8 @@ export default defineComponent({
 </template>
 
 <style scoped lang='scss'>
-.input-box {
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 4px;
-  padding: 0 6px;
-  color: white;
-}
-
-.select-input {
-  width: 110px;
-  background-color: #1e1e1e;
-  appearance: menulist;
-}
-
 .border-highlight {
    border-bottom: 1px solid gray;
-   border-top: 1px solid gray;
  }
 
 .type-checkbox {

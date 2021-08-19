@@ -87,6 +87,7 @@ export default defineComponent({
         { bind: 'm', handler: doToggleMerge },
         { bind: 'shift+m', handler: commitMerge },
       ]"
+      small
       icon
       title="press `a`"
       class="swap-button"
@@ -167,8 +168,8 @@ export default defineComponent({
 
 .swap-button {
   position: absolute;
-  top: 5px;
-  right: 16px;
+  top: 4px;
+  right: 8px;
   z-index: 1;
 }
 </style>
