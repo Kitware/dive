@@ -110,20 +110,22 @@ function loadObjects(
         };
         count += 1;
         Object.entries(annotations).forEach(([frame, bounds]) => {
-          const bbox = bounds.boundingBox;
-          const adjustedBounds: RectBounds = [bbox.x, bbox.y, bbox.x + bbox.w, bbox.y + bbox.h];
-          const frameNum = parseInt(frame, 10) - 1;
-          track.end = Math.max(track.end, frameNum);
-          track.begin = Math.min(track.begin, frameNum);
-          track.features.push({
-            frame: frameNum,
-            keyframe: true,
-            bounds: adjustedBounds,
-            attributes: {
-              objectID,
-              objectType,
-            },
-          });
+          if (bounds.boundingBox !== undefined) { // End frame if no bounds
+            const bbox = bounds.boundingBox;
+            const adjustedBounds: RectBounds = [bbox.x, bbox.y, bbox.x + bbox.w, bbox.y + bbox.h];
+            const frameNum = parseInt(frame, 10) - 1;
+            track.end = Math.max(track.end, frameNum);
+            track.begin = Math.min(track.begin, frameNum);
+            track.features.push({
+              frame: frameNum,
+              keyframe: true,
+              bounds: adjustedBounds,
+              attributes: {
+                objectID,
+                objectType,
+              },
+            });
+          }
         });
         tracks.push(track);
       }
@@ -207,7 +209,7 @@ function loadActivity(
       track.features = features;
       tracks.push(track);
 
-      //Need to add in any objectIds if they exist
+      //Need to add in any objectIDs if they exist
       if (activity.objects) {
         const objectTracks = loadObjects(activity.objects, baseFileName, activity, trackId);
         objectTracks.forEach((objectTrack) => {
