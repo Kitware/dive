@@ -3,7 +3,7 @@ import {
   computed, defineComponent, reactive, Ref,
 } from '@vue/composition-api';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
-
+import TooltipBtn from './TooltipButton.vue';
 import {
   useCheckedTypes, useAllTypes, useTypeStyling, useHandler, useUsedTypes, useFilteredTracks,
 } from '../provides';
@@ -17,6 +17,7 @@ export default defineComponent({
     },
   },
   name: 'TypeList',
+  components: { TooltipBtn },
 
   setup(props) {
     const { prompt } = usePrompt();
@@ -209,15 +210,11 @@ export default defineComponent({
           />
           <b>Type Filter</b>
           <v-spacer />
-          <v-btn
-            icon
-            small
+          <tooltip-btn
+            :icon="sortingMethodIcons[data.sortingMethod]"
+            tooltip-text="Sort types by count or alphabetically"
             @click="clickSortToggle"
-          >
-            <v-icon>
-              {{ sortingMethodIcons[data.sortingMethod] }}
-            </v-icon>
-          </v-btn>
+          />
           <v-btn
             icon
             small
