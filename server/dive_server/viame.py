@@ -221,7 +221,7 @@ class Viame(Resource):
                 },
             },
         ]
-        response = Folder().collection.aggregate(pipeline).next()
+        response = next(Folder().collection.aggregate(pipeline))
         total = response['totalCount'][0]['count'] if len(response['results']) > 0 else 0
         cherrypy.response.headers['Girder-Total-Count'] = total
         return [Folder().filter(doc, additionalKeys=['ownerLogin']) for doc in response['results']]
