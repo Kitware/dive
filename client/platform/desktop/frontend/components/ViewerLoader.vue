@@ -58,9 +58,9 @@ export default defineComponent({
 
 <template>
   <Viewer
+    :id.sync="compoundId"
     ref="viewerRef"
     :read-only-mode="readonlyMode"
-    :id.sync="compoundId"
   >
     <template #title>
       <v-tabs

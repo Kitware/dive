@@ -57,7 +57,6 @@ async function beginMultiCamImport(
     transcodedVideoFile: string;
     type: 'image-sequence' | 'video';
    }> = {};
-  const { baseTrackFile } = args;
   let multiCamTrackFiles: null | Record<string, string> = {};
   let trackFileCount = 0;
   if (isFolderArgs(args)) {
@@ -226,7 +225,7 @@ async function beginMultiCamImport(
     jsonMeta,
     globPattern: '',
     mediaConvertList,
-    trackFileAbsPath: baseTrackFile,
+    trackFileAbsPath: '',
     multiCamTrackFiles,
   };
 }
