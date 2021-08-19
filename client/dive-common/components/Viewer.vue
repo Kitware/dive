@@ -492,23 +492,31 @@ export default defineComponent({
       <v-spacer />
 
       <template #extension>
-        <v-spacer style="max-width: 300px;" />
+        <span
+          v-if="$vuetify.breakpoint.lgAndUp"
+          style="min-width: 180px;"
+        >
+          Viewer/Edit Controls
+        </span>
         <editor-menu
           v-bind="{ editingMode, visibleModes, editingTrack, recipes, mergeMode }"
-          class="shrink pr-2"
+          class="shrink"
           @set-annotation-state="handler.setAnnotationState"
         />
         <delete-controls
           v-bind="{ editingMode, selectedFeatureHandle }"
+          class="mr-2"
           @delete-point="handler.removePoint"
           @delete-annotation="handler.removeAnnotation"
         />
+        <v-spacer />
         <v-select
           v-if="multiCamList.length"
           :value="defaultCamera"
           :items="multiCamList"
           label="Camera"
           class="shrink"
+          style="width: 180px;"
           outlined
           hide-details
           dense
