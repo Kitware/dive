@@ -44,7 +44,7 @@ interface FrameImage {
 
 export interface MultiCamImportFolderArgs {
   defaultDisplay: string; // In multicam the default camera to display
-  folderList: Record<string, string>; // Camera name and folder import for images or file for videos
+  folderList: Record<string, {folder: string; trackFile: string}>; // path/track file per camera
   calibrationFile?: string; // NPZ calibation matrix file
   type: 'image-sequence' | 'video';
 }
@@ -52,8 +52,8 @@ export interface MultiCamImportFolderArgs {
 export interface MultiCamImportKeywordArgs {
   defaultDisplay: string; // In multicam the default camera to display
   keywordFolder: string; // Base folder used for import, globList will filter folder
-  globList: Record<string, string>; // Camera name key and glob pattern for keywordfolder
-  calibrationFile?: string; // NPZ calibration matrix file
+  globList: Record<string, { glob: string; trackFile: string }>; // glob pattern for base folder
+  calibrationFile?: string; // NPZ calibation matrix file
   type: 'image-sequence'; // Always image-sequence type for glob matching
 }
 
@@ -98,6 +98,8 @@ interface DatasetMeta extends DatasetMetaMutable {
   createdAt: Readonly<string>;
   attributes?: Readonly<Record<string, Attribute>>;
   originalFps?: Readonly<number>;
+  subType: Readonly<SubType>; // In future this could have stuff like IR/EO
+  multiCamMedia: Readonly<MultiCamMedia | null>;
 }
 
 interface Api {

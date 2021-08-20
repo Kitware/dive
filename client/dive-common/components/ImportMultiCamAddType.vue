@@ -12,12 +12,14 @@ export default defineComponent({
   },
   setup(props, { emit }) {
     const newSetName = ref('');
+    const alphaNumeric = /^[a-zA-Z0-9]*$/;
 
     const addNewSet = () => {
       emit('add-new', newSetName.value);
     };
     return {
       newSetName,
+      alphaNumeric,
       /* methods */
       addNewSet,
     };
@@ -26,21 +28,21 @@ export default defineComponent({
 </script>
 
 <template>
-  <v-row
-    align="center"
-  >
+  <v-row>
     <v-text-field
       v-model="newSetName"
       :rules="[
         v => !!v || 'Name is required',
+        v => alphaNumeric.test(v) || 'Letters and Numbers only',
         v => !v.includes(' ') || 'No spaces',
         v => !nameList.includes(v) || 'No duplicate Names']"
       label="name"
       placeholder="Choose a Camera Name"
       outlined
+      persistent-hint
       dense
+      hide-details="auto"
       class="mx-4"
-      hide-details
     />
     <v-btn
       color="error"

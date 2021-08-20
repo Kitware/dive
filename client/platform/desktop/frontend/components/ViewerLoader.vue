@@ -32,17 +32,20 @@ export default defineComponent({
     ImportAnnotations,
   },
   props: {
-    id: {
+    id: { // always the base ID
       type: String,
       required: true,
     },
   },
   setup(props) {
     const viewerRef = ref();
+    const compoundId = ref(props.id);
     const subTypeList = computed(() => [datasets.value[props.id]?.subType || null]);
     const readonlyMode = computed(() => settings.value?.readonlyMode || false);
+
     return {
       datasets,
+      compoundId,
       viewerRef,
       buttonOptions,
       menuOptions,
@@ -55,8 +58,9 @@ export default defineComponent({
 
 <template>
   <Viewer
+    :id.sync="compoundId"
     ref="viewerRef"
-    v-bind="{ id, readonlyMode }"
+    :read-only-mode="readonlyMode"
   >
     <template #title>
       <v-tabs
@@ -84,13 +88,13 @@ export default defineComponent({
         v-bind="{ buttonOptions, menuOptions }"
       />
       <ImportAnnotations
-        :dataset-id="id"
+        :dataset-id="compoundId"
         v-bind="{ buttonOptions, menuOptions }"
         block-on-unsaved
       />
       <Export
         v-if="datasets[id]"
-        :id="id"
+        :id="compoundId"
         :button-options="buttonOptions"
       />
     </template>
