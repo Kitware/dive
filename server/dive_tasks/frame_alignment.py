@@ -40,8 +40,7 @@ def ffprobe_frame_alignment(self: Task, output_path: str, context: Dict, manager
             "-read_intervals",
             "%+5",
             "-show_entries",
-            "frame=best_effort_timestamp_time,pkt_dts_time,pkt_pts_time\
-                ,repeat_pict,pkt_duration_time",
+            "frame=best_effort_timestamp_time",
             "-print_format",
             "json",
         ],

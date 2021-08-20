@@ -3,10 +3,8 @@ import { spawn } from 'child_process';
 import fs from 'fs-extra';
 
 import {
-  Settings, DesktopJob, RunPipeline, RunTraining, FFProbeResults,
-  ConversionArgs,
+  Settings, DesktopJob, RunPipeline, RunTraining,
   DesktopJobUpdater,
-  CheckMediaResults,
 } from 'platform/desktop/constants';
 import { cleanString } from 'platform/desktop/sharedUtils';
 import { serialize } from 'platform/desktop/backend/serializers/viame';
@@ -14,10 +12,10 @@ import { observeChild } from 'platform/desktop/backend/native/processManager';
 
 import { stereoPipelineMarker } from 'dive-common/constants';
 import * as common from './common';
-import { jobFileEchoMiddleware, spawnResult } from './utils';
+import { jobFileEchoMiddleware } from './utils';
 import {
   getMultiCamImageFiles, getMultiCamVideoPath,
-  getTranscodedMultiCamType, writeMultiCamStereoPipelineArgs,
+  writeMultiCamStereoPipelineArgs,
 } from './multiCamUtils';
 
 
@@ -352,129 +350,7 @@ async function train(
   return jobBase;
 }
 
-async function checkMedia(
-  viameConstants: ViameConstants,
-  file: string,
-): Promise<CheckMediaResults> {
-  const ffprobePath = `${viameConstants.ffmpeg.path.replace('ffmpeg', 'ffprobe')}`;
-  const command = [
-    viameConstants.ffmpeg.initialization,
-    `"${ffprobePath}"`,
-    '-print_format',
-    'json',
-    '-v',
-    'quiet',
-    '-show_format',
-    '-show_streams',
-    `"${file}"`,
-  ];
-  const result = await spawnResult(command.join(' '), viameConstants.shell);
-  if (result.error || result.output === null) {
-    throw result.error || 'Error using ffprobe';
-  }
-  const returnText = result.output;
-  const ffprobeJSON: FFProbeResults = JSON.parse(returnText);
-
-  if (ffprobeJSON && ffprobeJSON.streams?.length) {
-    const videoStream = ffprobeJSON.streams.filter((el) => el.codec_type === 'video');
-    if (videoStream.length === 0 || !videoStream[0].avg_frame_rate) {
-      throw Error('FFProbe found that video stream has no avg_frame_rate');
-    }
-    const originalFpsString = videoStream[0].avg_frame_rate;
-    const [dividend, divisor] = originalFpsString.split('/').map((v) => Number.parseInt(v, 10));
-    const originalFps = dividend / divisor;
-    const websafe = videoStream
-      .filter((el) => el.codec_name === 'h264')
-      .filter((el) => el.sample_aspect_ratio === '1:1');
-
-    return { websafe: !!websafe.length, originalFps, originalFpsString };
-  }
-  throw Error(`FFProbe did not return a valid value for ${file}`);
-}
-
-async function convertMedia(settings: Settings,
-  args: ConversionArgs,
-  updater: DesktopJobUpdater,
-  viameConstants: ViameConstants,
-  mediaIndex = 0,
-  key = '',
-  baseWorkDir = ''): Promise<DesktopJob> {
-  // Image conversion needs to utilize the baseWorkDir, init or vids create their own directory
-  const jobWorkDir = baseWorkDir || await common.createKwiverRunWorkingDir(settings, [args.meta], 'conversion');
-  const joblog = npath.join(jobWorkDir, 'runlog.txt');
-  const commands = [];
-
-  let multiType = '';
-  if (args.meta.type === 'multi' && mediaIndex < args.mediaList.length) {
-    multiType = getTranscodedMultiCamType(args.mediaList[mediaIndex][1], args.meta);
-  }
-  commands.push(
-    viameConstants.ffmpeg.initialization,
-    `"${viameConstants.ffmpeg.path}"`,
-    `-i "${args.mediaList[mediaIndex][0]}"`,
-  );
-  if ((args.meta.type === 'video' || multiType === 'video') && mediaIndex < args.mediaList.length) {
-    commands.push(
-      viameConstants.ffmpeg.videoArgs,
-    );
-  }
-  commands.push(
-    `"${args.mediaList[mediaIndex][1]}"`,
-  );
-
-  const job = observeChild(spawn(commands.join(' '), { shell: viameConstants.shell }));
-  let jobKey = `convert_${job.pid}_${jobWorkDir}`;
-  if (key.length) {
-    jobKey = key;
-  }
-  const jobBase: DesktopJob = {
-    key: jobKey,
-    pid: job.pid,
-    command: commands.join(' '),
-    args,
-    title: `converting ${args.meta.name}`,
-    jobType: 'conversion',
-    workingDir: jobWorkDir,
-    datasetIds: [args.meta.id],
-    exitCode: job.exitCode,
-    startTime: new Date(),
-  };
-
-  fs.writeFile(npath.join(jobWorkDir, DiveJobManifestName), JSON.stringify(jobBase));
-
-  job.stdout.on('data', jobFileEchoMiddleware(jobBase, updater, joblog));
-  job.stderr.on('data', jobFileEchoMiddleware(jobBase, updater, joblog));
-
-  job.on('exit', async (code) => {
-    if (code !== 0) {
-      console.error('Error with running conversion');
-      updater({
-        ...jobBase,
-        body: [''],
-        exitCode: code,
-        endTime: new Date(),
-      });
-    } else if (mediaIndex === args.mediaList.length - 1) {
-      common.completeConversion(settings, args.meta.id, jobKey);
-      updater({
-        ...jobBase,
-        body: [''],
-        exitCode: code,
-        endTime: new Date(),
-      });
-    } else {
-      updater({
-        ...jobBase,
-        body: [`Conversion ${mediaIndex + 1} of ${args.mediaList.length} Complete`],
-      });
-      convertMedia(settings, args, updater, viameConstants, mediaIndex + 1, jobKey, jobWorkDir);
-    }
-  });
-  return jobBase;
-}
 export {
   runPipeline,
   train,
-  checkMedia,
-  convertMedia,
 };
