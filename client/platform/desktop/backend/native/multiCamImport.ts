@@ -1,15 +1,17 @@
 import npath from 'path';
 import fs from 'fs-extra';
 import mime from 'mime-types';
-import { DatasetType } from 'dive-common/apispec';
+import {
+  DatasetType,
+  MultiCamImportFolderArgs,
+  MultiCamImportKeywordArgs,
+  MultiCamImportArgs,
+} from 'dive-common/apispec';
 import {
   websafeImageTypes, websafeVideoTypes, otherImageTypes, otherVideoTypes,
 } from 'dive-common/constants';
 import {
   JsonMeta, Settings, JsonMetaCurrentVersion,
-  MultiCamImportFolderArgs,
-  MultiCamImportKeywordArgs,
-  MultiCamImportArgs,
   CheckMediaResults,
   MediaImportPayload,
 } from 'platform/desktop/constants';

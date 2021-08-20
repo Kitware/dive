@@ -53,6 +53,7 @@ export interface MultiCamImportKeywordArgs {
   defaultDisplay: string; // In multicam the default camera to display
   keywordFolder: string; // Base folder used for import, globList will filter folder
   globList: Record<string, { glob: string; trackFile: string }>; // glob pattern for base folder
+  calibrationFile?: string; // NPZ calibation matrix file
   type: 'image-sequence'; // Always image-sequence type for glob matching
 }
 

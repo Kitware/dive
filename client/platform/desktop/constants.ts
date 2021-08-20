@@ -215,19 +215,3 @@ export interface CheckMediaResults {
   originalFpsString: string;
   originalFps: number;
 }
-export interface MultiCamImportFolderArgs {
-  defaultDisplay: string; // In multicam the default camera to display
-  folderList: Record<string, {folder: string; trackFile: string}>; // path/track file per camera
-  calibrationFile?: string; // NPZ calibation matrix file
-  type: 'image-sequence' | 'video';
-}
-
-export interface MultiCamImportKeywordArgs {
-  defaultDisplay: string; // In multicam the default camera to display
-  keywordFolder: string; // Base folder used for import, globList will filter folder
-  globList: Record<string, {glob: string; trackFile: string}>; //glob patterns for base folder
-  calibrationFile?: string; // NPZ calibration matrix file
-  type: 'image-sequence'; // Always image-sequence type for glob matching
-}
-
-export type MultiCamImportArgs = MultiCamImportFolderArgs | MultiCamImportKeywordArgs;
