@@ -2,8 +2,8 @@ import type { Module } from 'vuex';
 import type { GirderModelType } from '@girder/components/src';
 import type { GirderMetadata } from 'platform/web-girder/constants';
 import { getDataset, getDatasetMedia, getFolder } from 'platform/web-girder/api';
-import type { DatasetState, LocationType, RootState } from './types';
 import { MultiType } from 'dive-common/constants';
+import type { DatasetState, LocationType, RootState } from './types';
 
 const datasetModule: Module<DatasetState, RootState> = {
   namespaced: true,

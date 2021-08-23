@@ -1,4 +1,4 @@
-import { DatasetType } from "./apispec";
+import { DatasetType } from './apispec';
 
 const ImageSequenceType = 'image-sequence';
 const VideoType = 'video';

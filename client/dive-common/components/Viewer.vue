@@ -364,7 +364,7 @@ export default defineComponent({
           .concat(". If you don't know how to resolve this, please contact the server administrator.");
         throw err;
       }
-    }
+    };
     loadData();
 
     const reloadAnnotations = async () => {

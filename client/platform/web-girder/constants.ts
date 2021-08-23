@@ -6,7 +6,7 @@ import {
  * Static properties loaded from the girder folder data/metadata
  */
 interface GirderMetadataStatic extends DatasetMetaMutable {
-  /** 
+  /**
    * Required fields
    * Everything copied from DatasetMeta except imageData and videoUrl
    */
