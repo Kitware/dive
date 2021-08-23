@@ -62,6 +62,7 @@ services:
         retries: 5
     depends_on:
       - mongo
+      - traefik
     volumes:
       # Bind mount assetstore from local directory
       # - ${DIVE_GIRDER_ASSETSTORE:-girder_data/assetstore}:/home/assetstore

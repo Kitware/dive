@@ -90,9 +90,9 @@ async function _findCSVTrackFiles(originalBasePath: string) {
 /**
  * locate json track file in a directory
  * @param path path to a directory
- * @returns absolute path to json file or null
+ * @returns absolute path to json file or empty string
  */
-async function _findJsonTrackFile(basePath: string): Promise<string | null> {
+async function _findJsonTrackFile(basePath: string): Promise<string> {
   const contents = await fs.readdir(basePath);
   const jsonFileCandidates: string[] = [];
   await Promise.all(contents.map(async (name) => {
@@ -107,7 +107,7 @@ async function _findJsonTrackFile(basePath: string): Promise<string | null> {
   if (jsonFileCandidates.length > 0) {
     return jsonFileCandidates[0];
   }
-  return null;
+  return '';
 }
 
 /**
@@ -138,7 +138,7 @@ async function getValidatedProjectDir(settings: Settings, datasetId: string) {
     throw new Error(`missing metadata json file ${projectInfo.metaFileAbsPath}`);
   }
   const trackFileAbsPath = await _findJsonTrackFile(projectInfo.basePath);
-  if (trackFileAbsPath === null) {
+  if (trackFileAbsPath === '') {
     throw new Error(`missing track json file in ${projectInfo.basePath}`);
   }
   return {
@@ -197,7 +197,7 @@ async function loadMetadata(
   let videoUrl = '';
   let imageData = [] as FrameImage[];
   let multiCamMedia: MultiCamMedia | null = null;
-  let { type } = projectMetaData;
+  const { subType } = projectMetaData;
   /* Generate URLs against embedded media server from known file paths on disk */
   if (projectMetaData.type === 'multi') {
     // Returns the type of the defaultDisplay for the multicam
@@ -211,7 +211,6 @@ async function loadMetadata(
     const defaultDisplay = multiCamMedia.cameras[multiCamMedia.defaultDisplay];
     imageData = defaultDisplay.imageData;
     videoUrl = defaultDisplay.videoUrl;
-    type = defaultDisplay.type;
   } else if (projectMetaData.type === 'video') {
     /* If the video has been transcoded, use that video */
     if (projectMetaData.transcodedVideoFile) {
@@ -237,11 +236,12 @@ async function loadMetadata(
     throw new Error(`unexpected project type for id="${datasetId}" type="${projectMetaData.type}"`);
   }
   // Redirecting type to image-sequence or video for multi camera types
-  projectMetaData.type = type;
   return {
     ...projectMetaData,
     videoUrl,
     imageData,
+    multiCamMedia,
+    subType,
   };
 }
 
@@ -658,6 +658,17 @@ async function checkDataset(
   return true;
 }
 
+
+async function findTrackFileinFolder(path: string) {
+  let trackFileAbsPath = await _findJsonTrackFile(path);
+  if (!trackFileAbsPath) {
+    const csvFileCandidates = await _findCSVTrackFiles(path);
+    if (csvFileCandidates.length) {
+      [trackFileAbsPath] = csvFileCandidates;
+    }
+  }
+  return trackFileAbsPath;
+}
 /**
  * Begin a dataset import.
  */
@@ -748,18 +759,13 @@ async function beginMediaImport(
     throw new Error('only video and image-sequence types are supported');
   }
 
-  let trackFileAbsPath = await _findJsonTrackFile(jsonMeta.originalBasePath);
-  if (!trackFileAbsPath) {
-    const csvFileCandidates = await _findCSVTrackFiles(jsonMeta.originalBasePath);
-    if (csvFileCandidates.length) {
-      [trackFileAbsPath] = csvFileCandidates;
-    }
-  }
+  const trackFileAbsPath = await findTrackFileinFolder(jsonMeta.originalBasePath);
   return {
     jsonMeta,
     globPattern: '',
     mediaConvertList,
     trackFileAbsPath,
+    multiCamTrackFiles: null,
   };
 }
 
@@ -830,63 +836,53 @@ async function _importTrackFile(
   dsId: string,
   projectDirAbsPath: string,
   jsonMeta: JsonMeta,
-  userTrackFileAbsPath?: string | null,
+  userTrackFileAbsPath: string,
 ) {
   /* Look for JSON track file as first priority */
   let foundDetections = false;
-  if (userTrackFileAbsPath !== null) {
-    const foundTrackFileAbsPath = await _findJsonTrackFile(jsonMeta.originalBasePath);
-    const trackFileAbsPath = userTrackFileAbsPath !== undefined
-      ? userTrackFileAbsPath : foundTrackFileAbsPath;
-    if (trackFileAbsPath && !CsvFileName.test(trackFileAbsPath)) {
+
+  if (userTrackFileAbsPath && !CsvFileName.test(userTrackFileAbsPath)) {
     /* Move the track file into the new project directory */
-      const time = moment().format('MM-DD-YYYY_hh-mm-ss.SSS');
-      const newFileName = `result_${time}.json`;
+    const time = moment().format('MM-DD-YYYY_hh-mm-ss.SSS');
+    const newFileName = `result_${time}.json`;
 
-      const newPath = npath.join(projectDirAbsPath, npath.basename(newFileName));
+    const newPath = npath.join(projectDirAbsPath, npath.basename(newFileName));
 
-      if (jsonMeta.originalVideoFile && await nistSerializers.confirmNistFile(trackFileAbsPath)) {
-        const trackData = await nistSerializers.loadNistFile(trackFileAbsPath);
-        const trackStructure: MultiTrackRecord = {};
-        for (let i = 0; i < trackData.tracks.length; i += 1) {
-          const track = trackData.tracks[i];
-          trackStructure[track.trackId] = track;
-        }
-        const serialized = JSON.stringify(trackStructure);
-        await fs.writeFile(newPath, serialized);
-      } else {
-        await fs.copy(
-          trackFileAbsPath,
-          newPath,
-        );
+    if (jsonMeta.originalVideoFile && await nistSerializers.confirmNistFile(userTrackFileAbsPath)) {
+      const trackData = await nistSerializers.loadNistFile(userTrackFileAbsPath);
+      const trackStructure: MultiTrackRecord = {};
+      for (let i = 0; i < trackData.tracks.length; i += 1) {
+        const track = trackData.tracks[i];
+        trackStructure[track.trackId] = track;
       }
-      //Load tracks to generate attributes
-      const tracks = await loadJsonTracks(newPath);
-      const { attributes } = processTrackAttributes(Object.values(tracks));
-      // eslint-disable-next-line no-param-reassign
-      if (attributes) jsonMeta.attributes = attributes;
-      foundDetections = true;
-    }
-    /* Look for other types of annotation files as a second priority */
-    if (!foundDetections) {
-      const contents = await fs.readdir(jsonMeta.originalBasePath);
-      let csvFileCandidates = contents
-        .filter((v) => CsvFileName.test(v))
-        .map((filename) => npath.join(jsonMeta.originalBasePath, filename));
-
-      if (userTrackFileAbsPath && CsvFileName.test(userTrackFileAbsPath)) {
-        csvFileCandidates = [userTrackFileAbsPath];
-      }
-      const { fps, processedFiles, attributes } = await processOtherAnnotationFiles(
-        settings, dsId, csvFileCandidates,
+      const serialized = JSON.stringify(trackStructure);
+      await fs.writeFile(newPath, serialized);
+    } else {
+      await fs.copy(
+        userTrackFileAbsPath,
+        newPath,
       );
-      // eslint-disable-next-line no-param-reassign
-      if (fps) jsonMeta.fps = fps;
-      // eslint-disable-next-line no-param-reassign
-      if (attributes) jsonMeta.attributes = attributes;
-      foundDetections = processedFiles.length > 0;
     }
+    //Load tracks to generate attributes
+    const tracks = await loadJsonTracks(newPath);
+    const { attributes } = processTrackAttributes(Object.values(tracks));
+    // eslint-disable-next-line no-param-reassign
+    if (attributes) jsonMeta.attributes = attributes;
+    foundDetections = true;
   }
+  if (!foundDetections && userTrackFileAbsPath && CsvFileName.test(userTrackFileAbsPath)) {
+    const csvFileCandidates = [userTrackFileAbsPath];
+
+    const { fps, processedFiles, attributes } = await processOtherAnnotationFiles(
+      settings, dsId, csvFileCandidates,
+    );
+    // eslint-disable-next-line no-param-reassign
+    if (fps) jsonMeta.fps = fps;
+    // eslint-disable-next-line no-param-reassign
+    if (attributes) jsonMeta.attributes = attributes;
+    foundDetections = processedFiles.length > 0;
+  }
+
 
   /* custom image sort */
   jsonMeta.originalImageFiles.sort(strNumericCompare);
@@ -986,8 +982,13 @@ async function finalizeMediaImport(
 
       // eslint-disable-next-line no-await-in-loop
       const cameraDirAbsPath = await _initializeProjectDir(settings, jsonClone);
+      let multiCamTrackFile = '';
+      if (args.multiCamTrackFiles && args.multiCamTrackFiles[cameraName]) {
+        multiCamTrackFile = args.multiCamTrackFiles[cameraName];
+      }
       // eslint-disable-next-line no-await-in-loop
-      await _importTrackFile(settings, jsonClone.id, cameraDirAbsPath, jsonClone);
+      await _importTrackFile(settings, jsonClone.id,
+        cameraDirAbsPath, jsonClone, multiCamTrackFile);
     }
   }
   const finalJsonMeta = await _importTrackFile(
@@ -1051,4 +1052,5 @@ export {
   processTrainedPipeline,
   saveAttributes,
   findImagesInFolder,
+  findTrackFileinFolder,
 };

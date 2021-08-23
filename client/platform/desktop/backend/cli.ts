@@ -207,6 +207,7 @@ if (argv._.includes('viame2json')) {
   const settings = getSettings();
   const run = async () => {
     const out = await settings.platform.checkMedia(settings, argv.file as string);
+    // eslint-disable-next-line no-console
     console.log(out);
   };
   run();

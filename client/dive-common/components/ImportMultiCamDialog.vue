@@ -13,7 +13,6 @@ import {
 
 import ImportMultiCamAddType from 'dive-common/components/ImportMultiCamAddType.vue';
 
-
 export default defineComponent({
   components: {
     ImportMultiCamAddType,
@@ -36,14 +35,15 @@ export default defineComponent({
   setup(props, { emit }) {
     const { openFromDisk } = useApi();
     const importType: Ref<'multi'|'keyword'| ''> = ref('');
-    const folderList: Ref<Record<string, string>> = ref({});
+    const folderList: Ref<Record<string, { folder: string; trackFile: string}>> = ref({});
     const keywordFolder = ref('');
     const pendingImportPayload: Ref<MediaImportResponse | null> = ref(null);
-    const globList: Ref<Record<string, string>> = ref({});
+    const globList: Ref<Record<string, { glob: string; trackFile: string}>> = ref({});
     const calibrationFile = ref('');
     const defaultDisplay = ref('left');
     const addNewToggle = ref(false);
     const newSetName = ref('');
+    const importAnnotationFilesCheck = ref(false);
 
     const htmlFileReferences: HTMLFileReferences = {
       mediaHTMLFileList: {},
@@ -51,12 +51,12 @@ export default defineComponent({
 
     if (props.stereo) {
       folderList.value = {
-        left: '',
-        right: '',
+        left: { folder: '', trackFile: '' },
+        right: { folder: '', trackFile: '' },
       };
       globList.value = {
-        left: '',
-        right: '',
+        left: { glob: '', trackFile: '' },
+        right: { glob: '', trackFile: '' },
       };
     }
     if (props.dataType === 'video') {
@@ -71,10 +71,10 @@ export default defineComponent({
 
     const filteredImages = computed(() => {
       const filtered: Record<string, string[]> = {};
-      Object.entries(globList.value).forEach(([key, glob]) => {
+      Object.entries(globList.value).forEach(([key, value]) => {
         if (pendingImportPayload.value) {
           filtered[key] = filterByGlob(
-            glob, pendingImportPayload.value.jsonMeta.originalImageFiles,
+            value.glob, pendingImportPayload.value.jsonMeta.originalImageFiles,
           );
         }
       });
@@ -114,7 +114,7 @@ export default defineComponent({
     const nextSteps = computed(() => {
       if (importType.value === 'multi') {
         const entries = Object.entries(folderList.value);
-        const filterLength = entries.filter(([, val]) => val !== '').length;
+        const filterLength = entries.filter(([, val]) => val.folder !== '').length;
         if (entries.length === filterLength && entries.length) {
           return true;
         }
@@ -125,6 +125,16 @@ export default defineComponent({
       }
       return false;
     });
+
+    async function openAnnotationFile(folder: string) {
+      const ret = await openFromDisk('annotation');
+      if (!ret.canceled) {
+        if (ret.filePaths?.length) {
+          const path = ret.filePaths[0];
+          folderList.value[folder].trackFile = path;
+        }
+      }
+    }
 
     async function open(dstype: DatasetType | 'calibration', folder: string | 'calibration') {
       const ret = await openFromDisk(dstype, dstype === 'image-sequence');
@@ -138,13 +148,14 @@ export default defineComponent({
             }
           } else if (importType.value === 'multi') {
             if (ret.root) {
-              folderList.value[folder] = ret.root;
+              folderList.value[folder].folder = ret.root;
             } else {
-              folderList.value[folder] = path;
+              folderList.value[folder].folder = path;
             }
             if (ret.fileList) {
               htmlFileReferences.mediaHTMLFileList[folder] = ret.fileList;
             }
+            folderList.value[folder].trackFile = '';
           } else if (importType.value === 'keyword') {
             [keywordFolder.value] = ret.filePaths;
             if (ret.root) {
@@ -175,11 +186,11 @@ export default defineComponent({
     const addNewSet = (name: string) => {
       if (importType.value === 'multi') {
         if (!folderList.value[name]) {
-          Vue.set(folderList.value, name, '');
+          Vue.set(folderList.value, name, { folder: '', trackFile: '' });
         }
       } else if (importType.value === 'keyword') {
         if (!globList.value[newSetName.value]) {
-          Vue.set(globList.value, name, '');
+          Vue.set(globList.value, name, { glob: '', trackFile: '' });
         }
       }
       newSetName.value = '';
@@ -189,12 +200,12 @@ export default defineComponent({
       keywordFolder.value = '';
       if (props.stereo) {
         folderList.value = {
-          left: '',
-          right: '',
+          left: { folder: '', trackFile: '' },
+          right: { folder: '', trackFile: '' },
         };
         globList.value = {
-          left: '',
-          right: '',
+          left: { glob: '', trackFile: '' },
+          right: { glob: '', trackFile: '' },
         };
       } else {
         folderList.value = {};
@@ -203,6 +214,11 @@ export default defineComponent({
     };
 
     const prepForImport = () => {
+      if (!importAnnotationFilesCheck.value) {
+        Object.keys(folderList.value).forEach((key) => {
+          folderList.value[key].trackFile = '';
+        });
+      }
       if (importType.value === 'multi') {
         emit('begin-multicam-import', {
           defaultDisplay: defaultDisplay.value,
@@ -236,12 +252,14 @@ export default defineComponent({
       displayKeys,
       addNewToggle,
       newSetName,
+      importAnnotationFilesCheck,
       //Methods
       open,
       prepForImport,
       addNewSet,
       clearCameraSet,
       deleteSet,
+      openAnnotationFile,
     };
   },
 });
@@ -278,12 +296,12 @@ export default defineComponent({
         </v-radio-group>
       </div>
       <div v-if="importType === 'multi'">
-        <v-list>
-          <v-list-item
-            v-for="(item, key) in folderList"
-            :key="key"
-            class="my-4"
-          >
+        <div
+          v-for="(item, key) in folderList"
+          :key="key"
+          class="my-4"
+        >
+          <v-row>
             <v-btn
               v-if="!stereo"
               class="mr-2"
@@ -297,8 +315,9 @@ export default defineComponent({
               :placeholder="dataType === 'image-sequence' ? 'Choose Folder' : 'Choose Video' "
               disabled
               outlined
+              dense
               hide-details
-              :value="folderList[key]"
+              :value="folderList[key].folder"
               class="mx-4 my-auto"
             />
             <v-btn
@@ -310,87 +329,139 @@ export default defineComponent({
                 {{ dataType === 'image-sequence' ? 'mdi-folder-open' : 'mdi-file-video' }}
               </v-icon>
             </v-btn>
-          </v-list-item>
-          <v-list-item
-            v-if="!stereo"
-            class="mt-3"
+          </v-row>
+          <v-row
+            v-if="item.folder && importAnnotationFilesCheck"
+            class="mt-2 ml-2"
           >
+            <v-text-field
+              label="Annotation"
+              :placeholder="`Annotation File (${key})`"
+              outlined
+              dense
+              hide-details
+              clearable
+              :value="item.trackFile"
+              class="mx-4 my-auto"
+              @click:clear="item.trackFile=''"
+            />
             <v-btn
-              small
-              class="my-auto mr-2"
               color="primary"
-              :disabled="addNewToggle"
-              @click="addNewToggle = true"
+              @click="openAnnotationFile(key)"
             >
-              Add Camera
-              <v-icon class="ml-1">
-                mdi-camera
+              Open
+              <v-icon class="ml-2">
+                mdi-file-table
               </v-icon>
             </v-btn>
-            <import-multi-cam-add-type
-              v-if="addNewToggle"
-              :name-list="displayKeys"
-              @add-new="addNewSet"
-              @cancel="addNewToggle = false"
-            />
-          </v-list-item>
-        </v-list>
-      </div>
-      <div v-if="importType ==='keyword'">
-        <v-list-item>
-          Folder:
-          <v-text-field
-            label="Folder:"
-            placeholder="Choose Folder"
-            disabled
-            outlined
-            hide-details
-            :value="keywordFolder"
-            class="mx-4"
-          />
-          <v-btn
-            color="primary"
-            @click="open('image-sequence', 'keyword')"
-          >
-            Open Image Sequence
-            <v-icon class="ml-2">
-              mdi-folder-open
-            </v-icon>
-          </v-btn>
-        </v-list-item>
-        <v-list-item
-          v-for="(item, key) in globList"
-          :key="key"
-          class="my-4"
+          </v-row>
+        </div>
+        <v-row
+          v-if="!stereo"
+          class="mt-2"
         >
           <v-btn
-            v-if="!stereo"
-
-            class="mr-2 mb-5"
-            color="error"
-            @click="deleteSet(key)"
+            small
+            class="my-2 mr-2"
+            color="primary"
+            :disabled="addNewToggle"
+            @click="addNewToggle = true"
           >
-            <v-icon>mdi-delete</v-icon>
+            Add Camera
+            <v-icon class="ml-1">
+              mdi-camera
+            </v-icon>
           </v-btn>
-          <v-text-field
-            v-model="globList[key]"
-            :label="`${key} Glob Filter Pattern `"
-            placeholder="Leave blank to use all images. example: *.png"
-            persistent-hint
-            outlined
-            dense
+          <import-multi-cam-add-type
+            v-if="addNewToggle"
+            :name-list="displayKeys"
+            @add-new="addNewSet"
+            @cancel="addNewToggle = false"
           />
-          <v-chip
-            v-if="globList[key]"
-            :color="filteredImages[key].length ? 'success' : 'error'"
-            outlined
-            class="ml-3 mb-5"
-          >
-            "{{ globList[key] }}" matches {{ filteredImages[key].length }}
-            out of {{ pendingImportPayload.jsonMeta.originalImageFiles.length }} images
-          </v-chip>
-        </v-list-item>
-        <v-list-item
+        </v-row>
+      </div>
+      <div v-if="importType ==='keyword'">
+        <div>
+          <v-row class="mb-4">
+            <v-text-field
+              label="Folder:"
+              placeholder="Choose Folder"
+              disabled
+              outlined
+              dense
+              hide-details
+              :value="keywordFolder"
+              class="mx-4"
+            />
+            <v-btn
+              color="primary"
+              @click="open('image-sequence', 'keyword')"
+            >
+              Open Image Sequence
+              <v-icon class="ml-2">
+                mdi-folder-open
+              </v-icon>
+            </v-btn>
+          </v-row>
+        </div>
+        <div
+          v-for="(item, key) in globList"
+          :key="key"
+          class="my-auto"
+        >
+          <v-row>
+            <v-btn
+              v-if="!stereo"
+
+              class="mr-2"
+              color="error"
+              @click="deleteSet(key)"
+            >
+              <v-icon>mdi-delete</v-icon>
+            </v-btn>
+            <v-text-field
+              v-model="globList[key].glob"
+              :label="`${key} Glob Filter Pattern `"
+              placeholder="Leave blank to use all images. example: *.png"
+              outlined
+              dense
+              hide-details=""
+              class="mx-6 mb-3"
+            />
+            <v-chip
+              v-if="globList[key].glob"
+              :color="filteredImages[key].length ? 'success' : 'error'"
+              outlined
+              class="ml-3"
+            >
+              "{{ globList[key].glob }}" matches {{ filteredImages[key].length }}
+              out of {{ pendingImportPayload.jsonMeta.originalImageFiles.length }} images
+            </v-chip>
+          </v-row>
+          <v-row v-if="item.glob && importAnnotationFilesCheck">
+            <v-text-field
+              label="Annotation"
+              :placeholder="`Annotation File (${key})`"
+              outlined
+              dense
+              hide-details
+              clearable
+              :value="item.trackFile"
+              class="mx-8 mb-3 "
+              @click:clear="item.trackFile=''"
+            />
+            <v-btn
+              color="primary"
+              @click="openAnnotationFile(key)"
+            >
+              Open
+              <v-icon class="ml-2">
+                mdi-file-table
+              </v-icon>
+            </v-btn>
+          </v-row>
+        </div>
+        <div
           v-if="keywordFolder && keywordReady !== 'Success'"
         >
           <v-alert
@@ -400,8 +471,8 @@ export default defineComponent({
           >
             {{ keywordReady }}
           </v-alert>
-        </v-list-item>
-        <v-list-item v-if="!stereo">
+        </div>
+        <div v-if="!stereo">
           <v-btn
             x-small
             color="primary"
@@ -418,7 +489,7 @@ export default defineComponent({
             @add-new="addNewSet"
             @cancel="addNewToggle = false"
           />
-        </v-list-item>
+        </div>
       </div>
       <div v-if="nextSteps">
         <v-alert
@@ -429,8 +500,8 @@ export default defineComponent({
           Visualization currently doesn't support multi views so please choose
           a list of images or video to display by default when viewing
         </v-alert>
-        <v-list>
-          <v-list-item>
+        <div>
+          <div>
             Default Display:
             <v-radio-group
               v-model="defaultDisplay"
@@ -443,14 +514,14 @@ export default defineComponent({
                 :label="item"
               />
             </v-radio-group>
-          </v-list-item>
-          <v-list-item v-if="stereo">
-            Calibration File:
+          </div>
+          <v-row v-if="stereo">
             <v-text-field
               label="Calibration File:"
               placeholder="Choose File"
               disabled
               outlined
+              dense
               hide-details
               :value="calibrationFile"
               class="mx-4"
@@ -464,10 +535,18 @@ export default defineComponent({
                 mdi-matrix
               </v-icon>
             </v-btn>
-          </v-list-item>
-        </v-list>
+          </v-row>
+        </div>
       </div>
       <div class="d-flex flex-row mt-4">
+        <v-checkbox
+          v-if="importType"
+          v-model="importAnnotationFilesCheck"
+          label="Import Annotations"
+          dense
+          persistent-hint
+          class="mb-1 mt-0"
+        />
         <v-spacer />
         <v-btn
           text
