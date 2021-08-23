@@ -109,12 +109,12 @@ export default defineComponent({
     });
 
     const mediaType = computed(() => {
-      const type = dataset.value?.type || 'missing';
+      if (dataset.value === null) return null;
+      const { type } = dataset.value;
       if (type === MultiType) throw new Error('Cannot export multicamera dataset');
       return {
         [ImageSequenceType]: 'Image Sequence',
         [VideoType]: 'Video',
-        missing: 'Media Missing',
       }[type];
     });
 
@@ -191,7 +191,7 @@ export default defineComponent({
           {{ error }}
         </v-alert>
 
-        <template v-if="dataset !== null">
+        <template v-if="dataset !== null && mediaType !== null">
           <v-card-text class="pb-0">
             Zip all {{ mediaType }} files only
           </v-card-text>

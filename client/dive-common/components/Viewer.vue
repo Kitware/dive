@@ -42,6 +42,7 @@ import {
 import { useApi, FrameImage, DatasetType } from 'dive-common/apispec';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { cloneDeep } from 'lodash';
+import { getResponseError } from 'vue-media-annotator/utils';
 
 export default defineComponent({
   components: {
@@ -357,19 +358,13 @@ export default defineComponent({
       } catch (err) {
         progress.loaded = false;
         console.error(err);
-        // Cleaner displaying of interal errors for desktop
-        if (err.response?.data && err.response?.status === 500 && !err.response?.data?.message) {
-          const fullText = err.response.data;
-          const start = fullText.indexOf('Error:');
-          const html = (fullText.substr(start, fullText.indexOf('<br>') - start));
-          const errorEl = document.createElement('div');
-          errorEl.innerHTML = html;
-          loadError.value = errorEl.innerText
-            .concat(". If you don't know how to resolve this, please contact the server administrator.");
-          throw err;
-        }
+        const errorEl = document.createElement('div');
+        errorEl.innerHTML = getResponseError(err);
+        loadError.value = errorEl.innerText
+          .concat(". If you don't know how to resolve this, please contact the server administrator.");
+        throw err;
       }
-    };
+    }
     loadData();
 
     const reloadAnnotations = async () => {

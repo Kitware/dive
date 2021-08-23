@@ -117,7 +117,7 @@ export default defineComponent({
       <Clone
         v-if="$store.state.Dataset.meta"
         v-bind="{ buttonOptions, menuOptions }"
-        :source="$store.state.Dataset.meta"
+        :dataset-id="id"
       />
     </template>
   </Viewer>

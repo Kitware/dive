@@ -14,9 +14,7 @@ function deleteResources(resources: Array<GirderModel>) {
         .map((resource) => resource._id),
     }),
   );
-  return girderRest.post('resource', formData, {
-    headers: { 'X-HTTP-Method-Override': 'DELETE' },
-  });
+  return girderRest.delete('resource', { data: formData });
 }
 
 function getItemsInFolder(folderId: string, limit: number) {
@@ -30,7 +28,9 @@ function getFolder(folderId: string) {
 }
 
 function setUsePrivateQueue(userId: string, value = false) {
-  return girderRest.put(`user/${userId}/use_private_queue`, null, {
+  return girderRest.put<{
+    user_private_queue_enabled: boolean;
+  }>(`user/${userId}/use_private_queue`, null, {
     params: {
       privateQueueEnabled: value,
     },

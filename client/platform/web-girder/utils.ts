@@ -1,11 +1,10 @@
-import { AxiosError } from 'axios';
 import { isRootLocation, GirderModel } from '@girder/components/src';
 import {
   calibrationFileTypes, inputAnnotationFileTypes, inputAnnotationTypes,
   otherImageTypes, otherVideoTypes, websafeImageTypes, websafeVideoTypes,
 } from 'dive-common/constants';
 import { DatasetType } from 'dive-common/apispec';
-import { LocationType } from 'platform/web-girder/store/types';
+import type { LocationType } from 'platform/web-girder/store/types';
 
 function getLocationFromRoute({ params }: { params: GirderModel }) {
   if (isRootLocation(params)) {
@@ -30,11 +29,6 @@ function getPathFromLocation(location: LocationType) {
     return `/${location.type}`;
   }
   return `/${location._modelType}/${location._id}`;
-}
-
-function getResponseError(error: AxiosError): string {
-  const { response } = error;
-  return response?.data?.message || error;
 }
 
 async function openFromDisk(datasetType: DatasetType | 'calibration' | 'annotation'):
@@ -82,6 +76,5 @@ Promise<{ canceled: boolean; filePaths: string[]; fileList?: File[]}> {
 export {
   getLocationFromRoute,
   getPathFromLocation,
-  getResponseError,
   openFromDisk,
 };

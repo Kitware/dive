@@ -1,6 +1,7 @@
 import json
 from typing import List, Optional
 
+from girder.exceptions import RestException
 from girder.models.folder import Folder
 from girder.models.item import Item
 from girder.utility import ziputil
@@ -18,12 +19,15 @@ def createSoftClone(
     owner: types.GirderModel,
     source_folder: types.GirderModel,
     parent_folder: types.GirderModel,
-    name: str = None,
+    name: str,
 ):
     """Create a no-copy clone of folder with source_id for owner"""
+    if len(name) == 0:
+        raise RestException('Must supply non-empty name for clone')
+
     cloned_folder = Folder().createFolder(
         parent_folder,
-        name or source_folder['name'],
+        source_folder['name'],
         description=f'Clone of {source_folder["name"]}.',
         reuseExisting=False,
     )

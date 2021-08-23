@@ -179,6 +179,13 @@ def verify_dataset(folder: GirderModel):
     """Verify that a given folder is a DIVE dataset"""
     if not asbool(fromMeta(folder, constants.DatasetMarker, False)):
         raise RestException('Source folder is not a valid DIVE dataset', code=404)
+    dstype = fromMeta(folder, 'type')
+    if dstype not in [constants.ImageSequenceType, constants.VideoType]:
+        raise ValueError(f'Source folder is marked as dataset but has invalid type {dstype}')
+    if dstype == constants.VideoType:
+        fps = fromMeta(folder, 'fps')
+        if type(fps) not in [int, float]:
+            raise ValueError(f'Video missing numerical fps, found {fps}')
     return True
 
 
@@ -291,7 +298,6 @@ def get_annotation_csv_generator(
     thresholds = fromMeta(folder, "confidenceFilters", {})
     annotation_file = detections_file(folder)
     track_dict = getTrackData(annotation_file)
-    print(track_dict)
 
     def downloadGenerator():
         for data in viame.export_tracks_as_csv(

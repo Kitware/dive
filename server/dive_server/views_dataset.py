@@ -64,8 +64,7 @@ class DatasetResource(Resource):
             "Name for new dataset",
             paramType="query",
             dataType="string",
-            default=None,
-            required=False,
+            required=True,
         )
     )
     def create_dataset(self, cloneSource, parentFolder, name):
