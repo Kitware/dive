@@ -62,22 +62,22 @@ interface NistActivity {
     objects?: NistObject[];
 }
 
-function confirmNistFormat(data: NistFile) {
-  return Array.isArray(data.activities) && Array.isArray(data.filesProcessed);
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function confirmNistFormat(data: any): data is NistFile {
+  return Array.isArray(data?.activities) && Array.isArray(data?.filesProcessed);
 }
-
 async function confirmNistFile(filename: string) {
   const rawBuffer = await fs.readFile(filename, 'utf-8');
-  let nistFile: NistFile;
+  let nistJson;
   if (rawBuffer.length === 0) {
     return false;
   }
   try {
-    nistFile = JSON.parse(rawBuffer) as NistFile;
+    nistJson = JSON.parse(rawBuffer);
   } catch (err) {
     throw new Error(`Unable to parse ${filename}: ${err}`);
   }
-  return confirmNistFormat(nistFile);
+  return confirmNistFormat(nistJson);
 }
 
 function loadObjects(
@@ -262,17 +262,20 @@ async function loadNistFile(
   filename: string,
   fullFrameBounds: RectBounds = [0, 0, 1920, 1080],
 ): Promise<AnnotationFileData> {
-  let nistFile: NistFile;
+  let nistJson;
   const rawBuffer = await fs.readFile(filename, 'utf-8');
   if (rawBuffer.length === 0) {
     return { tracks: [] }; // Return empty object if file was empty
   }
   try {
-    nistFile = JSON.parse(rawBuffer) as NistFile;
+    nistJson = JSON.parse(rawBuffer);
   } catch (err) {
     throw new Error(`Unable to parse ${filename}: ${err}`);
   }
-  return convertNisttoJSON(nistFile, filename, fullFrameBounds);
+  if (!confirmNistFormat(nistJson)) {
+    throw new Error(`File: ${filename} is not a valid NIST file`);
+  }
+  return convertNisttoJSON(nistJson, filename, fullFrameBounds);
 }
 
 function createObject(
