@@ -55,3 +55,8 @@ worker_enable_remote_control = True
 
 result_backend = None
 task_ignore_result = True
+
+# https://docs.celeryproject.org/en/stable/userguide/configuration.html#std-setting-task_reject_on_worker_lost
+# Run tasks at least once, rescheduling them if the worker crashes.
+task_reject_on_worker_lost = True
+task_acks_late = True
