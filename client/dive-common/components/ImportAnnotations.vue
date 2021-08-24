@@ -35,21 +35,25 @@ export default defineComponent({
         const path = ret.filePaths[0];
         let importFile = false;
         processing.value = true;
-        if (ret.fileList?.length) {
-          importFile = await importAnnotationFile(props.datasetId, path, ret.fileList[0]);
-        } else {
-          importFile = await importAnnotationFile(props.datasetId, path);
-        }
-        if (importFile) {
-          processing.value = false;
-          await reloadAnnotations();
-        } else {
-          const text = `Import of File ${path} failed`;
+        try {
+          if (ret.fileList?.length) {
+            importFile = await importAnnotationFile(props.datasetId, path, ret.fileList[0]);
+          } else {
+            importFile = await importAnnotationFile(props.datasetId, path);
+          }
+        } catch (error) {
+          const text = [`Import of File ${path} failed`, error];
           prompt({
             title: 'Import Failed',
             text,
             positiveButton: 'OK',
           });
+          processing.value = false;
+          return;
+        }
+        if (importFile) {
+          processing.value = false;
+          await reloadAnnotations();
         }
       }
     };
