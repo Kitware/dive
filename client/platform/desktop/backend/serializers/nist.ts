@@ -63,7 +63,7 @@ interface NistActivity {
 }
 
 function confirmNistFormat(data: NistFile) {
-  return data.activities !== undefined && data.filesProcessed !== undefined;
+  return Array.isArray(data.activities) && Array.isArray(data.filesProcessed);
 }
 
 async function confirmNistFile(filename: string) {
