@@ -63,14 +63,14 @@ interface NistActivity {
 }
 
 function confirmNistFormat(data: NistFile) {
-  return data.activities && data.filesProcessed;
+  return !!(data.activities && data.filesProcessed);
 }
 
 async function confirmNistFile(filename: string) {
   const rawBuffer = await fs.readFile(filename, 'utf-8');
   let nistFile: NistFile;
   if (rawBuffer.length === 0) {
-    return { tracks: [] }; // Return empty object if file was empty
+    return false;
   }
   try {
     nistFile = JSON.parse(rawBuffer) as NistFile;
