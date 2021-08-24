@@ -11,6 +11,7 @@ import JobsTab from './JobsTab.vue';
 import { getPathFromLocation } from '../utils';
 import Export from './Export.vue';
 import Clone from './Clone.vue';
+import ViewerAlert from './ViewerAlert.vue';
 
 const buttonOptions = {
   text: true,
@@ -38,6 +39,7 @@ export default defineComponent({
     NavigationTitle,
     Viewer,
     ImportAnnotations,
+    ViewerAlert,
   },
 
   props: {
@@ -86,6 +88,7 @@ export default defineComponent({
     ref="viewerRef"
   >
     <template #title>
+      <ViewerAlert />
       <NavigationTitle :name="brandData.name" />
       <v-tabs
         icons-and-text

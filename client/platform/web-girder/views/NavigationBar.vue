@@ -42,48 +42,58 @@ export default {
 </script>
 
 <template>
-  <v-app-bar app>
-    <NavigationTitle :name="brandData.name" />
-    <v-tabs
-      icons-and-text
-      color="accent"
-    >
-      <v-tab
-        exact
-        @click="route(location)"
+  <div>
+    <v-app-bar app>
+      <NavigationTitle :name="brandData.name" />
+      <v-tabs
+        icons-and-text
+        color="accent"
       >
-        Data
-        <v-icon>mdi-database</v-icon>
-      </v-tab>
-      <JobsTab />
-    </v-tabs>
-    <v-spacer />
-    <GirderSearch
-      :search-types="['user', 'folder']"
-      placeholder="search"
-      hide-options-menu
-      hide-search-icon
-      class="mx-2 grow"
-      @select="route"
-    />
-    <v-btn
+        <v-tab
+          exact
+          @click="route(location)"
+        >
+          Data
+          <v-icon>mdi-database</v-icon>
+        </v-tab>
+        <JobsTab />
+      </v-tabs>
+      <v-spacer />
+      <GirderSearch
+        :search-types="['user', 'folder']"
+        placeholder="search"
+        hide-options-menu
+        hide-search-icon
+        class="mx-2 grow"
+        @select="route"
+      />
+      <v-btn
+        text
+        :to="{ name: 'summary' }"
+      >
+        <v-icon class="pr-2">
+          mdi-format-list-bulleted-square
+        </v-icon>
+        Stats
+      </v-btn>
+      <user-guide-button />
+      <v-btn
+        text
+        @click="logout"
+      >
+        Logout
+      </v-btn>
+    </v-app-bar>
+    <v-alert
+      v-if="brandData.alertMessage"
+      type="info"
       text
-      :to="{ name: 'summary' }"
     >
-      <v-icon class="pr-2">
-        mdi-format-list-bulleted-square
-      </v-icon>
-      Stats
-    </v-btn>
-    <user-guide-button />
-    <v-btn
-      text
-      @click="logout"
-    >
-      Logout
-    </v-btn>
-  </v-app-bar>
+      {{ brandData.alertMessage }}
+    </v-alert>
+  </div>
 </template>
+
 
 <style lang="scss">
 .rotate {
