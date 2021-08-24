@@ -25,6 +25,7 @@ export interface BrandData {
   logo: string;
   name: string;
   loginMessage: string;
+  alertMessage: string;
 }
 interface HTMLFile extends File {
   webkitRelativePath?: string;
