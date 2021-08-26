@@ -27,7 +27,7 @@ def createSoftClone(
 
     cloned_folder = Folder().createFolder(
         parent_folder,
-        source_folder['name'],
+        name,
         description=f'Clone of {source_folder["name"]}.',
         reuseExisting=False,
     )
