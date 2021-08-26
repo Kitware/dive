@@ -14,8 +14,9 @@ import {
   MultiCamMedia,
 } from 'dive-common/apispec';
 import * as viameSerializers from 'platform/desktop/backend/serializers/viame';
+import * as nistSerializers from 'platform/desktop/backend/serializers/nist';
 import {
-  websafeImageTypes, websafeVideoTypes, otherImageTypes, otherVideoTypes, MultiType,
+  websafeImageTypes, websafeVideoTypes, otherImageTypes, otherVideoTypes, MultiType, VideoType,
 } from 'dive-common/constants';
 import {
   JsonMeta, Settings, JsonMetaCurrentVersion, DesktopMetadata, DesktopJobUpdater,
@@ -37,6 +38,7 @@ const PipelinesFolderName = 'DIVE_Pipelines';
 const AuxFolderName = 'auxiliary';
 
 const JsonTrackFileName = /^result(_.*)?\.json$/;
+const JsonFileName = /^.*\.json$/;
 const JsonMetaFileName = 'meta.json';
 const CsvFileName = /^.*\.csv$/;
 
@@ -94,8 +96,8 @@ async function _findJsonTrackFile(basePath: string): Promise<string> {
   const contents = await fs.readdir(basePath);
   const jsonFileCandidates: string[] = [];
   await Promise.all(contents.map(async (name) => {
+    const fullPath = npath.join(basePath, name);
     if (JsonTrackFileName.test(name)) {
-      const fullPath = npath.join(basePath, name);
       const statResult = await fs.stat(fullPath);
       if (statResult.isFile()) {
         jsonFileCandidates.push(fullPath);
@@ -497,9 +499,14 @@ async function processAnnotationFilePath(
   }
   if (fs.statSync(path).size > 0) {
     // Attempt to process the file
+    let data: viameSerializers.AnnotationFileData;
+    if (npath.extname(path) === '.json' && await nistSerializers.confirmNistFile(path)) {
+      data = await nistSerializers.loadNistFile(path);
+    } else {
+      data = await viameSerializers.parseFile(path);
+    }
     try {
       // eslint-disable-next-line no-await-in-loop
-      const data = await viameSerializers.parseFile(path);
       const processed = processTrackAttributes(data.tracks);
       const { fps } = data;
       const { attributes } = processed;
@@ -770,10 +777,17 @@ async function annotationImport(
 ) {
   const projectInfo = getProjectDir(settings, id);
   const validatedInfo = await getValidatedProjectDir(settings, id);
-  // If it is a json file we need to make sure it has the proper name
-  if (JsonTrackFileName.test(npath.basename(annotationPath))) {
+  const jsonMeta = await loadJsonMetadata(projectInfo.metaFileAbsPath);
+
+  // If it is a json file we need to make sure it has the proper extension
+  if (JsonFileName.test(npath.basename(annotationPath))) {
     const statResult = await fs.stat(annotationPath);
     if (statResult.isFile()) {
+      //Check so see if it is a NIST File before moving
+      const nistFormat = await nistSerializers.loadNistFile(annotationPath);
+      if (nistFormat && jsonMeta.type !== VideoType) {
+        throw new Error(`Dataset is of type: ${jsonMeta.type} not ${VideoType}. NIST formats can only be imported on ${VideoType} datasets`);
+      }
       const release = await _acquireLock(projectInfo.basePath, projectInfo.basePath, 'tracks');
       try {
         await fs.move(
@@ -791,14 +805,25 @@ async function annotationImport(
       const newFileName = `result_${time}.json`;
 
       const newPath = npath.join(projectInfo.basePath, npath.basename(newFileName));
-      await fs.copy(
-        annotationPath,
-        newPath,
-      );
+      if (nistFormat) {
+        const trackData = await nistSerializers.loadNistFile(annotationPath);
+        const trackStructure: MultiTrackRecord = {};
+        for (let i = 0; i < trackData.tracks.length; i += 1) {
+          const track = trackData.tracks[i];
+          trackStructure[track.trackId] = track;
+        }
+        const serialized = JSON.stringify(trackStructure, null, 2);
+        await fs.writeFile(newPath, serialized);
+      } else {
+        await fs.copy(
+          annotationPath,
+          newPath,
+        );
+      }
       await release();
       return true;
     }
-    return false;
+    throw new Error(`${annotationPath} is not a valid file`);
   }
   // If not a JSON we do a process for the CSV
   const newPath = npath.join(projectInfo.basePath, npath.basename(annotationPath));
@@ -830,10 +855,22 @@ async function _importTrackFile(
 
     const newPath = npath.join(projectDirAbsPath, npath.basename(newFileName));
 
-    await fs.copy(
-      userTrackFileAbsPath,
-      newPath,
-    );
+    if (jsonMeta.type === VideoType
+      && await nistSerializers.confirmNistFile(userTrackFileAbsPath)) {
+      const trackData = await nistSerializers.loadNistFile(userTrackFileAbsPath);
+      const trackStructure: MultiTrackRecord = {};
+      for (let i = 0; i < trackData.tracks.length; i += 1) {
+        const track = trackData.tracks[i];
+        trackStructure[track.trackId] = track;
+      }
+      const serialized = JSON.stringify(trackStructure);
+      await fs.writeFile(newPath, serialized);
+    } else {
+      await fs.copy(
+        userTrackFileAbsPath,
+        newPath,
+      );
+    }
     //Load tracks to generate attributes
     const tracks = await loadJsonTracks(newPath);
     const { attributes } = processTrackAttributes(Object.values(tracks));
