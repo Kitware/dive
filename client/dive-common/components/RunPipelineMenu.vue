@@ -9,6 +9,7 @@ import {
   SubType,
 } from 'dive-common/apispec';
 import { stereoPipelineMarker } from 'dive-common/constants';
+import { getResponseError } from 'vue-media-annotator/utils';
 
 export default defineComponent({
   props: {
@@ -90,7 +91,7 @@ export default defineComponent({
         pipelineState.status = 'done';
       } catch (err) {
         pipelineState.status = 'error';
-        pipelineState.error = err.response?.data?.message || err;
+        pipelineState.error = getResponseError(err);
         throw err;
       }
     }

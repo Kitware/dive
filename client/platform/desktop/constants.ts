@@ -51,7 +51,7 @@ export interface JsonMeta extends DatasetMetaMutable {
   version: number;
 
   // immutable dataset type
-  type: DatasetType | 'multi'; // TODO: This needs to be moved into DatasetType once the web version is complete
+  type: DatasetType;
 
   // immutable datset identifier
   id: string;

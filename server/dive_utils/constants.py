@@ -1,6 +1,7 @@
 import re
 
 SETTINGS_CONST_JOBS_CONFIGS = 'jobs_configs'
+BRAND_DATA_CONFIG = 'brand_data_config'
 
 ImageSequenceType = "image-sequence"
 VideoType = "video"
@@ -80,6 +81,8 @@ TrainedPipelineCategory = "trained"
 # The name of the folder where any user specific data should be stored
 # (created as a folder of that user)
 ViameDataFolderName = "VIAME"
+# The name of the subfolder for training results
+TrainingOutputFolderName = "VIAME Training Results"
 
 # job constants
 JOBCONST_DATASET_ID = 'datset_id'

@@ -12,6 +12,7 @@ import {
 } from 'dive-common/apispec';
 
 import ImportMultiCamAddType from 'dive-common/components/ImportMultiCamAddType.vue';
+import { ImageSequenceType, VideoType } from 'dive-common/constants';
 
 export default defineComponent({
   components: {
@@ -24,8 +25,8 @@ export default defineComponent({
       required: false,
     },
     dataType: {
-      type: String as PropType<'image-sequence' | 'video'>,
-      default: 'image-sequence',
+      type: String as PropType<typeof VideoType | typeof ImageSequenceType>,
+      default: ImageSequenceType,
     },
     importMedia: {
       type: Function as PropType<(path: string) => Promise<MediaImportResponse>>,
@@ -59,7 +60,7 @@ export default defineComponent({
         right: { glob: '', trackFile: '' },
       };
     }
-    if (props.dataType === 'video') {
+    if (props.dataType === VideoType) {
       importType.value = 'multi';
     }
 

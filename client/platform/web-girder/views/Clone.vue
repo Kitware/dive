@@ -2,21 +2,28 @@
 import {
   computed, defineComponent, Ref, ref, PropType,
 } from '@vue/composition-api';
-import { GirderFileManager } from '@girder/components/src';
-import { withRestError } from 'platform/web-girder/utils';
-import { GirderDatasetModel } from 'platform/web-girder/constants';
-import { clone } from '../api/viame.service';
-import { useGirderRest } from '../plugins/girder';
+import { GirderFileManager, GirderModelType } from '@girder/components/src';
+import useRequest from 'dive-common/use/useRequest';
+import { RootlessLocationType } from 'platform/web-girder/store/types';
+import { GirderMetadataStatic } from 'platform/web-girder/constants';
+import { useGirderRest } from 'platform/web-girder/plugins/girder';
+import { clone, getDataset } from 'platform/web-girder/api';
+
 
 export default defineComponent({
   components: { GirderFileManager },
 
   props: {
-    source: {
-      type: Object as PropType<GirderDatasetModel | null>,
+    datasetId: {
+      // datasetId shoud only be non-null if the dataset is cloneable
+      type: String as PropType<string | null>,
       default: null,
     },
     buttonOptions: {
+      type: Object,
+      default: () => ({}),
+    },
+    menuOptions: {
       type: Object,
       default: () => ({}),
     },
@@ -24,43 +31,41 @@ export default defineComponent({
 
   setup(props, { root }) {
     const girderRest = useGirderRest();
+    const source = ref(null as GirderMetadataStatic | null);
     const open = ref(false);
-    // eslint-disable-next-line @typescript-eslint/ban-ts-ignore
-    // @ts-ignore
-    const location: Ref<GirderDatasetModel> = ref({
-      _modelType: 'user',
-      // eslint-disable-next-line @typescript-eslint/ban-ts-ignore
-      // @ts-ignore
+    const location: Ref<RootlessLocationType> = ref({
+      _modelType: ('user' as GirderModelType),
       _id: girderRest.user._id,
-      meta: {},
     });
     const newName = ref('');
 
     const locationIsFolder = computed(() => (location.value._modelType === 'folder'));
 
     async function click() {
-      if (props.source) {
-        newName.value = `Clone of ${props.source.name}`;
+      if (props.datasetId) {
+        source.value = (await getDataset(props.datasetId)).data;
+        newName.value = `Clone of ${source.value.name}`;
         open.value = true;
       }
     }
 
-    function setLocation(newLoc: GirderDatasetModel) {
-      if (!newLoc.meta?.annotate) {
+    function setLocation(newLoc: RootlessLocationType) {
+      if (!('meta' in newLoc && newLoc.meta.annotate)) {
         location.value = newLoc;
       }
     }
 
-    const { func: doClone, error: cloneError } = withRestError(async () => {
-      if (!props.source) {
-        throw new Error('No source dataset!');
+    const { request: _cloneRequest, error: cloneError } = useRequest();
+    const doClone = () => _cloneRequest(async () => {
+      if (!props.datasetId) {
+        throw new Error('no source dataset');
       }
       const newDataset = await clone({
-        folderId: props.source._id,
+        folderId: props.datasetId,
         name: newName.value,
         parentFolderId: location.value._id,
       });
-      root.$router.push({ name: 'viewer', params: { id: newDataset._id } });
+      root.$router.push({ name: 'viewer', params: { id: newDataset.data._id } });
     });
 
     return {
@@ -69,6 +74,7 @@ export default defineComponent({
       locationIsFolder,
       newName,
       open,
+      source,
       /* methods */
       click,
       doClone,
@@ -94,7 +100,7 @@ export default defineComponent({
         <template #activator="{ on: ton, attrs: tattrs }">
           <v-btn
             v-bind="{ ...tattrs, ...buttonOptions }"
-            :disabled="source === null || !source.meta.annotate"
+            :disabled="datasetId === null"
             v-on="{ ...ton, click }"
           >
             <v-icon>
@@ -107,7 +113,9 @@ export default defineComponent({
               Clone
             </span>
             <v-spacer />
-            <v-icon>mdi-dock-window</v-icon>
+            <v-icon v-if="menuOptions.right">
+              mdi-dock-window
+            </v-icon>
           </v-btn>
         </template>
         <span>Create a clone of this data</span>
@@ -115,7 +123,7 @@ export default defineComponent({
     </template>
 
     <v-card v-if="source">
-      <template v-if="source.meta.foreign_media_id">
+      <template v-if="source.foreign_media_id">
         <v-card-title>
           This dataset is a clone
         </v-card-title>
@@ -123,7 +131,7 @@ export default defineComponent({
           This dataset was cloned from another.  It can be annotated and used
           for pipelines and training like a regular dataset, but its images
           or video are references to an external dataset.
-          <router-link :to="{ name: 'viewer', params: { id: source.meta.foreign_media_id } }">
+          <router-link :to="{ name: 'viewer', params: { id: source.foreign_media_id } }">
             Open media source dataset.
           </router-link>
         </v-card-text>
@@ -186,7 +194,12 @@ export default defineComponent({
           <span v-if="!locationIsFolder">
             Choose a destination folder...
           </span>
-          <span v-else>Clone into {{ location.name }}</span>
+          <span v-else-if="'name' in location">
+            Clone into {{ location.name }}
+          </span>
+          <span v-else>
+            Something went wrong
+          </span>
         </v-btn>
       </v-card-text>
     </v-card>

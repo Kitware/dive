@@ -12,11 +12,9 @@ import {
 import ImportButton from 'dive-common/components/ImportButton.vue';
 import ImportMultiCamDialog from 'dive-common/components/ImportMultiCamDialog.vue';
 import { DatasetType, MultiCamImportArgs } from 'dive-common/apispec';
+import { validateUploadGroup } from 'platform/web-girder/api';
+import { openFromDisk } from 'platform/web-girder/utils';
 import UploadGirder from './UploadGirder.vue';
-import {
-  validateUploadGroup, openFromDisk,
-} from '../api/viame.service';
-
 
 export interface InteralFiles {
   file: File;
@@ -87,7 +85,7 @@ export default defineComponent({
               processed.annotationFile, processed.mediaList,
             );
           } catch (err) {
-            preUploadErrorMessage.value = err;
+            preUploadErrorMessage.value = err.response?.data?.message || err;
           }
         }
       }
@@ -229,7 +227,7 @@ export default defineComponent({
       annotationFile: File | null,
       mediaList: File[],
     ) => {
-      const resp = await validateUploadGroup(allFiles.map((f) => f.name));
+      const resp = (await validateUploadGroup(allFiles.map((f) => f.name))).data;
       if (!resp.ok) {
         if (resp.message) {
           preUploadErrorMessage.value = resp.message;

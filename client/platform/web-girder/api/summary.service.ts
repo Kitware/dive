@@ -1,4 +1,4 @@
-import girderRest from '../plugins/girder';
+import girderRest from 'platform/web-girder/plugins/girder';
 
 interface SummaryItem {
   value: string;
@@ -8,12 +8,15 @@ interface SummaryItem {
 }
 
 async function getSummary() {
-  const { data } = await girderRest.get<SummaryItem[]>('viame_summary');
+  const { data } = await girderRest.get<SummaryItem[]>('dive_summary');
   return data;
 }
 
 function getMaxNSummaryUrl(ids: string[]) {
-  return `${girderRest.apiRoot}/viame_summary/max_n?folder_ids=${JSON.stringify(ids)}`;
+  return girderRest.getUri({
+    url: 'dive_summary/max_n',
+    params: { folderIds: JSON.stringify(ids) },
+  });
 }
 
 export {

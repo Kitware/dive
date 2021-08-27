@@ -2,14 +2,12 @@
 import Vue from 'vue';
 import { mixins } from '@girder/components/src';
 import { clone } from 'lodash';
+import { getResponseError } from 'vue-media-annotator/utils';
 import {
   DefaultVideoFPS,
 } from 'dive-common/constants';
 
-import {
-  makeViameFolder, postProcess,
-} from '../api/viame.service';
-import { getResponseError } from '../utils';
+import { makeViameFolder, postProcess } from 'platform/web-girder/api';
 
 export default Vue.extend({
   name: 'GirderUpload',
