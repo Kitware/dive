@@ -50,9 +50,11 @@ EMPTY_JOB_SCHEMA: AvailableJobSchema = {
         'default': None,
     },
 }
+
+# https://github.com/VIAME/VIAME/blob/master/cmake/download_viame_addons.sh
 UPGRADE_JOB_DEFAULT_URLS: List[str] = [
-    'https://data.kitware.com/api/v1/item/6011e3452fa25629b91ade60/download',  # Habcam
-    'https://viame.kitware.com/api/v1/item/604859fc5b1737bb9085f5e2/download',  # SEFSC
+    'https://viame.kitware.com/api/v1/item/60d3c198b91def413908961a/download',  # Habcam
+    'https://viame.kitware.com/api/v1/item/60b3a58b8438b3b7ffd7032f/download',  # SEFSC
     'https://data.kitware.com/api/v1/item/6011ebf72fa25629b91aef03/download',  # PengHead
     'https://data.kitware.com/api/v1/item/601b00d02fa25629b9391ad6/download',  # Motion
     'https://data.kitware.com/api/v1/item/601afdde2fa25629b9390c41/download',  # EM Tuna
@@ -174,12 +176,12 @@ def upgrade_pipelines(
         # Remove everything
         shutil.rmtree(conf.addon_extracted_path)
         manager.updateStatus(JobStatus.CANCELED)
-        gc.post('viame/update_job_configs', json=EMPTY_JOB_SCHEMA)
+        gc.put('dive_configuration/static_pipeline_configs', json=EMPTY_JOB_SCHEMA)
         return
 
     # finally, crawl the new files and report results
     summary = discover_configs(conf.get_extracted_pipeline_path())
-    gc.post('viame/update_job_configs', json=summary)
+    gc.put('dive_configuration/static_pipeline_configs', json=summary)
 
 
 @app.task(bind=True, acks_late=True, ignore_result=True)
@@ -229,7 +231,7 @@ def run_pipeline(self: Task, params: PipelineJob):
 
     # Download source media
     input_folder: GirderModel = gc.getFolder(input_folder_id)
-    input_media_list = download_source_media(gc, input_folder, input_path)
+    input_media_list = download_source_media(gc, input_folder_id, input_path)
 
     if input_type == VideoType:
         input_fps = fromMeta(input_folder, FPSMarker)
@@ -295,7 +297,7 @@ def run_pipeline(self: Task, params: PipelineJob):
     newfile = gc.uploadFileToFolder(output_folder_id, output_path)
 
     gc.addMetadataToItem(str(newfile["itemId"]), {"pipeline": pipeline})
-    gc.post(f'viame/postprocess/{output_folder_id}', data={"skipJobs": True})
+    gc.post(f'dive_rpc/postprocess/{output_folder_id}', data={"skipJobs": True})
 
 
 @app.task(bind=True, acks_late=True, ignore_result=True)
@@ -356,7 +358,7 @@ def train_pipeline(
                 download_path, download_path / groundtruth["name"]
             )
             # Download input media
-            input_media_list = download_source_media(gc, source_folder, download_path)
+            input_media_list = download_source_media(gc, str(source_folder["_id"]), download_path)
             if fromMeta(source_folder, TypeMarker) == VideoType:
                 download_path = Path(input_media_list[0])
             # Set media source location
@@ -430,14 +432,17 @@ def train_pipeline(
 
 
 @app.task(bind=True, acks_late=True, ignore_result=True)
-def convert_video(self: Task, path, folderId, auxiliaryFolderId, itemId):
+def convert_video(self: Task, folderId: str, itemId: str):
     # Delete is true, so the tempfile is deleted when the block closes.
     # We are only using this to get a name, and recreating it below.
     with tempfile.NamedTemporaryFile(suffix=".mp4", delete=True) as temp:
         output_path = temp.name
 
+    input_directory = tempfile.TemporaryDirectory()
+
     def cleanup():
         with contextlib.suppress(FileNotFoundError):
+            input_directory.cleanup()
             os.remove(output_path)
 
     context: dict = {}
@@ -450,8 +455,8 @@ def convert_video(self: Task, path, folderId, auxiliaryFolderId, itemId):
     folderData = gc.getFolder(folderId)
     requestedFps = fromMeta(folderData, FPSMarker)
 
-    # Extract metadata
-    file_name = os.path.join(path, os.listdir(path)[0])
+    file_name = download_source_media(gc, folderId, Path(input_directory.name))[0]
+
     command = [
         "ffprobe",
         "-print_format",

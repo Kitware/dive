@@ -1,32 +1,36 @@
-import { GirderModel } from '@girder/components/src';
-import { DatasetMeta, DatasetMetaMutable, DatasetType } from 'dive-common/apispec';
+import {
+  DatasetMeta, DatasetMetaMutable, DatasetType, MultiCamMedia, SubType,
+} from 'dive-common/apispec';
 
 /**
  * Static properties loaded from the girder folder data/metadata
  */
 interface GirderMetadataStatic extends DatasetMetaMutable {
-  id: string;
+  /**
+   * Required fields
+   * Everything copied from DatasetMeta except imageData and videoUrl
+   */
+  id: Readonly<string>;
+  name: Readonly<string>;
+  createdAt: Readonly<string>;
   type: Readonly<DatasetType>;
   fps: Readonly<number>;
-  name: string;
-  createdAt: string;
-  ffprobe_info?: Record<string, string>;
-  annotate: boolean;
-  foreign_media_id?: string;
-}
+  annotate: Readonly<boolean>;
+  subType: Readonly<SubType>;
+  multiCamMedia: Readonly<MultiCamMedia | null>;
 
-/** A girder folder model with dataset metadata */
-interface GirderDatasetModel extends GirderModel {
-  meta: GirderMetadataStatic;
+  /* optional */
+  originalFps?: number;
+  ffprobe_info?: Record<string, string>;
+  foreign_media_id?: string;
 }
 
 /**
  * Full metadata including dynamic properties (image list, video url)
  */
-type GirderMetadata = GirderMetadataStatic & DatasetMeta;
+type GirderMetadata = DatasetMeta & GirderMetadataStatic;
 
 export {
-  GirderDatasetModel,
   GirderMetadataStatic,
   GirderMetadata,
 };

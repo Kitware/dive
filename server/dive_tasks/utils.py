@@ -10,9 +10,7 @@ from girder_client import GirderClient
 from girder_worker.task import Task
 from girder_worker.utils import JobManager, JobStatus
 
-from dive_utils import fromMeta
-from dive_utils.constants import ImageSequenceType, TypeMarker, VideoType
-from dive_utils.types import GirderModel
+from dive_utils import constants, models
 
 TIMEOUT_COUNT = 'timeout_count'
 TIMEOUT_LAST_CHECKED = 'last_checked'
@@ -137,21 +135,17 @@ def organize_folder_for_training(data_dir: Path, downloaded_groundtruth: Path):
     return groundtruth
 
 
-def download_source_media(
-    girder_client: GirderClient, folder: GirderModel, dest: Path
-) -> List[str]:
-    """
-    Download source media for folder from girder
-    """
-    if fromMeta(folder, TypeMarker) == ImageSequenceType:
-        image_items = girder_client.get('viame/valid_images', {'folderId': folder["_id"]})
-        for item in image_items:
-            girder_client.downloadItem(str(item["_id"]), str(dest))
-        return [str(dest / item['name']) for item in image_items]
-    elif fromMeta(folder, TypeMarker) == VideoType:
-        clip_meta = girder_client.get("viame_detection/clip_meta", {'folderId': folder['_id']})
-        destination_path = str(dest / clip_meta['video']['name'])
-        girder_client.downloadFile(str(clip_meta['video']['_id']), destination_path)
+def download_source_media(girder_client: GirderClient, datasetId: str, dest: Path) -> List[str]:
+    """Download media for dataset to dest path"""
+    media = models.DatasetSourceMedia(**girder_client.get(f'dive_dataset/{datasetId}/media'))
+    dataset = models.GirderMetadataStatic(**girder_client.get(f'dive_dataset/{datasetId}'))
+    if dataset.type == constants.ImageSequenceType:
+        for frameImage in media.imageData:
+            girder_client.downloadItem(frameImage.id, str(dest))
+        return [str(dest / image.filename) for image in media.imageData]
+    elif dataset.type == constants.VideoType and media.video is not None:
+        destination_path = str(dest / media.video.filename)
+        girder_client.downloadFile(media.video.id, destination_path)
         return [destination_path]
     else:
-        raise Exception(f"unexpected folder {str(folder)}")
+        raise Exception(f"unexpected metadata {str(dataset.dict())}")

@@ -4,7 +4,7 @@ import {
 } from '@vue/composition-api';
 import { GirderJob } from '@girder/components/src';
 import { all } from '@girder/components/src/components/Job/status';
-import { useGirderRest } from '../plugins/girder';
+import { useGirderRest } from 'platform/web-girder/plugins/girder';
 
 export default defineComponent({
   name: 'JobsTab',
