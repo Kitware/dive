@@ -31,7 +31,7 @@ const TrackAtrToken = '(trk-atr)';
 const PolyToken = '(poly)';
 const KeypointToken = '(kp)';
 
-interface AnnotationFileData {
+export interface AnnotationFileData {
   tracks: TrackData[];
   fps?: number;
 }

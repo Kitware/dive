@@ -131,7 +131,9 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
 
   function clearAllTracks() {
     trackMap.clear();
-    intervalTree.forEach((key) => intervalTree.remove(key));
+    intervalTree.items.forEach((item) => {
+      intervalTree.remove(item.key);
+    });
     trackIds.value = [];
   }
 

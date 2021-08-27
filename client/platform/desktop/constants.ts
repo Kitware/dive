@@ -177,7 +177,8 @@ export interface MediaImportPayload {
   jsonMeta: JsonMeta;
   globPattern: string;
   mediaConvertList: string[];
-  trackFileAbsPath: string | null;
+  trackFileAbsPath: string;
+  multiCamTrackFiles: null | Record<string, string>;
 }
 
 export interface DesktopJobUpdate extends DesktopJob {
@@ -194,6 +195,8 @@ export interface FFProbeResults {
     codec_type?: string;
     codec_name?: string;
     sample_aspect_ratio?: string;
+    width?: number;
+    height?: number;
   }];
 }
 
@@ -213,20 +216,5 @@ export interface CheckMediaResults {
   websafe: boolean;
   originalFpsString: string;
   originalFps: number;
+  videoDimensions: {width: number; height: number};
 }
-export interface MultiCamImportFolderArgs {
-  defaultDisplay: string; // In multicam the default camera to display
-  folderList: Record<string, string>; // Camera name and folder import for images or file for videos
-  calibrationFile?: string; // NPZ calibation matrix file
-  type: 'image-sequence' | 'video';
-}
-
-export interface MultiCamImportKeywordArgs {
-  defaultDisplay: string; // In multicam the default camera to display
-  keywordFolder: string; // Base folder used for import, globList will filter folder
-  globList: Record<string, string>; // Camera name key and glob pattern for keywordfolder
-  calibrationFile?: string; // NPZ calibration matrix file
-  type: 'image-sequence'; // Always image-sequence type for glob matching
-}
-
-export type MultiCamImportArgs = MultiCamImportFolderArgs | MultiCamImportKeywordArgs;
