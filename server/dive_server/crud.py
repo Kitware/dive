@@ -1,3 +1,4 @@
+"""General CRUD operations and utilities shared among views"""
 from datetime import datetime
 import functools
 import io
@@ -7,33 +8,27 @@ from pathlib import Path
 from typing import Callable, Dict, Generator, List, Optional, Tuple, Type
 
 from girder.constants import AccessType
-from girder.exceptions import RestException
+from girder.exceptions import RestException, ValidationException
 from girder.models.file import File
 from girder.models.folder import Folder
 from girder.models.item import Item
 from girder.models.model_base import AccessControlledModel
 from girder.models.upload import Upload
+import pydantic
 from pydantic.main import BaseModel
 import pymongo
 from pymongo.cursor import Cursor
 
-from dive_utils import asbool, fromMeta, models, strNumericCompare
-from dive_utils.constants import (
-    ConfidenceFiltersMarker,
-    DatasetMarker,
-    DetectionMarker,
-    ForeignMediaIdMarker,
-    FPSMarker,
-    ImageSequenceType,
-    PublishedMarker,
-    TypeMarker,
-    VideoType,
-    csvRegex,
-    jsonRegex,
-    safeImageRegex,
-)
+from dive_utils import asbool, constants, fromMeta, models, strNumericCompare
 from dive_utils.serializers import kwcoco, viame
-from dive_utils.types import GirderModel
+from dive_utils.types import GirderModel, GirderUserModel
+
+
+def get_validated_model(model: BaseModel, **kwargs):
+    try:
+        return model(**kwargs)
+    except pydantic.ValidationError as err:
+        raise ValidationException(err)
 
 
 class PydanticModel(AccessControlledModel):
@@ -52,26 +47,33 @@ class PydanticModel(AccessControlledModel):
         return self.save(item.dict())
 
 
-def all_detections_items(folder: Folder) -> Cursor:
+def all_detections_items(folder: GirderModel) -> Cursor:
     """Caller is responsible for verifying access permissions"""
-    return Item().find({f"meta.{DetectionMarker}": str(folder['_id'])}).sort([("created", -1)])
+    return (
+        Item()
+        .find({f"meta.{constants.DetectionMarker}": str(folder['_id'])})
+        .sort([("created", -1)])
+    )
 
 
-def detections_item(folder: Folder, strict=False) -> Optional[GirderModel]:
+def detections_item(folder: GirderModel, strict=False) -> Optional[GirderModel]:
     all_items = all_detections_items(folder)
     first_item = next(all_items, None)
     if first_item is None and strict:
-        raise RestException(f"No detections for folder {folder['name']}")
+        raise RestException(f"No detections for folder {folder['name']}", code=404)
     return first_item
 
 
-def detections_file(folder: Folder, strict=False) -> Optional[GirderModel]:
-    item = detections_item(folder, strict)
+def detections_file(dsFolder: GirderModel, strict=False) -> Optional[GirderModel]:
+    """
+    Find the Girder file containing the most recent annotation revision
+    """
+    item = detections_item(dsFolder, strict)
     if item is None and not strict:
         return None
     first_file = next(Item().childFiles(item), None)
     if first_file is None and strict:
-        raise RestException(f"No file associated with detection item {item}")
+        raise RestException(f"No file associated with detection item {item}", code=404)
     return first_file
 
 
@@ -144,7 +146,9 @@ def saveTracks(folder, tracks, user):
 
     move_existing_result_to_auxiliary_folder(folder, user)
     newResultItem = Item().createItem(item_name, user, folder)
-    Item().setMetadata(newResultItem, {DetectionMarker: str(folder["_id"])}, allowNull=True)
+    Item().setMetadata(
+        newResultItem, {constants.DetectionMarker: str(folder["_id"])}, allowNull=True
+    )
 
     json_bytes = json.dumps(tracks).encode()
     byteIO = io.BytesIO(json_bytes)
@@ -173,16 +177,23 @@ def saveImportAttributes(folder, attributes, user):
 
 def verify_dataset(folder: GirderModel):
     """Verify that a given folder is a DIVE dataset"""
-    if not asbool(fromMeta(folder, DatasetMarker, False)):
-        raise RestException('Source folder is not a valid DIVE dataset')
+    if not asbool(fromMeta(folder, constants.DatasetMarker, False)):
+        raise RestException('Source folder is not a valid DIVE dataset', code=404)
+    dstype = fromMeta(folder, 'type')
+    if dstype not in [constants.ImageSequenceType, constants.VideoType]:
+        raise ValueError(f'Source folder is marked as dataset but has invalid type {dstype}')
+    if dstype == constants.VideoType:
+        fps = fromMeta(folder, 'fps')
+        if type(fps) not in [int, float]:
+            raise ValueError(f'Video missing numerical fps, found {fps}')
     return True
 
 
-def process_csv(folder: GirderModel, user: GirderModel):
+def process_csv(folder: GirderModel, user: GirderUserModel):
     """If there's a CSV in the folder, process it as a detections object"""
     csvItems = Folder().childItems(
         folder,
-        filters={"lowerName": {"$regex": csvRegex}},
+        filters={"lowerName": {"$regex": constants.csvRegex}},
         sort=[("created", pymongo.DESCENDING)],
     )
     if csvItems.count() >= 1:
@@ -198,12 +209,12 @@ def process_csv(folder: GirderModel, user: GirderModel):
     return False
 
 
-def process_json(folder: GirderModel, user: GirderModel):
+def process_json(folder: GirderModel, user: GirderUserModel):
     # Find a json if it exists
     jsonItems = list(
         Folder().childItems(
             folder,
-            filters={"lowerName": {"$regex": jsonRegex}},
+            filters={"lowerName": {"$regex": constants.jsonRegex}},
             sort=[("created", pymongo.DESCENDING)],
         )
     )
@@ -216,7 +227,7 @@ def process_json(folder: GirderModel, user: GirderModel):
             saveImportAttributes(folder, attributes, user)
             Item().move(item, auxiliary)
         else:  # dive json
-            item['meta'][DetectionMarker] = str(folder['_id'])
+            item['meta'][constants.DetectionMarker] = str(folder['_id'])
             Item().save(item)
     if len(jsonItems) > 0:
         move_existing_result_to_auxiliary_folder(folder, user)
@@ -227,7 +238,7 @@ def process_json(folder: GirderModel, user: GirderModel):
 def getCloneRoot(owner: GirderModel, source_folder: GirderModel):
     """Get the source media folder associated with a clone"""
     verify_dataset(source_folder)
-    next_id = fromMeta(source_folder, ForeignMediaIdMarker, False)
+    next_id = fromMeta(source_folder, constants.ForeignMediaIdMarker, False)
     while next_id is not False:
         # Recurse through source folders to find the root, allowing clones of clones
         source_folder = Folder().load(
@@ -237,59 +248,27 @@ def getCloneRoot(owner: GirderModel, source_folder: GirderModel):
         )
         if source_folder is None:
             raise RestException(
-                f"Referenced media source missing. Folder Id {next_id} was not found."
-                " This may be a cloned dataset where the source was deleted."
+                (
+                    f"Referenced media source missing. Folder Id {next_id} was not found."
+                    " This may be a cloned dataset where the source was deleted."
+                ),
+                code=404,
             )
         verify_dataset(source_folder)
-        next_id = fromMeta(source_folder, ForeignMediaIdMarker, False)
+        next_id = fromMeta(source_folder, constants.ForeignMediaIdMarker, False)
     return source_folder
-
-
-def createSoftClone(
-    owner: GirderModel,
-    source_folder: GirderModel,
-    parent_folder: GirderModel,
-    name: str = None,
-):
-    """Create a no-copy clone of folder with source_id for owner"""
-    cloned_folder = Folder().createFolder(
-        parent_folder,
-        name or source_folder['name'],
-        description=f'Clone of {source_folder["name"]}.',
-        reuseExisting=False,
-    )
-    cloned_folder['meta'] = source_folder['meta']
-    media_source_folder = getCloneRoot(owner, source_folder)
-    cloned_folder['meta'][ForeignMediaIdMarker] = str(media_source_folder['_id'])
-    cloned_folder['meta'][PublishedMarker] = False
-    # ensure confidence filter metadata exists
-    if ConfidenceFiltersMarker not in cloned_folder['meta']:
-        cloned_folder['meta'][ConfidenceFiltersMarker] = {'default': 0.1}
-
-    Folder().save(cloned_folder)
-    get_or_create_auxiliary_folder(cloned_folder, owner)
-    source_detections = detections_item(source_folder)
-    if source_detections is not None:
-        cloned_detection_item = Item().copyItem(
-            source_detections, creator=owner, folder=cloned_folder
-        )
-        cloned_detection_item['meta'][DetectionMarker] = str(cloned_folder['_id'])
-        Item().save(cloned_detection_item)
-    else:
-        saveTracks(cloned_folder, {}, owner)
-    return cloned_folder
 
 
 def valid_images(
     folder: GirderModel,
-    user: GirderModel,
+    user: GirderUserModel,
 ) -> List[GirderModel]:
     """
     Any time images are used where frame alignment matters, this function must be used
     """
     images = Folder().childItems(
         getCloneRoot(user, folder),
-        filters={"lowerName": {"$regex": safeImageRegex}},
+        filters={"lowerName": {"$regex": constants.safeImageRegex}},
     )
 
     def unwrapItem(item1, item2):
@@ -302,7 +281,7 @@ def valid_images(
 
 
 def get_annotation_csv_generator(
-    folder: GirderModel, user: GirderModel, excludeBelowThreshold=False, typeFilter=None
+    folder: GirderModel, user: GirderUserModel, excludeBelowThreshold=False, typeFilter=None
 ) -> Tuple[str, Callable[[], Generator[str, None, None]]]:
     """
     Get the annotation generator for a folder
@@ -310,14 +289,14 @@ def get_annotation_csv_generator(
     fps = None
     imageFiles = None
 
-    source_type = fromMeta(folder, TypeMarker)
-    if source_type == VideoType:
-        fps = fromMeta(folder, FPSMarker)
-    elif source_type == ImageSequenceType:
+    source_type = fromMeta(folder, constants.TypeMarker)
+    if source_type == constants.VideoType:
+        fps = fromMeta(folder, constants.FPSMarker)
+    elif source_type == constants.ImageSequenceType:
         imageFiles = [img['name'] for img in valid_images(folder, user)]
 
     thresholds = fromMeta(folder, "confidenceFilters", {})
-    annotation_file = detections_file(folder, strict=True)
+    annotation_file = detections_file(folder)
     track_dict = getTrackData(annotation_file)
 
     def downloadGenerator():

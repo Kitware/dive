@@ -15,13 +15,12 @@ import {
   runTraining,
   saveMetadata,
   saveAttributes,
-  openFromDisk,
   importAnnotationFile,
-} from './api/viame.service';
-import {
   loadDetections,
   saveDetections,
-} from './api/viameDetection.service';
+  unwrap,
+} from './api';
+import { openFromDisk } from './utils';
 
 export default defineComponent({
   name: 'App',
@@ -32,15 +31,15 @@ export default defineComponent({
     }
 
     provideApi({
-      getPipelineList,
-      runPipeline,
-      getTrainingConfigurations,
-      runTraining,
-      loadDetections,
-      saveDetections,
+      getPipelineList: unwrap(getPipelineList),
+      runPipeline: unwrap(runPipeline),
+      getTrainingConfigurations: unwrap(getTrainingConfigurations),
+      runTraining: unwrap(runTraining),
+      loadDetections: unwrap(loadDetections),
+      saveDetections: unwrap(saveDetections),
+      saveMetadata: unwrap(saveMetadata),
+      saveAttributes: unwrap(saveAttributes),
       loadMetadata,
-      saveMetadata,
-      saveAttributes,
       openFromDisk,
       importAnnotationFile,
     });

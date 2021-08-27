@@ -14,7 +14,7 @@ import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 
 import { getFolder } from 'platform/web-girder/api/girder.service';
 import { getLocationFromRoute } from '../utils';
-import { deleteResources } from '../api/viame.service';
+import { deleteResources } from '../api';
 import { getMaxNSummaryUrl } from '../api/summary.service';
 import Export from './Export.vue';
 import Upload from './Upload.vue';
@@ -138,7 +138,7 @@ export default defineComponent({
     }
     this.location = newLocaction;
     if (this.location._modelType === 'folder') {
-      this.location = await getFolder(this.location._id);
+      this.location = (await getFolder(this.location._id)).data;
     }
     this.girderRest.$on('message:job_status', this.handleNotification);
   },
@@ -219,8 +219,8 @@ export default defineComponent({
             <template #actions>
               <div class="pa-2">
                 <Clone
-                  :button-options="buttonOptions"
-                  :source="exportTarget"
+                  v-bind="{ buttonOptions, menuOptions }"
+                  :dataset-id="locationInputs.length === 1 ? locationInputs[0] : null"
                 />
                 <run-training-menu
                   v-bind="{ buttonOptions, menuOptions }"

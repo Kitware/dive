@@ -1,10 +1,10 @@
 import { merge } from 'lodash';
 import { Module } from 'vuex';
 
-import { BrandData, getBrandData } from 'platform/web-girder/api/viame.service';
+import { BrandData, getBrandData } from 'platform/web-girder/api';
 import defaultLogo from 'dive-common/assets/logo.png';
 
-import { BrandState, RootState } from './types';
+import type { BrandState, RootState } from './types';
 
 function setFavicon(href: string) {
   let faviconLink = document.querySelector("link[rel~='icon']");
@@ -16,9 +16,9 @@ function setFavicon(href: string) {
   faviconLink.setAttribute('href', href);
 }
 
-function setTitle(title: string) {
+function setTitle(title?: string) {
   const titleEl = document.querySelector('title');
-  if (titleEl) {
+  if (titleEl && title !== undefined) {
     titleEl.innerText = title;
   }
 }
@@ -28,7 +28,7 @@ const brandModule: Module<BrandState, RootState> = {
   state: {
     brandData: {
       vuetify: null,
-      favicon: null,
+      favicon: undefined,
       logo: defaultLogo,
       name: 'DIVE',
       loginMessage: `DIVE is automatically updated 
@@ -40,14 +40,14 @@ const brandModule: Module<BrandState, RootState> = {
     setBrandData(state, data: BrandData) {
       state.brandData = merge(state.brandData, data);
       setTitle(state.brandData.name);
-      if (state.brandData.favicon !== null) {
+      if (state.brandData.favicon) {
         setFavicon(state.brandData.favicon);
       }
     },
   },
   actions: {
     async loadBrand({ commit }) {
-      commit('setBrandData', await getBrandData());
+      commit('setBrandData', (await getBrandData()).data);
     },
   },
 };

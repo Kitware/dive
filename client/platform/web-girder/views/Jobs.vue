@@ -1,8 +1,8 @@
 <script lang="ts">
 import { defineComponent, ref } from '@vue/composition-api';
 import { GirderModel, GirderJobList } from '@girder/components/src';
-import { restClient } from 'platform/web-girder/api/girder.service';
-import { setUsePrivateQueue } from 'platform/web-girder/api/viame.service';
+import { setUsePrivateQueue } from 'platform/web-girder/api';
+import { useGirderRest } from 'platform/web-girder/plugins/girder';
 
 export default defineComponent({
   name: 'Jobs',
@@ -10,6 +10,7 @@ export default defineComponent({
   setup() {
     const privateQueueEnabled = ref(false);
     const loading = ref(true);
+    const restClient = useGirderRest();
 
     function getId(data: GirderModel | string) {
       try {
@@ -25,7 +26,7 @@ export default defineComponent({
     async function setPrivateQueueEnabled(value: boolean) {
       loading.value = true;
       const resp = await setUsePrivateQueue(restClient.user._id, value);
-      privateQueueEnabled.value = resp.user_private_queue_enabled;
+      privateQueueEnabled.value = resp.data.user_private_queue_enabled;
       loading.value = false;
     }
 

@@ -10,7 +10,7 @@ import { cleanString } from 'platform/desktop/sharedUtils';
 import { serialize } from 'platform/desktop/backend/serializers/viame';
 import { observeChild } from 'platform/desktop/backend/native/processManager';
 
-import { stereoPipelineMarker } from 'dive-common/constants';
+import { MultiType, stereoPipelineMarker } from 'dive-common/constants';
 import * as common from './common';
 import { jobFileEchoMiddleware } from './utils';
 import {
@@ -83,14 +83,14 @@ async function runPipeline(
 
   let metaType = meta.type;
 
-  if (metaType === 'multi' && meta.multiCam) {
+  if (metaType === MultiType && meta.multiCam) {
     metaType = meta.multiCam.cameras[meta.multiCam.defaultDisplay].type;
   }
 
   let command: string[] = [];
   if (metaType === 'video') {
     let videoAbsPath = npath.join(meta.originalBasePath, meta.originalVideoFile);
-    if (meta.type === 'multi') {
+    if (meta.type === MultiType) {
       videoAbsPath = getMultiCamVideoPath(meta);
     } else if (meta.transcodedVideoFile) {
       videoAbsPath = npath.join(projectInfo.basePath, meta.transcodedVideoFile);
@@ -110,7 +110,7 @@ async function runPipeline(
     const manifestFile = npath.join(jobWorkDir, 'image-manifest.txt');
     // map image file names to absolute paths
     let imageList = meta.originalImageFiles;
-    if (meta.type === 'multi') {
+    if (meta.type === MultiType) {
       imageList = getMultiCamImageFiles(meta);
     }
     const fileData = imageList

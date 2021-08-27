@@ -5,7 +5,7 @@ import { TrackData, TrackId } from 'vue-media-annotator/track';
 import { Attribute } from 'vue-media-annotator/use/useAttributes';
 import { CustomStyle } from 'vue-media-annotator/use/useStyling';
 
-type DatasetType = 'image-sequence' | 'video';
+type DatasetType = 'image-sequence' | 'video' | 'multi';
 type MultiTrackRecord = Record<string, TrackData>;
 type SubType = 'stereo' | 'multicam' | null; // Additional type info used for UI display enabled pipelines
 
@@ -44,7 +44,7 @@ interface FrameImage {
 
 export interface MultiCamImportFolderArgs {
   defaultDisplay: string; // In multicam the default camera to display
-  folderList: Record<string, string>; // Camera name and folder import for images or file for videos
+  folderList: Record<string, {folder: string; trackFile: string}>; // path/track file per camera
   calibrationFile?: string; // NPZ calibation matrix file
   type: 'image-sequence' | 'video';
 }
@@ -52,8 +52,8 @@ export interface MultiCamImportFolderArgs {
 export interface MultiCamImportKeywordArgs {
   defaultDisplay: string; // In multicam the default camera to display
   keywordFolder: string; // Base folder used for import, globList will filter folder
-  globList: Record<string, string>; // Camera name key and glob pattern for keywordfolder
-  calibrationFile?: string; // NPZ calibration matrix file
+  globList: Record<string, { glob: string; trackFile: string }>; // glob pattern for base folder
+  calibrationFile?: string; // NPZ calibation matrix file
   type: 'image-sequence'; // Always image-sequence type for glob matching
 }
 
@@ -86,6 +86,7 @@ interface MediaImportResponse {
 interface DatasetMetaMutable {
   customTypeStyling?: Record<string, CustomStyle>;
   confidenceFilters?: Record<string, number>;
+  attributes?: Readonly<Record<string, Attribute>>;
 }
 
 interface DatasetMeta extends DatasetMetaMutable {
@@ -96,8 +97,9 @@ interface DatasetMeta extends DatasetMetaMutable {
   fps: Readonly<number>; // this will become mutable in the future.
   name: Readonly<string>;
   createdAt: Readonly<string>;
-  attributes?: Readonly<Record<string, Attribute>>;
   originalFps?: Readonly<number>;
+  subType: Readonly<SubType>; // In future this could have stuff like IR/EO
+  multiCamMedia: Readonly<MultiCamMedia | null>;
 }
 
 interface Api {
