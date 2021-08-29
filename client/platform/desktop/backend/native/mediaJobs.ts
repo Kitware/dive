@@ -140,9 +140,18 @@ async function checkMedia(
     const websafe = videoStream
       .filter((el) => el.codec_name === 'h264')
       .filter((el) => el.sample_aspect_ratio === '1:1');
+    const videoDimensions = {
+      width: videoStream[0].width || 0,
+      height: videoStream[0].height || 0,
+    };
     const misAligned = await checkFrameMisalignment(viameConstants, file);
 
-    return { websafe: !!websafe.length && !misAligned, originalFps, originalFpsString };
+    return {
+      websafe: !!websafe.length && !misAligned,
+      originalFps,
+      originalFpsString,
+      videoDimensions,
+    };
   }
   throw Error(`FFProbe did not return a valid value for ${file}`);
 }
