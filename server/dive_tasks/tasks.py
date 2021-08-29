@@ -23,6 +23,7 @@ from dive_tasks.frame_alignment import check_and_fix_frame_alignment
 from dive_tasks.manager import patch_manager
 from dive_tasks.pipeline_discovery import discover_configs
 from dive_tasks.utils import (
+    CanceledError,
     check_canceled,
     download_source_media,
     organize_folder_for_training,
@@ -128,7 +129,7 @@ class Config:
         return pipeline_path
 
 
-@app.task(bind=True, acks_late=True, ignore_result=True)
+@app.task(bind=True, acks_late=True, ignore_result=True, throws=(CanceledError))
 def upgrade_pipelines(
     self: Task,
     urls: List[str] = UPGRADE_JOB_DEFAULT_URLS,
@@ -185,7 +186,7 @@ def upgrade_pipelines(
     gc.put('dive_configuration/static_pipeline_configs', json=summary)
 
 
-@app.task(bind=True, acks_late=True, ignore_result=True)
+@app.task(bind=True, acks_late=True, ignore_result=True, throws=(CanceledError))
 def run_pipeline(self: Task, params: PipelineJob):
     conf = Config()
     context: dict = {}
@@ -286,8 +287,6 @@ def run_pipeline(self: Task, params: PipelineJob):
         env=conf.gpu_process_env,
     )
     stream_subprocess(process, self, context, manager, process_err_file, cleanup=cleanup)
-    if check_canceled(self, context):
-        return
 
     if Path(track_output_file).exists() and os.path.getsize(track_output_file):
         output_path = track_output_file
@@ -301,7 +300,7 @@ def run_pipeline(self: Task, params: PipelineJob):
     gc.post(f'dive_rpc/postprocess/{output_folder_id}', data={"skipJobs": True})
 
 
-@app.task(bind=True, acks_late=True, ignore_result=True)
+@app.task(bind=True, acks_late=True, ignore_result=True, throws=(CanceledError))
 def train_pipeline(
     self: Task,
     results_folder: GirderModel,
@@ -411,8 +410,6 @@ def train_pipeline(
                 env=conf.gpu_process_env,
             )
             stream_subprocess(process, self, context, manager, process_err_file)
-            if check_canceled(self, context):
-                return
 
             # Check that there are results in the output path
             if len(list(training_results_path.glob("*"))) == 0:
@@ -432,7 +429,7 @@ def train_pipeline(
             gc.upload(f"{training_results_path}/*", girder_output_folder["_id"])
 
 
-@app.task(bind=True, acks_late=True, ignore_result=True)
+@app.task(bind=True, acks_late=True, ignore_result=True, throws=(CanceledError))
 def convert_video(self: Task, folderId: str, itemId: str):
     # Delete is true, so the tempfile is deleted when the block closes.
     # We are only using this to get a name, and recreating it below.
@@ -476,8 +473,6 @@ def convert_video(self: Task, folderId: str, itemId: str):
         stderr=process_err_file,
     )
     stdout = stream_subprocess(process, self, context, manager, process_err_file, keep_stdout=True)
-    if check_canceled(self, context):
-        return
 
     jsoninfo = json.loads(stdout)
     videostream = list(filter(lambda x: x["codec_type"] == "video", jsoninfo["streams"]))
@@ -523,8 +518,6 @@ def convert_video(self: Task, folderId: str, itemId: str):
     )
 
     stream_subprocess(process, self, context, manager, process_err_file, cleanup=cleanup)
-    if check_canceled(self, context):
-        return
 
     # Check to see if frame alignment remains the same
     aligned_file = check_and_fix_frame_alignment(self, output_path, context, manager)
@@ -563,7 +556,7 @@ def convert_video(self: Task, folderId: str, itemId: str):
     cleanup()
 
 
-@app.task(bind=True, acks_late=True)
+@app.task(bind=True, acks_late=True, throws=(CanceledError))
 def convert_images(self: Task, folderId):
     """
     Ensures that all images in a folder are in a web friendly format (png or jpeg).
@@ -606,8 +599,6 @@ def convert_images(self: Task, folderId):
                 stderr=process_err_file,
             )
             stream_subprocess(process, self, context, manager, process_err_file)
-            if check_canceled(self, context):
-                return
 
             gc.uploadFileToFolder(folderId, new_item_path)
             gc.delete(f"item/{item['_id']}")
