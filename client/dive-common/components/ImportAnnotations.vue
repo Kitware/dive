@@ -3,6 +3,7 @@ import { defineComponent, ref } from '@vue/composition-api';
 import { useApi } from 'dive-common/apispec';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { useHandler } from 'vue-media-annotator/provides';
+import { getResponseError } from 'vue-media-annotator/utils';
 
 export default defineComponent({
   name: 'ImportAnnotations',
@@ -42,7 +43,7 @@ export default defineComponent({
             importFile = await importAnnotationFile(props.datasetId, path);
           }
         } catch (error) {
-          const text = [`Import of File ${path} failed`, error];
+          const text = [`Import of File ${path} failed`, getResponseError(error)];
           prompt({
             title: 'Import Failed',
             text,
