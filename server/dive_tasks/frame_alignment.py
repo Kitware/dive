@@ -9,10 +9,12 @@ from typing import Dict
 from girder_worker.task import Task
 from girder_worker.utils import JobManager
 
-from dive_tasks.utils import check_canceled, stream_subprocess
+from dive_tasks.utils import stream_subprocess
 
 
-def check_and_fix_frame_alignment(self: Task, output_path: str, context: Dict, manager: JobManager):
+def check_and_fix_frame_alignment(
+    task: Task, output_path: str, context: Dict, manager: JobManager
+) -> str:
     """
     Some videos have a misalignment between their audio and video and during the
     transcoding process this results in duplicate initial video frames when viewed
@@ -22,15 +24,15 @@ def check_and_fix_frame_alignment(self: Task, output_path: str, context: Dict, m
     There appears to be no ffprobe way to determine if the second pass
      fixed the issue or not
     """
-    misaligned = ffprobe_frame_alignment(self, output_path, context, manager)
+    misaligned = _ffprobe_frame_alignment(task, output_path, context, manager)
     if misaligned is True:
-        aligned_file = realign_video_and_audio(self, output_path, context, manager)
-        if aligned_file is not None:
-            return aligned_file
+        return _realign_video_and_audio(task, output_path, context, manager)
     return output_path
 
 
-def ffprobe_frame_alignment(self: Task, output_path: str, context: Dict, manager: JobManager):
+def _ffprobe_frame_alignment(
+    task: Task, output_path: str, context: Dict, manager: JobManager
+) -> bool:
     process_err_file = tempfile.TemporaryFile()
     process = Popen(
         [
@@ -48,9 +50,7 @@ def ffprobe_frame_alignment(self: Task, output_path: str, context: Dict, manager
         stderr=process_err_file,
     )
 
-    stdout = stream_subprocess(process, self, context, manager, process_err_file, keep_stdout=True)
-    if check_canceled(self, context):
-        return
+    stdout = stream_subprocess(process, task, context, manager, process_err_file, keep_stdout=True)
     framejsoninfo = json.loads(stdout)
     if 'frames' not in framejsoninfo:
         raise Exception('Could not read ffprobe frames')
@@ -65,7 +65,9 @@ def ffprobe_frame_alignment(self: Task, output_path: str, context: Dict, manager
     return False
 
 
-def realign_video_and_audio(self: Task, output_path: str, context: Dict, manager: JobManager):
+def _realign_video_and_audio(
+    task: Task, output_path: str, context: Dict, manager: JobManager
+) -> str:
     with tempfile.NamedTemporaryFile(suffix="aligned.mp4", delete=True) as temp:
         aligned_file = temp.name
 
@@ -95,7 +97,5 @@ def realign_video_and_audio(self: Task, output_path: str, context: Dict, manager
         stdout=subprocess.PIPE,
         stderr=process_err_file,
     )
-    stream_subprocess(process, self, context, manager, process_err_file, cleanup=cleanup)
-    if check_canceled(self, context):
-        return
+    stream_subprocess(process, task, context, manager, process_err_file, cleanup=cleanup)
     return aligned_file

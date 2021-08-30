@@ -17,6 +17,10 @@ TIMEOUT_LAST_CHECKED = 'last_checked'
 TIMEOUT_CHECK_INTERVAL = 30
 
 
+class CanceledError(RuntimeError):
+    pass
+
+
 def check_canceled(task: Task, context: dict, force=True):
     """
     Only check for canceled task every interval unless force is true (default).
@@ -88,7 +92,7 @@ def stream_subprocess(
         stderr_file.close()
         if cleanup:
             cleanup()
-        return stdout
+        raise CanceledError('Job was canceled')
 
     if code > 0:
         stderr_file.seek(0)
