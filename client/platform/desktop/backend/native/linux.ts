@@ -18,6 +18,7 @@ import {
 } from 'platform/desktop/constants';
 import { observeChild } from 'platform/desktop/backend/native/processManager';
 import * as viame from './viame';
+import * as mediaJobs from './mediaJobs';
 import { spawnResult } from './utils';
 
 const DefaultSettings: Settings = {
@@ -223,7 +224,7 @@ async function ffmpegCommand(settings: Settings) {
  */
 async function checkMedia(settings: Settings, file: string): Promise<CheckMediaResults> {
   await ffmpegCommand(settings);
-  return viame.checkMedia({
+  return mediaJobs.checkMedia({
     ...ViameLinuxConstants,
     setupScriptAbs: sourceString(settings),
   }, file);
@@ -233,7 +234,7 @@ async function convertMedia(settings: Settings,
   args: ConversionArgs,
   updater: DesktopJobUpdater): Promise<DesktopJob> {
   await ffmpegCommand(settings);
-  return viame.convertMedia(settings, args, updater, {
+  return mediaJobs.convertMedia(settings, args, updater, {
     ...ViameLinuxConstants,
     setupScriptAbs: sourceString(settings),
   });

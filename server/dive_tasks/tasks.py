@@ -19,9 +19,11 @@ from girder_worker.app import app
 from girder_worker.task import Task
 from girder_worker.utils import JobManager, JobStatus
 
+from dive_tasks.frame_alignment import check_and_fix_frame_alignment
 from dive_tasks.manager import patch_manager
 from dive_tasks.pipeline_discovery import discover_configs
 from dive_tasks.utils import (
+    CanceledError,
     check_canceled,
     download_source_media,
     organize_folder_for_training,
@@ -284,8 +286,9 @@ def run_pipeline(self: Task, params: PipelineJob):
         executable='/bin/bash',
         env=conf.gpu_process_env,
     )
-    stream_subprocess(process, self, context, manager, process_err_file, cleanup=cleanup)
-    if check_canceled(self, context):
+    try:
+        stream_subprocess(process, self, context, manager, process_err_file, cleanup=cleanup)
+    except CanceledError:
         return
 
     if Path(track_output_file).exists() and os.path.getsize(track_output_file):
@@ -298,6 +301,7 @@ def run_pipeline(self: Task, params: PipelineJob):
 
     gc.addMetadataToItem(str(newfile["itemId"]), {"pipeline": pipeline})
     gc.post(f'dive_rpc/postprocess/{output_folder_id}', data={"skipJobs": True})
+    cleanup()
 
 
 @app.task(bind=True, acks_late=True, ignore_result=True)
@@ -409,8 +413,10 @@ def train_pipeline(
                 cwd=training_output_path,
                 env=conf.gpu_process_env,
             )
-            stream_subprocess(process, self, context, manager, process_err_file)
-            if check_canceled(self, context):
+
+            try:
+                stream_subprocess(process, self, context, manager, process_err_file)
+            except CanceledError:
                 return
 
             # Check that there are results in the output path
@@ -455,7 +461,10 @@ def convert_video(self: Task, folderId: str, itemId: str):
     folderData = gc.getFolder(folderId)
     requestedFps = fromMeta(folderData, FPSMarker)
 
-    file_name = download_source_media(gc, folderId, Path(input_directory.name))[0]
+    item: GirderModel = gc.getItem(itemId)
+    file_name = str(Path(input_directory.name) / item['name'])
+    manager.write(f'Fetching input from {itemId} to {file_name}...\n')
+    gc.downloadItem(itemId, Path(input_directory.name), name=item.get('name'))
 
     command = [
         "ffprobe",
@@ -468,14 +477,19 @@ def convert_video(self: Task, folderId: str, itemId: str):
         file_name,
     ]
 
+    manager.write(f"Running command: {' '.join(command)}\n", forceFlush=True)
+
     process_err_file = tempfile.TemporaryFile()
     process = Popen(
         command,
         stdout=subprocess.PIPE,
         stderr=process_err_file,
     )
-    stdout = stream_subprocess(process, self, context, manager, process_err_file, keep_stdout=True)
-    if check_canceled(self, context):
+    try:
+        stdout = stream_subprocess(
+            process, self, context, manager, process_err_file, keep_stdout=True
+        )
+    except CanceledError:
         return
 
     jsoninfo = json.loads(stdout)
@@ -521,12 +535,15 @@ def convert_video(self: Task, folderId: str, itemId: str):
         stderr=process_err_file,
     )
 
-    stream_subprocess(process, self, context, manager, process_err_file, cleanup=cleanup)
-    if check_canceled(self, context):
+    try:
+        stream_subprocess(process, self, context, manager, process_err_file, cleanup=cleanup)
+        # Check to see if frame alignment remains the same
+        aligned_file = check_and_fix_frame_alignment(self, output_path, context, manager)
+    except CanceledError:
         return
 
     manager.updateStatus(JobStatus.PUSHING_OUTPUT)
-    new_file = gc.uploadFileToFolder(folderId, output_path)
+    new_file = gc.uploadFileToFolder(folderId, aligned_file)
     gc.addMetadataToItem(
         new_file['itemId'],
         {
@@ -601,8 +618,9 @@ def convert_images(self: Task, folderId):
                 stdout=subprocess.PIPE,
                 stderr=process_err_file,
             )
-            stream_subprocess(process, self, context, manager, process_err_file)
-            if check_canceled(self, context):
+            try:
+                stream_subprocess(process, self, context, manager, process_err_file)
+            except CanceledError:
                 return
 
             gc.uploadFileToFolder(folderId, new_item_path)

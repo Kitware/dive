@@ -200,6 +200,13 @@ export interface FFProbeResults {
   }];
 }
 
+interface FFProbeFrame {
+  best_effort_timestamp_time: number;
+}
+export interface FFProbeFrameResults{
+  frames: FFProbeFrame[];
+}
+
 export type ConvertMedia =
 (settings: Settings,
   args: ConversionArgs,
