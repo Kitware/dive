@@ -1,8 +1,5 @@
 import json
 from pathlib import Path
-import subprocess
-from subprocess import Popen
-import tempfile
 from typing import Dict
 
 from girder_worker.task import Task
@@ -32,24 +29,18 @@ def check_and_fix_frame_alignment(
 def _ffprobe_frame_alignment(
     task: Task, file_path: Path, context: Dict, manager: JobManager
 ) -> bool:
-    process_err_file = tempfile.TemporaryFile(dir=file_path.parent)
-    process = Popen(
-        [
-            "ffprobe",
-            str(file_path),
-            "-hide_banner",
-            "-read_intervals",
-            "%+5",
-            "-show_entries",
-            "frame=best_effort_timestamp_time",
-            "-print_format",
-            "json",
-        ],
-        stdout=subprocess.PIPE,
-        stderr=process_err_file,
-    )
-
-    stdout = stream_subprocess(process, task, context, manager, process_err_file, keep_stdout=True)
+    command = [
+        "ffprobe",
+        str(file_path),
+        "-hide_banner",
+        "-read_intervals",
+        "%+5",
+        "-show_entries",
+        "frame=best_effort_timestamp_time",
+        "-print_format",
+        "json",
+    ]
+    stdout = stream_subprocess(task, context, manager, {'args': command}, keep_stdout=True)
     framejsoninfo = json.loads(stdout)
     if 'frames' not in framejsoninfo:
         raise Exception('Could not read ffprobe frames')
@@ -68,27 +59,22 @@ def _realign_video_and_audio(
     task: Task, file_path: Path, context: Dict, manager: JobManager
 ) -> Path:
     aligned_file = file_path.parent / f"{file_path.name}.aligned.mp4"
-    process_err_file = tempfile.TemporaryFile(dir=file_path)
-    process = Popen(
-        [
-            "ffmpeg",
-            "-i",
-            str(file_path),
-            "-ss",
-            "0",
-            "-c:v",
-            "libx264",
-            "-preset",
-            "slow",
-            # lossless secondary encoding
-            "-crf",
-            "18",
-            "-c:a",
-            "copy",
-            aligned_file,
-        ],
-        stdout=subprocess.PIPE,
-        stderr=process_err_file,
-    )
-    stream_subprocess(process, task, context, manager, process_err_file)
+    command = [
+        "ffmpeg",
+        "-i",
+        str(file_path),
+        "-ss",
+        "0",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "slow",
+        # lossless secondary encoding
+        "-crf",
+        "18",
+        "-c:a",
+        "copy",
+        aligned_file,
+    ]
+    stream_subprocess(task, context, manager, {'args': command})
     return aligned_file

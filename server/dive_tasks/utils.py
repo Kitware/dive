@@ -2,9 +2,11 @@ from datetime import datetime, timedelta
 from pathlib import Path
 import shutil
 import signal
+import subprocess
 from subprocess import Popen
+import tempfile
 from tempfile import mktemp
-from typing import IO, List
+from typing import List
 
 from girder_client import GirderClient
 from girder_worker.task import Task
@@ -45,25 +47,32 @@ def check_canceled(task: Task, context: dict, force=True):
 
 
 def stream_subprocess(
-    process: Popen,
     task: Task,
     context: dict,
     manager: JobManager,
-    stderr_file: IO[bytes],
+    popen_kwargs: dict,
     keep_stdout: bool = False,
 ) -> str:
     """
     Stream live results from process to job manager
 
-    :param process: Process to stream
     :param task: task to detect cancelation
     :param manager: job manager
-    :param stderr_file: will log stderr to manager IF nonzero exit, else will close
+    :param popen_kwargs: a dict to pass as kwargs to popen.  Must include 'args'
     :param keep_stdout: will return stdout as a string if needed
-    :param cleanup: a function to invoke if job errors or is canceled
     """
     start_time = datetime.now()
     stdout = ""
+
+    assert 'args' in popen_kwargs, "popen_kwargs must contain key 'args'"
+
+    manager.write(f"Running command: {str(popen_kwargs['args'])}\n", forceFlush=True)
+    stderr_file = tempfile.TemporaryFile()
+    process = Popen(
+        **popen_kwargs,
+        stdout=subprocess.PIPE,
+        stderr=stderr_file,
+    )
 
     if process.stdout is None:
         raise RuntimeError("Stdout must not be none")
@@ -86,6 +95,7 @@ def stream_subprocess(
     code = process.wait(30)
 
     if check_canceled(task, context):
+        stderr_file.close()
         manager.write('\nCanceled during subprocess run.\n')
         manager.updateStatus(JobStatus.CANCELED)
         raise CanceledError('Job was canceled')
@@ -93,10 +103,12 @@ def stream_subprocess(
     if code > 0:
         stderr_file.seek(0)
         stderr = stderr_file.read().decode()
+        stderr_file.close()
         raise RuntimeError(
             'Pipeline exited with nonzero status code {}: {}'.format(process.returncode, stderr)
         )
     else:
+        stderr_file.close()
         end_time = datetime.now()
         manager.write(f"\nProcess completed in {str((end_time - start_time))}\n")
 

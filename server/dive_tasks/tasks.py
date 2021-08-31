@@ -4,8 +4,6 @@ import os
 from pathlib import Path
 import shlex
 import shutil
-import subprocess
-from subprocess import Popen
 import tempfile
 from typing import Dict, List, Tuple
 from urllib import request
@@ -207,8 +205,11 @@ def run_pipeline(self: Task, params: PipelineJob):
     with tempfile.TemporaryDirectory() as _working_directory:
         _working_directory_path = Path(_working_directory)
         input_path = _working_directory_path / 'input'
+        input_path.mkdir()
         trained_pipeline_path = _working_directory_path / 'trained_pipeline'
+        trained_pipeline_path.mkdir()
         output_path = _working_directory_path / 'output'
+        output_path.mkdir()
 
         detector_output_file = str(output_path / 'detector_output.csv')
         track_output_file = str(output_path / 'track_output.csv')
@@ -268,21 +269,16 @@ def run_pipeline(self: Task, params: PipelineJob):
             command.append(f'-s detection_reader:file_name={quoted_input_file}')
             command.append(f'-s track_reader:file_name={quoted_input_file}')
 
-        cmd = " ".join(command)
-        manager.write(f"Running command: {cmd}\n", forceFlush=True)
         manager.updateStatus(JobStatus.RUNNING)
-
-        process_err_file = tempfile.TemporaryFile()
-        process = Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=process_err_file,
-            shell=True,
-            executable='/bin/bash',
-            env=conf.gpu_process_env,
-        )
+        popen_kwargs = {
+            'args': " ".join(command),
+            'shell': True,
+            'executable': '/bin/bash',
+            'cwd': output_path,
+            'env': conf.gpu_process_env,
+        }
         try:
-            stream_subprocess(process, self, context, manager, process_err_file)
+            stream_subprocess(self, context, manager, popen_kwargs)
         except CanceledError:
             return
 
@@ -345,7 +341,9 @@ def train_pipeline(
     with tempfile.TemporaryDirectory() as _working_directory:
         _working_directory_path = Path(_working_directory)
         input_path = _working_directory_path / 'input'
+        input_path.mkdir()
         output_path = _working_directory_path / 'output'
+        output_path.mkdir()
 
         for index in range(len(source_folder_list)):
             source_folder = source_folder_list[index]
@@ -394,22 +392,16 @@ def train_pipeline(
             command.append("--gt-frames-only")
 
         manager.updateStatus(JobStatus.RUNNING)
-        cmd = " ".join(command)
-        manager.write(f"Running command: {cmd}\n", forceFlush=True)
-
-        process_err_file = tempfile.TemporaryFile()
-        process = Popen(
-            " ".join(command),
-            stdout=subprocess.PIPE,
-            stderr=process_err_file,
-            shell=True,
-            executable='/bin/bash',
-            cwd=output_path,
-            env=conf.gpu_process_env,
-        )
+        popen_kwargs = {
+            'args': " ".join(command),
+            'shell': True,
+            'executable': '/bin/bash',
+            'cwd': output_path,
+            'env': conf.gpu_process_env,
+        }
 
         try:
-            stream_subprocess(process, self, context, manager, process_err_file)
+            stream_subprocess(self, context, manager, popen_kwargs)
         except CanceledError:
             return
 
@@ -462,18 +454,8 @@ def convert_video(self: Task, folderId: str, itemId: str):
             file_name,
         ]
 
-        manager.write(f"Running command: {' '.join(command)}\n", forceFlush=True)
-
-        process_err_file = tempfile.TemporaryFile(dir=_working_directory_path)
-        process = Popen(
-            command,
-            stdout=subprocess.PIPE,
-            stderr=process_err_file,
-        )
         try:
-            stdout = stream_subprocess(
-                process, self, context, manager, process_err_file, keep_stdout=True
-            )
+            stdout = stream_subprocess(self, context, manager, {'args': command}, keep_stdout=True)
         except CanceledError:
             return
 
@@ -495,33 +477,28 @@ def convert_video(self: Task, folderId: str, itemId: str):
         if newAnnotationFps <= 0:
             raise Exception('FPS lower than 1 is not supported')
 
-        process_err_file = tempfile.TemporaryFile(dir=_working_directory_path)
-        process = Popen(
-            [
-                "ffmpeg",
-                "-i",
-                file_name,
-                "-c:v",
-                "libx264",
-                "-preset",
-                "slow",
-                # https://github.com/Kitware/dive/issues/855
-                "-crf",
-                "22",
-                # https://askubuntu.com/questions/1315697/could-not-find-tag-for-codec-pcm-s16le-in-stream-1-codec-not-currently-support
-                "-c:a",
-                "aac",
-                # see native/<platform> code for a discussion of this option
-                "-vf",
-                "scale=ceil(iw*sar/2)*2:ceil(ih/2)*2,setsar=1",
-                str(output_file_path),
-            ],
-            stdout=subprocess.PIPE,
-            stderr=process_err_file,
-        )
+        command = [
+            "ffmpeg",
+            "-i",
+            file_name,
+            "-c:v",
+            "libx264",
+            "-preset",
+            "slow",
+            # https://github.com/Kitware/dive/issues/855
+            "-crf",
+            "22",
+            # https://askubuntu.com/questions/1315697/could-not-find-tag-for-codec-pcm-s16le-in-stream-1-codec-not-currently-support
+            "-c:a",
+            "aac",
+            # see native/<platform> code for a discussion of this option
+            "-vf",
+            "scale=ceil(iw*sar/2)*2:ceil(ih/2)*2,setsar=1",
+            str(output_file_path),
+        ]
 
         try:
-            stream_subprocess(process, self, context, manager, process_err_file)
+            stream_subprocess(self, context, manager, {'args': command})
             # Check to see if frame alignment remains the same
             aligned_file_path = check_and_fix_frame_alignment(
                 self, output_file_path, context, manager
@@ -590,6 +567,7 @@ def convert_images(self: Task, folderId):
     with tempfile.TemporaryDirectory() as _working_directory:
         working_directory_path = Path(_working_directory)
         images_path = working_directory_path / 'images'
+        images_path.mkdir()
 
         for item in items_to_convert:
             # Assumes 1 file per item
@@ -597,15 +575,9 @@ def convert_images(self: Task, folderId):
 
             item_path = images_path / item["name"]
             new_item_path = images_path / ".".join([*item["name"].split(".")[:-1], "png"])
-
-            process_err_file = tempfile.TemporaryFile(dir=working_directory_path)
-            process = Popen(
-                ["ffmpeg", "-i", item_path, new_item_path],
-                stdout=subprocess.PIPE,
-                stderr=process_err_file,
-            )
+            command = ["ffmpeg", "-i", item_path, new_item_path]
             try:
-                stream_subprocess(process, self, context, manager, process_err_file)
+                stream_subprocess(self, context, manager, {'args': command})
             except CanceledError:
                 return
 
