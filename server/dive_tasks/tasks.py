@@ -86,11 +86,8 @@ class Config:
         assert self.viame_pipeine_path.exists(), "VIAME common pipe directory missing."
 
         self.addon_root_path = Path(self.addon_root_directory)
-        self.addon_zip_path = self.addon_root_path / 'zips'
-        self.addon_extracted_path = self.addon_root_path / 'extracted'
-
-        self.addon_zip_path.mkdir(exist_ok=True, parents=True)
-        self.addon_extracted_path.mkdir(exist_ok=True, parents=True)
+        self.addon_zip_path = utils.make_directory(self.addon_root_path / 'zips')
+        self.addon_extracted_path = utils.make_directory(self.addon_root_path / 'extracted')
 
         # Set include directory to include pipelines from this path
         # https://github.com/VIAME/VIAME/issues/131
