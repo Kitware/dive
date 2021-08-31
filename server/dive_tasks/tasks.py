@@ -1,3 +1,4 @@
+from contextlib import suppress
 import json
 import math
 import os
@@ -203,7 +204,7 @@ def run_pipeline(self: Task, params: PipelineJob):
     output_folder_id = str(params["output_folder"])
     pipeline_input = params["pipeline_input"]
 
-    with tempfile.TemporaryDirectory() as _working_directory:
+    with tempfile.TemporaryDirectory() as _working_directory, suppress(CanceledError):
         _working_directory_path = Path(_working_directory)
         input_path = make_directory(_working_directory_path / 'input')
         trained_pipeline_path = make_directory(_working_directory_path / 'trained_pipeline')
@@ -275,10 +276,7 @@ def run_pipeline(self: Task, params: PipelineJob):
             'cwd': output_path,
             'env': conf.gpu_process_env,
         }
-        try:
-            stream_subprocess(self, context, manager, popen_kwargs)
-        except CanceledError:
-            return
+        stream_subprocess(self, context, manager, popen_kwargs)
 
         if Path(track_output_file).exists() and os.path.getsize(track_output_file):
             output_file = track_output_file
@@ -336,7 +334,7 @@ def train_pipeline(
     # List of[input folder / ground truth file] pairs for creating input lists
     input_groundtruth_list: List[Tuple[Path, Path]] = []
     # root_data_dir is the directory passed to `viame_train_detector`
-    with tempfile.TemporaryDirectory() as _working_directory:
+    with tempfile.TemporaryDirectory() as _working_directory, suppress(CanceledError):
         _working_directory_path = Path(_working_directory)
         input_path = make_directory(_working_directory_path / 'input')
         output_path = make_directory(_working_directory_path / 'output')
@@ -394,11 +392,7 @@ def train_pipeline(
             'cwd': output_path,
             'env': conf.gpu_process_env,
         }
-
-        try:
-            stream_subprocess(self, context, manager, popen_kwargs)
-        except CanceledError:
-            return
+        stream_subprocess(self, context, manager, popen_kwargs)
 
         # Check that there are results in the output path
         if len(list(training_results_path.glob("*"))) == 0:
@@ -430,7 +424,7 @@ def convert_video(self: Task, folderId: str, itemId: str):
     folderData = gc.getFolder(folderId)
     requestedFps = fromMeta(folderData, FPSMarker)
 
-    with tempfile.TemporaryDirectory() as _working_directory:
+    with tempfile.TemporaryDirectory() as _working_directory, suppress(CanceledError):
         _working_directory_path = Path(_working_directory)
         item: GirderModel = gc.getItem(itemId)
         file_name = str(_working_directory_path / item['name'])
@@ -448,12 +442,7 @@ def convert_video(self: Task, folderId: str, itemId: str):
             "-show_streams",
             file_name,
         ]
-
-        try:
-            stdout = stream_subprocess(self, context, manager, {'args': command}, keep_stdout=True)
-        except CanceledError:
-            return
-
+        stdout = stream_subprocess(self, context, manager, {'args': command}, keep_stdout=True)
         jsoninfo = json.loads(stdout)
         videostream = list(filter(lambda x: x["codec_type"] == "video", jsoninfo["streams"]))
         if len(videostream) != 1:
@@ -491,13 +480,9 @@ def convert_video(self: Task, folderId: str, itemId: str):
             "scale=ceil(iw*sar/2)*2:ceil(ih/2)*2,setsar=1",
             str(output_file_path),
         ]
-
-        try:
-            stream_subprocess(self, context, manager, {'args': command})
-            # Check to see if frame alignment remains the same
-            aligned_file = check_and_fix_frame_alignment(self, output_file_path, context, manager)
-        except CanceledError:
-            return
+        stream_subprocess(self, context, manager, {'args': command})
+        # Check to see if frame alignment remains the same
+        aligned_file = check_and_fix_frame_alignment(self, output_file_path, context, manager)
 
         manager.updateStatus(JobStatus.PUSHING_OUTPUT)
         new_file = gc.uploadFileToFolder(folderId, aligned_file)
@@ -557,7 +542,7 @@ def convert_images(self: Task, folderId):
         if ((imageRegex.search(item["name"]) and not safeImageRegex.search(item["name"])))
     ]
 
-    with tempfile.TemporaryDirectory() as _working_directory:
+    with tempfile.TemporaryDirectory() as _working_directory, suppress(CanceledError):
         working_directory_path = Path(_working_directory)
         images_path = make_directory(working_directory_path / 'images')
 
@@ -568,11 +553,7 @@ def convert_images(self: Task, folderId):
             item_path = images_path / item["name"]
             new_item_path = images_path / ".".join([*item["name"].split(".")[:-1], "png"])
             command = ["ffmpeg", "-i", item_path, new_item_path]
-            try:
-                stream_subprocess(self, context, manager, {'args': command})
-            except CanceledError:
-                return
-
+            stream_subprocess(self, context, manager, {'args': command})
             gc.uploadFileToFolder(folderId, new_item_path)
             gc.delete(f"item/{item['_id']}")
 
