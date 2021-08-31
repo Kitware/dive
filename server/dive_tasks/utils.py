@@ -4,7 +4,7 @@ import shutil
 import signal
 from subprocess import Popen
 from tempfile import mktemp
-from typing import IO, Callable, List, Optional
+from typing import IO, List
 
 from girder_client import GirderClient
 from girder_worker.task import Task
@@ -51,7 +51,6 @@ def stream_subprocess(
     manager: JobManager,
     stderr_file: IO[bytes],
     keep_stdout: bool = False,
-    cleanup: Optional[Callable] = None,
 ) -> str:
     """
     Stream live results from process to job manager
@@ -89,25 +88,17 @@ def stream_subprocess(
     if check_canceled(task, context):
         manager.write('\nCanceled during subprocess run.\n')
         manager.updateStatus(JobStatus.CANCELED)
-        stderr_file.close()
-        if cleanup:
-            cleanup()
         raise CanceledError('Job was canceled')
 
     if code > 0:
         stderr_file.seek(0)
         stderr = stderr_file.read().decode()
-        stderr_file.close()
-        if cleanup:
-            cleanup()
         raise RuntimeError(
             'Pipeline exited with nonzero status code {}: {}'.format(process.returncode, stderr)
         )
     else:
         end_time = datetime.now()
         manager.write(f"\nProcess completed in {str((end_time - start_time))}\n")
-
-    stderr_file.close()
 
     return stdout
 
