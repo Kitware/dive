@@ -17,31 +17,11 @@ from girder_worker.app import app
 from girder_worker.task import Task
 from girder_worker.utils import JobManager, JobStatus
 
+from dive_tasks import utils
 from dive_tasks.frame_alignment import check_and_fix_frame_alignment
 from dive_tasks.manager import patch_manager
 from dive_tasks.pipeline_discovery import discover_configs
-from dive_tasks.utils import (
-    CanceledError,
-    check_canceled,
-    download_source_media,
-    make_directory,
-    organize_folder_for_training,
-    stream_subprocess,
-)
-from dive_utils import fromMeta
-from dive_utils.constants import (
-    DatasetMarker,
-    FPSMarker,
-    ImageSequenceType,
-    OriginalFPSMarker,
-    OriginalFPSStringMarker,
-    TrainedPipelineCategory,
-    TrainedPipelineMarker,
-    TypeMarker,
-    VideoType,
-    imageRegex,
-    safeImageRegex,
-)
+from dive_utils import constants, fromMeta
 from dive_utils.types import AvailableJobSchema, GirderModel, PipelineJob
 
 EMPTY_JOB_SCHEMA: AvailableJobSchema = {
@@ -138,7 +118,7 @@ def upgrade_pipelines(
     conf = Config()
     context: dict = {}
     manager: JobManager = patch_manager(self.job_manager)
-    if check_canceled(self, context):
+    if utils.check_canceled(self, context):
         manager.updateStatus(JobStatus.CANCELED)
         return
 
@@ -157,7 +137,7 @@ def upgrade_pipelines(
         else:
             manager.write(f'Skipping download of {zipfile_path}\n')
         addons_to_update_update.append(zipfile_path)
-        if check_canceled(self, context, force=False):
+        if utils.check_canceled(self, context, force=False):
             manager.updateStatus(JobStatus.CANCELED)
             return
 
@@ -173,7 +153,7 @@ def upgrade_pipelines(
         z = zipfile.ZipFile(zipfile_path)
         z.extractall(conf.addon_extracted_path)
 
-    if check_canceled(self, context):
+    if utils.check_canceled(self, context):
         # Remove everything
         shutil.rmtree(conf.addon_extracted_path)
         manager.updateStatus(JobStatus.CANCELED)
@@ -190,7 +170,7 @@ def run_pipeline(self: Task, params: PipelineJob):
     conf = Config()
     context: dict = {}
     manager: JobManager = patch_manager(self.job_manager)
-    if check_canceled(self, context):
+    if utils.check_canceled(self, context):
         manager.updateStatus(JobStatus.CANCELED)
         return
 
@@ -204,17 +184,17 @@ def run_pipeline(self: Task, params: PipelineJob):
     output_folder_id = str(params["output_folder"])
     pipeline_input = params["pipeline_input"]
 
-    with tempfile.TemporaryDirectory() as _working_directory, suppress(CanceledError):
+    with tempfile.TemporaryDirectory() as _working_directory, suppress(utils.CanceledError):
         _working_directory_path = Path(_working_directory)
-        input_path = make_directory(_working_directory_path / 'input')
-        trained_pipeline_path = make_directory(_working_directory_path / 'trained_pipeline')
-        output_path = make_directory(_working_directory_path / 'output')
+        input_path = utils.make_directory(_working_directory_path / 'input')
+        trained_pipeline_path = utils.make_directory(_working_directory_path / 'trained_pipeline')
+        output_path = utils.make_directory(_working_directory_path / 'output')
 
         detector_output_file = str(output_path / 'detector_output.csv')
         track_output_file = str(output_path / 'track_output.csv')
         img_list_path = input_path / 'img_list_file.txt'
 
-        if pipeline["type"] == TrainedPipelineCategory:
+        if pipeline["type"] == constants.TrainedPipelineCategory:
             gc.downloadFolderRecursive(pipeline["folderId"], str(trained_pipeline_path))
             pipeline_path = trained_pipeline_path / pipeline["pipe"]
         else:
@@ -228,10 +208,10 @@ def run_pipeline(self: Task, params: PipelineJob):
 
         # Download source media
         input_folder: GirderModel = gc.getFolder(input_folder_id)
-        input_media_list = download_source_media(gc, input_folder_id, input_path)
+        input_media_list = utils.download_source_media(gc, input_folder_id, input_path)
 
-        if input_type == VideoType:
-            input_fps = fromMeta(input_folder, FPSMarker)
+        if input_type == constants.VideoType:
+            input_fps = fromMeta(input_folder, constants.FPSMarker)
             assert len(input_media_list) == 1, "Expected exactly 1 video"
             command = [
                 f". {shlex.quote(str(conf.viame_setup_script))} &&",
@@ -244,7 +224,7 @@ def run_pipeline(self: Task, params: PipelineJob):
                 f"-s detector_writer:file_name={shlex.quote(detector_output_file)}",
                 f"-s track_writer:file_name={shlex.quote(track_output_file)}",
             ]
-        elif input_type == ImageSequenceType:
+        elif input_type == constants.ImageSequenceType:
             with open(img_list_path, "w+") as img_list_file:
                 img_list_file.write('\n'.join(input_media_list))
             command = [
@@ -276,7 +256,7 @@ def run_pipeline(self: Task, params: PipelineJob):
             'cwd': output_path,
             'env': conf.gpu_process_env,
         }
-        stream_subprocess(self, context, manager, popen_kwargs)
+        utils.stream_subprocess(self, context, manager, popen_kwargs)
 
         if Path(track_output_file).exists() and os.path.getsize(track_output_file):
             output_file = track_output_file
@@ -314,7 +294,7 @@ def train_pipeline(
     conf = Config()
     context: dict = {}
     manager: JobManager = patch_manager(self.job_manager)
-    if check_canceled(self, context):
+    if utils.check_canceled(self, context):
         manager.updateStatus(JobStatus.CANCELED)
         return
 
@@ -334,10 +314,10 @@ def train_pipeline(
     # List of[input folder / ground truth file] pairs for creating input lists
     input_groundtruth_list: List[Tuple[Path, Path]] = []
     # root_data_dir is the directory passed to `viame_train_detector`
-    with tempfile.TemporaryDirectory() as _working_directory, suppress(CanceledError):
+    with tempfile.TemporaryDirectory() as _working_directory, suppress(utils.CanceledError):
         _working_directory_path = Path(_working_directory)
-        input_path = make_directory(_working_directory_path / 'input')
-        output_path = make_directory(_working_directory_path / 'output')
+        input_path = utils.make_directory(_working_directory_path / 'input')
+        output_path = utils.make_directory(_working_directory_path / 'output')
 
         for index in range(len(source_folder_list)):
             source_folder = source_folder_list[index]
@@ -347,12 +327,14 @@ def train_pipeline(
             # Download groundtruth item
             gc.downloadItem(str(groundtruth["_id"]), download_path)
             # Rename groundtruth csv file
-            groundtruth_path = organize_folder_for_training(
+            groundtruth_path = utils.organize_folder_for_training(
                 download_path, download_path / groundtruth["name"]
             )
             # Download input media
-            input_media_list = download_source_media(gc, str(source_folder["_id"]), download_path)
-            if fromMeta(source_folder, TypeMarker) == VideoType:
+            input_media_list = utils.download_source_media(
+                gc, str(source_folder["_id"]), download_path
+            )
+            if fromMeta(source_folder, constants.TypeMarker) == constants.VideoType:
                 download_path = Path(input_media_list[0])
             # Set media source location
             input_groundtruth_list.append((download_path, groundtruth_path))
@@ -365,7 +347,7 @@ def train_pipeline(
                     data_list.write(f"{folder_path}\n")
                     truth_list.write(f"{groundtruth_path}\n")
 
-        training_results_path = make_directory(output_path / "category_models")
+        training_results_path = utils.make_directory(output_path / "category_models")
 
         command = [
             f". {shlex.quote(str(conf.viame_setup_script))} &&",
@@ -392,7 +374,7 @@ def train_pipeline(
             'cwd': output_path,
             'env': conf.gpu_process_env,
         }
-        stream_subprocess(self, context, manager, popen_kwargs)
+        utils.stream_subprocess(self, context, manager, popen_kwargs)
 
         # Check that there are results in the output path
         if len(list(training_results_path.glob("*"))) == 0:
@@ -405,7 +387,7 @@ def train_pipeline(
             results_folder["_id"],
             pipeline_name,
             metadata={
-                TrainedPipelineMarker: True,
+                constants.TrainedPipelineMarker: True,
                 "trained_on": trained_on_list,
             },
         )
@@ -417,14 +399,14 @@ def convert_video(self: Task, folderId: str, itemId: str):
     context: dict = {}
     gc: GirderClient = self.girder_client
     manager: JobManager = patch_manager(self.job_manager)
-    if check_canceled(self, context):
+    if utils.check_canceled(self, context):
         manager.updateStatus(JobStatus.CANCELED)
         return
 
     folderData = gc.getFolder(folderId)
-    requestedFps = fromMeta(folderData, FPSMarker)
+    requestedFps = fromMeta(folderData, constants.FPSMarker)
 
-    with tempfile.TemporaryDirectory() as _working_directory, suppress(CanceledError):
+    with tempfile.TemporaryDirectory() as _working_directory, suppress(utils.CanceledError):
         _working_directory_path = Path(_working_directory)
         item: GirderModel = gc.getItem(itemId)
         file_name = str(_working_directory_path / item['name'])
@@ -442,7 +424,9 @@ def convert_video(self: Task, folderId: str, itemId: str):
             "-show_streams",
             file_name,
         ]
-        stdout = stream_subprocess(self, context, manager, {'args': command}, keep_stdout=True)
+        stdout = utils.stream_subprocess(
+            self, context, manager, {'args': command}, keep_stdout=True
+        )
         jsoninfo = json.loads(stdout)
         videostream = list(filter(lambda x: x["codec_type"] == "video", jsoninfo["streams"]))
         if len(videostream) != 1:
@@ -480,7 +464,7 @@ def convert_video(self: Task, folderId: str, itemId: str):
             "scale=ceil(iw*sar/2)*2:ceil(ih/2)*2,setsar=1",
             str(output_file_path),
         ]
-        stream_subprocess(self, context, manager, {'args': command})
+        utils.stream_subprocess(self, context, manager, {'args': command})
         # Check to see if frame alignment remains the same
         aligned_file = check_and_fix_frame_alignment(self, output_file_path, context, manager)
 
@@ -491,8 +475,8 @@ def convert_video(self: Task, folderId: str, itemId: str):
             {
                 "source_video": False,
                 "transcoder": "ffmpeg",
-                OriginalFPSMarker: originalFps,
-                OriginalFPSStringMarker: avgFpsString,
+                constants.OriginalFPSMarker: originalFps,
+                constants.OriginalFPSStringMarker: avgFpsString,
                 "codec": "h264",
             },
         )
@@ -500,18 +484,18 @@ def convert_video(self: Task, folderId: str, itemId: str):
             itemId,
             {
                 "source_video": True,
-                OriginalFPSMarker: originalFps,
-                OriginalFPSStringMarker: avgFpsString,
+                constants.OriginalFPSMarker: originalFps,
+                constants.OriginalFPSStringMarker: avgFpsString,
                 "codec": videostream[0]["codec_name"],
             },
         )
         gc.addMetadataToFolder(
             folderId,
             {
-                DatasetMarker: True,  # mark the parent folder as able to annotate.
-                OriginalFPSMarker: originalFps,
-                OriginalFPSStringMarker: avgFpsString,
-                FPSMarker: newAnnotationFps,
+                constants.DatasetMarker: True,  # mark the parent folder as able to annotate.
+                constants.OriginalFPSMarker: originalFps,
+                constants.OriginalFPSStringMarker: avgFpsString,
+                constants.FPSMarker: newAnnotationFps,
                 "ffprobe_info": videostream[0],
             },
         )
@@ -530,21 +514,22 @@ def convert_images(self: Task, folderId):
     context: dict = {}
     gc: GirderClient = self.girder_client
     manager: JobManager = patch_manager(self.job_manager)
-    if check_canceled(self, context):
+    if utils.check_canceled(self, context):
         manager.updateStatus(JobStatus.CANCELED)
         return
 
-    items = gc.listItem(folderId)
-    # Start here
     items_to_convert = [
         item
-        for item in items
-        if ((imageRegex.search(item["name"]) and not safeImageRegex.search(item["name"])))
+        for item in gc.listItem(folderId)
+        if (
+            constants.imageRegex.search(item["name"])
+            and not constants.safeImageRegex.search(item["name"])
+        )
     ]
 
-    with tempfile.TemporaryDirectory() as _working_directory, suppress(CanceledError):
+    with tempfile.TemporaryDirectory() as _working_directory, suppress(utils.CanceledError):
         working_directory_path = Path(_working_directory)
-        images_path = make_directory(working_directory_path / 'images')
+        images_path = utils.make_directory(working_directory_path / 'images')
 
         for item in items_to_convert:
             # Assumes 1 file per item
@@ -553,7 +538,7 @@ def convert_images(self: Task, folderId):
             item_path = images_path / item["name"]
             new_item_path = images_path / ".".join([*item["name"].split(".")[:-1], "png"])
             command = ["ffmpeg", "-i", item_path, new_item_path]
-            stream_subprocess(self, context, manager, {'args': command})
+            utils.stream_subprocess(self, context, manager, {'args': command})
             gc.uploadFileToFolder(folderId, new_item_path)
             gc.delete(f"item/{item['_id']}")
 
