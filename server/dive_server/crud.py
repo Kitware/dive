@@ -227,6 +227,20 @@ def process_json(folder: GirderModel, user: GirderUserModel):
             saveImportAttributes(folder, attributes, user)
             Item().move(item, auxiliary)
         else:  # dive json
+            # Perform validation of JSON file input
+            possible_annotation_files = list(Item().childFiles(item))
+            if len(possible_annotation_files) != 1:
+                raise RestException('Expected exactly 1 file')
+            for track in getTrackData(possible_annotation_files[0]).values():
+                if not isinstance(track, dict):
+                    Item().remove(item)  # remove the bad JSON from dataset
+                    raise RestException(
+                        (
+                            'Invalid JSON file provided.'
+                            ' Please upload a COCO, KWCOCO, VIAME CSV, or DIVE JSON file.'
+                        )
+                    )
+                get_validated_model(models.Track, **track)
             item['meta'][constants.DetectionMarker] = str(folder['_id'])
             Item().save(item)
     if len(jsonItems) > 0:

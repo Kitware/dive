@@ -78,6 +78,9 @@ function processTrackAttributes(tracks: TrackData[]):
   }
 
   tracks.forEach((t) => {
+    if (t.trackId === undefined) {
+      throw new Error('The Track JSON file contains no valid trackIds.');
+    }
     trackMap[t.trackId.toString()] = t;
     processTrackforAttributes(t);
   });
