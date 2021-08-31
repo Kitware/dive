@@ -16,7 +16,6 @@ import { validateUploadGroup } from 'platform/web-girder/api';
 import { openFromDisk } from 'platform/web-girder/utils';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { getResponseError } from 'vue-media-annotator/utils';
-import { AxiosError } from 'axios';
 import UploadGirder from './UploadGirder.vue';
 
 export interface InteralFiles {
@@ -293,7 +292,8 @@ export default defineComponent({
         disabled: uploading.value,
       };
     });
-    const errorHandler = async ({ err, name }: {err: AxiosError; name: string}) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const errorHandler = async ({ err, name }: {err: any; name: string}) => {
       const text = getResponseError(err);
       await prompt({
         title: `${name}: Import Error`,
