@@ -14,6 +14,9 @@ import ImportMultiCamDialog from 'dive-common/components/ImportMultiCamDialog.vu
 import { DatasetType, MultiCamImportArgs } from 'dive-common/apispec';
 import { validateUploadGroup } from 'platform/web-girder/api';
 import { openFromDisk } from 'platform/web-girder/utils';
+import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
+import { getResponseError } from 'vue-media-annotator/utils';
+import { AxiosError } from 'axios';
 import UploadGirder from './UploadGirder.vue';
 
 export interface InteralFiles {
@@ -66,6 +69,7 @@ export default defineComponent({
     const multiCamOpenType = ref('image-sequence');
     const importMultiCamDialog = ref(false);
     const girderUpload: Ref<null | GirderUpload> = ref(null);
+    const { prompt } = usePrompt();
     /**
      * Initial opening of file dialog
      */
@@ -289,6 +293,14 @@ export default defineComponent({
         disabled: uploading.value,
       };
     });
+    const errorHandler = async ({ err, name }: {err: AxiosError; name: string}) => {
+      const text = getResponseError(err);
+      await prompt({
+        title: `${name}: Import Error`,
+        text,
+        positiveButton: 'OK',
+      });
+    };
     return {
       buttonAttrs,
       FPSOptions,
@@ -314,6 +326,7 @@ export default defineComponent({
       addPendingUpload,
       remove,
       abort,
+      errorHandler,
     };
   },
 });
@@ -368,6 +381,7 @@ export default defineComponent({
         @remove-upload="remove"
         @update:uploading="$emit('update:uploading', $event)"
         @abort="abort"
+        @error="errorHandler"
       >
         <template #default="{ upload }">
           <v-card
