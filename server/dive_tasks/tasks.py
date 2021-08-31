@@ -23,6 +23,7 @@ from dive_tasks.utils import (
     CanceledError,
     check_canceled,
     download_source_media,
+    make_directory,
     organize_folder_for_training,
     stream_subprocess,
 )
@@ -204,12 +205,9 @@ def run_pipeline(self: Task, params: PipelineJob):
 
     with tempfile.TemporaryDirectory() as _working_directory:
         _working_directory_path = Path(_working_directory)
-        input_path = _working_directory_path / 'input'
-        input_path.mkdir()
-        trained_pipeline_path = _working_directory_path / 'trained_pipeline'
-        trained_pipeline_path.mkdir()
-        output_path = _working_directory_path / 'output'
-        output_path.mkdir()
+        input_path = make_directory(_working_directory_path / 'input')
+        trained_pipeline_path = make_directory(_working_directory_path / 'trained_pipeline')
+        output_path = make_directory(_working_directory_path / 'output')
 
         detector_output_file = str(output_path / 'detector_output.csv')
         track_output_file = str(output_path / 'track_output.csv')
@@ -340,10 +338,8 @@ def train_pipeline(
     # root_data_dir is the directory passed to `viame_train_detector`
     with tempfile.TemporaryDirectory() as _working_directory:
         _working_directory_path = Path(_working_directory)
-        input_path = _working_directory_path / 'input'
-        input_path.mkdir()
-        output_path = _working_directory_path / 'output'
-        output_path.mkdir()
+        input_path = make_directory(_working_directory_path / 'input')
+        output_path = make_directory(_working_directory_path / 'output')
 
         for index in range(len(source_folder_list)):
             source_folder = source_folder_list[index]
@@ -371,8 +367,7 @@ def train_pipeline(
                     data_list.write(f"{folder_path}\n")
                     truth_list.write(f"{groundtruth_path}\n")
 
-        training_results_path = output_path / "category_models"
-        training_results_path.mkdir()
+        training_results_path = make_directory(output_path / "category_models")
 
         command = [
             f". {shlex.quote(str(conf.viame_setup_script))} &&",
@@ -500,14 +495,12 @@ def convert_video(self: Task, folderId: str, itemId: str):
         try:
             stream_subprocess(self, context, manager, {'args': command})
             # Check to see if frame alignment remains the same
-            aligned_file_path = check_and_fix_frame_alignment(
-                self, output_file_path, context, manager
-            )
+            aligned_file = check_and_fix_frame_alignment(self, output_file_path, context, manager)
         except CanceledError:
             return
 
         manager.updateStatus(JobStatus.PUSHING_OUTPUT)
-        new_file = gc.uploadFileToFolder(folderId, aligned_file_path)
+        new_file = gc.uploadFileToFolder(folderId, aligned_file)
         gc.addMetadataToItem(
             new_file['itemId'],
             {
@@ -566,8 +559,7 @@ def convert_images(self: Task, folderId):
 
     with tempfile.TemporaryDirectory() as _working_directory:
         working_directory_path = Path(_working_directory)
-        images_path = working_directory_path / 'images'
-        images_path.mkdir()
+        images_path = make_directory(working_directory_path / 'images')
 
         for item in items_to_convert:
             # Assumes 1 file per item
