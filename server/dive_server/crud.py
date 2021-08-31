@@ -233,6 +233,7 @@ def process_json(folder: GirderModel, user: GirderUserModel):
                 raise RestException('Expected exactly 1 file')
             for track in getTrackData(possible_annotation_files[0]).values():
                 if not isinstance(track, dict):
+                    Item().remove(item)  # remove the bad JSON from dataset
                     raise RestException(
                         (
                             'Invalid JSON file provided.'
