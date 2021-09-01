@@ -3,6 +3,7 @@ import type { GirderModel } from '@girder/components/src';
 import { DatasetMetaMutable, FrameImage, SaveAttributeArgs } from 'dive-common/apispec';
 import { GirderMetadataStatic } from 'platform/web-girder/constants';
 import girderRest from 'platform/web-girder/plugins/girder';
+import { postProcess } from './rpc.service';
 
 interface HTMLFile extends File {
   webkitRelativePath?: string;
@@ -77,14 +78,8 @@ async function importAnnotationFile(parentId: string, path: string, file?: HTMLF
       headers: { 'Content-Type': 'application/octet-stream' },
     });
     if (uploadResponse.status === 200) {
-      const final = await girderRest.post(`viame/postprocess/${parentId}`, null, {
-        params: {
-          skipJobs: true,
-        },
-      });
-      if (final.status === 200) {
-        return true;
-      }
+      const final = await postProcess(parentId, true);
+      return final.status === 200;
     }
   }
   return false;

@@ -21,7 +21,7 @@ const websafeVideoTypes = [
 
 const otherVideoTypes = [
   /* avi */
-  'vide/avi',
+  'video/avi',
   'video/msvideo',
   'video/x-msvideo',
   'video/x-ms-wmv',

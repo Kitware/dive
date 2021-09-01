@@ -148,7 +148,11 @@ export default Vue.extend({
           folder,
           results: data.results,
         });
-        await postProcess(folder._id);
+        try {
+          await postProcess(folder._id);
+        } catch (err) {
+          this.$emit('error', { err, name });
+        }
       };
       // Sets the files used by the fileUploader mixin
       this.setFiles(files);
