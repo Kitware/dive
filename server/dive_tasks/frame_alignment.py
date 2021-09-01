@@ -58,7 +58,7 @@ def _ffprobe_frame_alignment(
 def _realign_video_and_audio(
     task: Task, file_path: Path, context: Dict, manager: JobManager
 ) -> Path:
-    aligned_file = file_path.parent / f"{file_path.name}.aligned.mp4"
+    aligned_path = (file_path.parent / file_path.name).with_suffix('.aligned.mp4')
     command = [
         "ffmpeg",
         "-i",
@@ -74,7 +74,7 @@ def _realign_video_and_audio(
         "18",
         "-c:a",
         "copy",
-        aligned_file,
+        aligned_path,
     ]
     stream_subprocess(task, context, manager, {'args': command})
-    return aligned_file
+    return aligned_path
