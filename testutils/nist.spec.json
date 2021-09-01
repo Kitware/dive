@@ -1,0 +1,343 @@
+{
+    "inputTrackJSON": {
+        "0": {
+            "begin": 0,
+            "end": 4,
+            "trackId": 0,
+            "meta": {},
+            "attributes": {
+                "alertFrame": 0,
+                "activityID": 0,
+                "isActivity": true
+            },
+            "confidencePairs": [
+                [
+                    "test1Activty",
+                    0.134
+                ]
+            ],
+            "features": [
+                {
+                    "frame": 0,
+                    "bounds": [
+                        0,
+                        0,
+                        1,
+                        1
+                    ],
+                    "keyframe": true,
+                    "interpolate": true
+                },
+                {
+                    "frame": 4,
+                    "bounds": [
+                        0,
+                        0,
+                        1,
+                        1
+                    ],
+                    "keyframe": true,
+                    "interpolate": false
+                }
+            ]
+        },
+        "1": {
+            "begin": 0,
+            "end": 4,
+            "trackId": 1,
+            "meta": {},
+            "attributes": {
+                "activity": "test1Activty",
+                "activityID": 0,
+                "isObject": true,
+                "objectType": "test1Object",
+                "objectID": 0
+            },
+            "confidencePairs": [
+                [
+                    "test1Object",
+                    0.134
+                ]
+            ],
+            "features": [
+                {
+                    "frame": 0,
+                    "keyframe": true,
+                    "bounds": [
+                        0,
+                        0,
+                        1920,
+                        1080
+                    ],
+                    "attributes": {
+                        "objectID": 0,
+                        "objectType": "test1Object"
+                    }
+                },
+                {
+                    "frame": 4,
+                    "keyframe": true,
+                    "bounds": [
+                        0,
+                        0,
+                        1920,
+                        1080
+                    ],
+                    "attributes": {
+                        "objectID": 0,
+                        "objectType": "test1Object"
+                    }
+                }
+            ]
+        },
+        "3": {
+            "begin": 8,
+            "end": 17,
+            "trackId": 3,
+            "meta": {},
+            "attributes": {
+                "alertFrame": 8,
+                "activityID": 1,
+                "isActivity": true
+            },
+            "confidencePairs": [
+                [
+                    "test2Activity",
+                    1
+                ]
+            ],
+            "features": [
+                {
+                    "frame": 8,
+                    "bounds": [
+                        0,
+                        30,
+                        1,
+                        31
+                    ],
+                    "keyframe": true,
+                    "interpolate": true
+                },
+                {
+                    "frame": 9,
+                    "bounds": [
+                        0,
+                        30,
+                        1,
+                        31
+                    ],
+                    "keyframe": true,
+                    "interpolate": false
+                },
+                {
+                    "frame": 12,
+                    "bounds": [
+                        0,
+                        30,
+                        1,
+                        31
+                    ],
+                    "keyframe": true,
+                    "interpolate": true
+                },
+                {
+                    "frame": 17,
+                    "bounds": [
+                        0,
+                        30,
+                        1,
+                        31
+                    ],
+                    "keyframe": true,
+                    "interpolate": false
+                }
+            ]
+        },
+        "4": {
+            "begin": 8,
+            "end": 16,
+            "trackId": 4,
+            "meta": {},
+            "attributes": {
+                "activity": "test2Activity",
+                "activityID": 1,
+                "isObject": true,
+                "objectType": "test2Object",
+                "objectID": 1
+            },
+            "confidencePairs": [
+                [
+                    "test2Object",
+                    1
+                ]
+            ],
+            "features": [
+                {
+                    "frame": 8,
+                    "keyframe": true,
+                    "bounds": [
+                        290,
+                        286,
+                        914,
+                        838
+                    ],
+                    "attributes": {
+                        "objectID": 1,
+                        "objectType": "test2Object"
+                    }
+                },
+                {
+                    "frame": 9,
+                    "keyframe": true,
+                    "bounds": [
+                        480,
+                        286,
+                        1029,
+                        765
+                    ],
+                    "attributes": {
+                        "objectID": 1,
+                        "objectType": "test2Object"
+                    }
+                },
+                {
+                    "frame": 14,
+                    "keyframe": true,
+                    "bounds": [
+                        645,
+                        413,
+                        1359,
+                        846
+                    ],
+                    "attributes": {
+                        "objectID": 1,
+                        "objectType": "test2Object"
+                    }
+                },
+                {
+                    "frame": 16,
+                    "keyframe": true,
+                    "bounds": [
+                        588,
+                        409,
+                        1463,
+                        811
+                    ],
+                    "attributes": {
+                        "objectID": 1,
+                        "objectType": "test2Object"
+                    }
+                }
+            ]
+        }
+    },
+    "inputNistObjects": {
+        "filesProcessed": [
+            "testVideo.mp4"
+        ],
+        "processingReport": {
+            "fileStatuses": {
+                "testVideo.mp4": {
+                    "status": "success",
+                    "message": "exported from DIVE"
+                }
+            }
+        },
+        "activities": [
+            {
+                "activityID": 0,
+                "presenceConf": 0.134,
+                "activity": "test1Activty",
+                "alertFrame": 1,
+                "localization": {
+                    "testVideo.mp4": {
+                        "1": 1,
+                        "5": 0
+                    }
+                },
+                "objects": [
+                    {
+                        "objectID": 0,
+                        "objectType": "test1Object",
+                        "localization": {
+                            "testVideo.mp4": {
+                                "1": {
+                                    "boundingBox": {
+                                        "x": 0,
+                                        "y": 0,
+                                        "w": 1920,
+                                        "h": 1080
+                                    }
+                                },
+                                "5": {
+                                    "boundingBox": {
+                                        "x": 0,
+                                        "y": 0,
+                                        "w": 1920,
+                                        "h": 1080
+                                    }
+                                }
+                            }
+                        }
+                    }
+                ]
+            },
+            {
+                "activityID": 1,
+                "presenceConf": 1,
+                "activity": "test2Activity",
+                "alertFrame": 9,
+                "localization": {
+                    "testVideo.mp4": {
+                        "9": 1,
+                        "10": 0,
+                        "13": 1,
+                        "18": 0
+                    }
+                },
+                "objects": [
+                    {
+                        "objectID": 1,
+                        "objectType": "test2Object",
+                        "localization": {
+                            "testVideo.mp4": {
+                                "9": {
+                                    "boundingBox": {
+                                        "x": 290,
+                                        "y": 286,
+                                        "w": 624,
+                                        "h": 552
+                                    }
+                                },
+                                "10": {
+                                    "boundingBox": {
+                                        "x": 480,
+                                        "y": 286,
+                                        "w": 549,
+                                        "h": 479
+                                    }
+                                },
+                                "15": {
+                                    "boundingBox": {
+                                        "x": 645,
+                                        "y": 413,
+                                        "w": 714,
+                                        "h": 433
+                                    }
+                                },
+                                "17": {
+                                    "boundingBox": {
+                                        "x": 588,
+                                        "y": 409,
+                                        "w": 875,
+                                        "h": 402
+                                    }
+                                }
+                            }
+                        }
+                    }
+                ]
+            }
+        ]
+    }
+}

@@ -3,12 +3,12 @@ import {
   computed, defineComponent, inject, ref,
 } from '@vue/composition-api';
 import {
-  GirderFileManager, getLocationType, RestClient, GirderModel, GirderModelType,
+  GirderFileManager, getLocationType, RestClient, GirderModel,
 } from '@girder/components/src';
 
-import { getFolder } from 'platform/web-girder/api/girder.service';
+import { getFolder } from '../api/girder.service';
 
-import { isGirderModel, useStore } from 'platform/web-girder/store/types';
+import { isGirderModel, useStore, LocationType } from '../store/types';
 import Upload from './Upload.vue';
 import { getLocationFromRoute } from '../utils';
 
@@ -35,7 +35,7 @@ export default defineComponent({
        * This setter is used by Girder Web Components to set the location when it changes
        * by clicking on a Breadcrumb link
        */
-      set(value: null | GirderModel | { type: GirderModelType }) {
+      set(value: null | LocationType) {
         /* Prevent navigation into auxiliary folder */
         if (isGirderModel(value) && getters.locationIsViameFolder && value?.name === 'auxiliary') {
           return;
@@ -83,7 +83,7 @@ export default defineComponent({
       }
       location.value = newLocaction;
       if (isGirderModel(newLocaction) && newLocaction?._modelType === 'folder') {
-        location.value = await getFolder(newLocaction._id);
+        location.value = (await getFolder(newLocaction._id)).data;
       }
     }
 

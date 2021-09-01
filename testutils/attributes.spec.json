@@ -1,0 +1,872 @@
+[
+  [
+    {
+      "0":{
+        "trackId": 0,
+        "attributes": {
+          "booleanAttr": true
+        },
+        "confidencePairs": [
+          [
+            "typestring",
+            1
+          ]
+        ],
+        "features": [
+          {
+            "frame": 0,
+            "bounds": [
+              885,
+              510,
+              1220,
+              738
+            ],
+            "keyframe": true,
+            "interpolate": false,
+            "attributes": {
+              "DetectionPredefinedValue": "value1",
+              "DetectionNumber": 2.002
+            }
+          },
+          {
+            "frame": 1,
+            "bounds": [
+              111,
+              222,
+              3333,
+              444
+            ],
+            "keyframe": true,
+            "interpolate": false,
+            "attributes": {
+              "DetectionPredefinedValue": "value2"
+            }
+          },
+          {
+            "frame": 2,
+            "bounds": [
+              747,
+              457,
+              1039,
+              633
+            ],
+            "keyframe": true,
+            "interpolate": false,
+            "attributes": {
+              "DetectionPredefinedValue": "value3"
+            }
+          },
+          {
+            "frame": 3,
+            "bounds": [
+              885,
+              510,
+              1220,
+              738
+            ],
+            "keyframe": true,
+            "interpolate": false,
+            "attributes": {
+              "DetectionPredefinedValue": "value1"
+            }
+          },
+          {
+            "frame": 4,
+            "bounds": [
+              111,
+              222,
+              3333,
+              444
+            ],
+            "keyframe": true,
+            "interpolate": false,
+            "attributes": {
+              "DetectionPredefinedValue": "value2"
+            }
+          },
+          {
+            "frame": 5,
+            "bounds": [
+              747,
+              457,
+              1039,
+              633
+            ],
+            "keyframe": true,
+            "interpolate": false,
+            "attributes": {
+              "DetectionPredefinedValue": "value3"
+            }
+          }
+        ],
+        "begin": 0,
+        "end": 5
+      },
+      "1":{
+        "trackId": 1,
+        "attributes": {
+          "booleanAttr": true
+        },
+        "confidencePairs": [
+          [
+            "typestring",
+            1.0
+          ]
+        ],
+        "features": [
+          {
+            "frame": 0,
+            "bounds": [
+              885,
+              510,
+              1220,
+              738
+            ],
+            "keyframe": true,
+            "interpolate": false,
+            "attributes": {
+              "DetectionPredefinedValue": "value1",
+              "DetectionNumber": 2.002
+            }
+          },
+          {
+            "frame": 1,
+            "bounds": [
+              111,
+              222,
+              3333,
+              444
+            ],
+            "keyframe": true,
+            "interpolate": false,
+            "attributes": {
+              "DetectionPredefinedValue": "value2"
+            }
+          },
+          {
+            "frame": 2,
+            "bounds": [
+              747,
+              457,
+              1039,
+              633
+            ],
+            "keyframe": true,
+            "interpolate": false,
+            "attributes": {
+              "DetectionPredefinedValue": "value3"
+            }
+          },
+          {
+            "frame": 3,
+            "bounds": [
+              885,
+              510,
+              1220,
+              738
+            ],
+            "keyframe": true,
+            "interpolate": false,
+            "attributes": {
+              "DetectionPredefinedValue": "value1"
+            }
+          },
+          {
+            "frame": 4,
+            "bounds": [
+              111,
+              222,
+              3333,
+              444
+            ],
+            "keyframe": true,
+            "interpolate": false,
+            "attributes": {
+              "DetectionPredefinedValue": "value2"
+            }
+          },
+          {
+            "frame": 5,
+            "bounds": [
+              747,
+              457,
+              1039,
+              633
+            ],
+            "keyframe": true,
+            "interpolate": false,
+            "attributes": {
+              "DetectionPredefinedValue": "value3"
+            }
+          }
+        ],
+        "begin": 0,
+        "end": 5
+      }
+    },
+    {
+      "0": {
+        "trackId": 0,
+        "attributes": {
+          "booleanAttr": true
+        },
+        "confidencePairs": [
+          [
+            "typestring",
+            1.0
+          ]
+        ],
+        "features": [
+          {
+            "frame": 0,
+            "bounds": [
+              885,
+              510,
+              1220,
+              738
+            ],
+            "keyframe": true,
+            "interpolate": false,
+            "attributes": {
+              "DetectionPredefinedValue": "value1",
+              "DetectionNumber": 2.002
+            }
+          },
+          {
+            "frame": 1,
+            "bounds": [
+              111,
+              222,
+              3333,
+              444
+            ],
+            "keyframe": true,
+            "interpolate": false,
+            "attributes": {
+              "DetectionPredefinedValue": "value2"
+            }
+          },
+          {
+            "frame": 2,
+            "bounds": [
+              747,
+              457,
+              1039,
+              633
+            ],
+            "keyframe": true,
+            "interpolate": false,
+            "attributes": {
+              "DetectionPredefinedValue": "value3"
+            }
+          },
+          {
+            "frame": 3,
+            "bounds": [
+              885,
+              510,
+              1220,
+              738
+            ],
+            "keyframe": true,
+            "interpolate": false,
+            "attributes": {
+              "DetectionPredefinedValue": "value1"
+            }
+          },
+          {
+            "frame": 4,
+            "bounds": [
+              111,
+              222,
+              3333,
+              444
+            ],
+            "keyframe": true,
+            "interpolate": false,
+            "attributes": {
+              "DetectionPredefinedValue": "value2"
+            }
+          },
+          {
+            "frame": 5,
+            "bounds": [
+              747,
+              457,
+              1039,
+              633
+            ],
+            "keyframe": true,
+            "interpolate": false,
+            "attributes": {
+              "DetectionPredefinedValue": "value3"
+            }
+          }
+        ],
+        "begin": 0,
+        "end": 5
+      },
+      "1": {
+        "trackId": 1,
+        "attributes": {
+          "booleanAttr": true
+        },
+        "confidencePairs": [
+          [
+            "typestring",
+            1.0
+          ]
+        ],
+        "features": [
+          {
+            "frame": 0,
+            "bounds": [
+              885,
+              510,
+              1220,
+              738
+            ],
+            "keyframe": true,
+            "interpolate": false,
+            "attributes": {
+              "DetectionPredefinedValue": "value1",
+              "DetectionNumber": 2.002
+            }
+          },
+          {
+            "frame": 1,
+            "bounds": [
+              111,
+              222,
+              3333,
+              444
+            ],
+            "keyframe": true,
+            "interpolate": false,
+            "attributes": {
+              "DetectionPredefinedValue": "value2"
+            }
+          },
+          {
+            "frame": 2,
+            "bounds": [
+              747,
+              457,
+              1039,
+              633
+            ],
+            "keyframe": true,
+            "interpolate": false,
+            "attributes": {
+              "DetectionPredefinedValue": "value3"
+            }
+          },
+          {
+            "frame": 3,
+            "bounds": [
+              885,
+              510,
+              1220,
+              738
+            ],
+            "keyframe": true,
+            "interpolate": false,
+            "attributes": {
+              "DetectionPredefinedValue": "value1"
+            }
+          },
+          {
+            "frame": 4,
+            "bounds": [
+              111,
+              222,
+              3333,
+              444
+            ],
+            "keyframe": true,
+            "interpolate": false,
+            "attributes": {
+              "DetectionPredefinedValue": "value2"
+            }
+          },
+          {
+            "frame": 5,
+            "bounds": [
+              747,
+              457,
+              1039,
+              633
+            ],
+            "keyframe": true,
+            "interpolate": false,
+            "attributes": {
+              "DetectionPredefinedValue": "value3"
+            }
+          }
+        ],
+        "begin": 0,
+        "end": 5
+      }
+    },
+    {
+      "detection_DetectionNumber": {
+        "belongs": "detection",
+        "datatype": "number",
+        "key": "detection_DetectionNumber",
+        "name": "DetectionNumber"
+      },
+      "detection_DetectionPredefinedValue": {
+        "belongs": "detection",
+        "datatype": "text",
+        "key": "detection_DetectionPredefinedValue",
+        "name": "DetectionPredefinedValue",
+        "values": [
+          "value1",
+          "value2",
+          "value3"
+        ]
+      },
+      "track_booleanAttr": {
+        "belongs": "track",
+        "datatype": "boolean",
+        "key": "track_booleanAttr",
+        "name": "booleanAttr"
+      }
+    }
+  ],
+  [
+    {
+      "0":{
+        "trackId": 0,
+        "attributes": {
+          "booleanAttr": true
+        },
+        "confidencePairs": [
+          [
+            "typestring",
+            1.0
+          ]
+        ],
+        "features": [
+          {
+            "frame": 0,
+            "bounds": [
+              885,
+              510,
+              1220,
+              738
+            ],
+            "keyframe": true,
+            "interpolate": false,
+            "attributes": {
+              "DetectionPredefinedValue": "value1",
+              "DetectionNumber": 2.002
+            }
+          },
+          {
+            "frame": 1,
+            "bounds": [
+              111,
+              222,
+              3333,
+              444
+            ],
+            "keyframe": true,
+            "interpolate": false,
+            "attributes": {
+              "DetectionPredefinedValue": "value2"
+            }
+          },
+          {
+            "frame": 2,
+            "bounds": [
+              747,
+              457,
+              1039,
+              633
+            ],
+            "keyframe": true,
+            "interpolate": false,
+            "attributes": {
+              "DetectionPredefinedValue": "value3"
+            }
+          },
+          {
+            "frame": 3,
+            "bounds": [
+              885,
+              510,
+              1220,
+              738
+            ],
+            "keyframe": true,
+            "interpolate": false,
+            "attributes": {
+              "DetectionPredefinedValue": "value1"
+            }
+          },
+          {
+            "frame": 4,
+            "bounds": [
+              111,
+              222,
+              3333,
+              444
+            ],
+            "keyframe": true,
+            "interpolate": false,
+            "attributes": {
+              "DetectionPredefinedValue": "value2"
+            }
+          },
+          {
+            "frame": 5,
+            "bounds": [
+              747,
+              457,
+              1039,
+              633
+            ],
+            "keyframe": true,
+            "interpolate": false,
+            "attributes": {
+              "DetectionPredefinedValue": "value3"
+            }
+          }
+        ],
+        "begin": 0,
+        "end": 5
+      },
+      "1":{
+        "trackId": 1,
+        "attributes": {
+          "booleanAttr": true
+        },
+        "confidencePairs": [
+          [
+            "typestring",
+            1.0
+          ]
+        ],
+        "features": [
+          {
+            "frame": 0,
+            "bounds": [
+              885,
+              510,
+              1220,
+              738
+            ],
+            "keyframe": true,
+            "interpolate": false,
+            "attributes": {
+              "DetectionPredefinedValue": "value1",
+              "DetectionNumber": 2.002
+            }
+          },
+          {
+            "frame": 1,
+            "bounds": [
+              111,
+              222,
+              3333,
+              444
+            ],
+            "keyframe": true,
+            "interpolate": false,
+            "attributes": {
+              "DetectionPredefinedValue": "value2"
+            }
+          },
+          {
+            "frame": 2,
+            "bounds": [
+              747,
+              457,
+              1039,
+              633
+            ],
+            "keyframe": true,
+            "interpolate": false,
+            "attributes": {
+              "DetectionPredefinedValue": "value3"
+            }
+          },
+          {
+            "frame": 3,
+            "bounds": [
+              885,
+              510,
+              1220,
+              738
+            ],
+            "keyframe": true,
+            "interpolate": false,
+            "attributes": {
+              "DetectionPredefinedValue": "value1"
+            }
+          },
+          {
+            "frame": 4,
+            "bounds": [
+              111,
+              222,
+              3333,
+              444
+            ],
+            "keyframe": true,
+            "interpolate": false,
+            "attributes": {
+              "DetectionPredefinedValue": "value2"
+            }
+          },
+          {
+            "frame": 5,
+            "bounds": [
+              747,
+              457,
+              1039,
+              633
+            ],
+            "keyframe": true,
+            "interpolate": false,
+            "attributes": {
+              "DetectionPredefinedValue": "value3"
+            }
+          }
+        ],
+        "begin": 0,
+        "end": 5
+      }
+    },
+    {
+      "0": {
+        "trackId": 0,
+        "attributes": {
+          "booleanAttr": true
+        },
+        "confidencePairs": [
+          [
+            "typestring",
+            1.0
+          ]
+        ],
+        "features": [
+          {
+            "frame": 0,
+            "bounds": [
+              885,
+              510,
+              1220,
+              738
+            ],
+            "keyframe": true,
+            "interpolate": false,
+            "attributes": {
+              "DetectionPredefinedValue": "value1",
+              "DetectionNumber": 2.002
+            }
+          },
+          {
+            "frame": 1,
+            "bounds": [
+              111,
+              222,
+              3333,
+              444
+            ],
+            "keyframe": true,
+            "interpolate": false,
+            "attributes": {
+              "DetectionPredefinedValue": "value2"
+            }
+          },
+          {
+            "frame": 2,
+            "bounds": [
+              747,
+              457,
+              1039,
+              633
+            ],
+            "keyframe": true,
+            "interpolate": false,
+            "attributes": {
+              "DetectionPredefinedValue": "value3"
+            }
+          },
+          {
+            "frame": 3,
+            "bounds": [
+              885,
+              510,
+              1220,
+              738
+            ],
+            "keyframe": true,
+            "interpolate": false,
+            "attributes": {
+              "DetectionPredefinedValue": "value1"
+            }
+          },
+          {
+            "frame": 4,
+            "bounds": [
+              111,
+              222,
+              3333,
+              444
+            ],
+            "keyframe": true,
+            "interpolate": false,
+            "attributes": {
+              "DetectionPredefinedValue": "value2"
+            }
+          },
+          {
+            "frame": 5,
+            "bounds": [
+              747,
+              457,
+              1039,
+              633
+            ],
+            "keyframe": true,
+            "interpolate": false,
+            "attributes": {
+              "DetectionPredefinedValue": "value3"
+            }
+          }
+        ],
+        "begin": 0,
+        "end": 5
+      },
+      "1": {
+        "trackId": 1,
+        "attributes": {
+          "booleanAttr": true
+        },
+        "confidencePairs": [
+          [
+            "typestring",
+            1.0
+          ]
+        ],
+        "features": [
+          {
+            "frame": 0,
+            "bounds": [
+              885,
+              510,
+              1220,
+              738
+            ],
+            "keyframe": true,
+            "interpolate": false,
+            "attributes": {
+              "DetectionPredefinedValue": "value1",
+              "DetectionNumber": 2.002
+            }
+          },
+          {
+            "frame": 1,
+            "bounds": [
+              111,
+              222,
+              3333,
+              444
+            ],
+            "keyframe": true,
+            "interpolate": false,
+            "attributes": {
+              "DetectionPredefinedValue": "value2"
+            }
+          },
+          {
+            "frame": 2,
+            "bounds": [
+              747,
+              457,
+              1039,
+              633
+            ],
+            "keyframe": true,
+            "interpolate": false,
+            "attributes": {
+              "DetectionPredefinedValue": "value3"
+            }
+          },
+          {
+            "frame": 3,
+            "bounds": [
+              885,
+              510,
+              1220,
+              738
+            ],
+            "keyframe": true,
+            "interpolate": false,
+            "attributes": {
+              "DetectionPredefinedValue": "value1"
+            }
+          },
+          {
+            "frame": 4,
+            "bounds": [
+              111,
+              222,
+              3333,
+              444
+            ],
+            "keyframe": true,
+            "interpolate": false,
+            "attributes": {
+              "DetectionPredefinedValue": "value2"
+            }
+          },
+          {
+            "frame": 5,
+            "bounds": [
+              747,
+              457,
+              1039,
+              633
+            ],
+            "keyframe": true,
+            "interpolate": false,
+            "attributes": {
+              "DetectionPredefinedValue": "value3"
+            }
+          }
+        ],
+        "begin": 0,
+        "end": 5
+      }
+    },
+    {
+      "detection_DetectionNumber": {
+        "belongs": "detection",
+        "datatype": "number",
+        "key": "detection_DetectionNumber",
+        "name": "DetectionNumber"
+      },
+      "detection_DetectionPredefinedValue": {
+        "belongs": "detection",
+        "datatype": "text",
+        "key": "detection_DetectionPredefinedValue",
+        "name": "DetectionPredefinedValue",
+        "values": [
+          "value1",
+          "value2",
+          "value3"
+        ]
+      },
+      "track_booleanAttr": {
+        "belongs": "track",
+        "datatype": "boolean",
+        "key": "track_booleanAttr",
+        "name": "booleanAttr"
+      }
+    }
+  ]
+]

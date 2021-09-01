@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  defineComponent, ref, toRef, computed, Ref, reactive,
+  defineComponent, ref, toRef, computed, Ref, reactive, watch,
 } from '@vue/composition-api';
 import type { Vue } from 'vue/types/vue';
 
@@ -42,6 +42,7 @@ import {
 import { useApi, FrameImage, DatasetType } from 'dive-common/apispec';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { cloneDeep } from 'lodash';
+import { getResponseError } from 'vue-media-annotator/utils';
 
 export default defineComponent({
   components: {
@@ -67,9 +68,14 @@ export default defineComponent({
       default: false,
     },
   },
-  setup(props) {
+  setup(props, ctx) {
     const { prompt } = usePrompt();
     const loadError = ref('');
+    const baseMulticamDatasetId = ref(null as string | null);
+    const datasetId = toRef(props, 'id');
+    const multiCamList: Ref<string[]> = ref([]);
+    const defaultCamera = ref('');
+    const currentCamera = ref('');
     const playbackComponent = ref(undefined as Vue | undefined);
     const mediaController = computed(() => {
       if (playbackComponent.value) {
@@ -109,8 +115,9 @@ export default defineComponent({
     const {
       save: saveToServer,
       markChangesPending,
+      discardChanges,
       pendingSaveCount,
-    } = useSave(toRef(props, 'id'), toRef(props, 'readonlyMode'));
+    } = useSave(datasetId, toRef(props, 'readonlyMode'));
 
     const recipes = [
       new PolygonBase(),
@@ -273,7 +280,7 @@ export default defineComponent({
     }
 
     function saveThreshold() {
-      saveMetadata(props.id, {
+      saveMetadata(datasetId.value, {
         confidenceFilters: confidenceFilters.value,
       });
     }
@@ -300,62 +307,81 @@ export default defineComponent({
     }
 
     /** Trigger data load */
-    const loadData = () => (
-      Promise.all([
-        loadMetadata(props.id).then((meta) => {
-          populateTypeStyles(meta.customTypeStyling);
-          if (meta.customTypeStyling) {
-            importTypes(Object.keys(meta.customTypeStyling), false);
+    const loadData = async () => {
+      try {
+        const meta = await loadMetadata(datasetId.value);
+        const defaultCameraMeta = meta.multiCamMedia?.cameras[meta.multiCamMedia.defaultDisplay];
+        if (defaultCameraMeta !== undefined && meta.multiCamMedia) {
+          /* We're loading a multicamera dataset */
+          const { cameras } = meta.multiCamMedia;
+          multiCamList.value = Object.keys(cameras);
+          defaultCamera.value = meta.multiCamMedia.defaultDisplay;
+          currentCamera.value = defaultCamera.value;
+          baseMulticamDatasetId.value = datasetId.value;
+          if (!currentCamera.value) {
+            throw new Error('Multicamera dataset without default camera specified.');
           }
-          if (meta.attributes) {
-            loadAttributes(meta.attributes);
+          ctx.emit('update:id', `${props.id}/${currentCamera.value}`);
+          return;
+        }
+        /* Otherwise, complete loading of the dataset */
+        populateTypeStyles(meta.customTypeStyling);
+        if (meta.customTypeStyling) {
+          importTypes(Object.keys(meta.customTypeStyling), false);
+        }
+        if (meta.attributes) {
+          loadAttributes(meta.attributes);
+        }
+        populateConfidenceFilters(meta.confidenceFilters);
+        datasetName.value = meta.name;
+        initTime({
+          frameRate: meta.fps,
+          originalFps: meta.originalFps || null,
+        });
+        imageData.value = cloneDeep(meta.imageData) as FrameImage[];
+        videoUrl.value = meta.videoUrl;
+        datasetType.value = meta.type as DatasetType;
+
+        const trackData = await loadDetections(datasetId.value);
+        const tracks = Object.values(trackData);
+        progress.total = tracks.length;
+        for (let i = 0; i < tracks.length; i += 1) {
+          if (i % 4000 === 0) {
+          /* Every N tracks, yeild some cycles for other scheduled tasks */
+            progress.progress = i;
+            // eslint-disable-next-line no-await-in-loop
+            await new Promise((resolve) => window.setTimeout(resolve, 500));
           }
-          populateConfidenceFilters(meta.confidenceFilters);
-          datasetName.value = meta.name;
-          initTime({
-            frameRate: meta.fps,
-            originalFps: meta.originalFps || null,
-          });
-          imageData.value = cloneDeep(meta.imageData) as FrameImage[];
-          videoUrl.value = meta.videoUrl;
-          datasetType.value = meta.type as DatasetType;
-        }),
-        loadDetections(props.id).then(async (trackData) => {
-          const tracks = Object.values(trackData);
-          progress.total = tracks.length;
-          for (let i = 0; i < tracks.length; i += 1) {
-            if (i % 4000 === 0) {
-            /* Every N tracks, yeild some cycles for other scheduled tasks */
-              progress.progress = i;
-              // eslint-disable-next-line no-await-in-loop
-              await new Promise((resolve) => window.setTimeout(resolve, 500));
-            }
-            insertTrack(Track.fromJSON(tracks[i]), { imported: true });
-          }
-        }),
-      ]).then(() => {
+          insertTrack(Track.fromJSON(tracks[i]), { imported: true });
+        }
         progress.loaded = true;
-      }).catch((err) => {
+      } catch (err) {
         progress.loaded = false;
         console.error(err);
-        // Cleaner displaying of interal errors for desktop
-        if (err.response?.data && err.response?.status === 500 && !err.response?.data?.message) {
-          const fullText = err.response.data;
-          const start = fullText.indexOf('Error:');
-          const html = (fullText.substr(start, fullText.indexOf('<br>') - start));
-          const errorEl = document.createElement('div');
-          errorEl.innerHTML = html;
-          loadError.value = errorEl.innerText
-            .concat(". If you don't know how to resolve this, please contact the server administrator.");
-          throw err;
-        }
-      }));
+        const errorEl = document.createElement('div');
+        errorEl.innerHTML = getResponseError(err);
+        loadError.value = errorEl.innerText
+          .concat(". If you don't know how to resolve this, please contact the server administrator.");
+        throw err;
+      }
+    };
     loadData();
 
     const reloadAnnotations = async () => {
       clearAllTracks();
+      discardChanges();
       progress.loaded = false;
       await loadData();
+    };
+
+    watch(datasetId, reloadAnnotations);
+
+    const changeCamera = async (camera: string) => {
+      if (!camera || !baseMulticamDatasetId.value) {
+        throw new Error('Attempted to change camera to invalid value or baseMultiCamDatasetId was missing');
+      }
+      const newId = `${baseMulticamDatasetId.value}/${camera}`;
+      ctx.emit('update:id', newId);
     };
 
     const globalHandler = {
@@ -377,7 +403,7 @@ export default defineComponent({
       {
         attributes,
         allTypes,
-        datasetId: ref(props.id),
+        datasetId,
         usedTypes,
         checkedTrackIds,
         checkedTypes,
@@ -437,6 +463,10 @@ export default defineComponent({
       updateTypeName,
       removeTypeTracks,
       importTypes,
+      // multicam
+      multiCamList,
+      defaultCamera,
+      changeCamera,
       // For Navigation Guarding
       navigateAwayGuard,
       warnBrowserExit,
@@ -457,19 +487,40 @@ export default defineComponent({
       <v-spacer />
 
       <template #extension>
-        <span>Viewer/Edit Controls</span>
+        <span
+          v-if="$vuetify.breakpoint.lgAndUp"
+          style="min-width: 180px;"
+        >
+          Viewer/Edit Controls
+        </span>
         <editor-menu
           v-bind="{ editingMode, visibleModes, editingTrack, recipes, mergeMode }"
-          class="shrink px-6"
+          class="shrink"
           @set-annotation-state="handler.setAnnotationState"
         />
         <delete-controls
           v-bind="{ editingMode, selectedFeatureHandle }"
+          class="mr-2"
           @delete-point="handler.removePoint"
           @delete-annotation="handler.removeAnnotation"
         />
         <v-spacer />
-        <slot name="extension-right" />
+        <v-select
+          v-if="multiCamList.length"
+          :value="defaultCamera"
+          :items="multiCamList"
+          label="Camera"
+          class="shrink"
+          style="width: 180px;"
+          outlined
+          hide-details
+          dense
+          @change="changeCamera"
+        >
+          <template #item="{ item }">
+            {{ item }} {{ item === defaultCamera ? '(Default)': '' }}
+          </template>
+        </v-select>
       </template>
 
       <slot name="title-right" />

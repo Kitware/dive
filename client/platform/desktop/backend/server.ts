@@ -44,9 +44,13 @@ function makeMediaUrl(filepath: string): string {
 }
 
 /* LOAD metadata */
-apirouter.get('/dataset/:id/meta', async (req, res, next) => {
+apirouter.get('/dataset/:id/:camera?/meta', async (req, res, next) => {
   try {
-    const ds = await common.loadMetadata(settings.get(), req.params.id, makeMediaUrl);
+    let { id } = req.params;
+    if (req.params.camera) {
+      id = `${req.params.id}/${req.params.camera}`;
+    }
+    const ds = await common.loadMetadata(settings.get(), id, makeMediaUrl);
     res.json(ds);
   } catch (err) {
     err.status = 500;
@@ -55,9 +59,13 @@ apirouter.get('/dataset/:id/meta', async (req, res, next) => {
 });
 
 /* SAVE metadata */
-apirouter.post('/dataset/:id/meta', async (req, res, next) => {
+apirouter.post('/dataset/:id/:camera?/meta', async (req, res, next) => {
   try {
-    await common.saveMetadata(settings.get(), req.params.id, req.body);
+    let { id } = req.params;
+    if (req.params.camera) {
+      id = `${req.params.id}/${req.params.camera}`;
+    }
+    await common.saveMetadata(settings.get(), id, req.body);
     res.status(200).send('done');
   } catch (err) {
     err.status = 500;
@@ -66,10 +74,14 @@ apirouter.post('/dataset/:id/meta', async (req, res, next) => {
 });
 
 /* SAVE attributes */
-apirouter.post('/dataset/:id/attributes', async (req, res, next) => {
+apirouter.post('/dataset/:id/:camera?/attributes', async (req, res, next) => {
   try {
+    let { id } = req.params;
+    if (req.params.camera) {
+      id = `${req.params.id}/${req.params.camera}`;
+    }
     const args = req.body as SaveAttributeArgs;
-    await common.saveAttributes(settings.get(), req.params.id, args);
+    await common.saveAttributes(settings.get(), id, args);
     res.status(200).send('done');
   } catch (err) {
     err.status = 500;
@@ -80,10 +92,14 @@ apirouter.post('/dataset/:id/attributes', async (req, res, next) => {
 
 
 /* SAVE detections */
-apirouter.post('/dataset/:id/detections', async (req, res, next) => {
+apirouter.post('/dataset/:id/:camera?/detections', async (req, res, next) => {
   try {
+    let { id } = req.params;
+    if (req.params.camera) {
+      id = `${req.params.id}/${req.params.camera}`;
+    }
     const args = req.body as SaveDetectionsArgs;
-    await common.saveDetections(settings.get(), req.params.id, args);
+    await common.saveDetections(settings.get(), id, args);
     res.status(200).send('done');
   } catch (err) {
     err.status = 500;

@@ -95,15 +95,12 @@ def _parse_annotation(annotation: dict, meta: CocoMetadata) -> Tuple[dict, dict,
                     # received [x1, y1, ...] format
                     polygon = segmentation
                 else:
-                    raise ValueError('Multiple polygons per annotation not supported')
+                    polygon = segmentation[0]
             else:
                 polygon = segmentation[0]  # get first polygon only
 
             if isinstance(polygon, dict):  # dictionary kwcoco format
                 coords = polygon.get('exterior', [])
-                hole = polygon.get('interior', [])
-                if hole:
-                    raise ValueError('Polygon with hole not supported')
             elif isinstance(polygon, list):  # list coco format
                 coords = list(zip(polygon[::2], polygon[1::2]))
             else:

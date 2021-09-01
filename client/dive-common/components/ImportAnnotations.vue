@@ -3,6 +3,7 @@ import { defineComponent, ref } from '@vue/composition-api';
 import { useApi } from 'dive-common/apispec';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { useHandler } from 'vue-media-annotator/provides';
+import { getResponseError } from 'vue-media-annotator/utils';
 
 export default defineComponent({
   name: 'ImportAnnotations',
@@ -35,21 +36,25 @@ export default defineComponent({
         const path = ret.filePaths[0];
         let importFile = false;
         processing.value = true;
-        if (ret.fileList?.length) {
-          importFile = await importAnnotationFile(props.datasetId, path, ret.fileList[0]);
-        } else {
-          importFile = await importAnnotationFile(props.datasetId, path);
-        }
-        if (importFile) {
-          processing.value = false;
-          await reloadAnnotations();
-        } else {
-          const text = `Import of File ${path} failed`;
+        try {
+          if (ret.fileList?.length) {
+            importFile = await importAnnotationFile(props.datasetId, path, ret.fileList[0]);
+          } else {
+            importFile = await importAnnotationFile(props.datasetId, path);
+          }
+        } catch (error) {
+          const text = [`Import of File ${path} failed`, getResponseError(error)];
           prompt({
             title: 'Import Failed',
             text,
             positiveButton: 'OK',
           });
+          processing.value = false;
+          return;
+        }
+        if (importFile) {
+          processing.value = false;
+          await reloadAnnotations();
         }
       }
     };

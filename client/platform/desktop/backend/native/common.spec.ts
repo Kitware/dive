@@ -83,6 +83,8 @@ const checkMedia = async (settingsVal: Settings, file: string) => ({
   websafe: file.includes('mp4'),
   originalFps: 30,
   originalFpsString: '30/1',
+  videoDimensions: { width: 1920, height: 1080 },
+
 });
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const convertMedia = async (settingsVal: Settings, args: ConversionArgs,
@@ -391,8 +393,17 @@ describe('native.common', () => {
     expect(payload.jsonMeta.originalBasePath).toBe('/home/user/data/imageSuccess');
   });
 
-  it('import with CSV annotations', async () => {
+  it('import with CSV annotations without specifying track file', async () => {
     const payload = await common.beginMediaImport(settings, '/home/user/data/imageSuccessWithAnnotations', checkMedia);
+    payload.trackFileAbsPath = ''; //It returns null be default but users change it.
+    payload.jsonMeta.fps = 12; // simulate user specify FPS action
+    await common.finalizeMediaImport(settings, payload, updater, convertMedia);
+    const meta = await common.loadMetadata(settings, payload.jsonMeta.id, urlMapper);
+    expect(meta.fps).toBe(12);
+  });
+  it('import with CSV annotations with specifying track file', async () => {
+    const payload = await common.beginMediaImport(settings, '/home/user/data/imageSuccessWithAnnotations', checkMedia);
+    payload.trackFileAbsPath = '/home/user/data/imageSuccessWithAnnotations/file1.csv';
     payload.jsonMeta.fps = 12; // simulate user specify FPS action
     await common.finalizeMediaImport(settings, payload, updater, convertMedia);
     const meta = await common.loadMetadata(settings, payload.jsonMeta.id, urlMapper);

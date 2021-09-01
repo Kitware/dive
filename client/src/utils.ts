@@ -1,3 +1,4 @@
+import { AxiosError } from 'axios';
 import { difference } from 'lodash';
 
 // [x1, y1, x2, y2] as (left, top), (bottom, right)
@@ -146,7 +147,13 @@ function reOrderBounds(bounds: RectBounds) {
   return [x1, y1, x2, y2];
 }
 
+function getResponseError(error: AxiosError): string {
+  const { response } = error;
+  return response?.data?.message || String(response?.data) || error;
+}
+
 export {
+  getResponseError,
   boundToGeojson,
   // findBounds,
   updateBounds,

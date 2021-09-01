@@ -12,11 +12,11 @@ import {
 import ImportButton from 'dive-common/components/ImportButton.vue';
 import ImportMultiCamDialog from 'dive-common/components/ImportMultiCamDialog.vue';
 import { DatasetType, MultiCamImportArgs } from 'dive-common/apispec';
+import { validateUploadGroup } from 'platform/web-girder/api';
+import { openFromDisk } from 'platform/web-girder/utils';
+import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
+import { getResponseError } from 'vue-media-annotator/utils';
 import UploadGirder from './UploadGirder.vue';
-import {
-  validateUploadGroup, openFromDisk,
-} from '../api/viame.service';
-
 
 export interface InteralFiles {
   file: File;
@@ -68,6 +68,7 @@ export default defineComponent({
     const multiCamOpenType = ref('image-sequence');
     const importMultiCamDialog = ref(false);
     const girderUpload: Ref<null | GirderUpload> = ref(null);
+    const { prompt } = usePrompt();
     /**
      * Initial opening of file dialog
      */
@@ -87,7 +88,7 @@ export default defineComponent({
               processed.annotationFile, processed.mediaList,
             );
           } catch (err) {
-            preUploadErrorMessage.value = err;
+            preUploadErrorMessage.value = err.response?.data?.message || err;
           }
         }
       }
@@ -229,7 +230,7 @@ export default defineComponent({
       annotationFile: File | null,
       mediaList: File[],
     ) => {
-      const resp = await validateUploadGroup(allFiles.map((f) => f.name));
+      const resp = (await validateUploadGroup(allFiles.map((f) => f.name))).data;
       if (!resp.ok) {
         if (resp.message) {
           preUploadErrorMessage.value = resp.message;
@@ -291,6 +292,15 @@ export default defineComponent({
         disabled: uploading.value,
       };
     });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const errorHandler = async ({ err, name }: {err: any; name: string}) => {
+      const text = getResponseError(err);
+      await prompt({
+        title: `${name}: Import Error`,
+        text,
+        positiveButton: 'OK',
+      });
+    };
     return {
       buttonAttrs,
       FPSOptions,
@@ -316,6 +326,7 @@ export default defineComponent({
       addPendingUpload,
       remove,
       abort,
+      errorHandler,
     };
   },
 });
@@ -370,6 +381,7 @@ export default defineComponent({
         @remove-upload="remove"
         @update:uploading="$emit('update:uploading', $event)"
         @abort="abort"
+        @error="errorHandler"
       >
         <template #default="{ upload }">
           <v-card

@@ -1,17 +1,20 @@
 import type { GirderModel, GirderModelType } from '@girder/components/src';
 import { inject } from '@vue/composition-api';
-import type { BrandData } from 'platform/web-girder/api/viame.service';
+import type { BrandData } from 'platform/web-girder/api';
 import type { GirderMetadata } from 'platform/web-girder/constants';
 import { Store } from 'vuex';
 
+/**
+ * Location can be either
+ *  a proper girder model,
+ *  a root virtual model,
+ *  or a simplified id/type pair.
+ * These types are mutually exclusive.
+ */
+export type RootlessLocationType = GirderModel | { '_id': string; '_modelType': GirderModelType };
+export type LocationType = RootlessLocationType | { type: 'collections' | 'users' | 'root' };
 export interface LocationState {
-  location: null | GirderModel | { type: GirderModelType };
-  // location: null | {
-  //   _id?: string;
-  //   _modelType?: string;
-  //   type?: GirderModelType;
-  //   meta?: Record<string, unknown>;
-  // };
+  location: LocationType | null;
   selected: GirderModel[];
 }
 

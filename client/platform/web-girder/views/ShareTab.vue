@@ -1,6 +1,6 @@
 <script lang="ts">
 import { defineComponent } from '@vue/composition-api';
-import { useStore } from 'platform/web-girder/store/types';
+import { useStore } from '../store/types';
 
 
 export default defineComponent({

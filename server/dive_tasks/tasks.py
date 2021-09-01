@@ -19,9 +19,11 @@ from girder_worker.app import app
 from girder_worker.task import Task
 from girder_worker.utils import JobManager, JobStatus
 
+from dive_tasks.frame_alignment import check_and_fix_frame_alignment
 from dive_tasks.manager import patch_manager
 from dive_tasks.pipeline_discovery import discover_configs
 from dive_tasks.utils import (
+    CanceledError,
     check_canceled,
     download_source_media,
     organize_folder_for_training,
@@ -50,9 +52,11 @@ EMPTY_JOB_SCHEMA: AvailableJobSchema = {
         'default': None,
     },
 }
+
+# https://github.com/VIAME/VIAME/blob/master/cmake/download_viame_addons.sh
 UPGRADE_JOB_DEFAULT_URLS: List[str] = [
-    'https://data.kitware.com/api/v1/item/6011e3452fa25629b91ade60/download',  # Habcam
-    'https://viame.kitware.com/api/v1/item/604859fc5b1737bb9085f5e2/download',  # SEFSC
+    'https://viame.kitware.com/api/v1/item/60d3c198b91def413908961a/download',  # Habcam
+    'https://viame.kitware.com/api/v1/item/60b3a58b8438b3b7ffd7032f/download',  # SEFSC
     'https://data.kitware.com/api/v1/item/6011ebf72fa25629b91aef03/download',  # PengHead
     'https://data.kitware.com/api/v1/item/601b00d02fa25629b9391ad6/download',  # Motion
     'https://data.kitware.com/api/v1/item/601afdde2fa25629b9390c41/download',  # EM Tuna
@@ -174,12 +178,12 @@ def upgrade_pipelines(
         # Remove everything
         shutil.rmtree(conf.addon_extracted_path)
         manager.updateStatus(JobStatus.CANCELED)
-        gc.post('viame/update_job_configs', json=EMPTY_JOB_SCHEMA)
+        gc.put('dive_configuration/static_pipeline_configs', json=EMPTY_JOB_SCHEMA)
         return
 
     # finally, crawl the new files and report results
     summary = discover_configs(conf.get_extracted_pipeline_path())
-    gc.post('viame/update_job_configs', json=summary)
+    gc.put('dive_configuration/static_pipeline_configs', json=summary)
 
 
 @app.task(bind=True, acks_late=True, ignore_result=True)
@@ -229,7 +233,7 @@ def run_pipeline(self: Task, params: PipelineJob):
 
     # Download source media
     input_folder: GirderModel = gc.getFolder(input_folder_id)
-    input_media_list = download_source_media(gc, input_folder, input_path)
+    input_media_list = download_source_media(gc, input_folder_id, input_path)
 
     if input_type == VideoType:
         input_fps = fromMeta(input_folder, FPSMarker)
@@ -282,8 +286,9 @@ def run_pipeline(self: Task, params: PipelineJob):
         executable='/bin/bash',
         env=conf.gpu_process_env,
     )
-    stream_subprocess(process, self, context, manager, process_err_file, cleanup=cleanup)
-    if check_canceled(self, context):
+    try:
+        stream_subprocess(process, self, context, manager, process_err_file, cleanup=cleanup)
+    except CanceledError:
         return
 
     if Path(track_output_file).exists() and os.path.getsize(track_output_file):
@@ -295,7 +300,8 @@ def run_pipeline(self: Task, params: PipelineJob):
     newfile = gc.uploadFileToFolder(output_folder_id, output_path)
 
     gc.addMetadataToItem(str(newfile["itemId"]), {"pipeline": pipeline})
-    gc.post(f'viame/postprocess/{output_folder_id}', data={"skipJobs": True})
+    gc.post(f'dive_rpc/postprocess/{output_folder_id}', data={"skipJobs": True})
+    cleanup()
 
 
 @app.task(bind=True, acks_late=True, ignore_result=True)
@@ -356,7 +362,7 @@ def train_pipeline(
                 download_path, download_path / groundtruth["name"]
             )
             # Download input media
-            input_media_list = download_source_media(gc, source_folder, download_path)
+            input_media_list = download_source_media(gc, str(source_folder["_id"]), download_path)
             if fromMeta(source_folder, TypeMarker) == VideoType:
                 download_path = Path(input_media_list[0])
             # Set media source location
@@ -407,8 +413,10 @@ def train_pipeline(
                 cwd=training_output_path,
                 env=conf.gpu_process_env,
             )
-            stream_subprocess(process, self, context, manager, process_err_file)
-            if check_canceled(self, context):
+
+            try:
+                stream_subprocess(process, self, context, manager, process_err_file)
+            except CanceledError:
                 return
 
             # Check that there are results in the output path
@@ -430,14 +438,17 @@ def train_pipeline(
 
 
 @app.task(bind=True, acks_late=True, ignore_result=True)
-def convert_video(self: Task, path, folderId, auxiliaryFolderId, itemId):
+def convert_video(self: Task, folderId: str, itemId: str):
     # Delete is true, so the tempfile is deleted when the block closes.
     # We are only using this to get a name, and recreating it below.
     with tempfile.NamedTemporaryFile(suffix=".mp4", delete=True) as temp:
         output_path = temp.name
 
+    input_directory = tempfile.TemporaryDirectory()
+
     def cleanup():
         with contextlib.suppress(FileNotFoundError):
+            input_directory.cleanup()
             os.remove(output_path)
 
     context: dict = {}
@@ -450,8 +461,11 @@ def convert_video(self: Task, path, folderId, auxiliaryFolderId, itemId):
     folderData = gc.getFolder(folderId)
     requestedFps = fromMeta(folderData, FPSMarker)
 
-    # Extract metadata
-    file_name = os.path.join(path, os.listdir(path)[0])
+    item: GirderModel = gc.getItem(itemId)
+    file_name = str(Path(input_directory.name) / item['name'])
+    manager.write(f'Fetching input from {itemId} to {file_name}...\n')
+    gc.downloadItem(itemId, Path(input_directory.name), name=item.get('name'))
+
     command = [
         "ffprobe",
         "-print_format",
@@ -463,14 +477,19 @@ def convert_video(self: Task, path, folderId, auxiliaryFolderId, itemId):
         file_name,
     ]
 
+    manager.write(f"Running command: {' '.join(command)}\n", forceFlush=True)
+
     process_err_file = tempfile.TemporaryFile()
     process = Popen(
         command,
         stdout=subprocess.PIPE,
         stderr=process_err_file,
     )
-    stdout = stream_subprocess(process, self, context, manager, process_err_file, keep_stdout=True)
-    if check_canceled(self, context):
+    try:
+        stdout = stream_subprocess(
+            process, self, context, manager, process_err_file, keep_stdout=True
+        )
+    except CanceledError:
         return
 
     jsoninfo = json.loads(stdout)
@@ -501,8 +520,9 @@ def convert_video(self: Task, path, folderId, auxiliaryFolderId, itemId):
             "libx264",
             "-preset",
             "slow",
+            # https://github.com/Kitware/dive/issues/855
             "-crf",
-            "26",
+            "22",
             # https://askubuntu.com/questions/1315697/could-not-find-tag-for-codec-pcm-s16le-in-stream-1-codec-not-currently-support
             "-c:a",
             "aac",
@@ -515,12 +535,15 @@ def convert_video(self: Task, path, folderId, auxiliaryFolderId, itemId):
         stderr=process_err_file,
     )
 
-    stream_subprocess(process, self, context, manager, process_err_file, cleanup=cleanup)
-    if check_canceled(self, context):
+    try:
+        stream_subprocess(process, self, context, manager, process_err_file, cleanup=cleanup)
+        # Check to see if frame alignment remains the same
+        aligned_file = check_and_fix_frame_alignment(self, output_path, context, manager)
+    except CanceledError:
         return
 
     manager.updateStatus(JobStatus.PUSHING_OUTPUT)
-    new_file = gc.uploadFileToFolder(folderId, output_path)
+    new_file = gc.uploadFileToFolder(folderId, aligned_file)
     gc.addMetadataToItem(
         new_file['itemId'],
         {
@@ -595,8 +618,9 @@ def convert_images(self: Task, folderId):
                 stdout=subprocess.PIPE,
                 stderr=process_err_file,
             )
-            stream_subprocess(process, self, context, manager, process_err_file)
-            if check_canceled(self, context):
+            try:
+                stream_subprocess(process, self, context, manager, process_err_file)
+            except CanceledError:
                 return
 
             gc.uploadFileToFolder(folderId, new_item_path)

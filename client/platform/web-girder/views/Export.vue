@@ -1,13 +1,15 @@
 <script lang="ts">
 import {
-  computed, defineComponent, watch, ref, toRef,
+  computed, defineComponent, ref, shallowRef, toRef, watch,
 } from '@vue/composition-api';
-
 import { usePendingSaveCount, useHandler, useCheckedTypes } from 'vue-media-annotator/provides';
 import AutosavePrompt from 'dive-common/components/AutosavePrompt.vue';
-import { MediaTypes } from 'dive-common/constants';
-import { withRestError } from 'platform/web-girder/utils';
-import { getExportUrls, ExportUrlsResponse } from '../api/viameDetection.service';
+import { useRequest } from 'dive-common/use';
+import {
+  DatasetSourceMedia, getDataset, getDatasetMedia, getUri,
+} from 'platform/web-girder/api';
+import { GirderMetadataStatic } from 'platform/web-girder/constants';
+import { ImageSequenceType, MultiType, VideoType } from 'dive-common/constants';
 
 export default defineComponent({
   components: { AutosavePrompt },
@@ -32,16 +34,13 @@ export default defineComponent({
   },
 
   setup(props) {
-    const menuOpen = ref(false);
-    const excludeBelowThreshold = ref(true);
-    const excludeUncheckedTypes = ref(false);
-    const exportUrls = ref(null as null | ExportUrlsResponse);
     const savePrompt = ref(false);
-    const currentSaveUrl = ref('');
+    let currentSaveUrl = '';
+
+    /** State populated from provides if the dialog exists inside a viewer context */
     let save = () => Promise.resolve();
     let pendingSaveCount = ref(0);
     let checkedTypes = ref([] as readonly string[]);
-
     if (props.blockOnUnsaved) {
       save = useHandler().save;
       pendingSaveCount = usePendingSaveCount();
@@ -57,42 +56,76 @@ export default defineComponent({
         }
       } else if (pendingSaveCount.value > 0 && url) {
         savePrompt.value = true;
-        currentSaveUrl.value = url;
+        currentSaveUrl = url;
         return;
       }
       if (url) {
         window.location.assign(url);
-      } else if (forceSave && currentSaveUrl.value) {
-        window.location.assign(currentSaveUrl.value);
+      } else if (forceSave && currentSaveUrl) {
+        window.location.assign(currentSaveUrl);
       } else {
         throw new Error('Expected either url OR forceSave and currentSaveUrl');
       }
     }
 
-    const { func: updateExportUrls, error } = withRestError(async () => {
+    const menuOpen = ref(false);
+    const excludeBelowThreshold = ref(true);
+    const excludeUncheckedTypes = ref(false);
+
+    const dataset = shallowRef(null as GirderMetadataStatic | null);
+    const datasetMedia = shallowRef(null as DatasetSourceMedia | null);
+    const { request, error } = useRequest();
+    const loadDatasetMeta = () => request(async () => {
       if (menuOpen.value) {
-        const typeFilter = excludeUncheckedTypes.value ? checkedTypes.value : [];
-        exportUrls.value = await getExportUrls(
-          props.datasetId, excludeBelowThreshold.value, typeFilter,
-        );
+        dataset.value = (await getDataset(props.datasetId)).data;
+        if (dataset.value.type === 'video') {
+          datasetMedia.value = (await getDatasetMedia(props.datasetId)).data;
+        }
       }
     });
-    watch([toRef(props, 'datasetId'), excludeBelowThreshold, excludeUncheckedTypes, menuOpen], updateExportUrls);
-    updateExportUrls();
+    watch([toRef(props, 'datasetId'), menuOpen], loadDatasetMeta);
 
-    const mediaType = computed(() => (exportUrls.value
-      ? MediaTypes[exportUrls.value.mediaType]
-      : null));
-    const thresholds = computed(() => Object.keys(exportUrls.value?.currentThresholds || {}));
+    const exportUrls = computed(() => {
+      const params = {
+        excludeBelowThreshold: excludeBelowThreshold.value,
+        typeFilter: excludeUncheckedTypes.value ? JSON.stringify(checkedTypes.value) : undefined,
+      };
+      return {
+        exportAllUrl: getUri({
+          url: `dive_dataset/${props.datasetId}/export`,
+          params,
+        }),
+        exportMediaUrl: dataset.value?.type === 'video'
+          ? datasetMedia.value?.video?.url
+          : getUri({
+            url: `dive_dataset/${props.datasetId}/export`,
+            params: { ...params, includeDetections: false, includeMedia: true },
+          }),
+        exportDetectionsUrl: getUri({
+          url: 'dive_annotation/export',
+          params: { ...params, folderId: props.datasetId },
+        }),
+      };
+    });
+
+    const mediaType = computed(() => {
+      if (dataset.value === null) return null;
+      const { type } = dataset.value;
+      if (type === MultiType) throw new Error('Cannot export multicamera dataset');
+      return {
+        [ImageSequenceType]: 'Image Sequence',
+        [VideoType]: 'Video',
+      }[type];
+    });
 
     return {
       error,
+      dataset,
+      mediaType,
       excludeBelowThreshold,
       excludeUncheckedTypes,
       menuOpen,
       exportUrls,
-      mediaType,
-      thresholds,
       checkedTypes,
       savePrompt,
       doExport,
@@ -158,9 +191,9 @@ export default defineComponent({
           {{ error }}
         </v-alert>
 
-        <template v-if="exportUrls">
+        <template v-if="dataset !== null && mediaType !== null">
           <v-card-text class="pb-0">
-            Zip all {{ mediaType || 'media' }} files only
+            Zip all {{ mediaType }} files only
           </v-card-text>
           <v-card-actions>
             <v-btn
@@ -171,13 +204,13 @@ export default defineComponent({
               :disabled="!exportUrls.exportMediaUrl"
               :href="exportUrls.exportMediaUrl"
             >
-              {{ mediaType || 'media unavailable' }}
+              {{ mediaType }}
             </v-btn>
           </v-card-actions>
 
           <v-card-text class="pb-2">
             <div>Get latest detections csv only</div>
-            <template v-if="thresholds.length">
+            <template v-if="dataset.confidenceFilters">
               <v-checkbox
                 v-model="excludeBelowThreshold"
                 label="exclude tracks below confidence threshold"
@@ -187,7 +220,7 @@ export default defineComponent({
               <div class="pt-2">
                 <span>Current thresholds:</span>
                 <span
-                  v-for="(val, key) in exportUrls.currentThresholds"
+                  v-for="(val, key) in dataset.confidenceFilters"
                   :key="key"
                   class="pt-2"
                 >

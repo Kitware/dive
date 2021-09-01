@@ -92,14 +92,36 @@ class CustomStyle(BaseModel):
         extra = 'forbid'
 
 
-class MetadataMutableUpdate(BaseModel):
-    """Update schema for mutable metadata fields"""
-
+class MetadataMutable(BaseModel):
     customTypeStyling: Optional[Dict[str, CustomStyle]]
     confidenceFilters: Optional[Dict[str, float]]
+    attributes: Optional[Dict[str, Attribute]]
 
-    class Config:
-        extra = 'forbid'
+
+class GirderMetadataStatic(MetadataMutable):
+    # Required
+    id: str
+    name: str
+    createdAt: str
+    type: str
+    fps: Union[int, float]
+    annotate: bool
+
+    # Optional
+    originalFps: Optional[Union[int, float]]
+    ffprobe_info: Optional[Dict[str, Any]]
+    foreign_media_id: Optional[str]
+
+
+class MediaResource(BaseModel):
+    url: str
+    id: str
+    filename: str
+
+
+class DatasetSourceMedia(BaseModel):
+    imageData: List[MediaResource]
+    video: Optional[MediaResource]
 
 
 class SummaryItemSchema(BaseModel):
@@ -123,6 +145,17 @@ class CocoMetadata(BaseModel):
     keypoint_categories: Dict[int, dict]
     images: Dict[int, dict]
     videos: Dict[int, dict]
+
+
+class BrandData(BaseModel):
+    vuetify: Optional[dict]
+    favicon: Optional[str]
+    logo: Optional[str]
+    name: Optional[str]
+    loginMessage: Optional[str]
+
+    class Config:
+        extra = 'forbid'
 
 
 # interpolate all features [a, b)

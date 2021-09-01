@@ -309,7 +309,8 @@ def export_tracks_as_csv(
         if fps is not None:
             metadata["fps"] = fps
         writeHeader(writer, metadata)
-    for t in track_dict.values():
+    track_values = track_dict.values()
+    for t in track_values:
         track = Track(**t)
         if (not excludeBelowThreshold) or track.exceeds_thresholds(thresholds):
 
@@ -391,3 +392,5 @@ def export_tracks_as_csv(
                     yield csvFile.getvalue()
                     csvFile.seek(0)
                     csvFile.truncate(0)
+    if len(track_values) == 0:
+        yield csvFile.getvalue()

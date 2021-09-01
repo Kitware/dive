@@ -151,7 +151,7 @@ export default defineComponent({
             hint="Optional"
             @click="openUpload"
             @click:prepend-inner="openUpload"
-            @click:clear="argCopy.trackFileAbsPath=null"
+            @click:clear="argCopy.trackFileAbsPath=''"
           />
         </v-col>
       </v-row>

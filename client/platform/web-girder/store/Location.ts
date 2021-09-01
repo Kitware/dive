@@ -2,7 +2,8 @@ import type { Module } from 'vuex';
 import type { GirderModel } from '@girder/components/src';
 import { getPathFromLocation } from 'platform/web-girder/utils';
 import {
-  GettersDefinition, isGirderModel, LocationGetters, LocationState, RootState,
+  GettersDefinition, isGirderModel, LocationGetters,
+  LocationState, RootState, LocationType,
 } from './types';
 import router from '../router';
 
@@ -22,7 +23,7 @@ const locationModule: Module<LocationState, RootState> = {
     selected: [] as GirderModel[],
   },
   mutations: {
-    setLocation(state, location: GirderModel) {
+    setLocation(state, location: LocationType) {
       state.location = location;
     },
     setSelected(state, selected: GirderModel[]) {
@@ -31,7 +32,7 @@ const locationModule: Module<LocationState, RootState> = {
   },
   getters,
   actions: {
-    route({ commit }, location: GirderModel) {
+    route({ commit }, location: LocationType) {
       const newPath = getPathFromLocation(location);
       if (newPath !== router.currentRoute.path) {
         router.push(newPath);

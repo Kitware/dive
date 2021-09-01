@@ -18,6 +18,7 @@ import {
 } from 'platform/desktop/constants';
 import { observeChild } from 'platform/desktop/backend/native/processManager';
 import * as viame from './viame';
+import * as mediaJobs from './mediaJobs';
 import { spawnResult } from './utils';
 
 const DefaultSettings: Settings = {
@@ -54,7 +55,8 @@ const ViameLinuxConstants = {
     videoArgs: [
       '-c:v libx264',
       '-preset slow',
-      '-crf 26',
+      // https://github.com/Kitware/dive/issues/855
+      '-crf 22',
       // https://askubuntu.com/questions/1315697/could-not-find-tag-for-codec-pcm-s16le-in-stream-1-codec-not-currently-support
       '-c:a aac',
       /**
@@ -222,7 +224,7 @@ async function ffmpegCommand(settings: Settings) {
  */
 async function checkMedia(settings: Settings, file: string): Promise<CheckMediaResults> {
   await ffmpegCommand(settings);
-  return viame.checkMedia({
+  return mediaJobs.checkMedia({
     ...ViameLinuxConstants,
     setupScriptAbs: sourceString(settings),
   }, file);
@@ -232,7 +234,7 @@ async function convertMedia(settings: Settings,
   args: ConversionArgs,
   updater: DesktopJobUpdater): Promise<DesktopJob> {
   await ffmpegCommand(settings);
-  return viame.convertMedia(settings, args, updater, {
+  return mediaJobs.convertMedia(settings, args, updater, {
     ...ViameLinuxConstants,
     setupScriptAbs: sourceString(settings),
   });

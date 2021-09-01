@@ -3,17 +3,16 @@ import {
   defineComponent, ref, reactive, computed, watch, toRefs,
 } from '@vue/composition-api';
 import type { DataOptions } from 'vuetify';
-import { GirderModel, GirderModelType, mixins } from '@girder/components/src';
-import type { GirderDatasetModel } from 'platform/web-girder/constants';
-import { getDatasets } from 'platform/web-girder/api/viame.service';
-import { useStore } from 'platform/web-girder/store/types';
+import { GirderModel, mixins } from '@girder/components/src';
+import { getDatasetList } from '../api';
+import { useStore, LocationType } from '../store/types';
 
 
 export default defineComponent({
   name: 'DataShared',
   setup() {
     const total = ref();
-    const dataList = ref([] as GirderDatasetModel[]);
+    const dataList = ref([] as GirderModel[]);
     const tableOptions = reactive({
       page: 1,
       itemsPerPage: 10,
@@ -43,7 +42,7 @@ export default defineComponent({
       const sort = sortBy[0] || 'created';
       const sortDir = sortDesc[0] === false ? 1 : -1;
 
-      const response = await getDatasets(limit, offset, sort, sortDir, true);
+      const response = await getDatasetList(limit, offset, sort, sortDir, true);
       dataList.value = response.data;
       total.value = response.headers['girder-total-count'] as number;
       dataList.value.forEach((element) => {
@@ -57,11 +56,11 @@ export default defineComponent({
       get() {
         return locationStore.location;
       },
-      set(value: null | GirderModel | { type: GirderModelType }) {
+      set(value: null | LocationType) {
         store.dispatch('Location/route', value);
       },
     });
-    function isAnnotationFolder(item: GirderDatasetModel) {
+    function isAnnotationFolder(item: GirderModel) {
       return item._modelType === 'folder' && item.meta.annotate;
     }
 

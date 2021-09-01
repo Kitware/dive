@@ -4,7 +4,7 @@ import {
 } from '@vue/composition-api';
 import { GirderAuthentication } from '@girder/components/src';
 
-import { useGirderRest } from '../plugins/girder';
+import { useGirderRest } from 'platform/web-girder/plugins/girder';
 
 export default defineComponent({
   name: 'Login',
@@ -23,6 +23,13 @@ export default defineComponent({
     }
     girderRest.$on('login', onLogin);
     onBeforeUnmount(() => girderRest.$off('login', onLogin));
+
+    /** Redirect if user already logged in */
+    if (girderRest.user) {
+      root.$router.replace('/');
+      data.userDialog = false;
+    }
+
     return {
       ...toRefs(data),
       brandData,

@@ -19,10 +19,13 @@ import Track from 'vue-media-annotator/track';
 
 import { DesktopJobUpdate, RunPipeline, RunTraining } from 'platform/desktop/constants';
 import { loadJsonTracks, loadJsonMetadata } from 'platform/desktop/backend/native/common';
+import { RectBounds } from 'vue-media-annotator/utils';
+import { MultiTrackRecord } from 'dive-common/apispec';
 import linux from './native/linux';
 import win32 from './native/windows';
 import * as common from './native/common';
 import { parseFile, serialize } from './serializers/viame';
+import { exportNist, loadNistFile } from './serializers/nist';
 
 function getCurrentPlatform() {
   const platform = OS.platform() === 'win32' ? win32 : linux;
@@ -58,6 +61,28 @@ async function parseJsonFile(filepath: string, metapath: string) {
   ]).then(([input, meta]) => serialize(echoStream(), input, meta));
 }
 
+async function parseNistFile(filepath: string, bounds: RectBounds) {
+  const trackData = await loadNistFile(filepath, bounds);
+  const trackStructure: MultiTrackRecord = {};
+  for (let i = 0; i < trackData.tracks.length; i += 1) {
+    const track = trackData.tracks[i];
+    trackStructure[track.trackId] = track;
+  }
+  stdout.write(JSON.stringify(trackStructure));
+}
+
+async function convertJSONtoNist(filepath: string, meta: string) {
+  const metaData = await loadJsonMetadata(meta);
+  const trackData = await loadJsonTracks(filepath);
+
+  const videoFile = metaData.originalVideoFile;
+  if (!videoFile) {
+    throw new Error(`No video file exists for metadata ${meta}`);
+  }
+  const output = await exportNist(trackData, videoFile);
+  stdout.write(JSON.stringify(output));
+}
+
 function settingsArgs() {
   yargs.option('datapath', {
     describe: 'path to DIVA data',
@@ -85,6 +110,34 @@ const { argv } = yargs
       type: 'string',
     });
     yargs.demandOption(['file', 'meta']);
+  })
+  .command('nist2json [file] [video]', 'Convert NIST to JSON', () => {
+    yargs.positional('file', {
+      description: 'NIST JSON file to parse',
+      type: 'string',
+    });
+    yargs.positional('video', {
+      description: 'Video file associated with NIST',
+      type: 'string',
+    });
+    yargs.demandOption(['file', 'video']);
+  })
+  .command('json2nist [file] [meta]', 'Convert JSON to NIST', () => {
+    yargs.positional('file', {
+      description: 'JSON file to parse',
+      type: 'string',
+    });
+    yargs.positional('meta', {
+      description: 'meta file to get video file name',
+      type: 'string',
+    });
+    yargs.demandOption(['file', 'meta']);
+  })
+  .command('checkmedia [file]', 'Run checkMedia', () => {
+    yargs.positional('file', {
+      description: 'The video to check',
+      type: 'string',
+    }).demandOption('file');
   })
   .command('list-config', 'List viame pipeline configuration', settingsArgs)
   .command('run-pipeline', 'Run a pipeline', () => {
@@ -138,6 +191,26 @@ if (argv._.includes('viame2json')) {
   parseViameFile(argv.file as string);
 } else if (argv._.includes('json2viame')) {
   parseJsonFile(argv.file as string, argv.meta as string);
+} else if (argv._.includes('nist2json')) {
+  const settings = getSettings();
+  const run = async () => {
+    const mediaInfo = await settings.platform.checkMedia(settings, argv.video as string);
+    const bounds: RectBounds = [
+      0, 0, mediaInfo.videoDimensions.width, mediaInfo.videoDimensions.height,
+    ];
+    parseNistFile(argv.file as string, bounds);
+  };
+  run();
+} else if (argv._.includes('json2nist')) {
+  convertJSONtoNist(argv.file as string, argv.meta as string);
+} else if (argv._.includes('checkmedia')) {
+  const settings = getSettings();
+  const run = async () => {
+    const out = await settings.platform.checkMedia(settings, argv.file as string);
+    // eslint-disable-next-line no-console
+    console.log(out);
+  };
+  run();
 } else if (argv._.includes('list-config')) {
   const settings = getSettings();
   const run = async () => {
