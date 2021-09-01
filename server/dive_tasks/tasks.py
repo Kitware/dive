@@ -534,7 +534,7 @@ def convert_images(self: Task, folderId):
 
             item_path = images_path / item["name"]
             new_item_path = images_path / ".".join([*item["name"].split(".")[:-1], "png"])
-            command = ["ffmpeg", "-i", item_path, new_item_path]
+            command = ["ffmpeg", "-i", str(item_path), str(new_item_path)]
             utils.stream_subprocess(self, context, manager, {'args': command})
             gc.uploadFileToFolder(folderId, new_item_path)
             gc.delete(f"item/{item['_id']}")

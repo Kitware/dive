@@ -74,7 +74,7 @@ def _realign_video_and_audio(
         "18",
         "-c:a",
         "copy",
-        aligned_path,
+        str(aligned_path),
     ]
     stream_subprocess(task, context, manager, {'args': command})
     return aligned_path
