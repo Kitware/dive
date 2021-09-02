@@ -6,11 +6,9 @@ import {
   GirderFileManager, getLocationType, RestClient, GirderModel,
 } from '@girder/components/src';
 
-import { getFolder } from '../api/girder.service';
-
-import { isGirderModel, useStore, LocationType } from '../store/types';
-import Upload from './Upload.vue';
+import { useStore, LocationType } from '../store/types';
 import { getLocationFromRoute } from '../utils';
+import Upload from './Upload.vue';
 
 export default defineComponent({
   components: {
@@ -27,22 +25,9 @@ export default defineComponent({
     const { getters } = store;
     const girderRest = inject('girderRest') as RestClient;
 
-    const location = computed({
-      get() {
-        return locationStore.location;
-      },
-      /**
-       * This setter is used by Girder Web Components to set the location when it changes
-       * by clicking on a Breadcrumb link
-       */
-      set(value: null | LocationType) {
-        /* Prevent navigation into auxiliary folder */
-        if (isGirderModel(value) && getters.locationIsViameFolder && value?.name === 'auxiliary') {
-          return;
-        }
-        store.dispatch('Location/route', value);
-      },
-    });
+    function setLocation(value: LocationType) {
+      store.dispatch('Location/route', value);
+    }
 
     function handleNotification() {
       fileManager.value.$refs.girderBrowser.refresh();
@@ -62,36 +47,20 @@ export default defineComponent({
     }
 
     const shouldShowUpload = computed(() => (
-      location.value
+      locationStore.location
       && !getters.locationIsViameFolder
-      && getLocationType(location.value) === 'folder'
+      && getLocationType(locationStore.location) === 'folder'
       && !locationStore.selected.length
     ));
 
-    async function init() {
-      // TODO fix types here
-      // eslint-disable-next-line @typescript-eslint/ban-ts-ignore
-      // @ts-ignore
-      let newLocaction = getLocationFromRoute(root.$route);
-      if (newLocaction === null) {
-        // eslint-disable-next-line @typescript-eslint/ban-ts-ignore
-        // @ts-ignore
-        newLocaction = {
-          _id: girderRest.user._id,
-          _modelType: 'user',
-        };
-      }
-      location.value = newLocaction;
-      if (isGirderModel(newLocaction) && newLocaction?._modelType === 'folder') {
-        location.value = (await getFolder(newLocaction._id)).data;
-      }
-    }
-
-    init();
+    /* Initialize the location in the store */
+    setLocation(getLocationFromRoute(root.$route) || {
+      _id: girderRest.user._id,
+      _modelType: 'user',
+    });
 
     return {
       fileManager,
-      location,
       locationStore,
       getters,
       shouldShowUpload,
@@ -100,6 +69,7 @@ export default defineComponent({
       /* methods */
       isAnnotationFolder,
       handleNotification,
+      setLocation,
       updateUploading,
     };
   },
@@ -115,7 +85,8 @@ export default defineComponent({
     :new-folder-enabled="
       !locationStore.selected.length && !getters.locationIsViameFolder
     "
-    :location.sync="location"
+    :location="locationStore.location"
+    @update:location="setLocation($event)"
   >
     <template #headerwidget>
       <v-dialog
@@ -141,7 +112,7 @@ export default defineComponent({
           </v-btn>
         </template>
         <Upload
-          :location="location"
+          :location="locationStore.location"
           @update:uploading="updateUploading"
           @close="uploaderDialog = false"
         />

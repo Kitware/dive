@@ -1,22 +1,18 @@
-import { isRootLocation, GirderModel } from '@girder/components/src';
 import {
   calibrationFileTypes, inputAnnotationFileTypes, inputAnnotationTypes,
   otherImageTypes, otherVideoTypes, websafeImageTypes, websafeVideoTypes,
 } from 'dive-common/constants';
 import { DatasetType } from 'dive-common/apispec';
 import type { LocationType } from 'platform/web-girder/store/types';
+import { Route } from 'vue-router';
 
-function getLocationFromRoute({ params }: { params: GirderModel }) {
-  if (isRootLocation(params)) {
-    return {
-      type: params._modelType,
-    };
+function getLocationFromRoute(route: Route) {
+  const { params } = route;
+  if ('type' in params) {
+    return params as LocationType;
   }
-  if (params._modelType === 'user') {
-    return params;
-  }
-  if (params._modelType === 'folder') {
-    return params;
+  if (['user', 'folder'].indexOf(params._modelType)) {
+    return params as LocationType;
   }
   return null;
 }

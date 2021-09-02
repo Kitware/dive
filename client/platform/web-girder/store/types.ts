@@ -18,10 +18,6 @@ export interface LocationState {
   selected: GirderModel[];
 }
 
-export interface LocationGetters {
-  locationIsViameFolder: boolean;
-}
-
 export interface DatasetState {
   meta: GirderMetadata | null;
 }
@@ -35,11 +31,6 @@ export interface RootState {
   Dataset: DatasetState;
   Brand: BrandState;
 }
-
-// https://blog.e-mundo.de/post/vuex-with-typescript-tricks-to-improve-your-developer-experience/
-export type GettersDefinition<T, S> = {
-  [P in keyof T]: (state: S, getters: T) => T[P];
-};
 
 export function useStore(): Store<RootState> {
   const store: Store<RootState> | undefined = inject('store');
