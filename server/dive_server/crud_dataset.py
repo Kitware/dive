@@ -1,7 +1,7 @@
-import cherrypy
 import json
 from typing import List, Optional, Tuple
 
+import cherrypy
 from girder.constants import AccessType
 from girder.exceptions import RestException
 from girder.models.folder import Folder
@@ -62,7 +62,7 @@ def list_datasets(
     shared: bool,
     limit: int,
     offset: int,
-    sortParams: Tuple[str, int],
+    sortParams: Tuple[Tuple[str, int]],
 ):
     """Enumerate all public and private data the user can access"""
     permissionsClause = Folder().permissionClauses(user=user, level=AccessType.READ)
