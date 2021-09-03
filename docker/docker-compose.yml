@@ -14,7 +14,7 @@ x-worker: &base-worker
     - "com.centurylinklabs.watchtower.enable=true" 
   depends_on:
     girder:
-      condition: service_healthy
+      condition: service_started
     rabbit:
       condition: service_started
 
@@ -55,11 +55,6 @@ services:
       context: ../
       dockerfile: docker/girder.Dockerfile
     image: kitware/viame-web:${TAG:-latest}
-    healthcheck:
-        test: ["CMD", "curl", "-f", "http://localhost:8080"]
-        interval: 5s
-        timeout: 5s
-        retries: 5
     depends_on:
       - mongo
       - traefik
