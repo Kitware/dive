@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  defineComponent, onBeforeUnmount, onMounted, ref,
+  defineComponent, onBeforeUnmount, onMounted, ref, toRef,
 } from '@vue/composition-api';
 
 import Viewer from 'dive-common/components/Viewer.vue';
@@ -57,6 +57,7 @@ export default defineComponent({
   setup() {
     const viewerRef = ref();
     const store = useStore();
+    const brandData = toRef(store.state.Brand, 'brandData');
     const { getters } = store;
 
     onMounted(() => {
@@ -69,6 +70,7 @@ export default defineComponent({
 
     return {
       buttonOptions,
+      brandData,
       menuOptions,
       viewerRef,
       getters,

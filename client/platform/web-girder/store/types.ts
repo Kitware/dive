@@ -23,7 +23,7 @@ export interface DatasetState {
 }
 
 export interface BrandState {
-  brandData: null | BrandData;
+  brandData: BrandData;
 }
 
 export interface RootState {

@@ -18,7 +18,7 @@ const datasetModule: Module<DatasetState, RootState> = {
     },
   },
   actions: {
-    async load({ commit }, datasetId: string): Promise<GirderMetadata> {
+    async load({ commit, dispatch }, datasetId: string): Promise<GirderMetadata> {
       const [folder, metaStatic, media] = await Promise.all([
         getFolder(datasetId),
         getDataset(datasetId),
@@ -36,10 +36,10 @@ const datasetModule: Module<DatasetState, RootState> = {
       commit('set', { dataset: dsMeta });
       const { parentId, parentCollection } = folder.data;
       if (parentId && parentCollection) {
-        commit('Location/setLocationFromRoute', getRouteFromLocation({
+        dispatch('Location/hydrate', {
           _id: parentId,
-          _modelType: parentCollection as GirderModelType,
-        }), { root: true });
+          _modelType: parentCollection,
+        }, { root: true });
       } else {
         throw new Error(`dataset ${datasetId} was not a valid girder folder`);
       }

@@ -45,32 +45,35 @@ const locationModule: Module<LocationState, RootState> = {
     },
   },
   actions: {
-    async setLocationFromRoute({ commit, state, getters }, route: Route) {
+    async hydrate({ commit }, location: LocationType) {
+      if (
+        isGirderModel(location)
+        && location._modelType === 'folder'
+        && !location.name
+      ) {
+        commit('setLocation', (await getFolder(location._id)).data);
+      } else {
+        commit('setLocation', location);
+      }
+    },
+    async setLocationFromRoute({ dispatch, state, getters }, route: Route) {
       /**
        * Update the location because the route changed.
        * May need to fetch the full location details from server
        */
       const newLocation = getLocationFromRoute(route) || getters.defaultLocation;
-      if (
-        isGirderModel(newLocation)
-        && newLocation._modelType === 'folder'
-        && !newLocation.name
-      ) {
-        commit('setLocation', (await getFolder(newLocation._id)).data);
-      } else {
-        /** If the current and new location are the same, abort */
-        if (state.location) {
-          if ('type' in state.location && 'type' in newLocation) {
-            if (state.location.type === newLocation.type) return;
-          }
-          if ('_id' in state.location && '_id' in newLocation) {
-            if (state.location._id === newLocation._id) return;
-          }
+      /** If the current and new location are the same, abort */
+      if (state.location) {
+        if ('type' in state.location && 'type' in newLocation) {
+          if (state.location.type === newLocation.type) return;
         }
-        commit('setLocation', newLocation);
+        if ('_id' in state.location && '_id' in newLocation) {
+          if (state.location._id === newLocation._id) return;
+        }
       }
+      dispatch('hydrate', newLocation);
     },
-    setRouteFromLocation({ getters, commit }, location: LocationType) {
+    setRouteFromLocation({ getters, dispatch }, location: LocationType) {
       /**
        * Update the current route because the location was changed,
        * such as by navigating within the data browser
@@ -87,7 +90,7 @@ const locationModule: Module<LocationState, RootState> = {
       if (newPath !== router.currentRoute.path) {
         router.push(newPath);
       }
-      commit('setLocation', location);
+      dispatch('hydrate');
     },
   },
 };
