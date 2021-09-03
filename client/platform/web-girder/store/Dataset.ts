@@ -3,7 +3,9 @@ import type { GirderModelType } from '@girder/components/src';
 import type { GirderMetadata } from 'platform/web-girder/constants';
 import { getDataset, getDatasetMedia, getFolder } from 'platform/web-girder/api';
 import { MultiType } from 'dive-common/constants';
-import type { DatasetState, LocationType, RootState } from './types';
+import { getRouteFromLocation } from 'platform/web-girder/utils';
+import type { DatasetState, RootState } from './types';
+
 
 const datasetModule: Module<DatasetState, RootState> = {
   namespaced: true,
@@ -34,11 +36,10 @@ const datasetModule: Module<DatasetState, RootState> = {
       commit('set', { dataset: dsMeta });
       const { parentId, parentCollection } = folder.data;
       if (parentId && parentCollection) {
-        const newLoc: LocationType = {
+        commit('Location/setLocationFromRoute', getRouteFromLocation({
           _id: parentId,
           _modelType: parentCollection as GirderModelType,
-        };
-        commit('Location/setLocation', newLoc, { root: true });
+        }), { root: true });
       } else {
         throw new Error(`dataset ${datasetId} was not a valid girder folder`);
       }

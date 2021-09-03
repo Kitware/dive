@@ -61,7 +61,7 @@ const router = new Router({
               component: DataShared,
             },
             {
-              path: ':_modelType?/:_id?',
+              path: ':routeType?/:routeId?',
               name: 'home',
               component: DataBrowser,
               beforeEnter,

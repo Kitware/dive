@@ -1,13 +1,12 @@
 <script lang="ts">
 import {
-  computed, defineComponent, inject, ref,
+  computed, defineComponent, ref,
 } from '@vue/composition-api';
 import {
-  GirderFileManager, getLocationType, RestClient, GirderModel,
+  GirderFileManager, getLocationType, GirderModel,
 } from '@girder/components/src';
 
 import { useStore, LocationType } from '../store/types';
-import { getLocationFromRoute } from '../utils';
 import Upload from './Upload.vue';
 
 export default defineComponent({
@@ -16,17 +15,16 @@ export default defineComponent({
     Upload,
   },
 
-  setup(_, { root }) {
+  setup() {
     const fileManager = ref();
     const store = useStore();
     const uploading = ref(false);
     const uploaderDialog = ref(false);
     const locationStore = store.state.Location;
     const { getters } = store;
-    const girderRest = inject('girderRest') as RestClient;
 
-    function setLocation(value: LocationType) {
-      store.dispatch('Location/route', value);
+    function setLocation(location: LocationType) {
+      store.dispatch('Location/setRouteFromLocation', location);
     }
 
     function handleNotification() {
@@ -48,16 +46,10 @@ export default defineComponent({
 
     const shouldShowUpload = computed(() => (
       locationStore.location
-      && !getters.locationIsViameFolder
+      && !getters['Location/locationIsViameFolder']
       && getLocationType(locationStore.location) === 'folder'
       && !locationStore.selected.length
     ));
-
-    /* Initialize the location in the store */
-    setLocation(getLocationFromRoute(root.$route) || {
-      _id: girderRest.user._id,
-      _modelType: 'user',
-    });
 
     return {
       fileManager,
@@ -81,9 +73,9 @@ export default defineComponent({
   <GirderFileManager
     ref="fileManager"
     v-model="locationStore.selected"
-    :selectable="!getters.locationIsViameFolder"
+    :selectable="!getters['Location/locationIsViameFolder']"
     :new-folder-enabled="
-      !locationStore.selected.length && !getters.locationIsViameFolder
+      !locationStore.selected.length && !getters['Location/locationIsViameFolder']
     "
     :location="locationStore.location"
     @update:location="setLocation($event)"

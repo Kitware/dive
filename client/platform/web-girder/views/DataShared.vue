@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  defineComponent, ref, reactive, computed, watch, toRefs,
+  defineComponent, ref, reactive, watch, toRefs,
 } from '@vue/composition-api';
 import type { DataOptions } from 'vuetify';
 import { GirderModel, mixins } from '@girder/components/src';
@@ -44,22 +44,17 @@ export default defineComponent({
 
       const response = await getDatasetList(limit, offset, sort, sortDir, true);
       dataList.value = response.data;
-      total.value = response.headers['girder-total-count'] as number;
+      total.value = Number.parseInt(response.headers['girder-total-count'], 10);
       dataList.value.forEach((element) => {
         // eslint-disable-next-line no-param-reassign
         element.formattedSize = fixSize.formatSize(element.size);
       });
     };
 
+    function setLocation(location: LocationType) {
+      store.dispatch('Location/setRouteFromLocation', location);
+    }
 
-    const location = computed({
-      get() {
-        return locationStore.location;
-      },
-      set(value: null | LocationType) {
-        store.dispatch('Location/route', value);
-      },
-    });
     function isAnnotationFolder(item: GirderModel) {
       return item._modelType === 'folder' && item.meta.annotate;
     }
@@ -74,8 +69,8 @@ export default defineComponent({
       dataList,
       getters,
       updateOptions,
+      setLocation,
       total,
-      location,
       locationStore,
       ...toRefs(tableOptions),
       headers,
@@ -88,8 +83,8 @@ export default defineComponent({
 <template>
   <v-data-table
     v-model="locationStore.selected"
-    :selectable="!getters.locationIsViameFolder"
-    :location.sync="location"
+    :selectable="!getters['Location/locationIsViameFolder']"
+    :location="locationStore.location"
     :headers="headers"
     :page.sync="page"
     :items-per-page.sync="itemsPerPage"
@@ -100,6 +95,7 @@ export default defineComponent({
     item-key="_id"
     show-select
     @input="$emit('input', $event)"
+    @update:location="setLocation"
   >
     <!-- eslint-disable-next-line -->
     <template v-slot:item.annotator="{item}">

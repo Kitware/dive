@@ -20,7 +20,7 @@ async function getDatasetList(
   sortDir: number,
   shared: boolean,
 ) {
-  const response = await girderRest.get<GirderModel[]>('viame/datasets', {
+  const response = await girderRest.get<GirderModel[]>('dive_dataset', {
     params: {
       limit,
       offset,

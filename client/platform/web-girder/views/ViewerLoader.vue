@@ -1,14 +1,14 @@
 <script lang="ts">
 import {
-  defineComponent, onBeforeUnmount, onMounted, ref, toRef, computed,
+  defineComponent, onBeforeUnmount, onMounted, ref,
 } from '@vue/composition-api';
 
 import Viewer from 'dive-common/components/Viewer.vue';
 import NavigationTitle from 'dive-common/components/NavigationTitle.vue';
 import RunPipelineMenu from 'dive-common/components/RunPipelineMenu.vue';
 import ImportAnnotations from 'dive-common/components/ImportAnnotations.vue';
+import { useStore } from 'platform/web-girder/store/types';
 import JobsTab from './JobsTab.vue';
-import { getPathFromLocation } from '../utils';
 import Export from './Export.vue';
 import Clone from './Clone.vue';
 
@@ -54,11 +54,10 @@ export default defineComponent({
     }
   },
 
-  setup(props, { root }) {
+  setup() {
     const viewerRef = ref();
-    const brandData = toRef(root.$store.state.Brand, 'brandData');
-    const location = toRef(root.$store.state.Location, 'location');
-    const dataPath = computed(() => getPathFromLocation(location.value));
+    const store = useStore();
+    const { getters } = store;
 
     onMounted(() => {
       window.addEventListener('beforeunload', viewerRef.value.warnBrowserExit);
@@ -72,8 +71,7 @@ export default defineComponent({
       buttonOptions,
       menuOptions,
       viewerRef,
-      dataPath,
-      brandData,
+      getters,
     };
   },
 });
@@ -90,9 +88,10 @@ export default defineComponent({
       <v-tabs
         icons-and-text
         hide-slider
+        class="mx-2"
         style="flex-basis:0; flex-grow:0;"
       >
-        <v-tab :to="dataPath">
+        <v-tab :to="getters['Location/locationRoute']">
           Data
           <v-icon>mdi-database</v-icon>
         </v-tab>

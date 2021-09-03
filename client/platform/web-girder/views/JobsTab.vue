@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  defineComponent, onBeforeUnmount, reactive, toRefs,
+  defineComponent, onBeforeUnmount, reactive, toRefs, nextTick,
 } from '@vue/composition-api';
 import { GirderJob } from '@girder/components/src';
 import { all } from '@girder/components/src/components/Job/status';
@@ -47,7 +47,8 @@ export default defineComponent({
       girderRest.$on('message:job_status', handleNotification);
     }
 
-    onBeforeUnmount(() => {
+    onBeforeUnmount(async () => {
+      await nextTick();
       girderRest.$off('message:job_status', handleNotification);
     });
 
