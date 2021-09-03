@@ -18,6 +18,7 @@ const locationModule: Module<LocationState, RootState> = {
   },
   mutations: {
     setLocation(state, location: LocationType) {
+      console.log('setLocation', location);
       state.location = location;
     },
     setSelected(state, selected: GirderModel[]) {
@@ -31,17 +32,20 @@ const locationModule: Module<LocationState, RootState> = {
       }
       return false;
     },
-    defaultLocation() {
+    defaultRoute() {
       return {
-        _id: girderRest.user._id,
-        _modelType: 'user',
+        name: 'home',
+        params: {
+          routeId: girderRest.user._id,
+          routeType: 'user',
+        },
       };
     },
     locationRoute(state, getters) {
       if (state.location) {
         return getRouteFromLocation(state.location);
       }
-      return getRouteFromLocation(getters.defaultLocation);
+      return getters.defaultRoute;
     },
   },
   actions: {
@@ -61,7 +65,10 @@ const locationModule: Module<LocationState, RootState> = {
        * Update the location because the route changed.
        * May need to fetch the full location details from server
        */
-      const newLocation = getLocationFromRoute(route) || getters.defaultLocation;
+      const newLocation = getLocationFromRoute(route) || getLocationFromRoute(getters.defaultRoute);
+      if (newLocation === null) {
+        throw new Error('Unexpected null default route');
+      }
       /** If the current and new location are the same, abort */
       if (state.location) {
         if ('type' in state.location && 'type' in newLocation) {
@@ -86,11 +93,8 @@ const locationModule: Module<LocationState, RootState> = {
         /* Prevent navigation into auxiliary folder */
         return;
       }
-      const newPath = getRouteFromLocation(location);
-      if (newPath !== router.currentRoute.path) {
-        router.push(newPath);
-      }
-      dispatch('hydrate');
+      router.push(getRouteFromLocation(location));
+      dispatch('hydrate', location);
     },
   },
 };

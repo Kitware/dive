@@ -31,9 +31,9 @@ export default defineComponent({
 
 <template>
   <v-tabs
-    right
     dense
-    class="mx-1"
+    right
+    class="px-4"
     @change="clearSelected"
   >
     <v-tab :to="getters['Location/locationRoute']">

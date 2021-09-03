@@ -100,12 +100,6 @@ export default defineComponent({
       return getMaxNSummaryUrl(this.locationInputs);
     },
   },
-  created() {
-    this.girderRest.$on('message:job_status', this.handleNotification);
-  },
-  beforeDestroy() {
-    this.girderRest.$off('message:job_status', this.handleNotification);
-  },
   methods: {
     async deleteSelection() {
       const result = await this.prompt({
@@ -210,7 +204,7 @@ export default defineComponent({
           <v-toolbar
             dense
             class="mb-4"
-            rounded=""
+            rounded
           >
             <ShareTab
               :value="0"

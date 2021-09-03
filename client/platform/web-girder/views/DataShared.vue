@@ -113,9 +113,3 @@ export default defineComponent({
     </template>
   </v-data-table>
 </template>
-
-<style lang='scss'>
-.theme--dark.v-data-table > .v-data-table__wrapper > table > thead > tr > th {
-    background: var(--v-secondary-darken2);
-}
-</style>
