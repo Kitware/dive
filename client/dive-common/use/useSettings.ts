@@ -1,37 +1,40 @@
-import { merge } from 'lodash';
 import {
-  reactive, toRefs, Ref, watch,
+  Ref, watch, ref,
 } from '@vue/composition-api';
 
-export interface TrackSettings {
-  newTrackSettings: NewTrackSettings;
-  deletionSettings: DeletionSettings;
-}
 
-export interface DeletionSettings{
-  promptUser: boolean;
-}
-export interface NewTrackSettings {
-  mode: 'Track' | 'Detection';
-  type: string;
-  modeSettings: {
-    Track: {
-      autoAdvanceFrame: boolean;
-      interpolate: boolean;
+export interface AnnotationSettings {
+  typeSettings: {
+    showEmptyTypes: boolean;
+    lockTypes: boolean;
+  };
+  trackSettings: {
+    newTrackSettings: {
+      mode: 'Track' | 'Detection';
+      type: string;
+      modeSettings: {
+        Track: {
+          autoAdvanceFrame: boolean;
+          interpolate: boolean;
+        };
+        Detection: {
+          continuous: boolean;
+        };
+      };
     };
-    Detection: {
-      continuous: boolean;
+    deletionSettings: {
+      promptUser: boolean;
     };
   };
 }
 
-export interface TypeSettings {
-  showEmptyTypes: boolean;
-  lockTypes: boolean;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function isAnnotationSettings(obj: any): obj is AnnotationSettings {
+  return obj.trackSettings && obj.typeSettings;
 }
 
-export default function useSettings(allTypes: Ref<Readonly<string[]>>) {
-  const clientSettings = reactive({
+const defaultSettings: AnnotationSettings = {
+  trackSettings: {
     newTrackSettings: {
       mode: 'Track' as 'Track' | 'Detection',
       type: 'unknown',
@@ -45,59 +48,45 @@ export default function useSettings(allTypes: Ref<Readonly<string[]>>) {
         },
       },
     },
-    deleteSettings: {
+    deletionSettings: {
       promptUser: true,
     },
-    typeSettings: {
-      showEmptyTypes: false,
-      lockTypes: false,
-    },
-  });
+  },
+  typeSettings: {
+    showEmptyTypes: false,
+    lockTypes: false,
+  },
+};
+
+export default function useSettings(allTypes: Ref<Readonly<string[]>>) {
+  const clientSettings = ref(defaultSettings);
 
   function saveSettings() {
-    localStorage.setItem('Settings', JSON.stringify(clientSettings));
+    localStorage.setItem('Settings', JSON.stringify(clientSettings.value));
   }
 
-  function updateNewTrackSettings(updatedNewTrackSettings: NewTrackSettings) {
-    clientSettings.newTrackSettings = merge(
-      clientSettings.newTrackSettings, updatedNewTrackSettings,
-    );
+  function updateSettings(updatedSettings: AnnotationSettings) {
+    clientSettings.value = updatedSettings;
     saveSettings();
   }
-  function updateDeletionSettings(updatedDeleteTrackSettings: DeletionSettings) {
-    clientSettings.deleteSettings = merge(
-      clientSettings.deleteSettings, updatedDeleteTrackSettings,
-    );
-    saveSettings();
-  }
-
-  function updateTypeSettings(updatedTypeSettings: TypeSettings) {
-    clientSettings.typeSettings = merge(
-      clientSettings.typeSettings, updatedTypeSettings,
-    );
-    saveSettings();
-  }
-
 
   // If a type is deleted, reset the default new track type to unknown
   watch(allTypes, (newval) => {
-    if (newval.indexOf(clientSettings.newTrackSettings.type) === -1) {
-      clientSettings.newTrackSettings.type = 'unknown';
+    if (newval.indexOf(clientSettings.value.trackSettings.newTrackSettings.type) === -1) {
+      clientSettings.value.trackSettings.newTrackSettings.type = 'unknown';
     }
   });
 
   //Load default settings initially
   const storedSettings = localStorage.getItem('Settings');
   if (storedSettings) {
-    const defaultSettings = JSON.parse(storedSettings);
-    updateNewTrackSettings(defaultSettings.newTrackSettings);
-    updateDeletionSettings(defaultSettings.deleteSettings);
-    updateTypeSettings(defaultSettings.typeSettings);
+    const userSettings = JSON.parse(storedSettings);
+    if (isAnnotationSettings(userSettings)) {
+      updateSettings(userSettings);
+    }
   }
   return {
-    clientSettings: toRefs(clientSettings),
-    updateNewTrackSettings,
-    updateTypeSettings,
-    updateDeletionSettings,
+    clientSettings,
+    updateSettings,
   };
 }

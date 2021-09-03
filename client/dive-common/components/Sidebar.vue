@@ -4,26 +4,21 @@ import {
   reactive,
   toRefs,
   PropType,
-  computed,
 } from '@vue/composition-api';
 
 import { TypeList, TrackList } from 'vue-media-annotator/components';
 import { useAllTypes, useHandler } from 'vue-media-annotator/provides';
 
-import { TrackSettings, TypeSettings } from 'dive-common/use/useSettings';
 import TrackDetailsPanel from 'dive-common/components/TrackDetailsPanel.vue';
 import TrackSettingsPanel from 'dive-common/components/TrackSettingsPanel.vue';
 import TypeSettingsPanel from 'dive-common/components/TypeSettingsPanel.vue';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
+import { AnnotationSettings } from 'dive-common/use/useSettings';
 
 export default defineComponent({
   props: {
-    trackSettings: {
-      type: Object as PropType<TrackSettings>,
-      required: true,
-    },
-    typeSettings: {
-      type: Object as PropType<TypeSettings>,
+    clientSettings: {
+      type: Object as PropType<AnnotationSettings>,
       required: true,
     },
     width: {
@@ -40,7 +35,7 @@ export default defineComponent({
     TypeSettingsPanel,
   },
 
-  setup(props) {
+  setup() {
     const allTypesRef = useAllTypes();
     const { toggleMerge, commitMerge } = useHandler();
     const { visible } = usePrompt();
@@ -62,11 +57,8 @@ export default defineComponent({
         data.currentTab = 'attributes';
       }
     }
-    const newTrackSettings = computed(() => props.trackSettings.newTrackSettings);
-
     return {
       allTypesRef,
-      newTrackSettings,
       swapTabs,
       doToggleMerge,
       commitMerge,
@@ -104,14 +96,14 @@ export default defineComponent({
         class="wrapper d-flex flex-column"
       >
         <type-list
-          :show-empty-types="typeSettings.showEmptyTypes"
+          :show-empty-types="clientSettings.typeSettings.showEmptyTypes"
           class="flex-shrink-1 flex-grow-1 typelist"
         >
           <template slot="settings">
             <type-settings-panel
               :all-types="allTypesRef"
-              :type-settings="typeSettings"
-              @update-type-settings="$emit('update-type-settings',$event)"
+              :client-settings="clientSettings"
+              @update-settings="$emit('update-settings',$event)"
               @import-types="$emit('import-types',$event)"
             />
           </template>
@@ -121,25 +113,24 @@ export default defineComponent({
         <v-divider />
         <track-list
           class="flex-grow-0 flex-shrink-0"
-          :new-track-mode="newTrackSettings.mode"
-          :new-track-type="newTrackSettings.type"
-          :lock-types="typeSettings.lockTypes"
+          :new-track-mode="clientSettings.trackSettings.newTrackSettings.mode"
+          :new-track-type="clientSettings.trackSettings.newTrackSettings.type"
+          :lock-types="clientSettings.typeSettings.lockTypes"
           :hotkeys-disabled="visible()"
           @track-seek="$emit('track-seek', $event)"
         >
           <template slot="settings">
             <track-settings-panel
               :all-types="allTypesRef"
-              :track-settings="trackSettings"
-              @update-new-track-settings="$emit('update-new-track-settings',$event)"
-              @update-deletion-track-settings="$emit('update-deletion-track-settings',$event)"
+              :client-settings="clientSettings"
+              @update-settings="$emit('update-settings',$event)"
             />
           </template>
         </track-list>
       </div>
       <track-details-panel
         v-else-if="currentTab === 'attributes'"
-        :lock-types="typeSettings.lockTypes"
+        :lock-types="clientSettings.typeSettings.lockTypes"
         :hotkeys-disabled="visible()"
         :width="width"
         @track-seek="$emit('track-seek', $event)"

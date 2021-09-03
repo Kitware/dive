@@ -10,7 +10,7 @@ import { MediaController } from 'vue-media-annotator/components/annotators/media
 
 import Recipe from 'vue-media-annotator/recipe';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
-import { TrackSettings } from './useSettings';
+import { AnnotationSettings } from './useSettings';
 
 type SupportedFeature = GeoJSON.Feature<GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString>;
 
@@ -32,7 +32,7 @@ export default function useModeManager({
   editingTrack,
   trackMap,
   mediaController,
-  trackSettings,
+  clientSettings,
   recipes,
   selectTrack,
   selectNextTrack,
@@ -43,7 +43,7 @@ export default function useModeManager({
   editingTrack: Ref<boolean>;
   trackMap: Map<TrackId, Track>;
   mediaController: Ref<MediaController>;
-  trackSettings: TrackSettings;
+  clientSettings: Ref<AnnotationSettings>;
   recipes: Recipe[];
   selectTrack: (trackId: TrackId | null, edit: boolean) => void;
   selectNextTrack: (delta?: number) => TrackId | null;
@@ -82,10 +82,10 @@ export default function useModeManager({
     // is determined by newTrackSettings (if new track)
     // or canInterpolate (if existing track)
     const interpolateTrack = creating
-      ? trackSettings.newTrackSettings.modeSettings.Track.interpolate
+      ? clientSettings.value.trackSettings.newTrackSettings.modeSettings.Track.interpolate
       : canInterpolate;
     // if detection, interpolate is always false
-    return trackSettings.newTrackSettings.mode === 'Detection'
+    return clientSettings.value.trackSettings.newTrackSettings.mode === 'Detection'
       ? false
       : interpolateTrack;
   }
@@ -156,7 +156,8 @@ export default function useModeManager({
     // Handles adding a new track with the NewTrack Settings
     const { frame } = mediaController.value;
     const newTrackId = addTrack(
-      frame.value, trackSettings.newTrackSettings.type, selectedTrackId.value || undefined,
+      frame.value, clientSettings.value.trackSettings.newTrackSettings.type,
+      selectedTrackId.value || undefined,
     ).trackId;
     selectTrack(newTrackId, true);
     creating = true;
@@ -173,13 +174,15 @@ export default function useModeManager({
     // Default settings which are updated by the TrackSettings component
     let newCreatingValue = false; // by default, disable creating at the end of this function
     if (creating) {
-      if (addedTrack && trackSettings.newTrackSettings !== null) {
-        if (trackSettings.newTrackSettings.mode === 'Track'
-        && trackSettings.newTrackSettings.modeSettings.Track.autoAdvanceFrame) {
+      if (addedTrack && clientSettings.value.trackSettings.newTrackSettings !== null) {
+        if (clientSettings.value.trackSettings.newTrackSettings.mode === 'Track'
+        && clientSettings.value.trackSettings.newTrackSettings.modeSettings.Track.autoAdvanceFrame
+        ) {
           mediaController.value.nextFrame();
           newCreatingValue = true;
-        } else if (trackSettings.newTrackSettings.mode === 'Detection') {
-          if (trackSettings.newTrackSettings.modeSettings.Detection.continuous) {
+        } else if (clientSettings.value.trackSettings.newTrackSettings.mode === 'Detection') {
+          if (
+            clientSettings.value.trackSettings.newTrackSettings.modeSettings.Detection.continuous) {
             handleAddTrackOrDetection();
             newCreatingValue = true; // don't disable creating mode
           }
@@ -380,7 +383,7 @@ export default function useModeManager({
       ? maybeNextTrackId
       : selectNextTrack(-1);
     /* Delete track */
-    if (!promptOverride && trackSettings.deletionSettings.promptUser) {
+    if (!promptOverride && clientSettings.value.trackSettings.deletionSettings.promptUser) {
       const trackStrings = trackIds.map((track) => track.toString());
       const text = (['Would you like to delete the following tracks:']).concat(trackStrings);
       text.push('');

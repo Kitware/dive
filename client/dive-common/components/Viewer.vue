@@ -184,16 +184,10 @@ export default defineComponent({
 
     const {
       clientSettings,
-      updateNewTrackSettings,
-      updateDeletionSettings,
-      updateTypeSettings,
+      updateSettings,
     } = useSettings(allTypes);
 
     // Provides wrappers for actions to integrate with settings
-    const trackSettings = {
-      newTrackSettings: clientSettings.newTrackSettings.value,
-      deletionSettings: clientSettings.deleteSettings.value,
-    };
     const {
       mergeList,
       mergeInProgress,
@@ -208,7 +202,7 @@ export default defineComponent({
       editingTrack,
       trackMap,
       mediaController,
-      trackSettings,
+      clientSettings,
       selectTrack,
       selectNextTrack,
       addTrack,
@@ -446,8 +440,7 @@ export default defineComponent({
       loadError,
       mediaController,
       mergeMode: mergeInProgress,
-      trackSettings,
-      typeSettings: clientSettings.typeSettings,
+      clientSettings,
       pendingSaveCount,
       progress,
       progressValue,
@@ -465,10 +458,8 @@ export default defineComponent({
       handler: globalHandler,
       save,
       saveThreshold,
-      updateNewTrackSettings,
-      updateDeletionSettings,
       updateTime,
-      updateTypeSettings,
+      updateSettings,
       updateTypeStyle,
       updateTypeName,
       removeTypeTracks,
@@ -572,10 +563,8 @@ export default defineComponent({
       style="min-width: 700px;"
     >
       <sidebar
-        v-bind="{ trackSettings, typeSettings }"
-        @update-new-track-settings="updateNewTrackSettings($event)"
-        @update-deletion-track-settings="updateDeletionSettings($event)"
-        @update-type-settings="updateTypeSettings($event)"
+        v-bind="{ clientSettings }"
+        @update-settings="updateSettings($event)"
         @import-types="importTypes($event)"
         @track-seek="mediaController.seek($event)"
       >

@@ -1,7 +1,7 @@
 <script lang="ts">
 import Vue, { PropType } from 'vue';
 import { cloneDeep } from 'lodash';
-import { TrackSettings, NewTrackSettings, DeletionSettings } from 'dive-common/use/useSettings';
+import { AnnotationSettings } from 'dive-common/use/useSettings';
 
 export default Vue.extend({
   name: 'TrackSettingsPanel',
@@ -11,8 +11,8 @@ export default Vue.extend({
       type: Array as PropType<Array<string>>,
       required: true,
     },
-    trackSettings: {
-      type: Object as PropType<TrackSettings>,
+    clientSettings: {
+      type: Object as PropType<AnnotationSettings>,
       required: true,
     },
   },
@@ -37,17 +37,17 @@ export default Vue.extend({
       // Add unknown as the default type to the typeList
       return ['unknown'].concat(this.allTypes);
     },
-    newTrackSettings() {
-      return this.trackSettings.newTrackSettings;
+    trackSettings() {
+      return this.clientSettings.trackSettings;
     },
   },
   methods: {
     /** Reduces the number of update functions utilizing Vuex by indicating the target type */
     saveTypeSettings(event: 'Track' | 'Detection', target: 'mode' | 'type') {
       // Copy the newTrackSettings for modification
-      const copy: NewTrackSettings = cloneDeep(this.trackSettings.newTrackSettings);
-      copy[target] = event; // Modify the value
-      this.$emit('update-new-track-settings', copy);
+      const copy = cloneDeep(this.clientSettings);
+      copy.trackSettings.newTrackSettings[target] = event; // Modify the value
+      this.$emit('update-settings', copy);
     },
     /**
      * Each submodule because of Typescript needs to be referenced like this
@@ -55,22 +55,22 @@ export default Vue.extend({
      */
     saveNewTrackSubSettings(event: true | null, target: 'autoAdvanceFrame' | 'interpolate') {
       // Copy the newTrackSettings for modification
-      const copy: NewTrackSettings = cloneDeep(this.trackSettings.newTrackSettings);
-      const modeSettings = copy.modeSettings.Track;
+      const copy = cloneDeep(this.clientSettings);
+      const modeSettings = copy.trackSettings.newTrackSettings.modeSettings.Track;
       modeSettings[target] = !!event; // Modify the value
-      this.$emit('update-new-track-settings', copy);
+      this.$emit('update-settings', copy);
     },
     saveDetectionSubSettings(event: true | null, target: 'continuous') {
       // Copy the newTrackSettings for modification
-      const copy: NewTrackSettings = cloneDeep(this.trackSettings.newTrackSettings);
-      const modeSettings = copy.modeSettings.Detection;
+      const copy = cloneDeep(this.clientSettings);
+      const modeSettings = copy.trackSettings.newTrackSettings.modeSettings.Detection;
       modeSettings[target] = !!event; // Modify the value
-      this.$emit('update-new-track-settings', copy);
+      this.$emit('update-settings', copy);
     },
     saveDeletionSettings(event: true, target: 'promptUser') {
-      const copy: DeletionSettings = cloneDeep(this.trackSettings.deletionSettings);
-      copy[target] = !!event;
-      this.$emit('update-deletion-track-settings', copy);
+      const copy = cloneDeep(this.clientSettings);
+      copy.trackSettings.deletionSettings[target] = !!event;
+      this.$emit('update-settings', copy);
     },
   },
 });
@@ -141,12 +141,13 @@ export default Vue.extend({
         </v-col>
         <v-col class="py-1">
           <v-select
-            v-model="newTrackSettings.mode"
+            v-model="trackSettings.newTrackSettings.mode"
             class="ml-0 pa-0"
             x-small
             :items="modes"
             dense
             hide-details
+            @change="saveTypeSettings('mode', $event)"
           />
         </v-col>
         <v-col
@@ -167,7 +168,7 @@ export default Vue.extend({
                 mdi-help
               </v-icon>
             </template>
-            <span>{{ help.mode[newTrackSettings.mode] }}</span>
+            <span>{{ help.mode[trackSettings.newTrackSettings.mode] }}</span>
           </v-tooltip>
         </v-col>
       </v-row>
@@ -183,7 +184,7 @@ export default Vue.extend({
         </v-col>
         <v-col class="py-1">
           <v-combobox
-            :value="newTrackSettings.type"
+            :value="trackSettings.newTrackSettings.type"
             class="ml-0 pa-0"
             x-small
             :items="typeList"
@@ -214,12 +215,12 @@ export default Vue.extend({
         </v-col>
       </v-row>
       <v-row
-        v-if="newTrackSettings.mode==='Track'"
+        v-if="trackSettings.newTrackSettings.mode==='Track'"
       >
         <v-col class="py-1">
           <v-switch
             :input-value="
-              newTrackSettings.modeSettings.Track.autoAdvanceFrame"
+              trackSettings.newTrackSettings.modeSettings.Track.autoAdvanceFrame"
             class="my-0 ml-1 pt-0"
             dense
             label="Advance Frame"
@@ -250,7 +251,7 @@ export default Vue.extend({
         <v-col class="py-1">
           <v-switch
             :input-value="
-              newTrackSettings.modeSettings.Track.interpolate"
+              trackSettings.newTrackSettings.modeSettings.Track.interpolate"
             class="my-0 ml-1 pt-0"
             dense
             label="Interpolate"
@@ -280,11 +281,11 @@ export default Vue.extend({
         </v-col>
       </v-row>
       <v-row
-        v-if="newTrackSettings.mode==='Detection'"
+        v-if="trackSettings.newTrackSettings.mode==='Detection'"
       >
         <v-col>
           <v-switch
-            :input-value="newTrackSettings.modeSettings.Detection.continuous"
+            :input-value="trackSettings.newTrackSettings.modeSettings.Detection.continuous"
             class="my-0 ml-1 pt-0"
             dense
             label="Continuous"

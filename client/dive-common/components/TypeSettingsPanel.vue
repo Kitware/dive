@@ -1,7 +1,7 @@
 <script lang="ts">
 import Vue, { PropType } from 'vue';
 import { cloneDeep } from 'lodash';
-import { TypeSettings } from 'dive-common/use/useSettings';
+import { AnnotationSettings } from 'dive-common/use/useSettings';
 
 export default Vue.extend({
   name: 'TypeSettingsPanel',
@@ -11,8 +11,8 @@ export default Vue.extend({
       type: Array as PropType<Array<string>>,
       required: true,
     },
-    typeSettings: {
-      type: Object as PropType<TypeSettings>,
+    clientSettings: {
+      type: Object as PropType<AnnotationSettings>,
       required: true,
     },
   },
@@ -31,9 +31,9 @@ export default Vue.extend({
   methods: {
     /** Reduces the number of update functions utilizing Vuex by indicating the target type */
     saveTypeSettings(event: boolean, target: 'showEmptyTypes' | 'lockTypes') {
-      const copy: TypeSettings = cloneDeep(this.typeSettings);
-      copy[target] = event; // Modify the value
-      this.$emit('update-type-settings', copy);
+      const copy = cloneDeep(this.clientSettings);
+      copy.typeSettings[target] = event; // Modify the value
+      this.$emit('update-settings', copy);
     },
     confirmImport() {
       // Go through the importTypes and create types for importing
@@ -95,7 +95,7 @@ export default Vue.extend({
       <v-row>
         <v-col class="py-1">
           <v-switch
-            v-model="typeSettings.showEmptyTypes"
+            v-model="clientSettings.typeSettings.showEmptyTypes"
             class="my-0 ml-1 pt-0"
             dense
             label="Show Empty"
@@ -128,7 +128,7 @@ export default Vue.extend({
       <v-row>
         <v-col class="py-1">
           <v-switch
-            v-model="typeSettings.lockTypes"
+            v-model="clientSettings.typeSettings.lockTypes"
             label="Lock Types"
             class="my-0 ml-1 pt-0"
             dense
