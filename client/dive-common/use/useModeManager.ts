@@ -1,5 +1,5 @@
 import {
-  computed, Ref, reactive, ref, onBeforeUnmount,
+  computed, Ref, reactive, ref, onBeforeUnmount, toRef,
 } from '@vue/composition-api';
 import { uniq, flatMapDeep } from 'lodash';
 import Track, { TrackId } from 'vue-media-annotator/track';
@@ -43,7 +43,7 @@ export default function useModeManager({
   editingTrack: Ref<boolean>;
   trackMap: Map<TrackId, Track>;
   mediaController: Ref<MediaController>;
-  clientSettings: Ref<AnnotationSettings>;
+  clientSettings: AnnotationSettings;
   recipes: Recipe[];
   selectTrack: (trackId: TrackId | null, edit: boolean) => void;
   selectNextTrack: (delta?: number) => TrackId | null;
@@ -56,6 +56,8 @@ export default function useModeManager({
     visible: ['rectangle', 'Polygon', 'LineString', 'text'] as VisibleAnnotationTypes[],
     editing: 'rectangle' as EditAnnotationTypes,
   });
+  const trackSettings = toRef(clientSettings, 'trackSettings');
+
   // selectedFeatureHandle could arguably belong in useTrackSelectionControls,
   // but the meaning of this value varies based on the editing mode.  When in
   // polygon edit mode, this corresponds to a polygon point.  Ditto in line mode.
@@ -82,10 +84,10 @@ export default function useModeManager({
     // is determined by newTrackSettings (if new track)
     // or canInterpolate (if existing track)
     const interpolateTrack = creating
-      ? clientSettings.value.trackSettings.newTrackSettings.modeSettings.Track.interpolate
+      ? trackSettings.value.newTrackSettings.modeSettings.Track.interpolate
       : canInterpolate;
     // if detection, interpolate is always false
-    return clientSettings.value.trackSettings.newTrackSettings.mode === 'Detection'
+    return trackSettings.value.newTrackSettings.mode === 'Detection'
       ? false
       : interpolateTrack;
   }
@@ -156,7 +158,7 @@ export default function useModeManager({
     // Handles adding a new track with the NewTrack Settings
     const { frame } = mediaController.value;
     const newTrackId = addTrack(
-      frame.value, clientSettings.value.trackSettings.newTrackSettings.type,
+      frame.value, trackSettings.value.newTrackSettings.type,
       selectedTrackId.value || undefined,
     ).trackId;
     selectTrack(newTrackId, true);
@@ -174,15 +176,15 @@ export default function useModeManager({
     // Default settings which are updated by the TrackSettings component
     let newCreatingValue = false; // by default, disable creating at the end of this function
     if (creating) {
-      if (addedTrack && clientSettings.value.trackSettings.newTrackSettings !== null) {
-        if (clientSettings.value.trackSettings.newTrackSettings.mode === 'Track'
-        && clientSettings.value.trackSettings.newTrackSettings.modeSettings.Track.autoAdvanceFrame
+      if (addedTrack && trackSettings.value.newTrackSettings !== null) {
+        if (trackSettings.value.newTrackSettings.mode === 'Track'
+        && trackSettings.value.newTrackSettings.modeSettings.Track.autoAdvanceFrame
         ) {
           mediaController.value.nextFrame();
           newCreatingValue = true;
-        } else if (clientSettings.value.trackSettings.newTrackSettings.mode === 'Detection') {
+        } else if (trackSettings.value.newTrackSettings.mode === 'Detection') {
           if (
-            clientSettings.value.trackSettings.newTrackSettings.modeSettings.Detection.continuous) {
+            trackSettings.value.newTrackSettings.modeSettings.Detection.continuous) {
             handleAddTrackOrDetection();
             newCreatingValue = true; // don't disable creating mode
           }
@@ -383,7 +385,7 @@ export default function useModeManager({
       ? maybeNextTrackId
       : selectNextTrack(-1);
     /* Delete track */
-    if (!promptOverride && clientSettings.value.trackSettings.deletionSettings.promptUser) {
+    if (!promptOverride && trackSettings.value.deletionSettings.promptUser) {
       const trackStrings = trackIds.map((track) => track.toString());
       const text = (['Would you like to delete the following tracks:']).concat(trackStrings);
       text.push('');

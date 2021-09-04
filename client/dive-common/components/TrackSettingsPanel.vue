@@ -1,9 +1,17 @@
 <script lang="ts">
-import Vue, { PropType } from 'vue';
+import {
+  defineComponent,
+  reactive,
+  PropType,
+  toRef,
+  ref,
+  computed,
+} from '@vue/composition-api';
+
 import { cloneDeep } from 'lodash';
 import { AnnotationSettings } from 'dive-common/use/useSettings';
 
-export default Vue.extend({
+export default defineComponent({
   name: 'TrackSettingsPanel',
 
   props: {
@@ -17,9 +25,9 @@ export default Vue.extend({
     },
   },
 
-  data: () => ({
-    itemHeight: 45, // in pixels
-    help: {
+  setup(props, { emit }) {
+    const itemHeight = ref(45);
+    const help = reactive({
       mode: {
         Track: 'Track Mode - advance a frame while drawing',
         Detection: 'Detection Mode - Used to create multiple detections on a single frame.',
@@ -29,49 +37,53 @@ export default Vue.extend({
       interpolate: 'Whether new tracks should have interpolation enabled by default',
       continuous: 'Immediately stay in detection creation mode after creating a new track.  Hit Esc to exit.',
       prompt: 'Prompt user before deleting a track?',
-    },
-    modes: ['Track', 'Detection'],
-  }),
-  computed: {
-    typeList() {
-      // Add unknown as the default type to the typeList
-      return ['unknown'].concat(this.allTypes);
-    },
-    trackSettings() {
-      return this.clientSettings.trackSettings;
-    },
-  },
-  methods: {
+    });
+    const modes = ref(['Track', 'Detection']);
+    // Add unknown as the default type to the typeList
+    const typeList = computed(() => ['unknown'].concat(props.allTypes));
+    const trackSettings = toRef(props.clientSettings, 'trackSettings');
     /** Reduces the number of update functions utilizing Vuex by indicating the target type */
-    saveTypeSettings(event: 'Track' | 'Detection', target: 'mode' | 'type') {
+    const saveTypeSettings = (event: 'Track' | 'Detection', target: 'mode' | 'type') => {
       // Copy the newTrackSettings for modification
-      const copy = cloneDeep(this.clientSettings);
+      const copy = cloneDeep(props.clientSettings);
       copy.trackSettings.newTrackSettings[target] = event; // Modify the value
-      this.$emit('update-settings', copy);
-    },
+      emit('update-settings', copy);
+    };
     /**
      * Each submodule because of Typescript needs to be referenced like this
      * Allows us to add more sub settings in the future
      */
-    saveNewTrackSubSettings(event: true | null, target: 'autoAdvanceFrame' | 'interpolate') {
+    const saveNewTrackSubSettings = (event: true | null, target: 'autoAdvanceFrame' | 'interpolate') => {
       // Copy the newTrackSettings for modification
-      const copy = cloneDeep(this.clientSettings);
+      const copy = cloneDeep(props.clientSettings);
       const modeSettings = copy.trackSettings.newTrackSettings.modeSettings.Track;
       modeSettings[target] = !!event; // Modify the value
-      this.$emit('update-settings', copy);
-    },
-    saveDetectionSubSettings(event: true | null, target: 'continuous') {
+      emit('update-settings', copy);
+    };
+    const saveDetectionSubSettings = (event: true | null, target: 'continuous') => {
       // Copy the newTrackSettings for modification
-      const copy = cloneDeep(this.clientSettings);
+      const copy = cloneDeep(props.clientSettings);
       const modeSettings = copy.trackSettings.newTrackSettings.modeSettings.Detection;
       modeSettings[target] = !!event; // Modify the value
-      this.$emit('update-settings', copy);
-    },
-    saveDeletionSettings(event: true, target: 'promptUser') {
-      const copy = cloneDeep(this.clientSettings);
+      emit('update-settings', copy);
+    };
+    const saveDeletionSettings = (event: true, target: 'promptUser') => {
+      const copy = cloneDeep(props.clientSettings);
       copy.trackSettings.deletionSettings[target] = !!event;
-      this.$emit('update-settings', copy);
-    },
+      emit('update-settings', copy);
+    };
+    return {
+      itemHeight,
+      help,
+      modes,
+      trackSettings,
+      typeList,
+      saveTypeSettings,
+      saveNewTrackSubSettings,
+      saveDetectionSubSettings,
+      saveDeletionSettings,
+
+    };
   },
 });
 </script>

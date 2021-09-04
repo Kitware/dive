@@ -4,6 +4,7 @@ import {
   reactive,
   toRefs,
   PropType,
+  toRef,
 } from '@vue/composition-api';
 
 import { TypeList, TrackList } from 'vue-media-annotator/components';
@@ -35,10 +36,12 @@ export default defineComponent({
     TypeSettingsPanel,
   },
 
-  setup() {
+  setup(props) {
     const allTypesRef = useAllTypes();
     const { toggleMerge, commitMerge } = useHandler();
     const { visible } = usePrompt();
+    const trackSettings = toRef(props.clientSettings, 'trackSettings');
+    const typeSettings = toRef(props.clientSettings, 'typeSettings');
 
     const data = reactive({
       currentTab: 'tracks' as 'tracks' | 'attributes',
@@ -59,6 +62,8 @@ export default defineComponent({
     }
     return {
       allTypesRef,
+      trackSettings,
+      typeSettings,
       swapTabs,
       doToggleMerge,
       commitMerge,
@@ -96,7 +101,7 @@ export default defineComponent({
         class="wrapper d-flex flex-column"
       >
         <type-list
-          :show-empty-types="clientSettings.typeSettings.showEmptyTypes"
+          :show-empty-types="typeSettings.showEmptyTypes"
           class="flex-shrink-1 flex-grow-1 typelist"
         >
           <template slot="settings">
@@ -113,9 +118,9 @@ export default defineComponent({
         <v-divider />
         <track-list
           class="flex-grow-0 flex-shrink-0"
-          :new-track-mode="clientSettings.trackSettings.newTrackSettings.mode"
-          :new-track-type="clientSettings.trackSettings.newTrackSettings.type"
-          :lock-types="clientSettings.typeSettings.lockTypes"
+          :new-track-mode="trackSettings.newTrackSettings.mode"
+          :new-track-type="trackSettings.newTrackSettings.type"
+          :lock-types="typeSettings.lockTypes"
           :hotkeys-disabled="visible()"
           @track-seek="$emit('track-seek', $event)"
         >
@@ -130,7 +135,7 @@ export default defineComponent({
       </div>
       <track-details-panel
         v-else-if="currentTab === 'attributes'"
-        :lock-types="clientSettings.typeSettings.lockTypes"
+        :lock-types="typeSettings.lockTypes"
         :hotkeys-disabled="visible()"
         :width="width"
         @track-seek="$emit('track-seek', $event)"

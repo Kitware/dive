@@ -1,5 +1,5 @@
 import {
-  Ref, watch, ref,
+  Ref, watch, reactive,
 } from '@vue/composition-api';
 
 
@@ -59,21 +59,21 @@ const defaultSettings: AnnotationSettings = {
 };
 
 export default function useSettings(allTypes: Ref<Readonly<string[]>>) {
-  const clientSettings = ref(defaultSettings);
+  const clientSettings = reactive(defaultSettings);
 
   function saveSettings() {
-    localStorage.setItem('Settings', JSON.stringify(clientSettings.value));
+    localStorage.setItem('Settings', JSON.stringify(clientSettings));
   }
 
   function updateSettings(updatedSettings: AnnotationSettings) {
-    clientSettings.value = updatedSettings;
+    Object.assign(clientSettings, updatedSettings);
     saveSettings();
   }
 
   // If a type is deleted, reset the default new track type to unknown
   watch(allTypes, (newval) => {
-    if (newval.indexOf(clientSettings.value.trackSettings.newTrackSettings.type) === -1) {
-      clientSettings.value.trackSettings.newTrackSettings.type = 'unknown';
+    if (newval.indexOf(clientSettings.trackSettings.newTrackSettings.type) === -1) {
+      clientSettings.trackSettings.newTrackSettings.type = 'unknown';
     }
   });
 
