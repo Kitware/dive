@@ -1,7 +1,9 @@
+from typing import Any, Dict
+
 from girder_client import GirderClient
 import pytest
 
-users = {
+users: Dict[str, Dict[str, Any]] = {
     'admin': {
         'login': 'admin',
         'email': 'admin@kitware.com',
@@ -57,7 +59,7 @@ users = {
 
 def getClient(name: str) -> GirderClient:
     gc = GirderClient(apiUrl='http://localhost:8010/api/v1')
-    gc.authenticate(username=name, password=users[name]['password'])
+    gc.authenticate(username=name, password=users.get(name).get('password'))
     return gc
 
 
