@@ -59,7 +59,7 @@ users: Dict[str, Dict[str, Any]] = {
 
 def getClient(name: str) -> GirderClient:
     gc = GirderClient(apiUrl='http://localhost:8010/api/v1')
-    gc.authenticate(username=name, password=users.get(name).get('password'))
+    gc.authenticate(username=name, password=users[name]['password'])
     return gc
 
 

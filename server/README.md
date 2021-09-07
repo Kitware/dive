@@ -47,7 +47,7 @@ Access the server at <http://localhost:8010>
 
 To work on the Vue client, see development instructions in `../client`.
 
-## Unit Testing
+## Unit Testing and Static Checks
 
 All tests are run using tox which is installed with the `dev` packages.
 
@@ -60,8 +60,8 @@ tox -e check
 # run only type checks
 tox -e type
 
-# run only pytest-driven tests
-tox -e test
+# run only unit tests
+tox -e testunit
 
 # run all three tests above
 tox

@@ -56,7 +56,7 @@ def test_upload_user_data(user: dict):
 
 
 @pytest.mark.integration
-@pytest.mark.parametrize("user", users.values())
+@pytest.mark.parametrize("user", list(users.values())[1:])
 @pytest.mark.run(order=3)
 def test_dataset_clone(user: dict):
     client = getClient(user['login'])
