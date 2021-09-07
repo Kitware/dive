@@ -10,11 +10,7 @@ This guide is intended for VIAME Web users who would like to use Google Cloud re
 * You own and manage your data in cloud storage buckets.
 * (optional) You run worker nodes that process your own personal job queue.
 
-There are several benefits to this configuration:
-
-* Our team can provide support and troubleshooting directly on your data and error logs.
-* Our team manages deployments, updates, and maintenance.
-* Our team can provide recommendatations for annotation and analysis based on your specific data and needs.
+This configuration allows us to provide an optimal level of support when your compute needs exceed our offering.
 
 ## Support
 

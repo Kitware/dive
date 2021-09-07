@@ -39,7 +39,10 @@ nav:
     - Track List: UI-Track-List.md
     - Interpolation: UI-Interpolation.md
     - Attributes: Attributes.md
-  - Google Cloud Integration: Google-Cloud.md
+  - Deployment Documentation:
+    - Deployment Options Overview: Deployment-Overview.md
+    - Running your own server: Deployment-Standalone.md
+    - Hybrid and Google Cloud: Deployment-Hybrid-Google-Cloud.md
   - Advanced features:
     - Custom Pipeline Upload: Pipeline-Upload.md
     - Command Line Tools: Command-Line-Tools.md
