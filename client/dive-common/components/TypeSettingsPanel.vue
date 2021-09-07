@@ -3,12 +3,9 @@ import {
   defineComponent,
   reactive,
   PropType,
-  toRef,
   ref,
 } from '@vue/composition-api';
-
-import { cloneDeep } from 'lodash';
-import { AnnotationSettings } from 'dive-common/use/useSettings';
+import { clientSettings } from 'dive-common/store/settings';
 
 export default defineComponent({
   name: 'TypeSettingsPanel',
@@ -18,14 +15,9 @@ export default defineComponent({
       type: Array as PropType<Array<string>>,
       required: true,
     },
-    clientSettings: {
-      type: Object as PropType<AnnotationSettings>,
-      required: true,
-    },
   },
   setup(props, { emit }) {
-    const typeSettings = toRef(props.clientSettings, 'typeSettings');
-    const itemHeight = ref(45);
+    const itemHeight = 45; // in pixels
     const help = reactive({
       import: 'Import multiple Types',
       showEmptyTypes: 'View types that are not used currently.',
@@ -35,12 +27,6 @@ export default defineComponent({
     const importDialog = ref(false);
     const importTypes = ref('');
 
-    /** Reduces the number of update functions utilizing Vuex by indicating the target type */
-    const saveTypeSettings = (event: boolean, target: 'showEmptyTypes' | 'lockTypes') => {
-      const copy = cloneDeep(props.clientSettings);
-      copy.typeSettings[target] = event; // Modify the value
-      emit('update-settings', copy);
-    };
     const confirmImport = () => {
       // Go through the importTypes and create types for importing
       const types = importTypes.value.split('\n').filter((item) => item.length);
@@ -48,14 +34,14 @@ export default defineComponent({
       importDialog.value = false;
       importTypes.value = '';
     };
+
     return {
-      typeSettings,
+      clientSettings,
       itemHeight,
       help,
       importInstructions,
       importDialog,
       importTypes,
-      saveTypeSettings,
       confirmImport,
     };
   },
@@ -111,12 +97,11 @@ export default defineComponent({
       <v-row>
         <v-col class="py-1">
           <v-switch
-            v-model="typeSettings.showEmptyTypes"
+            v-model="clientSettings.typeSettings.showEmptyTypes"
             class="my-0 ml-1 pt-0"
             dense
             label="Show Empty"
             hide-details
-            @change="saveTypeSettings($event, 'showEmptyTypes')"
           />
         </v-col>
         <v-col
@@ -144,12 +129,11 @@ export default defineComponent({
       <v-row>
         <v-col class="py-1">
           <v-switch
-            v-model="typeSettings.lockTypes"
+            v-model="clientSettings.typeSettings.lockTypes"
             label="Lock Types"
             class="my-0 ml-1 pt-0"
             dense
             hide-details
-            @change="saveTypeSettings($event, 'lockTypes')"
           />
         </v-col>
         <v-col

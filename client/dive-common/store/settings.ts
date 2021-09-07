@@ -1,9 +1,8 @@
-import {
-  Ref, watch, reactive,
-} from '@vue/composition-api';
+import Install, { Ref, watch, reactive } from '@vue/composition-api';
+import { cloneDeep, merge } from 'lodash';
+import Vue from 'vue';
 
-
-export interface AnnotationSettings {
+interface AnnotationSettings {
   typeSettings: {
     showEmptyTypes: boolean;
     lockTypes: boolean;
@@ -26,11 +25,6 @@ export interface AnnotationSettings {
       promptUser: boolean;
     };
   };
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function isAnnotationSettings(obj: any): obj is AnnotationSettings {
-  return obj.trackSettings && obj.typeSettings;
 }
 
 const defaultSettings: AnnotationSettings = {
@@ -58,35 +52,34 @@ const defaultSettings: AnnotationSettings = {
   },
 };
 
-export default function useSettings(allTypes: Ref<Readonly<string[]>>) {
-  const clientSettings = reactive(defaultSettings);
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function hydrate(obj: any): AnnotationSettings {
+  return merge(cloneDeep(defaultSettings), obj);
+}
 
-  function saveSettings() {
-    localStorage.setItem('Settings', JSON.stringify(clientSettings));
-  }
+// TODO remove this: this won't be necessary in Vue 3
+Vue.use(Install);
 
-  function updateSettings(updatedSettings: AnnotationSettings) {
-    Object.assign(clientSettings, updatedSettings);
-    saveSettings();
-  }
+//Load default settings initially
+const storedSettings = JSON.parse(localStorage.getItem('Settings') || '{}');
+const clientSettings = reactive(hydrate(storedSettings));
 
+function saveSettings() {
+  console.log(JSON.stringify(clientSettings));
+  localStorage.setItem('Settings', JSON.stringify(clientSettings));
+}
+
+export default function setup(allTypes: Ref<Readonly<string[]>>) {
   // If a type is deleted, reset the default new track type to unknown
   watch(allTypes, (newval) => {
     if (newval.indexOf(clientSettings.trackSettings.newTrackSettings.type) === -1) {
       clientSettings.trackSettings.newTrackSettings.type = 'unknown';
     }
   });
-
-  //Load default settings initially
-  const storedSettings = localStorage.getItem('Settings');
-  if (storedSettings) {
-    const userSettings = JSON.parse(storedSettings);
-    if (isAnnotationSettings(userSettings)) {
-      updateSettings(userSettings);
-    }
-  }
-  return {
-    clientSettings,
-    updateSettings,
-  };
+  watch(clientSettings, saveSettings);
 }
+
+export {
+  clientSettings,
+  AnnotationSettings,
+};

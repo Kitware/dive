@@ -3,13 +3,10 @@ import {
   defineComponent,
   reactive,
   PropType,
-  toRef,
   ref,
   computed,
 } from '@vue/composition-api';
-
-import { cloneDeep } from 'lodash';
-import { AnnotationSettings } from 'dive-common/use/useSettings';
+import { clientSettings } from 'dive-common/store/settings';
 
 export default defineComponent({
   name: 'TrackSettingsPanel',
@@ -19,14 +16,10 @@ export default defineComponent({
       type: Array as PropType<Array<string>>,
       required: true,
     },
-    clientSettings: {
-      type: Object as PropType<AnnotationSettings>,
-      required: true,
-    },
   },
 
-  setup(props, { emit }) {
-    const itemHeight = ref(45);
+  setup(props) {
+    const itemHeight = 45; // in pixels
     const help = reactive({
       mode: {
         Track: 'Track Mode - advance a frame while drawing',
@@ -41,48 +34,13 @@ export default defineComponent({
     const modes = ref(['Track', 'Detection']);
     // Add unknown as the default type to the typeList
     const typeList = computed(() => ['unknown'].concat(props.allTypes));
-    const trackSettings = toRef(props.clientSettings, 'trackSettings');
-    /** Reduces the number of update functions utilizing Vuex by indicating the target type */
-    const saveTypeSettings = (event: 'Track' | 'Detection', target: 'mode' | 'type') => {
-      // Copy the newTrackSettings for modification
-      const copy = cloneDeep(props.clientSettings);
-      copy.trackSettings.newTrackSettings[target] = event; // Modify the value
-      emit('update-settings', copy);
-    };
-    /**
-     * Each submodule because of Typescript needs to be referenced like this
-     * Allows us to add more sub settings in the future
-     */
-    const saveNewTrackSubSettings = (event: true | null, target: 'autoAdvanceFrame' | 'interpolate') => {
-      // Copy the newTrackSettings for modification
-      const copy = cloneDeep(props.clientSettings);
-      const modeSettings = copy.trackSettings.newTrackSettings.modeSettings.Track;
-      modeSettings[target] = !!event; // Modify the value
-      emit('update-settings', copy);
-    };
-    const saveDetectionSubSettings = (event: true | null, target: 'continuous') => {
-      // Copy the newTrackSettings for modification
-      const copy = cloneDeep(props.clientSettings);
-      const modeSettings = copy.trackSettings.newTrackSettings.modeSettings.Detection;
-      modeSettings[target] = !!event; // Modify the value
-      emit('update-settings', copy);
-    };
-    const saveDeletionSettings = (event: true, target: 'promptUser') => {
-      const copy = cloneDeep(props.clientSettings);
-      copy.trackSettings.deletionSettings[target] = !!event;
-      emit('update-settings', copy);
-    };
+
     return {
+      clientSettings,
       itemHeight,
       help,
       modes,
-      trackSettings,
       typeList,
-      saveTypeSettings,
-      saveNewTrackSubSettings,
-      saveDetectionSubSettings,
-      saveDeletionSettings,
-
     };
   },
 });
@@ -103,13 +61,11 @@ export default defineComponent({
       >
         <v-col class="py-1">
           <v-switch
-            :input-value="
-              trackSettings.deletionSettings.promptUser"
+            v-model="clientSettings.trackSettings.deletionSettings.promptUser"
             class="my-0 ml-1 pt-0"
             dense
             label="Prompt User"
             hide-details
-            @change="saveDeletionSettings($event,'promptUser')"
           />
         </v-col>
         <v-col
@@ -153,13 +109,12 @@ export default defineComponent({
         </v-col>
         <v-col class="py-1">
           <v-select
-            v-model="trackSettings.newTrackSettings.mode"
+            v-model="clientSettings.trackSettings.newTrackSettings.mode"
             class="ml-0 pa-0"
             x-small
             :items="modes"
             dense
             hide-details
-            @change="saveTypeSettings('mode', $event)"
           />
         </v-col>
         <v-col
@@ -180,7 +135,9 @@ export default defineComponent({
                 mdi-help
               </v-icon>
             </template>
-            <span>{{ help.mode[trackSettings.newTrackSettings.mode] }}</span>
+            <span>
+              {{ help.mode[clientSettings.trackSettings.newTrackSettings.mode] }}
+            </span>
           </v-tooltip>
         </v-col>
       </v-row>
@@ -196,13 +153,12 @@ export default defineComponent({
         </v-col>
         <v-col class="py-1">
           <v-combobox
-            :value="trackSettings.newTrackSettings.type"
+            v-model="clientSettings.trackSettings.newTrackSettings.type"
             class="ml-0 pa-0"
             x-small
             :items="typeList"
             dense
             hide-details
-            @change="saveTypeSettings($event, 'type')"
           />
         </v-col>
         <v-col
@@ -227,17 +183,16 @@ export default defineComponent({
         </v-col>
       </v-row>
       <v-row
-        v-if="trackSettings.newTrackSettings.mode==='Track'"
+        v-if="clientSettings.trackSettings.newTrackSettings.mode === 'Track'"
       >
         <v-col class="py-1">
           <v-switch
-            :input-value="
-              trackSettings.newTrackSettings.modeSettings.Track.autoAdvanceFrame"
+            v-model="
+              clientSettings.trackSettings.newTrackSettings.modeSettings.Track.autoAdvanceFrame"
             class="my-0 ml-1 pt-0"
             dense
             label="Advance Frame"
             hide-details
-            @change="saveNewTrackSubSettings($event,'autoAdvanceFrame')"
           />
         </v-col>
         <v-col
@@ -262,13 +217,12 @@ export default defineComponent({
         </v-col>
         <v-col class="py-1">
           <v-switch
-            :input-value="
-              trackSettings.newTrackSettings.modeSettings.Track.interpolate"
+            v-model="
+              clientSettings.trackSettings.newTrackSettings.modeSettings.Track.interpolate"
             class="my-0 ml-1 pt-0"
             dense
             label="Interpolate"
             hide-details
-            @change="saveNewTrackSubSettings($event,'interpolate')"
           />
         </v-col>
         <v-col
@@ -293,16 +247,16 @@ export default defineComponent({
         </v-col>
       </v-row>
       <v-row
-        v-if="trackSettings.newTrackSettings.mode==='Detection'"
+        v-if="clientSettings.trackSettings.newTrackSettings.mode === 'Detection'"
       >
         <v-col>
           <v-switch
-            :input-value="trackSettings.newTrackSettings.modeSettings.Detection.continuous"
+            :input-value="
+              clientSettings.trackSettings.newTrackSettings.modeSettings.Detection.continuous"
             class="my-0 ml-1 pt-0"
             dense
             label="Continuous"
             hide-details
-            @change="saveDetectionSubSettings($event,'continuous')"
           />
         </v-col>
         <v-col cols="2">

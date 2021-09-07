@@ -3,25 +3,20 @@ import {
   defineComponent,
   reactive,
   toRefs,
-  PropType,
   toRef,
 } from '@vue/composition-api';
 
 import { TypeList, TrackList } from 'vue-media-annotator/components';
 import { useAllTypes, useHandler } from 'vue-media-annotator/provides';
 
+import { clientSettings } from 'dive-common/store/settings';
 import TrackDetailsPanel from 'dive-common/components/TrackDetailsPanel.vue';
 import TrackSettingsPanel from 'dive-common/components/TrackSettingsPanel.vue';
 import TypeSettingsPanel from 'dive-common/components/TypeSettingsPanel.vue';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
-import { AnnotationSettings } from 'dive-common/use/useSettings';
 
 export default defineComponent({
   props: {
-    clientSettings: {
-      type: Object as PropType<AnnotationSettings>,
-      required: true,
-    },
     width: {
       type: Number,
       default: 300,
@@ -36,12 +31,12 @@ export default defineComponent({
     TypeSettingsPanel,
   },
 
-  setup(props) {
+  setup() {
     const allTypesRef = useAllTypes();
     const { toggleMerge, commitMerge } = useHandler();
     const { visible } = usePrompt();
-    const trackSettings = toRef(props.clientSettings, 'trackSettings');
-    const typeSettings = toRef(props.clientSettings, 'typeSettings');
+    const trackSettings = toRef(clientSettings, 'trackSettings');
+    const typeSettings = toRef(clientSettings, 'typeSettings');
 
     const data = reactive({
       currentTab: 'tracks' as 'tracks' | 'attributes',
@@ -107,8 +102,6 @@ export default defineComponent({
           <template slot="settings">
             <type-settings-panel
               :all-types="allTypesRef"
-              :client-settings="clientSettings"
-              @update-settings="$emit('update-settings',$event)"
               @import-types="$emit('import-types',$event)"
             />
           </template>
@@ -127,8 +120,6 @@ export default defineComponent({
           <template slot="settings">
             <track-settings-panel
               :all-types="allTypesRef"
-              :client-settings="clientSettings"
-              @update-settings="$emit('update-settings',$event)"
             />
           </template>
         </track-list>
