@@ -10,7 +10,7 @@ import { MediaController } from 'vue-media-annotator/components/annotators/media
 
 import Recipe from 'vue-media-annotator/recipe';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
-import { AnnotationSettings } from './useSettings';
+import { clientSettings } from 'dive-common/store/settings';
 
 type SupportedFeature = GeoJSON.Feature<GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString>;
 
@@ -32,7 +32,6 @@ export default function useModeManager({
   editingTrack,
   trackMap,
   mediaController,
-  clientSettings,
   recipes,
   selectTrack,
   selectNextTrack,
@@ -43,7 +42,6 @@ export default function useModeManager({
   editingTrack: Ref<boolean>;
   trackMap: Map<TrackId, Track>;
   mediaController: Ref<MediaController>;
-  clientSettings: AnnotationSettings;
   recipes: Recipe[];
   selectTrack: (trackId: TrackId | null, edit: boolean) => void;
   selectNextTrack: (delta?: number) => TrackId | null;

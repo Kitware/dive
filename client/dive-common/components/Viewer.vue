@@ -35,7 +35,7 @@ import DeleteControls from 'dive-common/components/DeleteControls.vue';
 import ControlsContainer from 'dive-common/components/ControlsContainer.vue';
 import Sidebar from 'dive-common/components/Sidebar.vue';
 import { useModeManager, useSave } from 'dive-common/use';
-import clientSettingsSetup, { clientSettings } from 'dive-common/store/settings';
+import clientSettingsSetup from 'dive-common/store/settings';
 import { useApi, FrameImage, DatasetType } from 'dive-common/apispec';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { cloneDeep } from 'lodash';
@@ -196,7 +196,6 @@ export default defineComponent({
       editingTrack,
       trackMap,
       mediaController,
-      clientSettings,
       selectTrack,
       selectNextTrack,
       addTrack,
@@ -434,7 +433,6 @@ export default defineComponent({
       loadError,
       mediaController,
       mergeMode: mergeInProgress,
-      clientSettings,
       pendingSaveCount,
       progress,
       progressValue,

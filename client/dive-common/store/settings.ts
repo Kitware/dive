@@ -65,7 +65,6 @@ const storedSettings = JSON.parse(localStorage.getItem('Settings') || '{}');
 const clientSettings = reactive(hydrate(storedSettings));
 
 function saveSettings() {
-  console.log(JSON.stringify(clientSettings));
   localStorage.setItem('Settings', JSON.stringify(clientSettings));
 }
 
