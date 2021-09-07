@@ -40,7 +40,7 @@
     "@mdi/font": "^5.3.45",
     "@sentry/browser": "^5.24.2",
     "@sentry/integrations": "^5.24.2",
-    "@vue/composition-api": "^1.0.0-beta.18",
+    "@vue/composition-api": "^1.1.4",
     "axios": "^0.21.1",
     "color-hash": "^1.0.3",
     "core-js": "^3.6.4",
