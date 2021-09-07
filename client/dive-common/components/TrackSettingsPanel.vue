@@ -250,7 +250,7 @@ export default defineComponent({
         v-if="clientSettings.trackSettings.newTrackSettings.mode === 'Detection'"
       >
         <v-col>
-          <v-text-field
+          <v-switch
             v-model="
               clientSettings.trackSettings.newTrackSettings.modeSettings.Detection.continuous"
             class="my-0 ml-1 pt-0"
