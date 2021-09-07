@@ -288,6 +288,12 @@ def postprocess(
     # add default confidence filter threshold to folder metadata
     dsFolder['meta'][constants.ConfidenceFiltersMarker] = {'default': 0.1}
 
+    # Validate user-supplied metadata fields are present
+    if fromMeta(dsFolder, constants.FPSMarker) is None:
+        raise RestException(f'{constants.FPSMarker} missing from metadata')
+    if fromMeta(dsFolder, constants.TypeMarker) is None:
+        raise RestException(f'{constants.TypeMarker} missing from metadata')
+
     if not skipJobs and not isClone:
         token = Token().createToken(user=user, days=2)
         # transcode VIDEO if necessary

@@ -47,7 +47,7 @@ Access the server at <http://localhost:8010>
 
 To work on the Vue client, see development instructions in `../client`.
 
-## Testing
+## Unit Testing
 
 All tests are run using tox which is installed with the `dev` packages.
 
@@ -72,6 +72,29 @@ tox -e format
 # run mkdocs and serve the documentation page
 tox -e docs
 ```
+
+## Integration Testing
+
+Get an API key from production Girder. **DO NOT** use a full-scoped token, use a read only token.
+
+```bash
+# Pull integration test data from the server.  This will take time
+export GIRDER_API_KEY=CHANGEME
+
+# Pull data from https://viame.kitware.com/girder#folder/6006de5ff751cc24d135ec25
+girder-client \
+  --api-url https://viame.kitware.com/api/v1 \
+  download 6006de5ff751cc24d135ec25 tests/integration/data
+cd tests/integration/data
+
+# Unzip everything
+find -iname '*.zip' -print0 | xargs unzip
+
+# Run the tests
+tox -e testintegration
+```
+
+After integration tests are complete, visually inspect the results to make sure all jobs completed, new datasets open correctly, etc.
 
 ## Debug utils and command line tools
 
