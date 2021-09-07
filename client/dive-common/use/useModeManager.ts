@@ -378,14 +378,14 @@ export default function useModeManager({
     mergeList.value = mergeList.value.filter((trackId) => !trackIds.includes(trackId));
   }
 
-  async function handleRemoveTrack(trackIds: TrackId[], promptOverride = false) {
+  async function handleRemoveTrack(trackIds: TrackId[], forcePromptDisable = false) {
     /* Figure out next track ID */
     const maybeNextTrackId = selectNextTrack(1);
     const previousOrNext = maybeNextTrackId !== null
       ? maybeNextTrackId
       : selectNextTrack(-1);
     /* Delete track */
-    if (!promptOverride && trackSettings.value.deletionSettings.promptUser) {
+    if (!forcePromptDisable && trackSettings.value.deletionSettings.promptUser) {
       const trackStrings = trackIds.map((track) => track.toString());
       const text = (['Would you like to delete the following tracks:']).concat(trackStrings);
       text.push('');
