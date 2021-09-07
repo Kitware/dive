@@ -34,11 +34,8 @@ import UserGuideButton from 'dive-common/components/UserGuideButton.vue';
 import DeleteControls from 'dive-common/components/DeleteControls.vue';
 import ControlsContainer from 'dive-common/components/ControlsContainer.vue';
 import Sidebar from 'dive-common/components/Sidebar.vue';
-import {
-  useModeManager,
-  useSave,
-  useSettings,
-} from 'dive-common/use';
+import { useModeManager, useSave } from 'dive-common/use';
+import clientSettingsSetup from 'dive-common/store/settings';
 import { useApi, FrameImage, DatasetType } from 'dive-common/apispec';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { cloneDeep } from 'lodash';
@@ -182,10 +179,7 @@ export default defineComponent({
       filteredTracks,
     });
 
-    const {
-      clientSettings,
-      updateSettings,
-    } = useSettings(allTypes);
+    clientSettingsSetup(allTypes);
 
     // Provides wrappers for actions to integrate with settings
     const {
@@ -202,7 +196,6 @@ export default defineComponent({
       editingTrack,
       trackMap,
       mediaController,
-      clientSettings,
       selectTrack,
       selectNextTrack,
       addTrack,
@@ -440,7 +433,6 @@ export default defineComponent({
       loadError,
       mediaController,
       mergeMode: mergeInProgress,
-      clientSettings,
       pendingSaveCount,
       progress,
       progressValue,
@@ -459,7 +451,6 @@ export default defineComponent({
       save,
       saveThreshold,
       updateTime,
-      updateSettings,
       updateTypeStyle,
       updateTypeName,
       removeTypeTracks,
@@ -563,8 +554,6 @@ export default defineComponent({
       style="min-width: 700px;"
     >
       <sidebar
-        v-bind="{ clientSettings }"
-        @update-settings="updateSettings($event)"
         @import-types="importTypes($event)"
         @track-seek="mediaController.seek($event)"
       >
