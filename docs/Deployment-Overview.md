@@ -22,10 +22,6 @@ Our team can provide guidance on annotaiton and training because we have direct 
 Having user data in our environment helps us understand user needs and improve the product | Feedback by email is always appreciated.
 Limited shared compute resources (2 GPUs) available to process jobs. Can be mitigated by hybrid compute options | As much compute as you pay for
 
-## Architecture Overview
-
-![DIVE-Web-Architecture-Diagram.svg](images/Diagrams/DIVE-Web-Architecture-Diagram.svg)
-
 ## Using our public server
 
 The easiest option to get started using VIAME is to [try our public server](Web-Version.md).
@@ -36,9 +32,7 @@ You may wish to run your own deployment of VIAME Web in your own lab or in a clo
 
 **Local server**
 
-If you already have SSH access to an existing server and `sudo` permissions, skip to the docker guide.
-
-[Docker Operator Guide ➥](https://github.com/Kitware/dive/tree/main/docker){ .md-button .md-button--primary }
+If you already have SSH access to an existing server and `sudo` permissions, [skip to the docker guide](Deployment-Docker-Compose.md).
 
 **Google Cloud**
 
@@ -53,7 +47,7 @@ You'll need a GCP Virtual Machine (VM) with the following features
 
 You can achieve this in a couple of ways:
 
-* **Option 1**: Provision a virtual machine on your own through the Google Cloud web console and then proceed to follow the [docker documentation](https://github.com/Kitware/dive/tree/main/docker) as if it were a regular server with SSH access.
+* **Option 1**: Provision a virtual machine on your own through the Google Cloud web console and then proceed to follow the [docker compose documentation](Deployment-Docker-Compose.md) as if it were a regular server with SSH access.
 * **Option 2**: Use our Terraform and Ansible guide to automatically provision an VM and configure a server.
 
 **AWS**

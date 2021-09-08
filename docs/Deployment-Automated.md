@@ -1,16 +1,16 @@
 # Cloud Deployment Guide
 
-!!! info
-    Be sure to read the [Deployment Overview](Deployment-Overview.md) page first.
+This section will guide you through deploying VIAME to Google Cloud for several use cases using [Terraform](https://www.terraform.io/) and [Ansible](https://www.ansible.com/). 
 
-This section will guide you through deploying VIAME to Google Cloud for several use cases.
+!!! info
+  If you don't want to use Terraform and Ansible, you can provision a new server on your own and then skip to the Docker Compose
 
 * **Scenario 1**: Deploy your own instance of VIAME Web to GCP Compute Engine.
 * **Scenario 2**: Run VIAME pipelines on a GCP Compute Engine VM from the command line.
 * **Scenario 3**: Run a Private GPU worker in GCP to process jobs from any VIAME Web instance (including viame.kitware.com)
 
 !!! info
-    If you want to run a GPU worker or the whole VIAME Web stack to an existing server, [see the docker documentation instead](https://github.com/Kitware/dive/blob/main/docker/README.md).
+    If you want to run a GPU worker or the whole VIAME Web stack to an existing server, [see the docker documentation instead](Deployment-Docker-Compose.md).
 
 ## Preparation
 

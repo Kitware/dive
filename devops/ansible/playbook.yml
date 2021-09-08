@@ -25,7 +25,7 @@
     - name: Git Clone DIVE
       git:
         repo: https://github.com/Kitware/dive
-        dest: /tmp/dive
+        dest: /opt/dive
 
     - name: Download VIAME
       when: run_worker_container or run_viame_cli | bool
@@ -84,3 +84,4 @@
           WORKER_CONCURRENCY: '{{ WORKER_CONCURRENCY }}'
           KWIVER_DEFAULT_LOG_LEVEL: '{{ KWIVER_DEFAULT_LOG_LEVEL }}'
           DIVE_API_URL: '{{ DIVE_API_URL }}'
+
