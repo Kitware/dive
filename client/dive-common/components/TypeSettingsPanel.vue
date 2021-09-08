@@ -1,9 +1,13 @@
 <script lang="ts">
-import Vue, { PropType } from 'vue';
-import { cloneDeep } from 'lodash';
-import { TypeSettings } from 'dive-common/use/useSettings';
+import {
+  defineComponent,
+  reactive,
+  PropType,
+  ref,
+} from '@vue/composition-api';
+import { clientSettings } from 'dive-common/store/settings';
 
-export default Vue.extend({
+export default defineComponent({
   name: 'TypeSettingsPanel',
 
   props: {
@@ -11,37 +15,35 @@ export default Vue.extend({
       type: Array as PropType<Array<string>>,
       required: true,
     },
-    typeSettings: {
-      type: Object as PropType<TypeSettings>,
-      required: true,
-    },
   },
-
-  data: () => ({
-    itemHeight: 45, // in pixels
-    help: {
+  setup(props, { emit }) {
+    const itemHeight = 45; // in pixels
+    const help = reactive({
       import: 'Import multiple Types',
       showEmptyTypes: 'View types that are not used currently.',
       lockTypes: 'Only allows the use of defined types.',
-    },
-    importInstructions: 'Please provide a list of types (separated by a new line) that you would like to import',
-    importDialog: false,
-    importTypes: '',
-  }),
-  methods: {
-    /** Reduces the number of update functions utilizing Vuex by indicating the target type */
-    saveTypeSettings(event: boolean, target: 'showEmptyTypes' | 'lockTypes') {
-      const copy: TypeSettings = cloneDeep(this.typeSettings);
-      copy[target] = event; // Modify the value
-      this.$emit('update-type-settings', copy);
-    },
-    confirmImport() {
+    });
+    const importInstructions = ref('Please provide a list of types (separated by a new line) that you would like to import');
+    const importDialog = ref(false);
+    const importTypes = ref('');
+
+    const confirmImport = () => {
       // Go through the importTypes and create types for importing
-      const types = this.importTypes.split('\n').filter((item) => item.length);
-      this.$emit('import-types', types);
-      this.importDialog = false;
-      this.importTypes = '';
-    },
+      const types = importTypes.value.split('\n').filter((item) => item.length);
+      emit('import-types', types);
+      importDialog.value = false;
+      importTypes.value = '';
+    };
+
+    return {
+      clientSettings,
+      itemHeight,
+      help,
+      importInstructions,
+      importDialog,
+      importTypes,
+      confirmImport,
+    };
   },
 });
 </script>
@@ -95,12 +97,11 @@ export default Vue.extend({
       <v-row>
         <v-col class="py-1">
           <v-switch
-            v-model="typeSettings.showEmptyTypes"
+            v-model="clientSettings.typeSettings.showEmptyTypes"
             class="my-0 ml-1 pt-0"
             dense
             label="Show Empty"
             hide-details
-            @change="saveTypeSettings($event, 'showEmptyTypes')"
           />
         </v-col>
         <v-col
@@ -128,12 +129,11 @@ export default Vue.extend({
       <v-row>
         <v-col class="py-1">
           <v-switch
-            v-model="typeSettings.lockTypes"
+            v-model="clientSettings.typeSettings.lockTypes"
             label="Lock Types"
             class="my-0 ml-1 pt-0"
             dense
             hide-details
-            @change="saveTypeSettings($event, 'lockTypes')"
           />
         </v-col>
         <v-col

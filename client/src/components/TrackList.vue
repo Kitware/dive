@@ -183,7 +183,7 @@ export default defineComponent({
         confirm: true,
       });
       if (result) {
-        removeTrack(tracksDisplayed);
+        removeTrack(tracksDisplayed, true);
       }
     }
 
