@@ -41,8 +41,8 @@ nav:
     - Attributes: Attributes.md
   - Deployment Documentation:
     - Deployment Options Overview: Deployment-Overview.md
-    - Running your own server: Deployment-Standalone.md
-    - Hybrid and Google Cloud: Deployment-Hybrid-Google-Cloud.md
+    - Deployment to Google Cloud: Deployment-Compute.md
+    - Cloud Storage Integration: Deployment-Storage.md
   - Advanced features:
     - Custom Pipeline Upload: Pipeline-Upload.md
     - Command Line Tools: Command-Line-Tools.md
