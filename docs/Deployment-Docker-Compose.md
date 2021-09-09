@@ -44,6 +44,7 @@ cd /opt/dive/docker
 cp .env.default .env
 
 # Edit the .env file
+# See configuration options below and inline comments
 nano .env
 
 # Pull pre-built images
@@ -79,7 +80,7 @@ docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d --scale gi
 
 ## Addon management
 
-After initial deployment, a DIVE server will only have basic VIAME pipelines available. VIAME optional patches are installed and upgraded using a celery task that must be triggered by hand. Run this by issueing a `POST /api/v1/viame/upgrade_pipelines` request from the swagger UI at `/api/v1` .
+After initial deployment, a DIVE server will only have basic VIAME pipelines available. VIAME optional patches are installed and upgraded using a celery task that must be triggered by hand. Run this by issuing a <u>`POST /dive_configuration/upgrade_pipelines`</u> request from the swagger UI at `http://{domain}/api/v1` .
 
 * Whether you `force` or not, only those pipelines from addons from the exact urls passed will be enabled on the server.
 * An old addon can be disabled by simply omitting its download from the upgrade payload.

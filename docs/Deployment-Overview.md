@@ -16,9 +16,9 @@ The goal of this page is to provide an overview of the ways to run VIAME or VIAM
 |----------|-----------|
 Free to use; no maintenance costs | You pay hosting and maintenance costs |
 Always up to date | Possible to configure automated updates |
-One shared enviornment for everyone | Your organization has full control over access |
+One shared environment for everyone | Your organization has full control over access |
 Our team monitors this service for errors and can respond to issues proactively | Support by email requires logs, screenshots, and other error information if applicable
-Our team can provide guidance on annotaiton and training because we have direct access to your data | Support by email usually requires example data and annotations
+Our team can provide guidance on annotation and training because we have direct access to your data | Support by email usually requires example data and annotations
 Having user data in our environment helps us understand user needs and improve the product | Feedback by email is always appreciated.
 Limited shared compute resources (2 GPUs) available to process jobs. Can be mitigated by hybrid compute options | As much compute as you pay for
 
@@ -64,7 +64,7 @@ To set up a private worker, continue to the [Provisioning Google Cloud](Deployme
 
 ## Hybrid options for storage
 
-Any instance of VIAME Web, including our public server, can connect to S3-compatible storage.  This means your lab or group could make your existing data avaible at [viame.kitware.com](https://viame.kitware.com), either privately or publicly.
+Any instance of VIAME Web, including our public server, can connect to S3-compatible storage.  This means your lab or group could make your existing data available at [viame.kitware.com](https://viame.kitware.com), either privately or publicly.
 
 | Storage Product | Support level |
 |-----------------|---------------|

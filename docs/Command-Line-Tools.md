@@ -1,8 +1,10 @@
-# Command Line Tools
+# DIVE Command Line Tools
 
-> **NOTE** this is an experimental feature with an unstable API.
+!!! note
 
-Some of the DIVE data conversion features are also exposed through `dive`.
+    This page is **not related** to the VIAME command line (i.e. `kwiver`, `viame_train_detector`)
+
+Some of the DIVE data conversion features are exposed through `dive`.  
 
 ## Features
 
