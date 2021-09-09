@@ -1,27 +1,30 @@
-import { isRootLocation, GirderModel } from '@girder/components/src';
 import {
   calibrationFileTypes, inputAnnotationFileTypes, inputAnnotationTypes,
   otherImageTypes, otherVideoTypes, websafeImageTypes, websafeVideoTypes,
 } from 'dive-common/constants';
 import { DatasetType } from 'dive-common/apispec';
-import type { LocationType } from 'platform/web-girder/store/types';
+import type { LocationType, RootlessLocationType } from 'platform/web-girder/store/types';
+import { Route } from 'vue-router';
 
-function getLocationFromRoute({ params }: { params: GirderModel }) {
-  if (isRootLocation(params)) {
+/**
+ * If the current route is representable by a LocationType, return it.
+ * _modelType comes from the router spec and must be converted into LocationType
+ */
+function getLocationFromRoute(route: Route): LocationType | null {
+  const { params } = route;
+  if (['root', 'collections', 'users'].indexOf(params.routeType) >= 0) {
+    return { type: params.routeType } as LocationType;
+  }
+  if (['user', 'folder', 'collection'].indexOf(params.routeType) >= 0) {
     return {
-      type: params._modelType,
-    };
-  }
-  if (params._modelType === 'user') {
-    return params;
-  }
-  if (params._modelType === 'folder') {
-    return params;
+      _modelType: params.routeType,
+      _id: params.routeId,
+    } as RootlessLocationType;
   }
   return null;
 }
 
-function getPathFromLocation(location: LocationType) {
+function getRouteFromLocation(location: LocationType): string {
   if (!location) {
     return '/';
   }
@@ -75,6 +78,6 @@ Promise<{ canceled: boolean; filePaths: string[]; fileList?: File[]}> {
 
 export {
   getLocationFromRoute,
-  getPathFromLocation,
+  getRouteFromLocation,
   openFromDisk,
 };

@@ -47,7 +47,7 @@ export default defineComponent({
       girderRest.$on('message:job_status', handleNotification);
     }
 
-    onBeforeUnmount(() => {
+    onBeforeUnmount(async () => {
       girderRest.$off('message:job_status', handleNotification);
     });
 

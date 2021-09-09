@@ -12,8 +12,6 @@ import RunPipelineMenu from 'dive-common/components/RunPipelineMenu.vue';
 import RunTrainingMenu from 'dive-common/components/RunTrainingMenu.vue';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 
-import { getFolder } from 'platform/web-girder/api/girder.service';
-import { getLocationFromRoute } from '../utils';
 import { deleteResources } from '../api';
 import { getMaxNSummaryUrl } from '../api/summary.service';
 import Export from './Export.vue';
@@ -87,9 +85,6 @@ export default defineComponent({
     exportTargetId() {
       return this.exportTarget?._id || null;
     },
-    locationIsViameFolder() {
-      return !!(this.location && this.location.meta && this.location.meta.annotate);
-    },
     selectedViameFolderIds() {
       return this.selected.filter(
         ({ _modelType, meta }) => _modelType === 'folder' && meta && meta.annotate,
@@ -104,23 +99,6 @@ export default defineComponent({
     summaryUrl() {
       return getMaxNSummaryUrl(this.locationInputs);
     },
-  },
-  async created() {
-    let newLocaction = getLocationFromRoute(this.$route);
-    if (newLocaction === null) {
-      newLocaction = {
-        _id: this.girderRest.user._id,
-        _modelType: 'user',
-      };
-    }
-    this.location = newLocaction;
-    if (this.location._modelType === 'folder') {
-      this.location = (await getFolder(this.location._id)).data;
-    }
-    this.girderRest.$on('message:job_status', this.handleNotification);
-  },
-  beforeDestroy() {
-    this.girderRest.$off('message:job_status', this.handleNotification);
   },
   methods: {
     async deleteSelection() {
@@ -226,7 +204,7 @@ export default defineComponent({
           <v-toolbar
             dense
             class="mb-4"
-            rounded=""
+            rounded
           >
             <ShareTab
               :value="0"

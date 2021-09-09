@@ -1,16 +1,13 @@
 <script lang="ts">
 import {
-  computed, defineComponent, inject, ref,
+  computed, defineComponent, ref,
 } from '@vue/composition-api';
 import {
-  GirderFileManager, getLocationType, RestClient, GirderModel,
+  GirderFileManager, getLocationType, GirderModel,
 } from '@girder/components/src';
 
-import { getFolder } from '../api/girder.service';
-
-import { isGirderModel, useStore, LocationType } from '../store/types';
+import { useStore, LocationType } from '../store/types';
 import Upload from './Upload.vue';
-import { getLocationFromRoute } from '../utils';
 
 export default defineComponent({
   components: {
@@ -18,31 +15,17 @@ export default defineComponent({
     Upload,
   },
 
-  setup(_, { root }) {
+  setup() {
     const fileManager = ref();
     const store = useStore();
     const uploading = ref(false);
     const uploaderDialog = ref(false);
     const locationStore = store.state.Location;
     const { getters } = store;
-    const girderRest = inject('girderRest') as RestClient;
 
-    const location = computed({
-      get() {
-        return locationStore.location;
-      },
-      /**
-       * This setter is used by Girder Web Components to set the location when it changes
-       * by clicking on a Breadcrumb link
-       */
-      set(value: null | LocationType) {
-        /* Prevent navigation into auxiliary folder */
-        if (isGirderModel(value) && getters.locationIsViameFolder && value?.name === 'auxiliary') {
-          return;
-        }
-        store.dispatch('Location/route', value);
-      },
-    });
+    function setLocation(location: LocationType) {
+      store.dispatch('Location/setRouteFromLocation', location);
+    }
 
     function handleNotification() {
       fileManager.value.$refs.girderBrowser.refresh();
@@ -62,36 +45,14 @@ export default defineComponent({
     }
 
     const shouldShowUpload = computed(() => (
-      location.value
-      && !getters.locationIsViameFolder
-      && getLocationType(location.value) === 'folder'
+      locationStore.location
+      && !getters['Location/locationIsViameFolder']
+      && getLocationType(locationStore.location) === 'folder'
       && !locationStore.selected.length
     ));
 
-    async function init() {
-      // TODO fix types here
-      // eslint-disable-next-line @typescript-eslint/ban-ts-ignore
-      // @ts-ignore
-      let newLocaction = getLocationFromRoute(root.$route);
-      if (newLocaction === null) {
-        // eslint-disable-next-line @typescript-eslint/ban-ts-ignore
-        // @ts-ignore
-        newLocaction = {
-          _id: girderRest.user._id,
-          _modelType: 'user',
-        };
-      }
-      location.value = newLocaction;
-      if (isGirderModel(newLocaction) && newLocaction?._modelType === 'folder') {
-        location.value = (await getFolder(newLocaction._id)).data;
-      }
-    }
-
-    init();
-
     return {
       fileManager,
-      location,
       locationStore,
       getters,
       shouldShowUpload,
@@ -100,6 +61,7 @@ export default defineComponent({
       /* methods */
       isAnnotationFolder,
       handleNotification,
+      setLocation,
       updateUploading,
     };
   },
@@ -111,11 +73,12 @@ export default defineComponent({
   <GirderFileManager
     ref="fileManager"
     v-model="locationStore.selected"
-    :selectable="!getters.locationIsViameFolder"
+    :selectable="!getters['Location/locationIsViameFolder']"
     :new-folder-enabled="
-      !locationStore.selected.length && !getters.locationIsViameFolder
+      !locationStore.selected.length && !getters['Location/locationIsViameFolder']
     "
-    :location.sync="location"
+    :location="locationStore.location"
+    @update:location="setLocation($event)"
   >
     <template #headerwidget>
       <v-dialog
@@ -141,7 +104,7 @@ export default defineComponent({
           </v-btn>
         </template>
         <Upload
-          :location="location"
+          :location="locationStore.location"
           @update:uploading="updateUploading"
           @close="uploaderDialog = false"
         />

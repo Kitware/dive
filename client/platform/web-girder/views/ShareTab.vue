@@ -14,6 +14,7 @@ export default defineComponent({
   setup() {
     const store = useStore();
     const locationStore = store.state.Location;
+    const { getters } = store;
 
     const clearSelected = () => {
       locationStore.selected = [];
@@ -21,6 +22,7 @@ export default defineComponent({
 
     return {
       locationStore,
+      getters,
       clearSelected,
     };
   },
@@ -29,13 +31,21 @@ export default defineComponent({
 
 <template>
   <v-tabs
+    dense
     right
+    class="px-4"
     @change="clearSelected"
   >
-    <v-tab :to="{name: 'home'}">
+    <v-tab :to="getters['Location/locationRoute']">
+      <v-icon class="mr-2">
+        mdi-folder-multiple
+      </v-icon>
       Browse Data
     </v-tab>
     <v-tab :to="{name: 'shared'}">
+      <v-icon class="mr-2">
+        mdi-share-variant
+      </v-icon>
       Shared with Me
     </v-tab>
   </v-tabs>
