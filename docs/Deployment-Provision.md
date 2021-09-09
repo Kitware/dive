@@ -98,9 +98,9 @@ These are all the variables that can be provided with `--extra-vars` along with 
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| run_server | `no` | Set `run_server=yes` for scenario 1 (deploy your own) |
+| run_server | `no` | Set `run_server=yes` for scenario 1 (Web Instance) |
 | run_viame_cli | `no` | Set `run_viame_cli=yes` for scenario 2 (VIAME CLI) |
-| run_worker_container | `no` | Set `run_worker_container=yes` for scenario 3 (standalone worker) |
+| run_worker_container | `no` | Set `run_worker_container=yes` for scenario 3 (Standalone Worker) |
 | viame_bundle_url | latest bundle url | Optional for scenario 2 & 3.  Change to install a different version of VIAME.  This should be a link to the latest Ubuntu Desktop (18/20) binaries from viame.kitware.com (Mirror 1) |
 | DIVE_USERNAME | null | Required for scenario 3. Username to start private queue processor |
 | DIVE_PASSWORD | null | Required for scenario 3. Password for private queue processor |
@@ -116,13 +116,13 @@ The examples below assumes the `inventory` file was created by Terraform above.
 # install galaxy plugins
 ansible-galaxy install -r ansible/requirements.yml
 
-# Scenario 1 Example
+# Scenario 1 (Web Instance) Example
 ansible-playbook -i inventory ansible/playbook.yml --extra-vars "run_server=yes"
 
-# Scenario 2 Example
+# Scenario 2 (VIAME CLI) Example
 ansible-playbook -i inventory ansible/playbook.yml --extra-vars "run_viame_cli=yes"
 
-# Scenario 3 Example
+# Scenario 3 (Standalone Worker) Example
 ansible-playbook -i inventory ansible/playbook.yml --extra-vars "run_worker_container=yes DIVE_USERNAME=username DIVE_PASSWORD=changeme"
 ```
 
