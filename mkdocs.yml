@@ -41,7 +41,7 @@ nav:
     - Attributes: Attributes.md
   - Deployment Documentation:
     - Deployment Options Overview: Deployment-Overview.md
-    - Provisioning Google Cloud: Deployment-Automated.md
+    - Provisioning Google Cloud: Deployment-Provision.md
     - Running with Docker Compose: Deployment-Docker-Compose.md
     - Cloud Storage Integration: Deployment-Storage.md
   - Advanced features:

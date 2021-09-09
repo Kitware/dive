@@ -2,8 +2,13 @@
 
 This page is intended for storage administrators who would like to make their existing data available through VIAME Web.
 
-!!! warning
+!!! tip
+
     This guide assumes you are working with [viame.kitware.com](https://viame.kitware.com).  If you are using a different deployment, be sure to change the appropriate fields.
+
+!!! tip
+
+    Regarding data transfer costs, if you choose to keep both your data storage and job runners in Google Cloud (or AWS), you will avoid paying a data egress fee for transferring data between storage and the processing node.
 
 ## Google Cloud Storage Mirroring
 

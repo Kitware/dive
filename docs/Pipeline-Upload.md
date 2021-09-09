@@ -25,6 +25,6 @@ If your pipe must accept input, set the **pipeline folder** metadata property `r
 
 User-uploaded pipelines may depend on any pipe already installed from the base image or an addon using `include <pipename>.pipe` . Depending on other user-uploaded pipes is not supported.
 
-!!! info
+!!! tip
 
     KWIVER pipe files can be exported for use with DIVE using [kwiver pipe-config](https://kwiver.readthedocs.io/en/latest/tools/pipe-config.html?highlight=pipe-config)

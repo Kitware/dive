@@ -1,48 +1,35 @@
-# Command Line Tools: divecli
+# Command Line Tools
 
 > **NOTE** this is an experimental feature with an unstable API.
 
-Some of the DIVE desktop features are also exposed through `divecli`.
+Some of the DIVE data conversion features are also exposed through `dive`.
 
 ## Features
 
-* Convert VIAME CSV to DIVE Json (and vice versa)
-* Show statistics about DIVE imported datasets
-* Run pipelines and training on DIVE imported datasets
+* Convert between VIAME CSV, DIVE Json, kpf, and coco.
+* Verify the integrity of a DIVE Json annotation file.
 
 ## Installation
 
-Global:
-
-`npm i -g vue-media-annotator`
+``` bash
+# Install the command line tools directly from source
+pip3 install git+https://github.com/Kitware/dive.git@main#subdirectory=server
+```
 
 ## Usage
 
 ``` bash
-~$ divecli --help
+~$ dive convert --help
 
-# divecli <command>
-
-# Commands:
-#   divecli viame2json [file]         Convert VIAME CSV to JSON
-#   divecli json2viame [file] [meta]  Convert JSON to VIAME CSV
-#   divecli list-config               List viame pipeline configuration
-#   divecli run-pipeline              Run a pipeline
-#   divecli run-training              Run training
-#   divecli stats                     Show stats on existing data
+# Usage: dive convert [OPTIONS] COMMAND [ARGS]...
 
 # Options:
-#   --version  Show version number                                       [boolean]
-#   --help     Show help                                                 [boolean]
-```
+#   --version  Show the version and exit.
+#   --help     Show this message and exit.
 
-## Example: Run pipeline
-
-Run a kwiver pipeline on existing VIAME DIVE data. You'll need to import the data into dive desktop first.
-
-``` bash
-~$ divecli run-pipeline --id <DATASET_ID> \
-  --pipe tracker_default.pipe \
-  --type tracker \
-  --data-path ~/VIAME_DATA/
+# Commands:
+#   coco2dive
+#   dive2viame
+#   kpf2dive
+#   viame2dive
 ```

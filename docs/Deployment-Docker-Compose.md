@@ -1,8 +1,9 @@
 # Running with Docker Compose
 
-Start here once you have SSH access and `sudo` privileges for a server or VM.
+Start here once you have SSH access and `sudo` privileges for a server or VM. 
 
-!!! warning
+!!! note
+
     Docker server installation is only supported on Linux distributions
 
 ## Container Images
@@ -18,8 +19,11 @@ In addition, a database (MongoDB) and a queue service (RabbitMQ) are required.
 
 ## Install dependencies
 
-!!! info
-    You can skip this section if you used Ansible to provision.
+SSH into the target server and install these system dependencies.
+
+!!! tip
+
+    You can skip this section if you used Ansible to configure your server, as it already installed all necessary dependencies.
 
 * Install NVIDIA drivers: `sudo ubuntu-drivers install`
 * Install [docker and docker-compose](https://docs.docker.com/engine/install/ubuntu/)
@@ -49,18 +53,18 @@ docker-compose pull
 docker-compose up -d
 ```
 
-VIAME server will be running at [http://localhost:8010](http://localhost:8010/). The default username/password is `admin:letmein`.
+VIAME server will be running at [http://localhost:8010](http://localhost:8010/). You should see a page that looks like this. The default username and password is `admin:letmein`.
 
 ![Login Page](images/General/login.png)
 
 ## Production deployment
 
-If you have a server with a **domain name** and a **public-facing IP address**, you should be able to use our production deployment configuration.  This is the way we deploy on https://viame.kitware.com.
+If you have a server with a **public-facing IP address** and a **domain name** that points to it, you should be able to use our production deployment configuration.  This is the way we deploy viame.kitware.com.
 
-* It is updated on a schedule by `containrrr/watchtower` using automated image builds from docker hub (above).
-* It includes `linuxserver/duplicati` for nighly backups.
+* `containrrr/watchtower` updates the running containers on a schedule using automated image builds from docker hub (above).
+* `linuxserver/duplicati` is included to schedule nightly backups, but must be manually configured.
 
-You should scale the girder server up to an appropriate number.  This stack will automatically load-balance across however many instances you bring up.
+You should scale the girder web server up to an appropriate number.  This stack will automatically load-balance across however many instances you bring up.
 
 ```bash
 # Continuing from above, modify .env again to include the production variables
