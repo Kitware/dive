@@ -7,7 +7,13 @@ There are several important python packages in this application
 * `scripts` has general command-line utilities
 * `dive_utils` is shared code between the above packages
 
+## Prerequisites
+
+Set up your system as described in the [Basic Deployment](https://kitware.github.io/dive/Deployment-Docker-Compose/)
+
 ## Development
+
+In development, the server and client are run in separate processes.  In production, the client is built and bundled as static files into the server image.
 
 Install the development requirements
 

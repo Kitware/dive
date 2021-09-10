@@ -3,7 +3,9 @@
   hosts: all
   become: yes
   vars:
-    run_worker_container: yes
+    run_worker_container: no
+    run_server: no
+    run_viame_cli: no
     viame_bundle_url: https://viame.kitware.com/api/v1/item/60b2fbaed3ee6142d91c8351/download
     DIVE_USERNAME: ''
     DIVE_PASSWORD: ''
@@ -13,36 +15,40 @@
 
   roles:
     - role: geerlingguy.docker
-      when: run_worker_container | bool
+      when: run_worker_container or run_server | bool
     - role: nvidia.nvidia_driver
     - role: nvidia.nvidia_docker
-      when: run_worker_container | bool
+      when: run_worker_container or run_server | bool
 
   tasks:
 
     - name: Git Clone DIVE
       git:
         repo: https://github.com/Kitware/dive
-        dest: /tmp/dive
+        dest: /opt/dive
 
     - name: Download VIAME
+      when: run_worker_container or run_viame_cli | bool
       get_url:
         url: '{{ viame_bundle_url }}'
         dest: /tmp/VIAME.tar.gz
         mode: u=r,g=r,o=r
 
     - name: Ensure /opt/noaa
+      when: run_worker_container or run_viame_cli | bool
       file:
         path: /opt/noaa
         state: directory
 
     - name: Extract VIAME
+      when: run_worker_container or run_viame_cli | bool
       ansible.builtin.unarchive:
         remote_src: yes
         src: /tmp/VIAME.tar.gz
         dest: /opt/noaa
 
     - name: Install addons
+      when: run_worker_container or run_viame_cli | bool
       shell: "source /opt/noaa/viame/setup_viame.sh && /opt/noaa/viame/bin/download_viame_addons.sh"
       args:
         executable: /bin/bash
@@ -78,3 +84,4 @@
           WORKER_CONCURRENCY: '{{ WORKER_CONCURRENCY }}'
           KWIVER_DEFAULT_LOG_LEVEL: '{{ KWIVER_DEFAULT_LOG_LEVEL }}'
           DIVE_API_URL: '{{ DIVE_API_URL }}'
+

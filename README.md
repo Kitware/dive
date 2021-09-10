@@ -18,8 +18,9 @@ DIVE is a web interface for performing data management, video annotation, and ru
 
 * [Client User Guide](https://kitware.github.io/dive/)
 * [Client Development Docs](client/README.md)
-* [Docker Getting Started Guide](docker/README.md)
-* [Contributor Documentation](CONTRIBUTING.md)
+* [Server Development Docs](server/README.md)
+* [Deployment Overview](https://kitware.github.io/dive/Deployment-Overview/)
+* [Running with Docker Compose](https://kitware.github.io/dive/Deployment-Docker-Compose/)
 
 ## Technologies Used
 
