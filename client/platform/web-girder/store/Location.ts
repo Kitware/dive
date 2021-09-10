@@ -18,7 +18,6 @@ const locationModule: Module<LocationState, RootState> = {
   },
   mutations: {
     setLocation(state, location: LocationType) {
-      console.log('setLocation', location);
       state.location = location;
     },
     setSelected(state, selected: GirderModel[]) {

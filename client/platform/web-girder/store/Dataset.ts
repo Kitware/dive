@@ -1,9 +1,7 @@
 import type { Module } from 'vuex';
-import type { GirderModelType } from '@girder/components/src';
 import type { GirderMetadata } from 'platform/web-girder/constants';
 import { getDataset, getDatasetMedia, getFolder } from 'platform/web-girder/api';
 import { MultiType } from 'dive-common/constants';
-import { getRouteFromLocation } from 'platform/web-girder/utils';
 import type { DatasetState, RootState } from './types';
 
 
