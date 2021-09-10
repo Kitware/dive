@@ -12,7 +12,12 @@ The terraform section is the same for all scenarios.  The Ansible section will h
 
 ## Before you begin
 
-You'll need a GCP Virtual Machine (VM) with the features listed below.  This section will guide you through creating one and deploying VIAME using [Terraform](https://www.terraform.io/) and [Ansible](https://www.ansible.com/).  If you do not want to use these tools, you can create your own VM through the management console and skip to [the docker documentation instead](Deployment-Docker-Compose.md).
+You'll need a GCP Virtual Machine (VM) with the features listed below.  This section will guide you through creating one and deploying VIAME using Terraform and Ansible.
+
+* [Terraform](https://www.terraform.io/) automates the process of creating and destroying cloud resources such as VMs.
+* [Ansible](https://www.ansible.com/) automates configuration, such as software installation, on newly created machines.
+
+Together, these tools allow you to quickly create a reproducible environment.  If you do not want to use these tools, you can create your own VM manually through the management console and skip to [the docker documentation instead](Deployment-Docker-Compose.md).
 
 | Feature | Recommended value |
 |---------|-------------------|
@@ -21,9 +26,9 @@ You'll need a GCP Virtual Machine (VM) with the features listed below.  This sec
 | GPU Type | `nvidia-tesla-t4`, `nvidia-tesla-p4`, or similar |
 | Disk Type | SSD, 128GB or more depending on your needs |
 
-## Preparation
+## Install dependencies
 
-To run the provisioning tools below, you need the following installed on your workstation.
+To run the provisioning tools below, you need the following installed on your own workstation.
 
 !!! note
 
@@ -115,6 +120,8 @@ The examples below assumes the `inventory` file was created by Terraform above.
 ``` bash
 # install galaxy plugins
 ansible-galaxy install -r ansible/requirements.yml
+
+# Choose only 1 of the scenarios below
 
 # Scenario 1 (Web Instance) Example
 ansible-playbook -i inventory ansible/playbook.yml --extra-vars "run_server=yes"
