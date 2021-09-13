@@ -26,8 +26,9 @@ SSH into the target server and install these system dependencies.
     You can skip this section if you used Ansible to configure your server, as it already installed all necessary dependencies.
 
 * Install NVIDIA drivers: `sudo ubuntu-drivers install`
-* Install [docker and docker-compose](https://docs.docker.com/engine/install/ubuntu/)
-* Install [nvidia-docker2](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html#docker)
+* Install `docker` version **19.03+** [guide](https://docs.docker.com/engine/install/ubuntu/)
+* Install `docker-compose` version **1.28.0+** [guide](https://docs.docker.com/compose/install/)
+* Install [nvidia-container-toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html#docker)
 
 ## Basic deployment
 

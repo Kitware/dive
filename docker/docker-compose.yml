@@ -2,7 +2,11 @@
 
 # Use YAML anchors for the common config between both workers
 x-worker: &base-worker
-  runtime: ${WORKER_RUNTIME}
+  deploy:
+    resources:
+      reservations:
+        devices:
+          - capabilities: [gpu]
   ipc: host
   build:
     context: ../
@@ -18,7 +22,7 @@ x-worker: &base-worker
     rabbit:
       condition: service_started
 
-version: "2.4"
+version: "3.8"
 services:
 
   traefik:
