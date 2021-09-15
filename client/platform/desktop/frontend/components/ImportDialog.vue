@@ -224,7 +224,7 @@ export default defineComponent({
         <v-switch
           v-if="argCopy.jsonMeta.type === 'video'"
           :disabled="importData.mediaConvertList.length !== 0"
-          label="Force Transcoding"
+          label="Force Media Transcoding"
           @change="forceMediaTranscode"
         />
         <p class="my-3">
