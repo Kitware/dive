@@ -53,6 +53,15 @@ export default defineComponent({
       }
     };
 
+    const forceMediaTranscode = (event: boolean) => {
+      if (event) {
+        const mediaFile = `${argCopy.value.jsonMeta.originalBasePath}/${argCopy.value.jsonMeta.originalVideoFile}`;
+        Vue.set(argCopy.value, 'mediaConvertList', [mediaFile]);
+      } else {
+        Vue.set(argCopy.value, 'mediaConvertList', []);
+      }
+    };
+
     return {
       argCopy,
       duplicates,
@@ -62,6 +71,7 @@ export default defineComponent({
       MediaTypes,
       FPSOptions,
       openUpload,
+      forceMediaTranscode,
     };
   },
 });
@@ -98,13 +108,22 @@ export default defineComponent({
         to ignore the warning and create a new dataset.
       </v-alert>
       <v-alert
-        v-if="argCopy.mediaConvertList.length"
+        v-if="importData.mediaConvertList.length"
         type="info"
         outlined
         dense
       >
         Found {{ argCopy.mediaConvertList.length }}
         item(s) in this dataset that will be automatically transcoded on import.
+        Dataset will not be available until transcoding is complete.
+      </v-alert>
+      <v-alert
+        v-if="importData.mediaConvertList.length === 0 && argCopy.mediaConvertList.length"
+        type="info"
+        outlined
+        dense
+      >
+        Forcing Transcoding on video.
         Dataset will not be available until transcoding is complete.
       </v-alert>
       <v-row class="d-flex my-2 mt-7">
@@ -202,6 +221,12 @@ export default defineComponent({
           "{{ argCopy.globPattern }}" matches {{ filteredImages.length }}
           out of {{ argCopy.jsonMeta.originalImageFiles.length }} images
         </v-chip>
+        <v-switch
+          v-if="argCopy.jsonMeta.type === 'video'"
+          :disabled="importData.mediaConvertList.length !== 0"
+          label="Force Transcoding"
+          @change="forceMediaTranscode"
+        />
         <p class="my-3">
           New Dataset Properties
         </p>
