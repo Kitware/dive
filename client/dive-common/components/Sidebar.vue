@@ -73,6 +73,7 @@ export default defineComponent({
   <v-card
     :width="width"
     tile
+    outlined
     class="sidebar d-flex flex-column overflow-hidden"
     style="z-index:1;"
   >
@@ -95,21 +96,21 @@ export default defineComponent({
         key="type-tracks"
         class="wrapper d-flex flex-column"
       >
-        <type-list
+        <TypeList
           :show-empty-types="typeSettings.showEmptyTypes"
           class="flex-shrink-1 flex-grow-1 typelist"
         >
           <template slot="settings">
-            <type-settings-panel
+            <TypeSettingsPanel
               :all-types="allTypesRef"
               @import-types="$emit('import-types',$event)"
             />
           </template>
-        </type-list>
+        </TypeList>
         <slot />
         <v-spacer />
         <v-divider />
-        <track-list
+        <TrackList
           class="flex-grow-0 flex-shrink-0"
           :new-track-mode="trackSettings.newTrackSettings.mode"
           :new-track-type="trackSettings.newTrackSettings.type"
@@ -118,11 +119,11 @@ export default defineComponent({
           @track-seek="$emit('track-seek', $event)"
         >
           <template slot="settings">
-            <track-settings-panel
+            <TrackSettingsPanel
               :all-types="allTypesRef"
             />
           </template>
-        </track-list>
+        </TrackList>
       </div>
       <track-details-panel
         v-else-if="currentTab === 'attributes'"

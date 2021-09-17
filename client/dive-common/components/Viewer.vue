@@ -34,6 +34,7 @@ import UserGuideButton from 'dive-common/components/UserGuideButton.vue';
 import DeleteControls from 'dive-common/components/DeleteControls.vue';
 import ControlsContainer from 'dive-common/components/ControlsContainer.vue';
 import Sidebar from 'dive-common/components/Sidebar.vue';
+import SidebarContext, { useContextualSidebar } from 'dive-common/components/SidebarContext.vue';
 import { useModeManager, useSave } from 'dive-common/use';
 import clientSettingsSetup from 'dive-common/store/settings';
 import { useApi, FrameImage, DatasetType } from 'dive-common/apispec';
@@ -46,6 +47,7 @@ export default defineComponent({
     ControlsContainer,
     DeleteControls,
     Sidebar,
+    SidebarContext,
     LayerManager,
     VideoAnnotator,
     ImageAnnotator,
@@ -446,6 +448,7 @@ export default defineComponent({
       visibleModes,
       frameRate: time.frameRate,
       originalFps: time.originalFps,
+      contextualSidebar: useContextualSidebar(),
       /* methods */
       handler: globalHandler,
       save,
@@ -560,7 +563,14 @@ export default defineComponent({
         <ConfidenceFilter
           :confidence.sync="confidenceThreshold"
           @end="saveThreshold"
-        />
+        >
+          <a
+            @click="contextualSidebar.toggle('TypeThreshold')"
+            style="text-decoration: underline;"
+          >
+            Advanced
+          </a>
+        </ConfidenceFilter>
       </sidebar>
       <v-col style="position: relative">
         <component
@@ -612,6 +622,7 @@ export default defineComponent({
           </v-progress-circular>
         </div>
       </v-col>
+      <SidebarContext />
     </v-row>
   </v-main>
 </template>
