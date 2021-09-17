@@ -1,24 +1,44 @@
 <script lang="ts">
 import { defineComponent } from '@vue/composition-api';
 import {
-  useAllTypes,
   useCheckedTypes,
+  useConfidenceFilters,
+  useDatasetId,
   useHandler,
   useTypeStyling,
 } from 'vue-media-annotator/provides';
+import ConfidenceFilter from 'dive-common/components/ConfidenceFilter.vue';
+import { useApi } from 'dive-common/apispec';
+import { DefaultConfidence } from 'vue-media-annotator/use/useTrackFilters';
 
 export default defineComponent({
+  name: 'TypeThreshold',
+
+  components: { ConfidenceFilter },
+
   setup() {
     const checkedTypesRef = useCheckedTypes();
-    const handler = useHandler();
-    const allTypesRef = useAllTypes();
+    const confidenceFiltersRef = useConfidenceFilters();
     const typeStylingRef = useTypeStyling();
+    const datasetIdRef = useDatasetId();
+    const { setConfidenceFilters } = useHandler();
+    const { saveMetadata } = useApi();
+
+    function saveThreshold() {
+      saveMetadata(datasetIdRef.value, { confidenceFilters: confidenceFiltersRef.value });
+    }
+
+    function resetThresholds() {
+      setConfidenceFilters({ default: DefaultConfidence });
+      saveThreshold();
+    }
 
     return {
-      handler,
-      allTypesRef,
       checkedTypesRef,
+      confidenceFiltersRef,
       typeStylingRef,
+      resetThresholds,
+      saveThreshold,
     };
   },
 });
@@ -26,21 +46,39 @@ export default defineComponent({
 
 <template>
   <div class="mx-4">
+    <span class="text-body-2">
+      The overall threshold is a base level that all tracks must exceed.
+      Any subsequent thresholds can be set more strict (above) the base threshold
+    </span>
+    <v-divider class="my-3" />
+    <ConfidenceFilter
+      :confidence.sync="confidenceFiltersRef.default"
+      text="Overall Thershold"
+      @end="saveThreshold"
+    />
+    <v-divider class="my-3" />
     <div
       v-for="type in checkedTypesRef"
       :key="type"
       class="slidercontainer"
     >
-      <span class="text-body-2">{{ type }}</span>
-      <input
-        type="range"
-        min="0"
-        max="1"
-        value="0.1"
-        step="0.05"
-        class="slider"
-      >
+      <ConfidenceFilter
+        :confidence.sync="confidenceFiltersRef[type]"
+        :text="type"
+        :color="typeStylingRef.color(type)"
+        :min="confidenceFiltersRef.default"
+        @end="saveThreshold"
+      />
     </div>
+    <v-btn
+      block
+      depressed
+      class="my-3"
+      color="warning"
+      @click="resetThresholds"
+    >
+      Reset Thresholds
+    </v-btn>
   </div>
 </template>
 

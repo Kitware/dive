@@ -153,14 +153,13 @@ export default defineComponent({
     const {
       checkedTrackIds,
       checkedTypes,
-      confidenceThreshold,
       confidenceFilters,
       allTypes,
       importTypes,
       usedTypes,
       filteredTracks,
       enabledTracks,
-      populateConfidenceFilters,
+      setConfidenceFilters,
       updateTypeName,
       removeTypeTracks,
       deleteType,
@@ -330,7 +329,7 @@ export default defineComponent({
         if (meta.attributes) {
           loadAttributes(meta.attributes);
         }
-        populateConfidenceFilters(meta.confidenceFilters);
+        setConfidenceFilters(meta.confidenceFilters);
         datasetName.value = meta.name;
         initTime({
           frameRate: meta.fps,
@@ -393,6 +392,7 @@ export default defineComponent({
       removeTypeTracks,
       deleteType,
       setAttribute,
+      setConfidenceFilters,
       deleteAttribute,
       reloadAnnotations,
     };
@@ -405,6 +405,7 @@ export default defineComponent({
         usedTypes,
         checkedTrackIds,
         checkedTypes,
+        confidenceFilters,
         editingMode,
         enabledTracks,
         intervalTree,
@@ -424,7 +425,7 @@ export default defineComponent({
 
     return {
       /* props */
-      confidenceThreshold,
+      confidenceFilters,
       datasetName,
       datasetType,
       editingTrack,
@@ -561,12 +562,13 @@ export default defineComponent({
         @track-seek="mediaController.seek($event)"
       >
         <ConfidenceFilter
-          :confidence.sync="confidenceThreshold"
+          class="mx-3"
+          :confidence.sync="confidenceFilters.default"
           @end="saveThreshold"
         >
           <a
-            @click="contextualSidebar.toggle('TypeThreshold')"
             style="text-decoration: underline;"
+            @click="contextualSidebar.toggle('TypeThreshold')"
           >
             Advanced
           </a>

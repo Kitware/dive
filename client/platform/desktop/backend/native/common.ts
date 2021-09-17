@@ -8,6 +8,8 @@ import { shell } from 'electron';
 import mime from 'mime-types';
 import moment from 'moment';
 import lockfile from 'proper-lockfile';
+
+import { DefaultConfidence } from 'vue-media-annotator/use/useTrackFilters';
 import {
   DatasetType, MultiTrackRecord, Pipelines, SaveDetectionsArgs,
   FrameImage, DatasetMetaMutable, TrainingConfigs, SaveAttributeArgs,
@@ -712,7 +714,7 @@ async function beginMediaImport(
     name: dsName,
     multiCam: null,
     subType: null,
-    confidenceFilters: { default: 0.1 },
+    confidenceFilters: { default: DefaultConfidence },
   };
 
   /* TODO: Look for an EXISTING meta.json file to override the above */
