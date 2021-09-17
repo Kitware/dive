@@ -2,9 +2,11 @@ from datetime import datetime, timedelta
 from pathlib import Path
 import shutil
 import signal
+import subprocess
 from subprocess import Popen
+import tempfile
 from tempfile import mktemp
-from typing import IO, Callable, List, Optional
+from typing import List
 
 from girder_client import GirderClient
 from girder_worker.task import Task
@@ -15,6 +17,11 @@ from dive_utils import constants, models
 TIMEOUT_COUNT = 'timeout_count'
 TIMEOUT_LAST_CHECKED = 'last_checked'
 TIMEOUT_CHECK_INTERVAL = 30
+
+
+def make_directory(path: Path):
+    path.mkdir(exist_ok=True, parents=True)
+    return path
 
 
 class CanceledError(RuntimeError):
@@ -45,71 +52,68 @@ def check_canceled(task: Task, context: dict, force=True):
 
 
 def stream_subprocess(
-    process: Popen,
     task: Task,
     context: dict,
     manager: JobManager,
-    stderr_file: IO[bytes],
+    popen_kwargs: dict,
     keep_stdout: bool = False,
-    cleanup: Optional[Callable] = None,
 ) -> str:
     """
     Stream live results from process to job manager
 
-    :param process: Process to stream
     :param task: task to detect cancelation
     :param manager: job manager
-    :param stderr_file: will log stderr to manager IF nonzero exit, else will close
+    :param popen_kwargs: a dict to pass as kwargs to popen.  Must include 'args'
     :param keep_stdout: will return stdout as a string if needed
-    :param cleanup: a function to invoke if job errors or is canceled
     """
     start_time = datetime.now()
     stdout = ""
+    assert 'args' in popen_kwargs, "popen_kwargs must contain key 'args'"
 
-    if process.stdout is None:
-        raise RuntimeError("Stdout must not be none")
-
-    # call readline until it returns empty bytes
-    for line in iter(process.stdout.readline, b''):
-        line_str = line.decode('utf-8')
-        manager.write(line_str)
-        if keep_stdout:
-            stdout += line_str
-
-        if check_canceled(task, context, force=False):
-            # Can never be sure what signal a process will respond to.
-            process.send_signal(signal.SIGTERM)
-            process.send_signal(signal.SIGKILL)
-
-    # flush logs
-    manager._flush()
-    # Wait for exit up to 30 seconds after kill
-    code = process.wait(30)
-
-    if check_canceled(task, context):
-        manager.write('\nCanceled during subprocess run.\n')
-        manager.updateStatus(JobStatus.CANCELED)
-        stderr_file.close()
-        if cleanup:
-            cleanup()
-        raise CanceledError('Job was canceled')
-
-    if code > 0:
-        stderr_file.seek(0)
-        stderr = stderr_file.read().decode()
-        stderr_file.close()
-        if cleanup:
-            cleanup()
-        raise RuntimeError(
-            'Pipeline exited with nonzero status code {}: {}'.format(process.returncode, stderr)
+    with tempfile.TemporaryFile() as stderr_file:
+        manager.write(f"Running command: {str(popen_kwargs['args'])}\n", forceFlush=True)
+        process = Popen(
+            **popen_kwargs,
+            stdout=subprocess.PIPE,
+            stderr=stderr_file,
         )
-    else:
-        end_time = datetime.now()
-        manager.write(f"\nProcess completed in {str((end_time - start_time))}\n")
 
-    stderr_file.close()
+        if process.stdout is None:
+            raise RuntimeError("Stdout must not be none")
 
-    return stdout
+        # call readline until it returns empty bytes
+        for line in iter(process.stdout.readline, b''):
+            line_str = line.decode('utf-8')
+            manager.write(line_str)
+            if keep_stdout:
+                stdout += line_str
+
+            if check_canceled(task, context, force=False):
+                # Can never be sure what signal a process will respond to.
+                process.send_signal(signal.SIGTERM)
+                process.send_signal(signal.SIGKILL)
+
+        # flush logs
+        manager._flush()
+        # Wait for exit up to 30 seconds after kill
+        code = process.wait(30)
+
+        if check_canceled(task, context):
+            manager.write('\nCanceled during subprocess run.\n')
+            manager.updateStatus(JobStatus.CANCELED)
+            raise CanceledError('Job was canceled')
+
+        if code > 0:
+            stderr_file.seek(0)
+            stderr = stderr_file.read().decode()
+            raise RuntimeError(
+                'Pipeline exited with nonzero status code {}: {}'.format(process.returncode, stderr)
+            )
+        else:
+            end_time = datetime.now()
+            manager.write(f"\nProcess completed in {str((end_time - start_time))}\n")
+
+        return stdout
 
 
 def organize_folder_for_training(data_dir: Path, downloaded_groundtruth: Path):

@@ -2,6 +2,7 @@ version: "2.4"
 services:
 
   traefik:
+    restart: always
     command: >
       --log.level=${LOG_LEVEL:-DEBUG}
       --providers.docker=true

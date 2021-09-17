@@ -54,6 +54,9 @@ export default defineComponent({
         properties: ['openDirectory'],
         defaultPath,
       });
+      if (localSettings.value === null) {
+        throw new Error('Local settings not yet initialized.');
+      }
       if (!result.canceled && defaultPath !== undefined) {
         set(localSettings.value, name, result.filePaths[0]);
       }

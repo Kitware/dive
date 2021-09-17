@@ -3,28 +3,20 @@ import {
   defineComponent,
   reactive,
   toRefs,
-  PropType,
+  toRef,
 } from '@vue/composition-api';
 
 import { TypeList, TrackList } from 'vue-media-annotator/components';
 import { useAllTypes, useHandler } from 'vue-media-annotator/provides';
 
-import { NewTrackSettings, TypeSettings } from 'dive-common/use/useSettings';
+import { clientSettings } from 'dive-common/store/settings';
 import TrackDetailsPanel from 'dive-common/components/TrackDetailsPanel.vue';
-import CreationMode from 'dive-common/components/CreationMode.vue';
+import TrackSettingsPanel from 'dive-common/components/TrackSettingsPanel.vue';
 import TypeSettingsPanel from 'dive-common/components/TypeSettingsPanel.vue';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 
 export default defineComponent({
   props: {
-    newTrackSettings: {
-      type: Object as PropType<NewTrackSettings>,
-      required: true,
-    },
-    typeSettings: {
-      type: Object as PropType<TypeSettings>,
-      required: true,
-    },
     width: {
       type: Number,
       default: 300,
@@ -33,7 +25,7 @@ export default defineComponent({
 
   components: {
     TrackDetailsPanel,
-    CreationMode,
+    TrackSettingsPanel,
     TypeList,
     TrackList,
     TypeSettingsPanel,
@@ -43,6 +35,8 @@ export default defineComponent({
     const allTypesRef = useAllTypes();
     const { toggleMerge, commitMerge } = useHandler();
     const { visible } = usePrompt();
+    const trackSettings = toRef(clientSettings, 'trackSettings');
+    const typeSettings = toRef(clientSettings, 'typeSettings');
 
     const data = reactive({
       currentTab: 'tracks' as 'tracks' | 'attributes',
@@ -61,9 +55,10 @@ export default defineComponent({
         data.currentTab = 'attributes';
       }
     }
-
     return {
       allTypesRef,
+      trackSettings,
+      typeSettings,
       swapTabs,
       doToggleMerge,
       commitMerge,
@@ -107,8 +102,6 @@ export default defineComponent({
           <template slot="settings">
             <type-settings-panel
               :all-types="allTypesRef"
-              :type-settings="typeSettings"
-              @update-type-settings="$emit('update-type-settings',$event)"
               @import-types="$emit('import-types',$event)"
             />
           </template>
@@ -118,17 +111,15 @@ export default defineComponent({
         <v-divider />
         <track-list
           class="flex-grow-0 flex-shrink-0"
-          :new-track-mode="newTrackSettings.mode"
-          :new-track-type="newTrackSettings.type"
+          :new-track-mode="trackSettings.newTrackSettings.mode"
+          :new-track-type="trackSettings.newTrackSettings.type"
           :lock-types="typeSettings.lockTypes"
           :hotkeys-disabled="visible()"
           @track-seek="$emit('track-seek', $event)"
         >
           <template slot="settings">
-            <creation-mode
+            <track-settings-panel
               :all-types="allTypesRef"
-              :new-track-settings="newTrackSettings"
-              @update-new-track-settings="$emit('update-new-track-settings',$event)"
             />
           </template>
         </track-list>

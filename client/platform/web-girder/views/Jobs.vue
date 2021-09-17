@@ -153,7 +153,7 @@ export default defineComponent({
           </v-btn>
           <v-btn
             depressed
-            href="https://github.com/Kitware/dive/tree/main/docker"
+            href="https://kitware.github.io/dive/Deployment-Docker-Compose/"
           >
             Docker docs
           </v-btn>

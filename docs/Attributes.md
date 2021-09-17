@@ -3,6 +3,7 @@
 Attributes are properties that can be assigned to an entire track or a single detection within a track. Attributes are created within a dataset using the Track Details panel.
 
 !!! info
+
     Attributes were previously globally defined.  They are now defined on each individual dataset.
 
 ## Background/Terms
@@ -51,6 +52,7 @@ Controls for defining and editing attributes are found on the Track Details Pane
     1. *Detection Attributes* - attributes associated with the track on a per frame basis
 
 !!! info
+
     During import of a VIAME CSV file, attributes that are structured using the [VIAME CSV specification](https://viame.readthedocs.io/en/latest/section_links/detection_file_conversions.html) will automatically show up in the list.  The type of the attribute is guessed by examining values and may need to be manually corrected.
 
 ## Adding Attribute Definitions

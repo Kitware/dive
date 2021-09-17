@@ -9,7 +9,7 @@ There are two places to look.
 
 ## How do I share data with others?
 
-This use case is covered [on the sharing page](/Web-Version/#sharing-data-with-teams).
+This use case is covered [on the sharing page](Web-Version.md#sharing-data-with-teams).
 
 If you want to **publish** your data so that other groups can use it, please email <a href="mailto:viame-web@kitware.com"> `viame-web@kitware.com` </a>.
 
@@ -17,9 +17,9 @@ If you want to **publish** your data so that other groups can use it, please ema
 
 In DIVE, these are called pipelines.  You'll need to see what sorts of analysis workflows are currently available [on the pipeline page](Pipeline-Documentation.md).
 
-These sorts of artifical intelligence (AI) workflows are the final goal for most users.  They allow the user to quickly perform quantitative analysis to answer questions like **_how many individuals of each type appear on each image or video frame?_**
+These sorts of AI workflows are the final goal for most users.  They allow the user to quickly perform quantitative analysis to answer questions like **_how many individuals of each type appear on each image or video frame?_**
 
-If no suitable existing analysis exists for your use case or you aren't sure how to proceed, you're welcome to email our team and ask for help at <a href="mailto:viame-web@kitware.com"> `viame-web@kitware.com` </a>.
+If no suitable existing analysis exists for your use case or you aren't sure how to proceed, you're welcome to [email our team and ask for help](index.md#get-help).
 
 ## How do I create new models?
 

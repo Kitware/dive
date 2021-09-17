@@ -14,7 +14,7 @@ x-worker: &base-worker
     - "com.centurylinklabs.watchtower.enable=true" 
   depends_on:
     girder:
-      condition: service_healthy
+      condition: service_started
     rabbit:
       condition: service_started
 
@@ -55,11 +55,6 @@ services:
       context: ../
       dockerfile: docker/girder.Dockerfile
     image: kitware/viame-web:${TAG:-latest}
-    healthcheck:
-        test: ["CMD", "curl", "-f", "http://localhost:8080"]
-        interval: 5s
-        timeout: 5s
-        retries: 5
     depends_on:
       - mongo
       - traefik
@@ -83,8 +78,8 @@ services:
       - "RABBITMQ_MANAGEMENT_USERNAME=${RABBITMQ_MANAGEMENT_USERNAME:-guest}"
       - "RABBITMQ_MANAGEMENT_PASSWORD=${RABBITMQ_MANAGEMENT_PASSWORD:-guest}"
       - "RABBITMQ_MANAGEMENT_VHOST=${RABBITMQ_MANAGEMENT_VHOST:-default}"
-      - "RABBITMQ_MANAGEMENT_URL=${RABBITMQ_MANAGEMENT_URL:-rabbit:15672}"
-      - "RABBITMQ_MANAGEMENT_BROKER_URL_TEMPLATE=${RABBITMQ_MANAGEMENT_BROKER_URL_TEMPLATE}"
+      - "RABBITMQ_MANAGEMENT_URL=${RABBITMQ_MANAGEMENT_URL:-http://rabbit:15672/}"
+      - "RABBITMQ_MANAGEMENT_BROKER_URL_TEMPLATE=${RABBITMQ_MANAGEMENT_BROKER_URL_TEMPLATE:-amqp://{}:{}@default}"
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
       - "traefik.enable=true"
