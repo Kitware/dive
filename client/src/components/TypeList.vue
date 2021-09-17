@@ -1,48 +1,39 @@
 <script lang="ts">
 import { computed, defineComponent, reactive } from '@vue/composition-api';
-import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
-
 import {
   useCheckedTypes, useAllTypes, useTypeStyling, useHandler, useUsedTypes, useFilteredTracks,
-} from '../provides';
-
+} from 'vue-media-annotator/provides';
+import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
+import TypeEditor from './TypeEditor.vue';
 
 export default defineComponent({
+  name: 'TypeList',
+
   props: {
     showEmptyTypes: {
       type: Boolean,
       default: false,
     },
   },
-  name: 'TypeList',
+
+  components: { TypeEditor },
 
   setup(props) {
     const { prompt } = usePrompt();
-
-    const data = reactive({
-      showPicker: false,
-      selectedColor: '',
-      selectedType: '',
-      editingType: '',
-      editingColor: '',
-      editingThickness: 5,
-      editingFill: false,
-      editingOpacity: 1.0,
-      valid: true,
-      settingsActive: false,
-    });
     const checkedTypesRef = useCheckedTypes();
     const allTypesRef = useAllTypes();
     const usedTypesRef = useUsedTypes();
     const typeStylingRef = useTypeStyling();
     const filteredTracksRef = useFilteredTracks();
     const {
-      updateTypeName,
-      updateTypeStyle,
       setCheckedTypes,
       removeTypeTracks,
-      deleteType,
     } = useHandler();
+    const data = reactive({
+      showPicker: false,
+      selectedType: '',
+      settingsActive: false,
+    });
 
     const visibleTypes = computed(() => {
       if (props.showEmptyTypes) {
@@ -50,15 +41,6 @@ export default defineComponent({
       }
       return usedTypesRef.value;
     });
-    function clickEdit(type: string) {
-      data.selectedType = type;
-      data.editingType = data.selectedType;
-      data.showPicker = true;
-      data.editingColor = typeStylingRef.value.color(type);
-      data.editingThickness = typeStylingRef.value.strokeWidth(type);
-      data.editingFill = typeStylingRef.value.fill(type);
-      data.editingOpacity = typeStylingRef.value.opacity(type);
-    }
 
     async function clickDelete() {
       const typeDisplay: string[] = [];
@@ -79,37 +61,9 @@ export default defineComponent({
       }
     }
 
-    async function clickDeleteType(type: string) {
-      const text = `Do you want to delete this empty Type: ${type}`;
-
-      const result = await prompt({
-        title: 'Confirm',
-        text,
-        confirm: true,
-      });
-      if (result) {
-        deleteType(type);
-        data.showPicker = false;
-      }
-    }
-
-    function acceptChanges() {
-      data.showPicker = false;
-      if (data.editingType !== data.selectedType) {
-        updateTypeName({
-          currentType: data.selectedType,
-          newType: data.editingType,
-        });
-      }
-      updateTypeStyle({
-        type: data.editingType,
-        value: {
-          color: data.editingColor,
-          strokeWidth: data.editingThickness,
-          fill: data.editingFill,
-          opacity: data.editingOpacity,
-        },
-      });
+    function clickEdit(type: string) {
+      data.showPicker = true;
+      data.selectedType = type;
     }
 
     const headCheckState = computed(() => {
@@ -139,20 +93,18 @@ export default defineComponent({
 
 
     return {
+      headCheckState,
       visibleTypes,
       usedTypesRef,
       checkedTypesRef,
-      data,
       typeStylingRef,
+      typeCounts,
+      data,
       /* methods */
-      acceptChanges,
-      clickEdit,
-      clickDeleteType,
       clickDelete,
-      headCheckState,
+      clickEdit,
       headCheckClicked,
       setCheckedTypes,
-      typeCounts,
     };
   },
 });
@@ -280,140 +232,10 @@ export default defineComponent({
       v-model="data.showPicker"
       width="350"
     >
-      <div
-        class="type-edit"
-      >
-        <v-card>
-          <v-card-title>
-            Editing Type
-            <v-spacer />
-            <v-btn
-              icon
-              small
-              color="white"
-              @click="data.showPicker = false"
-            >
-              <v-icon
-                small
-              >
-                mdi-close
-              </v-icon>
-            </v-btn>
-          </v-card-title>
-          <v-card-subtitle class="my-0 py-0">
-            <v-container class="py-0">
-              <v-row>
-                {{ data.selectedType }}
-              </v-row>
-            </v-container>
-          </v-card-subtitle>
-          <v-card-text>
-            <v-form v-model="data.valid">
-              <v-row>
-                <v-col>
-                  <v-text-field
-                    v-model="data.editingType"
-                    label="Type Name"
-                    hide-details
-                  />
-                </v-col>
-              </v-row>
-              <v-row class="align-center">
-                <v-col>
-                  <v-text-field
-                    v-model="data.editingThickness"
-                    type="number"
-                    :rules="[
-                      val => val >= 0 || 'Must be >= 0'
-                    ]"
-                    required
-                    hide-details
-                    label="Box Border Thickness"
-                  />
-                </v-col>
-                <v-col>
-                  <v-checkbox
-                    v-model="data.editingFill"
-                    label="Fill"
-                    dense
-                    shrink
-                    hint="Toggle Box Shading"
-                    persistent-hint
-                  />
-                </v-col>
-              </v-row>
-              <v-row>
-                <v-col>
-                  <v-slider
-                    v-model="data.editingOpacity"
-                    :label="`${data.editingOpacity.toFixed(2)}`"
-                    min="0.0"
-                    max="1.0"
-                    step="0.01"
-                    height="8"
-                    hint="Border & Fill Opacity"
-                    class="pr-3"
-                    persistent-hint
-                  />
-                </v-col>
-              </v-row>
-              <v-row
-                dense
-                align="center"
-              >
-                <v-col class="mx-2">
-                  <v-color-picker
-                    v-model="data.editingColor"
-                    hide-inputs
-                  />
-                </v-col>
-              </v-row>
-            </v-form>
-          </v-card-text>
-          <v-card-actions class="">
-            <v-tooltip
-              open-delay="100"
-              bottom
-              :color="usedTypesRef.includes(data.selectedType) ? 'error' : ''"
-            >
-              <template #activator="{ on }">
-                <div v-on="on">
-                  <v-btn
-                    class="hover-show-child"
-                    :disabled="usedTypesRef.includes(data.selectedType)"
-                    small
-                    color="error"
-                    @click="clickDeleteType(data.selectedType)"
-                  >
-                    Delete Type
-                  </v-btn>
-                </div>
-              </template>
-              <span
-                class="ma-0 pa-1"
-              >
-                Only types without any annotations can be deleted.
-              </span>
-            </v-tooltip>
-            <v-spacer />
-            <v-btn
-              depressed=""
-              text
-              @click="data.showPicker = false"
-            >
-              Cancel
-            </v-btn>
-            <v-btn
-              color="primary"
-              depressed
-              :disabled="!data.valid"
-              @click="acceptChanges"
-            >
-              Save
-            </v-btn>
-          </v-card-actions>
-        </v-card>
-      </div>
+      <TypeEditor
+        :selected-type="data.selectedType"
+        @close="data.showPicker = false"
+      />
     </v-dialog>
   </div>
 </template>
