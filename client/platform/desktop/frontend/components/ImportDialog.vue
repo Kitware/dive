@@ -52,16 +52,6 @@ export default defineComponent({
         }
       }
     };
-
-    const forceMediaTranscode = (event: boolean) => {
-      if (event) {
-        const mediaFile = `${argCopy.value.jsonMeta.originalBasePath}/${argCopy.value.jsonMeta.originalVideoFile}`;
-        Vue.set(argCopy.value, 'mediaConvertList', [mediaFile]);
-      } else {
-        Vue.set(argCopy.value, 'mediaConvertList', []);
-      }
-    };
-
     return {
       argCopy,
       duplicates,
@@ -71,7 +61,6 @@ export default defineComponent({
       MediaTypes,
       FPSOptions,
       openUpload,
-      forceMediaTranscode,
     };
   },
 });
@@ -223,9 +212,9 @@ export default defineComponent({
         </v-chip>
         <v-switch
           v-if="argCopy.jsonMeta.type === 'video'"
+          v-model="argCopy.forceMediaTranscode"
           :disabled="importData.mediaConvertList.length !== 0"
           label="Force Media Transcoding"
-          @change="forceMediaTranscode"
         />
         <p class="my-3">
           New Dataset Properties

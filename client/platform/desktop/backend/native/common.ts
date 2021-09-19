@@ -765,6 +765,7 @@ async function beginMediaImport(
     globPattern: '',
     mediaConvertList,
     trackFileAbsPath,
+    forceMediaTranscode: false,
     multiCamTrackFiles: null,
   };
 }
@@ -931,12 +932,16 @@ async function finalizeMediaImport(
     mediaConvertList = found.mediaConvertList;
   }
 
+
   if (jsonMeta.type === 'video') {
     // Verify that the user didn't choose an FPS value higher than originalFPS
     // This shouldn't be possible in the UI, but we should still prevent it here.
     jsonMeta.fps = Math.floor(
       Math.max(1, Math.min(jsonMeta.fps, jsonMeta.originalFps)),
     );
+    if (args.forceMediaTranscode) {
+      mediaConvertList.push(npath.join(jsonMeta.originalBasePath, jsonMeta.originalVideoFile));
+    }
   }
 
   //Now we will kick off any conversions that are necessary

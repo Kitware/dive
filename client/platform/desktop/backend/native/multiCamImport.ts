@@ -228,6 +228,7 @@ async function beginMultiCamImport(
     globPattern: '',
     mediaConvertList,
     trackFileAbsPath: '',
+    forceMediaTranscode: false,
     multiCamTrackFiles,
   };
 }
