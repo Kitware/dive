@@ -41,8 +41,9 @@ export default defineComponent({
       const offset = (page - 1) * itemsPerPage;
       const sort = sortBy[0] || 'created';
       const sortDir = sortDesc[0] === false ? 1 : -1;
+      const shared = true;
 
-      const response = await getDatasetList(limit, offset, sort, sortDir, true);
+      const response = await getDatasetList(limit, offset, sort, sortDir, shared);
       dataList.value = response.data;
       total.value = Number.parseInt(response.headers['girder-total-count'], 10);
       dataList.value.forEach((element) => {

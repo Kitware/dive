@@ -59,6 +59,7 @@ const router = new Router({
               path: 'shared',
               name: 'shared',
               component: DataShared,
+              beforeEnter,
             },
             {
               path: ':routeType?/:routeId?',

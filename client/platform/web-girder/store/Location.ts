@@ -48,6 +48,7 @@ const locationModule: Module<LocationState, RootState> = {
     },
   },
   actions: {
+    // Populate full girder model on location change if missing.
     async hydrate({ commit }, location: LocationType) {
       if (
         isGirderModel(location)

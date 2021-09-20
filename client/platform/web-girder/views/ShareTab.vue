@@ -17,7 +17,7 @@ export default defineComponent({
     const { getters } = store;
 
     const clearSelected = () => {
-      locationStore.selected = [];
+      store.commit('Location/setSelected', []);
     };
 
     return {
@@ -43,10 +43,17 @@ export default defineComponent({
       Browse Data
     </v-tab>
     <v-tab :to="{name: 'shared'}">
-      <v-icon class="mr-2">
+      <v-icon class="tab-icon">
         mdi-share-variant
       </v-icon>
       Shared with Me
     </v-tab>
   </v-tabs>
 </template>
+
+<style scoped>
+.tab-icon {
+  width: 28px;
+  margin-right: 10px;
+}
+</style>

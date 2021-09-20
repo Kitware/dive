@@ -14,11 +14,12 @@ function getDataset(folderId: string) {
 }
 
 async function getDatasetList(
-  limit: number,
-  offset: number,
-  sort: string,
-  sortDir: number,
-  shared: boolean,
+  limit?: number,
+  offset?: number,
+  sort?: string,
+  sortDir?: number,
+  shared?: boolean,
+  published?: boolean,
 ) {
   const response = await girderRest.get<GirderModel[]>('dive_dataset', {
     params: {
@@ -26,8 +27,8 @@ async function getDatasetList(
       offset,
       sort,
       sortDir,
-      published: false,
       shared,
+      published,
     },
   });
   response.data.forEach((element) => {

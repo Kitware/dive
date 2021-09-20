@@ -40,7 +40,6 @@ export default defineComponent({
     }
 
     function isAnnotationFolder(item: GirderModel) {
-      // TODO: update to check for other info
       return item._modelType === 'folder' && item.meta.annotate;
     }
 
