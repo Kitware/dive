@@ -40,6 +40,7 @@ export default defineComponent({
   setup(_, { root }) {
     const snackbar = ref(false);
     const importMultiCamDialog = ref(false);
+    const checkingMedia = ref(false);
     const errorText = ref('');
     const pendingImportPayload: Ref<MediaImportPayload | null> = ref(null);
     const searchText: Ref<string | null> = ref('');
@@ -51,7 +52,9 @@ export default defineComponent({
       const ret = await api.openFromDisk(dstype);
       if (!ret.canceled) {
         try {
+          checkingMedia.value = true;
           pendingImportPayload.value = await api.importMedia(ret.filePaths[0]);
+          checkingMedia.value = false;
         } catch (err) {
           snackbar.value = true;
           errorText.value = err.message;
@@ -88,7 +91,9 @@ export default defineComponent({
     async function multiCamImport(args: MultiCamImportArgs) {
       importMultiCamDialog.value = false;
       try {
+        checkingMedia.value = true;
         pendingImportPayload.value = await api.importMultiCam(args);
+        checkingMedia.value = false;
       } catch (err) {
         snackbar.value = true;
         errorText.value = err.message;
@@ -208,6 +213,7 @@ export default defineComponent({
       upgradedVersion,
       downgradedVersion,
       knownVersion,
+      checkingMedia,
     };
   },
 });
@@ -216,7 +222,7 @@ export default defineComponent({
 <template>
   <v-main>
     <v-dialog
-      :value="pendingImportPayload !== null || importMultiCamDialog"
+      :value="pendingImportPayload !== null || importMultiCamDialog || checkingMedia"
       persistent
       width="800"
       overlay-opacity="0.95"
@@ -229,13 +235,25 @@ export default defineComponent({
         @abort="pendingImportPayload = null"
       />
       <ImportMultiCamDialog
-        v-if="importMultiCamDialog"
+        v-else-if="importMultiCamDialog"
         :stereo="stereo"
         :data-type="multiCamOpenType"
         :import-media="importMedia"
         @begin-multicam-import="multiCamImport($event)"
         @abort="importMultiCamDialog = false"
       />
+      <v-card
+        v-else-if="checkingMedia"
+        outlined
+      >
+        <v-card-title class="text-h5">
+          Calculating...
+          <v-progress-linear
+            indeterminate
+            color="light-blue"
+          />
+        </v-card-title>
+      </v-card>
     </v-dialog>
     <navigation-bar />
     <v-container>

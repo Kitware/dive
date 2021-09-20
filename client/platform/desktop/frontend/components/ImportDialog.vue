@@ -107,7 +107,7 @@ export default defineComponent({
         Dataset will not be available until transcoding is complete.
       </v-alert>
       <v-alert
-        v-if="importData.mediaConvertList.length === 0 && argCopy.mediaConvertList.length"
+        v-if="argCopy.forceMediaTranscode"
         type="info"
         outlined
         dense
@@ -215,6 +215,9 @@ export default defineComponent({
           v-model="argCopy.forceMediaTranscode"
           :disabled="importData.mediaConvertList.length !== 0"
           label="Force Media Transcoding"
+          hint="Transcode media to correct display and
+            frame timing errors"
+          persistent-hint
         />
         <p class="my-3">
           New Dataset Properties
