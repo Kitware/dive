@@ -164,6 +164,10 @@ export default defineComponent({
       }
     }
 
+    function logError(event: ErrorEvent) {
+      console.error('Media failed to initialize', event);
+    }
+
     function setVolume(level: number) {
       video.volume = level;
       data.volume = video.volume;
@@ -235,6 +239,7 @@ export default defineComponent({
 
     video.addEventListener('loadedmetadata', loadedMetadata);
     video.addEventListener('seeked', pendingUpdate);
+    video.addEventListener('error', logError);
 
     return {
       data,

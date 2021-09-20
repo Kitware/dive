@@ -34,13 +34,14 @@ import UserGuideButton from 'dive-common/components/UserGuideButton.vue';
 import DeleteControls from 'dive-common/components/DeleteControls.vue';
 import ControlsContainer from 'dive-common/components/ControlsContainer.vue';
 import Sidebar from 'dive-common/components/Sidebar.vue';
-import SidebarContext, { useContextualSidebar } from 'dive-common/components/SidebarContext.vue';
+import SidebarContext from 'dive-common/components/SidebarContext.vue';
 import { useModeManager, useSave } from 'dive-common/use';
 import clientSettingsSetup from 'dive-common/store/settings';
 import { useApi, FrameImage, DatasetType } from 'dive-common/apispec';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { cloneDeep } from 'lodash';
 import { getResponseError } from 'vue-media-annotator/utils';
+import context from 'dive-common/store/context';
 
 export default defineComponent({
   components: {
@@ -449,7 +450,7 @@ export default defineComponent({
       visibleModes,
       frameRate: time.frameRate,
       originalFps: time.originalFps,
-      contextualSidebar: useContextualSidebar(),
+      context,
       /* methods */
       handler: globalHandler,
       save,
@@ -562,15 +563,16 @@ export default defineComponent({
         @track-seek="mediaController.seek($event)"
       >
         <ConfidenceFilter
-          class="mx-3"
+          v-if="context.state.active !== 'TypeThreshold'"
+          class="ma-2 mb-0"
           :confidence.sync="confidenceFilters.default"
           @end="saveThreshold"
         >
           <a
-            style="text-decoration: underline;"
-            @click="contextualSidebar.toggle('TypeThreshold')"
+            style="text-decoration: underline; color: white;"
+            @click="context.toggle('TypeThreshold')"
           >
-            Advanced
+            Advanced →
           </a>
         </ConfidenceFilter>
       </sidebar>
@@ -628,3 +630,27 @@ export default defineComponent({
     </v-row>
   </v-main>
 </template>
+
+<style lang="scss">
+html {
+  overflow-y: auto;
+ scrollbar-face-color: #646464;
+  scrollbar-base-color: #646464;
+  scrollbar-3dlight-color: #646464;
+  scrollbar-highlight-color: #646464;
+  scrollbar-track-color: #000;
+  scrollbar-arrow-color: #000;
+  scrollbar-shadow-color: #646464;
+}
+::-webkit-scrollbar { width: 8px; height: 3px;}
+::-webkit-scrollbar-button {  background-color: #666; height: 0px; }
+::-webkit-scrollbar-track {  background-color: #646464;}
+::-webkit-scrollbar-track-piece { background-color: #1E1E1E;}
+::-webkit-scrollbar-thumb { height: 10px; background-color: #666; border-radius: 3px;}
+::-webkit-scrollbar-corner { background-color: #646464;}
+::-webkit-resizer { background-color: #666;}
+
+.text-xs-center {
+  text-align: center !important;
+}
+</style>

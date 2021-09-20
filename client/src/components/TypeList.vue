@@ -190,18 +190,23 @@ export default defineComponent({
           :key="type"
           class="hover-show-parent"
         >
-          <v-col class="d-flex flex-row align-center py-0">
+          <v-col class="d-flex flex-row py-0">
             <v-checkbox
               :input-value="checkedTypesRef"
               :value="type"
               :color="typeStylingRef.color(type)"
-              :label="`${type} (${typeCounts.get(type) || 0})`"
               dense
               shrink
               hide-details
               class="my-1 type-checkbox"
               @change="setCheckedTypes"
-            />
+            >
+              <template #label>
+                <span class="text-body-2 grey--text text--lighten-1">
+                  {{ `${type} (${typeCounts.get(type) || 0})` }}
+                </span>
+              </template>
+            </v-checkbox>
             <v-spacer />
             <v-tooltip
               open-delay="100"

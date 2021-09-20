@@ -20,7 +20,7 @@ export default defineComponent({
     },
     color: {
       type: String,
-      default: 'inherit',
+      default: null,
     },
   },
   setup(props, { emit }) {
@@ -43,14 +43,25 @@ export default defineComponent({
 
 <template>
   <div>
-    <div class="text-caption d-flex flex-row py-0">
-      <span>{{ text }} ({{ confidence }})</span>
-      <v-spacer />
+    <div class="text-body-2 grey--text text--lighten-1 d-flex flex-row py-0">
+      <span
+        v-if="color"
+        :style="{ color }"
+        class="pr-1"
+      >
+        ⬤
+      </span>
+      <span>{{ text }}</span>
+      <v-spacer v-if="!$scopedSlots.default" />
+      <span class="pl-2">
+        {{ confidence.toFixed(2) }}
+      </span>
+      <v-spacer v-if="$scopedSlots.default" />
       <slot />
     </div>
     <input
       type="range"
-      :style="{ width: '100%', backgroundColor: color }"
+      style="width: 100%"
       :min="min"
       :max="1"
       :step="0.02"

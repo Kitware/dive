@@ -13,6 +13,7 @@ import { DefaultConfidence } from 'vue-media-annotator/use/useTrackFilters';
 
 export default defineComponent({
   name: 'TypeThreshold',
+  description: 'Threshold Controls',
 
   components: { ConfidenceFilter },
 
@@ -47,13 +48,12 @@ export default defineComponent({
 <template>
   <div class="mx-4">
     <span class="text-body-2">
-      The overall threshold is a base level that all tracks must exceed.
-      Any subsequent thresholds can be set more strict (above) the base threshold
+      Any individual type thresholds take effect when they are set higher than the base threshold.
     </span>
     <v-divider class="my-3" />
     <ConfidenceFilter
       :confidence.sync="confidenceFiltersRef.default"
-      text="Overall Thershold"
+      text="Base Confidence Threshold"
       @end="saveThreshold"
     />
     <v-divider class="my-3" />
@@ -66,7 +66,6 @@ export default defineComponent({
         :confidence.sync="confidenceFiltersRef[type]"
         :text="type"
         :color="typeStylingRef.color(type)"
-        :min="confidenceFiltersRef.default"
         @end="saveThreshold"
       />
     </div>

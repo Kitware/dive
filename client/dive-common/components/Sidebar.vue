@@ -107,8 +107,8 @@ export default defineComponent({
             />
           </template>
         </TypeList>
-        <slot />
         <v-spacer />
+        <slot />
         <v-divider />
         <TrackList
           class="flex-grow-0 flex-shrink-0"

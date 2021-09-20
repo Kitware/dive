@@ -1,23 +1,7 @@
 <script lang="ts">
-import { defineComponent, reactive } from '@vue/composition-api';
-import Vue from 'vue';
-import TypeThreshold from './TypeThreshold.vue';
+import { defineComponent } from '@vue/composition-api';
+import context from 'dive-common/store/context';
 
-const bus = new Vue();
-export function useContextualSidebar() {
-  function toggle(componentName: string) {
-    bus.$emit('toggle', componentName);
-    window.dispatchEvent(new Event('resize'));
-  }
-  return { toggle };
-}
-/**
- * ContextSidebar is a singleton contextual sidebar that shows content based on
- * launch instructions. It's a bit like the promp service, but with less overhead.
- *
- * Contextual component events:
- *   - "close": close the context window
- */
 export default defineComponent({
   props: {
     width: {
@@ -25,27 +9,9 @@ export default defineComponent({
       default: 300,
     },
   },
-
-  components: {
-    TypeThreshold,
-  },
-
+  components: context.componentMap,
   setup() {
-    const state = reactive({
-      componentName: null as string | null,
-    });
-    const contextualSidebar = useContextualSidebar();
-    bus.$on('toggle', (componentName: string) => {
-      if (state.componentName === componentName) {
-        state.componentName = null;
-      } else {
-        state.componentName = componentName;
-      }
-    });
-    return {
-      contextualSidebar,
-      state,
-    };
+    return { context };
   },
 });
 </script>
@@ -53,7 +19,7 @@ export default defineComponent({
 <template>
   <div>
     <v-card
-      v-if="state.componentName !== null"
+      v-if="context.state.active !== null"
       :width="width"
       tile
       outlined
@@ -61,24 +27,21 @@ export default defineComponent({
       style="z-index:1;"
     >
       <v-card-title class="py-1">
-        Context Menu
+        {{ context.componentMap[context.state.active].description }}
         <v-spacer />
         <v-btn
           icon
           color="white"
-          @click="contextualSidebar.toggle(state.componentName)"
+          @click="context.toggle(null)"
         >
           <v-icon>
             mdi-close
           </v-icon>
         </v-btn>
       </v-card-title>
-      <v-card-subtitle class="py-1">
-        {{ state.componentName }}
-      </v-card-subtitle>
       <div class="sidebar-content">
         <component
-          :is="state.componentName"
+          :is="context.state.active"
         />
       </div>
     </v-card>
