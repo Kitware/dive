@@ -179,6 +179,7 @@ export interface MediaImportPayload {
   mediaConvertList: string[];
   trackFileAbsPath: string;
   multiCamTrackFiles: null | Record<string, string>;
+  forceMediaTranscode: boolean;
 }
 
 export interface DesktopJobUpdate extends DesktopJob {

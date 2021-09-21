@@ -52,7 +52,6 @@ export default defineComponent({
         }
       }
     };
-
     return {
       argCopy,
       duplicates,
@@ -98,13 +97,22 @@ export default defineComponent({
         to ignore the warning and create a new dataset.
       </v-alert>
       <v-alert
-        v-if="argCopy.mediaConvertList.length"
+        v-if="importData.mediaConvertList.length"
         type="info"
         outlined
         dense
       >
         Found {{ argCopy.mediaConvertList.length }}
         item(s) in this dataset that will be automatically transcoded on import.
+        Dataset will not be available until transcoding is complete.
+      </v-alert>
+      <v-alert
+        v-if="argCopy.forceMediaTranscode"
+        type="info"
+        outlined
+        dense
+      >
+        Forcing Transcoding on video.
         Dataset will not be available until transcoding is complete.
       </v-alert>
       <v-row class="d-flex my-2 mt-7">
@@ -202,6 +210,15 @@ export default defineComponent({
           "{{ argCopy.globPattern }}" matches {{ filteredImages.length }}
           out of {{ argCopy.jsonMeta.originalImageFiles.length }} images
         </v-chip>
+        <v-switch
+          v-if="argCopy.jsonMeta.type === 'video'"
+          v-model="argCopy.forceMediaTranscode"
+          :disabled="importData.mediaConvertList.length !== 0"
+          label="Force Media Transcoding"
+          hint="Transcode media to correct display and
+            frame timing errors"
+          persistent-hint
+        />
         <p class="my-3">
           New Dataset Properties
         </p>
