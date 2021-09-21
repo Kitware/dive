@@ -6,7 +6,7 @@ from .conftest import users
 
 @pytest.mark.integration
 @pytest.mark.parametrize("user", users.values())
-@pytest.mark.run(order=1)
+@pytest.mark.run(order=2)
 def test_user_creation(admin_client: GirderClient, user: dict):
     try:
         admin_client.createUser(

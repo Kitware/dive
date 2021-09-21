@@ -78,23 +78,19 @@ tox -e docs
 Get an API key from production Girder. **DO NOT** use a full-scoped token, use a read only token.
 
 ```bash
-# Pull integration test data from the server.  This will take time
+# Start the server
+ldc up -d
+
+# Set an API key from production girder
 export GIRDER_API_KEY=CHANGEME
-
-# Pull data from https://viame.kitware.com/girder#folder/6006de5ff751cc24d135ec25
-girder-client \
-  --api-url https://viame.kitware.com/api/v1 \
-  download 6006de5ff751cc24d135ec25 tests/integration/data
-cd tests/integration/data
-
-# Unzip everything
-find -iname '*.zip' -print0 | xargs unzip
 
 # Run the tests
 tox -e testintegration
 ```
 
 After integration tests are complete, visually inspect the results to make sure all jobs completed, new datasets open correctly, etc.
+
+The integration tests will only pass once.  If you run it again, duplicates will cause failures.  To run again, `ldc down -v` and start over.
 
 ## Debug utils and command line tools
 

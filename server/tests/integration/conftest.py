@@ -1,7 +1,9 @@
 from typing import Any, Dict
-
+from pathlib import Path
 from girder_client import GirderClient
 import pytest
+
+localDataRoot = Path('tests/integration/data')
 
 users: Dict[str, Dict[str, Any]] = {
     'admin': {
@@ -21,13 +23,13 @@ users: Dict[str, Dict[str, Any]] = {
         'data': [
             {
                 'name': 'MyFolder1',
-                'path': 'Examples/video1_train_mp4',
+                'path': 'TestData/video1_train_mp4',
                 'fps': 10,
                 'type': 'video',
             },
             {
                 'name': 'MyFolder2',
-                'path': 'Examples/video2_train_mp4',
+                'path': 'TestData/video2_train_mp4',
                 'fps': 4,
                 'type': 'video',
             },
@@ -42,13 +44,13 @@ users: Dict[str, Dict[str, Any]] = {
         'data': [
             {
                 'name': 'testtrain1',
-                'path': 'Examples/testTrain1_imagelist',
+                'path': 'TestData/testTrain1_imagelist',
                 'fps': 1,
                 'type': 'image-sequence',
             },
             {
                 'name': 'testtrain2',
-                'path': 'Examples/testTrain2_imagelist',
+                'path': 'TestData/testTrain2_imagelist',
                 'fps': 6,
                 'type': 'image-sequence',
             },
