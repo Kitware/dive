@@ -6,8 +6,6 @@ export default defineComponent({
   setup(_, { root }) {
     const dialog = ref(false);
 
-
-    // this will change once REST updates are merged
     const brandData = toRef(root.$store.state.Brand, 'brandData');
 
     return {
@@ -19,42 +17,42 @@ export default defineComponent({
 </script>
 
 <template>
-  <!-- This component is for alert messages on the Viewer Page only.
-    See NavigationBar for sitewide alert banner -->
   <v-dialog
+    v-if="brandData.alertMessage"
     v-model="dialog"
     max-width="600px"
+    overlay-opacity="0.90"
   >
     <template v-slot:activator="{ on, attrs }">
-      <v-icon
-        v-if="brandData.alertMessage"
+      <v-btn
+        icon
         dark
-        large
-        color="red"
+        color="warning"
         v-bind="attrs"
         v-on="on"
       >
-        mdi-alert-circle
-      </v-icon>
+        <v-icon
+          large
+        >
+          mdi-alert-circle
+        </v-icon>
+      </v-btn>
     </template>
     <v-card
-      color="blue"
+      color="warning"
       class="pa-4"
     >
-      <v-icon
+      {{ brandData.alertMessage }}
+      <v-btn
+        icon
         class="float-right"
         @click="dialog = false"
       >
-        mdi-close
-      </v-icon>
-      {{ brandData.alertMessage }}
+      <!-- TODO Fix alignment -->
+        <v-icon>
+          mdi-close
+        </v-icon>
+      </v-btn>
     </v-card>
   </v-dialog>
 </template>
-
-<style lang='scss'>
-.theme--dark.v-dialog--active {
-  background: green;
-}
-
-</style>

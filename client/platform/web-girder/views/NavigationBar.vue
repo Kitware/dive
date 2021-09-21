@@ -86,7 +86,7 @@ export default {
     </v-app-bar>
     <v-alert
       v-if="brandData.alertMessage"
-      type="info"
+      type="warning"
       text
     >
       {{ brandData.alertMessage }}
