@@ -39,6 +39,7 @@ UPGRADE_JOB_DEFAULT_URLS: List[str] = [
     'https://data.kitware.com/api/v1/item/6011ebf72fa25629b91aef03/download',  # PengHead
     'https://data.kitware.com/api/v1/item/601b00d02fa25629b9391ad6/download',  # Motion
     'https://data.kitware.com/api/v1/item/601afdde2fa25629b9390c41/download',  # EM Tuna
+    'https://viame.kitware.com/api/v1/item/61494377a020b1e852638431/download',  # MOUSS Deep 7
 ]
 
 
