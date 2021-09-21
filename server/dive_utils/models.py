@@ -101,7 +101,7 @@ class GirderMetadataStatic(MetadataMutable):
     name: str
     createdAt: str
     type: str
-    fps: Union[int, float]
+    fps: Union[float, int]
     annotate: bool
 
     # Optional
