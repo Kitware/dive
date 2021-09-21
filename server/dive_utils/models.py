@@ -101,6 +101,7 @@ class GirderMetadataStatic(MetadataMutable):
     name: str
     createdAt: str
     type: str
+    # Casting order matters, float first, then fall back to int
     fps: Union[float, int]
     annotate: bool
 
