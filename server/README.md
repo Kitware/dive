@@ -53,7 +53,7 @@ Access the server at <http://localhost:8010>
 
 To work on the Vue client, see development instructions in `../client`.
 
-## Testing
+## Unit Testing and Static Checks
 
 All tests are run using tox which is installed with the `dev` packages.
 
@@ -66,8 +66,8 @@ tox -e check
 # run only type checks
 tox -e type
 
-# run only pytest-driven tests
-tox -e test
+# run only unit tests
+tox -e testunit
 
 # run all three tests above
 tox
@@ -78,6 +78,23 @@ tox -e format
 # run mkdocs and serve the documentation page
 tox -e docs
 ```
+
+## Integration Testing
+
+Get an API key from production Girder. **DO NOT** use a full-scoped token, use a read only token.
+
+```bash
+# Start the server
+ldc up -d
+
+# Set an API key from production girder
+export GIRDER_API_KEY=CHANGEME
+
+# Run the tests
+tox -e testintegration
+```
+
+After integration tests are complete, visually inspect the results to make sure all jobs completed, new datasets open correctly, etc.
 
 ## Debug utils and command line tools
 
