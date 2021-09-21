@@ -90,8 +90,6 @@ tox -e testintegration
 
 After integration tests are complete, visually inspect the results to make sure all jobs completed, new datasets open correctly, etc.
 
-The integration tests will only pass once.  If you run it again, duplicates will cause failures.  To run again, `ldc down -v` and start over.
-
 ## Debug utils and command line tools
 
 ``` bash

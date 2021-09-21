@@ -4,7 +4,7 @@ import time
 from girder_client import GirderClient
 import pytest
 
-from .conftest import getClient, users, localDataRoot
+from .conftest import getClient, localDataRoot, users
 
 
 def wait_for_jobs(client: GirderClient, max_wait_timeout=30):

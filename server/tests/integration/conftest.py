@@ -1,5 +1,6 @@
-from typing import Any, Dict
 from pathlib import Path
+from typing import Any, Dict
+
 from girder_client import GirderClient
 import pytest
 
