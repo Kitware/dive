@@ -112,5 +112,9 @@ export default defineComponent({
         Launch Annotator
       </v-btn>
     </template>
+    <template #no-data>
+      <span class="pr-4">No datasets have been shared with you yet.</span>
+      <a href="https://kitware.github.io/dive/Web-Version/#sharing-data-with-teams">Learn more about sharing</a>
+    </template>
   </v-data-table>
 </template>
