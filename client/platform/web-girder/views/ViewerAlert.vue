@@ -40,15 +40,13 @@ export default defineComponent({
     </template>
     <v-card
       color="warning"
-      class="pa-4"
+      class="d-flex justify-space-between align-center pa-4"
     >
       {{ brandData.alertMessage }}
       <v-btn
         icon
-        class="float-right"
         @click="dialog = false"
       >
-      <!-- TODO Fix alignment -->
         <v-icon>
           mdi-close
         </v-icon>

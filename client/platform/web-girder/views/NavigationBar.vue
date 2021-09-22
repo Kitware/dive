@@ -84,13 +84,19 @@ export default {
         Logout
       </v-btn>
     </v-app-bar>
-    <v-alert
+    <v-banner
       v-if="brandData.alertMessage"
-      type="warning"
-      text
+      color="warning"
+      app
     >
+    <v-icon
+      class="pr-2"
+      large
+    >
+      mdi-alert-circle
+    </v-icon>
       {{ brandData.alertMessage }}
-    </v-alert>
+    </v-banner>
   </div>
 </template>
 
