@@ -17,11 +17,11 @@ sample_data = [
 @pytest.mark.parametrize("data", sample_data)
 @pytest.mark.run(order=1)
 def test_extract_download(data):
-    gc = GirderClient(apiUrl=source_api_root)
-    gc.authenticate(apiKey=os.environ.get('GIRDER_API_KEY'))
     fileId, filename = data
     filepath = localDataRoot / str(filename)
     if not filepath.exists():
+        gc = GirderClient(apiUrl=source_api_root)
+        gc.authenticate(apiKey=os.environ.get('GIRDER_API_KEY'))
         gc.downloadFile(fileId, str(filepath))
         with zipfile.ZipFile(filepath, 'r') as zipref:
             zipref.extractall(localDataRoot)
