@@ -4,7 +4,7 @@ import time
 from girder_client import GirderClient
 import pytest
 
-from .conftest import getClient, localDataRoot, users
+from .conftest import getClient, getTestFolder, localDataRoot, users
 
 
 def wait_for_jobs(client: GirderClient, max_wait_timeout=30):
@@ -34,9 +34,8 @@ def wait_for_jobs(client: GirderClient, max_wait_timeout=30):
 @pytest.mark.run(order=3)
 def test_reset_integration_env(user: dict):
     client = getClient(user['login'])
-    me = client.get('user/me')
-    integrationFolder = client.loadOrCreateFolder("Integration", me['_id'], 'user')
-    client.delete(f"folder/{integrationFolder['_id']}")
+    privateFolder = getTestFolder(client)
+    client.delete(f"folder/{privateFolder['_id']}")
 
 
 @pytest.mark.integration
@@ -44,10 +43,10 @@ def test_reset_integration_env(user: dict):
 @pytest.mark.run(order=4)
 def test_upload_user_data(user: dict):
     client = getClient(user['login'])
+    createdDatasets = []
     for dataset in user['data']:
         dsPath = localDataRoot / str(dataset['path'])
-        me = client.get('user/me')
-        privateFolder = client.loadOrCreateFolder("Integration", me['_id'], 'user')
+        privateFolder = getTestFolder(client)
         newDatasetFolder = client.createFolder(
             privateFolder['_id'],
             dataset['name'],
@@ -56,26 +55,16 @@ def test_upload_user_data(user: dict):
                 'type': dataset['type'],
             },
         )
+        createdDatasets.append(newDatasetFolder)
         for file in dsPath.iterdir():
             if file.is_file():
                 client.uploadFileToFolder(newDatasetFolder['_id'], str(file))
         client.post(f'dive_rpc/postprocess/{newDatasetFolder["_id"]}')
     wait_for_jobs(client)
-
-
-@pytest.mark.integration
-@pytest.mark.parametrize("user", users.values())
-@pytest.mark.run(order=5)
-def test_dataset_clone(user: dict):
-    client = getClient(user['login'])
-    datasets = client.get('dive_dataset')
-    me = client.get('user/me')
-    publicFolder = client.loadOrCreateFolder("Integration", me['_id'], 'user')
-    client.post(
-        'dive_dataset',
-        parameters={
-            'cloneId': datasets[0]['_id'],
-            'parentFolderId': publicFolder['_id'],
-            'name': datasets[0]['name'] + ' clone',
-        },
-    )
+    # Confirm that the new dataset looks like it should.
+    for created, expected in zip(createdDatasets, user['data']):
+        created = client.get(f'dive_dataset/{created["_id"]}')
+        if expected['type'] == 'video':
+            assert created['fps'] == expected['originalFps'] or created['fps'] == expected['fps']
+            assert created['annotate']
+            assert created['originalFps'] == expected['originalFps']

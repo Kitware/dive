@@ -101,11 +101,13 @@ class GirderMetadataStatic(MetadataMutable):
     name: str
     createdAt: str
     type: str
-    fps: Union[int, float]
+    # Casting order matters, float first, then fall back to int
+    fps: Union[float, int]
     annotate: bool
 
     # Optional
-    originalFps: Optional[Union[int, float]]
+    # Casting order matters, float first, then fall back to int
+    originalFps: Optional[Union[float, int]]
     ffprobe_info: Optional[Dict[str, Any]]
     foreign_media_id: Optional[str]
 

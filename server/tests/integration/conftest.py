@@ -23,16 +23,24 @@ users: Dict[str, Dict[str, Any]] = {
         'password': 'alicespassword',
         'data': [
             {
-                'name': 'MyFolder1',
+                'name': 'video1_train_mp4',
                 'path': 'TestData/video1_train_mp4',
-                'fps': 10,
+                'fps': 30,  # Should get reduced.
+                'originalFps': 30_000 / 1001,
                 'type': 'video',
             },
             {
-                'name': 'MyFolder2',
+                'name': 'video2_train_mp4',
                 'path': 'TestData/video2_train_mp4',
-                'fps': 4,
+                'fps': 5.8,
+                'originalFps': 30_000 / 1001,
                 'type': 'video',
+            },
+            {
+                'name': 'multiConfidence_text',
+                'path': 'TestData/multiConfidence_test',
+                'fps': 22.1,
+                'type': 'image-sequence',
             },
         ],
     },
@@ -44,13 +52,13 @@ users: Dict[str, Dict[str, Any]] = {
         'password': 'bobspass',
         'data': [
             {
-                'name': 'testtrain1',
+                'name': 'testTrain1_imagelist',
                 'path': 'TestData/testTrain1_imagelist',
                 'fps': 1,
                 'type': 'image-sequence',
             },
             {
-                'name': 'testtrain2',
+                'name': 'testTrain2_imagelist',
                 'path': 'TestData/testTrain2_imagelist',
                 'fps': 6,
                 'type': 'image-sequence',
@@ -64,6 +72,12 @@ def getClient(name: str) -> GirderClient:
     gc = GirderClient(apiUrl='http://localhost:8010/api/v1')
     gc.authenticate(username=name, password=users[name]['password'])
     return gc
+
+
+def getTestFolder(client: GirderClient):
+    me = client.get('user/me')
+    privateFolder = client.loadOrCreateFolder("Integration", me['_id'], 'user')
+    return privateFolder
 
 
 @pytest.fixture(scope="module")

@@ -1,6 +1,5 @@
 from contextlib import suppress
 import json
-import math
 import os
 from pathlib import Path
 import shlex
@@ -439,8 +438,8 @@ def convert_video(self: Task, folderId: str, itemId: str):
         else:
             raise Exception('Expected key avg_frame_rate in ffprobe')
 
-        newAnnotationFps = math.floor(min(requestedFps, originalFps))
-        if newAnnotationFps <= 0:
+        newAnnotationFps = min(requestedFps, originalFps)
+        if newAnnotationFps < 1:
             raise Exception('FPS lower than 1 is not supported')
 
         command = [
