@@ -144,6 +144,12 @@ There are four levels of permission a User can have on a resource.
 
 These users should now be able to view and edit your data.
 
+## Data Shared with you
+
+You can view data shared with you by selecting the 'SHARED WITH ME' Tab above the data browser.
+
+![Shared With Me Tab](images/Sharing/ShareTab.png)
+
 ## Sharing URLs
 
 You can copy and paste any URL from the address bar and share with collaborators.  This includes folders in the data browser as well as direct links to the annotation editor.

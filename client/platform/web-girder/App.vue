@@ -30,6 +30,8 @@ export default defineComponent({
       return root.$store.dispatch('Dataset/load', datasetId);
     }
 
+    root.$store.dispatch('Location/setLocationFromRoute', root.$route);
+
     provideApi({
       getPipelineList: unwrap(getPipelineList),
       runPipeline: unwrap(runPipeline),

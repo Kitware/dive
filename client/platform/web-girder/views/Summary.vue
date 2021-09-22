@@ -1,7 +1,7 @@
 <script lang="ts">
-import { defineComponent, ref } from '@vue/composition-api';
-import { getSummary, SummaryItem } from 'platform/web-girder/api/summary.service';
 import ColorHash from 'color-hash';
+import { defineComponent, ref } from '@vue/composition-api';
+import { getSummary, SummaryItem } from '../api/summary.service';
 
 export default defineComponent({
   setup() {

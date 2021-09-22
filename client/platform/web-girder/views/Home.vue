@@ -3,23 +3,24 @@ import {
   defineComponent,
   ref,
 } from '@vue/composition-api';
-import { mapActions } from 'vuex';
 import {
-  getLocationType, GirderFileManager, GirderMarkdown,
+  GirderFileManager, GirderMarkdown,
 } from '@girder/components/src';
+import { mapGetters, mapState } from 'vuex';
 
 import RunPipelineMenu from 'dive-common/components/RunPipelineMenu.vue';
 import RunTrainingMenu from 'dive-common/components/RunTrainingMenu.vue';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 
-import { getFolder } from 'platform/web-girder/api/girder.service';
-import { getLocationFromRoute } from '../utils';
 import { deleteResources } from '../api';
 import { getMaxNSummaryUrl } from '../api/summary.service';
 import Export from './Export.vue';
 import Upload from './Upload.vue';
 import DataDetails from './DataDetails.vue';
 import Clone from './Clone.vue';
+import ShareTab from './ShareTab.vue';
+import DataShared from './DataShared.vue';
+
 
 const buttonOptions = {
   block: true,
@@ -46,22 +47,17 @@ export default defineComponent({
     Upload,
     RunPipelineMenu,
     RunTrainingMenu,
+    DataShared,
+    ShareTab,
   },
   setup() {
-    const uploaderDialog = ref(false);
-    const selected = ref([]);
-    const uploading = ref(false);
     const loading = ref(false);
-
     const { prompt } = usePrompt();
 
     return {
       // data
       buttonOptions,
       menuOptions,
-      uploaderDialog,
-      selected,
-      uploading,
       loading,
       // methods
       prompt,
@@ -70,29 +66,8 @@ export default defineComponent({
   // everything below needs to be refactored to composition-api
   inject: ['girderRest'],
   computed: {
-    location: {
-      get() {
-        return this.$store.state.Location.location;
-      },
-      /**
-       * This setter is used by Girder Web Components to set the location when it changes
-       * by clicking on a Breadcrumb link
-       */
-      set(value) {
-        if (this.locationIsViameFolder && value.name === 'auxiliary') {
-          return;
-        }
-        this.route(value);
-      },
-    },
-    shouldShowUpload() {
-      return (
-        this.location
-        && !this.locationIsViameFolder
-        && getLocationType(this.location) === 'folder'
-        && !this.selected.length
-      );
-    },
+    ...mapState('Location', ['selected', 'location']),
+    ...mapGetters('Location', ['locationIsViameFolder']),
     exportTarget() {
       let { selected } = this;
       if (selected.length === 1) {
@@ -110,9 +85,6 @@ export default defineComponent({
     exportTargetId() {
       return this.exportTarget?._id || null;
     },
-    locationIsViameFolder() {
-      return !!(this.location && this.location.meta && this.location.meta.annotate);
-    },
     selectedViameFolderIds() {
       return this.selected.filter(
         ({ _modelType, meta }) => _modelType === 'folder' && meta && meta.annotate,
@@ -128,39 +100,7 @@ export default defineComponent({
       return getMaxNSummaryUrl(this.locationInputs);
     },
   },
-  async created() {
-    let newLocaction = getLocationFromRoute(this.$route);
-    if (newLocaction === null) {
-      newLocaction = {
-        _id: this.girderRest.user._id,
-        _modelType: 'user',
-      };
-    }
-    this.location = newLocaction;
-    if (this.location._modelType === 'folder') {
-      this.location = (await getFolder(this.location._id)).data;
-    }
-    this.girderRest.$on('message:job_status', this.handleNotification);
-  },
-  beforeDestroy() {
-    this.girderRest.$off('message:job_status', this.handleNotification);
-  },
   methods: {
-    ...mapActions('Location', ['route']),
-    handleNotification() {
-      this.$refs.fileManager.$refs.girderBrowser.refresh();
-    },
-    updateUploading(newval) {
-      this.uploading = newval;
-      if (!newval) {
-        this.$refs.fileManager.$refs.girderBrowser.refresh();
-        this.uploaderDialog = false;
-      }
-    },
-    isAnnotationFolder(item) {
-      // TODO: update to check for other info
-      return item._modelType === 'folder' && item.meta.annotate;
-    },
     async deleteSelection() {
       const result = await this.prompt({
         title: 'Confirm',
@@ -189,13 +129,9 @@ export default defineComponent({
         this.loading = false;
       }
     },
-    dragover() {
-      if (this.shouldShowUpload) {
-        this.uploaderDialog = true;
-      }
-    },
   },
 });
+
 </script>
 
 <template>
@@ -265,78 +201,16 @@ export default defineComponent({
           </DataDetails>
         </v-col>
         <v-col :cols="9">
-          <GirderFileManager
-            ref="fileManager"
-            v-model="selected"
-            :selectable="!locationIsViameFolder"
-            :new-folder-enabled="!selected.length && !locationIsViameFolder"
-            :location.sync="location"
-            @dragover.native="dragover"
+          <v-toolbar
+            dense
+            class="mb-4"
+            rounded
           >
-            <template #headerwidget>
-              <v-dialog
-                v-if="shouldShowUpload"
-                v-model="uploaderDialog"
-                max-width="800px"
-                :persistent="uploading"
-              >
-                <template #activator="{on}">
-                  <v-btn
-                    class="ma-0"
-                    text
-                    small
-                    v-on="on"
-                  >
-                    <v-icon
-                      left
-                      color="accent"
-                    >
-                      mdi-file-upload
-                    </v-icon>
-                    Upload
-                  </v-btn>
-                </template>
-                <Upload
-                  :location="location"
-                  @update:uploading="updateUploading"
-                  @close="uploaderDialog = false"
-                />
-              </v-dialog>
-            </template>
-            <template #row-widget="{item}">
-              <v-btn
-                v-if="isAnnotationFolder(item)"
-                class="ml-2"
-                x-small
-                color="primary"
-                depressed
-                :to="{ name: 'viewer', params: { id: item._id } }"
-                @click.stop="openClip(item)"
-              >
-                Launch Annotator
-              </v-btn>
-              <v-chip
-                v-if="(item.meta && item.meta.foreign_media_id)"
-                color="white"
-                x-small
-                outlined
-                disabled
-                class="my-0 mx-3"
-              >
-                cloned
-              </v-chip>
-              <v-chip
-                v-if="(item.meta && item.meta.published)"
-                color="green"
-                x-small
-                outlined
-                disabled
-                class="my-0 mx-3"
-              >
-                published
-              </v-chip>
-            </template>
-          </GirderFileManager>
+            <ShareTab
+              :value="0"
+            />
+          </v-toolbar>
+          <router-view />
           <v-card
             v-if="selectedDescription"
             class="my-4"

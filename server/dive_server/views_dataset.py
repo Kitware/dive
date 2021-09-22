@@ -82,11 +82,26 @@ class DatasetResource(Resource):
             default=False,
             dataType='boolean',
         )
+        .param(
+            constants.SharedMarker,
+            'Return only datasets shared with me',
+            required=False,
+            default=False,
+            dataType='boolean',
+        )
     )
-    def list_datasets(self, limit, offset, sort, published: bool):
+    def list_datasets(
+        self,
+        limit: int,
+        offset: int,
+        sort,
+        published: bool,
+        shared: bool,
+    ):
         return crud_dataset.list_datasets(
             self.getCurrentUser(),
             published,
+            shared,
             limit,
             offset,
             sort,
