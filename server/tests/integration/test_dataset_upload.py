@@ -67,3 +67,4 @@ def test_upload_user_data(user: dict):
         if expected['type'] == 'video':
             assert created['fps'] == expected['originalFps'] or created['fps'] == expected['fps']
             assert created['annotate']
+            assert created['originalFps'] == expected['originalFps']

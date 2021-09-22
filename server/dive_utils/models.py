@@ -106,7 +106,8 @@ class GirderMetadataStatic(MetadataMutable):
     annotate: bool
 
     # Optional
-    originalFps: Optional[Union[int, float]]
+    # Casting order matters, float first, then fall back to int
+    originalFps: Optional[Union[float, int]]
     ffprobe_info: Optional[Dict[str, Any]]
     foreign_media_id: Optional[str]
 
