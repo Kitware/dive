@@ -1,5 +1,5 @@
 <script lang="ts">
-import { cloneDeep } from 'lodash';
+import { cloneDeep, uniq } from 'lodash';
 import {
   computed, defineComponent, watch, toRef, ref, PropType,
 } from '@vue/composition-api';
@@ -38,11 +38,9 @@ export default defineComponent({
     const sortedFpsOptions = computed(() => {
       const filteredOptions = FPSOptions
         .filter((v) => v <= Math.round(argCopy.value.jsonMeta.originalFps));
-      if (filteredOptions.indexOf(argCopy.value.jsonMeta.originalFps) === -1) {
-        filteredOptions.push(argCopy.value.jsonMeta.originalFps);
-      }
+      filteredOptions.push(argCopy.value.jsonMeta.originalFps);
       filteredOptions.sort((a, b) => a - b);
-      return filteredOptions;
+      return uniq(filteredOptions);
     });
 
     const ready = computed(() => {
