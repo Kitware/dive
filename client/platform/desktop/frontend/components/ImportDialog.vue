@@ -35,6 +35,16 @@ export default defineComponent({
       argCopy.value.jsonMeta.originalImageFiles,
     ));
 
+    const sortedFpsOptions = computed(() => {
+      const filteredOptions = FPSOptions
+        .filter((v) => v <= Math.round(argCopy.value.jsonMeta.originalFps));
+      if (filteredOptions.indexOf(argCopy.value.jsonMeta.originalFps) === -1) {
+        filteredOptions.push(argCopy.value.jsonMeta.originalFps);
+      }
+      filteredOptions.sort((a, b) => a - b);
+      return filteredOptions;
+    });
+
     const ready = computed(() => {
       if (argCopy.value.globPattern) {
         return filteredImages.value.length > 0;
@@ -60,6 +70,7 @@ export default defineComponent({
       showAdvanced,
       MediaTypes,
       FPSOptions,
+      sortedFpsOptions,
       openUpload,
     };
   },
@@ -130,10 +141,7 @@ export default defineComponent({
         <v-col cols="3">
           <v-select
             v-model="argCopy.jsonMeta.fps"
-            :items="argCopy.jsonMeta.type === 'video'
-              ? FPSOptions.filter((v) => v <= Math.round(argCopy.jsonMeta.originalFps))
-              : FPSOptions
-            "
+            :items="sortedFpsOptions"
             type="number"
             required
             outlined
