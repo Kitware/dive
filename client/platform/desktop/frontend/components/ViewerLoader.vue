@@ -1,15 +1,20 @@
 <script lang="ts">
-import { computed, defineComponent, ref } from '@vue/composition-api';
+import {
+  computed, defineComponent, ref, watch,
+} from '@vue/composition-api';
 
 import Viewer from 'dive-common/components/Viewer.vue';
 import RunPipelineMenu from 'dive-common/components/RunPipelineMenu.vue';
 import ImportAnnotations from 'dive-common//components/ImportAnnotations.vue';
 
+import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import Export from './Export.vue';
 import JobTab from './JobTab.vue';
 
 import { datasets } from '../store/dataset';
 import { settings } from '../store/settings';
+
+import { runningJobs } from '../store/jobs';
 
 const buttonOptions = {
   outlined: true,
@@ -38,11 +43,29 @@ export default defineComponent({
     },
   },
   setup(props) {
+    const { prompt } = usePrompt();
     const viewerRef = ref();
     const compoundId = ref(props.id);
     const subTypeList = computed(() => [datasets.value[props.id]?.subType || null]);
     const readonlyMode = computed(() => settings.value?.readonlyMode || false);
 
+    watch(runningJobs, async (_previous, current) => {
+      const index = current.findIndex((item) => item.job.datasetIds.includes(props.id));
+      if (index !== -1 && current[index] && current[index].job.exitCode !== -1) {
+        const result = await prompt({
+          title: 'Pipeline Finished',
+          text: [`Pipeline: ${current[index].job.title}`,
+            'finished running sucesffully on the current dataset.  Click reload to load the annotations.  The current annotations will be replaced with the pipeline output.',
+          ],
+          confirm: true,
+          positiveButton: 'Reload',
+          negativeButton: 'Cancel',
+        });
+        if (result) {
+          viewerRef.value.reloadAnnotations();
+        }
+      }
+    });
     return {
       datasets,
       compoundId,
@@ -60,7 +83,7 @@ export default defineComponent({
   <Viewer
     :id.sync="compoundId"
     ref="viewerRef"
-    :read-only-mode="readonlyMode"
+    :readonly-mode="readonlyMode"
   >
     <template #title>
       <v-tabs
