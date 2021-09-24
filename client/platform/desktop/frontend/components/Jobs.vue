@@ -120,7 +120,17 @@ export default defineComponent({
                       <tr>
                         <td>datasets</td>
                         <td>
-                          {{ job.job.datasetIds.join(', ') }}
+                          <span
+                            v-for="dataset in job.job.datasetIds"
+                            :key="dataset"
+                          >
+                            <router-link
+                              class="mr-1"
+                              :to="{ name: 'viewer', params: { id: dataset } }"
+                            >
+                              {{ dataset }}
+                            </router-link>
+                          </span>
                         </td>
                       </tr>
                       <tr>
