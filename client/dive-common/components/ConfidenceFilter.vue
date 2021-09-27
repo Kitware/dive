@@ -1,14 +1,13 @@
 <script lang="ts">
 import { defineComponent } from '@vue/composition-api';
 import { throttle, debounce } from 'lodash';
-import { DefaultConfidence } from 'vue-media-annotator/use/useTrackFilters';
 
 export default defineComponent({
   name: 'ConfidenceFilter',
   props: {
     confidence: {
       type: Number,
-      default: DefaultConfidence,
+      default: 0,
     },
     text: {
       type: String,
@@ -44,13 +43,6 @@ export default defineComponent({
 <template>
   <div>
     <div class="text-body-2 grey--text text--lighten-1 d-flex flex-row py-0">
-      <span
-        v-if="color"
-        :style="{ color }"
-        class="pr-1"
-      >
-        ⬤
-      </span>
       <span>{{ text }}</span>
       <v-spacer v-if="!$scopedSlots.default" />
       <span class="pl-2">
@@ -64,7 +56,7 @@ export default defineComponent({
       style="width: 100%"
       :min="min"
       :max="1"
-      :step="0.02"
+      :step="0.01"
       :value="Math.max(min, confidence)"
       persistent-hint
       @input="updateConfidence"

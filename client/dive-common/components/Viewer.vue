@@ -562,6 +562,7 @@ export default defineComponent({
         @import-types="importTypes($event)"
         @track-seek="mediaController.seek($event)"
       >
+        <v-divider />
         <ConfidenceFilter
           v-if="context.state.active !== 'TypeThreshold'"
           class="ma-2 mb-0"
@@ -572,7 +573,7 @@ export default defineComponent({
             style="text-decoration: underline; color: white;"
             @click="context.toggle('TypeThreshold')"
           >
-            Advanced →
+            Advanced
           </a>
         </ConfidenceFilter>
       </sidebar>
@@ -642,11 +643,11 @@ html {
   scrollbar-arrow-color: #000;
   scrollbar-shadow-color: #646464;
 }
-::-webkit-scrollbar { width: 8px; height: 3px;}
+::-webkit-scrollbar { width: 10px; height: 3px;}
 ::-webkit-scrollbar-button {  background-color: #666; height: 0px; }
 ::-webkit-scrollbar-track {  background-color: #646464;}
 ::-webkit-scrollbar-track-piece { background-color: #1E1E1E;}
-::-webkit-scrollbar-thumb { height: 10px; background-color: #666; border-radius: 3px;}
+::-webkit-scrollbar-thumb { height: 30px; background-color: #666; border-radius: 3px;}
 ::-webkit-scrollbar-corner { background-color: #646464;}
 ::-webkit-resizer { background-color: #666;}
 
