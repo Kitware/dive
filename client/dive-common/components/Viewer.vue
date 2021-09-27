@@ -462,6 +462,7 @@ export default defineComponent({
       // For Navigation Guarding
       navigateAwayGuard,
       warnBrowserExit,
+      reloadAnnotations,
     };
   },
 });

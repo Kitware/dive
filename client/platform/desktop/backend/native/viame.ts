@@ -182,7 +182,7 @@ async function runPipeline(
     if (code === 0) {
       try {
         const { attributes } = await common.processOtherAnnotationFiles(
-          settings, datasetId, [trackOutput, detectorOutput], multiOutFiles,
+          settings, datasetId, [detectorOutput, trackOutput], multiOutFiles,
         );
         if (attributes) {
           meta.attributes = attributes;
