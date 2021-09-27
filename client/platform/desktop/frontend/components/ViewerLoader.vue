@@ -51,7 +51,7 @@ export default defineComponent({
 
     watch(runningJobs, async (_previous, current) => {
       const index = current.findIndex((item) => item.job.datasetIds.includes(props.id));
-      if (index !== -1 && current[index] && current[index].job.exitCode !== -1) {
+      if (index !== -1 && current[index] && current[index].job.exitCode !== -1 && current[index].job.jobType === 'pipeline') {
         const result = await prompt({
           title: 'Pipeline Finished',
           text: [`Pipeline: ${current[index].job.title}`,
