@@ -50,11 +50,11 @@ export default defineComponent({
     const readonlyMode = computed(() => settings.value?.readonlyMode || false);
 
     watch(runningJobs, async (_previous, current) => {
-      const index = current.findIndex((item) => item.job.datasetIds.includes(props.id));
-      if (index !== -1 && current[index] && current[index].job.exitCode !== -1 && current[index].job.jobType === 'pipeline') {
+      const currentJob = current.find((item) => item.job.datasetIds.includes(props.id));
+      if (currentJob && currentJob.job.exitCode !== -1 && currentJob.job.jobType === 'pipeline') {
         const result = await prompt({
           title: 'Pipeline Finished',
-          text: [`Pipeline: ${current[index].job.title}`,
+          text: [`Pipeline: ${currentJob.job.title}`,
             'finished running sucesffully on the current dataset.  Click reload to load the annotations.  The current annotations will be replaced with the pipeline output.',
           ],
           confirm: true,
