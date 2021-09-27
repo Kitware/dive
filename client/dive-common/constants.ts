@@ -12,7 +12,18 @@ const MediaTypes: Record<DatasetType, string> = {
 };
 
 const DefaultVideoFPS = 10;
-const FPSOptions = [1, 5, 10, 15, 24, 25, 30, 50, 60];
+const FPSOptions = [
+  { text: 1, value: 1 },
+  { text: 5, value: 5 },
+  { text: 10, value: 10 },
+  { text: 15, value: 15 },
+  { text: 24, value: 24 },
+  { text: 25, value: 25 },
+  { text: 30, value: 30 },
+  { text: 50, value: 50 },
+  { text: 60, value: 60 },
+  { text: 'Video Frame Rate', value: -1 },
+];
 
 const websafeVideoTypes = [
   'video/mp4',

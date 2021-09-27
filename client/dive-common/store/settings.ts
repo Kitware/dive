@@ -25,6 +25,12 @@ interface AnnotationSettings {
       promptUser: boolean;
     };
   };
+  dataBrowserSettings: {
+    rowsPerPage: number;
+  };
+  importSettings: {
+    annotationFPS: number;
+  };
 }
 
 const defaultSettings: AnnotationSettings = {
@@ -49,6 +55,12 @@ const defaultSettings: AnnotationSettings = {
   typeSettings: {
     showEmptyTypes: false,
     lockTypes: false,
+  },
+  dataBrowserSettings: {
+    rowsPerPage: 10,
+  },
+  importSettings: {
+    annotationFPS: 10,
   },
 };
 
@@ -75,8 +87,8 @@ export default function setup(allTypes: Ref<Readonly<string[]>>) {
       clientSettings.trackSettings.newTrackSettings.type = 'unknown';
     }
   });
-  watch(clientSettings, saveSettings);
 }
+watch(clientSettings, saveSettings);
 
 export {
   clientSettings,

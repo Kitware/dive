@@ -16,6 +16,7 @@ import { validateUploadGroup } from 'platform/web-girder/api';
 import { openFromDisk } from 'platform/web-girder/utils';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { getResponseError } from 'vue-media-annotator/utils';
+import { clientSettings } from 'dive-common/store/settings';
 import UploadGirder from './UploadGirder.vue';
 
 export interface InteralFiles {
@@ -237,7 +238,8 @@ export default defineComponent({
         }
         throw new Error(resp.message);
       }
-      const fps = resp.type === ImageSequenceType ? 5 : DefaultVideoFPS;
+      const fps = clientSettings.importSettings.annotationFPS
+        ? clientSettings.importSettings.annotationFPS : DefaultVideoFPS;
       const defaultFilename = resp.media[0];
       const validFiles = resp.media.concat(resp.annotations);
       // mapping needs to be done for the mixin upload functions
@@ -311,6 +313,7 @@ export default defineComponent({
       importMultiCamDialog,
       girderUpload,
       uploading,
+      clientSettings,
       //methods
       close,
       openImport,
@@ -420,6 +423,7 @@ export default defineComponent({
                   :hint="pendingUpload.annotationFile
                     ? 'should match annotation fps' : 'annotation fps'"
                   persistent-hint
+                  @change="clientSettings.importSettings.annotationFPS = $event"
                 />
               </v-col>
               <v-col

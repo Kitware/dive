@@ -6,6 +6,7 @@ import {
   GirderFileManager, getLocationType, GirderModel,
 } from '@girder/components/src';
 
+import { clientSettings } from 'dive-common/store/settings';
 import { useStore, LocationType } from '../store/types';
 import Upload from './Upload.vue';
 
@@ -57,6 +58,7 @@ export default defineComponent({
       shouldShowUpload,
       uploaderDialog,
       uploading,
+      clientSettings,
       /* methods */
       isAnnotationFolder,
       handleNotification,
@@ -77,6 +79,7 @@ export default defineComponent({
       !locationStore.selected.length && !getters['Location/locationIsViameFolder']
     "
     :location="locationStore.location"
+    :initial-items-per-page.sync="clientSettings.dataBrowserSettings.rowsPerPage"
     @update:location="setLocation($event)"
   >
     <template #headerwidget>
