@@ -228,7 +228,7 @@ export default defineComponent({
       <v-data-table
         dense
         v-bind="{ headers: available.headers, items: available.items.value }"
-        :footer-props="{ itemsPerPageOptions: [30, 50, -1] }"
+        :footer-props="{ itemsPerPageOptions: [20, 50, 100] }"
         :item-class="({ included }) => included ? 'disabled-row' : ''"
         no-data-text="No data meets criteria for chosen configuration"
       >

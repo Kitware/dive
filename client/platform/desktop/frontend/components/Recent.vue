@@ -388,7 +388,7 @@ export default defineComponent({
               dense
               v-bind="{ headers: headers, items: filteredRecents }"
               sort-by="accessedAt"
-              :footer-props="{ itemsPerPageOptions: [10, 30, -1] }"
+              :footer-props="{ itemsPerPageOptions: [20, 50, 100] }"
               :items-per-page.sync="clientSettings.dataBrowserSettings.rowsPerPage"
               no-data-text="No data loaded"
             >

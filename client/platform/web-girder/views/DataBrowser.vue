@@ -79,7 +79,8 @@ export default defineComponent({
       !locationStore.selected.length && !getters['Location/locationIsViameFolder']
     "
     :location="locationStore.location"
-    :initial-items-per-page.sync="clientSettings.dataBrowserSettings.rowsPerPage"
+    :items-per-page.sync="clientSettings.dataBrowserSettings.rowsPerPage"
+    :items-per-page-options="[20, 50, 100]"
     @update:location="setLocation($event)"
   >
     <template #headerwidget>

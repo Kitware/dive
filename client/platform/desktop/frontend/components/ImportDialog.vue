@@ -10,6 +10,7 @@ import { MediaImportPayload } from 'platform/desktop/constants';
 import { locateDuplicates } from 'platform/desktop/frontend/store/dataset';
 import { useApi } from 'dive-common/apispec';
 import Vue from 'vue';
+import { clientSettings } from 'dive-common/store/settings';
 
 
 export default defineComponent({
@@ -24,6 +25,14 @@ export default defineComponent({
     const argCopy = ref(cloneDeep(props.importData));
     const duplicates = ref(locateDuplicates(props.importData.jsonMeta));
     const showAdvanced = ref(false);
+
+    // Set default FPS to stored value or video frame rate if it exceeds current frame rate
+    if (clientSettings.importSettings.annotationFPS === -1
+      || clientSettings.importSettings.annotationFPS > argCopy.value.jsonMeta.originalFps) {
+      argCopy.value.jsonMeta.fps = argCopy.value.jsonMeta.originalFps;
+    } else {
+      argCopy.value.jsonMeta.fps = clientSettings.importSettings.annotationFPS;
+    }
 
     watch(toRef(props, 'importData'), (val) => {
       duplicates.value = locateDuplicates(val.jsonMeta);
@@ -65,6 +74,14 @@ export default defineComponent({
         }
       }
     };
+
+    const updateClientSettingFPS = (val: number) => {
+      if (val !== argCopy.value.jsonMeta.originalFps) {
+        clientSettings.importSettings.annotationFPS = val;
+      } else {
+        clientSettings.importSettings.annotationFPS = -1;
+      }
+    };
     return {
       argCopy,
       duplicates,
@@ -74,6 +91,7 @@ export default defineComponent({
       MediaTypes,
       FPSOptions,
       sortedFpsOptions,
+      updateClientSettingFPS,
       openUpload,
     };
   },
@@ -153,6 +171,7 @@ export default defineComponent({
             hint="downsampling rate"
             persistent-hint
             class="shrink"
+            @change="updateClientSettingFPS"
           />
         </v-col>
       </v-row>

@@ -4,6 +4,7 @@ import {
 } from '@vue/composition-api';
 import type { DataOptions } from 'vuetify';
 import { GirderModel, mixins } from '@girder/components/src';
+import { clientSettings } from 'dive-common/store/settings';
 import { getDatasetList } from '../api';
 import { useStore, LocationType } from '../store/types';
 
@@ -73,6 +74,7 @@ export default defineComponent({
       setLocation,
       total,
       locationStore,
+      clientSettings,
       ...toRefs(tableOptions),
       headers,
     };
@@ -88,11 +90,14 @@ export default defineComponent({
     :location="locationStore.location"
     :headers="headers"
     :page.sync="page"
-    :items-per-page.sync="itemsPerPage"
+    :items-per-page.sync="clientSettings.dataBrowserSettings.rowsPerPage"
     :sort-by.sync="sortBy"
     :sort-desc.sync="sortDesc"
     :server-items-length="total"
     :items="dataList"
+    :footer-props="{
+      itemsPerPageOptions: [20, 50, 100]
+    }"
     item-key="_id"
     show-select
     @input="$emit('input', $event)"
