@@ -12,15 +12,7 @@ async function getSummary() {
   return data;
 }
 
-function getMaxNSummaryUrl(ids: string[]) {
-  return girderRest.getUri({
-    url: 'dive_summary/max_n',
-    params: { folderIds: JSON.stringify(ids) },
-  });
-}
-
 export {
   SummaryItem,
   getSummary,
-  getMaxNSummaryUrl,
 };
