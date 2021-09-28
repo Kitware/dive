@@ -149,7 +149,7 @@ Once provisioning is complete, jobs should begin processing from the job queue. 
 ssh -i ~/.ssh/gcloud_key viame@ip-address
 
 # Test nvidia docker installation
-docker run --runtime=nvidia --rm nvidia/cuda nvidia-smi
+docker run --gpus=all --rm nvidia/cuda nvidia-smi
 
 # Test regular nvidia runtime
 nvidia-smi

@@ -1,7 +1,8 @@
 <script lang="ts">
 import { computed, defineComponent, reactive } from '@vue/composition-api';
 import {
-  useCheckedTypes, useAllTypes, useTypeStyling, useHandler, useUsedTypes, useFilteredTracks,
+  useCheckedTypes, useAllTypes, useTypeStyling, useHandler,
+  useUsedTypes, useFilteredTracks, useConfidenceFilters,
 } from 'vue-media-annotator/provides';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import TypeEditor from './TypeEditor.vue';
@@ -25,6 +26,7 @@ export default defineComponent({
     const usedTypesRef = useUsedTypes();
     const typeStylingRef = useTypeStyling();
     const filteredTracksRef = useFilteredTracks();
+    const confidenceFiltersRef = useConfidenceFilters();
     const {
       setCheckedTypes,
       removeTypeTracks,
@@ -97,6 +99,7 @@ export default defineComponent({
       visibleTypes,
       usedTypesRef,
       checkedTypesRef,
+      confidenceFiltersRef,
       typeStylingRef,
       typeCounts,
       data,
@@ -188,20 +191,45 @@ export default defineComponent({
         <v-row
           v-for="type in visibleTypes"
           :key="type"
+          align="center"
           class="hover-show-parent"
         >
-          <v-col class="d-flex flex-row align-center py-0">
+          <v-col class="d-flex flex-row py-0 align-center">
             <v-checkbox
               :input-value="checkedTypesRef"
               :value="type"
               :color="typeStylingRef.color(type)"
-              :label="`${type} (${typeCounts.get(type) || 0})`"
               dense
               shrink
               hide-details
               class="my-1 type-checkbox"
               @change="setCheckedTypes"
-            />
+            >
+              <template #label>
+                <div class="text-body-2 grey--text text--lighten-1">
+                  <span>
+                    {{ `${type} (${typeCounts.get(type) || 0})` }}
+                  </span>
+                  <v-tooltip
+                    v-if="confidenceFiltersRef[type]"
+                    open-delay="100"
+                    bottom
+                  >
+                    <template #activator="{ on }">
+                      <span
+                        class="outlined"
+                        v-on="on"
+                      >
+                        <span>
+                          {{ `>${confidenceFiltersRef[type]}` }}
+                        </span>
+                      </span>
+                    </template>
+                    <span>Type has threshold set individually</span>
+                  </v-tooltip>
+                </div>
+              </template>
+            </v-checkbox>
             <v-spacer />
             <v-tooltip
               open-delay="100"
@@ -261,5 +289,13 @@ export default defineComponent({
       display: inherit;
     }
   }
+}
+.outlined {
+  background-color: gray;
+  color: #222;
+  font-weight: 600;
+  border-radius: 6px;
+  padding: 0 5px;
+  font-size: 12px;
 }
 </style>

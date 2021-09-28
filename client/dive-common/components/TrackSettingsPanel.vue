@@ -102,12 +102,12 @@ export default defineComponent({
         dense
       >
         <v-col
-          class="mx-2 py-1"
+          class="mx-2 px-0"
           cols="2"
         >
           Mode:
         </v-col>
-        <v-col class="py-1">
+        <v-col>
           <v-select
             v-model="clientSettings.trackSettings.newTrackSettings.mode"
             class="ml-0 pa-0"
@@ -119,7 +119,6 @@ export default defineComponent({
         </v-col>
         <v-col
           cols="2"
-          class="py-1"
           align="right"
         >
           <v-tooltip
@@ -146,12 +145,12 @@ export default defineComponent({
         dense
       >
         <v-col
-          class="mx-2 py-1"
+          class="mx-2"
           cols="2"
         >
           Type:
         </v-col>
-        <v-col class="py-1">
+        <v-col>
           <v-combobox
             v-model="clientSettings.trackSettings.newTrackSettings.type"
             class="ml-0 pa-0"
@@ -163,7 +162,6 @@ export default defineComponent({
         </v-col>
         <v-col
           cols="2"
-          class="py-1"
           align="right"
         >
           <v-tooltip

@@ -1,9 +1,11 @@
 import {
   ref, computed, Ref, watch,
 } from '@vue/composition-api';
+import { cloneDeep } from 'lodash';
 import Track, { TrackId } from '../track';
 import { updateSubset } from '../utils';
 
+export const DefaultConfidence = 0.1;
 /**
  * TrackWithContext wraps a track with additional information
  * such as why the track was included or returned by a system
@@ -29,20 +31,8 @@ export default function useFilteredTracks(
   /* Track IDs explicitly checked "ON" by the user */
   const checkedTrackIds = ref(sortedTracks.value.map((t) => t.trackId));
   /* The confidence threshold to test confidecePairs against */
-  const confidenceFilters = ref({ default: 0.1 } as Record<string, number>);
+  const confidenceFilters = ref({ default: DefaultConfidence } as Record<string, number>);
   const defaultTypes: Ref<string[]> = ref([]);
-
-  /**
-   * TODO: update
-   * Short-term representation of a global threshold before individual
-   * type thresholds are implemented
-   */
-  const defaultConfidenceThreshold = computed({
-    get: () => confidenceFilters.value.default,
-    set: (val: number) => {
-      confidenceFilters.value.default = val;
-    },
-  });
 
   /* Collect all known types from confidence pairs */
   const allTypes = computed(() => {
@@ -73,11 +63,17 @@ export default function useFilteredTracks(
   /* track IDs filtered by type and confidence threshold */
   const filteredTracks = computed(() => {
     const checkedSet = new Set(checkedTypes.value);
-    const confidenceThresh = defaultConfidenceThreshold.value;
+    const confidenceFiltersVal = cloneDeep(confidenceFilters.value);
     const resultsArr: TrackWithContext[] = [];
     sortedTracks.value.forEach((track) => {
       const confidencePairIndex = track.confidencePairs
-        .findIndex(([confkey, confval]) => confval >= confidenceThresh && checkedSet.has(confkey));
+        .findIndex(([confkey, confval]) => {
+          const confidenceThresh = Math.max(
+            confidenceFiltersVal[confkey] || DefaultConfidence,
+            confidenceFiltersVal.default,
+          );
+          return confval >= confidenceThresh && checkedSet.has(confkey);
+        });
         /* include tracks where at least 1 confidence pair is above
          * the threshold and part of the checked type set */
       if (confidencePairIndex >= 0 || track.confidencePairs.length === 0) {
@@ -164,7 +160,7 @@ export default function useFilteredTracks(
     });
   }
 
-  function populateConfidenceFilters(val?: Record<string, number>) {
+  function setConfidenceFilters(val?: Record<string, number>) {
     if (val) {
       confidenceFilters.value = val;
     }
@@ -186,13 +182,12 @@ export default function useFilteredTracks(
   return {
     checkedTrackIds,
     checkedTypes,
-    confidenceThreshold: defaultConfidenceThreshold,
     confidenceFilters,
     allTypes,
     usedTypes,
     filteredTracks,
     enabledTracks,
-    populateConfidenceFilters,
+    setConfidenceFilters,
     updateCheckedTrackId,
     updateCheckedTypes,
     updateTypeName,

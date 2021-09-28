@@ -9,7 +9,7 @@ import Track, { TrackId } from './track';
 import { VisibleAnnotationTypes } from './layers';
 import { RectBounds } from './utils';
 import { Attribute } from './use/useAttributes';
-import { TrackWithContext } from './use/useTrackFilters';
+import { DefaultConfidence, TrackWithContext } from './use/useTrackFilters';
 import { Time } from './use/useTimeObserver';
 
 /**
@@ -34,6 +34,9 @@ type CheckedTrackIdsType = Readonly<Ref<readonly TrackId[]>>;
 
 const CheckedTypesSymbol = Symbol('checkedTypes');
 type CheckedTypesType = Readonly<Ref<readonly string[]>>;
+
+const ConfidenceFiltersSymbol = Symbol('confidenceFilters');
+type ConfidenceFiltersType = Readonly<Ref<Readonly<Record<string, number>>>>;
 
 const EnabledTracksSymbol = Symbol('enabledTracks');
 type EnabledTracksType = Readonly<Ref<readonly TrackWithContext[]>>;
@@ -135,7 +138,9 @@ export interface Handler {
   }): void;
   /* set an Attribute in the metaData */
   setAttribute({ data, oldAttribute }:
-    {data: Attribute; oldAttribute?: Attribute }, updateAllTracks?: boolean): void;
+    { data: Attribute; oldAttribute?: Attribute }, updateAllTracks?: boolean): void;
+  /* set confidence thresholds  */
+  setConfidenceFilters(val: Record<string, number>): void;
   /* delete an Attribute in the metaData */
   deleteAttribute({ data }: { data: Attribute }, removeFromTracks?: boolean): void;
   /* Commit the staged merge tracks */
@@ -178,6 +183,7 @@ function dummyHandler(handle: (name: string, args: unknown[]) => void): Handler 
     updateTypeName(...args) { handle('updateTypeName', args); },
     updateTypeStyle(...args) { handle('updateTypeStyle', args); },
     setAttribute(...args) { handle('setAttribute', args); },
+    setConfidenceFilters(...args) { handle('setConfidenceFilters', args); },
     deleteAttribute(...args) { handle('deleteAttribute', args); },
     toggleMerge(...args) { handle('toggleMerge', args); return []; },
     commitMerge(...args) { handle('commitMerge', args); },
@@ -200,6 +206,7 @@ export interface State {
   usedTypes: UsedTypesType;
   checkedTrackIds: CheckedTrackIdsType;
   checkedTypes: CheckedTypesType;
+  confidenceFilters: ConfidenceFiltersType;
   editingMode: EditingModeType;
   enabledTracks: EnabledTracksType;
   filteredTracks: FilteredTracksType;
@@ -233,6 +240,7 @@ function dummyState(): State {
     usedTypes: ref([]),
     checkedTrackIds: ref([]),
     checkedTypes: ref([]),
+    confidenceFilters: ref({ default: DefaultConfidence }),
     editingMode: ref(false),
     enabledTracks: ref([]),
     filteredTracks: ref([]),
@@ -278,6 +286,7 @@ function provideAnnotator(state: State, handler: Handler) {
   provide(UsedTypesSymbol, state.usedTypes);
   provide(CheckedTrackIdsSymbol, state.checkedTrackIds);
   provide(CheckedTypesSymbol, state.checkedTypes);
+  provide(ConfidenceFiltersSymbol, state.confidenceFilters);
   provide(EnabledTracksSymbol, state.enabledTracks);
   provide(EditingModeSymbol, state.editingMode);
   provide(IntervalTreeSymbol, state.intervalTree);
@@ -326,6 +335,10 @@ function useCheckedTrackIds() {
 
 function useCheckedTypes() {
   return use<CheckedTypesType>(CheckedTypesSymbol);
+}
+
+function useConfidenceFilters() {
+  return use<ConfidenceFiltersType>(ConfidenceFiltersSymbol);
 }
 
 function useEnabledTracks() {
@@ -395,6 +408,7 @@ export {
   useUsedTypes,
   useCheckedTrackIds,
   useCheckedTypes,
+  useConfidenceFilters,
   useEnabledTracks,
   useEditingMode,
   useHandler,

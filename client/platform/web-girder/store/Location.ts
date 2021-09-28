@@ -32,11 +32,20 @@ const locationModule: Module<LocationState, RootState> = {
       return false;
     },
     defaultRoute() {
+      if (girderRest.user) {
+        return {
+          name: 'home',
+          params: {
+            routeId: girderRest.user._id,
+            routeType: 'user',
+          },
+        };
+      }
+      /* Public collections is the default route for unautnehticated users */
       return {
         name: 'home',
         params: {
-          routeId: girderRest.user._id,
-          routeType: 'user',
+          routeType: 'collections',
         },
       };
     },

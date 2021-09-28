@@ -12,8 +12,7 @@ import RunPipelineMenu from 'dive-common/components/RunPipelineMenu.vue';
 import RunTrainingMenu from 'dive-common/components/RunTrainingMenu.vue';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 
-import { deleteResources } from '../api';
-import { getMaxNSummaryUrl } from '../api/summary.service';
+import { deleteResources, getUri } from '../api';
 import Export from './Export.vue';
 import Upload from './Upload.vue';
 import DataDetails from './DataDetails.vue';
@@ -97,7 +96,11 @@ export default defineComponent({
       return this.location?.description;
     },
     summaryUrl() {
-      return getMaxNSummaryUrl(this.locationInputs);
+      return getUri({
+        url: 'dive_summary/max_n',
+        // eslint-disable-next-line @typescript-eslint/camelcase
+        params: { folder_ids: JSON.stringify(this.locationInputs) },
+      });
     },
   },
   methods: {
