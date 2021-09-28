@@ -34,18 +34,21 @@ import UserGuideButton from 'dive-common/components/UserGuideButton.vue';
 import DeleteControls from 'dive-common/components/DeleteControls.vue';
 import ControlsContainer from 'dive-common/components/ControlsContainer.vue';
 import Sidebar from 'dive-common/components/Sidebar.vue';
+import SidebarContext from 'dive-common/components/SidebarContext.vue';
 import { useModeManager, useSave } from 'dive-common/use';
 import clientSettingsSetup from 'dive-common/store/settings';
 import { useApi, FrameImage, DatasetType } from 'dive-common/apispec';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { cloneDeep } from 'lodash';
 import { getResponseError } from 'vue-media-annotator/utils';
+import context from 'dive-common/store/context';
 
 export default defineComponent({
   components: {
     ControlsContainer,
     DeleteControls,
     Sidebar,
+    SidebarContext,
     LayerManager,
     VideoAnnotator,
     ImageAnnotator,
@@ -151,14 +154,13 @@ export default defineComponent({
     const {
       checkedTrackIds,
       checkedTypes,
-      confidenceThreshold,
       confidenceFilters,
       allTypes,
       importTypes,
       usedTypes,
       filteredTracks,
       enabledTracks,
-      populateConfidenceFilters,
+      setConfidenceFilters,
       updateTypeName,
       removeTypeTracks,
       deleteType,
@@ -328,7 +330,7 @@ export default defineComponent({
         if (meta.attributes) {
           loadAttributes(meta.attributes);
         }
-        populateConfidenceFilters(meta.confidenceFilters);
+        setConfidenceFilters(meta.confidenceFilters);
         datasetName.value = meta.name;
         initTime({
           frameRate: meta.fps,
@@ -391,6 +393,7 @@ export default defineComponent({
       removeTypeTracks,
       deleteType,
       setAttribute,
+      setConfidenceFilters,
       deleteAttribute,
       reloadAnnotations,
     };
@@ -403,6 +406,7 @@ export default defineComponent({
         usedTypes,
         checkedTrackIds,
         checkedTypes,
+        confidenceFilters,
         editingMode,
         enabledTracks,
         intervalTree,
@@ -422,7 +426,7 @@ export default defineComponent({
 
     return {
       /* props */
-      confidenceThreshold,
+      confidenceFilters,
       datasetName,
       datasetType,
       editingTrack,
@@ -446,6 +450,7 @@ export default defineComponent({
       visibleModes,
       frameRate: time.frameRate,
       originalFps: time.originalFps,
+      context,
       /* methods */
       handler: globalHandler,
       save,
@@ -558,10 +563,20 @@ export default defineComponent({
         @import-types="importTypes($event)"
         @track-seek="mediaController.seek($event)"
       >
+        <v-divider />
         <ConfidenceFilter
-          :confidence.sync="confidenceThreshold"
+          v-if="context.state.active !== 'TypeThreshold'"
+          class="ma-2 mb-0"
+          :confidence.sync="confidenceFilters.default"
           @end="saveThreshold"
-        />
+        >
+          <a
+            style="text-decoration: underline; color: white;"
+            @click="context.toggle('TypeThreshold')"
+          >
+            Advanced
+          </a>
+        </ConfidenceFilter>
       </sidebar>
       <v-col style="position: relative">
         <component
@@ -613,6 +628,31 @@ export default defineComponent({
           </v-progress-circular>
         </div>
       </v-col>
+      <SidebarContext />
     </v-row>
   </v-main>
 </template>
+
+<style lang="scss">
+html {
+  overflow-y: auto;
+ scrollbar-face-color: #646464;
+  scrollbar-base-color: #646464;
+  scrollbar-3dlight-color: #646464;
+  scrollbar-highlight-color: #646464;
+  scrollbar-track-color: #000;
+  scrollbar-arrow-color: #000;
+  scrollbar-shadow-color: #646464;
+}
+::-webkit-scrollbar { width: 10px; height: 3px;}
+::-webkit-scrollbar-button {  background-color: #666; height: 0px; }
+::-webkit-scrollbar-track {  background-color: #646464;}
+::-webkit-scrollbar-track-piece { background-color: #1E1E1E;}
+::-webkit-scrollbar-thumb { height: 30px; background-color: #666; border-radius: 3px;}
+::-webkit-scrollbar-corner { background-color: #646464;}
+::-webkit-resizer { background-color: #666;}
+
+.text-xs-center {
+  text-align: center !important;
+}
+</style>
