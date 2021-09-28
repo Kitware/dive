@@ -43,7 +43,7 @@ export default defineComponent({
     const {
       request: _runPipelineRequest,
       reset: dismissLaunchDialog,
-      state: pipelineState,
+      state: jobState,
     } = useRequest();
 
     const successMessage = computed(() => (
@@ -109,8 +109,8 @@ export default defineComponent({
     }
 
     return {
+      jobState,
       pipelines,
-      pipelineState,
       pipelinesNotRunnable,
       successMessage,
       dismissLaunchDialog,
@@ -225,9 +225,9 @@ export default defineComponent({
       </template>
     </v-menu>
     <JobLaunchDialog
-      :value="pipelineState.count > 0"
-      :loading="pipelineState.loading"
-      :error="pipelineState.error"
+      :value="jobState.count > 0"
+      :loading="jobState.loading"
+      :error="jobState.error"
       :message="successMessage"
       @close="dismissLaunchDialog"
     />
