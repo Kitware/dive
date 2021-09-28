@@ -43,6 +43,13 @@ export default defineComponent({
 <template>
   <div>
     <div class="text-body-2 grey--text text--lighten-1 d-flex flex-row py-0">
+      <span
+        v-if="color"
+        :style="{ color }"
+        class="pr-1 pb-1"
+      >
+        █
+      </span>
       <span>{{ text }}</span>
       <v-spacer v-if="!$scopedSlots.default" />
       <span class="pl-2">
