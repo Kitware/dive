@@ -44,3 +44,17 @@ def test_dataset_clone(user: dict):
             'name': datasets[0]['name'] + ' clone',
         },
     )
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("user", users.values())
+@pytest.mark.run(order=5)
+def test_set_configuration(user: dict):
+    client = getClient(user['login'])
+    dataset = client.get('dive_dataset')[0]
+    client.uploadFileToFolder(dataset['_id'], '../testutils/example.config.json')
+    old_meta = client.get(f'dive_dataset/{dataset["_id"]}')
+    assert 'another' not in old_meta['confidenceFilters']
+    client.post(f'dive_rpc/postprocess/{dataset["_id"]}')
+    new_meta = client.get(f'dive_dataset/{dataset["_id"]}')
+    assert new_meta['confidenceFilters']['another'] == 0.6

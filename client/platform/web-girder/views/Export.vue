@@ -105,6 +105,9 @@ export default defineComponent({
           url: 'dive_annotation/export',
           params: { ...params, folderId: props.datasetId },
         }),
+        exportConfigurationUrl: getUri({
+          url: `dive_dataset/${props.datasetId}/configuration`,
+        }),
       };
     });
 
@@ -250,6 +253,21 @@ export default defineComponent({
             >
               <span v-if="exportUrls.exportDetectionsUrl">detections</span>
               <span v-else>detections unavailable</span>
+            </v-btn>
+          </v-card-actions>
+
+          <v-card-text class="pb-0">
+            Export the dataset configuration, including
+            attribute definitions, types, styles, and thresholds.
+          </v-card-text>
+          <v-card-actions>
+            <v-spacer />
+            <v-btn
+              depressed
+              block
+              @click="doExport({ url: exportUrls && exportUrls.exportConfigurationUrl })"
+            >
+              Configuration
             </v-btn>
           </v-card-actions>
 

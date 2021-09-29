@@ -69,6 +69,9 @@ tox -e type
 # run only unit tests
 tox -e testunit
 
+# run only a particular test
+tox -e testunit -- -k test_image_sort
+
 # run all three tests above
 tox
 
@@ -84,14 +87,17 @@ tox -e docs
 Get an API key from production Girder. **DO NOT** use a full-scoped token, use a read only token.
 
 ```bash
-# Start the server
+# start the server
 ldc up -d
 
-# Set an API key from production girder
+# set an API key from production girder
 export GIRDER_API_KEY=CHANGEME
 
-# Run the tests
+# run the tests
 tox -e testintegration
+
+# run only a particular test (be mindful of dependencies)
+tox -e testintegration -- -k test_pipelines
 ```
 
 After integration tests are complete, visually inspect the results to make sure all jobs completed, new datasets open correctly, etc.

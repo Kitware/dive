@@ -11,8 +11,9 @@ from . import viame
 
 
 def is_coco_json(coco: Dict[str, Any]):
-    keys = ['categories', 'keypoint_categories', 'images', 'videos', 'annotations']
-    return any(key in coco for key in keys)
+    # Required COCO fields according to https://cocodataset.org/#format-data
+    keys = ['info', 'images', 'annotations', 'licenses', 'categories']
+    return all(key in coco for key in keys)
 
 
 def annotation_info(annotation: dict, meta: CocoMetadata) -> Tuple[int, str, int, List[int]]:

@@ -90,6 +90,7 @@ class CustomStyle(BaseModel):
 
 
 class MetadataMutable(BaseModel):
+    version = 1  # maintain compatibility with desktop for the subset of fields that overlap.
     customTypeStyling: Optional[Dict[str, CustomStyle]]
     confidenceFilters: Optional[Dict[str, float]]
     attributes: Optional[Dict[str, Attribute]]
