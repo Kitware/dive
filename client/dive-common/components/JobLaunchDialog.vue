@@ -27,7 +27,7 @@ export default defineComponent({
   <v-dialog
     :value="value"
     max-width="400"
-    @click="$emit('close')"
+    @input="!$event && $emit('close')"
   >
     <v-card outlined>
       <v-card-title>
@@ -45,6 +45,7 @@ export default defineComponent({
         />
         <v-alert
           v-else-if="error"
+          dense
           type="error"
         >
           {{ error }}
@@ -53,7 +54,6 @@ export default defineComponent({
           v-else-if="message"
           dense
           type="success"
-          class="grow"
         >
           {{ message }}
         </v-alert>
