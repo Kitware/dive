@@ -111,11 +111,11 @@ class DatasetResource(Resource):
 
     @access.user
     @autoDescribeRoute(
-        Description("Get dataset metadata")
-        .modelParam("id", level=AccessType.READ, **DatasetModelParam)
-        .param('download', 'force download', dataType='boolean', default=False)
+        Description("Get dataset metadata").modelParam(
+            "id", level=AccessType.READ, **DatasetModelParam
+        )
     )
-    def get_meta(self, folder, download):
+    def get_meta(self, folder):
         return crud_dataset.get_dataset(folder, self.getCurrentUser()).dict(exclude_none=True)
 
     @access.public(scope=TokenScope.DATA_READ, cookie=True)

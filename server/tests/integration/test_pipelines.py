@@ -5,7 +5,7 @@ import pytest
 
 from dive_tasks import tasks
 
-from .conftest import wait_for_jobs, users, getClient
+from .conftest import getClient, users, wait_for_jobs
 
 
 @pytest.mark.integration
@@ -35,7 +35,7 @@ def test_run_pipelines(user: dict):
     client = getClient(user['login'])
     dataset = client.get('dive_dataset')[0]
     client.post(
-        f'dive_rpc/pipeline',
+        'dive_rpc/pipeline',
         parameters={
             'folderId': dataset["_id"],
             'pipeline': json.dumps(
