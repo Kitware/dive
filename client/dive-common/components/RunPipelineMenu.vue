@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  defineComponent, computed, PropType, ref, onBeforeMount, reactive,
+  defineComponent, computed, PropType, ref, onBeforeMount,
 } from '@vue/composition-api';
 import {
   Pipelines,
@@ -8,10 +8,15 @@ import {
   useApi,
   SubType,
 } from 'dive-common/apispec';
+import JobLaunchDialog from 'dive-common/components/JobLaunchDialog.vue';
 import { stereoPipelineMarker } from 'dive-common/constants';
-import { getResponseError } from 'vue-media-annotator/utils';
+import { useRequest } from 'dive-common/use';
 
 export default defineComponent({
+  name: 'RunPipelineMenu',
+
+  components: { JobLaunchDialog },
+
   props: {
     selectedDatasetIds: {
       type: Array as PropType<string[]>,
@@ -34,12 +39,15 @@ export default defineComponent({
   setup(props) {
     const { runPipeline, getPipelineList } = useApi();
     const unsortedPipelines = ref({} as Pipelines);
+    const selectedPipe = ref(null as Pipe | null);
+    const {
+      request: _runPipelineRequest,
+      reset: dismissLaunchDialog,
+      state: jobState,
+    } = useRequest();
 
-    const pipelineState = reactive({
-      selectedPipe: null as Pipe | null,
-      status: null as 'starting' | 'done' | 'error' | null,
-      error: null as null | unknown,
-    });
+    const successMessage = computed(() => (
+      `Started ${selectedPipe.value?.name} on ${props.selectedDatasetIds.length} dataset(s).`));
 
     onBeforeMount(async () => {
       unsortedPipelines.value = await getPipelineList();
@@ -82,18 +90,10 @@ export default defineComponent({
       if (props.selectedDatasetIds.length === 0) {
         throw new Error('No selected datasets to run on');
       }
-      pipelineState.status = 'starting';
-      pipelineState.selectedPipe = pipeline;
-      try {
-        await Promise.all(
-          props.selectedDatasetIds.map((id) => runPipeline(id, pipeline)),
-        );
-        pipelineState.status = 'done';
-      } catch (err) {
-        pipelineState.status = 'error';
-        pipelineState.error = getResponseError(err);
-        throw err;
-      }
+      selectedPipe.value = pipeline;
+      await _runPipelineRequest(() => Promise.all(
+        props.selectedDatasetIds.map((id) => runPipeline(id, pipeline)),
+      ));
     }
 
     function pipeTypeDisplay(pipeType: string) {
@@ -108,17 +108,12 @@ export default defineComponent({
       }
     }
 
-    function dismissLaunchDialog() {
-      pipelineState.selectedPipe = null;
-      pipelineState.status = null;
-      pipelineState.error = null;
-    }
-
     return {
-      dismissLaunchDialog,
+      jobState,
       pipelines,
-      pipelineState,
       pipelinesNotRunnable,
+      successMessage,
+      dismissLaunchDialog,
       pipeTypeDisplay,
       runPipelineOnSelectedItem,
     };
@@ -229,60 +224,12 @@ export default defineComponent({
         </v-card>
       </template>
     </v-menu>
-    <v-dialog
-      :value="pipelineState.status !== null"
-      max-width="400"
-      @input="dismissLaunchDialog"
-    >
-      <v-card outlined>
-        <v-card-title>
-          Pipeline Launch
-        </v-card-title>
-        <v-card-text
-          class="d-flex justify-center"
-        >
-          <v-progress-circular
-            v-if="pipelineState.status === 'starting'"
-            indeterminate
-            size="60"
-            width="9"
-            color="primary"
-          />
-          <v-alert
-            v-if="pipelineState.status === 'error'"
-            type="error"
-          >
-            {{ pipelineState.error }}
-          </v-alert>
-          <v-alert
-            v-if="pipelineState.status === 'done' && pipelineState.selectedPipe"
-            dense
-            type="success"
-          >
-            Started {{ pipelineState.selectedPipe.name }}
-            on {{ selectedDatasetIds.length }} dataset(s).
-          </v-alert>
-        </v-card-text>
-        <v-card-actions>
-          <v-spacer />
-          <v-btn
-            :to="{ name: 'jobs' }"
-            depressed
-          >
-            View All Jobs
-            <v-icon class="pl-1">
-              mdi-format-list-checks
-            </v-icon>
-          </v-btn>
-          <v-btn
-            color="primary"
-            :disabled="!(pipelineState.status !== 'starting')"
-            @click="dismissLaunchDialog"
-          >
-            Done
-          </v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
+    <JobLaunchDialog
+      :value="jobState.count > 0"
+      :loading="jobState.loading"
+      :error="jobState.error"
+      :message="successMessage"
+      @close="dismissLaunchDialog"
+    />
   </div>
 </template>

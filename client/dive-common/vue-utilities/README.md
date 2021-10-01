@@ -14,5 +14,4 @@ Currently, all dependencies of this repo will be installed to node_modules, but 
 ### Utilities
 
 * [v-mousetrap](v-mousetrap)
-* [snackbar-service](snackbar-service)
 * [prompt-service](prompt-service)
