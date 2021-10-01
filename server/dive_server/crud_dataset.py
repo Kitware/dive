@@ -214,7 +214,7 @@ def update_attributes(dsFolder: types.GirderModel, data: dict):
     for attribute_id in validated.delete:
         attributes_dict.pop(str(attribute_id), None)
     for attribute in validated.upsert:
-        attributes_dict[str(attribute.key)] = validated.dict(exclude_none=True)
+        attributes_dict[str(attribute.key)] = attribute.dict(exclude_none=True)
 
     upserted_len = len(validated.delete)
     deleted_len = len(validated.upsert)
