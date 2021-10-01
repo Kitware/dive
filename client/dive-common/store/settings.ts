@@ -57,7 +57,7 @@ const defaultSettings: AnnotationSettings = {
     lockTypes: false,
   },
   dataBrowserSettings: {
-    rowsPerPage: 10,
+    rowsPerPage: 20,
   },
   importSettings: {
     annotationFPS: 10,
