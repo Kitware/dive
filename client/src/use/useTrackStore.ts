@@ -72,7 +72,6 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
     { track, event, oldValue }:
     { track: Track; event: string; oldValue: unknown },
   ): void {
-    console.log('onChange', track.trackId);
     if (event === 'bounds') {
       const oldInterval = oldValue as [number, number];
       intervalTree.remove(oldInterval, track.trackId.toString());
@@ -153,7 +152,6 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
   }
 
   const sortedTracks = computed(() => {
-    console.log('recalculated');
     _depend();
     return trackIds.value
       .map((trackId) => getTrack(trackMap, trackId))

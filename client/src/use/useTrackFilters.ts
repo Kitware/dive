@@ -42,7 +42,6 @@ export default function useFilteredTracks(
         typeSet.add(name);
       });
     });
-    console.log('allTypes recalculated', Array.from(typeSet));
     defaultTypes.value.forEach((type) => {
       typeSet.add(type);
     });
@@ -133,13 +132,12 @@ export default function useFilteredTracks(
     }
     markChangesPending();
   }
-  function updateTypeName({ currentType, newType }: {currentType: string; newType: string}) {
+  function updateTypeName({ currentType, newType }: { currentType: string; newType: string }) {
     //Go through the entire list and replace the oldType with the new Type
     sortedTracks.value.forEach((track) => {
       for (let i = 0; i < track.confidencePairs.length; i += 1) {
         const [name, confidenceVal] = track.confidencePairs[i];
         if (name === currentType) {
-          console.log('changed one', track.trackId);
           track.setType(newType, confidenceVal, currentType);
           break;
         }

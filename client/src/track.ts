@@ -197,7 +197,6 @@ export default class Track {
   private notify(name: string, oldValue: unknown) {
     /* Prevent broadcast until the first feature is initialized */
     if (this.isInitialized()) {
-      console.log('Notify!', name, this.trackId, this.featureIndex);
       this.revision.value += 1;
       this.bus.$emit('notify', {
         track: this,

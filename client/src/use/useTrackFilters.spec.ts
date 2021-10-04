@@ -1,7 +1,7 @@
 /// <reference types="jest" />
 import Vue from 'vue';
-import CompositionApi, { computed } from '@vue/composition-api';
-import Track from '../track';
+import CompositionApi from '@vue/composition-api';
+import Track, { Feature } from '../track';
 import useTrackFilters from './useTrackFilters';
 import useTrackStore from './useTrackStore';
 
@@ -10,15 +10,31 @@ Vue.use(CompositionApi);
 const removeTrack = () => null;
 const markChangesPending = () => null;
 
+/**
+ * Tracks need to be initialized with features
+ * in order to broadcast notifications
+ */
+const features: Feature[] = [
+  {
+    frame: 0,
+    bounds: [1, 2, 3, 4],
+    head: [1, 2],
+    keyframe: true,
+  },
+];
+
 function makeTrackStore() {
   const t0 = new Track(0, {
     confidencePairs: [['foo', 0.5], ['bar', 0.4]],
+    features,
   });
   const t1 = new Track(2, {
     confidencePairs: [['foo', 0.9], ['baz', 0.2]],
+    features,
   });
   const t2 = new Track(200, {
     confidencePairs: [['bar', 1], ['baz', 0.8]],
+    features,
   });
   const ts = useTrackStore({ markChangesPending: () => null });
   ts.insertTrack(t0);
@@ -28,14 +44,10 @@ function makeTrackStore() {
 }
 
 describe('useTrackFilters', () => {
-  it('renames tracks', async () => {
+  it('renames tracks', () => {
     const { sortedTracks } = makeTrackStore();
     const tf = useTrackFilters({ sortedTracks, removeTrack, markChangesPending });
     tf.updateTypeName({ currentType: 'foo', newType: 'baz' });
-    await Vue.nextTick();
-    await Vue.nextTick();
-    await Vue.nextTick();
-    console.log(sortedTracks.value.map((t) => t.confidencePairs));
     expect(tf.allTypes.value).toEqual(['baz', 'bar']);
   });
 });
