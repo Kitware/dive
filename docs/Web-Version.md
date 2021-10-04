@@ -35,6 +35,7 @@ A user account is required to store data and run pipelines on viame.kitware.com.
 * In the data browser, a new blue "Launch Annotator" button will appear next to your data.
 
 !!! info
+
     All video uploaded to the web server will be transcoded as `mp4/h264`.
 
 ## Downloading Data
@@ -74,6 +75,7 @@ These options are explained in **[Navigation Bar](UI-Navigation-Bar.md)** UI Doc
 You can download your trained models through the administrative interface.  This will be added to the normal interface in a future update.
 
 !!! warning
+
     Use caution when modifying data through the admin interface
 
 * Open the admin interface at [https://viame.kitware.com/girder](https://viame.kitware.com/girder) (or `myserver.com/girder` if you host your own instance)
@@ -95,7 +97,8 @@ By default, data uploaded to your personal user space follows these conventions.
 * Data in the `Public` folder is readable by all registered users, but writable only by you by default.
 * Data in the `Private` folder is only visible to you by default.
 
-!!! info
+!!! note
+
     You can share your entire public or private folder with team members.
 
 ### Working with teams
@@ -107,6 +110,7 @@ For most teams, we recommend keeping data consolidated under a single account th
 It's easiest to create a single parent directory to share and then put all individual datasets inside that parent.
 
 !!! warning
+
     You should note that 2 people **cannot** work on the same video at the same time.  Your team should coordianate on who will work on each dataset.
 
 ## Managing Permissions
@@ -140,6 +144,12 @@ There are four levels of permission a User can have on a resource.
 
 These users should now be able to view and edit your data.
 
+## Data Shared with you
+
+You can view data shared with you by selecting the 'SHARED WITH ME' Tab above the data browser.
+
+![Shared With Me Tab](images/Sharing/ShareTab.png)
+
 ## Sharing URLs
 
 You can copy and paste any URL from the address bar and share with collaborators.  This includes folders in the data browser as well as direct links to the annotation editor.
@@ -157,6 +167,7 @@ A clone is a **shallow copy** of a dataset.
 1. When you want to run several different pipelines in parallel on the same input data and compare the results.
 
 !!! warning
+
     Merging cloned data back to the source is **not currently supported**.  To collaborate with others on annotations, the sharing use case above is preferred.
 
 ### How to clone

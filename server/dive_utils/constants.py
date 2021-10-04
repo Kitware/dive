@@ -65,6 +65,7 @@ VideoMimeTypes = {
 DatasetMarker = "annotate"
 DetectionMarker = "detection"
 PublishedMarker = "published"
+SharedMarker = "shared"
 ForeignMediaIdMarker = "foreign_media_id"
 TrainedPipelineMarker = "trained_pipeline"
 TypeMarker = "type"

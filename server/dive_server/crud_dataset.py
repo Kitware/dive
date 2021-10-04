@@ -1,6 +1,8 @@
 import json
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
+import cherrypy
+from girder.constants import AccessType
 from girder.exceptions import RestException
 from girder.models.folder import Folder
 from girder.models.item import Item
@@ -30,6 +32,7 @@ def createSoftClone(
         name,
         description=f'Clone of {source_folder["name"]}.',
         reuseExisting=False,
+        creator=owner,
     )
     cloned_folder['meta'] = source_folder['meta']
     media_source_folder = crud.getCloneRoot(owner, source_folder)
@@ -53,19 +56,71 @@ def createSoftClone(
     return cloned_folder
 
 
-def list_datasets(user: types.GirderUserModel, published: bool, limit: int, offset: int, sort: str):
+def list_datasets(
+    user: types.GirderUserModel,
+    published: bool,
+    shared: bool,
+    limit: int,
+    offset: int,
+    sortParams: Tuple[Tuple[str, int]],
+):
     """Enumerate all public and private data the user can access"""
-    query: dict = {
-        f'meta.{constants.DatasetMarker}': {'$in': TRUTHY_META_VALUES},
+    permissionsClause = Folder().permissionClauses(user=user, level=AccessType.READ)
+    query = {
+        '$and': [
+            {f'meta.{constants.DatasetMarker}': {'$in': TRUTHY_META_VALUES}},
+            permissionsClause,
+        ],
     }
+    sort, sortDir = (sortParams or [['created', 1]])[0]
     if published:
-        query = {
-            '$and': [
-                query,
-                {f'meta.{constants.PublishedMarker}': {'$in': TRUTHY_META_VALUES}},
-            ]
-        }
-    return Folder().findWithPermissions(query, offset=offset, limit=limit, sort=sort, user=user)
+        query['$and'] += [{f'meta.{constants.PublishedMarker}': {'$in': TRUTHY_META_VALUES}}]
+    if shared:
+        query['$and'] += [
+            {
+                # Find datasets not owned by the current user
+                '$nor': [
+                    {'creatorId': {'$eq': user['_id']}},
+                    {'creatorId': {'$eq': None}},
+                ],
+            },
+            {
+                # But where the current user still has access
+                'access.users': {
+                    '$elemMatch': {
+                        'id': user['_id'],
+                    }
+                },
+            },
+        ]
+    # based on https://stackoverflow.com/a/49483919
+    pipeline = [
+        {'$match': query},
+        {
+            '$facet': {
+                'results': [
+                    {'$sort': {sort: sortDir}},
+                    {'$skip': offset},
+                    {'$limit': limit},
+                    {
+                        '$lookup': {
+                            'from': 'user',
+                            'localField': 'creatorId',
+                            'foreignField': '_id',
+                            'as': 'ownerLogin',
+                        },
+                    },
+                    {'$set': {'ownerLogin': {'$first': '$ownerLogin'}}},
+                    {'$set': {'ownerLogin': '$ownerLogin.login'}},
+                ],
+                'totalCount': [{'$count': 'count'}],
+            },
+        },
+    ]
+    response = next(Folder().collection.aggregate(pipeline))
+    total = response['totalCount'][0]['count'] if len(response['results']) > 0 else 0
+    cherrypy.response.headers['Girder-Total-Count'] = total
+    return [Folder().filter(doc, additionalKeys=['ownerLogin']) for doc in response['results']]
 
 
 def get_dataset(
@@ -159,7 +214,7 @@ def update_attributes(dsFolder: types.GirderModel, data: dict):
     for attribute_id in validated.delete:
         attributes_dict.pop(str(attribute_id), None)
     for attribute in validated.upsert:
-        attributes_dict[str(attribute.key)] = validated.dict(exclude_none=True)
+        attributes_dict[str(attribute.key)] = attribute.dict(exclude_none=True)
 
     upserted_len = len(validated.delete)
     deleted_len = len(validated.upsert)

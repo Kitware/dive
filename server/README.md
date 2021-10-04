@@ -7,7 +7,13 @@ There are several important python packages in this application
 * `scripts` has general command-line utilities
 * `dive_utils` is shared code between the above packages
 
+## Prerequisites
+
+Set up your system as described in the [Basic Deployment](https://kitware.github.io/dive/Deployment-Docker-Compose/)
+
 ## Development
+
+In development, the server and client are run in separate processes.  In production, the client is built and bundled as static files into the server image.
 
 Install the development requirements
 
@@ -47,7 +53,7 @@ Access the server at <http://localhost:8010>
 
 To work on the Vue client, see development instructions in `../client`.
 
-## Testing
+## Unit Testing and Static Checks
 
 All tests are run using tox which is installed with the `dev` packages.
 
@@ -60,8 +66,8 @@ tox -e check
 # run only type checks
 tox -e type
 
-# run only pytest-driven tests
-tox -e test
+# run only unit tests
+tox -e testunit
 
 # run all three tests above
 tox
@@ -72,6 +78,23 @@ tox -e format
 # run mkdocs and serve the documentation page
 tox -e docs
 ```
+
+## Integration Testing
+
+Get an API key from production Girder. **DO NOT** use a full-scoped token, use a read only token.
+
+```bash
+# Start the server
+ldc up -d
+
+# Set an API key from production girder
+export GIRDER_API_KEY=CHANGEME
+
+# Run the tests
+tox -e testintegration
+```
+
+After integration tests are complete, visually inspect the results to make sure all jobs completed, new datasets open correctly, etc.
 
 ## Debug utils and command line tools
 

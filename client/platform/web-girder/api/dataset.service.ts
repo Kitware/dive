@@ -13,6 +13,31 @@ function getDataset(folderId: string) {
   return girderRest.get<GirderMetadataStatic>(`dive_dataset/${folderId}`);
 }
 
+async function getDatasetList(
+  limit?: number,
+  offset?: number,
+  sort?: string,
+  sortDir?: number,
+  shared?: boolean,
+  published?: boolean,
+) {
+  const response = await girderRest.get<GirderModel[]>('dive_dataset', {
+    params: {
+      limit,
+      offset,
+      sort,
+      sortDir,
+      shared,
+      published,
+    },
+  });
+  response.data.forEach((element) => {
+    // eslint-disable-next-line no-param-reassign
+    element._modelType = 'folder';
+  });
+  return response;
+}
+
 interface MediaResource extends FrameImage {
   id: string;
 }
@@ -111,6 +136,7 @@ function validateUploadGroup(names: string[]) {
 export {
   clone,
   getDataset,
+  getDatasetList,
   getDatasetMedia,
   importAnnotationFile,
   makeViameFolder,

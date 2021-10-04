@@ -17,13 +17,3 @@ export default defineComponent({
   },
 });
 </script>
-
-<style lang="scss">
-html {
-  overflow-y: auto;
-}
-
-.text-xs-center {
-  text-align: center !important;
-}
-</style>

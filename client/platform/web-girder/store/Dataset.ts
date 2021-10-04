@@ -1,9 +1,9 @@
 import type { Module } from 'vuex';
-import type { GirderModelType } from '@girder/components/src';
 import type { GirderMetadata } from 'platform/web-girder/constants';
 import { getDataset, getDatasetMedia, getFolder } from 'platform/web-girder/api';
 import { MultiType } from 'dive-common/constants';
-import type { DatasetState, LocationType, RootState } from './types';
+import type { DatasetState, RootState } from './types';
+
 
 const datasetModule: Module<DatasetState, RootState> = {
   namespaced: true,
@@ -16,7 +16,7 @@ const datasetModule: Module<DatasetState, RootState> = {
     },
   },
   actions: {
-    async load({ commit }, datasetId: string): Promise<GirderMetadata> {
+    async load({ commit, dispatch }, datasetId: string): Promise<GirderMetadata> {
       const [folder, metaStatic, media] = await Promise.all([
         getFolder(datasetId),
         getDataset(datasetId),
@@ -34,11 +34,10 @@ const datasetModule: Module<DatasetState, RootState> = {
       commit('set', { dataset: dsMeta });
       const { parentId, parentCollection } = folder.data;
       if (parentId && parentCollection) {
-        const newLoc: LocationType = {
+        dispatch('Location/hydrate', {
           _id: parentId,
-          _modelType: parentCollection as GirderModelType,
-        };
-        commit('Location/setLocation', newLoc, { root: true });
+          _modelType: parentCollection,
+        }, { root: true });
       } else {
         throw new Error(`dataset ${datasetId} was not a valid girder folder`);
       }

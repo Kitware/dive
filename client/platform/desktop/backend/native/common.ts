@@ -8,6 +8,8 @@ import { shell } from 'electron';
 import mime from 'mime-types';
 import moment from 'moment';
 import lockfile from 'proper-lockfile';
+
+import { DefaultConfidence } from 'vue-media-annotator/use/useTrackFilters';
 import {
   DatasetType, MultiTrackRecord, Pipelines, SaveDetectionsArgs,
   FrameImage, DatasetMetaMutable, TrainingConfigs, SaveAttributeArgs,
@@ -712,7 +714,7 @@ async function beginMediaImport(
     name: dsName,
     multiCam: null,
     subType: null,
-    confidenceFilters: { default: 0.1 },
+    confidenceFilters: { default: DefaultConfidence },
   };
 
   /* TODO: Look for an EXISTING meta.json file to override the above */
@@ -736,9 +738,9 @@ async function beginMediaImport(
         if (!checkMediaResult.websafe || otherVideoTypes.includes(mimetype)) {
           mediaConvertList.push(path);
         }
-        const newAnnotationFps = Math.floor(
+        const newAnnotationFps = (
           // Prevent FPS smaller than 1
-          Math.max(1, Math.min(jsonMeta.fps, checkMediaResult.originalFps)),
+          Math.max(1, Math.min(jsonMeta.fps, checkMediaResult.originalFps))
         );
         jsonMeta.originalFps = checkMediaResult.originalFps;
         jsonMeta.fps = newAnnotationFps;
@@ -765,6 +767,7 @@ async function beginMediaImport(
     globPattern: '',
     mediaConvertList,
     trackFileAbsPath,
+    forceMediaTranscode: false,
     multiCamTrackFiles: null,
   };
 }
@@ -931,12 +934,16 @@ async function finalizeMediaImport(
     mediaConvertList = found.mediaConvertList;
   }
 
+
   if (jsonMeta.type === 'video') {
     // Verify that the user didn't choose an FPS value higher than originalFPS
     // This shouldn't be possible in the UI, but we should still prevent it here.
-    jsonMeta.fps = Math.floor(
-      Math.max(1, Math.min(jsonMeta.fps, jsonMeta.originalFps)),
+    jsonMeta.fps = (
+      Math.max(1, Math.min(jsonMeta.fps, jsonMeta.originalFps))
     );
+    if (args.forceMediaTranscode) {
+      mediaConvertList.push(npath.join(jsonMeta.originalBasePath, jsonMeta.originalVideoFile));
+    }
   }
 
   //Now we will kick off any conversions that are necessary

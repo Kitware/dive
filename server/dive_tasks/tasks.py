@@ -1,6 +1,5 @@
 from contextlib import suppress
 import json
-import math
 import os
 from pathlib import Path
 import shlex
@@ -39,6 +38,7 @@ UPGRADE_JOB_DEFAULT_URLS: List[str] = [
     'https://data.kitware.com/api/v1/item/6011ebf72fa25629b91aef03/download',  # PengHead
     'https://data.kitware.com/api/v1/item/601b00d02fa25629b9391ad6/download',  # Motion
     'https://data.kitware.com/api/v1/item/601afdde2fa25629b9390c41/download',  # EM Tuna
+    'https://viame.kitware.com/api/v1/item/61494377a020b1e852638431/download',  # MOUSS Deep 7
 ]
 
 
@@ -438,8 +438,8 @@ def convert_video(self: Task, folderId: str, itemId: str):
         else:
             raise Exception('Expected key avg_frame_rate in ffprobe')
 
-        newAnnotationFps = math.floor(min(requestedFps, originalFps))
-        if newAnnotationFps <= 0:
+        newAnnotationFps = min(requestedFps, originalFps)
+        if newAnnotationFps < 1:
             raise Exception('FPS lower than 1 is not supported')
 
         command = [

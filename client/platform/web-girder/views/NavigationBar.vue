@@ -1,5 +1,5 @@
 <script>
-import { mapActions, mapState } from 'vuex';
+import { mapActions, mapGetters, mapState } from 'vuex';
 
 import { GirderSearch } from '@girder/components/src';
 import NavigationTitle from 'dive-common/components/NavigationTitle.vue';
@@ -20,7 +20,7 @@ export default {
     runningJobIds: [],
   }),
   computed: {
-    ...mapState('Location', ['location']),
+    ...mapGetters('Location', ['locationRoute']),
     ...mapState('Brand', ['brandData']),
   },
   async created() {
@@ -30,7 +30,7 @@ export default {
     this.girderRest.$off('logout', this.onLogout);
   },
   methods: {
-    ...mapActions('Location', ['route']),
+    ...mapActions('Location', ['setRouteFromLocation']),
     onLogout() {
       this.$router.push({ name: 'login' });
     },
@@ -48,10 +48,11 @@ export default {
       <v-tabs
         icons-and-text
         color="accent"
+        class="mx-2"
       >
         <v-tab
           exact
-          @click="route(location)"
+          :to="locationRoute"
         >
           Data
           <v-icon>mdi-database</v-icon>
@@ -65,7 +66,7 @@ export default {
         hide-options-menu
         hide-search-icon
         class="mx-2 grow"
-        @select="route"
+        @select="setRouteFromLocation"
       />
       <v-btn
         text
@@ -89,17 +90,16 @@ export default {
       color="warning"
       app
     >
-    <v-icon
-      class="pr-2"
-      large
-    >
-      mdi-alert-circle
-    </v-icon>
+      <v-icon
+        class="pr-2"
+        large
+      >
+        mdi-alert-circle
+      </v-icon>
       {{ brandData.alertMessage }}
     </v-banner>
   </div>
 </template>
-
 
 <style lang="scss">
 .rotate {

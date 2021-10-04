@@ -1,8 +1,7 @@
-version: "2.4"
+version: "3.8"
 services:
   # Worker for misc non gpu-bound tasks
   worker:
-    runtime: ${WORKER_RUNTIME}
     ipc: host
     image: kitware/viame-worker:${TAG:-latest}
     volumes:

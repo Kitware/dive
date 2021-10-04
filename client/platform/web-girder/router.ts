@@ -8,6 +8,8 @@ import Login from './views/Login.vue';
 import RouterPage from './views/RouterPage.vue';
 import Summary from './views/Summary.vue';
 import ViewerLoader from './views/ViewerLoader.vue';
+import DataShared from './views/DataShared.vue';
+import DataBrowser from './views/DataBrowser.vue';
 
 Vue.use(Router);
 
@@ -35,7 +37,6 @@ const router = new Router({
     },
     {
       path: '/',
-      name: 'router_base',
       component: RouterPage,
       children: [
         {
@@ -51,10 +52,22 @@ const router = new Router({
           beforeEnter,
         },
         {
-          path: ':_modelType?/:_id?',
-          name: 'home',
+          path: '',
           component: Home,
-          beforeEnter,
+          children: [
+            {
+              path: 'shared',
+              name: 'shared',
+              component: DataShared,
+              beforeEnter,
+            },
+            {
+              path: ':routeType?/:routeId?',
+              name: 'home',
+              component: DataBrowser,
+              beforeEnter,
+            },
+          ],
         },
       ],
     },

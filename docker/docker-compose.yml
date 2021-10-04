@@ -2,7 +2,11 @@
 
 # Use YAML anchors for the common config between both workers
 x-worker: &base-worker
-  runtime: ${WORKER_RUNTIME}
+  deploy:
+    resources:
+      reservations:
+        devices:
+          - capabilities: [gpu]
   ipc: host
   build:
     context: ../
@@ -18,7 +22,7 @@ x-worker: &base-worker
     rabbit:
       condition: service_started
 
-version: "2.4"
+version: "3.8"
 services:
 
   traefik:
@@ -78,8 +82,8 @@ services:
       - "RABBITMQ_MANAGEMENT_USERNAME=${RABBITMQ_MANAGEMENT_USERNAME:-guest}"
       - "RABBITMQ_MANAGEMENT_PASSWORD=${RABBITMQ_MANAGEMENT_PASSWORD:-guest}"
       - "RABBITMQ_MANAGEMENT_VHOST=${RABBITMQ_MANAGEMENT_VHOST:-default}"
-      - "RABBITMQ_MANAGEMENT_URL=${RABBITMQ_MANAGEMENT_URL:-rabbit:15672}"
-      - "RABBITMQ_MANAGEMENT_BROKER_URL_TEMPLATE=${RABBITMQ_MANAGEMENT_BROKER_URL_TEMPLATE}"
+      - "RABBITMQ_MANAGEMENT_URL=${RABBITMQ_MANAGEMENT_URL:-http://rabbit:15672/}"
+      - "RABBITMQ_MANAGEMENT_BROKER_URL_TEMPLATE=${RABBITMQ_MANAGEMENT_BROKER_URL_TEMPLATE:-amqp://{}:{}@default}"
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
       - "traefik.enable=true"
