@@ -127,10 +127,12 @@ describe('Track', () => {
       begin: 0,
       end: 0,
       confidencePairs: [
+        ['bar', 0.2],
         ['foo', 0.1],
       ],
     });
     track2.setType('foo', 0.2);
+    expect(track2.confidencePairs).toEqual([['bar', 0.2], ['foo', 0.2]]);
     track2.setType('bar', 0.4);
     expect(track2.confidencePairs).toEqual([['bar', 0.4], ['foo', 0.2]]);
     track2.setType('foo', 0.1);

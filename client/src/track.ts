@@ -197,6 +197,7 @@ export default class Track {
   private notify(name: string, oldValue: unknown) {
     /* Prevent broadcast until the first feature is initialized */
     if (this.isInitialized()) {
+      console.log('Notify!', name, this.trackId, this.featureIndex);
       this.revision.value += 1;
       this.bus.$emit('notify', {
         track: this,
@@ -443,7 +444,7 @@ export default class Track {
   }
 
 
-  setType(trackType: string, confidenceVal = 1) {
+  setType(trackType: string, confidenceVal = 1, replace?: string) {
     const old = this.confidencePairs;
     if (confidenceVal >= 1) {
       // dont' allow confidence greater than 1
@@ -451,6 +452,10 @@ export default class Track {
     } else {
       const index = this.confidencePairs.findIndex(([a]) => a === trackType);
       this.confidencePairs.splice(index, index >= 0 ? 1 : 0, [trackType, confidenceVal]);
+      if (replace) {
+        const replaceIndex = this.confidencePairs.findIndex(([a]) => a === replace);
+        if (replaceIndex >= 0) this.confidencePairs.splice(replaceIndex, 1);
+      }
       this.confidencePairs.sort((a, b) => b[1] - a[1]);
     }
     this.notify('confidencePairs', old);
