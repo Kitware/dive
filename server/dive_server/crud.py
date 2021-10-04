@@ -131,11 +131,12 @@ def get_data_by_type(
 
     # If the caller has not specified a type, try to discover it
     if as_type is None:
-        print(file)
         if file['exts'][-1] == 'csv':
             as_type = FileType.VIAME_CSV
         elif file['exts'][-1] == 'json':
             data_dict = json.loads(file_string)
+            if type(data_dict) is list:
+                raise RestException('No array-type json objects are supported')
             if kwcoco.is_coco_json(data_dict):
                 as_type = FileType.COCO_JSON
             try:

@@ -1,6 +1,7 @@
 from typing import List
 
 import pytest
+from requests.exceptions import RequestException
 
 from dive_utils import fromMeta
 
@@ -55,6 +56,17 @@ def test_set_configuration(user: dict):
     client.uploadFileToFolder(dataset['_id'], '../testutils/example.config.json')
     old_meta = client.get(f'dive_dataset/{dataset["_id"]}')
     assert 'another' not in old_meta['confidenceFilters']
-    client.post(f'dive_rpc/postprocess/{dataset["_id"]}')
+    client.post(f'dive_rpc/postprocess/{dataset["_id"]}', data={"skipJobs": True})
     new_meta = client.get(f'dive_dataset/{dataset["_id"]}')
     assert new_meta['confidenceFilters']['another'] == 0.6
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("user", users.values())
+@pytest.mark.run(order=5)
+def test_invalid_upload(user: dict):
+    client = getClient(user['login'])
+    dataset = client.get('dive_dataset')[0]
+    client.uploadFileToFolder(dataset['_id'], '../testutils/invalid.json')
+    with pytest.raises(RequestException):
+        client.post(f'dive_rpc/postprocess/{dataset["_id"]}', data={"skipJobs": True})
