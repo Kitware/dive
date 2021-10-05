@@ -8,6 +8,8 @@ import {
   DatasetMeta, Pipelines, TrainingConfigs, useApi,
 } from 'dive-common/apispec';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
+import { itemsPerPageOptions } from 'dive-common/constants';
+import { clientSettings } from 'dive-common/store/settings';
 
 import { datasets } from '../store/dataset';
 
@@ -120,6 +122,8 @@ export default defineComponent({
       isReadyToTrain,
       runTrainingOnFolder,
       nameRules,
+      itemsPerPageOptions,
+      clientSettings,
       available: {
         items: availableItems,
         headers: headersTmpl.concat(
@@ -228,7 +232,8 @@ export default defineComponent({
       <v-data-table
         dense
         v-bind="{ headers: available.headers, items: available.items.value }"
-        :footer-props="{ itemsPerPageOptions: [20, 50, 100] }"
+        :footer-props="{ itemsPerPageOptions }"
+        :items-per-page.sync="clientSettings.rowsPerPage"
         :item-class="({ included }) => included ? 'disabled-row' : ''"
         no-data-text="No data meets criteria for chosen configuration"
       >

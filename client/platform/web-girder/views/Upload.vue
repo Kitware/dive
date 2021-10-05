@@ -238,8 +238,8 @@ export default defineComponent({
         }
         throw new Error(resp.message);
       }
-      const fps = clientSettings.importSettings.annotationFPS
-        ? clientSettings.importSettings.annotationFPS : DefaultVideoFPS;
+      const fps = clientSettings.annotationFPS
+        ? clientSettings.annotationFPS : DefaultVideoFPS;
       const defaultFilename = resp.media[0];
       const validFiles = resp.media.concat(resp.annotations);
       // mapping needs to be done for the mixin upload functions
@@ -423,7 +423,7 @@ export default defineComponent({
                   :hint="pendingUpload.annotationFile
                     ? 'should match annotation fps' : 'annotation fps'"
                   persistent-hint
-                  @change="clientSettings.importSettings.annotationFPS = $event"
+                  @change="clientSettings.annotationFPS = $event"
                 />
               </v-col>
               <v-col

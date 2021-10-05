@@ -25,12 +25,8 @@ interface AnnotationSettings {
       promptUser: boolean;
     };
   };
-  dataBrowserSettings: {
-    rowsPerPage: number;
-  };
-  importSettings: {
-    annotationFPS: number;
-  };
+  rowsPerPage: number;
+  annotationFPS: number;
 }
 
 const defaultSettings: AnnotationSettings = {
@@ -56,12 +52,8 @@ const defaultSettings: AnnotationSettings = {
     showEmptyTypes: false,
     lockTypes: false,
   },
-  dataBrowserSettings: {
-    rowsPerPage: 20,
-  },
-  importSettings: {
-    annotationFPS: 10,
-  },
+  rowsPerPage: 20,
+  annotationFPS: 10,
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

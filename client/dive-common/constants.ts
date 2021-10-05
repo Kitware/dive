@@ -22,8 +22,10 @@ const FPSOptions = [
   { text: 30, value: 30 },
   { text: 50, value: 50 },
   { text: 60, value: 60 },
-  { text: 'Video Frame Rate', value: -1 },
+  { text: 'Video FPS', value: -1 },
 ];
+
+const itemsPerPageOptions = [20, 50, 100];
 
 const websafeVideoTypes = [
   'video/mp4',
@@ -105,6 +107,7 @@ export {
   MediaTypes,
   MultiType,
   FPSOptions,
+  itemsPerPageOptions,
   calibrationFileTypes,
   fileVideoTypes,
   otherImageTypes,

@@ -27,11 +27,11 @@ export default defineComponent({
     const showAdvanced = ref(false);
 
     // Set default FPS to stored value or video frame rate if it exceeds current frame rate
-    if (clientSettings.importSettings.annotationFPS === -1
-      || clientSettings.importSettings.annotationFPS > argCopy.value.jsonMeta.originalFps) {
+    if (clientSettings.annotationFPS === -1
+      || clientSettings.annotationFPS > argCopy.value.jsonMeta.originalFps) {
       argCopy.value.jsonMeta.fps = argCopy.value.jsonMeta.originalFps;
     } else {
-      argCopy.value.jsonMeta.fps = clientSettings.importSettings.annotationFPS;
+      argCopy.value.jsonMeta.fps = clientSettings.annotationFPS;
     }
 
     watch(toRef(props, 'importData'), (val) => {
@@ -46,14 +46,11 @@ export default defineComponent({
 
     const sortedFpsOptions = computed(() => {
       const filteredOptions = FPSOptions
-        .filter((v) => v.value <= Math.round(argCopy.value.jsonMeta.originalFps));
-      const videoFrameRateIndex = filteredOptions.findIndex((item) => item.value === -1);
-      if (videoFrameRateIndex !== -1) {
-        filteredOptions[videoFrameRateIndex] = {
-          text: `Video Frame Rate (${argCopy.value.jsonMeta.originalFps})`,
-          value: argCopy.value.jsonMeta.originalFps,
-        };
-      }
+        .filter((v) => v.value <= argCopy.value.jsonMeta.originalFps);
+      filteredOptions.splice(-1, 1, {
+        text: `${argCopy.value.jsonMeta.originalFps} (Video FPS)`,
+        value: argCopy.value.jsonMeta.originalFps,
+      });
       return filteredOptions;
     });
 
@@ -77,9 +74,9 @@ export default defineComponent({
 
     const updateClientSettingFPS = (val: number) => {
       if (val !== argCopy.value.jsonMeta.originalFps) {
-        clientSettings.importSettings.annotationFPS = val;
+        clientSettings.annotationFPS = val;
       } else {
-        clientSettings.importSettings.annotationFPS = -1;
+        clientSettings.annotationFPS = -1;
       }
     };
     return {

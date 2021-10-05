@@ -6,6 +6,7 @@ import {
 } from '@vue/composition-api';
 
 import type { DatasetType, MultiCamImportArgs } from 'dive-common/apispec';
+import { itemsPerPageOptions } from 'dive-common/constants';
 import type { MediaImportPayload } from 'platform/desktop/constants';
 
 import TooltipBtn from 'vue-media-annotator/components/TooltipButton.vue';
@@ -215,6 +216,7 @@ export default defineComponent({
       knownVersion,
       checkingMedia,
       clientSettings,
+      itemsPerPageOptions,
     };
   },
 });
@@ -388,8 +390,8 @@ export default defineComponent({
               dense
               v-bind="{ headers: headers, items: filteredRecents }"
               sort-by="accessedAt"
-              :footer-props="{ itemsPerPageOptions: [20, 50, 100] }"
-              :items-per-page.sync="clientSettings.dataBrowserSettings.rowsPerPage"
+              :footer-props="{ itemsPerPageOptions }"
+              :items-per-page.sync="clientSettings.rowsPerPage"
               no-data-text="No data loaded"
             >
               <template #[`item.type`]="{ item }">
