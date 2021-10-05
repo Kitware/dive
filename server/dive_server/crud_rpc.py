@@ -303,7 +303,7 @@ def process_items(folder: types.GirderModel, user: types.GirderModel):
             filetype, data, attrs = crud.get_data_by_type(file)
         except Exception as e:
             Item().remove(item)
-            raise RestException(f'{file["name"]} was not valid JSON or CSV: {e.message}') from e
+            raise RestException(f'{file["name"]} was not valid JSON or CSV: {e}') from e
 
         if filetype == crud.FileType.VIAME_CSV or filetype == crud.FileType.COCO_JSON:
             crud.saveTracks(folder, data, user)
