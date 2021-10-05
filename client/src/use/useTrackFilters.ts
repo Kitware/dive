@@ -130,8 +130,16 @@ export default function useFilteredTracks(
     if (defaultTypes.value.includes(type)) {
       defaultTypes.value.splice(defaultTypes.value.indexOf(type), 1);
     }
+    delete confidenceFilters.value[type];
     markChangesPending();
   }
+
+  function setConfidenceFilters(val?: Record<string, number>) {
+    if (val) {
+      confidenceFilters.value = val;
+    }
+  }
+
   function updateTypeName({ currentType, newType }: { currentType: string; newType: string }) {
     //Go through the entire list and replace the oldType with the new Type
     sortedTracks.value.forEach((track) => {
@@ -143,6 +151,12 @@ export default function useFilteredTracks(
         }
       }
     });
+    if (!(newType in confidenceFilters.value) && currentType in confidenceFilters.value) {
+      setConfidenceFilters({
+        ...confidenceFilters.value,
+        [newType]: confidenceFilters.value[currentType],
+      });
+    }
     deleteType(currentType);
   }
 
@@ -157,12 +171,6 @@ export default function useFilteredTracks(
         }
       }
     });
-  }
-
-  function setConfidenceFilters(val?: Record<string, number>) {
-    if (val) {
-      confidenceFilters.value = val;
-    }
   }
 
   function updateCheckedTypes(types: string[]) {

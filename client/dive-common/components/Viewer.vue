@@ -260,6 +260,7 @@ export default defineComponent({
       try {
         await saveToServer({
           customTypeStyling: getTypeStyles(allTypes),
+          confidenceFilters: confidenceFilters.value,
         });
       } catch (err) {
         let text = 'Unable to Save Data';

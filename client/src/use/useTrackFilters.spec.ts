@@ -44,10 +44,36 @@ function makeTrackStore() {
 }
 
 describe('useTrackFilters', () => {
-  it('renames tracks', () => {
+  it('updateTypeName', () => {
     const { sortedTracks } = makeTrackStore();
     const tf = useTrackFilters({ sortedTracks, removeTrack, markChangesPending });
+    tf.setConfidenceFilters({ baz: 0.1, bar: 0.2 });
     tf.updateTypeName({ currentType: 'foo', newType: 'baz' });
+    expect(tf.confidenceFilters.value).toEqual({ baz: 0.1, bar: 0.2 });
     expect(tf.allTypes.value).toEqual(['baz', 'bar']);
+    tf.updateTypeName({ currentType: 'baz', newType: 'newtype' });
+    expect(tf.allTypes.value).toEqual(['newtype', 'bar']);
+    expect(tf.confidenceFilters.value).toEqual({ bar: 0.2, newtype: 0.1 });
+  });
+
+  it('deleteType', () => {
+    const { sortedTracks } = makeTrackStore();
+    const tf = useTrackFilters({ sortedTracks, removeTrack, markChangesPending });
+    tf.setConfidenceFilters({ baz: 0.1, bar: 0.2 });
+    tf.deleteType('bar'); // delete type only deletes the defaultType, doesn't touch tracks.
+    expect(sortedTracks.value).toHaveLength(3);
+    expect(tf.allTypes.value).toEqual(['foo', 'bar', 'baz']);
+    expect(tf.confidenceFilters.value).toEqual({ baz: 0.1 });
+  });
+
+  it('removeTypeTrack', async () => {
+    const { sortedTracks } = makeTrackStore();
+    const tf = useTrackFilters({ sortedTracks, removeTrack, markChangesPending });
+    tf.removeTypeTracks(['bar']);
+    expect(sortedTracks.value).toHaveLength(3);
+    expect(tf.allTypes.value).toEqual(['foo', 'bar', 'baz']);
+    tf.removeTypeTracks(['baz']);
+    expect(tf.allTypes.value).toEqual(['foo']);
+    expect(sortedTracks.value).toHaveLength(2);
   });
 });
