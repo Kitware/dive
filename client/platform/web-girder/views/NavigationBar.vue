@@ -42,48 +42,63 @@ export default {
 </script>
 
 <template>
-  <v-app-bar app>
-    <NavigationTitle :name="brandData.name" />
-    <v-tabs
-      icons-and-text
-      color="accent"
-      class="mx-2"
-    >
-      <v-tab
-        exact
-        :to="locationRoute"
+  <div>
+    <v-app-bar app>
+      <NavigationTitle :name="brandData.name" />
+      <v-tabs
+        icons-and-text
+        color="accent"
+        class="mx-2"
       >
-        Data
-        <v-icon>mdi-database</v-icon>
-      </v-tab>
-      <JobsTab />
-    </v-tabs>
-    <v-spacer />
-    <GirderSearch
-      :search-types="['user', 'folder']"
-      placeholder="search"
-      hide-options-menu
-      hide-search-icon
-      class="mx-2 grow"
-      @select="setRouteFromLocation"
-    />
-    <v-btn
-      text
-      :to="{ name: 'summary' }"
+        <v-tab
+          exact
+          :to="locationRoute"
+        >
+          Data
+          <v-icon>mdi-database</v-icon>
+        </v-tab>
+        <JobsTab />
+      </v-tabs>
+      <v-spacer />
+      <GirderSearch
+        :search-types="['user', 'folder']"
+        placeholder="search"
+        hide-options-menu
+        hide-search-icon
+        class="mx-2 grow"
+        @select="setRouteFromLocation"
+      />
+      <v-btn
+        text
+        :to="{ name: 'summary' }"
+      >
+        <v-icon class="pr-2">
+          mdi-format-list-bulleted-square
+        </v-icon>
+        Stats
+      </v-btn>
+      <user-guide-button />
+      <v-btn
+        text
+        @click="logout"
+      >
+        Logout
+      </v-btn>
+    </v-app-bar>
+    <v-banner
+      v-if="brandData.alertMessage"
+      color="warning"
+      app
     >
-      <v-icon class="pr-2">
-        mdi-format-list-bulleted-square
+      <v-icon
+        class="pr-2"
+        large
+      >
+        mdi-alert-circle
       </v-icon>
-      Stats
-    </v-btn>
-    <user-guide-button />
-    <v-btn
-      text
-      @click="logout"
-    >
-      Logout
-    </v-btn>
-  </v-app-bar>
+      {{ brandData.alertMessage }}
+    </v-banner>
+  </div>
 </template>
 
 <style lang="scss">

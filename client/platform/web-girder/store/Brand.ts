@@ -31,9 +31,10 @@ const brandModule: Module<BrandState, RootState> = {
       favicon: undefined,
       logo: defaultLogo,
       name: 'DIVE',
-      loginMessage: `DIVE is automatically updated 
+      loginMessage: `DIVE is automatically updated
         at 2AM EST/EDT on Thursdays. Downtime is typically
         less than 10 minutes.`,
+      alertMessage: '',
     },
   },
   mutations: {
