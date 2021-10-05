@@ -42,7 +42,6 @@ export default defineComponent({
       const sort = sortBy[0] || 'created';
       const sortDir = sortDesc[0] === false ? 1 : -1;
       const shared = true;
-      console.log(`LIMIT: ${limit}`);
       const response = await getDatasetList(limit, offset, sort, sortDir, shared);
       dataList.value = response.data;
       total.value = Number.parseInt(response.headers['girder-total-count'], 10);
