@@ -1,5 +1,3 @@
-import csv
-from json.decoder import JSONDecodeError
 from typing import Dict, List, Optional
 
 from girder.constants import AccessType
@@ -303,9 +301,9 @@ def process_items(folder: types.GirderModel, user: types.GirderModel):
 
         try:
             filetype, data, attrs = crud.get_data_by_type(file)
-        except (JSONDecodeError, csv.Error):
+        except Exception as e:
             Item().remove(item)
-            raise RestException(f'{file["name"]} was not valid JSON or CSV')
+            raise RestException(f'{file["name"]} was not valid JSON or CSV: {e.message}') from e
 
         if filetype == crud.FileType.VIAME_CSV or filetype == crud.FileType.COCO_JSON:
             crud.saveTracks(folder, data, user)
