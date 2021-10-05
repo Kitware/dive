@@ -238,8 +238,7 @@ export default defineComponent({
         }
         throw new Error(resp.message);
       }
-      const fps = clientSettings.annotationFPS
-        ? clientSettings.annotationFPS : DefaultVideoFPS;
+      const fps = clientSettings.annotationFPS || DefaultVideoFPS;
       const defaultFilename = resp.media[0];
       const validFiles = resp.media.concat(resp.annotations);
       // mapping needs to be done for the mixin upload functions

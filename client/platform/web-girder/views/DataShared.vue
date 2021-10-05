@@ -16,7 +16,7 @@ export default defineComponent({
     const dataList = ref([] as GirderModel[]);
     const tableOptions = reactive({
       page: 1,
-      itemsPerPage: 20,
+      itemsPerPage: clientSettings.rowsPerPage,
       sortBy: ['created'],
       sortDesc: [true],
     } as DataOptions);
