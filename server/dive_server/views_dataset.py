@@ -2,11 +2,12 @@ from typing import List, Optional
 
 from girder.api import access
 from girder.api.describe import Description, autoDescribeRoute
-from girder.api.rest import Resource, setContentDisposition, setResponseHeader
+from girder.api.rest import Resource, rawResponse, setContentDisposition, setResponseHeader
 from girder.constants import AccessType, TokenScope
 from girder.models.folder import Folder
 
 from dive_utils import constants
+from dive_utils.models import MetadataMutable
 
 from . import crud_dataset
 
@@ -31,6 +32,7 @@ class DatasetResource(Resource):
         self.route("GET", (":id",), self.get_meta)
         self.route("GET", (":id", "media"), self.get_media)
         self.route("GET", (":id", "export"), self.export)
+        self.route("GET", (":id", "configuration"), self.get_configuration)
         self.route("GET", ("validate_files",), self.validate_files)
 
         self.route("PATCH", (":id",), self.patch_metadata)
@@ -115,6 +117,24 @@ class DatasetResource(Resource):
     )
     def get_meta(self, folder):
         return crud_dataset.get_dataset(folder, self.getCurrentUser()).dict(exclude_none=True)
+
+    @access.public(scope=TokenScope.DATA_READ, cookie=True)
+    @rawResponse
+    @autoDescribeRoute(
+        Description("Get dataset configuration").modelParam(
+            "id", level=AccessType.READ, **DatasetModelParam
+        )
+    )
+    def get_configuration(self, folder):
+        setResponseHeader('Content-Type', 'application/json')
+        setContentDisposition(f'{folder["name"]}.config.json')
+        # A dataset configuration consists of MetadataMutable properties.
+        expose = MetadataMutable.schema()['properties'].keys()
+        return crud_dataset.get_dataset(folder, self.getCurrentUser()).json(
+            exclude_none=True,
+            include=expose,
+            indent=2,
+        )
 
     @access.user
     @autoDescribeRoute(

@@ -33,12 +33,13 @@ EMPTY_JOB_SCHEMA: AvailableJobSchema = {
 
 # https://github.com/VIAME/VIAME/blob/master/cmake/download_viame_addons.sh
 UPGRADE_JOB_DEFAULT_URLS: List[str] = [
-    'https://viame.kitware.com/api/v1/item/60d3c198b91def413908961a/download',  # Habcam
+    'https://viame.kitware.com/api/v1/item/613ed525a28c6cb53f3a0601/download',  # Habcam
     'https://viame.kitware.com/api/v1/item/60b3a58b8438b3b7ffd7032f/download',  # SEFSC
     'https://data.kitware.com/api/v1/item/6011ebf72fa25629b91aef03/download',  # PengHead
     'https://data.kitware.com/api/v1/item/601b00d02fa25629b9391ad6/download',  # Motion
     'https://data.kitware.com/api/v1/item/601afdde2fa25629b9390c41/download',  # EM Tuna
     'https://viame.kitware.com/api/v1/item/61494377a020b1e852638431/download',  # MOUSS Deep 7
+    'https://viame.kitware.com/api/v1/item/61550c43ac52f76882908da3/download',  # Aerial Penguin
 ]
 
 

@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "confidenceFilters": {
+    "default": 0.5,
+    "another": 0.6
+  },
+  "attributes": {
+    "track_NewTrackAttribute": {
+      "belongs": "track",
+      "datatype": "text",
+      "values": [],
+      "name": "NewTrackAttribute",
+      "key": "track_NewTrackAttribute"
+    }
+  }
+}

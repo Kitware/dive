@@ -1,5 +1,6 @@
 """General CRUD operations and utilities shared among views"""
 from datetime import datetime
+from enum import Enum
 import functools
 import io
 import json
@@ -16,12 +17,18 @@ from girder.models.model_base import AccessControlledModel
 from girder.models.upload import Upload
 import pydantic
 from pydantic.main import BaseModel
-import pymongo
 from pymongo.cursor import Cursor
 
 from dive_utils import asbool, constants, fromMeta, models, strNumericCompare
 from dive_utils.serializers import kwcoco, viame
 from dive_utils.types import GirderModel, GirderUserModel
+
+
+class FileType(Enum):
+    DIVE_JSON = 1
+    VIAME_CSV = 2
+    COCO_JSON = 3
+    DIVE_CONF = 4
 
 
 def get_validated_model(model: BaseModel, **kwargs):
@@ -108,36 +115,53 @@ def itemIsWebsafeVideo(item: Item) -> bool:
     return fromMeta(item, "codec") == "h264"
 
 
-def getTrackData(file: Optional[File]) -> Dict[str, dict]:
+def get_data_by_type(
+    file: Optional[GirderModel], as_type: Optional[FileType] = None
+) -> Tuple[Optional[FileType], dict, dict]:
+    """
+    Given an arbitrary Girder file model, figure out what kind of file it is and
+    parse it appropriately.
+
+    :as_type: bypass type discovery (potentially expensive) if caller is certain about type
+    """
     if file is None:
-        return {}
-    if "csv" in file["exts"]:
-        (tracks, attributes) = viame.load_csv_as_tracks_and_attributes(
-            b"".join(list(File().download(file, headers=False)())).decode("utf-8").splitlines()
-        )
-        return tracks
-    return json.loads(b"".join(list(File().download(file, headers=False)())).decode())
+        return None, {}, {}
+    file_string = b"".join(list(File().download(file, headers=False)())).decode()
+    data_dict = {}
+
+    # If the caller has not specified a type, try to discover it
+    if as_type is None:
+        if file['exts'][-1] == 'csv':
+            as_type = FileType.VIAME_CSV
+        elif file['exts'][-1] == 'json':
+            data_dict = json.loads(file_string)
+            if type(data_dict) is list:
+                raise RestException('No array-type json objects are supported')
+            if kwcoco.is_coco_json(data_dict):
+                as_type = FileType.COCO_JSON
+            try:
+                data_dict = models.MetadataMutable(**data_dict).dict(exclude_none=True)
+                as_type = FileType.DIVE_CONF
+            except pydantic.ValidationError:
+                as_type = FileType.DIVE_JSON
+        else:
+            raise RestException('Got file of unknown and unusable type')
+
+    # Parse the file as the now known type
+    if as_type == FileType.VIAME_CSV:
+        tracks, attributes = viame.load_csv_as_tracks_and_attributes(file_string.splitlines())
+        return as_type, tracks, attributes
+    if as_type == FileType.COCO_JSON:
+        tracks, attributes = kwcoco.load_coco_as_tracks_and_attributes(data_dict)
+        return as_type, tracks, attributes
+    if as_type == FileType.DIVE_CONF or as_type == FileType.DIVE_JSON:
+        return as_type, data_dict, {}
+    return None, {}, {}
 
 
-def getTrackAndAttributesFromCSV(file: GirderModel) -> Tuple[dict, dict]:
-    if file is None:
-        return ({}, {})
-    if "csv" in file["exts"]:
-        return viame.load_csv_as_tracks_and_attributes(
-            b"".join(list(File().download(file, headers=False)())).decode("utf-8").splitlines()
-        )
-    return ({}, {})
-
-
-def get_track_and_attributes_from_coco(file: GirderModel) -> Tuple[dict, dict, bool]:
-    if file is None:
-        return {}, {}, False
-    if 'json' in file['exts']:
-        coco = json.loads(b"".join(list(File().download(file, headers=False)())).decode())
-        if kwcoco.is_coco_json(coco):
-            tracks, attributes = kwcoco.load_coco_as_tracks_and_attributes(coco)
-            return tracks, attributes, True
-    return {}, {}, False
+def getTrackData(file: Optional[GirderModel]) -> Dict[str, dict]:
+    """Wrapper function to get track data if type is already known"""
+    return get_data_by_type(file, as_type=FileType.DIVE_JSON)[1]
 
 
 def saveTracks(folder, tracks, user):
@@ -187,66 +211,6 @@ def verify_dataset(folder: GirderModel):
         if type(fps) not in [int, float]:
             raise ValueError(f'Video missing numerical fps, found {fps}')
     return True
-
-
-def process_csv(folder: GirderModel, user: GirderUserModel):
-    """If there's a CSV in the folder, process it as a detections object"""
-    csvItems = Folder().childItems(
-        folder,
-        filters={"lowerName": {"$regex": constants.csvRegex}},
-        sort=[("created", pymongo.DESCENDING)],
-    )
-    if csvItems.count() >= 1:
-        auxiliary = get_or_create_auxiliary_folder(folder, user)
-        file = Item().childFiles(next(csvItems))[0]
-        (tracks, attributes) = getTrackAndAttributesFromCSV(file)
-        saveTracks(folder, tracks, user)
-        saveImportAttributes(folder, attributes, user)
-        csvItems.rewind()
-        for item in csvItems:
-            Item().move(item, auxiliary)
-        return True
-    return False
-
-
-def process_json(folder: GirderModel, user: GirderUserModel):
-    # Find a json if it exists
-    jsonItems = list(
-        Folder().childItems(
-            folder,
-            filters={"lowerName": {"$regex": constants.jsonRegex}},
-            sort=[("created", pymongo.DESCENDING)],
-        )
-    )
-    auxiliary = get_or_create_auxiliary_folder(folder, user)
-    for item in jsonItems:
-        file = Item().childFiles(item)[0]
-        tracks, attributes, is_coco = get_track_and_attributes_from_coco(file)
-        if is_coco:  # coco json
-            saveTracks(folder, tracks, user)
-            saveImportAttributes(folder, attributes, user)
-            Item().move(item, auxiliary)
-        else:  # dive json
-            # Perform validation of JSON file input
-            possible_annotation_files = list(Item().childFiles(item))
-            if len(possible_annotation_files) != 1:
-                raise RestException('Expected exactly 1 file')
-            for track in getTrackData(possible_annotation_files[0]).values():
-                if not isinstance(track, dict):
-                    Item().remove(item)  # remove the bad JSON from dataset
-                    raise RestException(
-                        (
-                            'Invalid JSON file provided.'
-                            ' Please upload a COCO, KWCOCO, VIAME CSV, or DIVE JSON file.'
-                        )
-                    )
-                get_validated_model(models.Track, **track)
-            item['meta'][constants.DetectionMarker] = str(folder['_id'])
-            Item().save(item)
-    if len(jsonItems) > 0:
-        move_existing_result_to_auxiliary_folder(folder, user)
-        return True
-    return False
 
 
 def getCloneRoot(owner: GirderModel, source_folder: GirderModel):

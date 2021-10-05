@@ -10,11 +10,14 @@ from girder.models.setting import Setting
 from girder.models.token import Token
 from girder.models.upload import Upload
 from girder_jobs.models.job import Job
+import pymongo
 
 from dive_server import crud
 from dive_tasks import tasks
-from dive_utils import TRUTHY_META_VALUES, asbool, constants, fromMeta, types
+from dive_utils import TRUTHY_META_VALUES, asbool, constants, fromMeta, models, types
 from dive_utils.serializers import meva
+
+from . import crud_dataset
 
 
 def _get_queue_name(user: types.GirderUserModel, default="celery") -> str:
@@ -282,6 +285,65 @@ def run_training(
     return newjob.job
 
 
+def process_items(folder: types.GirderModel, user: types.GirderModel):
+    """
+    Discover unprocessed items in a dataset and process them by type in order of creation
+    """
+    unprocessed_items = Folder().childItems(
+        folder,
+        filters={
+            "$and": [
+                # Look for both JSON and CSV items
+                {
+                    "$or": [
+                        {"lowerName": {"$regex": constants.csvRegex}},
+                        {"lowerName": {"$regex": constants.jsonRegex}},
+                    ]
+                },
+                # Don't re-process existing annotation files
+                {f"meta.{constants.DetectionMarker}": {'$not': {"$in": TRUTHY_META_VALUES}}},
+            ]
+        },
+        # Processing order: oldest to newest
+        sort=[("created", pymongo.ASCENDING)],
+    )
+    auxiliary = crud.get_or_create_auxiliary_folder(folder, user)
+    for item in unprocessed_items:
+        file = next(Item().childFiles(item), None)
+        if file is None:
+            raise RestException('Item had no associated files')
+
+        try:
+            filetype, data, attrs = crud.get_data_by_type(file)
+        except Exception as e:
+            Item().remove(item)
+            raise RestException(f'{file["name"]} was not valid JSON or CSV: {e}') from e
+
+        if filetype == crud.FileType.VIAME_CSV or filetype == crud.FileType.COCO_JSON:
+            crud.saveTracks(folder, data, user)
+            crud.saveImportAttributes(folder, attrs, user)
+            Item().move(item, auxiliary)
+
+        if filetype == crud.FileType.DIVE_CONF:
+            crud_dataset.update_metadata(folder, data)
+            Item().remove(item)
+
+        elif filetype == crud.FileType.DIVE_JSON:
+            for track in data.values():
+                if not isinstance(track, dict):
+                    Item().remove(item)  # remove the bad JSON from dataset
+                    raise RestException(
+                        (
+                            'Invalid JSON file provided.'
+                            ' Please upload a COCO, KWCOCO, VIAME CSV, or DIVE JSON file.'
+                        )
+                    )
+                crud.get_validated_model(models.Track, **track)
+            item['meta'][constants.DetectionMarker] = str(folder['_id'])
+            Item().save(item)
+    crud.move_existing_result_to_auxiliary_folder(folder, user)
+
+
 def postprocess(
     user: types.GirderUserModel, dsFolder: types.GirderModel, skipJobs: bool
 ) -> types.GirderModel:
@@ -371,8 +433,7 @@ def postprocess(
 
         Folder().save(dsFolder)
 
-    crud.process_csv(dsFolder, user)
-    crud.process_json(dsFolder, user)
+    process_items(dsFolder, user)
 
     # If no detections file exists create one
     if crud.detections_file(dsFolder) is None:
