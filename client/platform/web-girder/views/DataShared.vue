@@ -16,7 +16,6 @@ export default defineComponent({
     const dataList = ref([] as GirderModel[]);
     const tableOptions = reactive({
       page: 1,
-      itemsPerPage: clientSettings.rowsPerPage,
       sortBy: ['created'],
       sortDesc: [true],
     } as DataOptions);
@@ -36,14 +35,14 @@ export default defineComponent({
 
     const updateOptions = async () => {
       const {
-        sortBy, page, itemsPerPage, sortDesc,
+        sortBy, page, sortDesc,
       } = tableOptions;
-      const limit = itemsPerPage;
-      const offset = (page - 1) * itemsPerPage;
+      const limit = clientSettings.rowsPerPage;
+      const offset = (page - 1) * clientSettings.rowsPerPage;
       const sort = sortBy[0] || 'created';
       const sortDir = sortDesc[0] === false ? 1 : -1;
       const shared = true;
-
+      console.log(`LIMIT: ${limit}`);
       const response = await getDatasetList(limit, offset, sort, sortDir, shared);
       dataList.value = response.data;
       total.value = Number.parseInt(response.headers['girder-total-count'], 10);
@@ -64,6 +63,7 @@ export default defineComponent({
     watch(tableOptions, updateOptions, {
       deep: true,
     });
+    watch(() => clientSettings.rowsPerPage, updateOptions);
 
     updateOptions();
     return {
