@@ -244,6 +244,20 @@ def run_training(
 
     # Ensure the folder to upload results to exists
     results_folder = training_output_folder(user)
+    output_folders = list(
+        Folder().find(
+            query={
+                'parentId': results_folder['_id'],
+                'name': pipelineName,
+            },
+            user=user,
+            limit=1,
+        )
+    )
+    if len(output_folders):
+        raise RestException(
+            f'Output pipeline "{pipelineName}" already exists, please choose a different name'
+        )
     job_is_private = user.get(constants.UserPrivateQueueEnabledMarker, False)
     newjob = tasks.train_pipeline.apply_async(
         queue=_get_queue_name(user, "training"),

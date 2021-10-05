@@ -301,8 +301,6 @@ def train_pipeline(
     pipeline_base_path = Path(conf.get_extracted_pipeline_path())
     config_file = pipeline_base_path / config
 
-    pipeline_name = pipeline_name.replace(" ", "_")
-
     if len(source_folder_list) != len(groundtruth_list):
         raise Exception("Ground truth doesn't exist for all folders")
 

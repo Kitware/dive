@@ -5,7 +5,6 @@ import { init as SentryInit } from '@sentry/browser';
 import { Vue as SentryVue } from '@sentry/integrations';
 
 import registerNotifications from 'vue-media-annotator/notificatonBus';
-import snackbarService from 'dive-common/vue-utilities/snackbar-service';
 import promptService from 'dive-common/vue-utilities/prompt-service';
 import vMousetrap from 'dive-common/vue-utilities/v-mousetrap';
 
@@ -42,7 +41,6 @@ Promise.all([
   girderRest.fetchUser(),
 ]).then(() => {
   const vuetify = getVuetify(store.state.Brand.brandData?.vuetify);
-  Vue.use(snackbarService(vuetify));
   Vue.use(promptService(vuetify));
   new Vue({
     router,
@@ -57,7 +55,6 @@ Promise.all([
     render: (h) => h(App),
   })
     .$mount('#app')
-    .$snackbarAttach()
     .$promptAttach();
 
   /** Start notification stream if everything else succeeds */
