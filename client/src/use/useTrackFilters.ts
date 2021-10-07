@@ -130,21 +130,34 @@ export default function useFilteredTracks(
     if (defaultTypes.value.includes(type)) {
       defaultTypes.value.splice(defaultTypes.value.indexOf(type), 1);
     }
+    delete confidenceFilters.value[type];
     markChangesPending();
   }
-  function updateTypeName({ currentType, newType }: {currentType: string; newType: string}) {
+
+  function setConfidenceFilters(val?: Record<string, number>) {
+    if (val) {
+      confidenceFilters.value = val;
+    }
+  }
+
+  function updateTypeName({ currentType, newType }: { currentType: string; newType: string }) {
     //Go through the entire list and replace the oldType with the new Type
     sortedTracks.value.forEach((track) => {
-      track.confidencePairs.forEach(([name, confidenceVal]) => {
+      for (let i = 0; i < track.confidencePairs.length; i += 1) {
+        const [name, confidenceVal] = track.confidencePairs[i];
         if (name === currentType) {
-          track.setType(newType, confidenceVal);
+          track.setType(newType, confidenceVal, currentType);
+          break;
         }
-      });
+      }
     });
-    if (defaultTypes.value.includes(currentType)) {
-      defaultTypes.value[defaultTypes.value.indexOf(currentType)] = newType;
+    if (!(newType in confidenceFilters.value) && currentType in confidenceFilters.value) {
+      setConfidenceFilters({
+        ...confidenceFilters.value,
+        [newType]: confidenceFilters.value[currentType],
+      });
     }
-    markChangesPending();
+    deleteType(currentType);
   }
 
   function removeTypeTracks(types: string[]) {
@@ -158,12 +171,6 @@ export default function useFilteredTracks(
         }
       }
     });
-  }
-
-  function setConfidenceFilters(val?: Record<string, number>) {
-    if (val) {
-      confidenceFilters.value = val;
-    }
   }
 
   function updateCheckedTypes(types: string[]) {
