@@ -127,7 +127,7 @@ def get_data_by_type(
     if file is None:
         return None, {}, {}
     file_string = b"".join(list(File().download(file, headers=False)())).decode()
-    data_dict = {}
+    data_dict = None
 
     # If the caller has not specified a type, try to discover it
     if as_type is None:
@@ -151,6 +151,11 @@ def get_data_by_type(
     if as_type == FileType.VIAME_CSV:
         tracks, attributes = viame.load_csv_as_tracks_and_attributes(file_string.splitlines())
         return as_type, tracks, attributes
+
+    # All filetypes below are JSON, so if as_type was specified, it needs to be loaded.
+    if data_dict is None:
+        data_dict = json.loads(file_string)
+
     if as_type == FileType.COCO_JSON:
         tracks, attributes = kwcoco.load_coco_as_tracks_and_attributes(data_dict)
         return as_type, tracks, attributes
