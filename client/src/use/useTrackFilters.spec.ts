@@ -68,12 +68,13 @@ describe('useTrackFilters', () => {
 
   it('removeTypeTrack', async () => {
     const { sortedTracks } = makeTrackStore();
-    const tf = useTrackFilters({ sortedTracks, removeTrack, markChangesPending });
+    const sypRemoveTrack = jest.fn();
+    const tf = useTrackFilters({ sortedTracks, removeTrack: sypRemoveTrack, markChangesPending });
     tf.removeTypeTracks(['bar']);
-    expect(sortedTracks.value).toHaveLength(3);
     expect(tf.allTypes.value).toEqual(['foo', 'bar', 'baz']);
+    expect(sypRemoveTrack).not.toHaveBeenCalled();
     tf.removeTypeTracks(['baz']);
-    expect(tf.allTypes.value).toEqual(['foo']);
-    expect(sortedTracks.value).toHaveLength(2);
+    expect(tf.allTypes.value).toEqual(['foo', 'bar', 'baz']);
+    expect(sypRemoveTrack).toHaveBeenCalledTimes(1);
   });
 });
