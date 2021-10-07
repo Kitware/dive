@@ -46,7 +46,7 @@ export default defineComponent({
 
     const sortedFpsOptions = computed(() => {
       const filteredOptions = FPSOptions
-        .filter((v) => v.value <= argCopy.value.jsonMeta.originalFps);
+        .filter((v) => v.value < argCopy.value.jsonMeta.originalFps);
       filteredOptions.splice(-1, 1, {
         text: `${argCopy.value.jsonMeta.originalFps} (Video FPS)`,
         value: argCopy.value.jsonMeta.originalFps,
