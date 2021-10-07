@@ -25,6 +25,8 @@ interface AnnotationSettings {
       promptUser: boolean;
     };
   };
+  rowsPerPage: number;
+  annotationFPS: number;
 }
 
 const defaultSettings: AnnotationSettings = {
@@ -50,6 +52,8 @@ const defaultSettings: AnnotationSettings = {
     showEmptyTypes: false,
     lockTypes: false,
   },
+  rowsPerPage: 20,
+  annotationFPS: 10,
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -75,8 +79,8 @@ export default function setup(allTypes: Ref<Readonly<string[]>>) {
       clientSettings.trackSettings.newTrackSettings.type = 'unknown';
     }
   });
-  watch(clientSettings, saveSettings);
 }
+watch(clientSettings, saveSettings);
 
 export {
   clientSettings,

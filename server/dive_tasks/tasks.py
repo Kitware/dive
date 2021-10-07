@@ -437,7 +437,10 @@ def convert_video(self: Task, folderId: str, itemId: str):
         else:
             raise Exception('Expected key avg_frame_rate in ffprobe')
 
-        newAnnotationFps = min(requestedFps, originalFps)
+        if requestedFps == -1:
+            newAnnotationFps = originalFps
+        else:
+            newAnnotationFps = min(requestedFps, originalFps)
         if newAnnotationFps < 1:
             raise Exception('FPS lower than 1 is not supported')
 

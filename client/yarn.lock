@@ -1141,10 +1141,10 @@
   resolved "https://registry.yarnpkg.com/@flatten-js/interval-tree/-/interval-tree-1.0.11.tgz#1864a3c2ec7972e28dd1eeb26f82b609590baa15"
   integrity sha512-gp9mS5d7QTcjE9mTG3hoiC82q1MjqX+nrAlKODkj45YXWMhR/j/OHStTVw9qRTUEiq6mzspE8iFi3JTAg8s7Pw==
 
-"@girder/components@^3.0.4":
-  version "3.0.4"
-  resolved "https://registry.yarnpkg.com/@girder/components/-/components-3.0.4.tgz#5232cf3078121ea7430ed1a12e9d19a48ab78a19"
-  integrity sha512-rgWAC9fJAnCgfI+ydPQ0c42Dc8rUNgFcSf9lCvV13iyfefQ0N9F93TqUmn4GFj85KSV/VwIRf36bsrBJeIe18A==
+"@girder/components@^3.1.0":
+  version "3.1.0"
+  resolved "https://registry.yarnpkg.com/@girder/components/-/components-3.1.0.tgz#6e770c3900f53b2cf17b0b8c81c9db88c20f0d91"
+  integrity sha512-EmFEljzbWysROvUEBhlZlGLKu2DKx3zQoJeo2uyKcpAmqs+KjrAMH5qof1NtXlsa3YVYPx2km+OL2ucf5JeSCA==
   dependencies:
     "@mdi/font" "^5.3.45"
     axios "^0.21.1"

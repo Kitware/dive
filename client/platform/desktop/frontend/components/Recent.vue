@@ -6,10 +6,12 @@ import {
 } from '@vue/composition-api';
 
 import type { DatasetType, MultiCamImportArgs } from 'dive-common/apispec';
+import { itemsPerPageOptions } from 'dive-common/constants';
 import type { MediaImportPayload } from 'platform/desktop/constants';
 
 import TooltipBtn from 'vue-media-annotator/components/TooltipButton.vue';
 
+import { clientSettings } from 'dive-common/store/settings';
 import ImportButton from 'dive-common/components/ImportButton.vue';
 import ImportMultiCamDialog from 'dive-common/components/ImportMultiCamDialog.vue';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
@@ -185,7 +187,6 @@ export default defineComponent({
     ];
     const toDisplayString = (dateString: string) => moment(dateString).format('MM/DD/YY HH:mm');
 
-
     return {
       // methods
       acknowledgeVersion,
@@ -214,6 +215,8 @@ export default defineComponent({
       downgradedVersion,
       knownVersion,
       checkingMedia,
+      clientSettings,
+      itemsPerPageOptions,
     };
   },
 });
@@ -387,7 +390,8 @@ export default defineComponent({
               dense
               v-bind="{ headers: headers, items: filteredRecents }"
               sort-by="accessedAt"
-              :footer-props="{ itemsPerPageOptions: [10, 30, -1] }"
+              :footer-props="{ itemsPerPageOptions }"
+              :items-per-page.sync="clientSettings.rowsPerPage"
               no-data-text="No data loaded"
             >
               <template #[`item.type`]="{ item }">

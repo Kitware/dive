@@ -4,9 +4,10 @@ import {
 } from '@vue/composition-api';
 import type { DataOptions } from 'vuetify';
 import { GirderModel, mixins } from '@girder/components/src';
+import { clientSettings } from 'dive-common/store/settings';
+import { itemsPerPageOptions } from 'dive-common/constants';
 import { getDatasetList } from '../api';
 import { useStore, LocationType } from '../store/types';
-
 
 export default defineComponent({
   name: 'DataShared',
@@ -15,7 +16,6 @@ export default defineComponent({
     const dataList = ref([] as GirderModel[]);
     const tableOptions = reactive({
       page: 1,
-      itemsPerPage: 10,
       sortBy: ['created'],
       sortDesc: [true],
     } as DataOptions);
@@ -35,14 +35,13 @@ export default defineComponent({
 
     const updateOptions = async () => {
       const {
-        sortBy, page, itemsPerPage, sortDesc,
+        sortBy, page, sortDesc,
       } = tableOptions;
-      const limit = itemsPerPage;
-      const offset = (page - 1) * itemsPerPage;
+      const limit = clientSettings.rowsPerPage;
+      const offset = (page - 1) * clientSettings.rowsPerPage;
       const sort = sortBy[0] || 'created';
       const sortDir = sortDesc[0] === false ? 1 : -1;
       const shared = true;
-
       const response = await getDatasetList(limit, offset, sort, sortDir, shared);
       dataList.value = response.data;
       total.value = Number.parseInt(response.headers['girder-total-count'], 10);
@@ -63,6 +62,7 @@ export default defineComponent({
     watch(tableOptions, updateOptions, {
       deep: true,
     });
+    watch(() => clientSettings.rowsPerPage, updateOptions);
 
     updateOptions();
     return {
@@ -73,6 +73,8 @@ export default defineComponent({
       setLocation,
       total,
       locationStore,
+      clientSettings,
+      itemsPerPageOptions,
       ...toRefs(tableOptions),
       headers,
     };
@@ -88,11 +90,12 @@ export default defineComponent({
     :location="locationStore.location"
     :headers="headers"
     :page.sync="page"
-    :items-per-page.sync="itemsPerPage"
+    :items-per-page.sync="clientSettings.rowsPerPage"
     :sort-by.sync="sortBy"
     :sort-desc.sync="sortDesc"
     :server-items-length="total"
     :items="dataList"
+    :footer-props="{ itemsPerPageOptions }"
     item-key="_id"
     show-select
     @input="$emit('input', $event)"

@@ -1,5 +1,5 @@
 <script lang="ts">
-import { cloneDeep, uniq } from 'lodash';
+import { cloneDeep } from 'lodash';
 import {
   computed, defineComponent, watch, toRef, ref, PropType,
 } from '@vue/composition-api';
@@ -10,6 +10,7 @@ import { MediaImportPayload } from 'platform/desktop/constants';
 import { locateDuplicates } from 'platform/desktop/frontend/store/dataset';
 import { useApi } from 'dive-common/apispec';
 import Vue from 'vue';
+import { clientSettings } from 'dive-common/store/settings';
 
 
 export default defineComponent({
@@ -25,6 +26,14 @@ export default defineComponent({
     const duplicates = ref(locateDuplicates(props.importData.jsonMeta));
     const showAdvanced = ref(false);
 
+    // Set default FPS to stored value or video frame rate if it exceeds current frame rate
+    if (clientSettings.annotationFPS === -1
+      || clientSettings.annotationFPS > argCopy.value.jsonMeta.originalFps) {
+      argCopy.value.jsonMeta.fps = argCopy.value.jsonMeta.originalFps;
+    } else {
+      argCopy.value.jsonMeta.fps = clientSettings.annotationFPS;
+    }
+
     watch(toRef(props, 'importData'), (val) => {
       duplicates.value = locateDuplicates(val.jsonMeta);
       argCopy.value = cloneDeep(val);
@@ -37,10 +46,12 @@ export default defineComponent({
 
     const sortedFpsOptions = computed(() => {
       const filteredOptions = FPSOptions
-        .filter((v) => v <= Math.round(argCopy.value.jsonMeta.originalFps));
-      filteredOptions.push(argCopy.value.jsonMeta.originalFps);
-      filteredOptions.sort((a, b) => a - b);
-      return uniq(filteredOptions);
+        .filter((v) => v.value < argCopy.value.jsonMeta.originalFps);
+      filteredOptions.splice(-1, 1, {
+        text: `${argCopy.value.jsonMeta.originalFps} (Video FPS)`,
+        value: argCopy.value.jsonMeta.originalFps,
+      });
+      return filteredOptions;
     });
 
     const ready = computed(() => {
@@ -60,6 +71,14 @@ export default defineComponent({
         }
       }
     };
+
+    const updateClientSettingFPS = (val: number) => {
+      if (val !== argCopy.value.jsonMeta.originalFps) {
+        clientSettings.annotationFPS = val;
+      } else {
+        clientSettings.annotationFPS = -1;
+      }
+    };
     return {
       argCopy,
       duplicates,
@@ -69,6 +88,7 @@ export default defineComponent({
       MediaTypes,
       FPSOptions,
       sortedFpsOptions,
+      updateClientSettingFPS,
       openUpload,
     };
   },
@@ -148,6 +168,7 @@ export default defineComponent({
             hint="downsampling rate"
             persistent-hint
             class="shrink"
+            @change="updateClientSettingFPS"
           />
         </v-col>
       </v-row>
