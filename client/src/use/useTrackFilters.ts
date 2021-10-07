@@ -83,6 +83,8 @@ export default function useFilteredTracks(
             confidencePairIndex,
           },
         });
+      } else {
+        console.log('Excluded', track, confidencePairIndex);
       }
     });
     return resultsArr;

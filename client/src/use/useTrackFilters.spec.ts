@@ -44,16 +44,18 @@ function makeTrackStore() {
 }
 
 describe('useTrackFilters', () => {
-  it('updateTypeName', () => {
+  it('updateTypeName', async () => {
     const { sortedTracks } = makeTrackStore();
     const tf = useTrackFilters({ sortedTracks, removeTrack, markChangesPending });
-    tf.setConfidenceFilters({ baz: 0.1, bar: 0.2 });
+    tf.setConfidenceFilters({ baz: 0.1, bar: 0.2, default: 0.1 });
     tf.updateTypeName({ currentType: 'foo', newType: 'baz' });
-    expect(tf.confidenceFilters.value).toEqual({ baz: 0.1, bar: 0.2 });
     expect(tf.allTypes.value).toEqual(['baz', 'bar']);
+    expect(tf.filteredTracks.value.filter((track) => track.track.getType()[0] === 'baz').length).toBe(2);
     tf.updateTypeName({ currentType: 'baz', newType: 'newtype' });
+    await Vue.nextTick(); // must wait a tick for confidence to settle when newtype is added.
     expect(tf.allTypes.value).toEqual(['newtype', 'bar']);
-    expect(tf.confidenceFilters.value).toEqual({ bar: 0.2, newtype: 0.1 });
+    expect(tf.filteredTracks.value.length).toBe(3);
+    expect(tf.confidenceFilters.value).toEqual({ bar: 0.2, newtype: 0.1, default: 0.1 });
   });
 
   it('deleteType', () => {
