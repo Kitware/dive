@@ -1,8 +1,8 @@
+from pickle import UNICODE
 from typing import List, Optional
-
 from girder.api import access
 from girder.api.describe import Description, autoDescribeRoute
-from girder.api.rest import Resource, rawResponse, setContentDisposition, setResponseHeader
+from girder.api.rest import Resource, rawResponse, setResponseHeader
 from girder.constants import AccessType, TokenScope
 from girder.models.folder import Folder
 
@@ -127,7 +127,8 @@ class DatasetResource(Resource):
     )
     def get_configuration(self, folder):
         setResponseHeader('Content-Type', 'application/json')
-        setContentDisposition(f'{folder["name"]}.config.json')
+        filename = f'{folder["name"]}.config.json'
+        setResponseHeader('Content-Disposition', f'attachment; filename="{filename}"')
         # A dataset configuration consists of MetadataMutable properties.
         expose = MetadataMutable.schema()['properties'].keys()
         return crud_dataset.get_dataset(folder, self.getCurrentUser()).json(
@@ -196,7 +197,8 @@ class DatasetResource(Resource):
             typeFilter=typeFilter,
         )
         setResponseHeader('Content-Type', 'application/zip')
-        setContentDisposition(folder['name'] + '.zip')
+        filename = f'{folder["name"]}.zip'
+        setResponseHeader('Content-Disposition', f'attachment; filename="{filename}"')
         return gen
 
     @access.user
