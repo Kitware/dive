@@ -1,5 +1,5 @@
-from pickle import UNICODE
 from typing import List, Optional
+
 from girder.api import access
 from girder.api.describe import Description, autoDescribeRoute
 from girder.api.rest import Resource, rawResponse, setResponseHeader
