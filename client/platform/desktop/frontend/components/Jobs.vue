@@ -5,6 +5,7 @@ import { defineComponent, ref, onBeforeUnmount } from '@vue/composition-api';
 
 import { DesktopJob } from 'platform/desktop/constants';
 
+import { cancelJob } from 'platform/desktop/frontend/api';
 import BrowserLink from './BrowserLink.vue';
 import NavigationBar from './NavigationBar.vue';
 import { datasets } from '../store/dataset';
@@ -49,6 +50,7 @@ export default defineComponent({
       /* methods */
       openPath,
       toggleVisibleOutput,
+      cancelJob,
     };
   },
 });
@@ -73,7 +75,7 @@ export default defineComponent({
             >
               <v-progress-linear
                 :color="job.job.exitCode === 0 ? 'success' : 'primary'"
-                :indeterminate="job.job.exitCode === null"
+                :indeterminate="job.job.exitCode === null && job.job.signal === null"
                 :value="100"
               />
               <v-row
@@ -83,22 +85,47 @@ export default defineComponent({
                 <v-col cols="1">
                   <div class="mt-2 d-flex flex-row justify-center">
                     <v-icon
-                      v-if="job.job.exitCode === null"
+                      v-if="job.job.exitCode === null && job.job.signal === null"
                     >
                       mdi-spin mdi-sync
                     </v-icon>
-                    <v-icon
-                      v-else-if="job.job.exitCode === 0"
-                      color="success"
-                    >
-                      mdi-check-circle
-                    </v-icon>
-                    <v-icon
-                      v-else
-                      color="error"
-                    >
-                      mdi-close
-                    </v-icon>
+                    <div v-else-if="job.job.exitCode === 0">
+                      <v-icon
+                        color="success"
+                        class="d-flex flex-row justify-center"
+                      >
+                        mdi-check-circle
+                      </v-icon>
+                      <div
+                        class="d-flex flex-row justify-center caption"
+                      >
+                        Complete
+                      </div>
+                    </div>
+                    <div v-else-if="job.job.signal === 'SIGTERM'">
+                      <v-icon
+                        color="error"
+                        class="d-flex flex-row justify-center"
+                      >
+                        mdi-alert-octagon
+                      </v-icon>
+                      <div
+                        class="caption"
+                      >
+                        User Canceled
+                      </div>
+                    </div>
+                    <div v-else>
+                      <v-icon
+                        color="error"
+                        class="d-flex flex-row justify-center"
+                      >
+                        mdi-close
+                      </v-icon>
+                      <di class="caption">
+                        Error
+                      </di>
+                    </div>
                   </div>
                 </v-col>
                 <v-col cols="8">
@@ -176,6 +203,20 @@ export default defineComponent({
                       }}
                     </span>
                   </div>
+                  <v-btn
+                    text
+                    small
+                    outlined
+                    :disabled="job.job.exitCode !== null || job.job.signal !== null"
+                    class="ml-3 mb-2 "
+                    color="error"
+                    @click="cancelJob(job.job.pid)"
+                  >
+                    <v-icon>
+                      mdi-alert-octagon
+                    </v-icon>
+                    Stop Job
+                  </v-btn>
                   <v-btn
                     text
                     small

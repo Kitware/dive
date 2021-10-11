@@ -7,6 +7,7 @@ import {
   MediaImportPayload,
 } from 'platform/desktop/constants';
 
+import { stopProcess } from 'platform/desktop/backend/native/processManager';
 import linux from './native/linux';
 import win32 from './native/windows';
 import * as common from './native/common';
@@ -126,4 +127,6 @@ export default function register() {
     };
     return currentPlatform.train(settings.get(), args, updater);
   });
+
+  ipcMain.handle('cancel-job', async (event, pid: number) => stopProcess(pid));
 }

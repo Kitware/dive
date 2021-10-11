@@ -201,6 +201,7 @@ async function convertMedia(settings: Settings,
     workingDir: jobWorkDir,
     datasetIds: [args.meta.id],
     exitCode: job.exitCode,
+    signal: null,
     startTime: new Date(),
   };
 

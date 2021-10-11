@@ -165,6 +165,7 @@ async function runPipeline(
     workingDir: jobWorkDir,
     datasetIds: [datasetId],
     exitCode: job.exitCode,
+    signal: null,
     startTime: new Date(),
   };
 
@@ -178,7 +179,7 @@ async function runPipeline(
   job.stdout.on('data', jobFileEchoMiddleware(jobBase, updater, joblog));
   job.stderr.on('data', jobFileEchoMiddleware(jobBase, updater, joblog));
 
-  job.on('exit', async (code) => {
+  job.on('exit', async (code, signal) => {
     if (code === 0) {
       try {
         const { attributes } = await common.processOtherAnnotationFiles(
@@ -196,6 +197,7 @@ async function runPipeline(
       ...jobBase,
       body: [''],
       exitCode: code,
+      signal,
       endTime: new Date(),
     });
   });
@@ -311,6 +313,7 @@ async function train(
     workingDir: jobWorkDir,
     datasetIds: runTrainingArgs.datasetIds,
     exitCode: job.exitCode,
+    signal: null,
     startTime: new Date(),
   };
 
@@ -323,7 +326,7 @@ async function train(
 
   job.stdout.on('data', jobFileEchoMiddleware(jobBase, updater, joblog));
   job.stderr.on('data', jobFileEchoMiddleware(jobBase, updater, joblog));
-  job.on('exit', async (code) => {
+  job.on('exit', async (code, signal) => {
     let exitCode = code;
     const bodyText = [''];
     if (code === 0) {
@@ -344,6 +347,7 @@ async function train(
       ...jobBase,
       body: bodyText,
       exitCode,
+      signal,
       endTime: new Date(),
     });
   });

@@ -37,6 +37,12 @@ function close(child: ChildProcess): Promise<void> {
   return onclose;
 }
 
+async function stopProcess(pid: number): Promise<void> {
+  const job = children.find((proc) => proc.pid === pid);
+  if (job !== undefined) {
+    await close(job);
+  }
+}
 /**
  * Stop all remaining child processes
  */
@@ -49,4 +55,5 @@ export {
   observeChild,
   close,
   closeAll,
+  stopProcess,
 };

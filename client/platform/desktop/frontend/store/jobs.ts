@@ -20,7 +20,9 @@ interface DesktopJobHistory {
 const truncateOutputAtLines = 500;
 const jobHistory: Ref<Record<string, DesktopJobHistory>> = ref({});
 const recentHistory = computed(() => Object.values(jobHistory.value));
-const runningJobs = computed(() => recentHistory.value.filter((v) => v.job.exitCode === null));
+const runningJobs = computed(() => recentHistory.value.filter(
+  ((v) => v.job.exitCode === null && v.job.signal === null),
+));
 
 function updateHistory(args: DesktopJobUpdate) {
   let existing = jobHistory.value[args.key];
@@ -40,6 +42,7 @@ function updateHistory(args: DesktopJobUpdate) {
   }
   existing.job.exitCode = args.exitCode;
   existing.job.endTime = args.endTime;
+  existing.job.signal = args.signal;
 }
 
 const conversionJob: Ref<Record<string, boolean>> = ref({});

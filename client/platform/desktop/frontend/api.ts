@@ -115,6 +115,10 @@ function finalizeImport(args: MediaImportPayload): Promise<JsonMeta> {
   return ipcRenderer.invoke('finalize-import', args);
 }
 
+function cancelJob(pid: number): Promise<JsonMeta> {
+  return ipcRenderer.invoke('cancel-job', pid);
+}
+
 async function exportDataset(
   id: string, exclude: boolean, typeFilter: readonly string[],
 ): Promise<string> {
@@ -192,4 +196,5 @@ export {
   importMultiCam,
   openLink,
   nvidiaSmi,
+  cancelJob,
 };

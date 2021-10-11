@@ -32,7 +32,12 @@ function jobFileEchoMiddleware(
 }
 
 function spawnResult(command: string, shell: boolean | string, args: string[] = []):
-Promise<{ output: null | string; exitCode: number | null; error: string}> {
+Promise<{
+  output: null | string;
+  exitCode: number | null;
+  signal: NodeJS.Signals| null;
+  error: string;
+}> {
   return new Promise((resolve) => {
     const proc = observeChild(spawn(command, args, { shell }));
     let output = '';
@@ -45,10 +50,11 @@ Promise<{ output: null | string; exitCode: number | null; error: string}> {
       error = error.concat(chunk.toString('utf-8'));
     });
 
-    proc.on('exit', (exitCode) => {
+    proc.on('exit', (exitCode, signal) => {
       resolve({
         output,
         exitCode,
+        signal,
         error,
       });
     });
@@ -56,6 +62,7 @@ Promise<{ output: null | string; exitCode: number | null; error: string}> {
       resolve({
         output: null,
         exitCode: -1,
+        signal: null,
         error: err.message,
       });
     });

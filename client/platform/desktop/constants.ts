@@ -167,6 +167,8 @@ export interface DesktopJob {
   workingDir: string;
   // exitCode if set, the job exited already
   exitCode: number | null;
+  // signal if sent to the job
+  signal: NodeJS.Signals | null;
   // startTime time of process initialization
   startTime: Date;
   // endTime time of process exit
