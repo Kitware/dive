@@ -20,7 +20,6 @@ import Clone from './Clone.vue';
 import ShareTab from './ShareTab.vue';
 import DataShared from './DataShared.vue';
 
-
 const buttonOptions = {
   block: true,
   left: true,
@@ -119,6 +118,9 @@ export default defineComponent({
         this.$refs.fileManager.$refs.girderBrowser.refresh();
         this.selected = [];
       } catch (err) {
+        if (err instanceof TypeError) {
+          return;
+        }
         let text = 'Unable to delete resource(s)';
         if (err.response && err.response.status === 403) {
           text = 'You do not have permission to delete selected resource(s).';
