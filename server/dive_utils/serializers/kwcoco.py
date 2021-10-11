@@ -12,7 +12,7 @@ from . import viame
 
 def is_coco_json(coco: Dict[str, Any]):
     # Required COCO fields according to https://cocodataset.org/#format-data
-    keys = ['info', 'images', 'annotations', 'licenses', 'categories']
+    keys = ['info', 'images', 'annotations', 'categories']
     return all(key in coco for key in keys)
 
 
