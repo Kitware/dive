@@ -5,7 +5,7 @@ import pytest
 
 from dive_tasks import tasks
 
-from .conftest import getClient, users, wait_for_jobs
+from .conftest import getClient, getTestFolder, users, wait_for_jobs
 
 
 @pytest.mark.integration
@@ -33,15 +33,16 @@ def test_upgrade_pipelines(admin_client: GirderClient):
 @pytest.mark.run(order=7)
 def test_run_pipelines(user: dict):
     client = getClient(user['login'])
-    dataset = client.get('dive_dataset')[0]
-    client.post(
-        'dive_rpc/pipeline',
-        parameters={
-            'folderId': dataset["_id"],
-            'pipeline': json.dumps(
-                {"folderId": None, "name": "fish", "pipe": "tracker_fish.pipe", "type": "tracker"}
-            ),
-        },
-    )
-    wait_for_jobs(client, 1000)
-    # TODO add some tests to verify that pipelines did the right thing.
+    privateFolder = getTestFolder(client)
+    for dataset in client.listFolder(privateFolder['_id']):
+        client.post(
+            'dive_rpc/pipeline',
+            parameters={
+                'folderId': dataset["_id"],
+                'pipeline': json.dumps(
+                    {"folderId": None, "name": "fish", "pipe": "tracker_fish.pipe", "type": "tracker"}
+                ),
+            },
+        )
+        wait_for_jobs(client, 1000)
+        # TODO add some tests to verify that pipelines did the right thing.
