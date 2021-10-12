@@ -2,7 +2,7 @@ from typing import List
 
 import pytest
 
-from .conftest import getClient, getTestFolder, localDataRoot, users, wait_for_jobs
+from .conftest import getClient, getTestFolder, users
 
 
 @pytest.mark.integration
@@ -38,13 +38,9 @@ def test_download_csv(user: dict):
                 item for item in user['data'] if item['name'] == dataset['name']
             ]
             rows = downloaded.content.decode('utf-8').splitlines()
-            row_count = 0
             track_set = set()
             for row in rows:
                 if not row.startswith('#'):
                     track_set.add(row.split(',')[0])
-            expected: List[dict] = [
-                item for item in user['data'] if item['name'] == dataset['name']
-            ]
             if len(expected) > 0:
                 assert len(track_set) == expected[0]['trackCount']
