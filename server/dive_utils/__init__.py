@@ -2,6 +2,7 @@
 import itertools
 import re
 from typing import Any, Dict, List, Union
+import unicodedata
 
 from dive_utils.types import GirderModel
 
@@ -60,3 +61,21 @@ def strNumericCompare(input1: str, input2: str) -> int:
             return 1
         return 1 if a > b else -1
     return 0
+
+
+def slugify(value, allow_unicode=False):
+    """
+    Taken from https://github.com/django/django/blob/master/django/utils/text.py
+    Convert to ASCII if 'allow_unicode' is False. Convert spaces or repeated
+    dashes to single dashes. Remove characters that aren't alphanumerics,
+    underscores, or hyphens. Convert to lowercase. Also strip leading and
+    trailing whitespace, dashes, and underscores.
+    NOTE: Slightly modified to allow '.' for extensions and non-stripping of '-' and '_'
+    """
+    value = str(value)
+    if allow_unicode:
+        value = unicodedata.normalize('NFKC', value)
+    else:
+        value = unicodedata.normalize('NFKD', value).encode('ascii', 'ignore').decode('ascii')
+    value = re.sub(r'[^\w\s\.-]', '', value.lower())
+    return re.sub(r'[-\s]+', '-', value)

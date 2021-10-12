@@ -27,7 +27,7 @@ users: Dict[str, Dict[str, Any]] = {
                 'fps': 30,  # Should get reduced.
                 'originalFps': 30_000 / 1001,
                 'type': 'video',
-                'trackCount': 102
+                'trackCount': 102,
             },
             {
                 'name': 'video2_train_mp4',
@@ -35,7 +35,7 @@ users: Dict[str, Dict[str, Any]] = {
                 'fps': 5.8,
                 'originalFps': 30_000 / 1001,
                 'type': 'video',
-                'trackCount': 102
+                'trackCount': 102,
             },
         ],
     },
@@ -51,21 +51,21 @@ users: Dict[str, Dict[str, Any]] = {
                 'path': 'TestData/testTrain1_imagelist',
                 'fps': 1,
                 'type': 'image-sequence',
-                'trackCount': 2
+                'trackCount': 2,
             },
             {
                 'name': 'testTrain2_imagelist',
                 'path': 'TestData/testTrain2_imagelist',
                 'fps': 6,
                 'type': 'image-sequence',
-                'trackCount': 1
+                'trackCount': 1,
             },
             {
                 'name': 'multiConfidence_text',
                 'path': 'TestData/multiConfidence_test',
                 'fps': 22.1,
                 'type': 'image-sequence',
-                'trackCount': 4
+                'trackCount': 4,
             },
         ],
     },
@@ -81,41 +81,41 @@ users: Dict[str, Dict[str, Any]] = {
                 'path': 'kwcoco/scallops',
                 'fps': 1,
                 'type': 'image-sequence',
-                'trackCount': 197
+                'trackCount': 197,
             },
             {
                 'name': 'kwpolys',
                 'path': 'kwcoco/polygons',
                 'fps': 1,
                 'type': 'image-sequence',
-                'trackCount': 14
+                'trackCount': 14,
             },
             {
                 'name': 'kwvideo',
                 'path': 'kwcoco/video',
                 'fps': 29.969,
-                'originalFps': 29969/1000,
+                'originalFps': 29969 / 1000,
                 'type': 'video',
-                'trackCount': 6
+                'trackCount': 6,
             },
         ],
     },
     'testCharacters': {
-    'login': 'testCharacters',
-    'email': 'testCharacters@locahost.lan',
-    'firstName': 't🤢ø三好Дظ',
-    'lastName': 't🤢ø三好Дظ',
-    'password': 'testCharactersPassword',
+        'login': 'testCharacters',
+        'email': 'testCharacters@locahost.lan',
+        'firstName': 't🤢ø三好Дظ',
+        'lastName': 't🤢ø三好Дظ',
+        'password': 'testCharactersPassword',
         'data': [
             {
                 'name': 't🤢ø三好Дظ',
                 'path': 'TestData/testTrain1_imagelist',
                 'fps': 1,
                 'type': 'image-sequence',
-                'trackCount': 2
+                'trackCount': 2,
             }
         ],
-    }
+    },
 }
 
 

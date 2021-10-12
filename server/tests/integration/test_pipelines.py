@@ -9,7 +9,7 @@ from .conftest import getClient, getTestFolder, users, wait_for_jobs
 
 
 @pytest.mark.integration
-@pytest.mark.run(order=5)
+@pytest.mark.run(order=7)
 def test_reset_job_logs(admin_client: GirderClient):
     # remove any failed jobs.
     for job in admin_client.get('job', parameters={"statuses": json.dumps([0, 1, 2, 4, 5, 824])}):
@@ -17,7 +17,7 @@ def test_reset_job_logs(admin_client: GirderClient):
 
 
 @pytest.mark.integration
-@pytest.mark.run(order=6)
+@pytest.mark.run(order=8)
 def test_upgrade_pipelines(admin_client: GirderClient):
     cnf = admin_client.get('dive_configuration/pipelines')
     if 'detector' not in cnf:
@@ -30,7 +30,7 @@ def test_upgrade_pipelines(admin_client: GirderClient):
 
 @pytest.mark.integration
 @pytest.mark.parametrize("user", users.values())
-@pytest.mark.run(order=7)
+@pytest.mark.run(order=9)
 def test_run_pipelines(user: dict):
     client = getClient(user['login'])
     privateFolder = getTestFolder(client)
@@ -40,7 +40,12 @@ def test_run_pipelines(user: dict):
             parameters={
                 'folderId': dataset["_id"],
                 'pipeline': json.dumps(
-                    {"folderId": None, "name": "fish", "pipe": "tracker_fish.pipe", "type": "tracker"}
+                    {
+                        "folderId": None,
+                        "name": "fish",
+                        "pipe": "tracker_fish.pipe",
+                        "type": "tracker",
+                    }
                 ),
             },
         )
