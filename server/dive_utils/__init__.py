@@ -78,4 +78,7 @@ def slugify(value, allow_unicode=False):
     else:
         value = unicodedata.normalize('NFKD', value).encode('ascii', 'ignore').decode('ascii')
     value = re.sub(r'[^\w\s\.-]', '', value.lower())
+    value = re.sub(r'[-\s]+', '-', value)
+    if '.' in value and len(value.split('.')) == 1:  # all unicode stripped, gives back sample.ext
+        value = f"sample{value}"
     return re.sub(r'[-\s]+', '-', value)

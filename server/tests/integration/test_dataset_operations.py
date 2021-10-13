@@ -38,6 +38,22 @@ def test_get_media(user: dict):
 @pytest.mark.integration
 @pytest.mark.parametrize("user", users.values())
 @pytest.mark.run(order=5)
+def test_get_annotations(user: dict):
+    client = getClient(user['login'])
+    privateFolder = getTestFolder(client)
+    datasets = client.get('dive_dataset')
+    for dataset in datasets:
+        if dataset['parentId'] == privateFolder["_id"]:
+            expected: List[dict] = [
+                item for item in user['data'] if item['name'] == dataset['name']
+            ]
+            if len(expected) == 0:
+                assert 'clone' in dataset['name']
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("user", users.values())
+@pytest.mark.run(order=5)
 def test_dataset_clone(user: dict):
     client = getClient(user['login'])
     privateFolder = getTestFolder(client)

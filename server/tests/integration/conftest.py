@@ -28,6 +28,11 @@ users: Dict[str, Dict[str, Any]] = {
                 'originalFps': 30_000 / 1001,
                 'type': 'video',
                 'trackCount': 102,
+                'pipeline': {
+                    "name": "fish",
+                    "pipe": "tracker_fish.pipe",
+                    "type": "tracker",
+                },
             },
             {
                 'name': 'video2_train_mp4',
@@ -52,6 +57,12 @@ users: Dict[str, Dict[str, Any]] = {
                 'fps': 1,
                 'type': 'image-sequence',
                 'trackCount': 2,
+                'pipeline': {
+                    "name": "add segmentations watershed",
+                    "pipe": "utility_add_segmentations_watershed.pipe",
+                    "type": "utility",
+                    'resultTracks': 28,
+                },
             },
             {
                 'name': 'testTrain2_imagelist',
@@ -59,6 +70,12 @@ users: Dict[str, Dict[str, Any]] = {
                 'fps': 6,
                 'type': 'image-sequence',
                 'trackCount': 1,
+                'pipeline': {
+                    "name": "empty frame lbls 1fr",
+                    "pipe": "utility_empty_frame_lbls_1fr.pipe",
+                    "type": "utility",
+                    'resultTracks': 14,
+                },
             },
             {
                 'name': 'multiConfidence_text',
@@ -66,6 +83,11 @@ users: Dict[str, Dict[str, Any]] = {
                 'fps': 22.1,
                 'type': 'image-sequence',
                 'trackCount': 4,
+                'pipeline': {
+                    "name": "motion",
+                    "pipe": "detector_motion.pipe",
+                    "type": "detector",
+                },
             },
         ],
     },
@@ -113,6 +135,12 @@ users: Dict[str, Dict[str, Any]] = {
                 'fps': 1,
                 'type': 'image-sequence',
                 'trackCount': 2,
+                'pipeline': {
+                    "name": "add segmentations watershed",
+                    "pipe": "utility_add_segmentations_watershed.pipe",
+                    "type": "utility",
+                    'resultTracks': 28,
+                },
             }
         ],
     },
