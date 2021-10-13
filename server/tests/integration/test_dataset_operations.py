@@ -1,11 +1,9 @@
-from typing import List
-
 import pytest
 from requests.exceptions import RequestException
 
 from dive_utils import fromMeta
 
-from .conftest import getClient, getTestFolder, localDataRoot, users
+from .conftest import getClient, getTestFolder, localDataRoot, match_user_server_data, users
 
 
 @pytest.mark.integration
@@ -16,7 +14,7 @@ def test_get_media(user: dict):
     privateFolder = getTestFolder(client)
     for dataset in client.listFolder(privateFolder['_id']):
         media = client.get(f'dive_dataset/{dataset["_id"]}/media')
-        expected: List[dict] = [item for item in user['data'] if item['name'] == dataset['name']]
+        expected = match_user_server_data(user, dataset)
         if len(expected) == 0:
             assert 'clone' in dataset['name']
         dsPath = localDataRoot / str(expected[0].get('path'))
@@ -44,9 +42,7 @@ def test_get_annotations(user: dict):
     datasets = client.get('dive_dataset')
     for dataset in datasets:
         if dataset['parentId'] == privateFolder["_id"]:
-            expected: List[dict] = [
-                item for item in user['data'] if item['name'] == dataset['name']
-            ]
+            expected = match_user_server_data(user, dataset)
             if len(expected) == 0:
                 assert 'clone' in dataset['name']
 

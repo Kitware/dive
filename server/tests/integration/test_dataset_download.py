@@ -1,8 +1,6 @@
-from typing import List
-
 import pytest
 
-from .conftest import getClient, getTestFolder, users
+from .conftest import getClient, getTestFolder, match_user_server_data, users
 
 
 @pytest.mark.integration
@@ -14,11 +12,8 @@ def test_download_annotation(user: dict):
     for dataset in client.listFolder(privateFolder['_id']):
         downloaded = client.get(f'dive_annotation/?folderId={dataset["_id"]}')
         if 'clone' not in dataset['name']:
-            expected: List[dict] = [
-                item for item in user['data'] if item['name'] == dataset['name']
-            ]
-            if len(expected) > 0:
-                assert len(downloaded.keys()) == expected[0]['trackCount']
+            expected = match_user_server_data(user, dataset)
+            assert len(downloaded.keys()) == expected[0]['trackCount']
 
 
 @pytest.mark.integration
@@ -34,13 +29,10 @@ def test_download_csv(user: dict):
             jsonResp=False,
         )
         if 'clone' not in dataset['name']:
-            expected: List[dict] = [
-                item for item in user['data'] if item['name'] == dataset['name']
-            ]
+            expected = match_user_server_data(user, dataset)
             rows = downloaded.content.decode('utf-8').splitlines()
             track_set = set()
             for row in rows:
                 if not row.startswith('#'):
                     track_set.add(row.split(',')[0])
-            if len(expected) > 0:
-                assert len(track_set) == expected[0]['trackCount']
+            assert len(track_set) == expected[0]['trackCount']

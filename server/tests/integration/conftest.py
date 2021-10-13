@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 import time
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from girder_client import GirderClient
 import pytest
@@ -194,3 +194,7 @@ def wait_for_jobs(client: GirderClient, max_wait_timeout=30):
     )
     if len(lastJob) > 0 and lastJob[0]['status'] != 3:
         raise Exception("Some jobs did not succeed")
+
+
+def match_user_server_data(user: Dict[str, Any], dataset) -> List[dict]:
+    return [item for item in user['data'] if item['name'] == dataset['name']]

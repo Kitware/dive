@@ -1,12 +1,11 @@
 import json
-from typing import List
 
 from girder_client import GirderClient
 import pytest
 
 from dive_tasks import tasks
 
-from .conftest import getClient, getTestFolder, users, wait_for_jobs
+from .conftest import getClient, getTestFolder, match_user_server_data, users, wait_for_jobs
 
 
 @pytest.mark.integration
@@ -36,7 +35,7 @@ def test_run_pipelines(user: dict):
     client = getClient(user['login'])
     privateFolder = getTestFolder(client)
     for dataset in client.listFolder(privateFolder['_id']):
-        expected: List[dict] = [item for item in user['data'] if item['name'] == dataset['name']]
+        expected = match_user_server_data(user, dataset)
         if len(expected) == 0:
             assert 'clone' in dataset['name']
             continue
@@ -70,5 +69,4 @@ def test_run_pipelines(user: dict):
                 for row in rows:
                     if not row.startswith('#'):
                         track_set.add(row.split(',')[0])
-                if len(expected) > 0:
-                    assert len(track_set) == result_tracks
+                assert len(track_set) == result_tracks
