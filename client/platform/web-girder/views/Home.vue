@@ -19,6 +19,7 @@ import DataDetails from './DataDetails.vue';
 import Clone from './Clone.vue';
 import ShareTab from './ShareTab.vue';
 import DataShared from './DataShared.vue';
+import { useStore } from '../store/types';
 
 const buttonOptions = {
   block: true,
@@ -51,6 +52,11 @@ export default defineComponent({
   setup() {
     const loading = ref(false);
     const { prompt } = usePrompt();
+    const store = useStore();
+
+    const clearSelected = () => {
+      store.commit('Location/setSelected', []);
+    };
 
     return {
       // data
@@ -59,6 +65,7 @@ export default defineComponent({
       loading,
       // methods
       prompt,
+      clearSelected,
     };
   },
   // everything below needs to be refactored to composition-api
@@ -115,12 +122,9 @@ export default defineComponent({
       try {
         this.loading = true;
         await deleteResources(this.selected);
-        this.$refs.fileManager.$refs.girderBrowser.refresh();
-        this.selected = [];
+        this.$refs.view.$refs.fileManager.$refs.girderBrowser.refresh();
+        this.clearSelected();
       } catch (err) {
-        if (err instanceof TypeError) {
-          return;
-        }
         let text = 'Unable to delete resource(s)';
         if (err.response && err.response.status === 403) {
           text = 'You do not have permission to delete selected resource(s).';
@@ -215,7 +219,9 @@ export default defineComponent({
               :value="0"
             />
           </v-toolbar>
-          <router-view />
+          <router-view
+            ref="view"
+          />
           <v-card
             v-if="selectedDescription"
             class="my-4"
