@@ -59,5 +59,5 @@ task_ignore_result = True
 # https://docs.celeryproject.org/en/stable/userguide/configuration.html#std-setting-task_reject_on_worker_lost
 # Run tasks at least once, rescheduling them if the worker crashes.
 # TODO: had to abandon due to https://github.com/Kitware/dive/issues/995
-# task_reject_on_worker_lost = True
-# task_acks_late = True
+task_reject_on_worker_lost = True
+task_acks_late = True
