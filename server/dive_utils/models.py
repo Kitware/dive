@@ -87,6 +87,8 @@ class CustomStyle(BaseModel):
     strokeWidth: Optional[float]
     opacity: Optional[float]
     fill: Optional[bool]
+    showLabel: Optional[bool]
+    showConfidence: Optional[bool]
 
 
 class MetadataMutable(BaseModel):

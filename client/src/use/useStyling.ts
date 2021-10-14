@@ -35,9 +35,7 @@ export interface TypeStyling {
   strokeWidth: (type: string) => number;
   fill: (type: string) => boolean;
   opacity: (type: string) => number;
-  label: (type: string, label: string, confidence: number) => string;
-  showLabel: (type: string) => boolean;
-  showConfidence: (type: string) => boolean;
+  labelSettings: (type: string) => {showLabel: boolean; showConfidence: boolean};
 }
 
 interface UseStylingParams {
@@ -138,7 +136,6 @@ export default function useStyling({ markChangesPending }: UseStylingParams) {
     VueSet(customStyles.value, type, merge(oldValue, value));
     customStylesRevisionCounter.value += 1;
     markChangesPending();
-    console.log(customStyles.value);
   }
 
   const ordinalColorMapper = d3.scaleOrdinal<string>().range(typeColors);
@@ -175,33 +172,18 @@ export default function useStyling({ markChangesPending }: UseStylingParams) {
         }
         return stateStyling.standard.opacity;
       },
-      showLabel: (type: string) => {
-        if (_customStyles[type] && _customStyles[type].showLabel !== undefined) {
-          return _customStyles[type].showLabel;
-        }
-        return stateStyling.standard.showLabel;
-      },
-      showConfidence: (type: string) => {
-        if (_customStyles[type] && _customStyles[type].showConfidence !== undefined) {
-          return _customStyles[type].showConfidence;
-        }
-        return stateStyling.standard.showConfidence;
-      },
-
-      label: (type: string, label: string, confidence: number) => {
-        let base = '';
+      labelSettings: (type: string) => {
+        let { showLabel, showConfidence } = stateStyling.standard;
         if (_customStyles[type]) {
-          if (_customStyles[type].showLabel) {
-            base = `${label}`;
+          if (typeof (_customStyles[type].showLabel) === 'boolean') {
+            showLabel = _customStyles[type].showLabel as boolean;
           }
-          if (_customStyles[type].showConfidence) {
-            base = `${base}:${confidence.toFixed(2)}`;
+          if (typeof (_customStyles[type].showConfidence) === 'boolean') {
+            showConfidence = _customStyles[type].showConfidence as boolean;
           }
-          return base;
         }
-        return `${label}:${confidence.toFixed(2)}`;
+        return { showLabel, showConfidence };
       },
-
     } as TypeStyling;
   });
 

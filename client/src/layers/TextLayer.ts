@@ -42,9 +42,16 @@ function defaultFormatter(
         const [type, confidence] = track.confidencePairs[i];
         const isCurrentPair = (type === track.trackType[0]);
         const currentTypeIndication = (isCurrentPair && totalVisiblePairs > 1) ? '**' : '';
-        let text = `${currentTypeIndication}${type}: ${confidence.toFixed(2)}`;
+        let text = '';
         if (typeStyling) {
-          text = typeStyling.label(type, `${currentTypeIndication}${type}`, confidence);
+          const { showLabel, showConfidence } = typeStyling.labelSettings(type);
+          if (showLabel && !showConfidence) {
+            text = `${currentTypeIndication}${type}`;
+          } else if (showConfidence && !showLabel) {
+            text = `${currentTypeIndication}${confidence.toFixed(2)}`;
+          } else if (showConfidence && showLabel) {
+            text = `${currentTypeIndication}${type}: ${confidence.toFixed(2)}`;
+          }
         }
         arr.push({
           selected: track.selected,

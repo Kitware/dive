@@ -255,9 +255,9 @@ function dummyState(): State {
       strokeWidth() { return style.strokeWidth; },
       opacity() { return style.opacity; },
       fill() { return style.fill; },
-      showLabel() { return style.showLabel; },
-      showConfidence() { return style.showConfidence; },
-      label() { return ''; },
+      labelSettings() {
+        return { showLabel: style.showLabel, showConfidence: style.showConfidence };
+      },
     }),
     selectedKey: ref(''),
     selectedTrackId: ref(null),

@@ -53,7 +53,7 @@ export default defineComponent({
           fill: data.editingFill,
           opacity: data.editingOpacity,
           showLabel: data.editingShowLabel,
-          showConfidence: data.editingShowLabel && data.editingShowConfidence,
+          showConfidence: data.editingShowConfidence,
         },
       });
       emit('close');
@@ -79,8 +79,9 @@ export default defineComponent({
       data.editingThickness = typeStylingRef.value.strokeWidth(props.selectedType);
       data.editingFill = typeStylingRef.value.fill(props.selectedType);
       data.editingOpacity = typeStylingRef.value.opacity(props.selectedType);
-      data.editingShowLabel = typeStylingRef.value.showLabel(props.selectedType);
-      data.editingShowConfidence = typeStylingRef.value.showConfidence(props.selectedType);
+      const labelSettings = typeStylingRef.value.labelSettings(props.selectedType);
+      data.editingShowConfidence = labelSettings.showConfidence;
+      data.editingShowLabel = labelSettings.showLabel;
     }
     watch(toRef(props, 'selectedType'), init);
     init();
@@ -142,11 +143,8 @@ export default defineComponent({
                 dense
                 shrink
               />
-            </v-col>
-            <v-col>
               <v-checkbox
                 v-model="data.editingShowConfidence"
-                :disabled="!data.editingShowLabel"
                 label="Show Confidence"
                 dense
                 shrink
