@@ -2,9 +2,11 @@ from typing import List, Optional
 
 from girder.api import access
 from girder.api.describe import Description, autoDescribeRoute
-from girder.api.rest import Resource, setContentDisposition
+from girder.api.rest import Resource, setResponseHeader
 from girder.constants import AccessType, TokenScope
 from girder.models.folder import Folder
+
+from dive_utils import slugify
 
 from . import crud, crud_annotation
 
@@ -65,7 +67,9 @@ class AnnotationResource(Resource):
             excludeBelowThreshold=excludeBelowThreshold,
             typeFilter=typeFilter,
         )
-        setContentDisposition(filename)
+        filename = slugify(filename)
+        setResponseHeader('Content-Type', 'text/csv')
+        setResponseHeader('Content-Disposition', f'attachment; filename="{filename}"')
         return gen
 
     @access.user

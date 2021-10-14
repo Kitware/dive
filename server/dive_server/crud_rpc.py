@@ -14,7 +14,7 @@ import pymongo
 
 from dive_server import crud
 from dive_tasks import tasks
-from dive_utils import TRUTHY_META_VALUES, asbool, constants, fromMeta, models, types
+from dive_utils import TRUTHY_META_VALUES, asbool, constants, fromMeta, models, slugify, types
 from dive_utils.serializers import meva
 
 from . import crud_dataset
@@ -208,6 +208,7 @@ def ensure_csv_detections_file(
     in the request thread
     """
     filename, gen = crud.get_annotation_csv_generator(folder, user, excludeBelowThreshold=True)
+    filename = slugify(filename)
     csv_bytes = ("".join([line for line in gen()])).encode()
     new_file = File().createFile(
         user,

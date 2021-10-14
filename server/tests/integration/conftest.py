@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 import time
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from girder_client import GirderClient
 import pytest
@@ -27,6 +27,12 @@ users: Dict[str, Dict[str, Any]] = {
                 'fps': 30,  # Should get reduced.
                 'originalFps': 30_000 / 1001,
                 'type': 'video',
+                'trackCount': 102,
+                'pipeline': {
+                    "name": "fish",
+                    "pipe": "tracker_fish.pipe",
+                    "type": "tracker",
+                },
             },
             {
                 'name': 'video2_train_mp4',
@@ -34,6 +40,7 @@ users: Dict[str, Dict[str, Any]] = {
                 'fps': 5.8,
                 'originalFps': 30_000 / 1001,
                 'type': 'video',
+                'trackCount': 102,
             },
         ],
     },
@@ -49,19 +56,92 @@ users: Dict[str, Dict[str, Any]] = {
                 'path': 'TestData/testTrain1_imagelist',
                 'fps': 1,
                 'type': 'image-sequence',
+                'trackCount': 2,
+                'pipeline': {
+                    "name": "add segmentations watershed",
+                    "pipe": "utility_add_segmentations_watershed.pipe",
+                    "type": "utility",
+                    'resultTracks': 28,
+                },
             },
             {
                 'name': 'testTrain2_imagelist',
                 'path': 'TestData/testTrain2_imagelist',
                 'fps': 6,
                 'type': 'image-sequence',
+                'trackCount': 1,
+                'pipeline': {
+                    "name": "empty frame lbls 1fr",
+                    "pipe": "utility_empty_frame_lbls_1fr.pipe",
+                    "type": "utility",
+                    'resultTracks': 14,
+                },
             },
             {
                 'name': 'multiConfidence_text',
                 'path': 'TestData/multiConfidence_test',
                 'fps': 22.1,
                 'type': 'image-sequence',
+                'trackCount': 4,
+                'pipeline': {
+                    "name": "motion",
+                    "pipe": "detector_motion.pipe",
+                    "type": "detector",
+                },
             },
+        ],
+    },
+    'kwcoco': {
+        'login': 'kwcoco',
+        'email': 'kwcoco@locahost.lan',
+        'firstName': 'KW',
+        'lastName': 'COCO',
+        'password': 'kwcocopass',
+        'data': [
+            {
+                'name': 'scallops',
+                'path': 'kwcoco/scallops',
+                'fps': 1,
+                'type': 'image-sequence',
+                'trackCount': 197,
+            },
+            {
+                'name': 'kwpolys',
+                'path': 'kwcoco/polygons',
+                'fps': 1,
+                'type': 'image-sequence',
+                'trackCount': 14,
+            },
+            {
+                'name': 'kwvideo',
+                'path': 'kwcoco/video',
+                'fps': 29.969,
+                'originalFps': 29969 / 1000,
+                'type': 'video',
+                'trackCount': 6,
+            },
+        ],
+    },
+    'testCharacters': {
+        'login': 'testCharacters',
+        'email': 'testCharacters@locahost.lan',
+        'firstName': 't🤢ø三好Дظ',
+        'lastName': 't🤢ø三好Дظ',
+        'password': 'testCharactersPassword',
+        'data': [
+            {
+                'name': 't🤢ø三好Дظ',
+                'path': 'TestData/testTrain1_imagelist',
+                'fps': 1,
+                'type': 'image-sequence',
+                'trackCount': 2,
+                'pipeline': {
+                    "name": "add segmentations watershed",
+                    "pipe": "utility_add_segmentations_watershed.pipe",
+                    "type": "utility",
+                    'resultTracks': 28,
+                },
+            }
         ],
     },
 }
@@ -114,3 +194,7 @@ def wait_for_jobs(client: GirderClient, max_wait_timeout=30):
     )
     if len(lastJob) > 0 and lastJob[0]['status'] != 3:
         raise Exception("Some jobs did not succeed")
+
+
+def match_user_server_data(user: Dict[str, Any], dataset) -> List[dict]:
+    return [item for item in user['data'] if item['name'] == dataset['name']]
