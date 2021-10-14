@@ -14,15 +14,15 @@ services:
 
   girder_worker_pipelines:
     volumes:
-      - ../server:/home/viame_girder
+      - ../server:/home/dive
 
   girder_worker_training:
     volumes:
-      - ../server:/home/viame_girder
+      - ../server:/home/dive
 
   girder_worker_default:
     volumes:
-      - ../server:/home/viame_girder
+      - ../server:/home/dive
 
   mc:
     image: mongo:latest
