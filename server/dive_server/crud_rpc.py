@@ -36,22 +36,21 @@ def _load_dynamic_pipelines(user: types.GirderUserModel) -> Dict[str, types.Pipe
     ):
         pipename = None
         for item in Folder().childItems(folder):
-            if item['name'].endswith('.pipe'):
+            if item['name'].endswith('.pipe') and not item['name'].startswith('embedded_'):
                 pipename = item['name']
-                if pipename is not None and pipename.startswith('embedded_') is False:
-                    append_text = ''
-                    if pipename.endswith('tracker.pipe'):
-                        append_text = ' tracker'
-                    elif pipename.endswith('detector.pipe'):
-                        append_text = ' detector'
-                    pipelines[constants.TrainedPipelineCategory]["pipes"].append(
-                        {
-                            "name": f'{folder["name"]}{append_text}',
-                            "type": constants.TrainedPipelineCategory,
-                            "pipe": pipename,
-                            "folderId": str(folder["_id"]),
-                        }
-                    )
+                append_text = ''
+                if pipename.endswith('tracker.pipe'):
+                    append_text = ' tracker'
+                elif pipename.endswith('detector.pipe'):
+                    append_text = ' detector'
+                pipelines[constants.TrainedPipelineCategory]["pipes"].append(
+                    {
+                        "name": f'{folder["name"]}{append_text}',
+                        "type": constants.TrainedPipelineCategory,
+                        "pipe": pipename,
+                        "folderId": str(folder["_id"]),
+                    }
+                )
     return pipelines
 
 
