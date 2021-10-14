@@ -11,6 +11,8 @@ interface Style {
   opacity: number;
   color: string;
   fill: boolean;
+  showLabel: boolean;
+  showConfidence: boolean;
 }
 
 export interface StateStyles {
@@ -24,6 +26,8 @@ export interface CustomStyle {
   strokeWidth?: number;
   opacity?: number;
   fill?: boolean;
+  showLabel?: boolean;
+  showConfidence?: boolean;
 }
 
 export interface TypeStyling {
@@ -31,6 +35,9 @@ export interface TypeStyling {
   strokeWidth: (type: string) => number;
   fill: (type: string) => boolean;
   opacity: (type: string) => number;
+  label: (type: string, label: string, confidence: number) => string;
+  showLabel: (type: string) => boolean;
+  showConfidence: (type: string) => boolean;
 }
 
 interface UseStylingParams {
@@ -96,6 +103,8 @@ export default function useStyling({ markChangesPending }: UseStylingParams) {
     opacity: 1.0,
     color: 'type',
     fill: false,
+    showLabel: true,
+    showConfidence: true,
   };
   const selected: Style = {
     ...standard,
@@ -129,6 +138,7 @@ export default function useStyling({ markChangesPending }: UseStylingParams) {
     VueSet(customStyles.value, type, merge(oldValue, value));
     customStylesRevisionCounter.value += 1;
     markChangesPending();
+    console.log(customStyles.value);
   }
 
   const ordinalColorMapper = d3.scaleOrdinal<string>().range(typeColors);
@@ -165,6 +175,33 @@ export default function useStyling({ markChangesPending }: UseStylingParams) {
         }
         return stateStyling.standard.opacity;
       },
+      showLabel: (type: string) => {
+        if (_customStyles[type] && _customStyles[type].showLabel !== undefined) {
+          return _customStyles[type].showLabel;
+        }
+        return stateStyling.standard.showLabel;
+      },
+      showConfidence: (type: string) => {
+        if (_customStyles[type] && _customStyles[type].showConfidence !== undefined) {
+          return _customStyles[type].showConfidence;
+        }
+        return stateStyling.standard.showConfidence;
+      },
+
+      label: (type: string, label: string, confidence: number) => {
+        let base = '';
+        if (_customStyles[type]) {
+          if (_customStyles[type].showLabel) {
+            base = `${label}`;
+          }
+          if (_customStyles[type].showConfidence) {
+            base = `${base}:${confidence.toFixed(2)}`;
+          }
+          return base;
+        }
+        return `${label}:${confidence.toFixed(2)}`;
+      },
+
     } as TypeStyling;
   });
 

@@ -232,6 +232,8 @@ function dummyState(): State {
     opacity: 1,
     color: 'white',
     fill: false,
+    showLabel: true,
+    showConfidence: true,
   };
   return {
     attributes: ref([]),
@@ -253,6 +255,9 @@ function dummyState(): State {
       strokeWidth() { return style.strokeWidth; },
       opacity() { return style.opacity; },
       fill() { return style.fill; },
+      showLabel() { return style.showLabel; },
+      showConfidence() { return style.showConfidence; },
+      label() { return ''; },
     }),
     selectedKey: ref(''),
     selectedTrackId: ref(null),

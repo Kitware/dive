@@ -1,3 +1,4 @@
+import { TypeStyling } from 'vue-media-annotator/use/useStyling';
 import BaseLayer, { BaseLayerParams, LayerStyle } from './BaseLayer';
 import { FrameDataTrack } from './LayerTypes';
 
@@ -14,7 +15,7 @@ export interface TextData {
   currentPair: boolean;
 }
 
-export type FormatTextRow = (track: FrameDataTrack) => TextData[] | null;
+export type FormatTextRow = (track: FrameDataTrack, typeStyling?: TypeStyling) => TextData[] | null;
 
 interface TextLayerParams {
   formatter?: FormatTextRow;
@@ -26,7 +27,12 @@ interface TextLayerParams {
  * @param lineHeight - height of each text line
  * @returns value or null.  null indicates that the text should not be displayed.
  */
-function defaultFormatter(track: FrameDataTrack, maxPairs = 1, lineHeight = 20): TextData[] | null {
+function defaultFormatter(
+  track: FrameDataTrack,
+  typeStyling?: TypeStyling,
+  maxPairs = 1,
+  lineHeight = 20,
+): TextData[] | null {
   if (track.features && track.features.bounds) {
     const { bounds } = track.features;
     if (bounds && track.confidencePairs !== null) {
@@ -36,12 +42,16 @@ function defaultFormatter(track: FrameDataTrack, maxPairs = 1, lineHeight = 20):
         const [type, confidence] = track.confidencePairs[i];
         const isCurrentPair = (type === track.trackType[0]);
         const currentTypeIndication = (isCurrentPair && totalVisiblePairs > 1) ? '**' : '';
+        let text = `${currentTypeIndication}${type}: ${confidence.toFixed(2)}`;
+        if (typeStyling) {
+          text = typeStyling.label(type, `${currentTypeIndication}${type}`, confidence);
+        }
         arr.push({
           selected: track.selected,
           editing: track.editing,
           type,
           confidence,
-          text: `${currentTypeIndication}${type}: ${confidence.toFixed(2)}`,
+          text,
           x: bounds[2],
           y: -1, // updated below
           currentPair: isCurrentPair,
@@ -78,7 +88,7 @@ export default class TextLayer extends BaseLayer<TextData> {
   formatData(frameData: FrameDataTrack[]) {
     const arr = [] as TextData[];
     frameData.forEach((track: FrameDataTrack) => {
-      const formatted = this.formatter(track);
+      const formatted = this.formatter(track, this.typeStyling.value);
       if (formatted !== null) {
         arr.push(...formatted);
       }
