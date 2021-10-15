@@ -50,17 +50,17 @@ export default defineComponent({
     const multiCamOpenType: Ref<'image-sequence'|'video'> = ref('image-sequence');
     const { prompt } = usePrompt();
 
-    async function open(dstype: DatasetType) {
-      const ret = await api.openFromDisk(dstype);
+    async function open(dstype: DatasetType | 'text', directory = false) {
+      const ret = await api.openFromDisk(dstype, directory);
       if (!ret.canceled) {
         try {
           checkingMedia.value = true;
           pendingImportPayload.value = await api.importMedia(ret.filePaths[0]);
-          checkingMedia.value = false;
         } catch (err) {
           snackbar.value = true;
           errorText.value = err.message;
         }
+        checkingMedia.value = false;
       }
     }
 
@@ -95,11 +95,11 @@ export default defineComponent({
       try {
         checkingMedia.value = true;
         pendingImportPayload.value = await api.importMultiCam(args);
-        checkingMedia.value = false;
       } catch (err) {
         snackbar.value = true;
         errorText.value = err.message;
       }
+      checkingMedia.value = false;
     }
 
     async function confirmDeleteDataset(datasetId: string, datasetName: string) {
@@ -271,12 +271,12 @@ export default defineComponent({
             Upgraded to DIVE Desktop Release {{ upgradedVersion }}
           </h2>
           Read the
-          <browser-link
+          <BrowserLink
             href="https://github.com/Kitware/dive/releases"
             display="inline"
           >
             release logs
-          </browser-link>
+          </BrowserLink>
           to find out what's new.
         </v-alert>
         <v-alert
@@ -300,48 +300,48 @@ export default defineComponent({
             </h1>
             <h3>Useful Links</h3>
             <div>
-              <browser-link
+              <BrowserLink
                 display="inline"
                 href="https://kitware.github.io/dive/"
               >
                 User Guide
-              </browser-link>
+              </BrowserLink>
             </div>
             <div>
-              <browser-link
+              <BrowserLink
                 display="inline"
                 href="https://viame.kitware.com/#/collection/5e4c256ca0fc86aa03120c34"
               >
                 Public example data
-              </browser-link>
+              </BrowserLink>
             </div>
             <div>
-              <browser-link
+              <BrowserLink
                 display="inline"
                 href="https://viametoolkit.org/"
               >
                 viametoolkit.org
-              </browser-link>
+              </BrowserLink>
             </div>
           </v-col>
           <v-col
             md="6"
             sm="6"
           >
-            <import-button
+            <ImportButton
               name="Open Image Sequence"
               icon="mdi-folder-open"
               open-type="image-sequence"
-              class="my-2"
+              class="my-3"
               :multi-cam-import="true"
               @open="open($event)"
               @multi-cam="openMultiCamDialog"
             />
-            <import-button
+            <ImportButton
               name="Open Video"
               icon="mdi-file-video"
               open-type="video"
-              class="my-2"
+              class="my-3"
               :multi-cam-import="true"
               @open="open($event)"
               @multi-cam="openMultiCamDialog"

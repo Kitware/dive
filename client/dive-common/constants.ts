@@ -96,6 +96,10 @@ const inputAnnotationFileTypes = [
   'csv',
 ];
 
+const listFileTypes = [
+  'txt',
+];
+
 const stereoPipelineMarker = 'measurement';
 const multiCamPipelineMarker = ''; //Placeholder
 
@@ -116,6 +120,7 @@ export {
   websafeVideoTypes,
   inputAnnotationTypes,
   inputAnnotationFileTypes,
+  listFileTypes,
   stereoPipelineMarker,
   multiCamPipelineMarker,
 };

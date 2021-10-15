@@ -187,13 +187,11 @@ async function beginMultiCamImport(
             trackFileCount += 1;
           }
           const found = await findImagesInFolder(item.folder);
-          if (found.images.length === 0) {
+          if (found.imagePaths.length === 0) {
             throw new Error(`no images found in ${item.folder}`);
           }
           if (jsonMeta.multiCam && jsonMeta.multiCam.cameras[key] !== undefined) {
-            jsonMeta.multiCam.cameras[key].originalImageFiles = found.images.map(
-              (image) => image,
-            );
+            jsonMeta.multiCam.cameras[key].originalImageFiles = found.imageNames;
             mediaConvertList = mediaConvertList.concat(found.mediaConvertList);
           }
         });
@@ -202,7 +200,7 @@ async function beginMultiCamImport(
         async ([key, item]: [string, {glob: string; trackFile: string}]) => {
           const found = await findImagesInFolder(args.keywordFolder, item.glob);
           if (jsonMeta.multiCam && jsonMeta.multiCam.cameras[key] !== undefined) {
-            jsonMeta.multiCam.cameras[key].originalImageFiles = found.images.map(
+            jsonMeta.multiCam.cameras[key].originalImageFiles = found.imageNames.map(
               (image) => image,
             );
             mediaConvertList = mediaConvertList.concat(found.mediaConvertList);

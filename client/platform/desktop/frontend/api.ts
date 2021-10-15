@@ -9,7 +9,10 @@ import type {
   Pipe, Pipelines, SaveAttributeArgs, SaveDetectionsArgs, TrainingConfigs,
 } from 'dive-common/apispec';
 
-import { fileVideoTypes, calibrationFileTypes, inputAnnotationFileTypes } from 'dive-common/constants';
+import {
+  fileVideoTypes, calibrationFileTypes,
+  inputAnnotationFileTypes, listFileTypes,
+} from 'dive-common/constants';
 import {
   DesktopJob, DesktopMetadata, JsonMeta, NvidiaSmiReply,
   RunPipeline, RunTraining, ExportDatasetArgs,
@@ -21,27 +24,34 @@ import {
  * Native functions that run entirely in the renderer
  */
 
-async function openFromDisk(datasetType: DatasetType | 'calibration' | 'annotation', directory = false) {
+async function openFromDisk(datasetType: DatasetType | 'calibration' | 'annotation' | 'text', directory = false) {
   let filters: FileFilter[] = [];
+  const allFiles = { name: 'All Files', extensions: ['*'] };
   if (datasetType === 'video') {
     filters = [
       { name: 'Videos', extensions: fileVideoTypes },
-      { name: 'All Files', extensions: ['*'] },
+      allFiles,
     ];
   }
   if (datasetType === 'calibration') {
     filters = [
       { name: 'calibration', extensions: calibrationFileTypes },
-      { name: 'All Files', extensions: ['*'] },
+      allFiles,
     ];
   }
   if (datasetType === 'annotation') {
     filters = [
       { name: 'annotation', extensions: inputAnnotationFileTypes },
-      { name: 'All Files', extensions: ['*'] },
+      allFiles,
     ];
   }
-  const props = datasetType === 'image-sequence' || directory ? 'openDirectory' : 'openFile';
+  if (datasetType === 'text') {
+    filters = [
+      { name: 'text', extensions: listFileTypes },
+      allFiles,
+    ];
+  }
+  const props = (datasetType === 'image-sequence' || directory) ? 'openDirectory' : 'openFile';
   const results = await remote.dialog.showOpenDialog({
     properties: [props],
     filters,

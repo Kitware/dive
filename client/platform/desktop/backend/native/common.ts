@@ -44,31 +44,52 @@ const JsonFileName = /^.*\.json$/;
 const JsonMetaFileName = 'meta.json';
 const CsvFileName = /^.*\.csv$/;
 
-async function findImagesInFolder(path: string, glob?: string) {
-  const images: string[] = [];
-  let requiresTranscoding = false;
-  const contents = await fs.readdir(path);
+/**
+ * Read a text file into a list of lines
+ */
+async function readLines(filePath: string): Promise<string[]> {
+  const rawBuffer = await fs.readFile(filePath, 'utf-8');
+  return rawBuffer.toString().replace(/\r\n/g, '\n').split('\n');
+}
 
-  contents.forEach((filename) => {
-    const abspath = npath.join(path, filename);
-    const mimetype = mime.lookup(abspath);
-    if (glob === undefined || filterByGlob(glob, [filename]).length === 1) {
+async function findImagesInFolder(path: string, glob?: string) {
+  const filteredImagePaths: string[] = [];
+  let requiresTranscoding = false;
+  let imagePaths: string[];
+  const stat = await fs.stat(path);
+  let source: 'directory' | 'image-list' = 'directory';
+
+  if (stat.isDirectory()) {
+    imagePaths = (await fs.readdir(path))
+      .map((name) => npath.join(path, name));
+  } else {
+    source = 'image-list';
+    imagePaths = await readLines(path);
+  }
+
+  imagePaths.forEach((absPath) => {
+    // const filename = npath.basename(absPath);
+    const mimetype = mime.lookup(absPath);
+    if (glob === undefined || filterByGlob(glob, [absPath]).length === 1) {
       if (
         mimetype && (websafeImageTypes.includes(mimetype)
           || otherImageTypes.includes(mimetype))
       ) {
-        images.push(filename);
+        filteredImagePaths.push(absPath);
         if (otherImageTypes.includes(mimetype)) {
           requiresTranscoding = true;
         }
+      } else if (source === 'image-list') {
+        /* A non-image was found in an image list */
+        throw new Error('Found non-image type data in image list file');
       }
     }
   });
   return {
-    images,
-    mediaConvertList: requiresTranscoding
-      ? images.map((filename) => npath.join(path, filename))
-      : [],
+    imagePaths: filteredImagePaths,
+    imageNames: filteredImagePaths.map((absPath) => npath.basename(absPath)),
+    mediaConvertList: requiresTranscoding ? filteredImagePaths : [],
+    source,
   };
 }
 
@@ -690,7 +711,12 @@ async function beginMediaImport(
   if (stat.isDirectory()) {
     datasetType = 'image-sequence';
   } else if (stat.isFile()) {
-    datasetType = 'video';
+    const mimetype = mime.lookup(path);
+    if (mimetype && mimetype === 'text/plain') {
+      datasetType = 'image-sequence';
+    } else {
+      datasetType = 'video';
+    }
   } else {
     throw new Error('Only regular files and directories are supported');
   }
@@ -752,10 +778,15 @@ async function beginMediaImport(
     }
   } else if (datasetType === 'image-sequence') {
     const found = await findImagesInFolder(jsonMeta.originalBasePath);
-    if (found.images.length === 0) {
+    if (found.imagePaths.length === 0) {
       throw new Error(`no images found in ${path}`);
     }
-    jsonMeta.originalImageFiles = found.images;
+    if (found.source === 'directory') {
+      jsonMeta.originalImageFiles = found.imageNames;
+    } else if (found.source === 'image-list') {
+      jsonMeta.originalImageFiles = found.imagePaths;
+      jsonMeta.originalBasePath = '/';
+    }
     mediaConvertList = found.mediaConvertList;
   } else {
     throw new Error('only video and image-sequence types are supported');
@@ -927,10 +958,10 @@ async function finalizeMediaImport(
   // Filter all parts of the input based on glob pattern
   if (globPattern && jsonMeta.type === 'image-sequence') {
     const found = await findImagesInFolder(jsonMeta.originalBasePath, globPattern);
-    if (found.images.length === 0) {
+    if (found.imageNames.length === 0) {
       throw new Error(`no images in ${jsonMeta.originalBasePath} matched pattern ${globPattern}`);
     }
-    jsonMeta.originalImageFiles = found.images;
+    jsonMeta.originalImageFiles = found.imageNames;
     mediaConvertList = found.mediaConvertList;
   }
 

@@ -1,5 +1,6 @@
 <script lang="ts">
-import { defineComponent } from '@vue/composition-api';
+import type { DatasetType } from 'dive-common/apispec';
+import { defineComponent, PropType } from '@vue/composition-api';
 
 export const DefaultButtonAttrs = {
   block: true,
@@ -19,7 +20,7 @@ export default defineComponent({
       required: true,
     },
     openType: {
-      type: String,
+      type: String as PropType<DatasetType>,
       required: true,
     },
     multiCamImport: { //TODO: Temporarily used to hide the stereo settings from users
@@ -70,6 +71,30 @@ export default defineComponent({
       </template>
       <v-card outlined>
         <v-list dense>
+          <v-list-item
+            v-if="openType === 'image-sequence'"
+            style="align-items':'center"
+            @click="$emit('open', openType)"
+          >
+            <v-list-item-icon>
+              <v-icon>mdi-folder-open</v-icon>
+            </v-list-item-icon>
+            <v-list-item-content>
+              <v-list-item-title>From Directory</v-list-item-title>
+            </v-list-item-content>
+          </v-list-item>
+          <v-list-item
+            v-if="openType === 'image-sequence'"
+            style="align-items':'center"
+            @click="$emit('open', 'text')"
+          >
+            <v-list-item-icon>
+              <v-icon>mdi-view-list-outline</v-icon>
+            </v-list-item-icon>
+            <v-list-item-content>
+              <v-list-item-title>Image List</v-list-item-title>
+            </v-list-item-content>
+          </v-list-item>
           <v-list-item
             style="align-items':'center"
             @click="$emit('multi-cam',{ stereo: true, openType })"
