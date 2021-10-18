@@ -64,11 +64,23 @@ async function findImagesInFolder(path: string, glob?: string) {
       .map((name) => npath.join(path, name));
   } else {
     source = 'image-list';
-    imagePaths = await readLines(path);
+    // TODO support relative paths to source of image list
+    imagePaths = (await readLines(path))
+      .filter((line) => line.trim()); // remove lines that are just whitespace
+    if (imagePaths.length === 0) {
+      throw new Error('No images in input image list');
+    }
+    // Need to assert that every file in the image list exists
+    for (let i = 0; i < imagePaths.length; i += 1) {
+      const absPath = imagePaths[i];
+      // eslint-disable-next-line no-await-in-loop
+      if (!(await fs.pathExists(absPath))) {
+        throw new Error(`Image from image list ${absPath} was not found`);
+      }
+    }
   }
 
   imagePaths.forEach((absPath) => {
-    // const filename = npath.basename(absPath);
     const mimetype = mime.lookup(absPath);
     if (glob === undefined || filterByGlob(glob, [absPath]).length === 1) {
       if (
@@ -85,6 +97,7 @@ async function findImagesInFolder(path: string, glob?: string) {
       }
     }
   });
+
   return {
     imagePaths: filteredImagePaths,
     imageNames: filteredImagePaths.map((absPath) => npath.basename(absPath)),
@@ -786,6 +799,7 @@ async function beginMediaImport(
     } else if (found.source === 'image-list') {
       jsonMeta.originalImageFiles = found.imagePaths;
       jsonMeta.originalBasePath = '/';
+      jsonMeta.name = npath.basename(npath.dirname(path));
     }
     mediaConvertList = found.mediaConvertList;
   } else {

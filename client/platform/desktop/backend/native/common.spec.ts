@@ -122,6 +122,44 @@ mockfs({
       notanimage: '',
       'notanimage.txt': '',
     },
+    imageLists: {
+      success: {
+        'image_list.txt': `
+          image1.png
+          /home/user/data/imageSuccess/imageLists/success/image2.png
+        `,
+        'image1.png': '',
+        'image2.png': '',
+      },
+      failEmptyRelative: {
+        'image_list.txt': `
+          image1.png
+          image2.png
+        `,
+      },
+      failEmptyAbsolute: {
+        'image_list.txt': `
+          image1.png
+          /bad/path/image2.png
+        `,
+        'image1.png': '',
+        'image2.png': '',
+      },
+      failEmptyList: {
+        'image_list.txt': `
+        
+        
+        `,
+      },
+      failInvalidImageMIME: {
+        'image_list.txt': `
+          image1.png
+          image2.txt
+        `,
+        'image1.png': '',
+        'image2.txt': '',
+      },
+    },
     metaAttributesID: {
       'foo.png': '',
       'bar.png': '',
@@ -391,6 +429,15 @@ describe('native.common', () => {
     expect(payload.jsonMeta.originalImageFiles.length).toBe(2);
     expect(payload.jsonMeta.originalVideoFile).toBe('');
     expect(payload.jsonMeta.originalBasePath).toBe('/home/user/data/imageSuccess');
+  });
+
+  it('importMedia using image lists success', async () => {
+    const payload = await common.beginMediaImport(
+      settings, '/home/user/data/imageLists/success/image_list.txt', checkMedia,
+    );
+    expect(payload.jsonMeta.originalBasePath).toBe('/');
+    expect(payload.jsonMeta.originalImageFiles).toHaveLength(2);
+    expect(payload.jsonMeta.name).toBe('success');
   });
 
   it('import with CSV annotations without specifying track file', async () => {
