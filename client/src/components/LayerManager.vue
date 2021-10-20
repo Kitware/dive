@@ -1,5 +1,7 @@
 <script lang="ts">
-import { defineComponent, watch, PropType } from '@vue/composition-api';
+import {
+  defineComponent, watch, PropType, Ref, ref,
+} from '@vue/composition-api';
 
 import { TrackWithContext } from 'vue-media-annotator/use/useTrackFilters';
 import { injectMediaController } from './annotators/useMediaController';
@@ -10,11 +12,13 @@ import LineLayer from '../layers/AnnotationLayers/LineLayer';
 
 import EditAnnotationLayer, { EditAnnotationTypes } from '../layers/EditAnnotationLayer';
 import { FrameDataTrack } from '../layers/LayerTypes';
-import TextLayer, { FormatTextRow } from '../layers/TextLayer';
+import TextLayer, { FormatTextRow } from '../layers/AnnotationLayers/TextLayer';
 import { TrackId } from '../track';
 import { geojsonToBound } from '../utils';
 import { VisibleAnnotationTypes } from '../layers';
-
+import UILayer from '../layers/UILayers/UILayer';
+import WidgetBase from '../layers/UILayers/WidgetBase';
+import ToolTipWidget from '../layers/UILayers/ToolTipWidget.vue';
 import {
   useEnabledTracks,
   useHandler,
@@ -35,6 +39,9 @@ import {
  *  LayerManager emits high-level events when track features get selected or updated.
  */
 export default defineComponent({
+  components: {
+    ToolTipWidget,
+  },
   props: {
     formatTextRow: {
       type: Function as PropType<FormatTextRow | undefined>,
@@ -94,6 +101,12 @@ export default defineComponent({
       typeStyling: typeStylingRef,
       type: 'rectangle',
     });
+
+    const uiLayer = new UILayer(annotator);
+    const typeStyling = useTypeStyling();
+    const hoverOvered: Ref<[string, number][]> = ref([]);
+    const toolTipWidgetProps = { color: typeStyling.value.color, dataList: hoverOvered };
+    const toolTipWidget = new WidgetBase(uiLayer.addDOMWidget('CustomtoolTip'), ToolTipWidget, toolTipWidgetProps);
 
     function updateLayers(
       frame: number,
@@ -300,6 +313,9 @@ export default defineComponent({
     });
     editAnnotationLayer.bus.$on('update:selectedIndex',
       (index: number, _type: EditAnnotationTypes, key = '') => handler.selectFeatureHandle(index, key));
+    rectAnnotationLayer.bus.$on('annotation-hover', (found: { trackType: [string, number]}[]) => {
+      hoverOvered.value = found.map((item) => item.trackType);
+    });
   },
 });
 </script>
