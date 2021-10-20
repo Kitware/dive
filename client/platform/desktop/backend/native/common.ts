@@ -114,6 +114,8 @@ async function findImagesInFolder(path: string, glob?: string) {
     }
   });
 
+  console.log(filteredImagePaths);
+
   return {
     imagePaths: filteredImagePaths,
     imageNames: filteredImagePaths.map((absPath) => npath.basename(absPath)),
