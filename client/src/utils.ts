@@ -149,7 +149,7 @@ function reOrderBounds(bounds: RectBounds) {
 
 function getResponseError(error: AxiosError): string {
   const { response } = error;
-  return response?.data?.message || String(response?.data) || error;
+  return String(response?.data?.message || response?.data || error);
 }
 
 export {

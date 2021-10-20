@@ -6,7 +6,7 @@ import {
 import { MediaTypes, FPSOptions } from 'dive-common/constants';
 
 import { filterByGlob } from 'platform/desktop/sharedUtils';
-import { MediaImportPayload } from 'platform/desktop/constants';
+import { DesktopMediaImportResponse } from 'platform/desktop/constants';
 import { locateDuplicates } from 'platform/desktop/frontend/store/dataset';
 import { useApi } from 'dive-common/apispec';
 import Vue from 'vue';
@@ -17,7 +17,7 @@ export default defineComponent({
   name: 'ImportDialog',
   props: {
     importData: {
-      type: Object as PropType<MediaImportPayload>,
+      type: Object as PropType<DesktopMediaImportResponse>,
       required: true,
     },
   },

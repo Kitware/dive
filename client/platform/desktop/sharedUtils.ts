@@ -18,7 +18,7 @@ function makeid(length: number): string {
   return result;
 }
 
-function filterByGlob(pattern: string, files: string[]) {
+function filterByGlob(pattern: string, files: string[] = []) {
   const patterns = pattern.split(';').map((p) => globToRegexp(p, { flags: 'i' }));
   return files.filter((val) => patterns.some((re) => re.test(val)));
 }

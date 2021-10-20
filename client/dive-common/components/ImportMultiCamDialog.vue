@@ -7,15 +7,23 @@ import { filterByGlob } from 'platform/desktop/sharedUtils';
 import {
   MediaImportResponse,
   DatasetType,
-  HTMLFileReferences,
   useApi,
+  MultiCamImportFolderArgs,
+  MultiCamImportKeywordArgs,
 } from 'dive-common/apispec';
 
+import ImportMultiCamCameraGroup from 'dive-common/components/ImportMultiCamCameraGroup.vue';
+import ImportMultiCamChooseSource from 'dive-common/components/ImportMultiCamChooseSource.vue';
+import ImportMultiCamChooseAnnotation from 'dive-common/components/ImportMultiCamChooseAnnotation.vue';
 import ImportMultiCamAddType from 'dive-common/components/ImportMultiCamAddType.vue';
 import { ImageSequenceType, VideoType } from 'dive-common/constants';
+import { useRequest } from 'dive-common/use';
 
 export default defineComponent({
   components: {
+    ImportMultiCamCameraGroup,
+    ImportMultiCamChooseAnnotation,
+    ImportMultiCamChooseSource,
     ImportMultiCamAddType,
   },
   name: 'ImportMultiCamDialog',
@@ -33,33 +41,50 @@ export default defineComponent({
       required: true,
     },
   },
+
   setup(props, { emit }) {
     const { openFromDisk } = useApi();
     const importType: Ref<'multi'|'keyword'| ''> = ref('');
-    const folderList: Ref<Record<string, { folder: string; trackFile: string}>> = ref({});
+    const folderList: Ref<Record<string, { sourcePath: string; trackFile: string}>> = ref({});
     const keywordFolder = ref('');
-    const pendingImportPayload: Ref<MediaImportResponse | null> = ref(null);
+    const pendingImportPayloads: Ref<Record<string, MediaImportResponse | null>> = ref({});
     const globList: Ref<Record<string, { glob: string; trackFile: string}>> = ref({});
     const calibrationFile = ref('');
     const defaultDisplay = ref('left');
-    const addNewToggle = ref(false);
-    const newSetName = ref('');
     const importAnnotationFilesCheck = ref(false);
+    const { error: importError, request: importRequest } = useRequest();
 
-    const htmlFileReferences: HTMLFileReferences = {
-      mediaHTMLFileList: {},
-    }; //Used to store fileReferences for Web version
+    const clearCameraSet = () => {
+      keywordFolder.value = '';
+      if (props.stereo) {
+        folderList.value = {
+          left: { sourcePath: '', trackFile: '' },
+          right: { sourcePath: '', trackFile: '' },
+        };
+        globList.value = {
+          left: { glob: '', trackFile: '' },
+          right: { glob: '', trackFile: '' },
+        };
+      } else {
+        folderList.value = {};
+        globList.value = {};
+      }
 
-    if (props.stereo) {
-      folderList.value = {
-        left: { folder: '', trackFile: '' },
-        right: { folder: '', trackFile: '' },
-      };
-      globList.value = {
-        left: { glob: '', trackFile: '' },
-        right: { glob: '', trackFile: '' },
-      };
-    }
+      if (importType.value === 'multi') {
+        if (props.stereo) {
+          pendingImportPayloads.value = {
+            left: null,
+            right: null,
+          };
+        } else {
+          pendingImportPayloads.value = {};
+        }
+      } else if (importType.value === 'keyword') {
+        pendingImportPayloads.value = { keyword: null };
+      }
+    };
+    clearCameraSet();
+
     if (props.dataType === VideoType) {
       importType.value = 'multi';
     }
@@ -70,58 +95,76 @@ export default defineComponent({
       return [];
     });
 
-    const filteredImages = computed(() => {
+    const globImages = computed(() => {
       const filtered: Record<string, string[]> = {};
-      Object.entries(globList.value).forEach(([key, value]) => {
-        if (pendingImportPayload.value) {
-          filtered[key] = filterByGlob(
-            value.glob, pendingImportPayload.value.jsonMeta.originalImageFiles,
-          );
-        }
+      Object.entries(globList.value).forEach(([cameraName, val]) => {
+        const payload = pendingImportPayloads.value.keyword;
+        filtered[cameraName] = filterByGlob(val.glob, payload?.jsonMeta.originalImageFiles);
       });
       return filtered;
     });
 
-    const keywordReady = computed(() => {
+    const folderImages = computed(() => {
+      const filtered: Record<string, string[]> = {};
+      Object.entries(folderList.value).forEach(([cameraName, val]) => {
+        const payload = pendingImportPayloads.value[cameraName];
+        filtered[cameraName] = payload?.jsonMeta.originalImageFiles || [];
+      });
+      return filtered;
+    });
+
+    const filteredImages = computed(() => (importType.value === 'keyword'
+      ? globImages.value : folderImages.value));
+
+    const errorMessage = computed(() => {
+      if (importError.value) {
+        return importError.value;
+      }
+
+      if (
+        Object.values(pendingImportPayloads.value).length === 0
+        || Object.values(pendingImportPayloads.value).some((v) => v === null)
+        || importType.value === ''
+      ) {
+        /* Wait until every image list has been loaded successfully to check more */
+        return null;
+      }
+
       const entries = Object.entries(filteredImages.value);
       let length = -1;
       let totalList: string[] = [];
-      if (!entries.length) {
-        return 'Need to have some data loaded';
-      }
+
       for (let i = 0; i < entries.length; i += 1) {
-        const imageEntry = entries[i];
-        if (!imageEntry[1].length) {
-          return `Requires filtered Images for ${imageEntry[0]} `;
+        const [cameraName, images] = entries[i];
+        if (!images.length) {
+          return `Requires filtered Images for ${cameraName} `;
         } if (length === -1) {
-          length = imageEntry[1].length;
+          length = images.length;
         }
-        if (length !== imageEntry[1].length) {
-          return `All glob patterns should have the same length of ${length}`;
+        if (length !== images.length) {
+          return `All cameras should have the same length of ${length}`;
         }
-        if (
-          imageEntry[1].filter(
-            // eslint-disable-next-line no-loop-func
-            (value: string) => totalList.includes(value),
-          ).length
-        ) {
-          return 'Intersecting values.  Images must be unique to globs';
+        if (totalList.some((imageName) => images.includes(imageName))) {
+          return 'Overlapping values.  All cameras must consist of mutually exclusive images.';
         }
-        totalList = totalList.concat(imageEntry[0]);
+        totalList = totalList.concat(images);
       }
-      return 'Success';
+      return null;
     });
 
     const nextSteps = computed(() => {
+      if (errorMessage.value !== null) {
+        return false;
+      }
       if (importType.value === 'multi') {
         const entries = Object.entries(folderList.value);
-        const filterLength = entries.filter(([, val]) => val.folder !== '').length;
+        const filterLength = entries.filter(([, val]) => val.sourcePath !== '').length;
         if (entries.length === filterLength && entries.length) {
           return true;
         }
         return false;
       }
-      if (importType.value === 'keyword' && keywordFolder.value && keywordReady.value === 'Success') {
+      if (importType.value === 'keyword' && keywordFolder.value) {
         return true;
       }
       return false;
@@ -137,80 +180,48 @@ export default defineComponent({
       }
     }
 
-    async function open(dstype: DatasetType | 'calibration', folder: string | 'calibration') {
+    async function open(dstype: DatasetType | 'calibration' | 'text', folder: string | 'calibration') {
       const ret = await openFromDisk(dstype, dstype === 'image-sequence');
       if (!ret.canceled) {
-        try {
-          const path = ret.filePaths[0];
-          if (folder === 'calibration') {
-            calibrationFile.value = path;
-            if (ret.fileList?.length) {
-              [htmlFileReferences.calibrationHTMLFile] = ret.fileList;
-            }
-          } else if (importType.value === 'multi') {
-            if (ret.root) {
-              folderList.value[folder].folder = ret.root;
-            } else {
-              folderList.value[folder].folder = path;
-            }
-            if (ret.fileList) {
-              htmlFileReferences.mediaHTMLFileList[folder] = ret.fileList;
-            }
-            folderList.value[folder].trackFile = '';
-          } else if (importType.value === 'keyword') {
-            [keywordFolder.value] = ret.filePaths;
-            if (ret.root) {
-              keywordFolder.value = ret.root;
-            }
-            pendingImportPayload.value = await props.importMedia(ret.filePaths[0]);
-            if (ret.fileList) {
-              htmlFileReferences.mediaHTMLFileList[folder] = ret.fileList;
-            }
+        const path = ret.filePaths[0];
+        if (folder === 'calibration') {
+          calibrationFile.value = path;
+        } else if (importType.value === 'multi') {
+          if (ret.root) {
+            folderList.value[folder].sourcePath = ret.root;
+          } else {
+            folderList.value[folder].sourcePath = path;
           }
-        } catch (err) {
-          console.error(err);
+          folderList.value[folder].trackFile = '';
+          Vue.set(
+            pendingImportPayloads.value,
+            folder,
+            await importRequest(() => props.importMedia(path)),
+          );
+        } else if (importType.value === 'keyword') {
+          [keywordFolder.value] = ret.filePaths;
+          if (ret.root) {
+            keywordFolder.value = ret.root;
+          }
+          pendingImportPayloads.value.keyword = await importRequest(() => props.importMedia(path));
         }
       }
     }
 
     const deleteSet = (key: string) => {
       if (importType.value === 'multi') {
-        if (!folderList.value[key]) {
-          Vue.delete(folderList.value, key);
-        }
+        Vue.delete(folderList.value, key);
+        Vue.delete(pendingImportPayloads.value, key);
       } else if (importType.value === 'keyword') {
-        if (!globList.value[key]) {
-          Vue.delete(globList.value, key);
-        }
+        Vue.delete(globList.value, key);
       }
     };
     const addNewSet = (name: string) => {
       if (importType.value === 'multi') {
-        if (!folderList.value[name]) {
-          Vue.set(folderList.value, name, { folder: '', trackFile: '' });
-        }
+        Vue.set(folderList.value, name, { sourcePath: '', trackFile: '' });
+        Vue.set(pendingImportPayloads.value, name, null);
       } else if (importType.value === 'keyword') {
-        if (!globList.value[newSetName.value]) {
-          Vue.set(globList.value, name, { glob: '', trackFile: '' });
-        }
-      }
-      newSetName.value = '';
-      addNewToggle.value = false;
-    };
-    const clearCameraSet = () => {
-      keywordFolder.value = '';
-      if (props.stereo) {
-        folderList.value = {
-          left: { folder: '', trackFile: '' },
-          right: { folder: '', trackFile: '' },
-        };
-        globList.value = {
-          left: { glob: '', trackFile: '' },
-          right: { glob: '', trackFile: '' },
-        };
-      } else {
-        folderList.value = {};
-        globList.value = {};
+        Vue.set(globList.value, name, { glob: '', trackFile: '' });
       }
     };
 
@@ -221,38 +232,37 @@ export default defineComponent({
         });
       }
       if (importType.value === 'multi') {
-        emit('begin-multicam-import', {
+        const args: MultiCamImportFolderArgs = {
           defaultDisplay: defaultDisplay.value,
-          folderList: folderList.value,
+          sourceList: folderList.value,
           calibrationFile: calibrationFile.value,
           type: props.dataType,
-          htmlFileReferences,
-        });
+        };
+        emit('begin-multicam-import', args);
       } else if (importType.value === 'keyword') {
-        emit('begin-multicam-import', {
+        const args: MultiCamImportKeywordArgs = {
           defaultDisplay: defaultDisplay.value,
-          keywordFolder: keywordFolder.value,
+          sourcePath: keywordFolder.value,
           globList: globList.value,
           calibrationFile: calibrationFile.value,
           type: 'image-sequence',
-          htmlFileReferences,
-        });
+        };
+        emit('begin-multicam-import', args);
       }
     };
+
     return {
-      keywordReady,
+      errorMessage,
       nextSteps,
       importType,
       folderList,
       keywordFolder,
-      pendingImportPayload,
+      pendingImportPayloads,
       globList,
       filteredImages,
       calibrationFile,
       defaultDisplay,
       displayKeys,
-      addNewToggle,
-      newSetName,
       importAnnotationFilesCheck,
       //Methods
       open,
@@ -269,228 +279,135 @@ export default defineComponent({
 <template>
   <v-card
     outlined
-    class="import-card"
-    style="overflow-x: hidden;"
+    class="import-card px-3"
   >
     <v-card-title class="text-h5">
-      Import {{ stereo ? 'Stereo' : 'MultiCam' }} Dataset
+      Import {{ stereo ? 'Stereo' : 'Multi-Camera' }}
+      {{ dataType === 'image-sequence' ? 'Image Sequence' : 'Videos' }}
     </v-card-title>
     <v-card-text>
       <div v-if="dataType === 'image-sequence'">
-        Please Select an import type.
         <v-radio-group
           v-model="importType"
+          label="How do you want to choose each camera?"
           @change="clearCameraSet"
         >
           <v-radio
             value="multi"
-            :label="
-              `Multi-Folder: Import a left and right
-             ${dataType === 'image-sequence' ? 'folder' : 'videos'}`"
+            label="Multi-Folder: Choose a folder or image list for each camera"
           />
           <v-radio
             value="keyword"
-            :label="
-              `Keyword Filter: Use a filter to deteremine
-             left and right ${dataType === 'image-sequence' ? 'images' : 'videos'}`"
+            label="Glob Filter: Use pattern matching to deteremine left and right camera"
           />
         </v-radio-group>
       </div>
+
+      <!-- Multicam Builder -->
       <div v-if="importType === 'multi'">
-        <div
+        <ImportMultiCamCameraGroup
           v-for="(item, key) in folderList"
           :key="key"
-          class="my-4"
+          :camera-name="key"
+          :show-delete="!stereo"
+          class="mb-3"
+          @delete="deleteSet(key)"
         >
-          <v-row>
-            <v-btn
-              v-if="!stereo"
-              class="mr-2"
-              color="error"
-              @click="deleteSet(key)"
-            >
-              <v-icon>mdi-delete</v-icon>
-            </v-btn>
-            <v-text-field
-              :label="`${key}:`"
-              :placeholder="dataType === 'image-sequence' ? 'Choose Folder' : 'Choose Video' "
-              disabled
-              outlined
-              dense
-              hide-details
-              :value="folderList[key].folder"
-              class="mx-4 my-auto"
+          <template>
+            <ImportMultiCamChooseSource
+              :camera-name="key"
+              :data-type="dataType"
+              :stereo="stereo"
+              :show-delete="!stereo"
+              :value="folderList[key].sourcePath"
+              @open="open(dataType, key)"
+              @open-text="open('text', key)"
+              @delete="deleteSet(key)"
             />
-            <v-btn
-              color="primary"
-              @click="open(dataType, key)"
-            >
-              {{ dataType === 'image-sequence' ? 'Open Image Sequence' : 'Open Video' }}
-              <v-icon class="ml-2">
-                {{ dataType === 'image-sequence' ? 'mdi-folder-open' : 'mdi-file-video' }}
-              </v-icon>
-            </v-btn>
-          </v-row>
-          <v-row
-            v-if="item.folder && importAnnotationFilesCheck"
-            class="mt-2 ml-2"
-          >
-            <v-text-field
-              label="Annotation"
-              :placeholder="`Annotation File (${key})`"
-              outlined
-              dense
-              hide-details
-              clearable
-              :value="item.trackFile"
-              class="mx-4 my-auto"
-              @click:clear="item.trackFile=''"
+            <ImportMultiCamChooseAnnotation
+              v-if="item.sourcePath && importAnnotationFilesCheck"
+              :camera-name="key"
+              :track-file="item.trackFile"
+              class="my-3"
+              @clear="item.trackFile = ''"
+              @open="openAnnotationFile(key)"
             />
-            <v-btn
-              color="primary"
-              @click="openAnnotationFile(key)"
-            >
-              Open
-              <v-icon class="ml-2">
-                mdi-file-table
-              </v-icon>
-            </v-btn>
-          </v-row>
-        </div>
-        <v-row
+          </template>
+        </ImportMultiCamCameraGroup>
+        <ImportMultiCamAddType
           v-if="!stereo"
-          class="mt-2"
-        >
-          <v-btn
-            small
-            class="my-2 mr-2"
-            color="primary"
-            :disabled="addNewToggle"
-            @click="addNewToggle = true"
-          >
-            Add Camera
-            <v-icon class="ml-1">
-              mdi-camera
-            </v-icon>
-          </v-btn>
-          <import-multi-cam-add-type
-            v-if="addNewToggle"
-            :name-list="displayKeys"
-            @add-new="addNewSet"
-            @cancel="addNewToggle = false"
-          />
-        </v-row>
+          :name-list="displayKeys"
+          @add-new="addNewSet"
+        />
       </div>
-      <div v-if="importType ==='keyword'">
-        <div>
-          <v-row class="mb-4">
-            <v-text-field
-              label="Folder:"
-              placeholder="Choose Folder"
-              disabled
-              outlined
-              dense
-              hide-details
-              :value="keywordFolder"
-              class="mx-4"
-            />
-            <v-btn
-              color="primary"
-              @click="open('image-sequence', 'keyword')"
-            >
-              Open Image Sequence
-              <v-icon class="ml-2">
-                mdi-folder-open
-              </v-icon>
-            </v-btn>
-          </v-row>
-        </div>
-        <div
+
+      <!-- Keyword Builder -->
+      <div v-else-if="importType ==='keyword'">
+        <ImportMultiCamChooseSource
+          camera-name="Folder or Image List"
+          :data-type="dataType"
+          :value="keywordFolder"
+          class="mb-3"
+          @open="open(dataType, 'keyword')"
+          @open-text="open('text', 'keyword')"
+        />
+        <ImportMultiCamCameraGroup
           v-for="(item, key) in globList"
           :key="key"
-          class="my-auto"
+          :camera-name="key"
+          :show-delete="!stereo"
+          class="mb-3"
+          @delete="deleteSet(key)"
         >
-          <v-row>
-            <v-btn
-              v-if="!stereo"
-
-              class="mr-2"
-              color="error"
-              @click="deleteSet(key)"
-            >
-              <v-icon>mdi-delete</v-icon>
-            </v-btn>
+          <v-row
+            class="align-center my-3"
+            no-gutters
+          >
             <v-text-field
               v-model="globList[key].glob"
-              :label="`${key} Glob Filter Pattern `"
+              label="Glob Filter Pattern"
               placeholder="Leave blank to use all images. example: *.png"
               outlined
               dense
-              hide-details=""
-              class="mx-6 mb-3"
+              hide-details
             />
             <v-chip
-              v-if="globList[key].glob"
+              v-if="globList[key].glob && pendingImportPayloads.keyword"
               :color="filteredImages[key].length ? 'success' : 'error'"
               outlined
               class="ml-3"
             >
               "{{ globList[key].glob }}" matches {{ filteredImages[key].length }}
-              out of {{ pendingImportPayload.jsonMeta.originalImageFiles.length }} images
+              out of {{ pendingImportPayloads.keyword.jsonMeta.originalImageFiles.length }} images
             </v-chip>
           </v-row>
-          <v-row v-if="item.glob && importAnnotationFilesCheck">
-            <v-text-field
-              label="Annotation"
-              :placeholder="`Annotation File (${key})`"
-              outlined
-              dense
-              hide-details
-              clearable
-              :value="item.trackFile"
-              class="mx-8 mb-3 "
-              @click:clear="item.trackFile=''"
-            />
-            <v-btn
-              color="primary"
-              @click="openAnnotationFile(key)"
-            >
-              Open
-              <v-icon class="ml-2">
-                mdi-file-table
-              </v-icon>
-            </v-btn>
-          </v-row>
-        </div>
-        <div
-          v-if="keywordFolder && keywordReady !== 'Success'"
-        >
-          <v-alert
-            type="error"
-            outlined
-            dense
-          >
-            {{ keywordReady }}
-          </v-alert>
-        </div>
-        <div v-if="!stereo">
-          <v-btn
-            x-small
-            color="primary"
-            :disabled="addNewToggle"
-            @click="addNewToggle = true"
-          >
-            <v-icon>
-              mdi-plus
-            </v-icon>
-          </v-btn>
-          <import-multi-cam-add-type
-            v-if="addNewToggle"
-            :name-list="displayKeys"
-            @add-new="addNewSet"
-            @cancel="addNewToggle = false"
+          <ImportMultiCamChooseAnnotation
+            v-if="item.glob && importAnnotationFilesCheck"
+            :camera-name="key"
+            :track-file="item.trackFile"
+            class="my-3"
+            @clear="item.trackFile = ''"
+            @open="openAnnotationFile(key)"
           />
-        </div>
+        </ImportMultiCamCameraGroup>
+        <ImportMultiCamAddType
+          v-if="!stereo"
+          :name-list="displayKeys"
+          class="my-3"
+          @add-new="addNewSet"
+        />
+      </div>
+
+      <!-- Default Camera Selector and Error Messages -->
+      <div>
+        <v-alert
+          v-if="errorMessage"
+          type="error"
+          outlined
+          dense
+        >
+          {{ errorMessage }}
+        </v-alert>
       </div>
       <div v-if="nextSteps">
         <v-alert
@@ -503,10 +420,9 @@ export default defineComponent({
         </v-alert>
         <div>
           <div>
-            Default Display:
             <v-radio-group
               v-model="defaultDisplay"
-              class="ml-2"
+              label="Default Display"
             >
               <v-radio
                 v-for="(item,index) in displayKeys"
@@ -516,7 +432,11 @@ export default defineComponent({
               />
             </v-radio-group>
           </div>
-          <v-row v-if="stereo">
+          <v-row
+            v-if="stereo"
+            no-gutters
+            class="align-center"
+          >
             <v-text-field
               label="Calibration File:"
               placeholder="Choose File"
@@ -525,7 +445,7 @@ export default defineComponent({
               dense
               hide-details
               :value="calibrationFile"
-              class="mx-4"
+              class="mr-3"
             />
             <v-btn
               color="primary"
@@ -539,20 +459,24 @@ export default defineComponent({
           </v-row>
         </div>
       </div>
-      <div class="d-flex flex-row mt-4">
+
+      <!-- Action Items -->
+      <v-row
+        no-gutters
+        class="align-center"
+      >
         <v-checkbox
           v-if="importType"
           v-model="importAnnotationFilesCheck"
           label="Import Annotations"
           dense
           persistent-hint
-          class="mb-1 mt-0"
         />
         <v-spacer />
         <v-btn
           text
           outlined
-          class="mr-5"
+          class="mr-3"
           @click="$emit('abort')"
         >
           Cancel
@@ -564,7 +488,7 @@ export default defineComponent({
         >
           Begin Import
         </v-btn>
-      </div>
+      </v-row>
     </v-card-text>
   </v-card>
 </template>

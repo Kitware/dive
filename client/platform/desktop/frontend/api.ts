@@ -16,7 +16,7 @@ import {
 import {
   DesktopJob, DesktopMetadata, JsonMeta, NvidiaSmiReply,
   RunPipeline, RunTraining, ExportDatasetArgs,
-  MediaImportPayload,
+  DesktopMediaImportResponse,
 } from 'platform/desktop/constants';
 
 
@@ -100,7 +100,7 @@ async function runTraining(
   return ipcRenderer.invoke('run-training', args);
 }
 
-function importMedia(path: string): Promise<MediaImportPayload> {
+function importMedia(path: string): Promise<DesktopMediaImportResponse> {
   return ipcRenderer.invoke('import-media', { path });
 }
 
@@ -113,7 +113,7 @@ function checkDataset(datasetId: string): Promise<boolean> {
 }
 
 function importMultiCam(args: MultiCamImportArgs):
-   Promise<MediaImportPayload> {
+   Promise<DesktopMediaImportResponse> {
   return ipcRenderer.invoke('import-multicam-media', { args });
 }
 
@@ -121,7 +121,7 @@ function importAnnotationFile(id: string, path: string): Promise<boolean> {
   return ipcRenderer.invoke('import-annotation', { id, path });
 }
 
-function finalizeImport(args: MediaImportPayload): Promise<JsonMeta> {
+function finalizeImport(args: DesktopMediaImportResponse): Promise<JsonMeta> {
   return ipcRenderer.invoke('finalize-import', args);
 }
 

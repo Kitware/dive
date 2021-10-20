@@ -22,13 +22,13 @@ import {
 } from 'dive-common/constants';
 import {
   JsonMeta, Settings, JsonMetaCurrentVersion, DesktopMetadata, DesktopJobUpdater,
-  ConvertMedia, RunTraining, ExportDatasetArgs, MediaImportPayload, CheckMediaResults,
+  ConvertMedia, RunTraining, ExportDatasetArgs, DesktopMediaImportResponse, CheckMediaResults,
 } from 'platform/desktop/constants';
 import {
   cleanString, filterByGlob, makeid, strNumericCompare,
 } from 'platform/desktop/sharedUtils';
 import { Attribute, Attributes } from 'vue-media-annotator/use/useAttributes';
-import { cloneDeep } from 'lodash';
+import { cloneDeep, uniq } from 'lodash';
 import processTrackAttributes from './attributeProcessor';
 import { upgrade } from './migrations';
 import { getMultiCamUrls, transcodeMultiCam } from './multiCamUtils';
@@ -52,6 +52,12 @@ async function readLines(filePath: string): Promise<string[]> {
   return rawBuffer.toString().replace(/\r\n/g, '\n').split('\n');
 }
 
+/**
+ * findImagesInFolder
+ * Import either a directory of images or images from a text file
+ * Images returned will be MIME-validated and guaranteed to exist on disk.
+ * Actual file contents will not be checked.
+ */
 async function findImagesInFolder(path: string, glob?: string) {
   const filteredImagePaths: string[] = [];
   let requiresTranscoding = false;
@@ -64,11 +70,21 @@ async function findImagesInFolder(path: string, glob?: string) {
       .map((name) => npath.join(path, name));
   } else {
     source = 'image-list';
-    // TODO support relative paths to source of image list
     imagePaths = (await readLines(path))
-      .filter((line) => line.trim()); // remove lines that are just whitespace
+      // remove lines that are just whitespace
+      .filter((line) => line.trim())
+      // Transform relative paths to absolute paths using list directory location.
+      .map((line) => {
+        if (npath.isAbsolute(line)) {
+          return npath.normalize(line);
+        }
+        return npath.join(npath.dirname(path), line);
+      });
     if (imagePaths.length === 0) {
       throw new Error('No images in input image list');
+    }
+    if (uniq(imagePaths).length !== imagePaths.length) {
+      throw new Error('Duplicate entries detected in image list');
     }
     // Need to assert that every file in the image list exists
     for (let i = 0; i < imagePaths.length; i += 1) {
@@ -712,7 +728,7 @@ async function beginMediaImport(
   settings: Settings,
   path: string,
   checkMedia: (settings: Settings, path: string) => Promise<CheckMediaResults>,
-): Promise<MediaImportPayload> {
+): Promise<DesktopMediaImportResponse> {
   let datasetType: DatasetType;
 
   const exists = fs.existsSync(path);
@@ -960,7 +976,7 @@ async function _importTrackFile(
  */
 async function finalizeMediaImport(
   settings: Settings,
-  args: MediaImportPayload,
+  args: DesktopMediaImportResponse,
   updater: DesktopJobUpdater,
   convertMedia: ConvertMedia,
 ) {

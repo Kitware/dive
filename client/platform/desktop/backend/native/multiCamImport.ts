@@ -13,28 +13,26 @@ import {
 import {
   JsonMeta, Settings, JsonMetaCurrentVersion,
   CheckMediaResults,
-  MediaImportPayload,
+  DesktopMediaImportResponse,
 } from 'platform/desktop/constants';
 import { cleanString, makeid } from 'platform/desktop/sharedUtils';
 import { findImagesInFolder } from './common';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function isFolderArgs(s: any): s is MultiCamImportFolderArgs {
-  if (s.folderList && s.defaultDisplay) {
-    return true;
-  }
-  return false;
-}
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function isKeywordArgs(s: any): s is MultiCamImportKeywordArgs {
-  if (s.globList && s.defaultDisplay) {
+function isFolderArgs(s: MultiCamImportArgs): s is MultiCamImportFolderArgs {
+  if ('sourceList' in s && 'defaultDisplay' in s) {
     return true;
   }
   return false;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function asyncForEach(array: any[], callback: Function) {
+function isKeywordArgs(s: MultiCamImportArgs): s is MultiCamImportKeywordArgs {
+  if ('globList' in s && 'defaultDisplay' in s) {
+    return true;
+  }
+  return false;
+}
+
+async function asyncForEach<T>(array: T[], callback: (item: T, index: number, arr: T[]) => void) {
   for (let index = 0; index < array.length; index += 1) {
     // eslint-disable-next-line no-await-in-loop
     await callback(array[index], index, array);
@@ -47,7 +45,7 @@ async function beginMultiCamImport(
   settings: Settings,
   args: MultiCamImportArgs,
   checkMedia: (settings: Settings, path: string) => Promise<CheckMediaResults>,
-): Promise<MediaImportPayload> {
+): Promise<DesktopMediaImportResponse> {
   const datasetType: DatasetType = MultiType;
 
   let mainFolder: string | undefined;
@@ -62,14 +60,14 @@ async function beginMultiCamImport(
   let multiCamTrackFiles: null | Record<string, string> = {};
   let trackFileCount = 0;
   if (isFolderArgs(args)) {
-    Object.entries(args.folderList).forEach(([key, item]) => {
-      const folderExists = fs.existsSync(item.folder);
+    Object.entries(args.sourceList).forEach(([key, item]) => {
+      const folderExists = fs.existsSync(item.sourcePath);
       if (!folderExists) {
-        throw new Error(`file or directory for ${key} not found: ${item.folder}`);
+        throw new Error(`file or directory for ${key} not found: ${item.sourcePath}`);
       }
       cameras[key] = {
         type: args.type,
-        originalBasePath: item.folder,
+        originalBasePath: item.sourcePath,
         originalImageFiles: [],
         originalVideoFile: '',
         transcodedImageFiles: [],
@@ -84,16 +82,16 @@ async function beginMultiCamImport(
       }
     });
   } else if (isKeywordArgs(args)) {
-    const keywordExists = fs.existsSync(args.keywordFolder);
+    const keywordExists = fs.existsSync(args.sourcePath);
     if (!keywordExists) {
-      throw new Error(`file or directory not found: ${args.keywordFolder}`);
+      throw new Error(`file or directory not found: ${args.sourcePath}`);
     }
-    mainFolder = args.keywordFolder;
+    mainFolder = args.sourcePath;
     Object.entries(args.globList).forEach(([key]) => {
       //All glob pattern matches are image-sequence files
       cameras[key] = {
         type: args.type,
-        originalBasePath: args.keywordFolder,
+        originalBasePath: args.sourcePath,
         originalImageFiles: [],
         originalVideoFile: '',
         transcodedImageFiles: [],
@@ -138,13 +136,13 @@ async function beginMultiCamImport(
   /* Extract and validate media from import path */
   if (args.type === 'video') {
     if (isFolderArgs(args)) {
-      await asyncForEach(Object.entries(args.folderList),
-        async ([key, item]: [string, {folder: string; trackFile: string}]) => {
+      await asyncForEach(Object.entries(args.sourceList),
+        async ([key, item]) => {
           if (item.trackFile && multiCamTrackFiles) {
             multiCamTrackFiles[key] = item.trackFile;
             trackFileCount += 1;
           }
-          const video = item.folder;
+          const video = item.sourcePath;
           const mimetype = mime.lookup(video);
           if (key === args.defaultDisplay) {
             jsonMeta.originalVideoFile = npath.basename(video);
@@ -180,15 +178,15 @@ async function beginMultiCamImport(
     }
   } else if (args.type === 'image-sequence') {
     if (isFolderArgs(args)) {
-      await asyncForEach(Object.entries(args.folderList),
-        async ([key, item]: [string, {folder: string; trackFile: string}]) => {
+      await asyncForEach(Object.entries(args.sourceList),
+        async ([key, item]) => {
           if (item.trackFile && multiCamTrackFiles) {
             multiCamTrackFiles[key] = item.trackFile;
             trackFileCount += 1;
           }
-          const found = await findImagesInFolder(item.folder);
+          const found = await findImagesInFolder(item.sourcePath);
           if (found.imagePaths.length === 0) {
-            throw new Error(`no images found in ${item.folder}`);
+            throw new Error(`no images found in ${item.sourcePath}`);
           }
           if (jsonMeta.multiCam && jsonMeta.multiCam.cameras[key] !== undefined) {
             jsonMeta.multiCam.cameras[key].originalImageFiles = found.imageNames;
@@ -197,8 +195,8 @@ async function beginMultiCamImport(
         });
     } else if (isKeywordArgs(args)) {
       await asyncForEach(Object.entries(args.globList),
-        async ([key, item]: [string, {glob: string; trackFile: string}]) => {
-          const found = await findImagesInFolder(args.keywordFolder, item.glob);
+        async ([key, item]) => {
+          const found = await findImagesInFolder(args.sourcePath, item.glob);
           if (jsonMeta.multiCam && jsonMeta.multiCam.cameras[key] !== undefined) {
             jsonMeta.multiCam.cameras[key].originalImageFiles = found.imageNames.map(
               (image) => image,

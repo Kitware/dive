@@ -80,7 +80,19 @@ export default defineComponent({
               <v-icon>mdi-folder-open</v-icon>
             </v-list-item-icon>
             <v-list-item-content>
-              <v-list-item-title>From Directory</v-list-item-title>
+              <v-list-item-title>Directory</v-list-item-title>
+            </v-list-item-content>
+          </v-list-item>
+          <v-list-item
+            v-else-if="openType === 'video'"
+            style="align-items':'center"
+            @click="$emit('open', openType)"
+          >
+            <v-list-item-icon>
+              <v-icon>mdi-file-video</v-icon>
+            </v-list-item-icon>
+            <v-list-item-content>
+              <v-list-item-title>From File</v-list-item-title>
             </v-list-item-content>
           </v-list-item>
           <v-list-item

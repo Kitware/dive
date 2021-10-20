@@ -1,5 +1,6 @@
 import type {
-  DatasetMeta, DatasetMetaMutable, DatasetType, Pipe, SubType,
+  DatasetMeta, DatasetMetaMutable, DatasetType,
+  Pipe, SubType, MediaImportResponse,
 } from 'dive-common/apispec';
 import { Attribute } from 'vue-media-annotator/use/useAttributes';
 
@@ -70,6 +71,9 @@ export interface JsonMeta extends DatasetMetaMutable {
 
   // absolute base path on disk where dataset was imported from
   originalBasePath: string;
+
+  // manifest source path IF image list was used.
+  imageListPath?: string;
 
   // video file path
   // relative to originalBasePath
@@ -173,10 +177,8 @@ export interface DesktopJob {
   endTime?: Date;
 }
 
-export interface MediaImportPayload {
+export interface DesktopMediaImportResponse extends MediaImportResponse {
   jsonMeta: JsonMeta;
-  globPattern: string;
-  mediaConvertList: string[];
   trackFileAbsPath: string;
   multiCamTrackFiles: null | Record<string, string>;
   forceMediaTranscode: boolean;
