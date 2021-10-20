@@ -71,9 +71,9 @@
     "folderStereoBasicTest": {
       "input": {
         "defaultDisplay": "left",
-        "folderList": {
-          "left": {"folder": "/home/user/data/stereoLeftRightImages/left", "trackFile": "" },
-          "right": { "folder": "/home/user/data/stereoLeftRightImages/right", "trackFile": ""}
+        "sourceList": {
+          "left": {"sourcePath": "/home/user/data/stereoLeftRightImages/left", "trackFile": "" },
+          "right": { "sourcePath": "/home/user/data/stereoLeftRightImages/right", "trackFile": ""}
         },
         "calibrationFile": "/home/user/data/stereoLeftRightImages/stereoCalibration.npz",
         "type": "image-sequence"
@@ -116,9 +116,9 @@
     "folderStereoTranscodeTest": {
       "input": {
         "defaultDisplay": "left",
-        "folderList": {
-          "left": {"folder": "/home/user/data/stereoLeftRightImages/left/tiff", "trackFile": "" },
-          "right": { "folder": "/home/user/data/stereoLeftRightImages/right/tiff", "trackFile": ""}
+        "sourceList": {
+          "left": {"sourcePath": "/home/user/data/stereoLeftRightImages/left/tiff", "trackFile": "" },
+          "right": { "sourcePath": "/home/user/data/stereoLeftRightImages/right/tiff", "trackFile": ""}
         },
         "calibrationFile": "/home/user/data/stereoLeftRightImages/stereoCalibration.npz",
         "type": "image-sequence"
@@ -167,9 +167,9 @@
     "folderStereoTranscodeSameTest": {
       "input": {
         "defaultDisplay": "right",
-        "folderList": {
-          "left": {"folder": "/home/user/data/stereoLeftRightImages/left/tiff", "trackFile": ""},
-          "right": {"folder": "/home/user/data/stereoLeftRightImages/right/same", "trackFile": ""}
+        "sourceList": {
+          "left": {"sourcePath": "/home/user/data/stereoLeftRightImages/left/tiff", "trackFile": ""},
+          "right": {"sourcePath": "/home/user/data/stereoLeftRightImages/right/same", "trackFile": ""}
         },
         "calibrationFile": "/home/user/data/stereoLeftRightImages/stereoCalibration.npz",
         "type": "image-sequence"
@@ -218,9 +218,9 @@
     "folderStereoVideoTest": {
       "input": {
         "defaultDisplay": "left",
-        "folderList": {
-          "left": {"folder": "/home/user/data/stereoLeftRightImages/left/left.mp4", "trackFile": ""},
-          "right": {"folder": "/home/user/data/stereoLeftRightImages/right/right.mp4", "trackFile": ""}
+        "sourceList": {
+          "left": {"sourcePath": "/home/user/data/stereoLeftRightImages/left/left.mp4", "trackFile": ""},
+          "right": {"sourcePath": "/home/user/data/stereoLeftRightImages/right/right.mp4", "trackFile": ""}
         },
         "calibrationFile": "/home/user/data/stereoLeftRightImages/stereoCalibration.npz",
         "type": "video"
@@ -255,9 +255,9 @@
     "folderStereoVideoTranscodeTest": {
       "input": {
         "defaultDisplay": "left",
-        "folderList": {
-          "left": {"folder": "/home/user/data/stereoLeftRightImages/left/left.mpg", "trackFile":""},
-          "right": {"folder": "/home/user/data/stereoLeftRightImages/right/right.mpg", "trackFile":""}
+        "sourceList": {
+          "left": {"sourcePath": "/home/user/data/stereoLeftRightImages/left/left.mpg", "trackFile":""},
+          "right": {"sourcePath": "/home/user/data/stereoLeftRightImages/right/right.mpg", "trackFile":""}
         },
         "calibrationFile": "/home/user/data/stereoLeftRightImages/stereoCalibration.npz",
         "type": "video"
@@ -296,7 +296,7 @@
     "keywordStereoBasicTest": {
       "input": {
         "defaultDisplay": "left",
-        "keywordFolder": "/home/user/data/stereoLeftRightCombinedImages",
+        "sourcePath": "/home/user/data/stereoLeftRightCombinedImages",
         "globList": {
           "left": {"glob": "*left*.png", "trackFile": "" },
           "right": {"glob": "*right*.png", "trackFile": "" }
@@ -342,7 +342,7 @@
     "keywordStereoTranscodeTest": {
       "input": {
         "defaultDisplay": "left",
-        "keywordFolder": "/home/user/data/stereoLeftRightCombinedImages/tiff",
+        "sourcePath": "/home/user/data/stereoLeftRightCombinedImages/tiff",
         "globList": {
           "left": {"glob": "*left*.tiff", "trackFile": "" },
           "right": {"glob": "*right*.tiff", "trackFile": "" }
@@ -396,9 +396,9 @@
     "missingFolder": {
       "input": {
         "defaultDisplay": "left",
-        "folderList": {
-          "left": {"folder": "/home/user/data/stereoLeftRightImages/left2/left.mpg", "trackFile": ""},
-          "right": {"folder": "/home/user/data/stereoLeftRightImages/right2/right.mpg", "trackFile": ""}
+        "sourceList": {
+          "left": {"sourcePath": "/home/user/data/stereoLeftRightImages/left2/left.mpg", "trackFile": ""},
+          "right": {"sourcePath": "/home/user/data/stereoLeftRightImages/right2/right.mpg", "trackFile": ""}
         },
         "calibrationFile": "/home/user/data/stereoLeftRightImages/stereoCalibration.npz",
         "type": "video"
@@ -410,9 +410,9 @@
     "noMainFolder": {
       "input": {
         "defaultDisplay": "left2",
-        "folderList": {
-          "left": {"folder": "/home/user/data/stereoLeftRightImages/left/left.mp4", "trackFile": ""},
-          "right":{"folder": "/home/user/data/stereoLeftRightImages/right/right.mp4", "trackFile": ""}
+        "sourceList": {
+          "left": {"sourcePath": "/home/user/data/stereoLeftRightImages/left/left.mp4", "trackFile": ""},
+          "right":{"sourcePath": "/home/user/data/stereoLeftRightImages/right/right.mp4", "trackFile": ""}
         },
         "calibrationFile": "/home/user/data/stereoLeftRightImages/stereoCalibration.npz",
         "type": "video"
@@ -424,9 +424,9 @@
     "image for video type": {
       "input": {
         "defaultDisplay": "left",
-        "folderList": {
-          "left": {"folder": "/home/user/data/stereoLeftRightImages/left/left1.png", "trackFile": ""},
-          "right": {"folder": "/home/user/data/stereoLeftRightImages/right/right1.png", "trackFile": ""}
+        "sourceList": {
+          "left": {"sourcePath": "/home/user/data/stereoLeftRightImages/left/left1.png", "trackFile": ""},
+          "right": {"sourcePath": "/home/user/data/stereoLeftRightImages/right/right1.png", "trackFile": ""}
         },
         "calibrationFile": "/home/user/data/stereoLeftRightImages/stereoCalibration.npz",
         "type": "video"
@@ -438,9 +438,9 @@
     "unsupportedMimeType": {
       "input": {
         "defaultDisplay": "nomimeleft",
-        "folderList": {
-          "nomimeleft": {"folder": "/home/user/data/stereoLeftRightImages/left/nomimeleft/left.zxy", "trackFile": "" },
-          "nomimeright": {"folder": "/home/user/data/stereoLeftRightImages/right/nomimeright/right.zxy", "trackFile": ""}
+        "sourceList": {
+          "nomimeleft": {"sourcePath": "/home/user/data/stereoLeftRightImages/left/nomimeleft/left.zxy", "trackFile": "" },
+          "nomimeright": {"sourcePath": "/home/user/data/stereoLeftRightImages/right/nomimeright/right.zxy", "trackFile": ""}
         },
         "calibrationFile": "/home/user/data/stereoLeftRightImages/stereoCalibration.npz",
         "type": "video"
@@ -452,9 +452,9 @@
     "no images in folder": {
       "input": {
         "defaultDisplay": "left",
-        "folderList": {
-          "left": {"folder": "/home/user/data/stereoLeftRightCombinedImages/empty", "trackFile" : "" },
-          "right": {"folder": "/home/user/data/stereoLeftRightCombinedImages/empty", "trackFile": "" }
+        "sourceList": {
+          "left": {"sourcePath": "/home/user/data/stereoLeftRightCombinedImages/empty", "trackFile" : "" },
+          "right": {"sourcePath": "/home/user/data/stereoLeftRightCombinedImages/empty", "trackFile": "" }
         },
         "calibrationFile": "/home/user/data/stereoLeftRightImages/stereoCalibration.npz",
         "type": "image-sequence"
@@ -469,7 +469,7 @@
     "glob not supported in video": {
       "input": {
         "defaultDisplay": "left",
-        "keywordFolder": "/home/user/data/stereoLeftRightCombinedImages/tiff",
+        "sourcePath": "/home/user/data/stereoLeftRightCombinedImages/tiff",
         "globList": {
           "left": {"glob": "*left*.png", "trackFile": "" },
           "right": {"glob": "*right*.png", "trackFile": "" }

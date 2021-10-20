@@ -106,7 +106,7 @@ export default defineComponent({
 
     const folderImages = computed(() => {
       const filtered: Record<string, string[]> = {};
-      Object.entries(folderList.value).forEach(([cameraName, val]) => {
+      Object.entries(folderList.value).forEach(([cameraName]) => {
         const payload = pendingImportPayloads.value[cameraName];
         filtered[cameraName] = payload?.jsonMeta.originalImageFiles || [];
       });
