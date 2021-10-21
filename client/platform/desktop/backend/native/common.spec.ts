@@ -124,38 +124,23 @@ mockfs({
     },
     imageLists: {
       success: {
-        'image_list.txt': `
-          image1.png
-          /home/user/data/imageSuccess/imageLists/success/image2.png
-        `,
+        'image_list.txt': `image1.png\r\n/home/user/data/imageLists/success/image2.png\n\n\n`,
         'image1.png': '',
         'image2.png': '',
       },
       failEmptyRelative: {
-        'image_list.txt': `
-          image1.png
-          image2.png
-        `,
+        'image_list.txt': `\nimage1.png\nimage2.png`,
       },
       failEmptyAbsolute: {
-        'image_list.txt': `
-          image1.png
-          /bad/path/image2.png
-        `,
+        'name-not-important.txt': `image1.png\n/bad/path/image2.png`,
         'image1.png': '',
         'image2.png': '',
       },
       failEmptyList: {
-        'image_list.txt': `
-        
-        
-        `,
+        'image_list.txt': `\n\n\r\n`,
       },
       failInvalidImageMIME: {
-        'image_list.txt': `
-          image1.png
-          image2.txt
-        `,
+        'image_list.txt': `\nimage1.png\nimage2.txt`,
         'image1.png': '',
         'image2.txt': '',
       },
@@ -423,7 +408,7 @@ describe('native.common', () => {
     expect(result).toMatch(/DIVE_Jobs\/myproject1_name_mypipeline\.pipe_/);
   });
 
-  it('importMedia image sequence success', async () => {
+  it('beginMediaImport image sequence success', async () => {
     const payload = await common.beginMediaImport(settings, '/home/user/data/imageSuccess', checkMedia);
     expect(payload.jsonMeta.name).toBe('imageSuccess');
     expect(payload.jsonMeta.originalImageFiles.length).toBe(2);
@@ -431,13 +416,37 @@ describe('native.common', () => {
     expect(payload.jsonMeta.originalBasePath).toBe('/home/user/data/imageSuccess');
   });
 
-  it('importMedia using image lists success', async () => {
+  it('beginMediaImport image lists success', async () => {
     const payload = await common.beginMediaImport(
       settings, '/home/user/data/imageLists/success/image_list.txt', checkMedia,
     );
     expect(payload.jsonMeta.originalBasePath).toBe('/');
     expect(payload.jsonMeta.originalImageFiles).toHaveLength(2);
     expect(payload.jsonMeta.name).toBe('success');
+  });
+
+  it('beginMediaImport image list fail empty relative', async () => {
+    await expect(common.beginMediaImport(
+      settings, '/home/user/data/imageLists/failEmptyRelative/image_list.txt', checkMedia,
+    )).rejects.toThrowError('Image from image list /home/user/data/imageLists/failEmptyRelative/image1.png was not found');
+  });
+
+  it('beginMediaImport image list fail empty absolute', async () => {
+    await expect(common.beginMediaImport(
+      settings, '/home/user/data/imageLists/failEmptyAbsolute/name-not-important.txt', checkMedia,
+    )).rejects.toThrowError('Image from image list /bad/path/image2.png was not found');
+  });
+
+  it('beginMediaImport image list fail empty text file', async () => {
+    await expect(common.beginMediaImport(
+      settings, '/home/user/data/imageLists/failEmptyList/image_list.txt', checkMedia,
+    )).rejects.toThrowError('No images in input image list');
+  });
+
+  it('beginMediaImport image list fail invalid mime', async () => {
+    await expect(common.beginMediaImport(
+      settings, '/home/user/data/imageLists/failInvalidImageMIME/image_list.txt', checkMedia,
+    )).rejects.toThrowError('Found non-image type data in image list file');
   });
 
   it('import with CSV annotations without specifying track file', async () => {
@@ -492,7 +501,7 @@ describe('native.common', () => {
     await expect(common.beginMediaImport(settings, '/home/user/data/imageSuccess/foo.png', checkMedia))
       .rejects.toThrow('chose image file for video import option');
     await expect(common.beginMediaImport(settings, '/home/user/data/videoSuccess/otherfile.txt', checkMedia))
-      .rejects.toThrow('unsupported MIME type');
+      .rejects.toThrow('No images in input image list');
     await expect(common.beginMediaImport(settings, '/home/user/data/videoSuccess/nomime', checkMedia))
       .rejects.toThrow('could not determine video MIME');
   });

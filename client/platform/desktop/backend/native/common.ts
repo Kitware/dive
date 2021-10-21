@@ -98,7 +98,8 @@ async function findImagesInFolder(path: string, glob?: string) {
 
   imagePaths.forEach((absPath) => {
     const mimetype = mime.lookup(absPath);
-    if (glob === undefined || filterByGlob(glob, [absPath]).length === 1) {
+    const filename = npath.basename(absPath);
+    if (glob === undefined || filterByGlob(glob, [filename]).length === 1) {
       if (
         mimetype && (websafeImageTypes.includes(mimetype)
           || otherImageTypes.includes(mimetype))
@@ -113,8 +114,6 @@ async function findImagesInFolder(path: string, glob?: string) {
       }
     }
   });
-
-  console.log(filteredImagePaths);
 
   return {
     imagePaths: filteredImagePaths,
