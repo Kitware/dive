@@ -5,12 +5,14 @@ import {
 
 import { useApi, TrainingConfigs } from 'dive-common/apispec';
 import JobLaunchDialog from 'dive-common/components/JobLaunchDialog.vue';
+import ImportButton from 'dive-common/components/ImportButton.vue';
 import { useRequest } from 'dive-common/use';
+
 
 export default defineComponent({
   name: 'RunTrainingMenu',
 
-  components: { JobLaunchDialog },
+  components: { JobLaunchDialog, ImportButton },
 
   props: {
     selectedDatasetIds: {
@@ -160,6 +162,12 @@ export default defineComponent({
               class="my-4"
               label="Configuration File"
               :items="trainingConfigurations.configs"
+            />
+            <import-button
+              name="Upload labels.txt File"
+              icon="mdi-folder-open"
+              class="grow"
+              @open="openImport($event)"
             />
             <v-checkbox
               v-model="annotatedFramesOnly"
