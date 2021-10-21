@@ -1,10 +1,14 @@
 <script lang="ts">
-import { computed, defineComponent, reactive } from '@vue/composition-api';
+import {
+  computed, defineComponent, reactive, Ref,
+} from '@vue/composition-api';
+
 import {
   useCheckedTypes, useAllTypes, useTypeStyling, useHandler,
   useUsedTypes, useFilteredTracks, useConfidenceFilters,
 } from 'vue-media-annotator/provides';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
+import TooltipBtn from './TooltipButton.vue';
 import TypeEditor from './TypeEditor.vue';
 
 export default defineComponent({
@@ -17,10 +21,28 @@ export default defineComponent({
     },
   },
 
-  components: { TypeEditor },
+  components: { TypeEditor, TooltipBtn },
 
   setup(props) {
     const { prompt } = usePrompt();
+
+    // Ordering of these lists should match
+    const sortingMethods = ['a-z', 'count'];
+    const sortingMethodIcons = ['mdi-sort-alphabetical-ascending', 'mdi-sort-numeric-ascending'];
+
+    const data = reactive({
+      showPicker: false,
+      selectedColor: '',
+      selectedType: '',
+      editingType: '',
+      editingColor: '',
+      editingThickness: 5,
+      editingFill: false,
+      editingOpacity: 1.0,
+      valid: true,
+      settingsActive: false,
+      sortingMethod: 0, // index into sortingMethods
+    });
     const checkedTypesRef = useCheckedTypes();
     const allTypesRef = useAllTypes();
     const usedTypesRef = useUsedTypes();
@@ -31,18 +53,20 @@ export default defineComponent({
       setCheckedTypes,
       removeTypeTracks,
     } = useHandler();
-    const data = reactive({
-      showPicker: false,
-      selectedType: '',
-      settingsActive: false,
-    });
 
-    const visibleTypes = computed(() => {
-      if (props.showEmptyTypes) {
-        return allTypesRef.value;
-      }
-      return usedTypesRef.value;
-    });
+    function clickEdit(type: string) {
+      data.selectedType = type;
+      data.editingType = data.selectedType;
+      data.showPicker = true;
+      data.editingColor = typeStylingRef.value.color(type);
+      data.editingThickness = typeStylingRef.value.strokeWidth(type);
+      data.editingFill = typeStylingRef.value.fill(type);
+      data.editingOpacity = typeStylingRef.value.opacity(type);
+    }
+
+    function clickSortToggle() {
+      data.sortingMethod = (data.sortingMethod + 1) % sortingMethods.length;
+    }
 
     async function clickDelete() {
       const typeDisplay: string[] = [];
@@ -63,10 +87,33 @@ export default defineComponent({
       }
     }
 
-    function clickEdit(type: string) {
-      data.showPicker = true;
-      data.selectedType = type;
+    const typeCounts = computed(() => filteredTracksRef.value.reduce((acc, filteredTrack) => {
+      const confidencePair = filteredTrack.track.getType(filteredTrack.context.confidencePairIndex);
+      const trackType = confidencePair[0];
+      acc.set(trackType, (acc.get(trackType) || 0) + 1);
+
+      return acc;
+    }, new Map<string, number>()));
+
+    function sortTypes(types: Ref<readonly string[]>) {
+      switch (sortingMethods[data.sortingMethod]) {
+        case 'a-z':
+          return types.value.slice(0).sort();
+        case 'count':
+          return types.value.slice(0).sort(
+            (a, b) => (typeCounts.value.get(b) || 0) - (typeCounts.value.get(a) || 0),
+          );
+        default:
+          return types.value;
+      }
     }
+
+    const visibleTypes = computed(() => {
+      if (props.showEmptyTypes) {
+        return sortTypes(allTypesRef);
+      }
+      return sortTypes(usedTypesRef);
+    });
 
     const headCheckState = computed(() => {
       if (checkedTypesRef.value.length === visibleTypes.value.length) {
@@ -85,16 +132,9 @@ export default defineComponent({
       setCheckedTypes([]);
     }
 
-    const typeCounts = computed(() => filteredTracksRef.value.reduce((acc, filteredTrack) => {
-      const confidencePair = filteredTrack.track.getType(filteredTrack.context.confidencePairIndex);
-      const trackType = confidencePair[0];
-      acc.set(trackType, (acc.get(trackType) || 0) + 1);
-
-      return acc;
-    }, new Map<string, number>()));
-
 
     return {
+      data,
       headCheckState,
       visibleTypes,
       usedTypesRef,
@@ -102,10 +142,12 @@ export default defineComponent({
       confidenceFiltersRef,
       typeStylingRef,
       typeCounts,
-      data,
+      sortingMethods,
+      sortingMethodIcons,
       /* methods */
       clickDelete,
       clickEdit,
+      clickSortToggle,
       headCheckClicked,
       setCheckedTypes,
     };
@@ -115,9 +157,6 @@ export default defineComponent({
 
 <template>
   <div class="d-flex flex-column">
-    <v-subheader class="flex-shrink-0">
-      Type Filter
-    </v-subheader>
     <v-container
       dense
       class="py-0"
@@ -126,7 +165,7 @@ export default defineComponent({
         class="border-highlight"
         align="center"
       >
-        <v-col class="d-flex flex-row align-center py-0">
+        <v-col class="d-flex flex-row align-center py-0 mr-8">
           <v-checkbox
             :input-value="headCheckState !== -1 ? headCheckState : false"
             :indeterminate="headCheckState === -1"
@@ -137,12 +176,17 @@ export default defineComponent({
             class="my-1 type-checkbox"
             @change="headCheckClicked"
           />
-          <b class="mt-1">Visibility</b>
+          <b>Type Filter</b>
           <v-spacer />
+          <tooltip-btn
+            :icon="sortingMethodIcons[data.sortingMethod]"
+            tooltip-text="Sort types by count or alphabetically"
+            @click="clickSortToggle"
+          />
           <v-btn
             icon
             small
-            class="mr-2"
+            class="mx-2"
             @click="data.settingsActive = !data.settingsActive"
           >
             <v-icon
@@ -271,7 +315,6 @@ export default defineComponent({
 <style scoped lang='scss'>
 .border-highlight {
    border-bottom: 1px solid gray;
-   border-top: 1px solid gray;
  }
 
 .type-checkbox {
