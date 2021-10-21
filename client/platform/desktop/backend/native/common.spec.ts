@@ -124,23 +124,23 @@ mockfs({
     },
     imageLists: {
       success: {
-        'image_list.txt': `image1.png\r\n/home/user/data/imageLists/success/image2.png\n\n\n`,
+        'image_list.txt': 'image1.png\r\n/home/user/data/imageLists/success/image2.png\n\n\n',
         'image1.png': '',
         'image2.png': '',
       },
       failEmptyRelative: {
-        'image_list.txt': `\nimage1.png\nimage2.png`,
+        'image_list.txt': '\nimage1.png\nimage2.png',
       },
       failEmptyAbsolute: {
-        'name-not-important.txt': `image1.png\n/bad/path/image2.png`,
+        'name-not-important.txt': 'image1.png\n/bad/path/image2.png',
         'image1.png': '',
         'image2.png': '',
       },
       failEmptyList: {
-        'image_list.txt': `\n\n\r\n`,
+        'image_list.txt': '\n\n\r\n',
       },
       failInvalidImageMIME: {
-        'image_list.txt': `\nimage1.png\nimage2.txt`,
+        'image_list.txt': '\nimage1.png\nimage2.txt',
         'image1.png': '',
         'image2.txt': '',
       },
