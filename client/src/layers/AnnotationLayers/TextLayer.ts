@@ -1,5 +1,5 @@
-import BaseLayer, { BaseLayerParams, LayerStyle } from './BaseLayer';
-import { FrameDataTrack } from './LayerTypes';
+import BaseLayer, { BaseLayerParams, LayerStyle } from '../BaseLayer';
+import { FrameDataTrack } from '../LayerTypes';
 
 export interface TextData {
   selected: boolean;

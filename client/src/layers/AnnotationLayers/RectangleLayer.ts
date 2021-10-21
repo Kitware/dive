@@ -51,11 +51,30 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
         this.featureLayer.mouseOverOrderClosestBorder,
       );
       this.featureLayer.geoOn(geo.event.mouseclick, (e: GeoEvent) => {
-      // If we aren't clicking on an annotation we can deselect the current track
+        // If we aren't clicking on an annotation we can deselect the current track
         if (this.featureLayer.pointSearch(e.geo).found.length === 0) {
           this.bus.$emit('annotation-clicked', null, false);
         }
       });
+      this.featureLayer.geoOn(geo.event.feature.mouseover, (e: GeoEvent) => {
+        // If we aren't clicking on an annotation we can deselect the current track
+        const { found } = this.featureLayer.pointSearch(e.mouse.geo);
+        if (found.length !== 0) {
+          this.bus.$emit('annotation-hover', found, false);
+        } else {
+          this.bus.$emit('annotation-hover', [], false);
+        }
+      });
+      this.featureLayer.geoOn(geo.event.feature.mouseoff, (e: GeoEvent) => {
+        // If we aren't clicking on an annotation we can deselect the current track
+        const { found } = this.featureLayer.pointSearch(e.mouse.geo);
+        if (found.length !== 0) {
+          this.bus.$emit('annotation-hover', found, false);
+        } else {
+          this.bus.$emit('annotation-hover', [], false);
+        }
+      });
+
       super.initialize();
     }
 
