@@ -26,7 +26,7 @@ export default Vue.extend({
 <template>
   <v-tooltip
     bottom
-    open-delay="800"
+    open-delay="600"
   >
     <template #activator="{ on, attrs }">
       <v-btn
