@@ -221,9 +221,7 @@ export default defineComponent({
               :value="0"
             />
           </v-toolbar>
-          <router-view
-            ref="view"
-          />
+          <router-view />
           <v-card
             v-if="selectedDescription"
             class="my-4"
