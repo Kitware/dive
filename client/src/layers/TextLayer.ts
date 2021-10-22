@@ -94,8 +94,9 @@ export default class TextLayer extends BaseLayer<TextData> {
 
   formatData(frameData: FrameDataTrack[]) {
     const arr = [] as TextData[];
+    const typeStyling = this.typeStyling.value;
     frameData.forEach((track: FrameDataTrack) => {
-      const formatted = this.formatter(track, this.typeStyling.value);
+      const formatted = this.formatter(track, typeStyling);
       if (formatted !== null) {
         arr.push(...formatted);
       }
