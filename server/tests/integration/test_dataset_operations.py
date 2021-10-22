@@ -82,6 +82,20 @@ def test_set_configuration(user: dict):
 @pytest.mark.integration
 @pytest.mark.parametrize("user", users.values())
 @pytest.mark.run(order=5)
+def test_upload_json_detections(user: dict):
+    client = getClient(user['login'])
+    privateFolder = getTestFolder(client)
+    for dataset in client.listFolder(privateFolder['_id']):
+        client.uploadFileToFolder(dataset['_id'], '../testutils/28-tracks.json')
+        old_tracks = client.get(f'dive_annotation?folderId={dataset["_id"]}')
+        client.post(f'dive_rpc/postprocess/{dataset["_id"]}', data={"skipJobs": True})
+        new_tracks = client.get(f'dive_annotation?folderId={dataset["_id"]}')
+        assert new_tracks.keys() != old_tracks.keys(), "Tracks should have updated"
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("user", users.values())
+@pytest.mark.run(order=5)
 def test_invalid_upload(user: dict):
     client = getClient(user['login'])
     privateFolder = getTestFolder(client)

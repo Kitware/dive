@@ -1,6 +1,7 @@
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from pydantic import BaseModel, Field, validator
+from pydantic.class_validators import root_validator
 from typing_extensions import Literal
 
 
@@ -94,6 +95,19 @@ class MetadataMutable(BaseModel):
     customTypeStyling: Optional[Dict[str, CustomStyle]]
     confidenceFilters: Optional[Dict[str, float]]
     attributes: Optional[Dict[str, Attribute]]
+
+    # @root_validator
+    # def validate_at_least_some_field(cls, value):
+    #     assert any(
+    #         [
+    #             key in value
+    #             for key in [
+    #                 'customTypeStyling',
+    #                 'confidenceFilters',
+    #                 'attributes',
+    #             ]
+    #         ]
+    #     ), 'At least one configuration value must be set'
 
 
 class GirderMetadataStatic(MetadataMutable):
