@@ -20,6 +20,7 @@ import Clone from './Clone.vue';
 import ShareTab from './ShareTab.vue';
 import DataShared from './DataShared.vue';
 import { useStore } from '../store/types';
+import eventBus from '../eventBus';
 
 const buttonOptions = {
   block: true,
@@ -66,6 +67,7 @@ export default defineComponent({
       // methods
       prompt,
       clearSelected,
+      eventBus,
     };
   },
   // everything below needs to be refactored to composition-api
@@ -122,7 +124,7 @@ export default defineComponent({
       try {
         this.loading = true;
         await deleteResources(this.selected);
-        this.$refs.view.$refs.fileManager.$refs.girderBrowser.refresh();
+        eventBus.$emit('refresh-data-browser');
         this.clearSelected();
       } catch (err) {
         let text = 'Unable to delete resource(s)';
