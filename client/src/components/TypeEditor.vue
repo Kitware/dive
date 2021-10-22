@@ -127,7 +127,7 @@ export default defineComponent({
       <v-card-text>
         <v-form v-model="data.valid">
           <v-row>
-            <v-col>
+            <v-col clas="py-0">
               <v-text-field
                 v-model="data.editingType"
                 label="Type Name"
@@ -142,12 +142,14 @@ export default defineComponent({
                 label="Show Label"
                 dense
                 shrink
+                hide-details
               />
               <v-checkbox
                 v-model="data.editingShowConfidence"
                 label="Show Confidence"
                 dense
                 shrink
+                hide-details
               />
             </v-col>
           </v-row>
