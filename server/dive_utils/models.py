@@ -96,18 +96,20 @@ class MetadataMutable(BaseModel):
     confidenceFilters: Optional[Dict[str, float]]
     attributes: Optional[Dict[str, Attribute]]
 
-    # @root_validator
-    # def validate_at_least_some_field(cls, value):
-    #     assert any(
-    #         [
-    #             key in value
-    #             for key in [
-    #                 'customTypeStyling',
-    #                 'confidenceFilters',
-    #                 'attributes',
-    #             ]
-    #         ]
-    #     ), 'At least one configuration value must be set'
+    @root_validator
+    @classmethod
+    def validate_at_least_some_field(cls, value):
+        assert any(
+            [
+                value.get(key, None)
+                for key in [
+                    'customTypeStyling',
+                    'confidenceFilters',
+                    'attributes',
+                ]
+            ]
+        ), 'At least one configuration value must be set'
+        return value
 
 
 class GirderMetadataStatic(MetadataMutable):
