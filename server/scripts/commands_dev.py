@@ -4,9 +4,31 @@ that should not be shipped with the regular installation or installed in CI
 
 Debug cli needs [dev] extra_require from setuptools.
 """
+import os
+
 import click
+from girder_client import GirderClient
 
 from scripts import cli, generateLargeDataset
+
+
+def get_girder_client() -> GirderClient:
+    client = GirderClient(apiUrl="https://viame.kitware.com/api/v1")
+    apikey = os.environ.get('GIRDER_API_KEY', None)
+    if apikey:
+        client.authenticate(apiKey=apikey)
+    else:
+        client.authenticate(interactive=True)
+    return client
+
+
+@cli.command(name='get-image-list')
+@click.argument('id', type=click.STRING)
+def get_image_list(id):
+    """Extract image names from media json file"""
+    data = get_girder_client().get(f'dive_dataset/{id}/media')
+    for d in data['imageData']:
+        click.echo(d['filename'])
 
 
 @cli.command(name="generate-data", help="Generate fake datasets for testing")
