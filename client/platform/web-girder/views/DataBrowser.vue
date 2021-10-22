@@ -10,6 +10,7 @@ import { itemsPerPageOptions } from 'dive-common/constants';
 import { clientSettings } from 'dive-common/store/settings';
 import { useStore, LocationType } from '../store/types';
 import Upload from './Upload.vue';
+import eventBus from '../eventBus';
 
 export default defineComponent({
   components: {
@@ -51,6 +52,10 @@ export default defineComponent({
       && getLocationType(locationStore.location) === 'folder'
       && !locationStore.selected.length
     ));
+
+    eventBus.$on('refresh-data-browser', () => {
+      fileManager.value.$refs.girderBrowser.refresh();
+    });
 
     return {
       fileManager,
