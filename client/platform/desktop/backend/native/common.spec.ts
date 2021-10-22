@@ -124,9 +124,10 @@ mockfs({
     },
     imageLists: {
       success: {
-        'image_list.txt': 'image1.png\r\n/home/user/data/imageLists/success/image2.png\n\n\n',
+        'image_list.txt': 'image1.png\r\n/home/user/data/imageLists/success/image2.png\n\n\n../success/image3.png',
         'image1.png': '',
         'image2.png': '',
+        'image3.png': '',
       },
       failEmptyRelative: {
         'image_list.txt': '\nimage1.png\nimage2.png',
@@ -421,7 +422,11 @@ describe('native.common', () => {
       settings, '/home/user/data/imageLists/success/image_list.txt', checkMedia,
     );
     expect(payload.jsonMeta.originalBasePath).toBe('/');
-    expect(payload.jsonMeta.originalImageFiles).toHaveLength(2);
+    expect(payload.jsonMeta.originalImageFiles).toEqual([
+      '/home/user/data/imageLists/success/image1.png',
+      '/home/user/data/imageLists/success/image2.png',
+      '/home/user/data/imageLists/success/image3.png',
+    ]);
     expect(payload.jsonMeta.name).toBe('success');
   });
 
