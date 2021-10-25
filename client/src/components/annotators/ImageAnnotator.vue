@@ -374,7 +374,10 @@ export default defineComponent({
     // Watch brightness for change with condition
     // Only call init if the value or brightness is becoming null, or was just null
     watch(toRef(props, 'brightness'), (brightness, oldBrightness) => {
-      if (brightness !== oldBrightness && (brightness === undefined || oldBrightness === undefined)) {
+      if (
+        brightness !== oldBrightness
+        && (brightness === undefined || oldBrightness === undefined)
+      ) {
         init();
       }
     });
@@ -404,9 +407,18 @@ export default defineComponent({
       <defs>
         <filter id="brightness">
           <feComponentTransfer color-interpolation-filters="sRGB">
-            <feFuncR type="linear" :slope="brightness" />
-            <feFuncG type="linear" :slope="brightness" />
-            <feFuncB type="linear" :slope="brightness" />
+            <feFuncR
+              type="linear"
+              :slope="brightness"
+            />
+            <feFuncG
+              type="linear"
+              :slope="brightness"
+            />
+            <feFuncB
+              type="linear"
+              :slope="brightness"
+            />
           </feComponentTransfer>
         </filter>
       </defs>

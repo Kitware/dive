@@ -278,9 +278,18 @@ export default defineComponent({
       <defs>
         <filter id="brightness">
           <feComponentTransfer color-interpolation-filters="sRGB">
-            <feFuncR type="linear" :slope="brightness" />
-            <feFuncG type="linear" :slope="brightness" />
-            <feFuncB type="linear" :slope="brightness" />
+            <feFuncR
+              type="linear"
+              :slope="brightness"
+            />
+            <feFuncG
+              type="linear"
+              :slope="brightness"
+            />
+            <feFuncB
+              type="linear"
+              :slope="brightness"
+            />
           </feComponentTransfer>
         </filter>
       </defs>
