@@ -17,7 +17,6 @@ import { TrackId } from '../track';
 import { geojsonToBound } from '../utils';
 import { VisibleAnnotationTypes } from '../layers';
 import UILayer from '../layers/UILayers/UILayer';
-import WidgetBase from '../layers/UILayers/WidgetBase';
 import ToolTipWidget from '../layers/UILayers/ToolTipWidget.vue';
 import {
   useEnabledTracks,
@@ -103,10 +102,9 @@ export default defineComponent({
     });
 
     const uiLayer = new UILayer(annotator);
-    const typeStyling = useTypeStyling();
     const hoverOvered: Ref<[string, number][]> = ref([]);
-    const toolTipWidgetProps = { color: typeStyling.value.color, dataList: hoverOvered };
-    const toolTipWidget = new WidgetBase(uiLayer.addDOMWidget('CustomtoolTip'), ToolTipWidget, toolTipWidgetProps);
+    const toolTipWidgetProps = { color: typeStylingRef.value.color, dataList: hoverOvered };
+    const toolTipWidget = uiLayer.addDOMWidget('customToolTip', ToolTipWidget, toolTipWidgetProps);
 
     function updateLayers(
       frame: number,
@@ -313,8 +311,11 @@ export default defineComponent({
     });
     editAnnotationLayer.bus.$on('update:selectedIndex',
       (index: number, _type: EditAnnotationTypes, key = '') => handler.selectFeatureHandle(index, key));
-    rectAnnotationLayer.bus.$on('annotation-hover', (found: { trackType: [string, number]}[]) => {
-      hoverOvered.value = found.map((item) => item.trackType);
+    rectAnnotationLayer.bus.$on('annotation-hover', (found: { trackType: [string, number]}[], pos: {x: number; y: number}) => {
+      if (visibleModesRef.value.includes('tooltip')) {
+        hoverOvered.value = found.map((item) => item.trackType);
+        toolTipWidget.position(pos);
+      }
     });
   },
 });

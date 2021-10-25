@@ -1,7 +1,6 @@
 <script lang="ts">
 import {
-  defineComponent, PropType, watch,
-  ref, Ref,
+  defineComponent, PropType, Ref,
 } from '@vue/composition-api';
 
 export default defineComponent({
@@ -19,10 +18,6 @@ export default defineComponent({
       type: Object as PropType<Ref<[string, number][]>>,
       default: () => [],
     },
-  },
-  setup(props) {
-    return {
-    };
   },
 });
 </script>
@@ -46,7 +41,7 @@ export default defineComponent({
         >
           █
         </span>
-        <span>{{ `${item[0]}:${item[1]}` }}</span>
+        <span>{{ `${item[0]}:${item[1].toFixed(2)}` }}</span>
       </div>
     </div>
   </v-card>

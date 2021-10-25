@@ -5,7 +5,7 @@ import PolygonLayer from './AnnotationLayers/PolygonLayer';
 import RectangleLayer from './AnnotationLayers/RectangleLayer';
 import TextLayer from './AnnotationLayers/TextLayer';
 
-type VisibleAnnotationTypes = EditAnnotationTypes | 'text';
+type VisibleAnnotationTypes = EditAnnotationTypes | 'text' | 'tooltip';
 export {
   EditAnnotationLayer,
   EditAnnotationTypes,
