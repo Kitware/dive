@@ -964,13 +964,6 @@ async function _importTrackFile(
     foundDetections = processedFiles.length > 0;
   }
 
-
-  /* custom image sort */
-  jsonMeta.originalImageFiles.sort(strNumericCompare);
-  if (jsonMeta.transcodedImageFiles) {
-    jsonMeta.transcodedImageFiles.sort(strNumericCompare);
-  }
-
   await _saveAsJson(npath.join(projectDirAbsPath, JsonMetaFileName), jsonMeta);
 
   /* create an empty file as fallback */

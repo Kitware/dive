@@ -440,7 +440,7 @@ describe('native.common', () => {
     expect(final.originalImageFiles.length).toBe(3);
     expect(final.name).toBe('success');
     expect(final.imageListPath).toBe('/home/user/data/imageLists/success/image_list.txt');
-    expect(final.originalBasePath).toBe('');
+    expect(final.originalBasePath).toBe('/home/user/data/imageLists/success');
   });
 
   it('beginMediaImport image lists glob success', async () => {
@@ -451,6 +451,7 @@ describe('native.common', () => {
     payload.globPattern = '2018*';
     const final = await common.finalizeMediaImport(settings, payload, updater, convertMedia);
     expect(final.originalImageFiles.length).toBe(2);
+    expect(final.originalBasePath).toBe('/home/user/data/imageLists/successGlob');
   });
 
   it('beginMediaImport image list fail empty relative', async () => {

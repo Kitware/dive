@@ -111,10 +111,7 @@ function locateDuplicates(meta: JsonMeta) {
       (meta.type === 'video' && candidate.type === 'video')
         ? meta.originalVideoFile === candidate.originalVideoFile
         : true
-    ) && (meta.imageListPath
-      ? meta.imageListPath === candidate.imageListPath
-      : true
-    )
+    ) && (meta.imageListPath === candidate.imageListPath)
   ));
 }
 
