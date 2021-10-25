@@ -13,6 +13,7 @@ interface EventChartParams {
 interface EventChartData {
   trackId: TrackId;
   name: string;
+  type: string;
   color: string;
   selected: boolean;
   range: [number, number];
@@ -35,6 +36,7 @@ export default function useEventChart({
         values.push({
           trackId: track.trackId,
           name: `Track ${track.trackId}`,
+          type: trackType,
           color: mapfunc(trackType),
           selected: selectedTrackIdsValue.includes(track.trackId),
           range: [track.begin, track.end],

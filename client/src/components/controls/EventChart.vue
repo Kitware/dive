@@ -111,6 +111,7 @@ export default Vue.extend({
                 color: event.color,
                 selected: event.selected,
                 name: event.name,
+                type: event.type,
                 trackId: event.trackId,
                 length: event.range[1] - event.range[0],
                 markers: event.markers,
@@ -261,7 +262,7 @@ export default Vue.extend({
       this.tooltip = {
         left: offsetX,
         top: offsetY,
-        content: bar.name,
+        content: `${bar.name} (${bar.type})`,
       };
     },
   },
