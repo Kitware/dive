@@ -7,6 +7,9 @@ import {
 
 import { JsonMeta } from 'platform/desktop/constants';
 
+/**
+ * Figure out the destination location
+ */
 function transcodeMultiCam(
   jsonMeta: JsonMeta,
   item: string,

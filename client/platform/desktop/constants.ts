@@ -27,15 +27,19 @@ export interface Settings {
 }
 
 // Handles Importing and storing of multi camera data
+
+export interface Camera {
+  type: 'image-sequence' | 'video';
+  originalBasePath: string;
+  originalImageFiles: string[];
+  originalVideoFile: string;
+  transcodedImageFiles: string[];
+  transcodedVideoFile: string;
+  imageListPath?: string;
+}
+
 export interface MultiCamDesktop {
-  cameras: Record<string, {
-    type: 'image-sequence' | 'video';
-    originalBasePath: string;
-    originalImageFiles: string[];
-    originalVideoFile: string;
-    transcodedImageFiles: string[];
-    transcodedVideoFile: string;
-  }>;
+  cameras: Record<string, Camera>;
   //Calibration file in .npz format used for stereo or other cameras
   calibration?: string;
   // Default Display Key for showing multiCam
@@ -70,10 +74,8 @@ export interface JsonMeta extends DatasetMetaMutable {
   createdAt: string;
 
   // absolute base path on disk where dataset was imported from
+  // If dataset is image list, originalBasePath is the parent directory
   originalBasePath: string;
-
-  // manifest source path IF image list was used.
-  imageListPath?: string;
 
   // video file path
   // relative to originalBasePath
@@ -84,12 +86,16 @@ export interface JsonMeta extends DatasetMetaMutable {
   transcodedVideoFile: string;
 
   // ordered image filenames IF this is an image dataset
-  // relative to originalBasePath
+  // If paths are relative, they're relative to originalBasePath
+  // If paths are absolute, originalBasePath is ignored
   originalImageFiles: string[];
 
   // ordered image filenames of transcoded images
   // relative to project path
   transcodedImageFiles: string[];
+
+  // manifest source path IF image list was used.
+  imageListPath?: string;
 
   // If the dataset required transcoding, specify the job
   // key that ran transcoding

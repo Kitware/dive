@@ -120,6 +120,9 @@ export default defineComponent({
       if (recent.type === 'video') {
         return 'mdi-file-video';
       }
+      if (recent.imageListPath) {
+        return 'mdi-view-list-outline';
+      }
       return 'mdi-image-multiple';
     }
 
@@ -133,6 +136,7 @@ export default defineComponent({
           text: [
             `There was an error loading data from ${recent.name}`,
             'Correct the error using the Error Details or delete and re-import the dataset',
+            String(e),
           ],
           positiveButton: 'Okay',
         });
@@ -383,6 +387,7 @@ export default defineComponent({
                   color="primary lighten-2"
                   :tooltip-text="item.subType ? item.subType : item.type"
                   :icon="getTypeIcon(item)"
+                  @click="preloadCheck(item)"
                 />
               </template>
               <template #[`item.name`]="{ item }">
@@ -407,11 +412,7 @@ export default defineComponent({
                     {{ item.name }}
                   </div>
                   <div class="grey--text text-caption">
-                    {{
-                      item.originalBasePath !== '/'
-                        ? item.originalBasePath
-                        : 'Opened from image list file'
-                    }}
+                    {{ item.imageListPath || item.originalBasePath }}
                   </div>
                 </span>
               </template>

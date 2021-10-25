@@ -130,6 +130,10 @@ export default defineComponent({
         return null;
       }
 
+      if (props.dataType === 'video') {
+        return null;
+      }
+
       const entries = Object.entries(filteredImages.value);
       let length = -1;
       let totalList: string[] = [];

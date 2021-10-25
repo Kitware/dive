@@ -418,7 +418,7 @@
         "type": "video"
       },
       "output": {
-        "error": "No main folder defined"
+        "error": "left2 is not a camera name"
       }
     },
     "image for video type": {

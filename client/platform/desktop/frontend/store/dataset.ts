@@ -25,6 +25,7 @@ export interface JsonMetaCache {
   accessedAt: string;
   originalBasePath: string;
   originalVideoFile: string;
+  imageListPath: string;
   transcodedVideoFile?: string;
   subType: SubType;
 }
@@ -58,6 +59,7 @@ function setRecents(meta: JsonMeta, accessTime?: string) {
     accessedAt: accessTime || meta.createdAt,
     originalBasePath: meta.originalBasePath,
     originalVideoFile: meta.originalVideoFile,
+    imageListPath: meta.imageListPath,
     transcodedVideoFile: meta.transcodedVideoFile,
     subType: meta.subType,
   } as JsonMetaCache);
@@ -106,9 +108,12 @@ function locateDuplicates(meta: JsonMeta) {
   return recents.value.filter((candidate) => (
     candidate.originalBasePath === meta.originalBasePath
     && (
-      meta.type === 'video'
+      (meta.type === 'video' && candidate.type === 'video')
         ? meta.originalVideoFile === candidate.originalVideoFile
         : true
+    ) && (meta.imageListPath
+      ? meta.imageListPath === candidate.imageListPath
+      : true
     )
   ));
 }

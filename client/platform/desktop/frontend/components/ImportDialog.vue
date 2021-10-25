@@ -249,13 +249,9 @@ export default defineComponent({
         <p class="my-3">
           New Dataset Properties
         </p>
-        <table class="key-value-table">
-          <tr>
-            <td>New ID</td>
-            <td>
-              <pre>{{ argCopy.jsonMeta.id }}</pre>
-            </td>
-          </tr>
+        <table
+          class="key-value-table"
+        >
           <tr v-if="argCopy.jsonMeta.type == 'video'">
             <td>Video</td>
             <td>{{ argCopy.jsonMeta.originalVideoFile }}</td>

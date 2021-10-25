@@ -280,10 +280,16 @@ async function loadMetadata(
         filename,
       }));
     } else {
-      imageData = projectMetaData.originalImageFiles.map((filename: string) => ({
-        url: makeMediaUrl(npath.join(projectMetaData.originalBasePath, filename)),
-        filename,
-      }));
+      imageData = projectMetaData.originalImageFiles.map((pathOrFilename: string) => {
+        let absPath = npath.normalize(pathOrFilename);
+        if (!npath.isAbsolute(pathOrFilename)) {
+          absPath = npath.join(projectMetaData.originalBasePath, pathOrFilename);
+        }
+        return {
+          url: makeMediaUrl(absPath),
+          filename: npath.basename(absPath),
+        };
+      });
     }
   } else {
     throw new Error(`unexpected project type for id="${datasetId}" type="${projectMetaData.type}"`);
@@ -703,10 +709,12 @@ async function checkDataset(
 ): Promise<boolean> {
   const projectDirData = await getValidatedProjectDir(settings, datasetId);
   const projectMetaData = await loadJsonMetadata(projectDirData.metaFileAbsPath);
-  //Check folder exists for data
-  const exists = await fs.pathExists(projectMetaData.originalBasePath);
-  if (!exists) {
-    throw new Error(`Dataset ${projectMetaData.name} does not contain source files at ${projectMetaData.originalBasePath}`);
+  if (projectMetaData.multiCam === null) {
+    //Check folder exists for data
+    const exists = await fs.pathExists(projectMetaData.originalBasePath);
+    if (!exists) {
+      throw new Error(`Dataset ${projectMetaData.name} does not contain source files at ${projectMetaData.originalBasePath}`);
+    }
   }
   return true;
 }
@@ -752,16 +760,15 @@ async function beginMediaImport(
   }
 
   const dsName = npath.parse(path).name;
-  const dsId = `${cleanString(dsName).substr(0, 20)}_${makeid(10)}`;
 
   const _defaultFps = datasetType === 'video' ? 5 : 1;
   const jsonMeta: JsonMeta = {
     version: JsonMetaCurrentVersion,
     type: datasetType,
-    id: dsId,
+    id: '',
     fps: _defaultFps, // adjusted below
     originalFps: _defaultFps, // adjusted below
-    originalBasePath: path,
+    originalBasePath: npath.normalize(path),
     originalVideoFile: '',
     createdAt: (new Date()).toString(),
     originalImageFiles: [],
@@ -807,7 +814,7 @@ async function beginMediaImport(
       throw new Error(`could not determine video MIME type for ${path}`);
     }
   } else if (datasetType === 'image-sequence') {
-    const found = await findImagesInFolder(jsonMeta.originalBasePath);
+    const found = await findImagesInFolder(path);
     if (found.imagePaths.length === 0) {
       throw new Error(`no images found in ${path}`);
     }
@@ -815,7 +822,8 @@ async function beginMediaImport(
       jsonMeta.originalImageFiles = found.imageNames;
     } else if (found.source === 'image-list') {
       jsonMeta.originalImageFiles = found.imagePaths;
-      jsonMeta.originalBasePath = '/';
+      jsonMeta.imageListPath = npath.normalize(path);
+      jsonMeta.originalBasePath = npath.dirname(path);
       jsonMeta.name = npath.basename(npath.dirname(path));
     }
     mediaConvertList = found.mediaConvertList;
@@ -983,19 +991,24 @@ async function finalizeMediaImport(
 ) {
   const { jsonMeta, globPattern } = args;
   let { mediaConvertList } = args;
-  const { type: datasetType, id: dsId } = jsonMeta;
+  const { type: datasetType } = jsonMeta;
+  jsonMeta.id = `${cleanString(jsonMeta.name).substr(0, 20)}_${makeid(10)}`;
   const projectDirAbsPath = await _initializeProjectDir(settings, jsonMeta);
 
   // Filter all parts of the input based on glob pattern
   if (globPattern && jsonMeta.type === 'image-sequence') {
-    const found = await findImagesInFolder(jsonMeta.originalBasePath, globPattern);
+    const searchPath = jsonMeta.imageListPath || jsonMeta.originalBasePath;
+    const found = await findImagesInFolder(searchPath, globPattern);
     if (found.imageNames.length === 0) {
-      throw new Error(`no images in ${jsonMeta.originalBasePath} matched pattern ${globPattern}`);
+      throw new Error(`no images in ${searchPath} matched pattern ${globPattern}`);
     }
-    jsonMeta.originalImageFiles = found.imageNames;
+    if (found.source === 'directory') {
+      jsonMeta.originalImageFiles = found.imageNames;
+    } else if (found.source === 'image-list') {
+      jsonMeta.originalImageFiles = found.imagePaths;
+    }
     mediaConvertList = found.mediaConvertList;
   }
-
 
   if (jsonMeta.type === 'video') {
     // Verify that the user didn't choose an FPS value higher than originalFPS
@@ -1014,13 +1027,14 @@ async function finalizeMediaImport(
     const srcDstList: [string, string][] = [];
     const extension = datasetType === 'video' ? '.mp4' : '.png';
     let destAbsPath = '';
-    mediaConvertList.forEach((item) => {
-      const destLoc = item.replace(jsonMeta.originalBasePath, projectDirAbsPath);
+    mediaConvertList.forEach((absPath) => {
+      const filename = npath.basename(absPath);
+      const destLoc = npath.join(projectDirAbsPath, filename);
       //If we have multicam we may need to check more than the base folder
       if (datasetType === MultiType) {
-        destAbsPath = transcodeMultiCam(jsonMeta, item, projectDirAbsPath);
+        destAbsPath = transcodeMultiCam(jsonMeta, absPath, projectDirAbsPath);
       } else {
-        destAbsPath = destLoc.replace(npath.extname(item), extension);
+        destAbsPath = destLoc.replace(npath.extname(absPath), extension);
         if (datasetType === 'video') {
           jsonMeta.transcodedVideoFile = npath.basename(destAbsPath);
         } else if (datasetType === 'image-sequence') {
@@ -1030,7 +1044,7 @@ async function finalizeMediaImport(
           jsonMeta.transcodedImageFiles.push(npath.basename(destAbsPath));
         }
       }
-      srcDstList.push([item, destAbsPath]);
+      srcDstList.push([absPath, destAbsPath]);
     });
     jobBase = await convertMedia(
       settings,
@@ -1069,7 +1083,7 @@ async function finalizeMediaImport(
     }
   }
   const finalJsonMeta = await _importTrackFile(
-    settings, dsId, projectDirAbsPath, jsonMeta, args.trackFileAbsPath,
+    settings, jsonMeta.id, projectDirAbsPath, jsonMeta, args.trackFileAbsPath,
   );
   return finalJsonMeta;
 }
