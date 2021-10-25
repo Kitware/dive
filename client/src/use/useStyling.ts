@@ -11,6 +11,8 @@ interface Style {
   opacity: number;
   color: string;
   fill: boolean;
+  showLabel: boolean;
+  showConfidence: boolean;
 }
 
 export interface StateStyles {
@@ -24,6 +26,8 @@ export interface CustomStyle {
   strokeWidth?: number;
   opacity?: number;
   fill?: boolean;
+  showLabel?: boolean;
+  showConfidence?: boolean;
 }
 
 export interface TypeStyling {
@@ -31,6 +35,7 @@ export interface TypeStyling {
   strokeWidth: (type: string) => number;
   fill: (type: string) => boolean;
   opacity: (type: string) => number;
+  labelSettings: (type: string) => {showLabel: boolean; showConfidence: boolean};
 }
 
 interface UseStylingParams {
@@ -96,6 +101,8 @@ export default function useStyling({ markChangesPending }: UseStylingParams) {
     opacity: 1.0,
     color: 'type',
     fill: false,
+    showLabel: true,
+    showConfidence: true,
   };
   const selected: Style = {
     ...standard,
@@ -164,6 +171,18 @@ export default function useStyling({ markChangesPending }: UseStylingParams) {
           return _customStyles[type].opacity;
         }
         return stateStyling.standard.opacity;
+      },
+      labelSettings: (type: string) => {
+        let { showLabel, showConfidence } = stateStyling.standard;
+        if (_customStyles[type]) {
+          if (typeof (_customStyles[type].showLabel) === 'boolean') {
+            showLabel = _customStyles[type].showLabel as boolean;
+          }
+          if (typeof (_customStyles[type].showConfidence) === 'boolean') {
+            showConfidence = _customStyles[type].showConfidence as boolean;
+          }
+        }
+        return { showLabel, showConfidence };
       },
     } as TypeStyling;
   });
