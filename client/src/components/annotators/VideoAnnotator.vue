@@ -93,6 +93,11 @@ export default defineComponent({
       type: Number as PropType<number | null>,
       default: null,
     },
+    brightness: {
+      type: Number,
+      required: false,
+      default: 1,
+    },
   },
 
   setup(props) {
@@ -213,6 +218,7 @@ export default defineComponent({
       const quadFeatureLayer = commonMedia.geoViewerRef.value.createLayer('feature', {
         features: ['quad.video'],
       });
+      quadFeatureLayer.node().css('filter', 'url(#brightness)');
       quadFeatureLayer
         .createFeature('quad')
         .data([
@@ -259,6 +265,21 @@ export default defineComponent({
     class="video-annotator"
     :style="{ cursor: data.cursor }"
   >
+    <svg
+      width="0"
+      height="0"
+      style="position: absolute; top: -1px; left: -1px"
+    >
+      <defs>
+        <filter id="brightness">
+          <feComponentTransfer color-interpolation-filters="sRGB">
+            <feFuncR type="linear" :slope="brightness" />
+            <feFuncG type="linear" :slope="brightness" />
+            <feFuncB type="linear" :slope="brightness" />
+          </feComponentTransfer>
+        </filter>
+      </defs>
+    </svg>
     <div
       ref="imageCursorRef"
       class="imageCursor"

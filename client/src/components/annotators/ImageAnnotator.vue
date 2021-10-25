@@ -26,6 +26,11 @@ export default defineComponent({
   name: 'ImageAnnotator',
 
   props: {
+    brightness: {
+      type: Number,
+      required: false,
+      default: 1,
+    },
     imageData: {
       type: Array as PropType<ImageDataItem[]>,
       required: true,
@@ -313,6 +318,7 @@ export default defineComponent({
         const quadFeatureLayer = commonMedia.geoViewerRef.value.createLayer('feature', {
           features: ['quad'],
         });
+        quadFeatureLayer.node().css('filter', 'url(#brightness)');
         local.quadFeature = quadFeatureLayer.createFeature('quad');
         seek(0);
         data.ready = true;
@@ -342,6 +348,7 @@ export default defineComponent({
           const quadFeatureLayer = commonMedia.geoViewerRef.value.createLayer('feature', {
             features: ['quad'],
           });
+          quadFeatureLayer.node().css('filter', 'url(#brightness)');
           local.quadFeature = quadFeatureLayer.createFeature('quad');
           seek(0);
           data.ready = true;
@@ -369,6 +376,21 @@ export default defineComponent({
 
 <template>
   <div class="video-annotator">
+    <svg
+      width="0"
+      height="0"
+      style="position: absolute; top: -1px; left: -1px"
+    >
+      <defs>
+        <filter id="brightness">
+          <feComponentTransfer color-interpolation-filters="sRGB">
+            <feFuncR type="linear" :slope="brightness" />
+            <feFuncG type="linear" :slope="brightness" />
+            <feFuncB type="linear" :slope="brightness" />
+          </feComponentTransfer>
+        </filter>
+      </defs>
+    </svg>
     <div
       ref="imageCursorRef"
       class="imageCursor"
