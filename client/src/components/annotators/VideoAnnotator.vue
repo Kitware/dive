@@ -94,9 +94,9 @@ export default defineComponent({
       default: null,
     },
     brightness: {
-      type: Number,
+      type: Number as PropType<number | undefined>,
       required: false,
-      default: 1,
+      default: undefined,
     },
   },
 
@@ -218,7 +218,12 @@ export default defineComponent({
       const quadFeatureLayer = commonMedia.geoViewerRef.value.createLayer('feature', {
         features: ['quad.video'],
       });
-      quadFeatureLayer.node().css('filter', 'url(#brightness)');
+
+      // Only apply filter if it will have any effect
+      if (props.brightness !== undefined) {
+        quadFeatureLayer.node().css('filter', 'url(#brightness)');
+      }
+
       quadFeatureLayer
         .createFeature('quad')
         .data([

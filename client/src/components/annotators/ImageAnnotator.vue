@@ -26,11 +26,6 @@ export default defineComponent({
   name: 'ImageAnnotator',
 
   props: {
-    brightness: {
-      type: Number,
-      required: false,
-      default: 1,
-    },
     imageData: {
       type: Array as PropType<ImageDataItem[]>,
       required: true,
@@ -46,6 +41,11 @@ export default defineComponent({
     loadImageFunc: {
       type: Function as PropType<(imageDataItem: ImageDataItem, img: HTMLImageElement) => void>,
       default: loadImageFunc,
+    },
+    brightness: {
+      type: Number as PropType<number | undefined>,
+      required: false,
+      default: undefined,
     },
   },
 
@@ -318,7 +318,12 @@ export default defineComponent({
         const quadFeatureLayer = commonMedia.geoViewerRef.value.createLayer('feature', {
           features: ['quad'],
         });
-        quadFeatureLayer.node().css('filter', 'url(#brightness)');
+
+        // Only apply filter if it will have any effect
+        if (props.brightness !== undefined) {
+          quadFeatureLayer.node().css('filter', 'url(#brightness)');
+        }
+
         local.quadFeature = quadFeatureLayer.createFeature('quad');
         seek(0);
         data.ready = true;
@@ -348,7 +353,12 @@ export default defineComponent({
           const quadFeatureLayer = commonMedia.geoViewerRef.value.createLayer('feature', {
             features: ['quad'],
           });
-          quadFeatureLayer.node().css('filter', 'url(#brightness)');
+
+          // Only apply filter if it will have any effect
+          if (props.brightness !== undefined) {
+            quadFeatureLayer.node().css('filter', 'url(#brightness)');
+          }
+
           local.quadFeature = quadFeatureLayer.createFeature('quad');
           seek(0);
           data.ready = true;
@@ -356,9 +366,19 @@ export default defineComponent({
       }
     }
 
+    // Watch imageData for change
     watch(toRef(props, 'imageData'), () => {
       init();
     });
+
+    // Watch brightness for change with condition
+    // Only call init if the value or brightness is becoming null, or was just null
+    watch(toRef(props, 'brightness'), (brightness, oldBrightness) => {
+      if (brightness !== oldBrightness && (brightness === undefined || oldBrightness === undefined)) {
+        init();
+      }
+    });
+
 
     return {
       data,
