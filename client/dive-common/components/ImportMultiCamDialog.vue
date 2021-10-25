@@ -130,6 +130,10 @@ export default defineComponent({
         return null;
       }
 
+      if (importType.value === 'keyword' && Object.keys(globList.value).length === 0) {
+        return 'Add at least 1 filter pattern';
+      }
+
       if (props.dataType === 'video') {
         return null;
       }
@@ -341,6 +345,7 @@ export default defineComponent({
         <ImportMultiCamAddType
           v-if="!stereo"
           :name-list="displayKeys"
+          class="my-3"
           @add-new="addNewSet"
         />
       </div>
