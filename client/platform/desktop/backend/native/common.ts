@@ -24,9 +24,7 @@ import {
   JsonMeta, Settings, JsonMetaCurrentVersion, DesktopMetadata, DesktopJobUpdater,
   ConvertMedia, RunTraining, ExportDatasetArgs, DesktopMediaImportResponse, CheckMediaResults,
 } from 'platform/desktop/constants';
-import {
-  cleanString, filterByGlob, makeid, strNumericCompare,
-} from 'platform/desktop/sharedUtils';
+import { cleanString, filterByGlob, makeid } from 'platform/desktop/sharedUtils';
 import { Attribute, Attributes } from 'vue-media-annotator/use/useAttributes';
 import { cloneDeep, uniq } from 'lodash';
 import processTrackAttributes from './attributeProcessor';
@@ -132,11 +130,11 @@ async function _acquireLock(dir: string, resource: string, lockname: 'meta' | 't
 }
 
 
-async function _findCSVTrackFiles(originalBasePath: string) {
-  const contents = await fs.readdir(originalBasePath);
+async function _findCSVTrackFiles(searchPath: string) {
+  const contents = await fs.readdir(searchPath);
   const csvFileCandidates = contents
     .filter((v) => CsvFileName.test(v))
-    .map((filename) => npath.join(originalBasePath, filename));
+    .map((filename) => npath.join(searchPath, filename));
   return csvFileCandidates;
 }
 
@@ -281,10 +279,7 @@ async function loadMetadata(
       }));
     } else {
       imageData = projectMetaData.originalImageFiles.map((pathOrFilename: string) => {
-        let absPath = npath.normalize(pathOrFilename);
-        if (!npath.isAbsolute(pathOrFilename)) {
-          absPath = npath.join(projectMetaData.originalBasePath, pathOrFilename);
-        }
+        const absPath = npath.join(projectMetaData.originalBasePath, pathOrFilename);
         return {
           url: makeMediaUrl(absPath),
           filename: npath.basename(absPath),
@@ -709,12 +704,9 @@ async function checkDataset(
 ): Promise<boolean> {
   const projectDirData = await getValidatedProjectDir(settings, datasetId);
   const projectMetaData = await loadJsonMetadata(projectDirData.metaFileAbsPath);
-  if (projectMetaData.multiCam === null) {
-    //Check folder exists for data
-    const exists = await fs.pathExists(projectMetaData.originalBasePath);
-    if (!exists) {
-      throw new Error(`Dataset ${projectMetaData.name} does not contain source files at ${projectMetaData.originalBasePath}`);
-    }
+  const exists = await fs.pathExists(projectMetaData.originalBasePath);
+  if (!exists) {
+    throw new Error(`Dataset ${projectMetaData.name} does not contain source files at ${projectMetaData.originalBasePath}`);
   }
   return true;
 }
@@ -787,6 +779,9 @@ async function beginMediaImport(
     jsonMeta.originalBasePath = npath.dirname(path);
   }
 
+  /* Path to search for other related data like annotations */
+  let relatedDataSearchPath = jsonMeta.originalBasePath;
+
   /* mediaConvertList is a list of absolute paths of media to convert */
   let mediaConvertList: string[] = [];
   /* Extract and validate media from import path */
@@ -823,15 +818,16 @@ async function beginMediaImport(
     } else if (found.source === 'image-list') {
       jsonMeta.originalImageFiles = found.imagePaths;
       jsonMeta.imageListPath = npath.normalize(path);
-      jsonMeta.originalBasePath = npath.dirname(path);
+      jsonMeta.originalBasePath = '/';
       jsonMeta.name = npath.basename(npath.dirname(path));
+      relatedDataSearchPath = npath.dirname(path);
     }
     mediaConvertList = found.mediaConvertList;
   } else {
     throw new Error('only video and image-sequence types are supported');
   }
 
-  const trackFileAbsPath = await findTrackFileinFolder(jsonMeta.originalBasePath);
+  const trackFileAbsPath = await findTrackFileinFolder(relatedDataSearchPath);
   return {
     jsonMeta,
     globPattern: '',

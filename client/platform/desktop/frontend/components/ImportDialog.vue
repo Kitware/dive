@@ -257,9 +257,9 @@ export default defineComponent({
             <td>{{ argCopy.jsonMeta.originalVideoFile }}</td>
           </tr>
           <tr>
-            <td>Source Dir</td>
+            <td>Source</td>
             <td>
-              <pre>{{ argCopy.jsonMeta.originalBasePath }}</pre>
+              <pre>{{ argCopy.jsonMeta.imageListPath || argCopy.jsonMeta.originalBasePath }}</pre>
             </td>
           </tr>
           <tr>

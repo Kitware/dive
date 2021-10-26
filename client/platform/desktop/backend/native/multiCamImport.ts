@@ -177,7 +177,7 @@ async function beginMultiCamImport(
           } else if (found.source === 'image-list') {
             cameras[cameraName].originalImageFiles = found.imagePaths;
             cameras[cameraName].imageListPath = jsonMeta.originalBasePath;
-            cameras[cameraName].originalBasePath = npath.dirname(item.sourcePath);
+            cameras[cameraName].originalBasePath = '/';
           }
         });
     } else if (isKeywordArgs(args)) {
@@ -191,7 +191,7 @@ async function beginMultiCamImport(
           } else if (found.source === 'image-list') {
             cameras[cameraName].originalImageFiles = found.imagePaths;
             cameras[cameraName].imageListPath = jsonMeta.originalBasePath;
-            cameras[cameraName].originalBasePath = npath.dirname(args.sourcePath);
+            cameras[cameraName].originalBasePath = '/';
           }
         });
     }
@@ -204,6 +204,10 @@ async function beginMultiCamImport(
     jsonMeta.subType = 'stereo';
   } else if (jsonMeta.multiCam) {
     jsonMeta.subType = 'multicam';
+  }
+
+  if (mediaConvertList.length && Object.values(cameras).some((cam) => cam.imageListPath)) {
+    throw new Error('Transcoding is not supported when an image list is used');
   }
 
   return {

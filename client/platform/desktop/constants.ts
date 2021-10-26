@@ -73,8 +73,8 @@ export interface JsonMeta extends DatasetMetaMutable {
   // the import time of the dataset
   createdAt: string;
 
-  // absolute base path on disk where dataset was imported from
-  // If dataset is image list, originalBasePath is the parent directory
+  // absolute base path on disk where dataset was imported from.
+  // If data was imported from image list, originalBasePath is '/'
   originalBasePath: string;
 
   // video file path
@@ -87,7 +87,7 @@ export interface JsonMeta extends DatasetMetaMutable {
 
   // ordered image filenames IF this is an image dataset
   // If paths are relative, they're relative to originalBasePath
-  // If paths are absolute, originalBasePath is ignored
+  // If paths are absolute, originalBasePath will be '/'
   originalImageFiles: string[];
 
   // ordered image filenames of transcoded images
