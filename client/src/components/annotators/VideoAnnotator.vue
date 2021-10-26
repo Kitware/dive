@@ -93,6 +93,7 @@ export default defineComponent({
       type: Number as PropType<number | null>,
       default: null,
     },
+    // Range is [0, inf.)
     brightness: {
       type: Number as PropType<number | undefined>,
       default: undefined,

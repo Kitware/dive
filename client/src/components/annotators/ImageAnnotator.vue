@@ -42,6 +42,7 @@ export default defineComponent({
       type: Function as PropType<(imageDataItem: ImageDataItem, img: HTMLImageElement) => void>,
       default: loadImageFunc,
     },
+    // Range is [0, inf.)
     brightness: {
       type: Number as PropType<number | undefined>,
       default: undefined,
