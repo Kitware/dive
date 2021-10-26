@@ -374,10 +374,7 @@ export default defineComponent({
     // Watch brightness for change with condition
     // Only call init if the value or brightness is becoming null, or was just null
     watch(toRef(props, 'brightness'), (brightness, oldBrightness) => {
-      if (
-        brightness !== oldBrightness
-        && (brightness === undefined || oldBrightness === undefined)
-      ) {
+      if ((brightness === undefined) !== (oldBrightness === undefined)) {
         init();
       }
     });
