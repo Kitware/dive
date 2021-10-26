@@ -429,7 +429,7 @@ describe('native.common', () => {
     const payload = await common.beginMediaImport(
       settings, '/home/user/data/imageLists/success/image_list.txt', checkMedia,
     );
-    expect(payload.jsonMeta.originalBasePath).toBe('/home/user/data/imageLists/success');
+    expect(payload.jsonMeta.originalBasePath).toBe('/');
     expect(payload.jsonMeta.originalImageFiles).toEqual([
       '/home/user/data/imageLists/success/image1.png',
       '/home/user/data/imageLists/success/image2.png',
@@ -440,18 +440,18 @@ describe('native.common', () => {
     expect(final.originalImageFiles.length).toBe(3);
     expect(final.name).toBe('success');
     expect(final.imageListPath).toBe('/home/user/data/imageLists/success/image_list.txt');
-    expect(final.originalBasePath).toBe('/home/user/data/imageLists/success');
+    expect(final.originalBasePath).toBe('/');
   });
 
   it('beginMediaImport image lists glob success', async () => {
     const payload = await common.beginMediaImport(
       settings, '/home/user/data/imageLists/successGlob/image_list.txt', checkMedia,
     );
-    expect(payload.jsonMeta.originalBasePath).toBe('/home/user/data/imageLists/successGlob');
+    expect(payload.jsonMeta.originalBasePath).toBe('/');
     payload.globPattern = '2018*';
     const final = await common.finalizeMediaImport(settings, payload, updater, convertMedia);
     expect(final.originalImageFiles.length).toBe(2);
-    expect(final.originalBasePath).toBe('/home/user/data/imageLists/successGlob');
+    expect(final.originalBasePath).toBe('/');
   });
 
   it('beginMediaImport image list fail empty relative', async () => {
