@@ -44,7 +44,6 @@ export default defineComponent({
     },
     brightness: {
       type: Number as PropType<number | undefined>,
-      required: false,
       default: undefined,
     },
   },
