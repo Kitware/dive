@@ -704,9 +704,11 @@ async function checkDataset(
 ): Promise<boolean> {
   const projectDirData = await getValidatedProjectDir(settings, datasetId);
   const projectMetaData = await loadJsonMetadata(projectDirData.metaFileAbsPath);
-  const exists = await fs.pathExists(projectMetaData.originalBasePath);
-  if (!exists) {
-    throw new Error(`Dataset ${projectMetaData.name} does not contain source files at ${projectMetaData.originalBasePath}`);
+  if (projectMetaData.originalBasePath !== '') {
+    const exists = await fs.pathExists(projectMetaData.originalBasePath);
+    if (!exists) {
+      throw new Error(`Dataset ${projectMetaData.name} does not contain source files at ${projectMetaData.originalBasePath}`);
+    }
   }
   return true;
 }
@@ -818,7 +820,7 @@ async function beginMediaImport(
     } else if (found.source === 'image-list') {
       jsonMeta.originalImageFiles = found.imagePaths;
       jsonMeta.imageListPath = npath.normalize(path);
-      jsonMeta.originalBasePath = '/';
+      jsonMeta.originalBasePath = '';
       jsonMeta.name = npath.basename(npath.dirname(path));
       relatedDataSearchPath = npath.dirname(path);
     }
