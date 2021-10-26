@@ -38,9 +38,6 @@ import {
  *  LayerManager emits high-level events when track features get selected or updated.
  */
 export default defineComponent({
-  components: {
-    ToolTipWidget,
-  },
   props: {
     formatTextRow: {
       type: Function as PropType<FormatTextRow | undefined>,
