@@ -412,10 +412,11 @@ export default defineComponent({
                     {{ item.name }}
                   </div>
                   <div class="grey--text text-caption">
-                    <span v-if="item.imageListPath || item.originalBasePath !== '/'">
-                      {{ item.imageListPath || item.originalBasePath }}
-                    </span>
-                    <span v-else>Data imported from several locations</span>
+                    {{
+                      item.imageListPath
+                        || item.originalBasePath
+                        || 'Data imported from several locations'
+                    }}
                   </div>
                 </span>
               </template>

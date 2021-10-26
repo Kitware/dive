@@ -99,7 +99,7 @@ async function beginMultiCamImport(
     id: '', // will be assigned on finalize
     fps: 5,
     originalFps: 5,
-    originalBasePath: '/',
+    originalBasePath: '',
     originalVideoFile: '',
     createdAt: (new Date()).toString(),
     originalImageFiles: [],
@@ -177,7 +177,7 @@ async function beginMultiCamImport(
           } else if (found.source === 'image-list') {
             cameras[cameraName].originalImageFiles = found.imagePaths;
             cameras[cameraName].imageListPath = jsonMeta.originalBasePath;
-            cameras[cameraName].originalBasePath = '/';
+            cameras[cameraName].originalBasePath = '';
           }
         });
     } else if (isKeywordArgs(args)) {
@@ -191,7 +191,7 @@ async function beginMultiCamImport(
           } else if (found.source === 'image-list') {
             cameras[cameraName].originalImageFiles = found.imagePaths;
             cameras[cameraName].imageListPath = jsonMeta.originalBasePath;
-            cameras[cameraName].originalBasePath = '/';
+            cameras[cameraName].originalBasePath = '';
           }
         });
     }
