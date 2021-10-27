@@ -7,6 +7,9 @@ import {
 
 import { JsonMeta } from 'platform/desktop/constants';
 
+/**
+ * Figure out the destination location
+ */
 function transcodeMultiCam(
   jsonMeta: JsonMeta,
   item: string,
@@ -17,6 +20,9 @@ function transcodeMultiCam(
     const entries = Object.entries(jsonMeta.multiCam.cameras);
     for (let i = 0; i < entries.length; i += 1) {
       const [cameraName, cameraData] = entries[i];
+      if (cameraData.imageListPath) {
+        throw new Error('transcoding is not supported for image lists');
+      }
       if (item.includes(cameraData.originalBasePath)) {
         const extension = cameraData.type === 'video' ? '.mp4' : '.png';
         destLoc = item.replace(npath.extname(item), extension);
@@ -121,6 +127,9 @@ function getMultiCamUrls(
         let { originalBasePath } = value;
         // Filter transcoded images to use left/right files)
         if (value.transcodedImageFiles && value.transcodedImageFiles.length) {
+          if (value.imageListPath) {
+            throw new Error('Impossible state: transcoding is not supported for image lists.');
+          }
           displayFilenames = value.transcodedImageFiles;
           originalBasePath = npath.join(projectBasePath, key);
         }

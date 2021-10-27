@@ -4,7 +4,7 @@ import { ipcMain } from 'electron';
 import { MultiCamImportArgs } from 'dive-common/apispec';
 import {
   DesktopJobUpdate, RunPipeline, RunTraining, Settings, ExportDatasetArgs,
-  MediaImportPayload,
+  DesktopMediaImportResponse,
 } from 'platform/desktop/constants';
 
 import linux from './native/linux';
@@ -100,7 +100,7 @@ export default function register() {
     return ret;
   });
 
-  ipcMain.handle('finalize-import', async (event, args: MediaImportPayload) => {
+  ipcMain.handle('finalize-import', async (event, args: DesktopMediaImportResponse) => {
     const updater = (update: DesktopJobUpdate) => {
       event.sender.send('job-update', update);
     };

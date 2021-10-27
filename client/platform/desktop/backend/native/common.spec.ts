@@ -122,6 +122,40 @@ mockfs({
       notanimage: '',
       'notanimage.txt': '',
     },
+    imageLists: {
+      success: {
+        // bad sort order
+        'image_list.txt': 'image3.png\r\n/home/user/data/imageLists/success/image2.png\n\n\nimage4.png\n../success/image1.png',
+        'image1.png': '',
+        'image3.png': '',
+        'image2.png': '',
+        'image4.png': '',
+      },
+      successGlob: {
+        'image_list.txt': './2018-image2.png\n./nested/2018-image1.png\n./2019-image0.png',
+        '2018-image2.png': '',
+        '2019-image0.png': '',
+        nested: {
+          '2018-image1.png': '',
+        },
+      },
+      failEmptyRelative: {
+        'image_list.txt': '\nimage1.png\nimage2.png',
+      },
+      failEmptyAbsolute: {
+        'name-not-important.txt': 'image1.png\n/bad/path/image2.png',
+        'image1.png': '',
+        'image2.png': '',
+      },
+      failEmptyList: {
+        'image_list.txt': '\n\n\r\n',
+      },
+      failInvalidImageMIME: {
+        'image_list.txt': '\nimage1.png\nimage2.txt',
+        'image1.png': '',
+        'image2.txt': '',
+      },
+    },
     metaAttributesID: {
       'foo.png': '',
       'bar.png': '',
@@ -385,12 +419,73 @@ describe('native.common', () => {
     expect(result).toMatch(/DIVE_Jobs\/myproject1_name_mypipeline\.pipe_/);
   });
 
-  it('importMedia image sequence success', async () => {
+  it('beginMediaImport image sequence success', async () => {
     const payload = await common.beginMediaImport(settings, '/home/user/data/imageSuccess', checkMedia);
     expect(payload.jsonMeta.name).toBe('imageSuccess');
-    expect(payload.jsonMeta.originalImageFiles.length).toBe(2);
+    expect(payload.jsonMeta.originalImageFiles).toEqual(['bar.png', 'foo.png']);
     expect(payload.jsonMeta.originalVideoFile).toBe('');
     expect(payload.jsonMeta.originalBasePath).toBe('/home/user/data/imageSuccess');
+  });
+
+  it('beginMediaImport image lists success', async () => {
+    const payload = await common.beginMediaImport(
+      settings, '/home/user/data/imageLists/success/image_list.txt', checkMedia,
+    );
+    expect(payload.jsonMeta.originalBasePath).toBe('');
+    expect(payload.jsonMeta.originalImageFiles).toEqual([
+      '/home/user/data/imageLists/success/image3.png',
+      '/home/user/data/imageLists/success/image2.png',
+      '/home/user/data/imageLists/success/image4.png',
+      '/home/user/data/imageLists/success/image1.png',
+    ]);
+    expect(payload.jsonMeta.name).toBe('success');
+    const final = await common.finalizeMediaImport(settings, payload, updater, convertMedia);
+    expect(final.originalImageFiles.length).toBe(4);
+    expect(final.name).toBe('success');
+    expect(final.imageListPath).toBe('/home/user/data/imageLists/success/image_list.txt');
+    expect(final.originalBasePath).toBe('');
+  });
+
+  it('beginMediaImport image lists glob success', async () => {
+    const payload = await common.beginMediaImport(
+      settings, '/home/user/data/imageLists/successGlob/image_list.txt', checkMedia,
+    );
+    expect(payload.jsonMeta.originalBasePath).toBe('');
+    payload.globPattern = '2018*';
+    const final = await common.finalizeMediaImport(settings, payload, updater, convertMedia);
+    const expectedImageFiles = [
+      '/home/user/data/imageLists/successGlob/2018-image2.png',
+      '/home/user/data/imageLists/successGlob/nested/2018-image1.png',
+    ];
+    expect(final.originalImageFiles).toEqual(expectedImageFiles);
+    expect(final.originalBasePath).toBe('');
+    const reload = await common.loadMetadata(settings, final.id, urlMapper);
+    expect(reload.originalImageFiles).toEqual(expectedImageFiles);
+    expect(reload.imageListPath).toBe('/home/user/data/imageLists/successGlob/image_list.txt');
+  });
+
+  it('beginMediaImport image list fail empty relative', async () => {
+    await expect(common.beginMediaImport(
+      settings, '/home/user/data/imageLists/failEmptyRelative/image_list.txt', checkMedia,
+    )).rejects.toThrowError('Image from image list /home/user/data/imageLists/failEmptyRelative/image1.png was not found');
+  });
+
+  it('beginMediaImport image list fail empty absolute', async () => {
+    await expect(common.beginMediaImport(
+      settings, '/home/user/data/imageLists/failEmptyAbsolute/name-not-important.txt', checkMedia,
+    )).rejects.toThrowError('Image from image list /bad/path/image2.png was not found');
+  });
+
+  it('beginMediaImport image list fail empty text file', async () => {
+    await expect(common.beginMediaImport(
+      settings, '/home/user/data/imageLists/failEmptyList/image_list.txt', checkMedia,
+    )).rejects.toThrowError('No images in input image list');
+  });
+
+  it('beginMediaImport image list fail invalid mime', async () => {
+    await expect(common.beginMediaImport(
+      settings, '/home/user/data/imageLists/failInvalidImageMIME/image_list.txt', checkMedia,
+    )).rejects.toThrowError('Found non-image type data in image list file');
   });
 
   it('import with CSV annotations without specifying track file', async () => {
@@ -445,7 +540,7 @@ describe('native.common', () => {
     await expect(common.beginMediaImport(settings, '/home/user/data/imageSuccess/foo.png', checkMedia))
       .rejects.toThrow('chose image file for video import option');
     await expect(common.beginMediaImport(settings, '/home/user/data/videoSuccess/otherfile.txt', checkMedia))
-      .rejects.toThrow('unsupported MIME type');
+      .rejects.toThrow('No images in input image list');
     await expect(common.beginMediaImport(settings, '/home/user/data/videoSuccess/nomime', checkMedia))
       .rejects.toThrow('could not determine video MIME');
   });

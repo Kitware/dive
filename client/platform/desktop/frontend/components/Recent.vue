@@ -7,7 +7,7 @@ import {
 
 import type { DatasetType, MultiCamImportArgs } from 'dive-common/apispec';
 import { itemsPerPageOptions } from 'dive-common/constants';
-import type { MediaImportPayload } from 'platform/desktop/constants';
+import type { DesktopMediaImportResponse } from 'platform/desktop/constants';
 
 import TooltipBtn from 'vue-media-annotator/components/TooltipButton.vue';
 
@@ -15,7 +15,9 @@ import { clientSettings } from 'dive-common/store/settings';
 import ImportButton from 'dive-common/components/ImportButton.vue';
 import ImportMultiCamDialog from 'dive-common/components/ImportMultiCamDialog.vue';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
+import { useRequest } from 'dive-common/use';
 import { DataTableHeader } from 'vuetify';
+
 import * as api from '../api';
 import {
   JsonMetaCache, recents, removeRecents, setRecents,
@@ -40,33 +42,26 @@ export default defineComponent({
   },
 
   setup(_, { root }) {
-    const snackbar = ref(false);
     const importMultiCamDialog = ref(false);
-    const checkingMedia = ref(false);
-    const errorText = ref('');
-    const pendingImportPayload: Ref<MediaImportPayload | null> = ref(null);
+    const pendingImportPayload: Ref<DesktopMediaImportResponse | null> = ref(null);
     const searchText: Ref<string | null> = ref('');
     const stereo = ref(false);
     const multiCamOpenType: Ref<'image-sequence'|'video'> = ref('image-sequence');
     const { prompt } = usePrompt();
+    const {
+      error, loading: checkingMedia, request, reset: resetError,
+    } = useRequest();
 
-    async function open(dstype: DatasetType) {
-      const ret = await api.openFromDisk(dstype);
+    async function open(dstype: DatasetType | 'text', directory = false) {
+      const ret = await api.openFromDisk(dstype, directory);
       if (!ret.canceled) {
-        try {
-          checkingMedia.value = true;
-          pendingImportPayload.value = await api.importMedia(ret.filePaths[0]);
-          checkingMedia.value = false;
-        } catch (err) {
-          snackbar.value = true;
-          errorText.value = err.message;
-        }
+        pendingImportPayload.value = await request(() => api.importMedia(ret.filePaths[0]));
       }
     }
 
     /** Accept args from the dialog, as it may have modified some parts */
-    async function finalizeImport(args: MediaImportPayload) {
-      try {
+    async function finalizeImport(args: DesktopMediaImportResponse) {
+      await request(async () => {
         const jsonMeta = await api.finalizeImport(args);
         pendingImportPayload.value = null; // close dialog
         if (!jsonMeta.transcodingJobKey) {
@@ -79,11 +74,9 @@ export default defineComponent({
           const recentsMeta = await api.loadMetadata(jsonMeta.id);
           setRecents(recentsMeta);
         }
-      } catch (err) {
-        snackbar.value = true;
-        errorText.value = err.message;
-      }
+      });
     }
+
     function openMultiCamDialog(args: {stereo: boolean; openType: 'image-sequence' | 'video'}) {
       stereo.value = args.stereo;
       multiCamOpenType.value = args.openType;
@@ -92,14 +85,7 @@ export default defineComponent({
 
     async function multiCamImport(args: MultiCamImportArgs) {
       importMultiCamDialog.value = false;
-      try {
-        checkingMedia.value = true;
-        pendingImportPayload.value = await api.importMultiCam(args);
-        checkingMedia.value = false;
-      } catch (err) {
-        snackbar.value = true;
-        errorText.value = err.message;
-      }
+      pendingImportPayload.value = await request(() => api.importMultiCam(args));
     }
 
     async function confirmDeleteDataset(datasetId: string, datasetName: string) {
@@ -115,14 +101,9 @@ export default defineComponent({
       if (!result) {
         return;
       }
-      try {
-        api.deleteDataset(datasetId);
-        //Now we need to update recents by removing the dataset from localStorage
-        removeRecents(datasetId);
-      } catch (err) {
-        snackbar.value = true;
-        errorText.value = err.message;
-      }
+      await request(() => api.deleteDataset(datasetId));
+      //Now we need to update recents by removing the dataset from localStorage
+      removeRecents(datasetId);
     }
 
 
@@ -139,6 +120,9 @@ export default defineComponent({
       if (recent.type === 'video') {
         return 'mdi-file-video';
       }
+      if (recent.imageListPath) {
+        return 'mdi-view-list-outline';
+      }
       return 'mdi-image-multiple';
     }
 
@@ -149,9 +133,11 @@ export default defineComponent({
       } catch (e) {
         await prompt({
           title: 'Error Loading Data',
-          text: [`There was an error loading data from ${recent.name}`,
+          text: [
+            `There was an error loading data from ${recent.name}`,
             'Correct the error using the Error Details or delete and re-import the dataset',
-            e],
+            String(e),
+          ],
           positiveButton: 'Okay',
         });
         return;
@@ -201,14 +187,14 @@ export default defineComponent({
       confirmDeleteDataset,
       preloadCheck,
       toDisplayString,
+      resetError,
       // state
       multiCamOpenType,
       stereo,
       filteredRecents,
       pendingImportPayload,
       searchText,
-      snackbar,
-      errorText,
+      error,
       importMultiCamDialog,
       headers,
       upgradedVersion,
@@ -271,12 +257,12 @@ export default defineComponent({
             Upgraded to DIVE Desktop Release {{ upgradedVersion }}
           </h2>
           Read the
-          <browser-link
+          <BrowserLink
             href="https://github.com/Kitware/dive/releases"
             display="inline"
           >
             release logs
-          </browser-link>
+          </BrowserLink>
           to find out what's new.
         </v-alert>
         <v-alert
@@ -300,48 +286,48 @@ export default defineComponent({
             </h1>
             <h3>Useful Links</h3>
             <div>
-              <browser-link
+              <BrowserLink
                 display="inline"
                 href="https://kitware.github.io/dive/"
               >
                 User Guide
-              </browser-link>
+              </BrowserLink>
             </div>
             <div>
-              <browser-link
+              <BrowserLink
                 display="inline"
                 href="https://viame.kitware.com/#/collection/5e4c256ca0fc86aa03120c34"
               >
                 Public example data
-              </browser-link>
+              </BrowserLink>
             </div>
             <div>
-              <browser-link
+              <BrowserLink
                 display="inline"
                 href="https://viametoolkit.org/"
               >
                 viametoolkit.org
-              </browser-link>
+              </BrowserLink>
             </div>
           </v-col>
           <v-col
             md="6"
             sm="6"
           >
-            <import-button
+            <ImportButton
               name="Open Image Sequence"
               icon="mdi-folder-open"
               open-type="image-sequence"
-              class="my-2"
+              class="my-3"
               :multi-cam-import="true"
               @open="open($event)"
               @multi-cam="openMultiCamDialog"
             />
-            <import-button
+            <ImportButton
               name="Open Video"
               icon="mdi-file-video"
               open-type="video"
-              class="my-2"
+              class="my-3"
               :multi-cam-import="true"
               @open="open($event)"
               @multi-cam="openMultiCamDialog"
@@ -401,6 +387,7 @@ export default defineComponent({
                   color="primary lighten-2"
                   :tooltip-text="item.subType ? item.subType : item.type"
                   :icon="getTypeIcon(item)"
+                  @click="preloadCheck(item)"
                 />
               </template>
               <template #[`item.name`]="{ item }">
@@ -425,7 +412,11 @@ export default defineComponent({
                     {{ item.name }}
                   </div>
                   <div class="grey--text text-caption">
-                    {{ item.originalBasePath }}
+                    {{
+                      item.imageListPath
+                        || item.originalBasePath
+                        || 'Data imported from several locations'
+                    }}
                   </div>
                 </span>
               </template>
@@ -452,16 +443,16 @@ export default defineComponent({
       </v-col>
     </v-container>
     <v-snackbar
-      v-model="snackbar"
+      :value="error !== null"
       :timeout="-1"
       color="error"
     >
-      {{ errorText }}
+      {{ error }}
       <template v-slot:action="{ attrs }">
         <v-btn
           text
           v-bind="attrs"
-          @click="snackbar = false"
+          @click="resetError"
         >
           Close
         </v-btn>

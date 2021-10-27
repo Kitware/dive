@@ -1,5 +1,6 @@
 import type {
-  DatasetMeta, DatasetMetaMutable, DatasetType, Pipe, SubType,
+  DatasetMeta, DatasetMetaMutable, DatasetType,
+  Pipe, SubType, MediaImportResponse,
 } from 'dive-common/apispec';
 import { Attribute } from 'vue-media-annotator/use/useAttributes';
 
@@ -26,15 +27,19 @@ export interface Settings {
 }
 
 // Handles Importing and storing of multi camera data
+
+export interface Camera {
+  type: 'image-sequence' | 'video';
+  originalBasePath: string;
+  originalImageFiles: string[];
+  originalVideoFile: string;
+  transcodedImageFiles: string[];
+  transcodedVideoFile: string;
+  imageListPath?: string;
+}
+
 export interface MultiCamDesktop {
-  cameras: Record<string, {
-    type: 'image-sequence' | 'video';
-    originalBasePath: string;
-    originalImageFiles: string[];
-    originalVideoFile: string;
-    transcodedImageFiles: string[];
-    transcodedVideoFile: string;
-  }>;
+  cameras: Record<string, Camera>;
   //Calibration file in .npz format used for stereo or other cameras
   calibration?: string;
   // Default Display Key for showing multiCam
@@ -68,7 +73,8 @@ export interface JsonMeta extends DatasetMetaMutable {
   // the import time of the dataset
   createdAt: string;
 
-  // absolute base path on disk where dataset was imported from
+  // absolute base path on disk where dataset was imported from.
+  // If data was imported from image list, originalBasePath is '' (empty string)
   originalBasePath: string;
 
   // video file path
@@ -80,12 +86,16 @@ export interface JsonMeta extends DatasetMetaMutable {
   transcodedVideoFile: string;
 
   // ordered image filenames IF this is an image dataset
-  // relative to originalBasePath
+  // If paths are relative, they're relative to originalBasePath
+  // If paths are absolute, originalBasePath will be '' (empty string)
   originalImageFiles: string[];
 
   // ordered image filenames of transcoded images
   // relative to project path
   transcodedImageFiles: string[];
+
+  // manifest source path IF image list was used.
+  imageListPath?: string;
 
   // If the dataset required transcoding, specify the job
   // key that ran transcoding
@@ -173,10 +183,8 @@ export interface DesktopJob {
   endTime?: Date;
 }
 
-export interface MediaImportPayload {
+export interface DesktopMediaImportResponse extends MediaImportResponse {
   jsonMeta: JsonMeta;
-  globPattern: string;
-  mediaConvertList: string[];
   trackFileAbsPath: string;
   multiCamTrackFiles: null | Record<string, string>;
   forceMediaTranscode: boolean;
