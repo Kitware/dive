@@ -6,6 +6,8 @@ BRAND_DATA_CONFIG = 'brand_data_config'
 ImageSequenceType = "image-sequence"
 VideoType = "video"
 DefaultVideoFPS = 10
+FlickConstant = 705600000
+FpsOptions = [1, 5, 10, 15, 24, 25, 30, 50, 60]
 
 webValidImageFormats = {"png", "jpg", "jpeg"}
 validImageFormats = {*webValidImageFormats, "tif", "tiff", "sgi", "bmp", "pgm"}

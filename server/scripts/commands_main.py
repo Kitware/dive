@@ -3,12 +3,14 @@ Cli tools for using parts of the DIVE codebase outside a web server environment
 """
 import functools
 import json
+import os
 from typing import BinaryIO, Dict, List, Optional, TextIO
 
 import click
 
 from dive_utils import models, strNumericCompare
-from dive_utils.serializers import kwcoco, meva, viame
+from dive_utils.constants import FpsOptions
+from dive_utils.serializers import google_vertex_ai, kwcoco, meva, viame
 from scripts import cli
 
 
@@ -27,7 +29,7 @@ def convert():
     pass
 
 
-@convert.command(name="kpf2dive")
+@convert.command(name="kpf2dive", help="Kitware Packet Format (KPF) to DIVE json")
 @click.argument('inputs', type=click.File('rb'), nargs=-1)
 @click.option('--output', type=click.File('wt'), default='result.json')
 def convert_kpf(inputs: List[BinaryIO], output: TextIO):
@@ -46,7 +48,7 @@ def convert_kpf(inputs: List[BinaryIO], output: TextIO):
     click.secho(f'wrote output {output.name}', fg='green')
 
 
-@convert.command(name="coco2dive")
+@convert.command(name="coco2dive", help="COCO or KWCOCO json to DIVE json")
 @click.argument('input', type=click.File('rt'))
 @click.option('--output', type=click.File('wt'), default='result.json')
 @click.option('--output-attrs', type=click.File('wt'), default='attributes.json')
@@ -59,7 +61,7 @@ def convert_coco(input: TextIO, output: TextIO, output_attrs: TextIO):
     click.secho(f'wrote attrib {output_attrs.name}', fg='green')
 
 
-@convert.command(name="viame2dive")
+@convert.command(name="viame2dive", help="VIAME csv to DIVE json")
 @click.argument('input', type=click.File('rt'))
 @click.option('--output', type=click.File('wt'), default='result.json')
 @click.option('--output-attrs', type=click.File('wt'), default='attributes.json')
@@ -72,7 +74,7 @@ def convert_viame_csv(input: TextIO, output: TextIO, output_attrs: TextIO):
     click.secho(f'wrote attrib {output_attrs.name}', fg='green')
 
 
-@convert.command(name="dive2viame")
+@convert.command(name="dive2viame", help="DIVE json to VIAME CSV")
 @click.argument('input', type=click.File('rt'))
 @click.option(
     '--meta',
@@ -115,3 +117,31 @@ def convert_dive_json(
         )
     )
     click.secho(f'wrote output {output.name}', fg='green')
+
+
+@convert.command(name="vertex2dive", help="Google Vertex AI Video Object Tracking to DIVE json.")
+@click.argument('input', type=click.File('rt'))
+@click.option("--width", help="Video width, since input is a ratio", required=True, type=click.INT)
+@click.option(
+    "--height", help="Video height, since input is a ratio", required=True, type=click.INT
+)
+@click.option(
+    "--fps",
+    help="""Choose an annotation FPS. DIVE keeps time in frames rather than in seconds,
+    so you need to find a supported framerate such that all timestamps in the input data
+    correspond to whole number frames in the output.""",
+    required=True,
+    type=click.Choice(str(option) for option in FpsOptions),
+)
+def convert_google_vertex_ai(input: TextIO, width: int, height: int, fps: float):
+    rows = input.readlines()
+    for row in rows:
+        name, tracks, _ = google_vertex_ai.load_video_tracking(row, width, height, int(fps))
+        output_file_name = os.path.basename(f'{name}.dive.json')
+        with open(output_file_name, 'w') as output:
+            json.dump(tracks, output)
+            click.secho(
+                f'Wrote output {output_file_name}.',
+                fg='green',
+            )
+    click.secho(f'Be sure to choose FPS={fps} if loading this data into DIVE.', fg='yellow')

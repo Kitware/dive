@@ -5,7 +5,7 @@ from setuptools import find_packages, setup
 
 requirements = [
     "cheroot>=8.4.5",  # https://github.com/cherrypy/cheroot/issues/312
-    "click",
+    "click>=8.0.0",
     "girder==3.1.5.dev8",
     "diva-boiler",
     "girder_jobs==3.0.3",
