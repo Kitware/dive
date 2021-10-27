@@ -761,7 +761,7 @@ async function beginMediaImport(
   const jsonMeta: JsonMeta = {
     version: JsonMetaCurrentVersion,
     type: datasetType,
-    id: '',
+    id: '', // will be assigned on finalize
     fps: _defaultFps, // adjusted below
     originalFps: _defaultFps, // adjusted below
     originalBasePath: npath.normalize(path),
