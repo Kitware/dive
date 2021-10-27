@@ -317,6 +317,7 @@ export default defineComponent({
         initializeViewer(imgInternal.image.naturalWidth, imgInternal.image.naturalHeight);
         const quadFeatureLayer = commonMedia.geoViewerRef.value.createLayer('feature', {
           features: ['quad'],
+          autoshareRenderer: false,
         });
 
         // Only apply filter if it will have any effect
@@ -352,6 +353,7 @@ export default defineComponent({
           initializeViewer(imgInternal.image.naturalWidth, imgInternal.image.naturalHeight);
           const quadFeatureLayer = commonMedia.geoViewerRef.value.createLayer('feature', {
             features: ['quad'],
+            autoshareRenderer: false,
           });
 
           // Only apply filter if it will have any effect

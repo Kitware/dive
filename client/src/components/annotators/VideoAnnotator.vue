@@ -217,6 +217,7 @@ export default defineComponent({
       initializeViewer(width, height);
       const quadFeatureLayer = commonMedia.geoViewerRef.value.createLayer('feature', {
         features: ['quad.video'],
+        autoshareRenderer: false,
       });
 
       // Only apply filter if it will have any effect
