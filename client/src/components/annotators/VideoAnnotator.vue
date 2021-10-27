@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  defineComponent, onBeforeUnmount, PropType,
+  defineComponent, onBeforeUnmount, PropType, toRef, watch,
 } from '@vue/composition-api';
 
 import { Flick, SetTimeFunc } from 'vue-media-annotator/use/useTimeObserver';
@@ -191,6 +191,14 @@ export default defineComponent({
       seek, play, pause, setVolume, setSpeed,
     });
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let quadFeatureLayer = undefined as any;
+    const setBrightnessFilter = (on: boolean) => {
+      if (quadFeatureLayer !== undefined) {
+        quadFeatureLayer.node().css('filter', on ? 'url(#brightness)' : '');
+      }
+    };
+
     /**
      * Initialize the Quad feature layer once
      * video metadata has been fetched.
@@ -215,16 +223,12 @@ export default defineComponent({
         data.maxFrame = maybeMaxFrame;
       }
       initializeViewer(width, height);
-      const quadFeatureLayer = commonMedia.geoViewerRef.value.createLayer('feature', {
+      quadFeatureLayer = commonMedia.geoViewerRef.value.createLayer('feature', {
         features: ['quad.video'],
         autoshareRenderer: false,
       });
 
-      // Only apply filter if it will have any effect
-      if (props.brightness !== undefined) {
-        quadFeatureLayer.node().css('filter', 'url(#brightness)');
-      }
-
+      setBrightnessFilter(props.brightness !== undefined);
       quadFeatureLayer
         .createFeature('quad')
         .data([
@@ -245,6 +249,14 @@ export default defineComponent({
       data.duration = video.duration;
     }
 
+    // Watch brightness for change, only set filter if value
+    // is switching from number -> undefined, or vice versa.
+    watch(toRef(props, 'brightness'), (brightness, oldBrightness) => {
+      if ((brightness === undefined) !== (oldBrightness === undefined)) {
+        setBrightnessFilter(brightness !== undefined);
+      }
+    });
+
     function pendingUpdate() {
       data.syncedFrame = Math.round(video.currentTime * props.frameRate);
     }
@@ -252,6 +264,7 @@ export default defineComponent({
     video.addEventListener('loadedmetadata', loadedMetadata);
     video.addEventListener('seeked', pendingUpdate);
     video.addEventListener('error', logError);
+
 
     return {
       data,

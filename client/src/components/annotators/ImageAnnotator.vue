@@ -311,6 +311,12 @@ export default defineComponent({
       setSpeed: unimplemented,
     });
 
+    const setBrightnessFilter = (on: boolean) => {
+      if (local.quadFeature !== undefined) {
+        local.quadFeature.layer().node().css('filter', on ? 'url(#brightness)' : '');
+      }
+    };
+
     if (local.imgs.length) {
       const imgInternal = cacheFrame(0);
       imgInternal.onloadPromise.then(() => {
@@ -320,12 +326,9 @@ export default defineComponent({
           autoshareRenderer: false,
         });
 
-        // Only apply filter if it will have any effect
-        if (props.brightness !== undefined) {
-          quadFeatureLayer.node().css('filter', 'url(#brightness)');
-        }
-
+        // Set quadFeature and conditionally apply brightness filter
         local.quadFeature = quadFeatureLayer.createFeature('quad');
+        setBrightnessFilter(props.brightness !== undefined);
         seek(0);
         data.ready = true;
       });
@@ -356,12 +359,9 @@ export default defineComponent({
             autoshareRenderer: false,
           });
 
-          // Only apply filter if it will have any effect
-          if (props.brightness !== undefined) {
-            quadFeatureLayer.node().css('filter', 'url(#brightness)');
-          }
-
+          // Set quadFeature and conditionally apply brightness filter
           local.quadFeature = quadFeatureLayer.createFeature('quad');
+          setBrightnessFilter(props.brightness !== undefined);
           seek(0);
           data.ready = true;
         });
@@ -373,11 +373,11 @@ export default defineComponent({
       init();
     });
 
-    // Watch brightness for change with condition
-    // Only call init if the value or brightness is becoming null, or was just null
+    // Watch brightness for change, only set filter if value
+    // is switching from number -> undefined, or vice versa.
     watch(toRef(props, 'brightness'), (brightness, oldBrightness) => {
       if ((brightness === undefined) !== (oldBrightness === undefined)) {
-        init();
+        setBrightnessFilter(brightness !== undefined);
       }
     });
 
