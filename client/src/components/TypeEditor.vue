@@ -33,6 +33,8 @@ export default defineComponent({
       editingThickness: 5,
       editingFill: false,
       editingOpacity: 1.0,
+      editingShowLabel: true,
+      editingShowConfidence: true,
       valid: true,
     });
 
@@ -50,6 +52,8 @@ export default defineComponent({
           strokeWidth: data.editingThickness,
           fill: data.editingFill,
           opacity: data.editingOpacity,
+          showLabel: data.editingShowLabel,
+          showConfidence: data.editingShowConfidence,
         },
       });
       emit('close');
@@ -75,6 +79,9 @@ export default defineComponent({
       data.editingThickness = typeStylingRef.value.strokeWidth(props.selectedType);
       data.editingFill = typeStylingRef.value.fill(props.selectedType);
       data.editingOpacity = typeStylingRef.value.opacity(props.selectedType);
+      const labelSettings = typeStylingRef.value.labelSettings(props.selectedType);
+      data.editingShowConfidence = labelSettings.showConfidence;
+      data.editingShowLabel = labelSettings.showLabel;
     }
     watch(toRef(props, 'selectedType'), init);
     init();
@@ -120,7 +127,7 @@ export default defineComponent({
       <v-card-text>
         <v-form v-model="data.valid">
           <v-row>
-            <v-col>
+            <v-col clas="py-0">
               <v-text-field
                 v-model="data.editingType"
                 label="Type Name"
@@ -128,6 +135,25 @@ export default defineComponent({
               />
             </v-col>
           </v-row>
+          <v-row>
+            <v-col>
+              <v-checkbox
+                v-model="data.editingShowLabel"
+                label="Show Label"
+                dense
+                shrink
+                hide-details
+              />
+              <v-checkbox
+                v-model="data.editingShowConfidence"
+                label="Show Confidence"
+                dense
+                shrink
+                hide-details
+              />
+            </v-col>
+          </v-row>
+
           <v-row class="align-center">
             <v-col>
               <v-text-field
