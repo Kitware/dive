@@ -51,7 +51,7 @@ export default function useModeManager({
   let creating = false;
 
   const annotationModes = reactive({
-    visible: ['rectangle', 'Polygon', 'LineString', 'text', 'tooltip'] as VisibleAnnotationTypes[],
+    visible: ['rectangle', 'Polygon', 'LineString', 'text'] as VisibleAnnotationTypes[],
     editing: 'rectangle' as EditAnnotationTypes,
   });
   const trackSettings = toRef(clientSettings, 'trackSettings');
