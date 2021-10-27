@@ -30,8 +30,9 @@ pip3 install git+https://github.com/Kitware/dive.git@main#subdirectory=server
 #   --help     Show this message and exit.
 
 # Commands:
-#   coco2dive
-#   dive2viame
-#   kpf2dive
-#   viame2dive
+#   coco2dive    COCO or KWCOCO json to DIVE json
+#   dive2viame   DIVE json to VIAME CSV
+#   kpf2dive     Kitware Packet Format (KPF) to DIVE json
+#   vertex2dive  Google Vertex AI Video Object Tracking to DIVE json.
+#   viame2dive   VIAME csv to DIVE json
 ```
