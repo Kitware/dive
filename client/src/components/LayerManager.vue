@@ -99,8 +99,13 @@ export default defineComponent({
     });
 
     const uiLayer = new UILayer(annotator);
-    const hoverOvered: Ref<[string, number][]> = ref([]);
-    const toolTipWidgetProps = { color: typeStylingRef.value.color, dataList: hoverOvered };
+    const hoverOvered: Ref<[string, number, number][]> = ref([]);
+    const toolTipWidgetProps = {
+      color: typeStylingRef.value.color,
+      dataList: hoverOvered,
+      selected: selectedTrackIdRef,
+      stateStyling,
+    };
     const toolTipWidget = uiLayer.addDOMWidget('customToolTip', ToolTipWidget, toolTipWidgetProps);
 
     function updateLayers(
@@ -309,8 +314,8 @@ export default defineComponent({
     });
     editAnnotationLayer.bus.$on('update:selectedIndex',
       (index: number, _type: EditAnnotationTypes, key = '') => handler.selectFeatureHandle(index, key));
-    rectAnnotationLayer.bus.$on('annotation-hover', (found: { trackType: [string, number]}[], pos: {x: number; y: number}) => {
-      hoverOvered.value = found.map((item) => item.trackType);
+    rectAnnotationLayer.bus.$on('annotation-hover', (found: { trackType: [string, number]; trackId: number}[], pos: {x: number; y: number}) => {
+      hoverOvered.value = found.map((item) => [...item.trackType, item.trackId]);
       toolTipWidget.position(pos);
     });
   },

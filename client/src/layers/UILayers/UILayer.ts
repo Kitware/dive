@@ -43,18 +43,4 @@ export default class UILayer {
 
       return widget;
     }
-
-    getDOMWidget(name: string) {
-      if (this.widgets[name]) {
-        return this.widgets[name];
-      }
-      throw new Error(`No DOM widget exsist with the name: ${name}`);
-    }
-
-    updateDOMPosition(name: string, pos: WidgetPosition) {
-      const widget = this.getDOMWidget(name)?.widget;
-      if (widget) {
-        widget.position(pos);
-      }
-    }
 }
