@@ -124,17 +124,19 @@ mockfs({
     },
     imageLists: {
       success: {
-        'image_list.txt': 'image1.png\r\n/home/user/data/imageLists/success/image2.png\n\n\n../success/image3.png',
+        // bad sort order
+        'image_list.txt': 'image3.png\r\n/home/user/data/imageLists/success/image2.png\n\n\nimage4.png\n../success/image1.png',
         'image1.png': '',
-        'image2.png': '',
         'image3.png': '',
+        'image2.png': '',
+        'image4.png': '',
       },
       successGlob: {
-        'image_list.txt': './2018-image1.png\n./nested/2018-image2.png\n./2019-image3.png',
-        '2018-image1.png': '',
-        '2019-image3.png': '',
+        'image_list.txt': './2018-image2.png\n./nested/2018-image1.png\n./2019-image0.png',
+        '2018-image2.png': '',
+        '2019-image0.png': '',
         nested: {
-          '2018-image2.png': '',
+          '2018-image1.png': '',
         },
       },
       failEmptyRelative: {
@@ -420,7 +422,7 @@ describe('native.common', () => {
   it('beginMediaImport image sequence success', async () => {
     const payload = await common.beginMediaImport(settings, '/home/user/data/imageSuccess', checkMedia);
     expect(payload.jsonMeta.name).toBe('imageSuccess');
-    expect(payload.jsonMeta.originalImageFiles.length).toBe(2);
+    expect(payload.jsonMeta.originalImageFiles).toEqual(['bar.png', 'foo.png']);
     expect(payload.jsonMeta.originalVideoFile).toBe('');
     expect(payload.jsonMeta.originalBasePath).toBe('/home/user/data/imageSuccess');
   });
@@ -431,13 +433,14 @@ describe('native.common', () => {
     );
     expect(payload.jsonMeta.originalBasePath).toBe('');
     expect(payload.jsonMeta.originalImageFiles).toEqual([
-      '/home/user/data/imageLists/success/image1.png',
-      '/home/user/data/imageLists/success/image2.png',
       '/home/user/data/imageLists/success/image3.png',
+      '/home/user/data/imageLists/success/image2.png',
+      '/home/user/data/imageLists/success/image4.png',
+      '/home/user/data/imageLists/success/image1.png',
     ]);
     expect(payload.jsonMeta.name).toBe('success');
     const final = await common.finalizeMediaImport(settings, payload, updater, convertMedia);
-    expect(final.originalImageFiles.length).toBe(3);
+    expect(final.originalImageFiles.length).toBe(4);
     expect(final.name).toBe('success');
     expect(final.imageListPath).toBe('/home/user/data/imageLists/success/image_list.txt');
     expect(final.originalBasePath).toBe('');
@@ -450,8 +453,15 @@ describe('native.common', () => {
     expect(payload.jsonMeta.originalBasePath).toBe('');
     payload.globPattern = '2018*';
     const final = await common.finalizeMediaImport(settings, payload, updater, convertMedia);
-    expect(final.originalImageFiles.length).toBe(2);
+    const expectedImageFiles = [
+      '/home/user/data/imageLists/successGlob/2018-image2.png',
+      '/home/user/data/imageLists/successGlob/nested/2018-image1.png',
+    ];
+    expect(final.originalImageFiles).toEqual(expectedImageFiles);
     expect(final.originalBasePath).toBe('');
+    const reload = await common.loadMetadata(settings, final.id, urlMapper);
+    expect(reload.originalImageFiles).toEqual(expectedImageFiles);
+    expect(reload.imageListPath).toBe('/home/user/data/imageLists/successGlob/image_list.txt');
   });
 
   it('beginMediaImport image list fail empty relative', async () => {

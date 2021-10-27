@@ -24,7 +24,9 @@ import {
   JsonMeta, Settings, JsonMetaCurrentVersion, DesktopMetadata, DesktopJobUpdater,
   ConvertMedia, RunTraining, ExportDatasetArgs, DesktopMediaImportResponse, CheckMediaResults,
 } from 'platform/desktop/constants';
-import { cleanString, filterByGlob, makeid } from 'platform/desktop/sharedUtils';
+import {
+  cleanString, filterByGlob, makeid, strNumericCompare,
+} from 'platform/desktop/sharedUtils';
 import { Attribute, Attributes } from 'vue-media-annotator/use/useAttributes';
 import { cloneDeep, uniq } from 'lodash';
 import processTrackAttributes from './attributeProcessor';
@@ -960,6 +962,14 @@ async function _importTrackFile(
     // eslint-disable-next-line no-param-reassign
     if (attributes) jsonMeta.attributes = attributes;
     foundDetections = processedFiles.length > 0;
+  }
+
+  /* custom image sort */
+  if (jsonMeta.imageListPath === undefined) {
+    jsonMeta.originalImageFiles.sort(strNumericCompare);
+  }
+  if (jsonMeta.transcodedImageFiles) {
+    jsonMeta.transcodedImageFiles.sort(strNumericCompare);
   }
 
   await _saveAsJson(npath.join(projectDirAbsPath, JsonMetaFileName), jsonMeta);
