@@ -13,28 +13,26 @@ import {
 import {
   JsonMeta, Settings, JsonMetaCurrentVersion,
   CheckMediaResults,
-  MediaImportPayload,
+  DesktopMediaImportResponse,
+  Camera,
 } from 'platform/desktop/constants';
-import { cleanString, makeid } from 'platform/desktop/sharedUtils';
 import { findImagesInFolder } from './common';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function isFolderArgs(s: any): s is MultiCamImportFolderArgs {
-  if (s.folderList && s.defaultDisplay) {
-    return true;
-  }
-  return false;
-}
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function isKeywordArgs(s: any): s is MultiCamImportKeywordArgs {
-  if (s.globList && s.defaultDisplay) {
+function isFolderArgs(s: MultiCamImportArgs): s is MultiCamImportFolderArgs {
+  if ('sourceList' in s && 'defaultDisplay' in s) {
     return true;
   }
   return false;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function asyncForEach(array: any[], callback: Function) {
+function isKeywordArgs(s: MultiCamImportArgs): s is MultiCamImportKeywordArgs {
+  if ('globList' in s && 'defaultDisplay' in s) {
+    return true;
+  }
+  return false;
+}
+
+async function asyncForEach<T>(array: T[], callback: (item: T, index: number, arr: T[]) => void) {
   for (let index = 0; index < array.length; index += 1) {
     // eslint-disable-next-line no-await-in-loop
     await callback(array[index], index, array);
@@ -47,29 +45,23 @@ async function beginMultiCamImport(
   settings: Settings,
   args: MultiCamImportArgs,
   checkMedia: (settings: Settings, path: string) => Promise<CheckMediaResults>,
-): Promise<MediaImportPayload> {
+): Promise<DesktopMediaImportResponse> {
   const datasetType: DatasetType = MultiType;
-
-  let mainFolder: string | undefined;
-  const cameras: Record<string, {
-    originalBasePath: string;
-    originalImageFiles: string[];
-    originalVideoFile: string;
-    transcodedImageFiles: string[];
-    transcodedVideoFile: string;
-    type: 'image-sequence' | 'video';
-   }> = {};
-  let multiCamTrackFiles: null | Record<string, string> = {};
+  const cameras: Record<string, Camera> = {};
+  const multiCamTrackFiles: Record<string, string> = {};
   let trackFileCount = 0;
   if (isFolderArgs(args)) {
-    Object.entries(args.folderList).forEach(([key, item]) => {
-      const folderExists = fs.existsSync(item.folder);
-      if (!folderExists) {
-        throw new Error(`file or directory for ${key} not found: ${item.folder}`);
+    if (!(args.defaultDisplay in args.sourceList)) {
+      throw new Error(`${args.defaultDisplay} is not a camera name`);
+    }
+    Object.entries(args.sourceList).forEach(([key, item]) => {
+      const pathExists = fs.existsSync(item.sourcePath);
+      if (!pathExists) {
+        throw new Error(`file or directory for ${key} not found: ${item.sourcePath}`);
       }
       cameras[key] = {
         type: args.type,
-        originalBasePath: item.folder,
+        originalBasePath: item.sourcePath,
         originalImageFiles: [],
         originalVideoFile: '',
         transcodedImageFiles: [],
@@ -79,21 +71,20 @@ async function beginMultiCamImport(
         // Reset the base path to a folder for videos
         cameras[key].originalBasePath = npath.dirname(cameras[key].originalBasePath);
       }
-      if (args.defaultDisplay === key) {
-        mainFolder = cameras[key].originalBasePath;
-      }
     });
   } else if (isKeywordArgs(args)) {
-    const keywordExists = fs.existsSync(args.keywordFolder);
-    if (!keywordExists) {
-      throw new Error(`file or directory not found: ${args.keywordFolder}`);
+    if (!(args.defaultDisplay in args.globList)) {
+      throw new Error(`${args.defaultDisplay} is not a camera name`);
     }
-    mainFolder = args.keywordFolder;
+    const keywordExists = fs.existsSync(args.sourcePath);
+    if (!keywordExists) {
+      throw new Error(`file or directory not found: ${args.sourcePath}`);
+    }
     Object.entries(args.globList).forEach(([key]) => {
       //All glob pattern matches are image-sequence files
       cameras[key] = {
         type: args.type,
-        originalBasePath: args.keywordFolder,
+        originalBasePath: args.sourcePath,
         originalImageFiles: [],
         originalVideoFile: '',
         transcodedImageFiles: [],
@@ -101,52 +92,42 @@ async function beginMultiCamImport(
       };
     });
   }
-  if (mainFolder === undefined) {
-    throw new Error('No main folder defined');
-  }
-
-  const dsName = npath.dirname(mainFolder).split(npath.sep).pop();
-  if (!dsName) {
-    throw new Error(`no parent folder for ${args.defaultDisplay} folder`);
-  }
-  const dsId = `${cleanString(dsName).substr(0, 20)}_${makeid(10)}`;
 
   const jsonMeta: JsonMeta = {
     version: JsonMetaCurrentVersion,
     type: datasetType,
-    id: dsId,
-    fps: 5, // TODO
+    id: '', // will be assigned on finalize
+    fps: 5,
     originalFps: 5,
-    originalBasePath: mainFolder,
+    originalBasePath: '',
     originalVideoFile: '',
     createdAt: (new Date()).toString(),
     originalImageFiles: [],
     transcodedVideoFile: '',
     transcodedImageFiles: [],
-    name: dsName,
-    multiCam: null,
+    name: 'Multi-camera data',
+    multiCam: {
+      cameras,
+      calibration: args.calibrationFile,
+      defaultDisplay: args.defaultDisplay,
+    },
     subType: null,
   };
 
-  jsonMeta.multiCam = {
-    cameras,
-    calibration: args.calibrationFile,
-    defaultDisplay: args.defaultDisplay,
-  };
   /* mediaConvertList is a list of absolute paths of media to convert */
   let mediaConvertList: string[] = [];
   /* Extract and validate media from import path */
   if (args.type === 'video') {
     if (isFolderArgs(args)) {
-      await asyncForEach(Object.entries(args.folderList),
-        async ([key, item]: [string, {folder: string; trackFile: string}]) => {
-          if (item.trackFile && multiCamTrackFiles) {
-            multiCamTrackFiles[key] = item.trackFile;
+      await asyncForEach(Object.entries(args.sourceList),
+        async ([cameraName, item]) => {
+          if (item.trackFile) {
+            multiCamTrackFiles[cameraName] = item.trackFile;
             trackFileCount += 1;
           }
-          const video = item.folder;
+          const video = item.sourcePath;
           const mimetype = mime.lookup(video);
-          if (key === args.defaultDisplay) {
+          if (cameraName === args.defaultDisplay) {
             jsonMeta.originalVideoFile = npath.basename(video);
           }
           if (mimetype) {
@@ -157,8 +138,8 @@ async function beginMultiCamImport(
               if (!checkMediaResult.websafe || otherVideoTypes.includes(mimetype)) {
                 mediaConvertList.push(video);
               }
-              if (jsonMeta.multiCam && jsonMeta.multiCam.cameras[key] !== undefined) {
-                jsonMeta.multiCam.cameras[key].originalVideoFile = npath.basename(video);
+              if (jsonMeta.multiCam && jsonMeta.multiCam.cameras[cameraName] !== undefined) {
+                jsonMeta.multiCam.cameras[cameraName].originalVideoFile = npath.basename(video);
               }
               const newAnnotationFps = Math.floor(
                 Math.min(jsonMeta.fps, checkMediaResult.originalFps),
@@ -180,32 +161,37 @@ async function beginMultiCamImport(
     }
   } else if (args.type === 'image-sequence') {
     if (isFolderArgs(args)) {
-      await asyncForEach(Object.entries(args.folderList),
-        async ([key, item]: [string, {folder: string; trackFile: string}]) => {
-          if (item.trackFile && multiCamTrackFiles) {
-            multiCamTrackFiles[key] = item.trackFile;
+      await asyncForEach(Object.entries(args.sourceList),
+        async ([cameraName, item]) => {
+          if (item.trackFile) {
+            multiCamTrackFiles[cameraName] = item.trackFile;
             trackFileCount += 1;
           }
-          const found = await findImagesInFolder(item.folder);
-          if (found.images.length === 0) {
-            throw new Error(`no images found in ${item.folder}`);
+          const found = await findImagesInFolder(item.sourcePath);
+          if (found.imagePaths.length === 0) {
+            throw new Error(`no images found in ${item.sourcePath}`);
           }
-          if (jsonMeta.multiCam && jsonMeta.multiCam.cameras[key] !== undefined) {
-            jsonMeta.multiCam.cameras[key].originalImageFiles = found.images.map(
-              (image) => image,
-            );
-            mediaConvertList = mediaConvertList.concat(found.mediaConvertList);
+          mediaConvertList = mediaConvertList.concat(found.mediaConvertList);
+          if (found.source === 'directory') {
+            cameras[cameraName].originalImageFiles = found.imageNames;
+          } else if (found.source === 'image-list') {
+            cameras[cameraName].originalImageFiles = found.imagePaths;
+            cameras[cameraName].imageListPath = jsonMeta.originalBasePath;
+            cameras[cameraName].originalBasePath = '';
           }
         });
     } else if (isKeywordArgs(args)) {
+      jsonMeta.originalBasePath = args.sourcePath;
       await asyncForEach(Object.entries(args.globList),
-        async ([key, item]: [string, {glob: string; trackFile: string}]) => {
-          const found = await findImagesInFolder(args.keywordFolder, item.glob);
-          if (jsonMeta.multiCam && jsonMeta.multiCam.cameras[key] !== undefined) {
-            jsonMeta.multiCam.cameras[key].originalImageFiles = found.images.map(
-              (image) => image,
-            );
-            mediaConvertList = mediaConvertList.concat(found.mediaConvertList);
+        async ([cameraName, item]) => {
+          const found = await findImagesInFolder(args.sourcePath, item.glob);
+          mediaConvertList = mediaConvertList.concat(found.mediaConvertList);
+          if (found.source === 'directory') {
+            cameras[cameraName].originalImageFiles = found.imageNames;
+          } else if (found.source === 'image-list') {
+            cameras[cameraName].originalImageFiles = found.imagePaths;
+            cameras[cameraName].imageListPath = jsonMeta.originalBasePath;
+            cameras[cameraName].originalBasePath = '';
           }
         });
     }
@@ -219,8 +205,9 @@ async function beginMultiCamImport(
   } else if (jsonMeta.multiCam) {
     jsonMeta.subType = 'multicam';
   }
-  if (trackFileCount === 0) {
-    multiCamTrackFiles = null;
+
+  if (mediaConvertList.length && Object.values(cameras).some((cam) => cam.imageListPath)) {
+    throw new Error('Transcoding is not supported when an image list is used');
   }
 
   return {
@@ -229,7 +216,7 @@ async function beginMultiCamImport(
     mediaConvertList,
     trackFileAbsPath: '',
     forceMediaTranscode: false,
-    multiCamTrackFiles,
+    multiCamTrackFiles: trackFileCount === 0 ? null : multiCamTrackFiles,
   };
 }
 

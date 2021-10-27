@@ -6,7 +6,7 @@ import {
 import { MediaTypes, FPSOptions } from 'dive-common/constants';
 
 import { filterByGlob } from 'platform/desktop/sharedUtils';
-import { MediaImportPayload } from 'platform/desktop/constants';
+import { DesktopMediaImportResponse } from 'platform/desktop/constants';
 import { locateDuplicates } from 'platform/desktop/frontend/store/dataset';
 import { useApi } from 'dive-common/apispec';
 import Vue from 'vue';
@@ -17,7 +17,7 @@ export default defineComponent({
   name: 'ImportDialog',
   props: {
     importData: {
-      type: Object as PropType<MediaImportPayload>,
+      type: Object as PropType<DesktopMediaImportResponse>,
       required: true,
     },
   },
@@ -249,21 +249,17 @@ export default defineComponent({
         <p class="my-3">
           New Dataset Properties
         </p>
-        <table class="key-value-table">
-          <tr>
-            <td>New ID</td>
-            <td>
-              <pre>{{ argCopy.jsonMeta.id }}</pre>
-            </td>
-          </tr>
+        <table
+          class="key-value-table"
+        >
           <tr v-if="argCopy.jsonMeta.type == 'video'">
             <td>Video</td>
             <td>{{ argCopy.jsonMeta.originalVideoFile }}</td>
           </tr>
           <tr>
-            <td>Source Dir</td>
+            <td>Source</td>
             <td>
-              <pre>{{ argCopy.jsonMeta.originalBasePath }}</pre>
+              <pre>{{ argCopy.jsonMeta.imageListPath || argCopy.jsonMeta.originalBasePath }}</pre>
             </td>
           </tr>
           <tr>

@@ -9,11 +9,14 @@ import type {
   Pipe, Pipelines, SaveAttributeArgs, SaveDetectionsArgs, TrainingConfigs,
 } from 'dive-common/apispec';
 
-import { fileVideoTypes, calibrationFileTypes, inputAnnotationFileTypes } from 'dive-common/constants';
+import {
+  fileVideoTypes, calibrationFileTypes,
+  inputAnnotationFileTypes, listFileTypes,
+} from 'dive-common/constants';
 import {
   DesktopJob, DesktopMetadata, JsonMeta, NvidiaSmiReply,
   RunPipeline, RunTraining, ExportDatasetArgs,
-  MediaImportPayload,
+  DesktopMediaImportResponse,
 } from 'platform/desktop/constants';
 
 
@@ -21,27 +24,34 @@ import {
  * Native functions that run entirely in the renderer
  */
 
-async function openFromDisk(datasetType: DatasetType | 'calibration' | 'annotation', directory = false) {
+async function openFromDisk(datasetType: DatasetType | 'calibration' | 'annotation' | 'text', directory = false) {
   let filters: FileFilter[] = [];
+  const allFiles = { name: 'All Files', extensions: ['*'] };
   if (datasetType === 'video') {
     filters = [
       { name: 'Videos', extensions: fileVideoTypes },
-      { name: 'All Files', extensions: ['*'] },
+      allFiles,
     ];
   }
   if (datasetType === 'calibration') {
     filters = [
       { name: 'calibration', extensions: calibrationFileTypes },
-      { name: 'All Files', extensions: ['*'] },
+      allFiles,
     ];
   }
   if (datasetType === 'annotation') {
     filters = [
       { name: 'annotation', extensions: inputAnnotationFileTypes },
-      { name: 'All Files', extensions: ['*'] },
+      allFiles,
     ];
   }
-  const props = datasetType === 'image-sequence' || directory ? 'openDirectory' : 'openFile';
+  if (datasetType === 'text') {
+    filters = [
+      { name: 'text', extensions: listFileTypes },
+      allFiles,
+    ];
+  }
+  const props = (datasetType === 'image-sequence' || directory) ? 'openDirectory' : 'openFile';
   const results = await remote.dialog.showOpenDialog({
     properties: [props],
     filters,
@@ -90,7 +100,7 @@ async function runTraining(
   return ipcRenderer.invoke('run-training', args);
 }
 
-function importMedia(path: string): Promise<MediaImportPayload> {
+function importMedia(path: string): Promise<DesktopMediaImportResponse> {
   return ipcRenderer.invoke('import-media', { path });
 }
 
@@ -103,7 +113,7 @@ function checkDataset(datasetId: string): Promise<boolean> {
 }
 
 function importMultiCam(args: MultiCamImportArgs):
-   Promise<MediaImportPayload> {
+   Promise<DesktopMediaImportResponse> {
   return ipcRenderer.invoke('import-multicam-media', { args });
 }
 
@@ -111,7 +121,7 @@ function importAnnotationFile(id: string, path: string): Promise<boolean> {
   return ipcRenderer.invoke('import-annotation', { id, path });
 }
 
-function finalizeImport(args: MediaImportPayload): Promise<JsonMeta> {
+function finalizeImport(args: DesktopMediaImportResponse): Promise<JsonMeta> {
   return ipcRenderer.invoke('finalize-import', args);
 }
 
