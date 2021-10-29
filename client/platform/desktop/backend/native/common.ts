@@ -335,7 +335,8 @@ async function autodiscoverData(settings: Settings): Promise<JsonMeta[]> {
  */
 async function getPipelineList(settings: Settings): Promise<Pipelines> {
   const pipelinePath = npath.join(settings.viamePath, 'configs/pipelines');
-  const allowedPatterns = /^detector_.+|^tracker_.+|^generate_.+|^utility_|^measurement_gmm_.+/;
+  // eslint-disable-next-line no-useless-escape
+  const allowedPatterns = /^detector_.+|^tracker_.+|^generate_.+|^utility_|^measurement_gmm_.+|.*[2,3]\-cam.+/;
   const disallowedPatterns = /.*local.*|detector_svm_models.pipe|tracker_svm_models.pipe/;
   const exists = await fs.pathExists(pipelinePath);
   if (!exists) return {};
@@ -346,8 +347,12 @@ async function getPipelineList(settings: Settings): Promise<Pipelines> {
   const ret: Pipelines = {};
   pipes.forEach((p) => {
     const parts = cleanString(p.replace('.pipe', '')).split('_');
-    const pipeType = parts[0];
-    const pipeName = parts.slice(1).join(' ');
+    let pipeType = parts[0];
+    let pipeName = parts.slice(1).join(' ');
+    if (parts[parts.length - 1] === 'cam') {
+      pipeType = `${parts[parts.length - 2]}-cam`;
+      pipeName = parts.join(' ');
+    }
     const pipeInfo = {
       name: pipeName,
       type: pipeType,

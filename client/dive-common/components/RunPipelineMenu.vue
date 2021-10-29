@@ -9,7 +9,7 @@ import {
   SubType,
 } from 'dive-common/apispec';
 import JobLaunchDialog from 'dive-common/components/JobLaunchDialog.vue';
-import { stereoPipelineMarker } from 'dive-common/constants';
+import { stereoPipelineMarker, multiCamPipelineMarkers } from 'dive-common/constants';
 import { useRequest } from 'dive-common/use';
 
 export default defineComponent({
@@ -73,10 +73,13 @@ export default defineComponent({
           if (props.subTypeList.length === props.subTypeList.filter((item) => item === 'stereo').length) {
             sortedPipelines[name] = category;
           }
-        } else if (
-          props.subTypeList.length === props.subTypeList.filter((item) => item === null).length
-        ) {
+        } else {
           sortedPipelines[name] = category;
+        }
+        if (multiCamPipelineMarkers.includes(name)) {
+          if (props.subTypeList.length === props.subTypeList.filter((item) => item === 'multicam').length) {
+            sortedPipelines[name] = category;
+          }
         }
       });
       return sortedPipelines;
