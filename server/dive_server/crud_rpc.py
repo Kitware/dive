@@ -228,6 +228,7 @@ def run_training(
     token: types.GirderModel,
     folderIds: List[str],
     pipelineName: str,
+    labelText: str,
     config: str,
     annotatedFramesOnly: bool,
 ) -> types.GirderModel:
@@ -284,6 +285,7 @@ def run_training(
     newjob.job[constants.JOBCONST_PRIVATE_QUEUE] = job_is_private
     newjob.job[constants.JOBCONST_TRAINING_INPUT_IDS] = folderIds
     newjob.job[constants.JOBCONST_RESULTS_FOLDER_ID] = str(results_folder['_id'])
+    newjob.job[constants.JOBCONST_LABEL_TEXT] = labelText
     newjob.job[constants.JOBCONST_TRAINING_CONFIG] = config
     newjob.job[constants.JOBCONST_PIPELINE_NAME] = pipelineName
     Job().save(newjob.job)

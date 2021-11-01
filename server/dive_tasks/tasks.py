@@ -275,6 +275,7 @@ def train_pipeline(
     source_folder_list: List[GirderModel],
     groundtruth_list: List[GirderModel],
     pipeline_name: str,
+    label_text:str,
     config: str,
     annotated_frames_only: bool = False,
 ):
@@ -286,6 +287,7 @@ def train_pipeline(
     :param groundtruth_list: A list of relative paths to either a file containing detections,
         or a folder containing that file.
     :param pipeline_name: The base name of the resulting pipeline.
+    :param label_text: string value of label.txt file contents
     :param config: string name of the input configuration
     :param annotated_frames_only: Only use annotated frames for training
     """
@@ -314,6 +316,9 @@ def train_pipeline(
         _working_directory_path = Path(_working_directory)
         input_path = utils.make_directory(_working_directory_path / 'input')
         output_path = utils.make_directory(_working_directory_path / 'output')
+
+        label_txt = input_path / "labels.txt"
+        label_txt.write(f"{label_text}")
 
         for index in range(len(source_folder_list)):
             source_folder = source_folder_list[index]
@@ -352,6 +357,8 @@ def train_pipeline(
             "--input-list",
             shlex.quote(str(input_folder_file_list)),
             "--input-truth",
+            shlex.quote(str(label_txt)),
+            "--label",
             shlex.quote(str(ground_truth_file_list)),
             "--config",
             shlex.quote(str(config_file)),

@@ -52,6 +52,13 @@ class RpcResource(Resource):
             required=True,
         )
         .param(
+            "labelText",
+            description="String of text from label.txt file.",
+            paramType="query",
+            dataType="string",
+            required=False,
+        )
+        .param(
             "config",
             description="The configuration to use for training",
             paramType="query",
@@ -66,11 +73,11 @@ class RpcResource(Resource):
             required=False,
         )
     )
-    def run_training(self, folderIds, pipelineName, config, annotatedFramesOnly):
+    def run_training(self, folderIds, pipelineName, labelText, config, annotatedFramesOnly):
         user = self.getCurrentUser()
         token = Token().createToken(user=user, days=14)
         return crud_rpc.run_training(
-            user, token, folderIds, pipelineName, config, annotatedFramesOnly
+            user, token, folderIds, pipelineName, labelText, config, annotatedFramesOnly
         )
 
     @access.user

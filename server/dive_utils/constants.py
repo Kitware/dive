@@ -89,6 +89,7 @@ TrainingOutputFolderName = "VIAME Training Results"
 JOBCONST_DATASET_ID = 'datset_id'
 JOBCONST_TRAINING_INPUT_IDS = 'training_input_ids'
 JOBCONST_TRAINING_CONFIG = 'training_config'
+JOBCONST_LABEL_TEXT = 'label_text'
 JOBCONST_RESULTS_FOLDER_ID = 'results_folder_id'
 JOBCONST_PIPELINE_NAME = 'pipeline_name'
 JOBCONST_PRIVATE_QUEUE = 'private_queue'
