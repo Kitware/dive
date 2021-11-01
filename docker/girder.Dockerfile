@@ -1,4 +1,5 @@
-FROM node:latest as builder
+# V16 needed, see client/README.md
+FROM node:16 as builder
 WORKDIR /app
 
 # Install dependencies
