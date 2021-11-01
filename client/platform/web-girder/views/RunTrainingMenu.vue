@@ -7,6 +7,8 @@ import { useApi, TrainingConfigs } from 'dive-common/apispec';
 import JobLaunchDialog from 'dive-common/components/JobLaunchDialog.vue';
 import ImportButton from 'dive-common/components/ImportButton.vue';
 import { useRequest } from 'dive-common/use';
+import { openFromDisk } from 'platform/web-girder/utils';
+import { TxtType } from 'dive-common/constants';
 
 
 export default defineComponent({
@@ -52,6 +54,8 @@ export default defineComponent({
     const trainingDisabled = computed(() => props.selectedDatasetIds.length === 0);
     const trainingOutputName = ref<string | null>(null);
     const menuOpen = ref(false);
+    const labelText = ref<string | null>(null);
+    const labelFile = ref<File>();
 
     async function runTrainingOnFolder() {
       const outputPipelineName = trainingOutputName.value;
@@ -65,6 +69,7 @@ export default defineComponent({
         return runTraining(
           props.selectedDatasetIds,
           outputPipelineName,
+          labelText.value,
           selectedTrainingConfig.value,
           annotatedFramesOnly.value,
         );
@@ -72,6 +77,19 @@ export default defineComponent({
       menuOpen.value = false;
       trainingOutputName.value = null;
     }
+
+    const openTxt = async () => {
+      const data = await openFromDisk(TxtType);
+      if (!data.canceled && data.fileList) {
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+          labelText.value = evt.target?.result as string;
+        };
+        reader.readAsText(data.fileList[0]);
+        // eslint-disable-next-line prefer-destructuring
+        labelFile.value = data.fileList[0];
+      }
+    };
 
     return {
       trainingConfigurations,
@@ -84,6 +102,9 @@ export default defineComponent({
       successMessage,
       dismissJobDialog,
       runTrainingOnFolder,
+      openTxt,
+      labelText,
+      labelFile,
     };
   },
 });
@@ -163,11 +184,17 @@ export default defineComponent({
               label="Configuration File"
               :items="trainingConfigurations.configs"
             />
+            <v-file-input
+              v-if="labelText"
+              v-model="labelFile"
+              clearable
+            />
             <import-button
               name="Upload labels.txt File"
               icon="mdi-folder-open"
+              open-type="txt"
               class="grow"
-              @open="openImport($event)"
+              @open="openTxt"
             />
             <v-checkbox
               v-model="annotatedFramesOnly"
