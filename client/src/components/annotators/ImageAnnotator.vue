@@ -42,6 +42,11 @@ export default defineComponent({
       type: Function as PropType<(imageDataItem: ImageDataItem, img: HTMLImageElement) => void>,
       default: loadImageFunc,
     },
+    // Range is [0, inf.)
+    brightness: {
+      type: Number as PropType<number | undefined>,
+      default: undefined,
+    },
   },
 
   setup(props) {
@@ -306,14 +311,24 @@ export default defineComponent({
       setSpeed: unimplemented,
     });
 
+    const setBrightnessFilter = (on: boolean) => {
+      if (local.quadFeature !== undefined) {
+        local.quadFeature.layer().node().css('filter', on ? 'url(#brightness)' : '');
+      }
+    };
+
     if (local.imgs.length) {
       const imgInternal = cacheFrame(0);
       imgInternal.onloadPromise.then(() => {
         initializeViewer(imgInternal.image.naturalWidth, imgInternal.image.naturalHeight);
         const quadFeatureLayer = commonMedia.geoViewerRef.value.createLayer('feature', {
           features: ['quad'],
+          autoshareRenderer: false,
         });
+
+        // Set quadFeature and conditionally apply brightness filter
         local.quadFeature = quadFeatureLayer.createFeature('quad');
+        setBrightnessFilter(props.brightness !== undefined);
         seek(0);
         data.ready = true;
       });
@@ -341,17 +356,31 @@ export default defineComponent({
           initializeViewer(imgInternal.image.naturalWidth, imgInternal.image.naturalHeight);
           const quadFeatureLayer = commonMedia.geoViewerRef.value.createLayer('feature', {
             features: ['quad'],
+            autoshareRenderer: false,
           });
+
+          // Set quadFeature and conditionally apply brightness filter
           local.quadFeature = quadFeatureLayer.createFeature('quad');
+          setBrightnessFilter(props.brightness !== undefined);
           seek(0);
           data.ready = true;
         });
       }
     }
 
+    // Watch imageData for change
     watch(toRef(props, 'imageData'), () => {
       init();
     });
+
+    // Watch brightness for change, only set filter if value
+    // is switching from number -> undefined, or vice versa.
+    watch(toRef(props, 'brightness'), (brightness, oldBrightness) => {
+      if ((brightness === undefined) !== (oldBrightness === undefined)) {
+        setBrightnessFilter(brightness !== undefined);
+      }
+    });
+
 
     return {
       data,
@@ -369,6 +398,30 @@ export default defineComponent({
 
 <template>
   <div class="video-annotator">
+    <svg
+      width="0"
+      height="0"
+      style="position: absolute; top: -1px; left: -1px"
+    >
+      <defs>
+        <filter id="brightness">
+          <feComponentTransfer color-interpolation-filters="sRGB">
+            <feFuncR
+              type="linear"
+              :slope="brightness"
+            />
+            <feFuncG
+              type="linear"
+              :slope="brightness"
+            />
+            <feFuncB
+              type="linear"
+              :slope="brightness"
+            />
+          </feComponentTransfer>
+        </filter>
+      </defs>
+    </svg>
     <div
       ref="imageCursorRef"
       class="imageCursor"
