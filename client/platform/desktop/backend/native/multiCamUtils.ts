@@ -80,7 +80,9 @@ function writeMultiCamStereoPipelineArgs(jobWorkDir: string, meta: JsonMeta) {
       const { originalBasePath } = list;
       const outputFileName = `computed_tracks_${key}.csv`;
       const outputArg = `detector_writer${i + 1}:file_name`;
+      const outputArgWriteTracks = `write_tracks_${i + 1}:file_name`;
       argFilePair[outputArg] = outputFileName;
+      argFilePair[outputArgWriteTracks] = outputFileName;
       outFiles[key] = outputFileName;
       const inputArg = `input${i + 1}:video_filename`;
       if (list.type === 'image-sequence') {
