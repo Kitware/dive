@@ -5,7 +5,7 @@ import { TrackData, TrackId } from 'vue-media-annotator/track';
 import { Attribute } from 'vue-media-annotator/use/useAttributes';
 import { CustomStyle } from 'vue-media-annotator/use/useStyling';
 
-type DatasetType = 'image-sequence' | 'video' | 'multi';
+type DatasetType = 'image-sequence' | 'video' | 'multi' | 'txt';
 type MultiTrackRecord = Record<string, TrackData>;
 type SubType = 'stereo' | 'multicam' | null; // Additional type info used for UI display enabled pipelines
 
@@ -111,7 +111,11 @@ interface Api {
 
   getTrainingConfigurations(): Promise<TrainingConfigs>;
   runTraining(
-    folderIds: string[], pipelineName: string, config: string, annotatedFramesOnly: boolean
+    folderIds: string[],
+    pipelineName: string,
+    labelText: string | null,
+    config: string,
+    annotatedFramesOnly: boolean
   ): Promise<unknown>;
 
   loadMetadata(datasetId: string): Promise<DatasetMeta>;

@@ -1,6 +1,6 @@
 import {
   calibrationFileTypes, inputAnnotationFileTypes, inputAnnotationTypes,
-  otherImageTypes, otherVideoTypes, websafeImageTypes, websafeVideoTypes,
+  otherImageTypes, otherVideoTypes, websafeImageTypes, websafeVideoTypes, inputTxtTypes,
 } from 'dive-common/constants';
 import { DatasetType } from 'dive-common/apispec';
 import type { LocationType, RootlessLocationType } from 'platform/web-girder/store/types';
@@ -51,6 +51,8 @@ Promise<{ canceled: boolean; filePaths: string[]; fileList?: File[]}> {
   } else if (datasetType === 'annotation') {
     input.accept = inputAnnotationTypes
       .concat(inputAnnotationFileTypes.map((item) => `.${item}`)).join(',');
+  } else if (datasetType === 'txt') {
+    input.accept = inputTxtTypes;
   }
   return new Promise(((resolve) => {
     input.onchange = (event) => {

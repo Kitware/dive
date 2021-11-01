@@ -9,7 +9,9 @@ import {
   DatasetSourceMedia, getDataset, getDatasetMedia, getUri,
 } from 'platform/web-girder/api';
 import { GirderMetadataStatic } from 'platform/web-girder/constants';
-import { ImageSequenceType, MultiType, VideoType } from 'dive-common/constants';
+import {
+  ImageSequenceType, MultiType, VideoType, TxtType,
+} from 'dive-common/constants';
 
 export default defineComponent({
   components: { AutosavePrompt },
@@ -115,6 +117,7 @@ export default defineComponent({
       if (dataset.value === null) return null;
       const { type } = dataset.value;
       if (type === MultiType) throw new Error('Cannot export multicamera dataset');
+      if (type === TxtType) throw new Error('Cannot export txt dataset');
       return {
         [ImageSequenceType]: 'Image Sequence',
         [VideoType]: 'Video',
