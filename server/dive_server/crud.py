@@ -139,12 +139,11 @@ def get_data_by_type(
                 raise RestException('No array-type json objects are supported')
             if kwcoco.is_coco_json(data_dict):
                 as_type = FileType.COCO_JSON
+            elif models.MetadataMutable.is_dive_configuration(data_dict):
+                data_dict = models.MetadataMutable(**data_dict).dict(exclude_none=True)
+                as_type = FileType.DIVE_CONF
             else:
-                try:
-                    data_dict = models.MetadataMutable(**data_dict).dict(exclude_none=True)
-                    as_type = FileType.DIVE_CONF
-                except pydantic.ValidationError:
-                    as_type = FileType.DIVE_JSON
+                as_type = FileType.DIVE_JSON
         else:
             raise RestException('Got file of unknown and unusable type')
 
