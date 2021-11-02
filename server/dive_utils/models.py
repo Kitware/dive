@@ -97,6 +97,19 @@ class MetadataMutable(BaseModel):
     confidenceFilters: Optional[Dict[str, float]]
     attributes: Optional[Dict[str, Attribute]]
 
+    @staticmethod
+    def is_dive_configuration(value: dict):
+        """
+        Check if value is a configuration file if at lease one of the config options is populated
+        """
+        keys = list(MetadataMutable.schema()['properties'].keys())
+
+        # Remove version: its appearance is not enough to indicate that
+        # the value is actually a configuration object.
+        keys.remove("version")
+
+        return any([value.get(key, False) for key in keys])
+
 
 class GirderMetadataStatic(MetadataMutable):
     # Required

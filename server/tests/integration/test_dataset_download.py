@@ -36,3 +36,25 @@ def test_download_csv(user: dict):
                 if not row.startswith('#'):
                     track_set.add(row.split(',')[0])
             assert len(track_set) == expected[0]['trackCount']
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("user", users.values())
+@pytest.mark.run(order=7)
+def test_upload_json_detections(user: dict):
+    """
+    Upload new annotations, and verify that the existing annotations change.
+    This test cleans up after itself, and does not change the state of the system
+    for future tests
+    """
+    client = getClient(user['login'])
+    privateFolder = getTestFolder(client)
+    for dataset in client.listFolder(privateFolder['_id']):
+        old_tracks = client.get(f'dive_annotation?folderId={dataset["_id"]}')
+        newfile = client.uploadFileToFolder(dataset['_id'], '../testutils/tracks.json')
+        client.post(f'dive_rpc/postprocess/{dataset["_id"]}', data={"skipJobs": True})
+        new_tracks = client.get(f'dive_annotation?folderId={dataset["_id"]}')
+        assert '999999' not in old_tracks, "Tracks should have updated"
+        assert '999999' in new_tracks, "Should have one track, 999999"
+        assert len(new_tracks.keys()) == 1, "Should have a single track"
+        client.delete(f'item/{newfile["itemId"]}')  # Remove the uploaded detections
