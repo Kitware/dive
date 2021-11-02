@@ -1,6 +1,7 @@
 import Vue from 'vue';
 import Install, { ref, computed } from '@vue/composition-api';
-import { ipcRenderer, remote } from 'electron';
+import { ipcRenderer } from 'electron';
+import { app } from '@electron/remote';
 import { Settings } from 'platform/desktop/constants';
 import { cloneDeep } from 'lodash';
 import * as semver from 'semver';
@@ -12,7 +13,7 @@ const SettingsKey = 'desktop.settings';
 const VersionKey = 'desktop.currentVersion';
 
 const settings = ref(null as Settings | null);
-const currentVersion = remote.app.getVersion();
+const currentVersion = app.getVersion();
 const knownVersion = ref(window.localStorage.getItem(VersionKey));
 
 /**

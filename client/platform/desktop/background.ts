@@ -1,6 +1,7 @@
 import {
   app, protocol, screen, BrowserWindow, session,
 } from 'electron';
+import { initialize as initializeRemote } from '@electron/remote/main';
 import { createProtocol } from 'vue-cli-plugin-electron-builder/lib';
 import installExtension, { VUEJS_DEVTOOLS } from 'electron-devtools-installer';
 
@@ -61,6 +62,7 @@ async function createWindow() {
     console.error(`Server listening on ${address}:${port}`);
   });
   ipcListen();
+  initializeRemote();
 
   if (process.env.IS_ELECTRON) {
     // Load the url of the dev server if in development mode
