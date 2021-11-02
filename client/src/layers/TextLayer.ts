@@ -1,4 +1,4 @@
-import { TypeStyling } from 'vue-media-annotator/use/useStyling';
+import { TypeStyling } from '../use/useStyling';
 import BaseLayer, { BaseLayerParams, LayerStyle } from './BaseLayer';
 import { FrameDataTrack } from './LayerTypes';
 
