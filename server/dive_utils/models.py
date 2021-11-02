@@ -100,16 +100,13 @@ class MetadataMutable(BaseModel):
         """
         Check if value is a configuration file if at lease one of the config options is populated
         """
-        return any(
-            [
-                value.get(key, False)
-                for key in [
-                    'customTypeStyling',
-                    'confidenceFilters',
-                    'attributes',
-                ]
-            ]
-        )
+        keys = list(MetadataMutable.schema()['properties'].keys())
+
+        # Remove version: its appearance is not enough to indicate that
+        # the value is actually a configuration object.
+        keys.remove("version")
+
+        return any([value.get(key, False) for key in keys])
 
 
 class GirderMetadataStatic(MetadataMutable):
