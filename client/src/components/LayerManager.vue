@@ -122,6 +122,7 @@ export default defineComponent({
         .map((str: string) => parseInt(str, 10));
 
       rectAnnotationLayer.setHoverAnnotations(visibleModesRef.value.includes('tooltip'));
+      polyAnnotationLayer.setHoverAnnotations(visibleModesRef.value.includes('tooltip'));
       const frameData = [] as FrameDataTrack[];
       const editingTracks = [] as FrameDataTrack[];
       currentFrameIds.forEach(
@@ -314,10 +315,13 @@ export default defineComponent({
     });
     editAnnotationLayer.bus.$on('update:selectedIndex',
       (index: number, _type: EditAnnotationTypes, key = '') => handler.selectFeatureHandle(index, key));
-    rectAnnotationLayer.bus.$on('annotation-hover', (found: { trackType: [string, number]; trackId: number}[], pos: {x: number; y: number}) => {
+    const annotationHoverTooltip = (found: { trackType: [string, number]; trackId: number}[],
+      pos: {x: number; y: number}) => {
       hoverOvered.value = found.map((item) => [item.trackType[0], item.trackType[1], item.trackId]);
       toolTipWidget.position(pos);
-    });
+    };
+    rectAnnotationLayer.bus.$on('annotation-hover', annotationHoverTooltip);
+    polyAnnotationLayer.bus.$on('annotation-hover', annotationHoverTooltip);
   },
 });
 </script>
