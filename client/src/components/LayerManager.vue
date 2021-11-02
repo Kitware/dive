@@ -121,8 +121,8 @@ export default defineComponent({
         .search([frame, frame])
         .map((str: string) => parseInt(str, 10));
 
-      rectAnnotationLayer.setHoverAnnotations(visibleModesRef.value.includes('tooltip'));
-      polyAnnotationLayer.setHoverAnnotations(visibleModesRef.value.includes('tooltip'));
+      rectAnnotationLayer.setHoverAnnotations(visibleModes.includes('tooltip'));
+      polyAnnotationLayer.setHoverAnnotations(visibleModes.includes('tooltip'));
       const frameData = [] as FrameDataTrack[];
       const editingTracks = [] as FrameDataTrack[];
       currentFrameIds.forEach(
