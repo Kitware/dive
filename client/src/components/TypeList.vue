@@ -3,11 +3,11 @@ import {
   computed, defineComponent, reactive, Ref,
 } from '@vue/composition-api';
 
+import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import {
   useCheckedTypes, useAllTypes, useTypeStyling, useHandler,
   useUsedTypes, useFilteredTracks, useConfidenceFilters,
-} from 'vue-media-annotator/provides';
-import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
+} from '../provides';
 import TooltipBtn from './TooltipButton.vue';
 import TypeEditor from './TypeEditor.vue';
 

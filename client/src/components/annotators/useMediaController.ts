@@ -4,8 +4,8 @@ import geo from 'geojs';
 import {
   ref, reactive, onMounted, onBeforeUnmount, provide, toRef, Ref,
 } from '@vue/composition-api';
-import { use } from 'vue-media-annotator/provides';
 
+import { use } from '../../provides';
 import type { MediaController } from './mediaControllerType';
 
 const MediaControllerSymbol = Symbol('media-controller');
