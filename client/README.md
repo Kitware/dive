@@ -7,6 +7,8 @@ This directory contains the code for both
 
 ## Development
 
+Requires Node <= 16 due to [this webpack issue](https://github.com/webpack/webpack/issues/14532) and the fact that we are on vue cli service v4.  Should be resolved by upgrading to v5, which is not yet released.
+
 ``` bash
 # install dependencies
 yarn
