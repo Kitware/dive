@@ -3,7 +3,7 @@ import {
   defineComponent, PropType, Ref,
 } from '@vue/composition-api';
 import { StateStyles } from '../../use/useStyling';
-import { ToolTipWidgetData } from '../LayerTypes';
+import { ToolTipWidgetData } from './UILayerTypes';
 /*
   This Component will be mounted indepedently of the main Vue App
   on a GeoJS canvas element.  To ensure reactivity between the main Vue App

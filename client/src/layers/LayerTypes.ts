@@ -8,9 +8,3 @@ export interface FrameDataTrack {
   trackType: [string, number];
   confidencePairs: [string, number][] | null;
 }
-
-export interface ToolTipWidgetData {
-  type: string;
-  confidence: number;
-  trackId: number;
-}
