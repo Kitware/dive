@@ -2,7 +2,7 @@
 import {
   defineComponent, ref, onUnmounted, PropType, toRef, watch,
 } from '@vue/composition-api';
-import { SetTimeFunc } from 'vue-media-annotator/use/useTimeObserver';
+import { SetTimeFunc } from '../../use/useTimeObserver';
 import useMediaController from './useMediaController';
 
 export interface ImageDataItem {

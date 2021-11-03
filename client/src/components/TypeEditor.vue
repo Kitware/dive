@@ -3,7 +3,7 @@ import {
   defineComponent, reactive, toRef, watch,
 } from '@vue/composition-api';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
-import { useHandler, useTypeStyling, useUsedTypes } from 'vue-media-annotator/provides';
+import { useHandler, useTypeStyling, useUsedTypes } from '../provides';
 
 export default defineComponent({
   name: 'TypeEditor',

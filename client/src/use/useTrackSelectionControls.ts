@@ -1,5 +1,5 @@
 import { computed, ref, Ref } from '@vue/composition-api';
-import { TrackWithContext } from 'vue-media-annotator/use/useTrackFilters';
+import { TrackWithContext } from './useTrackFilters';
 import { TrackId } from '../track';
 /* Maintain references to the selected Track, selected detection,
  * editing state, etc.

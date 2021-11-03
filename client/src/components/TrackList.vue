@@ -4,8 +4,8 @@ import {
   defineComponent, reactive, computed, ref, Ref, watch,
 } from '@vue/composition-api';
 
-import { TrackWithContext } from 'vue-media-annotator/use/useTrackFilters';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
+import { TrackWithContext } from '../use/useTrackFilters';
 
 import { TrackId } from '../track';
 import {
