@@ -242,6 +242,7 @@ if (argv._.includes('viame2json')) {
   const trainargs: RunTraining = {
     datasetIds: argv.id as string[],
     trainingConfig: argv.config as string,
+    labelText: null,
     pipelineName: argv.name as string,
     annotatedFramesOnly: argv.annotatedFramesOnly as boolean,
   };

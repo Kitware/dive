@@ -90,11 +90,12 @@ async function runPipeline(itemId: string, pipeline: Pipe): Promise<DesktopJob> 
 }
 
 async function runTraining(
-  folderIds: string[], pipelineName: string, config: string, annotatedFramesOnly: boolean,
+  folderIds: string[], pipelineName: string, labelText: string | null, config: string, annotatedFramesOnly: boolean,
 ): Promise<DesktopJob> {
   const args: RunTraining = {
     datasetIds: folderIds,
     pipelineName,
+    labelText,
     trainingConfig: config,
     annotatedFramesOnly,
   };

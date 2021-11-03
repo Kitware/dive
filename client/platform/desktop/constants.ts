@@ -147,6 +147,8 @@ export interface RunTraining {
   datasetIds: string[];
   // new pipeline name to be created
   pipelineName: string;
+  // contents of labels.txt file
+  labelText: string | null;
   // training configuration file name
   trainingConfig: string;
   // train only on annotated frames
