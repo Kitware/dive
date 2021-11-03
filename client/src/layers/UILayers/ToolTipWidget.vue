@@ -2,8 +2,20 @@
 import {
   defineComponent, PropType, Ref,
 } from '@vue/composition-api';
-import { StateStyles } from 'vue-media-annotator/use/useStyling';
+import { StateStyles } from '../../use/useStyling';
 
+export interface ToolTipWidgetData {
+  type: string;
+  confidence: number;
+  trackId: number;
+}
+/*
+  This Component will be mounted indepedently of the main Vue App
+  on a GeoJS canvas element.  To ensure reactivity between the main Vue App
+  and this element the props are passed in the initalization function instead of on a template.
+  This is why reactivate data in this component is utilizing PropType<Ref<data>>.
+  All references to reactive PropType<Ref<data>> need to be derefernced in the template as well.
+ */
 export default defineComponent({
   name: 'ToolTipWidget',
   props: {
@@ -20,7 +32,7 @@ export default defineComponent({
       default: () => ({ showLabel: true, showConfidence: true }),
     },
     dataList: {
-      type: Object as PropType<Ref<[string, number, number][]>>,
+      type: Object as PropType<Ref<ToolTipWidgetData[]>>,
       default: () => [],
     },
     selected: {
@@ -29,11 +41,11 @@ export default defineComponent({
     },
   },
   setup(props) {
-    const coloring = (data: [string, number, number]) => {
-      if (data[2] === props.selected.value) {
+    const coloring = (data: ToolTipWidgetData) => {
+      if (data.trackId === props.selected.value) {
         return props.stateStyling.selected.color;
       }
-      return props.color(data[0]);
+      return props.color(data.type);
     };
     return {
       coloring,
@@ -60,7 +72,7 @@ export default defineComponent({
         >
           █
         </span>
-        <span>{{ `${item[0]}:${item[1].toFixed(2)}` }}</span>
+        <span>{{ `${item.type}:${item.confidence.toFixed(2)}` }}</span>
       </div>
     </div>
   </v-card>

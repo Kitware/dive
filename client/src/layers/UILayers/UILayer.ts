@@ -1,5 +1,5 @@
 import { createApp } from '@vue/composition-api';
-import { MediaController } from 'vue-media-annotator/components/annotators/mediaControllerType';
+import { MediaController } from '../../components/annotators/mediaControllerType';
 
 
 interface WidgetPosition {
@@ -11,10 +11,18 @@ export interface DOMWidget {
   isInViewport: () => boolean;
   position: (pos: WidgetPosition) => WidgetPosition;
 }
+/**
+ * UILayer provides a way to add Reactive VUE DOM Widgets to GeoJS
+ * These widgets are created under their own Vue App and can't rely on parent elements
+ * for reactivity.
+ * Reactive properties for these components will need to be passed in as Refs and
+ * dereferenced inside of the Vue component to properly update.
+ * This will probably change once Vue 3 is adopted and <teleport> can be used
+ */
 export default class UILayer {
     annotator: MediaController;
 
-    widgets: Record<string, {elementId: string; widget: DOMWidget}>;
+    widgets: Record<string, DOMWidget>;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     uiLayer: any;
@@ -32,14 +40,8 @@ export default class UILayer {
       const parent = widget.canvas();
       const div = document.createElement('div');
       const element = parent.appendChild(div);
-      let id = element.getAttribute('id');
-      if (id === null) {
-        id = 'default_name';
-        element.setAttribute('id', id);
-      }
-      const elementId = id;
-      createApp(component, props).mount(`#${elementId}`);
-      this.widgets[name] = { widget, elementId };
+      createApp(component, props).mount(element);
+      this.widgets[name] = widget;
 
       return widget;
     }
