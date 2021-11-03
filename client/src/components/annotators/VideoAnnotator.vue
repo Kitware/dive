@@ -3,7 +3,7 @@ import {
   defineComponent, onBeforeUnmount, PropType, toRef, watch,
 } from '@vue/composition-api';
 
-import { Flick, SetTimeFunc } from 'vue-media-annotator/use/useTimeObserver';
+import { Flick, SetTimeFunc } from '../../use/useTimeObserver';
 import useMediaController from './useMediaController';
 
 /**

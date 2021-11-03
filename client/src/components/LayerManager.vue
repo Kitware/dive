@@ -3,7 +3,7 @@ import {
   defineComponent, watch, PropType, Ref, ref,
 } from '@vue/composition-api';
 
-import { TrackWithContext } from 'vue-media-annotator/use/useTrackFilters';
+import { TrackWithContext } from '../use/useTrackFilters';
 import { injectMediaController } from './annotators/useMediaController';
 import RectangleLayer from '../layers/AnnotationLayers/RectangleLayer';
 import PolygonLayer from '../layers/AnnotationLayers/PolygonLayer';
