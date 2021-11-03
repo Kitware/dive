@@ -42,6 +42,7 @@ export default defineComponent({
       valid: true,
       settingsActive: false,
       sortingMethod: 0, // index into sortingMethods
+      filterText: '',
     });
     const checkedTypesRef = useCheckedTypes();
     const allTypesRef = useAllTypes();
@@ -95,24 +96,26 @@ export default defineComponent({
       return acc;
     }, new Map<string, number>()));
 
-    function sortTypes(types: Ref<readonly string[]>) {
+    function sortAndFilterTypes(types: Ref<readonly string[]>) {
+      const filtered = types.value
+        .filter((t) => t.toLowerCase().includes(data.filterText.toLowerCase()));
       switch (sortingMethods[data.sortingMethod]) {
         case 'a-z':
-          return types.value.slice(0).sort();
+          return filtered.sort();
         case 'count':
-          return types.value.slice(0).sort(
+          return filtered.sort(
             (a, b) => (typeCounts.value.get(b) || 0) - (typeCounts.value.get(a) || 0),
           );
         default:
-          return types.value;
+          return filtered;
       }
     }
 
     const visibleTypes = computed(() => {
       if (props.showEmptyTypes) {
-        return sortTypes(allTypesRef);
+        return sortAndFilterTypes(allTypesRef);
       }
-      return sortTypes(usedTypesRef);
+      return sortAndFilterTypes(usedTypesRef);
     });
 
     const headCheckState = computed(() => {
@@ -230,8 +233,17 @@ export default defineComponent({
         </v-expand-transition>
       </v-row>
     </v-container>
+    <v-text-field
+      v-model="data.filterText"
+      placeholder="Search labels"
+      class="mx-2 mt-2 shrink"
+      outlined
+      dense
+      clearable
+      hide-details
+    />
     <div class="overflow-y-auto">
-      <v-container class="py-2">
+      <v-container class="py-1">
         <v-row
           v-for="type in visibleTypes"
           :key="type"
