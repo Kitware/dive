@@ -275,6 +275,7 @@ def run_training(
             source_folder_list=folder_list,
             groundtruth_list=detection_list,
             pipeline_name=pipelineName,
+            label_text=labelText,
             config=config,
             annotated_frames_only=annotatedFramesOnly,
             girder_client_token=str(token["_id"]),

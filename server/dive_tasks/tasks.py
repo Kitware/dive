@@ -317,8 +317,9 @@ def train_pipeline(
         input_path = utils.make_directory(_working_directory_path / 'input')
         output_path = utils.make_directory(_working_directory_path / 'output')
 
-        label_txt = input_path / "labels.txt"
-        label_txt.write(f"{label_text}")
+        labels_path = input_path / "labels.txt"
+        with open( labels_path, "w+") as labels_file:
+            labels_file.write(label_text)
 
         for index in range(len(source_folder_list)):
             source_folder = source_folder_list[index]
@@ -357,9 +358,9 @@ def train_pipeline(
             "--input-list",
             shlex.quote(str(input_folder_file_list)),
             "--input-truth",
-            shlex.quote(str(label_txt)),
-            "--label",
             shlex.quote(str(ground_truth_file_list)),
+            "--labels",
+            shlex.quote(str(labels_path)),
             "--config",
             shlex.quote(str(config_file)),
             "--no-query",
