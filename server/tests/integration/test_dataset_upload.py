@@ -33,7 +33,7 @@ def test_upload_user_data(user: dict):
         # Validate the fileset
         filenames = [file.name for file in dsPath.iterdir()]
         valid = client.post('dive_dataset/validate_files', json=filenames)
-        assert valid['ok'], f'File validation failed'
+        assert valid['ok'], 'File validation failed'
         for file in dsPath.iterdir():
             if file.is_file():
                 client.uploadFileToFolder(newDatasetFolder['_id'], str(file))
