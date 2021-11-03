@@ -11,13 +11,13 @@ import PointLayer from '../layers/AnnotationLayers/PointLayer';
 import LineLayer from '../layers/AnnotationLayers/LineLayer';
 
 import EditAnnotationLayer, { EditAnnotationTypes } from '../layers/EditAnnotationLayer';
-import { FrameDataTrack } from '../layers/LayerTypes';
+import { FrameDataTrack, ToolTipWidgetData } from '../layers/LayerTypes';
 import TextLayer, { FormatTextRow } from '../layers/AnnotationLayers/TextLayer';
 import { TrackId } from '../track';
 import { geojsonToBound } from '../utils';
 import { VisibleAnnotationTypes } from '../layers';
 import UILayer from '../layers/UILayers/UILayer';
-import ToolTipWidget, { ToolTipWidgetData } from '../layers/UILayers/ToolTipWidget.vue';
+import ToolTipWidget from '../layers/UILayers/ToolTipWidget.vue';
 import {
   useEnabledTracks,
   useHandler,
