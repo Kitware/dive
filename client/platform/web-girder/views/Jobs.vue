@@ -109,6 +109,71 @@ export default defineComponent({
           </p>
         </v-card-text>
       </v-card>
+      <v-card
+        outlined
+      >
+        <v-card-title>
+          Private Job runner
+        </v-card-title>
+        <v-card-text>
+          <p class="white--text">
+            You can run your own personal, dedicated job runner anywhere you have
+            compute resources. This could be a lab workstation or a cloud environment like
+            Google Cloud. You'll need a local installtion of VIAME.
+          </p>
+          <v-switch
+            :input-value="privateQueueEnabled"
+            :loading="loading"
+            :disabled="loading"
+            label="Enable private runner queue"
+            hide-details
+            @change="setPrivateQueueEnabled"
+          />
+          <v-alert
+            v-if="privateQueueEnabled"
+            type="warning"
+            class="my-5"
+            outlined
+          >
+            You have enabled the private queue. Jobs created by your user
+            account must be processed by a private runner, and will remain
+            queued until you configure one.
+          </v-alert>
+        </v-card-text>
+        <v-card-title>
+          Complete documentation
+        </v-card-title>
+        <v-card-text>
+          <v-btn
+            depressed
+            class="mr-3"
+            href="https://kitware.github.io/dive/Google-Cloud/#running-viame-gpu-workloads"
+          >
+            Google Cloud docs
+          </v-btn>
+          <v-btn
+            depressed
+            href="https://kitware.github.io/dive/Deployment-Docker-Compose/"
+          >
+            Docker docs
+          </v-btn>
+        </v-card-text>
+        <v-card-title>
+          Docker Quickstart
+        </v-card-title>
+        <v-card-text>
+          <p class="white--text">
+            Run the worker container under nvidia-docker.
+          </p>
+          <pre class="code-container">docker run --rm --name dive_worker \
+      --gpus all \
+      --ipc host \
+      --volume "/opt/noaa/viame:/tmp/addons/extracted:ro" \
+      -e "DIVE_USERNAME=username" \
+      -e "DIVE_PASSWORD=CHANGEME" \
+      kitware/viame-worker:latest</pre>
+        </v-card-text>
+      </v-card>
     </v-card>
   </v-container>
 </template>
