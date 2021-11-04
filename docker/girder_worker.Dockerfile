@@ -15,6 +15,7 @@ RUN export DEBIAN_FRONTEND=noninteractive && \
     build-essential \
     wget \
     python3.7 \
+    python3.7-venv \
     libpython3.7-dev \
     libffi-dev \
     libssl-dev \
@@ -37,17 +38,27 @@ RUN \
   rm get-pip.py
 # END port of worker installation
 
-# Switch over to user "worker" 1099:1099 to align with base image
+# Create user "dive" 1099:1099 to align with base image permissions.
 # https://github.com/VIAME/VIAME/blob/master/cmake/build_server_docker.sh#L123
 RUN useradd --create-home --uid 1099 --shell=/bin/bash dive
+
+# Create a virtualenv dir outside the home directory so it's preserved
+# when code is mounted in dev mode.
+RUN install -g dive -o dive -d /opt/venv
+
+# Switch to the new user and working directory
 USER dive
 WORKDIR /home/dive
 
+# Initialize python virtual environment
+ENV VIRTUAL_ENV=/opt/venv
+RUN python3.7 -m venv $VIRTUAL_ENV
+
+# Activate the virtual environment by linking it on PATH
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+
 # Create directory for addons
 RUN mkdir -p /tmp/addons
-
-# Add dive user's local bin to PATH
-ENV PATH="/home/dive/.local/bin:$PATH"
 
 # Cryptography requires latest pip, setuptools.
 # https://cryptography.io/en/latest/faq.html#installing-cryptography-fails-with-error-can-not-find-rust-compiler
