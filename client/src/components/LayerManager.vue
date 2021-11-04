@@ -1,5 +1,7 @@
 <script lang="ts">
-import { defineComponent, watch, PropType } from '@vue/composition-api';
+import {
+  defineComponent, watch, PropType, Ref, ref,
+} from '@vue/composition-api';
 
 import { TrackWithContext } from '../use/useTrackFilters';
 import { injectMediaController } from './annotators/useMediaController';
@@ -10,11 +12,13 @@ import LineLayer from '../layers/AnnotationLayers/LineLayer';
 
 import EditAnnotationLayer, { EditAnnotationTypes } from '../layers/EditAnnotationLayer';
 import { FrameDataTrack } from '../layers/LayerTypes';
-import TextLayer, { FormatTextRow } from '../layers/TextLayer';
+import TextLayer, { FormatTextRow } from '../layers/AnnotationLayers/TextLayer';
 import { TrackId } from '../track';
 import { geojsonToBound } from '../utils';
 import { VisibleAnnotationTypes } from '../layers';
-
+import UILayer from '../layers/UILayers/UILayer';
+import ToolTipWidget from '../layers/UILayers/ToolTipWidget.vue';
+import { ToolTipWidgetData } from '../layers/UILayers/UILayerTypes';
 import {
   useEnabledTracks,
   useHandler,
@@ -95,6 +99,16 @@ export default defineComponent({
       type: 'rectangle',
     });
 
+    const uiLayer = new UILayer(annotator);
+    const hoverOvered: Ref<ToolTipWidgetData[]> = ref([]);
+    const toolTipWidgetProps = {
+      color: typeStylingRef.value.color,
+      dataList: hoverOvered,
+      selected: selectedTrackIdRef,
+      stateStyling,
+    };
+    const toolTipWidget = uiLayer.addDOMWidget('customToolTip', ToolTipWidget, toolTipWidgetProps);
+
     function updateLayers(
       frame: number,
       editingTrack: false | EditAnnotationTypes,
@@ -108,6 +122,8 @@ export default defineComponent({
         .search([frame, frame])
         .map((str: string) => parseInt(str, 10));
 
+      rectAnnotationLayer.setHoverAnnotations(visibleModes.includes('tooltip'));
+      polyAnnotationLayer.setHoverAnnotations(visibleModes.includes('tooltip'));
       const frameData = [] as FrameDataTrack[];
       const editingTracks = [] as FrameDataTrack[];
       currentFrameIds.forEach(
@@ -300,6 +316,17 @@ export default defineComponent({
     });
     editAnnotationLayer.bus.$on('update:selectedIndex',
       (index: number, _type: EditAnnotationTypes, key = '') => handler.selectFeatureHandle(index, key));
+    const annotationHoverTooltip = (found: { trackType: [string, number]; trackId: number}[],
+      pos: {x: number; y: number}) => {
+      hoverOvered.value = found.map((item) => ({
+        type: item.trackType[0],
+        confidence: item.trackType[1],
+        trackId: item.trackId,
+      }));
+      toolTipWidget.position(pos);
+    };
+    rectAnnotationLayer.bus.$on('annotation-hover', annotationHoverTooltip);
+    polyAnnotationLayer.bus.$on('annotation-hover', annotationHoverTooltip);
   },
 });
 </script>

@@ -16,10 +16,13 @@ interface PolyGeoJSData{
 export default class PolygonLayer extends BaseLayer<PolyGeoJSData> {
     drawingOther: boolean; //drawing another type of annotation at the same time?
 
+    hoverOn: boolean;
+
     constructor(params: BaseLayerParams) {
       super(params);
       this.drawingOther = true; // Initialized to true in case polygons aren't supported
       //Only initialize once, prevents recreating Layer each edit
+      this.hoverOn = false;
       this.initialize();
     }
 
@@ -55,6 +58,32 @@ export default class PolygonLayer extends BaseLayer<PolyGeoJSData> {
         }
       });
       super.initialize();
+    }
+
+
+    hoverAnnotations(e: GeoEvent) {
+      if (!this.drawingOther) {
+        const { found } = this.featureLayer.pointSearch(e.mouse.geo);
+        this.bus.$emit('annotation-hover', found, e.mouse.geo);
+      }
+    }
+
+    setHoverAnnotations(val: boolean) {
+      if (!this.hoverOn && val) {
+        this.featureLayer.geoOn(
+          geo.event.feature.mouseover,
+          (e: GeoEvent) => this.hoverAnnotations(e),
+        );
+        this.featureLayer.geoOn(
+          geo.event.feature.mouseoff,
+          (e: GeoEvent) => this.hoverAnnotations(e),
+        );
+        this.hoverOn = true;
+      } else if (this.hoverOn && !val) {
+        this.featureLayer.geoOff(geo.event.feature.mouseover);
+        this.featureLayer.geoOff(geo.event.feature.mouseoff);
+        this.hoverOn = false;
+      }
     }
 
     /**
