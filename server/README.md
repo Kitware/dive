@@ -38,12 +38,15 @@ ldc up -d
 # girder has hot reload, so code changes will be detected.
 ldc dev up girder
 
-# girder worker does not, so code changes require re-launch
+# girder worker does not hot reload, so code changes require re-launch.
 ldc dev up girder_worker_default
 # or
 ldc dev up girder_worker_pipelines
 # or
 ldc dev up girder_worker_training
+
+# changes to the method signature of a celery tasks require a full rebuild
+ldc build girder_worker_default
 
 # launch a mongo client to query the database
 ldc dev run mc
