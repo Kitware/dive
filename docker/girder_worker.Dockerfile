@@ -9,40 +9,56 @@ RUN chmod +x /tini
 # VIAME pipelines at /opt/noaa/viame/configs/pipelines/
 
 # BEGIN: Porting girder worker install from girder/girder_worker Dockerfile.py3
-RUN apt-get update && \
-  apt-get install -qy software-properties-common && \
-  add-apt-repository ppa:savoury1/ffmpeg4 && \
+RUN export DEBIAN_FRONTEND=noninteractive && \
   apt-get update && \
-	export DEBIAN_FRONTEND=noninteractive && \
-  apt-get install -qy software-properties-common python3-software-properties && \
-  apt-get update && apt-get install -qy \
+  apt-get install -qy \
     build-essential \
     wget \
     python3.7 \
-    r-base \
+    python3.7-venv \
+    libpython3.7-dev \
     libffi-dev \
     libssl-dev \
     libjpeg-dev \
-    zlib1g-dev \
-    r-base \
-    ffmpeg \
-    libpython3.7-dev && \
+    zlib1g-dev && \
   apt-get clean && rm -rf /var/lib/apt/lists/*
 
-RUN wget https://bootstrap.pypa.io/get-pip.py && python3.7 get-pip.py
+# Install ffmpeg 4.4 from https://www.johnvansickle.com/ffmpeg/
+RUN \
+  wget -O ffmpeg.tar.xz https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz && \
+  mkdir ffextracted && \
+  tar -xvf ffmpeg.tar.xz -C ffextracted --strip-components 1 && \
+  mv ffextracted/ffmpeg ffextracted/ffprobe /usr/local/bin/ && \
+  rm -rf ffmpeg.tar.xz ffextracted
+
+# Install pip
+RUN \
+  wget https://bootstrap.pypa.io/get-pip.py && \
+  python3.7 get-pip.py && \
+  rm get-pip.py
 # END port of worker installation
 
-# Switch over to user "worker" 1099:1099 to align with base image
+# Create user "dive" 1099:1099 to align with base image permissions.
 # https://github.com/VIAME/VIAME/blob/master/cmake/build_server_docker.sh#L123
 RUN useradd --create-home --uid 1099 --shell=/bin/bash dive
+
+# Create a virtualenv dir outside the home directory so it's preserved
+# when code is mounted in dev mode.
+RUN install -g dive -o dive -d /opt/venv
+
+# Switch to the new user and working directory
 USER dive
 WORKDIR /home/dive
 
+# Initialize python virtual environment
+ENV VIRTUAL_ENV=/opt/venv
+RUN python3.7 -m venv $VIRTUAL_ENV
+
+# Activate the virtual environment by linking it on PATH
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+
 # Create directory for addons
 RUN mkdir -p /tmp/addons
-
-# Add dive user's local bin to PATH
-ENV PATH="/home/dive/.local/bin:$PATH"
 
 # Cryptography requires latest pip, setuptools.
 # https://cryptography.io/en/latest/faq.html#installing-cryptography-fails-with-error-can-not-find-rust-compiler
