@@ -13,7 +13,7 @@ x-worker: &base-worker
     dockerfile: docker/girder_worker.Dockerfile
   image: kitware/viame-worker:${TAG:-latest}
   volumes:
-    - addons:/tmp/addons:ro # readonly
+    - "${DIVE_ADDONS:-./data/addons}:/tmp/addons:ro"
   labels:
     - "com.centurylinklabs.watchtower.enable=true" 
   depends_on:
@@ -33,7 +33,7 @@ services:
       --providers.docker.exposedByDefault=false
       --entrypoints.web.address=:80
     volumes:
-      - ${SOCK_PATH:-/var/run/docker.sock}:/var/run/docker.sock
+      - "${SOCK_PATH:-/var/run/docker.sock}:/var/run/docker.sock"
     ports:
       - "8010:80"
 
@@ -48,11 +48,10 @@ services:
       - RABBITMQ_DEFAULT_VHOST=${RABBITMQ_DEFAULT_VHOST:-default}
 
   mongo:
-    image: mongo:latest
+    image: mongo:5.0
     volumes:
       # Bind mount assetstore from local directory
-      # - ${DIVE_GIRDER_MONGO_DATA:-girder_data/mongo}:/data/db
-      - mongo_db:/data/db
+      - "${DIVE_MONGO_DATA:-./data/mongo}:/data/db"
 
   girder:
     build:
@@ -64,20 +63,19 @@ services:
       - traefik
     volumes:
       # Bind mount assetstore from local directory
-      # - ${DIVE_GIRDER_ASSETSTORE:-girder_data/assetstore}:/home/assetstore
-      - girder_assetstore:/home/assetstore
+      - "${DIVE_GIRDER_ASSETSTORE:-./data/assetstore}:/home/assetstore"
       # Bind mount nocopy public data
       - type: bind
-        source: ${PUBLIC_DATA_PATH:-girder_data}
+        source: ${DIVE_PUBLIC_DATA:-./data/public}
         target: /data/public
         read_only: true
         volume:
           nocopy: true
     environment:
       - "GIRDER_MONGO_URI=mongodb://mongo:27017/girder"
-      - "GIRDER_ADMIN_USER=${GIRDER_ADMIN_USER}"
-      - "GIRDER_ADMIN_PASS=${GIRDER_ADMIN_PASS}"
-      - "CELERY_BROKER_URL=${CELERY_BROKER_URL}"
+      - "GIRDER_ADMIN_USER=${GIRDER_ADMIN_USER:-admin}"
+      - "GIRDER_ADMIN_PASS=${GIRDER_ADMIN_PASS:-letmein}"
+      - "CELERY_BROKER_URL=${CELERY_BROKER_URL:-amqp://guest:guest@rabbit/default}"
       # Rabbitmq management variables
       - "RABBITMQ_MANAGEMENT_USERNAME=${RABBITMQ_MANAGEMENT_USERNAME:-guest}"
       - "RABBITMQ_MANAGEMENT_PASSWORD=${RABBITMQ_MANAGEMENT_PASSWORD:-guest}"
@@ -97,11 +95,11 @@ services:
     << : *base-worker
     volumes:
       # readwrite because this worker does addon updates
-      - addons:/tmp/addons:rw
+      - "${DIVE_ADDONS:-./data/addons}:/tmp/addons:rw"
     environment:
       - "WORKER_WATCHING_QUEUES=celery"
       - "WORKER_CONCURRENCY=${DEFAULT_WORKER_CONCURRENCY:-3}"
-      - "CELERY_BROKER_URL=${CELERY_BROKER_URL}"
+      - "CELERY_BROKER_URL=${CELERY_BROKER_URL:-amqp://guest:guest@rabbit/default}"
 
   girder_worker_pipelines:
     # Merge base-worker object with this config
@@ -110,7 +108,7 @@ services:
       - "WORKER_WATCHING_QUEUES=pipelines"
       - "WORKER_CONCURRENCY=${PIPELINE_WORKER_CONCURRENCY:-1}"
       - "WORKER_GPU_UUID=${PIPELINE_GPU_UUID}"
-      - "CELERY_BROKER_URL=${CELERY_BROKER_URL}"
+      - "CELERY_BROKER_URL=${CELERY_BROKER_URL:-amqp://guest:guest@rabbit/default}"
 
   girder_worker_training:
     # Merge base-worker object with this config
@@ -119,9 +117,7 @@ services:
       - "WORKER_WATCHING_QUEUES=training"
       - "WORKER_CONCURRENCY=${TRAINING_WORKER_CONCURRENCY:-1}"
       - "WORKER_GPU_UUID=${TRAINING_GPU_UUID}"
-      - "CELERY_BROKER_URL=${CELERY_BROKER_URL}"
+      - "CELERY_BROKER_URL=${CELERY_BROKER_URL:-amqp://guest:guest@rabbit/default}"
 
 volumes:
   addons:
-  mongo_db:
-  girder_assetstore:
