@@ -2,6 +2,7 @@
 import {
   computed, defineComponent, reactive, Ref,
 } from '@vue/composition-api';
+import { difference, union } from 'lodash';
 
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import {
@@ -119,9 +120,10 @@ export default defineComponent({
     });
 
     const headCheckState = computed(() => {
-      if (checkedTypesRef.value.length === visibleTypes.value.length) {
+      const uncheckedTypes = difference(visibleTypes.value, checkedTypesRef.value);
+      if (uncheckedTypes.length === 0) {
         return 1;
-      } if (checkedTypesRef.value.length === 0) {
+      } if (uncheckedTypes.length === visibleTypes.value.length) {
         return 0;
       }
       return -1;
@@ -129,10 +131,19 @@ export default defineComponent({
 
     function headCheckClicked() {
       if (headCheckState.value === 0) {
-        setCheckedTypes([...visibleTypes.value]);
-        return;
+        /* Enable only what is filtered AND don't change what isn't filtered */
+        const allVisibleAndCheckedInvisible = union(
+          /* What was already checked and is currently not visible */
+          difference(checkedTypesRef.value, visibleTypes.value),
+          /* What is visible */
+          visibleTypes.value,
+        );
+        setCheckedTypes(allVisibleAndCheckedInvisible);
+      } else {
+        /* Disable whatever is both checked and filtered */
+        const invisible = difference(checkedTypesRef.value, visibleTypes.value);
+        setCheckedTypes(invisible);
       }
-      setCheckedTypes([]);
     }
 
 
@@ -233,15 +244,12 @@ export default defineComponent({
         </v-expand-transition>
       </v-row>
     </v-container>
-    <v-text-field
+    <input
       v-model="data.filterText"
-      placeholder="Search labels"
-      class="mx-2 mt-2 shrink"
-      outlined
-      dense
-      clearable
-      hide-details
-    />
+      type="text"
+      placeholder="Search types"
+      class="mx-2 mt-2 shrink input-box"
+    >
     <div class="overflow-y-auto">
       <v-container class="py-1">
         <v-row
@@ -325,6 +333,8 @@ export default defineComponent({
 </template>
 
 <style scoped lang='scss'>
+@import 'src/components/styles/common.scss';
+
 .border-highlight {
    border-bottom: 1px solid gray;
  }
