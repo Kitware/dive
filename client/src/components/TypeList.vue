@@ -11,6 +11,14 @@ import {
 } from '../provides';
 import TooltipBtn from './TooltipButton.vue';
 import TypeEditor from './TypeEditor.vue';
+import TypeItem from './TypeItem.vue';
+
+interface VirtualTypeItem {
+  type: string;
+  confidenceFilterNum: number;
+  displayText: string;
+}
+
 
 export default defineComponent({
   name: 'TypeList',
@@ -22,7 +30,7 @@ export default defineComponent({
     },
   },
 
-  components: { TypeEditor, TooltipBtn },
+  components: { TypeEditor, TooltipBtn, TypeItem },
 
   setup(props) {
     const { prompt } = usePrompt();
@@ -118,7 +126,13 @@ export default defineComponent({
       }
       return sortAndFilterTypes(usedTypesRef);
     });
-
+    const virtualTypes: Ref<readonly VirtualTypeItem[]> = computed(
+      () => visibleTypes.value.map((item) => ({
+        type: item,
+        confidenceFilterNum: confidenceFiltersRef.value[item] || 0,
+        displayText: `${item} (${typeCounts.value.get(item) || 0})`,
+      })),
+    );
     const headCheckState = computed(() => {
       const uncheckedTypes = difference(visibleTypes.value, checkedTypesRef.value);
       if (uncheckedTypes.length === 0) {
@@ -158,6 +172,7 @@ export default defineComponent({
       typeCounts,
       sortingMethods,
       sortingMethodIcons,
+      virtualTypes,
       /* methods */
       clickDelete,
       clickEdit,
@@ -252,72 +267,21 @@ export default defineComponent({
     >
     <div class="overflow-y-auto">
       <v-container class="py-1">
-        <v-row
-          v-for="type in visibleTypes"
-          :key="type"
-          align="center"
-          class="hover-show-parent"
+        <v-virtual-scroll
+          class="tracks"
+          :items="virtualTypes"
+          :item-height="40"
+          :height="180"
+          bench="1"
         >
-          <v-col class="d-flex flex-row py-0 align-center">
-            <v-checkbox
-              :input-value="checkedTypesRef"
-              :value="type"
-              :color="typeStylingRef.color(type)"
-              dense
-              shrink
-              hide-details
-              class="my-1 type-checkbox"
-              @change="setCheckedTypes"
-            >
-              <template #label>
-                <div class="text-body-2 grey--text text--lighten-1">
-                  <span>
-                    {{ `${type} (${typeCounts.get(type) || 0})` }}
-                  </span>
-                  <v-tooltip
-                    v-if="confidenceFiltersRef[type]"
-                    open-delay="100"
-                    bottom
-                  >
-                    <template #activator="{ on }">
-                      <span
-                        class="outlined"
-                        v-on="on"
-                      >
-                        <span>
-                          {{ `>${confidenceFiltersRef[type]}` }}
-                        </span>
-                      </span>
-                    </template>
-                    <span>Type has threshold set individually</span>
-                  </v-tooltip>
-                </div>
-              </template>
-            </v-checkbox>
-            <v-spacer />
-            <v-tooltip
-              open-delay="100"
-              bottom
-            >
-              <template #activator="{ on }">
-                <v-btn
-                  class="hover-show-child"
-                  icon
-                  small
-                  v-on="on"
-                  @click="clickEdit(type)"
-                >
-                  <v-icon
-                    small
-                  >
-                    mdi-pencil
-                  </v-icon>
-                </v-btn>
-              </template>
-              <span>Edit</span>
-            </v-tooltip>
-          </v-col>
-        </v-row>
+          <template #default="{ item }">
+            <type-item
+              v-bind="{...item}"
+              @setCheckedTypes="setCheckedTypes"
+              @clickEdit="clickEdit"
+            />
+          </template>
+        </v-virtual-scroll>
       </v-container>
     </div>
     <v-dialog
