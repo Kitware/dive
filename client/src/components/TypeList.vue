@@ -2,6 +2,7 @@
 import {
   computed, defineComponent, reactive, Ref,
 } from '@vue/composition-api';
+import { difference, union } from 'lodash';
 
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import {
@@ -42,6 +43,7 @@ export default defineComponent({
       valid: true,
       settingsActive: false,
       sortingMethod: 0, // index into sortingMethods
+      filterText: '',
     });
     const checkedTypesRef = useCheckedTypes();
     const allTypesRef = useAllTypes();
@@ -95,30 +97,33 @@ export default defineComponent({
       return acc;
     }, new Map<string, number>()));
 
-    function sortTypes(types: Ref<readonly string[]>) {
+    function sortAndFilterTypes(types: Ref<readonly string[]>) {
+      const filtered = types.value
+        .filter((t) => t.toLowerCase().includes(data.filterText.toLowerCase()));
       switch (sortingMethods[data.sortingMethod]) {
         case 'a-z':
-          return types.value.slice(0).sort();
+          return filtered.sort();
         case 'count':
-          return types.value.slice(0).sort(
+          return filtered.sort(
             (a, b) => (typeCounts.value.get(b) || 0) - (typeCounts.value.get(a) || 0),
           );
         default:
-          return types.value;
+          return filtered;
       }
     }
 
     const visibleTypes = computed(() => {
       if (props.showEmptyTypes) {
-        return sortTypes(allTypesRef);
+        return sortAndFilterTypes(allTypesRef);
       }
-      return sortTypes(usedTypesRef);
+      return sortAndFilterTypes(usedTypesRef);
     });
 
     const headCheckState = computed(() => {
-      if (checkedTypesRef.value.length === visibleTypes.value.length) {
+      const uncheckedTypes = difference(visibleTypes.value, checkedTypesRef.value);
+      if (uncheckedTypes.length === 0) {
         return 1;
-      } if (checkedTypesRef.value.length === 0) {
+      } if (uncheckedTypes.length === visibleTypes.value.length) {
         return 0;
       }
       return -1;
@@ -126,10 +131,19 @@ export default defineComponent({
 
     function headCheckClicked() {
       if (headCheckState.value === 0) {
-        setCheckedTypes([...visibleTypes.value]);
-        return;
+        /* Enable only what is filtered AND don't change what isn't filtered */
+        const allVisibleAndCheckedInvisible = union(
+          /* What was already checked and is currently not visible */
+          difference(checkedTypesRef.value, visibleTypes.value),
+          /* What is visible */
+          visibleTypes.value,
+        );
+        setCheckedTypes(allVisibleAndCheckedInvisible);
+      } else {
+        /* Disable whatever is both checked and filtered */
+        const invisible = difference(checkedTypesRef.value, visibleTypes.value);
+        setCheckedTypes(invisible);
       }
-      setCheckedTypes([]);
     }
 
 
@@ -230,8 +244,14 @@ export default defineComponent({
         </v-expand-transition>
       </v-row>
     </v-container>
+    <input
+      v-model="data.filterText"
+      type="text"
+      placeholder="Search types"
+      class="mx-2 mt-2 shrink input-box"
+    >
     <div class="overflow-y-auto">
-      <v-container class="py-2">
+      <v-container class="py-1">
         <v-row
           v-for="type in visibleTypes"
           :key="type"
@@ -313,6 +333,8 @@ export default defineComponent({
 </template>
 
 <style scoped lang='scss'>
+@import 'src/components/styles/common.scss';
+
 .border-highlight {
    border-bottom: 1px solid gray;
  }
