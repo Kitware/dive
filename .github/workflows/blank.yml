@@ -54,9 +54,7 @@ jobs:
       if: ${{ matrix.target == 'web' }}
       run: yarn build:web
       env:
-        # Provide SENTRY_AUTH_TOKEN if this is on the main branch
-        REF: ${{ github.ref }}
-        SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+        SENTRY_AUTH_TOKEN: ${{ github.ref == 'refs/heads/main' && secrets.SENTRY_AUTH_TOKEN || '' }}
     - 
       name: Build lib
       if: ${{ matrix.target == 'lib' }}
