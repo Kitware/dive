@@ -2,6 +2,7 @@ const { gitDescribeSync } = require('git-describe');
 const path = require('path');
 const http = require('http');
 const packagejson = require('./package.json');
+const SentryPlugin = require('@sentry/webpack-plugin');
 
 const keepAliveAgent = new http.Agent({ keepAlive: true });
 
@@ -21,6 +22,15 @@ function chainWebpack(config) {
      */
     'vtk.js': 'vtkjs',
   });
+  if (process.env.SENTRY_AUTH_TOKEN) {
+    config
+      .plugin('SentryPlugin')
+      .use(SentryPlugin, {
+        authToken: process.env.SENTRY_AUTH_TOKEN,
+        include: './dist',
+        release: process.env.VUE_APP_GIT_HASH
+      });
+  }
 }
 
 module.exports = {
