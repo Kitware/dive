@@ -2,6 +2,7 @@ const { gitDescribeSync } = require('git-describe');
 const path = require('path');
 const http = require('http');
 const packagejson = require('./package.json');
+const SentryPlugin = require('@sentry/webpack-plugin');
 
 const keepAliveAgent = new http.Agent({ keepAlive: true });
 
@@ -21,6 +22,17 @@ function chainWebpack(config) {
      */
     'vtk.js': 'vtkjs',
   });
+  if (process.env.SENTRY_AUTH_TOKEN) {
+    config
+      .plugin('SentryPlugin')
+      .use(SentryPlugin, [{
+        authToken: process.env.SENTRY_AUTH_TOKEN,
+        include: './dist',
+        org: 'kitware-data',
+        project: 'viame-web-client',
+        release: process.env.VUE_APP_GIT_HASH
+      }]);
+  }
 }
 
 module.exports = {
@@ -34,7 +46,7 @@ module.exports = {
       },
     },
   },
-  productionSourceMap: false,
+  productionSourceMap: true,
   publicPath: process.env.VUE_APP_STATIC_PATH,
   chainWebpack,
   pluginOptions: {
