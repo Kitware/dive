@@ -64,7 +64,7 @@ services:
       - girder_assetstore:/home/assetstore
       # Bind mount nocopy public data
       - type: bind
-        source: ${PUBLIC_DATA_PATH:-girder_data}
+        source: ${PUBLIC_DATA_PATH:-./girder_data}
         target: /data/public
         read_only: true
         volume:
