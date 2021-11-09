@@ -1,5 +1,2 @@
 .env
 traefik/
-data/addons
-data/assetstore
-data/mongo

@@ -13,7 +13,7 @@ x-worker: &base-worker
     dockerfile: docker/girder_worker.Dockerfile
   image: kitware/viame-worker:${TAG:-latest}
   volumes:
-    - "${DIVE_ADDONS:-./data/addons}:/tmp/addons:ro"
+    - addons:/tmp/addons:ro # readonly
   labels:
     - "com.centurylinklabs.watchtower.enable=true" 
   depends_on:
@@ -50,8 +50,7 @@ services:
   mongo:
     image: mongo:5.0
     volumes:
-      # Bind mount assetstore from local directory
-      - "${DIVE_MONGO_DATA:-./data/mongo}:/data/db"
+      - mongo_db:/data/db
 
   girder:
     build:
@@ -62,11 +61,10 @@ services:
       - mongo
       - traefik
     volumes:
-      # Bind mount assetstore from local directory
-      - "${DIVE_GIRDER_ASSETSTORE:-./data/assetstore}:/home/assetstore"
+      - girder_assetstore:/home/assetstore
       # Bind mount nocopy public data
       - type: bind
-        source: ${DIVE_PUBLIC_DATA:-./data/public}
+        source: ${PUBLIC_DATA_PATH:-girder_data}
         target: /data/public
         read_only: true
         volume:
@@ -95,7 +93,7 @@ services:
     << : *base-worker
     volumes:
       # readwrite because this worker does addon updates
-      - "${DIVE_ADDONS:-./data/addons}:/tmp/addons:rw"
+      - addons:/tmp/addons:rw
     environment:
       - "WORKER_WATCHING_QUEUES=celery"
       - "WORKER_CONCURRENCY=${DEFAULT_WORKER_CONCURRENCY:-3}"
@@ -121,3 +119,5 @@ services:
 
 volumes:
   addons:
+  mongo_db:
+  girder_assetstore:

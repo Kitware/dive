@@ -2,7 +2,7 @@ venv/
 **/node_modules
 **/dist
 **/build
-docker/data
+docker/girder_data
 *.Dockerfile
 docker-compose.*
 docker/traefik
