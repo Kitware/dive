@@ -27,7 +27,6 @@ imageRegex = re.compile(r"(\." + r"|\.".join(validImageFormats) + ')$', re.IGNOR
 safeImageRegex = re.compile(r"(\." + r"|\.".join(webValidImageFormats) + ')$', re.IGNORECASE)
 csvRegex = re.compile(r"\.csv$", re.IGNORECASE)
 jsonRegex = re.compile(r"\.json$", re.IGNORECASE)
-ymlRegex = re.compile(r"\.ya?ml$", re.IGNORECASE)
 
 ImageMimeTypes = {
     "image/png",

@@ -8,7 +8,7 @@ Some of the DIVE data conversion features are exposed through `dive`.
 
 ## Features
 
-* Convert between VIAME CSV, DIVE Json, kpf, and coco.
+* Convert between VIAME CSV, DIVE Json, and coco.
 * Verify the integrity of a DIVE Json annotation file.
 
 ## Installation
@@ -32,6 +32,5 @@ pip3 install git+https://github.com/Kitware/dive.git@main#subdirectory=server
 # Commands:
 #   coco2dive
 #   dive2viame
-#   kpf2dive
 #   viame2dive
 ```

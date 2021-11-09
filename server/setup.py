@@ -7,7 +7,6 @@ requirements = [
     "cheroot>=8.4.5",  # https://github.com/cherrypy/cheroot/issues/312
     "click",
     "girder==3.1.5.dev8",
-    "diva-boiler",
     "girder_jobs==3.0.3",
     "girder_worker==0.8.1",
     "girder_worker_utils==0.8.5",
@@ -15,9 +14,7 @@ requirements = [
     "pyrabbit2==1.0.7",  # For rabbitmq_user_queues plugin
     "typing_extensions",
     "gputil",
-    # botocore requirement conflict
     "requests>=2.20.0",  # Match girder_worker_utils
-    "urllib3<1.26",
 ]
 
 dev_requirements = [

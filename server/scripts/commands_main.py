@@ -3,12 +3,12 @@ Cli tools for using parts of the DIVE codebase outside a web server environment
 """
 import functools
 import json
-from typing import BinaryIO, Dict, List, Optional, TextIO
+from typing import Dict, Optional, TextIO
 
 import click
 
 from dive_utils import models, strNumericCompare
-from dive_utils.serializers import kwcoco, meva, viame
+from dive_utils.serializers import kwcoco, viame
 from scripts import cli
 
 
@@ -25,25 +25,6 @@ def verify_dive_json(input: TextIO):
 @click.version_option()
 def convert():
     pass
-
-
-@convert.command(name="kpf2dive")
-@click.argument('inputs', type=click.File('rb'), nargs=-1)
-@click.option('--output', type=click.File('wt'), default='result.json')
-def convert_kpf(inputs: List[BinaryIO], output: TextIO):
-    def read_in_chunks(file_object: BinaryIO, chunk_size=524288):
-        """
-        Lazy function (generator) to read a file piece by piece.
-        """
-        while True:
-            data = file_object.read(chunk_size)
-            if not data:
-                break
-            yield data
-
-    tracks = meva.load_kpf_as_tracks([read_in_chunks(file) for file in inputs])
-    json.dump(tracks, output)
-    click.secho(f'wrote output {output.name}', fg='green')
 
 
 @convert.command(name="coco2dive")

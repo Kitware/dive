@@ -305,7 +305,6 @@ def validate_files(files: List[str]):
     videos = [f for f in files if constants.videoRegex.search(f)]
     csvs = [f for f in files if constants.csvRegex.search(f)]
     images = [f for f in files if constants.imageRegex.search(f)]
-    ymls = [f for f in files if constants.ymlRegex.search(f)]
     jsons = [f for f in files if constants.jsonRegex.search(f)]
     if len(videos) and len(images):
         ok = False
@@ -316,10 +315,7 @@ def validate_files(files: List[str]):
     elif len(jsons) > 1:
         ok = False
         message = "Can only upload a single JSON Annotation per import"
-    elif len(csvs) == 1 and len(ymls):
-        ok = False
-        message = "Cannot mix annotation import types"
-    elif len(videos) > 1 and (len(csvs) or len(ymls) or len(jsons)):
+    elif len(videos) > 1 and (len(csvs) or len(jsons)):
         ok = False
         message = "Annotation upload is not supported when multiple videos are uploaded"
     elif (not len(videos)) and (not len(images)):
@@ -335,5 +331,5 @@ def validate_files(files: List[str]):
         "message": message,
         "type": mediatype,
         "media": images + videos,
-        "annotations": csvs + ymls + jsons,
+        "annotations": csvs + jsons,
     }

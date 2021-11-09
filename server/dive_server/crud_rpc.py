@@ -15,7 +15,6 @@ import pymongo
 from dive_server import crud
 from dive_tasks import tasks
 from dive_utils import TRUTHY_META_VALUES, asbool, constants, fromMeta, models, slugify, types
-from dive_utils.serializers import meva
 
 from . import crud_dataset
 
@@ -358,13 +357,12 @@ def postprocess(
     When skipJobs=False, the following may run as jobs:
         Transcoding of Video
         Transcoding of Images
-        Conversion of KPF annotations into track JSON
 
     In either case, the following may run synchronously:
         Conversion of CSV annotations into track JSON
     """
     job_is_private = user.get(constants.UserPrivateQueueEnabledMarker, False)
-    auxiliary = crud.get_or_create_auxiliary_folder(dsFolder, user)
+    crud.get_or_create_auxiliary_folder(dsFolder, user)
     isClone = fromMeta(dsFolder, constants.ForeignMediaIdMarker, None) is not None
     # add default confidence filter threshold to folder metadata
     dsFolder['meta'][constants.ConfidenceFiltersMarker] = {'default': 0.1}
@@ -419,22 +417,6 @@ def postprocess(
 
         elif imageItems.count() > 0:
             dsFolder["meta"][constants.DatasetMarker] = True
-
-        # transform KPF if necessary
-        ymlItems = Folder().childItems(
-            dsFolder, filters={"lowerName": {"$regex": constants.ymlRegex}}
-        )
-        if ymlItems.count() > 0:
-            # There might be up to 3 yamls
-            def make_file_generator(item):
-                file = Item().childFiles(item)[0]
-                return File().download(file, headers=False)()
-
-            allFiles = [make_file_generator(item) for item in ymlItems]
-            crud.saveTracks(dsFolder, meva.load_kpf_as_tracks(allFiles), user)
-            ymlItems.rewind()
-            for item in ymlItems:
-                Item().move(item, auxiliary)
 
         Folder().save(dsFolder)
 
