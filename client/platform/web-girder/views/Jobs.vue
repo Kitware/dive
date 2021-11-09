@@ -147,9 +147,9 @@ export default defineComponent({
           <v-btn
             depressed
             class="mr-3"
-            href="https://kitware.github.io/dive/Google-Cloud/#running-viame-gpu-workloads"
+            href="https://kitware.github.io/dive/Deployment-Overview/"
           >
-            Google Cloud docs
+            Deployment documentation
           </v-btn>
           <v-btn
             depressed
