@@ -25,11 +25,11 @@ function chainWebpack(config) {
   if (process.env.SENTRY_AUTH_TOKEN) {
     config
       .plugin('SentryPlugin')
-      .use(SentryPlugin, {
+      .use(SentryPlugin, [{
         authToken: process.env.SENTRY_AUTH_TOKEN,
         include: './dist',
         release: process.env.VUE_APP_GIT_HASH
-      });
+      }]);
   }
 }
 
