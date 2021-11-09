@@ -1,11 +1,6 @@
 version: "3.8"
 services:
 
-  rabbit:
-    # expose web console
-    ports:
-      - "15672:15672"
-
   girder:
     volumes:
       - ../docker/provision:/home/provision

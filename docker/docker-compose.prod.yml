@@ -24,7 +24,7 @@ services:
       - "traefik.http.routers.http-catchall.middlewares=redirect-to-https-mddl@docker"
       - "traefik.http.middlewares.redirect-to-https-mddl.redirectscheme.scheme=https"
     volumes:
-      - "${LOCAL_MOUNT:-.}/traefik/letsencrypt:/letsencrypt"
+      - "./traefik/letsencrypt:/letsencrypt"
       - "./dynamic.yml:/var/traefik/dynamic.yml:ro"
     ports:
       - "80:80"
