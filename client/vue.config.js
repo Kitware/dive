@@ -46,7 +46,7 @@ module.exports = {
       },
     },
   },
-  productionSourceMap: false,
+  productionSourceMap: true,
   publicPath: process.env.VUE_APP_STATIC_PATH,
   chainWebpack,
   pluginOptions: {
