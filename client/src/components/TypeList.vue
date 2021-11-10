@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  computed, defineComponent, reactive, Ref,
+  computed, defineComponent, onMounted, onUnmounted, reactive, ref, Ref,
 } from '@vue/composition-api';
 import { difference, union } from 'lodash';
 
@@ -17,6 +17,8 @@ interface VirtualTypeItem {
   type: string;
   confidenceFilterNum: number;
   displayText: string;
+  color: string;
+  checked: boolean;
 }
 
 
@@ -131,6 +133,8 @@ export default defineComponent({
         type: item,
         confidenceFilterNum: confidenceFiltersRef.value[item] || 0,
         displayText: `${item} (${typeCounts.value.get(item) || 0})`,
+        color: typeStylingRef.value.color(item),
+        checked: checkedTypesRef.value.includes(item),
       })),
     );
     const headCheckState = computed(() => {
@@ -161,6 +165,58 @@ export default defineComponent({
     }
 
 
+    function updateCheckedType(evt: boolean, type: string) {
+      if (evt) {
+        setCheckedTypes(checkedTypesRef.value.concat([type]));
+      } else {
+        setCheckedTypes(difference(checkedTypesRef.value, [type]));
+      }
+    }
+    // Virtual List Size computation
+    const virtualHeight = ref(200);
+    // Check variables to prevent unncessary resizing
+    let lastTypeHeight = 0;
+    let lastSettingsHeight = 0;
+
+    const calculateVirtualHeight = (typeListHeight = 0, settingsHeight = 0) => {
+      const headerHeight = document.getElementById('type-header')?.offsetHeight || 0;
+      const searchTypes = document.getElementById('search-types')?.offsetHeight || 0;
+      let finalHeight = typeListHeight - settingsHeight - searchTypes - headerHeight - 10;
+      if (finalHeight < 60) {
+        finalHeight = 60;
+      }
+      virtualHeight.value = finalHeight;
+      lastTypeHeight = typeListHeight;
+      lastSettingsHeight = settingsHeight;
+    };
+
+    function observeHeight() {
+      const resizeObserver = new ResizeObserver((() => {
+        const currentTypeHeight = document.getElementById('typelist')?.offsetHeight;
+        const currentSettingsHeight = document.getElementById('typelist-settings')?.offsetHeight;
+        if (lastTypeHeight !== currentTypeHeight || lastSettingsHeight !== currentSettingsHeight) {
+          calculateVirtualHeight(currentTypeHeight, currentSettingsHeight);
+        }
+      }));
+      const typeList = document.getElementById('typelist');
+      const settingsEl = document.getElementById('typelist-settings');
+      if (typeList && settingsEl) {
+        resizeObserver.observe(typeList);
+        resizeObserver.observe(settingsEl);
+      }
+      return resizeObserver;
+    }
+    let observer: ResizeObserver | null = null;
+    onMounted(() => {
+      observer = observeHeight();
+      calculateVirtualHeight(
+        document.getElementById('typelist-settings')?.offsetHeight,
+        document.getElementById('typelist-settings')?.offsetHeight,
+      );
+    });
+    onUnmounted(() => observer?.disconnect());
+
+
     return {
       data,
       headCheckState,
@@ -179,6 +235,9 @@ export default defineComponent({
       clickSortToggle,
       headCheckClicked,
       setCheckedTypes,
+      virtualHeight,
+      calculateVirtualHeight,
+      updateCheckedType,
     };
   },
 });
@@ -187,6 +246,7 @@ export default defineComponent({
 <template>
   <div class="d-flex flex-column">
     <v-container
+      v-resize="calculateVirtualHeight"
       dense
       class="py-0"
     >
@@ -194,7 +254,10 @@ export default defineComponent({
         class="border-highlight"
         align="center"
       >
-        <v-col class="d-flex flex-row align-center py-0 mr-8">
+        <v-col
+          id="type-header"
+          class="d-flex flex-row align-center py-0 mr-8"
+        >
           <v-checkbox
             :input-value="headCheckState !== -1 ? headCheckState : false"
             :indeterminate="headCheckState === -1"
@@ -250,7 +313,7 @@ export default defineComponent({
           </v-tooltip>
         </v-col>
       </v-row>
-      <v-row>
+      <v-row id="typelist-settings">
         <v-expand-transition>
           <slot
             v-if="data.settingsActive"
@@ -260,29 +323,32 @@ export default defineComponent({
       </v-row>
     </v-container>
     <input
+      id="search-types"
       v-model="data.filterText"
       type="text"
       placeholder="Search types"
       class="mx-2 mt-2 shrink input-box"
     >
-    <div class="overflow-y-auto">
-      <v-container class="py-1">
-        <v-virtual-scroll
-          class="tracks"
-          :items="virtualTypes"
-          :item-height="40"
-          :height="180"
-          bench="1"
-        >
-          <template #default="{ item }">
-            <type-item
-              v-bind="{...item}"
-              @setCheckedTypes="setCheckedTypes"
-              @clickEdit="clickEdit"
-            />
-          </template>
-        </v-virtual-scroll>
-      </v-container>
+    <div class="pb-2 overflow-y-hidden">
+      <v-virtual-scroll
+        class="tracks"
+        :items="virtualTypes"
+        :item-height="25"
+        :height="virtualHeight"
+        bench="1"
+      >
+        <template #default="{ item }">
+          <type-item
+            :type="item.type"
+            :checked="item.checked"
+            :color="item.color"
+            :display-text="item.displayText"
+            :confidence-filter-num="item.confidenceFilterNum"
+            @setCheckedTypes="updateCheckedType($event, item.type)"
+            @clickEdit="clickEdit"
+          />
+        </template>
+      </v-virtual-scroll>
     </div>
     <v-dialog
       v-model="data.showPicker"

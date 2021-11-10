@@ -98,8 +98,9 @@ export default defineComponent({
         class="wrapper d-flex flex-column"
       >
         <TypeList
+          id="typelist"
           :show-empty-types="typeSettings.showEmptyTypes"
-          class="flex-shrink-1 flex-grow-1 typelist"
+          class="flex-shrink-1 flex-grow-1"
         >
           <template slot="settings">
             <TypeSettingsPanel
@@ -108,7 +109,6 @@ export default defineComponent({
             />
           </template>
         </TypeList>
-        <v-spacer />
         <slot />
         <v-divider />
         <TrackList
@@ -141,6 +141,10 @@ export default defineComponent({
 </template>
 
 <style scoped>
+#typelist {
+  min-height: 310px;
+}
+
 .sidebar {
   max-height: calc(100vh - 112px);
 }
@@ -152,10 +156,6 @@ export default defineComponent({
   left: 0;
   right: 0;
   bottom: 0;
-}
-
-.typelist {
-  min-height: 250px;
 }
 
 .swap-button {

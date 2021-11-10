@@ -1,9 +1,9 @@
 <script lang="ts">
 import {
+  computed,
   defineComponent,
 } from '@vue/composition-api';
 import TooltipBtn from './TooltipButton.vue';
-import { useCheckedTypes, useTypeStyling } from '../provides';
 
 export default defineComponent({
   name: 'TypeItem',
@@ -23,14 +23,24 @@ export default defineComponent({
       type: Number,
       required: true,
     },
+    color: {
+      type: String,
+      required: true,
+    },
+    checked: {
+      type: Boolean,
+      required: true,
+    },
   },
-  setup() {
-    const checkedTypesRef = useCheckedTypes();
-    const typeStylingRef = useTypeStyling();
-
+  setup(props) {
+    const displayTooltip = computed(() => {
+      if (props.displayText.length > 20) {
+        return `${props.displayText.slice(0, 20)}...`;
+      }
+      return '';
+    });
     return {
-      checkedTypesRef,
-      typeStylingRef,
+      displayTooltip,
     };
   },
 });
@@ -43,18 +53,33 @@ export default defineComponent({
   >
     <v-col class="d-flex flex-row py-0 align-center">
       <v-checkbox
-        :input-value="checkedTypesRef"
-        :value="type"
-        :color="typeStylingRef.color(type)"
+        :input-value="checked"
+        :color="color"
         dense
         shrink
         hide-details
-        class="my-1 type-checkbox"
+        class="my-1 pl-2 type-checkbox"
         @change="$emit('setCheckedTypes', $event)"
       >
         <template #label>
           <div class="text-body-2 grey--text text--lighten-1">
-            <span>
+            <v-tooltip
+              v-if="displayTooltip"
+              open-delay="200"
+              bottom
+            >
+              <template #activator="{ on }">
+                <span
+                  v-on="on"
+                >
+                  <span>
+                    {{ displayTooltip }}
+                  </span>
+                </span>
+              </template>
+              <span>{{ displayText }} </span>
+            </v-tooltip>
+            <span v-else>
               {{ displayText }}
             </span>
             <v-tooltip
@@ -105,8 +130,7 @@ export default defineComponent({
 
 <style lang="scss" scoped>
 .type-checkbox {
-  max-width: 80%;
-  overflow-wrap: anywhere;
+  max-width: 90%;
 }
 
 .hover-show-parent {
