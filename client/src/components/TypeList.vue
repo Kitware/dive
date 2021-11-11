@@ -180,8 +180,16 @@ export default defineComponent({
 
     const calculateVirtualHeight = (typeListHeight = 0, settingsHeight = 0) => {
       const headerHeight = document.getElementById('type-header')?.offsetHeight || 0;
-      const searchTypes = document.getElementById('search-types')?.offsetHeight || 0;
-      let finalHeight = typeListHeight - settingsHeight - searchTypes - headerHeight - 10;
+      const searchTypesElem = document.getElementById('search-types');
+      let searchHeight = 0;
+
+      // Search Element has a margin-top not included in offsetHeight
+      if (searchTypesElem) {
+        searchHeight += searchTypesElem.offsetHeight;
+        searchHeight += parseInt(window.getComputedStyle(searchTypesElem).getPropertyValue('margin-top'), 10);
+      }
+      let finalHeight = typeListHeight - settingsHeight - searchHeight - headerHeight;
+      // minimum of some height for the scroll area
       if (finalHeight < 60) {
         finalHeight = 60;
       }
