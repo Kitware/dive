@@ -2,7 +2,7 @@
 import {
   computed, defineComponent, onMounted, onUnmounted, reactive, ref, Ref,
 } from '@vue/composition-api';
-import { difference, union } from 'lodash';
+import { difference, throttle, union } from 'lodash';
 
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import {
@@ -190,12 +190,14 @@ export default defineComponent({
       lastSettingsHeight = settingsHeight;
     };
 
+    const throttledVirtualHeight = throttle(calculateVirtualHeight, 200);
+
     function observeHeight() {
       const resizeObserver = new ResizeObserver((() => {
         const currentTypeHeight = document.getElementById('typelist')?.offsetHeight;
         const currentSettingsHeight = document.getElementById('typelist-settings')?.offsetHeight;
         if (lastTypeHeight !== currentTypeHeight || lastSettingsHeight !== currentSettingsHeight) {
-          calculateVirtualHeight(currentTypeHeight, currentSettingsHeight);
+          throttledVirtualHeight(currentTypeHeight, currentSettingsHeight);
         }
       }));
       const typeList = document.getElementById('typelist');
@@ -209,7 +211,7 @@ export default defineComponent({
     let observer: ResizeObserver | null = null;
     onMounted(() => {
       observer = observeHeight();
-      calculateVirtualHeight(
+      throttledVirtualHeight(
         document.getElementById('typelist')?.offsetHeight,
         document.getElementById('typelist-settings')?.offsetHeight,
       );
@@ -236,7 +238,7 @@ export default defineComponent({
       headCheckClicked,
       setCheckedTypes,
       virtualHeight,
-      calculateVirtualHeight,
+      throttledVirtualHeight,
       updateCheckedType,
     };
   },
@@ -246,7 +248,7 @@ export default defineComponent({
 <template>
   <div class="d-flex flex-column">
     <v-container
-      v-resize="calculateVirtualHeight"
+      v-resize="throttledVirtualHeight"
       dense
       class="py-0"
     >

@@ -45,13 +45,15 @@ def get_image_list(id):
 def generate_dataset(
     images, video, frames, width, height, fps, tracks, types, track_length, directory
 ):
+    num_frames = images
     if video is False:
         generateLargeDataset.create_images(directory, images, width, height)
     else:
         generateLargeDataset.create_video(directory, width, height, fps, frames)
+        num_frames = frames
     generateLargeDataset.create_track_json(
         directory,
-        images,
+        num_frames,
         tracks,
         types,
         track_length,
