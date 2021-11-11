@@ -210,7 +210,7 @@ export default defineComponent({
     onMounted(() => {
       observer = observeHeight();
       calculateVirtualHeight(
-        document.getElementById('typelist-settings')?.offsetHeight,
+        document.getElementById('typelist')?.offsetHeight,
         document.getElementById('typelist-settings')?.offsetHeight,
       );
     });
