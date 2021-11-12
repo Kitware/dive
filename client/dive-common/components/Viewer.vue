@@ -561,23 +561,25 @@ export default defineComponent({
       style="min-width: 700px;"
     >
       <sidebar
+        :enable-slot="context.state.active !== 'TypeThreshold'"
         @import-types="importTypes($event)"
         @track-seek="mediaController.seek($event)"
       >
-        <v-divider />
-        <ConfidenceFilter
-          v-if="context.state.active !== 'TypeThreshold'"
-          class="ma-2 mb-0"
-          :confidence.sync="confidenceFilters.default"
-          @end="saveThreshold"
-        >
-          <a
-            style="text-decoration: underline; color: white;"
-            @click="context.toggle('TypeThreshold')"
+        <template v-if="context.state.active !== 'TypeThreshold'">
+          <v-divider />
+          <ConfidenceFilter
+            class="ma-2 mb-0"
+            :confidence.sync="confidenceFilters.default"
+            @end="saveThreshold"
           >
-            Advanced
-          </a>
-        </ConfidenceFilter>
+            <a
+              style="text-decoration: underline; color: white;"
+              @click="context.toggle('TypeThreshold')"
+            >
+              Advanced
+            </a>
+          </ConfidenceFilter>
+        </template>
       </sidebar>
       <v-col style="position: relative">
         <component

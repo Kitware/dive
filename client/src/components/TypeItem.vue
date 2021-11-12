@@ -1,8 +1,5 @@
 <script lang="ts">
-import {
-  computed,
-  defineComponent,
-} from '@vue/composition-api';
+import { defineComponent } from '@vue/composition-api';
 import TooltipBtn from './TooltipButton.vue';
 
 export default defineComponent({
@@ -32,17 +29,6 @@ export default defineComponent({
       required: true,
     },
   },
-  setup(props) {
-    const displayTooltip = computed(() => {
-      if (props.displayText.length > 20) {
-        return `${props.displayText.slice(0, 20)}...`;
-      }
-      return '';
-    });
-    return {
-      displayTooltip,
-    };
-  },
 });
 </script>
 
@@ -62,39 +48,34 @@ export default defineComponent({
         @change="$emit('setCheckedTypes', $event)"
       >
         <template #label>
-          <div class="text-body-2 grey--text text--lighten-1">
+          <div class="text-body-2 grey--text text--lighten-1 d-flex flex-row nowrap">
             <v-tooltip
-              v-if="displayTooltip"
               open-delay="200"
               bottom
             >
               <template #activator="{ on }">
                 <span
+                  :class="{ 'nowrap-text': true, 'nowrap-text-narrow': confidenceFilterNum }"
                   v-on="on"
                 >
-                  <span>
-                    {{ displayTooltip }}
-                  </span>
+                  {{ displayText }}
                 </span>
               </template>
               <span>{{ displayText }} </span>
             </v-tooltip>
-            <span v-else>
-              {{ displayText }}
-            </span>
             <v-tooltip
               v-if="confidenceFilterNum"
-              open-delay="100"
+              open-delay="200"
               bottom
+              class="align-self-end"
             >
-              <template #activator="{ on }">
+              <template #activator="{ on, attrs }">
                 <span
                   class="outlined"
+                  v-bind="attrs"
                   v-on="on"
                 >
-                  <span>
-                    {{ `>${confidenceFilterNum}` }}
-                  </span>
+                  {{ `>${confidenceFilterNum}` }}
                 </span>
               </template>
               <span>Type has threshold set individually</span>
@@ -131,6 +112,21 @@ export default defineComponent({
 <style lang="scss" scoped>
 .type-checkbox {
   max-width: 90%;
+}
+
+.nowrap {
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+
+  .nowrap-text {
+    max-width: 224px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .nowrap-text-narrow {
+    max-width: 180px;
+  }
 }
 
 .hover-show-parent {
