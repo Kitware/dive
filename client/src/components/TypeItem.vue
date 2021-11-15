@@ -1,9 +1,9 @@
 <script lang="ts">
-import {
-  computed,
-  defineComponent,
-} from '@vue/composition-api';
+import { computed, defineComponent } from '@vue/composition-api';
 import TooltipBtn from './TooltipButton.vue';
+
+/* Horizontal padding is the width of checkbox, scrollbar, and edit button */
+const HorizontalPadding = 42 + 14 + 20;
 
 export default defineComponent({
   name: 'TypeItem',
@@ -31,23 +31,21 @@ export default defineComponent({
       type: Boolean,
       required: true,
     },
+    width: {
+      type: Number,
+      default: 300,
+    },
   },
-  setup(props) {
-    const displayTooltip = computed(() => {
-      if (props.displayText.length > 20) {
-        return `${props.displayText.slice(0, 20)}...`;
-      }
-      return '';
-    });
-    return {
-      displayTooltip,
-    };
-  },
+
+  setup: (props) => ({
+    cssVars: computed(() => ({ '--content-width': `${props.width - HorizontalPadding}px` })),
+  }),
 });
 </script>
 
 <template>
   <v-row
+    :style="cssVars"
     align="center"
     class="hover-show-parent"
   >
@@ -58,43 +56,38 @@ export default defineComponent({
         dense
         shrink
         hide-details
-        class="my-1 pl-2 type-checkbox"
+        class="my-1 pl-2"
         @change="$emit('setCheckedTypes', $event)"
       >
         <template #label>
-          <div class="text-body-2 grey--text text--lighten-1">
+          <div class="text-body-2 grey--text text--lighten-1 d-flex flex-row nowrap">
             <v-tooltip
-              v-if="displayTooltip"
               open-delay="200"
               bottom
             >
               <template #activator="{ on }">
                 <span
+                  class="nowrap"
                   v-on="on"
                 >
-                  <span>
-                    {{ displayTooltip }}
-                  </span>
+                  {{ displayText }}
                 </span>
               </template>
               <span>{{ displayText }} </span>
             </v-tooltip>
-            <span v-else>
-              {{ displayText }}
-            </span>
             <v-tooltip
               v-if="confidenceFilterNum"
-              open-delay="100"
+              open-delay="200"
               bottom
+              class="align-self-end"
             >
-              <template #activator="{ on }">
+              <template #activator="{ on, attrs }">
                 <span
                   class="outlined"
+                  v-bind="attrs"
                   v-on="on"
                 >
-                  <span>
-                    {{ `>${confidenceFilterNum}` }}
-                  </span>
+                  {{ `>${confidenceFilterNum}` }}
                 </span>
               </template>
               <span>Type has threshold set individually</span>
@@ -129,8 +122,11 @@ export default defineComponent({
 </template>
 
 <style lang="scss" scoped>
-.type-checkbox {
-  max-width: 90%;
+.nowrap {
+  white-space: nowrap;
+  overflow: hidden;
+  max-width: var(--content-width);
+  text-overflow: ellipsis;
 }
 
 .hover-show-parent {

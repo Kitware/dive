@@ -29,6 +29,9 @@ interface VirtualListItem {
   allTypes: readonly string[];
 }
 
+/* Magic numbers involved in height calculation */
+const TrackListHeaderHeight = 52;
+
 export default defineComponent({
   name: 'TrackList',
 
@@ -221,6 +224,8 @@ export default defineComponent({
       ];
     });
 
+    const virtualHeight = computed(() => props.height - TrackListHeaderHeight);
+
     return {
       allTypes: allTypesRef,
       data,
@@ -229,6 +234,7 @@ export default defineComponent({
       newTrackColor,
       filteredTracks: filteredTracksRef,
       trackAdd,
+      virtualHeight,
       virtualListItems,
       virtualList,
       multiDelete,
@@ -239,78 +245,82 @@ export default defineComponent({
 
 <template>
   <div class="d-flex flex-column">
-    <v-subheader class="flex-grow-1 trackHeader px-1">
-      <v-container>
+    <v-subheader class="flex-grow-1 trackHeader px-2">
+      <v-container class="py-2">
         <v-row align="center">
           Tracks ({{ filteredTracks.length }})
           <v-spacer />
-          <div>
-            <v-btn
-              icon
-              small
-              class="mr-2"
-              @click="data.settingsActive = !data.settingsActive"
-            >
-              <v-icon
+          <v-menu
+            v-model="data.settingsActive"
+            :close-on-content-click="false"
+            :nudge-bottom="28"
+          >
+            <template #activator="{ on, attrs }">
+              <v-btn
+                icon
                 small
-                :color="data.settingsActive ? 'accent' : 'default'"
+                class="mr-2"
+                v-bind="attrs"
+                v-on="on"
               >
-                mdi-cog
-              </v-icon>
-            </v-btn> <v-tooltip
-              open-delay="100"
-              bottom
-            >
-              <template #activator="{ on }">
-                <v-btn
-                  :disabled="filteredTracks.length === 0"
-                  icon
+                <v-icon
                   small
-                  class="mr-2"
-                  v-on="on"
-                  @click="multiDelete()"
+                  :color="data.settingsActive ? 'accent' : 'default'"
                 >
-                  <v-icon
-                    small
-                    color="error"
-                  >
-                    mdi-delete
-                  </v-icon>
-                </v-btn>
-              </template>
-              <span>Delete visible items</span>
-            </v-tooltip>
-            <v-tooltip
-              open-delay="200"
-              bottom
-              max-width="200"
-            >
-              <template #activator="{ on }">
-                <v-btn
-                  outlined
-                  x-small
-                  class="mr-2"
-                  :color="newTrackColor"
-                  v-on="on"
-                  @click="trackAdd"
-                >
-                  <v-icon small>
-                    mdi-plus
-                  </v-icon>
-                  {{ newTrackMode }}
-                </v-btn>
-              </template>
-              <span>Default Type: {{ newTrackType }}</span>
-            </v-tooltip>
-          </div>
-        </v-row>
-        <v-row>
-          <v-expand-transition>
+                  mdi-cog
+                </v-icon>
+              </v-btn>
+            </template>
             <slot
               v-if="data.settingsActive"
               name="settings"
             />
-          </v-expand-transition>
+          </v-menu>
+          <v-tooltip
+            open-delay="100"
+            bottom
+          >
+            <template #activator="{ on }">
+              <v-btn
+                :disabled="filteredTracks.length === 0"
+                icon
+                small
+                class="mr-2"
+                v-on="on"
+                @click="multiDelete()"
+              >
+                <v-icon
+                  small
+                  color="error"
+                >
+                  mdi-delete
+                </v-icon>
+              </v-btn>
+            </template>
+            <span>Delete visible items</span>
+          </v-tooltip>
+          <v-tooltip
+            open-delay="200"
+            bottom
+            max-width="200"
+          >
+            <template #activator="{ on }">
+              <v-btn
+                outlined
+                x-small
+                class="mr-2"
+                :color="newTrackColor"
+                v-on="on"
+                @click="trackAdd"
+              >
+                <v-icon small>
+                  mdi-plus
+                </v-icon>
+                {{ newTrackMode }}
+              </v-btn>
+            </template>
+            <span>Default Type: {{ newTrackType }}</span>
+          </v-tooltip>
         </v-row>
       </v-container>
     </v-subheader>
@@ -329,7 +339,7 @@ export default defineComponent({
       class="tracks"
       :items="virtualListItems"
       :item-height="data.itemHeight"
-      :height="height"
+      :height="virtualHeight"
       bench="1"
     >
       <template #default="{ item }">

@@ -1,8 +1,8 @@
 <script lang="ts">
 import {
-  computed, defineComponent, onMounted, onUnmounted, reactive, ref, Ref,
+  computed, defineComponent, reactive, Ref,
 } from '@vue/composition-api';
-import { difference, throttle, union } from 'lodash';
+import { difference, union } from 'lodash';
 
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import {
@@ -21,6 +21,8 @@ interface VirtualTypeItem {
   checked: boolean;
 }
 
+/* Magic numbers involved in height calculation */
+const TypeListHeaderHeight = 80;
 
 export default defineComponent({
   name: 'TypeList',
@@ -29,6 +31,14 @@ export default defineComponent({
     showEmptyTypes: {
       type: Boolean,
       default: false,
+    },
+    height: {
+      type: Number,
+      default: 200,
+    },
+    width: {
+      type: Number,
+      default: 300,
     },
   },
 
@@ -172,60 +182,8 @@ export default defineComponent({
         setCheckedTypes(difference(checkedTypesRef.value, [type]));
       }
     }
-    // Virtual List Size computation
-    const virtualHeight = ref(200);
-    // Check variables to prevent unncessary resizing
-    let lastTypeHeight = 0;
-    let lastSettingsHeight = 0;
 
-    const calculateVirtualHeight = (typeListHeight = 0, settingsHeight = 0) => {
-      const headerHeight = document.getElementById('type-header')?.offsetHeight || 0;
-      const searchTypesElem = document.getElementById('search-types');
-      let searchHeight = 0;
-
-      // Search Element has a margin-top not included in offsetHeight
-      if (searchTypesElem) {
-        searchHeight += searchTypesElem.offsetHeight;
-        searchHeight += parseInt(window.getComputedStyle(searchTypesElem).getPropertyValue('margin-top'), 10);
-      }
-      let finalHeight = typeListHeight - settingsHeight - searchHeight - headerHeight;
-      // minimum of some height for the scroll area
-      if (finalHeight < 60) {
-        finalHeight = 60;
-      }
-      virtualHeight.value = finalHeight;
-      lastTypeHeight = typeListHeight;
-      lastSettingsHeight = settingsHeight;
-    };
-
-    const throttledVirtualHeight = throttle(calculateVirtualHeight, 200);
-
-    function observeHeight() {
-      const resizeObserver = new ResizeObserver((() => {
-        const currentTypeHeight = document.getElementById('typelist')?.offsetHeight;
-        const currentSettingsHeight = document.getElementById('typelist-settings')?.offsetHeight;
-        if (lastTypeHeight !== currentTypeHeight || lastSettingsHeight !== currentSettingsHeight) {
-          throttledVirtualHeight(currentTypeHeight, currentSettingsHeight);
-        }
-      }));
-      const typeList = document.getElementById('typelist');
-      const settingsEl = document.getElementById('typelist-settings');
-      if (typeList && settingsEl) {
-        resizeObserver.observe(typeList);
-        resizeObserver.observe(settingsEl);
-      }
-      return resizeObserver;
-    }
-    let observer: ResizeObserver | null = null;
-    onMounted(() => {
-      observer = observeHeight();
-      throttledVirtualHeight(
-        document.getElementById('typelist')?.offsetHeight,
-        document.getElementById('typelist-settings')?.offsetHeight,
-      );
-    });
-    onUnmounted(() => observer?.disconnect());
-
+    const virtualHeight = computed(() => props.height - TypeListHeaderHeight);
 
     return {
       data,
@@ -238,6 +196,7 @@ export default defineComponent({
       typeCounts,
       sortingMethods,
       sortingMethodIcons,
+      virtualHeight,
       virtualTypes,
       /* methods */
       clickDelete,
@@ -245,8 +204,6 @@ export default defineComponent({
       clickSortToggle,
       headCheckClicked,
       setCheckedTypes,
-      virtualHeight,
-      throttledVirtualHeight,
       updateCheckedType,
     };
   },
@@ -256,7 +213,6 @@ export default defineComponent({
 <template>
   <div class="d-flex flex-column">
     <v-container
-      v-resize="throttledVirtualHeight"
       dense
       class="py-0"
     >
@@ -285,19 +241,32 @@ export default defineComponent({
             tooltip-text="Sort types by count or alphabetically"
             @click="clickSortToggle"
           />
-          <v-btn
-            icon
-            small
-            class="mx-2"
-            @click="data.settingsActive = !data.settingsActive"
+          <v-menu
+            v-model="data.settingsActive"
+            :nudge-bottom="28"
+            :close-on-content-click="false"
           >
-            <v-icon
-              small
-              :color="data.settingsActive ? 'accent' : 'default'"
-            >
-              mdi-cog
-            </v-icon>
-          </v-btn>
+            <template #activator="{ on, attrs }">
+              <v-btn
+                icon
+                small
+                class="mx-2"
+                v-bind="attrs"
+                v-on="on"
+              >
+                <v-icon
+                  small
+                  :color="data.settingsActive ? 'accent' : 'default'"
+                >
+                  mdi-cog
+                </v-icon>
+              </v-btn>
+            </template>
+            <slot
+              v-if="data.settingsActive"
+              name="settings"
+            />
+          </v-menu>
           <v-tooltip
             open-delay="100"
             bottom
@@ -323,14 +292,6 @@ export default defineComponent({
           </v-tooltip>
         </v-col>
       </v-row>
-      <v-row id="typelist-settings">
-        <v-expand-transition>
-          <slot
-            v-if="data.settingsActive"
-            name="settings"
-          />
-        </v-expand-transition>
-      </v-row>
     </v-container>
     <input
       id="search-types"
@@ -343,7 +304,7 @@ export default defineComponent({
       <v-virtual-scroll
         class="tracks"
         :items="virtualTypes"
-        :item-height="25"
+        :item-height="30"
         :height="virtualHeight"
         bench="1"
       >
@@ -354,6 +315,7 @@ export default defineComponent({
             :color="item.color"
             :display-text="item.displayText"
             :confidence-filter-num="item.confidenceFilterNum"
+            :width="width"
             @setCheckedTypes="updateCheckedType($event, item.type)"
             @clickEdit="clickEdit"
           />
