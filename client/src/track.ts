@@ -13,6 +13,9 @@ export type ConfidencePair = [string, number];
 export type TrackId = number;
 export type TrackSupportedFeature = (
   GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString | GeoJSON.Point);
+type TrackNotifier = (
+  { track, event, oldValue }: { track: Track; event: string; oldValue: unknown }
+) => void;
 export interface StringKeyObject {
   [key: string]: unknown;
 }
@@ -50,6 +53,7 @@ interface TrackParams {
   features?: Array<Feature>;
   confidencePairs?: Array<ConfidencePair>;
   attributes?: StringKeyObject;
+  notifier?: TrackNotifier;
 }
 
 /**
@@ -84,7 +88,8 @@ export default class Track {
    */
   revision: Ref<number>;
 
-  bus: Vue;
+  /** A callback to notify about changes to the track. */
+  notifier?: TrackNotifier;
 
   constructor(trackId: TrackId, {
     meta = {},
@@ -93,8 +98,8 @@ export default class Track {
     features = [],
     confidencePairs = [],
     attributes = {},
+    notifier = undefined,
   }: TrackParams) {
-    this.bus = new Vue();
     this.trackId = trackId;
     this.meta = meta;
     this.attributes = attributes;
@@ -106,6 +111,7 @@ export default class Track {
     this.begin = begin;
     this.end = end;
     this.confidencePairs = confidencePairs;
+    this.notifier = notifier;
   }
 
   get length() {
@@ -198,11 +204,13 @@ export default class Track {
     /* Prevent broadcast until the first feature is initialized */
     if (this.isInitialized()) {
       this.revision.value += 1;
-      this.bus.$emit('notify', {
-        track: this,
-        event: name,
-        oldValue,
-      });
+      if (this.notifier) {
+        this.notifier({
+          track: this,
+          event: name,
+          oldValue,
+        });
+      }
     }
   }
 
@@ -325,6 +333,10 @@ export default class Track {
         interpolate: !interpolate,
       });
     }
+  }
+
+  setNotifier(notifier?: TrackNotifier) {
+    this.notifier = notifier;
   }
 
   setFeature(feature: Feature, geometry: GeoJSON.Feature<TrackSupportedFeature>[] = []): Feature {
