@@ -1,4 +1,3 @@
-import Vue from 'vue';
 import { Ref, ref } from '@vue/composition-api';
 import { RectBounds } from './utils';
 import {
