@@ -126,6 +126,7 @@ export default defineComponent({
         <TypeList
           :show-empty-types="typeSettings.showEmptyTypes"
           :height="data.typeHeight"
+          :width="width"
           class="flex-shrink-1 flex-grow-1"
         >
           <template slot="settings">

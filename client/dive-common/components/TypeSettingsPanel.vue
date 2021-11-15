@@ -52,7 +52,7 @@ export default defineComponent({
   <div>
     <v-card
       outlined
-      class="pa-2 pr-4 type-settings"
+      class="pa-2 pr-4"
       color="blue-grey darken-3"
     >
       <div>
@@ -223,9 +223,3 @@ export default defineComponent({
     </v-dialog>
   </div>
 </template>
-
-<style scoped lang='scss'>
-.type-settings {
- font-size: 0.875rem !important;
-}
-</style>

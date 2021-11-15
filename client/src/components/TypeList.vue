@@ -21,6 +21,8 @@ interface VirtualTypeItem {
   checked: boolean;
 }
 
+/* Magic numbers involved in height calculation */
+const TypeListHeaderHeight = 80;
 
 export default defineComponent({
   name: 'TypeList',
@@ -33,6 +35,10 @@ export default defineComponent({
     height: {
       type: Number,
       default: 200,
+    },
+    width: {
+      type: Number,
+      default: 300,
     },
   },
 
@@ -177,11 +183,7 @@ export default defineComponent({
       }
     }
 
-    const virtualHeight = computed(() => {
-      // the combined height of the header and search bar lines.
-      const headerHeight = 80;
-      return props.height - headerHeight;
-    });
+    const virtualHeight = computed(() => props.height - TypeListHeaderHeight);
 
     return {
       data,
@@ -313,6 +315,7 @@ export default defineComponent({
             :color="item.color"
             :display-text="item.displayText"
             :confidence-filter-num="item.confidenceFilterNum"
+            :width="width"
             @setCheckedTypes="updateCheckedType($event, item.type)"
             @clickEdit="clickEdit"
           />

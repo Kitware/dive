@@ -29,6 +29,9 @@ interface VirtualListItem {
   allTypes: readonly string[];
 }
 
+/* Magic numbers involved in height calculation */
+const TrackListHeaderHeight = 52;
+
 export default defineComponent({
   name: 'TrackList',
 
@@ -221,7 +224,7 @@ export default defineComponent({
       ];
     });
 
-    const virtualHeight = computed(() => props.height - 52);
+    const virtualHeight = computed(() => props.height - TrackListHeaderHeight);
 
     return {
       allTypes: allTypesRef,

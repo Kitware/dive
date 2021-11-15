@@ -1,6 +1,9 @@
 <script lang="ts">
-import { defineComponent } from '@vue/composition-api';
+import { computed, defineComponent } from '@vue/composition-api';
 import TooltipBtn from './TooltipButton.vue';
+
+/* Horizontal padding is the width of checkbox, scrollbar, and edit button */
+const HorizontalPadding = 42 + 14 + 20;
 
 export default defineComponent({
   name: 'TypeItem',
@@ -28,12 +31,21 @@ export default defineComponent({
       type: Boolean,
       required: true,
     },
+    width: {
+      type: Number,
+      default: 300,
+    },
   },
+
+  setup: (props) => ({
+    cssVars: computed(() => ({ '--content-width': `${props.width - HorizontalPadding}px` })),
+  }),
 });
 </script>
 
 <template>
   <v-row
+    :style="cssVars"
     align="center"
     class="hover-show-parent"
   >
@@ -44,7 +56,7 @@ export default defineComponent({
         dense
         shrink
         hide-details
-        class="my-1 pl-2 type-checkbox"
+        class="my-1 pl-2"
         @change="$emit('setCheckedTypes', $event)"
       >
         <template #label>
@@ -55,7 +67,7 @@ export default defineComponent({
             >
               <template #activator="{ on }">
                 <span
-                  :class="{ 'nowrap-text': true, 'nowrap-text-narrow': confidenceFilterNum }"
+                  class="nowrap"
                   v-on="on"
                 >
                   {{ displayText }}
@@ -110,23 +122,11 @@ export default defineComponent({
 </template>
 
 <style lang="scss" scoped>
-.type-checkbox {
-  max-width: 90%;
-}
-
 .nowrap {
-  max-width: 100%;
   white-space: nowrap;
   overflow: hidden;
-
-  .nowrap-text {
-    max-width: 224px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .nowrap-text-narrow {
-    max-width: 180px;
-  }
+  max-width: var(--content-width);
+  text-overflow: ellipsis;
 }
 
 .hover-show-parent {
