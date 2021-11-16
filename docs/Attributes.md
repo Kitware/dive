@@ -2,10 +2,6 @@
 
 Attributes are properties that can be assigned to an entire track or a single detection within a track. Attributes are created within a dataset using the Track Details panel.
 
-!!! info
-
-    Attributes were previously globally defined.  They are now defined on each individual dataset.
-
 ## Background/Terms
 
 It’s important to note that there are attribute definitations and then track/detection attributes.  Attributes definitions are all the possible attributes that can be assigned to tracks or detection.  Think of them as a template for the attributes that can be set on tracks/detections.  Track attributes are information for the entire track and detection attributes are information for the specific frame or instance of time.
@@ -69,15 +65,16 @@ After clicking the eye icon, all attributes that are unset will be removed from 
 
 1. This will bring up a New Attribute dialog where you can enter a unique name for the attribute
     1. ![New Attribute Panel](images/Attributes/newAttribute.png)
-1. Next choose a datatype: 
+1. Next choose a datatype:
     1. Number
     1. Boolean - (True/False)
-    2. Text
+    1. Text
         1. Custom text that the user provides
         1. A predefined list of text that can be chosen from
 1. After choosing a Track/Detection and a Datatype click Save to add the new attribute
 
 ## Editing Dataset Attributes
+
 1. Click on the setting icon next to an existing attribute to edit it's definition details
     1. ![Edit Attribute Panel](images/Attributes/editAttribute.png)
 1. **Note:**  Editing or deleting an attribute definition doesn’t change the existing track/detection attributes for the data
@@ -85,9 +82,20 @@ After clicking the eye icon, all attributes that are unset will be removed from 
     1. Editing an attribute definition will change the way the controls behave, but will not change any existing set values.
 
 ## Setting Track/Detection Attribute Values
-1.  Click on the attribute value when in viewing mode to edit and set the attribute
-1.  Or directly edit the value field when in the attribute editing mode
-1.  Setting an attribute to the null/empty value will remove the value from the track/detection
+
+1. Click on the attribute value when in viewing mode to edit and set the attribute
+1. Or directly edit the value field when in the attribute editing mode
+1. Setting an attribute to the null/empty value will remove the value from the track/detection
+
+## Importing and Exporting Attributes
+
+Attributes are part of the dataset configuration that can be imported and exported.
+
+1. Set up a dataset with all the attributes you need
+1. In the download menu, create a configuration export
+1. Use this configuration with other datasets
+    1. Use the import button to load this configuration to other datasets.
+    1. Upload the configuration file when you create new datasets to initialize them with an existing configuration.
 
 ## Applying Attributes Demo
 
