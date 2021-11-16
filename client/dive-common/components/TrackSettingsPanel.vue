@@ -47,52 +47,12 @@ export default defineComponent({
 </script>
 
 <template>
-  <div class="TrackSettings mb-2">
+  <div class="TrackSettings">
     <v-card
       outlined
-      class="pa-2 pb-0 mt-3"
-    >
-      <div class="subheading">
-        Deletion Settings
-      </div>
-      <v-row
-        align="end"
-        dense
-      >
-        <v-col class="py-1">
-          <v-switch
-            v-model="clientSettings.trackSettings.deletionSettings.promptUser"
-            class="my-0 ml-1 pt-0"
-            dense
-            label="Prompt User"
-            hide-details
-          />
-        </v-col>
-        <v-col
-          cols="2"
-          class="py-1"
-          align="right"
-        >
-          <v-tooltip
-            open-delay="200"
-            bottom
-          >
-            <template #activator="{ on }">
-              <v-icon
-                small
-                v-on="on"
-              >
-                mdi-help
-              </v-icon>
-            </template>
-            <span>{{ help.prompt }}</span>
-          </v-tooltip>
-        </v-col>
-      </v-row>
-    </v-card>
-    <v-card
-      outlined
-      class="pa-2 pb-0 mt-3"
+      class="pa-2"
+      width="300"
+      color="blue-grey darken-3"
     >
       <div class="subheading">
         New Annotation Settings
@@ -143,6 +103,7 @@ export default defineComponent({
       <v-row
         align="end"
         dense
+        class="mb-2"
       >
         <v-col
           class="mx-2"
@@ -180,74 +141,74 @@ export default defineComponent({
           </v-tooltip>
         </v-col>
       </v-row>
-      <v-row
-        v-if="clientSettings.trackSettings.newTrackSettings.mode === 'Track'"
-      >
-        <v-col class="py-1">
-          <v-switch
-            v-model="
-              clientSettings.trackSettings.newTrackSettings.modeSettings.Track.autoAdvanceFrame"
-            class="my-0 ml-1 pt-0"
-            dense
-            label="Advance Frame"
-            hide-details
-          />
-        </v-col>
-        <v-col
-          cols="2"
-          class="py-1"
-          align="right"
-        >
-          <v-tooltip
-            open-delay="200"
-            bottom
+      <template v-if="clientSettings.trackSettings.newTrackSettings.mode === 'Track'">
+        <v-row>
+          <v-col class="py-1">
+            <v-switch
+              v-model="
+                clientSettings.trackSettings.newTrackSettings.modeSettings.Track.autoAdvanceFrame"
+              class="my-0 ml-1 pt-0"
+              dense
+              label="Advance Frame"
+              hide-details
+            />
+          </v-col>
+          <v-col
+            class="py-1 shrink"
+            align="right"
           >
-            <template #activator="{ on }">
-              <v-icon
-                small
-                v-on="on"
-              >
-                mdi-help
-              </v-icon>
-            </template>
-            <span>{{ help.autoAdvanceFrame }}</span>
-          </v-tooltip>
-        </v-col>
-        <v-col class="py-1">
-          <v-switch
-            v-model="
-              clientSettings.trackSettings.newTrackSettings.modeSettings.Track.interpolate"
-            class="my-0 ml-1 pt-0"
-            dense
-            label="Interpolate"
-            hide-details
-          />
-        </v-col>
-        <v-col
-          cols="2"
-          class="py-1"
-          align="right"
-        >
-          <v-tooltip
-            open-delay="200"
-            bottom
+            <v-tooltip
+              open-delay="200"
+              bottom
+            >
+              <template #activator="{ on }">
+                <v-icon
+                  small
+                  v-on="on"
+                >
+                  mdi-help
+                </v-icon>
+              </template>
+              <span>{{ help.autoAdvanceFrame }}</span>
+            </v-tooltip>
+          </v-col>
+        </v-row>
+        <v-row>
+          <v-col class="py-1">
+            <v-switch
+              v-model="
+                clientSettings.trackSettings.newTrackSettings.modeSettings.Track.interpolate"
+              class="my-0 ml-1 pt-0"
+              dense
+              label="Interpolate"
+              hide-details
+            />
+          </v-col>
+          <v-col
+            class="py-1 shrink"
+            align="right"
           >
-            <template #activator="{ on }">
-              <v-icon
-                small
-                v-on="on"
-              >
-                mdi-help
-              </v-icon>
-            </template>
-            <span>{{ help.interpolate }}</span>
-          </v-tooltip>
-        </v-col>
-      </v-row>
+            <v-tooltip
+              open-delay="200"
+              bottom
+            >
+              <template #activator="{ on }">
+                <v-icon
+                  small
+                  v-on="on"
+                >
+                  mdi-help
+                </v-icon>
+              </template>
+              <span>{{ help.interpolate }}</span>
+            </v-tooltip>
+          </v-col>
+        </v-row>
+      </template>
       <v-row
         v-if="clientSettings.trackSettings.newTrackSettings.mode === 'Detection'"
       >
-        <v-col>
+        <v-col class="py-1">
           <v-switch
             v-model="
               clientSettings.trackSettings.newTrackSettings.modeSettings.Detection.continuous"
@@ -257,7 +218,10 @@ export default defineComponent({
             hide-details
           />
         </v-col>
-        <v-col cols="2">
+        <v-col
+          class="py-1 shrink"
+          align="right"
+        >
           <v-tooltip
             open-delay="200"
             bottom
@@ -271,6 +235,44 @@ export default defineComponent({
               </v-icon>
             </template>
             <span>{{ help.continuous }}</span>
+          </v-tooltip>
+        </v-col>
+      </v-row>
+      <v-divider class="my-2" />
+      <div class="subheading">
+        Deletion Settings
+      </div>
+      <v-row
+        align="end"
+        dense
+      >
+        <v-col class="py-1">
+          <v-switch
+            v-model="clientSettings.trackSettings.deletionSettings.promptUser"
+            class="my-0 ml-1 pt-0"
+            dense
+            label="Prompt User"
+            hide-details
+          />
+        </v-col>
+        <v-col
+          cols="2"
+          class="py-1"
+          align="right"
+        >
+          <v-tooltip
+            open-delay="200"
+            bottom
+          >
+            <template #activator="{ on }">
+              <v-icon
+                small
+                v-on="on"
+              >
+                mdi-help
+              </v-icon>
+            </template>
+            <span>{{ help.prompt }}</span>
           </v-tooltip>
         </v-col>
       </v-row>

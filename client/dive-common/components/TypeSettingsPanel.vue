@@ -49,10 +49,11 @@ export default defineComponent({
 </script>
 
 <template>
-  <v-container class="px-1">
+  <div>
     <v-card
       outlined
-      class="px-2 pb-0 mx-0 mt-3 type-settings"
+      class="pa-2 pr-4"
+      color="blue-grey darken-3"
     >
       <div>
         Type Settings
@@ -220,13 +221,5 @@ export default defineComponent({
         </v-card>
       </div>
     </v-dialog>
-  </v-container>
+  </div>
 </template>
-
-<style scoped lang='scss'>
-.type-settings {
- font-size: 0.875rem !important;
-}
-
-
-</style>

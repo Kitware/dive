@@ -11,6 +11,18 @@ import {
 } from '../provides';
 import TooltipBtn from './TooltipButton.vue';
 import TypeEditor from './TypeEditor.vue';
+import TypeItem from './TypeItem.vue';
+
+interface VirtualTypeItem {
+  type: string;
+  confidenceFilterNum: number;
+  displayText: string;
+  color: string;
+  checked: boolean;
+}
+
+/* Magic numbers involved in height calculation */
+const TypeListHeaderHeight = 80;
 
 export default defineComponent({
   name: 'TypeList',
@@ -20,9 +32,17 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    height: {
+      type: Number,
+      default: 200,
+    },
+    width: {
+      type: Number,
+      default: 300,
+    },
   },
 
-  components: { TypeEditor, TooltipBtn },
+  components: { TypeEditor, TooltipBtn, TypeItem },
 
   setup(props) {
     const { prompt } = usePrompt();
@@ -118,7 +138,19 @@ export default defineComponent({
       }
       return sortAndFilterTypes(usedTypesRef);
     });
-
+    const virtualTypes: Ref<readonly VirtualTypeItem[]> = computed(() => {
+      const confidenceFiltersDeRef = confidenceFiltersRef.value;
+      const typeCountsDeRef = typeCounts.value;
+      const typeStylingDeRef = typeStylingRef.value;
+      const checkedTypesDeRef = checkedTypesRef.value;
+      return visibleTypes.value.map((item) => ({
+        type: item,
+        confidenceFilterNum: confidenceFiltersDeRef[item] || 0,
+        displayText: `${item} (${typeCountsDeRef.get(item) || 0})`,
+        color: typeStylingDeRef.color(item),
+        checked: checkedTypesDeRef.includes(item),
+      }));
+    });
     const headCheckState = computed(() => {
       const uncheckedTypes = difference(visibleTypes.value, checkedTypesRef.value);
       if (uncheckedTypes.length === 0) {
@@ -147,6 +179,16 @@ export default defineComponent({
     }
 
 
+    function updateCheckedType(evt: boolean, type: string) {
+      if (evt) {
+        setCheckedTypes(checkedTypesRef.value.concat([type]));
+      } else {
+        setCheckedTypes(difference(checkedTypesRef.value, [type]));
+      }
+    }
+
+    const virtualHeight = computed(() => props.height - TypeListHeaderHeight);
+
     return {
       data,
       headCheckState,
@@ -158,12 +200,15 @@ export default defineComponent({
       typeCounts,
       sortingMethods,
       sortingMethodIcons,
+      virtualHeight,
+      virtualTypes,
       /* methods */
       clickDelete,
       clickEdit,
       clickSortToggle,
       headCheckClicked,
       setCheckedTypes,
+      updateCheckedType,
     };
   },
 });
@@ -179,7 +224,10 @@ export default defineComponent({
         class="border-highlight"
         align="center"
       >
-        <v-col class="d-flex flex-row align-center py-0 mr-8">
+        <v-col
+          id="type-header"
+          class="d-flex flex-row align-center py-0 mr-8"
+        >
           <v-checkbox
             :input-value="headCheckState !== -1 ? headCheckState : false"
             :indeterminate="headCheckState === -1"
@@ -197,19 +245,32 @@ export default defineComponent({
             tooltip-text="Sort types by count or alphabetically"
             @click="clickSortToggle"
           />
-          <v-btn
-            icon
-            small
-            class="mx-2"
-            @click="data.settingsActive = !data.settingsActive"
+          <v-menu
+            v-model="data.settingsActive"
+            :nudge-bottom="28"
+            :close-on-content-click="false"
           >
-            <v-icon
-              small
-              :color="data.settingsActive ? 'accent' : 'default'"
-            >
-              mdi-cog
-            </v-icon>
-          </v-btn>
+            <template #activator="{ on, attrs }">
+              <v-btn
+                icon
+                small
+                class="mx-2"
+                v-bind="attrs"
+                v-on="on"
+              >
+                <v-icon
+                  small
+                  :color="data.settingsActive ? 'accent' : 'default'"
+                >
+                  mdi-cog
+                </v-icon>
+              </v-btn>
+            </template>
+            <slot
+              v-if="data.settingsActive"
+              name="settings"
+            />
+          </v-menu>
           <v-tooltip
             open-delay="100"
             bottom
@@ -235,90 +296,35 @@ export default defineComponent({
           </v-tooltip>
         </v-col>
       </v-row>
-      <v-row>
-        <v-expand-transition>
-          <slot
-            v-if="data.settingsActive"
-            name="settings"
-          />
-        </v-expand-transition>
-      </v-row>
     </v-container>
     <input
+      id="search-types"
       v-model="data.filterText"
       type="text"
       placeholder="Search types"
       class="mx-2 mt-2 shrink input-box"
     >
-    <div class="overflow-y-auto">
-      <v-container class="py-1">
-        <v-row
-          v-for="type in visibleTypes"
-          :key="type"
-          align="center"
-          class="hover-show-parent"
-        >
-          <v-col class="d-flex flex-row py-0 align-center">
-            <v-checkbox
-              :input-value="checkedTypesRef"
-              :value="type"
-              :color="typeStylingRef.color(type)"
-              dense
-              shrink
-              hide-details
-              class="my-1 type-checkbox"
-              @change="setCheckedTypes"
-            >
-              <template #label>
-                <div class="text-body-2 grey--text text--lighten-1">
-                  <span>
-                    {{ `${type} (${typeCounts.get(type) || 0})` }}
-                  </span>
-                  <v-tooltip
-                    v-if="confidenceFiltersRef[type]"
-                    open-delay="100"
-                    bottom
-                  >
-                    <template #activator="{ on }">
-                      <span
-                        class="outlined"
-                        v-on="on"
-                      >
-                        <span>
-                          {{ `>${confidenceFiltersRef[type]}` }}
-                        </span>
-                      </span>
-                    </template>
-                    <span>Type has threshold set individually</span>
-                  </v-tooltip>
-                </div>
-              </template>
-            </v-checkbox>
-            <v-spacer />
-            <v-tooltip
-              open-delay="100"
-              bottom
-            >
-              <template #activator="{ on }">
-                <v-btn
-                  class="hover-show-child"
-                  icon
-                  small
-                  v-on="on"
-                  @click="clickEdit(type)"
-                >
-                  <v-icon
-                    small
-                  >
-                    mdi-pencil
-                  </v-icon>
-                </v-btn>
-              </template>
-              <span>Edit</span>
-            </v-tooltip>
-          </v-col>
-        </v-row>
-      </v-container>
+    <div class="pb-2 overflow-y-hidden">
+      <v-virtual-scroll
+        class="tracks"
+        :items="virtualTypes"
+        :item-height="30"
+        :height="virtualHeight"
+        bench="1"
+      >
+        <template #default="{ item }">
+          <type-item
+            :type="item.type"
+            :checked="item.checked"
+            :color="item.color"
+            :display-text="item.displayText"
+            :confidence-filter-num="item.confidenceFilterNum"
+            :width="width"
+            @setCheckedTypes="updateCheckedType($event, item.type)"
+            @clickEdit="clickEdit"
+          />
+        </template>
+      </v-virtual-scroll>
     </div>
     <v-dialog
       v-model="data.showPicker"
