@@ -13,18 +13,31 @@ DIVE Desktop and Web support a number of annotation and configuration formats.  
 Files are typically named `result_{dataset-name}.json`.  This JSON file is a map of numeric track identifiers to tracks, or `Record<string, TrackData>`, where TrackData is defined below.
 
 ``` typescript
+interface Feature {
+  frame: number;
+  flick?: Readonly<number>;
+  interpolate?: boolean;
+  keyframe?: boolean;
+  bounds?: [number, number, number, number]; // [x1, y1, x2, y2] as (left, top), (bottom, right)
+  geometry?: GeoJSON.FeatureCollection<GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString | GeoJSON.Point>;
+  fishLength?: number;
+  attributes?: Record<string, unknown>;
+  head?: [number, number];
+  tail?: [number, number];
+}
+
 interface TrackData {
   trackId: TrackId;
-  meta: StringKeyObject;
-  attributes: StringKeyObject;
-  confidencePairs: Array<ConfidencePair>;
+  meta: Record<string, unknown>;
+  attributes: Record<string, unknown>;
+  confidencePairs: Array<[string, number]>;
   features: Array<Feature>;
   begin: number;
   end: number;
 }
 ```
 
-The full [TrackData definition can be found here](https://github.com/Kitware/dive/blob/main/client/src/track.ts) as a TypeScript interface.
+The source [TrackData definition can be found here](https://github.com/Kitware/dive/blob/main/client/src/track.ts) as a TypeScript interface.
 
 **Example DIVE annotation file**
 
