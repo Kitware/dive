@@ -10,15 +10,17 @@ import moment from 'moment';
 import lockfile from 'proper-lockfile';
 
 import { DefaultConfidence } from 'vue-media-annotator/use/useTrackFilters';
+import { TrackData } from 'vue-media-annotator/track';
 import {
   DatasetType, MultiTrackRecord, Pipelines, SaveDetectionsArgs,
   FrameImage, DatasetMetaMutable, TrainingConfigs, SaveAttributeArgs,
   MultiCamMedia,
+  DatasetMetaMutableKeys,
 } from 'dive-common/apispec';
 import * as viameSerializers from 'platform/desktop/backend/serializers/viame';
 import * as nistSerializers from 'platform/desktop/backend/serializers/nist';
 import {
-  websafeImageTypes, websafeVideoTypes, otherImageTypes, otherVideoTypes, MultiType, VideoType,
+  websafeImageTypes, websafeVideoTypes, otherImageTypes, otherVideoTypes, MultiType,
 } from 'dive-common/constants';
 import {
   JsonMeta, Settings, JsonMetaCurrentVersion, DesktopMetadata, DesktopJobUpdater,
@@ -27,11 +29,11 @@ import {
 import {
   cleanString, filterByGlob, makeid, strNumericCompare,
 } from 'platform/desktop/sharedUtils';
-import { Attribute, Attributes } from 'vue-media-annotator/use/useAttributes';
-import { cloneDeep, uniq } from 'lodash';
+import { cloneDeep, merge, uniq } from 'lodash';
 import processTrackAttributes from './attributeProcessor';
 import { upgrade } from './migrations';
 import { getMultiCamUrls, transcodeMultiCam } from './multiCamUtils';
+
 
 const ProjectsFolderName = 'DIVE_Projects';
 const JobsFolderName = 'DIVE_Jobs';
@@ -50,6 +52,21 @@ const CsvFileName = /^.*\.csv$/;
 async function readLines(filePath: string): Promise<string[]> {
   const rawBuffer = await fs.readFile(filePath, 'utf-8');
   return rawBuffer.toString().replace(/\r\n/g, '\n').split('\n');
+}
+
+/**
+ * Read a text file as json
+ */
+async function _loadAsJson(abspath: string) {
+  const rawBuffer = await fs.readFile(abspath, 'utf-8');
+  if (rawBuffer.length === 0) {
+    return false;
+  }
+  try {
+    return JSON.parse(rawBuffer);
+  } catch (err) {
+    throw new Error(`Unable to parse ${abspath}: ${err}`);
+  }
 }
 
 /**
@@ -205,13 +222,7 @@ async function getValidatedProjectDir(settings: Settings, datasetId: string) {
  * @param metaPath a known, existing path
  */
 async function loadJsonMetadata(metaAbsPath: string): Promise<JsonMeta> {
-  const rawBuffer = await fs.readFile(metaAbsPath, 'utf-8');
-  let metaJson;
-  try {
-    metaJson = JSON.parse(rawBuffer);
-  } catch (err) {
-    throw new Error(`Unable to parse ${metaAbsPath}: ${err}`);
-  }
+  const metaJson = await _loadAsJson(metaAbsPath);
   /* check if this file meets the current schema version */
   upgrade(metaJson);
   return metaJson as JsonMeta;
@@ -222,16 +233,7 @@ async function loadJsonMetadata(metaAbsPath: string): Promise<JsonMeta> {
  * @param tracksPath a known, existing path
  */
 async function loadJsonTracks(tracksAbsPath: string): Promise<MultiTrackRecord> {
-  const rawBuffer = await fs.readFile(tracksAbsPath, 'utf-8');
-  if (rawBuffer.length === 0) {
-    return {}; // Return empty object if file was empty
-  }
-  let annotationData: MultiTrackRecord = {};
-  try {
-    annotationData = JSON.parse(rawBuffer) as MultiTrackRecord;
-  } catch (err) {
-    throw new Error(`Unable to parse ${tracksAbsPath}: ${err}`);
-  }
+  const annotationData = await _loadAsJson(tracksAbsPath);
   // TODO: somehow verify the schema of this file
   if (Array.isArray(annotationData)) {
     throw new Error('object expected in track json');
@@ -505,8 +507,7 @@ async function _saveAsJson(absPath: string, data: unknown) {
   await fs.writeFile(absPath, serialized);
 }
 
-async function saveMetadata(settings: Settings, datasetId: string,
-  args: DatasetMetaMutable & { attributes?: Record<string, Attribute> }) {
+async function saveMetadata(settings: Settings, datasetId: string, args: DatasetMetaMutable) {
   const projectDirInfo = await getValidatedProjectDir(settings, datasetId);
   const release = await _acquireLock(projectDirInfo.basePath, projectDirInfo.metaFileAbsPath, 'meta');
   const existing = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
@@ -545,41 +546,45 @@ async function saveAttributes(settings: Settings, datasetId: string, args: SaveA
 }
 
 
-async function processAnnotationFilePath(
+async function ingestFilePath(
   settings: Settings,
   datasetId: string,
   path: string,
-) {
+): Promise<(DatasetMetaMutable & { fps?: number }) | null> {
   if (!fs.existsSync(path)) {
-    return {};
+    return null;
   }
-  if (fs.statSync(path).size > 0) {
-    // Attempt to process the file
-    let data: viameSerializers.AnnotationFileData;
-    if (npath.extname(path) === '.json' && await nistSerializers.confirmNistFile(path)) {
-      data = await nistSerializers.loadNistFile(path);
+  if (fs.statSync(path).size === 0) {
+    return null;
+  }
+  // Attempt to process the file
+  let tracks: TrackData[] = [];
+  const meta: DatasetMetaMutable & { fps?: number } = {};
+  if (JsonFileName.test(path)) {
+    const jsonObject = _loadAsJson(path);
+    if (nistSerializers.confirmNistFormat(jsonObject)) {
+      const data = await nistSerializers.loadNistFile(path);
+      tracks = data.tracks;
+      meta.fps = data.fps;
+    } else if (DatasetMetaMutableKeys.some((key) => key in jsonObject)) {
+      // DIVE Json metadata config file
+      merge(meta, jsonObject);
     } else {
-      data = await viameSerializers.parseFile(path);
+      // Regular dive json
+      tracks = Object.values(await loadJsonTracks(path));
     }
-    try {
-      // eslint-disable-next-line no-await-in-loop
-      const processed = processTrackAttributes(data.tracks);
-      const { fps } = data;
-      const { attributes } = processed;
-      // eslint-disable-next-line no-await-in-loop
-      await _saveSerialized(settings, datasetId, processed.data, true);
-      return {
-        fps, attributes, path,
-      };
-    } catch (err) {
-      // eslint-disable-next-line no-continue
-    }
-    return {};
+  } else if (CsvFileName.test(path)) {
+    const data = await viameSerializers.parseFile(path);
+    tracks = data.tracks;
+    meta.fps = data.fps;
   }
-  return { };
+  const processed = processTrackAttributes(tracks);
+  await _saveSerialized(settings, datasetId, processed.data, true);
+  return meta;
 }
+
 /**
- * processOtherAnnotationFiles imports data from external annotation formats
+ * ingestDataFiles imports data from external annotation formats
  * given a list of candidate file paths.
  *
  * SUPPORTED FORMATS:
@@ -591,31 +596,28 @@ async function processAnnotationFilePath(
  * @param multiCamResults Objec where the keys are Camera names
  * and the value is the path to a result file
  */
-async function processOtherAnnotationFiles(
+async function ingestDataFiles(
   settings: Settings,
   datasetId: string,
   absPaths: string[],
   multiCamResults?: Record<string, string>,
-): Promise<{ fps?: number; processedFiles: string[]; attributes?: Attributes }> {
-  let fps: number | undefined;
+): Promise<{
+  processedFiles: string[];
+  meta: DatasetMetaMutable & { fps?: number };
+}> {
   const processedFiles = []; // which files were processed to generate the detections
-  let attributes: Attributes = {};
+  const meta = {};
 
   for (let i = 0; i < absPaths.length; i += 1) {
     const path = absPaths[i];
     // eslint-disable-next-line no-await-in-loop
-    const result = await processAnnotationFilePath(settings, datasetId, path);
-    if (result.fps) {
-      fps = fps || result.fps;
-    }
-    if (result.attributes) {
-      attributes = result.attributes;
-    }
-    if (result.path) {
-      processedFiles.push(result.path);
+    const newMeta = await ingestFilePath(settings, datasetId, path);
+    if (newMeta !== null) {
+      merge(meta, newMeta);
+      processedFiles.push(path);
     }
   }
-  //Processing of multiCam results:
+  // processing of multiCam results
   if (multiCamResults) {
     const cameraAndPath = Object.entries(multiCamResults);
     for (let i = 0; i < cameraAndPath.length; i += 1) {
@@ -623,20 +625,15 @@ async function processOtherAnnotationFiles(
       const path = cameraAndPath[i][1];
       const cameraDatasetId = `${datasetId}/${cameraName}`;
       // eslint-disable-next-line no-await-in-loop
-      const result = await processAnnotationFilePath(settings, cameraDatasetId, path);
-      if (result.fps) {
-        fps = fps || result.fps;
-      }
-      if (result.attributes) {
-        attributes = result.attributes;
-      }
-      if (result.path) {
-        processedFiles.push(result.path);
+      const newMeta = await ingestFilePath(settings, cameraDatasetId, path);
+      if (newMeta !== null) {
+        merge(meta, newMeta);
+        processedFiles.push(path);
       }
     }
   }
 
-  return { fps, processedFiles, attributes };
+  return { processedFiles, meta };
 }
 /**
  * Need to take the trained pipeline if it exists and place it in the DIVE_Pipelines folder
@@ -846,65 +843,11 @@ async function annotationImport(
   settings: Settings,
   id: string,
   annotationPath: string,
-  allowEmpty = true,
 ) {
   const projectInfo = getProjectDir(settings, id);
-  const validatedInfo = await getValidatedProjectDir(settings, id);
-  const jsonMeta = await loadJsonMetadata(projectInfo.metaFileAbsPath);
-
-  // If it is a json file we need to make sure it has the proper extension
-  if (JsonFileName.test(npath.basename(annotationPath))) {
-    const statResult = await fs.stat(annotationPath);
-    if (statResult.isFile()) {
-      //Check so see if it is a NIST File before moving
-      const nistFormat = await nistSerializers.loadNistFile(annotationPath);
-      if (nistFormat && jsonMeta.type !== VideoType) {
-        throw new Error(`Dataset is of type: ${jsonMeta.type} not ${VideoType}. NIST formats can only be imported on ${VideoType} datasets`);
-      }
-      const release = await _acquireLock(projectInfo.basePath, projectInfo.basePath, 'tracks');
-      try {
-        await fs.move(
-          validatedInfo.trackFileAbsPath,
-          npath.join(
-            validatedInfo.auxDirAbsPath,
-            npath.basename(validatedInfo.trackFileAbsPath),
-          ),
-        );
-      } catch (err) {
-        // Some part of the project dir didn't exist
-        if (!allowEmpty) throw err;
-      }
-      const time = moment().format('MM-DD-YYYY_hh-mm-ss.SSS');
-      const newFileName = `result_${time}.json`;
-
-      const newPath = npath.join(projectInfo.basePath, npath.basename(newFileName));
-      if (nistFormat) {
-        const trackData = await nistSerializers.loadNistFile(annotationPath);
-        const trackStructure: MultiTrackRecord = {};
-        for (let i = 0; i < trackData.tracks.length; i += 1) {
-          const track = trackData.tracks[i];
-          trackStructure[track.trackId] = track;
-        }
-        const serialized = JSON.stringify(trackStructure, null, 2);
-        await fs.writeFile(newPath, serialized);
-      } else {
-        await fs.copy(
-          annotationPath,
-          newPath,
-        );
-      }
-      await release();
-      return true;
-    }
-    throw new Error(`${annotationPath} is not a valid file`);
-  }
-  // If not a JSON we do a process for the CSV
   const newPath = npath.join(projectInfo.basePath, npath.basename(annotationPath));
-  await fs.copy(
-    annotationPath,
-    newPath,
-  );
-  const results = await processOtherAnnotationFiles(settings, id, [newPath]);
+  await fs.copy(annotationPath, newPath);
+  const results = await ingestDataFiles(settings, id, [newPath]);
   if (results.processedFiles.length) {
     return true;
   }
@@ -918,51 +861,8 @@ async function _importTrackFile(
   jsonMeta: JsonMeta,
   userTrackFileAbsPath: string,
 ) {
-  /* Look for JSON track file as first priority */
-  let foundDetections = false;
-
-  if (userTrackFileAbsPath && !CsvFileName.test(userTrackFileAbsPath)) {
-    /* Move the track file into the new project directory */
-    const time = moment().format('MM-DD-YYYY_hh-mm-ss.SSS');
-    const newFileName = `result_${time}.json`;
-
-    const newPath = npath.join(projectDirAbsPath, npath.basename(newFileName));
-
-    if (jsonMeta.type === VideoType
-      && await nistSerializers.confirmNistFile(userTrackFileAbsPath)) {
-      const trackData = await nistSerializers.loadNistFile(userTrackFileAbsPath);
-      const trackStructure: MultiTrackRecord = {};
-      for (let i = 0; i < trackData.tracks.length; i += 1) {
-        const track = trackData.tracks[i];
-        trackStructure[track.trackId] = track;
-      }
-      const serialized = JSON.stringify(trackStructure);
-      await fs.writeFile(newPath, serialized);
-    } else {
-      await fs.copy(
-        userTrackFileAbsPath,
-        newPath,
-      );
-    }
-    //Load tracks to generate attributes
-    const tracks = await loadJsonTracks(newPath);
-    const { attributes } = processTrackAttributes(Object.values(tracks));
-    // eslint-disable-next-line no-param-reassign
-    if (attributes) jsonMeta.attributes = attributes;
-    foundDetections = true;
-  }
-  if (!foundDetections && userTrackFileAbsPath && CsvFileName.test(userTrackFileAbsPath)) {
-    const csvFileCandidates = [userTrackFileAbsPath];
-
-    const { fps, processedFiles, attributes } = await processOtherAnnotationFiles(
-      settings, dsId, csvFileCandidates,
-    );
-    // eslint-disable-next-line no-param-reassign
-    if (fps) jsonMeta.fps = fps;
-    // eslint-disable-next-line no-param-reassign
-    if (attributes) jsonMeta.attributes = attributes;
-    foundDetections = processedFiles.length > 0;
-  }
+  const processed = await ingestDataFiles(settings, dsId, [userTrackFileAbsPath]);
+  merge(jsonMeta, processed.meta);
 
   /* custom image sort */
   if (jsonMeta.imageListPath === undefined) {
@@ -975,7 +875,7 @@ async function _importTrackFile(
   await _saveAsJson(npath.join(projectDirAbsPath, JsonMetaFileName), jsonMeta);
 
   /* create an empty file as fallback */
-  if (!foundDetections) {
+  if (processed.processedFiles.length === 0) {
     await _saveSerialized(settings, dsId, {}, true);
   }
   return jsonMeta;
@@ -1137,7 +1037,7 @@ export {
   loadJsonTracks,
   loadDetections,
   openLink,
-  processOtherAnnotationFiles,
+  ingestDataFiles,
   saveDetections,
   saveMetadata,
   completeConversion,

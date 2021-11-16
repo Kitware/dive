@@ -89,6 +89,7 @@ interface DatasetMetaMutable {
   confidenceFilters?: Record<string, number>;
   attributes?: Readonly<Record<string, Attribute>>;
 }
+const DatasetMetaMutableKeys = ['attributes', 'confidenceFilters', 'customTypeStyles'];
 
 interface DatasetMeta extends DatasetMetaMutable {
   id: Readonly<string>;
@@ -144,10 +145,11 @@ export {
   useApi,
 };
 
-export type {
+export {
   Api,
   DatasetMeta,
   DatasetMetaMutable,
+  DatasetMetaMutableKeys,
   DatasetType,
   SubType,
   FrameImage,
