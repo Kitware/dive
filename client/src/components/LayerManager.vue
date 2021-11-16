@@ -316,14 +316,41 @@ export default defineComponent({
     });
     editAnnotationLayer.bus.$on('update:selectedIndex',
       (index: number, _type: EditAnnotationTypes, key = '') => handler.selectFeatureHandle(index, key));
-    const annotationHoverTooltip = (found: { trackType: [string, number]; trackId: number}[],
-      pos: {x: number; y: number}) => {
-      hoverOvered.value = found.map((item) => ({
-        type: item.trackType[0],
-        confidence: item.trackType[1],
-        trackId: item.trackId,
-      }));
-      toolTipWidget.position(pos);
+    const annotationHoverTooltip = (
+      found: {
+          trackType: [string, number];
+          trackId: number;
+          polygon: { coordinates: Array<Array<[number, number]>>};
+        }[],
+    ) => {
+      let innerRight = Infinity;
+      let innerTop = -Infinity;
+      const hoveredVals: (ToolTipWidgetData & { maxX: number})[] = [];
+      found.forEach((item) => {
+        // get Max of X and Min of y
+        if (item.polygon.coordinates.length) {
+          let maxX = -Infinity;
+          let minY = Infinity;
+          item.polygon.coordinates[0].forEach((coord) => {
+            if (coord.length === 2) {
+              maxX = Math.max(coord[0], maxX);
+              minY = Math.min(coord[1], minY);
+            }
+          });
+          innerRight = Math.min(maxX, innerRight);
+          innerTop = Math.max(minY, innerTop);
+          hoveredVals.push({
+            type: item.trackType[0],
+            confidence: item.trackType[1],
+            trackId: item.trackId,
+            maxX,
+          });
+        }
+      });
+      hoverOvered.value = hoveredVals.sort((a, b) => a.maxX - b.maxX);
+      if (found.length) {
+        toolTipWidget.position({ x: innerRight, y: innerTop });
+      }
     };
     rectAnnotationLayer.bus.$on('annotation-hover', annotationHoverTooltip);
     polyAnnotationLayer.bus.$on('annotation-hover', annotationHoverTooltip);

@@ -53,7 +53,6 @@ export default defineComponent({
   <v-card
     v-if="dataList.value.length"
     dark
-    max-width="200px"
     class="d-inline-flex pa-2"
   >
     <div>
