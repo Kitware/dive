@@ -138,15 +138,19 @@ export default defineComponent({
       }
       return sortAndFilterTypes(usedTypesRef);
     });
-    const virtualTypes: Ref<readonly VirtualTypeItem[]> = computed(
-      () => visibleTypes.value.map((item) => ({
+    const virtualTypes: Ref<readonly VirtualTypeItem[]> = computed(() => {
+      const confidenceFiltersDeRef = confidenceFiltersRef.value;
+      const typeCountsDeRef = typeCounts.value;
+      const typeStylingDeRef = typeStylingRef.value;
+      const checkedTypesDeRef = checkedTypesRef.value;
+      return visibleTypes.value.map((item) => ({
         type: item,
-        confidenceFilterNum: confidenceFiltersRef.value[item] || 0,
-        displayText: `${item} (${typeCounts.value.get(item) || 0})`,
-        color: typeStylingRef.value.color(item),
-        checked: checkedTypesRef.value.includes(item),
-      })),
-    );
+        confidenceFilterNum: confidenceFiltersDeRef[item] || 0,
+        displayText: `${item} (${typeCountsDeRef.get(item) || 0})`,
+        color: typeStylingDeRef.color(item),
+        checked: checkedTypesDeRef.includes(item),
+      }));
+    });
     const headCheckState = computed(() => {
       const uncheckedTypes = difference(visibleTypes.value, checkedTypesRef.value);
       if (uncheckedTypes.length === 0) {
