@@ -105,6 +105,8 @@ const convertMedia = async (settingsVal: Settings, args: ConversionArgs,
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const console = new Console(process.stdout, process.stderr);
 
+const emptyCsvString = '# comment line\n# metadata,fps: 32,"whateever"\n#comment line';
+
 mockfs({
   '/opt/viame': {
     configs: {
@@ -116,6 +118,11 @@ mockfs({
     },
   },
   '/home/user/data': {
+    annotationImport: {
+      'viame.csv': emptyCsvString,
+      'foreign.meta.json': '{ "confidenceFilters": {"default": 0.8} }',
+      'dive.json': '{ "0": { "trackId": 0 } }', // fake track file
+    },
     imageSuccess: {
       'foo.png': '',
       'bar.png': '',
@@ -165,7 +172,7 @@ mockfs({
     imageSuccessWithAnnotations: {
       'foo.png': '',
       'bar.png': '',
-      'file1.csv': '# comment line\n# metadata,fps: 32,"whateever"\n#comment line',
+      'file1.csv': emptyCsvString,
     },
     videoSuccess: {
       'video1.avi': '',
@@ -486,6 +493,29 @@ describe('native.common', () => {
     await expect(common.beginMediaImport(
       settings, '/home/user/data/imageLists/failInvalidImageMIME/image_list.txt', checkMedia,
     )).rejects.toThrowError('Found non-image type data in image list file');
+  });
+
+  it('dataFileImport', async () => {
+    const payload = await common.beginMediaImport(
+      settings, '/home/user/data/imageLists/success/image_list.txt', checkMedia,
+    );
+    const final = await common.finalizeMediaImport(settings, payload, updater, convertMedia);
+    const tracks = await common.loadDetections(settings, final.id);
+    expect(Object.keys(tracks)).toHaveLength(0);
+
+    await common.dataFileImport(settings, final.id, '/home/user/data/annotationImport/dive.json');
+    const tracks1 = await common.loadDetections(settings, final.id);
+    expect(Object.keys(tracks1)).toHaveLength(1);
+
+    await common.dataFileImport(settings, final.id, '/home/user/data/annotationImport/viame.csv');
+    const tracks2 = await common.loadDetections(settings, final.id);
+    expect(Object.keys(tracks2)).toHaveLength(0);
+    const meta = await common.loadMetadata(settings, final.id, urlMapper);
+    expect(meta.fps).toBe(32);
+
+    await common.dataFileImport(settings, final.id, '/home/user/data/annotationImport/foreign.meta.json');
+    const meta2 = await common.loadMetadata(settings, final.id, urlMapper);
+    expect(meta2.confidenceFilters).toStrictEqual({ "default": 0.8 });
   });
 
   it('import with CSV annotations without specifying track file', async () => {

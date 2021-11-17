@@ -546,7 +546,7 @@ async function saveAttributes(settings: Settings, datasetId: string, args: SaveA
 }
 
 
-async function ingestFilePath(
+async function _ingestFilePath(
   settings: Settings,
   datasetId: string,
   path: string,
@@ -557,12 +557,17 @@ async function ingestFilePath(
   if (fs.statSync(path).size === 0) {
     return null;
   }
+  // Make a copy of the file in aux
+  const projectInfo = getProjectDir(settings, datasetId);
+  const newPath = npath.join(projectInfo.auxDirAbsPath, `imported_${npath.basename(path)}`);
+  await fs.copy(path, newPath);
   // Attempt to process the file
-  let tracks: TrackData[] = [];
+  let tracks: TrackData[] | null = null;
   const meta: DatasetMetaMutable & { fps?: number } = {};
   if (JsonFileName.test(path)) {
-    const jsonObject = _loadAsJson(path);
+    const jsonObject = await _loadAsJson(path);
     if (nistSerializers.confirmNistFormat(jsonObject)) {
+      // NIST json file
       const data = await nistSerializers.loadNistFile(path);
       tracks = data.tracks;
       meta.fps = data.fps;
@@ -574,12 +579,15 @@ async function ingestFilePath(
       tracks = Object.values(await loadJsonTracks(path));
     }
   } else if (CsvFileName.test(path)) {
+    // VIAME CSV File
     const data = await viameSerializers.parseFile(path);
     tracks = data.tracks;
     meta.fps = data.fps;
   }
-  const processed = processTrackAttributes(tracks);
-  await _saveSerialized(settings, datasetId, processed.data, true);
+  if (tracks !== null) {
+    const processed = processTrackAttributes(tracks);
+    await _saveSerialized(settings, datasetId, processed.data, true);
+  }
   return meta;
 }
 
@@ -611,7 +619,7 @@ async function ingestDataFiles(
   for (let i = 0; i < absPaths.length; i += 1) {
     const path = absPaths[i];
     // eslint-disable-next-line no-await-in-loop
-    const newMeta = await ingestFilePath(settings, datasetId, path);
+    const newMeta = await _ingestFilePath(settings, datasetId, path);
     if (newMeta !== null) {
       merge(meta, newMeta);
       processedFiles.push(path);
@@ -625,7 +633,7 @@ async function ingestDataFiles(
       const path = cameraAndPath[i][1];
       const cameraDatasetId = `${datasetId}/${cameraName}`;
       // eslint-disable-next-line no-await-in-loop
-      const newMeta = await ingestFilePath(settings, cameraDatasetId, path);
+      const newMeta = await _ingestFilePath(settings, cameraDatasetId, path);
       if (newMeta !== null) {
         merge(meta, newMeta);
         processedFiles.push(path);
@@ -839,19 +847,13 @@ async function beginMediaImport(
   };
 }
 
-async function annotationImport(
-  settings: Settings,
-  id: string,
-  annotationPath: string,
-) {
-  const projectInfo = getProjectDir(settings, id);
-  const newPath = npath.join(projectInfo.basePath, npath.basename(annotationPath));
-  await fs.copy(annotationPath, newPath);
-  const results = await ingestDataFiles(settings, id, [newPath]);
-  if (results.processedFiles.length) {
-    return true;
-  }
-  return false;
+async function dataFileImport(settings: Settings, id: string, path: string) {
+  const result = await ingestDataFiles(settings, id, [path]);
+  const projectDirData = await getValidatedProjectDir(settings, id);
+  const jsonMeta = await loadJsonMetadata(projectDirData.metaFileAbsPath);
+  merge(jsonMeta, result.meta);
+  await _saveAsJson(npath.join(projectDirData.basePath, JsonMetaFileName), jsonMeta);
+  return result;
 }
 
 async function _importTrackFile(
@@ -861,9 +863,15 @@ async function _importTrackFile(
   jsonMeta: JsonMeta,
   userTrackFileAbsPath: string,
 ) {
-  const processed = await ingestDataFiles(settings, dsId, [userTrackFileAbsPath]);
-  merge(jsonMeta, processed.meta);
-
+  if (userTrackFileAbsPath) {
+    const processed = await ingestDataFiles(settings, dsId, [userTrackFileAbsPath]);
+    merge(jsonMeta, processed.meta);
+    if (processed.processedFiles.length === 0) {
+      await _saveSerialized(settings, dsId, {}, true);
+    }
+  } else {
+    await _saveSerialized(settings, dsId, {}, true);
+  }
   /* custom image sort */
   if (jsonMeta.imageListPath === undefined) {
     jsonMeta.originalImageFiles.sort(strNumericCompare);
@@ -871,13 +879,7 @@ async function _importTrackFile(
   if (jsonMeta.transcodedImageFiles) {
     jsonMeta.transcodedImageFiles.sort(strNumericCompare);
   }
-
   await _saveAsJson(npath.join(projectDirAbsPath, JsonMetaFileName), jsonMeta);
-
-  /* create an empty file as fallback */
-  if (processed.processedFiles.length === 0) {
-    await _saveSerialized(settings, dsId, {}, true);
-  }
   return jsonMeta;
 }
 
@@ -971,7 +973,6 @@ async function finalizeMediaImport(
       jsonClone.transcodedVideoFile = cameraData.transcodedVideoFile || '';
       jsonClone.transcodedImageFiles = cameraData.transcodedImageFiles || [];
       jsonClone.subType = null;
-
       // eslint-disable-next-line no-await-in-loop
       const cameraDirAbsPath = await _initializeProjectDir(settings, jsonClone);
       let multiCamTrackFile = '';
@@ -979,8 +980,9 @@ async function finalizeMediaImport(
         multiCamTrackFile = args.multiCamTrackFiles[cameraName];
       }
       // eslint-disable-next-line no-await-in-loop
-      await _importTrackFile(settings, jsonClone.id,
-        cameraDirAbsPath, jsonClone, multiCamTrackFile);
+      await _importTrackFile(
+        settings, jsonClone.id, cameraDirAbsPath, jsonClone, multiCamTrackFile,
+      );
     }
   }
   const finalJsonMeta = await _importTrackFile(
@@ -1022,9 +1024,9 @@ export {
   JobsFolderName,
   autodiscoverData,
   beginMediaImport,
+  dataFileImport,
   deleteDataset,
   checkDataset,
-  annotationImport,
   createKwiverRunWorkingDir,
   exportDataset,
   finalizeMediaImport,
