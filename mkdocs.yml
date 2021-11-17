@@ -47,6 +47,7 @@ nav:
   - Advanced features:
     - Custom Pipeline Upload: Pipeline-Upload.md
     - Command Line Tools: Command-Line-Tools.md
+  - Data Formats: DataFormats.md
   - Frequently Asked Questions: FAQ.md
 
 google_analytics:

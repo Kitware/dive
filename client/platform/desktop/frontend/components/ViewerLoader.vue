@@ -51,7 +51,7 @@ export default defineComponent({
 
     watch(runningJobs, async (_previous, current) => {
       const currentJob = current.find((item) => item.job.datasetIds.includes(props.id));
-      if (currentJob && currentJob.job.exitCode !== -1 && currentJob.job.jobType === 'pipeline') {
+      if (currentJob && currentJob.job.exitCode === 0 && currentJob.job.jobType === 'pipeline') {
         const result = await prompt({
           title: 'Pipeline Finished',
           text: [`Pipeline: ${currentJob.job.title}`,
