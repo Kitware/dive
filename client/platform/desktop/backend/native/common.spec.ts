@@ -120,7 +120,7 @@ mockfs({
   '/home/user/data': {
     annotationImport: {
       'viame.csv': emptyCsvString,
-      'foreign.meta.json': '{ "confidenceFilters": {"default": 0.8} }',
+      'foreign.meta.json': '{ "confidenceFilters": {"default": 0.8}, "type": "invalidtype" }',
       'dive.json': '{ "0": { "trackId": 0 } }', // fake track file
     },
     imageSuccess: {
@@ -516,6 +516,7 @@ describe('native.common', () => {
     await common.dataFileImport(settings, final.id, '/home/user/data/annotationImport/foreign.meta.json');
     const meta2 = await common.loadMetadata(settings, final.id, urlMapper);
     expect(meta2.confidenceFilters).toStrictEqual({ "default": 0.8 });
+    expect(meta2.type).toBe("image-sequence"); // Ensure meta import cannot change immutable fields.
   });
 
   it('import with CSV annotations without specifying track file', async () => {
