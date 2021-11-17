@@ -105,7 +105,7 @@ const convertMedia = async (settingsVal: Settings, args: ConversionArgs,
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const console = new Console(process.stdout, process.stderr);
 
-const emptyCsvString = '# comment line\n# metadata,fps: 32,"whateever"\n#comment line';
+const emptyCsvString = '# comment line\n# metadata,fps: 32,"whatever"\n#comment line';
 
 mockfs({
   '/opt/viame': {

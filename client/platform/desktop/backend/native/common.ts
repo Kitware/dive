@@ -8,6 +8,9 @@ import { shell } from 'electron';
 import mime from 'mime-types';
 import moment from 'moment';
 import lockfile from 'proper-lockfile';
+import {
+  cloneDeep, merge, uniq, pick,
+} from 'lodash';
 
 import { DefaultConfidence } from 'vue-media-annotator/use/useTrackFilters';
 import { TrackData } from 'vue-media-annotator/track';
@@ -29,7 +32,7 @@ import {
 import {
   cleanString, filterByGlob, makeid, strNumericCompare,
 } from 'platform/desktop/sharedUtils';
-import { cloneDeep, merge, uniq } from 'lodash';
+
 import processTrackAttributes from './attributeProcessor';
 import { upgrade } from './migrations';
 import { getMultiCamUrls, transcodeMultiCam } from './multiCamUtils';
@@ -573,7 +576,7 @@ async function _ingestFilePath(
       meta.fps = data.fps;
     } else if (DatasetMetaMutableKeys.some((key) => key in jsonObject)) {
       // DIVE Json metadata config file
-      merge(meta, jsonObject);
+      merge(meta, pick(jsonObject, DatasetMetaMutableKeys));
     } else {
       // Regular dive json
       tracks = Object.values(await loadJsonTracks(path));
