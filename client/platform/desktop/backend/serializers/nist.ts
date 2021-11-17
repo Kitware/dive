@@ -66,19 +66,6 @@ interface NistActivity {
 function confirmNistFormat(data: any): data is NistFile {
   return Array.isArray(data?.activities) && Array.isArray(data?.filesProcessed);
 }
-async function confirmNistFile(filename: string) {
-  const rawBuffer = await fs.readFile(filename, 'utf-8');
-  let nistJson;
-  if (rawBuffer.length === 0) {
-    return false;
-  }
-  try {
-    nistJson = JSON.parse(rawBuffer);
-  } catch (err) {
-    throw new Error(`Unable to parse ${filename}: ${err}`);
-  }
-  return confirmNistFormat(nistJson);
-}
 
 function loadObjects(
   objects: NistObject[],
@@ -392,5 +379,4 @@ export {
   convertNisttoJSON,
   exportNist,
   confirmNistFormat,
-  confirmNistFile,
 };
