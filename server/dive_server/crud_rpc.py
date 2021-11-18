@@ -368,6 +368,7 @@ def postprocess(
         Transcoding of Video
         Transcoding of Images
         Conversion of KPF annotations into track JSON
+        Extraction and upload of zip files
 
     In either case, the following may run synchronously:
         Conversion of CSV annotations into track JSON
@@ -386,6 +387,30 @@ def postprocess(
 
     if not skipJobs and not isClone:
         token = Token().createToken(user=user, days=2)
+
+        # extract ZIP Files if not already completed
+        zipItems = Folder().childItems(
+            dsFolder,
+            filters={
+                "lowerName": {"$regex": constants.zipRegex},
+                f"meta.{constants.ZipFileExtractedMarker}": {'$exists': False},
+            },
+        )
+        for item in zipItems:
+            newjob = tasks.extract_zip.apply_async(
+                queue=_get_queue_name(user),
+                kwargs=dict(
+                    folderId=str(item["folderId"]),
+                    itemId=str(item["_id"]),
+                    girder_job_title=f"Extracting {item['_id']} to folder {str(dsFolder['_id'])}",
+                    girder_client_token=str(token["_id"]),
+                    girder_job_type="private" if job_is_private else "convert",
+                ),
+            )
+            newjob.job[constants.JOBCONST_PRIVATE_QUEUE] = job_is_private
+            Job().save(newjob.job)
+            return
+
         # transcode VIDEO if necessary
         videoItems = Folder().childItems(
             dsFolder, filters={"lowerName": {"$regex": constants.videoRegex}}

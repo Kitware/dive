@@ -28,6 +28,7 @@ safeImageRegex = re.compile(r"(\." + r"|\.".join(webValidImageFormats) + ')$', r
 csvRegex = re.compile(r"\.csv$", re.IGNORECASE)
 jsonRegex = re.compile(r"\.json$", re.IGNORECASE)
 ymlRegex = re.compile(r"\.ya?ml$", re.IGNORECASE)
+zipRegex = re.compile(r"\.zip$", re.IGNORECASE)
 
 ImageMimeTypes = {
     "image/png",
@@ -75,6 +76,7 @@ FPSMarker = "fps"
 OriginalFPSMarker = "originalFps"
 OriginalFPSStringMarker = "originalFpsString"
 ConfidenceFiltersMarker = "confidenceFilters"
+ZipFileExtractedMarker = "extractedZip"
 
 # Other constants
 TrainedPipelineCategory = "trained"

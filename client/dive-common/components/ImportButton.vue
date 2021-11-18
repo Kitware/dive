@@ -20,7 +20,7 @@ export default defineComponent({
       required: true,
     },
     openType: {
-      type: String as PropType<DatasetType>,
+      type: String as PropType<DatasetType | 'zip'>,
       required: true,
     },
     multiCamImport: { //TODO: Temporarily used to hide the stereo settings from users
@@ -30,6 +30,10 @@ export default defineComponent({
     buttonAttrs: {
       type: Object,
       default: () => DefaultButtonAttrs,
+    },
+    small: { // Smaller setting for "Add Another ..."
+      type: Boolean,
+      default: false,
     },
   },
   setup() {
@@ -50,7 +54,8 @@ export default defineComponent({
       <template v-slot:activator="{ on }">
         <v-btn
           v-bind="buttonAttrs"
-          large
+          :large="!small"
+          :small="small"
           class="px-0"
           @click="$emit('open', openType)"
         >

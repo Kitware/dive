@@ -556,3 +556,46 @@ def convert_images(self: Task, folderId):
             str(folderId),
             {"annotate": True},  # mark the parent folder as able to annotate.
         )
+
+
+@app.task(bind=True, acks_late=True, ignore_result=True)
+def extract_zip(self: Task, folderId: str, itemId: str):
+    context: dict = {}
+    gc: GirderClient = self.girder_client
+    manager: JobManager = patch_manager(self.job_manager)
+    if utils.check_canceled(self, context):
+        manager.updateStatus(JobStatus.CANCELED)
+        return
+
+    with tempfile.TemporaryDirectory() as _working_directory, suppress(utils.CanceledError):
+        _working_directory_path = Path(_working_directory)
+        item: GirderModel = gc.getItem(itemId)
+        file_name = str(_working_directory_path / item['name'])
+        manager.write(f'Fetching input from {itemId} to {file_name}...\n')
+        gc.downloadItem(itemId, _working_directory, item["name"])
+        with zipfile.ZipFile(file_name, 'r') as zipObj:
+            listOfFileNames = zipObj.namelist()
+            for fileName in listOfFileNames:
+                manager.write(f"Extracting: {fileName}\n")
+                zipObj.extract(fileName, f'{_working_directory}/{fileName}')
+        # validation of files in folder using dive/data
+        validation = gc.sendRestRequest(
+            'POST', '/dive_dataset/validate_files', json=listOfFileNames
+        )
+        print(validation)
+        if validation:
+            manager.write(f"Annotations: {validation['annotations']}\n")
+            manager.write(f"Media: {validation['media']}\n")
+            dataset_type = validation['type']
+            manager.write(f"Type: {dataset_type}\n")
+            if "ok" in validation and validation["ok"] is False:
+                manager.write(f"Message: {validation['message']}\n")
+                manager.updateStatus(JobStatus.ERROR)
+                return
+            # Upload all resulting items back into the root folder
+            manager.updateStatus(JobStatus.PUSHING_OUTPUT)
+            gc.upload(f'{_working_directory}/**/*', folderId)
+            gc.addMetadataToFolder(str(folderId), {constants.TypeMarker: dataset_type})
+            gc.addMetadataToItem(str(itemId), {constants.ZipFileExtractedMarker: True})
+            # After uploading the default files we do a the postprocess for video conversion now
+            gc.sendRestRequest("POST", f"/dive_rpc/postprocess/{str(folderId)}")
