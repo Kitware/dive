@@ -89,7 +89,7 @@ interface DatasetMetaMutable {
   confidenceFilters?: Record<string, number>;
   attributes?: Readonly<Record<string, Attribute>>;
 }
-const DatasetMetaMutableKeys = ['attributes', 'confidenceFilters', 'customTypeStyles'];
+const DatasetMetaMutableKeys = ['attributes', 'confidenceFilters', 'customTypeStyling'];
 
 interface DatasetMeta extends DatasetMetaMutable {
   id: Readonly<string>;
