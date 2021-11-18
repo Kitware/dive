@@ -1,11 +1,11 @@
 <script lang="ts">
 import {
-  computed, defineComponent, ref,
+  computed, defineComponent, ref, onBeforeUnmount,
 } from '@vue/composition-api';
 import {
   GirderFileManager, getLocationType, GirderModel,
 } from '@girder/components/src';
-
+import { useGirderRest } from 'platform/web-girder/plugins/girder';
 import { itemsPerPageOptions } from 'dive-common/constants';
 import { clientSettings } from 'dive-common/store/settings';
 import { useStore, LocationType } from '../store/types';
@@ -25,6 +25,7 @@ export default defineComponent({
     const uploaderDialog = ref(false);
     const locationStore = store.state.Location;
     const { getters } = store;
+    const girderRest = useGirderRest();
 
     function setLocation(location: LocationType) {
       store.dispatch('Location/setRouteFromLocation', location);
@@ -53,8 +54,11 @@ export default defineComponent({
       && !locationStore.selected.length
     ));
 
-    eventBus.$on('refresh-data-browser', () => {
-      fileManager.value.$refs.girderBrowser.refresh();
+    eventBus.$on('refresh-data-browser', handleNotification);
+    girderRest.$on('message:job_status', handleNotification);
+    onBeforeUnmount(() => {
+      eventBus.$off('refresh-data-browser', handleNotification);
+      girderRest.$off('message:job_status', handleNotification);
     });
 
     return {
