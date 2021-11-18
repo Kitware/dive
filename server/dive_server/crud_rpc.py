@@ -409,7 +409,7 @@ def postprocess(
             )
             newjob.job[constants.JOBCONST_PRIVATE_QUEUE] = job_is_private
             Job().save(newjob.job)
-            return
+            return dsFolder
 
         # transcode VIDEO if necessary
         videoItems = Folder().childItems(
