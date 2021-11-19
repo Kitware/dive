@@ -128,7 +128,6 @@ export default defineComponent({
         color="primary"
         depressed
         :to="{ name: 'viewer', params: { id: item._id } }"
-        @click.stop="openClip(item)"
       >
         Launch Annotator
       </v-btn>
