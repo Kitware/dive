@@ -575,7 +575,22 @@ def extract_zip(self: Task, folderId: str, itemId: str):
         gc.downloadItem(itemId, _working_directory, item["name"])
         with zipfile.ZipFile(file_name, 'r') as zipObj:
             listOfFileNames = zipObj.namelist()
+            sum_file_size = sum([data.file_size for data in zipObj.filelist])
+            sum_compress_size = sum([data.compress_size for data in zipObj.filelist])
+            ratio = sum_file_size / sum_compress_size
+            if ratio > 600:
+                manager.write(
+                    f"Compression ratio is exceedingly high at {ratio}\n\
+                    Please contact an admin at viame-web@kitware.com if this is a valid zip file"
+                )
+                manager.updateStatus(JobStatus.ERROR)
+                return
+
             for fileName in listOfFileNames:
+                if fileName.endswith('.zip'):
+                    manager.write("Nested Zip files are invalid!!!!\n")
+                    manager.updateStatus(JobStatus.ERROR)
+                    return
                 manager.write(f"Extracting: {fileName}\n")
                 zipObj.extract(fileName, f'{_working_directory}/{fileName}')
         # validation of files in folder using dive/data
@@ -591,7 +606,6 @@ def extract_zip(self: Task, folderId: str, itemId: str):
             if "ok" in validation and validation["ok"] is False:
                 manager.write(f"Message: {validation['message']}\n")
                 manager.updateStatus(JobStatus.ERROR)
-                return
             # Upload all resulting items back into the root folder
             manager.updateStatus(JobStatus.PUSHING_OUTPUT)
             gc.upload(f'{_working_directory}/**/*', folderId)
