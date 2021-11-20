@@ -63,6 +63,10 @@ export default defineComponent({
       type: String,
       required: true,
     },
+    revision: {
+      type: Number,
+      default: undefined,
+    },
     readonlyMode: {
       type: Boolean,
       default: false,
@@ -77,6 +81,7 @@ export default defineComponent({
     const defaultCamera = ref('');
     const currentCamera = ref('');
     const playbackComponent = ref(undefined as Vue | undefined);
+    const readonlyState = computed(() => props.readonlyMode || props.revision !== undefined);
     const mediaController = computed(() => {
       if (playbackComponent.value) {
         // TODO: Bug in composition-api types incorrectly organizes the static members of a Vue
@@ -117,7 +122,7 @@ export default defineComponent({
       markChangesPending,
       discardChanges,
       pendingSaveCount,
-    } = useSave(datasetId, toRef(props, 'readonlyMode'));
+    } = useSave(datasetId, readonlyState);
 
     const recipes = [
       new PolygonBase(),
@@ -341,7 +346,7 @@ export default defineComponent({
         videoUrl.value = meta.videoUrl;
         datasetType.value = meta.type as DatasetType;
 
-        const trackData = await loadDetections(datasetId.value);
+        const trackData = await loadDetections(datasetId.value, props.revision);
         const tracks = Object.values(trackData);
         progress.total = tracks.length;
         for (let i = 0; i < tracks.length; i += 1) {
@@ -452,6 +457,7 @@ export default defineComponent({
       frameRate: time.frameRate,
       originalFps: time.originalFps,
       context,
+      readonlyState,
       /* methods */
       handler: globalHandler,
       save,
@@ -527,23 +533,23 @@ export default defineComponent({
 
       <v-tooltip
         bottom
-        :disabled="!readonlyMode"
+        :disabled="!readonlyState"
       >
         <template v-slot:activator="{ on }">
           <v-badge
             overlap
             bottom
-            :color="readonlyMode ? 'warning' : undefined"
-            :icon="readonlyMode ? 'mdi-exclamation-thick' : undefined"
-            :content="!readonlyMode ? pendingSaveCount : undefined"
-            :value="readonlyMode || pendingSaveCount > 0"
+            :color="readonlyState ? 'warning' : undefined"
+            :icon="readonlyState ? 'mdi-exclamation-thick' : undefined"
+            :content="!readonlyState ? pendingSaveCount : undefined"
+            :value="readonlyState || pendingSaveCount > 0"
             offset-x="14"
             offset-y="18"
           >
             <div v-on="on">
               <v-btn
                 icon
-                :disabled="readonlyMode || pendingSaveCount === 0 || saveInProgress"
+                :disabled="readonlyState || pendingSaveCount === 0 || saveInProgress"
                 @click="save"
               >
                 <v-icon>mdi-content-save</v-icon>
