@@ -1,5 +1,6 @@
 from typing import List, Optional
 
+import cherrypy
 from girder.api import access
 from girder.api.describe import Description, autoDescribeRoute
 from girder.api.rest import Resource, setResponseHeader
@@ -26,18 +27,33 @@ class AnnotationResource(Resource):
         self.resourceName = resourceName
 
         self.route("GET", (), self.get_annotations)
+        self.route("GET", ("revision",), self.get_revisions)
         self.route("GET", ("export",), self.export)
 
         self.route("PATCH", (), self.save_annotations)
 
     @access.user
     @autoDescribeRoute(
-        Description("Get annotations of a clip").modelParam(
-            "folderId", **DatasetModelParam, level=AccessType.READ
-        )
+        Description("Get annotations of a dataset")
+        .pagingParams("trackId", defaultLimit=0)
+        .modelParam("folderId", **DatasetModelParam, level=AccessType.READ)
+        .param('revision', 'revision', dataType='integer', required=False)
     )
-    def get_annotations(self, folder):
-        return crud_annotation.get_annotations(folder)
+    def get_annotations(self, limit: int, offset: int, sort, folder, revision):
+        cursor, total = crud_annotation.get_annotations(folder, limit, offset, sort, revision)
+        cherrypy.response.headers['Girder-Total-Count'] = total
+        return cursor
+
+    @access.user
+    @autoDescribeRoute(
+        Description("Get dataset annotation revision log")
+        .pagingParams("revision", defaultLimit=20)
+        .modelParam("folderId", **DatasetModelParam, level=AccessType.READ)
+    )
+    def get_revisions(self, limit: int, offset: int, sort, folder):
+        cursor, total = crud_annotation.get_revisions(folder, limit, offset, sort)
+        cherrypy.response.headers['Girder-Total-Count'] = total
+        return cursor
 
     @access.public(scope=TokenScope.DATA_READ, cookie=True)
     @autoDescribeRoute(
@@ -61,7 +77,7 @@ class AnnotationResource(Resource):
     )
     def export(self, folder, excludeBelowThreshold: bool, typeFilter: Optional[List[str]]):
         crud.verify_dataset(folder)
-        filename, gen = crud.get_annotation_csv_generator(
+        filename, gen = crud_annotation.get_annotation_csv_generator(
             folder,
             self.getCurrentUser(),
             excludeBelowThreshold=excludeBelowThreshold,
@@ -79,4 +95,10 @@ class AnnotationResource(Resource):
         .jsonParam("tracks", "upsert and delete tracks", paramType="body", requireObject=True)
     )
     def save_annotations(self, folder, tracks):
-        return crud_annotation.save_annotations(folder, self.getCurrentUser(), tracks)
+        crud.verify_dataset(folder)
+        validated: crud_annotation.AnnotationUpdateArgs = crud.get_validated_model(
+            crud_annotation.AnnotationUpdateArgs, **tracks
+        )
+        upsert = [track.dict(exclude_none=True) for track in validated.upsert]
+        user = self.getCurrentUser()
+        return crud_annotation.save_annotations(folder, upsert, validated.delete, user)

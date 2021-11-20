@@ -9,7 +9,8 @@ from girder.constants import AccessType, SortDir, TokenScope
 from girder.models.folder import Folder
 from girder.models.token import Token
 
-from dive_server.crud import PydanticModel, detections_file, getTrackData
+from dive_server.crud import PydanticAccessControlModel
+from dive_server.crud_annotation import get_annotations_as_dict
 from dive_tasks.summary import generate_max_n_summary, generate_summary
 from dive_utils import fromMeta, models
 from dive_utils.serializers.viame import format_timestamp
@@ -44,7 +45,7 @@ def generate_max_n_summary_csv(
 
     def gen():
         for folder in folders:
-            track_data = getTrackData(detections_file(folder))
+            track_data = get_annotations_as_dict(folder)
             annotation_fps = fromMeta(folder, 'fps')
             for detection_type, result in generate_max_n_summary(track_data).items():
                 writer.writerow(
@@ -65,7 +66,7 @@ def generate_max_n_summary_csv(
     return gen
 
 
-class SummaryItem(PydanticModel):
+class SummaryItem(PydanticAccessControlModel):
     def initialize(self):
         return super().initialize("summaryItem", models.SummaryItemSchema)
 
