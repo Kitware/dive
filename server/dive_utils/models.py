@@ -1,7 +1,21 @@
+from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+from bson.objectid import InvalidId, ObjectId
 from pydantic import BaseModel, Field, validator
 from typing_extensions import Literal
+
+
+class PydanticObjectId(str):
+    """https://stackoverflow.com/a/69431643"""
+
+    @classmethod
+    def __get_validators__(cls):
+        yield cls.validate
+
+    @classmethod
+    def validate(cls, v):
+        return ObjectId(v)
 
 
 class GeoJSONGeometry(BaseModel):
@@ -72,6 +86,22 @@ class Track(BaseModel):
 
     def __hash__(self):
         return self.trackId
+
+
+class AnnotationItemSchema(Track):
+    dataset: PydanticObjectId  # Not supported by pydantic
+    rev_created: int = 0
+    rev_deleted: Optional[int]
+
+
+class RevisionLog(BaseModel):
+    dataset: PydanticObjectId  # Not supported by pydantic
+    author_id: PydanticObjectId  # Not supported by pydantic
+    author_name: str
+    revision: int
+    additions: int = 0
+    deletions: int = 0
+    description: Optional[str]
 
 
 class Attribute(BaseModel):

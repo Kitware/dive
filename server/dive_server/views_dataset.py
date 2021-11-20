@@ -68,10 +68,19 @@ class DatasetResource(Resource):
             dataType="string",
             required=True,
         )
+        .param(
+            "revision",
+            "Revision ID to use for clone source",
+            paramType="query",
+            dataType="integer",
+            default=None,
+        )
     )
-    def create_dataset(self, cloneSource, parentFolder, name):
+    def create_dataset(self, cloneSource, parentFolder, name, revision):
         # TODO: make this endpoint do regular creation and clone
-        return crud_dataset.createSoftClone(self.getCurrentUser(), cloneSource, parentFolder, name)
+        return crud_dataset.createSoftClone(
+            self.getCurrentUser(), cloneSource, parentFolder, name, revision
+        )
 
     @access.user
     @autoDescribeRoute(
