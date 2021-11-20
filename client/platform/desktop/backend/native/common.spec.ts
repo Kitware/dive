@@ -515,8 +515,8 @@ describe('native.common', () => {
 
     await common.dataFileImport(settings, final.id, '/home/user/data/annotationImport/foreign.meta.json');
     const meta2 = await common.loadMetadata(settings, final.id, urlMapper);
-    expect(meta2.confidenceFilters).toStrictEqual({ "default": 0.8 });
-    expect(meta2.type).toBe("image-sequence"); // Ensure meta import cannot change immutable fields.
+    expect(meta2.confidenceFilters).toStrictEqual({ default: 0.8 });
+    expect(meta2.type).toBe('image-sequence'); // Ensure meta import cannot change immutable fields.
   });
 
   it('import with CSV annotations without specifying track file', async () => {

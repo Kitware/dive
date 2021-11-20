@@ -1,5 +1,6 @@
 <script lang="ts">
 import {
+  computed,
   defineComponent, onBeforeUnmount, onMounted, ref, toRef,
 } from '@vue/composition-api';
 
@@ -47,6 +48,10 @@ export default defineComponent({
       type: String,
       required: true,
     },
+    revision: {
+      type: String,
+      default: undefined,
+    },
   },
 
   // TODO: This will require an import from vue-router for Vue3 compatibility
@@ -56,10 +61,15 @@ export default defineComponent({
     }
   },
 
-  setup() {
+  setup(props) {
     const viewerRef = ref();
     const store = useStore();
     const brandData = toRef(store.state.Brand, 'brandData');
+    const revisionNum = computed(() => {
+      const parsed = Number.parseInt(props.revision, 10);
+      if (Number.isNaN(parsed)) return undefined;
+      return parsed;
+    });
     const { getters } = store;
 
     onMounted(() => {
@@ -74,6 +84,7 @@ export default defineComponent({
       buttonOptions,
       brandData,
       menuOptions,
+      revisionNum,
       viewerRef,
       getters,
     };
@@ -84,8 +95,9 @@ export default defineComponent({
 <template>
   <Viewer
     :id="id"
-    :key="id"
+    :key="id + revisionNum"
     ref="viewerRef"
+    :revision="revisionNum"
   >
     <template #title>
       <ViewerAlert />
@@ -122,6 +134,7 @@ export default defineComponent({
         v-if="$store.state.Dataset.meta"
         v-bind="{ buttonOptions, menuOptions }"
         :dataset-id="id"
+        :revision="revisionNum"
       />
     </template>
   </Viewer>

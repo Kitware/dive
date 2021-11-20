@@ -36,6 +36,13 @@ const router = new Router({
       beforeEnter,
     },
     {
+      path: '/viewer/:id/rev/:revision',
+      name: 'viewer',
+      component: ViewerLoader,
+      props: true,
+      beforeEnter,
+    },
+    {
       path: '/',
       component: RouterPage,
       children: [
