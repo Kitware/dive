@@ -1,12 +1,12 @@
 from datetime import datetime, timedelta
 from pathlib import Path
-import shutil
 import signal
 import subprocess
 from subprocess import Popen
 import tempfile
-from tempfile import mktemp
-from typing import List
+from typing import List, Tuple
+from urllib import request
+from urllib.parse import urlencode, urljoin
 
 from girder_client import GirderClient
 from girder_worker.task import Task
@@ -26,6 +26,13 @@ def make_directory(path: Path):
 
 class CanceledError(RuntimeError):
     pass
+
+
+def authenticate_urllib(gc: GirderClient):
+    """Enable authenticated requests to girder backend using normal urllib"""
+    opener = request.build_opener()
+    opener.addheaders = [('Girder-Token', gc.token)]
+    request.install_opener(opener)
 
 
 def check_canceled(task: Task, context: dict, force=True):
@@ -116,44 +123,26 @@ def stream_subprocess(
         return stdout
 
 
-def organize_folder_for_training(data_dir: Path, downloaded_groundtruth: Path):
-    """
-    Organize directory downloaded from girder into a structure compatible with Viame.
-
-    Relevant documentation:
-    https://viame.readthedocs.io/en/latest/section_links/object_detector_training.html
-    """
-    if downloaded_groundtruth.is_dir():
-        files = list(downloaded_groundtruth.glob("*.csv"))
-
-        if not files:
-            raise Exception("No csv groundtruth files found.")
-
-        groundtruth_file = files[0]
-        temp_file = downloaded_groundtruth.parent / mktemp()
-
-        # Replace directory with file of same name
-        shutil.copyfile(groundtruth_file, temp_file)
-        shutil.rmtree(downloaded_groundtruth)
-        shutil.move(str(temp_file), downloaded_groundtruth)
-
-    groundtruth = data_dir / "groundtruth.csv"
-    shutil.move(str(downloaded_groundtruth), groundtruth)
-
-    return groundtruth
+def download_revision_csv(gc: GirderClient, dataset_id: str, revision: int, path: Path):
+    """Download CSV file for dataset @ revision"""
+    args = {'folderId': dataset_id, 'revision': revision, 'excludeBelowThreshold': True}
+    url = urljoin(urljoin(gc.urlBase, 'dive_annotation/export'), f'?{urlencode(args)}')
+    request.urlretrieve(url, filename=path)
 
 
-def download_source_media(girder_client: GirderClient, datasetId: str, dest: Path) -> List[str]:
+def download_source_media(
+    girder_client: GirderClient, datasetId: str, dest: Path
+) -> Tuple[List[str], str]:
     """Download media for dataset to dest path"""
     media = models.DatasetSourceMedia(**girder_client.get(f'dive_dataset/{datasetId}/media'))
     dataset = models.GirderMetadataStatic(**girder_client.get(f'dive_dataset/{datasetId}'))
     if dataset.type == constants.ImageSequenceType:
         for frameImage in media.imageData:
             girder_client.downloadItem(frameImage.id, str(dest))
-        return [str(dest / image.filename) for image in media.imageData]
+        return [str(dest / image.filename) for image in media.imageData], dataset.type
     elif dataset.type == constants.VideoType and media.video is not None:
         destination_path = str(dest / media.video.filename)
         girder_client.downloadFile(media.video.id, destination_path)
-        return [destination_path]
+        return [destination_path], dataset.type
     else:
         raise Exception(f"unexpected metadata {str(dataset.dict())}")

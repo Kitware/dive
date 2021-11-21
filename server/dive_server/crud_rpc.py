@@ -3,19 +3,18 @@ from typing import Dict, List, Optional, Tuple
 
 from girder.constants import AccessType
 from girder.exceptions import RestException
-from girder.models.assetstore import Assetstore
 from girder.models.file import File
 from girder.models.folder import Folder
 from girder.models.item import Item
 from girder.models.setting import Setting
 from girder.models.token import Token
-from girder.models.upload import Upload
-from girder_jobs.models.job import Job
+from girder_jobs.models.job import Job, JobStatus
+from girder_worker.girder_plugin.status import CustomJobStatus
 import pymongo
 
 from dive_server import crud, crud_annotation
 from dive_tasks import tasks
-from dive_utils import TRUTHY_META_VALUES, asbool, constants, fromMeta, models, slugify, types
+from dive_utils import TRUTHY_META_VALUES, asbool, constants, fromMeta, models, types
 from dive_utils.serializers import kwcoco, meva, viame
 
 from . import crud_dataset
@@ -25,6 +24,31 @@ def _get_queue_name(user: types.GirderUserModel, default="celery") -> str:
     if user.get(constants.UserPrivateQueueEnabledMarker, False):
         return f'{user["login"]}@private'
     return default
+
+
+def _check_running_jobs(folder_id_str: str):
+    """Find running jobs associated with the given folder"""
+    return (
+        Job().findOne(
+            {
+                constants.JOBCONST_DATASET_ID: folder_id_str,
+                'status': {
+                    '$in': [
+                        # All possible states for an incomplete job
+                        JobStatus.INACTIVE,
+                        JobStatus.QUEUED,
+                        JobStatus.RUNNING,
+                        CustomJobStatus.CANCELING,
+                        CustomJobStatus.CONVERTING_OUTPUT,
+                        CustomJobStatus.CONVERTING_INPUT,
+                        CustomJobStatus.FETCHING_INPUT,
+                        CustomJobStatus.PUSHING_OUTPUT,
+                    ],
+                },
+            }
+        )
+        is not None
+    )
 
 
 def _load_dynamic_pipelines(user: types.GirderUserModel) -> Dict[str, types.PipelineCategory]:
@@ -106,20 +130,9 @@ def run_pipeline(
     """
     verify_pipe(user, pipeline)
     crud.getCloneRoot(user, folder)
-
     folder_id_str = str(folder["_id"])
     # First, verify that no other outstanding jobs are running on this dataset
-    existing_jobs = Job().findOne(
-        {
-            constants.JOBCONST_DATASET_ID: folder_id_str,
-            'status': {
-                # Find jobs that are inactive, queued, or running
-                # https://github.com/girder/girder/blob/main/plugins/jobs/girder_jobs/constants.py
-                '$in': [0, 1, 2]
-            },
-        }
-    )
-    if existing_jobs is not None:
+    if _check_running_jobs(folder_id_str):
         raise RestException(
             (
                 f"A pipeline for {folder_id_str} is already running. "
@@ -130,23 +143,24 @@ def run_pipeline(
 
     token = Token().createToken(user=user, days=14)
 
-    requires_input = False  # include CSV input for pipe
+    input_revision = None  # include CSV input for pipe
     if pipeline["type"] == constants.TrainedPipelineCategory:
         # Verify that the user has READ access to the pipe they want to run
         pipeFolder = Folder().load(pipeline["folderId"], level=AccessType.READ, user=user)
-        requires_input = asbool(fromMeta(pipeFolder, "requires_input"))
+        if asbool(fromMeta(pipeFolder, "requires_input")):
+            input_revision = crud_annotation.get_last_revision(folder)
     elif pipeline["pipe"].startswith('utility_'):
         # TODO Temporary inclusion of utility pipes which take csv input
-        requires_input = True
+        input_revision = crud_annotation.get_last_revision(folder)
 
     job_is_private = user.get(constants.UserPrivateQueueEnabledMarker, False)
 
     params: types.PipelineJob = {
+        "pipeline": pipeline,
         "input_folder": folder_id_str,
         "input_type": fromMeta(folder, "type", required=True),
         "output_folder": folder_id_str,
-        "pipeline": pipeline,
-        "requires_input": requires_input,
+        "input_revision": input_revision,
     }
     newjob = tasks.run_pipeline.apply_async(
         queue=_get_queue_name(user, "pipelines"),
@@ -161,6 +175,7 @@ def run_pipeline(
     newjob.job[constants.JOBCONST_DATASET_ID] = folder_id_str
     newjob.job[constants.JOBCONST_RESULTS_FOLDER_ID] = folder_id_str
     newjob.job[constants.JOBCONST_PIPELINE_NAME] = pipeline['name']
+    newjob.job[constants.JOBCONST_CREATOR] = str(user['_id'])
     # Allow any users with accecss to the input data to also
     # see and possibly manage the job
     Job().copyAccessPolicies(folder, newjob.job)
@@ -198,7 +213,7 @@ def run_training(
     config: str,
     annotatedFramesOnly: bool,
 ) -> types.GirderModel:
-    folder_list = []
+    dataset_input_list: List[Tuple[str, int]] = []
     if folderIds is None or len(folderIds) == 0:
         raise RestException("No folderIds in param")
 
@@ -208,35 +223,29 @@ def run_training(
         if folder is None:
             raise RestException(f"Cannot access folder {folderId}")
         crud.getCloneRoot(user, folder)
-        folder_list.append(folder)
+        dataset_input_list.append((folderId, crud_annotation.get_last_revision(folder)))
 
     # Ensure the folder to upload results to exists
     results_folder = training_output_folder(user)
-    output_folders = list(
-        Folder().find(
-            query={
-                'parentId': results_folder['_id'],
-                'name': pipelineName,
-            },
-            user=user,
-            limit=1,
-        )
-    )
-    if len(output_folders):
+    if Folder().findOne({'parentId': results_folder['_id'], 'name': pipelineName}):
         raise RestException(
             f'Output pipeline "{pipelineName}" already exists, please choose a different name'
         )
+
+    params: types.TrainingJob = {
+        'results_folder_id': results_folder['_id'],
+        'dataset_input_list': dataset_input_list,
+        'pipeline_name': pipelineName,
+        'config': config,
+        'annotated_frames_only': annotatedFramesOnly,
+    }
     job_is_private = user.get(constants.UserPrivateQueueEnabledMarker, False)
     newjob = tasks.train_pipeline.apply_async(
         queue=_get_queue_name(user, "training"),
         kwargs=dict(
-            results_folder=results_folder,
-            source_folder_list=folder_list,
-            pipeline_name=pipelineName,
-            config=config,
-            annotated_frames_only=annotatedFramesOnly,
+            params=params,
             girder_client_token=str(token["_id"]),
-            girder_job_title=(f"Running training on {len(folder_list)} datasets"),
+            girder_job_title=(f"Running training on {len(folderIds)} datasets"),
             girder_job_type="private" if job_is_private else "training",
         ),
     )
@@ -245,6 +254,7 @@ def run_training(
     newjob.job[constants.JOBCONST_RESULTS_FOLDER_ID] = str(results_folder['_id'])
     newjob.job[constants.JOBCONST_TRAINING_CONFIG] = config
     newjob.job[constants.JOBCONST_PIPELINE_NAME] = pipelineName
+    newjob.job[constants.JOBCONST_CREATOR] = str(user['_id'])
     Job().save(newjob.job)
     return newjob.job
 
@@ -335,11 +345,13 @@ def process_items(folder: types.GirderModel, user: types.GirderUserModel):
                 description=f"Import from {filetype.name}",
             )
             crud.saveImportAttributes(folder, attrs, user)
+            item['meta'][constants.ProcessedMarker] = True
             Item().move(item, auxiliary)
 
         elif filetype == crud.FileType.DIVE_CONF:
             crud_dataset.update_metadata(folder, data)
-            Item().remove(item)
+            item['meta'][constants.ProcessedMarker] = True
+            Item().move(item, auxiliary)
 
         elif filetype == crud.FileType.DIVE_JSON:
             for track in data.values():
@@ -358,8 +370,9 @@ def process_items(folder: types.GirderModel, user: types.GirderUserModel):
                 [],
                 user,
                 overwrite=True,
-                description=f"Import from {filetype.value}",
+                description=f"Import from {filetype.value}"
             )
+            item['meta'][constants.ProcessedMarker] = True
             Item().move(item, auxiliary)
         else:
             raise RestException(f'Unknown file type {filetype.name}')
