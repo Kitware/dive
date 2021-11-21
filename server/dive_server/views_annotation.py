@@ -29,8 +29,8 @@ class AnnotationResource(Resource):
         self.route("GET", (), self.get_annotations)
         self.route("GET", ("revision",), self.get_revisions)
         self.route("GET", ("export",), self.export)
-
         self.route("PATCH", (), self.save_annotations)
+        self.route("DELETE", (), self.rollback)
 
     @access.user
     @autoDescribeRoute(
@@ -90,7 +90,7 @@ class AnnotationResource(Resource):
 
     @access.user
     @autoDescribeRoute(
-        Description("")
+        Description("Update annotations")
         .modelParam("folderId", **DatasetModelParam, level=AccessType.WRITE)
         .jsonParam("tracks", "upsert and delete tracks", paramType="body", requireObject=True)
     )
@@ -102,3 +102,13 @@ class AnnotationResource(Resource):
         upsert = [track.dict(exclude_none=True) for track in validated.upsert]
         user = self.getCurrentUser()
         return crud_annotation.save_annotations(folder, upsert, validated.delete, user)
+
+    @access.user
+    @autoDescribeRoute(
+        Description("Rollback annotation revision")
+        .modelParam("folderId", **DatasetModelParam, level=AccessType.WRITE)
+        .param('revision', 'revision', dataType='integer')
+    )
+    def rollback(self, folder, revision):
+        crud.verify_dataset(folder)
+        crud_annotation.rollback(folder, revision)
