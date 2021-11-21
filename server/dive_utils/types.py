@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from typing_extensions import TypedDict
 
@@ -54,10 +54,21 @@ class PipelineJob(TypedDict):
     """Describes the parameters for running a pipeline on a dataset."""
 
     pipeline: PipelineDescription
-    input_folder: str
-    input_type: str
-    output_folder: str
-    requires_input: bool
+    input_folder: str  # dataset folder id
+    input_type: str  # video, image-sequence, etc.
+    input_revision: Optional[int]  # A revision ID is included if the pipeline needs input
+    output_folder: str  # Where to upload results
+
+
+class TrainingJob(TypedDict):
+    """Describes the paramteers for running training"""
+
+    results_folder_id: str  # Where to upload the outputs
+    dataset_input_list: List[Tuple[str, int]]  # Tuples of (dataset_id, revision_id)
+    pipeline_name: str  # Name of the new pipeline to train
+    config: str  # Name of the training configuration file to use.
+    annotated_frames_only: bool  # Train on only the annotated frames
+    label_txt: Optional[str]  # Contents of a labels.txt to include in training
 
 
 class TrainingConfigurationSummary(TypedDict):
