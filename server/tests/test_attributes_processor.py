@@ -1,5 +1,5 @@
 import json
-from typing import Dict, List
+from typing import Dict
 
 import pytest
 
@@ -11,7 +11,7 @@ with open('../testutils/attributes.spec.json', 'r') as fp:
 
 @pytest.mark.parametrize("input,expected_tracks,expected_attributes", test_tuple)
 def test_read_viame_attributes(
-    input: List[str],
+    input: Dict[str, dict],
     expected_tracks: Dict[str, dict],
     expected_attributes: Dict[str, dict],
 ):
@@ -19,7 +19,7 @@ def test_read_viame_attributes(
     text = ''
     for _i, line in enumerate(
         export_tracks_as_csv(
-            input,
+            input.values(),
         )
     ):
         print(line)
