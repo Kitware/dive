@@ -65,6 +65,7 @@ VideoMimeTypes = {
 DatasetMarker = "annotate"
 PublishedMarker = "published"
 SharedMarker = "shared"
+ProcessedMarker = "processed"
 ForeignMediaIdMarker = "foreign_media_id"
 TrainedPipelineMarker = "trained_pipeline"
 TypeMarker = "type"
@@ -91,6 +92,7 @@ JOBCONST_TRAINING_CONFIG = 'training_config'
 JOBCONST_RESULTS_FOLDER_ID = 'results_folder_id'
 JOBCONST_PIPELINE_NAME = 'pipeline_name'
 JOBCONST_PRIVATE_QUEUE = 'private_queue'
+JOBCONST_CREATOR = 'creator'
 
 # User queue constants
 UserPrivateQueueEnabledMarker = 'user_private_queue_enabled'

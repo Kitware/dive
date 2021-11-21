@@ -21,7 +21,7 @@ from dive_tasks.frame_alignment import check_and_fix_frame_alignment
 from dive_tasks.manager import patch_manager
 from dive_tasks.pipeline_discovery import discover_configs
 from dive_utils import constants, fromMeta
-from dive_utils.types import AvailableJobSchema, GirderModel, PipelineJob
+from dive_utils.types import AvailableJobSchema, GirderModel, PipelineJob, TrainingJob
 
 EMPTY_JOB_SCHEMA: AvailableJobSchema = {
     'pipelines': {},
@@ -173,6 +173,7 @@ def run_pipeline(self: Task, params: PipelineJob):
         return
 
     gc: GirderClient = self.girder_client
+    utils.authenticate_urllib(gc)
     manager.updateStatus(JobStatus.FETCHING_INPUT)
 
     # Extract params
@@ -180,7 +181,7 @@ def run_pipeline(self: Task, params: PipelineJob):
     input_folder_id = str(params["input_folder"])
     input_type = params["input_type"]
     output_folder_id = str(params["output_folder"])
-    pipeline_input = params["pipeline_input"]
+    input_revision = params["input_revision"]
 
     with tempfile.TemporaryDirectory() as _working_directory, suppress(utils.CanceledError):
         _working_directory_path = Path(_working_directory)
@@ -206,7 +207,7 @@ def run_pipeline(self: Task, params: PipelineJob):
 
         # Download source media
         input_folder: GirderModel = gc.getFolder(input_folder_id)
-        input_media_list = utils.download_source_media(gc, input_folder_id, input_path)
+        input_media_list, _ = utils.download_source_media(gc, input_folder_id, input_path)
 
         if input_type == constants.VideoType:
             input_fps = fromMeta(input_folder, constants.FPSMarker)
@@ -238,11 +239,10 @@ def run_pipeline(self: Task, params: PipelineJob):
             raise ValueError('Unknown input type: {}'.format(input_type))
 
         # Include input detections
-        if pipeline_input is not None:
-            pipeline_input_id = str(pipeline_input['_id'])
-            pipeline_input_file = str(input_path / pipeline_input["name"])
-            self.girder_client.downloadFile(pipeline_input_id, pipeline_input_file)
-            quoted_input_file = shlex.quote(pipeline_input_file)
+        if input_revision is not None:
+            pipeline_input_file = input_path / 'groundtruth.csv'
+            utils.download_revision_csv(gc, input_folder_id, input_revision, pipeline_input_file)
+            quoted_input_file = shlex.quote(str(pipeline_input_file))
             command.append(f'-s detection_reader:file_name={quoted_input_file}')
             command.append(f'-s track_reader:file_name={quoted_input_file}')
 
@@ -269,26 +269,8 @@ def run_pipeline(self: Task, params: PipelineJob):
 
 
 @app.task(bind=True, acks_late=True, ignore_result=True)
-def train_pipeline(
-    self: Task,
-    results_folder: GirderModel,
-    source_folder_list: List[GirderModel],
-    groundtruth_list: List[GirderModel],
-    pipeline_name: str,
-    config: str,
-    annotated_frames_only: bool = False,
-):
-    """
-    Train a pipeline by making a call to viame_train_detector
-
-    :param results_folder: The Girder Folder to place the results of training into
-    :param source_folder_list: The Girder Folders to pull training data from
-    :param groundtruth_list: A list of relative paths to either a file containing detections,
-        or a folder containing that file.
-    :param pipeline_name: The base name of the resulting pipeline.
-    :param config: string name of the input configuration
-    :param annotated_frames_only: Only use annotated frames for training
-    """
+def train_pipeline(self: Task, params: TrainingJob):
+    """Train a pipeline by making a call to viame_train_detector"""
     conf = Config()
     context: dict = {}
     manager: JobManager = patch_manager(self.job_manager)
@@ -297,17 +279,19 @@ def train_pipeline(
         return
 
     gc: GirderClient = self.girder_client
+    utils.authenticate_urllib(gc)
     manager.updateStatus(JobStatus.FETCHING_INPUT)
+
+    # Extract params
+    results_folder_id = params['results_folder_id']
+    dataset_input_list = params['dataset_input_list']
+    pipeline_name = params['pipeline_name']
+    config = params['config']
+    annotated_frames_only = params['annotated_frames_only']
 
     pipeline_base_path = Path(conf.get_extracted_pipeline_path())
     config_file = pipeline_base_path / config
-
-    if len(source_folder_list) != len(groundtruth_list):
-        raise Exception("Ground truth doesn't exist for all folders")
-
-    # List of folderIds used for training
-    trained_on_list: List[str] = []
-    # List of[input folder / ground truth file] pairs for creating input lists
+    # List of (input folder, ground truth file) pairs for creating input lists
     input_groundtruth_list: List[Tuple[Path, Path]] = []
     # root_data_dir is the directory passed to `viame_train_detector`
     with tempfile.TemporaryDirectory() as _working_directory, suppress(utils.CanceledError):
@@ -315,22 +299,16 @@ def train_pipeline(
         input_path = utils.make_directory(_working_directory_path / 'input')
         output_path = utils.make_directory(_working_directory_path / 'output')
 
-        for index in range(len(source_folder_list)):
-            source_folder = source_folder_list[index]
-            groundtruth = groundtruth_list[index]
-            download_path = input_path / source_folder['name']
-            trained_on_list.append(str(source_folder["_id"]))
+        for source_folder_id, revision in dataset_input_list:
+            download_path = input_path / source_folder_id
+            groundtruth_path = download_path / 'groundtruth.csv'
             # Download groundtruth item
-            gc.downloadItem(str(groundtruth["_id"]), download_path)
-            # Rename groundtruth csv file
-            groundtruth_path = utils.organize_folder_for_training(
-                download_path, download_path / groundtruth["name"]
-            )
+            utils.download_revision_csv(gc, source_folder_id, revision, groundtruth_path)
             # Download input media
-            input_media_list = utils.download_source_media(
-                gc, str(source_folder["_id"]), download_path
+            input_media_list, input_type = utils.download_source_media(
+                gc, source_folder_id, download_path
             )
-            if fromMeta(source_folder, constants.TypeMarker) == constants.VideoType:
+            if input_type == constants.VideoType:
                 download_path = Path(input_media_list[0])
             # Set media source location
             input_groundtruth_list.append((download_path, groundtruth_path))
@@ -380,11 +358,11 @@ def train_pipeline(
         # This is the name of the folder that is uploaded to the
         # "Training Results" girder folder
         girder_output_folder = gc.createFolder(
-            results_folder["_id"],
+            results_folder_id,
             pipeline_name,
             metadata={
                 constants.TrainedPipelineMarker: True,
-                "trained_on": trained_on_list,
+                "trained_on": dataset_input_list,
             },
         )
         gc.upload(f"{training_results_path}/*", girder_output_folder["_id"])
