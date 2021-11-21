@@ -168,17 +168,6 @@ class DatasetSourceMedia(BaseModel):
     video: Optional[MediaResource]
 
 
-class SummaryItemSchema(BaseModel):
-    value: str
-    total_tracks: int
-    total_detections: int
-    found_in: List[str]
-
-
-class PublicDataSummary(BaseModel):
-    label_summary_items: List[SummaryItemSchema]
-
-
 class PrivateQueueEnabledResponse(BaseModel):
     enabled: bool
     token: Optional[dict]

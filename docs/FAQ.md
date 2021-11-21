@@ -2,10 +2,7 @@
 
 ## How do I find existing data to use?
 
-There are two places to look.
-
-* The [Training Data Collection](https://viame.kitware.com/#/collection/5e4c256ca0fc86aa03120c34) is organized rougly by domain and collection method.
-* The [Stats Summary Page](https://viame.kitware.com/#/summary) lists every published dataset organized by object label.
+The [Training Data Collection](https://viame.kitware.com/#/collection/5e4c256ca0fc86aa03120c34) is organized rougly by domain and collection method.
 
 ## How do I share data with others?
 
