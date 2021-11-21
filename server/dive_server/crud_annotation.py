@@ -79,6 +79,18 @@ def get_revisions(
     return cursor, total
 
 
+def rollback(dsFolder: types.GirderModel, revision: int):
+    """Reset to previous revision."""
+    # TODO implement immutabble forward-rollback (like git revert)
+    # Logic: delete everything created after revision
+    # And erase deletions for anything deleted after revision
+    RevisionLogItem().removeWithQuery({REVISION: {'$gt': revision}})
+    AnnotationItem().removeWithQuery({REVISION_CREATED: {'$gt': revision}})
+    AnnotationItem().update(
+        {REVISION_DELETED: {'$gt': revision}}, {'$unset': {REVISION_DELETED: ""}}
+    )
+
+
 def get_annotations_as_dict(dsFolder: types.GirderModel):
     cursor, _ = get_annotations(dsFolder)
     output = {}
@@ -140,7 +152,6 @@ def save_annotations(
     """
     Annotations are lazy-deleted by marking their staleness property as true.
     """
-
     datasetId = dsFolder['_id']
     expire_operations = []  # Mark existing records as deleted
     expire_result = {}
