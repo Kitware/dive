@@ -12,7 +12,7 @@ import RunPipelineMenu from 'dive-common/components/RunPipelineMenu.vue';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import RunTrainingMenu from './RunTrainingMenu.vue';
 
-import { deleteResources, getUri } from '../api';
+import { deleteResources } from '../api';
 import Export from './Export.vue';
 import Upload from './Upload.vue';
 import DataDetails from './DataDetails.vue';
@@ -103,13 +103,6 @@ export default defineComponent({
     selectedDescription() {
       return this.location?.description;
     },
-    summaryUrl() {
-      return getUri({
-        url: 'dive_summary/max_n',
-        // eslint-disable-next-line @typescript-eslint/camelcase
-        params: { folder_ids: JSON.stringify(this.locationInputs) },
-      });
-    },
   },
   methods: {
     async deleteSelection() {
@@ -181,19 +174,6 @@ export default defineComponent({
                   v-bind="{ buttonOptions, menuOptions }"
                   :dataset-id="exportTargetId"
                 />
-                <v-btn
-                  :disabled="!locationInputs.length"
-                  v-bind="{ ...buttonOptions }"
-                  :href="summaryUrl"
-                  target="_blank"
-                >
-                  <v-icon>
-                    mdi-file-chart
-                  </v-icon>
-                  <span class="pl-1">
-                    Generate Summary
-                  </span>
-                </v-btn>
                 <v-btn
                   :disabled="!selected.length"
                   v-bind="{ ...buttonOptions }"

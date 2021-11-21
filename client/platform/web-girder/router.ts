@@ -6,7 +6,6 @@ import Home from './views/Home.vue';
 import Jobs from './views/Jobs.vue';
 import Login from './views/Login.vue';
 import RouterPage from './views/RouterPage.vue';
-import Summary from './views/Summary.vue';
 import ViewerLoader from './views/ViewerLoader.vue';
 import DataShared from './views/DataShared.vue';
 import DataBrowser from './views/DataBrowser.vue';
@@ -39,12 +38,6 @@ const router = new Router({
       path: '/',
       component: RouterPage,
       children: [
-        {
-          path: 'summary',
-          name: 'summary',
-          component: Summary,
-          beforeEnter,
-        },
         {
           path: 'jobs',
           name: 'jobs',
