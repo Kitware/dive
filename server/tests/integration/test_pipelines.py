@@ -9,10 +9,12 @@ from .conftest import getClient, getTestFolder, match_user_server_data, users, w
 
 
 @pytest.mark.integration
-@pytest.mark.run(order=7)
+@pytest.mark.run(order=3)
 def test_reset_job_logs(admin_client: GirderClient):
     # remove any failed jobs.
-    for job in admin_client.get('job', parameters={"statuses": json.dumps([0, 1, 2, 4, 5, 824])}):
+    for job in admin_client.get(
+        'job/all', parameters={"statuses": json.dumps([0, 1, 2, 4, 5, 824])}
+    ):
         admin_client.delete(f'job/{job["_id"]}')
 
 

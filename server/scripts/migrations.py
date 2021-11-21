@@ -1,5 +1,4 @@
 import json
-import re
 
 import click
 from girder.models.file import File

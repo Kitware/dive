@@ -13,7 +13,7 @@ def test_download_annotation(user: dict):
         downloaded = client.get(f'dive_annotation/?folderId={dataset["_id"]}')
         if 'clone' not in dataset['name']:
             expected = match_user_server_data(user, dataset)
-            assert len(downloaded.keys()) == expected[0]['trackCount']
+            assert len(downloaded) == expected[0]['trackCount']
 
 
 @pytest.mark.integration
@@ -50,11 +50,16 @@ def test_upload_json_detections(user: dict):
     client = getClient(user['login'])
     privateFolder = getTestFolder(client)
     for dataset in client.listFolder(privateFolder['_id']):
-        old_tracks = client.get(f'dive_annotation?folderId={dataset["_id"]}')
-        newfile = client.uploadFileToFolder(dataset['_id'], '../testutils/tracks.json')
-        client.post(f'dive_rpc/postprocess/{dataset["_id"]}', data={"skipJobs": True})
-        new_tracks = client.get(f'dive_annotation?folderId={dataset["_id"]}')
+        old_tracks_list = client.get(f'dive_annotation?folderId={dataset["_id"]}')
+        old_tracks = {str(track['trackId']): track for track in old_tracks_list}
         assert '999999' not in old_tracks, "Tracks should have updated"
+        old_revision = client.get(f'dive_annotation/revision?folderId={dataset["_id"]}')[0][
+            'revision'
+        ]
+        client.uploadFileToFolder(dataset['_id'], '../testutils/tracks.json')
+        client.post(f'dive_rpc/postprocess/{dataset["_id"]}', data={"skipJobs": True})
+        new_tracks_list = client.get(f'dive_annotation?folderId={dataset["_id"]}')
+        new_tracks = {str(track['trackId']): track for track in new_tracks_list}
         assert '999999' in new_tracks, "Should have one track, 999999"
-        assert len(new_tracks.keys()) == 1, "Should have a single track"
-        client.delete(f'item/{newfile["itemId"]}')  # Remove the uploaded detections
+        assert len(new_tracks_list) == 1, "Should have a single track"
+        client.delete(f'dive_annotation?folderId={dataset["_id"]}&revision={old_revision}')
