@@ -275,7 +275,7 @@ def train_pipeline(
     source_folder_list: List[GirderModel],
     groundtruth_list: List[GirderModel],
     pipeline_name: str,
-    label_text:str,
+    label_text: str,
     config: str,
     annotated_frames_only: bool = False,
 ):
@@ -319,9 +319,8 @@ def train_pipeline(
 
         if label_text:
             labels_path = input_path / "labels.txt"
-            with open( labels_path, "w+") as labels_file:
+            with open(labels_path, "w+") as labels_file:
                 labels_file.write(label_text)
-
 
         for index in range(len(source_folder_list)):
             source_folder = source_folder_list[index]
