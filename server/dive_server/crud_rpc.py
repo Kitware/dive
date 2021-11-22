@@ -326,7 +326,14 @@ def process_items(folder: types.GirderModel, user: types.GirderUserModel):
             raise RestException(f'{file["name"]} was not valid JSON or CSV: {e}') from e
 
         if filetype == crud.FileType.VIAME_CSV or filetype == crud.FileType.COCO_JSON:
-            crud_annotation.save_annotations(folder, data.values(), [], user, overwrite=True)
+            crud_annotation.save_annotations(
+                folder,
+                data.values(),
+                [],
+                user,
+                overwrite=True,
+                description=f"Import from {filetype.value}",
+            )
             crud.saveImportAttributes(folder, attrs, user)
             Item().move(item, auxiliary)
 
@@ -345,7 +352,14 @@ def process_items(folder: types.GirderModel, user: types.GirderUserModel):
                         )
                     )
                 crud.get_validated_model(models.Track, **track)
-            crud_annotation.save_annotations(folder, data.values(), [], user, overwrite=True)
+            crud_annotation.save_annotations(
+                folder,
+                data.values(),
+                [],
+                user,
+                overwrite=True,
+                description=f"Import from {filetype.value}",
+            )
             Item().move(item, auxiliary)
         else:
             raise RestException(f'Unknown file type {filetype}')
@@ -434,7 +448,9 @@ def postprocess(
 
             allFiles = [make_file_generator(item) for item in ymlItems]
             data = meva.load_kpf_as_tracks(allFiles)
-            crud_annotation.save_annotations(dsFolder, data.values(), [], user, overwrite=True)
+            crud_annotation.save_annotations(
+                dsFolder, data.values(), [], user, overwrite=True, description="Import from KPF"
+            )
             ymlItems.rewind()
             for item in ymlItems:
                 Item().move(item, auxiliary)

@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from bson.objectid import InvalidId, ObjectId
+from bson.objectid import ObjectId
 from pydantic import BaseModel, Field, validator
 from typing_extensions import Literal
 
@@ -89,18 +89,19 @@ class Track(BaseModel):
 
 
 class AnnotationItemSchema(Track):
-    dataset: PydanticObjectId  # Not supported by pydantic
+    dataset: PydanticObjectId
     rev_created: int = 0
     rev_deleted: Optional[int]
 
 
 class RevisionLog(BaseModel):
-    dataset: PydanticObjectId  # Not supported by pydantic
-    author_id: PydanticObjectId  # Not supported by pydantic
+    dataset: PydanticObjectId
+    author_id: PydanticObjectId
     author_name: str
     revision: int
     additions: int = 0
     deletions: int = 0
+    created: datetime = Field(default_factory=datetime.utcnow)
     description: Optional[str]
 
 

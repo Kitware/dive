@@ -24,7 +24,7 @@ class AnnotationItem(crud.PydanticModel):
     }
 
     def initialize(self):
-        self._indices = [[[(DATASET, 1), (TRACKID, 1), (REVISION_CREATED, 1)], {}]]
+        self._indices = [[[(DATASET, 1), (TRACKID, 1), (REVISION_CREATED, 1)], {'unique': True}]]
         super().initialize("annotationItem", models.AnnotationItemSchema)
 
 
@@ -32,7 +32,7 @@ class RevisionLogItem(crud.PydanticModel):
     PROJECT_FIELDS = {'_id': 0}
 
     def initialize(self):
-        self._indices = [[[(DATASET, 1), (REVISION, 1)], {}]]
+        self._indices = [[[(DATASET, 1), (REVISION, 1)], {'unique': True}]]
         super().initialize("revisionLogItem", models.RevisionLog)
 
 
@@ -134,6 +134,7 @@ def save_annotations(
     upsert_list: Iterable[dict],
     delete_list: Iterable[int],
     user: types.GirderUserModel,
+    description="save",
     overwrite=False,
 ):
     """
@@ -192,6 +193,7 @@ def save_annotations(
             revision=new_revision,
             additions=additions,
             deletions=deletions,
+            description=description,
         )
         RevisionLogItem().create(log_entry)
 
@@ -205,4 +207,4 @@ def clone_annotations(
     revision: Optional[int] = None,
 ):
     source_iter, _ = get_annotations(source, revision=revision)
-    save_annotations(dest, source_iter, [], user)
+    save_annotations(dest, source_iter, [], user, description="initialize clone")

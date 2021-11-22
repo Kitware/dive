@@ -34,7 +34,7 @@ def migrate_server(dry_run):
                     click.echo(f'  Loading {len(tracks)} tracks into {dataset_id}')
                     total_tracks_ingested += len(tracks)
                     crud_annotation.save_annotations(
-                        dataset, tracks, [], admin_user, overwrite=True
+                        dataset, tracks, [], admin_user, overwrite=True, description="Migration"
                     )
                     annotation['meta']['migrated'] = True
                     Item().updateItem(annotation)
