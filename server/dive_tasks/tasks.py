@@ -317,9 +317,11 @@ def train_pipeline(
         input_path = utils.make_directory(_working_directory_path / 'input')
         output_path = utils.make_directory(_working_directory_path / 'output')
 
-        labels_path = input_path / "labels.txt"
-        with open( labels_path, "w+") as labels_file:
-            labels_file.write(label_text)
+        if label_text:
+            labels_path = input_path / "labels.txt"
+            with open( labels_path, "w+") as labels_file:
+                labels_file.write(label_text)
+
 
         for index in range(len(source_folder_list)):
             source_folder = source_folder_list[index]
@@ -359,8 +361,6 @@ def train_pipeline(
             shlex.quote(str(input_folder_file_list)),
             "--input-truth",
             shlex.quote(str(ground_truth_file_list)),
-            "--labels",
-            shlex.quote(str(labels_path)),
             "--config",
             shlex.quote(str(config_file)),
             "--no-query",
@@ -369,6 +369,10 @@ def train_pipeline(
 
         if annotated_frames_only:
             command.append("--gt-frames-only")
+
+        if label_text:
+            command.append("--labels")
+            command.append(shlex.quote(str(labels_path)))
 
         manager.updateStatus(JobStatus.RUNNING)
         popen_kwargs = {
