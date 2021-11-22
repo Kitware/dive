@@ -37,6 +37,8 @@ DIVE takes two different kinds of input data, either a video file (e.g. .mpg) or
 be optionally accompanied with a CSV file containing video annotations. Example input sequences are available at
 https://viame.kitware.com/girder#collections.
 
+DIVE can also accept a flat Zip files with a list of images.
+
 ### Output
 
 When running an algorithmic pipelines or performing manual video annotation (and saving the annotations with the save

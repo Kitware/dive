@@ -146,6 +146,32 @@ users: Dict[str, Dict[str, Any]] = {
     },
 }
 
+zipUser: Dict[str, Dict[str, Any]] = {
+    "zipUser": {
+        'login': 'zipUser',
+        'email': 'zipUser@locahost.lan',
+        'firstName': 'zip',
+        'lastName': 'User',
+        'password': 'zipUserPass',
+        'data': [
+            {
+                'name': 'testImageZip',
+                'path': 'zipTestFiles/testImageZip.zip',
+                'fps': 1,
+                'type': 'image-sequence',
+                'trackCount': 197,
+            },
+            {
+                'name': 'testVideoZip',
+                'path': 'zipTestFiles/testVideoZip.zip',
+                'fps': 29.97002997002997,
+                'originalFps': 30000 / 1001,
+                'type': 'video',
+            },
+        ],
+    }
+}
+
 
 def getClient(name: str) -> GirderClient:
     gc = GirderClient(apiUrl='http://localhost:8010/api/v1')

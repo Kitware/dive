@@ -34,6 +34,11 @@ A user account is required to store data and run pipelines on viame.kitware.com.
 * Choose a name for the data, enter the optional video playback frame rate, and press start-upload.
 * In the data browser, a new blue "Launch Annotator" button will appear next to your data.
 
+### Zip Files
+
+Single flat annotations inside of a zip file can be uploaded as well as invidiual videos or images.
+Images can be zipped together with their annotations and uploaded.
+
 !!! info
 
     All video uploaded to the web server will be transcoded as `mp4/h264`.
