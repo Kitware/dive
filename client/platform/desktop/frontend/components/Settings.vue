@@ -3,7 +3,7 @@ import {
   defineComponent, onBeforeMount, ref, computed, set, watch,
 } from '@vue/composition-api';
 
-import { remote } from 'electron';
+import { dialog, app } from '@electron/remote';
 
 import { useRequest } from 'dive-common/use';
 import { NvidiaSmiReply } from 'platform/desktop/constants';
@@ -24,7 +24,7 @@ export default defineComponent({
   setup() {
     const { arch, platform, version } = process;
     const gitHash = process.env.VUE_APP_GIT_HASH;
-    const appversion = remote.app.getVersion();
+    const appversion = app.getVersion();
 
     // local copy of the global settings
     const localSettings = ref(cloneDeep(settings.value));
@@ -50,7 +50,7 @@ export default defineComponent({
 
     async function openPath(name: 'viamePath' | 'dataPath') {
       const defaultPath = localSettings.value?.[name];
-      const result = await remote.dialog.showOpenDialog({
+      const result = await dialog.showOpenDialog({
         properties: ['openDirectory'],
         defaultPath,
       });

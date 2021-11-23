@@ -21,7 +21,7 @@ jobs:
     - 
       uses: actions/setup-node@v1
       with:
-        node-version: '14.x'
+        node-version: '16.x'
     -
       name: Get yarn cache directory path
       id: yarn-cache-dir-path
@@ -53,6 +53,8 @@ jobs:
       name: Build Web
       if: ${{ matrix.target == 'web' }}
       run: yarn build:web
+      env:
+        SENTRY_AUTH_TOKEN: ${{ github.ref == 'refs/heads/main' && secrets.SENTRY_AUTH_TOKEN || '' }}
     - 
       name: Build lib
       if: ${{ matrix.target == 'lib' }}

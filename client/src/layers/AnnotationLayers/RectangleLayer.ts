@@ -18,9 +18,12 @@ interface RectGeoJSData{
 export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
     drawingOther: boolean; //drawing another type of annotation at the same time?
 
+    hoverOn: boolean; //to turn over annnotations on
+
     constructor(params: BaseLayerParams) {
       super(params);
       this.drawingOther = false;
+      this.hoverOn = false;
       //Only initialize once, prevents recreating Layer each edit
       this.initialize();
     }
@@ -51,12 +54,35 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
         this.featureLayer.mouseOverOrderClosestBorder,
       );
       this.featureLayer.geoOn(geo.event.mouseclick, (e: GeoEvent) => {
-      // If we aren't clicking on an annotation we can deselect the current track
+        // If we aren't clicking on an annotation we can deselect the current track
         if (this.featureLayer.pointSearch(e.geo).found.length === 0) {
           this.bus.$emit('annotation-clicked', null, false);
         }
       });
       super.initialize();
+    }
+
+    hoverAnnotations(e: GeoEvent) {
+      const { found } = this.featureLayer.pointSearch(e.mouse.geo);
+      this.bus.$emit('annotation-hover', found, e.mouse.geo);
+    }
+
+    setHoverAnnotations(val: boolean) {
+      if (!this.hoverOn && val) {
+        this.featureLayer.geoOn(
+          geo.event.feature.mouseover,
+          (e: GeoEvent) => this.hoverAnnotations(e),
+        );
+        this.featureLayer.geoOn(
+          geo.event.feature.mouseoff,
+          (e: GeoEvent) => this.hoverAnnotations(e),
+        );
+        this.hoverOn = true;
+      } else if (this.hoverOn && !val) {
+        this.featureLayer.geoOff(geo.event.feature.mouseover);
+        this.featureLayer.geoOff(geo.event.feature.mouseoff);
+        this.hoverOn = false;
+      }
     }
 
     /**

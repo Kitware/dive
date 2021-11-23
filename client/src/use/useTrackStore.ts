@@ -57,6 +57,7 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
   const trackIds: Ref<Array<TrackId>> = ref([]);
   const canary = ref(0);
 
+
   function _depend(): number {
     return canary.value;
   }
@@ -82,7 +83,7 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
   }
 
   function insertTrack(track: Track, args?: InsertArgs) {
-    track.bus.$on('notify', onChange);
+    track.setNotifier(onChange);
     trackMap.set(track.trackId, track);
     intervalTree.insert([track.begin, track.end], track.trackId.toString());
     if (args && args.afterId) {
@@ -117,7 +118,7 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
     if (!intervalTree.remove(range, trackId.toString())) {
       throw new Error(`TrackId ${trackId} with range ${range} not found in tree.`);
     }
-    track.bus.$off(); // remove all event listeners
+    track.setNotifier(undefined);
     trackMap.delete(trackId);
     const listIndex = trackIds.value.findIndex((v) => v === trackId);
     if (listIndex === -1) {

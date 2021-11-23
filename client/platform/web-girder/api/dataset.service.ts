@@ -127,9 +127,7 @@ interface ValidationResponse {
 }
 
 function validateUploadGroup(names: string[]) {
-  return girderRest.get<ValidationResponse>('dive_dataset/validate_files', {
-    params: { files: JSON.stringify(names) },
-  });
+  return girderRest.post<ValidationResponse>('dive_dataset/validate_files', names);
 }
 
 

@@ -2,8 +2,8 @@
 import {
   defineComponent,
   reactive,
-  toRefs,
   toRef,
+  watch,
 } from '@vue/composition-api';
 
 import { TypeList, TrackList } from 'vue-media-annotator/components';
@@ -15,11 +15,19 @@ import TrackSettingsPanel from 'dive-common/components/TrackSettingsPanel.vue';
 import TypeSettingsPanel from 'dive-common/components/TypeSettingsPanel.vue';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 
+/* Magic numbers used in height calculations */
+const toolbarHeight = 112;
+const confidenceThresholdHeight = 52;
+
 export default defineComponent({
   props: {
     width: {
       type: Number,
       default: 300,
+    },
+    enableSlot: {
+      type: Boolean,
+      default: false,
     },
   },
 
@@ -31,7 +39,7 @@ export default defineComponent({
     TypeSettingsPanel,
   },
 
-  setup() {
+  setup(props) {
     const allTypesRef = useAllTypes();
     const { toggleMerge, commitMerge } = useHandler();
     const { visible } = usePrompt();
@@ -40,6 +48,8 @@ export default defineComponent({
 
     const data = reactive({
       currentTab: 'tracks' as 'tracks' | 'attributes',
+      typeHeight: 0,
+      trackHeight: 0,
     });
 
     function swapTabs() {
@@ -55,15 +65,30 @@ export default defineComponent({
         data.currentTab = 'attributes';
       }
     }
+
+    function onResize() {
+      const totalHeight = window.innerHeight - toolbarHeight;
+      data.typeHeight = Math.floor(totalHeight * 0.45);
+      data.trackHeight = Math.floor(totalHeight * 0.55);
+      if (props.enableSlot) {
+        data.typeHeight -= confidenceThresholdHeight;
+      }
+    }
+    onResize();
+    watch(toRef(props, 'enableSlot'), onResize);
+
     return {
+      /* data */
       allTypesRef,
+      commitMerge,
+      data,
       trackSettings,
       typeSettings,
-      swapTabs,
-      doToggleMerge,
-      commitMerge,
-      ...toRefs(data),
       visible,
+      /* methods */
+      doToggleMerge,
+      onResize,
+      swapTabs,
     };
   },
 });
@@ -71,6 +96,7 @@ export default defineComponent({
 
 <template>
   <v-card
+    v-resize="onResize"
     :width="width"
     tile
     outlined
@@ -93,13 +119,15 @@ export default defineComponent({
     </v-btn>
     <v-slide-x-transition>
       <div
-        v-if="currentTab === 'tracks'"
+        v-if="data.currentTab === 'tracks'"
         key="type-tracks"
         class="wrapper d-flex flex-column"
       >
         <TypeList
           :show-empty-types="typeSettings.showEmptyTypes"
-          class="flex-shrink-1 flex-grow-1 typelist"
+          :height="data.typeHeight"
+          :width="width"
+          class="flex-shrink-1 flex-grow-1"
         >
           <template slot="settings">
             <TypeSettingsPanel
@@ -108,8 +136,7 @@ export default defineComponent({
             />
           </template>
         </TypeList>
-        <v-spacer />
-        <slot />
+        <slot v-if="enableSlot" />
         <v-divider />
         <TrackList
           class="flex-grow-0 flex-shrink-0"
@@ -117,6 +144,7 @@ export default defineComponent({
           :new-track-type="trackSettings.newTrackSettings.type"
           :lock-types="typeSettings.lockTypes"
           :hotkeys-disabled="visible()"
+          :height="data.trackHeight"
           @track-seek="$emit('track-seek', $event)"
         >
           <template slot="settings">
@@ -127,7 +155,7 @@ export default defineComponent({
         </TrackList>
       </div>
       <track-details-panel
-        v-else-if="currentTab === 'attributes'"
+        v-else-if="data.currentTab === 'attributes'"
         :lock-types="typeSettings.lockTypes"
         :hotkeys-disabled="visible()"
         :width="width"
@@ -152,10 +180,6 @@ export default defineComponent({
   left: 0;
   right: 0;
   bottom: 0;
-}
-
-.typelist {
-  min-height: 250px;
 }
 
 .swap-button {

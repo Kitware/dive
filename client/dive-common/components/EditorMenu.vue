@@ -105,6 +105,13 @@ export default Vue.extend({
           icon: 'mdi-format-text',
           click: () => this.toggleVisible('text'),
         },
+        {
+          id: 'tooltip',
+          type: 'tooltip',
+          active: this.isVisible('tooltip'),
+          icon: 'mdi-tooltip-text-outline',
+          click: () => this.toggleVisible('tooltip'),
+        },
 
       ];
     },

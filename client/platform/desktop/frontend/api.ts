@@ -2,7 +2,8 @@ import type { FileFilter } from 'electron';
 
 import npath from 'path';
 import axios, { AxiosInstance } from 'axios';
-import { ipcRenderer, remote } from 'electron';
+import { ipcRenderer } from 'electron';
+import { dialog, app } from '@electron/remote';
 
 import type {
   DatasetMetaMutable, DatasetType, MultiCamImportArgs,
@@ -52,7 +53,7 @@ async function openFromDisk(datasetType: DatasetType | 'calibration' | 'annotati
     ];
   }
   const props = (datasetType === 'image-sequence' || directory) ? 'openDirectory' : 'openFile';
-  const results = await remote.dialog.showOpenDialog({
+  const results = await dialog.showOpenDialog({
     properties: [props],
     filters,
   });
@@ -128,9 +129,9 @@ function finalizeImport(args: DesktopMediaImportResponse): Promise<JsonMeta> {
 async function exportDataset(
   id: string, exclude: boolean, typeFilter: readonly string[],
 ): Promise<string> {
-  const location = await remote.dialog.showSaveDialog({
+  const location = await dialog.showSaveDialog({
     title: 'Export Dataset',
-    defaultPath: npath.join(remote.app.getPath('home'), `result_${id}.csv`),
+    defaultPath: npath.join(app.getPath('home'), `result_${id}.csv`),
   });
   if (!location.canceled && location.filePath) {
     const args: ExportDatasetArgs = {

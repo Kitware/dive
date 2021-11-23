@@ -33,7 +33,7 @@ class DatasetResource(Resource):
         self.route("GET", (":id", "media"), self.get_media)
         self.route("GET", (":id", "export"), self.export)
         self.route("GET", (":id", "configuration"), self.get_configuration)
-        self.route("GET", ("validate_files",), self.validate_files)
+        self.route("POST", ("validate_files",), self.validate_files)
 
         self.route("PATCH", (":id",), self.patch_metadata)
 
@@ -204,7 +204,7 @@ class DatasetResource(Resource):
     @access.user
     @autoDescribeRoute(
         Description("Test whether or not a set of files are safe to upload").jsonParam(
-            "files", "", paramType="query", requireArray=True
+            "files", "", paramType="body", requireArray=True
         )
     )
     def validate_files(self, files):

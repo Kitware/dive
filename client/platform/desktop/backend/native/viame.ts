@@ -182,11 +182,11 @@ async function runPipeline(
   job.on('exit', async (code) => {
     if (code === 0) {
       try {
-        const { attributes } = await common.processOtherAnnotationFiles(
+        const { meta: newMeta } = await common.ingestDataFiles(
           settings, datasetId, [detectorOutput, trackOutput], multiOutFiles,
         );
-        if (attributes) {
-          meta.attributes = attributes;
+        if (newMeta) {
+          meta.attributes = newMeta.attributes;
           await common.saveMetadata(settings, datasetId, meta);
         }
       } catch (err) {

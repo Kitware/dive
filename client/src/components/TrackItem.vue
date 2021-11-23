@@ -276,7 +276,7 @@ export default defineComponent({
         v-model="data.trackTypeValue"
         type="text"
         list="allTypesOptions"
-        class="input-box"
+        class="input-box freeform-input"
         @focus="onFocus"
         @blur="onBlur"
         @keydown="onInputKeyEvent"
@@ -384,6 +384,8 @@ export default defineComponent({
 </template>
 
 <style lang="scss" scoped>
+@import 'src/components/styles/common.scss';
+
 .track-item {
   border-radius: inherit;
 
@@ -403,18 +405,17 @@ export default defineComponent({
       text-decoration: underline;
     }
   }
-  .input-box {
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    border-radius: 4px;
-    padding: 0 6px;
-    width: 135px;
-    color: white;
-  }
+
   .select-input {
     width: 120px;
     background-color: #1e1e1e;
     appearance: menulist;
   }
+
+  .freeform-input {
+    width: 135px;
+  }
+
   .type-color-box {
     margin: 7px;
     margin-top: 4px;

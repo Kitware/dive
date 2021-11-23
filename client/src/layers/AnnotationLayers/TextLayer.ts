@@ -1,6 +1,6 @@
-import { TypeStyling } from 'vue-media-annotator/use/useStyling';
-import BaseLayer, { BaseLayerParams, LayerStyle } from './BaseLayer';
-import { FrameDataTrack } from './LayerTypes';
+import { TypeStyling } from '../../use/useStyling';
+import BaseLayer, { BaseLayerParams, LayerStyle } from '../BaseLayer';
+import { FrameDataTrack } from '../LayerTypes';
 
 export interface TextData {
   selected: boolean;
