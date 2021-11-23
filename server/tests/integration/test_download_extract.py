@@ -11,6 +11,7 @@ sample_data = [
     ('607ded8b1d59f90549235c3d', 'stereo.zip'),
     ('6006dfb9f751cc24d135ec29', 'TestData.zip'),
     ('61646cf37c93704c9952e84d', 'kwcoco.zip'),
+    ('619cf1f87a958c6b1f255c2c', 'zipTestFiles.zip'),
 ]
 
 

@@ -160,6 +160,7 @@ zipUser: Dict[str, Dict[str, Any]] = {
                 'fps': 1,
                 'type': 'image-sequence',
                 'trackCount': 197,
+                'job_status': 3,
             },
             {
                 'name': 'testVideoZip',
@@ -167,6 +168,28 @@ zipUser: Dict[str, Dict[str, Any]] = {
                 'fps': 29.97002997002997,
                 'originalFps': 30000 / 1001,
                 'type': 'video',
+                'job_status': 3,
+            },
+            {
+                'name': 'badFormatZip',
+                'path': 'zipTestFiles/badFormatZip.zip',
+                'fps': 1,
+                'type': 'image-sequence',
+                'job_status': 4,
+            },
+            {
+                'name': 'nestedZip',
+                'path': 'zipTestFiles/nestedZip.zip',
+                'fps': 1,
+                'type': 'image-sequence',
+                'job_status': 4,
+            },
+            {
+                'name': 'zipBomb',
+                'path': 'zipTestFiles/zipBomb.zip',
+                'fps': 1,
+                'type': 'image-sequence',
+                'job_status': 4,
             },
         ],
     }
@@ -192,7 +215,7 @@ def admin_client() -> GirderClient:
     return gc
 
 
-def wait_for_jobs(client: GirderClient, max_wait_timeout=30):
+def wait_for_jobs(client: GirderClient, max_wait_timeout=30, expected_status=3):
     """Wait for all worker jobs to complete"""
     start_time = time.time()
     incompleteJobs = []
@@ -218,8 +241,8 @@ def wait_for_jobs(client: GirderClient, max_wait_timeout=30):
             'limit': 1,
         },
     )
-    if len(lastJob) > 0 and lastJob[0]['status'] != 3:
-        raise Exception("Some jobs did not succeed")
+    if len(lastJob) > 0 and lastJob[0]['status'] != expected_status:
+        raise Exception(f"Some jobs did not meet their expected status: {expected_status}")
 
 
 def match_user_server_data(user: Dict[str, Any], dataset) -> List[dict]:

@@ -3,7 +3,7 @@ from pathlib import Path
 from girder_client import GirderClient, HttpError
 import pytest
 
-from .conftest import getClient, getTestFolder, localDataRoot, users, wait_for_jobs, zipUser
+from .conftest import getTestFolder, localDataRoot, wait_for_jobs, zipUser
 
 
 @pytest.mark.integration
@@ -56,11 +56,9 @@ def test_upload_zip_data(user: dict):
         if Path(dsPath).is_file():
             client.uploadFileToFolder(newDatasetFolder['_id'], str(dsPath))
         client.post(f'dive_rpc/postprocess/{newDatasetFolder["_id"]}')
-    wait_for_jobs(client)
-    # Confirm that the new dataset looks like it should.
-    for created, expected in zip(createdDatasets, user['data']):
-        created = client.get(f'dive_dataset/{created["_id"]}')
-        if expected['type'] == 'video':
-            assert created['fps'] == expected['originalFps'] or created['fps'] == expected['fps']
-            assert created['annotate']
-            assert created['originalFps'] == expected['originalFps']
+        try:
+            wait_for_jobs(client, max_wait_timeout=30, expected_status=dataset['job_status'])
+        except Exception as ex:
+            if dataset['job_status'] == 4:
+                continue
+            raise ex
