@@ -67,4 +67,4 @@ There are caveats with this approach.
 
 ## Can I request new features or provide feedback?
 
-Yes!  Please contact us at `viame-web@kitare.com` or log an issue [directly on the issue tracker](https://github.com/Kitware/dive/issues).
+Yes!  Please contact us at <a href="mailto:viame-web@kitware.com"> `viame-web@kitware.com` </a> or log an issue [directly on the issue tracker](https://github.com/Kitware/dive/issues).
