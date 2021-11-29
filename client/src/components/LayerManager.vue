@@ -326,8 +326,6 @@ export default defineComponent({
           polygon: { coordinates: Array<Array<[number, number]>>};
         }[],
     ) => {
-      let innerRight = Infinity;
-      let innerTop = -Infinity;
       const hoveredVals: (ToolTipWidgetData & { maxX: number})[] = [];
       found.forEach((item) => {
         // get Max of X and Min of y
@@ -340,8 +338,6 @@ export default defineComponent({
               minY = Math.min(coord[1], minY);
             }
           });
-          innerRight = Math.min(maxX, innerRight);
-          innerTop = Math.max(minY, innerTop);
           hoveredVals.push({
             type: item.trackType[0],
             confidence: item.trackType[1],
