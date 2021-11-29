@@ -393,10 +393,15 @@ def postprocess(
             dsFolder,
             filters={
                 "lowerName": {"$regex": constants.zipRegex},
-                f"meta.{constants.ZipFileExtractedMarker}": {'$exists': False},
             },
         )
+        # only support one zip file found
         for item in zipItems:
+            # if item is already extracted create/move into 'source' folder
+            if constants.ZipFileExtractedMarker in item['meta'].keys():
+                source_folder = crud.get_or_create_source_folder(dsFolder, user)
+                Item().move(item, source_folder)
+                continue
             newjob = tasks.extract_zip.apply_async(
                 queue=_get_queue_name(user),
                 kwargs=dict(

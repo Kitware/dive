@@ -597,8 +597,7 @@ def extract_zip(self: Task, folderId: str, itemId: str):
         validation = gc.sendRestRequest(
             'POST', '/dive_dataset/validate_files', json=listOfFileNames
         )
-        print(validation)
-        if validation:
+        if 'ok' in validation.keys() and validation['ok'] is True:
             manager.write(f"Annotations: {validation['annotations']}\n")
             manager.write(f"Media: {validation['media']}\n")
             dataset_type = validation['type']

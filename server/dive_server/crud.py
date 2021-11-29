@@ -111,6 +111,10 @@ def move_existing_result_to_auxiliary_folder(folder, user):
         Item().move(item, auxiliary)
 
 
+def get_or_create_source_folder(folder, user):
+    return Folder().createFolder(folder, "source", reuseExisting=True, creator=user)
+
+
 def itemIsWebsafeVideo(item: Item) -> bool:
     return fromMeta(item, "codec") == "h264"
 
