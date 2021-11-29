@@ -469,7 +469,7 @@ export default function useModeManager({
       const track = getTrack(trackMap, mergeList.value[0]);
       const otherTrackIds = mergeList.value.slice(1);
       track.merge(otherTrackIds.map((trackId) => getTrack(trackMap, trackId)));
-      handleRemoveTrack(otherTrackIds);
+      handleRemoveTrack(otherTrackIds, true);
       handleToggleMerge();
       handleSelectTrack(track.trackId, false);
     }
