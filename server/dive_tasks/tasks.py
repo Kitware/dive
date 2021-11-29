@@ -588,7 +588,7 @@ def extract_zip(self: Task, folderId: str, itemId: str):
 
             for fileName in listOfFileNames:
                 if fileName.endswith('.zip'):
-                    manager.write("Nested Zip files are invalid!!!!\n")
+                    manager.write("Nested Zip files are invalid\n")
                     manager.updateStatus(JobStatus.ERROR)
                     return
                 manager.write(f"Extracting: {fileName}\n")
@@ -597,18 +597,28 @@ def extract_zip(self: Task, folderId: str, itemId: str):
         validation = gc.sendRestRequest(
             'POST', '/dive_dataset/validate_files', json=listOfFileNames
         )
-        if 'ok' in validation.keys() and validation['ok'] is True:
+        if validation.get('ok', False):
             manager.write(f"Annotations: {validation['annotations']}\n")
             manager.write(f"Media: {validation['media']}\n")
             dataset_type = validation['type']
             manager.write(f"Type: {dataset_type}\n")
-            if "ok" in validation and validation["ok"] is False:
-                manager.write(f"Message: {validation['message']}\n")
-                manager.updateStatus(JobStatus.ERROR)
             # Upload all resulting items back into the root folder
             manager.updateStatus(JobStatus.PUSHING_OUTPUT)
             gc.upload(f'{_working_directory}/**/*', folderId)
             gc.addMetadataToFolder(str(folderId), {constants.TypeMarker: dataset_type})
             gc.addMetadataToItem(str(itemId), {constants.ZipFileExtractedMarker: True})
+            # create a source folder to place the zipFile inside of
+            metadata = {constants.ZipFileExtractedMarker: True}
+            created_folder = gc.createFolder(
+                folderId, constants.SourceFolderName, reuseExisting=True, metadata=metadata
+            )
+            gc.sendRestRequest(
+                "PUT",
+                f"/item/{str(itemId)}?name={item['name']}&folderId={str(created_folder['_id'])}",
+                json=metadata,
+            )
             # After uploading the default files we do a the postprocess for video conversion now
             gc.sendRestRequest("POST", f"/dive_rpc/postprocess/{str(folderId)}")
+        else:
+            manager.write(f"Message: {validation['message']}\n")
+            manager.updateStatus(JobStatus.ERROR)

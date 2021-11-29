@@ -70,6 +70,23 @@ export default defineComponent({
     const importMultiCamDialog = ref(false);
     const girderUpload: Ref<null | GirderUpload> = ref(null);
     const { prompt } = usePrompt();
+
+    const addPendingZipUpload = (name: string, allFiles: File[]) => {
+      const fps = clientSettings.annotationFPS || DefaultVideoFPS;
+      const defaultFilename = allFiles.length ? allFiles[0].name.replace(/\..*/, '') : 'Zip Upload';
+      pendingUploads.value.push({
+        createSubFolders: false,
+        name: defaultFilename,
+        files: [], //Will be set in the GirderUpload Component
+        meta: null,
+        annotationFile: null,
+        mediaList: allFiles,
+        type: 'zip',
+        fps,
+        uploading: false,
+      });
+    };
+
     /**
      * Initial opening of file dialog
      */
@@ -90,7 +107,6 @@ export default defineComponent({
                 processed.annotationFile, processed.mediaList,
               );
             } else {
-              // eslint-disable-next-line @typescript-eslint/no-use-before-define
               addPendingZipUpload(name, processed.fullList);
             }
           } catch (err) {
@@ -232,21 +248,6 @@ export default defineComponent({
     const getFilenameInputValue = (pendingUpload: PendingUpload) => (
       pendingUpload.createSubFolders && pendingUpload.type !== 'zip' ? 'default' : pendingUpload.name
     );
-    const addPendingZipUpload = (name: string, allFiles: File[]) => {
-      const fps = clientSettings.annotationFPS || DefaultVideoFPS;
-      const defaultFilename = allFiles.length ? allFiles[0].name.replace(/\..*/, '') : 'Zip Upload';
-      pendingUploads.value.push({
-        createSubFolders: false,
-        name: defaultFilename,
-        files: [], //Will be set in the GirderUpload Component
-        meta: null,
-        annotationFile: null,
-        mediaList: allFiles,
-        type: 'zip',
-        fps,
-        uploading: false,
-      });
-    };
     const addPendingUpload = async (
       name: string,
       allFiles: File[],
@@ -463,7 +464,7 @@ export default defineComponent({
                 </v-btn>
               </v-col>
             </v-row>
-            <v-row v-if="!pendingUpload.createSubFolders && !pendingUpload.type == 'zip'">
+            <v-row v-if="!pendingUpload.createSubFolders && pendingUpload.type != 'zip'">
               <v-col class="py-0">
                 <v-row>
                   <v-col>

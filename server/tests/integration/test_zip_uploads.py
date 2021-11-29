@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from girder_client import GirderClient, HttpError
+from girder_worker.utils import JobStatus
 import pytest
 
 from .conftest import getTestFolder, localDataRoot, wait_for_jobs, zipUser
@@ -59,6 +60,6 @@ def test_upload_zip_data(user: dict):
         try:
             wait_for_jobs(client, max_wait_timeout=30, expected_status=dataset['job_status'])
         except Exception as ex:
-            if dataset['job_status'] == 4:
+            if dataset['job_status'] == JobStatus.ERROR:
                 continue
             raise ex

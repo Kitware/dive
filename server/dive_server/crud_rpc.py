@@ -393,15 +393,10 @@ def postprocess(
             dsFolder,
             filters={
                 "lowerName": {"$regex": constants.zipRegex},
+                f"meta.{constants.ZipFileExtractedMarker}": {'$exists': False},
             },
         )
-        # only support one zip file found
         for item in zipItems:
-            # if item is already extracted create/move into 'source' folder
-            if constants.ZipFileExtractedMarker in item['meta'].keys():
-                source_folder = crud.get_or_create_source_folder(dsFolder, user)
-                Item().move(item, source_folder)
-                continue
             newjob = tasks.extract_zip.apply_async(
                 queue=_get_queue_name(user),
                 kwargs=dict(
@@ -414,6 +409,7 @@ def postprocess(
             )
             newjob.job[constants.JOBCONST_PRIVATE_QUEUE] = job_is_private
             Job().save(newjob.job)
+            # only support first zip file found
             return dsFolder
 
         # transcode VIDEO if necessary

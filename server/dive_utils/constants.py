@@ -86,6 +86,8 @@ TrainedPipelineCategory = "trained"
 ViameDataFolderName = "VIAME"
 # The name of the subfolder for training results
 TrainingOutputFolderName = "VIAME Training Results"
+# The name of the source folder holding zip backups
+SourceFolderName = "source"
 
 # job constants
 JOBCONST_DATASET_ID = 'datset_id'

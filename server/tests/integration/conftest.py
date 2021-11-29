@@ -4,6 +4,7 @@ import time
 from typing import Any, Dict, List
 
 from girder_client import GirderClient
+from girder_worker.utils import JobStatus
 import pytest
 
 localDataRoot = Path('tests/integration/data')
@@ -160,7 +161,7 @@ zipUser: Dict[str, Dict[str, Any]] = {
                 'fps': 1,
                 'type': 'image-sequence',
                 'trackCount': 197,
-                'job_status': 3,
+                'job_status': JobStatus.SUCCESS,
             },
             {
                 'name': 'testVideoZip',
@@ -168,28 +169,28 @@ zipUser: Dict[str, Dict[str, Any]] = {
                 'fps': 29.97002997002997,
                 'originalFps': 30000 / 1001,
                 'type': 'video',
-                'job_status': 3,
+                'job_status': JobStatus.SUCCESS,
             },
             {
                 'name': 'badFormatZip',
                 'path': 'zipTestFiles/badFormatZip.zip',
                 'fps': 1,
                 'type': 'image-sequence',
-                'job_status': 4,
+                'job_status': JobStatus.ERROR,
             },
             {
                 'name': 'nestedZip',
                 'path': 'zipTestFiles/nestedZip.zip',
                 'fps': 1,
                 'type': 'image-sequence',
-                'job_status': 4,
+                'job_status': JobStatus.ERROR,
             },
             {
                 'name': 'zipBomb',
                 'path': 'zipTestFiles/zipBomb.zip',
                 'fps': 1,
                 'type': 'image-sequence',
-                'job_status': 4,
+                'job_status': JobStatus.ERROR,
             },
         ],
     }
@@ -215,7 +216,7 @@ def admin_client() -> GirderClient:
     return gc
 
 
-def wait_for_jobs(client: GirderClient, max_wait_timeout=30, expected_status=3):
+def wait_for_jobs(client: GirderClient, max_wait_timeout=30, expected_status=JobStatus.SUCCESS):
     """Wait for all worker jobs to complete"""
     start_time = time.time()
     incompleteJobs = []
