@@ -107,7 +107,7 @@ export default defineComponent({
       selected: selectedTrackIdRef,
       stateStyling,
     };
-    const toolTipWidget = uiLayer.addDOMWidget('customToolTip', ToolTipWidget, toolTipWidgetProps);
+    uiLayer.addDOMWidget('customToolTip', ToolTipWidget, toolTipWidgetProps, { x: 10, y: 10 });
 
     function updateLayers(
       frame: number,
@@ -121,9 +121,12 @@ export default defineComponent({
       const currentFrameIds: TrackId[] = intervalTree
         .search([frame, frame])
         .map((str: string) => parseInt(str, 10));
-
-      rectAnnotationLayer.setHoverAnnotations(visibleModes.includes('tooltip'));
-      polyAnnotationLayer.setHoverAnnotations(visibleModes.includes('tooltip'));
+      const inlcudesTooltip = visibleModes.includes('tooltip');
+      rectAnnotationLayer.setHoverAnnotations(inlcudesTooltip);
+      polyAnnotationLayer.setHoverAnnotations(inlcudesTooltip);
+      if (!inlcudesTooltip) {
+        hoverOvered.value = [];
+      }
       const frameData = [] as FrameDataTrack[];
       const editingTracks = [] as FrameDataTrack[];
       currentFrameIds.forEach(
@@ -348,9 +351,7 @@ export default defineComponent({
         }
       });
       hoverOvered.value = hoveredVals.sort((a, b) => a.maxX - b.maxX);
-      if (found.length) {
-        toolTipWidget.position({ x: innerRight, y: innerTop });
-      }
+      uiLayer.setToolTipWidget('customToolTip', (found.length > 0));
     };
     rectAnnotationLayer.bus.$on('annotation-hover', annotationHoverTooltip);
     polyAnnotationLayer.bus.$on('annotation-hover', annotationHoverTooltip);
