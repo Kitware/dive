@@ -631,7 +631,6 @@ describe('native.common', () => {
     const trainingArgs: RunTraining = {
       datasetIds: ['randomID'],
       pipelineName: 'trainedPipelineName',
-      labelText: null,
       trainingConfig: 'trainingConfig',
       annotatedFramesOnly: false,
     };
@@ -652,7 +651,6 @@ describe('native.common', () => {
     const trainingArgs: RunTraining = {
       datasetIds: ['randomID'],
       pipelineName: 'trainedBadPipelineName',
-      labelText: null,
       trainingConfig: 'trainingConfig',
       annotatedFramesOnly: false,
     };

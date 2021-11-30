@@ -3,14 +3,12 @@ import { DatasetType } from './apispec';
 const ImageSequenceType = 'image-sequence';
 const VideoType = 'video';
 const MultiType = 'multi';
-const TxtType = 'txt';
 
 const MediaTypes: Record<DatasetType, string> = {
   // friendly media type names
   [ImageSequenceType]: 'image sequence',
   [VideoType]: 'video',
   [MultiType]: 'multi',
-  [TxtType]: 'txt',
 };
 
 const DefaultVideoFPS = 10;
@@ -113,7 +111,6 @@ export {
   VideoType,
   MediaTypes,
   MultiType,
-  TxtType,
   FPSOptions,
   itemsPerPageOptions,
   calibrationFileTypes,

@@ -99,7 +99,6 @@ export default defineComponent({
         await runTraining(
           stagedItems.value.map(({ id }) => id),
           data.trainingOutputName,
-          null,
           data.selectedTrainingConfig,
           data.annotatedFramesOnly,
         );
