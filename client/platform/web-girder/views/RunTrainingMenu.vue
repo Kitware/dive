@@ -8,7 +8,7 @@ import JobLaunchDialog from 'dive-common/components/JobLaunchDialog.vue';
 import ImportButton from 'dive-common/components/ImportButton.vue';
 import { useRequest } from 'dive-common/use';
 import { openFromDisk } from 'platform/web-girder/utils';
-import { TxtType } from 'dive-common/constants';
+import { inputTxtTypes } from 'dive-common/constants';
 
 
 export default defineComponent({
@@ -54,7 +54,7 @@ export default defineComponent({
     const trainingDisabled = computed(() => props.selectedDatasetIds.length === 0);
     const trainingOutputName = ref<string | null>(null);
     const menuOpen = ref(false);
-    const labelText = ref<string | null>(null);
+    const labelText = ref<string>('');
     const labelFile = ref<File>();
 
     async function runTrainingOnFolder() {
@@ -66,10 +66,18 @@ export default defineComponent({
         if (!trainingConfigurations.value || !selectedTrainingConfig.value) {
           throw new Error('Training configurations not found.');
         }
+        if (labelText) {
+          return runTraining(
+            props.selectedDatasetIds,
+            outputPipelineName,
+            selectedTrainingConfig.value,
+            annotatedFramesOnly.value,
+            labelText.value,
+          );
+        }
         return runTraining(
           props.selectedDatasetIds,
           outputPipelineName,
-          labelText.value,
           selectedTrainingConfig.value,
           annotatedFramesOnly.value,
         );
@@ -78,18 +86,17 @@ export default defineComponent({
       trainingOutputName.value = null;
     }
 
-    const openTxt = async () => {
-      const data = await openFromDisk(TxtType);
+    async function openTxt() {
+      const data = await openFromDisk(inputTxtTypes);
       if (!data.canceled && data.fileList) {
         const reader = new FileReader();
         reader.onload = (evt) => {
           labelText.value = evt.target?.result as string;
         };
         reader.readAsText(data.fileList[0]);
-        // eslint-disable-next-line prefer-destructuring
-        labelFile.value = data.fileList[0];
+        [labelFile.value] = data.fileList;
       }
-    };
+    }
 
     return {
       trainingConfigurations,
