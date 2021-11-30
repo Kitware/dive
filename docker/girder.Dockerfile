@@ -1,5 +1,5 @@
 # V16 needed, see client/README.md
-FROM node:16 as builder
+FROM node:16 as client-builder
 WORKDIR /app
 
 # Install dependencies
@@ -11,40 +11,42 @@ COPY client/ /app/
 RUN yarn build:web
 
 
-FROM girder/girder as runtime
+FROM python:3.7-buster as server-builder
 
-# install tini init system
-ENV TINI_VERSION v0.19.0
-ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini /tini
-RUN chmod +x /tini
+WORKDIR /home/server
 
-# Defaults are different between normal and docker installations
+# https://cryptography.io/en/latest/installation/#debian-ubuntu
+RUN apt-get update
+RUN apt-get install -y build-essential libssl-dev libffi-dev python3-dev cargo npm
+RUN pip install poetry==1.1.12
+
+COPY server/ /home/server/
+
+RUN poetry env use system
+RUN poetry config virtualenvs.create false
+RUN poetry install
+RUN girder build
+
+
+FROM python:3.7-slim-buster
+
 ENV GIRDER_MONGO_URI mongodb://mongo:27017/girder
 ENV CELERY_BROKER_URL amqp://guest:guest@rabbit/
 
-# Initialize python virtual environment
-RUN apt-get update && apt-get install -y python3.7-venv
-ENV VIRTUAL_ENV=/opt/venv
-RUN python3.7 -m venv $VIRTUAL_ENV
+# Install runtime dependencies
+RUN apt-get update && \
+  apt-get install -qy \
+    libffi-dev git && \
+  apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# this will activate the virtual env
-ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+# Copy the entire python installation
+COPY --from=server-builder /usr/local/ /usr/local/
+# Copy the source code of the editable module
+COPY --from=server-builder /home/server/ /home/server/
+# Copy the client code into the static source location
+COPY --from=client-builder /app/dist/ /usr/local/share/girder/static/viame/
 
-# Cryptography requires latest pip, setuptools.
-# https://cryptography.io/en/latest/faq.html#installing-cryptography-fails-with-error-can-not-find-rust-compiler
-RUN pip install -U pip setuptools
-
-COPY --from=builder /app/dist/ $VIRTUAL_ENV/share/girder/static/viame/
-
-WORKDIR /home/viame_girder
-
+# Install startup script
 COPY docker/provision /home/provision
-COPY server/setup.py /home/viame_girder/
-RUN pip install --no-cache-dir .
-
-COPY server/ /home/viame_girder/
-RUN pip install --no-deps .
-
-RUN girder build
 
 ENTRYPOINT [ "/home/provision/girder_entrypoint.sh" ]

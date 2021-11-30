@@ -20,3 +20,62 @@ show_column_numbers = true
 show_error_codes = true
 pretty = true
 exclude = '\.eggs|\.git|\.mypy_cache|\.tox|\.env|\.venv|env|venv|_build|buck-out|build|dist'
+
+[tool.poetry]
+name = "dive_server"
+version = "1.0.0"
+description = "DIVE Data Server"
+authors = ["Kitware, Inc. <viame-web@kitware.com>"]
+license = "Apache 2.0"
+include = ["**/*.mako"]
+readme = "README.md"
+keywords = ["DIVE", "VIAME", "Annotation", "Computer Vision", "Marine"]
+classifiers = [
+  "License :: OSI Approved :: Apache Software License",
+  "Natural Language :: English",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.7",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+]
+packages = [
+  { include = "bucket_notifications" },
+  { include = "dive_server" },
+  { include = "dive_tasks" },
+  { include = "dive_utils" },
+  { include = "rabbitmq_user_queues" },
+]
+
+[tool.poetry.dependencies]
+python = ">=3.7,<3.10"
+cheroot = ">=8.4.5"
+click = "^8.0.3"
+girder = "3.1.7"
+diva-boiler = "^0.2.2"
+girder_jobs = "3.0.3"
+girder_worker = "0.8.1"
+girder_worker_utils = "0.8.5"
+pydantic = "1.8.2"
+pyrabbit2 = "1.0.7"
+typing-extensions = "^4.0.0"
+GPUtil = "^1.4.0"
+requests = ">=2.20.0"
+urllib3 = "<1.26"
+
+[tool.poetry.dev-dependencies]
+numpy = "^1.21.4"
+opencv-python = "^4.5.4"
+tox = "^3.24.4"
+
+[tool.poetry.plugins."girder.plugin"]
+dive_server = "dive_server:GirderPlugin"
+bucket_notifications = "bucket_notifications:GirderPlugin"
+rabbit_user_queues = "rabbitmq_user_queues:GirderPlugin"
+
+[tool.poetry.plugins."girder_worker_plugins"]
+dive_tasks = "dive_tasks:DIVEPlugin"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"

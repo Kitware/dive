@@ -6,3 +6,10 @@ docker/girder_data
 *.Dockerfile
 docker-compose.*
 docker/traefik
+
+server/tests
+server/scripts
+server/dist
+server/.tox
+server/.mypy_cache
+*.egg-info

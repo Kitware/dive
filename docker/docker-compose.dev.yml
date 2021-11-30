@@ -4,8 +4,8 @@ services:
   girder:
     volumes:
       - ../docker/provision:/home/provision
-      - ../server:/home/viame_girder
-    entrypoint: ["/home/provision/girder_entrypoint_dev.sh"]
+      - ../server:/home/server
+    command: ["--dev"]
 
   girder_worker_pipelines:
     volumes:
