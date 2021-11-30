@@ -5,7 +5,7 @@ import { TrackData, TrackId } from 'vue-media-annotator/track';
 import { Attribute } from 'vue-media-annotator/use/useAttributes';
 import { CustomStyle } from 'vue-media-annotator/use/useStyling';
 
-type DatasetType = 'image-sequence' | 'video' | 'multi' | 'txt';
+type DatasetType = 'image-sequence' | 'video' | 'multi';
 type MultiTrackRecord = Record<string, TrackData>;
 type SubType = 'stereo' | 'multicam' | null; // Additional type info used for UI display enabled pipelines
 
@@ -113,9 +113,9 @@ interface Api {
   runTraining(
     folderIds: string[],
     pipelineName: string,
-    labelText: string | null,
     config: string,
-    annotatedFramesOnly: boolean
+    annotatedFramesOnly: boolean,
+    labelText?: string,
   ): Promise<unknown>;
 
   loadMetadata(datasetId: string): Promise<DatasetMeta>;
@@ -125,7 +125,7 @@ interface Api {
   saveMetadata(datasetId: string, metadata: DatasetMetaMutable): Promise<unknown>;
   saveAttributes(datasetId: string, args: SaveAttributeArgs): Promise<unknown>;
   // Non-Endpoint shared functions
-  openFromDisk(datasetType: DatasetType | 'calibration' | 'annotation' | 'text', directory?: boolean):
+  openFromDisk(datasetType: DatasetType | 'calibration' | 'annotation' | 'txt' | 'text', directory?: boolean):
     Promise<{canceled?: boolean; filePaths: string[]; fileList?: File[]; root?: string}>;
   importAnnotationFile(id: string, path: string, file?: File): Promise<boolean>;
 }

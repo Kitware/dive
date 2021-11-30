@@ -19,13 +19,13 @@ function runPipeline(itemId: string, pipeline: Pipe) {
 function runTraining(
   folderIds: string[],
   pipelineName: string,
-  labelText: string | null,
   config: string,
   annotatedFramesOnly: boolean,
+  labelText?: string,
 ) {
   return girderRest.post('dive_rpc/train', folderIds, {
     params: {
-      pipelineName, labelText, config, annotatedFramesOnly,
+      pipelineName, config, annotatedFramesOnly, labelText,
     },
   });
 }
