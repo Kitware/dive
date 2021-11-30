@@ -5,7 +5,7 @@ from pathlib import Path
 import shlex
 import shutil
 import tempfile
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 from urllib import request
 from urllib.parse import urlparse
 import zipfile
@@ -275,9 +275,9 @@ def train_pipeline(
     source_folder_list: List[GirderModel],
     groundtruth_list: List[GirderModel],
     pipeline_name: str,
-    label_text: str,
     config: str,
     annotated_frames_only: bool = False,
+    label_text: Optional[str] = None
 ):
     """
     Train a pipeline by making a call to viame_train_detector
@@ -287,9 +287,9 @@ def train_pipeline(
     :param groundtruth_list: A list of relative paths to either a file containing detections,
         or a folder containing that file.
     :param pipeline_name: The base name of the resulting pipeline.
-    :param label_text: string value of label.txt file contents
     :param config: string name of the input configuration
     :param annotated_frames_only: Only use annotated frames for training
+    :param label_text: string value of label.txt file contents
     """
     conf = Config()
     context: dict = {}
