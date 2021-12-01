@@ -9,15 +9,18 @@ services:
 
   girder_worker_pipelines:
     volumes:
-      - ../server:/home/dive
+      - ../server:/opt/dive
+      - ./provision:/opt/dive/provision
 
   girder_worker_training:
     volumes:
-      - ../server:/home/dive
+      - ../server:/opt/dive
+      - ./provision:/opt/dive/provision
 
   girder_worker_default:
     volumes:
-      - ../server:/home/dive
+      - ../server:/opt/dive
+      - ./provision:/opt/dive/provision
 
   mc:
     image: mongo:latest

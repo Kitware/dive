@@ -15,7 +15,6 @@ RUN export DEBIAN_FRONTEND=noninteractive && \
     build-essential \
     wget \
     python3.7 \
-    python3.7-venv \
     libpython3.7-dev \
     libffi-dev \
     libssl-dev \
@@ -41,39 +40,35 @@ RUN \
 # Create user "dive" 1099:1099 to align with base image permissions.
 # https://github.com/VIAME/VIAME/blob/master/cmake/build_server_docker.sh#L123
 RUN useradd --create-home --uid 1099 --shell=/bin/bash dive
-
-# Create a virtualenv dir outside the home directory so it's preserved
-# when code is mounted in dev mode.
-RUN install -g dive -o dive -d /opt/venv
+# Create a directory for the project files to live
+RUN install -g dive -o dive -d /opt/dive
 
 # Switch to the new user and working directory
 USER dive
-WORKDIR /home/dive
+WORKDIR /opt/dive
 
-# Initialize python virtual environment
-ENV VIRTUAL_ENV=/opt/venv
-RUN python3.7 -m venv $VIRTUAL_ENV
-
-# Activate the virtual environment by linking it on PATH
-ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+# Include the local python installation in PATH
+ENV PATH="/home/dive/.local/bin:$PATH"
 
 # Create directory for addons
 RUN mkdir -p /tmp/addons
 
-# Cryptography requires latest pip, setuptools.
+# Cryptography requires latest pip
 # https://cryptography.io/en/latest/faq.html#installing-cryptography-fails-with-error-can-not-find-rust-compiler
-RUN pip install -U pip setuptools
+RUN pip install -U pip poetry==1.1.12
 
-# Pip install dependencies
-COPY --chown=dive:dive server/setup.py /home/dive/
-RUN pip install --no-cache-dir .
+# Poetry install dependencies
+COPY --chown=dive:dive server/poetry.lock server/pyproject.toml /opt/dive/
+RUN poetry env use system
+RUN poetry config virtualenvs.create false
+RUN poetry install --no-root
 
-# Pip install actual packages
-COPY --chown=dive:dive server/ /home/dive/
+# Poetry install actual packages
+COPY --chown=dive:dive server/ /opt/dive/
 RUN pip install --no-deps .
 
 # Copy provision scripts
-COPY --chown=dive:dive docker/provision /home/provision
+COPY --chown=dive:dive docker/provision /opt/dive/provision
 
 ENTRYPOINT ["/tini", "--"]
-CMD ["/home/provision/girder_worker_entrypoint.sh"]
+CMD ["/opt/dive/provision/girder_worker_entrypoint.sh"]
