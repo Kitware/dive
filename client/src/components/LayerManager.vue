@@ -347,7 +347,7 @@ export default defineComponent({
         }
       });
       hoverOvered.value = hoveredVals.sort((a, b) => a.maxX - b.maxX);
-      uiLayer.setToolTipWidget('customToolTip', (found.length > 0));
+      uiLayer.setToolTipWidget('customToolTip', (hoverOvered.value.length > 0));
     };
     rectAnnotationLayer.bus.$on('annotation-hover', annotationHoverTooltip);
     polyAnnotationLayer.bus.$on('annotation-hover', annotationHoverTooltip);
