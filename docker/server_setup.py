@@ -41,3 +41,9 @@ def configure():
             "CORS_ALLOWED_ORIGINS", "http://localhost:8080, http://localhost:8010"
         ),
     )
+
+
+if __name__ == '__main__':
+    createInitialUser()
+    createAssetstore()
+    configure()
