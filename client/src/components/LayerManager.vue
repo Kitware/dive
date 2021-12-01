@@ -328,7 +328,7 @@ export default defineComponent({
     ) => {
       const hoveredVals: (ToolTipWidgetData & { maxX: number})[] = [];
       found.forEach((item) => {
-        // get Max of X and Min of y
+        // get Max of X and Min of y for ordering
         if (item.polygon.coordinates.length) {
           let maxX = -Infinity;
           let minY = Infinity;

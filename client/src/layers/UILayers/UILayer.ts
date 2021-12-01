@@ -12,9 +12,9 @@ export interface DOMWidget {
   canvas: () => HTMLElement;
   isInViewport: () => boolean;
   position: (pos: WidgetPosition) => void;
-  toolTip: boolean | undefined;
-  toolTipOffset: {x: number; y: number};
-  lastMousePos: WidgetPosition;
+  toolTip: boolean; // Tooltip enabled or disabled
+  toolTipOffset: {x: number; y: number}; // Offset from Cursor Position
+  lastMousePos: WidgetPosition; //Last Mouse position for zooming adjustments
 }
 
 
@@ -42,9 +42,9 @@ export default class UILayer {
       this.uiLayer.geoOn(geo.event.zoom, this.zoomToolTipPosition);
     }
 
-    updateWidgetToolTipPosition(offset: WidgetPosition, widget: DOMWidget) {
+    updateWidgetToolTipPosition(mousePos: WidgetPosition, widget: DOMWidget) {
       const tipOffset = widget.toolTipOffset;
-      const newOffset = this.uiLayer.map().gcsToDisplay(offset);
+      const newOffset = this.uiLayer.map().gcsToDisplay(mousePos);
       const finalOffset = this.uiLayer.map().displayToGcs(
         {
           x: newOffset.x + tipOffset.x, y: newOffset.y + tipOffset.y,
@@ -56,25 +56,18 @@ export default class UILayer {
     zoomToolTipPosition = () => {
       Object.keys(this.widgets).forEach((name) => {
         if (this.widgets[name].toolTip) {
-          const offset = this.widgets[name].lastMousePos;
-          this.updateWidgetToolTipPosition(offset, this.widgets[name]);
+          const mousePos = this.widgets[name].lastMousePos;
+          this.updateWidgetToolTipPosition(mousePos, this.widgets[name]);
         }
       });
     };
 
     updateToolTipPositions = (evt: GeoEvent) => {
+      const mousePos = evt.geo;
       Object.keys(this.widgets).forEach((name) => {
         if (this.widgets[name].toolTip) {
-          const offset = evt.geo;
-          const tipOffset = this.widgets[name].toolTipOffset;
-          const newOffset = this.uiLayer.map().gcsToDisplay(offset);
-          const finalOffset = this.uiLayer.map().displayToGcs(
-            {
-              x: newOffset.x + tipOffset.x, y: newOffset.y + tipOffset.y,
-            },
-          );
-          this.widgets[name].position(finalOffset);
-          this.widgets[name].lastMousePos = evt.geo;
+          this.updateWidgetToolTipPosition(mousePos, this.widgets[name]);
+          this.widgets[name].lastMousePos = mousePos;
         }
       });
     };
@@ -99,6 +92,7 @@ export default class UILayer {
       return widget;
     }
 
+    // Toggle named widget toolTip On or Off
     setToolTipWidget(name: string, on: boolean) {
       if (this.widgets[name]) {
         this.widgets[name].toolTip = on;
