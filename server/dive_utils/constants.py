@@ -76,7 +76,6 @@ FPSMarker = "fps"
 OriginalFPSMarker = "originalFps"
 OriginalFPSStringMarker = "originalFpsString"
 ConfidenceFiltersMarker = "confidenceFilters"
-ZipFileExtractedMarker = "extractedZip"
 
 # Other constants
 TrainedPipelineCategory = "trained"

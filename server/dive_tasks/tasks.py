@@ -604,11 +604,7 @@ def extract_zip(self: Task, folderId: str, itemId: str):
             manager.write(f"Type: {dataset_type}\n")
             # Upload all resulting items back into the root folder
             manager.updateStatus(JobStatus.PUSHING_OUTPUT)
-            gc.upload(f'{_working_directory}/**/*', folderId)
-            gc.addMetadataToFolder(str(folderId), {constants.TypeMarker: dataset_type})
-            gc.addMetadataToItem(str(itemId), {constants.ZipFileExtractedMarker: True})
             # create a source folder to place the zipFile inside of
-            metadata = {constants.ZipFileExtractedMarker: True}
             created_folder = gc.createFolder(
                 folderId,
                 constants.SourceFolderName,
@@ -617,8 +613,9 @@ def extract_zip(self: Task, folderId: str, itemId: str):
             gc.sendRestRequest(
                 "PUT",
                 f"/item/{str(itemId)}?name={item['name']}&folderId={str(created_folder['_id'])}",
-                json=metadata,
             )
+            gc.upload(f'{_working_directory}/**/*', folderId)
+            gc.addMetadataToFolder(str(folderId), {constants.TypeMarker: dataset_type})
             # After uploading the default files we do a the postprocess for video conversion now
             gc.sendRestRequest("POST", f"/dive_rpc/postprocess/{str(folderId)}")
         else:
