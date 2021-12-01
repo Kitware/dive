@@ -21,7 +21,6 @@ def get_girder_client() -> GirderClient:
         client.authenticate(interactive=True)
     return client
 
-
 @cli.command(name='get-image-list')
 @click.argument('id', type=click.STRING)
 def get_image_list(id):

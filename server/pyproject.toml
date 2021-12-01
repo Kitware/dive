@@ -68,6 +68,10 @@ numpy = "^1.21.4"
 opencv-python = "^4.5.4"
 tox = "^3.24.4"
 
+[tool.poetry.scripts]
+diveutils = "scripts.entrypoint_dev:cli"
+dive = "scripts.entrypoint_main:cli"
+
 [tool.poetry.plugins."girder.plugin"]
 dive_server = "dive_server:GirderPlugin"
 bucket_notifications = "bucket_notifications:GirderPlugin"

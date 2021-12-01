@@ -2,14 +2,9 @@ venv/
 **/node_modules
 **/dist
 **/build
+**/tests
+**/.tox
 docker/girder_data
 *.Dockerfile
 docker-compose.*
 docker/traefik
-
-server/tests
-server/scripts
-server/dist
-server/.tox
-server/.mypy_cache
-*.egg-info
