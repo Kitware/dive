@@ -464,7 +464,7 @@ export default defineComponent({
                 </v-btn>
               </v-col>
             </v-row>
-            <v-row v-if="!pendingUpload.createSubFolders && pendingUpload.type != 'zip'">
+            <v-row v-if="!pendingUpload.createSubFolders && pendingUpload.type !== 'zip'">
               <v-col class="py-0">
                 <v-row>
                   <v-col>

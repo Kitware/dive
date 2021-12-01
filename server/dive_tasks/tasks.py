@@ -610,7 +610,9 @@ def extract_zip(self: Task, folderId: str, itemId: str):
             # create a source folder to place the zipFile inside of
             metadata = {constants.ZipFileExtractedMarker: True}
             created_folder = gc.createFolder(
-                folderId, constants.SourceFolderName, reuseExisting=True, metadata=metadata
+                folderId,
+                constants.SourceFolderName,
+                reuseExisting=True,
             )
             gc.sendRestRequest(
                 "PUT",
