@@ -46,21 +46,19 @@ RUN poetry install --no-dev
 # ======================
 FROM python:3.7-slim-buster
 
-# Install runtime dependencies (dynamically linked)
-RUN apt-get update && \
-  apt-get install -qy \
-    git && \
-  apt-get clean && rm -rf /var/lib/apt/lists/*
+# Hack: Tell GitPython to be quiet, we aren't using git
+ENV GIT_PYTHON_REFRESH="quiet"
 
-# Copy site packages
+# Copy site packages and executables
 COPY --from=server-builder /usr/local/lib/python3.7/site-packages /usr/local/lib/python3.7/site-packages
-# Copy girder executable
 COPY --from=server-builder /usr/local/bin/girder /usr/local/bin/girder
+COPY --from=server-builder /usr/local/bin/dive /usr/local/bin/dive
 # Copy the source code of the editable module
 COPY --from=server-builder /home/server/ /home/server/
 # Copy the client code into the static source location
+COPY --from=server-builder /usr/local/share/girder /usr/local/share/girder
 COPY --from=client-builder /app/dist/ /usr/local/share/girder/static/viame/
-# Install startup script
-COPY docker/entrypoint_server.sh docker/server_setup.py /home/server/
+# Install startup scripts
+COPY docker/entrypoint_server.sh docker/server_setup.py /
 
-ENTRYPOINT [ "/home/server/entrypoint_server.sh" ]
+ENTRYPOINT [ "/entrypoint_server.sh" ]

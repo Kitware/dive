@@ -3,24 +3,20 @@ services:
 
   girder:
     volumes:
-      - ../docker/provision:/home/provision
       - ../server:/home/server
     command: ["--dev"]
 
   girder_worker_pipelines:
     volumes:
-      - ../server:/opt/dive
-      - ./provision:/opt/dive/provision
+      - ../server:/home/server
 
   girder_worker_training:
     volumes:
-      - ../server:/opt/dive
-      - ./provision:/opt/dive/provision
+      - ../server:/home/server
 
   girder_worker_default:
     volumes:
-      - ../server:/opt/dive
-      - ./provision:/opt/dive/provision
+      - ../server:/home/server
 
   mc:
     image: mongo:latest

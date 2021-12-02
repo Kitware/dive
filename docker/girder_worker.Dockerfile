@@ -59,11 +59,10 @@ RUN \
 # Create user "dive" 1099:1099 to align with base image permissions.
 # https://github.com/VIAME/VIAME/blob/master/cmake/build_server_docker.sh#L123
 RUN useradd --create-home --uid 1099 --shell=/bin/bash dive
-# Create a directory for the project files to live
-RUN install -g dive -o dive -d /home/server
+# Create a directory for VIAME Addons
 RUN install -g dive -o dive -d /tmp/addons
 
-# Switch to the new user and working directory
+# Switch to the new user
 USER dive
 
 # Copy installation from site packages
@@ -72,7 +71,7 @@ COPY --chown=dive:dive --from=server-builder /usr/local/lib/python3.7/site-packa
 # Copy the source code of the editable module
 COPY --chown=dive:dive --from=server-builder /home/server/ /home/server/
 # Copy provision scripts
-COPY --chown=dive:dive docker/entrypoint_worker.sh /home/server/entrypoint_worker.sh
+COPY --chown=dive:dive docker/entrypoint_worker.sh /
 
 ENTRYPOINT ["/tini", "--"]
-CMD ["/home/server/entrypoint_worker.sh"]
+CMD ["/entrypoint_worker.sh"]
