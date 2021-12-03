@@ -15,48 +15,46 @@ RUN yarn build:web
 # ========================
 # == SERVER BUILD STAGE ==
 # ========================
+# Note: server-builder stage will be the same in both dockerfiles
 FROM python:3.7-buster as server-builder
 
-WORKDIR /home/server
+WORKDIR /opt/dive/src
 
 # https://cryptography.io/en/latest/installation/#debian-ubuntu
 RUN apt-get update
 RUN apt-get install -y build-essential libssl-dev libffi-dev python3-dev cargo npm
-# Recommended poetry install https://python-poetry.org/docs/#installation
-RUN curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python -
-ENV PATH="/root/.poetry/bin:$PATH"
-
-# Copy only the lock and project files
-COPY server/pyproject.toml server/poetry.lock /home/server/
-# Use the system python installation
+# Recommended poetry install https://python-poetry.org/docs/master/#installation
+RUN curl -sSL https://install.python-poetry.org | POETRY_VERSION=1.1.2 POETRY_HOME=/opt/dive/local python -
+# Poetry creates two environments, one for the poetry install, and one for environments installed via poetry
+ENV PATH="/opt/dive/local/bin:/opt/dive/local/venv/bin:$PATH"
+# Copy only the lock and project files to optimize cache
+COPY server/pyproject.toml server/poetry.lock /opt/dive/src/
+# Use the system installation
 RUN poetry env use system
-# Skip creating a virtual env, just put stuff in /usr/local
 RUN poetry config virtualenvs.create false
 # Install dependencies only
-RUN poetry install --no-root --no-dev
+RUN poetry install --no-root
 # Build girder client, including plugins like worker/jobs
 RUN girder build
 
 # Copy full source code and install
-COPY server/ /home/server/
+COPY server/ /opt/dive/src/
 RUN poetry install --no-dev
 
-# ======================
-# == DIST BUILD STAGE ==
-# ======================
-FROM python:3.7-slim-buster
+# =================
+# == DIST SERVER ==
+# =================
+FROM python:3.7-slim-buster as server
 
 # Hack: Tell GitPython to be quiet, we aren't using git
 ENV GIT_PYTHON_REFRESH="quiet"
+ENV PATH="/opt/dive/local/venv/bin:$PATH"
 
 # Copy site packages and executables
-COPY --from=server-builder /usr/local/lib/python3.7/site-packages /usr/local/lib/python3.7/site-packages
-COPY --from=server-builder /usr/local/bin/girder /usr/local/bin/girder
-COPY --from=server-builder /usr/local/bin/dive /usr/local/bin/dive
+COPY --from=server-builder /opt/dive/local/venv /opt/dive/local/venv
 # Copy the source code of the editable module
-COPY --from=server-builder /home/server/ /home/server/
+COPY --from=server-builder /opt/dive/src /opt/dive/src
 # Copy the client code into the static source location
-COPY --from=server-builder /usr/local/share/girder /usr/local/share/girder
 COPY --from=client-builder /app/dist/ /usr/local/share/girder/static/viame/
 # Install startup scripts
 COPY docker/entrypoint_server.sh docker/server_setup.py /

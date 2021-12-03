@@ -3,20 +3,20 @@ services:
 
   girder:
     volumes:
-      - ../server:/home/server
+      - ../server:/opt/dive/src
     command: ["--dev"]
 
   girder_worker_pipelines:
     volumes:
-      - ../server:/home/server
+      - ../server:/opt/dive/src
 
   girder_worker_training:
     volumes:
-      - ../server:/home/server
+      - ../server:/opt/dive/src
 
   girder_worker_default:
     volumes:
-      - ../server:/home/server
+      - ../server:/opt/dive/src
 
   mc:
     image: mongo:latest
