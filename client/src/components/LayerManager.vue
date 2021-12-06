@@ -107,7 +107,7 @@ export default defineComponent({
       selected: selectedTrackIdRef,
       stateStyling,
     };
-    const toolTipWidget = uiLayer.addDOMWidget('customToolTip', ToolTipWidget, toolTipWidgetProps);
+    uiLayer.addDOMWidget('customToolTip', ToolTipWidget, toolTipWidgetProps, { x: 10, y: 10 });
 
     function updateLayers(
       frame: number,
@@ -121,9 +121,12 @@ export default defineComponent({
       const currentFrameIds: TrackId[] = intervalTree
         .search([frame, frame])
         .map((str: string) => parseInt(str, 10));
-
-      rectAnnotationLayer.setHoverAnnotations(visibleModes.includes('tooltip'));
-      polyAnnotationLayer.setHoverAnnotations(visibleModes.includes('tooltip'));
+      const inlcudesTooltip = visibleModes.includes('tooltip');
+      rectAnnotationLayer.setHoverAnnotations(inlcudesTooltip);
+      polyAnnotationLayer.setHoverAnnotations(inlcudesTooltip);
+      if (!inlcudesTooltip) {
+        hoverOvered.value = [];
+      }
       const frameData = [] as FrameDataTrack[];
       const editingTracks = [] as FrameDataTrack[];
       currentFrameIds.forEach(
@@ -316,14 +319,35 @@ export default defineComponent({
     });
     editAnnotationLayer.bus.$on('update:selectedIndex',
       (index: number, _type: EditAnnotationTypes, key = '') => handler.selectFeatureHandle(index, key));
-    const annotationHoverTooltip = (found: { trackType: [string, number]; trackId: number}[],
-      pos: {x: number; y: number}) => {
-      hoverOvered.value = found.map((item) => ({
-        type: item.trackType[0],
-        confidence: item.trackType[1],
-        trackId: item.trackId,
-      }));
-      toolTipWidget.position(pos);
+    const annotationHoverTooltip = (
+      found: {
+          trackType: [string, number];
+          trackId: number;
+          polygon: { coordinates: Array<Array<[number, number]>>};
+        }[],
+    ) => {
+      const hoveredVals: (ToolTipWidgetData & { maxX: number})[] = [];
+      found.forEach((item) => {
+        // get Max of X and Min of y for ordering
+        if (item.polygon.coordinates.length) {
+          let maxX = -Infinity;
+          let minY = Infinity;
+          item.polygon.coordinates[0].forEach((coord) => {
+            if (coord.length === 2) {
+              maxX = Math.max(coord[0], maxX);
+              minY = Math.min(coord[1], minY);
+            }
+          });
+          hoveredVals.push({
+            type: item.trackType[0],
+            confidence: item.trackType[1],
+            trackId: item.trackId,
+            maxX,
+          });
+        }
+      });
+      hoverOvered.value = hoveredVals.sort((a, b) => a.maxX - b.maxX);
+      uiLayer.setToolTipWidget('customToolTip', (hoverOvered.value.length > 0));
     };
     rectAnnotationLayer.bus.$on('annotation-hover', annotationHoverTooltip);
     polyAnnotationLayer.bus.$on('annotation-hover', annotationHoverTooltip);
