@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  defineComponent, computed, PropType, ref, onBeforeMount,
+  defineComponent, computed, PropType, ref, onBeforeMount, watch,
 } from '@vue/composition-api';
 import {
   Pipelines,
@@ -40,6 +40,7 @@ export default defineComponent({
     const { runPipeline, getPipelineList, loadMetadata } = useApi();
     const unsortedPipelines = ref({} as Pipelines);
     const selectedPipe = ref(null as Pipe | null);
+    const camNumber = ref(1);
     const {
       request: _runPipelineRequest,
       reset: dismissLaunchDialog,
@@ -48,20 +49,26 @@ export default defineComponent({
 
     const successMessage = computed(() => (
       `Started ${selectedPipe.value?.name} on ${props.selectedDatasetIds.length} dataset(s).`));
-    let camNumber = 0;
-    onBeforeMount(async () => {
+
+    const checkCamNumber = async () => {
       if (props.subTypeList.length === props.subTypeList.filter((item) => item === null).length) {
-        camNumber = 1;
-      } else if (props.selectedDatasetIds.length === 1) {
+        return 1;
+      } if (props.selectedDatasetIds.length === 1) {
         const meta = await loadMetadata(props.selectedDatasetIds[0]);
         if (meta.multiCamMedia) {
-          camNumber = Object.keys(meta.multiCamMedia.cameras).length;
+          return Object.keys(meta.multiCamMedia.cameras).length;
         }
-      } else {
-        camNumber = 0;
       }
-
+      return 1;
+    };
+    onBeforeMount(async () => {
+      camNumber.value = await checkCamNumber();
       unsortedPipelines.value = await getPipelineList();
+    });
+
+    // On initial load from import subTypeList changes
+    watch(() => props.subTypeList, async () => {
+      camNumber.value = await checkCamNumber();
     });
 
     const pipelines = computed(() => {
@@ -85,7 +92,7 @@ export default defineComponent({
           sortedPipelines[name] = category;
         } else if (props.subTypeList.length === props.subTypeList.filter((item) => item === 'multicam').length
         && (multiCamPipelineMarkers.includes(name))) {
-          if (name.split('-')[0] === camNumber.toString()) {
+          if (name.split('-')[0] === camNumber.value.toString()) {
             sortedPipelines[name] = category;
           }
         } else if (
