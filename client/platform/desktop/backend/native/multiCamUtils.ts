@@ -179,7 +179,10 @@ function getMultiCamImageFiles(meta: JsonMeta) {
   if (meta.multiCam && meta.multiCam.defaultDisplay) {
     if (meta.multiCam.cameras[meta.multiCam.defaultDisplay]) {
       const display = meta.multiCam.cameras[meta.multiCam.defaultDisplay];
-      return display.originalImageFiles;
+      const result = display.originalImageFiles.map(
+        (file) => npath.join(display.originalBasePath, file),
+      );
+      return result;
     }
     throw new Error(`No Image list exists for the display file of ${meta.multiCam.defaultDisplay}`);
   }

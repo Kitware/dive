@@ -37,7 +37,7 @@ export default defineComponent({
   },
 
   setup(props) {
-    const { runPipeline, getPipelineList } = useApi();
+    const { runPipeline, getPipelineList, loadMetadata } = useApi();
     const unsortedPipelines = ref({} as Pipelines);
     const selectedPipe = ref(null as Pipe | null);
     const {
@@ -48,8 +48,19 @@ export default defineComponent({
 
     const successMessage = computed(() => (
       `Started ${selectedPipe.value?.name} on ${props.selectedDatasetIds.length} dataset(s).`));
-
+    let camNumber = 0;
     onBeforeMount(async () => {
+      if (props.subTypeList.length === props.subTypeList.filter((item) => item === null).length) {
+        camNumber = 1;
+      } else if (props.selectedDatasetIds.length === 1) {
+        const meta = await loadMetadata(props.selectedDatasetIds[0]);
+        if (meta.multiCamMedia) {
+          camNumber = Object.keys(meta.multiCamMedia.cameras).length;
+        }
+      } else {
+        camNumber = 0;
+      }
+
       unsortedPipelines.value = await getPipelineList();
     });
 
@@ -69,17 +80,17 @@ export default defineComponent({
         });
         // Filter out unsupported pipelines based on subTypeList
         // measurement can only be operated on stereo subtypes
-        if (name === stereoPipelineMarker) {
-          if (props.subTypeList.length === props.subTypeList.filter((item) => item === 'stereo').length) {
-            sortedPipelines[name] = category;
-          }
-        } else {
+        if (props.subTypeList.length === props.subTypeList.filter((item) => item === 'stereo').length
+        && (name === stereoPipelineMarker)) {
           sortedPipelines[name] = category;
-        }
-        if (multiCamPipelineMarkers.includes(name)) {
-          if (props.subTypeList.length === props.subTypeList.filter((item) => item === 'multicam').length) {
+        } else if (props.subTypeList.length === props.subTypeList.filter((item) => item === 'multicam').length
+        && (multiCamPipelineMarkers.includes(name))) {
+          if (name.split('-')[0] === camNumber.toString()) {
             sortedPipelines[name] = category;
           }
+        } else if (
+          props.subTypeList.length === props.subTypeList.filter((item) => item === null).length) {
+          sortedPipelines[name] = category;
         }
       });
       return sortedPipelines;

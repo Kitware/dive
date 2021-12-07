@@ -340,8 +340,7 @@ async function autodiscoverData(settings: Settings): Promise<JsonMeta[]> {
  */
 async function getPipelineList(settings: Settings): Promise<Pipelines> {
   const pipelinePath = npath.join(settings.viamePath, 'configs/pipelines');
-  // eslint-disable-next-line no-useless-escape
-  const allowedPatterns = /^detector_.+|^tracker_.+|^generate_.+|^utility_|^measurement_gmm_.+|.*[2,3]\-cam.+/;
+  const allowedPatterns = /^detector_.+|^tracker_.+|^generate_.+|^utility_|^measurement_gmm_.+|.*[2,3]-cam.+/;
   const disallowedPatterns = /.*local.*|detector_svm_models.pipe|tracker_svm_models.pipe/;
   const exists = await fs.pathExists(pipelinePath);
   if (!exists) return {};
