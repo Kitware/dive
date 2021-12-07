@@ -23,9 +23,9 @@ function runTraining(
   annotatedFramesOnly: boolean,
   labelText?: string,
 ) {
-  return girderRest.post('dive_rpc/train', folderIds, {
+  return girderRest.post('dive_rpc/train', { folderIds, labelText }, {
     params: {
-      pipelineName, config, annotatedFramesOnly, labelText,
+      pipelineName, config, annotatedFramesOnly,
     },
   });
 }

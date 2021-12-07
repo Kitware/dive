@@ -1,3 +1,4 @@
+from typing import List
 from girder.api import access
 from girder.api.describe import Description, autoDescribeRoute
 from girder.api.rest import Resource
@@ -41,9 +42,10 @@ class RpcResource(Resource):
     @autoDescribeRoute(
         Description("Run training on a folder")
         .jsonParam(
-            "folderIds",
+            "body",
             description="Array of folderIds to run training on",
             paramType="body",
+            schema= {"folderIds": List[str], "labelText": int}
         )
         .param(
             "pipelineName",
@@ -65,19 +67,12 @@ class RpcResource(Resource):
             default=False,
             required=False,
         )
-        .param(
-            "labelText",
-            description="String of text from label.txt file.",
-            paramType="body",
-            dataType="string",
-            required=False,
-        )
     )
-    def run_training(self, folderIds, pipelineName, config, annotatedFramesOnly, labelText):
+    def run_training(self, body, pipelineName, config, annotatedFramesOnly):
         user = self.getCurrentUser()
         token = Token().createToken(user=user, days=14)
         return crud_rpc.run_training(
-            user, token, folderIds, pipelineName, config, annotatedFramesOnly, labelText
+            user, token, body, pipelineName, config, annotatedFramesOnly
         )
 
     @access.user

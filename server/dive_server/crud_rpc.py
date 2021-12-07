@@ -226,19 +226,19 @@ def ensure_csv_detections_file(
 def run_training(
     user: types.GirderUserModel,
     token: types.GirderModel,
-    folderIds: List[str],
+    bodyParams: dict(folderIds= List[str], labelText= str),
     pipelineName: str,
     config: str,
     annotatedFramesOnly: bool,
-    labelText: str,
+    # labelText: str,
 ) -> types.GirderModel:
     detection_list = []
     folder_list = []
     folder_names = []
-    if folderIds is None or len(folderIds) == 0:
+    if bodyParams["folderIds"] is None or len(bodyParams["folderIds"]) == 0:
         raise RestException("No folderIds in param")
 
-    for folderId in folderIds:
+    for folderId in bodyParams["folderIds"]:
         folder = Folder().load(folderId, level=AccessType.READ, user=user)
         if folder is None:
             raise RestException(f"Cannot access folder {folderId}")
@@ -277,18 +277,18 @@ def run_training(
             pipeline_name=pipelineName,
             config=config,
             annotated_frames_only=annotatedFramesOnly,
-            label_text=labelText,
+            label_text=bodyParams["labelText"],
             girder_client_token=str(token["_id"]),
             girder_job_title=(f"Running training on {len(folder_list)} datasets"),
             girder_job_type="private" if job_is_private else "training",
         ),
     )
     newjob.job[constants.JOBCONST_PRIVATE_QUEUE] = job_is_private
-    newjob.job[constants.JOBCONST_TRAINING_INPUT_IDS] = folderIds
+    newjob.job[constants.JOBCONST_TRAINING_INPUT_IDS] = bodyParams["folderIds"]
     newjob.job[constants.JOBCONST_RESULTS_FOLDER_ID] = str(results_folder['_id'])
     newjob.job[constants.JOBCONST_TRAINING_CONFIG] = config
     newjob.job[constants.JOBCONST_PIPELINE_NAME] = pipelineName
-    newjob.job[constants.JOBCONST_LABEL_TEXT] = labelText
+    newjob.job[constants.JOBCONST_LABEL_TEXT] = bodyParams["labelText"]
 
     Job().save(newjob.job)
     return newjob.job
