@@ -353,7 +353,8 @@ async function getPipelineList(settings: Settings): Promise<Pipelines> {
     const parts = cleanString(p.replace('.pipe', '')).split('_');
     let pipeType = parts[0];
     let pipeName = parts.slice(1).join(' ');
-    if (parts[parts.length - 1] === 'cam') {
+    // Extract out only 2-cam and 3-cam pipelines to own category, 1-cam reamin in tracker/detector
+    if (parts.length > 2 && parts[parts.length - 1] === 'cam' && parts[parts.length - 2] !== '1') {
       pipeType = `${parts[parts.length - 2]}-cam`;
       pipeName = parts.join(' ');
     }

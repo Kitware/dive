@@ -53,7 +53,8 @@ export default defineComponent({
     const checkCamNumber = async () => {
       if (props.subTypeList.length === props.subTypeList.filter((item) => item === null).length) {
         return 1;
-      } if (props.selectedDatasetIds.length === 1) {
+        // Only run if all data is of type MultiCam
+      } if (props.selectedDatasetIds.length === props.subTypeList.filter((item) => item === 'multicam').length) {
         const meta = await loadMetadata(props.selectedDatasetIds[0]);
         if (meta.multiCamMedia) {
           return Object.keys(meta.multiCamMedia.cameras).length;
@@ -96,7 +97,8 @@ export default defineComponent({
             sortedPipelines[name] = category;
           }
         } else if (
-          props.subTypeList.length === props.subTypeList.filter((item) => item === null).length) {
+          props.subTypeList.length === props.subTypeList.filter((item) => item === null).length
+        && name !== stereoPipelineMarker && !multiCamPipelineMarkers.includes(name)) {
           sortedPipelines[name] = category;
         }
       });
