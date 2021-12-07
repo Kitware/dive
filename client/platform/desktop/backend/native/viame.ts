@@ -132,8 +132,9 @@ async function runPipeline(
   }
 
   let multiOutFiles: Record<string, string>;
-  if (meta.multiCam
-    && (pipeline.type === stereoPipelineMarker || multiCamPipelineMarkers.includes(pipeline.type))) {
+  const stereoOrMultiCam = (pipeline.type === stereoPipelineMarker
+    || multiCamPipelineMarkers.includes(pipeline.type));
+  if (meta.multiCam && stereoOrMultiCam) {
     const { argFilePair, outFiles } = writeMultiCamStereoPipelineArgs(jobWorkDir, meta);
     Object.entries(argFilePair).forEach(([arg, file]) => {
       command.push(`-s ${arg}="${file}"`);
