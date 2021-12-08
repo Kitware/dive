@@ -142,8 +142,8 @@ def save_annotations(
     """
 
     datasetId = dsFolder['_id']
-    update_operations = []
-    insert_operations = []
+    expire_operations = []  # Mark existing records as deleted
+    insert_operations = []  # Insert new records
     changes = False
     new_revision = get_last_revision(dsFolder) + 1
     delete_annotation_update = {'$set': {REVISION_DELETED: new_revision}}
@@ -158,7 +158,7 @@ def save_annotations(
     for track_id in delete_list:
         filter = {TRACKID: track_id, DATASET: datasetId, REVISION_DELETED: {'$exists': False}}
         # UpdateMany for safety, UpdateOne would also work
-        update_operations.append(pymongo.UpdateMany(filter, delete_annotation_update))
+        expire_operations.append(pymongo.UpdateMany(filter, delete_annotation_update))
 
     for newdict in upsert_list:
         newdict.update({DATASET: datasetId, REVISION_CREATED: new_revision})
@@ -170,22 +170,23 @@ def save_annotations(
         }
         if not overwrite:
             # UpdateMany for safety, UpdateOne would also work
-            update_operations.append(pymongo.UpdateMany(filter, delete_annotation_update))
+            expire_operations.append(pymongo.UpdateMany(filter, delete_annotation_update))
         insert_operations.append(pymongo.InsertOne(newdict))
 
     # Ordered=false allows fast parallel writes
-    if len(update_operations):
-        AnnotationItem().collection.bulk_write(update_operations, ordered=False)
+    if len(expire_operations):
+        AnnotationItem().collection.bulk_write(expire_operations, ordered=False)
         changes = True
     if len(insert_operations):
         AnnotationItem().collection.bulk_write(insert_operations, ordered=False)
         changes = True
 
-    # Write the revision to the log
     additions = len(insert_operations)
-    deletions = len(update_operations) - additions
+    # Absolute value because expire_operations might be 0 if overwrite is true
+    deletions = abs(len(expire_operations) - additions)
 
     if changes:
+        # Write the revision to the log
         log_entry = models.RevisionLog(
             dataset=datasetId,
             author_name=user['login'],

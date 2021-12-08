@@ -3,11 +3,11 @@ from typing import List, Optional
 import cherrypy
 from girder.api import access
 from girder.api.describe import Description, autoDescribeRoute
-from girder.api.rest import Resource, setResponseHeader
+from girder.api.rest import Resource
 from girder.constants import AccessType, TokenScope
 from girder.models.folder import Folder
 
-from dive_utils import slugify
+from dive_utils import setContentDisposition
 
 from . import crud, crud_annotation
 
@@ -38,8 +38,17 @@ class AnnotationResource(Resource):
         .pagingParams("trackId", defaultLimit=0)
         .modelParam("folderId", **DatasetModelParam, level=AccessType.READ)
         .param('revision', 'revision', dataType='integer', required=False)
+        .param(
+            'contentDisposition',
+            "inline or attachment",
+            enum=['inline', 'attachment'],
+            default='inline',
+        )
     )
-    def get_annotations(self, limit: int, offset: int, sort, folder, revision):
+    def get_annotations(self, limit: int, offset: int, sort, folder, revision, contentDisposition):
+        setContentDisposition(
+            f'{folder["name"]}.dive.json', mime='text/csv', disposition=contentDisposition
+        )
         cursor, total = crud_annotation.get_annotations(folder, limit, offset, sort, revision)
         cherrypy.response.headers['Girder-Total-Count'] = total
         return cursor
@@ -83,9 +92,7 @@ class AnnotationResource(Resource):
             excludeBelowThreshold=excludeBelowThreshold,
             typeFilter=typeFilter,
         )
-        filename = slugify(filename)
-        setResponseHeader('Content-Type', 'text/csv')
-        setResponseHeader('Content-Disposition', f'attachment; filename="{filename}"')
+        setContentDisposition(filename, mime='text/csv')
         return gen
 
     @access.user

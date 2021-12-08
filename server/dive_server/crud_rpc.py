@@ -332,7 +332,7 @@ def process_items(folder: types.GirderModel, user: types.GirderUserModel):
                 [],
                 user,
                 overwrite=True,
-                description=f"Import from {filetype.value}",
+                description=f"Import from {filetype.name}",
             )
             crud.saveImportAttributes(folder, attrs, user)
             Item().move(item, auxiliary)
@@ -362,7 +362,7 @@ def process_items(folder: types.GirderModel, user: types.GirderUserModel):
             )
             Item().move(item, auxiliary)
         else:
-            raise RestException(f'Unknown file type {filetype}')
+            raise RestException(f'Unknown file type {filetype.name}')
 
 
 def postprocess(
