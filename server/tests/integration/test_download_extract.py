@@ -26,3 +26,14 @@ def test_extract_download(data):
         gc.downloadFile(fileId, str(filepath))
         with zipfile.ZipFile(filepath, 'r') as zipref:
             zipref.extractall(localDataRoot)
+
+
+@pytest.mark.integration
+@pytest.mark.run(order=1)
+def test_sanity_checks():
+    gc = GirderClient(apiUrl=source_api_root)
+    resp = gc.get('/', jsonResp=False)
+    assert resp.status_code == 200
+    assert resp.headers['Content-Type'] == 'text/html;charset=utf-8'
+    resp = gc.get('system/check', jsonResp=False)
+    assert resp.status_code == 200
