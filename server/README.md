@@ -15,10 +15,10 @@ Set up your system as described in the [Basic Deployment](https://kitware.github
 
 In development, the server and client are run in separate processes.  In production, the client is built and bundled as static files into the server image.
 
-Install the development requirements
+This python project uses [Poetry](https://python-poetry.org/).
 
 ```bash
-pip install -e .[dev]
+poetry install
 ```
 
 Install <https://github.com/Kitware/ldc>
@@ -58,31 +58,29 @@ To work on the Vue client, see development instructions in `../client`.
 
 ## Unit Testing and Static Checks
 
-All tests are run using tox which is installed with the `dev` packages.
-
-To run local verification of all tests, linting, and formatting
+Automation is done with [Tox](https://pypi.org/project/tox/), installed by poetry above.
 
 ```bash
 # run only lint checks
-tox -e check
+poetry run tox -e check
 
 # run only type checks
-tox -e type
+poetry run tox -e type
 
 # run only unit tests
-tox -e testunit
+poetry run tox -e testunit
 
 # run only a particular test
-tox -e testunit -- -k test_image_sort
+poetry run tox -e testunit -- -k test_image_sort
 
 # run all three tests above
-tox
+poetry run tox
 
 # automatically format all code to comply to linting checks
-tox -e format
+poetry run tox -e format
 
 # run mkdocs and serve the documentation page
-tox -e docs
+poetry run tox -e docs
 ```
 
 ## Integration Testing
@@ -97,10 +95,10 @@ ldc up -d
 export GIRDER_API_KEY=CHANGEME
 
 # run the tests
-tox -e testintegration
+poetry run tox -e testintegration
 
 # run only a particular test (be mindful of dependencies)
-tox -e testintegration -- -k test_pipelines
+poetry run tox -e testintegration -- -k test_pipelines
 ```
 
 After integration tests are complete, visually inspect the results to make sure all jobs completed, new datasets open correctly, etc.
@@ -108,14 +106,14 @@ After integration tests are complete, visually inspect the results to make sure 
 ## Debug utils and command line tools
 
 ``` bash
-# Requires the development installation above
-pip install -e .[dev]
+# Requires a local poetry installation
+poetry install
 
 # show options
-dive --help
+poetry run dive --help
 
 # build the standalone executable into ./dist
-tox -e buildcli
+poetry run tox -e buildcli
 ```
 
 ## Metadata properties

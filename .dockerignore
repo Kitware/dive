@@ -2,6 +2,8 @@ venv/
 **/node_modules
 **/dist
 **/build
+**/tests
+**/.tox
 docker/girder_data
 *.Dockerfile
 docker-compose.*

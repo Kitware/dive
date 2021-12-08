@@ -3,21 +3,20 @@ services:
 
   girder:
     volumes:
-      - ../docker/provision:/home/provision
-      - ../server:/home/viame_girder
-    entrypoint: ["/home/provision/girder_entrypoint_dev.sh"]
+      - ../server:/opt/dive/src
+    command: ["--dev"]
 
   girder_worker_pipelines:
     volumes:
-      - ../server:/home/dive
+      - ../server:/opt/dive/src
 
   girder_worker_training:
     volumes:
-      - ../server:/home/dive
+      - ../server:/opt/dive/src
 
   girder_worker_default:
     volumes:
-      - ../server:/home/dive
+      - ../server:/opt/dive/src
 
   mc:
     image: mongo:latest

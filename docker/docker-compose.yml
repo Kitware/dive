@@ -57,6 +57,8 @@ services:
       context: ../
       dockerfile: docker/girder.Dockerfile
     image: kitware/viame-web:${TAG:-latest}
+    init: true
+    command: ["--mode", "production"]
     depends_on:
       - mongo
       - traefik

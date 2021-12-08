@@ -15,7 +15,7 @@ if [ -n "$WORKER_CONCURRENCY" ]; then
     CONCURRENCY_ARGUMENT="--concurrency $WORKER_CONCURRENCY"
 fi
 
-exec python3.7 \
+exec python \
     -m dive_tasks \
     -l info \
     --without-gossip --without-mingle \
