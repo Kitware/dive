@@ -1,5 +1,7 @@
-# V16 needed, see client/README.md
-FROM node:16 as builder
+# ========================
+# == CLIENT BUILD STAGE ==
+# ========================
+FROM node:16 as client-builder
 WORKDIR /app
 
 # Install dependencies
@@ -10,41 +12,50 @@ COPY .git/ /app/.git/
 COPY client/ /app/
 RUN yarn build:web
 
+# ========================
+# == SERVER BUILD STAGE ==
+# ========================
+# Note: server-builder stage will be the same in both dockerfiles
+FROM python:3.7-buster as server-builder
 
-FROM girder/girder as runtime
+WORKDIR /opt/dive/src
 
-# install tini init system
-ENV TINI_VERSION v0.19.0
-ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini /tini
-RUN chmod +x /tini
-
-# Defaults are different between normal and docker installations
-ENV GIRDER_MONGO_URI mongodb://mongo:27017/girder
-ENV CELERY_BROKER_URL amqp://guest:guest@rabbit/
-
-# Initialize python virtual environment
-RUN apt-get update && apt-get install -y python3.7-venv
-ENV VIRTUAL_ENV=/opt/venv
-RUN python3.7 -m venv $VIRTUAL_ENV
-
-# this will activate the virtual env
-ENV PATH="$VIRTUAL_ENV/bin:$PATH"
-
-# Cryptography requires latest pip, setuptools.
-# https://cryptography.io/en/latest/faq.html#installing-cryptography-fails-with-error-can-not-find-rust-compiler
-RUN pip install -U pip setuptools
-
-COPY --from=builder /app/dist/ $VIRTUAL_ENV/share/girder/static/viame/
-
-WORKDIR /home/viame_girder
-
-COPY docker/provision /home/provision
-COPY server/setup.py /home/viame_girder/
-RUN pip install --no-cache-dir .
-
-COPY server/ /home/viame_girder/
-RUN pip install --no-deps .
-
+# https://cryptography.io/en/latest/installation/#debian-ubuntu
+RUN apt-get update
+RUN apt-get install -y build-essential libssl-dev libffi-dev python3-dev cargo npm
+# Recommended poetry install https://python-poetry.org/docs/master/#installation
+RUN curl -sSL https://install.python-poetry.org | POETRY_VERSION=1.1.2 POETRY_HOME=/opt/dive/local python -
+ENV PATH="/opt/dive/local/venv/bin:$PATH"
+# Copy only the lock and project files to optimize cache
+COPY server/pyproject.toml server/poetry.lock /opt/dive/src/
+# Use the system installation
+RUN poetry env use system
+RUN poetry config virtualenvs.create false
+# Install dependencies only
+RUN poetry install --no-root
+# Build girder client, including plugins like worker/jobs
 RUN girder build
 
-ENTRYPOINT [ "/home/provision/girder_entrypoint.sh" ]
+# Copy full source code and install
+COPY server/ /opt/dive/src/
+RUN poetry install --no-dev
+
+# =================
+# == DIST SERVER ==
+# =================
+FROM python:3.7-slim-buster as server
+
+# Hack: Tell GitPython to be quiet, we aren't using git
+ENV GIT_PYTHON_REFRESH="quiet"
+ENV PATH="/opt/dive/local/venv/bin:$PATH"
+
+# Copy site packages and executables
+COPY --from=server-builder /opt/dive/local/venv /opt/dive/local/venv
+# Copy the source code of the editable module
+COPY --from=server-builder /opt/dive/src /opt/dive/src
+# Copy the client code into the static source location
+COPY --from=client-builder /app/dist/ /usr/local/share/girder/static/viame/
+# Install startup scripts
+COPY docker/entrypoint_server.sh docker/server_setup.py /
+
+ENTRYPOINT [ "/entrypoint_server.sh" ]
