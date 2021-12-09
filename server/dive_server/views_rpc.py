@@ -44,7 +44,8 @@ class RpcResource(Resource):
         Description("Run training on a folder")
         .jsonParam(
             "body",
-            description="JSON object with Array of folderIds to run training on and labels.txt file content",
+            description="JSON object with Array of folderIds to run training on\
+             and labels.txt file content",
             paramType="body",
             schema={"folderIds": List[str], "labelText": str},
         )
