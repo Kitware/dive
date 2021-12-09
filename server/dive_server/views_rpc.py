@@ -45,7 +45,7 @@ class RpcResource(Resource):
             "body",
             description="Array of folderIds to run training on",
             paramType="body",
-            schema= {"folderIds": List[str], "labelText": int}
+            schema= {"folderIds": List[str], "labelText": str}
         )
         .param(
             "pipelineName",
