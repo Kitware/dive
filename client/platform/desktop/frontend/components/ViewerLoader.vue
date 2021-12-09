@@ -47,6 +47,7 @@ export default defineComponent({
     const viewerRef = ref();
     const compoundId = ref(props.id);
     const subTypeList = computed(() => [datasets.value[props.id]?.subType || null]);
+    const camNumbers = computed(() => [datasets.value[props.id]?.cameraNumber || 1]);
     const readonlyMode = computed(() => settings.value?.readonlyMode || false);
 
     watch(runningJobs, async (_previous, current) => {
@@ -73,6 +74,7 @@ export default defineComponent({
       buttonOptions,
       menuOptions,
       subTypeList,
+      camNumbers,
       readonlyMode,
     };
   },
@@ -108,6 +110,7 @@ export default defineComponent({
       <RunPipelineMenu
         :selected-dataset-ids="[id]"
         :sub-type-list="subTypeList"
+        :camera-numbers="camNumbers"
         v-bind="{ buttonOptions, menuOptions }"
       />
       <ImportAnnotations
