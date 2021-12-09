@@ -28,6 +28,7 @@ export interface JsonMetaCache {
   imageListPath: string;
   transcodedVideoFile?: string;
   subType: SubType;
+  cameraNumber: number;
 }
 
 /**
@@ -40,6 +41,7 @@ function hydrateJsonMetaCacheValue(input: any): JsonMetaCache {
     transcodedVideoFile: '',
     accessedAt: input.createdAt,
     subType: null,
+    cameraNumber: 1,
     ...input,
   };
 }
@@ -62,6 +64,7 @@ function setRecents(meta: JsonMeta, accessTime?: string) {
     imageListPath: meta.imageListPath,
     transcodedVideoFile: meta.transcodedVideoFile,
     subType: meta.subType,
+    cameraNumber: Object.keys(meta.multiCam || {}).length,
   } as JsonMetaCache);
   const values = Object.values(datasets.value);
   window.localStorage.setItem(RecentsKey, JSON.stringify(values));

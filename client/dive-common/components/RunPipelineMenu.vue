@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  defineComponent, computed, PropType, ref, onBeforeMount, watch,
+  defineComponent, computed, PropType, ref, onBeforeMount,
 } from '@vue/composition-api';
 import {
   Pipelines,
@@ -30,17 +30,23 @@ export default defineComponent({
       type: Object,
       default: () => ({}),
     },
+    /* Which pipelines to show based on dataset subtypes */
     subTypeList: {
       type: Array as PropType<SubType[]>,
       default: () => ([]),
     },
+    /* Which pipelines to show based on how many cameras they accept */
+    cameraNumbers: {
+      type: Array as PropType<number[]>,
+      default: () => ([1]),
+    },
   },
 
   setup(props) {
-    const { runPipeline, getPipelineList, loadMetadata } = useApi();
+    const { runPipeline, getPipelineList } = useApi();
     const unsortedPipelines = ref({} as Pipelines);
     const selectedPipe = ref(null as Pipe | null);
-    const camNumber = ref(1);
+    const camNumberStringArray = computed(() => props.cameraNumbers.map((v) => v.toString()));
     const {
       request: _runPipelineRequest,
       reset: dismissLaunchDialog,
@@ -50,24 +56,8 @@ export default defineComponent({
     const successMessage = computed(() => (
       `Started ${selectedPipe.value?.name} on ${props.selectedDatasetIds.length} dataset(s).`));
 
-    // Detemine the number of cameras if all types are multicam
-    const checkCamNumber = async () => {
-      if (props.subTypeList.every((item) => item === 'multicam')) {
-        const meta = await loadMetadata(props.selectedDatasetIds[0]);
-        if (meta.multiCamMedia) {
-          return Object.keys(meta.multiCamMedia.cameras).length;
-        }
-      }
-      // return 1 camera if the types are mixed
-      return 1;
-    };
     onBeforeMount(async () => {
       unsortedPipelines.value = await getPipelineList();
-    });
-
-    // On initial load from import subTypeList changes
-    watch(() => props.subTypeList, async () => {
-      camNumber.value = await checkCamNumber();
     });
 
     const pipelines = computed(() => {
@@ -89,7 +79,8 @@ export default defineComponent({
         if (props.subTypeList.every((item) => item === 'stereo') && (name === stereoPipelineMarker)) {
           sortedPipelines[name] = category;
         } else if (props.subTypeList.every((item) => item === 'multicam') && (multiCamPipelineMarkers.includes(name))) {
-          if (name.split('-')[0] === camNumber.value.toString()) {
+          const pipelineExpectedCameraCount = name.split('-')[0];
+          if (camNumberStringArray.value.includes(pipelineExpectedCameraCount)) {
             sortedPipelines[name] = category;
           }
         } else if (props.subTypeList.every((item) => item === null)
