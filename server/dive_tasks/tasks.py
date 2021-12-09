@@ -277,7 +277,7 @@ def train_pipeline(
     pipeline_name: str,
     config: str,
     annotated_frames_only: bool = False,
-    label_text: Optional[str] = None
+    label_text: Optional[str] = None,
 ):
     """
     Train a pipeline by making a call to viame_train_detector
