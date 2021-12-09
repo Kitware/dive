@@ -50,20 +50,18 @@ export default defineComponent({
     const successMessage = computed(() => (
       `Started ${selectedPipe.value?.name} on ${props.selectedDatasetIds.length} dataset(s).`));
 
+    // Detemine the number of cameras if all types are multicam
     const checkCamNumber = async () => {
-      if (props.subTypeList.length === props.subTypeList.filter((item) => item === null).length) {
-        return 1;
-        // Only run if all data is of type MultiCam
-      } if (props.selectedDatasetIds.length === props.subTypeList.filter((item) => item === 'multicam').length) {
+      if (props.subTypeList.every((item) => item === 'multicam')) {
         const meta = await loadMetadata(props.selectedDatasetIds[0]);
         if (meta.multiCamMedia) {
           return Object.keys(meta.multiCamMedia.cameras).length;
         }
       }
+      // return 1 camera if the types are mixed
       return 1;
     };
     onBeforeMount(async () => {
-      camNumber.value = await checkCamNumber();
       unsortedPipelines.value = await getPipelineList();
     });
 
@@ -88,16 +86,13 @@ export default defineComponent({
         });
         // Filter out unsupported pipelines based on subTypeList
         // measurement can only be operated on stereo subtypes
-        if (props.subTypeList.length === props.subTypeList.filter((item) => item === 'stereo').length
-        && (name === stereoPipelineMarker)) {
+        if (props.subTypeList.every((item) => item === 'stereo') && (name === stereoPipelineMarker)) {
           sortedPipelines[name] = category;
-        } else if (props.subTypeList.length === props.subTypeList.filter((item) => item === 'multicam').length
-        && (multiCamPipelineMarkers.includes(name))) {
+        } else if (props.subTypeList.every((item) => item === 'multicam') && (multiCamPipelineMarkers.includes(name))) {
           if (name.split('-')[0] === camNumber.value.toString()) {
             sortedPipelines[name] = category;
           }
-        } else if (
-          props.subTypeList.length === props.subTypeList.filter((item) => item === null).length
+        } else if (props.subTypeList.every((item) => item === null)
         && name !== stereoPipelineMarker && !multiCamPipelineMarkers.includes(name)) {
           sortedPipelines[name] = category;
         }

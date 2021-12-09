@@ -101,7 +101,7 @@ const listFileTypes = [
 ];
 
 const stereoPipelineMarker = 'measurement';
-const multiCamPipelineMarkers = ['2-cam', '3-cam']; //Placeholder
+const multiCamPipelineMarkers = ['2-cam', '3-cam'];
 
 
 export {
