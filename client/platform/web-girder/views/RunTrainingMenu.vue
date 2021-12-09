@@ -1,14 +1,12 @@
 <script lang="ts">
 import {
-  defineComponent, computed, PropType, ref, onBeforeMount,
+  defineComponent, computed, PropType, ref, onBeforeMount, watch,
 } from '@vue/composition-api';
 
 import { useApi, TrainingConfigs } from 'dive-common/apispec';
 import JobLaunchDialog from 'dive-common/components/JobLaunchDialog.vue';
 import ImportButton from 'dive-common/components/ImportButton.vue';
 import { useRequest } from 'dive-common/use';
-import { openFromDisk } from 'platform/web-girder/utils';
-import { inputTxtTypes } from 'dive-common/constants';
 
 
 export default defineComponent({
@@ -86,17 +84,20 @@ export default defineComponent({
       trainingOutputName.value = null;
     }
 
-    async function openTxt() {
-      const data = await openFromDisk(inputTxtTypes);
-      if (!data.canceled && data.fileList) {
+    watch(labelFile, () => {
+      if (labelFile.value) {
         const reader = new FileReader();
         reader.onload = (evt) => {
           labelText.value = evt.target?.result as string;
         };
-        reader.readAsText(data.fileList[0]);
-        [labelFile.value] = data.fileList;
+        reader.readAsText(labelFile.value);
       }
-    }
+    });
+
+    const clearLabelText = () => {
+      labelText.value = '';
+    };
+
 
     return {
       trainingConfigurations,
@@ -109,9 +110,8 @@ export default defineComponent({
       successMessage,
       dismissJobDialog,
       runTrainingOnFolder,
-      openTxt,
-      labelText,
       labelFile,
+      clearLabelText,
     };
   },
 });
@@ -192,16 +192,11 @@ export default defineComponent({
               :items="trainingConfigurations.configs"
             />
             <v-file-input
-              v-if="labelText"
               v-model="labelFile"
-              clearable
-            />
-            <import-button
-              name="Upload labels.txt File"
               icon="mdi-folder-open"
-              open-type="txt"
-              class="grow"
-              @open="openTxt"
+              label="Upload labels.txt file(Optional)"
+              clearable
+              @click:clear="clearLabelText"
             />
             <v-checkbox
               v-model="annotatedFramesOnly"
