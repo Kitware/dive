@@ -9,7 +9,7 @@ import {
   SubType,
 } from 'dive-common/apispec';
 import JobLaunchDialog from 'dive-common/components/JobLaunchDialog.vue';
-import { stereoPipelineMarker } from 'dive-common/constants';
+import { stereoPipelineMarker, multiCamPipelineMarkers } from 'dive-common/constants';
 import { useRequest } from 'dive-common/use';
 
 export default defineComponent({
@@ -30,9 +30,15 @@ export default defineComponent({
       type: Object,
       default: () => ({}),
     },
+    /* Which pipelines to show based on dataset subtypes */
     subTypeList: {
       type: Array as PropType<SubType[]>,
       default: () => ([]),
+    },
+    /* Which pipelines to show based on how many cameras they accept */
+    cameraNumbers: {
+      type: Array as PropType<number[]>,
+      default: () => ([1]),
     },
   },
 
@@ -40,6 +46,7 @@ export default defineComponent({
     const { runPipeline, getPipelineList } = useApi();
     const unsortedPipelines = ref({} as Pipelines);
     const selectedPipe = ref(null as Pipe | null);
+    const camNumberStringArray = computed(() => props.cameraNumbers.map((v) => v.toString()));
     const {
       request: _runPipelineRequest,
       reset: dismissLaunchDialog,
@@ -69,13 +76,15 @@ export default defineComponent({
         });
         // Filter out unsupported pipelines based on subTypeList
         // measurement can only be operated on stereo subtypes
-        if (name === stereoPipelineMarker) {
-          if (props.subTypeList.length === props.subTypeList.filter((item) => item === 'stereo').length) {
+        if (props.subTypeList.every((item) => item === 'stereo') && (name === stereoPipelineMarker)) {
+          sortedPipelines[name] = category;
+        } else if (props.subTypeList.every((item) => item === 'multicam') && (multiCamPipelineMarkers.includes(name))) {
+          const pipelineExpectedCameraCount = name.split('-')[0];
+          if (camNumberStringArray.value.includes(pipelineExpectedCameraCount)) {
             sortedPipelines[name] = category;
           }
-        } else if (
-          props.subTypeList.length === props.subTypeList.filter((item) => item === null).length
-        ) {
+        } else if (props.subTypeList.every((item) => item === null)
+        && name !== stereoPipelineMarker && !multiCamPipelineMarkers.includes(name)) {
           sortedPipelines[name] = category;
         }
       });

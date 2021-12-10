@@ -10,7 +10,7 @@ import { cleanString } from 'platform/desktop/sharedUtils';
 import { serialize } from 'platform/desktop/backend/serializers/viame';
 import { observeChild } from 'platform/desktop/backend/native/processManager';
 
-import { MultiType, stereoPipelineMarker } from 'dive-common/constants';
+import { MultiType, stereoPipelineMarker, multiCamPipelineMarkers } from 'dive-common/constants';
 import * as common from './common';
 import { jobFileEchoMiddleware } from './utils';
 import {
@@ -132,7 +132,9 @@ async function runPipeline(
   }
 
   let multiOutFiles: Record<string, string>;
-  if (meta.multiCam && pipeline.type === stereoPipelineMarker) {
+  const stereoOrMultiCam = (pipeline.type === stereoPipelineMarker
+    || multiCamPipelineMarkers.includes(pipeline.type));
+  if (meta.multiCam && stereoOrMultiCam) {
     const { argFilePair, outFiles } = writeMultiCamStereoPipelineArgs(jobWorkDir, meta);
     Object.entries(argFilePair).forEach(([arg, file]) => {
       command.push(`-s ${arg}="${file}"`);
