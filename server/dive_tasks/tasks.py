@@ -573,6 +573,7 @@ def extract_zip(self: Task, folderId: str, itemId: str):
         file_name = str(_working_directory_path / item['name'])
         manager.write(f'Fetching input from {itemId} to {file_name}...\n')
         gc.downloadItem(itemId, _working_directory, item["name"])
+        top_level_folders = { }
         with zipfile.ZipFile(file_name, 'r') as zipObj:
             listOfFileNames = zipObj.namelist()
             sum_file_size = sum([data.file_size for data in zipObj.filelist])
@@ -587,6 +588,12 @@ def extract_zip(self: Task, folderId: str, itemId: str):
                 return
 
             for fileName in listOfFileNames:
+                if fileName.endswith('/') and fileName.count('/') == 1:
+                    top_level_folders[fileName] = 'flat'
+                if fileName.endswith('meta.json'):
+                    root_folder = fileName.replace('/meta.json', '')
+                    if root_folder in top_level_folders:
+                        top_level_folders[root_folder] = 'dataset'
                 if fileName.endswith('.zip'):
                     manager.write("Nested Zip files are invalid\n")
                     manager.updateStatus(JobStatus.ERROR)
@@ -594,30 +601,20 @@ def extract_zip(self: Task, folderId: str, itemId: str):
                 manager.write(f"Extracting: {fileName}\n")
                 zipObj.extract(fileName, f'{_working_directory}/{fileName}')
         # validation of files in folder using dive/data
-        validation = gc.sendRestRequest(
-            'POST', '/dive_dataset/validate_files', json=listOfFileNames
-        )
-        if validation.get('ok', False):
-            manager.write(f"Annotations: {validation['annotations']}\n")
-            manager.write(f"Media: {validation['media']}\n")
-            dataset_type = validation['type']
-            manager.write(f"Type: {dataset_type}\n")
-            # Upload all resulting items back into the root folder
-            manager.updateStatus(JobStatus.PUSHING_OUTPUT)
-            # create a source folder to place the zipFile inside of
-            created_folder = gc.createFolder(
-                folderId,
-                constants.SourceFolderName,
-                reuseExisting=True,
-            )
-            gc.sendRestRequest(
-                "PUT",
-                f"/item/{str(itemId)}?name={item['name']}&folderId={str(created_folder['_id'])}",
-            )
-            gc.upload(f'{_working_directory}/**/*', folderId)
-            gc.addMetadataToFolder(str(folderId), {constants.TypeMarker: dataset_type})
-            # After uploading the default files we do a the postprocess for video conversion now
-            gc.sendRestRequest("POST", f"/dive_rpc/postprocess/{str(folderId)}")
+        if bool(top_level_folders):
+            for top_folder in top_level_folders.keys():
+                if top_level_folders[top_folder] == 'flat':
+                    utils.upload_flat_media_files(gc, manager, folderId, Path(f"{_working_directory}/{top_folder}"), top_folder)
+                elif top_level_folders[top_folder] == 'dataset' and len(top_level_folders) == 1:
         else:
-            manager.write(f"Message: {validation['message']}\n")
-            manager.updateStatus(JobStatus.ERROR)
+            utils.upload_flat_media_files(gc, manager, folderId, item, _working_directory)
+
+        created_folder = gc.createFolder(
+            folderId,
+            constants.SourceFolderName,
+            reuseExisting=True,
+        )
+        gc.sendRestRequest(
+            "PUT",
+            f"/item/{str(item['_id'])}?name={item['name']}&folderId={str(created_folder['_id'])}",
+        )

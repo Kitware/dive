@@ -1,4 +1,6 @@
 from datetime import datetime, timedelta
+import json
+import os
 from pathlib import Path
 import shutil
 import signal
@@ -13,6 +15,7 @@ from girder_worker.task import Task
 from girder_worker.utils import JobManager, JobStatus
 
 from dive_utils import constants, models
+from dive_utils.types import GirderModel
 
 TIMEOUT_COUNT = 'timeout_count'
 TIMEOUT_LAST_CHECKED = 'last_checked'
@@ -157,3 +160,124 @@ def download_source_media(girder_client: GirderClient, datasetId: str, dest: Pat
         return [destination_path]
     else:
         raise Exception(f"unexpected metadata {str(dataset.dict())}")
+
+def upload_flat_media_files(
+    gc: GirderClient,
+    manager: JobManager,
+    folderId: str,
+    working_directory: Path,
+    create_subfolder = '',
+):
+    listOfFileNames = os.listdir(working_directory)
+    validation = gc.sendRestRequest(
+        'POST', '/dive_dataset/validate_files', json=listOfFileNames
+    )
+    root_folderId = folderId
+    if validation.get('ok', False):
+        manager.write(f"Annotations: {validation['annotations']}\n")
+        manager.write(f"Media: {validation['media']}\n")
+        dataset_type = validation['type']
+        manager.write(f"Type: {dataset_type}\n")
+        if len(create_subfolder) > 0:
+            sub_folder = gc.createFolder(
+                folderId,
+                create_subfolder,
+                reuseExisting=True,
+            )
+            root_folderId = sub_folder
+
+        # Upload all resulting items back into the root folder
+        manager.updateStatus(JobStatus.PUSHING_OUTPUT)
+        # create a source folder to place the zipFile inside of
+        gc.upload(f'{working_directory}/**/*', root_folderId)
+        gc.addMetadataToFolder(str(root_folderId), {constants.TypeMarker: dataset_type})
+        # After uploading the default files we do a the postprocess for video conversion now
+        gc.sendRestRequest("POST", f"/dive_rpc/postprocess/{str(root_folderId)}")
+    else:
+        manager.write(f"Message: {validation['message']}\n")
+        manager.updateStatus(JobStatus.ERROR)
+
+
+def upload_zipped_dataset(
+    gc: GirderClient,
+    manager: JobManager,
+    folderId: str,
+    item: GirderModel,
+    working_directory: Path,
+    create_subfolder= '',
+):
+    listOfFileNames = os.listdir(working_directory)
+    if "meta.json" not in listOfFileNames:
+        manager.write("Could not find meta.json file within the subdirectroy\n")
+        return
+    # load meta.json to get datatype and verify list of files
+    meta = json.loads(f"{working_directory}/meta.json")
+    type = meta[constants.TypeMarker]
+    if type == constants.ImageSequenceType:
+        imageData = meta['imageData']
+        for item in imageData: 
+            if item["filename"] not in listOfFileNames:
+                manager.write("Could not find {item['filename']} file within the list of files\n")
+                return
+    elif type == constants.VideoType:
+        video = meta["video"]
+        if video["filename"] not in listOfFileNames:
+            manager.write("Could not find {item['filename']} file within the list of files\n")
+            return
+    if len(create_subfolder) > 0:
+        sub_folder = gc.createFolder(
+            folderId,
+            create_subfolder,
+            reuseExisting=True,
+        )
+        root_folderId = sub_folder
+        manager.updateStatus(JobStatus.PUSHING_OUTPUT)
+        # create a source folder to place the zipFile inside of
+        gc.upload(f'{working_directory}/**/*', root_folderId)
+    # Now we set all the metadata for the folders and items
+    all_files = list(gc.listItem(root_folderId))
+    root_meta = {
+        "type": type,
+        "attributes": meta["attributes"],
+        "customTypeStyling": meta["customTypeStyling"],
+        "confidenceFilters": meta["confidenceFilters"],
+        "fps": meta["fps"],
+        "version": meta["version"],
+    }
+    if type == constants.VideoType:
+        # set transcoded and non-transcoded versions
+        transcoded_video = list(gc.listItem(root_folderId, video["filename"]))
+        if len(transcoded_video) == 1:
+            ffprobe = meta["ffprobe_info"]
+            avgFpsString = ffprobe["avg_frame_rate"]
+            dividend, divisor = [int(v) for v in avgFpsString.split('/')]
+            originalFps = dividend / divisor
+
+            transcoded_metadata = {
+                "codec": "h264",
+                "originalFps": originalFps,
+                "originalFpsString": avgFpsString,
+                "source_video": False,
+                "transcoder": "ffmpeg",
+            }
+            gc.addMetadataToItem(str(transcoded_video[0]['_id']), transcoded_metadata)
+            # other video is tagged as the source video
+            for item in all_files:
+                if item["name"].endswith(constants.validVideoFormats) and item["name"] != video["filename"]:
+                    source_metadata = {
+                        "codec": ffprobe["codec"],
+                        "originalFps": originalFps, 
+                        "originalFpsString": avgFpsString,
+                        "source_video": False,
+                    }
+                    gc.addMetadataToItem(str(item['_id']), source_metadata)
+            root_meta["originalFps"] = originalFps
+            root_meta["originalFpsString"] = avgFpsString
+
+    # Need to tag folder Level data (annotate, and others)
+    root_meta[constants.DatasetMarker] = True
+    gc.addMetadataToFolder(root_folderId, root_meta)
+    # Need to make sure all detection files in auxiliary subfolder are proper tagged as well so post process doesn't double process them.
+
+
+
