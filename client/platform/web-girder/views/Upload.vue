@@ -510,11 +510,21 @@ export default defineComponent({
               @multi-cam="openMultiCamDialog"
             />
             <import-button
-              :name="`Add ${pendingUploads.length ? 'Another ' : ''}Video`"
+              :name="`Add ${pendingUploads.length ? 'Another ' : ''}ViHACKeo`"
               icon="mdi-file-video"
               class="grow"
               :class="[pendingUploads.length ? 'ml-3' : 'my-3']"
               open-type="video"
+              :button-attrs="buttonAttrs"
+              @open="openImport($event)"
+              @multi-cam="openMultiCamDialog"
+            />
+            <import-button
+              :name="`Add ${pendingUploads.length ? 'Another ' : ''}KWCOCO Dataset`"
+              icon="mdi-folder-open"
+              open-type="kwcoco"
+              class="grow"
+              :class="[pendingUploads.length ? 'mr-3' : 'my-3']"
               :button-attrs="buttonAttrs"
               @open="openImport($event)"
               @multi-cam="openMultiCamDialog"

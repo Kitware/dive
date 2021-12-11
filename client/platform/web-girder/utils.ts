@@ -51,6 +51,10 @@ Promise<{ canceled: boolean; filePaths: string[]; fileList?: File[]}> {
   } else if (datasetType === 'annotation') {
     input.accept = inputAnnotationTypes
       .concat(inputAnnotationFileTypes.map((item) => `.${item}`)).join(',');
+  } else if (datasetType === 'kwcoco') {
+    /* Hack: should probably define kwcoco extensions here */
+    input.accept = inputAnnotationTypes
+      .concat(inputAnnotationFileTypes.map((item) => `.${item}`)).join(',');
   }
   return new Promise(((resolve) => {
     input.onchange = (event) => {
