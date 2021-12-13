@@ -15,7 +15,6 @@ from girder_worker.task import Task
 from girder_worker.utils import JobManager, JobStatus
 
 from dive_utils import constants, models
-from dive_utils.types import GirderModel
 
 TIMEOUT_COUNT = 'timeout_count'
 TIMEOUT_LAST_CHECKED = 'last_checked'
@@ -190,6 +189,8 @@ def upload_zipped_flat_media_files(
         manager.updateStatus(JobStatus.PUSHING_OUTPUT)
         # create a source folder to place the zipFile inside of
         gc.upload(f'{working_directory}/*', root_folderId)
+        if dataset_type == constants.ImageSequenceType and default_fps == -1:
+            default_fps = 1
         gc.addMetadataToFolder(
             str(root_folderId),
             {constants.TypeMarker: dataset_type, constants.FPSMarker: default_fps},

@@ -63,3 +63,12 @@ def test_upload_zip_data(user: dict):
             if dataset['job_status'] == JobStatus.ERROR:
                 continue
             raise ex
+        # verify sub datasets if they exist
+        if dataset.get('subDatasets', False):
+            folders = list(client.listFolder(newDatasetFolder['_id']))
+            for item in dataset["subDatasets"]:
+                matches = [x for x in folders if x["name"] == item["name"]]
+                if len(matches) > 0:
+                    meta = matches[0].get("meta", {})
+                    assert meta.get("fps", -1) == item["fps"]
+                    assert meta.get("type", "") == item["type"]

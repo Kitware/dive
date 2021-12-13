@@ -599,8 +599,19 @@ def extract_zip(self: Task, folderId: str, itemId: str):
                     return
                 manager.write(f"Extracting: {fileName}\n")
                 zipObj.extract(fileName, f'{_working_directory}')
+        # remove the zip file
+        os.remove(file_name)
         # validation of files in folder using dive/data
-        print(top_level_folders)
+        created_folder = gc.createFolder(
+            folderId,
+            constants.SourceFolderName,
+            reuseExisting=True,
+        )
+        gc.sendRestRequest(
+            "PUT",
+            f"/item/{str(item['_id'])}?folderId={str(created_folder['_id'])}",
+        )
+
         if bool(top_level_folders):
             for top_folder in top_level_folders.keys():
                 if top_level_folders[top_folder] == 'flat':
@@ -628,14 +639,4 @@ def extract_zip(self: Task, folderId: str, itemId: str):
                     )
 
         else:
-            utils.upload_zipped_flat_media_files(gc, manager, folderId, _working_directory)
-
-        created_folder = gc.createFolder(
-            folderId,
-            constants.SourceFolderName,
-            reuseExisting=True,
-        )
-        gc.sendRestRequest(
-            "PUT",
-            f"/item/{str(item['_id'])}?name={item['name']}&folderId={str(created_folder['_id'])}",
-        )
+            utils.upload_zipped_flat_media_files(gc, manager, folderId, Path(_working_directory))

@@ -172,6 +172,52 @@ zipUser: Dict[str, Dict[str, Any]] = {
                 'job_status': JobStatus.SUCCESS,
             },
             {
+                'name': 'singleDatasetImport',
+                'path': 'zipTestFiles/singleDatasetImport.zip',
+                'fps': 29.97002997002997,
+                'originalFps': 30000 / 1001,
+                'type': 'video',
+                'job_status': JobStatus.SUCCESS,
+            },
+            {
+                'name': 'flatMultiImport',
+                'path': 'zipTestFiles/flatMultiImport.zip',
+                'fps': -1,
+                'type': 'zip',
+                'subDatasets': [
+                    {
+                        'name': 'testVideoZip',
+                        'type': 'video',
+                        'fps': 29.97002997002997,
+                    },
+                    {
+                        'name': 'testImageZip',
+                        'type': 'image-sequence',
+                        'fps': 1,
+                    },
+                ],
+                'job_status': JobStatus.SUCCESS,
+            },
+            {
+                'name': 'MultiDatasetImport',
+                'path': 'zipTestFiles/MultiDatasetImport.zip',
+                'fps': -1,
+                'type': 'zip',
+                'subDatasets': [
+                    {
+                        'name': 'video1_train_mp4',
+                        'type': 'video',
+                        'fps': 29.97002997002997,
+                    },
+                    {
+                        'name': 'testtrain1_imagelist',
+                        'type': 'image-sequence',
+                        'fps': 1,
+                    },
+                ],
+                'job_status': JobStatus.SUCCESS,
+            },
+            {
                 'name': 'badFormatZip',
                 'path': 'zipTestFiles/badFormatZip.zip',
                 'fps': 1,
