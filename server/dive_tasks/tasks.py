@@ -573,7 +573,7 @@ def extract_zip(self: Task, folderId: str, itemId: str):
         file_name = str(_working_directory_path / item['name'])
         manager.write(f'Fetching input from {itemId} to {file_name}...\n')
         gc.downloadItem(itemId, _working_directory, item["name"])
-        top_level_folders = { }
+        top_level_folders = {}
         with zipfile.ZipFile(file_name, 'r') as zipObj:
             listOfFileNames = zipObj.namelist()
             sum_file_size = sum([data.file_size for data in zipObj.filelist])
@@ -589,25 +589,46 @@ def extract_zip(self: Task, folderId: str, itemId: str):
 
             for fileName in listOfFileNames:
                 if fileName.endswith('/') and fileName.count('/') == 1:
-                    top_level_folders[fileName] = 'flat'
+                    top_level_folders[fileName.replace('/', '')] = 'flat'
                 if fileName.endswith('meta.json'):
                     root_folder = fileName.replace('/meta.json', '')
-                    if root_folder in top_level_folders:
-                        top_level_folders[root_folder] = 'dataset'
+                    top_level_folders[root_folder] = 'dataset'
                 if fileName.endswith('.zip'):
                     manager.write("Nested Zip files are invalid\n")
                     manager.updateStatus(JobStatus.ERROR)
                     return
                 manager.write(f"Extracting: {fileName}\n")
-                zipObj.extract(fileName, f'{_working_directory}/{fileName}')
+                zipObj.extract(fileName, f'{_working_directory}')
         # validation of files in folder using dive/data
+        print(top_level_folders)
         if bool(top_level_folders):
             for top_folder in top_level_folders.keys():
                 if top_level_folders[top_folder] == 'flat':
-                    utils.upload_flat_media_files(gc, manager, folderId, Path(f"{_working_directory}/{top_folder}"), top_folder)
+                    utils.upload_zipped_flat_media_files(
+                        gc,
+                        manager,
+                        folderId,
+                        Path(f"{_working_directory}/{top_folder}"),
+                        top_folder,
+                    )
                 elif top_level_folders[top_folder] == 'dataset' and len(top_level_folders) == 1:
+                    utils.upload_exported_zipped_dataset(
+                        gc,
+                        manager,
+                        folderId,
+                        Path(f"{_working_directory}/{top_folder}"),
+                    )
+                elif top_level_folders[top_folder] == 'dataset':
+                    utils.upload_exported_zipped_dataset(
+                        gc,
+                        manager,
+                        folderId,
+                        Path(f"{_working_directory}/{top_folder}"),
+                        top_folder,
+                    )
+
         else:
-            utils.upload_flat_media_files(gc, manager, folderId, item, _working_directory)
+            utils.upload_zipped_flat_media_files(gc, manager, folderId, _working_directory)
 
         created_folder = gc.createFolder(
             folderId,
