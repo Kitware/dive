@@ -1,6 +1,6 @@
 import {
   calibrationFileTypes, inputAnnotationFileTypes, inputAnnotationTypes,
-  otherImageTypes, otherVideoTypes, websafeImageTypes, websafeVideoTypes, inputTxtTypes,
+  otherImageTypes, otherVideoTypes, websafeImageTypes, websafeVideoTypes,
 } from 'dive-common/constants';
 import { DatasetType } from 'dive-common/apispec';
 import type { LocationType, RootlessLocationType } from 'platform/web-girder/store/types';
@@ -34,7 +34,7 @@ function getRouteFromLocation(location: LocationType): string {
   return `/${location._modelType}/${location._id}`;
 }
 
-async function openFromDisk(datasetType: DatasetType | 'calibration' | 'annotation' | 'txt'):
+async function openFromDisk(datasetType: DatasetType | 'calibration' | 'annotation'):
 Promise<{ canceled: boolean; filePaths: string[]; fileList?: File[]}> {
   const input: HTMLInputElement = document.createElement('input');
   input.type = 'file';
@@ -51,9 +51,8 @@ Promise<{ canceled: boolean; filePaths: string[]; fileList?: File[]}> {
   } else if (datasetType === 'annotation') {
     input.accept = inputAnnotationTypes
       .concat(inputAnnotationFileTypes.map((item) => `.${item}`)).join(',');
-  } else if (datasetType === 'txt') {
-    input.accept = inputTxtTypes;
   }
+
   return new Promise(((resolve) => {
     input.onchange = (event) => {
       if (event) {

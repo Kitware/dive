@@ -99,7 +99,6 @@ const inputAnnotationFileTypes = [
 const listFileTypes = [
   'txt',
 ];
-const inputTxtTypes = 'txt';
 
 const stereoPipelineMarker = 'measurement';
 const multiCamPipelineMarker = ''; //Placeholder
@@ -122,7 +121,6 @@ export {
   inputAnnotationTypes,
   inputAnnotationFileTypes,
   listFileTypes,
-  inputTxtTypes,
   stereoPipelineMarker,
   multiCamPipelineMarker,
 };
