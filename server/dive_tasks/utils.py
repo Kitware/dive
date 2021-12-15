@@ -166,8 +166,9 @@ def upload_zipped_flat_media_files(
     manager: JobManager,
     folderId: str,
     working_directory: Path,
-    create_subfolder='',
+    create_subfolder=False,
 ):
+    """Takes a flat folder of media files and/or annotation and generates a dataset from it"""
     listOfFileNames = os.listdir(working_directory)
     validation = gc.sendRestRequest('POST', '/dive_dataset/validate_files', json=listOfFileNames)
     root_folderId = folderId
@@ -177,7 +178,7 @@ def upload_zipped_flat_media_files(
         manager.write(f"Media: {validation['media']}\n")
         dataset_type = validation['type']
         manager.write(f"Type: {dataset_type}\n")
-        if len(create_subfolder) > 0:
+        if create_subfolder != '':
             sub_folder = gc.createFolder(
                 folderId,
                 create_subfolder,
@@ -209,14 +210,15 @@ def upload_exported_zipped_dataset(
     working_directory: Path,
     create_subfolder='',
 ):
+    """Uploads a folder that is generated from the export of a zip file and sets metadata"""
     listOfFileNames = os.listdir(working_directory)
-    if "meta.json" not in listOfFileNames:
-        manager.write("Could not find meta.json file within the subdirectroy\n")
+    if constants.MetaFileName not in listOfFileNames:
+        manager.write(f"Could not find {constants.MetaFileName} file within the subdirectroy\n")
         return
     print(listOfFileNames)
     # load meta.json to get datatype and verify list of files
     meta = {}
-    with open(f"{working_directory}/meta.json") as f:
+    with open(f"{working_directory}/{constants.MetaFileName}") as f:
         meta = json.load(f)
     type = meta[constants.TypeMarker]
     if type == constants.ImageSequenceType:
@@ -231,10 +233,12 @@ def upload_exported_zipped_dataset(
             manager.write("Could not find {item['filename']} file within the list of files\n")
             return
     # remove the auxilary directory so we don't have to tag them all
-    if "auxiliary" in listOfFileNames and os.path.isdir(f'{working_directory}/auxiliary'):
-        shutil.rmtree(f'{working_directory}/auxiliary')
+    if constants.AuxiliaryFolderName in listOfFileNames and os.path.isdir(
+        f'{working_directory}/{constants.AuxiliaryFolderName}'
+    ):
+        shutil.rmtree(f'{working_directory}/{constants.AuxiliaryFolderName}')
     root_folderId = folderId
-    if len(create_subfolder) > 0:
+    if create_subfolder != '':
         sub_folder = gc.createFolder(
             folderId,
             create_subfolder,

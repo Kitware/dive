@@ -102,7 +102,9 @@ def get_static_pipelines_path() -> Path:
 
 
 def get_or_create_auxiliary_folder(folder, user):
-    return Folder().createFolder(folder, "auxiliary", reuseExisting=True, creator=user)
+    return Folder().createFolder(
+        folder, constants.AuxiliaryFolderName, reuseExisting=True, creator=user
+    )
 
 
 def move_existing_result_to_auxiliary_folder(folder, user):

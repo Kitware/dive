@@ -87,6 +87,10 @@ ViameDataFolderName = "VIAME"
 TrainingOutputFolderName = "VIAME Training Results"
 # The name of the source folder holding zip backups
 SourceFolderName = "source"
+# The name of the auxiliary folder
+AuxiliaryFolderName = "auxiliary"
+# the name of the meta file
+MetaFileName = "meta.json"
 
 # job constants
 JOBCONST_DATASET_ID = 'datset_id'

@@ -588,10 +588,12 @@ def extract_zip(self: Task, folderId: str, itemId: str):
                 return
 
             for fileName in listOfFileNames:
+                # contains a sub folder
                 if fileName.endswith('/') and fileName.count('/') == 1:
                     top_level_folders[fileName.replace('/', '')] = 'flat'
-                if fileName.endswith('meta.json'):
-                    root_folder = fileName.replace('/meta.json', '')
+                # sub folder has a meta.json so it is imported
+                if fileName.endswith(constants.MetaFileName):
+                    root_folder = fileName.replace(f'/{constants.MetaFileName}', '')
                     top_level_folders[root_folder] = 'dataset'
                 if fileName.endswith('.zip'):
                     manager.write("Nested Zip files are invalid\n")
@@ -612,31 +614,46 @@ def extract_zip(self: Task, folderId: str, itemId: str):
             f"/item/{str(item['_id'])}?folderId={str(created_folder['_id'])}",
         )
 
-        if bool(top_level_folders):
+        if len(top_level_folders) > 0:
             for top_folder in top_level_folders.keys():
+                base_folder = ''  # default for no subfolder
+                # single flat/dataset import
+                if len(top_level_folders) != 1:
+                    base_folder = top_folder
+                # multiple flat/dataset import
                 if top_level_folders[top_folder] == 'flat':
                     utils.upload_zipped_flat_media_files(
                         gc,
                         manager,
                         folderId,
                         Path(f"{_working_directory}/{top_folder}"),
-                        top_folder,
+                        base_folder,
                     )
-                elif top_level_folders[top_folder] == 'dataset' and len(top_level_folders) == 1:
-                    utils.upload_exported_zipped_dataset(
-                        gc,
-                        manager,
-                        folderId,
-                        Path(f"{_working_directory}/{top_folder}"),
-                    )
+                # multiple flat file exports combined
                 elif top_level_folders[top_folder] == 'dataset':
                     utils.upload_exported_zipped_dataset(
                         gc,
                         manager,
                         folderId,
                         Path(f"{_working_directory}/{top_folder}"),
-                        top_folder,
+                        base_folder,
                     )
 
-        else:
+        else:  # flat zip file with media and/or annotation data inside
             utils.upload_zipped_flat_media_files(gc, manager, folderId, Path(_working_directory))
+
+        # remove auxilary folder and metadata if there are sub folders
+        if len(top_level_folders) > 1:
+            sub_folders = list(gc.listFolder(folderId))
+            aux_folders = list(
+                (x for x in sub_folders if x['name'] == constants.AuxiliaryFolderName)
+            )
+            if len(aux_folders) > 0:
+                gc.delete(f"folder/{aux_folders[0]['_id']}")
+            # remove metadata
+            metdata = [constants.TypeMarker, constants.FPSMarker, constants.DatasetMarker]
+            gc.sendRestRequest(
+                "DELETE",
+                f"folder/{folderId}/metadata",
+                json=metdata,
+            )

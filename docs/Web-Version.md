@@ -36,8 +36,13 @@ A user account is required to store data and run pipelines on viame.kitware.com.
 
 ### Zip Files
 
-Single flat annotations inside of a zip file can be uploaded as well as invidiual videos or images.
-Images can be zipped together with their annotations and uploaded.
+A zip import can have one of the following file combinations:
+
+* One or more images, an optional annotation file, and an optional configuration file
+* One video with an optional annotation file and an optional configuration file
+* One or more folders which contain the above examples (These will be converted to separate datasets)
+* An exported zip file from DIVE
+
 
 !!! info
 
