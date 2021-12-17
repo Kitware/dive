@@ -72,9 +72,35 @@ Run model training on ground truth annotations.  Currently, training configurati
 
 ### Options
 
-* Output Name - a recognizeable name for the pipeline that results from the training run.
-* Configuration File - chosen from the options below
-* Use anootation Frames Only - by default, training runs include all frames from the chosen input datasets, and frames without annotations are considered negatives examples.  If you choose to use annotated frames only, frames or images with zero annotations will be discarded.  This option is useful for trying to train on datasets that are only partially annotated.
+![Training options dialog](images/TrainingMenu.png)
+
+#### New Model Name
+
+A recognizable name for the pipeline that results from the training run.
+
+#### Configuration File
+
+One of the configuration options in the table below.
+
+#### Labels.txt file
+
+This **optional** file controls the output classes that a newly trained model will generate.
+
+* Use if you annotated using higher granularity labels (such as species names) and want to train a classifier using more
+* Or you want to restrict your training session to only train on certain kinds of ground-truth data.
+
+The following example `labels.txt` shows how to train a `FISH` classifier by combining `redfish` and `bluefish`, preserve the `ROCK` label, and omit every other label.
+
+``` text
+FISH redfish bluefish
+ROCK
+```
+
+By default, all classes from all input datasets are preserved in the output model.
+
+#### Use anootation Frames Only
+
+By default, training runs include all frames from the chosen input datasets, and frames without annotations are considered negatives examples.  If you choose to use annotated frames only, frames or images with zero annotations will be discarded.  This option is useful for trying to train on datasets that are only partially annotated.
 
 ### Configurations
 
