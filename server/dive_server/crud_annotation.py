@@ -143,17 +143,17 @@ def save_annotations(
 
     datasetId = dsFolder['_id']
     expire_operations = []  # Mark existing records as deleted
+    expire_result = {}
     insert_operations = []  # Insert new records
-    changes = False
+    insert_result = {}
     new_revision = get_last_revision(dsFolder) + 1
     delete_annotation_update = {'$set': {REVISION_DELETED: new_revision}}
 
     if overwrite:
         query = {DATASET: datasetId, REVISION_DELETED: {'$exists': False}}
-        AnnotationItem().collection.bulk_write(
+        expire_result = AnnotationItem().collection.bulk_write(
             [pymongo.UpdateMany(query, delete_annotation_update)]
         )
-        changes = True
 
     for track_id in delete_list:
         filter = {TRACKID: track_id, DATASET: datasetId, REVISION_DELETED: {'$exists': False}}
@@ -175,17 +175,14 @@ def save_annotations(
 
     # Ordered=false allows fast parallel writes
     if len(expire_operations):
-        AnnotationItem().collection.bulk_write(expire_operations, ordered=False)
-        changes = True
+        expire_result = AnnotationItem().collection.bulk_write(expire_operations, ordered=False)
     if len(insert_operations):
-        AnnotationItem().collection.bulk_write(insert_operations, ordered=False)
-        changes = True
+        insert_result = AnnotationItem().collection.bulk_write(insert_operations, ordered=False)
 
-    additions = len(insert_operations)
-    # Absolute value because expire_operations might be 0 if overwrite is true
-    deletions = abs(len(expire_operations) - additions)
+    additions = insert_result.get('nInserted', 0)
+    deletions = expire_result.get('nModified', 0)
 
-    if changes:
+    if additions or deletions:
         # Write the revision to the log
         log_entry = models.RevisionLog(
             dataset=datasetId,
