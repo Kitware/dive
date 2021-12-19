@@ -24,7 +24,7 @@ class AnnotationItem(crud.PydanticModel):
     }
 
     def initialize(self):
-        self._indices = [[[(DATASET, 1), (TRACKID, 1), (REVISION_CREATED, 1)], {'unique': True}]]
+        self._indices = [[[(DATASET, 1), (TRACKID, 1)], {}]]
         super().initialize("annotationItem", models.AnnotationItemSchema)
 
 
