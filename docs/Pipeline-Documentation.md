@@ -98,7 +98,7 @@ ROCK
 
 By default, all classes from all input datasets are preserved in the output model.
 
-#### Use anootation Frames Only
+#### Use annotation frames only
 
 By default, training runs include all frames from the chosen input datasets, and frames without annotations are considered negatives examples.  If you choose to use annotated frames only, frames or images with zero annotations will be discarded.  This option is useful for trying to train on datasets that are only partially annotated.
 
