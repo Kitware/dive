@@ -166,6 +166,11 @@ export default defineComponent({
             <p>
               Specify the name of the resulting pipeline
               and configuration file to use for training.
+              Check the
+              <a href="https://kitware.github.io/dive/Pipeline-Documentation/#training">
+                documentation
+              </a>
+              for more information about these options.
             </p>
             <v-alert
               dense
@@ -179,9 +184,10 @@ export default defineComponent({
             <v-text-field
               v-model="trainingOutputName"
               outlined
-              hide-details
               class="my-4"
-              label="Output Name"
+              label="New Model Name"
+              hint="Choose a name for the newly trained model"
+              persistent-hint
             />
             <v-select
               v-model="selectedTrainingConfig"
@@ -194,14 +200,15 @@ export default defineComponent({
             <v-file-input
               v-model="labelFile"
               icon="mdi-folder-open"
-              label="Upload labels.txt file(Optional)"
+              label="Labels.txt mapping file (optional)"
+              hint="Combine or rename output classes using a labels.txt file"
+              persistent-hint
               clearable
               @click:clear="clearLabelText"
             />
             <v-checkbox
               v-model="annotatedFramesOnly"
               label="Use annotated frames only"
-              dense
               hint="Train only on frames with groundtruth and ignore frames without annotations"
               persistent-hint
               class="pt-0"
