@@ -11,6 +11,7 @@ from girder.utility.model_importer import ModelImporter
 from dive_utils.constants import UserPrivateQueueEnabledMarker
 
 from .client_webroot import ClientWebroot
+from .crud_annotation import AnnotationItem, RevisionLogItem
 from .event import process_fs_import, process_s3_import, send_new_user_email
 from .views_annotation import AnnotationResource
 from .views_configuration import ConfigurationResource
@@ -23,6 +24,8 @@ from .views_summary import SummaryItem, SummaryResource
 class GirderPlugin(plugin.GirderPlugin):
     def load(self, info):
         ModelImporter.registerModel('summaryItem', SummaryItem, plugin='dive_server')
+        ModelImporter.registerModel('annotationItem', AnnotationItem, plugin='dive_server')
+        ModelImporter.registerModel('revisionLogItem', RevisionLogItem, plugin='dive_server')
 
         info["apiRoot"].dive_summary = SummaryResource("dive_summary")
         info["apiRoot"].dive_annotation = AnnotationResource("dive_annotation")

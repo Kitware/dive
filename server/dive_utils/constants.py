@@ -63,7 +63,6 @@ VideoMimeTypes = {
 
 # Metadata markers
 DatasetMarker = "annotate"
-DetectionMarker = "detection"
 PublishedMarker = "published"
 SharedMarker = "shared"
 ForeignMediaIdMarker = "foreign_media_id"

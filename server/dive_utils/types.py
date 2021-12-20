@@ -57,7 +57,7 @@ class PipelineJob(TypedDict):
     input_folder: str
     input_type: str
     output_folder: str
-    pipeline_input: Optional[GirderModel]
+    requires_input: bool
 
 
 class TrainingConfigurationSummary(TypedDict):

@@ -4,6 +4,8 @@ import re
 from typing import Any, Dict, List, Union
 import unicodedata
 
+from girder.api.rest import setResponseHeader
+
 from dive_utils.types import GirderModel
 
 TRUTHY_META_VALUES = ['yes', '1', 1, 'true', 't', 'True', True]
@@ -82,3 +84,10 @@ def slugify(value, allow_unicode=False):
     if '.' in value and len(value.split('.')) == 1:  # all unicode stripped, gives back sample.ext
         value = f"sample{value}"
     return re.sub(r'[-\s]+', '-', value)
+
+
+def setContentDisposition(filename: str, disposition='attachment', mime='application/json'):
+    if disposition == 'attachment':
+        setResponseHeader('Content-Type', mime)
+        filename = slugify(filename)
+        setResponseHeader('Content-Disposition', f'attachment; filename={filename}')
