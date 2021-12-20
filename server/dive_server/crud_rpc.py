@@ -1,4 +1,5 @@
-from typing import Dict, List, Optional
+import json
+from typing import Dict, List, Optional, Tuple
 
 from girder.constants import AccessType
 from girder.exceptions import RestException
@@ -13,10 +14,10 @@ from girder_jobs.models.job import Job
 from pydantic import BaseModel
 import pymongo
 
-from dive_server import crud
+from dive_server import crud, crud_annotation
 from dive_tasks import tasks
 from dive_utils import TRUTHY_META_VALUES, asbool, constants, fromMeta, models, slugify, types
-from dive_utils.serializers import meva
+from dive_utils.serializers import kwcoco, meva, viame
 
 from . import crud_dataset
 
@@ -144,13 +145,6 @@ def run_pipeline(
         # TODO Temporary inclusion of utility pipes which take csv input
         requires_input = True
 
-    detection_csv: Optional[types.GirderModel] = None
-    if requires_input:
-        # Ensure detection has a csv detections item
-        detection = crud.detections_item(folder, strict=True)
-        detection_csv = ensure_csv_detections_file(folder, detection, user)
-
-    crud.move_existing_result_to_auxiliary_folder(folder, user)
     job_is_private = user.get(constants.UserPrivateQueueEnabledMarker, False)
 
     params: types.PipelineJob = {
@@ -158,7 +152,7 @@ def run_pipeline(
         "input_type": fromMeta(folder, "type", required=True),
         "output_folder": folder_id_str,
         "pipeline": pipeline,
-        "pipeline_input": detection_csv,
+        "requires_input": requires_input,
     }
     newjob = tasks.run_pipeline.apply_async(
         queue=_get_queue_name(user, "pipelines"),
@@ -202,33 +196,6 @@ def training_output_folder(user: types.GirderUserModel) -> types.GirderModel:
     )
 
 
-def ensure_csv_detections_file(
-    folder: types.GirderModel, detection_item: Item, user: types.GirderUserModel
-) -> types.GirderModel:
-    """
-    Ensures that the detection item has a file which is a csv.
-    Attach the newly created .csv to the existing detection_item.
-    :returns: the file document.
-
-    TODO: move this to the training job code instead of keeping it
-    in the request thread
-    """
-    filename, gen = crud.get_annotation_csv_generator(folder, user, excludeBelowThreshold=True)
-    filename = slugify(filename)
-    csv_bytes = ("".join([line for line in gen()])).encode()
-    new_file = File().createFile(
-        user,
-        detection_item,
-        filename,
-        len(csv_bytes),
-        Assetstore().getCurrent(),
-        reuseExisting=True,
-    )
-    upload = Upload().createUploadToFile(new_file, user, len(csv_bytes))
-    new_file = Upload().handleChunk(upload, csv_bytes)
-    return new_file
-
-
 def run_training(
     user: types.GirderUserModel,
     token: types.GirderModel,
@@ -237,9 +204,7 @@ def run_training(
     config: str,
     annotatedFramesOnly: bool,
 ) -> types.GirderModel:
-    detection_list = []
     folder_list = []
-    folder_names = []
     if len(bodyParams.folderIds) == 0:
         raise RestException("No folderIds in param")
 
@@ -248,12 +213,6 @@ def run_training(
         if folder is None:
             raise RestException(f"Cannot access folder {folderId}")
         crud.getCloneRoot(user, folder)
-        folder_names.append(folder['name'])
-        # Ensure detection has a csv format
-        # TODO: Move this into worker job
-        train_on_detections_item = crud.detections_item(folder, strict=True)
-        ensure_csv_detections_file(folder, train_on_detections_item, user)
-        detection_list.append(train_on_detections_item)
         folder_list.append(folder)
 
     # Ensure the folder to upload results to exists
@@ -278,7 +237,6 @@ def run_training(
         kwargs=dict(
             results_folder=results_folder,
             source_folder_list=folder_list,
-            groundtruth_list=detection_list,
             pipeline_name=pipelineName,
             config=config,
             annotated_frames_only=annotatedFramesOnly,
@@ -299,23 +257,65 @@ def run_training(
     return newjob.job
 
 
-def process_items(folder: types.GirderModel, user: types.GirderModel):
+def _get_data_by_type(
+    file: Optional[types.GirderModel], as_type: Optional[crud.FileType] = None
+) -> Tuple[Optional[crud.FileType], dict, dict]:
+    """
+    Given an arbitrary Girder file model, figure out what kind of file it is and
+    parse it appropriately.
+
+    :as_type: bypass type discovery (potentially expensive) if caller is certain about type
+    """
+    if file is None:
+        return None, {}, {}
+    file_string = b"".join(list(File().download(file, headers=False)())).decode()
+    data_dict = None
+
+    # If the caller has not specified a type, try to discover it
+    if as_type is None:
+        if file['exts'][-1] == 'csv':
+            as_type = crud.FileType.VIAME_CSV
+        elif file['exts'][-1] == 'json':
+            data_dict = json.loads(file_string)
+            if type(data_dict) is list:
+                raise RestException('No array-type json objects are supported')
+            if kwcoco.is_coco_json(data_dict):
+                as_type = crud.FileType.COCO_JSON
+            elif models.MetadataMutable.is_dive_configuration(data_dict):
+                data_dict = models.MetadataMutable(**data_dict).dict(exclude_none=True)
+                as_type = crud.FileType.DIVE_CONF
+            else:
+                as_type = crud.FileType.DIVE_JSON
+        else:
+            raise RestException('Got file of unknown and unusable type')
+
+    # Parse the file as the now known type
+    if as_type == crud.FileType.VIAME_CSV:
+        tracks, attributes = viame.load_csv_as_tracks_and_attributes(file_string.splitlines())
+        return as_type, tracks, attributes
+
+    # All filetypes below are JSON, so if as_type was specified, it needs to be loaded.
+    if data_dict is None:
+        data_dict = json.loads(file_string)
+
+    if as_type == crud.FileType.COCO_JSON:
+        tracks, attributes = kwcoco.load_coco_as_tracks_and_attributes(data_dict)
+        return as_type, tracks, attributes
+    if as_type == crud.FileType.DIVE_CONF or as_type == crud.FileType.DIVE_JSON:
+        return as_type, data_dict, {}
+    return None, {}, {}
+
+
+def process_items(folder: types.GirderModel, user: types.GirderUserModel):
     """
     Discover unprocessed items in a dataset and process them by type in order of creation
     """
     unprocessed_items = Folder().childItems(
         folder,
         filters={
-            "$and": [
-                # Look for both JSON and CSV items
-                {
-                    "$or": [
-                        {"lowerName": {"$regex": constants.csvRegex}},
-                        {"lowerName": {"$regex": constants.jsonRegex}},
-                    ]
-                },
-                # Don't re-process existing annotation files
-                {f"meta.{constants.DetectionMarker}": {'$not': {"$in": TRUTHY_META_VALUES}}},
+            "$or": [
+                {"lowerName": {"$regex": constants.csvRegex}},
+                {"lowerName": {"$regex": constants.jsonRegex}},
             ]
         },
         # Processing order: oldest to newest
@@ -328,17 +328,24 @@ def process_items(folder: types.GirderModel, user: types.GirderModel):
             raise RestException('Item had no associated files')
 
         try:
-            filetype, data, attrs = crud.get_data_by_type(file)
+            filetype, data, attrs = _get_data_by_type(file)
         except Exception as e:
             Item().remove(item)
             raise RestException(f'{file["name"]} was not valid JSON or CSV: {e}') from e
 
         if filetype == crud.FileType.VIAME_CSV or filetype == crud.FileType.COCO_JSON:
-            crud.saveTracks(folder, data, user)
+            crud_annotation.save_annotations(
+                folder,
+                data.values(),
+                [],
+                user,
+                overwrite=True,
+                description=f"Import from {filetype.name}",
+            )
             crud.saveImportAttributes(folder, attrs, user)
             Item().move(item, auxiliary)
 
-        if filetype == crud.FileType.DIVE_CONF:
+        elif filetype == crud.FileType.DIVE_CONF:
             crud_dataset.update_metadata(folder, data)
             Item().remove(item)
 
@@ -353,9 +360,17 @@ def process_items(folder: types.GirderModel, user: types.GirderModel):
                         )
                     )
                 crud.get_validated_model(models.Track, **track)
-            item['meta'][constants.DetectionMarker] = str(folder['_id'])
-            Item().save(item)
-    crud.move_existing_result_to_auxiliary_folder(folder, user)
+            crud_annotation.save_annotations(
+                folder,
+                data.values(),
+                [],
+                user,
+                overwrite=True,
+                description=f"Import from {filetype.value}",
+            )
+            Item().move(item, auxiliary)
+        else:
+            raise RestException(f'Unknown file type {filetype.name}')
 
 
 def postprocess(
@@ -468,7 +483,10 @@ def postprocess(
                 return File().download(file, headers=False)()
 
             allFiles = [make_file_generator(item) for item in ymlItems]
-            crud.saveTracks(dsFolder, meva.load_kpf_as_tracks(allFiles), user)
+            data = meva.load_kpf_as_tracks(allFiles)
+            crud_annotation.save_annotations(
+                dsFolder, data.values(), [], user, overwrite=True, description="Import from KPF"
+            )
             ymlItems.rewind()
             auxiliary = crud.get_or_create_auxiliary_folder(dsFolder, user)
             for item in ymlItems:
@@ -477,9 +495,4 @@ def postprocess(
         Folder().save(dsFolder)
 
     process_items(dsFolder, user)
-
-    # If no detections file exists create one
-    if crud.detections_file(dsFolder) is None:
-        crud.saveTracks(dsFolder, {}, user)
-
     return dsFolder
