@@ -200,7 +200,7 @@ def upload_zipped_flat_media_files(
         gc.sendRestRequest("POST", f"/dive_rpc/postprocess/{str(root_folderId)}")
     else:
         manager.write(f"Message: {validation['message']}\n")
-        manager.updateStatus(JobStatus.ERROR)
+        raise Exception("Could not Validate media Files")
 
 
 def upload_exported_zipped_dataset(

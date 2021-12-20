@@ -584,9 +584,7 @@ def extract_zip(self: Task, folderId: str, itemId: str):
                     f"Compression ratio is exceedingly high at {ratio}\n\
                     Please contact an admin at viame-web@kitware.com if this is a valid zip file"
                 )
-                manager.updateStatus(JobStatus.ERROR)
-                return
-
+                raise Exception("High Compression Ratio for Zip File")
             for fileName in listOfFileNames:
                 # contains a sub folder
                 if fileName.endswith('/') and fileName.count('/') == 1:
@@ -597,13 +595,12 @@ def extract_zip(self: Task, folderId: str, itemId: str):
                     top_level_folders[root_folder] = 'dataset'
                 if fileName.endswith('.zip'):
                     manager.write("Nested Zip files are invalid\n")
-                    manager.updateStatus(JobStatus.ERROR)
-                    return
+                    raise Exception("Nested Zip Files are invalid")
                 manager.write(f"Extracting: {fileName}\n")
                 zipObj.extract(fileName, f'{_working_directory}')
-        # remove the zip file
+        # remove the zip file so it isn't uploaded back to the folder
         os.remove(file_name)
-        # validation of files in folder using dive/data
+        # Create source folder and move zip file there
         created_folder = gc.createFolder(
             folderId,
             constants.SourceFolderName,

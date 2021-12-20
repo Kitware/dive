@@ -9,7 +9,7 @@ from .conftest import getTestFolder, localDataRoot, wait_for_jobs, zipUser
 
 @pytest.mark.integration
 @pytest.mark.parametrize("user", zipUser.values())
-@pytest.mark.run(order=4)
+@pytest.mark.run(order=2)
 def test_user_creation(admin_client: GirderClient, user: dict):
     try:
         admin_client.createUser(
@@ -26,7 +26,7 @@ def test_user_creation(admin_client: GirderClient, user: dict):
 
 @pytest.mark.integration
 @pytest.mark.parametrize("user", zipUser.values())
-@pytest.mark.run(order=4)
+@pytest.mark.run(order=3)
 def test_reset_integration_env(user: dict):
     client = GirderClient(apiUrl='http://localhost:8010/api/v1')
     client.authenticate(username=user['login'], password=user['password'])

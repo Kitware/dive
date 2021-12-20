@@ -389,11 +389,18 @@ def postprocess(
         token = Token().createToken(user=user, days=2)
 
         # extract ZIP Files if not already completed
-        zipItems = Folder().childItems(
-            dsFolder,
-            filters={"lowerName": {"$regex": constants.zipRegex}},
+        zipItems = list(
+            Folder().childItems(
+                dsFolder,
+                filters={"lowerName": {"$regex": constants.zipRegex}},
+            )
         )
+        if len(zipItems) > 1:
+            raise RestException('There are multiple zip files in the folder.')
         for item in zipItems:
+            total_items = len(list((Folder().childItems(dsFolder))))
+            if total_items > 1:
+                raise RestException('There are multiple files besides a zip, cannot continue')
             newjob = tasks.extract_zip.apply_async(
                 queue=_get_queue_name(user),
                 kwargs=dict(
@@ -406,8 +413,6 @@ def postprocess(
             )
             newjob.job[constants.JOBCONST_PRIVATE_QUEUE] = job_is_private
             Job().save(newjob.job)
-            # only support first zip file found
-            return dsFolder
 
         # transcode VIDEO if necessary
         videoItems = Folder().childItems(
