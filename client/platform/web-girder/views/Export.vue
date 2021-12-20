@@ -9,7 +9,9 @@ import {
   DatasetSourceMedia, getDataset, getDatasetMedia, getUri,
 } from 'platform/web-girder/api';
 import { GirderMetadataStatic } from 'platform/web-girder/constants';
-import { ImageSequenceType, MultiType, VideoType } from 'dive-common/constants';
+import {
+  ImageSequenceType, MultiType, VideoType,
+} from 'dive-common/constants';
 
 export default defineComponent({
   components: { AutosavePrompt },

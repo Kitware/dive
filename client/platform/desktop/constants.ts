@@ -151,6 +151,8 @@ export interface RunTraining {
   trainingConfig: string;
   // train only on annotated frames
   annotatedFramesOnly: boolean;
+  // contents of labels.txt file
+  labelText?: string;
 }
 
 export interface ConversionArgs {

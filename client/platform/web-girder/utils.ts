@@ -52,6 +52,7 @@ Promise<{ canceled: boolean; filePaths: string[]; fileList?: File[]}> {
     input.accept = inputAnnotationTypes
       .concat(inputAnnotationFileTypes.map((item) => `.${item}`)).join(',');
   }
+
   return new Promise(((resolve) => {
     input.onchange = (event) => {
       if (event) {

@@ -5,7 +5,7 @@ from pathlib import Path
 import shlex
 import shutil
 import tempfile
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 from urllib import request
 from urllib.parse import urlparse
 import zipfile
@@ -277,6 +277,7 @@ def train_pipeline(
     pipeline_name: str,
     config: str,
     annotated_frames_only: bool = False,
+    label_text: Optional[str] = None,
 ):
     """
     Train a pipeline by making a call to viame_train_detector
@@ -288,6 +289,7 @@ def train_pipeline(
     :param pipeline_name: The base name of the resulting pipeline.
     :param config: string name of the input configuration
     :param annotated_frames_only: Only use annotated frames for training
+    :param label_text: string value of label.txt file contents
     """
     conf = Config()
     context: dict = {}
@@ -314,6 +316,11 @@ def train_pipeline(
         _working_directory_path = Path(_working_directory)
         input_path = utils.make_directory(_working_directory_path / 'input')
         output_path = utils.make_directory(_working_directory_path / 'output')
+
+        if label_text:
+            labels_path = input_path / "labels.txt"
+            with open(labels_path, "w+") as labels_file:
+                labels_file.write(label_text)
 
         for index in range(len(source_folder_list)):
             source_folder = source_folder_list[index]
@@ -361,6 +368,10 @@ def train_pipeline(
 
         if annotated_frames_only:
             command.append("--gt-frames-only")
+
+        if label_text:
+            command.append("--labels")
+            command.append(shlex.quote(str(labels_path)))
 
         manager.updateStatus(JobStatus.RUNNING)
         popen_kwargs = {

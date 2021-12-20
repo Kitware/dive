@@ -9,8 +9,8 @@ import {
 import { mapGetters, mapState } from 'vuex';
 
 import RunPipelineMenu from 'dive-common/components/RunPipelineMenu.vue';
-import RunTrainingMenu from 'dive-common/components/RunTrainingMenu.vue';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
+import RunTrainingMenu from './RunTrainingMenu.vue';
 
 import { deleteResources, getUri } from '../api';
 import Export from './Export.vue';

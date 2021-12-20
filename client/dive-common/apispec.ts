@@ -111,7 +111,11 @@ interface Api {
 
   getTrainingConfigurations(): Promise<TrainingConfigs>;
   runTraining(
-    folderIds: string[], pipelineName: string, config: string, annotatedFramesOnly: boolean
+    folderIds: string[],
+    pipelineName: string,
+    config: string,
+    annotatedFramesOnly: boolean,
+    labelText?: string,
   ): Promise<unknown>;
 
   loadMetadata(datasetId: string): Promise<DatasetMeta>;

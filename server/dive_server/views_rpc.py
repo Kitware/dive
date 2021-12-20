@@ -1,3 +1,5 @@
+from typing import List
+
 from girder.api import access
 from girder.api.describe import Description, autoDescribeRoute
 from girder.api.rest import Resource
@@ -7,7 +9,7 @@ from girder.models.token import Token
 
 from dive_utils.types import PipelineDescription
 
-from . import crud_rpc
+from . import crud, crud_rpc
 
 
 class RpcResource(Resource):
@@ -41,9 +43,11 @@ class RpcResource(Resource):
     @autoDescribeRoute(
         Description("Run training on a folder")
         .jsonParam(
-            "folderIds",
-            description="Array of folderIds to run training on",
+            "body",
+            description="JSON object with Array of folderIds to run training on\
+             and labels.txt file content",
             paramType="body",
+            schema={"folderIds": List[str], "labelText": str},
         )
         .param(
             "pipelineName",
@@ -66,11 +70,12 @@ class RpcResource(Resource):
             required=False,
         )
     )
-    def run_training(self, folderIds, pipelineName, config, annotatedFramesOnly):
+    def run_training(self, body, pipelineName, config, annotatedFramesOnly):
         user = self.getCurrentUser()
         token = Token().createToken(user=user, days=14)
+        run_training_args = crud.get_validated_model(crud_rpc.RunTrainingArgs, **body)
         return crud_rpc.run_training(
-            user, token, folderIds, pipelineName, config, annotatedFramesOnly
+            user, token, run_training_args, pipelineName, config, annotatedFramesOnly
         )
 
     @access.user

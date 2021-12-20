@@ -1,16 +1,18 @@
 <script lang="ts">
 import {
-  defineComponent, computed, PropType, ref, onBeforeMount,
+  defineComponent, computed, PropType, ref, onBeforeMount, watch,
 } from '@vue/composition-api';
 
 import { useApi, TrainingConfigs } from 'dive-common/apispec';
 import JobLaunchDialog from 'dive-common/components/JobLaunchDialog.vue';
+import ImportButton from 'dive-common/components/ImportButton.vue';
 import { useRequest } from 'dive-common/use';
+
 
 export default defineComponent({
   name: 'RunTrainingMenu',
 
-  components: { JobLaunchDialog },
+  components: { JobLaunchDialog, ImportButton },
 
   props: {
     selectedDatasetIds: {
@@ -50,6 +52,8 @@ export default defineComponent({
     const trainingDisabled = computed(() => props.selectedDatasetIds.length === 0);
     const trainingOutputName = ref<string | null>(null);
     const menuOpen = ref(false);
+    const labelText = ref<string>('');
+    const labelFile = ref<File>();
 
     async function runTrainingOnFolder() {
       const outputPipelineName = trainingOutputName.value;
@@ -59,6 +63,15 @@ export default defineComponent({
       await _runTrainingRequest(() => {
         if (!trainingConfigurations.value || !selectedTrainingConfig.value) {
           throw new Error('Training configurations not found.');
+        }
+        if (labelText) {
+          return runTraining(
+            props.selectedDatasetIds,
+            outputPipelineName,
+            selectedTrainingConfig.value,
+            annotatedFramesOnly.value,
+            labelText.value,
+          );
         }
         return runTraining(
           props.selectedDatasetIds,
@@ -71,6 +84,21 @@ export default defineComponent({
       trainingOutputName.value = null;
     }
 
+    watch(labelFile, () => {
+      if (labelFile.value) {
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+          labelText.value = evt.target?.result as string;
+        };
+        reader.readAsText(labelFile.value);
+      }
+    });
+
+    const clearLabelText = () => {
+      labelText.value = '';
+    };
+
+
     return {
       trainingConfigurations,
       selectedTrainingConfig,
@@ -82,6 +110,8 @@ export default defineComponent({
       successMessage,
       dismissJobDialog,
       runTrainingOnFolder,
+      labelFile,
+      clearLabelText,
     };
   },
 });
@@ -136,6 +166,11 @@ export default defineComponent({
             <p>
               Specify the name of the resulting pipeline
               and configuration file to use for training.
+              Check the
+              <a href="https://kitware.github.io/dive/Pipeline-Documentation/#training">
+                documentation
+              </a>
+              for more information about these options.
             </p>
             <v-alert
               dense
@@ -149,9 +184,10 @@ export default defineComponent({
             <v-text-field
               v-model="trainingOutputName"
               outlined
-              hide-details
               class="my-4"
-              label="Output Name"
+              label="New Model Name"
+              hint="Choose a name for the newly trained model"
+              persistent-hint
             />
             <v-select
               v-model="selectedTrainingConfig"
@@ -161,10 +197,18 @@ export default defineComponent({
               label="Configuration File"
               :items="trainingConfigurations.configs"
             />
+            <v-file-input
+              v-model="labelFile"
+              icon="mdi-folder-open"
+              label="Labels.txt mapping file (optional)"
+              hint="Combine or rename output classes using a labels.txt file"
+              persistent-hint
+              clearable
+              @click:clear="clearLabelText"
+            />
             <v-checkbox
               v-model="annotatedFramesOnly"
               label="Use annotated frames only"
-              dense
               hint="Train only on frames with groundtruth and ignore frames without annotations"
               persistent-hint
               class="pt-0"
