@@ -374,7 +374,6 @@ def postprocess(
         Conversion of CSV annotations into track JSON
     """
     job_is_private = user.get(constants.UserPrivateQueueEnabledMarker, False)
-    auxiliary = crud.get_or_create_auxiliary_folder(dsFolder, user)
     isClone = fromMeta(dsFolder, constants.ForeignMediaIdMarker, None) is not None
     # add default confidence filter threshold to folder metadata
     dsFolder['meta'][constants.ConfidenceFiltersMarker] = {'default': 0.1}
@@ -413,6 +412,7 @@ def postprocess(
             )
             newjob.job[constants.JOBCONST_PRIVATE_QUEUE] = job_is_private
             Job().save(newjob.job)
+            return dsFolder
 
         # transcode VIDEO if necessary
         videoItems = Folder().childItems(
@@ -470,6 +470,7 @@ def postprocess(
             allFiles = [make_file_generator(item) for item in ymlItems]
             crud.saveTracks(dsFolder, meva.load_kpf_as_tracks(allFiles), user)
             ymlItems.rewind()
+            auxiliary = crud.get_or_create_auxiliary_folder(dsFolder, user)
             for item in ymlItems:
                 Item().move(item, auxiliary)
 

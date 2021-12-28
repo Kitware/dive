@@ -14,7 +14,7 @@ Alice and Bobby have different types of data (images and video)
 Most tests run operations on a single dataset for each user, so keeping
 each user constrained to a single data type will help ensure robustness
 """
-users: Dict[str, Dict[str, Any]] = {
+users = {
     'alice': {
         'login': 'alice',
         'email': 'alice@locahost.lan',
@@ -147,99 +147,97 @@ users: Dict[str, Dict[str, Any]] = {
     },
 }
 
-zipUser: Dict[str, Dict[str, Any]] = {
-    "zipUser": {
-        'login': 'zipUser',
-        'email': 'zipUser@locahost.lan',
-        'firstName': 'zip',
-        'lastName': 'User',
-        'password': 'zipUserPass',
-        'data': [
-            {
-                'name': 'testImageZip',
-                'path': 'zipTestFiles/testImageZip.zip',
-                'fps': 1,
-                'type': 'image-sequence',
-                'trackCount': 197,
-                'job_status': JobStatus.SUCCESS,
-            },
-            {
-                'name': 'testVideoZip',
-                'path': 'zipTestFiles/testVideoZip.zip',
-                'fps': 29.97002997002997,
-                'originalFps': 30000 / 1001,
-                'type': 'video',
-                'job_status': JobStatus.SUCCESS,
-            },
-            {
-                'name': 'singleDatasetImport',
-                'path': 'zipTestFiles/singleDatasetImport.zip',
-                'fps': 29.97002997002997,
-                'originalFps': 30000 / 1001,
-                'type': 'video',
-                'job_status': JobStatus.SUCCESS,
-            },
-            {
-                'name': 'flatMultiImport',
-                'path': 'zipTestFiles/flatMultiImport.zip',
-                'fps': -1,
-                'type': 'zip',
-                'subDatasets': [
-                    {
-                        'name': 'testVideoZip',
-                        'type': 'video',
-                        'fps': 29.97002997002997,
-                    },
-                    {
-                        'name': 'testImageZip',
-                        'type': 'image-sequence',
-                        'fps': 1,
-                    },
-                ],
-                'job_status': JobStatus.SUCCESS,
-            },
-            {
-                'name': 'MultiDatasetImport',
-                'path': 'zipTestFiles/MultiDatasetImport.zip',
-                'fps': -1,
-                'type': 'zip',
-                'subDatasets': [
-                    {
-                        'name': 'video1_train_mp4',
-                        'type': 'video',
-                        'fps': 29.97002997002997,
-                    },
-                    {
-                        'name': 'testtrain1_imagelist',
-                        'type': 'image-sequence',
-                        'fps': 1,
-                    },
-                ],
-                'job_status': JobStatus.SUCCESS,
-            },
-            {
-                'name': 'badFormatZip',
-                'path': 'zipTestFiles/badFormatZip.zip',
-                'fps': 1,
-                'type': 'image-sequence',
-                'job_status': JobStatus.ERROR,
-            },
-            {
-                'name': 'nestedZip',
-                'path': 'zipTestFiles/nestedZip.zip',
-                'fps': 1,
-                'type': 'image-sequence',
-                'job_status': JobStatus.ERROR,
-            },
-            {
-                'name': 'zipBomb',
-                'path': 'zipTestFiles/zipBomb.zip',
-                'fps': 1,
-                'type': 'image-sequence',
-                'job_status': JobStatus.ERROR,
-            },
-        ],
-    }
+zipUser = {
+    'login': 'zipUser',
+    'email': 'zipUser@locahost.lan',
+    'firstName': 'zip',
+    'lastName': 'User',
+    'password': 'zipUserPass',
+    'data': [
+        {
+            'name': 'testImageZip',
+            'path': 'zipTestFiles/testImageZip.zip',
+            'fps': 1,
+            'type': 'image-sequence',
+            'trackCount': 197,
+            'job_status': JobStatus.SUCCESS,
+        },
+        {
+            'name': 'testVideoZip',
+            'path': 'zipTestFiles/testVideoZip.zip',
+            'fps': 29.97002997002997,
+            'originalFps': 30000 / 1001,
+            'type': 'video',
+            'job_status': JobStatus.SUCCESS,
+        },
+        {
+            'name': 'singleDatasetImport',
+            'path': 'zipTestFiles/singleDatasetImport.zip',
+            'fps': 29.97002997002997,
+            'originalFps': 30000 / 1001,
+            'type': 'video',
+            'job_status': JobStatus.SUCCESS,
+        },
+        {
+            'name': 'flatMultiImport',
+            'path': 'zipTestFiles/flatMultiImport.zip',
+            'fps': -1,
+            'type': 'zip',
+            'subDatasets': [
+                {
+                    'name': 'testVideoZip',
+                    'type': 'video',
+                    'fps': 29.97002997002997,
+                },
+                {
+                    'name': 'testImageZip',
+                    'type': 'image-sequence',
+                    'fps': 1,
+                },
+            ],
+            'job_status': JobStatus.SUCCESS,
+        },
+        {
+            'name': 'MultiDatasetImport',
+            'path': 'zipTestFiles/MultiDatasetImport.zip',
+            'fps': -1,
+            'type': 'zip',
+            'subDatasets': [
+                {
+                    'name': 'video1_train_mp4',
+                    'type': 'video',
+                    'fps': 29.97002997002997,
+                },
+                {
+                    'name': 'testtrain1_imagelist',
+                    'type': 'image-sequence',
+                    'fps': 1,
+                },
+            ],
+            'job_status': JobStatus.SUCCESS,
+        },
+        {
+            'name': 'badFormatZip',
+            'path': 'zipTestFiles/badFormatZip.zip',
+            'fps': 1,
+            'type': 'image-sequence',
+            'job_status': JobStatus.ERROR,
+        },
+        {
+            'name': 'nestedZip',
+            'path': 'zipTestFiles/nestedZip.zip',
+            'fps': 1,
+            'type': 'image-sequence',
+            'job_status': JobStatus.ERROR,
+        },
+        {
+            'name': 'zipBomb',
+            'path': 'zipTestFiles/zipBomb.zip',
+            'fps': 1,
+            'type': 'image-sequence',
+            'job_status': JobStatus.ERROR,
+        },
+    ],
 }
 
 
