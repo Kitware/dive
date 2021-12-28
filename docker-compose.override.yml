@@ -1,0 +1,19 @@
+version: "3.8"
+services:
+
+  girder:
+    volumes:
+      - ./server:/opt/dive/src
+    command: ["--dev"]
+
+  girder_worker_pipelines:
+    volumes:
+      - ./server:/opt/dive/src
+
+  girder_worker_training:
+    volumes:
+      - ./server:/opt/dive/src
+
+  girder_worker_default:
+    volumes:
+      - ./server:/opt/dive/src

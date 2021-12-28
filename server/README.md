@@ -18,38 +18,34 @@ In development, the server and client are run in separate processes.  In product
 This python project uses [Poetry](https://python-poetry.org/).
 
 ```bash
+# Optional, for intellisense or whatever.  Not required for docker-compose
 poetry install
 ```
 
-Install <https://github.com/Kitware/ldc>
+### Running in development with docker
 
 ```bash
-# Change to correct directory
-cd ../docker/
-
-# copy .env.default and make any changes
+# Copy .env.default and make any changes
 cp .env.default .env
 
-# bring the server up
-ldc up -d
+# Option 1) Build the project from source
+docker-compose build
+# Option 2) Pull pre-build images
+docker-compose pull
 
-# replace a pre-built image with the development version
-# for example, here's how to work on the girder server code
-# girder has hot reload, so code changes will be detected.
-ldc dev up girder
+# Start the project
+docker-compose up -d
 
-# girder worker does not hot reload, so code changes require re-launch.
-ldc dev up girder_worker_default
+# The web server has hot reload, so code changes will
+# immediately trigger a server restart.
+
+# The Celery workers do not have hot reload.
+# To test code changes, a restart is needed
+docker-compose up girder_worker_default
 # or
-ldc dev up girder_worker_pipelines
+docker-compose up girder_worker_pipelines
 # or
-ldc dev up girder_worker_training
-
-# changes to the method signature of a celery tasks require a full rebuild
-ldc build girder_worker_default
-
-# launch a mongo client to query the database
-ldc dev run mc
+docker-compose up girder_worker_training
 ```
 
 Access the server at <http://localhost:8010>
@@ -89,7 +85,7 @@ Get an API key from production Girder. **DO NOT** use a full-scoped token, use a
 
 ```bash
 # start the server
-ldc up -d
+docker-compose up -d
 
 # set an API key from production girder
 export GIRDER_API_KEY=CHANGEME
