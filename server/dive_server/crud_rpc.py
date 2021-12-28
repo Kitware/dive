@@ -370,12 +370,12 @@ def process_items(folder: types.GirderModel, user: types.GirderUserModel):
                 [],
                 user,
                 overwrite=True,
-                description=f"Import from {filetype.value}"
+                description=f"Import from {filetype.value}",
             )
             item['meta'][constants.ProcessedMarker] = True
             Item().move(item, auxiliary)
         else:
-            raise RestException(f'Unknown file type {filetype.name}')
+            raise RestException(f'Unknown file type for {file["name"]}')
 
 
 def postprocess(
