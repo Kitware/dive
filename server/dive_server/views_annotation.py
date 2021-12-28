@@ -30,7 +30,7 @@ class AnnotationResource(Resource):
         self.route("GET", ("revision",), self.get_revisions)
         self.route("GET", ("export",), self.export)
         self.route("PATCH", (), self.save_annotations)
-        self.route("DELETE", (), self.rollback)
+        self.route("POST", ("rollback"), self.rollback)
 
     @access.user
     @autoDescribeRoute(
@@ -112,7 +112,7 @@ class AnnotationResource(Resource):
 
     @access.user
     @autoDescribeRoute(
-        Description("Rollback annotation revision")
+        Description("Rollback annotation revision to the specified version")
         .modelParam("folderId", **DatasetModelParam, level=AccessType.WRITE)
         .param('revision', 'revision', dataType='integer')
     )

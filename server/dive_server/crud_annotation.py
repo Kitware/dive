@@ -84,10 +84,11 @@ def rollback(dsFolder: types.GirderModel, revision: int):
     # TODO implement immutabble forward-rollback (like git revert)
     # Logic: delete everything created after revision
     # And erase deletions for anything deleted after revision
-    RevisionLogItem().removeWithQuery({REVISION: {'$gt': revision}})
-    AnnotationItem().removeWithQuery({REVISION_CREATED: {'$gt': revision}})
+    dsId = dsFolder['_id']
+    RevisionLogItem().removeWithQuery({DATASET: dsId, REVISION: {'$gt': revision}})
+    AnnotationItem().removeWithQuery({DATASET: dsId, REVISION_CREATED: {'$gt': revision}})
     AnnotationItem().update(
-        {REVISION_DELETED: {'$gt': revision}}, {'$unset': {REVISION_DELETED: ""}}
+        {DATASET: dsId, REVISION_DELETED: {'$gt': revision}}, {'$unset': {REVISION_DELETED: ""}}
     )
 
 
