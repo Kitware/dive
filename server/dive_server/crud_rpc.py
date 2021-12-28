@@ -250,7 +250,7 @@ def run_training(
         kwargs=dict(
             params=params,
             girder_client_token=str(token["_id"]),
-            girder_job_title=(f"Running training on {len(folderIds)} datasets"),
+            girder_job_title=(f"Running training on {len(bodyParams.folderIds)} datasets"),
             girder_job_type="private" if job_is_private else "training",
         ),
     )

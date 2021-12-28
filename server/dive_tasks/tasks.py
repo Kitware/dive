@@ -301,7 +301,7 @@ def train_pipeline(self: Task, params: TrainingJob):
         output_path = utils.make_directory(_working_directory_path / 'output')
 
         for source_folder_id, revision in dataset_input_list:
-            download_path = input_path / source_folder_id
+            download_path = utils.make_directory(input_path / source_folder_id)
             groundtruth_path = download_path / 'groundtruth.csv'
             # Download groundtruth item
             utils.download_revision_csv(gc, source_folder_id, revision, groundtruth_path)
