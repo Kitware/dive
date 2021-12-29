@@ -57,37 +57,10 @@ def list_datasets(
     sortParams: Tuple[Tuple[str, int]],
 ):
     """Enumerate all public and private data the user can access"""
-    permissionsClause = Folder().permissionClauses(user=user, level=AccessType.READ)
-    query = {
-        '$and': [
-            {f'meta.{constants.DatasetMarker}': {'$in': TRUTHY_META_VALUES}},
-            permissionsClause,
-        ],
-    }
     sort, sortDir = (sortParams or [['created', 1]])[0]
-    if published:
-        query['$and'] += [{f'meta.{constants.PublishedMarker}': {'$in': TRUTHY_META_VALUES}}]
-    if shared:
-        query['$and'] += [
-            {
-                # Find datasets not owned by the current user
-                '$nor': [
-                    {'creatorId': {'$eq': user['_id']}},
-                    {'creatorId': {'$eq': None}},
-                ],
-            },
-            {
-                # But where the current user still has access
-                'access.users': {
-                    '$elemMatch': {
-                        'id': user['_id'],
-                    }
-                },
-            },
-        ]
     # based on https://stackoverflow.com/a/49483919
     pipeline = [
-        {'$match': query},
+        {'$match': get_dataset_query(user, published, shared)},
         {
             '$facet': {
                 'results': [
@@ -277,6 +250,38 @@ def export_dataset_zipstream(
         yield z.footer()
 
     return stream
+
+
+def get_dataset_query(
+    user: types.GirderUserModel, published: bool, shared: bool, level=AccessType.READ
+):
+    permissionsClause = Folder().permissionClauses(user=user, level=level)
+    query = {
+        '$and': [
+            {f'meta.{constants.DatasetMarker}': {'$in': TRUTHY_META_VALUES}},
+            permissionsClause,
+        ],
+    }
+    if published:
+        query['$and'] += [{f'meta.{constants.PublishedMarker}': {'$in': TRUTHY_META_VALUES}}]
+    if shared:
+        query['$and'] += [
+            {
+                # Find datasets not owned by the current user
+                '$nor': [
+                    {'creatorId': {'$eq': user['_id']}},
+                    {'creatorId': {'$eq': None}},
+                ],
+            },
+            {
+                # But where the current user still has access
+                'access.users': {
+                    '$elemMatch': {
+                        'id': user['_id'],
+                    }
+                },
+            },
+        ]
 
 
 def validate_files(files: List[str]):

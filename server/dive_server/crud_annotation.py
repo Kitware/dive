@@ -1,9 +1,11 @@
 from typing import Callable, Generator, Iterable, List, Optional, Tuple
 
+from girder.constants import AccessType
+from girder.models.folder import Folder
 from pydantic.main import BaseModel
 import pymongo
 
-from dive_server import crud
+from dive_server import crud, crud_dataset
 from dive_utils import constants, fromMeta, models, types
 from dive_utils.serializers import viame
 
@@ -224,3 +226,36 @@ def clone_annotations(
 ):
     source_iter, _ = get_annotations(source, revision=revision)
     save_annotations(dest, source_iter, [], user, description="initialize clone")
+
+
+def get_labels(user: types.GirderUserModel):
+    """Find all the labels in all datasets belonging to the user"""
+    pipeline = [
+        {
+            '$match': crud_dataset.get_dataset_query(
+                user, published=False, shared=False, level=AccessType.WRITE
+            )
+        },
+        {
+            {
+                '$lookup': {
+                    'from': 'annotationItem',
+                    'let': {'dataset_id': '$_id'},
+                    'as': 'label',
+                    'pipeline': [
+                        {'$match': {'$expr': {'$eq': ['$dataset', '$$dataset_id']}}},
+                        {'$match': {'$expr': {'$eq': [{'$type': "$rev_deleted"}, 'missing']}}},
+                        {'$project': {'confidencePairs': 1}},
+                        {'$set': {'confidencePairs': {'$first': '$confidencePairs'}}},
+                        {'$set': {'confidencePairs': {'$first': '$confidencePairs'}}},
+                    ],
+                },
+            },
+            {'$unwind': '$label'},
+            {'$set': {'label': '$label.confidencePairs'}},
+            {'$project': {'label': 1, 'name': 1}},
+            {'$group': {'_id': '$label', 'count': {'$count': {}}}},
+            {'$sort': {'_id': 1}},
+        },
+    ]
+    return Folder().collection.aggregate(pipeline)
