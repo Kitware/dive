@@ -327,7 +327,7 @@ def process_items(folder: types.GirderModel, user: types.GirderUserModel):
     )
     auxiliary = crud.get_or_create_auxiliary_folder(folder, user)
     for item in unprocessed_items:
-        file = next(Item().childFiles(item), None)
+        file: Optional[types.GirderModel] = next(Item().childFiles(item), None)
         if file is None:
             raise RestException('Item had no associated files')
 
@@ -344,7 +344,7 @@ def process_items(folder: types.GirderModel, user: types.GirderUserModel):
                 [],
                 user,
                 overwrite=True,
-                description=f"Import from {filetype.name}",
+                description=f'Import {filetype.name} from {file["name"]}',
             )
             crud.saveImportAttributes(folder, attrs, user)
             item['meta'][constants.ProcessedMarker] = True
@@ -372,12 +372,12 @@ def process_items(folder: types.GirderModel, user: types.GirderUserModel):
                 [],
                 user,
                 overwrite=True,
-                description=f"Import from {filetype.value}"
+                description=f"Import from {filetype.value}",
             )
             item['meta'][constants.ProcessedMarker] = True
             Item().move(item, auxiliary)
         else:
-            raise RestException(f'Unknown file type {filetype.name}')
+            raise RestException(f'Unknown file type for {file["name"]}')
 
 
 def postprocess(
