@@ -9,13 +9,13 @@ x-worker: &base-worker
           - capabilities: [gpu]
   ipc: host
   build:
-    context: ../
+    context: .
     dockerfile: docker/girder_worker.Dockerfile
   image: kitware/viame-worker:${TAG:-latest}
   volumes:
     - addons:/tmp/addons:ro # readonly
   labels:
-    - "com.centurylinklabs.watchtower.enable=true" 
+    - "com.centurylinklabs.watchtower.enable=true"
   depends_on:
     girder:
       condition: service_started
@@ -54,7 +54,7 @@ services:
 
   girder:
     build:
-      context: ../
+      context: .
       dockerfile: docker/girder.Dockerfile
     image: kitware/viame-web:${TAG:-latest}
     init: true
@@ -66,7 +66,7 @@ services:
       - girder_assetstore:/home/assetstore
       # Bind mount nocopy public data
       - type: bind
-        source: ${PUBLIC_DATA_PATH:-./girder_data}
+        source: ${PUBLIC_DATA_PATH:-./docker/girder_data}
         target: /data/public
         read_only: true
         volume:

@@ -24,8 +24,8 @@ services:
       - "traefik.http.routers.http-catchall.middlewares=redirect-to-https-mddl@docker"
       - "traefik.http.middlewares.redirect-to-https-mddl.redirectscheme.scheme=https"
     volumes:
-      - "./traefik/letsencrypt:/letsencrypt"
-      - "./dynamic.yml:/var/traefik/dynamic.yml:ro"
+      - "./docker/traefik/letsencrypt:/letsencrypt"
+      - "./docker/dynamic.yml:/var/traefik/dynamic.yml:ro"
     ports:
       - "80:80"
       - "443:443"
@@ -43,7 +43,7 @@ services:
     labels:
       - "traefik.http.routers.girder-rtr.entrypoints=websecure"
       - "traefik.http.routers.girder-rtr.rule=Host(`${HOSTNAME}`)"
-        
+
   girder_worker_default:
     restart: always
 
@@ -77,7 +77,7 @@ services:
     environment:
       - "TZ=${TIMEZONE:-America/New_York}"
       - "PUID=0" # Requires root to access docker volumes directory
-      - "PGID=0" 
+      - "PGID=0"
     volumes:
       - /var/lib/docker/volumes:/source_volumes:ro # backup source
       - /var/local/backups:/destination_backups:rw # backup dest

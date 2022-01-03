@@ -39,7 +39,7 @@ Clone this repository and configure options in `.env` .
 git clone https://github.com/Kitware/dive /opt/dive
 
 # Change to correct directory
-cd /opt/dive/docker
+cd /opt/dive
 
 # Initiate the .env file
 cp .env.default .env

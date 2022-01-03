@@ -23,7 +23,7 @@ if dive_username and dive_password:
     You are running in private standalone mode.
 
     Troubleshooting: Try running `docker pull kitware/viame-worker` to get the latest image
-    Documentation: https://github.com/Kitware/dive/blob/main/docker/README.md
+    Documentation: https://kitware.github.io/dive/Deployment-Docker-Compose/
     Issues: https://github.com/Kitware/dive/issues
     Support: please email viame-web@kitare.com
     """
