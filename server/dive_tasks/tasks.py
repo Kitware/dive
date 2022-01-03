@@ -40,6 +40,7 @@ UPGRADE_JOB_DEFAULT_URLS: List[str] = [
     'https://data.kitware.com/api/v1/item/601afdde2fa25629b9390c41/download',  # EM Tuna
     'https://viame.kitware.com/api/v1/item/616d9bf7b53494023680648c/download',  # MOUSS Deep 7
     'https://viame.kitware.com/api/v1/item/615bc7aa7e5c13a5bb9af7a7/download',  # Aerial Penguin
+    'https://viame.kitware.com/api/v1/item/61d341fa2a5486eb4d8d7933/download',  # Sea Lion
 ]
 
 
