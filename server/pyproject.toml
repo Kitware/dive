@@ -61,7 +61,7 @@ pyrabbit2 = "1.0.7"
 typing-extensions = "^4.0.0"
 GPUtil = "^1.4.0"
 requests = ">=2.20.0"
-urllib3 = "<1.26"
+urllib3 = "<1.27"
 
 [tool.poetry.dev-dependencies]
 numpy = "^1.21.4"
