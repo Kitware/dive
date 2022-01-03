@@ -28,6 +28,7 @@ safeImageRegex = re.compile(r"(\." + r"|\.".join(webValidImageFormats) + ')$', r
 csvRegex = re.compile(r"\.csv$", re.IGNORECASE)
 jsonRegex = re.compile(r"\.json$", re.IGNORECASE)
 ymlRegex = re.compile(r"\.ya?ml$", re.IGNORECASE)
+zipRegex = re.compile(r"\.zip$", re.IGNORECASE)
 
 ImageMimeTypes = {
     "image/png",
@@ -84,6 +85,12 @@ TrainedPipelineCategory = "trained"
 ViameDataFolderName = "VIAME"
 # The name of the subfolder for training results
 TrainingOutputFolderName = "VIAME Training Results"
+# The name of the source folder holding zip backups
+SourceFolderName = "source"
+# The name of the auxiliary folder
+AuxiliaryFolderName = "auxiliary"
+# the name of the meta file
+MetaFileName = "meta.json"
 
 # job constants
 JOBCONST_DATASET_ID = 'datset_id'

@@ -368,12 +368,12 @@ def postprocess(
         Transcoding of Video
         Transcoding of Images
         Conversion of KPF annotations into track JSON
+        Extraction and upload of zip files
 
     In either case, the following may run synchronously:
         Conversion of CSV annotations into track JSON
     """
     job_is_private = user.get(constants.UserPrivateQueueEnabledMarker, False)
-    auxiliary = crud.get_or_create_auxiliary_folder(dsFolder, user)
     isClone = fromMeta(dsFolder, constants.ForeignMediaIdMarker, None) is not None
     # add default confidence filter threshold to folder metadata
     dsFolder['meta'][constants.ConfidenceFiltersMarker] = {'default': 0.1}
@@ -386,6 +386,34 @@ def postprocess(
 
     if not skipJobs and not isClone:
         token = Token().createToken(user=user, days=2)
+
+        # extract ZIP Files if not already completed
+        zipItems = list(
+            Folder().childItems(
+                dsFolder,
+                filters={"lowerName": {"$regex": constants.zipRegex}},
+            )
+        )
+        if len(zipItems) > 1:
+            raise RestException('There are multiple zip files in the folder.')
+        for item in zipItems:
+            total_items = len(list((Folder().childItems(dsFolder))))
+            if total_items > 1:
+                raise RestException('There are multiple files besides a zip, cannot continue')
+            newjob = tasks.extract_zip.apply_async(
+                queue=_get_queue_name(user),
+                kwargs=dict(
+                    folderId=str(item["folderId"]),
+                    itemId=str(item["_id"]),
+                    girder_job_title=f"Extracting {item['_id']} to folder {str(dsFolder['_id'])}",
+                    girder_client_token=str(token["_id"]),
+                    girder_job_type="private" if job_is_private else "convert",
+                ),
+            )
+            newjob.job[constants.JOBCONST_PRIVATE_QUEUE] = job_is_private
+            Job().save(newjob.job)
+            return dsFolder
+
         # transcode VIDEO if necessary
         videoItems = Folder().childItems(
             dsFolder, filters={"lowerName": {"$regex": constants.videoRegex}}
@@ -442,6 +470,7 @@ def postprocess(
             allFiles = [make_file_generator(item) for item in ymlItems]
             crud.saveTracks(dsFolder, meva.load_kpf_as_tracks(allFiles), user)
             ymlItems.rewind()
+            auxiliary = crud.get_or_create_auxiliary_folder(dsFolder, user)
             for item in ymlItems:
                 Item().move(item, auxiliary)
 

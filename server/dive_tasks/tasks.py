@@ -125,7 +125,7 @@ def upgrade_pipelines(
     addons_to_update_update: List[Path] = []
 
     for addon in urls:
-        download_name = urlparse(addon).path.replace('/', '_')
+        download_name = urlparse(addon).path.replace(os.path.sep, '_')
         zipfile_path = conf.addon_zip_path / f'{download_name}.zip'
         if not zipfile_path.exists() or force:
             # Update the zipfile if force option set or file not exists
@@ -556,3 +556,100 @@ def convert_images(self: Task, folderId):
             str(folderId),
             {"annotate": True},  # mark the parent folder as able to annotate.
         )
+
+
+@app.task(bind=True, acks_late=True, ignore_result=True)
+def extract_zip(self: Task, folderId: str, itemId: str):
+    """
+    Discovery logic:
+    * Find all folders that have at least one child file (potential datasets)
+    * Exclude folders which are sub-folders of previously discovered folders
+      because datasets cannot be nested in other datasets
+    """
+    context: dict = {}
+    gc: GirderClient = self.girder_client
+    manager: JobManager = patch_manager(self.job_manager)
+    if utils.check_canceled(self, context):
+        manager.updateStatus(JobStatus.CANCELED)
+        return
+
+    with tempfile.TemporaryDirectory() as _working_directory, suppress(utils.CanceledError):
+        _working_directory_path = Path(_working_directory)
+        item: GirderModel = gc.getItem(itemId)
+        file_name = str(_working_directory_path / item['name'])
+        manager.write(f'Fetching input from {itemId} to {file_name}...\n')
+        gc.downloadItem(itemId, _working_directory, item["name"])
+        discovered_folders = {}
+        with zipfile.ZipFile(file_name, 'r') as zipObj:
+            listOfFileNames = zipObj.namelist()
+            sum_file_size = sum([data.file_size for data in zipObj.filelist])
+            sum_compress_size = sum([data.compress_size for data in zipObj.filelist])
+            ratio = sum_file_size / sum_compress_size
+            if ratio > 600:
+                manager.write(
+                    f"Compression ratio is exceedingly high at {ratio}\n\
+                    Please contact an admin at viame-web@kitware.com if this is a valid zip file"
+                )
+                raise Exception("High Compression Ratio for Zip File")
+
+            for fileName in listOfFileNames:
+                folderName = os.path.dirname(fileName)
+                parentName = os.path.dirname(folderName)
+                if parentName in discovered_folders and folderName != '':
+                    discovered_folders[folderName] = 'ignored'
+                    continue
+                if fileName.endswith(os.path.sep):
+                    continue
+                if folderName not in discovered_folders:
+                    discovered_folders[folderName] = 'unstructured'
+                if os.path.basename(fileName) == constants.MetaFileName:
+                    # sub folder has a meta.json so it is an exported dataset
+                    discovered_folders[folderName] = 'dataset'
+                if fileName.endswith('.zip'):
+                    raise Exception("Nested Zip Files are invalid")
+                manager.write(f"Extracting: {fileName}\n")
+                zipObj.extract(fileName, f'{_working_directory}')
+
+        # remove the zip file so it isn't uploaded back to the folder
+        os.remove(file_name)
+        # Create source folder and move zip file there
+        created_folder = gc.createFolder(
+            folderId,
+            constants.SourceFolderName,
+            reuseExisting=True,
+        )
+        gc.sendRestRequest(
+            "PUT",
+            f"/item/{str(item['_id'])}?folderId={str(created_folder['_id'])}",
+        )
+        # Only make subfolders if more than 1 discovered folder exists
+        make_subfolders = (
+            len(discovered_folders) - list(discovered_folders.values()).count('ignored')
+        ) > 1
+        for folderName, folderType in discovered_folders.items():
+            subFolderName = folderName if make_subfolders else ''
+            if folderType == 'unstructured':
+                utils.upload_zipped_flat_media_files(
+                    gc,
+                    manager,
+                    folderId,
+                    _working_directory_path / folderName,
+                    subFolderName,
+                )
+            elif folderType == 'dataset':
+                utils.upload_exported_zipped_dataset(
+                    gc,
+                    manager,
+                    folderId,
+                    _working_directory_path / folderName,
+                    subFolderName,
+                )
+            else:
+                manager.write(f'Ignoring {folderName}\n')
+
+        if make_subfolders:
+            gc.sendRestRequest(
+                "DELETE",
+                f"folder/{folderId}/metadata",
+                json=[constants.TypeMarker, constants.FPSMarker, constants.DatasetMarker],
+            )

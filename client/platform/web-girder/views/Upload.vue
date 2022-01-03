@@ -38,7 +38,7 @@ export interface PendingUpload {
   meta: null | File;
   annotationFile: null | File;
   mediaList: File[];
-  type: DatasetType;
+  type: DatasetType | 'zip';
   fps: number;
   uploading: boolean;
 }
@@ -70,29 +70,63 @@ export default defineComponent({
     const importMultiCamDialog = ref(false);
     const girderUpload: Ref<null | GirderUpload> = ref(null);
     const { prompt } = usePrompt();
-    /**
-     * Initial opening of file dialog
-     */
-    const openImport = async (dstype: DatasetType) => {
-      const ret = await openFromDisk(dstype);
-      if (!ret.canceled && ret.fileList) {
-        // eslint-disable-next-line @typescript-eslint/no-use-before-define
-        const processed = processImport(ret);
-        if (processed?.fullList?.length === 0) return;
-        if (processed && processed.fullList) {
-          const name = processed.fullList.length === 1 ? processed.fullList[0].name : '';
-          preUploadErrorMessage.value = null;
-          try {
-            // eslint-disable-next-line @typescript-eslint/no-use-before-define
-            await addPendingUpload(
-              name, processed.fullList, processed.metaFile,
-              processed.annotationFile, processed.mediaList,
-            );
-          } catch (err) {
-            preUploadErrorMessage.value = err.response?.data?.message || err;
-          }
+
+    const addPendingZipUpload = (name: string, allFiles: File[]) => {
+      const fps = clientSettings.annotationFPS || DefaultVideoFPS;
+      const defaultFilename = allFiles.length ? allFiles[0].name.replace(/\..*/, '') : 'Zip Upload';
+      pendingUploads.value.push({
+        createSubFolders: false,
+        name: defaultFilename,
+        files: [], //Will be set in the GirderUpload Component
+        meta: null,
+        annotationFile: null,
+        mediaList: allFiles,
+        type: 'zip',
+        fps,
+        uploading: false,
+      });
+    };
+
+    const addPendingUpload = async (
+      name: string,
+      allFiles: File[],
+      meta: File | null,
+      annotationFile: File | null,
+      mediaList: File[],
+    ) => {
+      const resp = (await validateUploadGroup(allFiles.map((f) => f.name))).data;
+      if (!resp.ok) {
+        if (resp.message) {
+          preUploadErrorMessage.value = resp.message;
+        }
+        throw new Error(resp.message);
+      }
+      const fps = clientSettings.annotationFPS || DefaultVideoFPS;
+      const defaultFilename = resp.media[0];
+      const validFiles = resp.media.concat(resp.annotations);
+      // mapping needs to be done for the mixin upload functions
+      const internalFiles = allFiles
+        .filter((f) => validFiles.includes(f.name));
+      let createSubFolders = false;
+      if (resp.type === 'video') {
+        if (resp.media.length > 1) {
+          createSubFolders = true;
         }
       }
+      pendingUploads.value.push({
+        createSubFolders,
+        name:
+          internalFiles.length > 1
+            ? defaultFilename.replace(/\..*/, '')
+            : defaultFilename,
+        files: [], //Will be set in the GirderUpload Component
+        meta,
+        annotationFile,
+        mediaList,
+        type: resp.type,
+        fps,
+        uploading: false,
+      });
     };
     /**
      * Processes the imported media files to distinguish between
@@ -157,6 +191,32 @@ export default defineComponent({
       }
       return output;
     };
+    /**
+     * Initial opening of file dialog
+     */
+    const openImport = async (dstype: DatasetType | 'zip') => {
+      const ret = await openFromDisk(dstype);
+      if (!ret.canceled && ret.fileList) {
+        const processed = processImport(ret);
+        if (processed?.fullList?.length === 0) return;
+        if (processed && processed.fullList) {
+          const name = processed.fullList.length === 1 ? processed.fullList[0].name : '';
+          preUploadErrorMessage.value = null;
+          try {
+            if (dstype !== 'zip') {
+              await addPendingUpload(
+                name, processed.fullList, processed.metaFile,
+                processed.annotationFile, processed.mediaList,
+              );
+            } else {
+              addPendingZipUpload(name, processed.fullList);
+            }
+          } catch (err) {
+            preUploadErrorMessage.value = err.response?.data?.message || err;
+          }
+        }
+      }
+    };
     const openMultiCamDialog = (args: { stereo: boolean; openType: 'image-sequence' | 'video' }) => {
       stereo.value = args.stereo;
       multiCamOpenType.value = args.openType;
@@ -204,7 +264,7 @@ export default defineComponent({
           return `${filesNotUploaded(pendingUpload)} files`;
         } if (pendingUpload.type === VideoType && !pendingUpload.uploading) {
           return `${filesNotUploaded(pendingUpload)} videos`;
-        } if (pendingUpload.type === VideoType && pendingUpload.uploading) {
+        } if ((pendingUpload.type === VideoType || pendingUpload.type === 'zip') && pendingUpload.uploading) {
           // For videos we display the total progress when uploading because
           // single videos can be large
           return `${formatSize(totalProgress)} of ${formatSize(totalSize)}`;
@@ -219,52 +279,14 @@ export default defineComponent({
       return `Folder Name${plural}`;
     };
     const getFilenameInputStateDisabled = (pendingUpload: PendingUpload) => (
-      pendingUpload.uploading || pendingUpload.createSubFolders
+      pendingUpload.uploading || (pendingUpload.createSubFolders && pendingUpload.type !== 'zip')
     );
     const getFilenameInputStateHint = (pendingUpload: PendingUpload) => (
-      pendingUpload.createSubFolders ? 'default folder names are used when "Create Subfolders" is selected' : ''
+      (pendingUpload.createSubFolders && pendingUpload.type !== 'zip') ? 'default folder names are used when "Create Subfolders" is selected' : ''
     );
-    const addPendingUpload = async (
-      name: string,
-      allFiles: File[],
-      meta: File | null,
-      annotationFile: File | null,
-      mediaList: File[],
-    ) => {
-      const resp = (await validateUploadGroup(allFiles.map((f) => f.name))).data;
-      if (!resp.ok) {
-        if (resp.message) {
-          preUploadErrorMessage.value = resp.message;
-        }
-        throw new Error(resp.message);
-      }
-      const fps = clientSettings.annotationFPS || DefaultVideoFPS;
-      const defaultFilename = resp.media[0];
-      const validFiles = resp.media.concat(resp.annotations);
-      // mapping needs to be done for the mixin upload functions
-      const internalFiles = allFiles
-        .filter((f) => validFiles.includes(f.name));
-      let createSubFolders = false;
-      if (resp.type === 'video') {
-        if (resp.media.length > 1) {
-          createSubFolders = true;
-        }
-      }
-      pendingUploads.value.push({
-        createSubFolders,
-        name:
-          internalFiles.length > 1
-            ? defaultFilename.replace(/\..*/, '')
-            : defaultFilename,
-        files: [], //Will be set in the GirderUpload Component
-        meta,
-        annotationFile,
-        mediaList,
-        type: resp.type,
-        fps,
-        uploading: false,
-      });
-    };
+    const getFilenameInputValue = (pendingUpload: PendingUpload) => (
+      pendingUpload.createSubFolders && pendingUpload.type !== 'zip' ? 'default' : pendingUpload.name
+    );
     const remove = (pendingUpload: PendingUpload) => {
       const index = pendingUploads.value.indexOf(pendingUpload);
       pendingUploads.value.splice(index, 1);
@@ -323,6 +345,7 @@ export default defineComponent({
       multiCamImport,
       computeUploadProgress,
       getFilenameInputStateLabel,
+      getFilenameInputValue,
       getFilenameInputStateDisabled,
       getFilenameInputStateHint,
       addPendingUpload,
@@ -395,7 +418,7 @@ export default defineComponent({
             <v-row class="align-center">
               <v-col class="py-0">
                 <v-text-field
-                  :value="pendingUpload.createSubFolders ? 'default' : pendingUpload.name"
+                  :value="getFilenameInputValue(pendingUpload)"
                   class="upload-name"
                   :rules="[val => (val || '').length > 0 || 'This field is required']"
                   required
@@ -439,7 +462,7 @@ export default defineComponent({
                 </v-btn>
               </v-col>
             </v-row>
-            <v-row v-if="!pendingUpload.createSubFolders">
+            <v-row v-if="!pendingUpload.createSubFolders && pendingUpload.type !== 'zip'">
               <v-col class="py-0">
                 <v-row>
                   <v-col>
@@ -504,6 +527,7 @@ export default defineComponent({
               icon="mdi-folder-open"
               open-type="image-sequence"
               class="grow"
+              :small="!!pendingUploads.length"
               :class="[pendingUploads.length ? 'mr-3' : 'my-3']"
               :button-attrs="buttonAttrs"
               @open="openImport($event)"
@@ -513,11 +537,22 @@ export default defineComponent({
               :name="`Add ${pendingUploads.length ? 'Another ' : ''}Video`"
               icon="mdi-file-video"
               class="grow"
+              :small="!!pendingUploads.length"
               :class="[pendingUploads.length ? 'ml-3' : 'my-3']"
               open-type="video"
               :button-attrs="buttonAttrs"
               @open="openImport($event)"
               @multi-cam="openMultiCamDialog"
+            />
+            <import-button
+              :name="`Add ${pendingUploads.length ? 'Another ' : ''}Zip File`"
+              icon="mdi-zip-box"
+              class="grow"
+              :small="!!pendingUploads.length"
+              :class="[pendingUploads.length ? 'ml-3' : 'my-3']"
+              open-type="zip"
+              :button-attrs="buttonAttrs"
+              @open="openImport($event)"
             />
           </div>
           <v-btn

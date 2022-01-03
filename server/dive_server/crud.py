@@ -102,13 +102,19 @@ def get_static_pipelines_path() -> Path:
 
 
 def get_or_create_auxiliary_folder(folder, user):
-    return Folder().createFolder(folder, "auxiliary", reuseExisting=True, creator=user)
+    return Folder().createFolder(
+        folder, constants.AuxiliaryFolderName, reuseExisting=True, creator=user
+    )
 
 
 def move_existing_result_to_auxiliary_folder(folder, user):
     auxiliary = get_or_create_auxiliary_folder(folder, user)
     for item in all_detections_items(folder):
         Item().move(item, auxiliary)
+
+
+def get_or_create_source_folder(folder, user):
+    return Folder().createFolder(folder, "source", reuseExisting=True, creator=user)
 
 
 def itemIsWebsafeVideo(item: Item) -> bool:

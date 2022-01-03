@@ -4,6 +4,7 @@ import time
 from typing import Any, Dict, List
 
 from girder_client import GirderClient
+from girder_worker.utils import JobStatus
 import pytest
 
 localDataRoot = Path('tests/integration/data')
@@ -13,7 +14,7 @@ Alice and Bobby have different types of data (images and video)
 Most tests run operations on a single dataset for each user, so keeping
 each user constrained to a single data type will help ensure robustness
 """
-users: Dict[str, Dict[str, Any]] = {
+users = {
     'alice': {
         'login': 'alice',
         'email': 'alice@locahost.lan',
@@ -146,6 +147,99 @@ users: Dict[str, Dict[str, Any]] = {
     },
 }
 
+zipUser = {
+    'login': 'zipUser',
+    'email': 'zipUser@locahost.lan',
+    'firstName': 'zip',
+    'lastName': 'User',
+    'password': 'zipUserPass',
+    'data': [
+        {
+            'name': 'testImageZip',
+            'path': 'zipTestFiles/testImageZip.zip',
+            'fps': 1,
+            'type': 'image-sequence',
+            'trackCount': 197,
+            'job_status': JobStatus.SUCCESS,
+        },
+        {
+            'name': 'testVideoZip',
+            'path': 'zipTestFiles/testVideoZip.zip',
+            'fps': 29.97002997002997,
+            'originalFps': 30000 / 1001,
+            'type': 'video',
+            'job_status': JobStatus.SUCCESS,
+        },
+        {
+            'name': 'SingleDatasetImport',
+            'path': 'zipTestFiles/SingleDatasetImport.zip',
+            'fps': 29.97002997002997,
+            'originalFps': 30000 / 1001,
+            'type': 'video',
+            'job_status': JobStatus.SUCCESS,
+        },
+        {
+            'name': 'flatMultiImport',
+            'path': 'zipTestFiles/flatMultiImport.zip',
+            'fps': -1,
+            'type': 'zip',
+            'subDatasets': [
+                {
+                    'name': 'testVideoZip',
+                    'type': 'video',
+                    'fps': 29.97002997002997,
+                },
+                {
+                    'name': 'testImageZip',
+                    'type': 'image-sequence',
+                    'fps': 1,
+                },
+            ],
+            'job_status': JobStatus.SUCCESS,
+        },
+        {
+            'name': 'MultiDatasetImport',
+            'path': 'zipTestFiles/MultiDatasetImport.zip',
+            'fps': -1,
+            'type': 'zip',
+            'subDatasets': [
+                {
+                    'name': 'video1_train_mp4',
+                    'type': 'video',
+                    'fps': 29.97002997002997,
+                },
+                {
+                    'name': 'testtrain1_imagelist',
+                    'type': 'image-sequence',
+                    'fps': 1,
+                },
+            ],
+            'job_status': JobStatus.SUCCESS,
+        },
+        {
+            'name': 'badFormatZip',
+            'path': 'zipTestFiles/badFormatZip.zip',
+            'fps': 1,
+            'type': 'image-sequence',
+            'job_status': JobStatus.ERROR,
+        },
+        {
+            'name': 'nestedZip',
+            'path': 'zipTestFiles/nestedZip.zip',
+            'fps': 1,
+            'type': 'image-sequence',
+            'job_status': JobStatus.ERROR,
+        },
+        {
+            'name': 'zipBomb',
+            'path': 'zipTestFiles/zipBomb.zip',
+            'fps': 1,
+            'type': 'image-sequence',
+            'job_status': JobStatus.ERROR,
+        },
+    ],
+}
+
 
 def getClient(name: str) -> GirderClient:
     gc = GirderClient(apiUrl='http://localhost:8010/api/v1')
@@ -166,7 +260,7 @@ def admin_client() -> GirderClient:
     return gc
 
 
-def wait_for_jobs(client: GirderClient, max_wait_timeout=30):
+def wait_for_jobs(client: GirderClient, max_wait_timeout=30, expected_status=JobStatus.SUCCESS):
     """Wait for all worker jobs to complete"""
     start_time = time.time()
     incompleteJobs = []
@@ -192,8 +286,8 @@ def wait_for_jobs(client: GirderClient, max_wait_timeout=30):
             'limit': 1,
         },
     )
-    if len(lastJob) > 0 and lastJob[0]['status'] != 3:
-        raise Exception("Some jobs did not succeed")
+    if len(lastJob) > 0 and lastJob[0]['status'] != expected_status:
+        raise Exception(f"Some jobs did not meet their expected status: {expected_status}")
 
 
 def match_user_server_data(user: Dict[str, Any], dataset) -> List[dict]:
