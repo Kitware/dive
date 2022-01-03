@@ -30,7 +30,7 @@ class AnnotationResource(Resource):
         self.route("GET", ("revision",), self.get_revisions)
         self.route("GET", ("export",), self.export)
         self.route("PATCH", (), self.save_annotations)
-        self.route("POST", ("rollback"), self.rollback)
+        self.route("POST", ("rollback",), self.rollback)
 
     @access.user
     @autoDescribeRoute(

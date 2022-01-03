@@ -163,9 +163,11 @@ def save_annotations(
 
     if overwrite:
         query = {DATASET: datasetId, REVISION_DELETED: {'$exists': False}}
-        expire_result = AnnotationItem().collection.bulk_write(
-            [pymongo.UpdateMany(query, delete_annotation_update)]
-        ).bulk_api_result
+        expire_result = (
+            AnnotationItem()
+            .collection.bulk_write([pymongo.UpdateMany(query, delete_annotation_update)])
+            .bulk_api_result
+        )
 
     for track_id in delete_list:
         filter = {TRACKID: track_id, DATASET: datasetId, REVISION_DELETED: {'$exists': False}}
@@ -187,9 +189,13 @@ def save_annotations(
 
     # Ordered=false allows fast parallel writes
     if len(expire_operations):
-        expire_result = AnnotationItem().collection.bulk_write(expire_operations, ordered=False).bulk_api_result
+        expire_result = (
+            AnnotationItem().collection.bulk_write(expire_operations, ordered=False).bulk_api_result
+        )
     if len(insert_operations):
-        insert_result = AnnotationItem().collection.bulk_write(insert_operations, ordered=False).bulk_api_result
+        insert_result = (
+            AnnotationItem().collection.bulk_write(insert_operations, ordered=False).bulk_api_result
+        )
 
     additions = insert_result.get('nInserted', 0)
     deletions = expire_result.get('nModified', 0)

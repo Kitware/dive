@@ -277,12 +277,14 @@ test_tuple: List[Tuple[list, dict, dict]] = [
             "0,3.png,3,884.66,510,1219.66,737.66,1,-1,typestring,1,(trk-atr) booleanAttr true,(atr) DetectionPredefinedValue value1",
             "0,4.png,4,111,222,3333,444,1,-1,typestring,1,(atr) DetectionPredefinedValue value2",
             "0,5.png,5,747,457,1039,633,1,-1,typestring,1,(atr) DetectionPredefinedValue value3",
+            "#comment line",
             "1,1.png,0,884.66,510,1219.66,737.66,1,-1,typestring,1,(atr) DetectionNumber 2.002,(atr) DetectionPredefinedValue value1",
             "1,2.png,1,111,222,3333,444,1,-1,typestring,1,(trk-atr) booleanAttr true,(atr) DetectionPredefinedValue value2",
             "1,3.png,2,747,457,1039,633,1,-1,typestring,1,(trk-atr) booleanAttr true,(atr) DetectionPredefinedValue value3",
             "1,3.png,3,884.66,510,1219.66,737.66,1,-1,typestring,1,(trk-atr) booleanAttr true,(atr) DetectionPredefinedValue value1",
             "1,4.png,4,111,222,3333,444,1,-1,typestring,1,(atr) DetectionPredefinedValue value2",
             "1,5.png,5,747,457,1039,633,1,-1,typestring,1,(atr) DetectionPredefinedValue value3",
+            "",
         ],
         {
             "0": {
@@ -442,6 +444,7 @@ test_tuple: List[Tuple[list, dict, dict]] = [
             "0,1.png,0,884,510,1219,737,1.0,-1,",
             "0,2.png,1,111,222,3333,444,1.0,-1,,",
             "1,1.png,0,747,457,1039,633,0.8,-1",
+            "",
         ],
         {
             "0": {

@@ -20,7 +20,6 @@ from dive_utils.constants import (
     ImageSequenceType,
     TypeMarker,
     VideoType,
-    csvRegex,
     imageRegex,
     videoRegex,
 )
