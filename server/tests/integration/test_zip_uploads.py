@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from girder_client import GirderClient, HttpError
+from girder_worker.utils import JobStatus
 import pytest
 
 from .conftest import getTestFolder, localDataRoot, wait_for_jobs, zipUser
@@ -56,6 +57,7 @@ def test_upload_zip_data(dataset: dict):
     client.post(f'dive_rpc/postprocess/{newDatasetFolder["_id"]}')
     wait_for_jobs(client, max_wait_timeout=30, expected_status=dataset['job_status'])
 
+    resultFolder = client.getFolder(newDatasetFolder['_id'])
     # verify sub datasets if they exist
     if dataset.get('subDatasets', False):
         folders = list(client.listFolder(newDatasetFolder['_id']))
@@ -65,3 +67,10 @@ def test_upload_zip_data(dataset: dict):
                 meta = matches[0].get("meta", {})
                 assert meta.get("fps", -1) == item["fps"]
                 assert meta.get("type", "") == item["type"]
+                assert meta.get("annotate", False)
+    elif dataset['job_status'] == JobStatus.SUCCESS:
+        assert resultFolder['meta'].get("annotate", False)
+        assert type(resultFolder['meta'].get("fps")) in [int, float]
+        assert type(resultFolder['meta'].get("type")) == str
+    else:
+        assert resultFolder['meta'].get("annotate", None) is None

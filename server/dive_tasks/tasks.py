@@ -622,9 +622,12 @@ def extract_zip(self: Task, folderId: str, itemId: str):
             "PUT",
             f"/item/{str(item['_id'])}?folderId={str(created_folder['_id'])}",
         )
-
+        # Only make subfolders if more than 1 discovered folder exists
+        make_subfolders = (
+            len(discovered_folders) - list(discovered_folders.values()).count('ignored')
+        ) > 1
         for folderName, folderType in discovered_folders.items():
-            subFolderName = folderName if len(discovered_folders) > 1 else ''
+            subFolderName = folderName if make_subfolders else ''
             if folderType == 'unstructured':
                 utils.upload_zipped_flat_media_files(
                     gc,
@@ -643,3 +646,10 @@ def extract_zip(self: Task, folderId: str, itemId: str):
                 )
             else:
                 manager.write(f'Ignoring {folderName}\n')
+
+        if make_subfolders:
+            gc.sendRestRequest(
+                "DELETE",
+                f"folder/{folderId}/metadata",
+                json=[constants.TypeMarker, constants.FPSMarker, constants.DatasetMarker],
+            )

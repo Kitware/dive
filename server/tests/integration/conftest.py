@@ -171,8 +171,8 @@ zipUser = {
             'job_status': JobStatus.SUCCESS,
         },
         {
-            'name': 'singleDatasetImport',
-            'path': 'zipTestFiles/singleDatasetImport.zip',
+            'name': 'SingleDatasetImport',
+            'path': 'zipTestFiles/SingleDatasetImport.zip',
             'fps': 29.97002997002997,
             'originalFps': 30000 / 1001,
             'type': 'video',
