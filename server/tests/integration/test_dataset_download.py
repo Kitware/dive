@@ -62,4 +62,4 @@ def test_upload_json_detections(user: dict):
         new_tracks = {str(track['trackId']): track for track in new_tracks_list}
         assert '999999' in new_tracks, "Should have one track, 999999"
         assert len(new_tracks_list) == 1, "Should have a single track"
-        client.delete(f'dive_annotation?folderId={dataset["_id"]}&revision={old_revision}')
+        client.post(f'dive_annotation/rollback?folderId={dataset["_id"]}&revision={old_revision}')
