@@ -8,7 +8,7 @@ from .conftest import getTestFolder, localDataRoot, wait_for_jobs, zipUser
 
 
 @pytest.mark.integration
-@pytest.mark.parametrize("user", zipUser.values())
+@pytest.mark.parametrize("user", [zipUser])
 @pytest.mark.run(order=2)
 def test_user_creation(admin_client: GirderClient, user: dict):
     try:
@@ -25,7 +25,7 @@ def test_user_creation(admin_client: GirderClient, user: dict):
 
 
 @pytest.mark.integration
-@pytest.mark.parametrize("user", zipUser.values())
+@pytest.mark.parametrize("user", [zipUser])
 @pytest.mark.run(order=3)
 def test_reset_integration_env(user: dict):
     client = GirderClient(apiUrl='http://localhost:8010/api/v1')
@@ -35,40 +35,42 @@ def test_reset_integration_env(user: dict):
 
 
 @pytest.mark.integration
-@pytest.mark.parametrize("user", zipUser.values())
+@pytest.mark.parametrize("dataset", zipUser['data'])
 @pytest.mark.run(order=4)
-def test_upload_zip_data(user: dict):
+def test_upload_zip_data(dataset: dict):
+    user = zipUser
     client = GirderClient(apiUrl='http://localhost:8010/api/v1')
     client.authenticate(username=user['login'], password=user['password'])
 
-    createdDatasets = []
-    for dataset in user['data']:
-        dsPath = localDataRoot / str(dataset['path'])
-        privateFolder = getTestFolder(client)
-        newDatasetFolder = client.createFolder(
-            privateFolder['_id'],
-            dataset['name'],
-            metadata={
-                'fps': dataset['fps'],
-                'type': dataset['type'],
-            },
-        )
-        createdDatasets.append(newDatasetFolder)
-        if Path(dsPath).is_file():
-            client.uploadFileToFolder(newDatasetFolder['_id'], str(dsPath))
-        client.post(f'dive_rpc/postprocess/{newDatasetFolder["_id"]}')
-        try:
-            wait_for_jobs(client, max_wait_timeout=30, expected_status=dataset['job_status'])
-        except Exception as ex:
-            if dataset['job_status'] == JobStatus.ERROR:
-                continue
-            raise ex
-        # verify sub datasets if they exist
-        if dataset.get('subDatasets', False):
-            folders = list(client.listFolder(newDatasetFolder['_id']))
-            for item in dataset["subDatasets"]:
-                matches = [x for x in folders if x["name"] == item["name"]]
-                if len(matches) > 0:
-                    meta = matches[0].get("meta", {})
-                    assert meta.get("fps", -1) == item["fps"]
-                    assert meta.get("type", "") == item["type"]
+    dsPath = localDataRoot / str(dataset['path'])
+    privateFolder = getTestFolder(client)
+    newDatasetFolder = client.createFolder(
+        privateFolder['_id'],
+        dataset['name'],
+        metadata={
+            'fps': dataset['fps'],
+            'type': dataset['type'],
+        },
+    )
+    if Path(dsPath).is_file():
+        client.uploadFileToFolder(newDatasetFolder['_id'], str(dsPath))
+    client.post(f'dive_rpc/postprocess/{newDatasetFolder["_id"]}')
+    wait_for_jobs(client, max_wait_timeout=30, expected_status=dataset['job_status'])
+
+    resultFolder = client.getFolder(newDatasetFolder['_id'])
+    # verify sub datasets if they exist
+    if dataset.get('subDatasets', False):
+        folders = list(client.listFolder(newDatasetFolder['_id']))
+        for item in dataset["subDatasets"]:
+            matches = [x for x in folders if x["name"] == item["name"]]
+            if len(matches) > 0:
+                meta = matches[0].get("meta", {})
+                assert meta.get("fps", -1) == item["fps"]
+                assert meta.get("type", "") == item["type"]
+                assert meta.get("annotate", False)
+    elif dataset['job_status'] == JobStatus.SUCCESS:
+        assert resultFolder['meta'].get("annotate", False)
+        assert type(resultFolder['meta'].get("fps")) in [int, float]
+        assert type(resultFolder['meta'].get("type")) == str
+    else:
+        assert resultFolder['meta'].get("annotate", None) is None
