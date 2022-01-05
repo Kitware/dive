@@ -126,14 +126,7 @@ Image chips that compose a video are stored as girder items in a folder.  Videos
 * `ffprobe_info` (JSON) output of ffprobe for raw input video
 * `confidenceFilters` (JSON) map of filter name to float in [0, 1]
 * `customTypeStyline` (JSON) map of class name to GeoJS display attributes.
-* `published` (boolean) whether to include the dataset in published summary
 * `foreign_media_id` (string) For "cloned" datasets, this is an objectId pointer to the source media
-
-### Annotation Item
-
-* `detection` (string) objectId pointer to folder that the annotations belong to
-
-Each time the detection list changes, the old item is moved to a subfolder "auxiliary" and the new copy takes its place.  Pipeline runs completely replace existing annotation data (no merge).
 
 ### Video Item
 

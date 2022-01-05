@@ -68,15 +68,6 @@ export default {
         class="mx-2 grow"
         @select="setRouteFromLocation"
       />
-      <v-btn
-        text
-        :to="{ name: 'summary' }"
-      >
-        <v-icon class="pr-2">
-          mdi-format-list-bulleted-square
-        </v-icon>
-        Stats
-      </v-btn>
       <user-guide-button />
       <v-btn
         text
