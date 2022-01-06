@@ -26,6 +26,7 @@ interface FFmpegSettings {
   initialization: string;
   path: string;
   videoArgs: string;
+  alignVideoArgs: string;
 }
 
 export interface ViameConstants {

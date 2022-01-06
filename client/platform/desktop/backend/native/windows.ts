@@ -58,6 +58,19 @@ const ViameWindowsConstants = {
       // https://video.stackexchange.com/questions/20871/how-do-i-convert-anamorphic-hdv-video-to-normal-h-264-video-with-ffmpeg-how-to
       '-vf "scale=ceil(iw*sar/2)*2:ceil(ih/2)*2,setsar=1"',
     ].join(' '),
+    // Windows version of FFMPEG will support these arguments
+    alignVideoArgs: [
+      '-ss',
+      '0',
+      '-c:v',
+      'libx264',
+      '-preset',
+      'slow',
+      '-crf',
+      '18',
+      '-c:a',
+      'copy',
+    ].join(' '),
   },
 };
 

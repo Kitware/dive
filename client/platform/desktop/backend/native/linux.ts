@@ -69,13 +69,37 @@ const ViameLinuxConstants = {
        */
       '-vf "scale=ceil(iw*sar/2)*2:ceil(ih/2)*2,setsar=1"',
     ].join(' '),
+    // Linux versions that support libx264 will support these video arguments for realignment
+    alignVideoArgs: [
+      '-ss',
+      '0',
+      '-c:v',
+      'libx264',
+      '-preset',
+      'slow',
+      '-crf',
+      '18',
+      '-c:a',
+      'copy',
+    ].join(' '),
   },
 };
 
 const ViameBundledFFMPEGVideoArgs = [
   '-c:v h264',
-  '-c: a copy',
+  '-c:a copy',
   '-vf "scale=ceil(iw*sar/2)*2:ceil(ih/2)*2,setsar=1"',
+].join(' ');
+// Bundled VIAME ffmpeg doesn't support libx264 on linux.
+const ViameBundledFFMPEGAlignVideoArgs = [
+  '-ss',
+  '0',
+  '-c:v',
+  'h264',
+  '-preset',
+  'slow',
+  '-c:a',
+  'copy',
 ].join(' ');
 
 function sourceString(settings: Settings) {
@@ -208,6 +232,7 @@ async function ffmpegCommand(settings: Settings) {
     ViameLinuxConstants.ffmpeg.initialization = init;
     ViameLinuxConstants.ffmpeg.path = ffmpegPathViame;
     ViameLinuxConstants.ffmpeg.videoArgs = ViameBundledFFMPEGVideoArgs;
+    ViameLinuxConstants.ffmpeg.alignVideoArgs = ViameBundledFFMPEGAlignVideoArgs;
     ViameLinuxConstants.ffmpeg.ready = true;
     return;
   }
