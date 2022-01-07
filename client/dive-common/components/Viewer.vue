@@ -22,6 +22,7 @@ import {
   ImageAnnotator,
   VideoAnnotator,
   LayerManager,
+  AnnotatorWrapper,
 } from 'vue-media-annotator/components';
 import { MediaController } from 'vue-media-annotator/components/annotators/mediaControllerType';
 
@@ -52,6 +53,7 @@ export default defineComponent({
     LayerManager,
     VideoAnnotator,
     ImageAnnotator,
+    AnnotatorWrapper,
     ConfidenceFilter,
     UserGuideButton,
     EditorMenu,
@@ -77,9 +79,9 @@ export default defineComponent({
     const loadError = ref('');
     const baseMulticamDatasetId = ref(null as string | null);
     const datasetId = toRef(props, 'id');
-    const multiCamList: Ref<string[]> = ref([]);
-    const defaultCamera = ref('');
-    const currentCamera = ref('');
+    const multiCamList: Ref<string[]> = ref(['default']);
+    const defaultCamera = ref('default');
+    const currentCamera = ref('default');
     const playbackComponent = ref(undefined as Vue | undefined);
     const readonlyState = computed(() => props.readonlyMode || props.revision !== undefined);
     const mediaController = computed(() => {
@@ -93,11 +95,11 @@ export default defineComponent({
       return {} as MediaController;
     });
     const { time, updateTime, initialize: initTime } = useTimeObserver();
-    const imageData = ref([] as FrameImage[]);
+    const imageData = ref({ default: [] } as Record<string, FrameImage[]>);
     const datasetType: Ref<DatasetType> = ref('image-sequence');
     const datasetName = ref('');
     const saveInProgress = ref(false);
-    const videoUrl = ref(undefined as undefined | string);
+    const videoUrl = ref({ default: null } as Record<string, null | string>);
     const { loadDetections, loadMetadata, saveMetadata } = useApi();
     const progress = reactive({
       // Loaded flag prevents annotator window from populating
@@ -343,8 +345,8 @@ export default defineComponent({
           frameRate: meta.fps,
           originalFps: meta.originalFps || null,
         });
-        imageData.value = cloneDeep(meta.imageData) as FrameImage[];
-        videoUrl.value = meta.videoUrl;
+        imageData.value[currentCamera.value] = cloneDeep(meta.imageData) as FrameImage[];
+        videoUrl.value[currentCamera.value] = meta.videoUrl || null;
         datasetType.value = meta.type as DatasetType;
 
         const trackData = await loadDetections(datasetId.value, props.revision);
@@ -588,15 +590,11 @@ export default defineComponent({
         </template>
       </sidebar>
       <v-col style="position: relative">
-        <component
-          :is="datasetType === 'image-sequence' ? 'image-annotator' : 'video-annotator'"
-          v-if="(imageData.length || videoUrl) && progress.loaded"
+        <annotator-wrapper
+          v-if="progress.loaded"
           ref="playbackComponent"
-          v-mousetrap="[
-            { bind: 'n', handler: () => handler.trackAdd() },
-            { bind: 'r', handler: () => mediaController.resetZoom() },
-            { bind: 'esc', handler: () => handler.trackAbort() },
-          ]"
+          :cameras="multiCamList"
+          :current-camera="currentCamera"
           v-bind="{ imageData, videoUrl, updateTime, frameRate, originalFps }"
           class="playback-component"
         >
@@ -606,8 +604,7 @@ export default defineComponent({
               @select-track="handler.trackSelect"
             />
           </template>
-          <layer-manager />
-        </component>
+        </annotator-wrapper>
         <div
           v-else
           class="d-flex justify-center align-center fill-height"
