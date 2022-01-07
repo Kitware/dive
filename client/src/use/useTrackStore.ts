@@ -17,6 +17,7 @@ interface UseTrackStoreParams {
 interface InsertArgs {
   imported?: boolean;
   afterId?: TrackId;
+  cameraName?: string;
 }
 
 export function getTrack(
@@ -57,6 +58,9 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
   const trackIds: Ref<Array<TrackId>> = ref([]);
   const canary = ref(0);
 
+  // Multi-Camera Support
+  const camTrackMap: Record<string, Map<TrackId, Track>> = { base: new Map<TrackId, Track>() };
+  // internval Tree should be the same because all overlapping tracks have the same Id and length
 
   function _depend(): number {
     return canary.value;
@@ -84,7 +88,12 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
 
   function insertTrack(track: Track, args?: InsertArgs) {
     track.setNotifier(onChange);
-    trackMap.set(track.trackId, track);
+    if (args?.cameraName !== undefined) {
+      if (camTrackMap[args.cameraName] === undefined) {
+        camTrackMap[args.cameraName] = new Map<TrackId, Track>();
+      }
+      camTrackMap[args.cameraName].set(track.trackId, track);
+    }
     intervalTree.insert([track.begin, track.end], track.trackId.toString());
     if (args && args.afterId) {
       /* Insert specifically after another trackId */

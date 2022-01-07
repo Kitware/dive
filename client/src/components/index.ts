@@ -6,6 +6,7 @@
 
 import ImageAnnotator from './annotators/ImageAnnotator.vue';
 import VideoAnnotator from './annotators/VideoAnnotator.vue';
+import AnnotatorWrapper from './annotators/AnnotatorWrapper.vue';
 
 import Controls from './controls/Controls.vue';
 import EventChart from './controls/EventChart.vue';
@@ -27,6 +28,7 @@ export {
   LineChart,
   Timeline,
   LayerManager,
+  AnnotatorWrapper,
   TooltipButton,
   TrackItem,
   TrackList,
