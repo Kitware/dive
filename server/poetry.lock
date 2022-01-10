@@ -357,7 +357,7 @@ testing = ["covdefaults (>=1.2.0)", "coverage (>=4)", "pytest (>=4)", "pytest-co
 
 [[package]]
 name = "girder"
-version = "3.1.7"
+version = "3.1.8"
 description = "Web-based data management platform"
 category = "main"
 optional = false
@@ -1241,7 +1241,7 @@ testing = ["pytest (>=4.6)", "pytest-checkdocs (>=2.4)", "pytest-flake8", "pytes
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.7,<3.10"
-content-hash = "394fbc8a36e8e082f324f985c71efa2a4d59b75cb146adc698dc86a54a99ab25"
+content-hash = "57741ef390217ed6979d6c4c02889a87c6edb90e98f88f5ed33a7ba7fe2c2883"
 
 [metadata.files]
 amqp = [
@@ -1412,7 +1412,7 @@ filelock = [
     {file = "filelock-3.4.0.tar.gz", hash = "sha256:93d512b32a23baf4cac44ffd72ccf70732aeff7b8050fcaf6d3ec406d954baf4"},
 ]
 girder = [
-    {file = "girder-3.1.7.tar.gz", hash = "sha256:87205d7b878e5aab56e64d26b4eb8980edc611b668f150d3101600556ec8e195"},
+    {file = "girder-3.1.8.tar.gz", hash = "sha256:735b24532c73ba0f668eac4cf501462e02d0949a3c36580530c4afd85b4f5723"},
 ]
 girder-client = [
     {file = "girder-client-3.1.7.tar.gz", hash = "sha256:b3725a2f3de509b51533bf13a748969c6f7deeb7445c0f788ec9d6f6b71aacf5"},
