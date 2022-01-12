@@ -57,10 +57,6 @@ export default defineComponent({
       type: Object,
       required: true,
     },
-    hideMeta: {
-      type: Boolean,
-      default: true, // TODO:  Once Meta upload is supported we can remove this
-    },
   },
   setup(_, { emit }) {
     const preUploadErrorMessage: Ref<string | null> = ref(null);
@@ -498,7 +494,7 @@ export default defineComponent({
                       :accept="filterFileUpload('annotation')"
                     />
                   </v-col>
-                  <v-col v-if="!hideMeta">
+                  <v-col>
                     <v-file-input
                       v-model="pendingUpload.meta"
                       show-size
