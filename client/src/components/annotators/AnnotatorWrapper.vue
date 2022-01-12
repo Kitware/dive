@@ -1,21 +1,25 @@
 <script lang="ts">
 import {
-  defineComponent, ref, onUnmounted, PropType, toRef, watch,
+  computed,
+  defineComponent, onMounted, PropType, ref,
 } from '@vue/composition-api';
 import { DatasetType } from 'dive-common/apispec';
-import {
-  ImageAnnotator,
-  VideoAnnotator,
-  LayerManager,
-} from 'vue-media-annotator/components';
-import { SetTimeFunc } from '../use/useTimeObserver';
-import { ImageDataItem } from './annotators/ImageAnnotator.vue';
+import ImageAnnotator from './ImageAnnotator.vue';
+import VideoAnnotator from './VideoAnnotator.vue';
+import LayerManager from '../LayerManager.vue';
+import { SetTimeFunc } from '../../use/useTimeObserver';
+import { MediaController } from './mediaControllerType';
+
+export interface ImageDataItem {
+  url: string;
+  filename: string;
+}
+
 
 function loadImageFunc(imageDataItem: ImageDataItem, img: HTMLImageElement) {
   // eslint-disable-next-line no-param-reassign
   img.src = imageDataItem.url;
 }
-
 
 export default defineComponent({
   name: 'AnnotationWrapper',
@@ -53,6 +57,10 @@ export default defineComponent({
       type: Number,
       required: true,
     },
+    originalFps: {
+      type: Number as PropType<number | null>,
+      default: null,
+    },
     updateTime: {
       type: Function as PropType<SetTimeFunc>,
       required: true,
@@ -66,12 +74,39 @@ export default defineComponent({
       type: Number as PropType<number | undefined>,
       default: undefined,
     },
+    progress: {
+      type: Object as PropType<{loaded: boolean}>,
+      required: true,
+    },
   },
 
   setup(props) {
     // We
-    return {
+    console.log(props.imageData);
+    console.log(props.cameras);
+    const subPlaybackComponent = ref(undefined as Vue[] | undefined);
+    const mediaController = computed(() => {
+      if (subPlaybackComponent.value) {
+        if (subPlaybackComponent.value?.length >= 1) {
+          console.log(subPlaybackComponent.value);
+          // TODO: Bug in composition-api types incorrectly organizes the static members of a Vue
+          // instance when using typeof ImageAnnotator, so we can't use the "real" type here
+          // eslint-disable-next-line @typescript-eslint/ban-ts-ignore
+          // @ts-ignore
 
+        //In this case we need to collate all sub mediaControllers into one
+        }
+        // eslint-disable-next-line @typescript-eslint/ban-ts-ignore
+        // @ts-ignore
+        return subPlaybackComponent.value[0].mediaController as MediaController;
+      }
+      return {} as MediaController;
+    });
+
+
+    return {
+      subPlaybackComponent,
+      mediaController,
     };
   },
 });
@@ -84,23 +119,31 @@ export default defineComponent({
         v-for="camera in cameras"
         :key="camera"
       >
-        <component
-          :is="datasetType === 'image-sequence' ? 'image-annotator' : 'video-annotator'"
+        <div
           v-if="(imageData[camera].length || videoUrl[camera]) && progress.loaded"
-          ref="playbackComponent"
-          v-bind="{
-            imageData: imageData[camera], videoUrl: videoUrl[camera],
-            updateTime, frameRate, originalFps, loadImageFunc }"
-          class="playback-component"
-        />
-        <layer-manager :camera="camera" />
-      </div>
-      <slot
+        >
+          <component
+            :is="datasetType === 'image-sequence' ? 'image-annotator' : 'video-annotator'"
+            ref="subPlaybackComponent"
+            v-bind="{
+              imageData: imageData[camera], videoUrl: videoUrl[camera],
+              updateTime, frameRate, originalFps, loadImageFunc }"
+            class="playback-component"
+          >
+                <slot
+        v-if="mediaController.frame"
         ref="control"
         name="control"
         @resize="onResize"
       />
       <slot />
+
+            <layer-manager
+              :camera="camera"
+            />
+          </component>
+        </div>
+      </div>
     </v-row>
   </div>
 </template>

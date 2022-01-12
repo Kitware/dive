@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  defineComponent, ref, toRef, computed, Ref, reactive, watch,
+  defineComponent, ref, toRef, computed, Ref, reactive, watch, onMounted,
 } from '@vue/composition-api';
 import type { Vue } from 'vue/types/vue';
 
@@ -86,6 +86,7 @@ export default defineComponent({
     const readonlyState = computed(() => props.readonlyMode || props.revision !== undefined);
     const mediaController = computed(() => {
       if (playbackComponent.value) {
+        console.log(playbackComponent.value);
         // TODO: Bug in composition-api types incorrectly organizes the static members of a Vue
         // instance when using typeof ImageAnnotator, so we can't use the "real" type here
         // eslint-disable-next-line @typescript-eslint/ban-ts-ignore
@@ -476,6 +477,7 @@ export default defineComponent({
       // multicam
       multiCamList,
       defaultCamera,
+      currentCamera,
       changeCamera,
       // For Navigation Guarding
       navigateAwayGuard,
@@ -595,7 +597,9 @@ export default defineComponent({
           ref="playbackComponent"
           :cameras="multiCamList"
           :current-camera="currentCamera"
-          v-bind="{ imageData, videoUrl, updateTime, frameRate, originalFps }"
+          v-bind="{
+            imageData, videoUrl, updateTime,
+            frameRate, originalFps, datasetType, progress }"
           class="playback-component"
         >
           <template slot="control">
