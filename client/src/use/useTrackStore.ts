@@ -93,6 +93,8 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
         camTrackMap[args.cameraName] = new Map<TrackId, Track>();
       }
       camTrackMap[args.cameraName].set(track.trackId, track);
+    } else {
+      trackMap.set(track.trackId, track);
     }
     intervalTree.insert([track.begin, track.end], track.trackId.toString());
     if (args && args.afterId) {
