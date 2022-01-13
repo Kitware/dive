@@ -109,14 +109,18 @@ export default defineComponent({
         <v-card-title>
           Import Formats
         </v-card-title>
-        <v-card-text >
-          Multiple Data types can be imported using this menu:
+        <v-card-text>
+          Multiple Data types can be imported:
           <ul>
             <li> Viame CSV Files </li>
-            <li> DIVE Track JSON files </li>
-            <li> DIVE meta.json configuation files </li>
+            <li> DIVE Annotation JSON </li>
+            <li> DIVE Configuation JSON</li>
             <li> KWCOCO JSON files </li>
           </ul>
+          <a
+            href="https://kitware.github.io/dive/DataFormats/"
+            target="_blank"
+          >Data Format Documentation</a>
         </v-card-text>
         <v-card-actions>
           <v-btn

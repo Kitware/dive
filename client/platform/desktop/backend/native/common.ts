@@ -27,7 +27,8 @@ import {
 } from 'dive-common/constants';
 import {
   JsonMeta, Settings, JsonMetaCurrentVersion, DesktopMetadata, DesktopJobUpdater,
-  ConvertMedia, RunTraining, ExportDatasetArgs, DesktopMediaImportResponse, CheckMediaResults,
+  ConvertMedia, RunTraining, ExportDatasetArgs, DesktopMediaImportResponse,
+  CheckMediaResults, ExportConfigurationArgs,
 } from 'platform/desktop/constants';
 import {
   cleanString, filterByGlob, makeid, strNumericCompare,
@@ -735,7 +736,6 @@ async function checkDataset(
 
 async function findTrackandMetaFileinFolder(path: string) {
   const results = await _findJsonAndMetaTrackFile(path);
-  console.log(results);
   let { trackFileAbsPath } = results;
   const { metaFileAbsPath } = results;
   if (!trackFileAbsPath) {
@@ -1007,7 +1007,7 @@ async function finalizeMediaImport(
     settings, jsonMeta.id, projectDirAbsPath, jsonMeta, args.trackFileAbsPath,
   );
   if (args.metaFileAbsPath) {
-    dataFileImport(settings, jsonMeta.id, args.metaFileAbsPath);
+    await dataFileImport(settings, jsonMeta.id, args.metaFileAbsPath);
   }
   return finalJsonMeta;
 }
@@ -1040,6 +1040,18 @@ async function exportDataset(settings: Settings, args: ExportDatasetArgs) {
   });
 }
 
+async function exportConfiguration(settings: Settings, args: ExportConfigurationArgs) {
+  const projectDirInfo = await getValidatedProjectDir(settings, args.id);
+  const meta = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
+  const output = { };
+  if (DatasetMetaMutableKeys.some((key) => key in meta)) {
+    // DIVE Json metadata config file
+    merge(output, pick(meta, DatasetMetaMutableKeys));
+  }
+  await fs.writeJSON(args.path, output);
+  return args.path;
+}
+
 export {
   ProjectsFolderName,
   JobsFolderName,
@@ -1049,6 +1061,7 @@ export {
   deleteDataset,
   checkDataset,
   createKwiverRunWorkingDir,
+  exportConfiguration,
   exportDataset,
   finalizeMediaImport,
   getPipelineList,

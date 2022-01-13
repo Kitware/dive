@@ -16,7 +16,7 @@ import {
 } from 'dive-common/constants';
 import {
   DesktopJob, DesktopMetadata, JsonMeta, NvidiaSmiReply,
-  RunPipeline, RunTraining, ExportDatasetArgs,
+  RunPipeline, RunTraining, ExportDatasetArgs, ExportConfigurationArgs,
   DesktopMediaImportResponse,
 } from 'platform/desktop/constants';
 
@@ -147,6 +147,18 @@ async function exportDataset(
   return '';
 }
 
+async function exportConfiguration(id: string): Promise<string> {
+  const location = await dialog.showSaveDialog({
+    title: 'Export Configuration',
+    defaultPath: npath.join(app.getPath('home'), 'meta.json'),
+  });
+  if (!location.canceled && location.filePath) {
+    const args: ExportConfigurationArgs = { id, path: location.filePath };
+    return ipcRenderer.invoke('export-configuration', args);
+  }
+  return '';
+}
+
 /**
  * REST api for larger-body messages
  */
@@ -200,6 +212,7 @@ export {
   openFromDisk,
   /* Nonstandard APIs */
   exportDataset,
+  exportConfiguration,
   finalizeImport,
   importMedia,
   deleteDataset,

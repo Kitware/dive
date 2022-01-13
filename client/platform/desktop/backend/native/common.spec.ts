@@ -117,6 +117,7 @@ mockfs({
       },
     },
   },
+  '/home/user/output': {},
   '/home/user/data': {
     annotationImport: {
       'viame.csv': emptyCsvString,
@@ -183,7 +184,7 @@ mockfs({
     metaJsonIncluded: {
       'video1.avi': '',
       'video1.mp4': '',
-      'meta.json': '',
+      'meta.json': '{ "confidenceFilters": {"default": 0.8}, "customTypeStyling": {"other": { "color": "blue"}}, "attributes": {"track_NewTrackAttribute":{"belongs":"track","datatype":"text","values":[],"name":"NewTrackAttribute","key":"track_NewTrackAttribute"}}}',
       nomime: '',
     },
     annotationEmptySuccess: {
@@ -533,6 +534,7 @@ describe('native.common', () => {
     const meta = await common.loadMetadata(settings, payload.jsonMeta.id, urlMapper);
     expect(meta.fps).toBe(12);
   });
+
   it('import with CSV annotations with specifying track file', async () => {
     const payload = await common.beginMediaImport(settings, '/home/user/data/imageSuccessWithAnnotations', checkMedia);
     payload.trackFileAbsPath = '/home/user/data/imageSuccessWithAnnotations/file1.csv';
@@ -571,13 +573,28 @@ describe('native.common', () => {
     expect(tracks).toEqual({});
   });
 
-  it('importMedia include meta.json file', async () => {
+  it('importMedia include meta.json file ', async () => {
     const payload = await common.beginMediaImport(settings, '/home/user/data/metaJsonIncluded/video1.mp4', checkMedia);
     expect(payload.metaFileAbsPath).toBe('/home/user/data/metaJsonIncluded/meta.json');
     await common.finalizeMediaImport(settings, payload, updater, convertMedia);
     const tracks = await common.loadDetections(settings, payload.jsonMeta.id);
+    const meta = await common.loadMetadata(settings, payload.jsonMeta.id, urlMapper);
+    expect(meta?.customTypeStyling?.other.color).toBe('blue');
     expect(tracks).toEqual({});
   });
+  it('Export  meta.json file ', async () => {
+    const payload = await common.beginMediaImport(settings, '/home/user/data/metaJsonIncluded/video1.mp4', checkMedia);
+    expect(payload.metaFileAbsPath).toBe('/home/user/data/metaJsonIncluded/meta.json');
+    await common.finalizeMediaImport(settings, payload, updater, convertMedia);
+    const tracks = await common.loadDetections(settings, payload.jsonMeta.id);
+    const meta = await common.loadMetadata(settings, payload.jsonMeta.id, urlMapper);
+    expect(meta?.customTypeStyling?.other.color).toBe('blue');
+    expect(tracks).toEqual({});
+    await common.exportConfiguration(settings, { id: payload.jsonMeta.id, path: '/home/user/output/test.json' });
+    const outputMeta = await fs.readJSON('/home/user/output/test.json');
+    expect(outputMeta?.customTypeStyling?.other.color).toBe('blue');
+  });
+
 
   it('importMedia various failure modes', async () => {
     await expect(common.beginMediaImport(settings, '/fake/path', checkMedia))

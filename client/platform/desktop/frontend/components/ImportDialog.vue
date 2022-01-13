@@ -185,8 +185,8 @@ export default defineComponent({
             prepend-inner-icon="mdi-file-table"
             label="Annotation File (Optional)"
             hint="Optional"
-            @click="openUpload"
-            @click:prepend-inner="openUpload"
+            @click="openUpload('annotation')"
+            @click:prepend-inner="openUpload('annotation')"
             @click:clear="argCopy.trackFileAbsPath=''"
           />
         </v-col>
@@ -223,8 +223,8 @@ export default defineComponent({
           prepend-inner-icon="mdi-file-table"
           label="Meta Configuration File (Optional)"
           hint="Optional"
-          @click="openUpload"
-          @click:prepend-inner="openUpload"
+          @click="openUpload('meta')"
+          @click:prepend-inner="openUpload('meta')"
           @click:clear="argCopy.metaFileAbsPath=''"
         />
         <v-text-field
