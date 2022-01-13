@@ -62,12 +62,13 @@ export default defineComponent({
     });
 
     const { openFromDisk } = useApi();
-    const openUpload = async () => {
+    const openUpload = async (type: 'annotation' | 'meta') => {
+      const argMap = { annotation: 'trackFileAbsPath', meta: 'metaFileAbsPath' };
       const ret = await openFromDisk('annotation');
       if (!ret.canceled) {
         if (ret.filePaths?.length) {
           const path = ret.filePaths[0];
-          Vue.set(argCopy.value, 'trackFileAbsPath', path);
+          Vue.set(argCopy.value, argMap[type], path);
         }
       }
     };
@@ -215,6 +216,17 @@ export default defineComponent({
         </span>
       </p>
       <div v-if="showAdvanced">
+        <v-text-field
+          :value="argCopy.metaFileAbsPath"
+          outlined
+          clearable
+          prepend-inner-icon="mdi-file-table"
+          label="Meta Configuration File (Optional)"
+          hint="Optional"
+          @click="openUpload"
+          @click:prepend-inner="openUpload"
+          @click:clear="argCopy.metaFileAbsPath=''"
+        />
         <v-text-field
           v-if="argCopy.jsonMeta.type === 'image-sequence'"
           v-model="argCopy.globPattern"

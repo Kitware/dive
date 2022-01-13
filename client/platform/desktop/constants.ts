@@ -190,6 +190,7 @@ export interface DesktopMediaImportResponse extends MediaImportResponse {
   trackFileAbsPath: string;
   multiCamTrackFiles: null | Record<string, string>;
   forceMediaTranscode: boolean;
+  metaFileAbsPath?: string;
 }
 
 export interface DesktopJobUpdate extends DesktopJob {

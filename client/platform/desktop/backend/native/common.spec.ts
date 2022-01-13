@@ -180,6 +180,12 @@ mockfs({
       'otherfile.txt': '',
       nomime: '',
     },
+    metaJsonIncluded: {
+      'video1.avi': '',
+      'video1.mp4': '',
+      'meta.json': '',
+      nomime: '',
+    },
     annotationEmptySuccess: {
       'video1.mp4': '',
       'result_foo.json': '',
@@ -560,6 +566,14 @@ describe('native.common', () => {
 
   it('importMedia empty json file success', async () => {
     const payload = await common.beginMediaImport(settings, '/home/user/data/annotationEmptySuccess/video1.mp4', checkMedia);
+    await common.finalizeMediaImport(settings, payload, updater, convertMedia);
+    const tracks = await common.loadDetections(settings, payload.jsonMeta.id);
+    expect(tracks).toEqual({});
+  });
+
+  it('importMedia include meta.json file', async () => {
+    const payload = await common.beginMediaImport(settings, '/home/user/data/metaJsonIncluded/video1.mp4', checkMedia);
+    expect(payload.metaFileAbsPath).toBe('/home/user/data/metaJsonIncluded/meta.json');
     await common.finalizeMediaImport(settings, payload, updater, convertMedia);
     const tracks = await common.loadDetections(settings, payload.jsonMeta.id);
     expect(tracks).toEqual({});
