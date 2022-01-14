@@ -1,3 +1,7 @@
+import json
+
+from girder.constants import AccessType
+from girder_client import HttpError
 import pytest
 
 from .conftest import getClient, getTestFolder, localDataRoot, users, wait_for_jobs
@@ -38,6 +42,36 @@ def test_upload_user_data(user: dict):
             if file.is_file():
                 client.uploadFileToFolder(newDatasetFolder['_id'], str(file))
         client.post(f'dive_rpc/postprocess/{newDatasetFolder["_id"]}')
+        if dataset.get('sharedWith', False):
+            me = client.get('user/me')
+            otherClient = getClient(dataset['sharedWith'])
+            otherUser = otherClient.get('user/me')
+            with pytest.raises(HttpError):
+                otherClient.get(f'dive_dataset/{newDatasetFolder["_id"]}')
+            client.put(
+                f'folder/{newDatasetFolder["_id"]}/access',
+                data={
+                    'public': False,
+                    'recurse': False,
+                    'progress': False,
+                    'access': json.dumps(
+                        {
+                            'users': [
+                                {'id': me['_id'], 'level': AccessType.ADMIN, 'flags': []},
+                                {'id': otherUser['_id'], 'level': AccessType.READ, 'flags': []},
+                            ],
+                            'groups': [],
+                        }
+                    ),
+                },
+            )
+            assert (
+                otherClient.get(
+                    f'dive_dataset/{newDatasetFolder["_id"]}', jsonResp=False
+                ).status_code
+                == 200
+            )
+
     wait_for_jobs(client)
     # Confirm that the new dataset looks like it should.
     for created, expected in zip(createdDatasets, user['data']):

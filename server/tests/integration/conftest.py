@@ -43,6 +43,14 @@ users = {
                 'type': 'video',
                 'trackCount': 102,
             },
+            {
+                'name': 'annotation_testTrain1_imagelist',
+                'path': 'TestData/testTrain1_imagelist',
+                'fps': 1,
+                'type': 'image-sequence',
+                'trackCount': 2,
+                'sharedWith': 'bobby',
+            },
         ],
     },
     'bobby': {
