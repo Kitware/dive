@@ -313,9 +313,11 @@ def validate_files(files: List[str]):
     elif len(csvs) > 1:
         ok = False
         message = "Can only upload a single CSV Annotation per import"
-    elif len(jsons) > 1 and "meta.json" not in jsons:
+    elif len(jsons) > 2:
         ok = False
-        message = "Can only upload a single JSON Annotation per import"
+        message = (
+            "Can only upload a single JSON Annotation and single configuration JSON per import"
+        )
     elif len(csvs) == 1 and len(ymls):
         ok = False
         message = "Cannot mix annotation import types"

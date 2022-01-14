@@ -32,9 +32,9 @@ export default defineComponent({
     const processing = ref(false);
     const menuOpen = ref(false);
     const openUpload = async () => {
-      menuOpen.value = false;
       const ret = await openFromDisk('annotation');
       if (!ret.canceled) {
+        menuOpen.value = false;
         const path = ret.filePaths[0];
         let importFile = false;
         processing.value = true;
