@@ -242,25 +242,23 @@ def get_labels(user: types.GirderUserModel):
             )
         },
         {
-            {
-                '$lookup': {
-                    'from': 'annotationItem',
-                    'let': {'dataset_id': '$_id'},
-                    'as': 'label',
-                    'pipeline': [
-                        {'$match': {'$expr': {'$eq': ['$dataset', '$$dataset_id']}}},
-                        {'$match': {'$expr': {'$eq': [{'$type': "$rev_deleted"}, 'missing']}}},
-                        {'$project': {'confidencePairs': 1}},
-                        {'$set': {'confidencePairs': {'$first': '$confidencePairs'}}},
-                        {'$set': {'confidencePairs': {'$first': '$confidencePairs'}}},
-                    ],
-                },
+            '$lookup': {
+                'from': 'annotationItem',
+                'let': {'dataset_id': '$_id'},
+                'as': 'label',
+                'pipeline': [
+                    {'$match': {'$expr': {'$eq': ['$dataset', '$$dataset_id']}}},
+                    {'$match': {'$expr': {'$eq': [{'$type': "$rev_deleted"}, 'missing']}}},
+                    {'$project': {'confidencePairs': 1}},
+                    {'$set': {'confidencePairs': {'$first': '$confidencePairs'}}},
+                    {'$set': {'confidencePairs': {'$first': '$confidencePairs'}}},
+                ],
             },
-            {'$unwind': '$label'},
-            {'$set': {'label': '$label.confidencePairs'}},
-            {'$project': {'label': 1, 'name': 1}},
-            {'$group': {'_id': '$label', 'count': {'$count': {}}}},
-            {'$sort': {'_id': 1}},
         },
+        {'$unwind': '$label'},
+        {'$set': {'label': '$label.confidencePairs'}},
+        {'$project': {'label': 1, 'name': 1}},
+        {'$group': {'_id': '$label', 'count': {'$count': {}}}},
+        {'$sort': {'_id': 1}},
     ]
     return Folder().collection.aggregate(pipeline)

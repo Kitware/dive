@@ -29,6 +29,7 @@ class AnnotationResource(Resource):
         self.route("GET", (), self.get_annotations)
         self.route("GET", ("revision",), self.get_revisions)
         self.route("GET", ("export",), self.export)
+        self.route("GET", ("labels",), self.get_labels)
         self.route("PATCH", (), self.save_annotations)
         self.route("POST", ("rollback",), self.rollback)
 
@@ -119,3 +120,8 @@ class AnnotationResource(Resource):
     def rollback(self, folder, revision):
         crud.verify_dataset(folder)
         crud_annotation.rollback(folder, revision)
+
+    @access.user
+    @autoDescribeRoute(Description("Get all labels visible to a particular user"))
+    def get_labels(self):
+        return crud_annotation.get_labels(self.getCurrentUser())
