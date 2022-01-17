@@ -23,7 +23,7 @@ import {
 import * as viameSerializers from 'platform/desktop/backend/serializers/viame';
 import * as nistSerializers from 'platform/desktop/backend/serializers/nist';
 import {
-  websafeImageTypes, websafeVideoTypes, otherImageTypes, otherVideoTypes, MultiType,
+  websafeImageTypes, websafeVideoTypes, otherImageTypes, otherVideoTypes, MultiType, JsonMetaRegEx,
 } from 'dive-common/constants';
 import {
   JsonMeta, Settings, JsonMetaCurrentVersion, DesktopMetadata, DesktopJobUpdater,
@@ -170,7 +170,7 @@ async function _findJsonAndMetaTrackFile(basePath: string): Promise<
   {trackFileAbsPath: string; metaFileAbsPath?: string}> {
   const contents = await fs.readdir(basePath);
   const jsonFileCandidates: string[] = [];
-  let metaFileAbsPath;
+  let metaFileAbsPath: undefined | string;
   await Promise.all(contents.map(async (name) => {
     const fullPath = npath.join(basePath, name);
     if (JsonTrackFileName.test(name)) {
@@ -178,7 +178,7 @@ async function _findJsonAndMetaTrackFile(basePath: string): Promise<
       if (statResult.isFile()) {
         jsonFileCandidates.push(fullPath);
       }
-    } else if (name === JsonMetaFileName) {
+    } else if (JsonMetaRegEx.test(name)) {
       metaFileAbsPath = fullPath;
     }
   }));

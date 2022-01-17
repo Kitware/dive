@@ -136,6 +136,3 @@ export default defineComponent({
     </template>
   </v-menu>
 </template>
-
-      <style scoped lang="scss">
-      </style>

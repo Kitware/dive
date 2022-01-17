@@ -150,7 +150,7 @@ async function exportDataset(
 async function exportConfiguration(id: string): Promise<string> {
   const location = await dialog.showSaveDialog({
     title: 'Export Configuration',
-    defaultPath: npath.join(app.getPath('home'), 'meta.json'),
+    defaultPath: npath.join(app.getPath('home'), `${id}.config.json`),
   });
   if (!location.canceled && location.filePath) {
     const args: ExportConfigurationArgs = { id, path: location.filePath };

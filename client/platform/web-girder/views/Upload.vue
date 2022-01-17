@@ -6,7 +6,7 @@ import {
 import {
   ImageSequenceType, VideoType, DefaultVideoFPS, FPSOptions,
   inputAnnotationFileTypes, websafeVideoTypes, otherVideoTypes,
-  websafeImageTypes, otherImageTypes,
+  websafeImageTypes, otherImageTypes, JsonMetaRegEx,
 } from 'dive-common/constants';
 
 import ImportButton from 'dive-common/components/ImportButton.vue';
@@ -128,7 +128,7 @@ export default defineComponent({
      * Processes the imported media files to distinguish between
      * Media Files - Default files that aren't the Annotation or Meta
      * Annotation File - CSV or JSON file, or more in the future
-     * Meta File - Right now a json file which has 'meta' in the name
+     * Meta File - Right now a json file which has 'meta' or 'config in the name
      */
     const processImport = (files: {
       canceled: boolean; filePaths: string[]; fileList?: File[];
@@ -157,20 +157,20 @@ export default defineComponent({
         });
         output.mediaList = files.fileList.filter((item) => (
           item.name.indexOf('.json') === -1 && item.name.indexOf('.csv') === -1));
-        const metaIndex = jsonFiles.findIndex((item) => (item[0].indexOf('meta') !== -1));
+        const metaIndex = jsonFiles.findIndex((item) => (JsonMetaRegEx.test(item[0])));
         if (metaIndex !== -1) {
           output.metaFile = files.fileList[jsonFiles[metaIndex][1]];
         }
         if (jsonFiles.length === 1 && csvFiles.length === 0 && output.metaFile === null) {
           output.annotationFile = files.fileList[jsonFiles[0][1]];
         } else if (csvFiles.length && jsonFiles.length === 1) {
-          if (jsonFiles[0][0].indexOf('meta') !== -1) {
+          if (JsonMetaRegEx.test(jsonFiles[0][0])) {
             output.annotationFile = files.fileList[csvFiles[0][1]];
             output.metaFile = files.fileList[jsonFiles[0][1]];
           }
         } else if (jsonFiles.length > 1) {
           //Check for a meta
-          const filtered = jsonFiles.filter((item) => (item[0].indexOf('meta') === -1));
+          const filtered = jsonFiles.filter((item) => (JsonMetaRegEx.test(item[0])));
           if (filtered.length === 1) {
             output.annotationFile = files.fileList[filtered[0][1]];
           }
