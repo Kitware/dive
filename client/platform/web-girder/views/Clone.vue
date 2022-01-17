@@ -62,7 +62,7 @@ export default defineComponent({
       }
     }
 
-    const { request: _cloneRequest, error: cloneError } = useRequest();
+    const { request: _cloneRequest, error: cloneError, loading: cloneLoading } = useRequest();
     const doClone = () => _cloneRequest(async () => {
       if (!props.datasetId) {
         throw new Error('no source dataset');
@@ -78,6 +78,7 @@ export default defineComponent({
 
     return {
       cloneError,
+      cloneLoading,
       location,
       locationIsFolder,
       newName,
@@ -196,7 +197,8 @@ export default defineComponent({
           block
           color="primary"
           class="mt-4"
-          :disabled="!locationIsFolder"
+          :loading="cloneLoading"
+          :disabled="!locationIsFolder || cloneLoading"
           @click="doClone"
         >
           <span v-if="!locationIsFolder">
