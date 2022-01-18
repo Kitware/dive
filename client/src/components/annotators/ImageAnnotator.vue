@@ -47,13 +47,18 @@ export default defineComponent({
       type: Number as PropType<number | undefined>,
       default: undefined,
     },
+    camera: {
+      type: String as PropType<string>,
+      default: 'default',
+    },
   },
 
   setup(props) {
     const loadingVideo = ref(false);
     const loadingImage = ref(true);
     const commonMedia = useMediaController();
-    const { data } = commonMedia;
+    commonMedia.addCamera(props.camera);
+    const data = commonMedia.datas[props.camera];
     data.maxFrame = props.imageData.length - 1;
     // Below are configuration settings we can set until we decide on good numbers to utilize.
     let local = {
@@ -309,7 +314,7 @@ export default defineComponent({
       cursorHandler,
       initializeViewer,
       mediaController,
-    } = commonMedia.initialize({
+    } = commonMedia.initialize(props.camera, {
       seek,
       play,
       pause,
@@ -327,7 +332,7 @@ export default defineComponent({
       const imgInternal = cacheFrame(0);
       imgInternal.onloadPromise.then(() => {
         initializeViewer(imgInternal.image.naturalWidth, imgInternal.image.naturalHeight);
-        const quadFeatureLayer = commonMedia.geoViewerRef.value.createLayer('feature', {
+        const quadFeatureLayer = commonMedia.geoViewers[props.camera].value.createLayer('feature', {
           features: ['quad'],
           autoshareRenderer: false,
         });
@@ -360,7 +365,7 @@ export default defineComponent({
         const imgInternal = cacheFrame(0);
         imgInternal.onloadPromise.then(() => {
           initializeViewer(imgInternal.image.naturalWidth, imgInternal.image.naturalHeight);
-          const quadFeatureLayer = commonMedia.geoViewerRef.value.createLayer('feature', {
+          const quadFeatureLayer = commonMedia.geoViewers[props.camera].value.createLayer('feature', {
             features: ['quad'],
             autoshareRenderer: false,
           });
@@ -392,8 +397,8 @@ export default defineComponent({
       data,
       loadingVideo,
       loadingImage,
-      imageCursorRef: commonMedia.imageCursorRef,
-      containerRef: commonMedia.containerRef,
+      imageCursorRef: commonMedia.imageCursors[props.camera],
+      containerRef: commonMedia.containers[props.camera],
       onResize: commonMedia.onResize,
       cursorHandler,
       mediaController,

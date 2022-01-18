@@ -98,11 +98,17 @@ export default defineComponent({
       type: Number as PropType<number | undefined>,
       default: undefined,
     },
+    camera: {
+      type: String as PropType<string>,
+      default: 'default',
+    },
+
   },
 
   setup(props) {
     const commonMedia = useMediaController();
-    const { data } = commonMedia;
+    commonMedia.addCamera(props.camera);
+    const data = commonMedia.datas[props.camera];
 
     function makeVideo() {
       const video = document.createElement('video');
@@ -154,7 +160,7 @@ export default defineComponent({
         data.frame = Math.floor(newFrame);
         data.flick = Math.round(video.currentTime * Flick);
         data.syncedFrame = data.frame;
-        commonMedia.geoViewerRef.value.scheduleAnimationFrame(syncWithVideo);
+        commonMedia.geoViewers[props.camera].value.scheduleAnimationFrame(syncWithVideo);
       }
       data.currentTime = video.currentTime;
     }
@@ -187,7 +193,7 @@ export default defineComponent({
       cursorHandler,
       initializeViewer,
       mediaController,
-    } = commonMedia.initialize({
+    } = commonMedia.initialize(props.camera, {
       seek, play, pause, setVolume, setSpeed,
     });
 
@@ -223,7 +229,7 @@ export default defineComponent({
         data.maxFrame = maybeMaxFrame;
       }
       initializeViewer(width, height);
-      quadFeatureLayer = commonMedia.geoViewerRef.value.createLayer('feature', {
+      quadFeatureLayer = commonMedia.geoViewers[props.camera].value.createLayer('feature', {
         features: ['quad.video'],
         autoshareRenderer: false,
       });
@@ -268,8 +274,8 @@ export default defineComponent({
 
     return {
       data,
-      imageCursorRef: commonMedia.imageCursorRef,
-      containerRef: commonMedia.containerRef,
+      imageCursorRef: commonMedia.imageCursors[props.camera],
+      containerRef: commonMedia.containers[props.camera],
       onResize: commonMedia.onResize,
       cursorHandler,
       mediaController,

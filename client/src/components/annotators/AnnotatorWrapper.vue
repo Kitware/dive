@@ -127,19 +127,17 @@ export default defineComponent({
             ref="subPlaybackComponent"
             v-bind="{
               imageData: imageData[camera], videoUrl: videoUrl[camera],
-              updateTime, frameRate, originalFps, loadImageFunc }"
+              updateTime, frameRate, originalFps, loadImageFunc, camera }"
             class="playback-component"
           >
-                <slot
-        v-if="mediaController.frame"
-        ref="control"
-        name="control"
-        @resize="onResize"
-      />
-      <slot />
-
             <layer-manager
               :camera="camera"
+            />
+            <slot
+              v-if="mediaController.frame"
+              ref="control"
+              name="control"
+              @resize="onResize"
             />
           </component>
         </div>
