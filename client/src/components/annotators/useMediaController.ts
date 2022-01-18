@@ -2,118 +2,203 @@
 /// <reference types="resize-observer-browser" />
 import geo from 'geojs';
 import {
-  ref, reactive, onMounted, onBeforeUnmount, provide, toRef, Ref,
+  ref, reactive, onMounted, onBeforeUnmount, provide, toRef, Ref, UnwrapRef,
 } from '@vue/composition-api';
 
 import { use } from '../../provides';
 import type { MediaController } from './mediaControllerType';
 
-const MediaControllerSymbol = Symbol('media-controller');
+const MediaControllerSymbols: Record<string, symbol> = { default: Symbol('media-controller') };
 
-export function injectMediaController() {
-  return use<MediaController>(MediaControllerSymbol);
+export function injectMediaController(camera = 'default') {
+  if (MediaControllerSymbols[camera] === undefined) {
+    throw new Error(`Camera ${camera} was not found in the media Controller Symbols`);
+  }
+  return use<MediaController>(MediaControllerSymbols[camera]);
+}
+
+interface MediaControllerReactiveData {
+  ready: boolean;
+  playing: boolean;
+  frame: number;
+  flick: number;
+  filename: string;
+  lockedCamera: boolean;
+  currentTime: number;
+  duration: number;
+  volume: number;
+  speed: number;
+  maxFrame: number;
+  syncedFrame: number;
+  observer: null;
+  cursor: string;
+  imageCursor: string;
+  originalBounds: {
+    left: number;
+    top: number;
+    right: number;
+    bottom: number;
+  };
 }
 
 export default function useMediaController() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const geoViewerRef: Ref<any> = ref(undefined);
-  const containerRef: Ref<HTMLElement | undefined> = ref(undefined);
-  const imageCursorRef: Ref<HTMLElement | undefined> = ref(undefined);
+  const geoViewers: Record<string, Ref<any>> = { default: ref(undefined) };
+  const containers: Record<string, Ref<HTMLElement | undefined>> = { default: ref(undefined) };
+  const imageCursors: Record<string, Ref<HTMLElement | undefined>> = { default: ref(undefined) };
+  const cameras: [string] = ['default'];
+  const datas: Record<string, UnwrapRef<MediaControllerReactiveData>> = {
+    default: reactive({
+      ready: false,
+      playing: false,
+      frame: 0,
+      flick: 0,
+      filename: '',
+      lockedCamera: false,
+      currentTime: 0,
+      duration: 0,
+      volume: 0,
+      speed: 1.0,
+      maxFrame: 0,
+      syncedFrame: 0,
+      observer: null,
+      cursor: 'default',
+      imageCursor: '',
+      originalBounds: {
+        left: 0,
+        top: 0,
+        bottom: 1,
+        right: 1,
+      },
+    }),
+  };
 
-  const data = reactive({
-    ready: false,
-    playing: false,
-    frame: 0,
-    flick: 0,
-    filename: '',
-    lockedCamera: false,
-    currentTime: 0,
-    duration: 0,
-    volume: 0,
-    speed: 1.0,
-    maxFrame: 0,
-    syncedFrame: 0,
-    observer: null,
-    cursor: 'default',
-    imageCursor: '',
-    originalBounds: {
-      left: 0,
-      top: 0,
-      bottom: 1,
-      right: 1,
-    },
-  });
+  function addCamera(camera = 'default') {
+    geoViewers[camera] = ref(undefined);
+    containers[camera] = ref(undefined);
+    imageCursors[camera] = ref(undefined);
+    if (cameras.indexOf(camera) === -1) {
+      cameras.push(camera);
+    }
+    MediaControllerSymbols[camera] = Symbol(`media-controller-${camera}`);
+    datas[camera] = reactive({
+      ready: false,
+      playing: false,
+      frame: 0,
+      flick: 0,
+      filename: '',
+      lockedCamera: false,
+      currentTime: 0,
+      duration: 0,
+      volume: 0,
+      speed: 1.0,
+      maxFrame: 0,
+      syncedFrame: 0,
+      observer: null,
+      cursor: 'default',
+      imageCursor: '',
+      originalBounds: {
+        left: 0,
+        top: 0,
+        bottom: 1,
+        right: 1,
+      },
+    });
+  }
 
   function onResize() {
-    if (geoViewerRef.value === undefined || containerRef.value === undefined) {
-      return;
-    }
-    const size = containerRef.value.getBoundingClientRect();
-    const mapSize = geoViewerRef.value.size();
-    if (size.width !== mapSize.width || size.height !== mapSize.height) {
-      window.requestAnimationFrame(() => {
-        geoViewerRef.value.size(size);
-      });
-    }
+    cameras.forEach((camera) => {
+      const geoViewerRef = geoViewers[camera];
+      const containerRef = containers[camera];
+      if (geoViewerRef.value === undefined || containerRef.value === undefined) {
+        return;
+      }
+      const size = containerRef.value.getBoundingClientRect();
+      const mapSize = geoViewerRef.value.size();
+      if (size.width !== mapSize.width || size.height !== mapSize.height) {
+        window.requestAnimationFrame(() => {
+          geoViewerRef.value.size(size);
+        });
+      }
+    });
   }
 
   function resetZoom() {
-    const zoomAndCenter = geoViewerRef.value.zoomAndCenterFromBounds(
-      data.originalBounds, 0,
-    );
-    geoViewerRef.value.zoom(zoomAndCenter.zoom);
-    geoViewerRef.value.center(zoomAndCenter.center);
+    cameras.forEach((camera) => {
+      const geoViewerRef = geoViewers[camera];
+      const data = datas[camera];
+      const zoomAndCenter = geoViewerRef.value.zoomAndCenterFromBounds(
+        data.originalBounds, 0,
+      );
+      geoViewerRef.value.zoom(zoomAndCenter.zoom);
+      geoViewerRef.value.center(zoomAndCenter.center);
+    });
   }
 
   function toggleLockedCamera() {
-    data.lockedCamera = !data.lockedCamera;
+    cameras.forEach((camera) => {
+      const data = datas[camera];
+      data.lockedCamera = !data.lockedCamera;
+    });
   }
 
   function resetMapDimensions(width: number, height: number, margin = 0.3) {
-    geoViewerRef.value.bounds({
-      left: 0,
-      top: 0,
-      bottom: height,
-      right: width,
-    });
-    const params = geo.util.pixelCoordinateParams(
-      containerRef.value, width, height, width, height,
-    );
-    const { right, bottom } = params.map.maxBounds;
-    data.originalBounds = params.map.maxBounds;
-    geoViewerRef.value.maxBounds({
-      left: 0 - (right * margin),
-      top: 0 - (bottom * margin),
-      right: right * (1 + margin),
-      bottom: bottom * (1 + margin),
-    });
-    geoViewerRef.value.zoomRange({
+    cameras.forEach((camera) => {
+      const geoViewerRef = geoViewers[camera];
+      const containerRef = containers[camera];
+      const data = datas[camera];
+      geoViewerRef.value.bounds({
+        left: 0,
+        top: 0,
+        bottom: height,
+        right: width,
+      });
+      const params = geo.util.pixelCoordinateParams(
+        containerRef.value, width, height, width, height,
+      );
+      const { right, bottom } = params.map.maxBounds;
+      data.originalBounds = params.map.maxBounds;
+      geoViewerRef.value.maxBounds({
+        left: 0 - (right * margin),
+        top: 0 - (bottom * margin),
+        right: right * (1 + margin),
+        bottom: bottom * (1 + margin),
+      });
+      geoViewerRef.value.zoomRange({
       // do not set a min limit so that bounds clamping determines min
-      min: -Infinity,
-      // 4x zoom max
-      max: 4,
+        min: -Infinity,
+        // 4x zoom max
+        max: 4,
+      });
+      geoViewerRef.value.clampBoundsX(true);
+      geoViewerRef.value.clampBoundsY(true);
+      geoViewerRef.value.clampZoom(true);
+      resetZoom();
     });
-    geoViewerRef.value.clampBoundsX(true);
-    geoViewerRef.value.clampBoundsY(true);
-    geoViewerRef.value.clampZoom(true);
-    resetZoom();
   }
 
   let observer: ResizeObserver | null = null;
   onMounted(() => {
-    if (containerRef.value) {
-      observer = new ResizeObserver(onResize);
-      observer.observe(containerRef.value);
-    } else {
-      throw new Error('Container was missing, could not register observer');
-    }
+    cameras.forEach((camera) => {
+      const containerRef = containers[camera].value;
+      if (containerRef) {
+        observer = new ResizeObserver(onResize);
+        observer.observe(containerRef);
+      } else {
+        throw new Error('Container was missing, could not register observer');
+      }
+    });
   });
   onBeforeUnmount(() => {
-    if (containerRef.value && observer !== null) {
-      observer.unobserve(containerRef.value);
-    } else {
-      throw new Error('Container or observer was missing');
-    }
+    cameras.forEach((camera) => {
+      const containerRef = containers[camera].value;
+
+      if (containerRef && observer !== null) {
+        observer.unobserve(containerRef);
+      } else {
+        throw new Error('Container or observer was missing');
+      }
+    });
   });
 
   /**
@@ -121,7 +206,7 @@ export default function useMediaController() {
    * chicken-and-egg problem, allowing the function consumer to use
    * the state above to construct the dependencies for the methods below.
    */
-  function initialize({
+  function initialize(camera = ' default', {
     seek, play, pause, setVolume, setSpeed,
   }: {
     seek(frame: number): void;
@@ -131,24 +216,24 @@ export default function useMediaController() {
     setSpeed(level: number): void;
   }) {
     function setCursor(newCursor: string) {
-      data.cursor = `${newCursor}`;
+      datas[camera].cursor = `${newCursor}`;
     }
 
     function setImageCursor(newCursor: string) {
-      data.imageCursor = `${newCursor}`;
+      datas[camera].imageCursor = `${newCursor}`;
     }
 
     function centerOn(coords: { x: number; y: number; z: number }) {
-      geoViewerRef.value.center(coords);
+      geoViewers[camera].value.center(coords);
     }
 
     function initializeViewer(width: number, height: number) {
       const params = geo.util.pixelCoordinateParams(
-        containerRef.value, width, height, width, height,
+        containers[camera].value, width, height, width, height,
       );
-      geoViewerRef.value = geo.map(params.map);
+      geoViewers[camera].value = geo.map(params.map);
       resetMapDimensions(width, height);
-      const interactorOpts = geoViewerRef.value.interactor().options();
+      const interactorOpts = geoViewers[camera].value.interactor().options();
       interactorOpts.keyboard.focusHighlight = false;
       interactorOpts.keyboard.actions = {};
       interactorOpts.click.cancelOnMove = 5;
@@ -188,22 +273,24 @@ export default function useMediaController() {
         enabled: false,
       };
       interactorOpts.wheelScaleY = 0.2;
-      geoViewerRef.value.interactor().options(interactorOpts);
+      geoViewers[camera].value.interactor().options(interactorOpts);
     }
 
     function prevFrame() {
-      const targetFrame = data.frame - 1;
+      const targetFrame = datas[camera].frame - 1;
       if (targetFrame >= 0) {
         seek(targetFrame);
       }
     }
 
     function nextFrame() {
-      const targetFrame = data.frame + 1;
-      if (targetFrame <= data.maxFrame) {
+      const targetFrame = datas[camera].frame + 1;
+      if (targetFrame <= datas[camera].maxFrame) {
         seek(targetFrame);
       }
     }
+
+    const imageCursorRef = imageCursors[camera];
 
     const cursorHandler = {
       handleMouseLeave() {
@@ -228,18 +315,18 @@ export default function useMediaController() {
     };
 
     const mediaController: MediaController = {
-      geoViewerRef,
-      currentTime: toRef(data, 'currentTime'),
-      playing: toRef(data, 'playing'),
-      frame: toRef(data, 'frame'),
-      flick: toRef(data, 'flick'),
-      filename: toRef(data, 'filename'),
-      lockedCamera: toRef(data, 'lockedCamera'),
-      duration: toRef(data, 'duration'),
-      volume: toRef(data, 'volume'),
-      maxFrame: toRef(data, 'maxFrame'),
-      speed: toRef(data, 'speed'),
-      syncedFrame: toRef(data, 'syncedFrame'),
+      geoViewerRef: geoViewers[camera],
+      currentTime: toRef(datas[camera], 'currentTime'),
+      playing: toRef(datas[camera], 'playing'),
+      frame: toRef(datas[camera], 'frame'),
+      flick: toRef(datas[camera], 'flick'),
+      filename: toRef(datas[camera], 'filename'),
+      lockedCamera: toRef(datas[camera], 'lockedCamera'),
+      duration: toRef(datas[camera], 'duration'),
+      volume: toRef(datas[camera], 'volume'),
+      maxFrame: toRef(datas[camera], 'maxFrame'),
+      speed: toRef(datas[camera], 'speed'),
+      syncedFrame: toRef(datas[camera], 'syncedFrame'),
       prevFrame,
       nextFrame,
       play,
@@ -254,7 +341,7 @@ export default function useMediaController() {
       setSpeed,
     };
 
-    provide(MediaControllerSymbol, mediaController);
+    provide(MediaControllerSymbols[camera], mediaController);
 
     return {
       cursorHandler,
@@ -264,12 +351,13 @@ export default function useMediaController() {
   }
 
   return {
-    containerRef,
-    data,
-    geoViewerRef,
-    imageCursorRef,
+    containers,
+    datas,
+    geoViewers,
+    imageCursors,
     initialize,
     onResize,
     resetMapDimensions,
+    addCamera,
   };
 }
