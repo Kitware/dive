@@ -98,6 +98,9 @@ export default defineComponent({
       labelText.value = '';
     };
 
+    function stripTrainingName(item: string) {
+      return item.replace('.viame_csv.conf', '');
+    }
 
     return {
       trainingConfigurations,
@@ -112,6 +115,7 @@ export default defineComponent({
       runTrainingOnFolder,
       labelFile,
       clearLabelText,
+      stripTrainingName,
     };
   },
 });
@@ -192,11 +196,19 @@ export default defineComponent({
             <v-select
               v-model="selectedTrainingConfig"
               outlined
-              hide-details
               class="my-4"
               label="Configuration File"
               :items="trainingConfigurations.configs"
-            />
+              :hint="selectedTrainingConfig"
+              persistent-hint
+            >
+              <template v-slot:item="row">
+                {{ stripTrainingName(row.item) }}
+              </template>
+              <template v-slot:selection="{ item}">
+                {{ stripTrainingName(item) }}
+              </template>
+            </v-select>
             <v-file-input
               v-model="labelFile"
               icon="mdi-folder-open"

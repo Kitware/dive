@@ -79,6 +79,10 @@ export default defineComponent({
       }
     }
 
+    function stripTrainingName(item: string) {
+      return item.replace('.viame_csv.conf', '');
+    }
+
     const availableItems = computed(() => Object.values(datasets.value)
       .filter((item) => item.subType === null)
       .map((item) => ({
@@ -119,6 +123,7 @@ export default defineComponent({
     return {
       data,
       toggleStaged,
+      stripTrainingName,
       isReadyToTrain,
       runTrainingOnFolder,
       nameRules,
@@ -179,10 +184,18 @@ export default defineComponent({
             v-model="data.selectedTrainingConfig"
             outlined
             dense
-            hide-details
             label="Configuration File (Required)"
             :items="data.trainingConfigurations.configs"
-          />
+            :hint="data.selectedTrainingConfig"
+            persistent-hint
+          >
+            <template v-slot:item="row">
+              {{ stripTrainingName(row.item) }}
+            </template>
+            <template v-slot:selection="{ item}">
+              {{ stripTrainingName(item) }}
+            </template>
+          </v-select>
         </v-col>
       </v-row>
       <v-data-table

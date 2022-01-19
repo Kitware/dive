@@ -423,8 +423,9 @@ async function getPipelineList(settings: Settings): Promise<Pipelines> {
  */
 async function getTrainingConfigs(settings: Settings): Promise<TrainingConfigs> {
   const pipelinePath = npath.join(settings.viamePath, 'configs/pipelines');
+  const defaultTrainingConfiguration = 'train_detector_default.viame_csv.conf';
   const allowedPatterns = /\.viame_csv\.conf$/;
-  const disallowedPatterns = /.*_nf\.viame_csv\.conf$/;
+  const disallowedPatterns = /.(.*_nf|.*\.continue)\.viame_csv\.conf$/;
   const exists = await fs.pathExists(pipelinePath);
   if (!exists) {
     throw new Error('Path does not exist');
@@ -432,7 +433,7 @@ async function getTrainingConfigs(settings: Settings): Promise<TrainingConfigs> 
   let configs = await fs.readdir(pipelinePath);
   configs = configs
     .filter((p) => (p.match(allowedPatterns) && !p.match(disallowedPatterns)))
-    .sort((a, b) => a.localeCompare(b));
+    .sort((a, b) => (a === defaultTrainingConfiguration ? -1 : a.localeCompare(b)));
   return {
     default: configs[0],
     configs,
