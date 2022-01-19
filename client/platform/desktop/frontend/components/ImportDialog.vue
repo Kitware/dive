@@ -221,7 +221,7 @@ export default defineComponent({
           outlined
           clearable
           prepend-inner-icon="mdi-file-table"
-          label="Meta Configuration File (Optional)"
+          label="Configuration File (Optional)"
           hint="Optional"
           @click="openUpload('meta')"
           @click:prepend-inner="openUpload('meta')"

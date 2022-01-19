@@ -160,22 +160,17 @@ export default defineComponent({
         const metaIndex = jsonFiles.findIndex((item) => (JsonMetaRegEx.test(item[0])));
         if (metaIndex !== -1) {
           output.metaFile = files.fileList[jsonFiles[metaIndex][1]];
+          jsonFiles.splice(metaIndex, 1); //remove chosen meta from list
         }
-        if (jsonFiles.length === 1 && csvFiles.length === 0 && output.metaFile === null) {
+        if (jsonFiles.length === 1 && csvFiles.length === 0) { // only remaining json file
           output.annotationFile = files.fileList[jsonFiles[0][1]];
-        } else if (csvFiles.length && jsonFiles.length === 1) {
-          if (JsonMetaRegEx.test(jsonFiles[0][0])) {
-            output.annotationFile = files.fileList[csvFiles[0][1]];
-            output.metaFile = files.fileList[jsonFiles[0][1]];
-          }
-        } else if (jsonFiles.length > 1) {
-          //Check for a meta
-          const filtered = jsonFiles.filter((item) => (JsonMetaRegEx.test(item[0])));
-          if (filtered.length === 1) {
+        } else if (csvFiles.length) { // Prefer First CSV if both found
+          output.annotationFile = files.fileList[csvFiles[0][1]];
+        } else if (jsonFiles.length > 1) { //multiple jsons, filter out additional meta/configs
+          const filtered = jsonFiles.filter((item) => (!JsonMetaRegEx.test(item[0]) && (item[0].indexOf('.json') !== -1)));
+          if (filtered.length) { // take first filtered JSON file
             output.annotationFile = files.fileList[filtered[0][1]];
           }
-        } else if (csvFiles.length) {
-          output.annotationFile = files.fileList[csvFiles[0][1]];
         }
         output.fullList = [...output.mediaList];
         if (output.annotationFile) {
@@ -498,7 +493,7 @@ export default defineComponent({
                     v-model="pendingUpload.meta"
                     show-size
                     counter
-                    label="Meta File (Optional)"
+                    label="Configuration File (Optional)"
                     hint="Optional"
                     :disabled="pendingUpload.uploading"
                     :accept="filterFileUpload('meta')"

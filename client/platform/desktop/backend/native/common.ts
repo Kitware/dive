@@ -1043,7 +1043,7 @@ async function exportDataset(settings: Settings, args: ExportDatasetArgs) {
 async function exportConfiguration(settings: Settings, args: ExportConfigurationArgs) {
   const projectDirInfo = await getValidatedProjectDir(settings, args.id);
   const meta = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
-  const output = { };
+  const output: DatasetMetaMutable & { version: number} = { version: meta.version };
   if (DatasetMetaMutableKeys.some((key) => key in meta)) {
     // DIVE Json metadata config file
     merge(output, pick(meta, DatasetMetaMutableKeys));

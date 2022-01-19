@@ -230,10 +230,11 @@ export interface ExportDatasetArgs {
     path: string;
     typeFilter: Set<string>;
   }
+
 export interface ExportConfigurationArgs {
     id: string;
    path: string;
-  }
+}
 
 export interface CheckMediaResults {
   websafe: boolean;
