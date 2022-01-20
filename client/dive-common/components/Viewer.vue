@@ -24,7 +24,7 @@ import {
   LayerManager,
   AnnotatorWrapper,
 } from 'vue-media-annotator/components';
-import { MediaController } from 'vue-media-annotator/components/annotators/mediaControllerType';
+import { MediaControlAggregator } from 'vue-media-annotator/components/annotators/mediaControllerType';
 
 /* DIVE COMMON */
 import PolygonBase from 'dive-common/recipes/polygonbase';
@@ -85,15 +85,15 @@ export default defineComponent({
     const playbackComponent = ref(undefined as Vue | undefined);
     const readonlyState = computed(() => props.readonlyMode || props.revision !== undefined);
     const mediaController = computed(() => {
+    const mediaControlAggregator = computed(() => {
       if (playbackComponent.value) {
-        console.log(playbackComponent.value);
         // TODO: Bug in composition-api types incorrectly organizes the static members of a Vue
         // instance when using typeof ImageAnnotator, so we can't use the "real" type here
         // eslint-disable-next-line @typescript-eslint/ban-ts-ignore
         // @ts-ignore
-        return playbackComponent.value.mediaController as MediaController;
+        return playbackComponent.value.mediaControlAggregator as MediaControlAggregator;
       }
-      return {} as MediaController;
+      return {} as MediaControlAggregator;
     });
     const { time, updateTime, initialize: initTime } = useTimeObserver();
     const imageData = ref({ default: [] } as Record<string, FrameImage[]>);
@@ -206,7 +206,7 @@ export default defineComponent({
       selectedTrackId,
       editingTrack,
       trackMap,
-      mediaController,
+      mediaControlAggregator,
       selectTrack,
       selectNextTrack,
       addTrack,
@@ -351,6 +351,7 @@ export default defineComponent({
         datasetType.value = meta.type as DatasetType;
 
         const trackData = await loadDetections(datasetId.value, props.revision);
+        const trackData = await loadDetections(datasetId.value);
         const tracks = Object.values(trackData);
         progress.total = tracks.length;
         for (let i = 0; i < tracks.length; i += 1) {
@@ -362,6 +363,16 @@ export default defineComponent({
           }
           insertTrack(Track.fromJSON(tracks[i]), { imported: true });
         }
+        // Load non-Default Cameras if they exist:
+        const filteredMultiCamList = multiCamList.value.filter((item) => item !== 'default');
+        for (let i = 0; i < filteredMultiCamList.length; i += 1) {
+          const camera = filteredMultiCamList[i];
+          // eslint-disable-next-line no-await-in-loop
+          const subCameraMeta = await loadMetadata(`${baseMulticamDatasetId.value}/${camera}`);
+          imageData.value[camera] = cloneDeep(subCameraMeta.imageData) as FrameImage[];
+          videoUrl.value[camera] = subCameraMeta.videoUrl || null;
+        }
+
         progress.loaded = true;
       } catch (err) {
         progress.loaded = false;
@@ -448,7 +459,7 @@ export default defineComponent({
       imageData,
       lineChartData,
       loadError,
-      mediaController,
+      mediaControlAggregator,
       mergeMode: mergeInProgress,
       pendingSaveCount,
       progress,
@@ -572,6 +583,7 @@ export default defineComponent({
     >
       <sidebar
         :enable-slot="context.state.active !== 'TypeThreshold'"
+        class="fill-height"
         @import-types="importTypes($event)"
         @track-seek="mediaController.seek($event)"
       >
@@ -600,11 +612,12 @@ export default defineComponent({
           v-bind="{
             imageData, videoUrl, updateTime,
             frameRate, originalFps, datasetType, progress }"
-          class="playback-component"
         >
           <template slot="control">
             <controls-container
-              v-bind="{ lineChartData, eventChartData, datasetType }"
+              v-if="mediaControlAggregator.maxFrame"
+              v-bind="{ lineChartData, eventChartData,
+                        datasetType, mediaControls:mediaControlAggregator }"
               @select-track="handler.trackSelect"
             />
           </template>

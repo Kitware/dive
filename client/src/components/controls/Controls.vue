@@ -1,20 +1,27 @@
 <script lang="ts">
-import { defineComponent, reactive, watch } from '@vue/composition-api';
+import {
+  defineComponent, reactive, watch, PropType,
+} from '@vue/composition-api';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
-import { injectMediaController } from '../annotators/useMediaController';
+import { MediaControlAggregator } from '../annotators/mediaControllerType';
 
 export default defineComponent({
   name: 'Control',
 
-  setup() {
+  props: {
+    mediaControls: {
+      type: Object as PropType<MediaControlAggregator>,
+      required: true,
+    },
+  },
+  setup(props) {
     const data = reactive({
       frame: 0,
       dragging: false,
     });
 
-    const mediaController = injectMediaController();
+    const mediaController = props.mediaControls;
     const { visible } = usePrompt();
-
     watch(mediaController.frame, (frame) => {
       if (!data.dragging) {
         data.frame = frame;

@@ -8,7 +8,7 @@ import {
 import { use } from '../../provides';
 import type { MediaController } from './mediaControllerType';
 
-const MediaControllerSymbols: Record<string, symbol> = { default: Symbol('media-controller') };
+const MediaControllerSymbols: Record<string, symbol> = {};
 
 export function injectMediaController(camera = 'default') {
   if (MediaControllerSymbols[camera] === undefined) {
@@ -46,7 +46,7 @@ export default function useMediaController() {
   const geoViewers: Record<string, Ref<any>> = { default: ref(undefined) };
   const containers: Record<string, Ref<HTMLElement | undefined>> = { default: ref(undefined) };
   const imageCursors: Record<string, Ref<HTMLElement | undefined>> = { default: ref(undefined) };
-  const cameras: [string] = ['default'];
+  const cameras: string[] = [];
   const datas: Record<string, UnwrapRef<MediaControllerReactiveData>> = {
     default: reactive({
       ready: false,
@@ -185,7 +185,8 @@ export default function useMediaController() {
         observer = new ResizeObserver(onResize);
         observer.observe(containerRef);
       } else {
-        throw new Error('Container was missing, could not register observer');
+        console.log(containers);
+        throw new Error(`Container ${camera} was missing, could not register observer`);
       }
     });
   });
@@ -196,7 +197,8 @@ export default function useMediaController() {
       if (containerRef && observer !== null) {
         observer.unobserve(containerRef);
       } else {
-        throw new Error('Container or observer was missing');
+        console.log(containers);
+        throw new Error(`Container ${camera} or observer was missing`);
       }
     });
   });
@@ -315,6 +317,7 @@ export default function useMediaController() {
     };
 
     const mediaController: MediaController = {
+      camera: ref(camera),
       geoViewerRef: geoViewers[camera],
       currentTime: toRef(datas[camera], 'currentTime'),
       playing: toRef(datas[camera], 'playing'),

@@ -7,6 +7,7 @@ import type { Ref } from '@vue/composition-api';
  * See components/annotators/README.md for docs.
  */
 export interface MediaController {
+  camera: Readonly<Ref<string>>;
   currentTime: Readonly<Ref<number>>;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   geoViewerRef: Readonly<Ref<any>>;
@@ -33,4 +34,25 @@ export interface MediaController {
   setImageCursor(c: string): void;
   setVolume(v: number): void;
   setSpeed(v: number): void;
+}
+
+export interface MediaControlAggregator {
+  maxFrame: Ref<number>;
+   frame: Ref<number>;
+   seek: (frame: number) => void;
+   volume: Ref<number>;
+   setVolume: (volume: number) => void;
+   speed: Ref<number>;
+   setSpeed: (speed: number) => void;
+   lockedCamera: Ref<boolean>;
+   toggleLockedCamera: (lock: boolean) => void;
+   pause: () => void;
+   play: () => void;
+   playing: Ref<boolean>;
+   nextFrame: () => void;
+   prevFrame: () => void;
+   resetZoom: () => void;
+   duration: Ref<Record<string, number>>;
+   filename: Ref<Record<string, string>>;
+   currentTime: Ref<Record<string, number>>;
 }

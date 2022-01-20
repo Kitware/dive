@@ -46,6 +46,10 @@ export default defineComponent({
       type: Function as PropType<FormatTextRow | undefined>,
       default: undefined,
     },
+    camera: {
+      type: String,
+      default: 'default',
+    },
   },
   setup(props) {
     const handler = useHandler();
@@ -61,7 +65,7 @@ export default defineComponent({
     const stateStyling = useStateStyles();
     const annotatorPrefs = useAnnotatorPreferences();
 
-    const annotator = injectMediaController();
+    const annotator = injectMediaController(props.camera);
     const frameNumberRef = annotator.frame;
     const flickNumberRef = annotator.flick;
 
