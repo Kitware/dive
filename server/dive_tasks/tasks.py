@@ -603,7 +603,7 @@ def extract_zip(self: Task, folderId: str, itemId: str):
                     continue
                 if folderName not in discovered_folders:
                     discovered_folders[folderName] = 'unstructured'
-                if os.path.basename(fileName) == constants.MetaFileName:
+                if constants.metaRegex.search(os.path.basename(fileName)):
                     # sub folder has a meta.json so it is an exported dataset
                     discovered_folders[folderName] = 'dataset'
                 if fileName.endswith('.zip'):

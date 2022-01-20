@@ -212,14 +212,16 @@ def upload_exported_zipped_dataset(
 ):
     """Uploads a folder that is generated from the export of a zip file and sets metadata"""
     listOfFileNames = os.listdir(working_directory)
-    if constants.MetaFileName not in listOfFileNames:
-        manager.write(f"Could not find {constants.MetaFileName} file within the subdirectroy\n")
+    potential_meta_files = list(filter(constants.metaRegex.match, listOfFileNames))
+    if len(potential_meta_files) == 0:
+        manager.write("Could not find meta.json or config.json file within the subdirectroy\n")
         return
     print(listOfFileNames)
     # load meta.json to get datatype and verify list of files
     meta = {}
-    with open(f"{working_directory}/{constants.MetaFileName}") as f:
-        meta = json.load(f)
+    for meta_name in potential_meta_files:
+        with open(f"{working_directory}/{meta_name}") as f:
+            meta = json.load(f)
     type = meta[constants.TypeMarker]
     if type == constants.ImageSequenceType:
         imageData = meta['imageData']
