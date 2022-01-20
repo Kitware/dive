@@ -29,6 +29,7 @@ csvRegex = re.compile(r"\.csv$", re.IGNORECASE)
 jsonRegex = re.compile(r"\.json$", re.IGNORECASE)
 ymlRegex = re.compile(r"\.ya?ml$", re.IGNORECASE)
 zipRegex = re.compile(r"\.zip$", re.IGNORECASE)
+metaRegex = re.compile(r"^.*\.?(meta|config)\.json$", re.IGNORECASE)
 
 ImageMimeTypes = {
     "image/png",

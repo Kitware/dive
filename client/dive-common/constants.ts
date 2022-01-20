@@ -107,6 +107,8 @@ const zipFileTypes = [
 const stereoPipelineMarker = 'measurement';
 const multiCamPipelineMarkers = ['2-cam', '3-cam'];
 
+const JsonMetaRegEx = /^.*\.?(meta|config)\.json$/;
+
 
 export {
   DefaultVideoFPS,
@@ -128,4 +130,5 @@ export {
   zipFileTypes,
   stereoPipelineMarker,
   multiCamPipelineMarkers,
+  JsonMetaRegEx,
 };

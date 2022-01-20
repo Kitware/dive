@@ -6,7 +6,7 @@ import {
 import {
   ImageSequenceType, VideoType, DefaultVideoFPS, FPSOptions,
   inputAnnotationFileTypes, websafeVideoTypes, otherVideoTypes,
-  websafeImageTypes, otherImageTypes,
+  websafeImageTypes, otherImageTypes, JsonMetaRegEx,
 } from 'dive-common/constants';
 
 import ImportButton from 'dive-common/components/ImportButton.vue';
@@ -56,10 +56,6 @@ export default defineComponent({
     location: {
       type: Object,
       required: true,
-    },
-    hideMeta: {
-      type: Boolean,
-      default: true, // TODO:  Once Meta upload is supported we can remove this
     },
   },
   setup(_, { emit }) {
@@ -132,7 +128,7 @@ export default defineComponent({
      * Processes the imported media files to distinguish between
      * Media Files - Default files that aren't the Annotation or Meta
      * Annotation File - CSV or JSON file, or more in the future
-     * Meta File - Right now a json file which has 'meta' in the name
+     * Meta File - Right now a json file which has 'meta' or 'config in the name
      */
     const processImport = (files: {
       canceled: boolean; filePaths: string[]; fileList?: File[];
@@ -161,25 +157,20 @@ export default defineComponent({
         });
         output.mediaList = files.fileList.filter((item) => (
           item.name.indexOf('.json') === -1 && item.name.indexOf('.csv') === -1));
-        const metaIndex = jsonFiles.findIndex((item) => (item.indexOf('meta') !== -1));
+        const metaIndex = jsonFiles.findIndex((item) => (JsonMetaRegEx.test(item[0])));
         if (metaIndex !== -1) {
           output.metaFile = files.fileList[jsonFiles[metaIndex][1]];
+          jsonFiles.splice(metaIndex, 1); //remove chosen meta from list
         }
-        if (jsonFiles.length === 1 && csvFiles.length === 0 && output.metaFile === null) {
+        if (jsonFiles.length === 1 && csvFiles.length === 0) { // only remaining json file
           output.annotationFile = files.fileList[jsonFiles[0][1]];
-        } else if (csvFiles.length && jsonFiles.length === 1) {
-          if (jsonFiles[0][0].indexOf('meta') !== -1) {
-            output.annotationFile = files.fileList[csvFiles[0][1]];
-            output.metaFile = files.fileList[jsonFiles[0][1]];
-          }
-        } else if (jsonFiles.length > 1) {
-          //Check for a meta
-          const filtered = jsonFiles.filter((item) => (item.indexOf('meta') === -1));
-          if (filtered.length === 1) {
+        } else if (csvFiles.length) { // Prefer First CSV if both found
+          output.annotationFile = files.fileList[csvFiles[0][1]];
+        } else if (jsonFiles.length > 1) { //multiple jsons, filter out additional meta/configs
+          const filtered = jsonFiles.filter((item) => (!JsonMetaRegEx.test(item[0]) && (item[0].indexOf('.json') !== -1)));
+          if (filtered.length) { // take first filtered JSON file
             output.annotationFile = files.fileList[filtered[0][1]];
           }
-        } else if (csvFiles.length) {
-          output.annotationFile = files.fileList[csvFiles[0][1]];
         }
         output.fullList = [...output.mediaList];
         if (output.annotationFile) {
@@ -463,52 +454,50 @@ export default defineComponent({
               </v-col>
             </v-row>
             <v-row v-if="!pendingUpload.createSubFolders && pendingUpload.type !== 'zip'">
-              <v-col class="py-0">
+              <v-col class="py-0 mx-2">
                 <v-row>
-                  <v-col>
-                    <v-file-input
-                      v-model="pendingUpload.mediaList"
-                      multiple
-                      show-size
-                      counter
-                      :disabled="pendingUpload.uploading"
-                      :prepend-icon="
-                        pendingUpload.type === 'image-sequence'
-                          ? 'mdi-image-multiple'
-                          : 'mdi-file-video'
-                      "
-                      :label="
-                        pendingUpload.type === 'image-sequence'
-                          ? 'Image files'
-                          : 'Video file'
-                      "
-                      :rules="[val => (val || '').length > 0 || 'Media Files are required']"
-                      :accept="filterFileUpload(pendingUpload.type)"
-                    />
-                  </v-col>
-                  <v-col>
-                    <v-file-input
-                      v-model="pendingUpload.annotationFile"
-                      show-size
-                      counter
-                      prepend-icon="mdi-file-table"
-                      label="Annotation File (Optional)"
-                      hint="Optional"
-                      :disabled="pendingUpload.uploading"
-                      :accept="filterFileUpload('annotation')"
-                    />
-                  </v-col>
-                  <v-col v-if="!hideMeta">
-                    <v-file-input
-                      v-model="pendingUpload.meta"
-                      show-size
-                      counter
-                      label="Meta File"
-                      hint="Optional"
-                      :disabled="pendingUpload.uploading"
-                      :accept="filterFileUpload('meta')"
-                    />
-                  </v-col>
+                  <v-file-input
+                    v-model="pendingUpload.mediaList"
+                    multiple
+                    show-size
+                    counter
+                    :disabled="pendingUpload.uploading"
+                    :prepend-icon="
+                      pendingUpload.type === 'image-sequence'
+                        ? 'mdi-image-multiple'
+                        : 'mdi-file-video'
+                    "
+                    :label="
+                      pendingUpload.type === 'image-sequence'
+                        ? 'Image files'
+                        : 'Video file'
+                    "
+                    :rules="[val => (val || '').length > 0 || 'Media Files are required']"
+                    :accept="filterFileUpload(pendingUpload.type)"
+                  />
+                </v-row>
+                <v-row>
+                  <v-file-input
+                    v-model="pendingUpload.annotationFile"
+                    show-size
+                    counter
+                    prepend-icon="mdi-file-table"
+                    label="Annotation File (Optional)"
+                    hint="Optional"
+                    :disabled="pendingUpload.uploading"
+                    :accept="filterFileUpload('annotation')"
+                  />
+                </v-row>
+                <v-row>
+                  <v-file-input
+                    v-model="pendingUpload.meta"
+                    show-size
+                    counter
+                    label="Configuration File (Optional)"
+                    hint="Optional"
+                    :disabled="pendingUpload.uploading"
+                    :accept="filterFileUpload('meta')"
+                  />
                 </v-row>
               </v-col>
             </v-row>

@@ -30,9 +30,11 @@ export default defineComponent({
     const { reloadAnnotations } = useHandler();
     const { prompt } = usePrompt();
     const processing = ref(false);
+    const menuOpen = ref(false);
     const openUpload = async () => {
       const ret = await openFromDisk('annotation');
       if (!ret.canceled) {
+        menuOpen.value = false;
         const path = ret.filePaths[0];
         let importFile = false;
         processing.value = true;
@@ -61,37 +63,76 @@ export default defineComponent({
     return {
       openUpload,
       processing,
+      menuOpen,
     };
   },
 });
 </script>
 
 <template>
-  <v-tooltip bottom>
-    <template #activator="{ on }">
-      <v-btn
-        class="ma-0"
-        v-bind="buttonOptions"
-        :disabled="!datasetId || processing"
-        @click="openUpload"
-        v-on="on"
+  <v-menu
+    v-model="menuOpen"
+    :close-on-content-click="false"
+    :nudge-width="120"
+    v-bind="menuOptions"
+    max-width="280"
+  >
+    <template #activator="{ on: menuOn }">
+      <v-tooltip bottom>
+        <template #activator="{ on: tooltipOn }">
+          <v-btn
+            class="ma-0"
+            v-bind="buttonOptions"
+            :disabled="!datasetId || processing"
+            v-on="{ ...tooltipOn, ...menuOn }"
+          >
+            <div>
+              <v-icon>
+                {{ processing ? 'mdi-spin mdi-sync' : 'mdi-application-import' }}
+              </v-icon>
+              <span
+                v-show="!$vuetify.breakpoint.mdAndDown || buttonOptions.block"
+                class="pl-1"
+              >
+                Import
+              </span>
+            </div>
+          </v-btn>
+        </template>
+        <span> Import Annotation Data </span>
+      </v-tooltip>
+    </template>
+    <template>
+      <v-card
+        outlined
       >
-        <div>
-          <v-icon>
-            {{ processing ? 'mdi-spin mdi-sync' : 'mdi-application-import' }}
-          </v-icon>
-          <span
-            v-show="!$vuetify.breakpoint.mdAndDown || buttonOptions.block"
-            class="pl-1"
+        <v-card-title>
+          Import Formats
+        </v-card-title>
+        <v-card-text>
+          Multiple Data types can be imported:
+          <ul>
+            <li> Viame CSV Files </li>
+            <li> DIVE Annotation JSON </li>
+            <li> DIVE Configuation JSON</li>
+            <li> KWCOCO JSON files </li>
+          </ul>
+          <a
+            href="https://kitware.github.io/dive/DataFormats/"
+            target="_blank"
+          >Data Format Documentation</a>
+        </v-card-text>
+        <v-card-actions>
+          <v-btn
+            depressed
+            block
+            :disabled="!datasetId || processing"
+            @click="openUpload"
           >
             Import
-          </span>
-        </div>
-      </v-btn>
+          </v-btn>
+        </v-card-actions>
+      </v-card>
     </template>
-    <span> Import Annotation Data </span>
-  </v-tooltip>
+  </v-menu>
 </template>
-
-<style scoped lang="scss">
-</style>
