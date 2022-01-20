@@ -7,8 +7,9 @@ from girder.models.setting import Setting
 from girder.models.user import User
 from girder.utility import mail_utils
 from girder.utility.model_importer import ModelImporter
+from girder_jobs.models.job import Job
 
-from dive_utils.constants import UserPrivateQueueEnabledMarker
+from dive_utils import constants
 
 from .client_webroot import ClientWebroot
 from .crud_annotation import AnnotationItem, RevisionLogItem
@@ -32,7 +33,10 @@ class GirderPlugin(plugin.GirderPlugin):
 
         # Setup route additions for exsting resources
         info["apiRoot"].user.route("PUT", (":id", "use_private_queue"), use_private_queue)
-        User().exposeFields(AccessType.READ, UserPrivateQueueEnabledMarker)
+        User().exposeFields(AccessType.READ, constants.UserPrivateQueueEnabledMarker)
+
+        # Expose Job dataset assocation
+        Job().exposeFields(AccessType.READ, constants.JOBCONST_DATASET_ID)
 
         DIVE_MAIL_TEMPLATES = Path(os.path.realpath(__file__)).parent / 'mail_templates'
         mail_utils.addTemplateDirectory(str(DIVE_MAIL_TEMPLATES))

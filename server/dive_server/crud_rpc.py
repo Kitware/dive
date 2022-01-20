@@ -453,6 +453,7 @@ def postprocess(
                 ),
             )
             newjob.job[constants.JOBCONST_PRIVATE_QUEUE] = job_is_private
+            newjob.job[constants.JOBCONST_DATASET_ID] = dsFolder["_id"]
             Job().save(newjob.job)
 
         # transcode IMAGERY if necessary
@@ -474,6 +475,7 @@ def postprocess(
                 ),
             )
             newjob.job[constants.JOBCONST_PRIVATE_QUEUE] = job_is_private
+            newjob.job[constants.JOBCONST_DATASET_ID] = dsFolder["_id"]
             Job().save(newjob.job)
 
         elif imageItems.count() > 0:

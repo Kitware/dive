@@ -26,6 +26,11 @@ export interface BrandState {
   brandData: BrandData;
 }
 
+export interface JobState {
+  jobIds: Record<string, number>;
+  datasetStatus: Record<string, number>;
+}
+
 export interface RootState {
   Location: LocationState;
   Dataset: DatasetState;
