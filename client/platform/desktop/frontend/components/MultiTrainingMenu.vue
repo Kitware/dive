@@ -8,7 +8,7 @@ import {
   DatasetMeta, Pipelines, TrainingConfigs, useApi,
 } from 'dive-common/apispec';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
-import { itemsPerPageOptions } from 'dive-common/constants';
+import { itemsPerPageOptions, simplifyTrainingName } from 'dive-common/constants';
 import { clientSettings } from 'dive-common/store/settings';
 
 import { datasets } from '../store/dataset';
@@ -78,11 +78,6 @@ export default defineComponent({
         set(data.stagedItems, meta.id, meta);
       }
     }
-
-    function stripTrainingName(item: string) {
-      return item.replace('.viame_csv.conf', '');
-    }
-
     const availableItems = computed(() => Object.values(datasets.value)
       .filter((item) => item.subType === null)
       .map((item) => ({
@@ -123,7 +118,7 @@ export default defineComponent({
     return {
       data,
       toggleStaged,
-      stripTrainingName,
+      simplifyTrainingName,
       isReadyToTrain,
       runTrainingOnFolder,
       nameRules,
@@ -190,10 +185,10 @@ export default defineComponent({
             persistent-hint
           >
             <template v-slot:item="row">
-              {{ stripTrainingName(row.item) }}
+              {{ simplifyTrainingName(row.item) }}
             </template>
-            <template v-slot:selection="{ item}">
-              {{ stripTrainingName(item) }}
+            <template v-slot:selection="{ item }">
+              {{ simplifyTrainingName(item) }}
             </template>
           </v-select>
         </v-col>

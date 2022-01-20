@@ -109,6 +109,10 @@ const multiCamPipelineMarkers = ['2-cam', '3-cam'];
 
 const JsonMetaRegEx = /^.*\.?(meta|config)\.json$/;
 
+function simplifyTrainingName(item: string) {
+  return item.replace('.viame_csv.conf', '');
+}
+
 
 export {
   DefaultVideoFPS,
@@ -131,4 +135,5 @@ export {
   stereoPipelineMarker,
   multiCamPipelineMarkers,
   JsonMetaRegEx,
+  simplifyTrainingName,
 };
