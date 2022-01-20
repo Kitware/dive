@@ -1,14 +1,15 @@
 <script lang="ts">
 import {
   computed,
-  defineComponent, onMounted, PropType, ref,
+  defineComponent, onMounted, PropType, Ref, ref,
 } from '@vue/composition-api';
 import { DatasetType } from 'dive-common/apispec';
 import ImageAnnotator from './ImageAnnotator.vue';
 import VideoAnnotator from './VideoAnnotator.vue';
 import LayerManager from '../LayerManager.vue';
 import { SetTimeFunc } from '../../use/useTimeObserver';
-import { MediaController } from './mediaControllerType';
+import { MediaControlAggregator, MediaController } from './mediaControllerType';
+import useMediaController from './useMediaController';
 
 export interface ImageDataItem {
   url: string;
@@ -81,69 +82,94 @@ export default defineComponent({
   },
 
   setup(props) {
-    // We
-    console.log(props.imageData);
-    console.log(props.cameras);
     const subPlaybackComponent = ref(undefined as Vue[] | undefined);
-    const mediaController = computed(() => {
-      if (subPlaybackComponent.value) {
-        if (subPlaybackComponent.value?.length >= 1) {
-          console.log(subPlaybackComponent.value);
-          // TODO: Bug in composition-api types incorrectly organizes the static members of a Vue
-          // instance when using typeof ImageAnnotator, so we can't use the "real" type here
-          // eslint-disable-next-line @typescript-eslint/ban-ts-ignore
-          // @ts-ignore
-
-        //In this case we need to collate all sub mediaControllers into one
-        }
+    const mediaControlAggregator = computed(() => {
+      if (subPlaybackComponent.value && subPlaybackComponent.value?.length >= 1) {
+        // TODO: Bug in composition-api types incorrectly organizes the static members of a Vue
+        // instance when using typeof ImageAnnotator, so we can't use the "real" type here
         // eslint-disable-next-line @typescript-eslint/ban-ts-ignore
         // @ts-ignore
-        return subPlaybackComponent.value[0].mediaController as MediaController;
+
+        // eslint-disable-next-line @typescript-eslint/ban-ts-ignore
+        // @ts-ignore
+        // eslint-disable-next-line max-len
+        const controllers: MediaController[] = subPlaybackComponent.value?.map((item) => item.mediaController as MediaController);
+        const aggregateController: MediaControlAggregator = {
+          maxFrame: controllers[0].maxFrame,
+          frame: controllers[0].frame,
+          seek: (frame: number) => controllers.forEach((item) => item.seek(frame)),
+          volume: controllers[0].volume,
+          setVolume: (volume: number) => controllers.forEach((item) => item.setVolume(volume)),
+          speed: controllers[0].speed,
+          setSpeed: (speed: number) => controllers.forEach((item) => item.setSpeed(speed)),
+          lockedCamera: controllers[0].lockedCamera,
+          toggleLockedCamera: () => controllers.forEach((item) => item.toggleLockedCamera()),
+          pause: () => controllers.forEach((item) => item.pause()),
+          play: () => controllers.forEach((item) => item.play()),
+          playing: controllers[0].playing,
+          nextFrame: () => controllers.forEach((item) => item.nextFrame()),
+          prevFrame: () => controllers.forEach((item) => item.prevFrame()),
+          resetZoom: () => controllers.forEach((item) => item.resetZoom()),
+          // eslint-disable-next-line max-len
+          duration: computed(() => controllers.reduce((acc, item) => ({ ...acc, [item.camera.value]: item.duration.value }), {})),
+          // eslint-disable-next-line max-len
+          currentTime: computed(() => controllers.reduce((acc, item) => ({ ...acc, [item.camera.value]: item.currentTime.value }), {})),
+          // eslint-disable-next-line max-len
+          filename: computed(() => controllers.reduce((acc, item) => ({ ...acc, [item.camera.value]: item.filename.value }), {})),
+
+        };
+        return aggregateController;
       }
-      return {} as MediaController;
+      return {} as MediaControlAggregator;
+    });
+
+    const onResize = computed(() => {
+      if (subPlaybackComponent.value && subPlaybackComponent.value?.length >= 1) {
+        // eslint-disable-next-line @typescript-eslint/ban-ts-ignore
+        // @ts-ignore
+        return (subPlaybackComponent.value[0].onResize as () => void);
+      }
+      return null;
     });
 
 
     return {
       subPlaybackComponent,
-      mediaController,
+      mediaControlAggregator,
+      onResize,
     };
   },
 });
 </script>
 
 <template>
-  <div>
-    <v-row>
-      <div
+  <span class="playback-component annotation-wrapper fill-height">
+    <v-row dense class="fill-height">
+      <v-col
         v-for="camera in cameras"
         :key="camera"
+        style="padding: 0px; margin:0px;"
       >
-        <div
+        <component
+          :is="datasetType === 'image-sequence' ? 'image-annotator' : 'video-annotator'"
           v-if="(imageData[camera].length || videoUrl[camera]) && progress.loaded"
+          ref="subPlaybackComponent"
+          v-bind="{
+            imageData: imageData[camera], videoUrl: videoUrl[camera],
+            updateTime, frameRate, originalFps, loadImageFunc, camera }"
         >
-          <component
-            :is="datasetType === 'image-sequence' ? 'image-annotator' : 'video-annotator'"
-            ref="subPlaybackComponent"
-            v-bind="{
-              imageData: imageData[camera], videoUrl: videoUrl[camera],
-              updateTime, frameRate, originalFps, loadImageFunc, camera }"
-            class="playback-component"
-          >
-            <layer-manager
-              :camera="camera"
-            />
-            <slot
-              v-if="mediaController.frame"
-              ref="control"
-              name="control"
-              @resize="onResize"
-            />
-          </component>
-        </div>
-      </div>
+          <layer-manager
+            :camera="camera"
+          />
+        </component>
+      </v-col>
     </v-row>
-  </div>
+    <slot
+      ref="control"
+      name="control"
+      @resize="onResize"
+    />
+  </span>
 </template>
 
 <style lang="scss" scoped>

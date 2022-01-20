@@ -1,6 +1,6 @@
 <script lang="ts">
 import { computed, defineComponent, PropType } from '@vue/composition-api';
-import { injectMediaController } from '../annotators/useMediaController';
+import { MediaControlAggregator } from '../annotators/mediaControllerType';
 
 export default defineComponent({
   name: 'FileNameTimeDisplay',
@@ -9,11 +9,22 @@ export default defineComponent({
       type: String as PropType<'filename' |'time'>,
       required: true,
     },
+    mediaControls: {
+      type: Object as PropType<MediaControlAggregator>,
+      required: true,
+    },
+    camera: {
+      type: String,
+      default: 'default',
+    },
   },
   setup(props) {
     const {
-      currentTime, duration, filename, frame,
-    } = injectMediaController();
+      currentTime: currentTimes, duration: durations, filename: filenames, frame,
+    } = props.mediaControls;
+    const filename = computed(() => filenames.value[props.camera]);
+    const duration = computed(() => durations.value[props.camera]);
+    const currentTime = computed(() => currentTimes.value[props.camera]);
     const display = computed(() => {
       let value = 'unsupported display';
       if (props.displayType === 'filename') {
