@@ -51,6 +51,7 @@ test_tuple: List[Tuple[dict, list, list]] = [
             "0,1.png,0,884,510,1219,737,1.0,-1,typestring,1.0",
             "0,2.png,1,111,222,3333,444,1.0,-1,typestring,1.0",
             "1,1.png,0,747,457,1039,633,1.0,-1,type2,1.0",
+            "",
         ],
         [],
     ),
@@ -81,6 +82,7 @@ test_tuple: List[Tuple[dict, list, list]] = [
             "0,2.png,1,2,2,4,4,0.9,-1,bar,0.9,foo,0.2,baz,0.1",
             "0,3.png,2,3,3,6,6,0.9,-1,bar,0.9,foo,0.2,baz,0.1",
             "0,4.png,3,4,4,8,8,0.9,-1,bar,0.9,foo,0.2,baz,0.1",
+            "",
         ],
         [],
     ),
@@ -165,6 +167,7 @@ test_tuple: List[Tuple[dict, list, list]] = [
             "0,2.png,1,2,2,4,4,0.9,-1,bar,0.9,foo,0.2,baz,0.1,(kp) head 22 46,(kp) tail 55 22",
             "0,3.png,2,3,3,6,6,0.9,-1,bar,0.9,foo,0.2,baz,0.1",
             "0,4.png,3,4,4,8,8,0.9,-1,bar,0.9,foo,0.2,baz,0.1,(poly) 1 2 3 4 5 6 7 8 9 10",
+            "",
         ],
         [],
     ),
@@ -199,6 +202,7 @@ test_tuple: List[Tuple[dict, list, list]] = [
         [
             "0,1.png,0,884,510,1219,737,1.0,-1,typestring,1.0,(atr) detectionAttr frame 0 attr,(trk-atr) trackATTR TestTrack ATTR With Space",
             "0,2.png,1,111,222,3333,444,1.0,-1,typestring,1.0,(atr) detectionAttr frame 1 attr,(trk-atr) trackATTR TestTrack ATTR With Space",
+            "",
         ],
         [],
     ),
@@ -244,6 +248,7 @@ test_tuple: List[Tuple[dict, list, list]] = [
         },
         [
             "1,1.png,0,747,457,1039,633,1.0,-1,type2,1.0",
+            "",
         ],
         ['type2'],
     ),
@@ -289,6 +294,7 @@ test_tuple: List[Tuple[dict, list, list]] = [
         [
             "0,1.png,0,884,510,1219,737,1.0,-1,typestring,1.0",
             "0,2.png,1,111,222,3333,444,1.0,-1,typestring,1.0",
+            "",
         ],
         ['typestring', 'type3', 'type4'],
     ),
@@ -299,7 +305,15 @@ test_tuple: List[Tuple[dict, list, list]] = [
 def test_write_viame_csv(input: Dict[str, dict], expected: List[str], typeFilter: List[str]):
     for i, line in enumerate(
         viame.export_tracks_as_csv(
-            input, filenames=filenames, header=False, typeFilter=set(typeFilter)
+            input.values(), filenames=filenames, header=False, typeFilter=set(typeFilter)
         )
     ):
         assert line.strip(' ').rstrip() == expected[i]
+
+
+def test_empty_header():
+    for chunk in viame.export_tracks_as_csv([], header=True):
+        lines = chunk.splitlines()
+        for line in lines:
+            assert line.startswith('#')
+        assert len(lines) == 2

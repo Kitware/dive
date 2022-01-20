@@ -119,7 +119,7 @@ interface Api {
   ): Promise<unknown>;
 
   loadMetadata(datasetId: string): Promise<DatasetMeta>;
-  loadDetections(datasetId: string): Promise<MultiTrackRecord>;
+  loadDetections(datasetId: string, revision?: number): Promise<MultiTrackRecord>;
 
   saveDetections(datasetId: string, args: SaveDetectionsArgs): Promise<unknown>;
   saveMetadata(datasetId: string, metadata: DatasetMetaMutable): Promise<unknown>;

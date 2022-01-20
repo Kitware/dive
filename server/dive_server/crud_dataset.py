@@ -9,7 +9,7 @@ from girder.models.item import Item
 from girder.utility import ziputil
 from pydantic.main import BaseModel
 
-from dive_server import crud
+from dive_server import crud, crud_annotation
 from dive_utils import TRUTHY_META_VALUES, constants, fromMeta, models, types
 
 
@@ -18,10 +18,11 @@ def get_url(file: types.GirderModel, modelType='file') -> str:
 
 
 def createSoftClone(
-    owner: types.GirderModel,
+    owner: types.GirderUserModel,
     source_folder: types.GirderModel,
     parent_folder: types.GirderModel,
     name: str,
+    revision: Optional[int],
 ):
     """Create a no-copy clone of folder with source_id for owner"""
     if len(name) == 0:
@@ -41,18 +42,9 @@ def createSoftClone(
     # ensure confidence filter metadata exists
     if constants.ConfidenceFiltersMarker not in cloned_folder['meta']:
         cloned_folder['meta'][constants.ConfidenceFiltersMarker] = {'default': 0.1}
-
     Folder().save(cloned_folder)
     crud.get_or_create_auxiliary_folder(cloned_folder, owner)
-    source_detections = crud.detections_item(source_folder)
-    if source_detections is not None:
-        cloned_detection_item = Item().copyItem(
-            source_detections, creator=owner, folder=cloned_folder
-        )
-        cloned_detection_item['meta'][constants.DetectionMarker] = str(cloned_folder['_id'])
-        Item().save(cloned_detection_item)
-    else:
-        crud.saveTracks(cloned_folder, {}, owner)
+    crud_annotation.clone_annotations(source_folder, cloned_folder, owner, revision)
     return cloned_folder
 
 
@@ -65,37 +57,10 @@ def list_datasets(
     sortParams: Tuple[Tuple[str, int]],
 ):
     """Enumerate all public and private data the user can access"""
-    permissionsClause = Folder().permissionClauses(user=user, level=AccessType.READ)
-    query = {
-        '$and': [
-            {f'meta.{constants.DatasetMarker}': {'$in': TRUTHY_META_VALUES}},
-            permissionsClause,
-        ],
-    }
     sort, sortDir = (sortParams or [['created', 1]])[0]
-    if published:
-        query['$and'] += [{f'meta.{constants.PublishedMarker}': {'$in': TRUTHY_META_VALUES}}]
-    if shared:
-        query['$and'] += [
-            {
-                # Find datasets not owned by the current user
-                '$nor': [
-                    {'creatorId': {'$eq': user['_id']}},
-                    {'creatorId': {'$eq': None}},
-                ],
-            },
-            {
-                # But where the current user still has access
-                'access.users': {
-                    '$elemMatch': {
-                        'id': user['_id'],
-                    }
-                },
-            },
-        ]
     # based on https://stackoverflow.com/a/49483919
     pipeline = [
-        {'$match': query},
+        {'$match': get_dataset_query(user, published, shared)},
         {
             '$facet': {
                 'results': [
@@ -236,7 +201,9 @@ def export_dataset_zipstream(
     excludeBelowThreshold: bool,
     typeFilter: Optional[List[str]],
 ):
-    _, gen = crud.get_annotation_csv_generator(dsFolder, user, excludeBelowThreshold, typeFilter)
+    _, gen = crud_annotation.get_annotation_csv_generator(
+        dsFolder, user, excludeBelowThreshold, typeFilter
+    )
     mediaFolder = crud.getCloneRoot(user, dsFolder)
     source_type = fromMeta(mediaFolder, constants.TypeMarker)
     mediaRegex = None
@@ -276,21 +243,46 @@ def export_dataset_zipstream(
                     break  # Media items should only have 1 valid file
 
         if includeDetections:
-            # add JSON detections
-            for (path, file) in Folder().fileList(
-                dsFolder,
-                user=user,
-                subpath=False,
-                mimeFilter={'application/json'},
-            ):
-                for data in z.addFile(file, path):
-                    yield data
+            # TODO Add back in dump to json
             # add CSV detections
             for data in z.addFile(gen, "output_tracks.csv"):
                 yield data
         yield z.footer()
 
     return stream
+
+
+def get_dataset_query(
+    user: types.GirderUserModel, published: bool, shared: bool, level=AccessType.READ
+):
+    permissionsClause = Folder().permissionClauses(user=user, level=level)
+    query = {
+        '$and': [
+            {f'meta.{constants.DatasetMarker}': {'$in': TRUTHY_META_VALUES}},
+            permissionsClause,
+        ],
+    }
+    if published:
+        query['$and'] += [{f'meta.{constants.PublishedMarker}': {'$in': TRUTHY_META_VALUES}}]
+    if shared:
+        query['$and'] += [
+            {
+                # Find datasets not owned by the current user
+                '$nor': [
+                    {'creatorId': {'$eq': user['_id']}},
+                    {'creatorId': {'$eq': None}},
+                ],
+            },
+            {
+                # But where the current user still has access
+                'access.users': {
+                    '$elemMatch': {
+                        'id': user['_id'],
+                    }
+                },
+            },
+        ]
+    return query
 
 
 def validate_files(files: List[str]):

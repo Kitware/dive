@@ -1,7 +1,21 @@
+from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+from bson.objectid import ObjectId
 from pydantic import BaseModel, Field, validator
 from typing_extensions import Literal
+
+
+class PydanticObjectId(str):
+    """https://stackoverflow.com/a/69431643"""
+
+    @classmethod
+    def __get_validators__(cls):
+        yield cls.validate
+
+    @classmethod
+    def validate(cls, v):
+        return ObjectId(v)
 
 
 class GeoJSONGeometry(BaseModel):
@@ -74,6 +88,23 @@ class Track(BaseModel):
         return self.trackId
 
 
+class AnnotationItemSchema(Track):
+    dataset: PydanticObjectId
+    rev_created: int = 0
+    rev_deleted: Optional[int]
+
+
+class RevisionLog(BaseModel):
+    dataset: PydanticObjectId
+    author_id: PydanticObjectId
+    author_name: str
+    revision: int
+    additions: int = 0
+    deletions: int = 0
+    created: datetime = Field(default_factory=datetime.utcnow)
+    description: Optional[str]
+
+
 class Attribute(BaseModel):
     belongs: Literal['track', 'detection']
     datatype: Literal['text', 'number', 'boolean']
@@ -137,17 +168,6 @@ class MediaResource(BaseModel):
 class DatasetSourceMedia(BaseModel):
     imageData: List[MediaResource]
     video: Optional[MediaResource]
-
-
-class SummaryItemSchema(BaseModel):
-    value: str
-    total_tracks: int
-    total_detections: int
-    found_in: List[str]
-
-
-class PublicDataSummary(BaseModel):
-    label_summary_items: List[SummaryItemSchema]
 
 
 class PrivateQueueEnabledResponse(BaseModel):

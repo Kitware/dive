@@ -51,13 +51,18 @@ function getDatasetMedia(folderId: string) {
   return girderRest.get<DatasetSourceMedia>(`dive_dataset/${folderId}/media`);
 }
 
-function clone({ folderId, name, parentFolderId }: {
+function clone({
+  folderId, name, parentFolderId, revision,
+}: {
   folderId: string;
   parentFolderId: string;
   name: string;
+  revision?: number;
 }) {
   return girderRest.post<GirderModel>('dive_dataset', null, {
-    params: { cloneId: folderId, parentFolderId, name },
+    params: {
+      cloneId: folderId, parentFolderId, name, revision,
+    },
   });
 }
 
