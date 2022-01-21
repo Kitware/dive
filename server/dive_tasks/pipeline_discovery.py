@@ -11,7 +11,7 @@ from dive_utils.types import (
 
 DefaultTrainingConfiguration = "train_detector_default.viame_csv.conf"
 AllowedTrainingConfigs = r".*\.viame_csv\.conf$"
-DisallowedTrainingConfigs = r"(.*_nf|.*\.continue)\.viame_csv\.conf$"
+DisallowedTrainingConfigs = r".*(_nf|\.continue)\.viame_csv\.conf$"
 AllowedStaticPipelines = r"^detector_.+|^tracker_.+|^utility_.+|^generate_.+"
 DisallowedStaticPipelines = (
     # Remove utilities pipes which hold no meaning in web
