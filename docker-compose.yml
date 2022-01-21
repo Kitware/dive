@@ -50,7 +50,8 @@ services:
   mongo:
     image: mongo:5.0
     volumes:
-      - mongo_db:/data/db
+      # Use env config path, default to docker volume
+      - ${MONGO_DB_PATH:-mongo_db}:/data/db
 
   girder:
     build:
