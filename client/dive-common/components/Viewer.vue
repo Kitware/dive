@@ -594,7 +594,10 @@ export default defineComponent({
           </ConfidenceFilter>
         </template>
       </sidebar>
-      <v-col style="position: relative">
+      <v-col
+        style="position: relative; margin: 0px, padding: 0px"
+        dense
+      >
         <annotator-wrapper
           v-if="progress.loaded"
           ref="playbackComponent"
