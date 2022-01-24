@@ -1,6 +1,6 @@
 <script lang="ts">
 import { defineComponent, ref } from '@vue/composition-api';
-import { GirderModel, GirderJobList } from '@girder/components/src';
+import { GirderJobList } from '@girder/components/src';
 import { setUsePrivateQueue } from 'platform/web-girder/api';
 import { useGirderRest } from 'platform/web-girder/plugins/girder';
 
@@ -11,17 +11,6 @@ export default defineComponent({
     const privateQueueEnabled = ref(false);
     const loading = ref(true);
     const restClient = useGirderRest();
-
-    function getId(data: GirderModel | string) {
-      try {
-        if (typeof data === 'object') {
-          return data.folderId;
-        }
-        return JSON.parse(data).params.input_folder;
-      } catch (err) {
-        return null;
-      }
-    }
 
     async function setPrivateQueueEnabled(value: boolean) {
       loading.value = true;
@@ -40,7 +29,6 @@ export default defineComponent({
       privateQueueEnabled,
       loading,
       /* methods */
-      getId,
       setPrivateQueueEnabled,
     };
   },
@@ -52,7 +40,7 @@ export default defineComponent({
     <GirderJobList>
       <template #jobwidget="{ item }">
         <v-tooltip
-          v-if="getId(item.kwargs)"
+          v-if="item.dataset_id"
           bottom
         >
           <template #activator="{on, attrs}">
@@ -60,7 +48,7 @@ export default defineComponent({
               v-bind="attrs"
               x-small
               depressed
-              :to="{ name: 'viewer', params: { id: getId(item.kwargs) } }"
+              :to="{ name: 'viewer', params: { id: item.dataset_id } }"
               color="info"
               class="ml-0"
               v-on="on"

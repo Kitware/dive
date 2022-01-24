@@ -5,7 +5,6 @@ import {
 import {
   GirderFileManager, getLocationType, GirderModel,
 } from '@girder/components/src';
-import { useGirderRest } from 'platform/web-girder/plugins/girder';
 import { itemsPerPageOptions } from 'dive-common/constants';
 import { clientSettings } from 'dive-common/store/settings';
 import { useStore, LocationType } from '../store/types';
@@ -25,7 +24,6 @@ export default defineComponent({
     const uploaderDialog = ref(false);
     const locationStore = store.state.Location;
     const { getters } = store;
-    const girderRest = useGirderRest();
 
     function setLocation(location: LocationType) {
       store.dispatch('Location/setRouteFromLocation', location);
@@ -55,10 +53,8 @@ export default defineComponent({
     ));
 
     eventBus.$on('refresh-data-browser', handleNotification);
-    girderRest.$on('message:job_status', handleNotification);
     onBeforeUnmount(() => {
       eventBus.$off('refresh-data-browser', handleNotification);
-      girderRest.$off('message:job_status', handleNotification);
     });
 
     return {
@@ -125,6 +121,13 @@ export default defineComponent({
       </v-dialog>
     </template>
     <template #row-widget="{item}">
+      <v-icon
+        v-if="getters['Jobs/datasetRunningState'](item._id)"
+        color="warning"
+        class="rotate"
+      >
+        mdi-autorenew
+      </v-icon>
       <v-btn
         v-if="isAnnotationFolder(item)"
         class="ml-2"

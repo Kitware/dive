@@ -94,7 +94,7 @@ AuxiliaryFolderName = "auxiliary"
 MetaFileName = "meta.json"
 
 # job constants
-JOBCONST_DATASET_ID = 'datset_id'
+JOBCONST_DATASET_ID = 'dataset_id'
 JOBCONST_PARAMS = 'params'
 JOBCONST_PRIVATE_QUEUE = 'private_queue'
 JOBCONST_CREATOR = 'creator'

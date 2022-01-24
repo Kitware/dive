@@ -12,7 +12,7 @@ from dive_utils.models import Feature, Track, interpolate
 
 
 def format_timestamp(fps: int, frame: int) -> str:
-    return str(datetime.datetime.utcfromtimestamp(frame / fps).strftime(r'%H:%M:%S.%f'))
+    return str(datetime.datetime.utcfromtimestamp(frame / fps).isoformat())
 
 
 def writeHeader(writer: 'csv._writer', metadata: Dict):  # type: ignore
