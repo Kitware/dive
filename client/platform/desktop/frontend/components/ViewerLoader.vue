@@ -67,6 +67,9 @@ export default defineComponent({
         }
       }
     });
+    const isPipelineRunning = (jobId: string) => (runningJobs.value.find(
+      (item) => item.job.datasetIds.includes(jobId),
+    ) !== undefined);
     return {
       datasets,
       compoundId,
@@ -76,6 +79,7 @@ export default defineComponent({
       subTypeList,
       camNumbers,
       readonlyMode,
+      isPipelineRunning,
     };
   },
 });
@@ -111,6 +115,7 @@ export default defineComponent({
         :selected-dataset-ids="[id]"
         :sub-type-list="subTypeList"
         :camera-numbers="camNumbers"
+        :get-running-pipelines="isPipelineRunning"
         v-bind="{ buttonOptions, menuOptions }"
       />
       <ImportAnnotations

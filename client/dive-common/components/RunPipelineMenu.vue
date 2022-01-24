@@ -11,6 +11,7 @@ import {
 import JobLaunchDialog from 'dive-common/components/JobLaunchDialog.vue';
 import { stereoPipelineMarker, multiCamPipelineMarkers } from 'dive-common/constants';
 import { useRequest } from 'dive-common/use';
+import { useStore } from 'platform/web-girder/store/types';
 
 export default defineComponent({
   name: 'RunPipelineMenu',
@@ -39,6 +40,10 @@ export default defineComponent({
     cameraNumbers: {
       type: Array as PropType<number[]>,
       default: () => ([1]),
+    },
+    getRunningPipelines: {
+      type: Function as PropType<(id: string) => boolean>,
+      default: () => false,
     },
   },
 
@@ -95,6 +100,12 @@ export default defineComponent({
       props.selectedDatasetIds.length < 1 || pipelines.value === null
     ));
 
+    const pipelinesCurrentlyRunning = computed(
+      () => props.selectedDatasetIds.reduce(
+        (acc, item) => acc || props.getRunningPipelines(item), false,
+      ),
+    );
+
     async function runPipelineOnSelectedItem(pipeline: Pipe) {
       if (props.selectedDatasetIds.length === 0) {
         throw new Error('No selected datasets to run on');
@@ -125,6 +136,7 @@ export default defineComponent({
       dismissLaunchDialog,
       pipeTypeDisplay,
       runPipelineOnSelectedItem,
+      pipelinesCurrentlyRunning,
     };
   },
 });
@@ -145,12 +157,17 @@ export default defineComponent({
           <template #activator="{ on: tooltipOn }">
             <v-btn
               v-bind="buttonOptions"
-              :disabled="pipelinesNotRunnable"
+              :disabled="pipelinesNotRunnable || pipelinesCurrentlyRunning"
               v-on="{ ...tooltipOn, ...menuOn }"
             >
-              <v-icon>
-                mdi-pipe
+              <v-icon
+                v-if="pipelinesCurrentlyRunning"
+                class="rotate"
+                color="warning"
+              >
+                mdi-autorenew
               </v-icon>
+              <v-icon> mdi-pipe </v-icon>
               <span
                 v-show="!$vuetify.breakpoint.mdAndDown || buttonOptions.block"
                 class="pl-1"
@@ -172,9 +189,7 @@ export default defineComponent({
           v-if="pipelines"
           outlined
         >
-          <v-card-title>
-            VIAME Pipelines
-          </v-card-title>
+          <v-card-title> VIAME Pipelines </v-card-title>
 
           <v-card-text class="pb-0">
             Choose a pipeline type. Check the
@@ -186,7 +201,7 @@ export default defineComponent({
           </v-card-text>
           <v-row class="px-3">
             <v-col
-              v-for="(pipeType) in Object.keys(pipelines)"
+              v-for="pipeType in Object.keys(pipelines)"
               :key="pipeType"
               cols="12"
             >
@@ -215,10 +230,10 @@ export default defineComponent({
                 <v-list
                   dense
                   outlined
-                  style="overflow-y:auto; max-height:85vh"
+                  style="overflow-y: auto; max-height: 85vh"
                 >
                   <v-list-item
-                    v-for="(pipeline) in pipelines[pipeType].pipes"
+                    v-for="pipeline in pipelines[pipeType].pipes"
                     :key="`${pipeline.name}-${pipeline.pipe}`"
                     @click="runPipelineOnSelectedItem(pipeline)"
                   >
