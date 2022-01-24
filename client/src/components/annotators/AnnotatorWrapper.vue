@@ -83,6 +83,7 @@ export default defineComponent({
 
   setup(props) {
     const subPlaybackComponent = ref(undefined as Vue[] | undefined);
+    const control = ref(undefined as HTMLElement | undefined);
     const mediaControlAggregator = computed(() => {
       if (subPlaybackComponent.value && subPlaybackComponent.value?.length >= 1) {
         // TODO: Bug in composition-api types incorrectly organizes the static members of a Vue
@@ -132,44 +133,62 @@ export default defineComponent({
       return null;
     });
 
+    const controlHeight = computed(() => {
+      if (control.value !== undefined && control.value.children.length) {
+        return control.value.children[0].clientHeight;
+      }
+      return 251;
+    });
+
 
     return {
       subPlaybackComponent,
       mediaControlAggregator,
       onResize,
+      control,
+      controlHeight,
     };
   },
 });
 </script>
 
 <template>
-  <span class="playback-component annotation-wrapper fill-height">
-    <v-row dense class="fill-height">
+  <v-col
+    class="playback-component annotation-wrapper fill-height pa-0"
+    dense
+  >
+    <v-row class="fill-height">
       <v-col
         v-for="camera in cameras"
         :key="camera"
         style="padding: 0px; margin:0px;"
+        class="fill-height"
       >
         <component
           :is="datasetType === 'image-sequence' ? 'image-annotator' : 'video-annotator'"
           v-if="(imageData[camera].length || videoUrl[camera]) && progress.loaded"
           ref="subPlaybackComponent"
+          class="fill-height"
           v-bind="{
             imageData: imageData[camera], videoUrl: videoUrl[camera],
             updateTime, frameRate, originalFps, loadImageFunc, camera }"
         >
           <layer-manager
+            :style="{'min-height':`${controlHeight}px`}"
             :camera="camera"
           />
         </component>
       </v-col>
     </v-row>
-    <slot
+    <span
       ref="control"
-      name="control"
-      @resize="onResize"
-    />
-  </span>
+    >
+      <slot
+        name="control"
+        @resize="onResize"
+      />
+    </span>
+  </v-col>
 </template>
 
 <style lang="scss" scoped>

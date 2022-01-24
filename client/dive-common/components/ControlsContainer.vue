@@ -75,7 +75,7 @@ export default defineComponent({
 </script>
 
 <template>
-  <v-col style="position:absolute; bottom: 0px; padding: 0px; margin:0px;">
+  <v-col dense style="position:absolute; bottom: 0px; padding: 0px; margin:0px;">
     <Controls :media-controls="mediaControls">
       <template slot="timelineControls">
         <div style="min-width: 210px">
