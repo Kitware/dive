@@ -204,7 +204,7 @@ async function convertMedia(settings: Settings,
     startTime: new Date(),
   };
 
-  fs.writeFile(npath.join(jobWorkDir, DiveJobManifestName), JSON.stringify(jobBase));
+  fs.writeFile(npath.join(jobWorkDir, DiveJobManifestName), JSON.stringify(jobBase, null, 2));
 
   job.stdout.on('data', jobFileEchoMiddleware(jobBase, updater, joblog));
   job.stderr.on('data', jobFileEchoMiddleware(jobBase, updater, joblog));
