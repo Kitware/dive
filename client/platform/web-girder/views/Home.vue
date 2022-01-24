@@ -54,6 +54,7 @@ export default defineComponent({
     const loading = ref(false);
     const { prompt } = usePrompt();
     const store = useStore();
+    const { getters } = store;
 
     const clearSelected = () => {
       store.commit('Location/setSelected', []);
@@ -68,6 +69,7 @@ export default defineComponent({
       prompt,
       clearSelected,
       eventBus,
+      getters,
     };
   },
   // everything below needs to be refactored to composition-api
@@ -152,6 +154,7 @@ export default defineComponent({
                 <run-pipeline-menu
                   v-bind="{ buttonOptions, menuOptions }"
                   :selected-dataset-ids="locationInputs"
+                  :get-running-pipelines="getters['Jobs/datasetRunningState']"
                 />
                 <export
                   v-bind="{ buttonOptions, menuOptions }"

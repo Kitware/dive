@@ -80,6 +80,7 @@ export default defineComponent({
       window.removeEventListener('beforeunload', viewerRef.value.warnBrowserExit);
     });
 
+
     return {
       buttonOptions,
       brandData,
@@ -119,6 +120,7 @@ export default defineComponent({
       <RunPipelineMenu
         v-bind="{ buttonOptions, menuOptions }"
         :selected-dataset-ids="[id]"
+        :get-running-pipelines="getters['Jobs/datasetRunningState']"
       />
       <ImportAnnotations
         v-bind="{ buttonOptions, menuOptions }"
