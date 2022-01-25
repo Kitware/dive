@@ -33,6 +33,7 @@ class DatasetResource(Resource):
         self.route("GET", (":id", "media"), self.get_media)
         self.route("GET", ("export",), self.export)
         self.route("GET", (":id", "configuration"), self.get_configuration)
+        self.route("GET", (":id", "media", ":mediaId", "download"))
         self.route("POST", ("validate_files",), self.validate_files)
 
         self.route("PATCH", (":id",), self.patch_metadata)
@@ -82,6 +83,21 @@ class DatasetResource(Resource):
         return crud_dataset.createSoftClone(
             self.getCurrentUser(), cloneSource, parentFolder, name, revision
         )
+
+    @access.public(scope=TokenScope.DATA_READ, cookie=True)
+    @autoDescribeRoute(
+        Description("Share cloned dataset")
+        .modelParam(
+            "datasetId",
+            description="test",
+            paramType="query",
+        )
+        .modelParam(
+            "mediaId",
+            description="test",
+            paramType="query"
+        )
+    )
 
     @access.user
     @autoDescribeRoute(
