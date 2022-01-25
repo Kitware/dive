@@ -386,7 +386,7 @@ async function serialize(
             if (meta.type === 'image-sequence') {
               column2 = meta.originalImageFiles[feature.frame];
             } else if (meta.type === 'video') {
-              column2 = moment.utc(feature.frame / meta.fps).format('H:M:S.SSS');
+              column2 = moment.utc((feature.frame / meta.fps) * 1000).format('HH:mm:ss.SSSSSS');
             }
 
             const row = [

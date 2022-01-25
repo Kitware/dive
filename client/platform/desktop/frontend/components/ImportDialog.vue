@@ -182,9 +182,11 @@ export default defineComponent({
             :value="argCopy.trackFileAbsPath"
             outlined
             clearable
+            dense
             prepend-inner-icon="mdi-file-table"
             label="Annotation File (Optional)"
-            hint="Optional"
+            hint="Optional. Load existing annotations. Supports DIVE JSON and VIAME CSV"
+            persistent-hint
             @click="openUpload('annotation')"
             @click:prepend-inner="openUpload('annotation')"
             @click:clear="argCopy.trackFileAbsPath=''"
@@ -220,9 +222,11 @@ export default defineComponent({
           :value="argCopy.metaFileAbsPath"
           outlined
           clearable
+          dense
           prepend-inner-icon="mdi-file-table"
           label="Configuration File (Optional)"
-          hint="Optional"
+          hint="Optional. Supports DIVE JSON configuration file."
+          persistent-hint
           @click="openUpload('meta')"
           @click:prepend-inner="openUpload('meta')"
           @click:clear="argCopy.metaFileAbsPath=''"
