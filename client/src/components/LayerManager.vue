@@ -31,6 +31,7 @@ import {
   useSelectedKey,
   useStateStyles,
   useMergeList,
+  useCamTrackMap,
 } from '../provides';
 
 /** LayerManager is a component intended to be used as a child of an Annotator.
@@ -52,7 +53,11 @@ export default defineComponent({
   setup(props) {
     const handler = useHandler();
     const intervalTree = useIntervalTree();
-    const trackMap = useTrackMap();
+    const camTrackMap = useCamTrackMap();
+    let trackMap = useTrackMap();
+    if (props.camera !== 'default' && camTrackMap[props.camera] !== undefined) {
+      trackMap = camTrackMap[props.camera];
+    }
     const enabledTracksRef = useEnabledTracks();
     const selectedTrackIdRef = useSelectedTrackId();
     const mergeListRef = useMergeList();
@@ -137,7 +142,8 @@ export default defineComponent({
         (trackId: TrackId) => {
           const track = trackMap.get(trackId);
           if (track === undefined) {
-            throw new Error(`TrackID ${trackId} not found in map`);
+            return; //Skip error
+            //throw new Error(`TrackID ${trackId} not found in map`);
           }
           const enabledIndex = enabledTracks.findIndex(
             (trackWithContext) => trackWithContext.track.trackId === trackId,

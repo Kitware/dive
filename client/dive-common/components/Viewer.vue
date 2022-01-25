@@ -143,10 +143,12 @@ export default defineComponent({
 
     const {
       trackMap,
+      camTrackMap,
       sortedTracks,
       intervalTree,
       addTrack,
       insertTrack,
+      addCamera,
       removeTrack,
       getNewTrackId,
       removeTrack: tsRemoveTrack,
@@ -339,29 +341,46 @@ export default defineComponent({
           frameRate: meta.fps,
           originalFps: meta.originalFps || null,
         });
-        imageData.value[currentCamera.value] = cloneDeep(meta.imageData) as FrameImage[];
-        videoUrl.value[currentCamera.value] = meta.videoUrl || null;
-        datasetType.value = meta.type as DatasetType;
-        const trackData = await loadDetections(datasetId.value);
-        const tracks = Object.values(trackData);
-        progress.total = tracks.length;
-        for (let i = 0; i < tracks.length; i += 1) {
-          if (i % 4000 === 0) {
-          /* Every N tracks, yeild some cycles for other scheduled tasks */
-            progress.progress = i;
-            // eslint-disable-next-line no-await-in-loop
-            await new Promise((resolve) => window.setTimeout(resolve, 500));
-          }
-          insertTrack(Track.fromJSON(tracks[i]), { imported: true });
-        }
         // Load non-Default Cameras if they exist:
         const filteredMultiCamList = multiCamList.value.filter((item) => item !== 'default');
-        for (let i = 0; i < filteredMultiCamList.length; i += 1) {
-          const camera = filteredMultiCamList[i];
-          // eslint-disable-next-line no-await-in-loop
-          const subCameraMeta = await loadMetadata(`${baseMulticamDatasetId.value}/${camera}`);
-          imageData.value[camera] = cloneDeep(subCameraMeta.imageData) as FrameImage[];
-          videoUrl.value[camera] = subCameraMeta.videoUrl || null;
+        if (filteredMultiCamList.length === 0) {
+          imageData.value[currentCamera.value] = cloneDeep(meta.imageData) as FrameImage[];
+          videoUrl.value[currentCamera.value] = meta.videoUrl || null;
+          datasetType.value = meta.type as DatasetType;
+          const trackData = await loadDetections(datasetId.value);
+          const tracks = Object.values(trackData);
+          progress.total = tracks.length;
+          for (let i = 0; i < tracks.length; i += 1) {
+            if (i % 4000 === 0) {
+              /* Every N tracks, yeild some cycles for other scheduled tasks */
+              progress.progress = i;
+              // eslint-disable-next-line no-await-in-loop
+              await new Promise((resolve) => window.setTimeout(resolve, 500));
+            }
+            insertTrack(Track.fromJSON(tracks[i]), { imported: true });
+          }
+        } else {
+          for (let i = 0; i < filteredMultiCamList.length; i += 1) {
+            const camera = filteredMultiCamList[i];
+            // eslint-disable-next-line no-await-in-loop
+            const subCameraMeta = await loadMetadata(`${baseMulticamDatasetId.value}/${camera}`);
+            imageData.value[camera] = cloneDeep(subCameraMeta.imageData) as FrameImage[];
+            videoUrl.value[camera] = subCameraMeta.videoUrl || null;
+            addCamera(camera);
+            // eslint-disable-next-line no-await-in-loop
+            const camTrackData = await loadDetections(`${baseMulticamDatasetId.value}/${camera}`);
+            const camTracks = Object.values(camTrackData);
+            progress.total = camTracks.length;
+            for (let j = 0; j < camTracks.length; j += 1) {
+              if (j % 4000 === 0) {
+              /* Every N tracks, yeild some cycles for other scheduled tasks */
+                progress.progress = j;
+                // eslint-disable-next-line no-await-in-loop
+                await new Promise((resolve) => window.setTimeout(resolve, 500));
+              }
+              insertTrack(Track.fromJSON(camTracks[j]), { imported: true, cameraName: camera });
+            }
+          }
         }
 
         progress.loaded = true;
@@ -425,6 +444,7 @@ export default defineComponent({
         mergeList,
         pendingSaveCount,
         trackMap,
+        camTrackMap,
         filteredTracks,
         typeStyling,
         selectedKey,

@@ -56,6 +56,9 @@ type IntervalTreeType = Readonly<IntervalTree>;
 const TrackMapSymbol = Symbol('trackMap');
 type TrackMapType = Readonly<Map<TrackId, Track>>;
 
+const CamTrackMapSymbol = Symbol('camTrackMap');
+type CamTrackMapType = Readonly<Record<string, Map<TrackId, Track>>>;
+
 const TracksSymbol = Symbol('tracks');
 type FilteredTracksType = Readonly<Ref<readonly TrackWithContext[]>>;
 
@@ -214,6 +217,7 @@ export interface State {
   mergeList: MergeList;
   pendingSaveCount: pendingSaveCountType;
   trackMap: TrackMapType;
+  camTrackMap: CamTrackMapType;
   typeStyling: TypeStylingType;
   selectedKey: SelectedKeyType;
   selectedTrackId: SelectedTrackIdType;
@@ -250,6 +254,7 @@ function dummyState(): State {
     mergeList: ref([]),
     pendingSaveCount: ref(0),
     trackMap: new Map<TrackId, Track>(),
+    camTrackMap: { default: new Map<TrackId, Track>() },
     typeStyling: ref({
       color() { return style.color; },
       strokeWidth() { return style.strokeWidth; },
@@ -298,6 +303,7 @@ function provideAnnotator(state: State, handler: Handler) {
   provide(MergeListSymbol, state.mergeList);
   provide(PendingSaveCountSymbol, state.pendingSaveCount);
   provide(TrackMapSymbol, state.trackMap);
+  provide(CamTrackMapSymbol, state.camTrackMap);
   provide(TracksSymbol, state.filteredTracks);
   provide(TypeStylingSymbol, state.typeStyling);
   provide(SelectedKeySymbol, state.selectedKey);
@@ -373,6 +379,9 @@ function usePendingSaveCount() {
 function useTrackMap() {
   return use<TrackMapType>(TrackMapSymbol);
 }
+function useCamTrackMap() {
+  return use<CamTrackMapType>(CamTrackMapSymbol);
+}
 
 function useFilteredTracks() {
   return use<FilteredTracksType>(TracksSymbol);
@@ -421,6 +430,7 @@ export {
   useMergeList,
   usePendingSaveCount,
   useTrackMap,
+  useCamTrackMap,
   useFilteredTracks,
   useTypeStyling,
   useSelectedKey,
