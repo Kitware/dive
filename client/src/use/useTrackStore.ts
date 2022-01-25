@@ -59,7 +59,7 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
   const canary = ref(0);
 
   // Multi-Camera Support
-  const camTrackMap: Record<string, Map<TrackId, Track>> = { base: new Map<TrackId, Track>() };
+  const camTrackMap: Record<string, Map<TrackId, Track>> = { default: new Map<TrackId, Track>() };
   // internval Tree should be the same because all overlapping tracks have the same Id and length
 
   function _depend(): number {
@@ -86,6 +86,12 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
     markChangesPending({ action: 'upsert', track });
   }
 
+  function addCamera(cameraName: string) {
+    if (camTrackMap[cameraName] === undefined) {
+      camTrackMap[cameraName] = new Map<TrackId, Track>();
+    }
+  }
+
   function insertTrack(track: Track, args?: InsertArgs) {
     track.setNotifier(onChange);
     if (args?.cameraName !== undefined) {
@@ -93,15 +99,14 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
         camTrackMap[args.cameraName] = new Map<TrackId, Track>();
       }
       camTrackMap[args.cameraName].set(track.trackId, track);
-    } else {
-      trackMap.set(track.trackId, track);
     }
+    trackMap.set(track.trackId, track);
     intervalTree.insert([track.begin, track.end], track.trackId.toString());
     if (args && args.afterId) {
       /* Insert specifically after another trackId */
       const insertIndex = trackIds.value.indexOf(args.afterId) + 1;
       trackIds.value.splice(insertIndex, 0, track.trackId);
-    } else {
+    } else if (trackIds.value.indexOf(track.trackId) === -1) {
       trackIds.value.push(track.trackId);
     }
     if (!args?.imported) {
@@ -172,9 +177,11 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
 
   return {
     trackMap,
+    camTrackMap,
     sortedTracks,
     intervalTree,
     addTrack,
+    addCamera,
     insertTrack,
     getNewTrackId,
     removeTrack,
