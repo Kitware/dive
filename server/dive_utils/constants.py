@@ -29,6 +29,7 @@ csvRegex = re.compile(r"\.csv$", re.IGNORECASE)
 jsonRegex = re.compile(r"\.json$", re.IGNORECASE)
 ymlRegex = re.compile(r"\.ya?ml$", re.IGNORECASE)
 zipRegex = re.compile(r"\.zip$", re.IGNORECASE)
+metaRegex = re.compile(r"^.*\.?(meta|config)\.json$", re.IGNORECASE)
 
 ImageMimeTypes = {
     "image/png",
@@ -64,9 +65,9 @@ VideoMimeTypes = {
 
 # Metadata markers
 DatasetMarker = "annotate"
-DetectionMarker = "detection"
 PublishedMarker = "published"
 SharedMarker = "shared"
+ProcessedMarker = "processed"
 ForeignMediaIdMarker = "foreign_media_id"
 TrainedPipelineMarker = "trained_pipeline"
 TypeMarker = "type"
@@ -93,13 +94,10 @@ AuxiliaryFolderName = "auxiliary"
 MetaFileName = "meta.json"
 
 # job constants
-JOBCONST_DATASET_ID = 'datset_id'
-JOBCONST_TRAINING_INPUT_IDS = 'training_input_ids'
-JOBCONST_TRAINING_CONFIG = 'training_config'
-JOBCONST_LABEL_TEXT = 'label_text'
-JOBCONST_RESULTS_FOLDER_ID = 'results_folder_id'
-JOBCONST_PIPELINE_NAME = 'pipeline_name'
+JOBCONST_DATASET_ID = 'dataset_id'
+JOBCONST_PARAMS = 'params'
 JOBCONST_PRIVATE_QUEUE = 'private_queue'
+JOBCONST_CREATOR = 'creator'
 
 # User queue constants
 UserPrivateQueueEnabledMarker = 'user_private_queue_enabled'

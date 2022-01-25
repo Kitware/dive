@@ -16,12 +16,10 @@ from dive_utils.constants import (
     AssetstoreSourcePathMarker,
     DatasetMarker,
     DefaultVideoFPS,
-    DetectionMarker,
     FPSMarker,
     ImageSequenceType,
     TypeMarker,
     VideoType,
-    csvRegex,
     imageRegex,
     videoRegex,
 )
@@ -59,11 +57,9 @@ def process_assetstore_import(event, meta: dict):
         }
     )
 
-    if csvRegex.search(importPath):
-        # Update file metadata
-        item["meta"].update({DetectionMarker: str(item["folderId"])})
+    # TODO figure out what's going on here?
 
-    elif imageRegex.search(importPath):
+    if imageRegex.search(importPath):
         dataset_type = ImageSequenceType
 
     elif videoRegex.search(importPath):

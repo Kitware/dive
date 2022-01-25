@@ -7,6 +7,7 @@ import { useApi, TrainingConfigs } from 'dive-common/apispec';
 import JobLaunchDialog from 'dive-common/components/JobLaunchDialog.vue';
 import ImportButton from 'dive-common/components/ImportButton.vue';
 import { useRequest } from 'dive-common/use';
+import { simplifyTrainingName } from 'dive-common/constants';
 
 
 export default defineComponent({
@@ -98,7 +99,6 @@ export default defineComponent({
       labelText.value = '';
     };
 
-
     return {
       trainingConfigurations,
       selectedTrainingConfig,
@@ -112,6 +112,7 @@ export default defineComponent({
       runTrainingOnFolder,
       labelFile,
       clearLabelText,
+      simplifyTrainingName,
     };
   },
 });
@@ -192,11 +193,19 @@ export default defineComponent({
             <v-select
               v-model="selectedTrainingConfig"
               outlined
-              hide-details
               class="my-4"
               label="Configuration File"
               :items="trainingConfigurations.configs"
-            />
+              :hint="selectedTrainingConfig"
+              persistent-hint
+            >
+              <template v-slot:item="row">
+                {{ simplifyTrainingName(row.item) }}
+              </template>
+              <template v-slot:selection="{ item}">
+                {{ simplifyTrainingName(item) }}
+              </template>
+            </v-select>
             <v-file-input
               v-model="labelFile"
               icon="mdi-folder-open"

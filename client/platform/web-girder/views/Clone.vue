@@ -19,6 +19,10 @@ export default defineComponent({
       type: String as PropType<string | null>,
       default: null,
     },
+    revision: {
+      type: Number,
+      default: undefined,
+    },
     buttonOptions: {
       type: Object,
       default: () => ({}),
@@ -45,6 +49,9 @@ export default defineComponent({
       if (props.datasetId) {
         source.value = (await getDataset(props.datasetId)).data;
         newName.value = `Clone of ${source.value.name}`;
+        if (props.revision) {
+          newName.value = `${newName.value} revision ${props.revision}`;
+        }
         open.value = true;
       }
     }
@@ -55,7 +62,7 @@ export default defineComponent({
       }
     }
 
-    const { request: _cloneRequest, error: cloneError } = useRequest();
+    const { request: _cloneRequest, error: cloneError, loading: cloneLoading } = useRequest();
     const doClone = () => _cloneRequest(async () => {
       if (!props.datasetId) {
         throw new Error('no source dataset');
@@ -64,12 +71,14 @@ export default defineComponent({
         folderId: props.datasetId,
         name: newName.value,
         parentFolderId: location.value._id,
+        revision: props.revision,
       });
       root.$router.push({ name: 'viewer', params: { id: newDataset.data._id } });
     });
 
     return {
       cloneError,
+      cloneLoading,
       location,
       locationIsFolder,
       newName,
@@ -188,7 +197,8 @@ export default defineComponent({
           block
           color="primary"
           class="mt-4"
-          :disabled="!locationIsFolder"
+          :loading="cloneLoading"
+          :disabled="!locationIsFolder || cloneLoading"
           @click="doClone"
         >
           <span v-if="!locationIsFolder">

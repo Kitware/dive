@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 
-from dive_server.crud import PydanticModel
+from dive_server.crud import PydanticAccessControlModel
 
 
 class GCSObjectFinalizeNotification(BaseModel):
@@ -27,7 +27,7 @@ class GCSPushNotificationPayload(BaseModel):
     subscription: str
 
 
-class GCSNotificationRecord(PydanticModel):
+class GCSNotificationRecord(PydanticAccessControlModel):
     def initialize(self):
         return super().initialize("gcsnotification", GCSPushNotificationMessage)
 

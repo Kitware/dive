@@ -2,11 +2,11 @@ from typing import List, Optional
 
 from girder.api import access
 from girder.api.describe import Description, autoDescribeRoute
-from girder.api.rest import Resource, rawResponse, setResponseHeader
-from girder.constants import AccessType, TokenScope
+from girder.api.rest import Resource, rawResponse
+from girder.constants import AccessType, SortDir, TokenScope
 from girder.models.folder import Folder
 
-from dive_utils import constants, slugify
+from dive_utils import constants, setContentDisposition
 from dive_utils.models import MetadataMutable
 
 from . import crud_dataset
@@ -68,15 +68,25 @@ class DatasetResource(Resource):
             dataType="string",
             required=True,
         )
+        .param(
+            "revision",
+            "Revision ID to use for clone source",
+            paramType="query",
+            dataType="integer",
+            default=None,
+            required=False,
+        )
     )
-    def create_dataset(self, cloneSource, parentFolder, name):
+    def create_dataset(self, cloneSource, parentFolder, name, revision):
         # TODO: make this endpoint do regular creation and clone
-        return crud_dataset.createSoftClone(self.getCurrentUser(), cloneSource, parentFolder, name)
+        return crud_dataset.createSoftClone(
+            self.getCurrentUser(), cloneSource, parentFolder, name, revision
+        )
 
     @access.user
     @autoDescribeRoute(
         Description("List datasets in the system")
-        .pagingParams("created")
+        .pagingParams("created", defaultSortDir=SortDir.DESCENDING)
         .param(
             constants.PublishedMarker,
             'Return only published datasets',
@@ -126,9 +136,7 @@ class DatasetResource(Resource):
         )
     )
     def get_configuration(self, folder):
-        setResponseHeader('Content-Type', 'application/json')
-        filename = slugify(f'{folder["name"]}.config.json')
-        setResponseHeader('Content-Disposition', f'attachment; filename="{filename}"')
+        setContentDisposition(f'{folder["name"]}.config.json')
         # A dataset configuration consists of MetadataMutable properties.
         expose = MetadataMutable.schema()['properties'].keys()
         return crud_dataset.get_dataset(folder, self.getCurrentUser()).json(
@@ -196,9 +204,7 @@ class DatasetResource(Resource):
             excludeBelowThreshold=excludeBelowThreshold,
             typeFilter=typeFilter,
         )
-        filename = slugify(f'{folder["name"]}.zip')
-        setResponseHeader('Content-Type', 'application/zip')
-        setResponseHeader('Content-Disposition', f'attachment; filename="{filename}"')
+        setContentDisposition(f'{folder["name"]}.zip', mime='application/zip')
         return gen
 
     @access.user

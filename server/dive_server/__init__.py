@@ -7,24 +7,25 @@ from girder.models.setting import Setting
 from girder.models.user import User
 from girder.utility import mail_utils
 from girder.utility.model_importer import ModelImporter
+from girder_jobs.models.job import Job
 
-from dive_utils.constants import UserPrivateQueueEnabledMarker
+from dive_utils import constants
 
 from .client_webroot import ClientWebroot
+from .crud_annotation import AnnotationItem, RevisionLogItem
 from .event import process_fs_import, process_s3_import, send_new_user_email
 from .views_annotation import AnnotationResource
 from .views_configuration import ConfigurationResource
 from .views_dataset import DatasetResource
 from .views_override import use_private_queue
 from .views_rpc import RpcResource
-from .views_summary import SummaryItem, SummaryResource
 
 
 class GirderPlugin(plugin.GirderPlugin):
     def load(self, info):
-        ModelImporter.registerModel('summaryItem', SummaryItem, plugin='dive_server')
+        ModelImporter.registerModel('annotationItem', AnnotationItem, plugin='dive_server')
+        ModelImporter.registerModel('revisionLogItem', RevisionLogItem, plugin='dive_server')
 
-        info["apiRoot"].dive_summary = SummaryResource("dive_summary")
         info["apiRoot"].dive_annotation = AnnotationResource("dive_annotation")
         info["apiRoot"].dive_configuration = ConfigurationResource("dive_configuration")
         info["apiRoot"].dive_dataset = DatasetResource("dive_dataset")
@@ -32,7 +33,10 @@ class GirderPlugin(plugin.GirderPlugin):
 
         # Setup route additions for exsting resources
         info["apiRoot"].user.route("PUT", (":id", "use_private_queue"), use_private_queue)
-        User().exposeFields(AccessType.READ, UserPrivateQueueEnabledMarker)
+        User().exposeFields(AccessType.READ, constants.UserPrivateQueueEnabledMarker)
+
+        # Expose Job dataset assocation
+        Job().exposeFields(AccessType.READ, constants.JOBCONST_DATASET_ID)
 
         DIVE_MAIL_TEMPLATES = Path(os.path.realpath(__file__)).parent / 'mail_templates'
         mail_utils.addTemplateDirectory(str(DIVE_MAIL_TEMPLATES))

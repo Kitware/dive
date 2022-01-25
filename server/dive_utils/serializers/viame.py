@@ -12,7 +12,7 @@ from dive_utils.models import Feature, Track, interpolate
 
 
 def format_timestamp(fps: int, frame: int) -> str:
-    return str(datetime.datetime.utcfromtimestamp(frame / fps).strftime(r'%H:%M:%S.%f'))
+    return str(datetime.datetime.utcfromtimestamp(frame / fps).isoformat())
 
 
 def writeHeader(writer: 'csv._writer', metadata: Dict):  # type: ignore
@@ -274,7 +274,7 @@ def load_csv_as_tracks_and_attributes(rows: List[str]) -> Tuple[dict, dict]:
 
 
 def export_tracks_as_csv(
-    track_dict,
+    track_iterator,
     excludeBelowThreshold=False,
     thresholds=None,
     filenames=None,
@@ -309,8 +309,8 @@ def export_tracks_as_csv(
         if fps is not None:
             metadata["fps"] = fps
         writeHeader(writer, metadata)
-    track_values = track_dict.values()
-    for t in track_values:
+
+    for t in track_iterator:
         track = Track(**t)
         if (not excludeBelowThreshold) or track.exceeds_thresholds(thresholds):
 
@@ -392,5 +392,4 @@ def export_tracks_as_csv(
                     yield csvFile.getvalue()
                     csvFile.seek(0)
                     csvFile.truncate(0)
-    if len(track_values) == 0:
-        yield csvFile.getvalue()
+    yield csvFile.getvalue()

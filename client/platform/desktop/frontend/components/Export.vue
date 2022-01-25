@@ -5,7 +5,7 @@ import {
 
 import { usePendingSaveCount, useHandler, useCheckedTypes } from 'vue-media-annotator/provides';
 import AutosavePrompt from 'dive-common/components/AutosavePrompt.vue';
-import { loadMetadata, exportDataset } from 'platform/desktop/frontend/api';
+import { loadMetadata, exportDataset, exportConfiguration } from 'platform/desktop/frontend/api';
 import type { JsonMeta } from 'platform/desktop/constants';
 
 export default defineComponent({
@@ -54,7 +54,7 @@ export default defineComponent({
         ? Object.keys(data.meta.confidenceFilters || {})
         : []));
 
-    async function doExport({ forceSave = false }) {
+    async function doExport({ type, forceSave = false }: { type: 'dataset' | 'configuration'; forceSave: boolean}) {
       if (pendingSaveCount.value > 0 && forceSave) {
         await save();
         savePrompt.value = false;
@@ -63,9 +63,13 @@ export default defineComponent({
         return;
       }
       try {
-        const typeFilter = data.excludeUncheckedTypes ? checkedTypes.value : [];
-        data.err = null;
-        data.outPath = await exportDataset(props.id, data.excludeBelowThreshold, typeFilter);
+        if (type === 'dataset') {
+          const typeFilter = data.excludeUncheckedTypes ? checkedTypes.value : [];
+          data.err = null;
+          data.outPath = await exportDataset(props.id, data.excludeBelowThreshold, typeFilter);
+        } else if (type === 'configuration') {
+          data.outPath = await exportConfiguration(props.id);
+        }
       } catch (err) {
         data.err = err;
         throw err;
@@ -155,7 +159,7 @@ export default defineComponent({
           </v-dialog>
           <AutosavePrompt
             v-model="savePrompt"
-            @save="doExport({ forceSave: true })"
+            @save="doExport({type: 'dataset', forceSave: true })"
           />
           <v-alert
             v-if="data.outPath"
@@ -204,9 +208,23 @@ export default defineComponent({
           <v-btn
             depressed
             block
-            @click="doExport"
+            @click="doExport({type:'dataset'})"
           >
             <span>export detections</span>
+          </v-btn>
+        </v-card-actions>
+        <v-card-text class="pb-0">
+          Export the dataset configuration, including
+          attribute definitions, types, styles, and thresholds.
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn
+            depressed
+            block
+            @click="doExport({type:'configuration'})"
+          >
+            Configuration
           </v-btn>
         </v-card-actions>
       </v-card>

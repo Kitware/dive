@@ -23,11 +23,12 @@ import {
 import * as viameSerializers from 'platform/desktop/backend/serializers/viame';
 import * as nistSerializers from 'platform/desktop/backend/serializers/nist';
 import {
-  websafeImageTypes, websafeVideoTypes, otherImageTypes, otherVideoTypes, MultiType,
+  websafeImageTypes, websafeVideoTypes, otherImageTypes, otherVideoTypes, MultiType, JsonMetaRegEx,
 } from 'dive-common/constants';
 import {
   JsonMeta, Settings, JsonMetaCurrentVersion, DesktopMetadata, DesktopJobUpdater,
-  ConvertMedia, RunTraining, ExportDatasetArgs, DesktopMediaImportResponse, CheckMediaResults,
+  ConvertMedia, RunTraining, ExportDatasetArgs, DesktopMediaImportResponse,
+  CheckMediaResults, ExportConfigurationArgs,
 } from 'platform/desktop/constants';
 import {
   cleanString, filterByGlob, makeid, strNumericCompare,
@@ -163,11 +164,13 @@ async function _findCSVTrackFiles(searchPath: string) {
 /**
  * locate json track file in a directory
  * @param path path to a directory
- * @returns absolute path to json file or empty string
+ * @returns object containing trackAbsPath and metaPath if it exists
  */
-async function _findJsonTrackFile(basePath: string): Promise<string> {
+async function _findJsonAndMetaTrackFile(basePath: string): Promise<
+  {trackFileAbsPath: string; metaFileAbsPath?: string}> {
   const contents = await fs.readdir(basePath);
   const jsonFileCandidates: string[] = [];
+  let metaFileAbsPath: undefined | string;
   await Promise.all(contents.map(async (name) => {
     const fullPath = npath.join(basePath, name);
     if (JsonTrackFileName.test(name)) {
@@ -175,12 +178,14 @@ async function _findJsonTrackFile(basePath: string): Promise<string> {
       if (statResult.isFile()) {
         jsonFileCandidates.push(fullPath);
       }
+    } else if (JsonMetaRegEx.test(name)) {
+      metaFileAbsPath = fullPath;
     }
   }));
   if (jsonFileCandidates.length > 0) {
-    return jsonFileCandidates[0];
+    return { trackFileAbsPath: jsonFileCandidates[0], metaFileAbsPath };
   }
-  return '';
+  return { trackFileAbsPath: '', metaFileAbsPath };
 }
 
 /**
@@ -210,7 +215,7 @@ async function getValidatedProjectDir(settings: Settings, datasetId: string) {
   if (!fs.pathExistsSync(projectInfo.metaFileAbsPath)) {
     throw new Error(`missing metadata json file ${projectInfo.metaFileAbsPath}`);
   }
-  const trackFileAbsPath = await _findJsonTrackFile(projectInfo.basePath);
+  const { trackFileAbsPath } = await _findJsonAndMetaTrackFile(projectInfo.basePath);
   if (trackFileAbsPath === '') {
     throw new Error(`missing track json file in ${projectInfo.basePath}`);
   }
@@ -423,8 +428,9 @@ async function getPipelineList(settings: Settings): Promise<Pipelines> {
  */
 async function getTrainingConfigs(settings: Settings): Promise<TrainingConfigs> {
   const pipelinePath = npath.join(settings.viamePath, 'configs/pipelines');
+  const defaultTrainingConfiguration = 'train_detector_default.viame_csv.conf';
   const allowedPatterns = /\.viame_csv\.conf$/;
-  const disallowedPatterns = /.*_nf\.viame_csv\.conf$/;
+  const disallowedPatterns = /.*(_nf|\.continue)\.viame_csv\.conf$/;
   const exists = await fs.pathExists(pipelinePath);
   if (!exists) {
     throw new Error('Path does not exist');
@@ -432,7 +438,7 @@ async function getTrainingConfigs(settings: Settings): Promise<TrainingConfigs> 
   let configs = await fs.readdir(pipelinePath);
   configs = configs
     .filter((p) => (p.match(allowedPatterns) && !p.match(disallowedPatterns)))
-    .sort((a, b) => a.localeCompare(b));
+    .sort((a, b) => (a === defaultTrainingConfiguration ? -1 : a.localeCompare(b)));
   return {
     default: configs[0],
     configs,
@@ -729,16 +735,19 @@ async function checkDataset(
 }
 
 
-async function findTrackFileinFolder(path: string) {
-  let trackFileAbsPath = await _findJsonTrackFile(path);
+async function findTrackandMetaFileinFolder(path: string) {
+  const results = await _findJsonAndMetaTrackFile(path);
+  let { trackFileAbsPath } = results;
+  const { metaFileAbsPath } = results;
   if (!trackFileAbsPath) {
     const csvFileCandidates = await _findCSVTrackFiles(path);
     if (csvFileCandidates.length) {
       [trackFileAbsPath] = csvFileCandidates;
     }
   }
-  return trackFileAbsPath;
+  return { trackFileAbsPath, metaFileAbsPath };
 }
+
 /**
  * Begin a dataset import.
  */
@@ -844,7 +853,8 @@ async function beginMediaImport(
     throw new Error('only video and image-sequence types are supported');
   }
 
-  const trackFileAbsPath = await findTrackFileinFolder(relatedDataSearchPath);
+  const { trackFileAbsPath, metaFileAbsPath } = await
+  findTrackandMetaFileinFolder(relatedDataSearchPath);
   return {
     jsonMeta,
     globPattern: '',
@@ -852,6 +862,7 @@ async function beginMediaImport(
     trackFileAbsPath,
     forceMediaTranscode: false,
     multiCamTrackFiles: null,
+    metaFileAbsPath,
   };
 }
 
@@ -996,6 +1007,9 @@ async function finalizeMediaImport(
   const finalJsonMeta = await _importTrackFile(
     settings, jsonMeta.id, projectDirAbsPath, jsonMeta, args.trackFileAbsPath,
   );
+  if (args.metaFileAbsPath) {
+    await dataFileImport(settings, jsonMeta.id, args.metaFileAbsPath);
+  }
   return finalJsonMeta;
 }
 
@@ -1027,6 +1041,18 @@ async function exportDataset(settings: Settings, args: ExportDatasetArgs) {
   });
 }
 
+async function exportConfiguration(settings: Settings, args: ExportConfigurationArgs) {
+  const projectDirInfo = await getValidatedProjectDir(settings, args.id);
+  const meta = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
+  const output: DatasetMetaMutable & { version: number} = { version: meta.version };
+  if (DatasetMetaMutableKeys.some((key) => key in meta)) {
+    // DIVE Json metadata config file
+    merge(output, pick(meta, DatasetMetaMutableKeys));
+  }
+  await fs.writeJSON(args.path, output);
+  return args.path;
+}
+
 export {
   ProjectsFolderName,
   JobsFolderName,
@@ -1036,6 +1062,7 @@ export {
   deleteDataset,
   checkDataset,
   createKwiverRunWorkingDir,
+  exportConfiguration,
   exportDataset,
   finalizeMediaImport,
   getPipelineList,
@@ -1054,5 +1081,5 @@ export {
   processTrainedPipeline,
   saveAttributes,
   findImagesInFolder,
-  findTrackFileinFolder,
+  findTrackandMetaFileinFolder,
 };

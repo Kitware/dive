@@ -6,6 +6,7 @@ import { RootState } from './types';
 import Location from './Location';
 import Dataset from './Dataset';
 import Brand from './Brand';
+import Jobs, { init as JobsInit } from './Jobs';
 
 Vue.use(Vuex);
 
@@ -14,6 +15,7 @@ const store = new Vuex.Store<RootState>({
     Brand,
     Location,
     Dataset,
+    Jobs,
   },
 });
 
@@ -24,5 +26,7 @@ router.beforeEach((to, from, next) => {
   }
   next();
 });
+
+JobsInit(store);
 
 export default store;

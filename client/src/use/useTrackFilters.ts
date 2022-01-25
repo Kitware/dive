@@ -69,7 +69,7 @@ export default function useFilteredTracks(
       const confidencePairIndex = track.confidencePairs
         .findIndex(([confkey, confval]) => {
           const confidenceThresh = Math.max(
-            confidenceFiltersVal[confkey] || DefaultConfidence,
+            confidenceFiltersVal[confkey] || 0,
             confidenceFiltersVal.default,
           );
           return confval >= confidenceThresh && checkedSet.has(confkey);
