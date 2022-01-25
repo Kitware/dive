@@ -170,7 +170,7 @@ async function runPipeline(
     startTime: new Date(),
   };
 
-  fs.writeFile(npath.join(jobWorkDir, DiveJobManifestName), JSON.stringify(jobBase));
+  fs.writeFile(npath.join(jobWorkDir, DiveJobManifestName), JSON.stringify(jobBase, null, 2));
 
   updater({
     ...jobBase,
@@ -316,7 +316,7 @@ async function train(
     startTime: new Date(),
   };
 
-  fs.writeFile(npath.join(jobWorkDir, DiveJobManifestName), JSON.stringify(jobBase));
+  fs.writeFile(npath.join(jobWorkDir, DiveJobManifestName), JSON.stringify(jobBase, null, 2));
 
   updater({
     ...jobBase,
