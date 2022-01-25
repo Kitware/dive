@@ -9,11 +9,55 @@ import { serialize } from 'platform/desktop/backend/serializers/viame';
 const data: MultiTrackRecord = {
   1: {
     begin: 0,
-    end: 0,
+    end: 5,
     trackId: 1,
     features: [
       {
         frame: 0,
+        bounds: [
+          670,
+          183,
+          968,
+          433,
+        ],
+        interpolate: false,
+        keyframe: true,
+      },
+      {
+        frame: 1,
+        bounds: [
+          670,
+          183,
+          968,
+          433,
+        ],
+        interpolate: false,
+        keyframe: true,
+      },
+      {
+        frame: 2,
+        bounds: [
+          670,
+          183,
+          968,
+          433,
+        ],
+        interpolate: false,
+        keyframe: true,
+      },
+      {
+        frame: 3,
+        bounds: [
+          670,
+          183,
+          968,
+          433,
+        ],
+        interpolate: false,
+        keyframe: true,
+      },
+      {
+        frame: 4,
         bounds: [
           670,
           183,
@@ -55,10 +99,10 @@ const data: MultiTrackRecord = {
 const meta = {
   version: 1,
   id: 'projectid1',
-  type: 'image-sequence',
+  type: 'video',
   name: 'project1',
   createdAt: 'now',
-  originalFps: 1,
+  originalFps: 5,
   originalVideoFile: '',
   transcodedVideoFile: '',
   transcodedImageFiles: [],
@@ -83,7 +127,7 @@ mockfs({
 });
 
 // Returns first confidence pairs output of CSV that isn't a comment
-function checkoutput(output: string[]) {
+function checkConfidenceOutput(output: string[]) {
   for (let i = 0; i < output.length; i += 1) {
     const line = output[i];
     if (line[0] !== '#' && line.length > 0) {
@@ -92,6 +136,18 @@ function checkoutput(output: string[]) {
     }
   }
   return [];
+}
+
+function getCSVTiming(output: string[]) {
+  const timings = [];
+  for (let i = 0; i < output.length; i += 1) {
+    const line = output[i];
+    if (line[0] !== '#' && line.length > 0) {
+      const split = line.split(',');
+      timings.push(split.slice(1, 2).toString());
+    }
+  }
+  return timings;
 }
 describe('VIAME serialize testing', () => {
   it('testing exporting with viame CSV and proper order', async () => {
@@ -105,7 +161,8 @@ describe('VIAME serialize testing', () => {
     await serialize(stream, data, meta, typeFilter, options);
     const output = fs.readFileSync(path).toString().split('\n');
     const expectedOutput = ['first_type', '0.9', 'second_type', '0.7', 'third_type', '0.6', 'fourth_type', '0.5', 'fifth_type', '0.3'];
-    expect(checkoutput(output)).toEqual(expectedOutput);
+    expect(checkConfidenceOutput(output)).toEqual(expectedOutput);
+    expect(getCSVTiming(output)).toEqual(['00:00:00.000000', '00:00:00.200000', '00:00:00.400000', '00:00:00.600000', '00:00:00.800000']);
   });
   it('testing exporting with viame CSV with type filter', async () => {
     const path = '/home/test.json';
@@ -121,7 +178,7 @@ describe('VIAME serialize testing', () => {
     await serialize(stream, data, meta, typeFilter, options);
     const output = fs.readFileSync(path).toString().split('\n');
     const expectedOutput = ['first_type', '0.9', 'third_type', '0.6', 'fifth_type', '0.3'];
-    expect(checkoutput(output)).toEqual(expectedOutput);
+    expect(checkConfidenceOutput(output)).toEqual(expectedOutput);
   });
   it('testing exporting with viame CSV with excluded confidence', async () => {
     const path = '/home/test.json';
@@ -134,7 +191,7 @@ describe('VIAME serialize testing', () => {
     await serialize(stream, data, meta, typeFilter, options);
     const output = fs.readFileSync(path).toString().split('\n');
     const expectedOutput = ['first_type', '0.9', 'second_type', '0.7'];
-    expect(checkoutput(output)).toEqual(expectedOutput);
+    expect(checkConfidenceOutput(output)).toEqual(expectedOutput);
   });
 });
 
