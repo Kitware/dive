@@ -52,7 +52,8 @@ nano .env
 docker-compose pull
 
 # Bring the services up
-docker-compose up -d
+# Make sure to specify docker-compose.yml unless you intend to mount code for development
+docker-compose -f docker-compose.yml up -d
 ```
 
 VIAME server will be running at [http://localhost:8010](http://localhost:8010/). You should see a page that looks like this. The default username and password is `admin:letmein`.

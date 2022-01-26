@@ -103,7 +103,7 @@ These are all the variables that can be provided with `--extra-vars` along with 
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| run_server | `no` | Set `run_server=yes` for scenario 1 (Web Instance) |
+| run_server | `no` | Set `run_server=yes` for scenario 1 (Web Instance) (Fastest option) |
 | run_viame_cli | `no` | Set `run_viame_cli=yes` for scenario 2 (VIAME CLI) |
 | run_worker_container | `no` | Set `run_worker_container=yes` for scenario 3 (Standalone Worker) |
 | viame_bundle_url | latest bundle url | Optional for scenario 2 & 3.  Change to install a different version of VIAME.  This should be a link to the latest Ubuntu Desktop (18/20) binaries from viame.kitware.com (Mirror 1) |
@@ -138,9 +138,14 @@ Once provisioning is complete, jobs should begin processing from the job queue. 
 !!! tip
     This ansible playbook is runnable from any Ubuntu 18.04+ host to any Ubuntu 18.04+ target.  To run it locally, use the `inventory.local` file instead.  If you already have nvidia or docker installed, you can comment out these lines in the playbook.
 
+    **If you run locally** you'll need to restart the machine and run the playbook a second time.  The playbook will do this automatically for remote provisioning, but cannot restart if you're provisioning localhost.
+
     ```bash
     ansible-playbook --ask-become-pass -i inventory ansible/playbook.yml --extra-vars "<see above>"
     ```
+
+!!! tip
+    You may need to run through the [docker post-install guide](https://docs.docker.com/engine/install/linux-postinstall/) if you have permissions errors when trying to run `docker`.
 
 ### Check that it worked
 
@@ -149,7 +154,7 @@ Once provisioning is complete, jobs should begin processing from the job queue. 
 ssh -i ~/.ssh/gcloud_key viame@ip-address
 
 # Test nvidia docker installation
-docker run --gpus=all --rm nvidia/cuda nvidia-smi
+docker run --gpus=all --rm nvidia/cuda:11.0-base nvidia-smi
 
 # Test regular nvidia runtime
 nvidia-smi
@@ -176,3 +181,4 @@ You can [enable your private queue on the jobs page](https://viame.kitware.com/#
 
 * Ansible provisioning is idempotent.  If it fails, run it again once or twice.
 * You may need to change the global `GPUS_ALL_REGIONS` quota in [IAM -> Quotas](https://stackoverflow.com/questions/53415180/gcp-error-quota-gpus-all-regions-exceeded-limit-0-0-globally)
+* Nvidia drivers may not install correctly the first time.  [Try installing manually using `ubuntu-drivers`](https://phoenixnap.com/kb/install-nvidia-drivers-ubuntu)
