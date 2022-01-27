@@ -190,6 +190,9 @@ def upload_zipped_flat_media_files(
         gc.sendRestRequest("POST", f"/dive_rpc/postprocess/{str(root_folderId)}")
     else:
         manager.write(f"Message: {validation['message']}\n")
+        manager.write(
+            "Please check the documentation for Zip files at: https://kitware.github.io/dive/Web-Version/#zip-files\n"
+        )
         raise Exception("Could not Validate media Files")
 
 
@@ -217,12 +220,12 @@ def upload_exported_zipped_dataset(
         imageData = meta['imageData']
         for image in imageData:
             if image["filename"] not in listOfFileNames:
-                manager.write("Could not find {item['filename']} file within the list of files\n")
+                manager.write(f"Could not find {image['filename']} file within the list of files\n")
                 return
     elif type == constants.VideoType:
         video = meta["video"]
         if video["filename"] not in listOfFileNames:
-            manager.write("Could not find {item['filename']} file within the list of files\n")
+            manager.write(f"Could not find {video['filename']} file within the list of files\n")
             return
     # remove the auxilary directory so we don't have to tag them all
     if constants.AuxiliaryFolderName in listOfFileNames and os.path.isdir(
