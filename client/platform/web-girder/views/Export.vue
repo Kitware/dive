@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  computed, defineComponent, ref, shallowRef, toRef, watch,
+  computed, defineComponent, ref, shallowRef, toRef, watch, PropType,
 } from '@vue/composition-api';
 import { usePendingSaveCount, useHandler, useCheckedTypes } from 'vue-media-annotator/provides';
 import AutosavePrompt from 'dive-common/components/AutosavePrompt.vue';
@@ -17,9 +17,9 @@ export default defineComponent({
   components: { AutosavePrompt },
 
   props: {
-    datasetId: {
-      type: String,
-      default: null,
+    datasetIds: {
+      type: Array as PropType<string[]>,
+      default: () => [],
     },
     blockOnUnsaved: {
       type: Boolean,
@@ -74,41 +74,76 @@ export default defineComponent({
     const excludeBelowThreshold = ref(true);
     const excludeUncheckedTypes = ref(false);
 
+    const singleDataSetId = computed(() => {
+      if (props.datasetIds.length === 1) {
+        return props.datasetIds[0];
+      }
+      return null;
+    });
     const dataset = shallowRef(null as GirderMetadataStatic | null);
     const datasetMedia = shallowRef(null as DatasetSourceMedia | null);
     const { request, error } = useRequest();
     const loadDatasetMeta = () => request(async () => {
-      if (menuOpen.value) {
-        dataset.value = (await getDataset(props.datasetId)).data;
+      if (menuOpen.value && singleDataSetId.value) {
+        dataset.value = (await getDataset(singleDataSetId.value)).data;
         if (dataset.value.type === 'video') {
-          datasetMedia.value = (await getDatasetMedia(props.datasetId)).data;
+          datasetMedia.value = (await getDatasetMedia(singleDataSetId.value)).data;
         }
       }
     });
-    watch([toRef(props, 'datasetId'), menuOpen], loadDatasetMeta);
+    watch([toRef(props, 'datasetIds'), menuOpen], loadDatasetMeta);
 
     const exportUrls = computed(() => {
       const params = {
         excludeBelowThreshold: excludeBelowThreshold.value,
         typeFilter: excludeUncheckedTypes.value ? JSON.stringify(checkedTypes.value) : undefined,
       };
+      if (singleDataSetId.value) {
+        return {
+          exportAllUrl: getUri({
+            url: `dive_dataset/${singleDataSetId.value}/export`,
+            params,
+          }),
+          exportMediaUrl: dataset.value?.type === 'video'
+            ? datasetMedia.value?.video?.url
+            : getUri({
+              url: `dive_dataset/${singleDataSetId.value}/export`,
+              params: { ...params, includeDetections: false, includeMedia: true },
+            }),
+          exportDetectionsUrl: getUri({
+            url: 'dive_annotation/export',
+            params: { ...params, folderId: singleDataSetId.value },
+          }),
+          exportConfigurationUrl: getUri({
+            url: `dive_dataset/${singleDataSetId.value}/configuration`,
+          }),
+        };
+      }
       return {
         exportAllUrl: getUri({
-          url: `dive_dataset/${props.datasetId}/export`,
-          params,
+          url: 'dive_dataset/batch_export',
+          params: { ...params, batchIds: props.datasetIds },
         }),
         exportMediaUrl: dataset.value?.type === 'video'
           ? datasetMedia.value?.video?.url
           : getUri({
-            url: `dive_dataset/${props.datasetId}/export`,
-            params: { ...params, includeDetections: false, includeMedia: true },
+            url: 'dive_dataset/batch_export',
+            params: {
+              ...params, includeDetections: false, includeMedia: true, batchIds: props.datasetIds,
+            },
           }),
         exportDetectionsUrl: getUri({
-          url: 'dive_annotation/export',
-          params: { ...params, folderId: props.datasetId },
+          url: 'dive_annotation/batch_export',
+          params: { ...params, folderId: singleDataSetId.value, batchIds: props.datasetIds },
         }),
         exportConfigurationUrl: getUri({
-          url: `dive_dataset/${props.datasetId}/configuration`,
+          url: 'dive_annotation/batch_export',
+          params: {
+            ...params,
+            folderId: singleDataSetId.value,
+            batchIds: props.datasetIds,
+            configurationsOnly: true,
+          },
         }),
       };
     });
@@ -153,7 +188,7 @@ export default defineComponent({
           <v-btn
             class="ma-0"
             v-bind="buttonOptions"
-            :disabled="!datasetId"
+            :disabled="!singleDataSetId"
             v-on="{ ...tooltipOn, ...menuOn }"
           >
             <v-icon>
