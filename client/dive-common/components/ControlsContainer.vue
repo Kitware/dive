@@ -75,7 +75,10 @@ export default defineComponent({
 </script>
 
 <template>
-  <v-col dense style="position:absolute; bottom: 0px; padding: 0px; margin:0px;">
+  <v-col
+    dense
+    style="position:absolute; bottom: 0px; padding: 0px; margin:0px;"
+  >
     <Controls :media-controls="mediaControls">
       <template slot="timelineControls">
         <div style="min-width: 210px">
@@ -124,7 +127,6 @@ export default defineComponent({
           class="text-middle px-3"
           display-type="filename"
           :media-controls="mediaControls"
-          camera="default"
         />
         <span v-else-if="datasetType === 'video'">
           <span class="mr-2">
@@ -203,6 +205,7 @@ export default defineComponent({
           <file-name-time-display
             class="text-middle pl-2"
             display-type="time"
+            :media-controls="mediaControls"
           />
         </span>
         <v-tooltip

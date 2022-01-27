@@ -29,8 +29,10 @@ interface SetAnnotationStateArgs {
  */
 export default function useModeManager({
   selectedTrackId,
+  selectedCamera,
   editingTrack,
   trackMap,
+  camTrackMap,
   mediaControlAggregator,
   recipes,
   selectTrack,
@@ -39,13 +41,15 @@ export default function useModeManager({
   removeTrack,
 }: {
   selectedTrackId: Ref<TrackId | null>;
+  selectedCamera: Ref<string>;
   editingTrack: Ref<boolean>;
   trackMap: Map<TrackId, Track>;
+  camTrackMap: Record<string, Map<TrackId, Track>>;
   mediaControlAggregator: Ref<MediaControlAggregator>;
   recipes: Recipe[];
   selectTrack: (trackId: TrackId | null, edit: boolean) => void;
   selectNextTrack: (delta?: number) => TrackId | null;
-  addTrack: (frame: number, defaultType: string, afterId?: TrackId) => Track;
+  addTrack: (frame: number, defaultType: string, afterId?: TrackId, cameraName?: string) => Track;
   removeTrack: (trackId: TrackId) => void;
 }) {
   let creating = false;
@@ -186,7 +190,7 @@ export default function useModeManager({
     const { frame } = mediaControlAggregator.value;
     const newTrackId = addTrack(
       frame.value, trackSettings.value.newTrackSettings.type,
-      selectedTrackId.value || undefined,
+      selectedTrackId.value || undefined, selectedCamera.value,
     ).trackId;
     selectTrack(newTrackId, true);
     creating = true;
@@ -224,7 +228,10 @@ export default function useModeManager({
 
   function handleUpdateRectBounds(frameNum: number, flickNum: number, bounds: RectBounds) {
     if (selectedTrackId.value !== null) {
-      const track = trackMap.get(selectedTrackId.value);
+      let track = trackMap.get(selectedTrackId.value);
+      if (selectedCamera.value !== 'default') {
+        track = camTrackMap[selectedCamera.value].get(selectedTrackId.value);
+      }
       if (track) {
         // Determines if we are creating a new Detection
         const { interpolate } = track.canInterpolate(frameNum);
@@ -270,7 +277,10 @@ export default function useModeManager({
     };
 
     if (selectedTrackId.value !== null) {
-      const track = trackMap.get(selectedTrackId.value);
+      let track = trackMap.get(selectedTrackId.value);
+      if (selectedCamera.value !== 'default') {
+        track = camTrackMap[selectedCamera.value].get(selectedTrackId.value);
+      }
       if (track) {
         // newDetectionMode is true if there's no keyframe on frameNum
         const { features, interpolate } = track.canInterpolate(frameNum);
@@ -365,10 +375,13 @@ export default function useModeManager({
   /* If any recipes are active, allow them to remove a point */
   function handleRemovePoint() {
     if (selectedTrackId.value !== null && selectedFeatureHandle.value !== -1) {
-      const track = trackMap.get(selectedTrackId.value);
-      if (track) {
+      let track = trackMap.get(selectedTrackId.value);
+      if (selectedCamera.value !== 'default') {
+        track = camTrackMap[selectedCamera.value].get(selectedTrackId.value);
+      }
+      if (track !== undefined) {
         recipes.forEach((r) => {
-          if (r.active.value) {
+          if (r.active.value && track) {
             const { frame } = mediaControlAggregator.value;
             r.deletePoint(
               frame.value,
@@ -387,11 +400,14 @@ export default function useModeManager({
   /* If any recipes are active, remove the geometry they added */
   function handleRemoveAnnotation() {
     if (selectedTrackId.value !== null) {
-      const track = trackMap.get(selectedTrackId.value);
-      if (track) {
+      let track = trackMap.get(selectedTrackId.value);
+      if (selectedCamera.value !== 'default') {
+        track = camTrackMap[selectedCamera.value].get(selectedTrackId.value);
+      }
+      if (track !== undefined) {
         const { frame } = mediaControlAggregator.value;
         recipes.forEach((r) => {
-          if (r.active.value) {
+          if (r.active.value && track) {
             r.delete(frame.value, track, selectedKey.value, annotationModes.editing);
           }
         });
@@ -439,7 +455,10 @@ export default function useModeManager({
 
   /** Toggle editing mode for track */
   function handleTrackEdit(trackId: TrackId) {
-    const track = getTrack(trackMap, trackId);
+    let track = getTrack(trackMap, trackId);
+    if (selectedCamera.value !== 'default') {
+      track = getTrack(camTrackMap[selectedCamera.value], trackId);
+    }
     seekNearest(track);
     const editing = trackId === selectedTrackId.value ? (!editingTrack.value) : true;
     handleSelectTrack(trackId, editing);

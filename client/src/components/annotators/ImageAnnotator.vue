@@ -399,7 +399,6 @@ export default defineComponent({
       loadingImage,
       imageCursorRef: commonMedia.imageCursors[props.camera],
       containerRef: commonMedia.containers[props.camera],
-      onResize: commonMedia.onResize,
       cursorHandler,
       mediaController,
     };
@@ -460,11 +459,6 @@ export default defineComponent({
         </v-progress-circular>
       </div>
     </div>
-    <slot
-      ref="control"
-      name="control"
-      @resize="onResize"
-    />
     <slot v-if="data.ready" />
   </div>
 </template>
