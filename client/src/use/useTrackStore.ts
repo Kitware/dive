@@ -114,13 +114,14 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
     }
   }
 
-  function addTrack(frame: number, defaultType: string, afterId?: TrackId): Track {
+  function addTrack(frame: number, defaultType: string,
+    afterId?: TrackId, cameraName?: string): Track {
     const track = new Track(getNewTrackId(), {
       begin: frame,
       end: frame,
       confidencePairs: [[defaultType, 1]],
     });
-    insertTrack(track, { afterId });
+    insertTrack(track, { afterId, cameraName });
     markChangesPending({ action: 'upsert', track });
     return track;
   }

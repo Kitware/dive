@@ -106,6 +106,18 @@ export default function useMediaController() {
     });
   }
 
+  function resetZoom() {
+    cameras.forEach((camera) => {
+      const geoViewerRef = geoViewers[camera];
+      const data = datas[camera];
+      const zoomAndCenter = geoViewerRef.value.zoomAndCenterFromBounds(
+        data.originalBounds, 0,
+      );
+      geoViewerRef.value.zoom(zoomAndCenter.zoom);
+      geoViewerRef.value.center(zoomAndCenter.center);
+    });
+  }
+
   function onResize() {
     cameras.forEach((camera) => {
       const geoViewerRef = geoViewers[camera];
@@ -118,20 +130,9 @@ export default function useMediaController() {
       if (size.width !== mapSize.width || size.height !== mapSize.height) {
         window.requestAnimationFrame(() => {
           geoViewerRef.value.size(size);
+          resetZoom();
         });
       }
-    });
-  }
-
-  function resetZoom() {
-    cameras.forEach((camera) => {
-      const geoViewerRef = geoViewers[camera];
-      const data = datas[camera];
-      const zoomAndCenter = geoViewerRef.value.zoomAndCenterFromBounds(
-        data.originalBounds, 0,
-      );
-      geoViewerRef.value.zoom(zoomAndCenter.zoom);
-      geoViewerRef.value.center(zoomAndCenter.center);
     });
   }
 
@@ -185,7 +186,6 @@ export default function useMediaController() {
         observer = new ResizeObserver(onResize);
         observer.observe(containerRef);
       } else {
-        console.log(containers);
         throw new Error(`Container ${camera} was missing, could not register observer`);
       }
     });

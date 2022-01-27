@@ -1,15 +1,15 @@
 <script lang="ts">
 import {
   computed,
-  defineComponent, onMounted, PropType, Ref, ref,
+  defineComponent, PropType, ref,
 } from '@vue/composition-api';
 import { DatasetType } from 'dive-common/apispec';
+import { useSelectedCamera } from 'vue-media-annotator/provides';
 import ImageAnnotator from './ImageAnnotator.vue';
 import VideoAnnotator from './VideoAnnotator.vue';
 import LayerManager from '../LayerManager.vue';
 import { SetTimeFunc } from '../../use/useTimeObserver';
 import { MediaControlAggregator, MediaController } from './mediaControllerType';
-import useMediaController from './useMediaController';
 
 export interface ImageDataItem {
   url: string;
@@ -36,10 +36,6 @@ export default defineComponent({
     },
     cameras: {
       type: Array as PropType<string[]>,
-      required: true,
-    },
-    currentCamera: {
-      type: String,
       required: true,
     },
     imageData: {
@@ -84,8 +80,10 @@ export default defineComponent({
   setup(props) {
     const subPlaybackComponent = ref(undefined as Vue[] | undefined);
     const control = ref(undefined as HTMLElement | undefined);
+    const selectedCamera = useSelectedCamera();
     const mediaControlAggregator = computed(() => {
-      if (subPlaybackComponent.value && subPlaybackComponent.value?.length >= 1) {
+      if (subPlaybackComponent.value
+      && subPlaybackComponent.value?.length === props.cameras.length) {
         // TODO: Bug in composition-api types incorrectly organizes the static members of a Vue
         // instance when using typeof ImageAnnotator, so we can't use the "real" type here
         // eslint-disable-next-line @typescript-eslint/ban-ts-ignore
@@ -117,21 +115,12 @@ export default defineComponent({
           currentTime: computed(() => controllers.reduce((acc, item) => ({ ...acc, [item.camera.value]: item.currentTime.value }), {})),
           // eslint-disable-next-line max-len
           filename: computed(() => controllers.reduce((acc, item) => ({ ...acc, [item.camera.value]: item.filename.value }), {})),
-
         };
         return aggregateController;
       }
       return {} as MediaControlAggregator;
     });
 
-    const onResize = computed(() => {
-      if (subPlaybackComponent.value && subPlaybackComponent.value?.length >= 1) {
-        // eslint-disable-next-line @typescript-eslint/ban-ts-ignore
-        // @ts-ignore
-        return (subPlaybackComponent.value[0].onResize as () => void);
-      }
-      return null;
-    });
 
     const controlHeight = computed(() => {
       if (control.value !== undefined && control.value.children.length) {
@@ -144,9 +133,9 @@ export default defineComponent({
     return {
       subPlaybackComponent,
       mediaControlAggregator,
-      onResize,
       control,
       controlHeight,
+      selectedCamera,
     };
   },
 });
@@ -154,7 +143,8 @@ export default defineComponent({
 
 <template>
   <v-col
-    class="playback-component annotation-wrapper fill-height pa-0"
+    class="playback-component annotation-wrapper pa-0"
+    style="height:100%"
     dense
   >
     <v-row class="fill-height">
@@ -163,20 +153,23 @@ export default defineComponent({
         :key="camera"
         style="padding: 0px; margin:0px;"
         class="fill-height"
+        @click="$emit('select-camera', camera)"
       >
         <component
           :is="datasetType === 'image-sequence' ? 'image-annotator' : 'video-annotator'"
           v-if="(imageData[camera].length || videoUrl[camera]) && progress.loaded"
           ref="subPlaybackComponent"
           class="fill-height"
+          :class="{'selected-camera': selectedCamera === camera && camera !== 'default'}"
           v-bind="{
             imageData: imageData[camera], videoUrl: videoUrl[camera],
             updateTime, frameRate, originalFps, loadImageFunc, camera }"
         >
-          <layer-manager
+          <div
             :style="{'min-height':`${controlHeight}px`}"
-            :camera="camera"
-          />
+          >
+            <layer-manager :camera="camera" />
+          </div>
         </component>
       </v-col>
     </v-row>
@@ -185,7 +178,6 @@ export default defineComponent({
     >
       <slot
         name="control"
-        @resize="onResize"
       />
     </span>
   </v-col>

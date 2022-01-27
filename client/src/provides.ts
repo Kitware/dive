@@ -71,6 +71,9 @@ type SelectedKeyType = Readonly<Ref<string>>;
 const SelectedTrackIdSymbol = Symbol('selectedTrackId');
 type SelectedTrackIdType = Readonly<Ref<TrackId | null>>;
 
+const SelectedCameraSymbol = Symbol('selectedCamera');
+type SelectedCameraType = Readonly<Ref<string>>;
+
 const StateStylesSymbol = Symbol('stateStyles');
 type StateStylesType = Readonly<StateStyles>;
 
@@ -221,6 +224,7 @@ export interface State {
   typeStyling: TypeStylingType;
   selectedKey: SelectedKeyType;
   selectedTrackId: SelectedTrackIdType;
+  selectedCamera: SelectedCameraType;
   stateStyles: StateStylesType;
   time: TimeType;
   visibleModes: VisibleModesType;
@@ -266,6 +270,7 @@ function dummyState(): State {
     }),
     selectedKey: ref(''),
     selectedTrackId: ref(null),
+    selectedCamera: ref('default'),
     stateStyles: {
       disabled: style,
       selected: style,
@@ -308,6 +313,7 @@ function provideAnnotator(state: State, handler: Handler) {
   provide(TypeStylingSymbol, state.typeStyling);
   provide(SelectedKeySymbol, state.selectedKey);
   provide(SelectedTrackIdSymbol, state.selectedTrackId);
+  provide(SelectedCameraSymbol, state.selectedCamera);
   provide(StateStylesSymbol, state.stateStyles);
   provide(TimeSymbol, state.time);
   provide(VisibleModesSymbol, state.visibleModes);
@@ -399,6 +405,10 @@ function useSelectedTrackId() {
   return use<SelectedTrackIdType>(SelectedTrackIdSymbol);
 }
 
+function useSelectedCamera() {
+  return use<SelectedCameraType>(SelectedCameraSymbol);
+}
+
 function useStateStyles() {
   return use<StateStylesType>(StateStylesSymbol);
 }
@@ -435,6 +445,7 @@ export {
   useTypeStyling,
   useSelectedKey,
   useSelectedTrackId,
+  useSelectedCamera,
   useStateStyles,
   useTime,
   useVisibleModes,

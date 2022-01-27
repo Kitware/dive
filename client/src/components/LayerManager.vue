@@ -32,6 +32,7 @@ import {
   useStateStyles,
   useMergeList,
   useCamTrackMap,
+  useSelectedCamera,
 } from '../provides';
 
 /** LayerManager is a component intended to be used as a child of an Annotator.
@@ -54,6 +55,7 @@ export default defineComponent({
     const handler = useHandler();
     const intervalTree = useIntervalTree();
     const camTrackMap = useCamTrackMap();
+    const selectedCamera = useSelectedCamera();
     let trackMap = useTrackMap();
     if (props.camera !== 'default' && camTrackMap[props.camera] !== undefined) {
       trackMap = camTrackMap[props.camera];
@@ -163,7 +165,8 @@ export default defineComponent({
             };
             frameData.push(trackFrame);
             if (trackFrame.selected) {
-              if (editingTrack) {
+              //Only edit current camera tracks
+              if (editingTrack && props.camera === selectedCamera.value) {
                 editingTracks.push(trackFrame);
               }
               if (annotator.lockedCamera.value) {

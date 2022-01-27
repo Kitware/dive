@@ -81,7 +81,7 @@ export default defineComponent({
     const datasetId = toRef(props, 'id');
     const multiCamList: Ref<string[]> = ref(['default']);
     const defaultCamera = ref('default');
-    const currentCamera = ref('default');
+    const selectedCamera = ref('default');
     const playbackComponent = ref(undefined as Vue | undefined);
     const readonlyState = computed(() => props.readonlyMode || props.revision !== undefined);
     const mediaControlAggregator = computed(() => {
@@ -204,8 +204,10 @@ export default defineComponent({
     } = useModeManager({
       recipes,
       selectedTrackId,
+      selectedCamera,
       editingTrack,
       trackMap,
+      camTrackMap,
       mediaControlAggregator,
       selectTrack,
       selectNextTrack,
@@ -324,12 +326,12 @@ export default defineComponent({
           const { cameras } = meta.multiCamMedia;
           multiCamList.value = Object.keys(cameras);
           defaultCamera.value = meta.multiCamMedia.defaultDisplay;
-          currentCamera.value = defaultCamera.value;
+          selectedCamera.value = defaultCamera.value;
           baseMulticamDatasetId.value = datasetId.value;
-          if (!currentCamera.value) {
+          if (!selectedCamera.value) {
             throw new Error('Multicamera dataset without default camera specified.');
           }
-          ctx.emit('update:id', `${props.id}/${currentCamera.value}`);
+          ctx.emit('update:id', `${props.id}/${selectedCamera.value}`);
           return;
         }
         /* Otherwise, complete loading of the dataset */
@@ -349,8 +351,8 @@ export default defineComponent({
         // Load non-Default Cameras if they exist:
         const filteredMultiCamList = multiCamList.value.filter((item) => item !== 'default');
         if (filteredMultiCamList.length === 0) {
-          imageData.value[currentCamera.value] = cloneDeep(meta.imageData) as FrameImage[];
-          videoUrl.value[currentCamera.value] = meta.videoUrl || null;
+          imageData.value[selectedCamera.value] = cloneDeep(meta.imageData) as FrameImage[];
+          videoUrl.value[selectedCamera.value] = meta.videoUrl || null;
           datasetType.value = meta.type as DatasetType;
           const trackData = await loadDetections(datasetId.value);
           const tracks = Object.values(trackData);
@@ -410,12 +412,18 @@ export default defineComponent({
 
     watch(datasetId, reloadAnnotations);
 
+
     const changeCamera = async (camera: string) => {
+      selectedCamera.value = camera;
+      // Old Style multiCamera
+      /*
       if (!camera || !baseMulticamDatasetId.value) {
-        throw new Error('Attempted to change camera to invalid value or baseMultiCamDatasetId was missing');
+        throw new Error('Attempted to change camera to invalid\
+         value or baseMultiCamDatasetId was missing');
       }
       const newId = `${baseMulticamDatasetId.value}/${camera}`;
       ctx.emit('update:id', newId);
+      */
     };
 
     const globalHandler = {
@@ -454,6 +462,7 @@ export default defineComponent({
         typeStyling,
         selectedKey,
         selectedTrackId,
+        selectedCamera,
         stateStyles: stateStyling,
         time,
         visibleModes,
@@ -501,7 +510,7 @@ export default defineComponent({
       // multicam
       multiCamList,
       defaultCamera,
-      currentCamera,
+      selectedCamera,
       changeCamera,
       // For Navigation Guarding
       navigateAwayGuard,
@@ -543,8 +552,8 @@ export default defineComponent({
         />
         <v-spacer />
         <v-select
-          v-if="multiCamList.length"
-          :value="defaultCamera"
+          v-if="multiCamList.length && defaultCamera !== 'default'"
+          :value="selectedCamera"
           :items="multiCamList"
           label="Camera"
           class="shrink"
@@ -628,14 +637,15 @@ export default defineComponent({
           v-if="progress.loaded"
           ref="playbackComponent"
           :cameras="multiCamList"
-          :current-camera="currentCamera"
+          :current-camera="selectedCamera"
           v-bind="{
             imageData, videoUrl, updateTime,
             frameRate, originalFps, datasetType, progress }"
+          @select-camera="changeCamera"
         >
           <template slot="control">
             <controls-container
-              v-if="mediaControlAggregator.maxFrame"
+              v-if="Object.keys(mediaControlAggregator).length"
               v-bind="{ lineChartData, eventChartData,
                         datasetType, mediaControls:mediaControlAggregator }"
               @select-track="handler.trackSelect"

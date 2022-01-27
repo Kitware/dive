@@ -102,7 +102,6 @@ export default defineComponent({
       type: String as PropType<string>,
       default: 'default',
     },
-
   },
 
   setup(props) {

@@ -1,5 +1,6 @@
 <script lang="ts">
 import { computed, defineComponent, PropType } from '@vue/composition-api';
+import { useSelectedCamera } from 'vue-media-annotator/provides';
 import { MediaControlAggregator } from '../annotators/mediaControllerType';
 
 export default defineComponent({
@@ -13,18 +14,15 @@ export default defineComponent({
       type: Object as PropType<MediaControlAggregator>,
       required: true,
     },
-    camera: {
-      type: String,
-      default: 'default',
-    },
   },
   setup(props) {
     const {
       currentTime: currentTimes, duration: durations, filename: filenames, frame,
     } = props.mediaControls;
-    const filename = computed(() => filenames.value[props.camera]);
-    const duration = computed(() => durations.value[props.camera]);
-    const currentTime = computed(() => currentTimes.value[props.camera]);
+    const selectedCamera = useSelectedCamera();
+    const filename = computed(() => filenames.value[selectedCamera.value]);
+    const duration = computed(() => durations.value[selectedCamera.value]);
+    const currentTime = computed(() => currentTimes.value[selectedCamera.value]);
     const display = computed(() => {
       let value = 'unsupported display';
       if (props.displayType === 'filename') {
@@ -38,6 +36,7 @@ export default defineComponent({
       display,
       frame,
       currentTime,
+      selectedCamera,
     };
   },
 });
