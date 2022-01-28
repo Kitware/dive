@@ -172,7 +172,7 @@ export default defineComponent({
                 />
                 <export
                   v-bind="{ buttonOptions, menuOptions }"
-                  :dataset-id="exportTargetId"
+                  :dataset-ids="locationInputs"
                 />
                 <v-btn
                   :disabled="!selected.length"

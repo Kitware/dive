@@ -101,14 +101,19 @@ export default defineComponent({
       if (singleDataSetId.value) {
         return {
           exportAllUrl: getUri({
-            url: `dive_dataset/${singleDataSetId.value}/export`,
-            params,
+            url: 'dive_dataset/export',
+            params: { ...params, folderIds: JSON.stringify([singleDataSetId.value]) },
           }),
           exportMediaUrl: dataset.value?.type === 'video'
             ? datasetMedia.value?.video?.url
             : getUri({
-              url: `dive_dataset/${singleDataSetId.value}/export`,
-              params: { ...params, includeDetections: false, includeMedia: true },
+              url: 'dive_dataset/export',
+              params: {
+                ...params,
+                includeDetections: false,
+                includeMedia: true,
+                folderIds: JSON.stringify([singleDataSetId.value]),
+              },
             }),
           exportDetectionsUrl: getUri({
             url: 'dive_annotation/export',
@@ -121,29 +126,9 @@ export default defineComponent({
       }
       return {
         exportAllUrl: getUri({
-          url: 'dive_dataset/batch_export',
-          params: { ...params, batchIds: props.datasetIds },
-        }),
-        exportMediaUrl: dataset.value?.type === 'video'
-          ? datasetMedia.value?.video?.url
-          : getUri({
-            url: 'dive_dataset/batch_export',
-            params: {
-              ...params, includeDetections: false, includeMedia: true, batchIds: props.datasetIds,
-            },
-          }),
-        exportDetectionsUrl: getUri({
-          url: 'dive_annotation/batch_export',
-          params: { ...params, folderId: singleDataSetId.value, batchIds: props.datasetIds },
-        }),
-        exportConfigurationUrl: getUri({
-          url: 'dive_annotation/batch_export',
-          params: {
-            ...params,
-            folderId: singleDataSetId.value,
-            batchIds: props.datasetIds,
-            configurationsOnly: true,
-          },
+          url: 'dive_dataset/export',
+          params: { folderIds: JSON.stringify(props.datasetIds) },
+
         }),
       };
     });
@@ -168,6 +153,7 @@ export default defineComponent({
       exportUrls,
       checkedTypes,
       savePrompt,
+      singleDataSetId,
       doExport,
     };
   },
@@ -188,7 +174,7 @@ export default defineComponent({
           <v-btn
             class="ma-0"
             v-bind="buttonOptions"
-            :disabled="!singleDataSetId"
+            :disabled="!datasetIds.length"
             v-on="{ ...tooltipOn, ...menuOn }"
           >
             <v-icon>
@@ -310,6 +296,21 @@ export default defineComponent({
 
           <v-card-text class="pb-0">
             Zip all media, detections, and edit history recursively from all sub-folders
+          </v-card-text>
+          <v-card-actions>
+            <v-spacer />
+            <v-btn
+              depressed
+              block
+              @click="doExport({ url: exportUrls && exportUrls.exportAllUrl })"
+            >
+              Everything
+            </v-btn>
+          </v-card-actions>
+        </template>
+        <template v-else-if="exportUrls.exportAllUrl !== undefined">
+          <v-card-text class="pb-0">
+            Zip all media, detections, and edit history from all selected dataset folders
           </v-card-text>
           <v-card-actions>
             <v-spacer />
