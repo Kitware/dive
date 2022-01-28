@@ -288,6 +288,9 @@ export default function useModeManager({
 
         // Give each recipe the opportunity to make changes
         recipes.forEach((recipe) => {
+          if (!track) {
+            return;
+          }
           const changes = recipe.update(eventType, frameNum, track, [data], key);
           // Prevent key conflicts among recipes
           Object.keys(changes.data).forEach((key_) => {
