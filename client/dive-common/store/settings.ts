@@ -1,6 +1,7 @@
 import Install, { Ref, watch, reactive } from '@vue/composition-api';
 import { cloneDeep, merge } from 'lodash';
 import Vue from 'vue';
+import { AnnotatorPreferences } from 'vue-media-annotator/types';
 
 interface AnnotationSettings {
   typeSettings: {
@@ -27,6 +28,7 @@ interface AnnotationSettings {
   };
   rowsPerPage: number;
   annotationFPS: number;
+  annotatorPreferences: AnnotatorPreferences;
 }
 
 const defaultSettings: AnnotationSettings = {
@@ -54,6 +56,12 @@ const defaultSettings: AnnotationSettings = {
   },
   rowsPerPage: 20,
   annotationFPS: 10,
+  annotatorPreferences: {
+    trackTails: {
+      before: 20,
+      after: 10,
+    },
+  },
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

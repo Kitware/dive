@@ -27,6 +27,18 @@ export interface LayerStyle<D> {
   [x: string]: unknown;
 }
 
+export interface MarkerStyle<D> {
+  symbol: number;
+  symbolValue: (number | boolean)[];
+  radius?: PointFunction<number, D> | number;
+  strokeWidth?: StyleFunction<number, D> | number;
+  strokeOffset?: StyleFunction<number, D> | number;
+  strokeOpacity?: StyleFunction<number, D> | number;
+  strokeColor?: StyleFunction<string, D> | ObjectFunction<string, D>;
+  fillColor?: StyleFunction<string, D> | ObjectFunction<string, D>;
+  fillOpacity?: StyleFunction<number, D> | ObjectFunction<string, D> | number;
+}
+
 export interface BaseLayerParams {
     frameData?: FrameDataTrack;
     annotator: MediaController;
@@ -97,7 +109,6 @@ export default abstract class BaseLayer<D> {
     createStyle(): LayerStyle<D> {
       return {
         strokeColor: 'black',
-        strokeOpacity: 1.0,
         strokeWidth: 1.0,
       };
     }
