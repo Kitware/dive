@@ -197,7 +197,6 @@ export default function useMediaController() {
       if (containerRef && observer !== null) {
         observer.unobserve(containerRef);
       } else {
-        console.log(containers);
         throw new Error(`Container ${camera} or observer was missing`);
       }
     });
