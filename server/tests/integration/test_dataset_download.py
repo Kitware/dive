@@ -47,7 +47,7 @@ def test_download_csv(user: dict):
 @pytest.mark.parametrize("user", users.values())
 @pytest.mark.run(order=6)
 def test_zip_download(user: dict):
-    if user['login'] == 'testCharacters':
+    if user['login'] == 'testCharacters': # listFolder returns non slugified folder names.
         return
     client = getClient(user['login'])
     privateFolder = getTestFolder(client)
@@ -66,7 +66,7 @@ def test_zip_download(user: dict):
 @pytest.mark.parametrize("user", users.values())
 @pytest.mark.run(order=6)
 def test_zip_batch_download(user: dict):
-    if user['login'] == 'testCharacters':
+    if user['login'] == 'testCharacters': # listFolder returns non slugified folder names.
         return
     client = getClient(user['login'])
     privateFolder = getTestFolder(client)
