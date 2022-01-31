@@ -209,7 +209,6 @@ export default Vue.extend({
               if (next && interpolate) {
                 const nextPos = this.x(next[0]);
                 ctx.strokeStyle = 'yellow';
-                // console.log(pos);
                 ctx.moveTo(pos + featureWidth, barMiddle);
                 ctx.lineTo(nextPos, barMiddle);
                 ctx.stroke();
