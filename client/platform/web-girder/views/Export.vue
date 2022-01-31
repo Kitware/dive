@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  computed, defineComponent, ref, shallowRef, toRef, watch, PropType,
+  computed, defineComponent, ref, shallowRef, toRef, watch, PropType, Ref,
 } from '@vue/composition-api';
 import { usePendingSaveCount, useHandler, useCheckedTypes } from 'vue-media-annotator/provides';
 import AutosavePrompt from 'dive-common/components/AutosavePrompt.vue';
@@ -74,16 +74,17 @@ export default defineComponent({
     const excludeBelowThreshold = ref(true);
     const excludeUncheckedTypes = ref(false);
 
-    const singleDataSetId = computed(() => {
-      if (props.datasetIds.length === 1) {
-        return props.datasetIds[0];
-      }
-      return null;
-    });
+    const singleDataSetId: Ref<string|null> = ref(null);
     const dataset = shallowRef(null as GirderMetadataStatic | null);
     const datasetMedia = shallowRef(null as DatasetSourceMedia | null);
     const { request, error } = useRequest();
     const loadDatasetMeta = () => request(async () => {
+      if (props.datasetIds.length > 1) {
+        singleDataSetId.value = null;
+        dataset.value = null;
+      } else {
+        [singleDataSetId.value] = props.datasetIds;
+      }
       if (menuOpen.value && singleDataSetId.value) {
         dataset.value = (await getDataset(singleDataSetId.value)).data;
         if (dataset.value.type === 'video') {
