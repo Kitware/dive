@@ -156,7 +156,7 @@ class DatasetResource(Resource):
 
     @access.public(scope=TokenScope.DATA_READ, cookie=True)
     @autoDescribeRoute(
-        Description("Batch Export all selected datasets")
+        Description("Export all selected datasets")
         .jsonParam(
             "folderIds",
             "List of track types to filter by",
