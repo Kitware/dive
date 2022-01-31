@@ -254,8 +254,6 @@ def export_datasets_zipstream(
                         break  # Media items should only have 1 valid file
 
             if includeDetections:
-                # TODO Add back in dump to json
-                # add CSV detections
                 for data in z.addFile(gen, Path(f'{zip_path}output_tracks.csv')):
                     yield data
         yield z.footer()
