@@ -270,40 +270,46 @@ export default defineComponent({
       );
     });
 
-    /* Shallow watch */
-    watch([
-      frameNumberRef,
-      editingModeRef,
-      enabledTracksRef,
-      selectedTrackIdRef,
-      mergeListRef,
-      visibleModesRef,
-      typeStylingRef,
-    ], () => {
-      updateLayers(
-        frameNumberRef.value,
-        editingModeRef.value,
-        selectedTrackIdRef.value,
-        mergeListRef.value,
-        enabledTracksRef.value,
-        visibleModesRef.value,
-        selectedKeyRef.value,
-      );
-    });
+    /** Shallow watch */
+    watch(
+      [
+        frameNumberRef,
+        editingModeRef,
+        enabledTracksRef,
+        selectedTrackIdRef,
+        mergeListRef,
+        visibleModesRef,
+        typeStylingRef,
+      ],
+      () => {
+        updateLayers(
+          frameNumberRef.value,
+          editingModeRef.value,
+          selectedTrackIdRef.value,
+          mergeListRef.value,
+          enabledTracksRef.value,
+          visibleModesRef.value,
+          selectedKeyRef.value,
+        );
+      },
+    );
 
     /** Deep watch */
-    watch([annotatorPrefs], () => {
-      console.log('deep');
-      updateLayers(
-        frameNumberRef.value,
-        editingModeRef.value,
-        selectedTrackIdRef.value,
-        mergeListRef.value,
-        enabledTracksRef.value,
-        visibleModesRef.value,
-        selectedKeyRef.value,
-      );
-    }, { deep: true });
+    watch(
+      annotatorPrefs,
+      () => {
+        updateLayers(
+          frameNumberRef.value,
+          editingModeRef.value,
+          selectedTrackIdRef.value,
+          mergeListRef.value,
+          enabledTracksRef.value,
+          visibleModesRef.value,
+          selectedKeyRef.value,
+        );
+      },
+      { deep: true },
+    );
 
     const Clicked = (trackId: number, editing: boolean) => {
       //So we only want to pass the click whjen not in creation mode or editing mode for features

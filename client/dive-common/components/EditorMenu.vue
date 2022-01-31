@@ -197,11 +197,13 @@ export default Vue.extend({
             id="frames-before"
             type="range"
             name="frames-before"
+            class="tail-slider-width"
             label
             min="0"
             max="100"
             :value="tailSettings.before"
-            @input="$emit('update:tail-settings', { ...tailSettings, before: $event.target.value })"
+            @input="$emit('update:tail-settings', {
+              ...tailSettings, before: Number.parseFloat($event.target.value) })"
           >
           <div class="py-2" />
           <label for="frames-after">Frames after: {{ tailSettings.after }}</label>
@@ -209,10 +211,12 @@ export default Vue.extend({
             id="frames-after"
             type="range"
             name="frames-after"
+            class="tail-slider-width"
             min="0"
             max="100"
             :value="tailSettings.after"
-            @input="$emit('update:tail-settings', { ...tailSettings, after: $event.target.value })"
+            @input="$emit('update:tail-settings', {
+              ...tailSettings, after: Number.parseFloat($event.target.value) })"
           >
         </v-card>
       </v-menu>
@@ -268,5 +272,9 @@ export default Vue.extend({
   white-space: nowrap;
   border: 1px solid;
   cursor: default;
+}
+
+.tail-slider-width {
+  width: 240px;
 }
 </style>
