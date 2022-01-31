@@ -152,8 +152,9 @@ export default defineComponent({
         (trackId: TrackId) => {
           const track = trackMap.get(trackId);
           if (track === undefined) {
-            return; //Skip error
-            //throw new Error(`TrackID ${trackId} not found in map`);
+            // Track may be located in another Camera
+            // TODO: Find a better way to represent tracks outside of cameras
+            return;
           }
           const enabledIndex = enabledTracks.findIndex(
             (trackWithContext) => trackWithContext.track.trackId === trackId,

@@ -4,7 +4,7 @@ import {
   defineComponent, PropType, ref,
 } from '@vue/composition-api';
 import { DatasetType } from 'dive-common/apispec';
-import { useSelectedCamera } from 'vue-media-annotator/provides';
+import { useSelectedCamera } from '../../provides';
 import ImageAnnotator from './ImageAnnotator.vue';
 import VideoAnnotator from './VideoAnnotator.vue';
 import LayerManager from '../LayerManager.vue';
