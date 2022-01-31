@@ -1,6 +1,6 @@
 <script lang="ts">
 import { computed, defineComponent, PropType } from '@vue/composition-api';
-import { useSelectedCamera } from 'vue-media-annotator/provides';
+import { useSelectedCamera } from '../../provides';
 import { MediaControlAggregator } from '../annotators/mediaControllerType';
 
 export default defineComponent({
