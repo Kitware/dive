@@ -544,6 +544,16 @@ export default defineComponent({
               @open="openImport($event)"
             />
           </div>
+          <div v-if="pendingUploads.length && pendingUploads.some((item) => item.type === 'zip')">
+            <h3 class="text-center">
+              <a
+                target="_blank"
+                href="https://kitware.github.io/dive/Web-Version/#zip-files"
+              >
+                Supported Zip Files
+              </a>
+            </h3>
+          </div>
           <v-btn
             v-if="pendingUploads.length"
             :disabled="uploading"
