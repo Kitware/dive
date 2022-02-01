@@ -151,3 +151,12 @@ def valid_images(
         images,
         key=functools.cmp_to_key(unwrapItem),
     )
+
+
+def valid_image_names_dict(images: List[GirderModel]):
+    """Get a map of image names (without extension) to frame numbers"""
+    imageNameMap = {}
+    for i, image in enumerate(images):
+        imageName, _ = os.path.splitext(image['name'])
+        imageNameMap[imageName] = i
+    return imageNameMap
