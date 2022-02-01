@@ -117,14 +117,14 @@ def _parse_row(row: List[str]) -> Tuple[Dict, Dict, Dict, List]:
 
     for j in range(start, len(row)):
         # (kp) head x y
-        head_regex = re.match(r"^\(kp\) head ([0-9]+\.*[0-9]*) ([0-9]+\.*[0-9]*)", row[j])
+        head_regex = re.match(r"^\(kp\) head (-?[0-9]+\.*-?[0-9]*) (-?[0-9]+\.*-?[0-9]*)", row[j])
         if head_regex:
             point = [float(head_regex[1]), float(head_regex[2])]
             head_tail.append(point)
             create_geoJSONFeature(features, 'Point', point, 'head')
 
         # (kp) tail x y
-        tail_regex = re.match(r"^\(kp\) tail ([0-9]+\.*[0-9]*) ([0-9]+\.*[0-9]*)", row[j])
+        tail_regex = re.match(r"^\(kp\) tail (-?[0-9]+\.*-?[0-9]*) (-?[0-9]+\.*-?[0-9]*)", row[j])
         if tail_regex:
             point = [float(tail_regex[1]), float(tail_regex[2])]
             head_tail.append(point)
