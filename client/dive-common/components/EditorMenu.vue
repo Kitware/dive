@@ -30,6 +30,10 @@ export default Vue.extend({
       type: [String, Boolean] as PropType<false | EditAnnotationTypes>,
       required: true,
     },
+    editingDetails: {
+      type: String as PropType<'disabled' | 'Creating' | 'Editing'>,
+      required: true,
+    },
     recipes: {
       type: Array as PropType<Recipe[]>,
       required: true,
@@ -118,6 +122,19 @@ export default Vue.extend({
     mousetrap(): Mousetrap[] {
       return flatten(this.editButtons.map((b) => b.mousetrap || []));
     },
+    editingHeader(): {text: string; icon: string; color: string} {
+      if (this.mergeMode) {
+        return { text: 'Merge Mode', icon: 'mdi-call-merge', color: 'error' };
+      }
+      if (this.editingDetails !== 'disabled') {
+        return {
+          text: `${this.editingDetails} ${this.editingMode} `,
+          icon: this.editingDetails === 'Creating' ? 'mdi-pencil-plus' : 'mdi-pencil',
+          color: this.editingDetails === 'Creating' ? 'success' : 'primary',
+        };
+      }
+      return { text: 'Editing Modes', icon: 'mdi-pencil', color: '' };
+    },
   },
 
   methods: {
@@ -175,17 +192,15 @@ export default Vue.extend({
             v-bind="attrs"
             :class="[
               'ml-8', 'mr-1', 'px-3', 'py-1',
-              'modechip', editingTrack ? 'primary' : (
-                mergeMode ? 'error' : ''
-              )
+              'modechip', editingHeader.color,
             ]"
             v-on="on"
           >
             <v-icon class="pr-1">
-              {{ mergeMode ? 'mdi-call-merge' : 'mdi-pencil' }}
+              {{ editingHeader.icon }}
             </v-icon>
             <span class="text-subtitle-2">
-              {{ mergeMode ? 'Merge Mode' : 'Editing Mode' }}
+              {{ editingHeader.text }}
             </span>
           </span>
         </template>

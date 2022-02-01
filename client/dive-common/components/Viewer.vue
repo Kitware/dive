@@ -195,6 +195,7 @@ export default defineComponent({
       selectedFeatureHandle,
       handler,
       editingMode,
+      editingDetails,
       visibleModes,
       selectedKey,
     } = useModeManager({
@@ -437,6 +438,7 @@ export default defineComponent({
       datasetType,
       editingTrack,
       editingMode,
+      editingDetails,
       eventChartData,
       imageData,
       lineChartData,
@@ -499,7 +501,7 @@ export default defineComponent({
           Viewer/Edit Controls
         </span>
         <editor-menu
-          v-bind="{ editingMode, visibleModes, editingTrack, recipes, mergeMode }"
+          v-bind="{ editingMode, visibleModes, editingTrack, recipes, mergeMode, editingDetails }"
           class="shrink"
           @set-annotation-state="handler.setAnnotationState"
         />
