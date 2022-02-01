@@ -141,7 +141,7 @@ def _parse_row(row: List[str]) -> Tuple[Dict, Dict, Dict, List]:
             track_attributes[trk_regex[1]] = _deduceType(trk_regex[2])
 
         # (poly) x1 y1 x2 y2 ...
-        poly_regex = re.match(r"^(\(poly\)) ((?:[0-9]+\.*[0-9]*\s*)+)", row[j])
+        poly_regex = re.match(r"^(\(poly\)) ((?:-?[0-9]+\.*-?[0-9]*\s*)+)", row[j])
         if poly_regex:
             temp = [float(x) for x in poly_regex[2].split()]
             coords = list(zip(temp[::2], temp[1::2]))
