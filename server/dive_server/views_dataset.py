@@ -162,7 +162,7 @@ class DatasetResource(Resource):
             "List of track types to filter by",
             paramType="query",
             required=True,
-            default=None,
+            default=[],
             requireArray=True,
         )
         .param(

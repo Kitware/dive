@@ -86,6 +86,35 @@ def test_zip_batch_download(user: dict):
 
 
 @pytest.mark.integration
+@pytest.mark.run(order=7)
+def test_failed_batch_download():
+    user = users['alice']
+    client = getClient(user['login'])
+    privateFolder = getTestFolder(client)
+    datasetIds = []
+    datasetNames = []
+    failed_datasets = []
+    for dataset in client.listFolder(privateFolder['_id']):
+        if 'clone' not in dataset["name"] and 'train_mp4' in dataset['name']:
+            client.sendRestRequest('DELETE', f'folder/{dataset["_id"]}')
+            failed_datasets.append(dataset["name"])
+            continue
+        datasetIds.append(dataset["_id"])
+        datasetNames.append(dataset["name"])
+    downloaded = client.sendRestRequest(
+        'GET',
+        f'dive_dataset/export?includeMedia=true&includeDetections=true&excludeBelowThreshold=false&folderIds={json.dumps(datasetIds)}',
+        jsonResp=False,
+    )
+    z = ZipFile(io.BytesIO(downloaded.content))
+    print(z.namelist())
+    assert 'failed_datasets.txt' in z.namelist()
+    failed_string = z.read('failed_datasets.txt').decode('utf-8')
+    for failed in failed_datasets:
+        assert failed in failed_string
+
+
+@pytest.mark.integration
 @pytest.mark.parametrize("user", users.values())
 @pytest.mark.run(order=7)
 def test_upload_json_detections(user: dict):

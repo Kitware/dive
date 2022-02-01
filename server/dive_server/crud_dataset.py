@@ -207,6 +207,7 @@ def export_datasets_zipstream(
             dsFolder, user, excludeBelowThreshold, typeFilter
         )
         mediaFolder = crud.getCloneRoot(user, dsFolder)
+
         source_type = fromMeta(mediaFolder, constants.TypeMarker)
         mediaRegex = None
         if source_type == constants.ImageSequenceType:
@@ -215,16 +216,20 @@ def export_datasets_zipstream(
             mediaRegex = constants.videoRegex
         return gen, mediaFolder, mediaRegex
 
+    failed_datasets = []
+
     def stream():
-        zip_name = "batch_export"
-        if len(dsFolders) == 1:
-            zip_name = dsFolders[0]['name']
-        z = ziputil.ZipGenerator(zip_name)
+        z = ziputil.ZipGenerator()
         for dsFolder in dsFolders:
-            if len(dsFolders) > 1:
-                zip_path = f"./{dsFolder['name']}/"
-            else:
-                zip_path = "./"
+            zip_path = f"./{dsFolder['name']}/"
+            try:
+                get_media(dsFolder, user)
+            except RestException:
+                failed_datasets.append(
+                    f"Dataset: {dsFolder['name']} was not found. \
+                        This may be a cloned dataset where the source was deleted.\n"
+                )
+                continue
 
             def makeMetajson():
                 """Include dataset metadtata file with full export"""
@@ -240,8 +245,7 @@ def export_datasets_zipstream(
 
             for data in z.addFile(makeMetajson, Path(f'{zip_path}meta.json')):
                 yield data
-
-            gen, mediaFolder, mediaRegex = makeAnnotationAndMedia(dsFolder)
+                gen, mediaFolder, mediaRegex = makeAnnotationAndMedia(dsFolder)
             if includeMedia:
                 # Add media
                 for item in Folder().childItems(
@@ -256,6 +260,13 @@ def export_datasets_zipstream(
             if includeDetections:
                 for data in z.addFile(gen, Path(f'{zip_path}output_tracks.csv')):
                     yield data
+        if len(failed_datasets) > 0:
+
+            def makeFailedDatasets():
+                yield ''.join(failed_datasets)
+
+            for data in z.addFile(makeFailedDatasets, Path('./failed_datasets.txt')):
+                yield data
         yield z.footer()
 
     return stream

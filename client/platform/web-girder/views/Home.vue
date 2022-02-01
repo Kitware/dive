@@ -89,9 +89,6 @@ export default defineComponent({
       }
       return null;
     },
-    exportTargetId() {
-      return this.exportTarget?._id || null;
-    },
     selectedViameFolderIds() {
       return this.selected.filter(
         ({ _modelType, meta }) => _modelType === 'folder' && meta && meta.annotate,
