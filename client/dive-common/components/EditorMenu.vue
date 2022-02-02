@@ -202,6 +202,13 @@ export default Vue.extend({
             <span class="text-subtitle-2">
               {{ editingHeader.text }}
             </span>
+            <span v-if="editingHeader.color !== ''">
+              <v-icon
+                color="error "
+                style="font-weight:bold"
+                @click="$emit('exit-edit')"
+              > mdi-close </v-icon>
+            </span>
           </span>
         </template>
         <span v-if="mergeMode">

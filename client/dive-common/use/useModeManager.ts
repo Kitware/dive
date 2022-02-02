@@ -64,8 +64,17 @@ export default function useModeManager({
   const selectedKey = ref('');
   // which type is currently being edited, if any
   const editingMode = computed(() => editingTrack.value && annotationModes.editing);
+  const editingCanary = ref(false);
+  function _depend(): boolean {
+    return editingCanary.value;
+  }
+  function _nudgeEditingCanary() {
+    editingCanary.value = !editingCanary.value;
+  }
+
   // What is occuring in editing mode
   const editingDetails = computed(() => {
+    _depend();
     if (editingMode.value && selectedTrackId.value !== null) {
       const { frame } = mediaController.value;
       const track = trackMap.get(selectedTrackId.value);
@@ -209,6 +218,7 @@ export default function useModeManager({
         }
       }
     }
+    _nudgeEditingCanary();
     creating = newCreatingValue;
   }
 
@@ -385,6 +395,7 @@ export default function useModeManager({
             r.delete(frame.value, track, selectedKey.value, annotationModes.editing);
           }
         });
+        _nudgeEditingCanary();
       }
     }
   }

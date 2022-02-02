@@ -504,6 +504,7 @@ export default defineComponent({
           v-bind="{ editingMode, visibleModes, editingTrack, recipes, mergeMode, editingDetails }"
           class="shrink"
           @set-annotation-state="handler.setAnnotationState"
+          @exit-edit="handler.trackAbort"
         />
         <delete-controls
           v-bind="{ editingMode, selectedFeatureHandle }"
