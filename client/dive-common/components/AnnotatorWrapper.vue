@@ -3,13 +3,12 @@ import {
   computed,
   defineComponent, PropType, ref,
 } from '@vue/composition-api';
-import { DatasetType } from 'dive-common/apispec';
-import { useSelectedCamera } from '../../provides';
-import ImageAnnotator from './ImageAnnotator.vue';
-import VideoAnnotator from './VideoAnnotator.vue';
-import LayerManager from '../LayerManager.vue';
-import { SetTimeFunc } from '../../use/useTimeObserver';
-import { MediaControlAggregator, MediaController } from './mediaControllerType';
+import { useSelectedCamera } from 'vue-media-annotator/provides';
+import ImageAnnotator from 'vue-media-annotator/components/annotators/ImageAnnotator.vue';
+import VideoAnnotator from 'vue-media-annotator/components/annotators/VideoAnnotator.vue';
+import LayerManager from 'vue-media-annotator/components/LayerManager.vue';
+import { SetTimeFunc } from 'vue-media-annotator/use/useTimeObserver';
+import { MediaControlAggregator, MediaController } from 'vue-media-annotator/components/annotators/mediaControllerType';
 
 export interface ImageDataItem {
   url: string;
@@ -31,7 +30,7 @@ export default defineComponent({
   },
   props: {
     datasetType: {
-      type: String as PropType<DatasetType>,
+      type: String as PropType<'image-sequence' | 'video'>,
       required: true,
     },
     cameras: {
@@ -184,5 +183,14 @@ export default defineComponent({
 </template>
 
 <style lang="scss" scoped>
-@import "./annotator.scss";
+.annotator-wrapper {
+  position: relative;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  z-index: 0;
+  display: flex;
+  flex-direction: column;
+}
 </style>

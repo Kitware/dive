@@ -18,9 +18,6 @@ import {
 } from 'vue-media-annotator/use';
 import { getTrack } from 'vue-media-annotator/use/useTrackStore';
 import { provideAnnotator } from 'vue-media-annotator/provides';
-import {
-  AnnotatorWrapper,
-} from 'vue-media-annotator/components';
 import { MediaControlAggregator } from 'vue-media-annotator/components/annotators/mediaControllerType';
 
 /* DIVE COMMON */
@@ -40,6 +37,7 @@ import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { cloneDeep } from 'lodash';
 import { getResponseError } from 'vue-media-annotator/utils';
 import context from 'dive-common/store/context';
+import AnnotatorWrapper from './AnnotatorWrapper.vue';
 
 export default defineComponent({
   components: {
