@@ -250,7 +250,7 @@ def load_csv_as_tracks_and_attributes(
     reordered = False
 
     for row in reader:
-        if len(row) < 11 or row[0].startswith('#'):
+        if len(row) == 0 or row[0].startswith('#'):
             # This is not a data row
             continue
         (
