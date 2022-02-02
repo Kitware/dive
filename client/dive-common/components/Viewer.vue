@@ -19,9 +19,6 @@ import {
 import { getTrack } from 'vue-media-annotator/use/useTrackStore';
 import { provideAnnotator } from 'vue-media-annotator/provides';
 import {
-  ImageAnnotator,
-  VideoAnnotator,
-  LayerManager,
   AnnotatorWrapper,
 } from 'vue-media-annotator/components';
 import { MediaControlAggregator } from 'vue-media-annotator/components/annotators/mediaControllerType';
@@ -50,9 +47,6 @@ export default defineComponent({
     DeleteControls,
     Sidebar,
     SidebarContext,
-    LayerManager,
-    VideoAnnotator,
-    ImageAnnotator,
     AnnotatorWrapper,
     ConfidenceFilter,
     UserGuideButton,
