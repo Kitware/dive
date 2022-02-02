@@ -5,7 +5,7 @@ import pytest
 
 from dive_utils.serializers import viame
 
-test_tuple: List[Tuple[list, dict, dict]] = [
+old_tuple: List[Tuple[list, dict, dict]] = [
     (
         [
             # all frames in a track must be the same type, so the type name for 0 will be ignored
@@ -487,6 +487,9 @@ test_tuple: List[Tuple[list, dict, dict]] = [
         {},
     ),
 ]
+
+with open('../testutils/viame.spec.json', 'r') as fp:
+    test_tuple = json.load(fp)
 
 
 @pytest.mark.parametrize("input,expected_tracks,expected_attributes", test_tuple)

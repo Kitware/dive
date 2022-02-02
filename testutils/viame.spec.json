@@ -1,0 +1,731 @@
+[
+    [
+        [
+            "0,1.png,0,884.66,510,1219.66,737.66,1,-1,ignored,0.98",
+            "0,2.png,1,111,222,3333,444,1,-1,typestring,0.55",
+            "1,1.png,0,747,457,1039,633,1,-1,type2,1",
+            "2,3.png,2,10,50,20,35,1,-1,type3,0.765,(kp) head 22.4534 -45.6564,(kp) tail 55.232 -22.3445",
+            "2,4.png,3,10,50,20,35,1,-1,type3,0.765,(kp) head 22.4534 -45.6564",
+            "3,4.png,4,10,10,20,20,1,-1,type1,0.89,type2,0.65",
+            "4,5.png,5,10,10,20,20,1,-1,type1,0.89,type2,0.65,(poly) 1 -2.34 3 4 5 6 7 8.08 9 -10",
+            "5,6.png,6,10,10,20,20,1,-1,type1,0.89,(atr) attrNAME spaced attr name,(trk-atr) booleanAttr true",
+            "6,4.png,4,10,10,20,20,1,-1,type2,0.65,type1,0.89,type3,0.24"
+        ],
+        {
+            "0": {
+                "trackId": 0,
+                "attributes": {},
+                "confidencePairs": [
+                    [
+                        "typestring",
+                        0.55
+                    ]
+                ],
+                "features": [
+                    {
+                        "frame": 0,
+                        "bounds": [
+                            885,
+                            510,
+                            1220,
+                            738
+                        ],
+                        "keyframe": true,
+                        "interpolate": false
+                    },
+                    {
+                        "frame": 1,
+                        "bounds": [
+                            111,
+                            222,
+                            3333,
+                            444
+                        ],
+                        "keyframe": true,
+                        "interpolate": false
+                    }
+                ],
+                "begin": 0,
+                "end": 1
+            },
+            "1": {
+                "trackId": 1,
+                "attributes": {},
+                "confidencePairs": [
+                    [
+                        "type2",
+                        1.0
+                    ]
+                ],
+                "features": [
+                    {
+                        "frame": 0,
+                        "bounds": [
+                            747,
+                            457,
+                            1039,
+                            633
+                        ],
+                        "keyframe": true,
+                        "interpolate": false
+                    }
+                ],
+                "begin": 0,
+                "end": 0
+            },
+            "2": {
+                "trackId": 2,
+                "attributes": {},
+                "confidencePairs": [
+                    [
+                        "type3",
+                        0.765
+                    ]
+                ],
+                "features": [
+                    {
+                        "frame": 2,
+                        "bounds": [
+                            10,
+                            50,
+                            20,
+                            35
+                        ],
+                        "keyframe": true,
+                        "interpolate": false,
+                        "geometry": {
+                            "type": "FeatureCollection",
+                            "features": [
+                                {
+                                    "type": "Feature",
+                                    "properties": {
+                                        "key": "head"
+                                    },
+                                    "geometry": {
+                                        "type": "Point",
+                                        "coordinates": [
+                                            22.4534,
+                                            -45.6564
+                                        ]
+                                    }
+                                },
+                                {
+                                    "type": "Feature",
+                                    "properties": {
+                                        "key": "tail"
+                                    },
+                                    "geometry": {
+                                        "type": "Point",
+                                        "coordinates": [
+                                            55.232,
+                                            -22.3445
+                                        ]
+                                    }
+                                },
+                                {
+                                    "type": "Feature",
+                                    "properties": {
+                                        "key": "HeadTails"
+                                    },
+                                    "geometry": {
+                                        "coordinates": [
+                                            [
+                                                22.4534,
+                                                -45.6564
+                                            ],
+                                            [
+                                                55.232,
+                                                -22.3445
+                                            ]
+                                        ],
+                                        "type": "LineString"
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "frame": 3,
+                        "bounds": [
+                            10,
+                            50,
+                            20,
+                            35
+                        ],
+                        "keyframe": true,
+                        "interpolate": false,
+                        "geometry": {
+                            "type": "FeatureCollection",
+                            "features": [
+                                {
+                                    "type": "Feature",
+                                    "properties": {
+                                        "key": "head"
+                                    },
+                                    "geometry": {
+                                        "type": "Point",
+                                        "coordinates": [
+                                            22.4534,
+                                            -45.6564
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                ],
+                "begin": 2,
+                "end": 3
+            },
+            "3": {
+                "trackId": 3,
+                "attributes": {},
+                "confidencePairs": [
+                    [
+                        "type1",
+                        0.89
+                    ],
+                    [
+                        "type2",
+                        0.65
+                    ]
+                ],
+                "features": [
+                    {
+                        "frame": 4,
+                        "bounds": [
+                            10,
+                            10,
+                            20,
+                            20
+                        ],
+                        "keyframe": true,
+                        "interpolate": false
+                    }
+                ],
+                "begin": 4,
+                "end": 4
+            },
+            "4": {
+                "trackId": 4,
+                "attributes": {},
+                "confidencePairs": [
+                    [
+                        "type1",
+                        0.89
+                    ],
+                    [
+                        "type2",
+                        0.65
+                    ]
+                ],
+                "features": [
+                    {
+                        "frame": 5,
+                        "bounds": [
+                            10,
+                            10,
+                            20,
+                            20
+                        ],
+                        "keyframe": true,
+                        "interpolate": false,
+                        "geometry": {
+                            "type": "FeatureCollection",
+                            "features": [
+                                {
+                                    "type": "Feature",
+                                    "properties": {
+                                        "key": ""
+                                    },
+                                    "geometry": {
+                                        "type": "Polygon",
+                                        "coordinates": [
+                                            [
+                                                [
+                                                    1.0,
+                                                    -2.34
+                                                ],
+                                                [
+                                                    3.0,
+                                                    4.0
+                                                ],
+                                                [
+                                                    5.0,
+                                                    6.0
+                                                ],
+                                                [
+                                                    7.0,
+                                                    8.08
+                                                ],
+                                                [
+                                                    9.0,
+                                                    -10.0
+                                                ]
+                                            ]
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                ],
+                "begin": 5,
+                "end": 5
+            },
+            "5": {
+                "trackId": 5,
+                "attributes": {
+                    "booleanAttr": true
+                },
+                "confidencePairs": [
+                    [
+                        "type1",
+                        0.89
+                    ]
+                ],
+                "features": [
+                    {
+                        "frame": 6,
+                        "bounds": [
+                            10,
+                            10,
+                            20,
+                            20
+                        ],
+                        "keyframe": true,
+                        "interpolate": false,
+                        "attributes": {
+                            "attrNAME": "spaced attr name"
+                        }
+                    }
+                ],
+                "begin": 6,
+                "end": 6
+            },
+            "6": {
+                "trackId": 6,
+                "attributes": {},
+                "confidencePairs": [
+                    [
+                        "type1",
+                        0.89
+                    ],
+                    [
+                        "type2",
+                        0.65
+                    ],
+                    [
+                        "type3",
+                        0.24
+                    ]
+                ],
+                "features": [
+                    {
+                        "frame": 4,
+                        "bounds": [
+                            10,
+                            10,
+                            20,
+                            20
+                        ],
+                        "keyframe": true,
+                        "interpolate": false
+                    }
+                ],
+                "begin": 4,
+                "end": 4
+            }
+        },
+        {
+            "detection_attrNAME": {
+                "belongs": "detection",
+                "datatype": "text",
+                "key": "detection_attrNAME",
+                "name": "attrNAME"
+            },
+            "track_booleanAttr": {
+                "belongs": "track",
+                "datatype": "boolean",
+                "key": "track_booleanAttr",
+                "name": "booleanAttr"
+            }
+        }
+    ],
+    [
+        [
+            "0,1.png,0,884,510,1219,737,1,-1,typestring,1,",
+            "0,2.png,1,111,222,3333,444,1,-1,typestring,1,(note) note",
+            "0,3.png,2,747,457,1039,633,1,-1,typestring,1,(note) note,(note) note2"
+        ],
+        {
+            "0": {
+                "trackId": 0,
+                "attributes": {},
+                "confidencePairs": [
+                    [
+                        "typestring",
+                        1.0
+                    ]
+                ],
+                "features": [
+                    {
+                        "frame": 0,
+                        "bounds": [
+                            884,
+                            510,
+                            1219,
+                            737
+                        ],
+                        "keyframe": true,
+                        "interpolate": false
+                    },
+                    {
+                        "frame": 1,
+                        "bounds": [
+                            111,
+                            222,
+                            3333,
+                            444
+                        ],
+                        "keyframe": true,
+                        "interpolate": false
+                    },
+                    {
+                        "frame": 2,
+                        "bounds": [
+                            747,
+                            457,
+                            1039,
+                            633
+                        ],
+                        "keyframe": true,
+                        "interpolate": false
+                    }
+                ],
+                "begin": 0,
+                "end": 2
+            }
+        },
+        {}
+    ],
+    [
+        [
+            "0,1.png,0,884.66,510,1219.66,737.66,1,-1,typestring,1,(atr) DetectionNumber 2.002,(atr) DetectionPredefinedValue value1",
+            "0,2.png,1,111,222,3333,444,1,-1,typestring,1,(trk-atr) booleanAttr true,(atr) DetectionPredefinedValue value2",
+            "0,3.png,2,747,457,1039,633,1,-1,typestring,1,(trk-atr) booleanAttr true,(atr) DetectionPredefinedValue value3",
+            "0,3.png,3,884.66,510,1219.66,737.66,1,-1,typestring,1,(trk-atr) booleanAttr true,(atr) DetectionPredefinedValue value1",
+            "0,4.png,4,111,222,3333,444,1,-1,typestring,1,(atr) DetectionPredefinedValue value2",
+            "0,5.png,5,747,457,1039,633,1,-1,typestring,1,(atr) DetectionPredefinedValue value3",
+            "#comment line",
+            "1,1.png,0,884.66,510,1219.66,737.66,1,-1,typestring,1,(atr) DetectionNumber 2.002,(atr) DetectionPredefinedValue value1",
+            "1,2.png,1,111,222,3333,444,1,-1,typestring,1,(trk-atr) booleanAttr true,(atr) DetectionPredefinedValue value2",
+            "1,3.png,2,747,457,1039,633,1,-1,typestring,1,(trk-atr) booleanAttr true,(atr) DetectionPredefinedValue value3",
+            "1,3.png,3,884.66,510,1219.66,737.66,1,-1,typestring,1,(trk-atr) booleanAttr true,(atr) DetectionPredefinedValue value1",
+            "1,4.png,4,111,222,3333,444,1,-1,typestring,1,(atr) DetectionPredefinedValue value2",
+            "1,5.png,5,747,457,1039,633,1,-1,typestring,1,(atr) DetectionPredefinedValue value3",
+            ""
+        ],
+        {
+            "0": {
+                "trackId": 0,
+                "attributes": {
+                    "booleanAttr": true
+                },
+                "confidencePairs": [
+                    [
+                        "typestring",
+                        1.0
+                    ]
+                ],
+                "features": [
+                    {
+                        "frame": 0,
+                        "bounds": [
+                            885,
+                            510,
+                            1220,
+                            738
+                        ],
+                        "keyframe": true,
+                        "interpolate": false,
+                        "attributes": {
+                            "DetectionPredefinedValue": "value1",
+                            "DetectionNumber": 2.002
+                        }
+                    },
+                    {
+                        "frame": 1,
+                        "bounds": [
+                            111,
+                            222,
+                            3333,
+                            444
+                        ],
+                        "keyframe": true,
+                        "interpolate": false,
+                        "attributes": {
+                            "DetectionPredefinedValue": "value2"
+                        }
+                    },
+                    {
+                        "frame": 2,
+                        "bounds": [
+                            747,
+                            457,
+                            1039,
+                            633
+                        ],
+                        "keyframe": true,
+                        "interpolate": false,
+                        "attributes": {
+                            "DetectionPredefinedValue": "value3"
+                        }
+                    },
+                    {
+                        "frame": 3,
+                        "bounds": [
+                            885,
+                            510,
+                            1220,
+                            738
+                        ],
+                        "keyframe": true,
+                        "interpolate": false,
+                        "attributes": {
+                            "DetectionPredefinedValue": "value1"
+                        }
+                    },
+                    {
+                        "frame": 4,
+                        "bounds": [
+                            111,
+                            222,
+                            3333,
+                            444
+                        ],
+                        "keyframe": true,
+                        "interpolate": false,
+                        "attributes": {
+                            "DetectionPredefinedValue": "value2"
+                        }
+                    },
+                    {
+                        "frame": 5,
+                        "bounds": [
+                            747,
+                            457,
+                            1039,
+                            633
+                        ],
+                        "keyframe": true,
+                        "interpolate": false,
+                        "attributes": {
+                            "DetectionPredefinedValue": "value3"
+                        }
+                    }
+                ],
+                "begin": 0,
+                "end": 5
+            },
+            "1": {
+                "trackId": 1,
+                "attributes": {
+                    "booleanAttr": true
+                },
+                "confidencePairs": [
+                    [
+                        "typestring",
+                        1.0
+                    ]
+                ],
+                "features": [
+                    {
+                        "frame": 0,
+                        "bounds": [
+                            885,
+                            510,
+                            1220,
+                            738
+                        ],
+                        "keyframe": true,
+                        "interpolate": false,
+                        "attributes": {
+                            "DetectionPredefinedValue": "value1",
+                            "DetectionNumber": 2.002
+                        }
+                    },
+                    {
+                        "frame": 1,
+                        "bounds": [
+                            111,
+                            222,
+                            3333,
+                            444
+                        ],
+                        "keyframe": true,
+                        "interpolate": false,
+                        "attributes": {
+                            "DetectionPredefinedValue": "value2"
+                        }
+                    },
+                    {
+                        "frame": 2,
+                        "bounds": [
+                            747,
+                            457,
+                            1039,
+                            633
+                        ],
+                        "keyframe": true,
+                        "interpolate": false,
+                        "attributes": {
+                            "DetectionPredefinedValue": "value3"
+                        }
+                    },
+                    {
+                        "frame": 3,
+                        "bounds": [
+                            885,
+                            510,
+                            1220,
+                            738
+                        ],
+                        "keyframe": true,
+                        "interpolate": false,
+                        "attributes": {
+                            "DetectionPredefinedValue": "value1"
+                        }
+                    },
+                    {
+                        "frame": 4,
+                        "bounds": [
+                            111,
+                            222,
+                            3333,
+                            444
+                        ],
+                        "keyframe": true,
+                        "interpolate": false,
+                        "attributes": {
+                            "DetectionPredefinedValue": "value2"
+                        }
+                    },
+                    {
+                        "frame": 5,
+                        "bounds": [
+                            747,
+                            457,
+                            1039,
+                            633
+                        ],
+                        "keyframe": true,
+                        "interpolate": false,
+                        "attributes": {
+                            "DetectionPredefinedValue": "value3"
+                        }
+                    }
+                ],
+                "begin": 0,
+                "end": 5
+            }
+        },
+        {
+            "detection_DetectionNumber": {
+                "belongs": "detection",
+                "datatype": "number",
+                "key": "detection_DetectionNumber",
+                "name": "DetectionNumber"
+            },
+            "detection_DetectionPredefinedValue": {
+                "belongs": "detection",
+                "datatype": "text",
+                "key": "detection_DetectionPredefinedValue",
+                "name": "DetectionPredefinedValue",
+                "values": [
+                    "value1",
+                    "value2",
+                    "value3"
+                ]
+            },
+            "track_booleanAttr": {
+                "belongs": "track",
+                "datatype": "boolean",
+                "key": "track_booleanAttr",
+                "name": "booleanAttr"
+            }
+        }
+    ],
+    [
+        [
+            "0,1.png,0,884,510,1219,737,1.0,-1,",
+            "0,2.png,1,111,222,3333,444,1.0,-1,,",
+            "1,1.png,0,747,457,1039,633,0.8,-1",
+            ""
+        ],
+        {
+            "0": {
+                "trackId": 0,
+                "attributes": {},
+                "confidencePairs": [
+                    [
+                        "unknown",
+                        1.0
+                    ]
+                ],
+                "features": [
+                    {
+                        "frame": 0,
+                        "bounds": [
+                            884,
+                            510,
+                            1219,
+                            737
+                        ],
+                        "keyframe": true,
+                        "interpolate": false
+                    },
+                    {
+                        "frame": 1,
+                        "bounds": [
+                            111,
+                            222,
+                            3333,
+                            444
+                        ],
+                        "keyframe": true,
+                        "interpolate": false
+                    }
+                ],
+                "begin": 0,
+                "end": 1
+            },
+            "1": {
+                "trackId": 1,
+                "attributes": {},
+                "confidencePairs": [
+                    [
+                        "unknown",
+                        0.8
+                    ]
+                ],
+                "features": [
+                    {
+                        "frame": 0,
+                        "bounds": [
+                            747,
+                            457,
+                            1039,
+                            633
+                        ],
+                        "keyframe": true,
+                        "interpolate": false
+                    }
+                ],
+                "begin": 0,
+                "end": 0
+            }
+        },
+        {}
+    ]
+]

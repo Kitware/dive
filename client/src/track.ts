@@ -36,7 +36,7 @@ export interface Feature {
 /** TrackData is the json schema for Track transport */
 export interface TrackData {
   trackId: TrackId;
-  meta: StringKeyObject;
+  meta?: StringKeyObject;
   attributes: StringKeyObject;
   confidencePairs: Array<ConfidencePair>;
   features: Array<Feature>;

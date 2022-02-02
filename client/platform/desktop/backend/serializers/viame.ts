@@ -220,8 +220,12 @@ function _parseFeature(row: string[]) {
   const feature: Feature = {
     frame: rowInfo.frame,
     bounds: rowInfo.bounds,
-    fishLength: rowInfo.fishLength,
+    interpolate: false,
+    keyframe: true,
   };
+  if (rowInfo.fishLength !== -1) {
+    feature.fishLength = rowInfo.fishLength;
+  }
   if (rowData.attributes) {
     feature.attributes = rowData.attributes;
   }
@@ -268,7 +272,6 @@ async function parse(input: Readable): Promise<AnnotationFileData> {
               begin: rowInfo.frame,
               end: rowInfo.frame,
               trackId: rowInfo.trackId,
-              meta: {},
               attributes: {},
               confidencePairs: [],
               features: [],

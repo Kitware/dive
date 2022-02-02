@@ -3,7 +3,14 @@ import { MultiTrackRecord } from 'dive-common/apispec';
 import fs from 'fs-extra';
 import mockfs from 'mock-fs';
 import { JsonMeta } from 'platform/desktop/constants';
-import { serialize } from 'platform/desktop/backend/serializers/viame';
+import { serialize, parse } from 'platform/desktop/backend/serializers/viame';
+import { Attribute } from 'vue-media-annotator/use/useAttributes';
+import processTrackAttributes from 'platform/desktop/backend/native/attributeProcessor';
+
+
+type testPairs = [string[], MultiTrackRecord, Record<string, Attribute>];
+
+const testData: testPairs[] = fs.readJSONSync('../testutils/viame.spec.json');
 
 
 const data: MultiTrackRecord = {
@@ -118,13 +125,21 @@ const meta = {
   multiCam: null,
   subType: null,
 } as JsonMeta;
+const testFiles: Record<string, string> = { };
+testData.forEach((item, index) => {
+  // eslint-disable-next-line prefer-destructuring
+  testFiles[`${index}.csv`] = item[0].join('\n');
+});
+
 mockfs({
   '/home': {},
   'home/user/media/projectid1data': {
     'foo.png': '',
     'bar.png': '',
   },
+  '/csv': testFiles,
 });
+
 
 // Returns first confidence pairs output of CSV that isn't a comment
 function checkConfidenceOutput(output: string[]) {
@@ -149,6 +164,26 @@ function getCSVTiming(output: string[]) {
   }
   return timings;
 }
+
+describe('VIAME Python Compatibility Check', () => {
+  it('testing import and convert', async () => {
+    for (let i = 0; i < testData.length; i += 1) {
+      const trackData = testData[i][1];
+      const testAttributes = testData[i][2];
+      const testPath = `/csv/${i}.csv`;
+      const csvStream = fs.createReadStream(testPath);
+      const trackArray = Object.values(trackData);
+      // eslint-disable-next-line no-await-in-loop
+      const results = await parse(csvStream);
+      expect(results.tracks).toEqual(trackArray);
+      // eslint-disable-next-line no-await-in-loop
+      const attData = processTrackAttributes(results.tracks);
+      expect(testAttributes).toEqual(attData.attributes);
+    }
+  });
+});
+
+
 describe('VIAME serialize testing', () => {
   it('testing exporting with viame CSV and proper order', async () => {
     const path = '/home/test.json';
@@ -194,6 +229,7 @@ describe('VIAME serialize testing', () => {
     expect(checkConfidenceOutput(output)).toEqual(expectedOutput);
   });
 });
+
 
 afterAll(() => {
   mockfs.restore();
