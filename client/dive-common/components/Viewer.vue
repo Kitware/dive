@@ -31,7 +31,7 @@ import ControlsContainer from 'dive-common/components/ControlsContainer.vue';
 import Sidebar from 'dive-common/components/Sidebar.vue';
 import SidebarContext from 'dive-common/components/SidebarContext.vue';
 import { useModeManager, useSave } from 'dive-common/use';
-import clientSettingsSetup from 'dive-common/store/settings';
+import clientSettingsSetup, { clientSettings } from 'dive-common/store/settings';
 import { useApi, FrameImage, DatasetType } from 'dive-common/apispec';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { cloneDeep } from 'lodash';
@@ -436,6 +436,7 @@ export default defineComponent({
 
     provideAnnotator(
       {
+        annotatorPreferences: toRef(clientSettings, 'annotatorPreferences'),
         attributes,
         allTypes,
         datasetId,
@@ -465,6 +466,7 @@ export default defineComponent({
     return {
       /* props */
       confidenceFilters,
+      clientSettings,
       datasetName,
       datasetType,
       editingTrack,
@@ -531,8 +533,9 @@ export default defineComponent({
         >
           Viewer/Edit Controls
         </span>
-        <editor-menu
+        <EditorMenu
           v-bind="{ editingMode, visibleModes, editingTrack, recipes, mergeMode }"
+          :tail-settings.sync="clientSettings.annotatorPreferences.trackTails"
           class="shrink"
           @set-annotation-state="handler.setAnnotationState"
         />

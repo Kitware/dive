@@ -169,7 +169,7 @@ export default Vue.extend({
       canvas.height = bars.slice(-1)[0].top + 15;
       const muteOpacity = '30'; // Hex string: how much to mute regular colors: '#RRGGBB[AA]'
       const selectedColor = this.$vuetify.theme.themes.dark.accent;
-      const overflow = 0.6; // How much of a frame-width each detection box should occupy
+      const overflow = 0.7; // How much of a frame-width each detection box should occupy
       const barHeight = 10;
       bars.forEach((bar) => {
         const barWidth = Math.max(bar.right - bar.left, bar.minWidth);
@@ -191,7 +191,7 @@ export default Vue.extend({
           // Decrease SelectedColor opacity to mute it.
           ctx.fillStyle = selectedColor.concat(muteOpacity);
           ctx.fillRect(bar.left, bar.top, barWidth, barHeight);
-          const featureWidth = (barWidth / (bar.length - 1)) * overflow;
+          const featureWidth = Math.min((barWidth / (bar.length - 1)) * overflow, 30);
           // Draw bright markers for the keyframes
           ctx.fillStyle = selectedColor;
           bar.markers
@@ -208,8 +208,8 @@ export default Vue.extend({
               );
               if (next && interpolate) {
                 const nextPos = this.x(next[0]);
-                ctx.strokeStyle = this.$vuetify.theme.themes.dark.accent;
-                ctx.moveTo(pos, barMiddle);
+                ctx.strokeStyle = 'yellow';
+                ctx.moveTo(pos + featureWidth, barMiddle);
                 ctx.lineTo(nextPos, barMiddle);
                 ctx.stroke();
               }

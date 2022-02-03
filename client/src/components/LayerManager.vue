@@ -9,6 +9,7 @@ import RectangleLayer from '../layers/AnnotationLayers/RectangleLayer';
 import PolygonLayer from '../layers/AnnotationLayers/PolygonLayer';
 import PointLayer from '../layers/AnnotationLayers/PointLayer';
 import LineLayer from '../layers/AnnotationLayers/LineLayer';
+import TailLayer from '../layers/AnnotationLayers/TailLayer';
 
 import EditAnnotationLayer, { EditAnnotationTypes } from '../layers/EditAnnotationLayer';
 import { FrameDataTrack } from '../layers/LayerTypes';
@@ -68,6 +69,7 @@ export default defineComponent({
     const visibleModesRef = useVisibleModes();
     const selectedKeyRef = useSelectedKey();
     const stateStyling = useStateStyles();
+    const annotatorPrefs = useAnnotatorPreferences();
 
     const annotator = injectMediaController(props.camera);
     const frameNumberRef = annotator.frame;
@@ -94,6 +96,11 @@ export default defineComponent({
       stateStyling,
       typeStyling: typeStylingRef,
     });
+    const tailLayer = new TailLayer({
+      annotator,
+      stateStyling,
+      typeStyling: typeStylingRef,
+    }, trackMap);
 
 
     const textLayer = new TextLayer({
@@ -203,6 +210,16 @@ export default defineComponent({
       } else {
         lineLayer.disable();
       }
+      if (visibleModes.includes('TrackTail')) {
+        tailLayer.updateSettings(
+          frame,
+          annotatorPrefs.value.trackTails.before,
+          annotatorPrefs.value.trackTails.after,
+        );
+        tailLayer.changeData(frameData);
+      } else {
+        tailLayer.disable();
+      }
       pointLayer.changeData(frameData);
       if (visibleModes.includes('text')) {
         textLayer.changeData(frameData);
@@ -266,25 +283,46 @@ export default defineComponent({
       );
     });
 
-    watch([
-      frameNumberRef,
-      editingModeRef,
-      enabledTracksRef,
-      selectedTrackIdRef,
-      mergeListRef,
-      visibleModesRef,
-      typeStylingRef,
-    ], () => {
-      updateLayers(
-        frameNumberRef.value,
-        editingModeRef.value,
-        selectedTrackIdRef.value,
-        mergeListRef.value,
-        enabledTracksRef.value,
-        visibleModesRef.value,
-        selectedKeyRef.value,
-      );
-    });
+    /** Shallow watch */
+    watch(
+      [
+        frameNumberRef,
+        editingModeRef,
+        enabledTracksRef,
+        selectedTrackIdRef,
+        mergeListRef,
+        visibleModesRef,
+        typeStylingRef,
+      ],
+      () => {
+        updateLayers(
+          frameNumberRef.value,
+          editingModeRef.value,
+          selectedTrackIdRef.value,
+          mergeListRef.value,
+          enabledTracksRef.value,
+          visibleModesRef.value,
+          selectedKeyRef.value,
+        );
+      },
+    );
+
+    /** Deep watch */
+    watch(
+      annotatorPrefs,
+      () => {
+        updateLayers(
+          frameNumberRef.value,
+          editingModeRef.value,
+          selectedTrackIdRef.value,
+          mergeListRef.value,
+          enabledTracksRef.value,
+          visibleModesRef.value,
+          selectedKeyRef.value,
+        );
+      },
+      { deep: true },
+    );
 
     const Clicked = (trackId: number, editing: boolean) => {
       //So we only want to pass the click whjen not in creation mode or editing mode for features
