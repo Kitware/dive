@@ -57,6 +57,7 @@ class Track(BaseModel):
     features: List[Feature] = Field(default_factory=lambda: [])
     confidencePairs: List[Tuple[str, float]] = Field(default_factory=lambda: [])
     attributes: Dict[str, Any] = Field(default_factory=lambda: {})
+    meta: Optional[Dict[str, Any]]
 
     @validator('features')
     @classmethod
