@@ -27,9 +27,8 @@ nav:
   - Screenshots: Screenshots.md
   - Web Version: Web-Version.md
   - Desktop Version: Dive-Desktop.md
+  - Keyboard Shortcut Reference: Mouse-Keyboard-Shortcuts.md
   - Annotation Quickstart: Annotation-QuickStart.md
-  - Mouse and Keyboard Shortcuts: Mouse-Keyboard-Shortcuts.md
-  - Pipelines & Training: Pipeline-Documentation.md
   - Annotation Interface Guide:
     - Introduction: Annotation-User-Interface-Overview.md
     - Navigation Bar: UI-Navigation-Bar.md
@@ -37,8 +36,10 @@ nav:
     - Annotation View: UI-Annotation-View.md
     - Type List: UI-Type-List.md
     - Track List: UI-Track-List.md
-    - Interpolation: UI-Interpolation.md
+    - Timeline: UI-Timeline.md
     - Attributes: Attributes.md
+    - Interpolation: UI-Interpolation.md
+  - Pipelines & Training: Pipeline-Documentation.md
   - Deployment Documentation:
     - Deployment Options Overview: Deployment-Overview.md
     - Provisioning Google Cloud: Deployment-Provision.md
