@@ -75,20 +75,6 @@ export default defineComponent({
   computed: {
     ...mapState('Location', ['selected', 'location']),
     ...mapGetters('Location', ['locationIsViameFolder']),
-    exportTarget() {
-      let { selected } = this;
-      if (selected.length === 1) {
-        [selected] = selected;
-        if (selected._modelType !== 'folder') {
-          return null;
-        }
-        return selected;
-      }
-      if (this.locationIsViameFolder) {
-        return this.location;
-      }
-      return null;
-    },
     selectedViameFolderIds() {
       return this.selected.filter(
         ({ _modelType, meta }) => _modelType === 'folder' && meta && meta.annotate,
