@@ -5,6 +5,7 @@ import csv
 import datetime
 import io
 import json
+import os
 import re
 from typing import Any, Dict, Generator, List, Tuple, Union
 
@@ -166,7 +167,7 @@ def _parse_row(row: List[str]) -> Tuple[Dict, Dict, Dict, List]:
 
 def _parse_row_for_tracks(row: List[str]) -> Tuple[Feature, Dict, Dict, List]:
     head_tail_feature, attributes, track_attributes, confidence_pairs = _parse_row(row)
-    trackId, filename, frame, bounds, fishLength = row_info(row)
+    _, _, frame, bounds, fishLength = row_info(row)
 
     feature = Feature(
         frame=frame,
@@ -233,16 +234,25 @@ def calculate_attribute_types(
             metadata_attributes[attributeKey]['datatype'] = attribute_type
 
 
-def load_csv_as_tracks_and_attributes(rows: List[str]) -> Tuple[dict, dict]:
+def load_csv_as_tracks_and_attributes(
+    rows: List[str], imageMap: Dict[str, int] = None
+) -> Tuple[dict, dict]:
     """
-    Convert VIAME CSV to json tracks.
-    Expect detections to be in increasing order (either globally or by track).
+    Convert VIAME CSV to json tracks
+
+    :param rows: string rows of a VIAME CSV file
+    :param imageMap: map of image names to frame numbers.  keys do NOT include file extension
     """
-    reader = csv.reader(row for row in rows if (not row.startswith("#") and row))
+    reader = csv.reader(row for row in rows)
     tracks: Dict[int, Track] = {}
     metadata_attributes: Dict[str, Dict[str, Any]] = {}
     test_vals: Dict[str, Dict[str, int]] = {}
+    reordered = False
+
     for row in reader:
+        if len(row) == 0 or row[0].startswith('#'):
+            # This is not a data row
+            continue
         (
             feature,
             attributes,
@@ -250,14 +260,35 @@ def load_csv_as_tracks_and_attributes(rows: List[str]) -> Tuple[dict, dict]:
             confidence_pairs,
         ) = _parse_row_for_tracks(row)
 
-        trackId, _, frame, _, _ = row_info(row)
+        trackId, imageFile, _, _, _ = row_info(row)
+
+        if imageMap:
+            # validate image ordering if the imageMap is provided
+            imageName, _ = os.path.splitext(os.path.basename(imageFile))
+            expectedFrameNumber = imageMap.get(imageName)
+            if expectedFrameNumber is None:
+                raise ValueError(
+                    f'encountered annotation for image not found in dataset: {imageFile}'
+                )
+            elif expectedFrameNumber is not feature.frame:
+                # force reorder the annotations
+                reordered = True
+                feature.frame = expectedFrameNumber
 
         if trackId not in tracks:
-            tracks[trackId] = Track(begin=frame, end=frame, trackId=trackId)
+            tracks[trackId] = Track(begin=feature.frame, end=feature.frame, trackId=trackId)
+        elif reordered:
+            # trackId was already in tracks, so the track consists of multiple frames
+            raise ValueError(
+                (
+                    'images were provided in an unexpected order '
+                    'and dataset contains multi-frame tracks. '
+                )
+            )
 
         track = tracks[trackId]
-        track.begin = min(frame, track.begin)
-        track.end = max(track.end, frame)
+        track.begin = min(feature.frame, track.begin)
+        track.end = max(track.end, feature.frame)
         track.features.append(feature)
         track.confidencePairs = confidence_pairs
 

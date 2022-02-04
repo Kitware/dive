@@ -1,5 +1,7 @@
 import { spawn } from 'child_process';
 import fs from 'fs-extra';
+import path from 'path';
+
 import { observeChild } from 'platform/desktop/backend/native/processManager';
 import { DesktopJob, DesktopJobUpdater } from 'platform/desktop/constants';
 
@@ -62,7 +64,14 @@ Promise<{ output: null | string; exitCode: number | null; error: string}> {
   });
 }
 
+/* same as os.path.splitext */
+function splitExt(input: string): [string, string] {
+  const ext = path.extname(input);
+  return [path.basename(input, ext), ext];
+}
+
 export {
   jobFileEchoMiddleware,
   spawnResult,
+  splitExt,
 };
