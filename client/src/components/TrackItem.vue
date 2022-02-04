@@ -3,7 +3,9 @@ import {
   defineComponent, computed, watch, reactive, PropType, toRef, ref,
 } from '@vue/composition-api';
 import TooltipBtn from './TooltipButton.vue';
-import { useHandler, useAllTypes, useTime } from '../provides';
+import {
+  useHandler, useAllTypes, useTime, useReadOnlyMode,
+} from '../provides';
 import Track from '../track';
 
 export default defineComponent({
@@ -55,6 +57,7 @@ export default defineComponent({
     const { frame: frameRef } = useTime();
     const handler = useHandler();
     const allTypesRef = useAllTypes();
+    const readOnlyMode = useReadOnlyMode();
     const trackTypeRef = toRef(props, 'trackType');
     const typeInputBoxRef = ref(undefined as undefined | HTMLInputElement);
     const data = reactive({
@@ -194,6 +197,7 @@ export default defineComponent({
       frame: frameRef,
       allTypes: allTypesRef,
       keyframeDisabled,
+      readOnlyMode,
       /* methods */
       blurType,
       focusType,
@@ -258,6 +262,7 @@ export default defineComponent({
         ref="typeInputBoxRef"
         v-model="data.trackTypeValue"
         class="input-box select-input"
+        :disabled="readOnlyMode"
         @focus="onFocus"
         @change="onBlur"
         @keydown="onInputKeyEvent"
@@ -277,6 +282,7 @@ export default defineComponent({
         type="text"
         list="allTypesOptions"
         class="input-box freeform-input"
+        :disabled="readOnlyMode"
         @focus="onFocus"
         @blur="onBlur"
         @keydown="onInputKeyEvent"
@@ -307,21 +313,21 @@ export default defineComponent({
         <tooltip-btn
           color="error"
           icon="mdi-delete"
-          :disabled="merging"
+          :disabled="merging || readOnlyMode"
           :tooltip-text="`Delete ${isTrack ? 'Track' : 'Detection'}`"
           @click="handler.removeTrack([track.trackId])"
         />
 
         <tooltip-btn
           v-if="isTrack"
-          :disabled="!track.canSplit(frame) || merging"
+          :disabled="!track.canSplit(frame) || merging || readOnlyMode"
           icon="mdi-call-split"
           tooltip-text="Split Track"
           @click="handler.trackSplit(track.trackId, frame)"
         />
 
         <tooltip-btn
-          v-if="isTrack"
+          v-if="isTrack && !readOnlyMode"
           :icon="(feature.isKeyframe)
             ? 'mdi-star'
             : 'mdi-star-outline'"
@@ -331,7 +337,7 @@ export default defineComponent({
         />
 
         <tooltip-btn
-          v-if="isTrack"
+          v-if="isTrack && !readOnlyMode"
           :icon="(feature.shouldInterpolate)
             ? 'mdi-vector-selection'
             : 'mdi-selection-off'"
@@ -376,7 +382,7 @@ export default defineComponent({
         v-if="!merging"
         :icon="(editing) ? 'mdi-pencil-box' : 'mdi-pencil-box-outline'"
         tooltip-text="Toggle edit mode"
-        :disabled="!inputValue"
+        :disabled="!inputValue || readOnlyMode"
         @click="handler.trackEdit(track.trackId)"
       />
     </v-row>

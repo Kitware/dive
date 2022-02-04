@@ -68,7 +68,7 @@ export default defineComponent({
       }
     });
     const isPipelineRunning = (jobId: string) => (runningJobs.value.find(
-      (item) => item.job.datasetIds.includes(jobId),
+      (item) => item.job.datasetIds.includes(jobId) && item.job.jobType === 'pipeline',
     ) !== undefined);
     return {
       datasets,
@@ -89,7 +89,7 @@ export default defineComponent({
   <Viewer
     :id.sync="compoundId"
     ref="viewerRef"
-    :readonly-mode="readonlyMode"
+    :readonly-mode="readonlyMode || isPipelineRunning(id)"
   >
     <template #title>
       <v-tabs

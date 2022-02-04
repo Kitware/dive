@@ -184,6 +184,7 @@ export default defineComponent({
       selectNextTrack,
     } = useTrackSelectionControls({
       filteredTracks,
+      readonlyState,
     });
 
     clientSettingsSetup(allTypes);
@@ -427,6 +428,7 @@ export default defineComponent({
         stateStyles: stateStyling,
         time,
         visibleModes,
+        readOnlyMode: readonlyState,
       },
       globalHandler,
     );

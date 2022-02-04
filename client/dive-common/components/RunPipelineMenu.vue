@@ -11,7 +11,6 @@ import {
 import JobLaunchDialog from 'dive-common/components/JobLaunchDialog.vue';
 import { stereoPipelineMarker, multiCamPipelineMarkers } from 'dive-common/constants';
 import { useRequest } from 'dive-common/use';
-import { useStore } from 'platform/web-girder/store/types';
 
 export default defineComponent({
   name: 'RunPipelineMenu',
@@ -157,16 +156,10 @@ export default defineComponent({
           <template #activator="{ on: tooltipOn }">
             <v-btn
               v-bind="buttonOptions"
-              :disabled="pipelinesNotRunnable || pipelinesCurrentlyRunning"
+              :disabled="pipelinesNotRunnable"
+              :color="pipelinesCurrentlyRunning? 'warning' : ''"
               v-on="{ ...tooltipOn, ...menuOn }"
             >
-              <v-icon
-                v-if="pipelinesCurrentlyRunning"
-                class="rotate"
-                color="warning"
-              >
-                mdi-autorenew
-              </v-icon>
               <v-icon> mdi-pipe </v-icon>
               <span
                 v-show="!$vuetify.breakpoint.mdAndDown || buttonOptions.block"
@@ -180,13 +173,21 @@ export default defineComponent({
               </v-icon>
             </v-btn>
           </template>
-          <span>Run CV algorithm pipelines on this data</span>
+          <span v-if="!pipelinesCurrentlyRunning">Run CV algorithm pipelines on this data</span>
+          <span v-else>Pipeline is Currently running </span>
         </v-tooltip>
       </template>
 
       <template>
+        <v-card v-if="pipelinesCurrentlyRunning">
+          <v-card-title> Pipeline Running </v-card-title>
+          <v-card-text>
+            A pipeline is currently running on this dataset.
+            Please wait until it is complete before running another pipeline or making any changes
+          </v-card-text>
+        </v-card>
         <v-card
-          v-if="pipelines"
+          v-else-if="pipelines"
           outlined
         >
           <v-card-title> VIAME Pipelines </v-card-title>
