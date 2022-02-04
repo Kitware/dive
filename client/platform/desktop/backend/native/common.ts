@@ -872,7 +872,17 @@ async function beginMediaImport(
 function validImageNamesMap(jsonMeta: JsonMeta) {
   if (jsonMeta.originalImageFiles.length > 0) {
     const imageMap = new Map<string, number>();
-    jsonMeta.originalImageFiles.forEach((imgPath, i) => imageMap.set(splitExt(imgPath)[0], i));
+    jsonMeta.originalImageFiles.forEach((imgPath, i) => {
+      const [imageBaseName] = splitExt(imgPath);
+      if (imageMap.get(imageBaseName) !== undefined) {
+        throw new Error([
+          `An image named ${imageBaseName} was found twice in the dataset,`,
+          'probably in different folders. DIVE cannot handle this case.',
+          'Please contact support.',
+        ].join(' '));
+      }
+      imageMap.set(imageBaseName, i);
+    });
     return imageMap;
   }
   return undefined;

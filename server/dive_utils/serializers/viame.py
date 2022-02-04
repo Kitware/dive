@@ -264,7 +264,7 @@ def load_csv_as_tracks_and_attributes(
 
         if imageMap:
             # validate image ordering if the imageMap is provided
-            imageName, _ = os.path.splitext(imageFile)
+            imageName, _ = os.path.splitext(os.path.basename(imageFile))
             expectedFrameNumber = imageMap.get(imageName)
             if expectedFrameNumber is None:
                 raise ValueError(
