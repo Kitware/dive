@@ -127,7 +127,7 @@ export default defineComponent({
       />
       <Export
         v-bind="{ buttonOptions, menuOptions }"
-        :dataset-id="id"
+        :dataset-ids="[id]"
         block-on-unsaved
       />
       <Clone
