@@ -75,23 +75,6 @@ export default defineComponent({
   computed: {
     ...mapState('Location', ['selected', 'location']),
     ...mapGetters('Location', ['locationIsViameFolder']),
-    exportTarget() {
-      let { selected } = this;
-      if (selected.length === 1) {
-        [selected] = selected;
-        if (selected._modelType !== 'folder') {
-          return null;
-        }
-        return selected;
-      }
-      if (this.locationIsViameFolder) {
-        return this.location;
-      }
-      return null;
-    },
-    exportTargetId() {
-      return this.exportTarget?._id || null;
-    },
     selectedViameFolderIds() {
       return this.selected.filter(
         ({ _modelType, meta }) => _modelType === 'folder' && meta && meta.annotate,
@@ -172,7 +155,7 @@ export default defineComponent({
                 />
                 <export
                   v-bind="{ buttonOptions, menuOptions }"
-                  :dataset-id="exportTargetId"
+                  :dataset-ids="locationInputs"
                 />
                 <v-btn
                   :disabled="!selected.length"

@@ -12,7 +12,7 @@ import { pipeline, Readable, Writable } from 'stream';
 
 import { MultiTrackRecord } from 'dive-common/apispec';
 import { JsonMeta } from 'platform/desktop/constants';
-
+import { splitExt } from 'platform/desktop/backend/native/utils';
 // Imports that involve actual code require relative imports because ts-node barely works
 // https://github.com/TypeStrong/ts-node/issues/422
 import Track, {
@@ -240,7 +240,7 @@ function _parseFeature(row: string[]) {
   };
 }
 
-async function parse(input: Readable): Promise<AnnotationFileData> {
+async function parse(input: Readable, imageMap?: Map<string, number>): Promise<AnnotationFileData> {
   const parser = csvparser({
     delimiter: ',',
     // comment lines may not have the correct number of columns
@@ -248,6 +248,7 @@ async function parse(input: Readable): Promise<AnnotationFileData> {
   });
   let fps: number | undefined;
   const dataMap = new Map<number, TrackData>();
+  let reordered = false;
 
   return new Promise<AnnotationFileData>((resolve, reject) => {
     pipeline(input, parser, (err) => {
@@ -265,6 +266,23 @@ async function parse(input: Readable): Promise<AnnotationFileData> {
           const {
             rowInfo, feature, trackAttributes, confidencePairs,
           } = _parseFeature(record);
+
+          if (imageMap !== undefined) {
+            // validate image ordering if the imageMap is provided.
+            const [imageName] = splitExt(rowInfo.filename);
+            const expectedFrameNumber = imageMap.get(imageName);
+            if (expectedFrameNumber === undefined) {
+              throw new Error(
+                `encountered annotation for image not found in dataset: ${rowInfo.filename}`,
+              );
+            } else if (expectedFrameNumber !== feature.frame) {
+              // force reorder the annotations
+              reordered = true;
+              feature.frame = expectedFrameNumber;
+              rowInfo.frame = expectedFrameNumber;
+            }
+          }
+
           let track = dataMap.get(rowInfo.trackId);
           if (track === undefined) {
             // Create new track if not exists in map
@@ -277,6 +295,11 @@ async function parse(input: Readable): Promise<AnnotationFileData> {
               features: [],
             };
             dataMap.set(rowInfo.trackId, track);
+          } else if (reordered) {
+            // trackId was already in dataMap, so the track has more than 1 detection.
+            throw new Error(
+              'annotations were provided in an unexpected order and dataset contains multi-frame tracks',
+            );
           }
           track.begin = Math.min(rowInfo.frame, track.begin);
           track.end = Math.max(rowInfo.frame, track.end);
@@ -289,6 +312,9 @@ async function parse(input: Readable): Promise<AnnotationFileData> {
             track.attributes[key] = val;
           });
         } catch (err) {
+          if (!(err instanceof Error)) {
+            throw new Error(`Caught unexpected error ${err}`);
+          }
           if (err.toString().includes('comment row')) {
             // parse comment row
             fps = fps || parseCommentRow(record).fps;
@@ -306,9 +332,10 @@ async function parse(input: Readable): Promise<AnnotationFileData> {
   });
 }
 
-async function parseFile(path: string): Promise<AnnotationFileData> {
+async function parseFile(path: string, imageMap?: Map<string, number>):
+  Promise<AnnotationFileData> {
   const stream = fs.createReadStream(path);
-  return parse(stream);
+  return parse(stream, imageMap);
 }
 
 async function writeHeader(writer: Writable, meta: JsonMeta) {

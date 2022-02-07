@@ -3,6 +3,7 @@ import {
   provide, inject, ref, Ref,
 } from '@vue/composition-api';
 
+import { AnnotatorPreferences as AnnotatorPrefsIface } from './types';
 import { CustomStyle, StateStyles, TypeStyling } from './use/useStyling';
 import { EditAnnotationTypes } from './layers/EditAnnotationLayer';
 import Track, { TrackId } from './track';
@@ -16,6 +17,9 @@ import { Time } from './use/useTimeObserver';
  * Type definitions are read only because injectors may mutate internal state,
  * but should never overwrite or delete the injected object.
  */
+
+const AnnotatorPreferencesSymbol = Symbol('annotatorPreferences');
+type AnnotatorPreferences = Readonly<Ref<AnnotatorPrefsIface>>;
 
 const AttributesSymbol = Symbol('attributes');
 type AttributesType = Readonly<Ref<Attribute[]>>;
@@ -200,6 +204,7 @@ function dummyHandler(handle: (name: string, args: unknown[]) => void): Handler 
  * you will need to construct on your own.
  */
 export interface State {
+  annotatorPreferences: AnnotatorPreferences;
   attributes: AttributesType;
   allTypes: AllTypesType;
   datasetId: DatasetIdType;
@@ -236,6 +241,7 @@ function dummyState(): State {
     showConfidence: true,
   };
   return {
+    annotatorPreferences: ref({ trackTails: { before: 20, after: 10 } }),
     attributes: ref([]),
     allTypes: ref([]),
     datasetId: ref(''),
@@ -285,6 +291,7 @@ function dummyState(): State {
  * @param {Hander} handler
  */
 function provideAnnotator(state: State, handler: Handler) {
+  provide(AnnotatorPreferencesSymbol, state.annotatorPreferences);
   provide(AttributesSymbol, state.attributes);
   provide(AllTypesSymbol, state.allTypes);
   provide(DatasetIdSymbol, state.datasetId);
@@ -318,6 +325,10 @@ function use<T>(s: symbol) {
     throw _handleMissing(s);
   }
   return v;
+}
+
+function useAnnotatorPreferences() {
+  return use<AnnotatorPreferences>(AnnotatorPreferencesSymbol);
 }
 
 function useAttributes() {
@@ -407,6 +418,7 @@ export {
   dummyState,
   provideAnnotator,
   use,
+  useAnnotatorPreferences,
   useAttributes,
   useAllTypes,
   useDatasetId,

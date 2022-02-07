@@ -31,7 +31,7 @@ class DatasetResource(Resource):
         self.route("GET", (), self.list_datasets)
         self.route("GET", (":id",), self.get_meta)
         self.route("GET", (":id", "media"), self.get_media)
-        self.route("GET", (":id", "export"), self.export)
+        self.route("GET", ("export",), self.export)
         self.route("GET", (":id", "configuration"), self.get_configuration)
         self.route("POST", ("validate_files",), self.validate_files)
 
@@ -156,8 +156,15 @@ class DatasetResource(Resource):
 
     @access.public(scope=TokenScope.DATA_READ, cookie=True)
     @autoDescribeRoute(
-        Description("Export everything in a dataset")
-        .modelParam("id", level=AccessType.READ, **DatasetModelParam)
+        Description("Export all selected datasets")
+        .jsonParam(
+            "folderIds",
+            "List of track types to filter by",
+            paramType="query",
+            required=True,
+            default=[],
+            requireArray=True,
+        )
         .param(
             "includeMedia",
             "Include media content",
@@ -190,21 +197,29 @@ class DatasetResource(Resource):
     )
     def export(
         self,
-        folder,
+        folderIds: List[str],
         includeMedia: bool,
         includeDetections: bool,
         excludeBelowThreshold: bool,
         typeFilter: Optional[List[str]],
     ):
-        gen = crud_dataset.export_dataset_zipstream(
-            folder,
+        girder_folders = []
+        for folder in folderIds:
+            girder_folders.append(
+                Folder().load(folder, level=AccessType.READ, user=self.getCurrentUser())
+            )
+        gen = crud_dataset.export_datasets_zipstream(
+            girder_folders,
             self.getCurrentUser(),
             includeMedia=includeMedia,
             includeDetections=includeDetections,
             excludeBelowThreshold=excludeBelowThreshold,
             typeFilter=typeFilter,
         )
-        setContentDisposition(f'{folder["name"]}.zip', mime='application/zip')
+        zip_name = "batch_export.zip"
+        if len(girder_folders) == 1:
+            zip_name = f"{girder_folders[0]['name']}.zip"
+        setContentDisposition(zip_name, mime='application/zip')
         return gen
 
     @access.user

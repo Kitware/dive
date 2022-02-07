@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 from typing import List, Optional, Tuple
 
 import cherrypy
@@ -193,59 +194,78 @@ def update_attributes(dsFolder: types.GirderModel, data: dict):
     }
 
 
-def export_dataset_zipstream(
-    dsFolder: types.GirderModel,
+def export_datasets_zipstream(
+    dsFolders: List[types.GirderModel],
     user: types.GirderUserModel,
     includeMedia: bool,
     includeDetections: bool,
     excludeBelowThreshold: bool,
     typeFilter: Optional[List[str]],
 ):
-    _, gen = crud_annotation.get_annotation_csv_generator(
-        dsFolder, user, excludeBelowThreshold, typeFilter
-    )
-    mediaFolder = crud.getCloneRoot(user, dsFolder)
-    source_type = fromMeta(mediaFolder, constants.TypeMarker)
-    mediaRegex = None
-    if source_type == constants.ImageSequenceType:
-        mediaRegex = constants.imageRegex
-    elif source_type == constants.VideoType:
-        mediaRegex = constants.videoRegex
-
-    def makeMetajson():
-        """Include dataset metadtata file with full export"""
-        meta = get_dataset(dsFolder, user)
-        media = get_media(dsFolder, user)
-        yield json.dumps(
-            {
-                **meta.dict(exclude_none=True),
-                **media.dict(exclude_none=True),
-            },
-            indent=2,
+    def makeAnnotationAndMedia(dsFolder: types.GirderModel):
+        _, gen = crud_annotation.get_annotation_csv_generator(
+            dsFolder, user, excludeBelowThreshold, typeFilter
         )
+        mediaFolder = crud.getCloneRoot(user, dsFolder)
+
+        source_type = fromMeta(mediaFolder, constants.TypeMarker)
+        mediaRegex = None
+        if source_type == constants.ImageSequenceType:
+            mediaRegex = constants.imageRegex
+        elif source_type == constants.VideoType:
+            mediaRegex = constants.videoRegex
+        return gen, mediaFolder, mediaRegex
+
+    failed_datasets = []
 
     def stream():
-        z = ziputil.ZipGenerator(dsFolder['name'])
+        z = ziputil.ZipGenerator()
+        for dsFolder in dsFolders:
+            zip_path = f"./{dsFolder['name']}/"
+            try:
+                get_media(dsFolder, user)
+            except RestException:
+                failed_datasets.append(
+                    f"Dataset: {dsFolder['name']} was not found. \
+                        This may be a cloned dataset where the source was deleted.\n"
+                )
+                continue
 
-        # Always add the metadata file
-        for data in z.addFile(makeMetajson, 'meta.json'):
-            yield data
+            def makeMetajson():
+                """Include dataset metadtata file with full export"""
+                meta = get_dataset(dsFolder, user)
+                media = get_media(dsFolder, user)
+                yield json.dumps(
+                    {
+                        **meta.dict(exclude_none=True),
+                        **media.dict(exclude_none=True),
+                    },
+                    indent=2,
+                )
 
-        if includeMedia:
-            # Add media
-            for item in Folder().childItems(
-                mediaFolder,
-                filters={"lowerName": {"$regex": mediaRegex}},
-            ):
-                for (path, file) in Item().fileList(item):
-                    for data in z.addFile(file, path):
-                        yield data
-                    break  # Media items should only have 1 valid file
+            for data in z.addFile(makeMetajson, Path(f'{zip_path}meta.json')):
+                yield data
+                gen, mediaFolder, mediaRegex = makeAnnotationAndMedia(dsFolder)
+            if includeMedia:
+                # Add media
+                for item in Folder().childItems(
+                    mediaFolder,
+                    filters={"lowerName": {"$regex": mediaRegex}},
+                ):
+                    for (path, file) in Item().fileList(item):
+                        for data in z.addFile(file, Path(f'{zip_path}{path}')):
+                            yield data
+                        break  # Media items should only have 1 valid file
 
-        if includeDetections:
-            # TODO Add back in dump to json
-            # add CSV detections
-            for data in z.addFile(gen, "output_tracks.csv"):
+            if includeDetections:
+                for data in z.addFile(gen, Path(f'{zip_path}output_tracks.csv')):
+                    yield data
+        if len(failed_datasets) > 0:
+
+            def makeFailedDatasets():
+                yield ''.join(failed_datasets)
+
+            for data in z.addFile(makeFailedDatasets, Path('./failed_datasets.txt')):
                 yield data
         yield z.footer()
 
