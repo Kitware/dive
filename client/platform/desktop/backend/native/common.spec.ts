@@ -114,9 +114,10 @@ type testPairs = [string[], MultiTrackRecord, Record<string, Attribute>];
 
 const testData: testPairs[] = fs.readJSONSync('../testutils/viame.spec.json');
 const images: Record<string, string> = {};
-const list = Array.from(Array(10).keys());
+const imageList = Array.from(Array(10).keys());
+imageList.shift(); //remove 0.png
 // eslint-disable-next-line no-return-assign
-list.forEach((item) => images[`${item}.png`] = '');
+imageList.forEach((item) => images[`${item}.png`] = '');
 
 type TestKey = string | 'annotations.csv';
 const fileSystemData: Record<string, Record<string, string>> = { };
@@ -732,7 +733,6 @@ describe('native.common', () => {
         settings, `/home/user/testPairs/test${num}`, checkMedia,
       );
       expect(payload.jsonMeta.originalImageFiles).toEqual([
-        '0.png',
         '1.png',
         '2.png',
         '3.png',
