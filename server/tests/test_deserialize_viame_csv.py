@@ -35,14 +35,10 @@ old_tuple: List[Tuple[list, dict, dict]] = [
                         "frame": 0,
                         # NOTICE numbers that were rounded!
                         "bounds": [885, 510, 1220, 738],
-                        "keyframe": True,
-                        "interpolate": False,
                     },
                     {
                         "frame": 1,
                         "bounds": [111, 222, 3333, 444],
-                        "keyframe": True,
-                        "interpolate": False,
                     },
                 ],
                 "begin": 0,
@@ -56,8 +52,6 @@ old_tuple: List[Tuple[list, dict, dict]] = [
                     {
                         "frame": 0,
                         "bounds": [747, 457, 1039, 633],
-                        "keyframe": True,
-                        "interpolate": False,
                     }
                 ],
                 "begin": 0,
@@ -71,8 +65,6 @@ old_tuple: List[Tuple[list, dict, dict]] = [
                     {
                         "frame": 2,
                         "bounds": [10, 50, 20, 35],
-                        "keyframe": True,
-                        "interpolate": False,
                         "geometry": {
                             "type": "FeatureCollection",
                             "features": [
@@ -109,8 +101,6 @@ old_tuple: List[Tuple[list, dict, dict]] = [
                     {
                         "frame": 3,
                         "bounds": [10, 50, 20, 35],
-                        "keyframe": True,
-                        "interpolate": False,
                         "geometry": {
                             "type": "FeatureCollection",
                             "features": [
@@ -137,8 +127,6 @@ old_tuple: List[Tuple[list, dict, dict]] = [
                     {
                         "frame": 4,
                         "bounds": [10, 10, 20, 20],
-                        "keyframe": True,
-                        "interpolate": False,
                     },
                 ],
                 "begin": 4,
@@ -152,8 +140,6 @@ old_tuple: List[Tuple[list, dict, dict]] = [
                     {
                         "frame": 5,
                         "bounds": [10, 10, 20, 20],
-                        "keyframe": True,
-                        "interpolate": False,
                         "geometry": {
                             "type": "FeatureCollection",
                             "features": [
@@ -188,8 +174,6 @@ old_tuple: List[Tuple[list, dict, dict]] = [
                     {
                         "frame": 6,
                         "bounds": [10, 10, 20, 20],
-                        "keyframe": True,
-                        "interpolate": False,
                         "attributes": {"attrNAME": "spaced attr name"},
                     },
                 ],
@@ -204,8 +188,6 @@ old_tuple: List[Tuple[list, dict, dict]] = [
                     {
                         "frame": 4,
                         "bounds": [10, 10, 20, 20],
-                        "keyframe": True,
-                        "interpolate": False,
                     },
                 ],
                 "begin": 4,
@@ -246,20 +228,14 @@ old_tuple: List[Tuple[list, dict, dict]] = [
                     {
                         "frame": 0,
                         "bounds": [884, 510, 1219, 737],
-                        "keyframe": True,
-                        "interpolate": False,
                     },
                     {
                         "frame": 1,
                         "bounds": [111, 222, 3333, 444],
-                        "keyframe": True,
-                        "interpolate": False,
                     },
                     {
                         "frame": 2,
                         "bounds": [747, 457, 1039, 633],
-                        "keyframe": True,
-                        "interpolate": False,
                     },
                 ],
                 "begin": 0,
@@ -295,8 +271,6 @@ old_tuple: List[Tuple[list, dict, dict]] = [
                     {
                         "frame": 0,
                         "bounds": [885, 510, 1220, 738],
-                        "keyframe": True,
-                        "interpolate": False,
                         "attributes": {
                             "DetectionPredefinedValue": "value1",
                             "DetectionNumber": 2.002,
@@ -305,8 +279,6 @@ old_tuple: List[Tuple[list, dict, dict]] = [
                     {
                         "frame": 1,
                         "bounds": [111, 222, 3333, 444],
-                        "keyframe": True,
-                        "interpolate": False,
                         "attributes": {
                             "DetectionPredefinedValue": "value2",
                         },
@@ -314,8 +286,6 @@ old_tuple: List[Tuple[list, dict, dict]] = [
                     {
                         "frame": 2,
                         "bounds": [747, 457, 1039, 633],
-                        "keyframe": True,
-                        "interpolate": False,
                         "attributes": {
                             "DetectionPredefinedValue": "value3",
                         },
@@ -323,8 +293,6 @@ old_tuple: List[Tuple[list, dict, dict]] = [
                     {
                         "frame": 3,
                         "bounds": [885, 510, 1220, 738],
-                        "keyframe": True,
-                        "interpolate": False,
                         "attributes": {
                             "DetectionPredefinedValue": "value1",
                         },
@@ -332,8 +300,6 @@ old_tuple: List[Tuple[list, dict, dict]] = [
                     {
                         "frame": 4,
                         "bounds": [111, 222, 3333, 444],
-                        "keyframe": True,
-                        "interpolate": False,
                         "attributes": {
                             "DetectionPredefinedValue": "value2",
                         },
@@ -341,8 +307,6 @@ old_tuple: List[Tuple[list, dict, dict]] = [
                     {
                         "frame": 5,
                         "bounds": [747, 457, 1039, 633],
-                        "keyframe": True,
-                        "interpolate": False,
                         "attributes": {
                             "DetectionPredefinedValue": "value3",
                         },
@@ -359,8 +323,6 @@ old_tuple: List[Tuple[list, dict, dict]] = [
                     {
                         "frame": 0,
                         "bounds": [885, 510, 1220, 738],
-                        "keyframe": True,
-                        "interpolate": False,
                         "attributes": {
                             "DetectionPredefinedValue": "value1",
                             "DetectionNumber": 2.002,
@@ -369,8 +331,6 @@ old_tuple: List[Tuple[list, dict, dict]] = [
                     {
                         "frame": 1,
                         "bounds": [111, 222, 3333, 444],
-                        "keyframe": True,
-                        "interpolate": False,
                         "attributes": {
                             "DetectionPredefinedValue": "value2",
                         },
@@ -378,8 +338,6 @@ old_tuple: List[Tuple[list, dict, dict]] = [
                     {
                         "frame": 2,
                         "bounds": [747, 457, 1039, 633],
-                        "keyframe": True,
-                        "interpolate": False,
                         "attributes": {
                             "DetectionPredefinedValue": "value3",
                         },
@@ -387,8 +345,6 @@ old_tuple: List[Tuple[list, dict, dict]] = [
                     {
                         "frame": 3,
                         "bounds": [885, 510, 1220, 738],
-                        "keyframe": True,
-                        "interpolate": False,
                         "attributes": {
                             "DetectionPredefinedValue": "value1",
                         },
@@ -396,8 +352,6 @@ old_tuple: List[Tuple[list, dict, dict]] = [
                     {
                         "frame": 4,
                         "bounds": [111, 222, 3333, 444],
-                        "keyframe": True,
-                        "interpolate": False,
                         "attributes": {
                             "DetectionPredefinedValue": "value2",
                         },
@@ -405,8 +359,6 @@ old_tuple: List[Tuple[list, dict, dict]] = [
                     {
                         "frame": 5,
                         "bounds": [747, 457, 1039, 633],
-                        "keyframe": True,
-                        "interpolate": False,
                         "attributes": {
                             "DetectionPredefinedValue": "value3",
                         },
@@ -455,14 +407,10 @@ old_tuple: List[Tuple[list, dict, dict]] = [
                     {
                         "frame": 0,
                         "bounds": [884, 510, 1219, 737],
-                        "keyframe": True,
-                        "interpolate": False,
                     },
                     {
                         "frame": 1,
                         "bounds": [111, 222, 3333, 444],
-                        "keyframe": True,
-                        "interpolate": False,
                     },
                 ],
                 "begin": 0,
@@ -476,8 +424,6 @@ old_tuple: List[Tuple[list, dict, dict]] = [
                     {
                         "frame": 0,
                         "bounds": [747, 457, 1039, 633],
-                        "keyframe": True,
-                        "interpolate": False,
                     }
                 ],
                 "begin": 0,

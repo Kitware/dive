@@ -46,8 +46,8 @@ class Feature(BaseModel):
     head: Optional[Tuple[float, float]] = None
     tail: Optional[Tuple[float, float]] = None
     fishLength: Optional[float] = None
-    interpolate: Optional[bool] = False
-    keyframe: Optional[bool] = True
+    interpolate: Optional[bool] = None
+    keyframe: Optional[bool] = None
 
 
 class Track(BaseModel):

@@ -25,7 +25,6 @@
                         1,
                         1
                     ],
-                    "keyframe": true,
                     "interpolate": true
                 },
                 {
@@ -35,9 +34,7 @@
                         0,
                         1,
                         1
-                    ],
-                    "keyframe": true,
-                    "interpolate": false
+                    ]
                 }
             ]
         },
@@ -62,7 +59,6 @@
             "features": [
                 {
                     "frame": 0,
-                    "keyframe": true,
                     "bounds": [
                         0,
                         0,
@@ -76,7 +72,6 @@
                 },
                 {
                     "frame": 4,
-                    "keyframe": true,
                     "bounds": [
                         0,
                         0,
@@ -115,7 +110,6 @@
                         1,
                         31
                     ],
-                    "keyframe": true,
                     "interpolate": true
                 },
                 {
@@ -125,9 +119,7 @@
                         30,
                         1,
                         31
-                    ],
-                    "keyframe": true,
-                    "interpolate": false
+                    ]
                 },
                 {
                     "frame": 12,
@@ -137,7 +129,6 @@
                         1,
                         31
                     ],
-                    "keyframe": true,
                     "interpolate": true
                 },
                 {
@@ -147,9 +138,7 @@
                         30,
                         1,
                         31
-                    ],
-                    "keyframe": true,
-                    "interpolate": false
+                    ]
                 }
             ]
         },
@@ -174,7 +163,6 @@
             "features": [
                 {
                     "frame": 8,
-                    "keyframe": true,
                     "bounds": [
                         290,
                         286,
@@ -188,7 +176,6 @@
                 },
                 {
                     "frame": 9,
-                    "keyframe": true,
                     "bounds": [
                         480,
                         286,
@@ -202,7 +189,6 @@
                 },
                 {
                     "frame": 14,
-                    "keyframe": true,
                     "bounds": [
                         645,
                         413,
@@ -216,7 +202,6 @@
                 },
                 {
                     "frame": 16,
-                    "keyframe": true,
                     "bounds": [
                         588,
                         409,

@@ -29,9 +29,7 @@
                             510,
                             1220,
                             738
-                        ],
-                        "keyframe": true,
-                        "interpolate": false
+                        ]
                     },
                     {
                         "frame": 1,
@@ -40,9 +38,7 @@
                             222,
                             3333,
                             444
-                        ],
-                        "keyframe": true,
-                        "interpolate": false
+                        ]
                     }
                 ],
                 "begin": 0,
@@ -65,9 +61,7 @@
                             457,
                             1039,
                             633
-                        ],
-                        "keyframe": true,
-                        "interpolate": false
+                        ]
                     }
                 ],
                 "begin": 0,
@@ -91,8 +85,6 @@
                             20,
                             35
                         ],
-                        "keyframe": true,
-                        "interpolate": false,
                         "geometry": {
                             "type": "FeatureCollection",
                             "features": [
@@ -152,8 +144,6 @@
                             20,
                             35
                         ],
-                        "keyframe": true,
-                        "interpolate": false,
                         "geometry": {
                             "type": "FeatureCollection",
                             "features": [
@@ -198,9 +188,7 @@
                             10,
                             20,
                             20
-                        ],
-                        "keyframe": true,
-                        "interpolate": false
+                        ]
                     }
                 ],
                 "begin": 4,
@@ -228,8 +216,6 @@
                             20,
                             20
                         ],
-                        "keyframe": true,
-                        "interpolate": false,
                         "geometry": {
                             "type": "FeatureCollection",
                             "features": [
@@ -293,8 +279,6 @@
                             20,
                             20
                         ],
-                        "keyframe": true,
-                        "interpolate": false,
                         "attributes": {
                             "attrNAME": "spaced attr name"
                         }
@@ -328,9 +312,7 @@
                             10,
                             20,
                             20
-                        ],
-                        "keyframe": true,
-                        "interpolate": false
+                        ]
                     }
                 ],
                 "begin": 4,
@@ -376,9 +358,7 @@
                             510,
                             1219,
                             737
-                        ],
-                        "keyframe": true,
-                        "interpolate": false
+                        ]
                     },
                     {
                         "frame": 1,
@@ -387,9 +367,7 @@
                             222,
                             3333,
                             444
-                        ],
-                        "keyframe": true,
-                        "interpolate": false
+                        ]
                     },
                     {
                         "frame": 2,
@@ -398,9 +376,7 @@
                             457,
                             1039,
                             633
-                        ],
-                        "keyframe": true,
-                        "interpolate": false
+                        ]
                     }
                 ],
                 "begin": 0,
@@ -447,8 +423,6 @@
                             1220,
                             738
                         ],
-                        "keyframe": true,
-                        "interpolate": false,
                         "attributes": {
                             "DetectionPredefinedValue": "value1",
                             "DetectionNumber": 2.002
@@ -462,8 +436,6 @@
                             3333,
                             444
                         ],
-                        "keyframe": true,
-                        "interpolate": false,
                         "attributes": {
                             "DetectionPredefinedValue": "value2"
                         }
@@ -476,8 +448,6 @@
                             1039,
                             633
                         ],
-                        "keyframe": true,
-                        "interpolate": false,
                         "attributes": {
                             "DetectionPredefinedValue": "value3"
                         }
@@ -490,8 +460,6 @@
                             1220,
                             738
                         ],
-                        "keyframe": true,
-                        "interpolate": false,
                         "attributes": {
                             "DetectionPredefinedValue": "value1"
                         }
@@ -504,8 +472,6 @@
                             3333,
                             444
                         ],
-                        "keyframe": true,
-                        "interpolate": false,
                         "attributes": {
                             "DetectionPredefinedValue": "value2"
                         }
@@ -518,8 +484,6 @@
                             1039,
                             633
                         ],
-                        "keyframe": true,
-                        "interpolate": false,
                         "attributes": {
                             "DetectionPredefinedValue": "value3"
                         }
@@ -548,8 +512,6 @@
                             1220,
                             738
                         ],
-                        "keyframe": true,
-                        "interpolate": false,
                         "attributes": {
                             "DetectionPredefinedValue": "value1",
                             "DetectionNumber": 2.002
@@ -563,8 +525,6 @@
                             3333,
                             444
                         ],
-                        "keyframe": true,
-                        "interpolate": false,
                         "attributes": {
                             "DetectionPredefinedValue": "value2"
                         }
@@ -577,8 +537,6 @@
                             1039,
                             633
                         ],
-                        "keyframe": true,
-                        "interpolate": false,
                         "attributes": {
                             "DetectionPredefinedValue": "value3"
                         }
@@ -591,8 +549,6 @@
                             1220,
                             738
                         ],
-                        "keyframe": true,
-                        "interpolate": false,
                         "attributes": {
                             "DetectionPredefinedValue": "value1"
                         }
@@ -605,8 +561,6 @@
                             3333,
                             444
                         ],
-                        "keyframe": true,
-                        "interpolate": false,
                         "attributes": {
                             "DetectionPredefinedValue": "value2"
                         }
@@ -619,8 +573,6 @@
                             1039,
                             633
                         ],
-                        "keyframe": true,
-                        "interpolate": false,
                         "attributes": {
                             "DetectionPredefinedValue": "value3"
                         }
@@ -681,9 +633,7 @@
                             510,
                             1219,
                             737
-                        ],
-                        "keyframe": true,
-                        "interpolate": false
+                        ]
                     },
                     {
                         "frame": 1,
@@ -692,9 +642,7 @@
                             222,
                             3333,
                             444
-                        ],
-                        "keyframe": true,
-                        "interpolate": false
+                        ]
                     }
                 ],
                 "begin": 0,
@@ -717,9 +665,7 @@
                             457,
                             1039,
                             633
-                        ],
-                        "keyframe": true,
-                        "interpolate": false
+                        ]
                     }
                 ],
                 "begin": 0,
