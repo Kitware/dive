@@ -109,22 +109,31 @@ const console = new Console(process.stdout, process.stderr);
 
 const emptyCsvString = '# comment line\n# metadata,fps: 32,"whatever"\n#comment line';
 
-// Adding in some ingest pairs
+// Below sets up data in the mockfs
 type testPairs = [string[], MultiTrackRecord, Record<string, Attribute>];
-
+/* Viame.spec.json is an array in the format [CSV row Array, MultiTrackRecord, Attributes Object][]
+   This is restructured to be images and annotations files within a folder for the mockfs system
+   test[index] (folder):
+      -1.png
+      -2.png
+      -3.png
+      -annotations.csv
+  This is then used to run a complete load of a folder and then compare
+  with the results located in the MultiTrackRecord and Attributes for the corresponding index
+*/
 const testData: testPairs[] = fs.readJSONSync('../testutils/viame.spec.json');
 const images: Record<string, string> = {};
+//Create a list of numbers 0-9
 const imageList = Array.from(Array(10).keys());
-imageList.shift(); //remove 0.png
+imageList.shift(); //remove 0 to line up with source data images list
 // eslint-disable-next-line no-return-assign
-imageList.forEach((item) => images[`${item}.png`] = '');
-
-type TestKey = string | 'annotations.csv';
+imageList.forEach((item) => images[`${item}.png`] = ''); // 1.png, 2.png,...
+//Create a mockfs file struction of a list of images and a root annotations.csv file
 const fileSystemData: Record<string, Record<string, string>> = { };
 testData.forEach((triplet, index) => {
   fileSystemData[`test${index}`] = {
-    ...images,
-    'annotations.csv': triplet[0].join('\n'),
+    ...images, //list of images [1-9].png
+    'annotations.csv': triplet[0].join('\n'), //join csv string[] into a string for mockfs
   };
 });
 
