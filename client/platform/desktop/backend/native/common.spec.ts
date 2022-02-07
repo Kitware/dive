@@ -116,7 +116,7 @@ const testData: testPairs[] = fs.readJSONSync('../testutils/viame.spec.json');
 const images: Record<string, string> = {};
 const list = Array.from(Array(10).keys());
 // eslint-disable-next-line no-return-assign
-list.forEach((item) => images[`image${item}.png`] = '');
+list.forEach((item) => images[`${item}.png`] = '');
 
 type TestKey = string | 'annotations.csv';
 const fileSystemData: Record<string, Record<string, string>> = { };
@@ -732,16 +732,16 @@ describe('native.common', () => {
         settings, `/home/user/testPairs/test${num}`, checkMedia,
       );
       expect(payload.jsonMeta.originalImageFiles).toEqual([
-        'image0.png',
-        'image1.png',
-        'image2.png',
-        'image3.png',
-        'image4.png',
-        'image5.png',
-        'image6.png',
-        'image7.png',
-        'image8.png',
-        'image9.png',
+        '0.png',
+        '1.png',
+        '2.png',
+        '3.png',
+        '4.png',
+        '5.png',
+        '6.png',
+        '7.png',
+        '8.png',
+        '9.png',
       ]);
       // eslint-disable-next-line no-await-in-loop
       const final = await common.finalizeMediaImport(settings, payload, updater, convertMedia);
