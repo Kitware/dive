@@ -180,6 +180,9 @@ export default defineComponent({
             >
               This server is updated on Thursday at 2AM EST.
               If your training job is running at that time it may be restarted or killed.
+              Also note, public jobs are limited to 3 days execution on 1 GPU.
+              If you suspect your job requires more time, you can run a local
+              version, run the job in GCP, or ping the help list.
             </v-alert>
 
             <v-text-field
