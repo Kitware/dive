@@ -1,4 +1,22 @@
-# Custom Pipeline Upload
+# Pipeline Import and Export
+
+## Trained model downloads
+
+You can download your trained models through the administrative interface.  This will be added to the normal interface in a future update.
+
+!!! warning
+
+    Use caution when modifying data through the admin interface
+
+* Open the admin interface at [https://viame.kitware.com/girder](https://viame.kitware.com/girder) (or `myserver.com/girder` if you host your own instance)
+* Navigate to your personal workspace by clicking `My folders` under your user dropdown in the top right corner.
+    * ![My Folders](images/Girder/my_folders.png)
+* Navigate to the `VIAME/VIAME Training Results` folder and into the folder you wish to download
+    * ![Select All](images/Girder/select_all.png)
+* Select all items and download using the menu
+    * ![Download](images/Girder/download_selected.png)
+
+## Custom Pipeline Upload
 
 It's possible to upload custom pipes to DIVE Web through the girder interface.
 
@@ -17,11 +35,11 @@ It's possible to upload custom pipes to DIVE Web through the girder interface.
 
 ![Upload Pipeline](images/Misc/UploadPipeline.png)
 
-## Accepting input
+### Accepting input
 
 If your pipe must accept input, set the **pipeline folder** metadata property `requires_input` to `true` .
 
-## Including base pipelines
+### Including base pipelines
 
 User-uploaded pipelines may depend on any pipe already installed from the base image or an addon using `include <pipename>.pipe` . Depending on other user-uploaded pipes is not supported.
 

@@ -118,6 +118,6 @@ By default, training runs include all frames from the chosen input datasets, and
 | [object_classifier_netharn_resnet](https://github.com/VIAME/VIAME/blob/master/configs/pipelines/train_object_classifier_netharn_resnet.viame_csv.conf) | both | |
 | yolo | desktop only | can train, but resulting model **is not runnable with desktop** yet |
 
-## Custom Pipelines
+## Pipeline Import and Export
 
-Pipelines created outside of VIAME Web can be upload and shared with other users.  See [Custom Pipeline Upload](Pipeline-Upload.md) for details.
+Pipelines created outside of VIAME Web can be upload and shared with other users.  See [Pipeline Import and Export](Pipeline-Import-Export.md) for details.

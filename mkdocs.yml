@@ -46,8 +46,9 @@ nav:
     - Running with Docker Compose: Deployment-Docker-Compose.md
     - Cloud Storage Integration: Deployment-Storage.md
   - Advanced features:
-    - Custom Pipeline Upload: Pipeline-Upload.md
+    - Pipeline Import and Export: Pipeline-Import-Export.md
     - Command Line Tools: Command-Line-Tools.md
+  - REST API Specification: https://viame.kitware.com/api/v1
   - Data Formats: DataFormats.md
   - Frequently Asked Questions: FAQ.md
 
