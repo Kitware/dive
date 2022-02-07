@@ -598,7 +598,7 @@ export default defineComponent({
           v-if="(imageData.length || videoUrl) && progress.loaded"
           ref="playbackComponent"
           v-mousetrap="[
-            { bind: 'n', handler: () => handler.trackAdd() },
+            { bind: 'n', handler: () => !readOnlyMode.value && handler.trackAdd() },
             { bind: 'r', handler: () => mediaController.resetZoom() },
             { bind: 'esc', handler: () => handler.trackAbort() },
           ]"

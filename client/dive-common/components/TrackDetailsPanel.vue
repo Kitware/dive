@@ -16,6 +16,7 @@ import {
   useAttributes,
   useMergeList,
   useTime,
+  useReadOnlyMode,
 } from 'vue-media-annotator/provides';
 import { getTrack } from 'vue-media-annotator/use/useTrackStore';
 import { Attribute } from 'vue-media-annotator/use/useAttributes';
@@ -51,6 +52,7 @@ export default defineComponent({
     },
   },
   setup(props) {
+    const readOnlyMode = useReadOnlyMode();
     const attributes = useAttributes();
     const editingAttribute: Ref<Attribute | null> = ref(null);
     const editingError: Ref<string | null> = ref(null);
@@ -171,7 +173,7 @@ export default defineComponent({
         {
           bind: 'del',
           handler: () => {
-            if (selectedTrackIdRef.value !== null) {
+            if (!readOnlyMode.value && selectedTrackIdRef.value !== null) {
               removeTrack([selectedTrackIdRef.value]);
             }
           },
@@ -179,7 +181,8 @@ export default defineComponent({
         },
         {
           bind: 'x',
-          handler: () => trackSplit(selectedTrackIdRef.value, frameRef.value),
+          handler: () => !readOnlyMode.value
+          && trackSplit(selectedTrackIdRef.value, frameRef.value),
           disabled,
         },
       ];
@@ -187,6 +190,7 @@ export default defineComponent({
 
     return {
       selectedTrackIdRef,
+      readOnlyMode,
       /* Attributes */
       attributes,
       /* Editing */
@@ -291,6 +295,7 @@ export default defineComponent({
         <v-btn
           :color="mergeInProgress ? 'error' : 'primary'"
           class="mx-2 my-2 grow"
+          :disabled="readOnlyMode"
           depressed
           x-small
           @click="$emit('toggle-merge')"
