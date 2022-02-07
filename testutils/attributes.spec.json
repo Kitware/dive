@@ -1,7 +1,7 @@
 [
   [
     {
-      "0":{
+      "0": {
         "trackId": 0,
         "attributes": {
           "booleanAttr": true
@@ -21,8 +21,6 @@
               1220,
               738
             ],
-            "keyframe": true,
-            "interpolate": false,
             "attributes": {
               "DetectionPredefinedValue": "value1",
               "DetectionNumber": 2.002
@@ -36,8 +34,6 @@
               3333,
               444
             ],
-            "keyframe": true,
-            "interpolate": false,
             "attributes": {
               "DetectionPredefinedValue": "value2"
             }
@@ -50,8 +46,6 @@
               1039,
               633
             ],
-            "keyframe": true,
-            "interpolate": false,
             "attributes": {
               "DetectionPredefinedValue": "value3"
             }
@@ -64,8 +58,6 @@
               1220,
               738
             ],
-            "keyframe": true,
-            "interpolate": false,
             "attributes": {
               "DetectionPredefinedValue": "value1"
             }
@@ -78,8 +70,6 @@
               3333,
               444
             ],
-            "keyframe": true,
-            "interpolate": false,
             "attributes": {
               "DetectionPredefinedValue": "value2"
             }
@@ -92,8 +82,6 @@
               1039,
               633
             ],
-            "keyframe": true,
-            "interpolate": false,
             "attributes": {
               "DetectionPredefinedValue": "value3"
             }
@@ -102,7 +90,7 @@
         "begin": 0,
         "end": 5
       },
-      "1":{
+      "1": {
         "trackId": 1,
         "attributes": {
           "booleanAttr": true
@@ -122,8 +110,6 @@
               1220,
               738
             ],
-            "keyframe": true,
-            "interpolate": false,
             "attributes": {
               "DetectionPredefinedValue": "value1",
               "DetectionNumber": 2.002
@@ -137,8 +123,6 @@
               3333,
               444
             ],
-            "keyframe": true,
-            "interpolate": false,
             "attributes": {
               "DetectionPredefinedValue": "value2"
             }
@@ -151,8 +135,6 @@
               1039,
               633
             ],
-            "keyframe": true,
-            "interpolate": false,
             "attributes": {
               "DetectionPredefinedValue": "value3"
             }
@@ -165,8 +147,6 @@
               1220,
               738
             ],
-            "keyframe": true,
-            "interpolate": false,
             "attributes": {
               "DetectionPredefinedValue": "value1"
             }
@@ -179,8 +159,6 @@
               3333,
               444
             ],
-            "keyframe": true,
-            "interpolate": false,
             "attributes": {
               "DetectionPredefinedValue": "value2"
             }
@@ -193,8 +171,6 @@
               1039,
               633
             ],
-            "keyframe": true,
-            "interpolate": false,
             "attributes": {
               "DetectionPredefinedValue": "value3"
             }
@@ -225,8 +201,6 @@
               1220,
               738
             ],
-            "keyframe": true,
-            "interpolate": false,
             "attributes": {
               "DetectionPredefinedValue": "value1",
               "DetectionNumber": 2.002
@@ -240,8 +214,6 @@
               3333,
               444
             ],
-            "keyframe": true,
-            "interpolate": false,
             "attributes": {
               "DetectionPredefinedValue": "value2"
             }
@@ -254,8 +226,6 @@
               1039,
               633
             ],
-            "keyframe": true,
-            "interpolate": false,
             "attributes": {
               "DetectionPredefinedValue": "value3"
             }
@@ -268,8 +238,6 @@
               1220,
               738
             ],
-            "keyframe": true,
-            "interpolate": false,
             "attributes": {
               "DetectionPredefinedValue": "value1"
             }
@@ -282,8 +250,6 @@
               3333,
               444
             ],
-            "keyframe": true,
-            "interpolate": false,
             "attributes": {
               "DetectionPredefinedValue": "value2"
             }
@@ -296,8 +262,6 @@
               1039,
               633
             ],
-            "keyframe": true,
-            "interpolate": false,
             "attributes": {
               "DetectionPredefinedValue": "value3"
             }
@@ -326,8 +290,6 @@
               1220,
               738
             ],
-            "keyframe": true,
-            "interpolate": false,
             "attributes": {
               "DetectionPredefinedValue": "value1",
               "DetectionNumber": 2.002
@@ -341,8 +303,6 @@
               3333,
               444
             ],
-            "keyframe": true,
-            "interpolate": false,
             "attributes": {
               "DetectionPredefinedValue": "value2"
             }
@@ -355,8 +315,6 @@
               1039,
               633
             ],
-            "keyframe": true,
-            "interpolate": false,
             "attributes": {
               "DetectionPredefinedValue": "value3"
             }
@@ -369,8 +327,6 @@
               1220,
               738
             ],
-            "keyframe": true,
-            "interpolate": false,
             "attributes": {
               "DetectionPredefinedValue": "value1"
             }
@@ -383,8 +339,6 @@
               3333,
               444
             ],
-            "keyframe": true,
-            "interpolate": false,
             "attributes": {
               "DetectionPredefinedValue": "value2"
             }
@@ -397,8 +351,6 @@
               1039,
               633
             ],
-            "keyframe": true,
-            "interpolate": false,
             "attributes": {
               "DetectionPredefinedValue": "value3"
             }
@@ -436,7 +388,7 @@
   ],
   [
     {
-      "0":{
+      "0": {
         "trackId": 0,
         "attributes": {
           "booleanAttr": true
@@ -456,8 +408,6 @@
               1220,
               738
             ],
-            "keyframe": true,
-            "interpolate": false,
             "attributes": {
               "DetectionPredefinedValue": "value1",
               "DetectionNumber": 2.002
@@ -471,8 +421,6 @@
               3333,
               444
             ],
-            "keyframe": true,
-            "interpolate": false,
             "attributes": {
               "DetectionPredefinedValue": "value2"
             }
@@ -485,8 +433,6 @@
               1039,
               633
             ],
-            "keyframe": true,
-            "interpolate": false,
             "attributes": {
               "DetectionPredefinedValue": "value3"
             }
@@ -499,8 +445,6 @@
               1220,
               738
             ],
-            "keyframe": true,
-            "interpolate": false,
             "attributes": {
               "DetectionPredefinedValue": "value1"
             }
@@ -513,8 +457,6 @@
               3333,
               444
             ],
-            "keyframe": true,
-            "interpolate": false,
             "attributes": {
               "DetectionPredefinedValue": "value2"
             }
@@ -527,8 +469,6 @@
               1039,
               633
             ],
-            "keyframe": true,
-            "interpolate": false,
             "attributes": {
               "DetectionPredefinedValue": "value3"
             }
@@ -537,7 +477,7 @@
         "begin": 0,
         "end": 5
       },
-      "1":{
+      "1": {
         "trackId": 1,
         "attributes": {
           "booleanAttr": true
@@ -557,8 +497,6 @@
               1220,
               738
             ],
-            "keyframe": true,
-            "interpolate": false,
             "attributes": {
               "DetectionPredefinedValue": "value1",
               "DetectionNumber": 2.002
@@ -572,8 +510,6 @@
               3333,
               444
             ],
-            "keyframe": true,
-            "interpolate": false,
             "attributes": {
               "DetectionPredefinedValue": "value2"
             }
@@ -586,8 +522,6 @@
               1039,
               633
             ],
-            "keyframe": true,
-            "interpolate": false,
             "attributes": {
               "DetectionPredefinedValue": "value3"
             }
@@ -600,8 +534,6 @@
               1220,
               738
             ],
-            "keyframe": true,
-            "interpolate": false,
             "attributes": {
               "DetectionPredefinedValue": "value1"
             }
@@ -614,8 +546,6 @@
               3333,
               444
             ],
-            "keyframe": true,
-            "interpolate": false,
             "attributes": {
               "DetectionPredefinedValue": "value2"
             }
@@ -628,8 +558,6 @@
               1039,
               633
             ],
-            "keyframe": true,
-            "interpolate": false,
             "attributes": {
               "DetectionPredefinedValue": "value3"
             }
@@ -660,8 +588,6 @@
               1220,
               738
             ],
-            "keyframe": true,
-            "interpolate": false,
             "attributes": {
               "DetectionPredefinedValue": "value1",
               "DetectionNumber": 2.002
@@ -675,8 +601,6 @@
               3333,
               444
             ],
-            "keyframe": true,
-            "interpolate": false,
             "attributes": {
               "DetectionPredefinedValue": "value2"
             }
@@ -689,8 +613,6 @@
               1039,
               633
             ],
-            "keyframe": true,
-            "interpolate": false,
             "attributes": {
               "DetectionPredefinedValue": "value3"
             }
@@ -703,8 +625,6 @@
               1220,
               738
             ],
-            "keyframe": true,
-            "interpolate": false,
             "attributes": {
               "DetectionPredefinedValue": "value1"
             }
@@ -717,8 +637,6 @@
               3333,
               444
             ],
-            "keyframe": true,
-            "interpolate": false,
             "attributes": {
               "DetectionPredefinedValue": "value2"
             }
@@ -731,8 +649,6 @@
               1039,
               633
             ],
-            "keyframe": true,
-            "interpolate": false,
             "attributes": {
               "DetectionPredefinedValue": "value3"
             }
@@ -761,8 +677,6 @@
               1220,
               738
             ],
-            "keyframe": true,
-            "interpolate": false,
             "attributes": {
               "DetectionPredefinedValue": "value1",
               "DetectionNumber": 2.002
@@ -776,8 +690,6 @@
               3333,
               444
             ],
-            "keyframe": true,
-            "interpolate": false,
             "attributes": {
               "DetectionPredefinedValue": "value2"
             }
@@ -790,8 +702,6 @@
               1039,
               633
             ],
-            "keyframe": true,
-            "interpolate": false,
             "attributes": {
               "DetectionPredefinedValue": "value3"
             }
@@ -804,8 +714,6 @@
               1220,
               738
             ],
-            "keyframe": true,
-            "interpolate": false,
             "attributes": {
               "DetectionPredefinedValue": "value1"
             }
@@ -818,8 +726,6 @@
               3333,
               444
             ],
-            "keyframe": true,
-            "interpolate": false,
             "attributes": {
               "DetectionPredefinedValue": "value2"
             }
@@ -832,8 +738,6 @@
               1039,
               633
             ],
-            "keyframe": true,
-            "interpolate": false,
             "attributes": {
               "DetectionPredefinedValue": "value3"
             }

@@ -1,1 +1,25 @@
-{"999999": {"begin": 0, "end": 0, "trackId": 999999, "features": [{"frame": 0, "bounds": [670, 183, 968, 433], "interpolate": false, "keyframe": true}], "confidencePairs": [["motion_signature", 0.996269]], "attributes": {}}}
+{
+  "999999": {
+    "begin": 0,
+    "end": 0,
+    "trackId": 999999,
+    "features": [
+      {
+        "frame": 0,
+        "bounds": [
+          670,
+          183,
+          968,
+          433
+        ]
+      }
+    ],
+    "confidencePairs": [
+      [
+        "motion_signature",
+        0.996269
+      ]
+    ],
+    "attributes": {}
+  }
+}
