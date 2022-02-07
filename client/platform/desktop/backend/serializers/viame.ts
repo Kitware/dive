@@ -220,8 +220,6 @@ function _parseFeature(row: string[]) {
   const feature: Feature = {
     frame: rowInfo.frame,
     bounds: rowInfo.bounds,
-    interpolate: false,
-    keyframe: true,
   };
   if (rowInfo.fishLength !== -1) {
     feature.fishLength = rowInfo.fishLength;

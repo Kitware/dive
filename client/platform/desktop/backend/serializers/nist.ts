@@ -105,7 +105,6 @@ function loadObjects(
             track.begin = Math.min(track.begin, frameNum);
             track.features.push({
               frame: frameNum,
-              keyframe: true,
               bounds: adjustedBounds,
               attributes: {
                 objectID,
@@ -167,15 +166,12 @@ function loadActivity(
           features.push({
             frame: parseInt(frame, 10) - 1,
             bounds,
-            keyframe: true,
-            interpolate: false,
           });
         } else if (val === 1) {
           track.end = parseInt(key, 10) - 1;
           features.push({
             frame: parseInt(frame, 10) - 1,
             bounds,
-            keyframe: true,
             interpolate: true,
           });
         }

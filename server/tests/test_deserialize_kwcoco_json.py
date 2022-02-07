@@ -126,8 +126,6 @@ test_tuple: List[Tuple[dict, dict, dict]] = [
                                 },
                             ],
                         },
-                        "interpolate": False,
-                        "keyframe": True,
                     }
                 ],
                 "confidencePairs": [["astronaut", 1.0]],
@@ -141,8 +139,6 @@ test_tuple: List[Tuple[dict, dict, dict]] = [
                     {
                         "frame": 0,
                         "bounds": [350, 5, 480, 295],
-                        "interpolate": False,
-                        "keyframe": True,
                     }
                 ],
                 "confidencePairs": [["rocket", 1.0]],
@@ -156,8 +152,6 @@ test_tuple: List[Tuple[dict, dict, dict]] = [
                     {
                         "frame": 0,
                         "bounds": [326, 369, 600, 600],
-                        "interpolate": False,
-                        "keyframe": True,
                     }
                 ],
                 "confidencePairs": [["helmet", 1.0]],
@@ -346,8 +340,6 @@ test_tuple: List[Tuple[dict, dict, dict]] = [
                                 },
                             ],
                         },
-                        "interpolate": False,
-                        "keyframe": True,
                     }
                 ],
                 "confidencePairs": [["eff", 1.0]],
@@ -361,8 +353,6 @@ test_tuple: List[Tuple[dict, dict, dict]] = [
                     {
                         "frame": 1,
                         "bounds": [73, 125, 142, 184],
-                        "interpolate": False,
-                        "keyframe": True,
                     }
                 ],
                 "confidencePairs": [["eff", 1.0]],
@@ -428,8 +418,6 @@ test_tuple: List[Tuple[dict, dict, dict]] = [
                                 },
                             ],
                         },
-                        "interpolate": False,
-                        "keyframe": True,
                     }
                 ],
                 "confidencePairs": [["superstar", 1.0]],
@@ -465,8 +453,6 @@ test_tuple: List[Tuple[dict, dict, dict]] = [
                                 }
                             ],
                         },
-                        "interpolate": False,
-                        "keyframe": True,
                     }
                 ],
                 "confidencePairs": [["eff", 1.0]],
@@ -480,8 +466,6 @@ test_tuple: List[Tuple[dict, dict, dict]] = [
                     {
                         "frame": 1,
                         "bounds": [153, 151, 200, 183],
-                        "interpolate": False,
-                        "keyframe": True,
                     }
                 ],
                 "confidencePairs": [["star", 1.0]],
@@ -495,8 +479,6 @@ test_tuple: List[Tuple[dict, dict, dict]] = [
                     {
                         "frame": 1,
                         "bounds": [42, 240, 66, 254],
-                        "interpolate": False,
-                        "keyframe": True,
                     }
                 ],
                 "confidencePairs": [["eff", 1.0]],
@@ -591,14 +573,10 @@ test_tuple: List[Tuple[dict, dict, dict]] = [
                     {
                         "frame": 10,
                         "bounds": [300, 103, 321, 134],
-                        "interpolate": False,
-                        "keyframe": True,
                     },
                     {
                         "frame": 11,
                         "bounds": [299, 104, 320, 133],
-                        "interpolate": False,
-                        "keyframe": True,
                     },
                 ],
                 "confidencePairs": [["person", 1.0]],
@@ -612,14 +590,10 @@ test_tuple: List[Tuple[dict, dict, dict]] = [
                     {
                         "frame": 14,
                         "bounds": [81, 41, 227, 113],
-                        "interpolate": False,
-                        "keyframe": True,
                     },
                     {
                         "frame": 15,
                         "bounds": [81, 41, 227, 113],
-                        "interpolate": False,
-                        "keyframe": True,
                     },
                 ],
                 "confidencePairs": [["car", 1.0]],
@@ -633,20 +607,14 @@ test_tuple: List[Tuple[dict, dict, dict]] = [
                     {
                         "frame": 13,
                         "bounds": [266, 8, 305, 53],
-                        "interpolate": False,
-                        "keyframe": True,
                     },
                     {
                         "frame": 14,
                         "bounds": [266, 8, 305, 53],
-                        "interpolate": False,
-                        "keyframe": True,
                     },
                     {
                         "frame": 15,
                         "bounds": [266, 8, 305, 53],
-                        "interpolate": False,
-                        "keyframe": True,
                     },
                 ],
                 "confidencePairs": [["tree", 1.0]],
@@ -691,14 +659,10 @@ test_tuple: List[Tuple[dict, dict, dict]] = [
                     {
                         "frame": 10,
                         "bounds": [300, 103, 321, 134],
-                        "interpolate": False,
-                        "keyframe": True,
                     },
                     {
                         "frame": 11,
                         "bounds": [299, 104, 320, 133],
-                        "interpolate": False,
-                        "keyframe": True,
                     },
                 ],
                 "confidencePairs": [["person", 1.0]],

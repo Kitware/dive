@@ -27,8 +27,6 @@ const data: MultiTrackRecord = {
           968,
           433,
         ],
-        interpolate: false,
-        keyframe: true,
       },
       {
         frame: 1,
@@ -38,8 +36,6 @@ const data: MultiTrackRecord = {
           968,
           433,
         ],
-        interpolate: false,
-        keyframe: true,
       },
       {
         frame: 2,
@@ -49,8 +45,6 @@ const data: MultiTrackRecord = {
           968,
           433,
         ],
-        interpolate: false,
-        keyframe: true,
       },
       {
         frame: 3,
@@ -60,8 +54,6 @@ const data: MultiTrackRecord = {
           968,
           433,
         ],
-        interpolate: false,
-        keyframe: true,
       },
       {
         frame: 4,
@@ -71,8 +63,6 @@ const data: MultiTrackRecord = {
           968,
           433,
         ],
-        interpolate: false,
-        keyframe: true,
       },
     ],
     confidencePairs: [
