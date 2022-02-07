@@ -10,6 +10,8 @@ import type {
   DesktopJobUpdate, DesktopJobUpdater, JsonMeta, RunTraining, Settings,
 } from 'platform/desktop/constants';
 
+import { MultiTrackRecord } from 'dive-common/apispec';
+import { Attribute } from 'vue-media-annotator/use/useAttributes';
 import * as common from './common';
 
 const pipelines = {
@@ -107,6 +109,24 @@ const console = new Console(process.stdout, process.stderr);
 
 const emptyCsvString = '# comment line\n# metadata,fps: 32,"whatever"\n#comment line';
 
+// Adding in some ingest pairs
+type testPairs = [string[], MultiTrackRecord, Record<string, Attribute>];
+
+const testData: testPairs[] = fs.readJSONSync('../testutils/viame.spec.json');
+const images: Record<string, string> = {};
+const list = Array.from(Array(10).keys());
+// eslint-disable-next-line no-return-assign
+list.forEach((item) => images[`image${item}.png`] = '');
+
+type TestKey = string | 'annotations.csv';
+const fileSystemData: Record<string, Record<string, string>> = { };
+testData.forEach((triplet, index) => {
+  fileSystemData[`test${index}`] = {
+    ...images,
+    'annotations.csv': triplet[0].join('\n'),
+  };
+});
+
 mockfs({
   '/opt/viame': {
     configs: {
@@ -117,6 +137,7 @@ mockfs({
       },
     },
   },
+  '/home/user/testPairs': { ...fileSystemData },
   '/home/user/output': {},
   '/home/user/data': {
     annotationImport: {
@@ -702,6 +723,33 @@ describe('native.common', () => {
     expect(pipes.tracker.pipes).toHaveLength(5);
     expect(pipes.utility.pipes).toHaveLength(4);
     expect(pipes.trained.pipes).toHaveLength(1);
+  });
+
+  it('Full Annotation Loading and Attributes Testing', async () => {
+    for (let num = 0; num < testData.length; num += 1) {
+      // eslint-disable-next-line no-await-in-loop
+      const payload = await common.beginMediaImport(
+        settings, `/home/user/testPairs/test${num}`, checkMedia,
+      );
+      expect(payload.jsonMeta.originalImageFiles).toEqual([
+        'image0.png',
+        'image1.png',
+        'image2.png',
+        'image3.png',
+        'image4.png',
+        'image5.png',
+        'image6.png',
+        'image7.png',
+        'image8.png',
+        'image9.png',
+      ]);
+      // eslint-disable-next-line no-await-in-loop
+      const final = await common.finalizeMediaImport(settings, payload, updater, convertMedia);
+      expect(final.attributes).toEqual(testData[num][2]);
+      // eslint-disable-next-line no-await-in-loop
+      const tracks = await common.loadDetections(settings, final.id);
+      expect(tracks).toEqual(testData[num][1]);
+    }
   });
 });
 
