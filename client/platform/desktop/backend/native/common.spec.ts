@@ -10,6 +10,8 @@ import type {
   DesktopJobUpdate, DesktopJobUpdater, JsonMeta, RunTraining, Settings,
 } from 'platform/desktop/constants';
 
+import { MultiTrackRecord } from 'dive-common/apispec';
+import { Attribute } from 'vue-media-annotator/use/useAttributes';
 import * as common from './common';
 
 const pipelines = {
@@ -107,6 +109,34 @@ const console = new Console(process.stdout, process.stderr);
 
 const emptyCsvString = '# comment line\n# metadata,fps: 32,"whatever"\n#comment line';
 
+// Below sets up data in the mockfs
+type testPairs = [string[], MultiTrackRecord, Record<string, Attribute>];
+/* Viame.spec.json is an array in the format [CSV row Array, MultiTrackRecord, Attributes Object][]
+   This is restructured to be images and annotations files within a folder for the mockfs system
+   test[index] (folder):
+      -1.png
+      -2.png
+      -3.png
+      -annotations.csv
+  This is then used to run a complete load of a folder and then compare
+  with the results located in the MultiTrackRecord and Attributes for the corresponding index
+*/
+const testData: testPairs[] = fs.readJSONSync('../testutils/viame.spec.json');
+const images: Record<string, string> = {};
+//Create a list of numbers 0-9
+const imageList = Array.from(Array(10).keys());
+imageList.shift(); //remove 0 to line up with source data images list
+// eslint-disable-next-line no-return-assign
+imageList.forEach((item) => images[`${item}.png`] = ''); // 1.png, 2.png,...
+//Create a mockfs file struction of a list of images and a root annotations.csv file
+const fileSystemData: Record<string, Record<string, string>> = { };
+testData.forEach((triplet, index) => {
+  fileSystemData[`test${index}`] = {
+    ...images, //list of images [1-9].png
+    'annotations.csv': triplet[0].join('\n'), //join csv string[] into a string for mockfs
+  };
+});
+
 mockfs({
   '/opt/viame': {
     configs: {
@@ -117,6 +147,7 @@ mockfs({
       },
     },
   },
+  '/home/user/testPairs': { ...fileSystemData },
   '/home/user/output': {},
   '/home/user/data': {
     annotationImport: {
@@ -702,6 +733,32 @@ describe('native.common', () => {
     expect(pipes.tracker.pipes).toHaveLength(5);
     expect(pipes.utility.pipes).toHaveLength(4);
     expect(pipes.trained.pipes).toHaveLength(1);
+  });
+
+  it('Full Annotation Loading and Attributes Testing', async () => {
+    for (let num = 0; num < testData.length; num += 1) {
+      // eslint-disable-next-line no-await-in-loop
+      const payload = await common.beginMediaImport(
+        settings, `/home/user/testPairs/test${num}`, checkMedia,
+      );
+      expect(payload.jsonMeta.originalImageFiles).toEqual([
+        '1.png',
+        '2.png',
+        '3.png',
+        '4.png',
+        '5.png',
+        '6.png',
+        '7.png',
+        '8.png',
+        '9.png',
+      ]);
+      // eslint-disable-next-line no-await-in-loop
+      const final = await common.finalizeMediaImport(settings, payload, updater, convertMedia);
+      expect(final.attributes).toEqual(testData[num][2]);
+      // eslint-disable-next-line no-await-in-loop
+      const tracks = await common.loadDetections(settings, final.id);
+      expect(tracks).toEqual(testData[num][1]);
+    }
   });
 });
 

@@ -20,11 +20,11 @@ import Track, {
 } from 'vue-media-annotator/track';
 
 const CommentRegex = /^\s*#/g;
-const HeadRegex = /^\(kp\) head ([0-9]+\.*[0-9]*) ([0-9]+\.*[0-9]*)/g;
-const TailRegex = /^\(kp\) tail ([0-9]+\.*[0-9]*) ([0-9]+\.*[0-9]*)/g;
+const HeadRegex = /^\(kp\) head (-?[0-9]+\.*-?[0-9]*) (-?[0-9]+\.*-?[0-9]*)/g;
+const TailRegex = /^\(kp\) tail (-?[0-9]+\.*-?[0-9]*) (-?[0-9]+\.*-?[0-9]*)/g;
 const AttrRegex = /^\(atr\) (.*?)\s(.+)/g;
 const TrackAttrRegex = /^\(trk-atr\) (.*?)\s(.+)/g;
-const PolyRegex = /^(\(poly\)) ((?:[0-9]+\.*[0-9]*\s*)+)/g;
+const PolyRegex = /^(\(poly\)) ((?:-?[0-9]+\.*-?[0-9]*\s*)+)/g;
 const FpsRegex = /fps:\s*(\d+(\.\d+)?)/ig;
 const AtrToken = '(atr)';
 const TrackAtrToken = '(trk-atr)';
@@ -220,8 +220,10 @@ function _parseFeature(row: string[]) {
   const feature: Feature = {
     frame: rowInfo.frame,
     bounds: rowInfo.bounds,
-    fishLength: rowInfo.fishLength,
   };
+  if (rowInfo.fishLength !== -1) {
+    feature.fishLength = rowInfo.fishLength;
+  }
   if (rowData.attributes) {
     feature.attributes = rowData.attributes;
   }
@@ -286,7 +288,6 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<A
               begin: rowInfo.frame,
               end: rowInfo.frame,
               trackId: rowInfo.trackId,
-              meta: {},
               attributes: {},
               confidencePairs: [],
               features: [],

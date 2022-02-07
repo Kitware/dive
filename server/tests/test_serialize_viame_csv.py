@@ -18,14 +18,10 @@ test_tuple: List[Tuple[dict, list, list]] = [
                     {
                         "frame": 0,
                         "bounds": [884, 510, 1219, 737],
-                        "keyframe": True,
-                        "interpolate": False,
                     },
                     {
                         "frame": 1,
                         "bounds": [111, 222, 3333, 444],
-                        "keyframe": True,
-                        "interpolate": False,
                     },
                 ],
                 "begin": 0,
@@ -39,8 +35,6 @@ test_tuple: List[Tuple[dict, list, list]] = [
                     {
                         "frame": 0,
                         "bounds": [747, 457, 1039, 633],
-                        "keyframe": True,
-                        "interpolate": False,
                     }
                 ],
                 "begin": 0,
@@ -66,13 +60,11 @@ test_tuple: List[Tuple[dict, list, list]] = [
                         "frame": 1,
                         "bounds": [2, 2, 4, 4],
                         "interpolate": True,
-                        "keyframe": True,
                     },
                     {
                         "frame": 3,
                         "bounds": [4, 4, 8, 8],
                         "interpolate": True,
-                        "keyframe": True,
                     },
                 ],
                 "confidencePairs": [["foo", 0.2], ["bar", 0.9], ["baz", 0.1]],
@@ -98,7 +90,6 @@ test_tuple: List[Tuple[dict, list, list]] = [
                         "frame": 1,
                         "bounds": [2, 2, 4, 4],
                         "interpolate": True,
-                        "keyframe": True,
                         "geometry": {
                             "type": "FeatureCollection",
                             "features": [
@@ -136,7 +127,6 @@ test_tuple: List[Tuple[dict, list, list]] = [
                         "frame": 3,
                         "bounds": [4, 4, 8, 8],
                         "interpolate": True,
-                        "keyframe": True,
                         "geometry": {
                             "type": "FeatureCollection",
                             "features": [
@@ -183,15 +173,11 @@ test_tuple: List[Tuple[dict, list, list]] = [
                     {
                         "frame": 0,
                         "bounds": [884, 510, 1219, 737],
-                        "keyframe": True,
-                        "interpolate": False,
                         "attributes": {"detectionAttr": "frame 0 attr"},
                     },
                     {
                         "frame": 1,
                         "bounds": [111, 222, 3333, 444],
-                        "keyframe": True,
-                        "interpolate": False,
                         "attributes": {"detectionAttr": "frame 1 attr"},
                     },
                 ],
@@ -217,14 +203,10 @@ test_tuple: List[Tuple[dict, list, list]] = [
                     {
                         "frame": 0,
                         "bounds": [884, 510, 1219, 737],
-                        "keyframe": True,
-                        "interpolate": False,
                     },
                     {
                         "frame": 1,
                         "bounds": [111, 222, 3333, 444],
-                        "keyframe": True,
-                        "interpolate": False,
                     },
                 ],
                 "begin": 0,
@@ -238,8 +220,6 @@ test_tuple: List[Tuple[dict, list, list]] = [
                     {
                         "frame": 0,
                         "bounds": [747, 457, 1039, 633],
-                        "keyframe": True,
-                        "interpolate": False,
                     }
                 ],
                 "begin": 0,
@@ -262,14 +242,10 @@ test_tuple: List[Tuple[dict, list, list]] = [
                     {
                         "frame": 0,
                         "bounds": [884, 510, 1219, 737],
-                        "keyframe": True,
-                        "interpolate": False,
                     },
                     {
                         "frame": 1,
                         "bounds": [111, 222, 3333, 444],
-                        "keyframe": True,
-                        "interpolate": False,
                     },
                 ],
                 "begin": 0,
@@ -283,8 +259,6 @@ test_tuple: List[Tuple[dict, list, list]] = [
                     {
                         "frame": 0,
                         "bounds": [747, 457, 1039, 633],
-                        "keyframe": True,
-                        "interpolate": False,
                     }
                 ],
                 "begin": 0,

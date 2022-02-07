@@ -87,7 +87,6 @@ def create_track_json(
                 frame = start_frame + frame
                 feature = {
                     "frame": frame,
-                    "keyframe": True,
                     "bounds": [0, 0, width, height],
                 }
                 track_obj["begin"] = min(track_obj["begin"], frame)

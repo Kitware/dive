@@ -602,6 +602,7 @@ async function _ingestFilePath(
   }
   if (tracks !== null) {
     const processed = processTrackAttributes(tracks);
+    meta.attributes = processed.attributes;
     await _saveSerialized(settings, datasetId, processed.data, true);
   }
   return meta;
