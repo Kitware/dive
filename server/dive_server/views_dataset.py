@@ -33,7 +33,7 @@ class DatasetResource(Resource):
         self.route("GET", (":id", "media"), self.get_media)
         self.route("GET", ("export",), self.export)
         self.route("GET", (":id", "configuration"), self.get_configuration)
-        self.route("GET", (":id", "media", ":mediaId", "download"))
+        self.route("GET", (":id", "media", ":mediaId", "download"), self.test_endpoint)
         self.route("POST", ("validate_files",), self.validate_files)
 
         self.route("PATCH", (":id",), self.patch_metadata)
@@ -86,11 +86,14 @@ class DatasetResource(Resource):
 
     @access.public(scope=TokenScope.DATA_READ, cookie=True)
     @autoDescribeRoute(
-        Description("Share cloned dataset")
+        Description("Download a media file")
         .modelParam(
             "datasetId",
             description="test",
             paramType="query",
+            model=Folder,
+            level=AccessType.READ,
+            required=True
         )
         .modelParam(
             "mediaId",
@@ -98,6 +101,8 @@ class DatasetResource(Resource):
             paramType="query"
         )
     )
+    def test_endpoint(self, datasetID, mediaID):
+        return [datasetID, mediaID]
 
     @access.user
     @autoDescribeRoute(
