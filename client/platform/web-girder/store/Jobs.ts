@@ -20,6 +20,7 @@ const jobModule: Module<JobState, RootState> = {
   state: {
     jobIds: {},
     datasetStatus: {},
+    completeJobsInfo: {},
   },
   getters: {
     runningJobIds(state) {
@@ -28,6 +29,12 @@ const jobModule: Module<JobState, RootState> = {
     datasetRunningState: (state) => (datasetId: string) => (
       datasetId in state.datasetStatus && !NonRunningStates.includes(state.datasetStatus[datasetId])
     ),
+    datasetCompleteJobs: (state) => (datasetId: string) => {
+      if (datasetId in state.completeJobsInfo) {
+        return (state.completeJobsInfo[datasetId]);
+      }
+      return false;
+    },
   },
   mutations: {
     setJobState(state, { jobId, value }: { jobId: string; value: number }) {
@@ -36,6 +43,11 @@ const jobModule: Module<JobState, RootState> = {
     setDatasetStatus(state, { datasetId, value }: { datasetId: string; value: number }) {
       Vue.set(state.datasetStatus, datasetId, value);
     },
+    setCompleteJobsInfo(state, { datasetId, type, title }:
+      { datasetId: string; type: string; title: string }) {
+      Vue.set(state.completeJobsInfo, datasetId, { type, title });
+    },
+
   },
 };
 
@@ -44,10 +56,13 @@ export async function init(store: Store<RootState>) {
     params: { statuses: `[${JobStatus.RUNNING.value}]` },
   });
 
-  function updateJob(job: GirderJob) {
+  function updateJob(job: GirderJob & {type?: string; title?: string}) {
     store.commit('Jobs/setJobState', { jobId: job._id, value: job.status });
     if (typeof job.dataset_id === 'string') {
       store.commit('Jobs/setDatasetStatus', { datasetId: job.dataset_id, value: job.status });
+      if (job.status === 3 && job.type === 'pipeline') {
+        store.commit('Jobs/setCompleteJobsInfo', { datasetId: job.dataset_id, type: job.type, title: job.title });
+      }
     }
   }
 

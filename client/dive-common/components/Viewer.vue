@@ -67,7 +67,7 @@ export default defineComponent({
       type: Number,
       default: undefined,
     },
-    readonlyMode: {
+    readOnlyMode: {
       type: Boolean,
       default: false,
     },
@@ -81,7 +81,7 @@ export default defineComponent({
     const defaultCamera = ref('');
     const currentCamera = ref('');
     const playbackComponent = ref(undefined as Vue | undefined);
-    const readonlyState = computed(() => props.readonlyMode || props.revision !== undefined);
+    const readonlyState = computed(() => props.readOnlyMode || props.revision !== undefined);
     const mediaController = computed(() => {
       if (playbackComponent.value) {
         // TODO: Bug in composition-api types incorrectly organizes the static members of a Vue
@@ -489,9 +489,26 @@ export default defineComponent({
     <v-app-bar app>
       <slot name="title" />
       <span
-        class="title pl-3"
+        class="title pl-3 flex-row"
+        style="white-space:nowrap;overflow:hidden;text-overflow: ellipsis;"
       >
         {{ datasetName }}
+      </span>
+      <!-- I DONT LIKE THIS YET -->
+      <span
+        v-if="readOnlyMode"
+        class="text warning flex-row"
+        style="white-space:nowrap;"
+      >
+        Read Only Mode
+        <v-tooltip
+          bottom
+        >
+          <template v-slot:activator="{on}">
+            <v-icon v-on="on"> mdi-help</v-icon>
+          </template>
+          <span>Read only mode, Editing, Deleting and Importing actions are disabled</span>
+        </v-tooltip>
       </span>
       <v-spacer />
 

@@ -48,7 +48,7 @@ export default defineComponent({
     const compoundId = ref(props.id);
     const subTypeList = computed(() => [datasets.value[props.id]?.subType || null]);
     const camNumbers = computed(() => [datasets.value[props.id]?.cameraNumber || 1]);
-    const readonlyMode = computed(() => settings.value?.readonlyMode || false);
+    const readOnlyMode = computed(() => settings.value?.readonlyMode || false);
 
     watch(runningJobs, async (_previous, current) => {
       const currentJob = current.find((item) => item.job.datasetIds.includes(props.id));
@@ -56,7 +56,7 @@ export default defineComponent({
         const result = await prompt({
           title: 'Pipeline Finished',
           text: [`Pipeline: ${currentJob.job.title}`,
-            'finished running sucesffully on the current dataset.  Click reload to load the annotations.  The current annotations will be replaced with the pipeline output.',
+            'finished running sucesfully on the current dataset.  Click reload to load the annotations.  The current annotations will be replaced with the pipeline output.',
           ],
           confirm: true,
           positiveButton: 'Reload',
@@ -78,7 +78,7 @@ export default defineComponent({
       menuOptions,
       subTypeList,
       camNumbers,
-      readonlyMode,
+      readOnlyMode,
       isPipelineRunning,
     };
   },
@@ -89,7 +89,7 @@ export default defineComponent({
   <Viewer
     :id.sync="compoundId"
     ref="viewerRef"
-    :readonly-mode="readonlyMode || isPipelineRunning(id)"
+    :read-only-mode="readOnlyMode || isPipelineRunning(id)"
   >
     <template #title>
       <v-tabs
@@ -116,11 +116,12 @@ export default defineComponent({
         :sub-type-list="subTypeList"
         :camera-numbers="camNumbers"
         :get-running-pipelines="isPipelineRunning"
+        :read-only-mode="readOnlyMode"
         v-bind="{ buttonOptions, menuOptions }"
       />
       <ImportAnnotations
         :dataset-id="compoundId"
-        v-bind="{ buttonOptions, menuOptions }"
+        v-bind="{ buttonOptions, menuOptions, readOnlyMode }"
         block-on-unsaved
       />
       <Export

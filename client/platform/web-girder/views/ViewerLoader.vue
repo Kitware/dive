@@ -1,7 +1,7 @@
 <script lang="ts">
 import {
   computed,
-  defineComponent, onBeforeUnmount, onMounted, ref, toRef,
+  defineComponent, onBeforeUnmount, onMounted, ref, toRef, watch,
 } from '@vue/composition-api';
 
 import Viewer from 'dive-common/components/Viewer.vue';
@@ -9,6 +9,7 @@ import NavigationTitle from 'dive-common/components/NavigationTitle.vue';
 import RunPipelineMenu from 'dive-common/components/RunPipelineMenu.vue';
 import ImportAnnotations from 'dive-common/components/ImportAnnotations.vue';
 import { useStore } from 'platform/web-girder/store/types';
+import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import JobsTab from './JobsTab.vue';
 import Export from './Export.vue';
 import Clone from './Clone.vue';
@@ -26,6 +27,11 @@ const menuOptions = {
   offsetY: true,
   bottom: true,
 };
+
+interface CompleteJob {
+  type: string;
+  title: string;
+}
 
 /**
  * ViewerLoader is responsible for loading
@@ -62,6 +68,7 @@ export default defineComponent({
   },
 
   setup(props) {
+    const { prompt } = usePrompt();
     const viewerRef = ref();
     const store = useStore();
     const brandData = toRef(store.state.Brand, 'brandData');
@@ -71,7 +78,23 @@ export default defineComponent({
       return parsed;
     });
     const { getters } = store;
-
+    const currentJob = computed(() => getters['Jobs/datasetCompleteJobs'](props.id));
+    watch(currentJob, async () => {
+      if (currentJob.value !== false && currentJob.value !== undefined) {
+        const result = await prompt({
+          title: 'Pipeline Finished',
+          text: [`Pipeline: ${currentJob.value.title}`,
+            'finished running sucesfully on the current dataset.  Click reload to load the annotations.  The current annotations will be replaced with the pipeline output.',
+          ],
+          confirm: true,
+          positiveButton: 'Reload',
+          negativeButton: 'Cancel',
+        });
+        if (result) {
+          viewerRef.value.reloadAnnotations();
+        }
+      }
+    });
     onMounted(() => {
       window.addEventListener('beforeunload', viewerRef.value.warnBrowserExit);
     });
@@ -99,6 +122,7 @@ export default defineComponent({
     :key="`${id}/${revisionNum}`"
     ref="viewerRef"
     :revision="revisionNum"
+    :read-only-mode="getters['Jobs/datasetRunningState'](id)"
   >
     <template #title>
       <ViewerAlert />

@@ -44,6 +44,10 @@ export default defineComponent({
       type: Function as PropType<(id: string) => boolean>,
       default: () => false,
     },
+    readOnlyMode: {
+      type: Boolean,
+      default: false,
+    },
   },
 
   setup(props) {
@@ -184,6 +188,12 @@ export default defineComponent({
           <v-card-text>
             A pipeline is currently running on this dataset.
             Please wait until it is complete before running another pipeline or making any changes
+          </v-card-text>
+        </v-card>
+        <v-card v-else-if="readOnlyMode">
+          <v-card-title> Read only Mode</v-card-title>
+          <v-card-text>
+            This Dataset is in ReadOnly Mode.  You cannot run pipelines on this dataset.
           </v-card-text>
         </v-card>
         <v-card

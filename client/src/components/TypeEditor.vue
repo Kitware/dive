@@ -3,7 +3,9 @@ import {
   defineComponent, reactive, toRef, watch,
 } from '@vue/composition-api';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
-import { useHandler, useTypeStyling, useUsedTypes } from '../provides';
+import {
+  useHandler, useTypeStyling, useUsedTypes, useReadOnlyMode,
+} from '../provides';
 
 export default defineComponent({
   name: 'TypeEditor',
@@ -18,6 +20,7 @@ export default defineComponent({
   setup(props, { emit }) {
     const typeStylingRef = useTypeStyling();
     const usedTypesRef = useUsedTypes();
+    const readOnlyMode = useReadOnlyMode();
     const { prompt } = usePrompt();
     const {
       updateTypeName,
@@ -89,6 +92,7 @@ export default defineComponent({
     return {
       data,
       usedTypesRef,
+      readOnlyMode,
       acceptChanges,
       clickDeleteType,
     };
@@ -130,7 +134,8 @@ export default defineComponent({
             <v-col clas="py-0">
               <v-text-field
                 v-model="data.editingType"
-                label="Type Name"
+                :disabled="readOnlyMode"
+                :label="readOnlyMode ? 'Type Name (disabled in ReadOnly Mode)' : 'Type Name'"
                 hide-details
               />
             </v-col>

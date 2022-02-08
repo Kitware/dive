@@ -22,7 +22,7 @@ export default function useTrackSelectionControls(
   function selectTrack(trackId: TrackId | null, edit = false) {
     selectedTrackId.value = trackId;
     if (edit && readonlyState.value) {
-      prompt.prompt({ title: 'Read Only Mode', text: 'The System is in Read Only mode, no edits can be made' });
+      prompt.prompt({ title: 'Read Only Mode', text: 'This Dataset is in Read Only mode, no edits can be made.' });
     } else {
       editingTrack.value = trackId !== null && edit;
     }

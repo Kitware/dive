@@ -24,6 +24,10 @@ export default defineComponent({
       type: Object,
       default: () => ({}),
     },
+    readOnlyMode: {
+      type: Boolean,
+      default: false,
+    },
   },
   setup(props) {
     const { openFromDisk, importAnnotationFile } = useApi();
@@ -103,7 +107,14 @@ export default defineComponent({
       </v-tooltip>
     </template>
     <template>
+      <v-card v-if="readOnlyMode">
+        <v-card-title> Read only Mode</v-card-title>
+        <v-card-text>
+          This Dataset is in ReadOnly Mode.  You cannot import annotations for this dataset.
+        </v-card-text>
+      </v-card>
       <v-card
+        v-else
         outlined
       >
         <v-card-title>

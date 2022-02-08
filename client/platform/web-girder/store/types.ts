@@ -29,6 +29,7 @@ export interface BrandState {
 export interface JobState {
   jobIds: Record<string, number>;
   datasetStatus: Record<string, number>;
+  completeJobsInfo: Record<string, {type: string; title: string}>;
 }
 
 export interface RootState {
