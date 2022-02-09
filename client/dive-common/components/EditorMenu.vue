@@ -43,7 +43,25 @@ export default Vue.extend({
       default: false,
     },
   },
+  data() {
+    return {
+      toolTipForce: false,
+      toolTimeTimeout: 0,
+      modeToolTips: {
+        Creating: {
+          rectangle: 'Hit ESC to exit creation',
+          Polygon: 'Click to place points, right click to close polygon',
+          LineString: 'Click to place Head/Tail Points',
+        },
+        Editing: {
+          rectangle: 'Drag points to resize the rectangle',
+          Polygon: 'Click and drag midpoints to add new points, or click on vertices to move or delete',
+          LineString: 'Click and drag points, or click once to select and delete',
 
+        },
+      },
+    };
+  },
   computed: {
     editButtons(): ButtonData[] {
       const em = this.editingMode;
@@ -136,7 +154,20 @@ export default Vue.extend({
       return { text: 'Editing Modes', icon: 'mdi-pencil', color: '' };
     },
   },
-
+  watch: {
+    editingDetails() {
+      if (this.editingDetails !== 'disabled') {
+        clearTimeout(this.toolTimeTimeout);
+        this.toolTipForce = true;
+        this.toolTimeTimeout = setTimeout(
+          () => { this.toolTipForce = false; }, 3000,
+        ) as unknown as number;
+      } else {
+        clearTimeout(this.toolTimeTimeout);
+        this.toolTipForce = false;
+      }
+    },
+  },
   methods: {
     isVisible(mode: VisibleAnnotationTypes) {
       return this.visibleModes.includes(mode);
@@ -163,73 +194,80 @@ export default Vue.extend({
   >
     <v-col class="d-flex align-center px-4">
       <span
-        class="mr-1 px-3 py-1 modechip grey darken-2"
+        class="pa-2 pb-1 mode-group"
       >
-        <v-icon class="pr-1">
-          mdi-eye
-        </v-icon>
-        <span class="text-subtitle-2">
-          Visibilty
-        </span>
-      </span>
-      <v-btn
-        v-for="button in viewButtons"
-        :key="button.id"
-        :outlined="!button.active"
-        :color="button.active ? 'grey darken-2' : ''"
-        class="mx-1"
-        small
-        @click="button.click"
-      >
-        <v-icon>{{ button.icon }}</v-icon>
-      </v-btn>
-      <v-tooltip
-        bottom
-        max-width="300"
-      >
-        <template #activator="{ on, attrs }">
-          <span
-            v-bind="attrs"
-            :class="[
-              'ml-8', 'mr-1', 'px-3', 'py-1',
-              'modechip', editingHeader.color,
-            ]"
-            v-on="on"
-          >
-            <v-icon class="pr-1">
-              {{ editingHeader.icon }}
-            </v-icon>
-            <span class="text-subtitle-2">
-              {{ editingHeader.text }}
-            </span>
-            <span v-if="editingHeader.color !== ''">
-              <v-icon
-                color="error "
-                style="font-weight:bold"
-                @click="$emit('exit-edit')"
-              > mdi-close </v-icon>
-            </span>
+        <span
+          class="mr-1 px-3 py-1"
+        >
+          <v-icon class="pr-1">
+            mdi-eye
+          </v-icon>
+          <span class="text-subtitle-2">
+            Visibilty
           </span>
-        </template>
-        <span v-if="mergeMode">
-          Merge in progress.  Editing is disabled.
-          Select additional tracks to merge.
         </span>
-        <span v-else>Editing mode status indicator: {{ editingMode ? 'enabled': 'disabled' }}</span>
-      </v-tooltip>
-      <v-btn
-        v-for="button in editButtons"
-        :key="button.id + 'view'"
-        :disabled="!editingMode"
-        :outlined="!button.active"
-        :color="button.active ? 'primary' : ''"
-        class="mx-1"
-        small
-        @click="button.click"
+        <v-btn
+          v-for="button in viewButtons"
+          :key="button.id"
+          :outlined="!button.active"
+          :color="button.active ? 'grey darken-2' : ''"
+          class="mx-1"
+          small
+          @click="button.click"
+        >
+          <v-icon>{{ button.icon }}</v-icon>
+        </v-btn>
+      </span>
+      <v-spacer />
+      <span
+        class="ml-4 pb-1 pa-2 grey darken-2 mode-group"
       >
-        <pre v-if="button.mousetrap">{{ button.mousetrap[0].bind }}:</pre>
-        <v-icon>{{ button.icon }}</v-icon>
-      </v-btn>
+        <v-tooltip
+          v-model="toolTipForce"
+          bottom
+          max-width="300"
+          close-delay="1000"
+        >
+          <template #activator="{ on, attrs }">
+            <span
+              v-bind="attrs"
+              :class="[
+                'mr-1', 'px-3', 'py-1',
+              ]"
+              v-on="on"
+            >
+              <v-icon class="pr-1">
+                {{ editingHeader.icon }}
+              </v-icon>
+              <span class="text-subtitle-2">
+                {{ editingHeader.text }}
+              </span>
+            </span>
+          </template>
+          <span v-if="mergeMode">
+            Merge in progress.  Editing is disabled.
+            Select additional tracks to merge.
+          </span>
+          <span v-else-if="editingDetails !== 'disabled'">
+            {{ modeToolTips[editingDetails][editingMode] }}
+          </span>
+          <span v-else>Right Click on a detection/track to enter Editing Mode</span>
+        </v-tooltip>
+        <v-btn
+          v-for="button in editButtons"
+          :key="button.id + 'view'"
+          :disabled="!editingMode"
+          :outlined="!button.active"
+          :color="button.active ? editingHeader.color : ''"
+          class="mx-1"
+          small
+          @click="button.click"
+        >
+          <pre v-if="button.mousetrap">{{ button.mousetrap[0].bind }}:</pre>
+          <v-icon>{{ button.icon }}</v-icon>
+        </v-btn>
+        <slot name="delete-controls" />
+      </span>
     </v-col>
   </v-row>
 </template>
@@ -240,5 +278,9 @@ export default Vue.extend({
   white-space: nowrap;
   border: 1px solid;
   cursor: default;
+}
+.mode-group {
+  border: 1px solid grey;
+  border-radius: 4px;
 }
 </style>

@@ -44,7 +44,7 @@ export default Vue.extend({
 </script>
 
 <template>
-  <div>
+  <span>
     <v-btn
       v-if="!disabled"
       color="error"
@@ -67,5 +67,5 @@ export default Vue.extend({
         mdi-delete
       </v-icon>
     </v-btn>
-  </div>
+  </span>
 </template>

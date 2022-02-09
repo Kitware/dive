@@ -505,13 +505,16 @@ export default defineComponent({
           class="shrink"
           @set-annotation-state="handler.setAnnotationState"
           @exit-edit="handler.trackAbort"
-        />
-        <delete-controls
-          v-bind="{ editingMode, selectedFeatureHandle }"
-          class="mr-2"
-          @delete-point="handler.removePoint"
-          @delete-annotation="handler.removeAnnotation"
-        />
+        >
+          <template slot="delete-controls">
+            <delete-controls
+              v-bind="{ editingMode, selectedFeatureHandle }"
+              class="mr-2"
+              @delete-point="handler.removePoint"
+              @delete-annotation="handler.removeAnnotation"
+            />
+          </template>
+        </editor-menu>
         <v-spacer />
         <v-select
           v-if="multiCamList.length"
