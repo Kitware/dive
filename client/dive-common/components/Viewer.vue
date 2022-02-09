@@ -493,25 +493,29 @@ export default defineComponent({
         style="white-space:nowrap;overflow:hidden;text-overflow: ellipsis;"
       >
         {{ datasetName }}
-      </span>
-      <!-- I DONT LIKE THIS YET -->
-      <span
-        v-if="readOnlyMode"
-        class="text warning flex-row"
-        style="white-space:nowrap;"
-      >
-        Read Only Mode
-        <v-tooltip
-          bottom
+        <div
+          v-if="readonlyState"
+          class="mx-auto my-0 pa-0"
+          style="line-height:0.2em;"
         >
-          <template v-slot:activator="{on}">
-            <v-icon v-on="on"> mdi-help</v-icon>
-          </template>
-          <span>Read only mode, Editing, Deleting and Importing actions are disabled</span>
-        </v-tooltip>
+          <v-tooltip
+            bottom
+          >
+            <template v-slot:activator="{on}">
+              <v-chip
+                class="text warning"
+                style="white-space:nowrap;display:inline"
+                small
+                v-on="on"
+              >
+                Read Only Mode
+              </v-chip>
+            </template>
+            <span>Read Only Mode: Editing, Deleting and Importing actions are disabled</span>
+          </v-tooltip>
+        </div>
       </span>
       <v-spacer />
-
       <template #extension>
         <span
           v-if="$vuetify.breakpoint.lgAndUp"

@@ -122,7 +122,7 @@ export default defineComponent({
     :key="`${id}/${revisionNum}`"
     ref="viewerRef"
     :revision="revisionNum"
-    :read-only-mode="getters['Jobs/datasetRunningState'](id)"
+    :read-only-mode="!!getters['Jobs/datasetRunningState'](id)"
   >
     <template #title>
       <ViewerAlert />

@@ -89,7 +89,7 @@ export default defineComponent({
   <Viewer
     :id.sync="compoundId"
     ref="viewerRef"
-    :read-only-mode="readOnlyMode || isPipelineRunning(id)"
+    :read-only-mode="readOnlyMode || !!isPipelineRunning(id)"
   >
     <template #title>
       <v-tabs

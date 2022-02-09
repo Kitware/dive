@@ -41,7 +41,7 @@ export default defineComponent({
       default: () => ([1]),
     },
     getRunningPipelines: {
-      type: Function as PropType<(id: string) => boolean>,
+      type: Function as PropType<(id: string) => boolean | string>,
       default: () => false,
     },
     readOnlyMode: {
@@ -105,9 +105,16 @@ export default defineComponent({
 
     const pipelinesCurrentlyRunning = computed(
       () => props.selectedDatasetIds.reduce(
-        (acc, item) => acc || props.getRunningPipelines(item), false,
+        (acc, item) => acc || !!props.getRunningPipelines(item), false,
       ),
     );
+
+    const singlePipelineValue = computed(() => {
+      if (props.selectedDatasetIds.length === 1) {
+        return props.getRunningPipelines(props.selectedDatasetIds[0]);
+      }
+      return false;
+    });
 
     async function runPipelineOnSelectedItem(pipeline: Pipe) {
       if (props.selectedDatasetIds.length === 0) {
@@ -140,6 +147,7 @@ export default defineComponent({
       pipeTypeDisplay,
       runPipelineOnSelectedItem,
       pipelinesCurrentlyRunning,
+      singlePipelineValue,
     };
   },
 });
@@ -161,7 +169,7 @@ export default defineComponent({
             <v-btn
               v-bind="buttonOptions"
               :disabled="pipelinesNotRunnable"
-              :color="pipelinesCurrentlyRunning? 'warning' : ''"
+              :color="pipelinesCurrentlyRunning? 'warning' : buttonOptions.color"
               v-on="{ ...tooltipOn, ...menuOn }"
             >
               <v-icon> mdi-pipe </v-icon>
@@ -189,6 +197,29 @@ export default defineComponent({
             A pipeline is currently running on this dataset.
             Please wait until it is complete before running another pipeline or making any changes
           </v-card-text>
+          <v-row class="pb-1">
+            <v-btn
+              v-if="singlePipelineValue && singlePipelineValue !== true"
+              large
+              depressed
+              :href="singlePipelineValue"
+              target="_blank"
+              color="info"
+              class="ma-auto"
+            >
+              View Running Job
+            </v-btn>
+            <v-btn
+              v-else-if="singlePipelineValue === true"
+              large
+              depressed
+              to="/jobs"
+              color="info"
+              class="ma-auto"
+            >
+              View Running Job
+            </v-btn>
+          </v-row>
         </v-card>
         <v-card v-else-if="readOnlyMode">
           <v-card-title> Read only Mode</v-card-title>

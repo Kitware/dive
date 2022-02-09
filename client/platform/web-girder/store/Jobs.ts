@@ -26,9 +26,13 @@ const jobModule: Module<JobState, RootState> = {
     runningJobIds(state) {
       return Object.values(state.jobIds).filter((v) => !NonRunningStates.includes(v)).length >= 1;
     },
-    datasetRunningState: (state) => (datasetId: string) => (
-      datasetId in state.datasetStatus && !NonRunningStates.includes(state.datasetStatus[datasetId])
-    ),
+    datasetRunningState: (state) => (datasetId: string) => {
+      if (datasetId in state.datasetStatus
+        && !NonRunningStates.includes(state.datasetStatus[datasetId].status)) {
+        return `/girder/#job/${state.datasetStatus[datasetId].jobId}`;
+      }
+      return false;
+    },
     datasetCompleteJobs: (state) => (datasetId: string) => {
       if (datasetId in state.completeJobsInfo) {
         return (state.completeJobsInfo[datasetId]);
@@ -40,8 +44,9 @@ const jobModule: Module<JobState, RootState> = {
     setJobState(state, { jobId, value }: { jobId: string; value: number }) {
       Vue.set(state.jobIds, jobId, value);
     },
-    setDatasetStatus(state, { datasetId, value }: { datasetId: string; value: number }) {
-      Vue.set(state.datasetStatus, datasetId, value);
+    setDatasetStatus(state, { datasetId, status, jobId }:
+      { datasetId: string; status: number; jobId: string }) {
+      Vue.set(state.datasetStatus, datasetId, { status, jobId });
     },
     setCompleteJobsInfo(state, { datasetId, type, title }:
       { datasetId: string; type: string; title: string }) {
@@ -55,12 +60,11 @@ export async function init(store: Store<RootState>) {
   const { data: runningJobs } = await girderRest.get<GirderJob[]>('/job', {
     params: { statuses: `[${JobStatus.RUNNING.value}]` },
   });
-
   function updateJob(job: GirderJob & {type?: string; title?: string}) {
     store.commit('Jobs/setJobState', { jobId: job._id, value: job.status });
     if (typeof job.dataset_id === 'string') {
-      store.commit('Jobs/setDatasetStatus', { datasetId: job.dataset_id, value: job.status });
-      if (job.status === 3 && job.type === 'pipeline') {
+      store.commit('Jobs/setDatasetStatus', { datasetId: job.dataset_id, status: job.status, jobId: job._id });
+      if (job.status === 3 && job.type === 'pipelines') {
         store.commit('Jobs/setCompleteJobsInfo', { datasetId: job.dataset_id, type: job.type, title: job.title });
       }
     }
