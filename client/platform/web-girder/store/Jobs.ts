@@ -52,7 +52,16 @@ const jobModule: Module<JobState, RootState> = {
       { datasetId: string; type: string; title: string }) {
       Vue.set(state.completeJobsInfo, datasetId, { type, title });
     },
-
+    removeCompleteJobsInfo(state, { datasetId }: { datasetId: string }) {
+      if (datasetId in state.completeJobsInfo) {
+        Vue.delete(state.completeJobsInfo, datasetId);
+      }
+    },
+  },
+  actions: {
+    removeCompleteJob({ commit }, { datasetId }: {datasetId: string}) {
+      commit('removeCompleteJobsInfo', { datasetId });
+    },
   },
 };
 

@@ -90,6 +90,7 @@ export default defineComponent({
           positiveButton: 'Reload',
           negativeButton: 'Cancel',
         });
+        store.dispatch('Jobs/removeCompleteJob', { datasetId: props.id });
         if (result) {
           viewerRef.value.reloadAnnotations();
         }
