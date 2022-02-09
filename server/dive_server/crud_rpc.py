@@ -262,7 +262,9 @@ def run_training(
 
 
 def _get_data_by_type(
-    file: Optional[types.GirderModel], as_type: Optional[crud.FileType] = None
+    file: types.GirderModel,
+    image_map: Optional[Dict[str, int]] = None,
+    as_type: Optional[crud.FileType] = None,
 ) -> Tuple[Optional[crud.FileType], dict, dict]:
     """
     Given an arbitrary Girder file model, figure out what kind of file it is and
@@ -295,7 +297,9 @@ def _get_data_by_type(
 
     # Parse the file as the now known type
     if as_type == crud.FileType.VIAME_CSV:
-        tracks, attributes = viame.load_csv_as_tracks_and_attributes(file_string.splitlines())
+        tracks, attributes = viame.load_csv_as_tracks_and_attributes(
+            file_string.splitlines(), image_map
+        )
         return as_type, tracks, attributes
 
     # All filetypes below are JSON, so if as_type was specified, it needs to be loaded.
@@ -332,7 +336,10 @@ def process_items(folder: types.GirderModel, user: types.GirderUserModel):
             raise RestException('Item had no associated files')
 
         try:
-            filetype, data, attrs = _get_data_by_type(file)
+            image_map = None
+            if fromMeta(folder, constants.TypeMarker) == 'image-sequence':
+                image_map = crud.valid_image_names_dict(crud.valid_images(folder, user))
+            filetype, data, attrs = _get_data_by_type(file, image_map=image_map)
         except Exception as e:
             Item().remove(item)
             raise RestException(f'{file["name"]} was not valid JSON or CSV: {e}') from e

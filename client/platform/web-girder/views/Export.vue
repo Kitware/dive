@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  computed, defineComponent, ref, shallowRef, toRef, watch,
+  computed, defineComponent, ref, shallowRef, toRef, watch, PropType, Ref,
 } from '@vue/composition-api';
 import { usePendingSaveCount, useHandler, useCheckedTypes } from 'vue-media-annotator/provides';
 import AutosavePrompt from 'dive-common/components/AutosavePrompt.vue';
@@ -17,9 +17,9 @@ export default defineComponent({
   components: { AutosavePrompt },
 
   props: {
-    datasetId: {
-      type: String,
-      default: null,
+    datasetIds: {
+      type: Array as PropType<string[]>,
+      default: () => [],
     },
     blockOnUnsaved: {
       type: Boolean,
@@ -74,41 +74,62 @@ export default defineComponent({
     const excludeBelowThreshold = ref(true);
     const excludeUncheckedTypes = ref(false);
 
+    const singleDataSetId: Ref<string|null> = ref(null);
     const dataset = shallowRef(null as GirderMetadataStatic | null);
     const datasetMedia = shallowRef(null as DatasetSourceMedia | null);
     const { request, error } = useRequest();
     const loadDatasetMeta = () => request(async () => {
-      if (menuOpen.value) {
-        dataset.value = (await getDataset(props.datasetId)).data;
+      if (props.datasetIds.length > 1) {
+        singleDataSetId.value = null;
+        dataset.value = null;
+      } else {
+        [singleDataSetId.value] = props.datasetIds;
+      }
+      if (menuOpen.value && singleDataSetId.value) {
+        dataset.value = (await getDataset(singleDataSetId.value)).data;
         if (dataset.value.type === 'video') {
-          datasetMedia.value = (await getDatasetMedia(props.datasetId)).data;
+          datasetMedia.value = (await getDatasetMedia(singleDataSetId.value)).data;
         }
       }
     });
-    watch([toRef(props, 'datasetId'), menuOpen], loadDatasetMeta);
+    watch([toRef(props, 'datasetIds'), menuOpen], loadDatasetMeta);
 
     const exportUrls = computed(() => {
       const params = {
         excludeBelowThreshold: excludeBelowThreshold.value,
         typeFilter: excludeUncheckedTypes.value ? JSON.stringify(checkedTypes.value) : undefined,
       };
+      if (singleDataSetId.value) {
+        return {
+          exportAllUrl: getUri({
+            url: 'dive_dataset/export',
+            params: { ...params, folderIds: JSON.stringify([singleDataSetId.value]) },
+          }),
+          exportMediaUrl: dataset.value?.type === 'video'
+            ? datasetMedia.value?.video?.url
+            : getUri({
+              url: 'dive_dataset/export',
+              params: {
+                ...params,
+                includeDetections: false,
+                includeMedia: true,
+                folderIds: JSON.stringify([singleDataSetId.value]),
+              },
+            }),
+          exportDetectionsUrl: getUri({
+            url: 'dive_annotation/export',
+            params: { ...params, folderId: singleDataSetId.value },
+          }),
+          exportConfigurationUrl: getUri({
+            url: `dive_dataset/${singleDataSetId.value}/configuration`,
+          }),
+        };
+      }
       return {
         exportAllUrl: getUri({
-          url: `dive_dataset/${props.datasetId}/export`,
-          params,
-        }),
-        exportMediaUrl: dataset.value?.type === 'video'
-          ? datasetMedia.value?.video?.url
-          : getUri({
-            url: `dive_dataset/${props.datasetId}/export`,
-            params: { ...params, includeDetections: false, includeMedia: true },
-          }),
-        exportDetectionsUrl: getUri({
-          url: 'dive_annotation/export',
-          params: { ...params, folderId: props.datasetId },
-        }),
-        exportConfigurationUrl: getUri({
-          url: `dive_dataset/${props.datasetId}/configuration`,
+          url: 'dive_dataset/export',
+          params: { folderIds: JSON.stringify(props.datasetIds) },
+
         }),
       };
     });
@@ -133,6 +154,7 @@ export default defineComponent({
       exportUrls,
       checkedTypes,
       savePrompt,
+      singleDataSetId,
       doExport,
     };
   },
@@ -153,7 +175,7 @@ export default defineComponent({
           <v-btn
             class="ma-0"
             v-bind="buttonOptions"
-            :disabled="!datasetId"
+            :disabled="!datasetIds.length"
             v-on="{ ...tooltipOn, ...menuOn }"
           >
             <v-icon>
@@ -275,6 +297,21 @@ export default defineComponent({
 
           <v-card-text class="pb-0">
             Zip all media, detections, and edit history recursively from all sub-folders
+          </v-card-text>
+          <v-card-actions>
+            <v-spacer />
+            <v-btn
+              depressed
+              block
+              @click="doExport({ url: exportUrls && exportUrls.exportAllUrl })"
+            >
+              Everything
+            </v-btn>
+          </v-card-actions>
+        </template>
+        <template v-else-if="exportUrls.exportAllUrl !== undefined">
+          <v-card-text class="pb-0">
+            Zip all media, detections, and edit history from all selected dataset folders
           </v-card-text>
           <v-card-actions>
             <v-spacer />

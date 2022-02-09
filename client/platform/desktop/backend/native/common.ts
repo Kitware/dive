@@ -37,6 +37,7 @@ import {
 import processTrackAttributes from './attributeProcessor';
 import { upgrade } from './migrations';
 import { getMultiCamUrls, transcodeMultiCam } from './multiCamUtils';
+import { splitExt } from './utils';
 
 
 const ProjectsFolderName = 'DIVE_Projects';
@@ -564,6 +565,7 @@ async function _ingestFilePath(
   settings: Settings,
   datasetId: string,
   path: string,
+  imageMap?: Map<string, number>,
 ): Promise<(DatasetMetaMutable & { fps?: number }) | null> {
   if (!fs.existsSync(path)) {
     return null;
@@ -594,12 +596,13 @@ async function _ingestFilePath(
     }
   } else if (CsvFileName.test(path)) {
     // VIAME CSV File
-    const data = await viameSerializers.parseFile(path);
+    const data = await viameSerializers.parseFile(path, imageMap);
     tracks = data.tracks;
     meta.fps = data.fps;
   }
   if (tracks !== null) {
     const processed = processTrackAttributes(tracks);
+    meta.attributes = processed.attributes;
     await _saveSerialized(settings, datasetId, processed.data, true);
   }
   return meta;
@@ -623,6 +626,7 @@ async function ingestDataFiles(
   datasetId: string,
   absPaths: string[],
   multiCamResults?: Record<string, string>,
+  imageMap?: Map<string, number>,
 ): Promise<{
   processedFiles: string[];
   meta: DatasetMetaMutable & { fps?: number };
@@ -633,7 +637,7 @@ async function ingestDataFiles(
   for (let i = 0; i < absPaths.length; i += 1) {
     const path = absPaths[i];
     // eslint-disable-next-line no-await-in-loop
-    const newMeta = await _ingestFilePath(settings, datasetId, path);
+    const newMeta = await _ingestFilePath(settings, datasetId, path, imageMap);
     if (newMeta !== null) {
       merge(meta, newMeta);
       processedFiles.push(path);
@@ -647,7 +651,7 @@ async function ingestDataFiles(
       const path = cameraAndPath[i][1];
       const cameraDatasetId = `${datasetId}/${cameraName}`;
       // eslint-disable-next-line no-await-in-loop
-      const newMeta = await _ingestFilePath(settings, cameraDatasetId, path);
+      const newMeta = await _ingestFilePath(settings, cameraDatasetId, path, imageMap);
       if (newMeta !== null) {
         merge(meta, newMeta);
         processedFiles.push(path);
@@ -866,10 +870,31 @@ async function beginMediaImport(
   };
 }
 
+function validImageNamesMap(jsonMeta: JsonMeta) {
+  if (jsonMeta.originalImageFiles.length > 0) {
+    const imageMap = new Map<string, number>();
+    jsonMeta.originalImageFiles.forEach((imgPath, i) => {
+      const [imageBaseName] = splitExt(imgPath);
+      if (imageMap.get(imageBaseName) !== undefined) {
+        throw new Error([
+          `An image named ${imageBaseName} was found twice in the dataset,`,
+          'probably in different folders. DIVE cannot handle this case.',
+          'Please contact support.',
+        ].join(' '));
+      }
+      imageMap.set(imageBaseName, i);
+    });
+    return imageMap;
+  }
+  return undefined;
+}
+
 async function dataFileImport(settings: Settings, id: string, path: string) {
-  const result = await ingestDataFiles(settings, id, [path]);
   const projectDirData = await getValidatedProjectDir(settings, id);
   const jsonMeta = await loadJsonMetadata(projectDirData.metaFileAbsPath);
+  const result = await ingestDataFiles(
+    settings, id, [path], undefined, validImageNamesMap(jsonMeta),
+  );
   merge(jsonMeta, result.meta);
   await _saveAsJson(npath.join(projectDirData.basePath, JsonMetaFileName), jsonMeta);
   return result;
@@ -882,21 +907,23 @@ async function _importTrackFile(
   jsonMeta: JsonMeta,
   userTrackFileAbsPath: string,
 ) {
-  if (userTrackFileAbsPath) {
-    const processed = await ingestDataFiles(settings, dsId, [userTrackFileAbsPath]);
-    merge(jsonMeta, processed.meta);
-    if (processed.processedFiles.length === 0) {
-      await _saveSerialized(settings, dsId, {}, true);
-    }
-  } else {
-    await _saveSerialized(settings, dsId, {}, true);
-  }
   /* custom image sort */
   if (jsonMeta.imageListPath === undefined) {
     jsonMeta.originalImageFiles.sort(strNumericCompare);
   }
   if (jsonMeta.transcodedImageFiles) {
     jsonMeta.transcodedImageFiles.sort(strNumericCompare);
+  }
+  if (userTrackFileAbsPath) {
+    const processed = await ingestDataFiles(
+      settings, dsId, [userTrackFileAbsPath], undefined, validImageNamesMap(jsonMeta),
+    );
+    merge(jsonMeta, processed.meta);
+    if (processed.processedFiles.length === 0) {
+      await _saveSerialized(settings, dsId, {}, true);
+    }
+  } else {
+    await _saveSerialized(settings, dsId, {}, true);
   }
   await _saveAsJson(npath.join(projectDirAbsPath, JsonMetaFileName), jsonMeta);
   return jsonMeta;

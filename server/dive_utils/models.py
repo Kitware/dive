@@ -46,8 +46,8 @@ class Feature(BaseModel):
     head: Optional[Tuple[float, float]] = None
     tail: Optional[Tuple[float, float]] = None
     fishLength: Optional[float] = None
-    interpolate: Optional[bool] = False
-    keyframe: Optional[bool] = True
+    interpolate: Optional[bool] = None
+    keyframe: Optional[bool] = None
 
 
 class Track(BaseModel):
@@ -57,6 +57,7 @@ class Track(BaseModel):
     features: List[Feature] = Field(default_factory=lambda: [])
     confidencePairs: List[Tuple[str, float]] = Field(default_factory=lambda: [])
     attributes: Dict[str, Any] = Field(default_factory=lambda: {})
+    meta: Optional[Dict[str, Any]]
 
     @validator('features')
     @classmethod

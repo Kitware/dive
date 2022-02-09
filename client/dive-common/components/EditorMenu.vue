@@ -42,6 +42,10 @@ export default Vue.extend({
       type: Boolean,
       default: false,
     },
+    tailSettings: {
+      type: Object as PropType<{ before: number; after: number }>,
+      default: () => ({ before: 20, after: 10 }),
+    },
   },
   data() {
     return {
@@ -134,7 +138,6 @@ export default Vue.extend({
           icon: 'mdi-tooltip-text-outline',
           click: () => this.toggleVisible('tooltip'),
         },
-
       ];
     },
     mousetrap(): Mousetrap[] {
@@ -217,8 +220,58 @@ export default Vue.extend({
         >
           <v-icon>{{ button.icon }}</v-icon>
         </v-btn>
+        <v-menu
+          open-on-hover
+          bottom
+          offset-y
+          :close-on-content-click="false"
+        >
+          <template #activator="{ on, attrs }">
+            <v-btn
+              v-bind="attrs"
+              :outlined="!isVisible('TrackTail')"
+              :color="isVisible('TrackTail') ? 'grey darken-2' : ''"
+              class="mx-1"
+              small
+              v-on="on"
+              @click="toggleVisible('TrackTail')"
+            >
+              <v-icon>mdi-navigation</v-icon>
+            </v-btn>
+          </template>
+          <v-card
+            class="pa-4 flex-column d-flex"
+            outlined
+          >
+            <label for="frames-before">Frames before: {{ tailSettings.before }}</label>
+            <input
+              id="frames-before"
+              type="range"
+              name="frames-before"
+              class="tail-slider-width"
+              label
+              min="0"
+              max="100"
+              :value="tailSettings.before"
+              @input="$emit('update:tail-settings', {
+                ...tailSettings, before: Number.parseFloat($event.target.value) })"
+            >
+            <div class="py-2" />
+            <label for="frames-after">Frames after: {{ tailSettings.after }}</label>
+            <input
+              id="frames-after"
+              type="range"
+              name="frames-after"
+              class="tail-slider-width"
+              min="0"
+              max="100"
+              :value="tailSettings.after"
+              @input="$emit('update:tail-settings', {
+                ...tailSettings, after: Number.parseFloat($event.target.value) })"
+            >
+          </v-card>
+        </v-menu>
       </span>
-      <v-spacer />
       <span
         class="ml-4 pb-1 pa-2 grey darken-2 mode-group"
       >
@@ -282,5 +335,8 @@ export default Vue.extend({
 .mode-group {
   border: 1px solid grey;
   border-radius: 4px;
+}
+.tail-slider-width {
+  width: 240px;
 }
 </style>

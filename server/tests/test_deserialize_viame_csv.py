@@ -5,7 +5,7 @@ import pytest
 
 from dive_utils.serializers import viame
 
-test_tuple: List[Tuple[list, dict, dict]] = [
+old_tuple: List[Tuple[list, dict, dict]] = [
     (
         [
             # all frames in a track must be the same type, so the type name for 0 will be ignored
@@ -13,13 +13,13 @@ test_tuple: List[Tuple[list, dict, dict]] = [
             "0,2.png,1,111,222,3333,444,1,-1,typestring,0.55",
             "1,1.png,0,747,457,1039,633,1,-1,type2,1",
             # Keypoint testing with HeadTails Line
-            "2,3.png,2,10,50,20,35,1,-1,type3,0.765,(kp) head 22.4534 45.6564,(kp) tail 55.232 22.3445",
+            "2,3.png,2,10,50,20,35,1,-1,type3,0.765,(kp) head 22.4534 -45.6564,(kp) tail 55.232 -22.3445",
             # Keypoint without HeadTails Line
-            "2,4.png,3,10,50,20,35,1,-1,type3,0.765,(kp) head 22.4534 45.6564",
+            "2,4.png,3,10,50,20,35,1,-1,type3,0.765,(kp) head 22.4534 -45.6564",
             # Multiple ConfidencePair Test
             "3,4.png,4,10,10,20,20,1,-1,type1,0.89,type2,0.65",
             # Polygon Test with floats
-            "4,5.png,5,10,10,20,20,1,-1,type1,0.89,type2,0.65,(poly) 1 2.34 3 4 5 6 7 8.08 9 10",
+            "4,5.png,5,10,10,20,20,1,-1,type1,0.89,type2,0.65,(poly) 1 -2.34 3 4 5 6 7 8.08 9 -10",
             # Track and Frame Attr testing
             "5,6.png,6,10,10,20,20,1,-1,type1,0.89,(atr) attrNAME spaced attr name,(trk-atr) booleanAttr true",
             # Multiple ConfidencePair Sorting Test
@@ -35,14 +35,10 @@ test_tuple: List[Tuple[list, dict, dict]] = [
                         "frame": 0,
                         # NOTICE numbers that were rounded!
                         "bounds": [885, 510, 1220, 738],
-                        "keyframe": True,
-                        "interpolate": False,
                     },
                     {
                         "frame": 1,
                         "bounds": [111, 222, 3333, 444],
-                        "keyframe": True,
-                        "interpolate": False,
                     },
                 ],
                 "begin": 0,
@@ -56,8 +52,6 @@ test_tuple: List[Tuple[list, dict, dict]] = [
                     {
                         "frame": 0,
                         "bounds": [747, 457, 1039, 633],
-                        "keyframe": True,
-                        "interpolate": False,
                     }
                 ],
                 "begin": 0,
@@ -71,8 +65,6 @@ test_tuple: List[Tuple[list, dict, dict]] = [
                     {
                         "frame": 2,
                         "bounds": [10, 50, 20, 35],
-                        "keyframe": True,
-                        "interpolate": False,
                         "geometry": {
                             "type": "FeatureCollection",
                             "features": [
@@ -81,7 +73,7 @@ test_tuple: List[Tuple[list, dict, dict]] = [
                                     "properties": {"key": "head"},
                                     "geometry": {
                                         "type": "Point",
-                                        "coordinates": [22.4534, 45.6564],
+                                        "coordinates": [22.4534, -45.6564],
                                     },
                                 },
                                 {
@@ -89,7 +81,7 @@ test_tuple: List[Tuple[list, dict, dict]] = [
                                     "properties": {"key": "tail"},
                                     "geometry": {
                                         "type": "Point",
-                                        "coordinates": [55.232, 22.3445],
+                                        "coordinates": [55.232, -22.3445],
                                     },
                                 },
                                 {
@@ -97,8 +89,8 @@ test_tuple: List[Tuple[list, dict, dict]] = [
                                     "properties": {"key": "HeadTails"},
                                     "geometry": {
                                         "coordinates": [
-                                            [22.4534, 45.6564],
-                                            [55.232, 22.3445],
+                                            [22.4534, -45.6564],
+                                            [55.232, -22.3445],
                                         ],
                                         "type": "LineString",
                                     },
@@ -109,8 +101,6 @@ test_tuple: List[Tuple[list, dict, dict]] = [
                     {
                         "frame": 3,
                         "bounds": [10, 50, 20, 35],
-                        "keyframe": True,
-                        "interpolate": False,
                         "geometry": {
                             "type": "FeatureCollection",
                             "features": [
@@ -119,7 +109,7 @@ test_tuple: List[Tuple[list, dict, dict]] = [
                                     "properties": {"key": "head"},
                                     "geometry": {
                                         "type": "Point",
-                                        "coordinates": [22.4534, 45.6564],
+                                        "coordinates": [22.4534, -45.6564],
                                     },
                                 },
                             ],
@@ -137,8 +127,6 @@ test_tuple: List[Tuple[list, dict, dict]] = [
                     {
                         "frame": 4,
                         "bounds": [10, 10, 20, 20],
-                        "keyframe": True,
-                        "interpolate": False,
                     },
                 ],
                 "begin": 4,
@@ -152,8 +140,6 @@ test_tuple: List[Tuple[list, dict, dict]] = [
                     {
                         "frame": 5,
                         "bounds": [10, 10, 20, 20],
-                        "keyframe": True,
-                        "interpolate": False,
                         "geometry": {
                             "type": "FeatureCollection",
                             "features": [
@@ -164,11 +150,11 @@ test_tuple: List[Tuple[list, dict, dict]] = [
                                         "type": "Polygon",
                                         "coordinates": [
                                             [
-                                                [1.0, 2.34],
+                                                [1.0, -2.34],
                                                 [3.0, 4.0],
                                                 [5.0, 6.0],
                                                 [7.0, 8.08],
-                                                [9.0, 10.0],
+                                                [9.0, -10.0],
                                             ]
                                         ],
                                     },
@@ -188,8 +174,6 @@ test_tuple: List[Tuple[list, dict, dict]] = [
                     {
                         "frame": 6,
                         "bounds": [10, 10, 20, 20],
-                        "keyframe": True,
-                        "interpolate": False,
                         "attributes": {"attrNAME": "spaced attr name"},
                     },
                 ],
@@ -204,8 +188,6 @@ test_tuple: List[Tuple[list, dict, dict]] = [
                     {
                         "frame": 4,
                         "bounds": [10, 10, 20, 20],
-                        "keyframe": True,
-                        "interpolate": False,
                     },
                 ],
                 "begin": 4,
@@ -246,20 +228,14 @@ test_tuple: List[Tuple[list, dict, dict]] = [
                     {
                         "frame": 0,
                         "bounds": [884, 510, 1219, 737],
-                        "keyframe": True,
-                        "interpolate": False,
                     },
                     {
                         "frame": 1,
                         "bounds": [111, 222, 3333, 444],
-                        "keyframe": True,
-                        "interpolate": False,
                     },
                     {
                         "frame": 2,
                         "bounds": [747, 457, 1039, 633],
-                        "keyframe": True,
-                        "interpolate": False,
                     },
                 ],
                 "begin": 0,
@@ -295,8 +271,6 @@ test_tuple: List[Tuple[list, dict, dict]] = [
                     {
                         "frame": 0,
                         "bounds": [885, 510, 1220, 738],
-                        "keyframe": True,
-                        "interpolate": False,
                         "attributes": {
                             "DetectionPredefinedValue": "value1",
                             "DetectionNumber": 2.002,
@@ -305,8 +279,6 @@ test_tuple: List[Tuple[list, dict, dict]] = [
                     {
                         "frame": 1,
                         "bounds": [111, 222, 3333, 444],
-                        "keyframe": True,
-                        "interpolate": False,
                         "attributes": {
                             "DetectionPredefinedValue": "value2",
                         },
@@ -314,8 +286,6 @@ test_tuple: List[Tuple[list, dict, dict]] = [
                     {
                         "frame": 2,
                         "bounds": [747, 457, 1039, 633],
-                        "keyframe": True,
-                        "interpolate": False,
                         "attributes": {
                             "DetectionPredefinedValue": "value3",
                         },
@@ -323,8 +293,6 @@ test_tuple: List[Tuple[list, dict, dict]] = [
                     {
                         "frame": 3,
                         "bounds": [885, 510, 1220, 738],
-                        "keyframe": True,
-                        "interpolate": False,
                         "attributes": {
                             "DetectionPredefinedValue": "value1",
                         },
@@ -332,8 +300,6 @@ test_tuple: List[Tuple[list, dict, dict]] = [
                     {
                         "frame": 4,
                         "bounds": [111, 222, 3333, 444],
-                        "keyframe": True,
-                        "interpolate": False,
                         "attributes": {
                             "DetectionPredefinedValue": "value2",
                         },
@@ -341,8 +307,6 @@ test_tuple: List[Tuple[list, dict, dict]] = [
                     {
                         "frame": 5,
                         "bounds": [747, 457, 1039, 633],
-                        "keyframe": True,
-                        "interpolate": False,
                         "attributes": {
                             "DetectionPredefinedValue": "value3",
                         },
@@ -359,8 +323,6 @@ test_tuple: List[Tuple[list, dict, dict]] = [
                     {
                         "frame": 0,
                         "bounds": [885, 510, 1220, 738],
-                        "keyframe": True,
-                        "interpolate": False,
                         "attributes": {
                             "DetectionPredefinedValue": "value1",
                             "DetectionNumber": 2.002,
@@ -369,8 +331,6 @@ test_tuple: List[Tuple[list, dict, dict]] = [
                     {
                         "frame": 1,
                         "bounds": [111, 222, 3333, 444],
-                        "keyframe": True,
-                        "interpolate": False,
                         "attributes": {
                             "DetectionPredefinedValue": "value2",
                         },
@@ -378,8 +338,6 @@ test_tuple: List[Tuple[list, dict, dict]] = [
                     {
                         "frame": 2,
                         "bounds": [747, 457, 1039, 633],
-                        "keyframe": True,
-                        "interpolate": False,
                         "attributes": {
                             "DetectionPredefinedValue": "value3",
                         },
@@ -387,8 +345,6 @@ test_tuple: List[Tuple[list, dict, dict]] = [
                     {
                         "frame": 3,
                         "bounds": [885, 510, 1220, 738],
-                        "keyframe": True,
-                        "interpolate": False,
                         "attributes": {
                             "DetectionPredefinedValue": "value1",
                         },
@@ -396,8 +352,6 @@ test_tuple: List[Tuple[list, dict, dict]] = [
                     {
                         "frame": 4,
                         "bounds": [111, 222, 3333, 444],
-                        "keyframe": True,
-                        "interpolate": False,
                         "attributes": {
                             "DetectionPredefinedValue": "value2",
                         },
@@ -405,8 +359,6 @@ test_tuple: List[Tuple[list, dict, dict]] = [
                     {
                         "frame": 5,
                         "bounds": [747, 457, 1039, 633],
-                        "keyframe": True,
-                        "interpolate": False,
                         "attributes": {
                             "DetectionPredefinedValue": "value3",
                         },
@@ -455,14 +407,10 @@ test_tuple: List[Tuple[list, dict, dict]] = [
                     {
                         "frame": 0,
                         "bounds": [884, 510, 1219, 737],
-                        "keyframe": True,
-                        "interpolate": False,
                     },
                     {
                         "frame": 1,
                         "bounds": [111, 222, 3333, 444],
-                        "keyframe": True,
-                        "interpolate": False,
                     },
                 ],
                 "begin": 0,
@@ -476,8 +424,6 @@ test_tuple: List[Tuple[list, dict, dict]] = [
                     {
                         "frame": 0,
                         "bounds": [747, 457, 1039, 633],
-                        "keyframe": True,
-                        "interpolate": False,
                     }
                 ],
                 "begin": 0,
@@ -487,6 +433,9 @@ test_tuple: List[Tuple[list, dict, dict]] = [
         {},
     ),
 ]
+
+with open('../testutils/viame.spec.json', 'r') as fp:
+    test_tuple = json.load(fp)
 
 
 @pytest.mark.parametrize("input,expected_tracks,expected_attributes", test_tuple)

@@ -1,3 +1,8 @@
+import io
+import json
+import os
+from zipfile import ZipFile
+
 import pytest
 
 from .conftest import getClient, getTestFolder, match_user_server_data, users
@@ -36,6 +41,77 @@ def test_download_csv(user: dict):
                 if not row.startswith('#'):
                     track_set.add(row.split(',')[0])
             assert len(track_set) == expected[0]['trackCount']
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("user", users.values())
+@pytest.mark.run(order=6)
+def test_zip_download(user: dict):
+    if user['login'] == 'testCharacters':  # listFolder returns non slugified folder names.
+        return
+    client = getClient(user['login'])
+    privateFolder = getTestFolder(client)
+    for dataset in client.listFolder(privateFolder['_id']):
+        downloaded = client.sendRestRequest(
+            'GET',
+            f'dive_dataset/export?includeMedia=true&includeDetections=true&excludeBelowThreshold=false&folderIds={json.dumps([dataset["_id"]])}',
+            jsonResp=False,
+        )
+        z = ZipFile(io.BytesIO(downloaded.content))
+        folder_name = list(set([os.path.dirname(x) for x in z.namelist()]))[0]
+        assert folder_name == dataset['name']
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("user", users.values())
+@pytest.mark.run(order=6)
+def test_zip_batch_download(user: dict):
+    if user['login'] == 'testCharacters':  # listFolder returns non slugified folder names.
+        return
+    client = getClient(user['login'])
+    privateFolder = getTestFolder(client)
+    datasetIds = []
+    datasetNames = []
+    for dataset in client.listFolder(privateFolder['_id']):
+        datasetIds.append(dataset["_id"])
+        datasetNames.append(dataset["name"])
+    downloaded = client.sendRestRequest(
+        'GET',
+        f'dive_dataset/export?includeMedia=true&includeDetections=true&excludeBelowThreshold=false&folderIds={json.dumps(datasetIds)}',
+        jsonResp=False,
+    )
+    z = ZipFile(io.BytesIO(downloaded.content))
+    folder_names = list(set([os.path.dirname(x) for x in z.namelist()]))
+    assert len(folder_names) == len(datasetNames)
+
+
+@pytest.mark.integration
+@pytest.mark.run(order=7)
+def test_failed_batch_download():
+    user = users['alice']
+    client = getClient(user['login'])
+    privateFolder = getTestFolder(client)
+    datasetIds = []
+    datasetNames = []
+    failed_datasets = []
+    for dataset in client.listFolder(privateFolder['_id']):
+        if 'clone' not in dataset["name"] and 'train_mp4' in dataset['name']:
+            client.sendRestRequest('DELETE', f'folder/{dataset["_id"]}')
+            failed_datasets.append(dataset["name"])
+            continue
+        datasetIds.append(dataset["_id"])
+        datasetNames.append(dataset["name"])
+    downloaded = client.sendRestRequest(
+        'GET',
+        f'dive_dataset/export?includeMedia=true&includeDetections=true&excludeBelowThreshold=false&folderIds={json.dumps(datasetIds)}',
+        jsonResp=False,
+    )
+    z = ZipFile(io.BytesIO(downloaded.content))
+    print(z.namelist())
+    assert 'failed_datasets.txt' in z.namelist()
+    failed_string = z.read('failed_datasets.txt').decode('utf-8')
+    for failed in failed_datasets:
+        assert failed in failed_string
 
 
 @pytest.mark.integration
