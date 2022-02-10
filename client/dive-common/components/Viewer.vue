@@ -503,12 +503,16 @@ export default defineComponent({
           >
             <template v-slot:activator="{on}">
               <v-chip
-                class="text warning"
+                class="warning pr-1"
                 style="white-space:nowrap;display:inline"
                 small
                 v-on="on"
               >
                 Read Only Mode
+                <v-icon
+                  class="pl-1"
+                  small
+                >mdi-information-outline</v-icon>
               </v-chip>
             </template>
             <span>Read Only Mode: Editing, Deleting and Importing actions are disabled</span>
