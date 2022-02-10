@@ -113,7 +113,7 @@ export default defineComponent({
         createSubFolders,
         name:
           internalFiles.length > 1
-            ? defaultFilename.replace(/\..*/, '')
+            ? defaultFilename.replace(/\.[^.]*$/, '')
             : defaultFilename,
         files: [], //Will be set in the GirderUpload Component
         meta,

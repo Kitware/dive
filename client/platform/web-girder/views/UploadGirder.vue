@@ -114,7 +114,7 @@ export default Vue.extend({
         while (files.length > 0) {
           // take the file name and convert it to a folder name;
           const subfile = files.splice(0, 1);
-          const subname = subfile[0].file.name.replace(/\..*/, '');
+          const subname = subfile[0].file.name.replace(/\.[^.]*$/, '');
           // All sub-folders for a pendingUpload must be the same type
           const subtype = pendingUpload.type;
           // eslint-disable-next-line no-await-in-loop
