@@ -198,6 +198,7 @@ export default defineComponent({
             Please wait until it is complete before running another pipeline or making any changes
           </v-card-text>
           <v-row class="pb-1">
+            <!-- Viewer Loaded with single Job Running -->
             <v-btn
               v-if="singlePipelineValue && singlePipelineValue !== true"
               large
@@ -209,6 +210,7 @@ export default defineComponent({
             >
               View Running Job
             </v-btn>
+            <!-- Desktop Job Running -->
             <v-btn
               v-else-if="singlePipelineValue === true"
               large

@@ -104,7 +104,6 @@ export default defineComponent({
       window.removeEventListener('beforeunload', viewerRef.value.warnBrowserExit);
     });
 
-
     return {
       buttonOptions,
       brandData,
@@ -112,6 +111,7 @@ export default defineComponent({
       revisionNum,
       viewerRef,
       getters,
+      currentJob,
     };
   },
 });
@@ -148,7 +148,10 @@ export default defineComponent({
         :get-running-pipelines="getters['Jobs/datasetRunningState']"
       />
       <ImportAnnotations
-        v-bind="{ buttonOptions, menuOptions }"
+        v-bind="{ buttonOptions,
+                  menuOptions,
+                  readOnlyMode: !!getters['Jobs/datasetRunningState'](id),
+        }"
         :dataset-id="id"
         block-on-unsaved
       />
