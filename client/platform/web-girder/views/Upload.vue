@@ -9,6 +9,10 @@ import {
   websafeImageTypes, otherImageTypes, JsonMetaRegEx,
 } from 'dive-common/constants';
 
+import {
+  fileSuffixRegex,
+} from 'platform/web-girder/constants';
+
 import ImportButton from 'dive-common/components/ImportButton.vue';
 import ImportMultiCamDialog from 'dive-common/components/ImportMultiCamDialog.vue';
 import { DatasetType, MultiCamImportArgs } from 'dive-common/apispec';
@@ -113,7 +117,7 @@ export default defineComponent({
         createSubFolders,
         name:
           internalFiles.length > 1
-            ? defaultFilename.replace(/\..*/, '')
+            ? defaultFilename.replace(fileSuffixRegex, '')
             : defaultFilename,
         files: [], //Will be set in the GirderUpload Component
         meta,
