@@ -30,7 +30,10 @@ interface GirderMetadataStatic extends DatasetMetaMutable {
  */
 type GirderMetadata = DatasetMeta & GirderMetadataStatic;
 
+const fileSuffixRegex = /\.[^.]*$/;
+
 export {
+  fileSuffixRegex,
   GirderMetadataStatic,
   GirderMetadata,
 };
