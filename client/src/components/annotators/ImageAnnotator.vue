@@ -105,6 +105,9 @@ export default defineComponent({
      * Draw image to the GeoJS map, and update the map dimensions if they have changed.
      */
     function drawImage(img: HTMLImageElement) {
+      if (!data.ready) {
+        return;
+      }
       if (
         img.naturalWidth > 0
         && img.naturalHeight > 0
@@ -212,6 +215,9 @@ export default defineComponent({
     }
 
     async function seek(f: number) {
+      if (!data.ready) {
+        return;
+      }
       let newFrame = f;
       if (f < 0) newFrame = 0;
       if (f > data.maxFrame) newFrame = data.maxFrame;
@@ -334,8 +340,8 @@ export default defineComponent({
         // Set quadFeature and conditionally apply brightness filter
         local.quadFeature = quadFeatureLayer.createFeature('quad');
         setBrightnessFilter(props.brightness !== undefined);
-        seek(0);
         data.ready = true;
+        seek(0);
       });
     }
 
@@ -367,8 +373,8 @@ export default defineComponent({
           // Set quadFeature and conditionally apply brightness filter
           local.quadFeature = quadFeatureLayer.createFeature('quad');
           setBrightnessFilter(props.brightness !== undefined);
-          seek(0);
           data.ready = true;
+          seek(0);
         });
       }
     }
