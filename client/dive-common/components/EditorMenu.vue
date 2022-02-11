@@ -159,14 +159,13 @@ export default Vue.extend({
   },
   watch: {
     editingDetails() {
+      clearTimeout(this.toolTimeTimeout);
       if (this.editingDetails !== 'disabled') {
-        clearTimeout(this.toolTimeTimeout);
         this.toolTipForce = true;
         this.toolTimeTimeout = setTimeout(
-          () => { this.toolTipForce = false; }, 3000,
+          () => { this.toolTipForce = false; }, 2000,
         ) as unknown as number;
       } else {
-        clearTimeout(this.toolTimeTimeout);
         this.toolTipForce = false;
       }
     },
@@ -279,7 +278,7 @@ export default Vue.extend({
           v-model="toolTipForce"
           bottom
           max-width="300"
-          close-delay="1000"
+          close-delay="2000"
         >
           <template #activator="{ on, attrs }">
             <span
