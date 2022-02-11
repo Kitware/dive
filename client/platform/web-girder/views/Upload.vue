@@ -465,6 +465,7 @@ export default defineComponent({
                     multiple
                     show-size
                     counter
+                    :truncate-length="260"
                     :disabled="pendingUpload.uploading"
                     :prepend-icon="
                       pendingUpload.type === 'image-sequence'
@@ -485,6 +486,7 @@ export default defineComponent({
                     v-model="pendingUpload.annotationFile"
                     show-size
                     counter
+                    :truncate-length="260"
                     prepend-icon="mdi-file-table"
                     label="Annotation File (Optional)"
                     hint="Optional"
@@ -497,6 +499,7 @@ export default defineComponent({
                     v-model="pendingUpload.meta"
                     show-size
                     counter
+                    :truncate-length="260"
                     label="Configuration File (Optional)"
                     hint="Optional"
                     :disabled="pendingUpload.uploading"
