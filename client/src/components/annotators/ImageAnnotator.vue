@@ -335,8 +335,8 @@ export default defineComponent({
         // Set quadFeature and conditionally apply brightness filter
         local.quadFeature = quadFeatureLayer.createFeature('quad');
         setBrightnessFilter(props.brightness !== undefined);
-        seek(0);
         data.ready = true;
+        seek(0);
       });
     }
 
@@ -368,8 +368,8 @@ export default defineComponent({
           // Set quadFeature and conditionally apply brightness filter
           local.quadFeature = quadFeatureLayer.createFeature('quad');
           setBrightnessFilter(props.brightness !== undefined);
-          seek(0);
           data.ready = true;
+          seek(0);
         });
       }
     }
