@@ -6,7 +6,7 @@ import Track, { TrackId } from 'vue-media-annotator/track';
 import { getTrack } from 'vue-media-annotator/use/useTrackStore';
 import { RectBounds, updateBounds } from 'vue-media-annotator/utils';
 import { EditAnnotationTypes, VisibleAnnotationTypes } from 'vue-media-annotator/layers';
-import { MediaControlAggregator } from 'vue-media-annotator/components/annotators/mediaControllerType';
+import { AggregateMediaController } from 'vue-media-annotator/components/annotators/mediaControllerType';
 
 import Recipe from 'vue-media-annotator/recipe';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
@@ -33,7 +33,7 @@ export default function useModeManager({
   editingTrack,
   trackMap,
   camTrackMap,
-  mediaControlAggregator,
+  aggregateController,
   recipes,
   selectTrack,
   selectNextTrack,
@@ -45,7 +45,7 @@ export default function useModeManager({
   editingTrack: Ref<boolean>;
   trackMap: Map<TrackId, Track>;
   camTrackMap: Record<string, Map<TrackId, Track>>;
-  mediaControlAggregator: Ref<MediaControlAggregator>;
+    aggregateController: Ref<AggregateMediaController>;
   recipes: Recipe[];
   selectTrack: (trackId: TrackId | null, edit: boolean) => void;
   selectNextTrack: (delta?: number) => TrackId | null;
@@ -96,11 +96,11 @@ export default function useModeManager({
 
   function seekNearest(track: Track) {
     // Seek to the nearest point in the track.
-    const { frame } = mediaControlAggregator.value;
+    const { frame } = aggregateController.value;
     if (frame.value < track.begin) {
-      mediaControlAggregator.value.seek(track.begin);
+      aggregateController.value.seek(track.begin);
     } else if (frame.value > track.end) {
-      mediaControlAggregator.value.seek(track.end);
+      aggregateController.value.seek(track.end);
     }
   }
 
@@ -158,7 +158,7 @@ export default function useModeManager({
 
   function handleAddTrackOrDetection(): TrackId {
     // Handles adding a new track with the NewTrack Settings
-    const { frame } = mediaControlAggregator.value;
+    const { frame } = aggregateController.value;
     const newTrackId = addTrack(
       frame.value, trackSettings.value.newTrackSettings.type,
       selectedTrackId.value || undefined, selectedCamera.value,
@@ -182,7 +182,7 @@ export default function useModeManager({
         if (trackSettings.value.newTrackSettings.mode === 'Track'
         && trackSettings.value.newTrackSettings.modeSettings.Track.autoAdvanceFrame
         ) {
-          mediaControlAggregator.value.nextFrame();
+          aggregateController.value.nextFrame();
           newCreatingValue = true;
         } else if (trackSettings.value.newTrackSettings.mode === 'Detection') {
           if (
@@ -355,7 +355,7 @@ export default function useModeManager({
       if (track !== undefined) {
         recipes.forEach((r) => {
           if (r.active.value && track) {
-            const { frame } = mediaControlAggregator.value;
+            const { frame } = aggregateController.value;
             r.deletePoint(
               frame.value,
               track,
@@ -378,7 +378,7 @@ export default function useModeManager({
         track = camTrackMap[selectedCamera.value].get(selectedTrackId.value);
       }
       if (track !== undefined) {
-        const { frame } = mediaControlAggregator.value;
+        const { frame } = aggregateController.value;
         recipes.forEach((r) => {
           if (r.active.value && track) {
             r.delete(frame.value, track, selectedKey.value, annotationModes.editing);

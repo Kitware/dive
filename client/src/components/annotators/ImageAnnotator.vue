@@ -3,7 +3,7 @@ import {
   defineComponent, ref, onUnmounted, PropType, toRef, watch,
 } from '@vue/composition-api';
 import { SetTimeFunc } from '../../use/useTimeObserver';
-import useMediaController from './useMediaController';
+import { injectAggregateController, injectCameraInitializer } from './useMediaController';
 
 export interface ImageDataItem {
   url: string;
@@ -56,9 +56,20 @@ export default defineComponent({
   setup(props) {
     const loadingVideo = ref(false);
     const loadingImage = ref(true);
-    const commonMedia = useMediaController();
-    commonMedia.addCamera(props.camera);
-    const data = commonMedia.datas[props.camera];
+    const cameraInitializer = injectCameraInitializer();
+    const {
+      state: data,
+      geoViewer,
+      cursorHandler,
+      imageCursor,
+      container,
+      initializeViewer,
+      mediaController,
+    } = cameraInitializer(props.camera, {
+      // allow hoisting for these functions to pass a reference before defining them.
+      // eslint-disable-next-line @typescript-eslint/no-use-before-define
+      seek, pause, play, setVolume: unimplemented, setSpeed: unimplemented,
+    });
     data.maxFrame = props.imageData.length - 1;
     // Below are configuration settings we can set until we decide on good numbers to utilize.
     let local = {
@@ -116,7 +127,7 @@ export default defineComponent({
          */
         local.width = img.naturalWidth;
         local.height = img.naturalHeight;
-        commonMedia.resetMapDimensions(local.width, local.height);
+        mediaController.resetMapDimensions(local.width, local.height);
       }
       local.quadFeature
         .data([
@@ -304,18 +315,6 @@ export default defineComponent({
       throw new Error('Method unimplemented!');
     }
 
-    const {
-      cursorHandler,
-      initializeViewer,
-      mediaController,
-    } = commonMedia.initialize(props.camera, {
-      seek,
-      play,
-      pause,
-      setVolume: unimplemented,
-      setSpeed: unimplemented,
-    });
-
     const setBrightnessFilter = (on: boolean) => {
       if (local.quadFeature !== undefined) {
         local.quadFeature.layer().node().css('filter', on ? 'url(#brightness)' : '');
@@ -326,7 +325,7 @@ export default defineComponent({
       const imgInternal = cacheFrame(0);
       imgInternal.onloadPromise.then(() => {
         initializeViewer(imgInternal.image.naturalWidth, imgInternal.image.naturalHeight);
-        const quadFeatureLayer = commonMedia.geoViewers[props.camera].value.createLayer('feature', {
+        const quadFeatureLayer = geoViewer.value.createLayer('feature', {
           features: ['quad'],
           autoshareRenderer: false,
         });
@@ -359,7 +358,7 @@ export default defineComponent({
         const imgInternal = cacheFrame(0);
         imgInternal.onloadPromise.then(() => {
           initializeViewer(imgInternal.image.naturalWidth, imgInternal.image.naturalHeight);
-          const quadFeatureLayer = commonMedia.geoViewers[props.camera].value.createLayer('feature', {
+          const quadFeatureLayer = geoViewer.value.createLayer('feature', {
             features: ['quad'],
             autoshareRenderer: false,
           });
@@ -391,10 +390,9 @@ export default defineComponent({
       data,
       loadingVideo,
       loadingImage,
-      imageCursorRef: commonMedia.imageCursors[props.camera],
-      containerRef: commonMedia.containers[props.camera],
+      imageCursorRef: imageCursor,
+      containerRef: container,
       cursorHandler,
-      mediaController,
     };
   },
 });

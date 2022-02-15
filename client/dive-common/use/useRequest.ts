@@ -1,4 +1,5 @@
 import { reactive, toRefs } from '@vue/composition-api';
+import { AxiosError } from 'axios';
 import { getResponseError } from 'vue-media-annotator/utils';
 
 export default function useRequest() {
@@ -18,7 +19,7 @@ export default function useRequest() {
       return val;
     } catch (err) {
       state.loading = false;
-      state.error = getResponseError(err);
+      state.error = getResponseError(err as AxiosError);
       throw err;
     }
   }

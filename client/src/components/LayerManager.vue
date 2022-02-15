@@ -4,7 +4,7 @@ import {
 } from '@vue/composition-api';
 
 import { TrackWithContext } from '../use/useTrackFilters';
-import { injectMediaController } from './annotators/useMediaController';
+import { injectAggregateController } from './annotators/useMediaController';
 import RectangleLayer from '../layers/AnnotationLayers/RectangleLayer';
 import PolygonLayer from '../layers/AnnotationLayers/PolygonLayer';
 import PointLayer from '../layers/AnnotationLayers/PointLayer';
@@ -69,7 +69,8 @@ export default defineComponent({
     const selectedKeyRef = useSelectedKey();
     const stateStyling = useStateStyles();
 
-    const annotator = injectMediaController(props.camera);
+    const annotator = injectAggregateController().value.getController(props.camera);
+    console.log(annotator);
     const frameNumberRef = annotator.frame;
     const flickNumberRef = annotator.flick;
 

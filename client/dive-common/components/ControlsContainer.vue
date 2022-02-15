@@ -7,10 +7,10 @@ import FileNameTimeDisplay from 'vue-media-annotator/components/controls/FileNam
 import {
   Controls,
   EventChart,
+  injectAggregateController,
   LineChart,
   Timeline,
 } from 'vue-media-annotator/components';
-import { MediaControlAggregator } from 'vue-media-annotator/components/annotators/mediaControllerType';
 
 export default defineComponent({
   components: {
@@ -20,6 +20,7 @@ export default defineComponent({
     LineChart,
     Timeline,
   },
+
   props: {
     lineChartData: {
       type: Array as PropType<unknown[]>,
@@ -33,13 +34,9 @@ export default defineComponent({
       type: String as PropType<DatasetType>,
       required: true,
     },
-    mediaControls: {
-      type: Object as PropType<MediaControlAggregator>,
-      required: true,
-    },
   },
 
-  setup(props) {
+  setup() {
     const currentView = ref('Detections');
     const collapsed = ref(false);
 
@@ -55,7 +52,7 @@ export default defineComponent({
     }
     const {
       maxFrame, frame, seek, volume, setVolume, setSpeed, speed,
-    } = props.mediaControls;
+    } = injectAggregateController().value;
 
     return {
       currentView,
@@ -79,7 +76,7 @@ export default defineComponent({
     dense
     style="position:absolute; bottom: 0px; padding: 0px; margin:0px;"
   >
-    <Controls :media-controls="mediaControls">
+    <Controls>
       <template slot="timelineControls">
         <div style="min-width: 210px">
           <v-tooltip
@@ -126,7 +123,6 @@ export default defineComponent({
           v-if="datasetType === 'image-sequence'"
           class="text-middle px-3"
           display-type="filename"
-          :media-controls="mediaControls"
         />
         <span v-else-if="datasetType === 'video'">
           <span class="mr-2">
@@ -205,7 +201,6 @@ export default defineComponent({
           <file-name-time-display
             class="text-middle pl-2"
             display-type="time"
-            :media-controls="mediaControls"
           />
         </span>
         <v-tooltip

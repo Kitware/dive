@@ -3,6 +3,7 @@ import {
   defineComponent, ref, toRef, computed, Ref, reactive, watch,
 } from '@vue/composition-api';
 import type { Vue } from 'vue/types/vue';
+import type { AxiosError } from 'axios';
 
 /* VUE MEDIA ANNOTATOR */
 import Track, { TrackId } from 'vue-media-annotator/track';
@@ -16,11 +17,15 @@ import {
   useTimeObserver,
   useEventChart,
 } from 'vue-media-annotator/use';
+import { useMediaController } from 'vue-media-annotator/components';
 import { getTrack } from 'vue-media-annotator/use/useTrackStore';
 import { provideAnnotator } from 'vue-media-annotator/provides';
-import { MediaControlAggregator } from 'vue-media-annotator/components/annotators/mediaControllerType';
+import ImageAnnotator from 'vue-media-annotator/components/annotators/ImageAnnotator.vue';
+import VideoAnnotator from 'vue-media-annotator/components/annotators/VideoAnnotator.vue';
+import LayerManager from 'vue-media-annotator/components/LayerManager.vue';
 
 /* DIVE COMMON */
+
 import PolygonBase from 'dive-common/recipes/polygonbase';
 import HeadTail from 'dive-common/recipes/headtail';
 import EditorMenu from 'dive-common/components/EditorMenu.vue';
@@ -37,18 +42,29 @@ import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { cloneDeep } from 'lodash';
 import { getResponseError } from 'vue-media-annotator/utils';
 import context from 'dive-common/store/context';
-import AnnotatorWrapper from './AnnotatorWrapper.vue';
+
+export interface ImageDataItem {
+  url: string;
+  filename: string;
+}
+
+function loadImageFunc(imageDataItem: ImageDataItem, img: HTMLImageElement) {
+  // eslint-disable-next-line no-param-reassign
+  img.src = imageDataItem.url;
+}
 
 export default defineComponent({
   components: {
     ControlsContainer,
     DeleteControls,
+    ImageAnnotator,
     Sidebar,
     SidebarContext,
-    AnnotatorWrapper,
     ConfidenceFilter,
     UserGuideButton,
     EditorMenu,
+    VideoAnnotator,
+    LayerManager,
   },
 
   // TODO: remove this in vue 3
@@ -76,16 +92,7 @@ export default defineComponent({
     const selectedCamera = ref('default');
     const playbackComponent = ref(undefined as Vue | undefined);
     const readonlyState = computed(() => props.readonlyMode || props.revision !== undefined);
-    const mediaControlAggregator = computed(() => {
-      if (playbackComponent.value) {
-        // TODO: Bug in composition-api types incorrectly organizes the static members of a Vue
-        // instance when using typeof ImageAnnotator, so we can't use the "real" type here
-        // eslint-disable-next-line @typescript-eslint/ban-ts-ignore
-        // @ts-ignore
-        return playbackComponent.value.mediaControlAggregator as MediaControlAggregator;
-      }
-      return {} as MediaControlAggregator;
-    });
+    const { aggregateController } = useMediaController();
     const { time, updateTime, initialize: initTime } = useTimeObserver();
     const imageData = ref({ default: [] } as Record<string, FrameImage[]>);
     const datasetType: Ref<DatasetType> = ref('image-sequence');
@@ -200,7 +207,7 @@ export default defineComponent({
       editingTrack,
       trackMap,
       camTrackMap,
-      mediaControlAggregator,
+      aggregateController,
       selectTrack,
       selectNextTrack,
       addTrack,
@@ -232,7 +239,7 @@ export default defineComponent({
         } catch (err) {
           await prompt({
             title: 'Error while splitting track',
-            text: err,
+            text: err as string,
             positiveButton: 'OK',
           });
           return;
@@ -267,7 +274,7 @@ export default defineComponent({
         });
       } catch (err) {
         let text = 'Unable to Save Data';
-        if (err.response && err.response.status === 403) {
+        if (err.response?.status === 403) {
           text = 'You do not have permission to Save Data to this Folder.';
         }
         await prompt({
@@ -342,6 +349,7 @@ export default defineComponent({
         });
         // Load non-Default Cameras if they exist:
         const filteredMultiCamList = multiCamList.value.filter((item) => item !== 'default');
+        console.log(multiCamList.value);
         if (filteredMultiCamList.length === 0) {
           imageData.value[selectedCamera.value] = cloneDeep(meta.imageData) as FrameImage[];
           videoUrl.value[selectedCamera.value] = meta.videoUrl || null;
@@ -366,6 +374,7 @@ export default defineComponent({
             imageData.value[camera] = cloneDeep(subCameraMeta.imageData) as FrameImage[];
             videoUrl.value[camera] = subCameraMeta.videoUrl || null;
             addCamera(camera);
+            console.log(imageData.value);
             // eslint-disable-next-line no-await-in-loop
             const camTrackData = await loadDetections(`${baseMulticamDatasetId.value}/${camera}`);
             const camTracks = Object.values(camTrackData);
@@ -384,10 +393,11 @@ export default defineComponent({
 
         progress.loaded = true;
       } catch (err) {
+        console.log(err);
         progress.loaded = false;
         console.error(err);
         const errorEl = document.createElement('div');
-        errorEl.innerHTML = getResponseError(err);
+        errorEl.innerHTML = getResponseError(err as AxiosError);
         loadError.value = errorEl.innerText
           .concat(". If you don't know how to resolve this, please contact the server administrator.");
         throw err;
@@ -473,7 +483,6 @@ export default defineComponent({
       imageData,
       lineChartData,
       loadError,
-      mediaControlAggregator,
       mergeMode: mergeInProgress,
       pendingSaveCount,
       progress,
@@ -492,6 +501,7 @@ export default defineComponent({
       readonlyState,
       /* methods */
       handler: globalHandler,
+      loadImageFunc,
       save,
       saveThreshold,
       updateTime,
@@ -603,7 +613,6 @@ export default defineComponent({
         :enable-slot="context.state.active !== 'TypeThreshold'"
         class="fill-height"
         @import-types="importTypes($event)"
-        @track-seek="mediaController.seek($event)"
       >
         <template v-if="context.state.active !== 'TypeThreshold'">
           <v-divider />
@@ -625,25 +634,39 @@ export default defineComponent({
         style="position: relative; margin: 0px, padding: 0px"
         dense
       >
-        <annotator-wrapper
+        <v-col
           v-if="progress.loaded"
-          ref="playbackComponent"
-          :cameras="multiCamList"
-          :current-camera="selectedCamera"
-          v-bind="{
-            imageData, videoUrl, updateTime,
-            frameRate, originalFps, datasetType, progress }"
-          @select-camera="changeCamera"
+          class="playback-component annotation-wrapper pa-0"
+          style="height:100%"
+          dense
         >
-          <template slot="control">
-            <controls-container
-              v-if="Object.keys(mediaControlAggregator).length"
-              v-bind="{ lineChartData, eventChartData,
-                        datasetType, mediaControls:mediaControlAggregator }"
-              @select-track="handler.trackSelect"
-            />
-          </template>
-        </annotator-wrapper>
+          <v-row class="fill-height">
+            <v-col
+              v-for="camera in multiCamList"
+              :key="camera"
+              style="padding: 0px; margin:0px;"
+              class="fill-height"
+              @click="$emit('select-camera', camera)"
+            >
+              <component
+                :is="datasetType === 'image-sequence' ? 'image-annotator' : 'video-annotator'"
+                v-if="(imageData[camera].length || videoUrl[camera]) && progress.loaded"
+                ref="subPlaybackComponent"
+                class="fill-height"
+                :class="{'selected-camera': selectedCamera === camera && camera !== 'default'}"
+                v-bind="{
+                  imageData: imageData[camera], videoUrl: videoUrl[camera],
+                  updateTime, frameRate, originalFps, loadImageFunc, camera }"
+              >
+                <LayerManager :camera="camera" />
+              </component>
+            </v-col>
+          </v-row>
+          <ControlsContainer
+            v-bind="{ lineChartData, eventChartData, datasetType }"
+            @select-track="handler.trackSelect"
+          />
+        </v-col>
         <div
           v-else
           class="d-flex justify-center align-center fill-height"
@@ -699,5 +722,16 @@ html {
 
 .text-xs-center {
   text-align: center !important;
+}
+
+.annotator-wrapper {
+  position: relative;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  z-index: 0;
+  display: flex;
+  flex-direction: column;
 }
 </style>
