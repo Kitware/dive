@@ -4,7 +4,7 @@ import geo from 'geojs';
 import {
   ref, reactive, onMounted, onBeforeUnmount, provide, toRef, Ref, UnwrapRef, computed,
 } from '@vue/composition-api';
-import { map } from 'lodash';
+import { map, over } from 'lodash';
 
 import { use } from '../../provides';
 import type { AggregateMediaController, MediaController } from './mediaControllerType';
@@ -70,10 +70,6 @@ export function injectCameraInitializer() {
   return use<CameraInitializerFunc>(CameraInitializerSymbol);
 }
 
-function over<T, J>(func: ((...args: T[]) => J)[]) {
-  return (...args: T[]) => func.forEach((f) => f(...args));
-}
-
 export function useMediaController() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const geoViewers: Record<symbol, Ref<any>> = {};
@@ -98,18 +94,6 @@ export function useMediaController() {
     return found;
   }
 
-  function resetZoom() {
-    cameras.value.forEach((camera) => {
-      const geoViewerRef = geoViewers[camera];
-      const data = state[camera];
-      const zoomAndCenter = geoViewerRef.value.zoomAndCenterFromBounds(
-        data.originalBounds, 0,
-      );
-      geoViewerRef.value.zoom(zoomAndCenter.zoom);
-      geoViewerRef.value.center(zoomAndCenter.center);
-    });
-  }
-
   function onResize() {
     cameras.value.forEach((camera) => {
       const geoViewerRef = geoViewers[camera];
@@ -132,42 +116,6 @@ export function useMediaController() {
     cameras.value.forEach((camera) => {
       const data = state[camera];
       data.lockedCamera = !data.lockedCamera;
-    });
-  }
-
-  function resetMapDimensions(width: number, height: number, margin = 0.3) {
-    cameras.value.forEach((camera) => {
-      console.log(geoViewers[camera].value, camera);
-      const geoViewerRef = geoViewers[camera];
-      const containerRef = containers[camera];
-      const data = state[camera];
-      geoViewerRef.value.bounds({
-        left: 0,
-        top: 0,
-        bottom: height,
-        right: width,
-      });
-      const params = geo.util.pixelCoordinateParams(
-        containerRef.value, width, height, width, height,
-      );
-      const { right, bottom } = params.map.maxBounds;
-      data.originalBounds = params.map.maxBounds;
-      geoViewerRef.value.maxBounds({
-        left: 0 - (right * margin),
-        top: 0 - (bottom * margin),
-        right: right * (1 + margin),
-        bottom: bottom * (1 + margin),
-      });
-      geoViewerRef.value.zoomRange({
-      // do not set a min limit so that bounds clamping determines min
-        min: -Infinity,
-        // 4x zoom max
-        max: 4,
-      });
-      geoViewerRef.value.clampBoundsX(true);
-      geoViewerRef.value.clampBoundsY(true);
-      geoViewerRef.value.clampZoom(true);
-      resetZoom();
     });
   }
 
@@ -250,6 +198,49 @@ export function useMediaController() {
 
     function centerOn(coords: { x: number; y: number; z: number }) {
       geoViewers[camera].value.center(coords);
+    }
+
+    function resetZoom() {
+      const geoViewerRef = geoViewers[camera];
+      const data = state[camera];
+      const zoomAndCenter = geoViewerRef.value.zoomAndCenterFromBounds(
+        data.originalBounds, 0,
+      );
+      geoViewerRef.value.zoom(zoomAndCenter.zoom);
+      geoViewerRef.value.center(zoomAndCenter.center);
+    }
+
+    function resetMapDimensions(width: number, height: number, margin = 0.3) {
+      const geoViewerRef = geoViewers[camera];
+      const containerRef = containers[camera];
+      const data = state[camera];
+      geoViewerRef.value.bounds({
+        left: 0,
+        top: 0,
+        bottom: height,
+        right: width,
+      });
+      const params = geo.util.pixelCoordinateParams(
+        containerRef.value, width, height, width, height,
+      );
+      const { right, bottom } = params.map.maxBounds;
+      data.originalBounds = params.map.maxBounds;
+      geoViewerRef.value.maxBounds({
+        left: 0 - (right * margin),
+        top: 0 - (bottom * margin),
+        right: right * (1 + margin),
+        bottom: bottom * (1 + margin),
+      });
+      geoViewerRef.value.zoomRange({
+        // do not set a min limit so that bounds clamping determines min
+        min: -Infinity,
+        // 4x zoom max
+        max: 4,
+      });
+      geoViewerRef.value.clampBoundsX(true);
+      geoViewerRef.value.clampBoundsY(true);
+      geoViewerRef.value.clampZoom(true);
+      resetZoom();
     }
 
     function initializeViewer(width: number, height: number) {
@@ -422,6 +413,5 @@ export function useMediaController() {
     imageCursors,
     initialize,
     onResize,
-    resetMapDimensions,
   };
 }

@@ -70,7 +70,6 @@ export default defineComponent({
     const stateStyling = useStateStyles();
 
     const annotator = injectAggregateController().value.getController(props.camera);
-    console.log(annotator);
     const frameNumberRef = annotator.frame;
     const flickNumberRef = annotator.flick;
 
