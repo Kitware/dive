@@ -258,6 +258,7 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<A
     });
     parser.on('readable', () => {
       let record: string[];
+      let imageTypes: 'empty' | 'filenames' | null = null;
       // eslint-disable-next-line no-cond-assign
       while (record = parser.read()) {
         try {
@@ -265,7 +266,12 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<A
             rowInfo, feature, trackAttributes, confidencePairs,
           } = _parseFeature(record);
 
-          if (imageMap !== undefined) {
+          if (imageMap !== undefined && rowInfo.filename.trim() !== '') {
+            if (imageTypes === null) {
+              imageTypes = 'filenames';
+            } else if (imageTypes === 'empty') {
+              throw new Error('There was a mixture of fields that specified image names and fields that did not.  Please check the CSV');
+            }
             // validate image ordering if the imageMap is provided.
             const [imageName] = splitExt(rowInfo.filename);
             const expectedFrameNumber = imageMap.get(imageName);
@@ -278,6 +284,12 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<A
               reordered = true;
               feature.frame = expectedFrameNumber;
               rowInfo.frame = expectedFrameNumber;
+            }
+          } else if (imageMap !== undefined && rowInfo.filename.trim() === '') {
+            if (imageTypes === null) {
+              imageTypes = 'empty';
+            } else if (imageTypes === 'filenames') {
+              throw new Error('There was a mixture of fields that specified image names and fields that did not.  Please check the CSV');
             }
           }
 
