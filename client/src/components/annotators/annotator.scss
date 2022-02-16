@@ -40,11 +40,11 @@
 }
 
 .selected-camera{
-
+  box-sizing: content-box;
   .geojs-map {
-    outline: 2px cyan solid;
+    outline: 3px cyan dashed;
     &.geojs-map:focus {
-      outline: 2px cyan solid;
+      outline: 3px cyan dashed;
     }  
   }
 

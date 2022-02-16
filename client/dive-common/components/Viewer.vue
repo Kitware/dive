@@ -1,8 +1,8 @@
 <script lang="ts">
 import {
-  defineComponent, ref, toRef, computed, Ref, reactive, watch,
+  defineComponent, ref, toRef, computed, Ref, reactive, watch, onMounted, onBeforeUnmount,
 } from '@vue/composition-api';
-import type { Vue } from 'vue/types/vue';
+import type { CombinedVueInstance, Vue } from 'vue/types/vue';
 import type { AxiosError } from 'axios';
 
 /* VUE MEDIA ANNOTATOR */
@@ -92,7 +92,7 @@ export default defineComponent({
     const selectedCamera = ref('default');
     const playbackComponent = ref(undefined as Vue | undefined);
     const readonlyState = computed(() => props.readonlyMode || props.revision !== undefined);
-    const { aggregateController } = useMediaController();
+    const { aggregateController, onResize } = useMediaController();
     const { time, updateTime, initialize: initTime } = useTimeObserver();
     const imageData = ref({ default: [] } as Record<string, FrameImage[]>);
     const datasetType: Ref<DatasetType> = ref('image-sequence');
@@ -117,6 +117,7 @@ export default defineComponent({
       }
       return 0;
     });
+
 
     const {
       save: saveToServer,
@@ -349,7 +350,6 @@ export default defineComponent({
         });
         // Load non-Default Cameras if they exist:
         const filteredMultiCamList = multiCamList.value.filter((item) => item !== 'default');
-        console.log(multiCamList.value);
         if (filteredMultiCamList.length === 0) {
           imageData.value[selectedCamera.value] = cloneDeep(meta.imageData) as FrameImage[];
           videoUrl.value[selectedCamera.value] = meta.videoUrl || null;
@@ -374,7 +374,6 @@ export default defineComponent({
             imageData.value[camera] = cloneDeep(subCameraMeta.imageData) as FrameImage[];
             videoUrl.value[camera] = subCameraMeta.videoUrl || null;
             addCamera(camera);
-            console.log(imageData.value);
             // eslint-disable-next-line no-await-in-loop
             const camTrackData = await loadDetections(`${baseMulticamDatasetId.value}/${camera}`);
             const camTracks = Object.values(camTrackData);
@@ -393,7 +392,6 @@ export default defineComponent({
 
         progress.loaded = true;
       } catch (err) {
-        console.log(err);
         progress.loaded = false;
         console.error(err);
         const errorEl = document.createElement('div');
@@ -414,18 +412,25 @@ export default defineComponent({
 
     watch(datasetId, reloadAnnotations);
 
+    const controlsRef = ref();
+    const controlsHeight = ref(0);
+    const controlsCollapsed = ref(false);
+    function handleResize() {
+      controlsHeight.value = controlsRef.value.$el.clientHeight;
+      onResize();
+    }
+    const observer = new ResizeObserver(handleResize);
+    watch(controlsRef, (previous) => {
+      if (previous) observer.unobserve(previous.$el);
+      observer.observe(controlsRef.value.$el);
+    });
+    watch(controlsCollapsed, handleResize);
+    onBeforeUnmount(() => {
+      observer.unobserve(controlsRef.value.$el);
+    });
 
     const changeCamera = async (camera: string) => {
       selectedCamera.value = camera;
-      // Old Style multiCamera
-      /*
-      if (!camera || !baseMulticamDatasetId.value) {
-        throw new Error('Attempted to change camera to invalid\
-         value or baseMultiCamDatasetId was missing');
-      }
-      const newId = `${baseMulticamDatasetId.value}/${camera}`;
-      ctx.emit('update:id', newId);
-      */
     };
 
     const globalHandler = {
@@ -475,6 +480,9 @@ export default defineComponent({
     return {
       /* props */
       confidenceFilters,
+      controlsRef,
+      controlsHeight,
+      controlsCollapsed,
       datasetName,
       datasetType,
       editingTrack,
@@ -630,23 +638,23 @@ export default defineComponent({
           </ConfidenceFilter>
         </template>
       </sidebar>
-      <v-col
-        style="position: relative; margin: 0px, padding: 0px"
+      <div
+        style="position: relative;"
+        class="d-flex flex-column grow"
         dense
       >
-        <v-col
+        <div
           v-if="progress.loaded"
-          class="playback-component annotation-wrapper pa-0"
-          style="height:100%"
-          dense
+          class="d-flex flex-column grow"
         >
-          <v-row class="fill-height">
-            <v-col
+          <div class="d-flex grow">
+            <div
               v-for="camera in multiCamList"
               :key="camera"
-              style="padding: 0px; margin:0px;"
-              class="fill-height"
-              @click="$emit('select-camera', camera)"
+              class="d-flex flex-column grow"
+              :style="{ height: `calc(100% - ${controlsHeight}px)`}"
+              @click="changeCamera(camera)"
+              @mousedown.right="changeCamera(camera)"
             >
               <component
                 :is="datasetType === 'image-sequence' ? 'image-annotator' : 'video-annotator'"
@@ -660,13 +668,16 @@ export default defineComponent({
               >
                 <LayerManager :camera="camera" />
               </component>
-            </v-col>
-          </v-row>
+            </div>
+          </div>
           <ControlsContainer
+            ref="controlsRef"
+            class="shrink"
+            :collapsed.sync="controlsCollapsed"
             v-bind="{ lineChartData, eventChartData, datasetType }"
             @select-track="handler.trackSelect"
           />
-        </v-col>
+        </div>
         <div
           v-else
           class="d-flex justify-center align-center fill-height"
@@ -695,7 +706,7 @@ export default defineComponent({
             <span v-else>{{ progressValue }}%</span>
           </v-progress-circular>
         </div>
-      </v-col>
+      </div>
       <SidebarContext />
     </v-row>
   </v-main>

@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  defineComponent, ref, PropType,
+  defineComponent, ref, PropType, emit,
 } from '@vue/composition-api';
 import type { DatasetType } from 'dive-common/apispec';
 import FileNameTimeDisplay from 'vue-media-annotator/components/controls/FileNameTimeDisplay.vue';
@@ -34,11 +34,14 @@ export default defineComponent({
       type: String as PropType<DatasetType>,
       required: true,
     },
+    collapsed: {
+      type: Boolean,
+      default: false,
+    },
   },
 
   setup() {
     const currentView = ref('Detections');
-    const collapsed = ref(false);
 
     const ticks = ref([0.25, 0.5, 0.75, 1.0, 2.0, 4.0, 8.0]);
 
@@ -48,7 +51,7 @@ export default defineComponent({
      */
     function toggleView(type: 'Detections' | 'Events') {
       currentView.value = type;
-      collapsed.value = false;
+      emit('update:collapsed', false);
     }
     const {
       maxFrame, frame, seek, volume, setVolume, setSpeed, speed,
@@ -57,7 +60,6 @@ export default defineComponent({
     return {
       currentView,
       toggleView,
-      collapsed,
       maxFrame,
       frame,
       seek,
@@ -87,7 +89,7 @@ export default defineComponent({
               <v-icon
                 small
                 v-on="on"
-                @click="collapsed=!collapsed"
+                @click="$emit('update:collapsed', !collapsed)"
               >
                 {{ collapsed?'mdi-chevron-up-box': 'mdi-chevron-down-box' }}
               </v-icon>

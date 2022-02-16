@@ -64,7 +64,10 @@ export default defineComponent({
       { bind: 'd', handler: mediaController.prevFrame, disabled: visible() },
     ]"
   >
-    <v-card class="px-4 py-1">
+    <v-card
+      class="px-4 py-1"
+      tile
+    >
       <v-slider
         hide-details
         :min="0"

@@ -2,7 +2,7 @@
 /// <reference types="resize-observer-browser" />
 import geo from 'geojs';
 import {
-  ref, reactive, onMounted, onBeforeUnmount, provide, toRef, Ref, UnwrapRef, computed,
+  ref, reactive, provide, toRef, Ref, UnwrapRef, computed,
 } from '@vue/composition-api';
 import { map, over } from 'lodash';
 
@@ -26,7 +26,6 @@ interface MediaControllerReactiveData {
   speed: number;
   maxFrame: number;
   syncedFrame: number;
-  observer: null;
   cursor: string;
   imageCursor: string;
   originalBounds: {
@@ -82,20 +81,24 @@ export function useMediaController() {
 
   function getController(camera?: string) {
     if (cameras.value.length === 0) {
-      throw new Error('No camera controllers currently exist.');
+      throw new Error('no camera controllers currently exist');
     }
     if (camera === undefined) {
       return subControllers[0];
     }
     const found = subControllers.find((c) => c.cameraName.value === camera);
     if (!found) {
-      throw new Error('No controller found for that camera');
+      throw new Error('no controller found for that camera');
     }
     return found;
   }
 
+  /**
+   * onResize resets the zoom of a camera when its window size changes.
+   */
   function onResize() {
-    cameras.value.forEach((camera) => {
+    subControllers.forEach((mc) => {
+      const camera = cameraControllerSymbols[mc.cameraName.value];
       const geoViewerRef = geoViewers[camera];
       const containerRef = containers[camera];
       if (geoViewerRef.value === undefined || containerRef.value === undefined) {
@@ -106,7 +109,7 @@ export function useMediaController() {
       if (size.width !== mapSize.width || size.height !== mapSize.height) {
         window.requestAnimationFrame(() => {
           geoViewerRef.value.size(size);
-          resetZoom();
+          mc.resetZoom();
         });
       }
     });
@@ -118,30 +121,6 @@ export function useMediaController() {
       data.lockedCamera = !data.lockedCamera;
     });
   }
-
-  let observer: ResizeObserver | null = null;
-  onMounted(() => {
-    cameras.value.forEach((camera) => {
-      const containerRef = containers[camera].value;
-      if (containerRef) {
-        observer = new ResizeObserver(onResize);
-        observer.observe(containerRef);
-      } else {
-        throw new Error(`Container ${String(camera)} was missing, could not register observer`);
-      }
-    });
-  });
-  onBeforeUnmount(() => {
-    cameras.value.forEach((camera) => {
-      const containerRef = containers[camera].value;
-
-      if (containerRef && observer !== null) {
-        observer.unobserve(containerRef);
-      } else {
-        throw new Error(`Container ${String(camera)} or observer was missing`);
-      }
-    });
-  });
 
   /**
    * This secondary initialization wrapper solves a sort of
@@ -177,7 +156,6 @@ export function useMediaController() {
       speed: 1.0,
       maxFrame: 0,
       syncedFrame: 0,
-      observer: null,
       cursor: 'default',
       imageCursor: '',
       originalBounds: {
@@ -319,14 +297,14 @@ export function useMediaController() {
           imageCursorRef.value.style.display = 'block';
         }
       },
-      handleMouseMove(evt: MouseEvent) {
-        const offsetX = evt.clientX + 10;
-        const offsetY = evt.clientY - 25;
-        window.requestAnimationFrame(() => {
-          if (imageCursorRef.value) {
-            imageCursorRef.value.style.transform = `translate(${offsetX}px, ${offsetY}px)`;
-          }
-        });
+      handleMouseMove(/*evt: MouseEvent*/) {
+        // const offsetX = evt.clientX + 10;
+        // const offsetY = evt.clientY - 25;
+        // window.requestAnimationFrame(() => {
+        //   if (imageCursorRef.value) {
+        //     imageCursorRef.value.style.transform = `translate(${offsetX}px, ${offsetY}px)`;
+        //   }
+        // });
       },
     };
 
@@ -377,9 +355,6 @@ export function useMediaController() {
 
   const aggregateController: Ref<AggregateMediaController> = computed(() => {
     const defaultController = getController();
-    if (!defaultController) {
-      throw new Error('Should not have resolved me yet!');
-    }
     return {
       cameras: computed(() => cameras.value.map((v) => String(v))),
       maxFrame: defaultController.maxFrame,
