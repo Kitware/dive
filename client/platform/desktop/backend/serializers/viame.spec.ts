@@ -6,7 +6,6 @@ import { JsonMeta } from 'platform/desktop/constants';
 import { serialize, parse } from 'platform/desktop/backend/serializers/viame';
 import { Attribute } from 'vue-media-annotator/use/useAttributes';
 import processTrackAttributes from 'platform/desktop/backend/native/attributeProcessor';
-import { Console } from 'console';
 
 type testPairs = [string[], MultiTrackRecord, Record<string, Attribute>];
 
@@ -93,32 +92,6 @@ const data: MultiTrackRecord = {
   },
 };
 
-const imageOrderTests = [
-  {
-    pass: false,
-    error: 'There was a mixture of fields that specified image names and fields that did not.  Please check the CSV',
-    csv: [
-      '0, ,1,884.66,510,1219.66,737.66,1,-1,ignored,0.98',
-      '1,2.png,0,111,222,3333,444,1,-1,typestring,0.55',
-    ],
-  },
-  // {
-  //   pass: false,
-  //   error: 'There was a mixture of fields that specified image names and fields that did not.  Please check the CSV',
-  //   csv: [
-  //     '0,       ,1,884.66,510,1219.66,737.66,1,-1,ignored,0.98',
-  //     '1,2.png,0,111,222,3333,444,1,-1,typestring,0.55',
-  //   ],
-  // },
-  // {
-  //   pass: true,
-  //   error: 'There was a mixture of fields that specified image names and fields that did not.  Please check the CSV',
-  //   csv: [
-  //     '0,       ,1,884.66,510,1219.66,737.66,1,-1,ignored,0.98',
-  //     '1,,0,111,222,3333,444,1,-1,typestring,0.55',
-  //   ],
-  // },
-];
 
 const meta = {
   version: 1,
@@ -147,15 +120,6 @@ testData.forEach((item, index) => {
   // eslint-disable-next-line prefer-destructuring
   testFiles[`${index}.csv`] = item[0].join('\n');
 });
-const imageOrderFiles: Record<string, string> = { };
-imageOrderTests.forEach((item, index) => {
-  // eslint-disable-next-line prefer-destructuring
-  imageOrderFiles[`${index}.csv`] = item.csv.join('\n');
-});
-
-// https://github.com/tschaub/mock-fs/issues/234
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const console = new Console(process.stdout, process.stderr);
 
 mockfs({
   '/home': {},
@@ -164,7 +128,6 @@ mockfs({
     'bar.png': '',
   },
   '/csv': testFiles,
-  '/imageorder': imageOrderFiles,
 });
 
 
@@ -254,31 +217,6 @@ describe('VIAME serialize testing', () => {
     const output = fs.readFileSync(path).toString().split('\n');
     const expectedOutput = ['first_type', '0.9', 'second_type', '0.7'];
     expect(checkConfidenceOutput(output)).toEqual(expectedOutput);
-  });
-});
-
-describe('Test Image Ordering', () => {
-  it('testing image ordering t', async () => {
-    const imageMap = new Map([
-      ['1', 0],
-      ['2', 1],
-      ['3', 2],
-    ]);
-    for (let i = 0; i < imageOrderTests.length; i += 1) {
-      const testPath = `/imageorder/${i}.csv`;
-      const csvStream = fs.createReadStream(testPath);
-      const imageOrderData = imageOrderTests[i];
-      if (!imageOrderData.pass) {
-      // eslint-disable-next-line no-await-in-loop
-        await expect(parse(csvStream, imageMap)).rejects.toEqual({
-          error: imageOrderData.error,
-        });
-      } else {
-        // eslint-disable-next-line no-await-in-loop
-        const result = await parse(csvStream, imageMap);
-        expect(result.tracks.length).toBeGreaterThan(0);
-      }
-    }
   });
 });
 

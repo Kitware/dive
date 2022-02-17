@@ -248,7 +248,7 @@ def load_csv_as_tracks_and_attributes(
     metadata_attributes: Dict[str, Dict[str, Any]] = {}
     test_vals: Dict[str, Dict[str, int]] = {}
     reordered = False
-
+    has_image_filenames: Union[None, bool] = None
     for row in reader:
         if len(row) == 0 or row[0].startswith('#'):
             # This is not a data row
@@ -261,8 +261,16 @@ def load_csv_as_tracks_and_attributes(
         ) = _parse_row_for_tracks(row)
 
         trackId, imageFile, _, _, _ = row_info(row)
-
-        if imageMap:
+        current_has_filename = imageFile.strip() == ''
+        if has_image_filenames is None and imageMap:
+            has_image_filenames = current_has_filename
+        elif imageMap and has_image_filenames != current_has_filename:
+            raise ValueError(
+                'Image Filenames specified in the Column 2 of the CSV must either be\
+                    all set or all empty. '
+                'Encountered a mixture of set and empty filenames. '
+            )
+        if imageMap and has_image_filenames:
             # validate image ordering if the imageMap is provided
             imageName, _ = os.path.splitext(os.path.basename(imageFile))
             expectedFrameNumber = imageMap.get(imageName)

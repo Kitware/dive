@@ -258,21 +258,21 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<A
     });
     parser.on('readable', () => {
       let record: string[];
-      let imageTypes: 'empty' | 'filenames' | null = null;
+      let hasFilenames;
       // eslint-disable-next-line no-cond-assign
       while (record = parser.read()) {
         try {
           const {
             rowInfo, feature, trackAttributes, confidencePairs,
           } = _parseFeature(record);
-
-          if (imageMap !== undefined && rowInfo.filename.trim() !== '') {
-            if (imageTypes === null) {
-              imageTypes = 'filenames';
-            } else if (imageTypes === 'empty') {
-              throw new Error('There was a mixture of fields that specified image names and fields that did not.  Please check the CSV');
-            }
-            // validate image ordering if the imageMap is provided.
+          const currentHasFileName = rowInfo.filename.trim() !== '';
+          if (imageMap !== undefined && hasFilenames === undefined) {
+            hasFilenames = currentHasFileName;
+          } else if (hasFilenames !== currentHasFileName) {
+            throw new Error('Image Filenames specified in the Column 2 of the CSV must either be all set or all empty. Encountered a mixture of set and empty filenames');
+          }
+          if (imageMap !== undefined && hasFilenames) {
+            // validate image ordering if the imageMap is provided and a non-whitespace filename
             const [imageName] = splitExt(rowInfo.filename);
             const expectedFrameNumber = imageMap.get(imageName);
             if (expectedFrameNumber === undefined) {
@@ -284,12 +284,6 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<A
               reordered = true;
               feature.frame = expectedFrameNumber;
               rowInfo.frame = expectedFrameNumber;
-            }
-          } else if (imageMap !== undefined && rowInfo.filename.trim() === '') {
-            if (imageTypes === null) {
-              imageTypes = 'empty';
-            } else if (imageTypes === 'filenames') {
-              throw new Error('There was a mixture of fields that specified image names and fields that did not.  Please check the CSV');
             }
           }
 
