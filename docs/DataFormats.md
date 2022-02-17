@@ -1,3 +1,8 @@
+---
+hide:
+  - navigation
+---
+
 # Data Formats
 
 DIVE Desktop and Web support a number of annotation and configuration formats.  The following formats can be uploaded or imported alongside your media and will be automatically parsed.

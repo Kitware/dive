@@ -1,3 +1,8 @@
+---
+hide:
+  - navigation
+---
+
 # Pipelines and Training
 
 Both web and desktop versions are capable of running canned pipelines and model training on your ground truth data.  This document is to help you decide which pipeline to run.

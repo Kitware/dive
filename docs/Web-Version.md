@@ -3,9 +3,8 @@
 
     If you are running a pipeline or training workflow during update, it will be interrupted and started over.
 
-[Try our public server ➥](https://viame.kitware.com){ .md-button .md-button--primary }
-
-You can also [run your own](Deployment-Overview.md).
+[Use our public server ➥](https://viame.kitware.com){ .md-button .md-button--primary }
+[Deploy your own](Deployment-Overview.md){ .md-button .md-button--primary }
 
 ## Register for an account
 
@@ -101,18 +100,10 @@ There are four levels of permission a User can have on a resource.
 
 * Navigate to your data in the data browser.
 * Right click a dataset folder or directory to share.
-
-![Right Click Menu](images/Sharing/RightClickMenu.png)
-
+    * ![Right Click Menu](images/Sharing/RightClickMenu.png)
 * Search for and select users you want to grant permissions for.
 * Select the correct permissions in the drop-down next to each user.
-
-![Search For Users](images/Sharing/SearchBar.png)
-
-* **Be sure to enable `Include subfolders` at the bottom of the dialog.**
-
-![Toggle Include Subfolders](images/Sharing/Toggles.png)
-
+    * ![Search For Users](images/Sharing/SearchBar.png)
 * Click save.
 
 These users should now be able to view and edit your data.

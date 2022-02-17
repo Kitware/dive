@@ -1,8 +1,10 @@
 # DIVE Desktop
 
-DIVE is available as an electron based desktop application with deep [VIAME](https://github.com/viame/viame) integration.
+DIVE is available as an electron based desktop application with [VIAME](https://github.com/viame/viame) integration. It has most of the same UI and features web.  You may want to use desktop if...
 
-DIVE Desktop has most of the same UI and features as DIVE **without** requiring a network connection or a server installation.
+* You want to make use of GPUs on your own workstation
+* You need to use DIVE without network access
+* You have large quantities of data on disk impractical for uploading to a server.
 
 ## Installation
 

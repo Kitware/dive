@@ -1,11 +1,18 @@
 # DIVE Documentation
 
-This is the user documentation for DIVE, an open-source annotation and analysis platform which can be run either as a web or desktop application. DIVE was originally built for, and has deep integration with, the [VIAME toolkit](https://www.viametoolkit.org/), but it can also be integrated with other automated analytics.
+<p>
+  <img width="130" style="margin-right: 50px;" src="images/General/Kitware-Logo-Stacked.png">
+  <img width="280" style="margin-right: 50px;" src="images/General/logo.png">
+  <img width="80" src="images/General/OSI_Standard_Logo_300X390.png">
+</p>
+
+This is the user documentation for DIVE, a **free and open-source** annotation and analysis platform for web and desktop built by [Kitware](https://kitware.com). DIVE has deep integration with the [VIAME toolkit](https://www.viametoolkit.org/), but it can also be used on its own.
 
 [:fontawesome-solid-compass: Try the web version](Web-Version.md){ .md-button } [:fontawesome-solid-desktop: Get the desktop app](Dive-Desktop.md){ .md-button }
-## Get Help
 
-For feedback, problems, questions, or feature requests, please email <a href="mailto:viame-web@kitware.com">`viame-web@kitware.com`</a>. Our team would be happy to hear from you!
+## Support
+
+For feedback, problems, questions, or feature requests, please [open a thread on discourse](https://discourse.kitware.com/c/viame-dive/17). Our team would be happy to hear from you!
 
 ![Home](images/Banner.png)
 

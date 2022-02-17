@@ -73,3 +73,19 @@ Secret Key:
 Mount point folder:
 Prefix (if applicable):
 ```
+
+## S3 and MinIO Mirroring
+
+If you have data in S3 or MinIO, you can mirror it in DIVE for annotation.
+
+* Data is expected to be either videos or images organized into folders
+* You should not make changes to folder contents once a folder has been mirrored into DIVE.  Adding or removing images in a particular folder may cause annotation alignment issues.
+* Adding entire new folders is supported, and will require a re-index of your S3 bucket.
+
+### Mirroring setup
+
+To create a bucket mirror on your own DIVE deployment.
+
+1. Open `/girder#assetstores` and create a new S3 assetstore.  Mark as **Read only**.
+1. Choose the green "Begin Import" button on the new assetstore.
+1. Choose a prefix within your bucket to mirror (probably just `/`) and a destination folder ID.  You can get the destination folder ID from the URL of the folder location in your address bar.

@@ -9,8 +9,13 @@ repo_url: https://github.com/Kitware/dive
 theme:
   name: material
   highlightjs: true
-  icon:
-    logo: fontawesome/solid/fish
+  logo: images/General/Kitware-Mark.png
+  palette:
+    primary: black
+  features:
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.expand
 
 markdown_extensions:
   - admonition
@@ -22,35 +27,44 @@ markdown_extensions:
       emoji_index: !!python/name:materialx.emoji.twemoji
       emoji_generator: !!python/name:materialx.emoji.to_svg
 
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/kitware/dive
+    - icon: fontawesome/brands/docker
+      link: https://hub.docker.com/r/kitware/viame-web
+    - icon: fontawesome/brands/discourse
+      link: https://discourse.kitware.com/c/viame-dive/17
+
 nav:
-  - Home: index.md
-  - Screenshots: Screenshots.md
-  - Web Version: Web-Version.md
-  - Desktop Version: Dive-Desktop.md
-  - Keyboard Shortcut Reference: Mouse-Keyboard-Shortcuts.md
-  - Annotation Quickstart: Annotation-QuickStart.md
-  - Annotation Interface Guide:
-    - Introduction: Annotation-User-Interface-Overview.md
-    - Navigation Bar: UI-Navigation-Bar.md
-    - Edit Bar: UI-Edit-Bar.md
-    - Annotation View: UI-Annotation-View.md
-    - Type List: UI-Type-List.md
-    - Track List: UI-Track-List.md
-    - Timeline: UI-Timeline.md
-    - Attributes: Attributes.md
-    - Interpolation: UI-Interpolation.md
+  - User Guide:
+    - Home: index.md
+    - Web Version: Web-Version.md
+    - Desktop Version: Dive-Desktop.md
+    - User Interface Guide:
+      - Introduction: Annotation-User-Interface-Overview.md
+      - Navigation Bar: UI-Navigation-Bar.md
+      - Edit Bar: UI-Edit-Bar.md
+      - Annotation View: UI-Annotation-View.md
+      - Type List: UI-Type-List.md
+      - Track List: UI-Track-List.md
+      - Timeline: UI-Timeline.md
+      - Attributes: Attributes.md
+      - Interpolation: UI-Interpolation.md
+    - Keyboard Shortcut Reference: Mouse-Keyboard-Shortcuts.md
+    - Advanced features:
+      - Pipeline Import and Export: Pipeline-Import-Export.md
+      - Command Line Tools: Command-Line-Tools.md
   - Pipelines & Training: Pipeline-Documentation.md
-  - Deployment Documentation:
+  - Data Formats: DataFormats.md
+  - Administrator Guide:
     - Deployment Options Overview: Deployment-Overview.md
     - Provisioning Google Cloud: Deployment-Provision.md
     - Running with Docker Compose: Deployment-Docker-Compose.md
     - Cloud Storage Integration: Deployment-Storage.md
-  - Advanced features:
-    - Pipeline Import and Export: Pipeline-Import-Export.md
-    - Command Line Tools: Command-Line-Tools.md
-  - REST API Specification: https://viame.kitware.com/api/v1
-  - Data Formats: DataFormats.md
+    - REST API Specification: https://viame.kitware.com/api/v1
   - Frequently Asked Questions: FAQ.md
+  - Support: https://discourse.kitware.com/c/viame-dive/17
 
 google_analytics:
   - UA-6042509-43

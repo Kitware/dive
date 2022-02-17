@@ -1,3 +1,8 @@
+---
+hide:
+  - navigation
+---
+
 # Frequently Asked Questions
 
 ## How do I find existing data to use?
