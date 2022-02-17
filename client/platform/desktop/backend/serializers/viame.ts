@@ -268,7 +268,7 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<A
           const currentHasFileName = rowInfo.filename.trim() !== '';
           if (imageMap !== undefined && hasFilenames === undefined) {
             hasFilenames = currentHasFileName;
-          } else if (hasFilenames !== currentHasFileName) {
+          } else if (imageMap !== undefined && hasFilenames !== currentHasFileName) {
             throw new Error('Image Filenames specified in the Column 2 of the CSV must either be all set or all empty. Encountered a mixture of set and empty filenames');
           }
           if (imageMap !== undefined && hasFilenames) {
