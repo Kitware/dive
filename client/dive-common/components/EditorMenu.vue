@@ -242,7 +242,7 @@ export default Vue.extend({
             mdi-eye
           </v-icon>
           <span class="text-subtitle-2">
-            Visibilty
+            Visibility
           </span>
         </span>
         <v-btn
