@@ -153,7 +153,7 @@ export default Vue.extend({
           color: this.editingDetails === 'Creating' ? 'success' : 'primary',
         };
       }
-      return { text: 'Editing Modes', icon: 'mdi-pencil', color: '' };
+      return { text: 'Not editing', icon: 'mdi-pencil-off-outline', color: '' };
     },
   },
   watch: {
@@ -190,9 +190,53 @@ export default Vue.extend({
 </script>
 
 <template>
-  <v-row v-mousetrap="mousetrap">
-    <div class="d-flex align-center px-4">
-      <span class="pa-2 pb-1">
+  <v-row
+    v-mousetrap="mousetrap"
+    class="pa-0 ma-0 grow"
+    no-gutters
+  >
+    <div class="d-flex align-center grow">
+      <div
+        class="pa-1 d-flex"
+        style="width: 280px;"
+      >
+        <v-icon class="pr-1">
+          {{ editingHeader.icon }}
+        </v-icon>
+        <div>
+          <div class="text-subtitle-2">
+            {{ editingHeader.text }}
+          </div>
+          <div
+            style="line-height: 1.22em; font-size: 10px;"
+          >
+            <span v-if="mergeMode">
+              Merge in progress.  Editing is disabled.
+              Select additional tracks to merge.
+            </span>
+            <span v-else-if="editingDetails !== 'disabled'">
+              {{ modeToolTips[editingDetails][editingMode] }}
+            </span>
+            <span v-else>Right click on an annotation to edit</span>
+          </div>
+        </div>
+      </div>
+      <v-btn
+        v-for="button in editButtons"
+        :key="button.id + 'view'"
+        :disabled="!editingMode"
+        :outlined="!button.active"
+        :color="button.active ? editingHeader.color : ''"
+        class="mx-1"
+        small
+        @click="button.click"
+      >
+        <pre v-if="button.mousetrap">{{ button.mousetrap[0].bind }}:</pre>
+        <v-icon>{{ button.icon }}</v-icon>
+      </v-btn>
+      <slot name="delete-controls" />
+      <v-spacer />
+      <span class="pb-1">
         <span class="mr-1 px-3 py-1">
           <v-icon class="pr-1">
             mdi-eye
@@ -264,45 +308,6 @@ export default Vue.extend({
           </v-card>
         </v-menu>
       </span>
-      <div
-        class="mr-1 ml-8 py-1 d-flex"
-        style="width: 220px;"
-      >
-        <v-icon class="pr-1">
-          {{ editingHeader.icon }}
-        </v-icon>
-        <div>
-          <div class="text-subtitle-2">
-            {{ editingHeader.text }}
-          </div>
-          <div
-            style="line-height: 1.1em; font-size: 10px;"
-          >
-            <span v-if="mergeMode">
-              Merge in progress.  Editing is disabled.
-              Select additional tracks to merge.
-            </span>
-            <span v-else-if="editingDetails !== 'disabled'">
-              {{ modeToolTips[editingDetails][editingMode] }}
-            </span>
-            <span v-else>Right click on an annotation to edit</span>
-          </div>
-        </div>
-      </div>
-      <v-btn
-        v-for="button in editButtons"
-        :key="button.id + 'view'"
-        :disabled="!editingMode"
-        :outlined="!button.active"
-        :color="button.active ? editingHeader.color : ''"
-        class="mx-1"
-        small
-        @click="button.click"
-      >
-        <pre v-if="button.mousetrap">{{ button.mousetrap[0].bind }}:</pre>
-        <v-icon>{{ button.icon }}</v-icon>
-      </v-btn>
-      <slot name="delete-controls" />
     </div>
   </v-row>
 </template>
