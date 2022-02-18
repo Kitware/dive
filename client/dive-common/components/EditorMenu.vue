@@ -53,14 +53,14 @@ export default Vue.extend({
       toolTimeTimeout: 0,
       modeToolTips: {
         Creating: {
-          rectangle: 'Drag to draw rectangle. Press <pre>ESC</pre> to exit',
+          rectangle: 'Drag to draw rectangle. Press ESC to exit.',
           Polygon: 'Click to place vertices. Right click to close.',
-          LineString: 'Click to place head/tail points',
+          LineString: 'Click to place head/tail points.',
         },
         Editing: {
           rectangle: 'Drag vertices to resize the rectangle',
           Polygon: 'Drag midpoints to create new vertices. Click vertices to select for deletion.',
-          LineString: 'Click endpoints to select for deletion',
+          LineString: 'Click endpoints to select for deletion.',
         },
       },
     };
