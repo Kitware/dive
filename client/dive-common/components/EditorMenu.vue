@@ -53,15 +53,14 @@ export default Vue.extend({
       toolTimeTimeout: 0,
       modeToolTips: {
         Creating: {
-          rectangle: 'Hit ESC to exit creation',
-          Polygon: 'Click to place points, right click to close polygon',
-          LineString: 'Click to place Head/Tail Points',
+          rectangle: 'Drag to draw rectangle. Press <pre>ESC</pre> to exit',
+          Polygon: 'Click to place vertices. Right click to close.',
+          LineString: 'Click to place head/tail points',
         },
         Editing: {
-          rectangle: 'Drag points to resize the rectangle',
-          Polygon: 'Click and drag midpoints to add new points, or click on vertices to move or delete',
-          LineString: 'Click and drag points, or click once to select and delete',
-
+          rectangle: 'Drag vertices to resize the rectangle',
+          Polygon: 'Drag midpoints to create new vertices. Click vertices to select for deletion.',
+          LineString: 'Click endpoints to select for deletion',
         },
       },
     };
@@ -191,16 +190,10 @@ export default Vue.extend({
 </script>
 
 <template>
-  <v-row
-    v-mousetrap="mousetrap"
-  >
-    <v-col class="d-flex align-center px-4">
-      <span
-        class="pa-2 pb-1 mode-group"
-      >
-        <span
-          class="mr-1 px-3 py-1"
-        >
+  <v-row v-mousetrap="mousetrap">
+    <div class="d-flex align-center px-4">
+      <span class="pa-2 pb-1">
+        <span class="mr-1 px-3 py-1">
           <v-icon class="pr-1">
             mdi-eye
           </v-icon>
@@ -271,56 +264,46 @@ export default Vue.extend({
           </v-card>
         </v-menu>
       </span>
-      <span
-        class="ml-4 pb-1 pa-2 grey darken-2 mode-group"
+      <div
+        class="mr-1 ml-8 py-1 d-flex"
+        style="width: 220px;"
       >
-        <v-tooltip
-          v-model="toolTipForce"
-          bottom
-          max-width="300"
-          close-delay="2000"
-        >
-          <template #activator="{ on, attrs }">
-            <span
-              v-bind="attrs"
-              :class="[
-                'mr-1', 'px-3', 'py-1',
-              ]"
-              v-on="on"
-            >
-              <v-icon class="pr-1">
-                {{ editingHeader.icon }}
-              </v-icon>
-              <span class="text-subtitle-2">
-                {{ editingHeader.text }}
-              </span>
+        <v-icon class="pr-1">
+          {{ editingHeader.icon }}
+        </v-icon>
+        <div>
+          <div class="text-subtitle-2">
+            {{ editingHeader.text }}
+          </div>
+          <div
+            style="line-height: 1.1em; font-size: 10px;"
+          >
+            <span v-if="mergeMode">
+              Merge in progress.  Editing is disabled.
+              Select additional tracks to merge.
             </span>
-          </template>
-          <span v-if="mergeMode">
-            Merge in progress.  Editing is disabled.
-            Select additional tracks to merge.
-          </span>
-          <span v-else-if="editingDetails !== 'disabled'">
-            {{ modeToolTips[editingDetails][editingMode] }}
-          </span>
-          <span v-else>Right Click on a detection/track to enter Editing Mode</span>
-        </v-tooltip>
-        <v-btn
-          v-for="button in editButtons"
-          :key="button.id + 'view'"
-          :disabled="!editingMode"
-          :outlined="!button.active"
-          :color="button.active ? editingHeader.color : ''"
-          class="mx-1"
-          small
-          @click="button.click"
-        >
-          <pre v-if="button.mousetrap">{{ button.mousetrap[0].bind }}:</pre>
-          <v-icon>{{ button.icon }}</v-icon>
-        </v-btn>
-        <slot name="delete-controls" />
-      </span>
-    </v-col>
+            <span v-else-if="editingDetails !== 'disabled'">
+              {{ modeToolTips[editingDetails][editingMode] }}
+            </span>
+            <span v-else>Right click on an annotation to edit</span>
+          </div>
+        </div>
+      </div>
+      <v-btn
+        v-for="button in editButtons"
+        :key="button.id + 'view'"
+        :disabled="!editingMode"
+        :outlined="!button.active"
+        :color="button.active ? editingHeader.color : ''"
+        class="mx-1"
+        small
+        @click="button.click"
+      >
+        <pre v-if="button.mousetrap">{{ button.mousetrap[0].bind }}:</pre>
+        <v-icon>{{ button.icon }}</v-icon>
+      </v-btn>
+      <slot name="delete-controls" />
+    </div>
   </v-row>
 </template>
 
