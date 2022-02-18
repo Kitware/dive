@@ -3,13 +3,49 @@ import { MultiTrackRecord } from 'dive-common/apispec';
 import fs from 'fs-extra';
 import mockfs from 'mock-fs';
 import { JsonMeta } from 'platform/desktop/constants';
-import { serialize, parse } from 'platform/desktop/backend/serializers/viame';
+import { serialize, parse, parseFile } from 'platform/desktop/backend/serializers/viame';
 import { Attribute } from 'vue-media-annotator/use/useAttributes';
 import processTrackAttributes from 'platform/desktop/backend/native/attributeProcessor';
+import { Console } from 'console';
 
 type testPairs = [string[], MultiTrackRecord, Record<string, Attribute>];
 
 const testData: testPairs[] = fs.readJSONSync('../testutils/viame.spec.json');
+
+const imageOrderTests = [
+  {
+    pass: false,
+    error: 'There was a mixture of fields that specified image names and fields that did not.  Please check the CSV',
+    csv: [
+      '0,       ,1,884.66,510,1219.66,737.66,1,-1,ignored,0.98',
+      '1,2.png,0,111,222,3333,444,1,-1,typestring,0.55',
+    ],
+  },
+  {
+    pass: false,
+    error: 'There was a mixture of fields that specified image names and fields that did not.  Please check the CSV',
+    csv: [
+      '0,1.png,1,884.66,510,1219.66,737.66,1,-1,ignored,0.98',
+      '1,,0,111,222,3333,444,1,-1,typestring,0.55',
+    ],
+  },
+  {
+    pass: false,
+    error: 'encountered annotation for image not found in dataset: test.png',
+    csv: [
+      '0,test.png,1,884.66,510,1219.66,737.66,1,-1,ignored,0.98',
+      '1,2.png,0,111,222,3333,444,1,-1,typestring,0.55',
+    ],
+  },
+  {
+    pass: true,
+    csv: [
+      '0,       ,1,884.66,510,1219.66,737.66,1,-1,ignored,0.98',
+      '',
+      '1,,0,111,222,3333,444,1,-1,typestring,0.55',
+    ],
+  },
+];
 
 
 const data: MultiTrackRecord = {
@@ -120,6 +156,15 @@ testData.forEach((item, index) => {
   // eslint-disable-next-line prefer-destructuring
   testFiles[`${index}.csv`] = item[0].join('\n');
 });
+const imageOrderFiles: Record<string, string> = { };
+imageOrderTests.forEach((item, index) => {
+  // eslint-disable-next-line prefer-destructuring
+  imageOrderFiles[`${index}.csv`] = item.csv.join('\n');
+});
+
+// https://github.com/tschaub/mock-fs/issues/234
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const console = new Console(process.stdout, process.stderr);
 
 mockfs({
   '/home': {},
@@ -127,6 +172,7 @@ mockfs({
     'foo.png': '',
     'bar.png': '',
   },
+  '/imageorder': imageOrderFiles,
   '/csv': testFiles,
 });
 
@@ -217,6 +263,32 @@ describe('VIAME serialize testing', () => {
     const output = fs.readFileSync(path).toString().split('\n');
     const expectedOutput = ['first_type', '0.9', 'second_type', '0.7'];
     expect(checkConfidenceOutput(output)).toEqual(expectedOutput);
+  });
+});
+
+describe('Test Image Filenames and Ordering', () => {
+  it('testing image filenames and ordering ordering', async () => {
+    const imageMap = new Map([
+      ['1', 0],
+      ['2', 1],
+      ['3', 2],
+    ]);
+    for (let i = 0; i < imageOrderTests.length; i += 1) {
+      const testPath = `/imageorder/${i}.csv`;
+      const imageOrderData = imageOrderTests[i];
+      if (!imageOrderData.pass) {
+        try {
+        // eslint-disable-next-line no-await-in-loop
+          const result = await parseFile(testPath, imageMap);
+        } catch (err) {
+          expect(err).toBe(imageOrderData.error);
+        }
+      } else {
+        // eslint-disable-next-line no-await-in-loop
+        const result = await parseFile(testPath, imageMap);
+        expect(result.tracks.length).toBeGreaterThan(0);
+      }
+    }
   });
 });
 
