@@ -44,7 +44,7 @@ export default Vue.extend({
 </script>
 
 <template>
-  <span>
+  <span class="mx-1">
     <v-btn
       v-if="!disabled"
       color="error"

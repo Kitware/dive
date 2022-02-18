@@ -494,18 +494,9 @@ export default defineComponent({
         {{ datasetName }}
       </span>
       <v-spacer />
-
       <template #extension>
-        <span
-          v-if="$vuetify.breakpoint.lgAndUp"
-          style="min-width: 180px;"
-        >
-          Viewer/Edit Controls
-        </span>
         <EditorMenu
           v-bind="{ editingMode, visibleModes, editingTrack, recipes, mergeMode, editingDetails }"
-          :tail-settings.sync="clientSettings.annotatorPreferences.trackTails"
-          class="shrink"
           @set-annotation-state="handler.setAnnotationState"
           @exit-edit="handler.trackAbort"
         >
@@ -518,7 +509,6 @@ export default defineComponent({
             />
           </template>
         </EditorMenu>
-        <v-spacer />
         <v-select
           v-if="multiCamList.length"
           :value="defaultCamera"
