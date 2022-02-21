@@ -261,15 +261,15 @@ def load_csv_as_tracks_and_attributes(
         ) = _parse_row_for_tracks(row)
 
         trackId, imageFile, _, _, _ = row_info(row)
-        current_has_filename = imageFile.strip() == ''
+        current_has_filename = imageFile.strip() != ''
         if has_image_filenames is None and imageMap:
             has_image_filenames = current_has_filename
         elif imageMap and has_image_filenames != current_has_filename:
             raise ValueError(
-                'Image Filenames specified in the Column 2 of the CSV must either be\
-                    all set or all empty. '
-                'Encountered a mixture of set and empty filenames. '
+                'There was a mixture of fields that specified image names and fields that'
+                ' did not.  Please check the CSV'
             )
+            return
         if imageMap and has_image_filenames:
             # validate image ordering if the imageMap is provided
             imageName, _ = os.path.splitext(os.path.basename(imageFile))

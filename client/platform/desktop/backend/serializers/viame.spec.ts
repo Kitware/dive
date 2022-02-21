@@ -12,7 +12,7 @@ type testPairs = [string[], MultiTrackRecord, Record<string, Attribute>];
 
 const testData: testPairs[] = fs.readJSONSync('../testutils/viame.spec.json');
 
-const imageOrderTests = [
+const imageFilenameTests = [
   {
     pass: false,
     error: 'There was a mixture of fields that specified image names and fields that did not.  Please check the CSV',
@@ -27,14 +27,6 @@ const imageOrderTests = [
     csv: [
       '0,1.png,1,884.66,510,1219.66,737.66,1,-1,ignored,0.98',
       '1,,0,111,222,3333,444,1,-1,typestring,0.55',
-    ],
-  },
-  {
-    pass: false,
-    error: 'encountered annotation for image not found in dataset: test.png',
-    csv: [
-      '0,test.png,1,884.66,510,1219.66,737.66,1,-1,ignored,0.98',
-      '1,2.png,0,111,222,3333,444,1,-1,typestring,0.55',
     ],
   },
   {
@@ -157,7 +149,7 @@ testData.forEach((item, index) => {
   testFiles[`${index}.csv`] = item[0].join('\n');
 });
 const imageOrderFiles: Record<string, string> = { };
-imageOrderTests.forEach((item, index) => {
+imageFilenameTests.forEach((item, index) => {
   // eslint-disable-next-line prefer-destructuring
   imageOrderFiles[`${index}.csv`] = item.csv.join('\n');
 });
@@ -266,16 +258,16 @@ describe('VIAME serialize testing', () => {
   });
 });
 
-describe('Test Image Filenames and Ordering', () => {
-  it('testing image filenames and ordering ordering', async () => {
+describe('Test Image Filenames', () => {
+  it('testing image filenames', async () => {
     const imageMap = new Map([
       ['1', 0],
       ['2', 1],
       ['3', 2],
     ]);
-    for (let i = 0; i < imageOrderTests.length; i += 1) {
+    for (let i = 0; i < imageFilenameTests.length; i += 1) {
       const testPath = `/imageorder/${i}.csv`;
-      const imageOrderData = imageOrderTests[i];
+      const imageOrderData = imageFilenameTests[i];
       if (!imageOrderData.pass) {
         try {
         // eslint-disable-next-line no-await-in-loop
