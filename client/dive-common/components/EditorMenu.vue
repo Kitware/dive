@@ -248,9 +248,8 @@ export default Vue.extend({
         <v-btn
           v-for="button in viewButtons"
           :key="button.id"
-          :outlined="!button.active"
           :color="button.active ? 'grey darken-2' : ''"
-          class="mx-1"
+          class="mx-1 mode-button"
           small
           @click="button.click"
         >
@@ -265,9 +264,8 @@ export default Vue.extend({
           <template #activator="{ on, attrs }">
             <v-btn
               v-bind="attrs"
-              :outlined="!isVisible('TrackTail')"
               :color="isVisible('TrackTail') ? 'grey darken-2' : ''"
-              class="mx-1"
+              class="mx-1 mode-button"
               small
               v-on="on"
               @click="toggleVisible('TrackTail')"
@@ -322,6 +320,9 @@ export default Vue.extend({
 .mode-group {
   border: 1px solid grey;
   border-radius: 4px;
+}
+.mode-button{
+  border: 1px solid grey;
 }
 .tail-slider-width {
   width: 240px;
