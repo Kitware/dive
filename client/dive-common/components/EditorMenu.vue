@@ -30,6 +30,10 @@ export default Vue.extend({
       type: [String, Boolean] as PropType<false | EditAnnotationTypes>,
       required: true,
     },
+    editingDetails: {
+      type: String as PropType<'disabled' | 'Creating' | 'Editing'>,
+      required: true,
+    },
     recipes: {
       type: Array as PropType<Recipe[]>,
       required: true,
@@ -43,7 +47,24 @@ export default Vue.extend({
       default: () => ({ before: 20, after: 10 }),
     },
   },
-
+  data() {
+    return {
+      toolTipForce: false,
+      toolTimeTimeout: 0,
+      modeToolTips: {
+        Creating: {
+          rectangle: 'Drag to draw rectangle. Press ESC to exit.',
+          Polygon: 'Click to place vertices. Right click to close.',
+          LineString: 'Click to place head/tail points.',
+        },
+        Editing: {
+          rectangle: 'Drag vertices to resize the rectangle',
+          Polygon: 'Drag midpoints to create new vertices. Click vertices to select for deletion.',
+          LineString: 'Click endpoints to select for deletion.',
+        },
+      },
+    };
+  },
   computed: {
     editButtons(): ButtonData[] {
       const em = this.editingMode;
@@ -121,8 +142,33 @@ export default Vue.extend({
     mousetrap(): Mousetrap[] {
       return flatten(this.editButtons.map((b) => b.mousetrap || []));
     },
+    editingHeader(): {text: string; icon: string; color: string} {
+      if (this.mergeMode) {
+        return { text: 'Merge Mode', icon: 'mdi-call-merge', color: 'error' };
+      }
+      if (this.editingDetails !== 'disabled') {
+        return {
+          text: `${this.editingDetails} ${this.editingMode} `,
+          icon: this.editingDetails === 'Creating' ? 'mdi-pencil-plus' : 'mdi-pencil',
+          color: this.editingDetails === 'Creating' ? 'success' : 'primary',
+        };
+      }
+      return { text: 'Not editing', icon: 'mdi-pencil-off-outline', color: '' };
+    },
   },
-
+  watch: {
+    editingDetails() {
+      clearTimeout(this.toolTimeTimeout);
+      if (this.editingDetails !== 'disabled') {
+        this.toolTipForce = true;
+        this.toolTimeTimeout = setTimeout(
+          () => { this.toolTipForce = false; }, 2000,
+        ) as unknown as number;
+      } else {
+        this.toolTipForce = false;
+      }
+    },
+  },
   methods: {
     isVisible(mode: VisibleAnnotationTypes) {
       return this.visibleModes.includes(mode);
@@ -146,115 +192,41 @@ export default Vue.extend({
 <template>
   <v-row
     v-mousetrap="mousetrap"
+    class="pa-0 ma-0 grow"
+    no-gutters
   >
-    <v-col class="d-flex align-center px-4">
-      <span
-        class="mr-1 px-3 py-1 modechip grey darken-2"
+    <div class="d-flex align-center grow">
+      <div
+        class="pa-1 d-flex"
+        style="width: 280px;"
       >
         <v-icon class="pr-1">
-          mdi-eye
+          {{ editingHeader.icon }}
         </v-icon>
-        <span class="text-subtitle-2">
-          Visibilty
-        </span>
-      </span>
-      <v-btn
-        v-for="button in viewButtons"
-        :key="button.id"
-        :outlined="!button.active"
-        :color="button.active ? 'grey darken-2' : ''"
-        class="mx-1"
-        small
-        @click="button.click"
-      >
-        <v-icon>{{ button.icon }}</v-icon>
-      </v-btn>
-      <v-menu
-        open-on-hover
-        bottom
-        offset-y
-        :close-on-content-click="false"
-      >
-        <template #activator="{ on, attrs }">
-          <v-btn
-            v-bind="attrs"
-            :outlined="!isVisible('TrackTail')"
-            :color="isVisible('TrackTail') ? 'grey darken-2' : ''"
-            class="mx-1"
-            small
-            v-on="on"
-            @click="toggleVisible('TrackTail')"
+        <div>
+          <div class="text-subtitle-2">
+            {{ editingHeader.text }}
+          </div>
+          <div
+            style="line-height: 1.22em; font-size: 10px;"
           >
-            <v-icon>mdi-navigation</v-icon>
-          </v-btn>
-        </template>
-        <v-card
-          class="pa-4 flex-column d-flex"
-          outlined
-        >
-          <label for="frames-before">Frames before: {{ tailSettings.before }}</label>
-          <input
-            id="frames-before"
-            type="range"
-            name="frames-before"
-            class="tail-slider-width"
-            label
-            min="0"
-            max="100"
-            :value="tailSettings.before"
-            @input="$emit('update:tail-settings', {
-              ...tailSettings, before: Number.parseFloat($event.target.value) })"
-          >
-          <div class="py-2" />
-          <label for="frames-after">Frames after: {{ tailSettings.after }}</label>
-          <input
-            id="frames-after"
-            type="range"
-            name="frames-after"
-            class="tail-slider-width"
-            min="0"
-            max="100"
-            :value="tailSettings.after"
-            @input="$emit('update:tail-settings', {
-              ...tailSettings, after: Number.parseFloat($event.target.value) })"
-          >
-        </v-card>
-      </v-menu>
-      <v-tooltip
-        bottom
-        max-width="300"
-      >
-        <template #activator="{ on, attrs }">
-          <span
-            v-bind="attrs"
-            :class="[
-              'ml-8', 'mr-1', 'px-3', 'py-1',
-              'modechip', editingTrack ? 'primary' : (
-                mergeMode ? 'error' : ''
-              )
-            ]"
-            v-on="on"
-          >
-            <v-icon class="pr-1">
-              {{ mergeMode ? 'mdi-call-merge' : 'mdi-pencil' }}
-            </v-icon>
-            <span class="text-subtitle-2">
-              {{ mergeMode ? 'Merge Mode' : 'Editing Mode' }}
+            <span v-if="mergeMode">
+              Merge in progress.  Editing is disabled.
+              Select additional tracks to merge.
             </span>
-          </span>
-        </template>
-        <span v-if="mergeMode">
-          Merge in progress.  Editing is disabled.
-          Select additional tracks to merge.
-        </span>
-        <span v-else>Editing mode status indicator: {{ editingMode ? 'enabled': 'disabled' }}</span>
-      </v-tooltip>
+            <span v-else-if="editingDetails !== 'disabled'">
+              {{ modeToolTips[editingDetails][editingMode] }}
+            </span>
+            <span v-else>Right click on an annotation to edit</span>
+          </div>
+        </div>
+      </div>
       <v-btn
         v-for="button in editButtons"
         :key="button.id + 'view'"
         :disabled="!editingMode"
         :outlined="!button.active"
-        :color="button.active ? 'primary' : ''"
+        :color="button.active ? editingHeader.color : ''"
         class="mx-1"
         small
         @click="button.click"
@@ -262,7 +234,79 @@ export default Vue.extend({
         <pre v-if="button.mousetrap">{{ button.mousetrap[0].bind }}:</pre>
         <v-icon>{{ button.icon }}</v-icon>
       </v-btn>
-    </v-col>
+      <slot name="delete-controls" />
+      <v-spacer />
+      <span class="pb-1">
+        <span class="mr-1 px-3 py-1">
+          <v-icon class="pr-1">
+            mdi-eye
+          </v-icon>
+          <span class="text-subtitle-2">
+            Visibility
+          </span>
+        </span>
+        <v-btn
+          v-for="button in viewButtons"
+          :key="button.id"
+          :color="button.active ? 'grey darken-2' : ''"
+          class="mx-1 mode-button"
+          small
+          @click="button.click"
+        >
+          <v-icon>{{ button.icon }}</v-icon>
+        </v-btn>
+        <v-menu
+          open-on-hover
+          bottom
+          offset-y
+          :close-on-content-click="false"
+        >
+          <template #activator="{ on, attrs }">
+            <v-btn
+              v-bind="attrs"
+              :color="isVisible('TrackTail') ? 'grey darken-2' : ''"
+              class="mx-1 mode-button"
+              small
+              v-on="on"
+              @click="toggleVisible('TrackTail')"
+            >
+              <v-icon>mdi-navigation</v-icon>
+            </v-btn>
+          </template>
+          <v-card
+            class="pa-4 flex-column d-flex"
+            outlined
+          >
+            <label for="frames-before">Frames before: {{ tailSettings.before }}</label>
+            <input
+              id="frames-before"
+              type="range"
+              name="frames-before"
+              class="tail-slider-width"
+              label
+              min="0"
+              max="100"
+              :value="tailSettings.before"
+              @input="$emit('update:tail-settings', {
+                ...tailSettings, before: Number.parseFloat($event.target.value) })"
+            >
+            <div class="py-2" />
+            <label for="frames-after">Frames after: {{ tailSettings.after }}</label>
+            <input
+              id="frames-after"
+              type="range"
+              name="frames-after"
+              class="tail-slider-width"
+              min="0"
+              max="100"
+              :value="tailSettings.after"
+              @input="$emit('update:tail-settings', {
+                ...tailSettings, after: Number.parseFloat($event.target.value) })"
+            >
+          </v-card>
+        </v-menu>
+      </span>
+    </div>
   </v-row>
 </template>
 
@@ -273,7 +317,13 @@ export default Vue.extend({
   border: 1px solid;
   cursor: default;
 }
-
+.mode-group {
+  border: 1px solid grey;
+  border-radius: 4px;
+}
+.mode-button{
+  border: 1px solid grey;
+}
 .tail-slider-width {
   width: 240px;
 }
