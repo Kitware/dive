@@ -191,6 +191,7 @@ export default defineComponent({
       selectedFeatureHandle,
       handler,
       editingMode,
+      editingDetails,
       visibleModes,
       selectedKey,
     } = useModeManager({
@@ -471,6 +472,7 @@ export default defineComponent({
       datasetType,
       editingTrack,
       editingMode,
+      editingDetails,
       eventChartData,
       imageData,
       lineChartData,
@@ -525,27 +527,21 @@ export default defineComponent({
         {{ datasetName }}
       </span>
       <v-spacer />
-
       <template #extension>
-        <span
-          v-if="$vuetify.breakpoint.lgAndUp"
-          style="min-width: 180px;"
-        >
-          Viewer/Edit Controls
-        </span>
         <EditorMenu
-          v-bind="{ editingMode, visibleModes, editingTrack, recipes, mergeMode }"
-          :tail-settings.sync="clientSettings.annotatorPreferences.trackTails"
-          class="shrink"
+          v-bind="{ editingMode, visibleModes, editingTrack, recipes, mergeMode, editingDetails }"
           @set-annotation-state="handler.setAnnotationState"
-        />
-        <delete-controls
-          v-bind="{ editingMode, selectedFeatureHandle }"
-          class="mr-2"
-          @delete-point="handler.removePoint"
-          @delete-annotation="handler.removeAnnotation"
-        />
-        <v-spacer />
+          @exit-edit="handler.trackAbort"
+        >
+          <template slot="delete-controls">
+            <delete-controls
+              v-bind="{ editingMode, selectedFeatureHandle }"
+              class="mr-2"
+              @delete-point="handler.removePoint"
+              @delete-annotation="handler.removeAnnotation"
+            />
+          </template>
+        </EditorMenu>
         <v-select
           v-if="multiCamList.length && defaultCamera !== 'default'"
           :value="selectedCamera"
