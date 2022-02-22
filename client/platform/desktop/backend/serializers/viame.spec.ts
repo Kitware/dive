@@ -271,7 +271,7 @@ describe('Test Image Filenames', () => {
       if (!imageOrderData.pass) {
         try {
         // eslint-disable-next-line no-await-in-loop
-          const result = await parseFile(testPath, imageMap);
+          await parseFile(testPath, imageMap);
         } catch (err) {
           expect(err).toBe(imageOrderData.error);
         }

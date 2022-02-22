@@ -258,7 +258,7 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<A
     });
     parser.on('readable', () => {
       let record: string[];
-      let hasFilenames;
+      let hasFilenames: undefined | boolean;
       // eslint-disable-next-line no-cond-assign
       while (record = parser.read()) {
         try {
