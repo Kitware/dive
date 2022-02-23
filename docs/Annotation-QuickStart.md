@@ -1,40 +1,34 @@
 # Annotation Quickstart
 
-[Single Frame Detections](#single-frame-detections) - creating multiple detections on a single image frame quickly
+Before following the quickstart, it's a good idea to skim the [User Interface Guide](Annotation-User-Interface-Overview.md)
 
-[Track Annotations](#track-annotations) - How to quickly create track annotations for a video or image sequence
+## Making Single Frame Detections
 
-* [Interpolation Mode](#interpolation-mode) - fastest and easiest way to generate track annotations
-* [Advance Frame Mode](#advance-frame) - This mode keeps you editing the same track while automatically advancing the frame each time a detection is drawn.  In most cases the interpolation mode will be preferred.
+How to quickly create multiple detections on a single image frame.
 
-[Polygon Annotations](#polygon-annotations)
-
-[Head/Tail Annotations](#head-tail-annotations)
-
-[Important Keyboard Shortcuts](#important-keyboard-and-mouse-shortcuts)
-
-## Single Frame Detections
-
-1. Click the Settings wheel next to the '+Track' Icon
-    1. ![Add Track Button](images/CreationMode/AddTrackButton.png)
-1. From the dropdown choose “Detection” mode.
-    1. ![Creation Mode Settings](images/CreationMode/CreationModeDetectionSettings.png)
-1. Choose a type from the dropdown or type a name that you want all detections to inherit.  If the type doesn't exist just type the name to create a new one.  You should see the "+Detection" button change color to match the type.  Now if you hover over the button it will display the default type.
-    1. ![Detection Settings](images/CreationMode/CreationModeTrackType.png)
-1. Turn on continuous mode if you would like to keep dragging the mouse to create detections.
-1. Create your first detection by clicking and dragging to generate a rectangle.
-1. If you are in continuous mode just click and drag again to create the next detection
-1. Otherwise edit the detection and then hit the “N” key on the keyboard or click on detection to create another detection.
+1. Click ==:material-cog:== (track creation settings menu) in the [Track List](UI-Track-List.md) area.
+1. From the **Mode** dropdown, choose **Detection**.
+1. From the **Type** dropdown, choose or enter a default name that all new detections will have.  If the type doesn't exist yet, enter a name to create a new one.
+    1. You should see the ==:material-plus: Detection== button change color to match the type.  Now if you hover over the button it will display the default type.
+1. Turn on the **Continuous Mode** switch if you would like to automatically re-enter the creation state so you can click-and-drag repeatedly to quickly create many detections.
+1. Enter the annotation creation state by clicking ==:material-plus: Detection== or pressing the ++n++ key.
+1. Create your first detection by clicking and dragging to draw a rectangle.
+1. If you are in continuous mode, click and drag again to create the next detection.
+    1. Press ++escape++ to exit continuous creation mode.
 
 ### Single Detection Mode Demo
 
-The Demo below shows how to use Detection mode to quickly create numerous detections of the same type.
+The demo below shows how to use Detection mode to quickly create numerous detections of the same type.
 
 ![Detection Mode Demo](videos/CreationModes/CreationModeDetection.gif)
 
-## Track Annotations
+## Making Track Annotations
+
+How to quickly create track annotations for a video or image sequence.
 
 ### Interpolation Mode
+
+Interpolation mode is the fastest and easiest way to generate track annotations.
 
 1. Next to the "+Track" button click the Settings Icon to open the Creation Settings
 1. From the dropdown make sure that “Track” mode is selected.
@@ -50,11 +44,13 @@ The Demo below shows how to use Detection mode to quickly create numerous detect
 
 ### Interpolation Mode Demo
 
-The Demo below shows how to use Interpolation mode to quickly crate tracks for objects through a video/image-sequence.
+The demo below shows how to use Interpolation mode to quickly crate tracks for objects through a video/image-sequence.
 
 ![Detection Mode Demo](videos/CreationModes/CreationModeInterpolation.gif)
 
-### Advance Frame
+### Advance Frame Mode
+
+This mode keeps you editing the same track while automatically advancing the frame each time a detection is drawn.  In most cases interpolation mode will be preferred.
 
 1. Next to the "+Track" button click the Settings Icon to open the Creation Settings
 1. From the dropdown make sure that “Track” mode is selected.
@@ -66,11 +62,11 @@ The Demo below shows how to use Interpolation mode to quickly crate tracks for o
 
 ### Advance Frame Mode Demo
 
-The Demo below shows how to use AdvanceFrame mode to travel through the video while creating annotations.
+The demo below shows how to use AdvanceFrame mode to travel through the video while creating annotations.
 
 ![Detection Mode Demo](videos/CreationModes/CreationModeAdvanceFrame.gif)
 
-## Head Tail Annotations
+## Making Head Tail Annotations
 
 **Head/Tail creation on an existing Track:**
 
@@ -108,7 +104,7 @@ Notes:
 
 ![Head Tail Annotation Demo](videos/HeadTailAnnotation.gif)
 
-## Polygon Annotations
+## Making Polygon Annotations
 
 While every track is required to have a bounding box a polygon can be added as well for more detailed annotations of objects.  When a polygon is created or edited it will adjust the bounding box to fit the size of the polygon.
 

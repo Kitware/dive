@@ -6,6 +6,7 @@ DIVE is available as an electron based desktop application with [VIAME](https://
 * You need to use DIVE without network access
 * You have large quantities of data on disk impractical for uploading to a server.
 
+DIVE Desktop is fully supported on Windows and Linux. MacOS users can use it as an annotator, but without NVIDIA Driver support, the machine learning features from VIAME are unavailable.
 ## Installation
 
 [⬇️ Download the latest DIVE Desktop from GitHub](https://github.com/Kitware/dive/releases/latest){ .md-button .md-button--primary }
@@ -20,18 +21,11 @@ Choose an **asset** from the list matching your operating system:
 | Linux    | .AppImage | Portable executable for all Linux platforms (recommended) |
 | Linux    | .snap     | Ubuntu SnapCraft package |
 
+![images/Banner.png](images/Banner.png)
+
 ### Full VIAME Desktop Installation
 
 This is just the installation guide for DIVE.  If you want the full VIAME tool suite, you can get it from [github.com/viame/viame](https://github.com/viame/viame#installations)
-
-## Features
-
-Full Windows and Linux support.  Annotation support for MacOS.
-
-* Annotate video and images on your computer (Instead of uploading to a server)
-* Run pipelines and training on multiple datasets using locally installed VIAME
-
-![images/Banner.png](images/Banner.png)
 
 ## Importing Images & Videos
 

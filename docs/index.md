@@ -3,10 +3,9 @@
 <p>
   <img width="130" style="margin-right: 50px;" src="images/General/Kitware-Logo-Stacked.png">
   <img width="280" style="margin-right: 50px;" src="images/General/logo.png">
-  <img width="80" src="images/General/OSI_Standard_Logo_300X390.png">
 </p>
 
-This is the user documentation for DIVE, a **free and open-source** annotation and analysis platform for web and desktop built by [Kitware](https://kitware.com). DIVE has deep integration with the [VIAME toolkit](https://www.viametoolkit.org/), but it can also be used on its own.
+This is the user documentation for DIVE, a **free and open-source** annotation and analysis platform for web and desktop built by [Kitware](https://kitware.com). DIVE integrates with the [VIAME toolkit](https://www.viametoolkit.org/), but it can also be used on its own.
 
 [:fontawesome-solid-compass: Try the web version](Web-Version.md){ .md-button } [:fontawesome-solid-desktop: Get the desktop app](Dive-Desktop.md){ .md-button }
 

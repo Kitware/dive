@@ -17,9 +17,13 @@ theme:
     - navigation.tabs.sticky
     - navigation.expand
 
+extra_css: [extra.css]
+
 markdown_extensions:
   - admonition
   - attr_list
+  - pymdownx.keys
+  - pymdownx.mark
   - pymdownx.highlight:
       linenums: true
   - pymdownx.superfences
@@ -51,6 +55,7 @@ nav:
       - Timeline: UI-Timeline.md
       - Attributes: Attributes.md
       - Interpolation: UI-Interpolation.md
+    - Annotation Quickstart: Annotation-QuickStart.md
     - Keyboard Shortcut Reference: Mouse-Keyboard-Shortcuts.md
     - Advanced features:
       - Pipeline Import and Export: Pipeline-Import-Export.md
@@ -64,7 +69,7 @@ nav:
     - Cloud Storage Integration: Deployment-Storage.md
     - REST API Specification: https://viame.kitware.com/api/v1
   - Frequently Asked Questions: FAQ.md
-  - Support: https://discourse.kitware.com/c/viame-dive/17
+  - Support: '/dive#support'
 
 google_analytics:
   - UA-6042509-43
