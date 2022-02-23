@@ -1,5 +1,8 @@
 mark {
-  padding: 0 3px;
+  padding: 1px 4px;
   border-radius: 3px;
-  background-color: lightblue !important; /*Add your desired color*/
+  color: white !important;
+  font-weight: bold;
+  border: 2px solid #444444;
+  background-color: #0277bd !important; /*Add your desired color*/
 }

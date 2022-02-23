@@ -45,6 +45,7 @@ nav:
     - Home: index.md
     - Web Version: Web-Version.md
     - Desktop Version: Dive-Desktop.md
+    - Annotation Quickstart: Annotation-QuickStart.md
     - User Interface Guide:
       - Introduction: Annotation-User-Interface-Overview.md
       - Navigation Bar: UI-Navigation-Bar.md
@@ -54,8 +55,6 @@ nav:
       - Track List: UI-Track-List.md
       - Timeline: UI-Timeline.md
       - Attributes: Attributes.md
-      - Interpolation: UI-Interpolation.md
-    - Annotation Quickstart: Annotation-QuickStart.md
     - Keyboard Shortcut Reference: Mouse-Keyboard-Shortcuts.md
     - Advanced features:
       - Pipeline Import and Export: Pipeline-Import-Export.md
@@ -69,7 +68,7 @@ nav:
     - Cloud Storage Integration: Deployment-Storage.md
     - REST API Specification: https://viame.kitware.com/api/v1
   - Frequently Asked Questions: FAQ.md
-  - Support: '/dive#support'
+  - Support: '/dive/#support'
 
 google_analytics:
   - UA-6042509-43

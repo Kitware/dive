@@ -3,7 +3,7 @@
 
     If you are running a pipeline or training workflow during update, it will be interrupted and started over.
 
-[Use our public server ➥](https://viame.kitware.com){ .md-button .md-button--primary }
+[Use our public server :material-open-in-new:](https://viame.kitware.com){ .md-button .md-button--primary }
 [Deploy your own](Deployment-Overview.md){ .md-button .md-button--primary }
 
 ## Register for an account
@@ -57,10 +57,6 @@ Data can be downloaded from the FileBrowser by clicking the checkmark to the lef
 
 ![Download Files](images/FileBrowser/DownloadFiles.png)
 
-### Annotation Viewer Download
-
-Within the annotation viewer itself there is the option to download the same data in the file browser.
-
 ## Sharing data with teams
 
 This information will be relevant to teams where several people need to work on the same data.
@@ -99,11 +95,16 @@ There are four levels of permission a User can have on a resource.
 
 * Navigate to your data in the data browser.
 * **Right click** a dataset or a folder of datasets and choose ==Access Control==
+
+    ![Access Control Menu](images/Sharing/RightClickMenu.png)
+
 * Search for and select users you want to grant access to.
 * Select the correct permissions in the drop-down next to each user.
-* Click ==Save==.
 
-These users should now be able to view and edit your data.
+    ![Sharing Menu](images/Sharing/Toggles.png)
+
+* If this is a folder of datasets, enable the **Include Subfolders** switch.
+* Click ==Save==.  These users should now be able to view and edit your data.
 
 ## Data Shared with you
 
