@@ -1,3 +1,4 @@
+import re
 from typing import Dict, List, Tuple
 
 import pytest
@@ -274,6 +275,33 @@ test_tuple: List[Tuple[dict, list, list]] = [
     ),
 ]
 
+image_filename_tests = [
+    {
+        'pass': False,
+        'error': 'There was a mixture of fields that specified image names and fields that did not.  Please check the CSV',
+        'csv': [
+            '0,       ,1,884.66,510,1219.66,737.66,1,-1,ignored,0.98',
+            '1,2.png,0,111,222,3333,444,1,-1,typestring,0.55',
+        ],
+    },
+    {
+        'pass': False,
+        'error': 'There was a mixture of fields that specified image names and fields that did not.  Please check the CSV',
+        'csv': [
+            '0,1.png,1,884.66,510,1219.66,737.66,1,-1,ignored,0.98',
+            '1,,0,111,222,3333,444,1,-1,typestring,0.55',
+        ],
+    },
+    {
+        'pass': True,
+        'csv': [
+            '0,       ,1,884.66,510,1219.66,737.66,1,-1,ignored,0.98',
+            '',
+            '1,,0,111,222,3333,444,1,-1,typestring,0.55',
+        ],
+    },
+]
+
 
 @pytest.mark.parametrize("input,expected,typeFilter", test_tuple)
 def test_write_viame_csv(input: Dict[str, dict], expected: List[str], typeFilter: List[str]):
@@ -291,3 +319,14 @@ def test_empty_header():
         for line in lines:
             assert line.startswith('#')
         assert len(lines) == 2
+
+
+def test_image_filenames():
+    image_map = {'1': 0, '2': 1, '3': 2}
+    for test in image_filename_tests:
+        if test['pass']:
+            results = viame.load_csv_as_tracks_and_attributes(test['csv'], image_map)
+            assert len(results[0]) > 0
+        else:
+            with pytest.raises(ValueError, match=re.escape(test['error'])):
+                viame.load_csv_as_tracks_and_attributes(test['csv'], image_map)

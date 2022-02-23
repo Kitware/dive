@@ -258,15 +258,21 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<A
     });
     parser.on('readable', () => {
       let record: string[];
+      let hasFilenames: undefined | boolean;
       // eslint-disable-next-line no-cond-assign
       while (record = parser.read()) {
         try {
           const {
             rowInfo, feature, trackAttributes, confidencePairs,
           } = _parseFeature(record);
-
-          if (imageMap !== undefined) {
-            // validate image ordering if the imageMap is provided.
+          const currentHasFileName = rowInfo.filename.trim() !== '';
+          if (imageMap !== undefined && hasFilenames === undefined) {
+            hasFilenames = currentHasFileName;
+          } else if (imageMap !== undefined && hasFilenames !== currentHasFileName) {
+            throw new Error('Image Filenames specified in the Column 2 of the CSV must either be all set or all empty. Encountered a mixture of set and empty filenames');
+          }
+          if (imageMap !== undefined && hasFilenames) {
+            // validate image ordering if the imageMap is provided and a non-whitespace filename
             const [imageName] = splitExt(rowInfo.filename);
             const expectedFrameNumber = imageMap.get(imageName);
             if (expectedFrameNumber === undefined) {
