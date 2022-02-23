@@ -57,6 +57,13 @@ async function openFromDisk(datasetType: DatasetType | 'calibration' | 'annotati
     properties: [props],
     filters,
   });
+  if (datasetType === 'annotation') {
+    if (!results.filePaths.every((item) => inputAnnotationFileTypes.includes(
+      npath.extname(item),
+    ))) {
+      throw Error('File Types did not match JSON or CSV');
+    }
+  }
   return results;
 }
 
