@@ -4,7 +4,7 @@ Attributes are properties that can be assigned to an entire track or a single de
 
 ## Background/Terms
 
-It’s important to note that there are attribute definitations and then track/detection attributes.  Attributes definitions are all the possible attributes that can be assigned to tracks or detection.  Think of them as a template for the attributes that can be set on tracks/detections.  Track attributes are information for the entire track and detection attributes are information for the specific frame or instance of time.
+It’s important to note that there are attribute definitions and then track/detection attributes.  Attribute definitions are all the possible attributes that can be assigned to tracks or detection.  Think of them as a template for the attributes that can be set on tracks/detections.  Track attributes are information for the entire track and detection attributes are information for the specific frame or instance of time.
 
 - **Attribute Definition** - base attribute which defines the name and **type** for either a track or detection attribute
 - **Track Attribute** - attribute with a **value** associated with the entire track
@@ -58,14 +58,14 @@ By default the view on the page shows all attributes associated with the dataset
 
 !['Edit Attributes'](images/Attributes/trackDetailsFull.png)    !['View Attributes'](images/Attributes/trackDetailsView.png)
 
-After clicking the eye icon, all attributes that are unset will be removed from view.  This is useful for reviewing or viewing attributes of a track when there is a large number of attribute definitions.
+After clicking the eye icon, all attributes that are unset will be removed from view.  This is useful for reviewing or viewing attributes of a track when there are a large number of attribute definitions.
 
 1. To add attributes click on the corresponding "+Attribute" icon for either a track or detection attribute
     1. ![Eye Icon](images/Attributes/AttributeButton.png)
 
 1. This will bring up a New Attribute dialog where you can enter a unique name for the attribute
     1. ![New Attribute Panel](images/Attributes/newAttribute.png)
-1. Next choose a datatype:
+1. Next choose a data type:
     1. Number
     1. Boolean - (True/False)
     1. Text

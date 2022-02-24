@@ -7,9 +7,12 @@ DIVE is available as an electron based desktop application with [VIAME](https://
 * You have large quantities of data on disk impractical for uploading to a server.
 
 DIVE Desktop is fully supported on Windows and Linux. MacOS users can use it as an annotator, but without NVIDIA Driver support, the machine learning features from VIAME are unavailable.
+
+![images/Banner.png](images/Banner.png)
+
 ## Installation
 
-[:material-download: Download the latest DIVE Desktop from GitHub](https://github.com/Kitware/dive/releases/latest){ .md-button .md-button--primary }
+[:material-download: Download the latest DIVE Desktop from GitHub](https://github.com/Kitware/dive/releases/latest){ .md-button }
 
 Choose an **asset** from the list matching your operating system:
 
@@ -20,8 +23,6 @@ Choose an **asset** from the list matching your operating system:
 | MacOS    | .dmg      | MacOS DiskImage (Intel only, M1 not supported) |
 | Linux    | .AppImage | Portable executable for all Linux platforms (recommended) |
 | Linux    | .snap     | Ubuntu SnapCraft package |
-
-![images/Banner.png](images/Banner.png)
 
 ### Full VIAME Desktop Installation
 
@@ -46,7 +47,7 @@ Click either ==Open Image Sequence :material-folder-open:== or ==Open Video :mat
 * ==:material-binoculars: Stereo== will prompt you to choose 2 videos or 2 image sequences.
 * ==:material-camera-burst: Multi-Cam== will prompt you to describe the multi-cam configuration by naming several cameras and picking the source media for each.
 
-The import routine will look for `.csv` and `.json` files in the same directory as the source media, and you will be prompted to manually select an annotation file and a configureation file.  Neither is required.
+The import routine will look for `.csv` and `.json` files in the same directory as the source media, and you will be prompted to manually select an annotation file and a configuration file.  Neither is required.
 
 ### Video Transcoding
 
@@ -70,7 +71,7 @@ DIVE Desktop requires a local installation of the VIAME toolkit to run pipelines
     * Use ==Choose :material-folder:== to choose the base installation path, then click ==:material-content-save: Save==.
 * **Project Data Storage Path** defaults to a subfolder in your user workspace and should generally not be changed.
 * **Read only mode** disables the ability to save when using the annotator.
-* **Synchronize Recents** - The ==:material-sync: Synchronize Recents with Project Data== button is useful if data in the Project Data Storatge Path gets out of sync with what appears in the ==:material-folder-open: Recents== list.
+* **Synchronize Recents** - The ==:material-sync: Synchronize Recents with Project Data== button is useful if data in the Project Data Storage Path gets out of sync with what appears in the ==:material-folder-open: Recents== list.
 
 ### Data Storage Path
 
@@ -133,7 +134,7 @@ Trained models are kept in `${Project Data Storage Path}/DIVE_Pipelines` as desc
 * The pipe file can be one of `detector.pipe`, `tracker.pipe`, or `generate.pipe`.
 * Other files can be `.zip`, `.svm`, `.lbl`, or `.cfg`.
 
-You can use exteranally trained models in DIVE by creating a folder containing these files.  The name of the configuration or pipeline in dive will be the folder name you create.
+You can use externally trained models in DIVE by creating a folder containing these files.  The name of the configuration or pipeline in dive will be the folder name you create.
 
 ## Troubleshooting
 
@@ -153,8 +154,8 @@ If you don't see some pipelines you expect, you may not have installed the addon
 
 > Advanced troubleshooting
 
-If you're experience problems or have questions about DIVE Desktop, [contact us](index.md#get-help) and include the content from the settings page such as `Build Version` as well as your currently installed VIAME version.
+If you experience problems or have questions about DIVE Desktop, [contact us](Support.md) and include the content from the settings page such as `Build Version` as well as your currently installed VIAME version.
 
-It's also helpful to look in the debug console.  Press ++ctrl+shift+i++ to launch the Dev Tools and look under the console tab.  Errors and warnings will appear in red and yellow.  You can right-click in the console area and click "Save As" to save the log file and [open a support ticket](https://discourse.kitware.com/c/viame-dive/17)
+It's also helpful to look in the debug console.  Press ++ctrl+shift+i++ to launch the Dev Tools and look under the console tab.  Errors and warnings will appear in red and yellow.  You can right-click in the console area and click "Save As" to save the log file and [open a support ticket](Support.md)
 
 ![Debugging Desktop](images/General/desktop-debug.png)

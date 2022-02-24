@@ -1,18 +1,29 @@
-# Annotation View
+# Annotation Window
 
 ![Annotaton View Hightlight](images/UIView/AnnotationViewHighlight.png)
 
-The Annotation View is where images an the annotations reside.  Annotations have different states and properties based on the current mode.
-**Left Click** - this will select an annotation and highlight cyan
-**Right Click** - select an annotation and place it in editing mode allowing to edit existing geometry or create new ones
-**Middle Click** - Pan the camera.  This is useful in polygon editing mode or while zoomen and creating annotations.
+The annotation window will look different based on the current mode and what visibility toggles are enabled.
 
-* **Default Mode** - In the default mode the annotation will have bounds associated with it as well as a text name for the type and an associated confidence level.  The color and styling will match what is specified in the TypeList Settings.  There are additional modes which can be toggled on and off in the ![Edit Bar](UI-Edit-Bar.md).
+* **Left Click** an annotation to select it.
+* **Right Click** an annotation to select it and enter editing mode.
+* **Middle Click** and drag to pan the camera.  This is useful when drawing annotations while zoomed such that you need to work on something slightly off-screen.
+
+## Viewer modes
+
+* **Default Mode** - In the default mode the annotation will have bounds associated with it as well as a text name for the type and an associated confidence level.  The color and styling will match what is specified in the [Type List Style Settings](UI-Type-List.md).  There are additional modes which can be toggled on and off in the [Edit Bar](UI-Navigation-Editing-Bar.md).
+
 * **Selected Annotation** - selected annotations are cyan in color
-    * ![Track Selected Mode](images/TrackSelectedMode.png)
+
+    ![Track Selected Mode](images/TrackSelectedMode.png)
+
 * **Editing Annotation** - Editing annotations are cyan in color and provide handles to resize the annotation as well as a central handle to move the annotation to different spot.
-    * ![Track Edit Mode](images/TrackEditMode.png)
-* **Creating Annotation** - Creating an annotation requires clicking and dragging the mouse.  When the AnnotionView is ready to create the annotation the mouse will turn into a crosshair.
-    * ![Track Creation Crosshair](images/TrackCreationCrosshair.png)
-* **Interpolated Annotation** - If an annotation has interpolation and the current frame isn't a keyframe it will appear slightly faded and will become a keyframe if the user edits the size or position
-    * ![Interpolated Editing](images/InterpolatedEditing.png)
+
+    ![Track Edit Mode](images/TrackEditMode.png)
+
+* **Creating Annotation** - Creating an annotation requires clicking and dragging the mouse.  Creating in the annotation window is indicated by a cursor crosshair.
+    
+    ![Track Creation Crosshair](images/TrackCreationCrosshair.png)
+
+* **Interpolated Annotation** - If a track has an interpolated box on the current frame it will appear slightly faded.
+    
+    ![Interpolated Editing](images/InterpolatedEditing.png)

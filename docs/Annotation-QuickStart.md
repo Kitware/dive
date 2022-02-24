@@ -36,7 +36,7 @@ Interpolation editing for existing tracks will only be enabled on tracks that sp
     1. Also ensure that the **Interpolate** switch is turned **on**.
 1. Enter the annotation creation state by clicking ==:material-plus: Track== or pressing the ++n++ key.
 1. Create your first detection by clicking and dragging to draw a rectangle around the object you want to track.
-1. You can now go forware one or more frames by pressing ++f++ or ++arrow-right++ or by using the [Timeline controls](UI-Timeline.md) and an outline of the previous annotation will remain.
+1. You can now go forward one or more frames by pressing ++f++ or ++arrow-right++ or by using the [Timeline controls](UI-Timeline.md) and an outline of the previous annotation will remain.
     1. ![Interpolated Editing](images/InterpolatedEditing.png)
 1. To set another keyframe, either move or resize the transparent annotation or press ++k++. There are also controls on for the currently selected track to add/remove keyframes. 
     1. ==:material-star:== and ==:material-star-outline:== will allow you to add and remove the current keyframe.
@@ -80,7 +80,7 @@ The demo below shows how to use AdvanceFrame mode to travel through the video wh
 
 1. **Right-click** an existing detection to enter edit mode.
 1. Enter head/tail creation mode
-    1. In the [Edit bar](UI-Edit-Bar.md), click ==:material-vector-line:==
+    1. In the [Edit bar](UI-Navigation-Editing-Bar.md), click ==:material-vector-line:==
     1. Or Press ++h++ to create a head point.
     1. Or press ++t++ to create a tail point.
 1. The mouse cursor will become a crosshair.  Click in the annotator to place each point.
@@ -91,7 +91,7 @@ The demo below shows how to use AdvanceFrame mode to travel through the video wh
 You can create a track by starting with a head/tail annotation or just a single point.
 
 1. Enter the annotation creation state by clicking ==:material-plus: Track== or pressing the ++n++ key.
-1. In the [Edit bar](UI-Edit-Bar.md), click ==:material-vector-line:== to switch to head/tail creation mode or press ++h++, ++t++, or ++3++.
+1. In the [Edit bar](UI-Navigation-Editing-Bar.md), click ==:material-vector-line:== to switch to head/tail creation mode or press ++h++, ++t++, or ++3++.
 1. The mouse cursor will become a crosshair.  Click in the annotator to place each point.
 1. Press ++escape++ to finish creation after one or both points have been placed.
 
@@ -103,7 +103,7 @@ You can create a track by starting with a head/tail annotation or just a single 
 
 * You don't have to place both markers.  Press ++escape++ on your keyboard at anytime to exit out of the line creation mode.
 * You can **modify** an existing head/tail marker by placing the annotation into 'Edit Mode' and then selecting the line tool from the editing options.
-* You can **delete** a head/tail pair by selecting a detection with existing markers, entering edit mode, and clicking ==Delete Linestring==.
+* You can **delete** a head/tail pair by selecting a detection with existing markers, entering edit mode, and clicking ==Delete Linestring :material-delete:=={ .error }
 
 ### Fish Head Tail Demo
 
@@ -116,18 +116,18 @@ Every track is required to have a bounding box, but a polygon region may be adde
 ### Polygon Creation
 
 1. Enter the annotation creation state by clicking ==:material-plus: Track== or pressing the ++n++ key.
-1. In the [Edit bar](UI-Edit-Bar.md), click ==:material-vector-polygon:== or press ++2++ to enter polygon creation mode.
+1. In the [Edit bar](UI-Navigation-Editing-Bar.md), click ==:material-vector-polygon:== or press ++2++ to enter polygon creation mode.
 1. Place each point on the polygon by clicking.
 1. **Right-Click** to automatically close the polygon or press ++escape++ to cancel creation.
 
 ### Polygon Editing
 
 1. **Right click** an annotation to enter edit mode.
-1. In the [Edit bar](UI-Edit-Bar.md), click ==:material-vector-polygon:== or press ++2++ to enter polygon edit mode.
+1. In the [Edit bar](UI-Navigation-Editing-Bar.md), click ==:material-vector-polygon:== or press ++2++ to enter polygon edit mode.
 1. Click and drag any large circle handle to move it.  This will move the point to a new position and recalculate the bounding box.
-1. Click and drag any small circle handle allow to create new points. This can be used to adjust the polygon and make it appear smoother.
-1. To **delete the whole polygon**, in the [Edit bar](UI-Edit-Bar.md), click ==Del polygon==.
-1. To **delete a single keypoint**, click its handle then click ==Del Point N==
+1. Click and drag any small circle handle to create new points. This can be used to adjust the polygon and make it appear smoother.
+1. To **delete the whole polygon**, in the [Edit bar](UI-Navigation-Editing-Bar.md), click ==Del polygon :material-delete:=={ .error }
+1. To **delete a single keypoint**, click its handle then click ==Del Point N :material-delete:=={ .error }
 
 ### Polygon Demo
 

@@ -3,8 +3,8 @@
 
     If you are running a pipeline or training workflow during update, it will be interrupted and started over.
 
-[Use our public server :material-open-in-new:](https://viame.kitware.com){ .md-button .md-button--primary }
-[Deploy your own](Deployment-Overview.md){ .md-button .md-button--primary }
+[Use our public server :material-open-in-new:](https://viame.kitware.com){ .md-button }
+[Deploy your own](Deployment-Overview.md){ .md-button }
 
 ## Register for an account
 
@@ -51,7 +51,7 @@ Data can be downloaded from the FileBrowser by clicking the checkmark to the lef
 
 * ==Image Sequence== or ==Video== will export the source media as a `.zip`
 * ==Detections== will export a VIAME `.csv` of annotations
-    * Checkbox options are explained in the [Navigation Bar Section](UI-Navigation-Bar.md).
+    * Checkbox options are explained in the [Navigation Bar Section](UI-Navigation-Editing-Bar.md#navigation-bar).
 * ==Configuration== will export a [DIVE configuration](DataFormats.md#dive-configuration-json) `.json`
 * ==Everything== will export all of the above.
 
@@ -78,7 +78,7 @@ It's easiest to create a single parent folder to share and then put all individu
 
 !!! warning
 
-    You should note that 2 people **cannot** work on the same video at the same time.  Your team should coordianate on who will work on each dataset.
+    You should note that 2 people **cannot** work on the same video at the same time.  Your team should coordinate on who will work on each dataset.
 
 ## Managing Permissions
 

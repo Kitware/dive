@@ -99,7 +99,7 @@ This step will prepare the new host to run a VIAME worker by installing nvidia d
 
 ### Ansible Extra Vars
 
-These are all the variables that can be provided with `--extra-vars` along with which scenario each on applies to.
+These are all the variables that can be provided with `--extra-vars`.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -136,7 +136,7 @@ ansible-playbook -i inventory ansible/playbook.yml --extra-vars "run_worker_cont
 Once provisioning is complete, jobs should begin processing from the job queue.  You can check [viame.kitware.com/#/jobs](https://viame.kitware.com/#/jobs) to see queue progress and logs.
 
 !!! tip
-    This ansible playbook is runnable from any Ubuntu 18.04+ host to any Ubuntu 18.04+ target.  To run it locally, use the `inventory.local` file instead.  If you already have nvidia or docker installed, you can comment out these lines in the playbook.
+    This Ansible playbook is runnable from any Ubuntu 18.04+ host to any Ubuntu 18.04+ target.  To run it locally, use the `inventory.local` file instead.  If you already have nvidia or docker installed, you can comment out these lines in the playbook.
 
     **If you run locally** you'll need to restart the machine and run the playbook a second time.  The playbook will do this automatically for remote provisioning, but cannot restart if you're provisioning localhost.
 

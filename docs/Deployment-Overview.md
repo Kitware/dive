@@ -17,9 +17,9 @@ The goal of this page is to provide an overview of the ways to run VIAME or VIAM
 Free to use; no maintenance costs | You pay hosting and maintenance costs |
 Always up to date | Possible to configure automated updates |
 One shared environment for everyone | Your organization has full control over access |
-Our team monitors this service for errors and can respond to issues proactively | Support by email requires logs, screenshots, and other error information if applicable
-Our team can provide guidance on annotation and training because we have direct access to your data | Support by email usually requires example data and annotations
-Having user data in our environment helps us understand user needs and improve the product | Feedback by email is always appreciated.
+Our team monitors this service for errors and can respond to issues proactively | Support requires logs, screenshots, and other error information if applicable
+Our team can provide guidance on annotation and training because we have direct access to your data | Support usually requires example data and annotations
+Having user data in our environment helps us understand user needs and improve the product | Feedback is always appreciated.
 Limited shared compute resources (2 GPUs) available to process jobs. Can be mitigated by hybrid compute options | As much compute as you pay for
 
 ## Using our public server
@@ -28,7 +28,7 @@ The easiest option to get started using VIAME is to [try our public server](Web-
 
 ## Running your own instance
 
-You may wish to run your own deployment of VIAME Web in your lab or a cloud environment.  Deploying VIAME Web is relatively straighforward with `docker-compose`.
+You may wish to run your own deployment of VIAME Web in your lab or a cloud environment.  Deploying VIAME Web is relatively straightforward with `docker-compose`.
 
 | Environment | Instructions |
 |-------------|--------------|
@@ -77,4 +77,4 @@ Azure Blob Storage | Limited import support using [MinIO Azure Gateway](https://
 
 ## Get Help
 
-[Contact us](https://kitware.github.io/dive/#get-help) for support with any of these topics.
+[Contact us](Support.md) for support with any of these topics.

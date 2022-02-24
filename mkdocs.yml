@@ -22,6 +22,7 @@ extra_css: [extra.css]
 markdown_extensions:
   - admonition
   - attr_list
+  - md_in_html
   - pymdownx.keys
   - pymdownx.mark
   - pymdownx.highlight:
@@ -48,9 +49,8 @@ nav:
     - Annotation Quickstart: Annotation-QuickStart.md
     - User Interface Guide:
       - Introduction: Annotation-User-Interface-Overview.md
-      - Navigation Bar: UI-Navigation-Bar.md
-      - Edit Bar: UI-Edit-Bar.md
-      - Annotation View: UI-Annotation-View.md
+      - Navigation and Editing Bar: UI-Navigation-Editing-Bar.md
+      - Annotation Window: UI-Annotation-View.md
       - Type List: UI-Type-List.md
       - Track List: UI-Track-List.md
       - Timeline: UI-Timeline.md
@@ -59,6 +59,7 @@ nav:
     - Advanced features:
       - Pipeline Import and Export: Pipeline-Import-Export.md
       - Command Line Tools: Command-Line-Tools.md
+    - Support: Support.md
   - Pipelines & Training: Pipeline-Documentation.md
   - Data Formats: DataFormats.md
   - Administrator Guide:
@@ -68,7 +69,7 @@ nav:
     - Cloud Storage Integration: Deployment-Storage.md
     - REST API Specification: https://viame.kitware.com/api/v1
   - Frequently Asked Questions: FAQ.md
-  - Support: '/dive/#support'
+  - Support: Support.md
 
 google_analytics:
   - UA-6042509-43

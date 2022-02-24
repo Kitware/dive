@@ -13,15 +13,18 @@ Some of the DIVE data conversion features are exposed through `dive`.
 
 ## Installation
 
+Follow the docs in the [Debug Utils and Command Line Tools](https://github.com/Kitware/dive/tree/main/server#debug-utils-and-command-line-tools) section of `server/README.md`.
+
 ``` bash
-# Install the command line tools directly from source
-pip3 install git+https://github.com/Kitware/dive.git@main#subdirectory=server
+git clone https://github.com/Kitware/dive.git
+cd dive/server
+poetry install
 ```
 
 ## Usage
 
 ``` bash
-~$ dive convert --help
+~$ poetry run dive convert --help
 
 # Usage: dive convert [OPTIONS] COMMAND [ARGS]...
 
