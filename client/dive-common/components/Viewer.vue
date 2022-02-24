@@ -497,6 +497,7 @@ export default defineComponent({
       <template #extension>
         <EditorMenu
           v-bind="{ editingMode, visibleModes, editingTrack, recipes, mergeMode, editingDetails }"
+          :tail-settings.sync="clientSettings.annotatorPreferences.trackTails"
           @set-annotation-state="handler.setAnnotationState"
           @exit-edit="handler.trackAbort"
         >
