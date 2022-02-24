@@ -14,3 +14,7 @@
 .md-typeset a {
   text-decoration: underline;
 }
+
+.md-typeset a.md-button {
+  text-decoration: none;
+}

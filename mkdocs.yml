@@ -54,11 +54,12 @@ nav:
       - Type List: UI-Type-List.md
       - Track List: UI-Track-List.md
       - Timeline: UI-Timeline.md
-      - Attributes: Attributes.md
+      - Attributes: UI-Attributes.md
     - Keyboard Shortcut Reference: Mouse-Keyboard-Shortcuts.md
     - Advanced features:
       - Pipeline Import and Export: Pipeline-Import-Export.md
       - Command Line Tools: Command-Line-Tools.md
+    - Screenshots: Screenshots.md
     - Support: Support.md
   - Pipelines & Training: Pipeline-Documentation.md
   - Data Formats: DataFormats.md
