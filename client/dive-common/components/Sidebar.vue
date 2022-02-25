@@ -6,7 +6,7 @@ import {
   watch,
 } from '@vue/composition-api';
 
-import { TypeList, TrackList } from 'vue-media-annotator/components';
+import { TypeList, TrackList, injectAggregateController } from 'vue-media-annotator/components';
 import { useAllTypes, useHandler } from 'vue-media-annotator/provides';
 
 import { clientSettings } from 'dive-common/store/settings';
@@ -45,6 +45,11 @@ export default defineComponent({
     const { visible } = usePrompt();
     const trackSettings = toRef(clientSettings, 'trackSettings');
     const typeSettings = toRef(clientSettings, 'typeSettings');
+    const aggregateController = injectAggregateController();
+
+    function seek(frame: number) {
+      aggregateController.value.seek(frame);
+    }
 
     const data = reactive({
       currentTab: 'tracks' as 'tracks' | 'attributes',
@@ -89,6 +94,7 @@ export default defineComponent({
       doToggleMerge,
       onResize,
       swapTabs,
+      seek,
     };
   },
 });
@@ -145,7 +151,7 @@ export default defineComponent({
           :lock-types="typeSettings.lockTypes"
           :hotkeys-disabled="visible()"
           :height="data.trackHeight"
-          @track-seek="$emit('track-seek', $event)"
+          @track-seek="seek"
         >
           <template slot="settings">
             <TrackSettingsPanel
@@ -159,7 +165,7 @@ export default defineComponent({
         :lock-types="typeSettings.lockTypes"
         :hotkeys-disabled="visible()"
         :width="width"
-        @track-seek="$emit('track-seek', $event)"
+        @track-seek="seek"
         @toggle-merge="doToggleMerge"
         @back="swapTabs"
         @commit-merge="commitMerge"
