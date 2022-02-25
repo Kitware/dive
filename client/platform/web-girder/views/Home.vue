@@ -88,6 +88,15 @@ export default defineComponent({
     selectedDescription() {
       return this.location?.description;
     },
+    runningPipelines() {
+      const results = [];
+      this.locationInputs.forEach((item) => {
+        if (this.getters['Jobs/datasetRunningState'](item)) {
+          results.push(item);
+        }
+      });
+      return results;
+    },
   },
   methods: {
     async deleteSelection() {
@@ -154,7 +163,7 @@ export default defineComponent({
                 <run-pipeline-menu
                   v-bind="{ buttonOptions, menuOptions }"
                   :selected-dataset-ids="locationInputs"
-                  :get-running-pipelines="getters['Jobs/datasetRunningState']"
+                  :running-pipelines="runningPipelines"
                 />
                 <export
                   v-bind="{ buttonOptions, menuOptions }"

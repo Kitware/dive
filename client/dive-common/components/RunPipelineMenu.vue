@@ -40,9 +40,9 @@ export default defineComponent({
       type: Array as PropType<number[]>,
       default: () => ([1]),
     },
-    getRunningPipelines: {
-      type: Function as PropType<(id: string) => boolean | string>,
-      default: () => false,
+    runningPipelines: {
+      type: Array as PropType<string[]>,
+      default: () => ([]),
     },
     readOnlyMode: {
       type: Boolean,
@@ -105,13 +105,13 @@ export default defineComponent({
 
     const pipelinesCurrentlyRunning = computed(
       () => props.selectedDatasetIds.reduce(
-        (acc, item) => acc || !!props.getRunningPipelines(item), false,
+        (acc, item) => acc || props.runningPipelines.includes(item), false,
       ),
     );
 
     const singlePipelineValue = computed(() => {
       if (props.selectedDatasetIds.length === 1) {
-        return props.getRunningPipelines(props.selectedDatasetIds[0]);
+        return props.runningPipelines.includes(props.selectedDatasetIds[0]);
       }
       return false;
     });

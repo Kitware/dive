@@ -28,11 +28,6 @@ const menuOptions = {
   bottom: true,
 };
 
-interface CompleteJob {
-  type: string;
-  title: string;
-}
-
 /**
  * ViewerLoader is responsible for loading
  * data from girder.
@@ -79,16 +74,23 @@ export default defineComponent({
     });
     const { getters } = store;
     const currentJob = computed(() => getters['Jobs/datasetCompleteJobs'](props.id));
+    const runningPipelines = computed(() => {
+      const results: string[] = [];
+      if (getters['Jobs/datasetRunningState'](props.id)) {
+        results.push(props.id);
+      }
+      return results;
+    });
     watch(currentJob, async () => {
       if (currentJob.value !== false && currentJob.value !== undefined) {
         const result = await prompt({
           title: 'Pipeline Finished',
           text: [`Pipeline: ${currentJob.value.title}`,
-            'finished running sucesfully on the current dataset.  Click reload to load the annotations.  The current annotations will be replaced with the pipeline output.',
+            'finished running on the current dataset.  Click reload to load the annotations.  The current annotations will be replaced with the pipeline output.',
           ],
           confirm: true,
           positiveButton: 'Reload',
-          negativeButton: 'Cancel',
+          negativeButton: '',
         });
         store.dispatch('Jobs/removeCompleteJob', { datasetId: props.id });
         if (result) {
@@ -96,6 +98,7 @@ export default defineComponent({
         }
       }
     });
+
     onMounted(() => {
       window.addEventListener('beforeunload', viewerRef.value.warnBrowserExit);
     });
@@ -112,6 +115,7 @@ export default defineComponent({
       viewerRef,
       getters,
       currentJob,
+      runningPipelines,
     };
   },
 });
@@ -145,7 +149,7 @@ export default defineComponent({
       <RunPipelineMenu
         v-bind="{ buttonOptions, menuOptions }"
         :selected-dataset-ids="[id]"
-        :get-running-pipelines="getters['Jobs/datasetRunningState']"
+        :running-pipelines="runningPipelines"
       />
       <ImportAnnotations
         v-bind="{ buttonOptions,

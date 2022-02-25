@@ -56,20 +56,24 @@ export default defineComponent({
         const result = await prompt({
           title: 'Pipeline Finished',
           text: [`Pipeline: ${currentJob.job.title}`,
-            'finished running sucesfully on the current dataset.  Click reload to load the annotations.  The current annotations will be replaced with the pipeline output.',
+            'finished running on the current dataset.  Click reload to load the annotations.  The current annotations will be replaced with the pipeline output.',
           ],
           confirm: true,
           positiveButton: 'Reload',
-          negativeButton: 'Cancel',
+          negativeButton: '',
         });
         if (result) {
           viewerRef.value.reloadAnnotations();
         }
       }
     });
-    const isPipelineRunning = (jobId: string) => (runningJobs.value.find(
-      (item) => item.job.datasetIds.includes(jobId) && item.job.jobType === 'pipeline',
-    ) !== undefined);
+    const runningPipelines = computed(() => {
+      const results: string[] = [];
+      if (runningJobs.value.find((item) => item.job.datasetIds.includes(props.id))) {
+        results.push(props.id);
+      }
+      return results;
+    });
     return {
       datasets,
       compoundId,
@@ -79,7 +83,7 @@ export default defineComponent({
       subTypeList,
       camNumbers,
       readOnlyMode,
-      isPipelineRunning,
+      runningPipelines,
     };
   },
 });
@@ -89,7 +93,7 @@ export default defineComponent({
   <Viewer
     :id.sync="compoundId"
     ref="viewerRef"
-    :read-only-mode="readOnlyMode || !!isPipelineRunning(id)"
+    :read-only-mode="readOnlyMode || runningPipelines.length > 0"
   >
     <template #title>
       <v-tabs
@@ -115,7 +119,7 @@ export default defineComponent({
         :selected-dataset-ids="[id]"
         :sub-type-list="subTypeList"
         :camera-numbers="camNumbers"
-        :get-running-pipelines="isPipelineRunning"
+        :running-pipelines="runningPipelines"
         :read-only-mode="readOnlyMode"
         v-bind="{ buttonOptions, menuOptions }"
       />

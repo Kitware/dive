@@ -261,7 +261,6 @@ export default defineComponent({
           >
             <template #activator="{ on, attrs }">
               <v-btn
-
                 icon
                 small
                 class="mr-2"
