@@ -645,6 +645,11 @@ export default defineComponent({
       >
         <div
           v-if="progress.loaded"
+          v-mousetrap="[
+            { bind: 'n', handler: () => handler.trackAdd() },
+            { bind: 'r', handler: () => mediaController.resetZoom() },
+            { bind: 'esc', handler: () => handler.trackAbort() },
+          ]"
           class="d-flex flex-column grow"
         >
           <div class="d-flex grow">

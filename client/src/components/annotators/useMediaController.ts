@@ -297,14 +297,14 @@ export function useMediaController() {
           imageCursorRef.value.style.display = 'block';
         }
       },
-      handleMouseMove(/*evt: MouseEvent*/) {
-        // const offsetX = evt.clientX + 10;
-        // const offsetY = evt.clientY - 25;
-        // window.requestAnimationFrame(() => {
-        //   if (imageCursorRef.value) {
-        //     imageCursorRef.value.style.transform = `translate(${offsetX}px, ${offsetY}px)`;
-        //   }
-        // });
+      handleMouseMove(evt: MouseEvent) {
+        const offsetX = evt.clientX + 10;
+        const offsetY = evt.clientY - 25;
+        window.requestAnimationFrame(() => {
+          if (imageCursorRef.value) {
+            imageCursorRef.value.style.transform = `translate(${offsetX}px, ${offsetY}px)`;
+          }
+        });
       },
     };
 
