@@ -40,7 +40,7 @@ A track that spans multiple frames and has more options
 * ==:material-call-split:== splits the track into 2 smaller tracks on the current frame.
 * ==:material-star:== is filled in if the current frame annotation is a keyfame.  Clicking this will either remove the keyframe if it exists or make the current interpolated annotation a keyframe.
 * ==:material-vector-selection:== turns interpolation on/off for the interval between keyframes.
-* ==:material-chevron-double-left:== jumpts to the first frame of track
+* ==:material-chevron-double-left:== jumps to the first frame of track
 * ==:material-chevron-left:== jumps to the previous keyframe
 * ==:material-chevron-right:== jumps to the next keyframe
 * ==:material-chevron-double-right:== jumps to the last frame of the track

@@ -32,9 +32,9 @@ This is the installation guide for DIVE.  If you want the full VIAME toolkit, yo
 
 DIVE Desktop supports single- and multi-camera datasets.
 
-* **Single Camera Datasets** is the most common option.  Single camera datasets are supported by the majority of VIAME pipeline and training configurations.
-* **Stereo Datasets** are for datasets collected from a camera rig with a left and right camera.  These datasets can be used with certain specialty VIAME pipelines.
-* **Multi-Cam Datasets** are for more generic multi-camera rig setups.  They may have overlapping fields of view, and their physical relationship may be described by a camera transform `.npz` file (numpy transformation matrix).
+* **Single Camera Dataset** is the most common option.  Single camera datasets are supported by the majority of VIAME pipeline and training configurations.
+* **Stereo Datasets** are for datasets collected from a camera rig with a left and right camera.  These datasets can be used with certain specialty VIAME pipelines. Their physical relationship may be described by a camera transform `.npz` file (numpy transformation matrix).
+* **Multi-Cam Datasets** are for more generic multi-camera rig setups.  They may have overlapping fields of view.
 
 ### Importing Datasets
 

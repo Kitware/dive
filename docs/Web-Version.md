@@ -1,7 +1,7 @@
 !!! warning
     **VIAME Web is automatically updated at 2AM EST/EDT every Thursday.**
 
-    If you are running a pipeline or training workflow during update, it will be interrupted and started over.
+    If you are running a pipeline or training workflow during update, it will be interrupted and restarted.
 
 [Use our public server :material-open-in-new:](https://viame.kitware.com){ .md-button }
 [Deploy your own](Deployment-Overview.md){ .md-button }

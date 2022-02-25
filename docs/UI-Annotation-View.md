@@ -20,7 +20,7 @@ The annotation window will look different based on the current mode and what vis
 
     ![Track Edit Mode](images/TrackEditMode.png)
 
-* **Creating Annotation** - Creating an annotation requires clicking and dragging the mouse.  Creating in the annotation window is indicated by a cursor crosshair.
+* **Creating Annotation** - Creating an annotation requires clicking and dragging the mouse.  Creating in the annotation window is indicated by a cursor crosshair and an icon that shows the type being drawn.
     
     ![Track Creation Crosshair](images/TrackCreationCrosshair.png)
 

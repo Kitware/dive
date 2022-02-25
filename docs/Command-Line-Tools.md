@@ -8,7 +8,7 @@ Some of the DIVE data conversion features are exposed through `dive`.
 
 ## Features
 
-* Convert between VIAME CSV, DIVE Json, kpf, and coco.
+* Convert between [various supported formats](DataFormats.md)
 * Verify the integrity of a DIVE Json annotation file.
 
 ## Installation

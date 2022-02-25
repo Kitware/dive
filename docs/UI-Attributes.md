@@ -63,7 +63,7 @@ By default, all attributes associated with the dataset are visible and editable.
     1. `Boolean` (True/False)
     1. `Text`
         1. Custom text that the user provides
-        1. A predefined list of text to choose from
+        1. A predefined list of text to choose from, separated by newline.
 1. Click ==Save== to add the new attribute
 
 ## Editing Attribute Definitions

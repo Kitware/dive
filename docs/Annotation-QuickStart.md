@@ -59,7 +59,7 @@ Click ==Events== in the [Timeline controls](UI-Timeline.md) to see where interpo
 
 ### Advance Frame Mode
 
-This mode keeps you editing the same track while automatically advancing the frame each time a detection is drawn.  In most cases interpolation mode will be easier.
+This mode keeps you editing the same track while automatically advancing the frame each time a detection is drawn.  In most cases **interpolation mode will be easier**.
 
 1. Click ==:material-cog:== (creation settings menu) in the [Track List](UI-Track-List.md) area.
     1. From the **Mode** dropdown, choose **Track**.

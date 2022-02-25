@@ -60,4 +60,4 @@ Manual refinement of auto-generated annotations | ✔️ | ✔️
 
 **Interpolation** - The implicit bounding boxes between keyframes in a track.
 
-**Attributes** - Attributes are free-form secondary annotations on both tracks and detections. For example, a `fish` type track may have an `is_adult` boolean attribute.
+**Attributes** - Attributes are free-form secondary characteristics on both tracks and detections. For example, a `fish` type track may have an `is_adult` boolean attribute.
