@@ -1,7 +1,8 @@
-!!! warning
-    **VIAME Web is automatically updated at 2AM EST/EDT every Thursday.**
+!!! info
 
-    If you are running a pipeline or training workflow during update, it will be interrupted and restarted.
+    **VIAME Web is automatically updated at 2AM EST/EDT every Thursday.**  If you are running a pipeline or training workflow during update, it will be interrupted and restarted.
+
+    Also note that pipelines and training jobs on our public server are **limited to 3 days of execution** time on 1 GPU.  If you have a job that needs more time, please run it with the Desktop version, your own cloud environment like GCP, or [contact us for support](Support.md).
 
 [Use our public server :material-open-in-new:](https://viame.kitware.com){ .md-button }
 [Deploy your own](Deployment-Overview.md){ .md-button }
