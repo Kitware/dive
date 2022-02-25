@@ -1,6 +1,7 @@
 import type { FileFilter } from 'electron';
 
 import npath from 'path';
+import mime from 'mime-types';
 import axios, { AxiosInstance } from 'axios';
 import { ipcRenderer } from 'electron';
 import { dialog, app } from '@electron/remote';
@@ -12,7 +13,7 @@ import type {
 
 import {
   fileVideoTypes, calibrationFileTypes,
-  inputAnnotationFileTypes, listFileTypes,
+  inputAnnotationFileTypes, listFileTypes, inputAnnotationTypes,
 } from 'dive-common/constants';
 import {
   DesktopJob, DesktopMetadata, JsonMeta, NvidiaSmiReply,
@@ -58,9 +59,9 @@ async function openFromDisk(datasetType: DatasetType | 'calibration' | 'annotati
     filters,
   });
   if (datasetType === 'annotation') {
-    if (!results.filePaths.every((item) => inputAnnotationFileTypes.includes(
-      npath.extname(item),
-    ))) {
+    if (!results.filePaths.every(
+      (item) => inputAnnotationTypes.includes(mime.lookup(item).toString()),
+    )) {
       throw Error('File Types did not match JSON or CSV');
     }
   }
