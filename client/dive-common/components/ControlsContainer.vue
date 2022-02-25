@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  defineComponent, ref, PropType, emit,
+  defineComponent, ref, PropType,
 } from '@vue/composition-api';
 import type { DatasetType } from 'dive-common/apispec';
 import FileNameTimeDisplay from 'vue-media-annotator/components/controls/FileNameTimeDisplay.vue';
@@ -40,7 +40,7 @@ export default defineComponent({
     },
   },
 
-  setup() {
+  setup(_, { emit }) {
     const currentView = ref('Detections');
 
     const ticks = ref([0.25, 0.5, 0.75, 1.0, 2.0, 4.0, 8.0]);
