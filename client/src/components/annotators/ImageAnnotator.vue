@@ -3,7 +3,7 @@ import {
   defineComponent, ref, onUnmounted, PropType, toRef, watch,
 } from '@vue/composition-api';
 import { SetTimeFunc } from '../../use/useTimeObserver';
-import { injectAggregateController, injectCameraInitializer } from './useMediaController';
+import { injectCameraInitializer } from './useMediaController';
 
 export interface ImageDataItem {
   url: string;

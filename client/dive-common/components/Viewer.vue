@@ -1,8 +1,8 @@
 <script lang="ts">
 import {
-  defineComponent, ref, toRef, computed, Ref, reactive, watch, onMounted, onBeforeUnmount,
+  defineComponent, ref, toRef, computed, Ref, reactive, watch, onBeforeUnmount,
 } from '@vue/composition-api';
-import type { CombinedVueInstance, Vue } from 'vue/types/vue';
+import type { Vue } from 'vue/types/vue';
 import type { AxiosError } from 'axios';
 
 /* VUE MEDIA ANNOTATOR */

@@ -71,12 +71,12 @@ export function injectCameraInitializer() {
 
 export function useMediaController() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const geoViewers: Record<symbol, Ref<any>> = {};
-  const containers: Record<symbol, Ref<HTMLElement | undefined>> = {};
-  const imageCursors: Record<symbol, Ref<HTMLElement | undefined>> = {};
+  const geoViewers: Record<string, Ref<any>> = {};
+  const containers: Record<string, Ref<HTMLElement | undefined>> = {};
+  const imageCursors: Record<string, Ref<HTMLElement | undefined>> = {};
   const cameras: Ref<symbol[]> = ref([]);
   const subControllers: MediaController[] = [];
-  const state: Record<symbol, UnwrapRef<MediaControllerReactiveData>> = {};
+  const state: Record<string, UnwrapRef<MediaControllerReactiveData>> = {};
   const cameraControllerSymbols: Record<string, symbol> = {};
 
   function getController(camera?: string) {
@@ -98,7 +98,7 @@ export function useMediaController() {
    */
   function onResize() {
     subControllers.forEach((mc) => {
-      const camera = cameraControllerSymbols[mc.cameraName.value];
+      const camera = cameraControllerSymbols[mc.cameraName.value].toString();
       const geoViewerRef = geoViewers[camera];
       const containerRef = containers[camera];
       if (geoViewerRef.value === undefined || containerRef.value === undefined) {
@@ -117,7 +117,7 @@ export function useMediaController() {
 
   function toggleLockedCamera() {
     cameras.value.forEach((camera) => {
-      const data = state[camera];
+      const data = state[camera.toString()];
       data.lockedCamera = !data.lockedCamera;
     });
   }
@@ -136,8 +136,9 @@ export function useMediaController() {
     setVolume(level: number): void;
     setSpeed(level: number): void;
   }) {
-    const camera = Symbol(`media-controller-${cameraName}`);
-    cameraControllerSymbols[cameraName] = camera;
+    const cameraSymbol = Symbol(`media-controller-${cameraName}`);
+    cameraControllerSymbols[cameraName] = cameraSymbol;
+    const camera = cameraSymbol.toString();
     geoViewers[camera] = ref(undefined);
     containers[camera] = ref(undefined);
     imageCursors[camera] = ref(undefined);
@@ -340,7 +341,7 @@ export function useMediaController() {
     };
 
     subControllers.push(mediaController);
-    cameras.value.push(camera);
+    cameras.value.push(cameraSymbol);
 
     return {
       state: state[camera],
