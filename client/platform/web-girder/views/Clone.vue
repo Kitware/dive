@@ -151,6 +151,12 @@ export default defineComponent({
       </v-card-title>
       <v-card-text>
         <v-alert
+          v-if="revision"
+          type="info"
+        >
+          Revision {{ revision }} selected.
+        </v-alert>
+        <v-alert
           v-if="cloneError"
           type="error"
           dismissible

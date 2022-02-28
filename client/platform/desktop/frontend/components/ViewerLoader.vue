@@ -6,7 +6,8 @@ import {
 import Viewer from 'dive-common/components/Viewer.vue';
 import RunPipelineMenu from 'dive-common/components/RunPipelineMenu.vue';
 import ImportAnnotations from 'dive-common//components/ImportAnnotations.vue';
-
+import SidebarContext from 'dive-common/components/SidebarContext.vue';
+import context from 'dive-common/store/context';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import Export from './Export.vue';
 import JobTab from './JobTab.vue';
@@ -33,8 +34,10 @@ export default defineComponent({
     Export,
     JobTab,
     RunPipelineMenu,
+    SidebarContext,
     Viewer,
     ImportAnnotations,
+    ...context.getComponents(),
   },
   props: {
     id: { // always the base ID
@@ -142,6 +145,13 @@ export default defineComponent({
         :id="compoundId"
         :button-options="buttonOptions"
       />
+    </template>
+    <template #right-sidebar>
+      <SidebarContext>
+        <template #default="{ name }">
+          <component :is="name" />
+        </template>
+      </SidebarContext>
     </template>
   </Viewer>
 </template>

@@ -1,0 +1,116 @@
+<script lang="ts">
+import { defineComponent, watch } from '@vue/composition-api';
+import {
+  useDatasetId, useHandler, usePendingSaveCount, useRevisionId,
+} from 'vue-media-annotator/provides';
+import { loadRevisions, Revision } from 'platform/web-girder/api';
+import { usePaginatedRequest } from 'dive-common/use/useRequest';
+
+export default defineComponent({
+  name: 'RevisionHistory',
+  description: 'Revision History',
+
+  setup() {
+    const saveCount = usePendingSaveCount();
+    const datasetId = useDatasetId();
+    const revisionId = useRevisionId();
+    const { checkout } = useHandler();
+    const {
+      loading, count, allPages: revisions, totalCount, loadNextPage, reset,
+    } = usePaginatedRequest<Revision>();
+
+    async function loadNext() {
+      await loadNextPage((l, o) => loadRevisions(datasetId.value, l, o));
+    }
+
+    watch(saveCount, (newval) => {
+      if (newval === 0) {
+        reset();
+        loadNext();
+      }
+    });
+
+    loadNext();
+
+    return {
+      loading,
+      count,
+      revisions,
+      revisionId,
+      datasetId,
+      saveCount,
+      totalCount,
+      checkout,
+      loadNext,
+    };
+  },
+});
+</script>
+
+<template>
+  <div>
+    <v-alert
+      v-if="revisionId"
+      type="info"
+      tile
+    >
+      <h4>Inspecting revision {{ revisionId }}.</h4>
+      Past revisions are not editable.
+      Return to latest or clone this revision to edit.
+      <v-btn
+        x-small
+        depressed
+        :to="{
+          name: 'viewer',
+          params: { id: datasetId }}
+        "
+      >
+        Return to newest revision
+      </v-btn>
+    </v-alert>
+    <v-list
+      v-if="revisions.length"
+      two-line
+    >
+      <v-list-item
+        v-for="revision in revisions"
+        :key="revision.revision"
+        :input-value="revision.revision === revisionId"
+        @click="checkout(revision.revision)"
+      >
+        <v-list-item-content>
+          <v-list-item-title>
+            {{ revision.revision }}: {{ revision.description }} by
+            <router-link
+              :to="`/user/${revision.author_id}`"
+            >
+              {{ revision.author_name }}
+            </router-link>
+          </v-list-item-title>
+          <v-list-item-subtitle v-text="(new Date(revision.created)).toLocaleString()" />
+        </v-list-item-content>
+        <v-list-item-action>
+          <v-list-item-action-text v-text="`+${revision.additions} -${revision.deletions}`" />
+        </v-list-item-action>
+      </v-list-item>
+      <span
+        v-intersect.quiet="loadNext"
+      />
+      <a
+        v-if="revisions.length < totalCount"
+        class="px-4"
+        @click="loadNext"
+      >
+        Load More
+      </a>
+    </v-list>
+    <v-alert
+      v-else-if="!loading && count > 0"
+      type="info"
+      tile
+    >
+      No revision history yet.  A revision is created each time you press save
+      <v-icon>mdi-content-save</v-icon>.
+    </v-alert>
+  </div>
+</template>

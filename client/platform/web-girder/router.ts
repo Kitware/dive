@@ -28,14 +28,7 @@ const router = new Router({
       component: Login,
     },
     {
-      path: '/viewer/:id',
-      name: 'viewer',
-      component: ViewerLoader,
-      props: true,
-      beforeEnter,
-    },
-    {
-      path: '/viewer/:id/rev/:revision',
+      path: '/viewer/:id/:revision?',
       name: 'viewer',
       component: ViewerLoader,
       props: true,

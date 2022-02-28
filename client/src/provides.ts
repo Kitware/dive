@@ -57,6 +57,9 @@ type pendingSaveCountType = Readonly<Ref<number>>;
 const IntervalTreeSymbol = Symbol('intervalTree');
 type IntervalTreeType = Readonly<IntervalTree>;
 
+const RevisionIdSymbol = Symbol('revisionId');
+type RevisionIdType = Readonly<Ref<number>>;
+
 const TrackMapSymbol = Symbol('trackMap');
 type TrackMapType = Readonly<Map<TrackId, Track>>;
 
@@ -158,6 +161,8 @@ export interface Handler {
   unstageFromMerge(ids: TrackId[]): void;
   /* Reload Annotation File */
   reloadAnnotations(): Promise<void>;
+  /* Check out a different revision */
+  checkout(revisionId: number): void;
 }
 const HandlerSymbol = Symbol('handler');
 
@@ -196,6 +201,7 @@ function dummyHandler(handle: (name: string, args: unknown[]) => void): Handler 
     commitMerge(...args) { handle('commitMerge', args); },
     unstageFromMerge(...args) { handle('unstageFromMerge', args); },
     reloadAnnotations(...args) { handle('reloadTracks', args); return Promise.resolve(); },
+    checkout(...args) { handle('checkout', args); },
   };
 }
 
@@ -221,6 +227,7 @@ export interface State {
   intervalTree: IntervalTreeType;
   mergeList: MergeList;
   pendingSaveCount: pendingSaveCountType;
+  revisionId: RevisionIdType;
   trackMap: TrackMapType;
   typeStyling: TypeStylingType;
   selectedKey: SelectedKeyType;
@@ -259,6 +266,7 @@ function dummyState(): State {
     intervalTree: new IntervalTree(),
     mergeList: ref([]),
     pendingSaveCount: ref(0),
+    revisionId: ref(0),
     trackMap: new Map<TrackId, Track>(),
     typeStyling: ref({
       color() { return style.color; },
@@ -309,6 +317,7 @@ function provideAnnotator(state: State, handler: Handler) {
   provide(IntervalTreeSymbol, state.intervalTree);
   provide(MergeListSymbol, state.mergeList);
   provide(PendingSaveCountSymbol, state.pendingSaveCount);
+  provide(RevisionIdSymbol, state.revisionId);
   provide(TrackMapSymbol, state.trackMap);
   provide(TracksSymbol, state.filteredTracks);
   provide(TypeStylingSymbol, state.typeStyling);
@@ -387,6 +396,10 @@ function usePendingSaveCount() {
   return use<pendingSaveCountType>(PendingSaveCountSymbol);
 }
 
+function useRevisionId() {
+  return use<RevisionIdType>(RevisionIdSymbol);
+}
+
 function useTrackMap() {
   return use<TrackMapType>(TrackMapSymbol);
 }
@@ -443,6 +456,7 @@ export {
   usePendingSaveCount,
   useTrackMap,
   useFilteredTracks,
+  useRevisionId,
   useTypeStyling,
   useSelectedKey,
   useSelectedTrackId,
