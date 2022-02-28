@@ -1,12 +1,18 @@
 # DIVE Desktop
 
-DIVE is available as an electron based desktop application with deep [VIAME](https://github.com/viame/viame) integration.
+DIVE is available as an electron based desktop application with [VIAME](https://github.com/viame/viame) integration. It has most of the same UI and features web.  You may want to use desktop if...
 
-DIVE Desktop has most of the same UI and features as DIVE **without** requiring a network connection or a server installation.
+* You want to make use of GPUs on your own workstation
+* You need to use DIVE without network access
+* You have large quantities of data on disk impractical for uploading to a server.
+
+DIVE Desktop is fully supported on Windows and Linux. MacOS users can use it as an annotator, but without NVIDIA Driver support, the machine learning features from VIAME are unavailable.
+
+![images/Banner.png](images/Banner.png)
 
 ## Installation
 
-[⬇️ Download the latest DIVE Desktop from GitHub](https://github.com/Kitware/dive/releases/latest){ .md-button .md-button--primary }
+[:material-download: Download the latest DIVE Desktop from GitHub](https://github.com/Kitware/dive/releases/latest){ .md-button }
 
 Choose an **asset** from the list matching your operating system:
 
@@ -20,40 +26,52 @@ Choose an **asset** from the list matching your operating system:
 
 ### Full VIAME Desktop Installation
 
-This is just the installation guide for DIVE.  If you want the full VIAME tool suite, you can get it from [github.com/viame/viame](https://github.com/viame/viame#installations)
+This is the installation guide for DIVE.  If you want the full VIAME toolkit, you can get it from [github.com/viame/viame](https://github.com/viame/viame#installations).  The full toolkit installation includes DIVE.
 
-## Features
+## Supported Dataset Types
 
-Full Windows and Linux support.  Annotation support for MacOS.
+DIVE Desktop supports single- and multi-camera datasets.
 
-* Annotate video and images on your computer (Instead of uploading to a server)
-* Run pipelines and training on multiple datasets using locally installed VIAME
+* **Single Camera Dataset** is the most common option.  Single camera datasets are supported by the majority of VIAME pipeline and training configurations.
+* **Stereo Datasets** are for datasets collected from a camera rig with a left and right camera.  These datasets can be used with certain specialty VIAME pipelines. Their physical relationship may be described by a camera transform `.npz` file (numpy transformation matrix).
+* **Multi-Cam Datasets** are for more generic multi-camera rig setups.  They may have overlapping fields of view.
 
-![images/Banner.png](images/Banner.png)
+### Importing Datasets
 
-## Importing Images & Videos
+Click either ==Open Image Sequence :material-folder-open:== or ==Open Video :material-file-video:== to begin a single camera default import.  Click the ==:material-chevron-down:== dropdown button to show additional import options.
 
-* For video, DIVE will ask you to point directly to a file.
-* For images, DIVE Desktop imports **entire directories**.  That means all images from a single folder will be imported as a dataset.  You can use globbing to filter the contents of an image directory during import.
+* ==:material-file-video: From File== is the default option for videos. It will open a file picker and allow you to choose a single video file.
+* ==:material-folder: Directory== is the default option for image sequences. It will prompt you to choose an **entire folder** of images to import as a dataset.
+    * You can use globbing patterns to filter the contents of an image directory during import. Click ==:material-chevron-down: Show advanced options== to reveal the glob input.
+* ==:material-view-list-outline: Image List== will prompt you to choose a `.txt` file that contains an image name or full path on each line.
+* ==:material-binoculars: Stereo== will prompt you to choose 2 videos or 2 image sequences.
+* ==:material-camera-burst: Multi-Cam== will prompt you to describe the multi-cam configuration by naming several cameras and picking the source media for each.
 
-**Annotation Files** - In either case, either a `*.csv` or a `result*.json` annotaton file should be located in the same directory as the source media, and will be automatically discovered during import.  Annotation files are not required.
+The import routine will look for `.csv` and `.json` files in the same directory as the source media, and you will be prompted to manually select an annotation file and a configuration file.  Neither is required.
 
-## Video Transcoding
+### Video Transcoding
 
 DIVE Desktop is an [Electron](https://www.electronjs.org/) application built on web technologies.  Certain video codecs require automatic transcoding to be usable.  Video will be transcoded unless _all_ the following conditions are met.
 
 * `codec` = `h264`
 * `sample_aspect_ratio (SAR)` = `1:1`
 
-## Configuration
+## Running Training
+
+1. Click on ==:material-brain: Training== to open the training tab.
+1. Add one or more datasets to the staging area by clicking ==:material-plus:==.
+1. Choose an appropriate training config file and any training parameters.  These are documented on the [training configuration page](Pipeline-Documentation.md).
+1. Click ==Train on (N) Datasets==.  Note that depending on what configuration and datasets you chose, training could take hours or days.
+
+## Desktop Settings
 
 DIVE Desktop requires a local installation of the VIAME toolkit to run pipelines, train, and do transcoding.
 
-![Desktop Settings](images/General/desktop-settings.png)
-
-* `VIAME Install Path` is set automatically if you use `examples/annotation_and_visualization/launch_dive_interface` from the VIAME install.  Otherwise, you may need to set this yourself.  Use `Choose` to choose the base installation path, then click save.
-* `Project Data Storage Path` defaults to a subfolder in your user workspace and should generally not be changed.
-* `Read only mode` disables the ability to save when using the annotator.
+* **VIAME Install Path** is set automatically if you use the `launch_dive_interface.[bat|sh]` script from a VIAME install.  Otherwise, you may need to change this yourself.
+    * Use ==Choose :material-folder:== to choose the base installation path, then click ==:material-content-save: Save==.
+* **Project Data Storage Path** defaults to a subfolder in your user workspace and should generally not be changed.
+* **Read only mode** disables the ability to save when using the annotator.
+* **Synchronize Recents** - The ==:material-sync: Synchronize Recents with Project Data== button is useful if data in the Project Data Storage Path gets out of sync with what appears in the ==:material-folder-open: Recents== list.
 
 ### Data Storage Path
 
@@ -116,7 +134,7 @@ Trained models are kept in `${Project Data Storage Path}/DIVE_Pipelines` as desc
 * The pipe file can be one of `detector.pipe`, `tracker.pipe`, or `generate.pipe`.
 * Other files can be `.zip`, `.svm`, `.lbl`, or `.cfg`.
 
-You can use exteranally trained models in DIVE by creating a folder containing these files.  The name of the configuration or pipeline in dive will be the folder name you create.
+You can use externally trained models in DIVE by creating a folder containing these files.  The name of the configuration or pipeline in dive will be the folder name you create.
 
 ## Troubleshooting
 
@@ -124,18 +142,20 @@ You can use exteranally trained models in DIVE by creating a folder containing t
 
 See [Importing images and video above](#importing-images-videos).
 
-> ffmpeg not installed, please download and install VIAME Toolkit from the main page
+> I get an error that says "ffmpeg not installed, please download and install VIAME Toolkit from the main page"
 
 DIVE Desktop relies on an installation of `ffmpeg` for transcoding videos and some images.  This tool comes with the VIAME installation.  Verify your VIAME Install Base Path is correct.
 
-> Some VIAME canned pipelines are missing?
+> Some VIAME canned pipelines are missing, or there are no training configuration files.
+
+You may need to install VIAME Toolkit, or correct your **VIAME Install Base Path** setting.
 
 If you don't see some pipelines you expect, you may not have installed the addons (also called Optional Patches) yet.  Download and install these based on the [VIAME installation docs](https://github.com/viame/VIAME#installations).  
 
 > Advanced troubleshooting
 
-If you're experience problems or have questions about DIVE Desktop, [contact us](index.md#get-help) and include the content from the settings page such as `Build Version` as well as your currently installed VIAME version.
+If you experience problems or have questions about DIVE Desktop, [contact us](Support.md) and include the content from the settings page such as `Build Version` as well as your currently installed VIAME version.
 
-To help us address errors and exceptions, it's helpful to look in the debug console.  Press `CTRL + SHIFT + i` to launch the Dev Tools and look under the console tab.  Errors and warnings will appear in red and yellow.  You can right-click in the console area and click "Save As" to save the log file to email to us.
+It's also helpful to look in the debug console.  Press ++ctrl+shift+i++ to launch the Dev Tools and look under the console tab.  Errors and warnings will appear in red and yellow.  You can right-click in the console area and click "Save As" to save the log file and [open a support ticket](Support.md)
 
 ![Debugging Desktop](images/General/desktop-debug.png)

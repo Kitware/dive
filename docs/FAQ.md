@@ -1,14 +1,19 @@
+---
+hide:
+  - navigation
+---
+
 # Frequently Asked Questions
 
 ## How do I find existing data to use?
 
-The [Training Data Collection](https://viame.kitware.com/#/collection/5e4c256ca0fc86aa03120c34) is organized rougly by domain and collection method.
+The [Training Data Collection](https://viame.kitware.com/#/collection/5e4c256ca0fc86aa03120c34) is organized roughly by domain and collection method.
 
 ## How do I share data with others?
 
 This use case is covered [on the sharing page](Web-Version.md#sharing-data-with-teams).
 
-If you want to **publish** your data so that other groups can use it, please email <a href="mailto:viame-web@kitware.com"> `viame-web@kitware.com` </a>.
+If you want to **publish** your data so that other groups can use it, please [contact us](Support.md).
 
 ## How do I run analysis workflows on my data?
 
@@ -16,7 +21,7 @@ In DIVE, these are called pipelines.  You'll need to see what sorts of analysis 
 
 These sorts of AI workflows are the final goal for most users.  They allow the user to quickly perform quantitative analysis to answer questions like **_how many individuals of each type appear on each image or video frame?_**
 
-If no suitable existing analysis exists for your use case or you aren't sure how to proceed, you're welcome to [email our team and ask for help](index.md#get-help).
+If no suitable existing analysis exists for your use case or you aren't sure how to proceed, you're welcome to [contact our team and ask for help](Support.md).
 
 ## How do I create new models?
 
@@ -61,7 +66,3 @@ There are caveats with this approach.
 
 * It does not handle padding properly.  If a video begins or ends with padding, you may see a black screen in DIVE, but kwiver will wait for the first true frame to use as the representative for the bucket.
 * It does not handle variable width frames properly.  If a video has variable width frames, the assumptions about the locations of true frame boundaries do not hold and kwiver training may have alignment issues.
-
-## Can I request new features or provide feedback?
-
-Yes!  Please contact us at <a href="mailto:viame-web@kitware.com"> `viame-web@kitware.com` </a> or log an issue [directly on the issue tracker](https://github.com/Kitware/dive/issues).

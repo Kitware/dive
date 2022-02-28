@@ -1,3 +1,8 @@
+---
+hide:
+  - navigation
+---
+
 # Data Formats
 
 DIVE Desktop and Web support a number of annotation and configuration formats.  The following formats can be uploaded or imported alongside your media and will be automatically parsed.
@@ -6,7 +11,7 @@ DIVE Desktop and Web support a number of annotation and configuration formats.  
 * DIVE Configuration JSON
 * VIAME CSV
 * COCO and KWCOCO
-* KPF (Kitware Packet Format) for MEVA
+* KPF (KWIVER Packet Format) for MEVA
 
 ## DIVE Annotation JSON
 
@@ -88,6 +93,6 @@ Read the [VIAME CSV Specification](https://viame.readthedocs.io/en/latest/sectio
 * Read the [COCO Specification](https://cocodataset.org/#format-data)
 * Read the [KWCOCO Specification](https://kwcoco.readthedocs.io/en/release/getting_started.html)
 
-## Kitware Packet Format (KPF)
+## KWIVER Packet Format (KPF)
 
-KPF does not have a public specification.
+Read the [KPF Specification](https://kwiver-diva.readthedocs.io/en/latest/kpf.html)

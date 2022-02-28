@@ -1,38 +1,52 @@
-# TimeLine
+# Timeline
+
+The timeline provides a control bar and a few different temporal visualizations.  All timeline visualizations are updated live by type confidence slider(s), type checkboxes, and track checkboxes.
 
 ![Timeline Highlighed](images/UIView/TimelineHighlight.png)
 
 ![Timeline View](images/Timeline/TimelineView.png)
 
-The Timeline view provides an ability to quickly see data across the length of the video/image-sequence. Above it are standard video controls for controlling playback.  Additionally a "Left Click" anywhere within the timeline will automatically seek to that frame.  The current frame in the timeline is represented by a vertical cyan bar.
+## Control Bar
 
-Switching between the different modes can be done by clicking on the text either for **Detections** or **Events**.  The Arrow on the left side of the timeline view can be used to minimize the view to provide more screen space for annotations.
-
-On the right side of the Timeline is a button used to recenter the camera on the annotation.
-
-## Event View 
-
-![Event Viewer](images/Timeline/EventViewerDefault.png)
-
-The default event viewer shows a representation of the start/stop frames for the tracks filtered by the TypeList.  The Tracks are presented using their corresponding type colors.
-When hovering over any Track the TrackID will display.  Clicking on that track will select the track and transition the current frame to that frame.
-
-**Single Frame Detections** - Single frame detections are presented as single frames with spaces between.
-
-![Event Viewer Single Frame Detection](images/Timeline/EventViewerSingleFrameDetections.png)
-
-
-**Selected Track View** - A selected track will be cyan and will cause the other tracks to fade out.
-
-![Event Viewer Selected Track](images/Timeline/EventViewerSelectedTrack.png)
-
-**Selected Interpolated Track** - A selected track which has keyframes and interpolation will show the areas of interpolation, the keyframes and the track.
-
-![Event Viewer Interpolated Track](images/Timeline/EventViewerInterpolatedTrack.png)
-
+* ==:material-chevron-down-box:== will minimize the timeline.
+* ==Detections== button selects the **Detection Count** histogram timeline view.
+* ==Events== button selects the **Event View**, which is a Gantt-style track chart.
+* ==:material-skip-previous:==  ==:material-play:== ==:material-skip-next:== are standard media playback controls.
+* ==:material-lock-open:== will enable camera lock, which causes the annotation view to auto-zoom and pan to whatever annotation is currently selected.  This is useful when reviewing the output of a pipeline.
+* ==:material-image-filter-center-focus:== or the ++r++ key will reset zoom/pan in the annotation view.
 
 ## Detection Count
 
 ![Timeline View](images/Timeline/TimelineView.png)
 
-This provides a count of the types over the duration of the track.  This is updated in realtime with the confidence slider so it can be used to filter out higher densities of types as well as get an indication of the number of the types visible at any one time.
+This is the default visualization.  It is a stacked histogram of track/detection types over the duration of the sequence.
+
+* Line color matches the annotation type style.
+* Top green line is the sum count of all annotations of all types on each frame.
+
+## Event View 
+
+![Event Viewer](images/Timeline/EventViewerDefault.png)
+
+The event viewer shows the start/stop frames for all tracks.  It is a kind of Gantt chart, also similar to a swimlane chart but with more compact packing.
+
+* The tracks are drawn using their corresponding type color.
+* When hovering over any track the TrackID will display.
+* Clicking on a track will select it and jump to the track at the selected frame.
+
+### Interpreting
+
+<figure markdown>
+  ![Event Viewer Single Frame Detection](images/Timeline/EventViewerSingleFrameDetections.png)
+  <figcaption markdown>**Single frame detections** are presented as single frames with spaces between.</figcaption>
+</figure>
+
+<figure markdown>
+  ![Event Viewer Selected Track](images/Timeline/EventViewerSelectedTrack.png)
+  <figcaption markdown>A **selected track** will be cyan and will cause all other tracks to fade out.  If a selected track is solid cyan, that means every frame in the track is a keyframe.</figcaption>
+</figure>
+
+<figure markdown>
+  ![Event Viewer Interpolated Track](images/Timeline/EventViewerInterpolatedTrack.png)
+  <figcaption markdown>A **selected interpolated track** will show the areas of interpolation as yellow lines, the keyframes as cyan ticks, and gaps as empty regions.</figcaption>
+</figure>

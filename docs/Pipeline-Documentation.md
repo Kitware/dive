@@ -1,14 +1,19 @@
+---
+hide:
+  - navigation
+---
+
 # Pipelines and Training
 
 Both web and desktop versions are capable of running canned pipelines and model training on your ground truth data.  This document is to help you decide which pipeline to run.
 
 ## Help me choose
 
-Contact our team if you need help choosing the right data analysis strategy.  Please upload some sample data to viame.kitware.com to allow us to better assist you.
+[Contact our team](Support.md) if you need help choosing the right data analysis strategy.  Please upload some sample data to viame.kitware.com to allow us to better assist you.
 
 ## Detection
 
-Best for a series of images that have no temporal relationship, such as arial photography of multiple scenes.  Also preferred if you only care about aggregate date for the dataset, such as max occurrences of an object per scene.
+Best for a series of images that have no temporal relationship, such as arial photography of multiple scenes.  Also preferred if you only care about aggregate data for the dataset, such as max occurrences of an object per scene.
 
 | Pipeline | Use case |
 | -------- | -------- |
@@ -33,21 +38,21 @@ Best for a series of images that have no temporal relationship, such as arial ph
 
 Run full tracking pipelines on your data.  Appropriate for videos and image sequences that derive from a video.  Tracking involves first running a detection pipeline then performing detection linking to form connected object tracks.
 
-> **Note** some trackers can perform differently on time-series data depending on the annotation framerate selected when you upload or import your dataset. Higer framerates take longer to process, but may produce better results.
+> **Note** some trackers can perform differently on time-series data depending on the annotation framerate selected when you upload or import your dataset. Higher framerates take longer to process, but may produce better results.
 
 | Pipeline | Use case |
 | -------- | -------- |
 | <pre>em tuna</pre>  | tracker |
 | <pre>fish</pre>  | simple fish tracker |
 | <pre>fish.sfd</pre>  | tracker |
-| <pre>generic</pre>  | generic object tracker puts generic boxs around arbitrary objects |
+| <pre>generic</pre>  | generic object tracker puts generic boxes around arbitrary objects |
 | <pre>motion</pre>  | identifies moving object tracks |
 | <pre>mouss</pre>  | tracker, trained with data from MOUSS (Modular Optical Underwater Survey System) |
 | <pre>sefsc bw *</pre>  | same as above, but with tracking |
 
 ## Utility
 
-An assortment of other types of utility pipelines.  Utility piplines are named `utility_<name>.pipe` and are unique in that they _may_ take detections as inputs (but are not required to).  
+An assortment of other types of utility pipelines.  Utility pipelines are named `utility_<name>.pipe` and are unique in that they _may_ take detections as inputs (but are not required to).  
 
 | Pipeline | Use case |
 | -------- | -------- |
@@ -100,7 +105,7 @@ By default, all classes from all input datasets are preserved in the output mode
 
 #### Use annotation frames only
 
-By default, training runs include all frames from the chosen input datasets, and frames without annotations are considered negatives examples.  If you choose to use annotated frames only, frames or images with zero annotations will be discarded.  This option is useful for trying to train on datasets that are only partially annotated.
+By default, training runs include all frames from the chosen input datasets, and frames without annotations are considered negative examples.  If you choose to use annotated frames only, frames or images with zero annotations will be discarded.  This option is useful for trying to train on datasets that are only partially annotated.
 
 ### Configurations
 
@@ -118,6 +123,6 @@ By default, training runs include all frames from the chosen input datasets, and
 | [object_classifier_netharn_resnet](https://github.com/VIAME/VIAME/blob/master/configs/pipelines/train_object_classifier_netharn_resnet.viame_csv.conf) | both | |
 | yolo | desktop only | can train, but resulting model **is not runnable with desktop** yet |
 
-## Custom Pipelines
+## Pipeline Import and Export
 
-Pipelines created outside of VIAME Web can be upload and shared with other users.  See [Custom Pipeline Upload](Pipeline-Upload.md) for details.
+Pipelines created outside of VIAME Web can be upload and shared with other users.  See [Pipeline Import and Export](Pipeline-Import-Export.md) for details.
