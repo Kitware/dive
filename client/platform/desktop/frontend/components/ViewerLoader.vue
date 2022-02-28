@@ -52,18 +52,27 @@ export default defineComponent({
 
     watch(runningJobs, async (_previous, current) => {
       const currentJob = current.find((item) => item.job.datasetIds.includes(props.id));
-      if (currentJob && currentJob.job.exitCode === 0 && currentJob.job.jobType === 'pipeline') {
-        const result = await prompt({
-          title: 'Pipeline Finished',
-          text: [`Pipeline: ${currentJob.job.title}`,
-            'finished running on the current dataset.  Click reload to load the annotations.  The current annotations will be replaced with the pipeline output.',
-          ],
-          confirm: true,
-          positiveButton: 'Reload',
-          negativeButton: '',
-        });
-        if (result) {
-          viewerRef.value.reloadAnnotations();
+      if (currentJob && currentJob.job.jobType === 'pipeline') {
+        if (currentJob.job.exitCode === 0) {
+          const result = await prompt({
+            title: 'Pipeline Finished',
+            text: [`Pipeline: ${currentJob.job.title}`,
+              'finished running on the current dataset.  Click reload to load the annotations.  The current annotations will be replaced with the pipeline output.',
+            ],
+            confirm: true,
+            positiveButton: 'Reload',
+            negativeButton: '',
+          });
+          if (result) {
+            viewerRef.value.reloadAnnotations();
+          }
+        } else {
+          await prompt({
+            title: 'Pipeline Incomplete',
+            text: [`Pipeline: ${currentJob.job.title}`,
+              'either failed or was cancelled by the user',
+            ],
+          });
         }
       }
     });

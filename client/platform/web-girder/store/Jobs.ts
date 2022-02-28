@@ -48,9 +48,11 @@ const jobModule: Module<JobState, RootState> = {
       { datasetId: string; status: number; jobId: string }) {
       Vue.set(state.datasetStatus, datasetId, { status, jobId });
     },
-    setCompleteJobsInfo(state, { datasetId, type, title }:
-      { datasetId: string; type: string; title: string }) {
-      Vue.set(state.completeJobsInfo, datasetId, { type, title });
+    setCompleteJobsInfo(state, {
+      datasetId, type, title, success,
+    }:
+      { datasetId: string; type: string; title: string; success: boolean }) {
+      Vue.set(state.completeJobsInfo, datasetId, { type, title, success });
     },
     removeCompleteJobsInfo(state, { datasetId }: { datasetId: string }) {
       if (datasetId in state.completeJobsInfo) {
@@ -73,8 +75,13 @@ export async function init(store: Store<RootState>) {
     store.commit('Jobs/setJobState', { jobId: job._id, value: job.status });
     if (typeof job.dataset_id === 'string') {
       store.commit('Jobs/setDatasetStatus', { datasetId: job.dataset_id, status: job.status, jobId: job._id });
-      if (job.status === 3 && job.type === 'pipelines') {
-        store.commit('Jobs/setCompleteJobsInfo', { datasetId: job.dataset_id, type: job.type, title: job.title });
+      if (job.type === 'pipelines' && NonRunningStates.includes(job.status)) {
+        store.commit('Jobs/setCompleteJobsInfo', {
+          datasetId: job.dataset_id,
+          type: job.type,
+          title: job.title,
+          success: job.status === JobStatus.SUCCESS.value,
+        });
       }
     }
   }

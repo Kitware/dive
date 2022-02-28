@@ -83,18 +83,28 @@ export default defineComponent({
     });
     watch(currentJob, async () => {
       if (currentJob.value !== false && currentJob.value !== undefined) {
-        const result = await prompt({
-          title: 'Pipeline Finished',
-          text: [`Pipeline: ${currentJob.value.title}`,
-            'finished running on the current dataset.  Click reload to load the annotations.  The current annotations will be replaced with the pipeline output.',
-          ],
-          confirm: true,
-          positiveButton: 'Reload',
-          negativeButton: '',
-        });
-        store.dispatch('Jobs/removeCompleteJob', { datasetId: props.id });
-        if (result) {
-          viewerRef.value.reloadAnnotations();
+        if (currentJob.value.success) {
+          const result = await prompt({
+            title: 'Pipeline Finished',
+            text: [`Pipeline: ${currentJob.value.title}`,
+              'finished running on the current dataset.  Click reload to load the annotations.  The current annotations will be replaced with the pipeline output.',
+            ],
+            confirm: true,
+            positiveButton: 'Reload',
+            negativeButton: '',
+          });
+          store.dispatch('Jobs/removeCompleteJob', { datasetId: props.id });
+          if (result) {
+            viewerRef.value.reloadAnnotations();
+          }
+        } else {
+          await prompt({
+            title: 'Pipeline Incomplete',
+            text: [`Pipeline: ${currentJob.value.title}`,
+              'either failed or was cancelled by the user',
+            ],
+          });
+          store.dispatch('Jobs/removeCompleteJob', { datasetId: props.id });
         }
       }
     });
