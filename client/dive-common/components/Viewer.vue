@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  defineComponent, ref, toRef, computed, Ref, reactive, watch, onBeforeUnmount,
+  defineComponent, ref, toRef, computed, Ref, reactive, watch, onBeforeUnmount, nextTick,
 } from '@vue/composition-api';
 import type { Vue } from 'vue/types/vue';
 import type { AxiosError } from 'axios';
@@ -425,7 +425,10 @@ export default defineComponent({
       if (previous) observer.unobserve(previous.$el);
       observer.observe(controlsRef.value.$el);
     });
-    watch(controlsCollapsed, handleResize);
+    watch(controlsCollapsed, async () => {
+      await nextTick();
+      handleResize();
+    });
     onBeforeUnmount(() => {
       observer.unobserve(controlsRef.value.$el);
     });
