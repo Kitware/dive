@@ -80,7 +80,7 @@ export default function useModeManager({
   const editingDetails = computed(() => {
     _depend();
     if (editingMode.value && selectedTrackId.value !== null) {
-      const { frame } = mediaController.value;
+      const { frame } = aggregateController.value;
       const track = trackMap.get(selectedTrackId.value);
       if (track) {
         const [feature] = track.getFeature(frame.value);
