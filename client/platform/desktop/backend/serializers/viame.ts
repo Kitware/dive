@@ -293,7 +293,6 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<A
             const expectedFrameNumber = imageMap.get(imageName);
             if (expectedFrameNumber === undefined) {
               missingImages.push(rowInfo.filename);
-              // console.log(record);
             } else if (expectedFrameNumber !== feature.frame) {
               // force reorder the annotations
               reordered = true;
