@@ -248,6 +248,7 @@ def load_csv_as_tracks_and_attributes(
     metadata_attributes: Dict[str, Dict[str, Any]] = {}
     test_vals: Dict[str, Dict[str, int]] = {}
     reordered = False
+    anyImageMatched = False
     missingImages: List[str] = []
     for row in reader:
         if len(row) == 0 or row[0].startswith('#'):
@@ -271,7 +272,10 @@ def load_csv_as_tracks_and_attributes(
             elif expectedFrameNumber is not feature.frame:
                 # force reorder the annotations
                 reordered = True
+                anyImageMatched = True
                 feature.frame = expectedFrameNumber
+            else:
+                anyImageMatched = True
 
         if trackId not in tracks:
             tracks[trackId] = Track(begin=feature.frame, end=feature.frame, trackId=trackId)
@@ -298,7 +302,7 @@ def load_csv_as_tracks_and_attributes(
 
     trackarr = tracks.items()
 
-    if imageMap and len(missingImages) and len(missingImages) != len(trackarr):
+    if imageMap and len(missingImages) and anyImageMatched:
         examples = ', '.join(missingImages[:3])
         raise ValueError(
             ' '.join(

@@ -55,15 +55,14 @@ const imageFilenameTests = [
   },
   {
     pass: false,
-    error: 'images were provided in an unexpected order and dataset contains multi-frame tracks.',
+    error: 'Error: annotations were provided in an unexpected order and dataset contains multi-frame tracks',
     csv: [
       '99,1.png,0,884.66,510,1219.66,737.66,1,-1,ignored,0.98',
       '99,3.png,1,111,222,3333,444,1,-1,typestring,0.55',
     ],
   },
   {
-
-    pass: false,
+    pass: true,
     csv: [
       '99,unknown1,2,884.66,510,1219.66,737.66,1,-1,ignored,0.98',
       '99,unknown2,2,111,222,3333,444,1,-1,typestring,0.55',
@@ -305,7 +304,7 @@ describe('Test Image Filenames', () => {
         // eslint-disable-next-line no-await-in-loop
           await parseFile(testPath, imageMap);
         } catch (err) {
-          expect(err).toBe(imageOrderData.error);
+          expect((err as Error).toString()).toBe(imageOrderData.error);
         }
       } else {
         // eslint-disable-next-line no-await-in-loop
