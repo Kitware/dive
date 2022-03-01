@@ -249,12 +249,16 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<A
   const missingImages: string[] = [];
   let reordered = false;
   let anyImageMatched = false;
+  let error: Error;
 
   return new Promise<AnnotationFileData>((resolve, reject) => {
     pipeline([input, parser], (err) => {
       // undefined err indicates successful exit
       if (err !== undefined) {
         reject(err);
+      }
+      if (error !== undefined) {
+        reject(error);
       }
       const tracks = Array.from(dataMap.values());
 
@@ -317,9 +321,10 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<A
             dataMap.set(rowInfo.trackId, track);
           } else if (reordered) {
             // trackId was already in dataMap, so the track has more than 1 detection.
-            throw new Error(
+            error = new Error(
               'annotations were provided in an unexpected order and dataset contains multi-frame tracks',
             );
+            continue;
           }
           track.begin = Math.min(rowInfo.frame, track.begin);
           track.end = Math.max(rowInfo.frame, track.end);
@@ -333,19 +338,20 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<A
           });
         } catch (err) {
           if (!(err instanceof Error)) {
-            throw new Error(`Caught unexpected error ${err}`);
+            error = new Error(`Caught unexpected error ${err}`);
+            continue;
           }
           if (err.toString().includes('comment row')) {
             // parse comment row
             fps = fps || parseCommentRow(record).fps;
           } else if (!err.toString().includes('malformed row')) {
             // Allow malformed row errors
-            throw err;
+            error = err;
+            continue;
           }
         }
       }
     });
-    parser.on('error', reject);
   });
 }
 
