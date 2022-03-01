@@ -324,6 +324,7 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<A
             error = new Error(
               'annotations were provided in an unexpected order and dataset contains multi-frame tracks',
             );
+            // eslint-disable-next-line no-continue
             continue;
           }
           track.begin = Math.min(rowInfo.frame, track.begin);
@@ -339,6 +340,7 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<A
         } catch (err) {
           if (!(err instanceof Error)) {
             error = new Error(`Caught unexpected error ${err}`);
+            // eslint-disable-next-line no-continue
             continue;
           }
           if (err.toString().includes('comment row')) {
@@ -347,6 +349,7 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<A
           } else if (!err.toString().includes('malformed row')) {
             // Allow malformed row errors
             error = err;
+            // eslint-disable-next-line no-continue
             continue;
           }
         }
