@@ -15,7 +15,7 @@ const testData: testPairs[] = fs.readJSONSync('../testutils/viame.spec.json');
 const imageFilenameTests = [
   {
     pass: false,
-    error: 'There was a mixture of fields that specified image names and fields that did not.  Please check the CSV',
+    error: 'CSV import was found to have a mix of missing images and images that were found in the data. This usually indicates a problem with the annotation file, but if you want to force the import to proceed, you can set all values in the Image Name column to be blank.  Then DIVE will not attempt to validate image names. Missing images include:        ...',
     csv: [
       '0,       ,1,884.66,510,1219.66,737.66,1,-1,ignored,0.98',
       '1,2.png,0,111,222,3333,444,1,-1,typestring,0.55',
@@ -23,10 +23,18 @@ const imageFilenameTests = [
   },
   {
     pass: false,
-    error: 'There was a mixture of fields that specified image names and fields that did not.  Please check the CSV',
+    error: 'CSV import was found to have a mix of missing images and images that were found in the data. This usually indicates a problem with the annotation file, but if you want to force the import to proceed, you can set all values in the Image Name column to be blank.  Then DIVE will not attempt to validate image names. Missing images include: invalid...',
     csv: [
       '0,1.png,1,884.66,510,1219.66,737.66,1,-1,ignored,0.98',
-      '1,,0,111,222,3333,444,1,-1,typestring,0.55',
+      '1,invalid,0,111,222,3333,444,1,-1,typestring,0.55',
+    ],
+  },
+  {
+    pass: true,
+    csv: [
+      '0,invalid1,1,884.66,510,1219.66,737.66,1,-1,ignored,0.98',
+      '',
+      '1,invalid2,0,111,222,3333,444,1,-1,typestring,0.55',
     ],
   },
   {
@@ -35,6 +43,14 @@ const imageFilenameTests = [
       '0,       ,1,884.66,510,1219.66,737.66,1,-1,ignored,0.98',
       '',
       '1,,0,111,222,3333,444,1,-1,typestring,0.55',
+    ],
+  },
+  {
+    pass: true,
+    csv: [
+      '0,1.png,1,884.66,510,1219.66,737.66,1,-1,ignored,0.98',
+      '',
+      '1,1.png,0,111,222,3333,444,1,-1,typestring,0.55',
     ],
   },
 ];

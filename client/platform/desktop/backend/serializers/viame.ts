@@ -246,6 +246,7 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<A
   });
   let fps: number | undefined;
   const dataMap = new Map<number, TrackData>();
+  const missingImages: string[] = [];
   let reordered = false;
 
   return new Promise<AnnotationFileData>((resolve, reject) => {
@@ -254,31 +255,45 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<A
       if (err !== undefined) {
         reject(err);
       }
-      resolve({ tracks: Array.from(dataMap.values()), fps });
+      const tracks = Array.from(dataMap.values());
+
+      if (imageMap !== undefined) {
+        if (missingImages.length > 0 && missingImages.length !== tracks.length) {
+          /**
+           * If missing image count was different than track length, then some number of images
+           * from column 2 were actually valid and some were not.  This indicates that the dataset
+           * being loaded is probably corrupt.
+           *
+           * If their counts match perfectly, then every single image was missing, which indicates
+           * that the dataset either had all empty values in column 2 or some other type of invalid
+           * string that should not prevent import.
+           */
+          reject([
+            'CSV import was found to have a mix of missing images and images that were found',
+            'in the data. This usually indicates a problem with the annotation file, but if',
+            'you want to force the import to proceed, you can set all values in the',
+            'Image Name column to be blank.  Then DIVE will not attempt to validate image names.',
+            `Missing images include: ${missingImages.slice(0, 5)}...`,
+          ].join(' '));
+        }
+      }
+      resolve({ tracks, fps });
     });
     parser.on('readable', () => {
       let record: string[];
-      let hasFilenames: undefined | boolean;
       // eslint-disable-next-line no-cond-assign
       while (record = parser.read()) {
         try {
           const {
             rowInfo, feature, trackAttributes, confidencePairs,
           } = _parseFeature(record);
-          const currentHasFileName = rowInfo.filename.trim() !== '';
-          if (imageMap !== undefined && hasFilenames === undefined) {
-            hasFilenames = currentHasFileName;
-          } else if (imageMap !== undefined && hasFilenames !== currentHasFileName) {
-            throw new Error('Image Filenames specified in the Column 2 of the CSV must either be all set or all empty. Encountered a mixture of set and empty filenames');
-          }
-          if (imageMap !== undefined && hasFilenames) {
+          if (imageMap !== undefined) {
             // validate image ordering if the imageMap is provided and a non-whitespace filename
             const [imageName] = splitExt(rowInfo.filename);
             const expectedFrameNumber = imageMap.get(imageName);
             if (expectedFrameNumber === undefined) {
-              throw new Error(
-                `encountered annotation for image not found in dataset: ${rowInfo.filename}`,
-              );
+              missingImages.push(rowInfo.filename);
+              // console.log(record);
             } else if (expectedFrameNumber !== feature.frame) {
               // force reorder the annotations
               reordered = true;
