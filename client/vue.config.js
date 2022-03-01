@@ -48,6 +48,15 @@ module.exports = {
   },
   productionSourceMap: true,
   publicPath: process.env.VUE_APP_STATIC_PATH,
+  // configureWebpack: {
+  //   module: {
+  //     rules: [{
+  //       test: /\.mjs$/,
+  //       include: /node_modules/,
+  //       type: "javascript/auto"
+  //     }]
+  //   }
+  // },
   chainWebpack,
   pluginOptions: {
     electronBuilder: {

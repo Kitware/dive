@@ -4,7 +4,7 @@
  */
 
 import csvparser from 'csv-parse';
-import csvstringify from 'csv-stringify';
+import { stringify as csvstringify } from 'csv-stringify';
 import fs from 'fs-extra';
 import moment from 'moment';
 import { flattenDeep } from 'lodash';
