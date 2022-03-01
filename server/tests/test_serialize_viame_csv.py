@@ -316,6 +316,21 @@ image_filename_tests = [
             '1,1.png,0,111,222,3333,444,1,-1,typestring,0.55',
         ],
     },
+    {
+        'pass': False,
+        'error': 'images were provided in an unexpected order and dataset contains multi-frame tracks.',
+        'csv': [
+            '99,1.png,0,884.66,510,1219.66,737.66,1,-1,ignored,0.98',
+            '99,3.png,1,111,222,3333,444,1,-1,typestring,0.55',
+        ],
+    },
+    {
+        'pass': True,
+        'csv': [
+            '99,unknown1,2,884.66,510,1219.66,737.66,1,-1,ignored,0.98',
+            '99,unknown2,2,111,222,3333,444,1,-1,typestring,0.55',
+        ],
+    },
 ]
 
 
