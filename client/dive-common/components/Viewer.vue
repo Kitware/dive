@@ -380,6 +380,7 @@ export default defineComponent({
     };
 
     watch(datasetId, reloadAnnotations);
+    watch(readonlyState, () => selectTrack(null, false));
 
     const changeCamera = async (camera: string) => {
       if (!camera || !baseMulticamDatasetId.value) {
