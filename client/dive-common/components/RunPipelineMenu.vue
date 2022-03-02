@@ -194,8 +194,9 @@ export default defineComponent({
         <v-card v-if="pipelinesCurrentlyRunning">
           <v-card-title> Pipeline Running </v-card-title>
           <v-card-text>
-            A pipeline is currently running on this dataset.
-            Please wait until it is complete before running another pipeline or making any changes
+            Data cannot be edited while a pipeline is queued.
+            Pipelines produce output that will replace the existing annotations.
+            You can check the status of your job or cancel it
           </v-card-text>
           <v-row class="pb-1">
             <!-- Viewer Loaded with single Job Running -->
@@ -210,9 +211,9 @@ export default defineComponent({
             >
               View Running Job
             </v-btn>
-            <!-- Desktop Job Running -->
+            <!-- Desktop Job Running or Home/DataBrowser View -->
             <v-btn
-              v-else-if="singlePipelineValue === true"
+              v-else
               large
               depressed
               to="/jobs"

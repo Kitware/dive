@@ -69,7 +69,7 @@ const jobModule: Module<JobState, RootState> = {
 
 export async function init(store: Store<RootState>) {
   const { data: runningJobs } = await girderRest.get<GirderJob[]>('/job', {
-    params: { statuses: `[${JobStatus.RUNNING.value}]` },
+    params: { statuses: `[${JobStatus.RUNNING.value}, ${JobStatus.QUEUED.value}, ${JobStatus.INACTIVE.value}]` },
   });
   function updateJob(job: GirderJob & {type?: string; title?: string}) {
     store.commit('Jobs/setJobState', { jobId: job._id, value: job.status });
