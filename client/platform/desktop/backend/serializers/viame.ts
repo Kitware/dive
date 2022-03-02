@@ -264,11 +264,11 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<A
 
       if (imageMap !== undefined && missingImages.length > 0 && anyImageMatched) {
         /**
-         * If missing image count was different than track length, then some number of images
+         * If any image from CSV was not missing, then some number of images
          * from column 2 were actually valid and some were not.  This indicates that the dataset
          * being loaded is probably corrupt.
          *
-         * If their counts match perfectly, then every single image was missing, which indicates
+         * If all images were missing, then every single image was missing, which indicates
          * that the dataset either had all empty values in column 2 or some other type of invalid
          * string that should not prevent import.
          */
