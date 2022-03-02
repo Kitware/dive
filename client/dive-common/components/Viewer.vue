@@ -124,6 +124,7 @@ export default defineComponent({
       markChangesPending,
       discardChanges,
       pendingSaveCount,
+      addCamera: addSaveCamera,
     } = useSave(datasetId, readonlyState);
 
     const recipes = [
@@ -148,7 +149,6 @@ export default defineComponent({
 
     const {
       trackMap,
-      camTrackMap,
       sortedTracks,
       intervalTree,
       addTrack,
@@ -208,7 +208,6 @@ export default defineComponent({
       selectedCamera,
       editingTrack,
       trackMap,
-      camTrackMap,
       aggregateController,
       selectTrack,
       selectNextTrack,
@@ -332,8 +331,10 @@ export default defineComponent({
           if (!selectedCamera.value) {
             throw new Error('Multicamera dataset without default camera specified.');
           }
-          ctx.emit('update:id', `${props.id}/${selectedCamera.value}`);
-          return;
+          // This shouldn't be needed anymore because we load/save all cameras.
+          // TODO: Comfirm removal
+          // ctx.emit('update:id', `${props.id}/${selectedCamera.value}`);
+          // return;
         }
         /* Otherwise, complete loading of the dataset */
         populateTypeStyles(meta.customTypeStyling);
@@ -375,6 +376,7 @@ export default defineComponent({
             imageData.value[camera] = cloneDeep(subCameraMeta.imageData) as FrameImage[];
             videoUrl.value[camera] = subCameraMeta.videoUrl || null;
             addCamera(camera);
+            addSaveCamera(camera);
             // eslint-disable-next-line no-await-in-loop
             const camTrackData = await loadDetections(`${baseMulticamDatasetId.value}/${camera}`);
             const camTracks = Object.values(camTrackData);
@@ -469,7 +471,6 @@ export default defineComponent({
         mergeList,
         pendingSaveCount,
         trackMap,
-        camTrackMap,
         filteredTracks,
         typeStyling,
         selectedKey,
