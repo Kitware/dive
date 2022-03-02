@@ -7,10 +7,12 @@ interface UseTrackStoreParams {
     {
       action,
       track,
+      cameraName,
     }:
     {
       action: 'upsert' | 'delete';
       track: Track;
+      cameraName: string;
     }) => void;
 }
 
@@ -21,13 +23,26 @@ interface InsertArgs {
 }
 
 export function getTrack(
-  trackMap: Readonly<Map<TrackId, Track>>, trackId: Readonly<TrackId>,
+  trackMap: Map<string, Map<TrackId, Track>>, trackId: Readonly<TrackId>, cameraName = 'all',
 ): Track {
-  const track = trackMap.get(trackId);
-  if (track === undefined) {
-    throw new Error(`TrackId ${trackId} not found in trackMap.`);
+  let track: Track;
+  if (cameraName === 'all') {
+    trackMap.forEach((camera) => {
+      const tempTrack = camera.get(trackId);
+      if (tempTrack) {
+        track = tempTrack;
+      }
+    });
+    if (track) {
+      return track;
+    }
   }
-  return track;
+  const currentMap = trackMap.get(cameraName);
+  const tempTrack = currentMap?.get(trackId);
+  if (tempTrack) {
+    return tempTrack;
+  }
+  throw new Error(`TrackId ${trackId} not found in trackMap.`);
 }
 
 /**
@@ -43,7 +58,8 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
    * Note that a track class instance must NEVER be returned in its entirety by
    * a computed function.
    */
-  const trackMap = new Map<TrackId, Track>();
+  const trackMap = new Map<string, Map<TrackId, Track>>();
+  trackMap.set('default', new Map<TrackId, Track>());
   const intervalTree = new IntervalTree();
 
   /* Reactive state
@@ -59,7 +75,6 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
   const canary = ref(0);
 
   // Multi-Camera Support
-  const camTrackMap: Record<string, Map<TrackId, Track>> = { default: new Map<TrackId, Track>() };
   // internval Tree should be the same because all overlapping tracks have the same Id and length
 
   function _depend(): number {
@@ -72,102 +87,100 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
     }
     return 0;
   }
-
-  function onChange(
-    { track, event, oldValue }:
+  function cameraOnChange(cameraName = 'default') {
+    return function onChange(
+      { track, event, oldValue }:
     { track: Track; event: string; oldValue: unknown },
-  ): void {
-    if (event === 'bounds') {
-      const oldInterval = oldValue as [number, number];
-      intervalTree.remove(oldInterval, track.trackId.toString());
-      intervalTree.insert([track.begin, track.end], track.trackId.toString());
-    }
-    canary.value += 1;
-    markChangesPending({ action: 'upsert', track });
+    ): void {
+      if (event === 'bounds') {
+        const oldInterval = oldValue as [number, number];
+        intervalTree.remove(oldInterval, track.trackId.toString());
+        intervalTree.insert([track.begin, track.end], track.trackId.toString());
+      }
+      canary.value += 1;
+      markChangesPending({ cameraName, action: 'upsert', track });
+    };
   }
 
   function addCamera(cameraName: string) {
-    if (camTrackMap[cameraName] === undefined) {
-      camTrackMap[cameraName] = new Map<TrackId, Track>();
+    if (trackMap.get(cameraName) === undefined) {
+      trackMap.set(cameraName, new Map<TrackId, Track>());
     }
   }
 
+
   function insertTrack(track: Track, args?: InsertArgs) {
-    track.setNotifier(onChange);
-    if (args?.cameraName !== undefined) {
-      if (camTrackMap[args.cameraName] === undefined) {
-        camTrackMap[args.cameraName] = new Map<TrackId, Track>();
-      }
-      camTrackMap[args.cameraName].set(track.trackId, track);
+    const cameraName = args?.cameraName ?? 'default';
+    track.setNotifier(cameraOnChange(cameraName));
+    if (trackMap.get(cameraName) === undefined) {
+      trackMap.set(cameraName, new Map<TrackId, Track>());
     }
-    trackMap.set(track.trackId, track);
-    intervalTree.insert([track.begin, track.end], track.trackId.toString());
-    if (args && args.afterId) {
+    const currentMap = trackMap.get(cameraName);
+    if (currentMap) {
+      currentMap.set(track.trackId, track);
+      intervalTree.insert([track.begin, track.end], track.trackId.toString());
+      if (args && args.afterId) {
       /* Insert specifically after another trackId */
-      const insertIndex = trackIds.value.indexOf(args.afterId) + 1;
-      trackIds.value.splice(insertIndex, 0, track.trackId);
-    } else if (trackIds.value.indexOf(track.trackId) === -1) {
-      trackIds.value.push(track.trackId);
-    }
-    if (!args?.imported) {
-      markChangesPending({ action: 'upsert', track });
+        const insertIndex = trackIds.value.indexOf(args.afterId) + 1;
+        trackIds.value.splice(insertIndex, 0, track.trackId);
+      } else if (trackIds.value.indexOf(track.trackId) === -1) {
+        trackIds.value.push(track.trackId);
+      }
+      if (!args?.imported) {
+        markChangesPending({ cameraName, action: 'upsert', track });
+      }
     }
   }
 
   function addTrack(frame: number, defaultType: string,
     afterId?: TrackId, cameraName?: string): Track {
+    const camName = cameraName ?? 'default';
     const track = new Track(getNewTrackId(), {
       begin: frame,
       end: frame,
       confidencePairs: [[defaultType, 1]],
     });
-    insertTrack(track, { afterId, cameraName });
-    markChangesPending({ action: 'upsert', track });
+    insertTrack(track, { afterId, cameraName: camName });
+    markChangesPending({ cameraName: camName, action: 'upsert', track });
     return track;
   }
 
-  function removeTrack(trackId: TrackId | null, disableNotifications = false): void {
+  function removeTrack(trackId: TrackId | null, disableNotifications = false, cameraName = 'default'): void {
     if (trackId === null) {
       return;
     }
-    const track = getTrack(trackMap, trackId);
+    const track = getTrack(trackMap, trackId, cameraName);
     const range = [track.begin, track.end];
     if (!intervalTree.remove(range, trackId.toString())) {
       throw new Error(`TrackId ${trackId} with range ${range} not found in tree.`);
     }
     track.setNotifier(undefined);
-    trackMap.delete(trackId);
-    const listIndex = trackIds.value.findIndex((v) => v === trackId);
-    if (listIndex === -1) {
-      throw new Error(`TrackId ${trackId} not found in trackIds.`);
-    }
-    trackIds.value.splice(listIndex, 1);
-    if (!disableNotifications) {
-      markChangesPending({ action: 'delete', track });
+    const currentMap = trackMap.get(cameraName);
+    if (currentMap) {
+      currentMap.delete(trackId);
+      const listIndex = trackIds.value.findIndex((v) => v === trackId);
+      if (listIndex === -1) {
+        throw new Error(`TrackId ${trackId} not found in trackIds.`);
+      }
+      trackIds.value.splice(listIndex, 1);
+      if (!disableNotifications) {
+        markChangesPending({ cameraName, action: 'delete', track });
+      }
     }
   }
 
   function clearAllTracks() {
-    trackMap.clear();
+    trackMap.forEach((currentMap) => {
+      if (currentMap) {
+        currentMap.clear();
+      }
+    });
     intervalTree.items.forEach((item) => {
       intervalTree.remove(item.key);
     });
     trackIds.value = [];
   }
 
-  /*
-   * Discard tracks whose highest confidencePair value
-   * is lower than specified.
-   */
-  async function removeTracksBelowConfidence(thresh: number) {
-    trackIds.value.forEach((trackId) => {
-      const track = getTrack(trackMap, trackId);
-      const confidence = track.getType();
-      if (confidence[1] < thresh) {
-        removeTrack(trackId);
-      }
-    });
-  }
 
   const sortedTracks = computed(() => {
     _depend();
@@ -178,7 +191,6 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
 
   return {
     trackMap,
-    camTrackMap,
     sortedTracks,
     intervalTree,
     addTrack,
@@ -186,7 +198,6 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
     insertTrack,
     getNewTrackId,
     removeTrack,
-    removeTracksBelowConfidence,
     clearAllTracks,
   };
 }

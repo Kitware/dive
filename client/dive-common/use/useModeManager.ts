@@ -32,7 +32,6 @@ export default function useModeManager({
   selectedCamera,
   editingTrack,
   trackMap,
-  camTrackMap,
   aggregateController,
   recipes,
   selectTrack,
@@ -43,9 +42,8 @@ export default function useModeManager({
   selectedTrackId: Ref<TrackId | null>;
   selectedCamera: Ref<string>;
   editingTrack: Ref<boolean>;
-  trackMap: Map<TrackId, Track>;
-  camTrackMap: Record<string, Map<TrackId, Track>>;
-    aggregateController: Ref<AggregateMediaController>;
+  trackMap: Map<string, Map<TrackId, Track>>;
+  aggregateController: Ref<AggregateMediaController>;
   recipes: Recipe[];
   selectTrack: (trackId: TrackId | null, edit: boolean) => void;
   selectNextTrack: (delta?: number) => TrackId | null;
@@ -228,10 +226,7 @@ export default function useModeManager({
 
   function handleUpdateRectBounds(frameNum: number, flickNum: number, bounds: RectBounds) {
     if (selectedTrackId.value !== null) {
-      let track = trackMap.get(selectedTrackId.value);
-      if (selectedCamera.value !== 'default') {
-        track = camTrackMap[selectedCamera.value].get(selectedTrackId.value);
-      }
+      const track = trackMap.get(selectedCamera.value)?.get(selectedTrackId.value);
       if (track) {
         // Determines if we are creating a new Detection
         const { interpolate } = track.canInterpolate(frameNum);
@@ -277,10 +272,7 @@ export default function useModeManager({
     };
 
     if (selectedTrackId.value !== null) {
-      let track = trackMap.get(selectedTrackId.value);
-      if (selectedCamera.value !== 'default') {
-        track = camTrackMap[selectedCamera.value].get(selectedTrackId.value);
-      }
+      const track = trackMap.get(selectedCamera.value)?.get(selectedTrackId.value);
       if (track) {
         // newDetectionMode is true if there's no keyframe on frameNum
         const { features, interpolate } = track.canInterpolate(frameNum);
@@ -378,10 +370,7 @@ export default function useModeManager({
   /* If any recipes are active, allow them to remove a point */
   function handleRemovePoint() {
     if (selectedTrackId.value !== null && selectedFeatureHandle.value !== -1) {
-      let track = trackMap.get(selectedTrackId.value);
-      if (selectedCamera.value !== 'default') {
-        track = camTrackMap[selectedCamera.value].get(selectedTrackId.value);
-      }
+      const track = trackMap.get(selectedCamera.value)?.get(selectedTrackId.value);
       if (track !== undefined) {
         recipes.forEach((r) => {
           if (r.active.value && track) {
@@ -403,10 +392,7 @@ export default function useModeManager({
   /* If any recipes are active, remove the geometry they added */
   function handleRemoveAnnotation() {
     if (selectedTrackId.value !== null) {
-      let track = trackMap.get(selectedTrackId.value);
-      if (selectedCamera.value !== 'default') {
-        track = camTrackMap[selectedCamera.value].get(selectedTrackId.value);
-      }
+      const track = trackMap.get(selectedCamera.value)?.get(selectedTrackId.value);
       if (track !== undefined) {
         const { frame } = aggregateController.value;
         recipes.forEach((r) => {
@@ -458,13 +444,12 @@ export default function useModeManager({
 
   /** Toggle editing mode for track */
   function handleTrackEdit(trackId: TrackId) {
-    let track = getTrack(trackMap, trackId);
-    if (selectedCamera.value !== 'default') {
-      track = getTrack(camTrackMap[selectedCamera.value], trackId);
+    const track = trackMap.get(selectedCamera.value)?.get(trackId);
+    if (track) {
+      seekNearest(track);
+      const editing = trackId === selectedTrackId.value ? (!editingTrack.value) : true;
+      handleSelectTrack(trackId, editing);
     }
-    seekNearest(track);
-    const editing = trackId === selectedTrackId.value ? (!editingTrack.value) : true;
-    handleSelectTrack(trackId, editing);
   }
 
   function handleTrackClick(trackId: TrackId) {

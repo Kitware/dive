@@ -33,7 +33,6 @@ import {
   useStateStyles,
   useMergeList,
   useAnnotatorPreferences,
-  useCamTrackMap,
   useSelectedCamera,
 } from '../provides';
 
@@ -56,11 +55,11 @@ export default defineComponent({
   setup(props) {
     const handler = useHandler();
     const intervalTree = useIntervalTree();
-    const camTrackMap = useCamTrackMap();
     const selectedCamera = useSelectedCamera();
-    let trackMap = useTrackMap();
-    if (props.camera !== 'default' && camTrackMap[props.camera] !== undefined) {
-      trackMap = camTrackMap[props.camera];
+    const baseTrackMap = useTrackMap();
+    const trackMap = baseTrackMap.get(props.camera);
+    if (trackMap === undefined) {
+      throw new Error(`Camera Name: ${props.camera} doesn't exist in the trackMap`);
     }
     const enabledTracksRef = useEnabledTracks();
     const selectedTrackIdRef = useSelectedTrackId();

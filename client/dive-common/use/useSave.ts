@@ -5,6 +5,13 @@ import { Attribute } from 'vue-media-annotator/use/useAttributes';
 
 import { useApi, DatasetMetaMutable } from 'dive-common/apispec';
 
+interface ChangeMap {
+  upsert: Map<TrackId, Track>;
+  delete: Set<TrackId>;
+  attributeUpsert: Map<string, Attribute>;
+  attributeDelete: Set<string>;
+  meta: number;
+}
 function _updatePendingChangeMap<K, V>(
   key: K, value: V,
   action: 'upsert' | 'delete',
@@ -25,12 +32,14 @@ export default function useSave(
   readonlyMode: Ref<Readonly<boolean>>,
 ) {
   const pendingSaveCount = ref(0);
-  const pendingChangeMap = {
-    upsert: new Map<TrackId, Track>(),
-    delete: new Set<TrackId>(),
-    attributeUpsert: new Map<string, Attribute>(),
-    attributeDelete: new Set<string>(),
-    meta: 0,
+  const pendingChangeMaps: Record<string, ChangeMap> = {
+    default: {
+      upsert: new Map<TrackId, Track>(),
+      delete: new Set<TrackId>(),
+      attributeUpsert: new Map<string, Attribute>(),
+      attributeDelete: new Set<string>(),
+      meta: 0,
+    },
   };
   const { saveDetections, saveMetadata, saveAttributes } = useApi();
 
@@ -41,29 +50,33 @@ export default function useSave(
       throw new Error('attempted to save in read only mode');
     }
     const promiseList: Promise<unknown>[] = [];
-    if (pendingChangeMap.upsert.size || pendingChangeMap.delete.size) {
-      promiseList.push(saveDetections(datasetId.value, {
-        upsert: Array.from(pendingChangeMap.upsert).map((pair) => pair[1].serialize()),
-        delete: Array.from(pendingChangeMap.delete),
-      }).then(() => {
-        pendingChangeMap.upsert.clear();
-        pendingChangeMap.delete.clear();
-      }));
-    }
-    if (datasetMeta && pendingChangeMap.meta > 0) {
-      promiseList.push(saveMetadata(datasetId.value, datasetMeta).then(() => {
-        pendingChangeMap.meta = 0;
-      }));
-    }
-    if (pendingChangeMap.attributeUpsert.size || pendingChangeMap.attributeDelete.size) {
-      promiseList.push(saveAttributes(datasetId.value, {
-        upsert: Array.from(pendingChangeMap.attributeUpsert).map((pair) => pair[1]),
-        delete: Array.from(pendingChangeMap.attributeDelete),
-      }).then(() => {
-        pendingChangeMap.attributeUpsert.clear();
-        pendingChangeMap.attributeDelete.clear();
-      }));
-    }
+    Object.entries(pendingChangeMaps).forEach(([camera, pendingChangeMap]) => {
+      const saveId = camera === 'default' ? datasetId.value : `${datasetId.value}/${camera}`;
+      if (pendingChangeMap.upsert.size || pendingChangeMap.delete.size) {
+        promiseList.push(saveDetections(saveId, {
+          upsert: Array.from(pendingChangeMap.upsert).map((pair) => pair[1].serialize()),
+          delete: Array.from(pendingChangeMap.delete),
+        }).then(() => {
+          pendingChangeMap.upsert.clear();
+          pendingChangeMap.delete.clear();
+        }));
+      }
+      if (datasetMeta && pendingChangeMap.meta > 0) {
+        promiseList.push(saveMetadata(datasetId.value, datasetMeta).then(() => {
+          // eslint-disable-next-line no-param-reassign
+          pendingChangeMap.meta = 0;
+        }));
+      }
+      if (pendingChangeMap.attributeUpsert.size || pendingChangeMap.attributeDelete.size) {
+        promiseList.push(saveAttributes(saveId, {
+          upsert: Array.from(pendingChangeMap.attributeUpsert).map((pair) => pair[1]),
+          delete: Array.from(pendingChangeMap.attributeDelete),
+        }).then(() => {
+          pendingChangeMap.attributeUpsert.clear();
+          pendingChangeMap.attributeDelete.clear();
+        }));
+      }
+    });
     await Promise.all(promiseList);
     pendingSaveCount.value = 0;
   }
@@ -73,44 +86,69 @@ export default function useSave(
       action,
       track,
       attribute,
+      cameraName = 'default',
     }: {
       action: 'upsert' | 'delete' | 'meta';
       track?: Track;
       attribute?: Attribute;
+      cameraName?: string;
     } = { action: 'meta' },
   ) {
-    if (!readonlyMode.value) {
-      if (action === 'meta') {
-        pendingChangeMap.meta += 1;
-      } else if (track !== undefined) {
-        _updatePendingChangeMap(
-          track.trackId, track, action, pendingChangeMap.upsert, pendingChangeMap.delete,
-        );
-      } else if (attribute !== undefined) {
-        _updatePendingChangeMap(
-          attribute.key,
-          attribute,
-          action,
-          pendingChangeMap.attributeUpsert,
-          pendingChangeMap.attributeDelete,
-        );
-      } else {
-        throw new Error(`Arguments inconsistent with pending change type: ${action} cannot be performed without additional arguments`);
+    if (pendingChangeMaps[cameraName]) {
+      const pendingChangeMap = pendingChangeMaps[cameraName];
+
+      if (!readonlyMode.value) {
+        if (action === 'meta') {
+          pendingChangeMap.meta += 1;
+        } else if (track !== undefined) {
+          _updatePendingChangeMap(
+            track.trackId, track, action, pendingChangeMap.upsert, pendingChangeMap.delete,
+          );
+        } else if (attribute !== undefined) {
+          _updatePendingChangeMap(
+            attribute.key,
+            attribute,
+            action,
+            pendingChangeMap.attributeUpsert,
+            pendingChangeMap.attributeDelete,
+          );
+        } else {
+          throw new Error(`Arguments inconsistent with pending change type: ${action} cannot be performed without additional arguments`);
+        }
+        pendingSaveCount.value += 1;
       }
-      pendingSaveCount.value += 1;
     }
   }
 
   function discardChanges() {
-    pendingChangeMap.upsert.clear();
-    pendingChangeMap.delete.clear();
-    pendingChangeMap.attributeUpsert.clear();
-    pendingChangeMap.attributeDelete.clear();
-    pendingChangeMap.meta = 0;
+    Object.values(pendingChangeMaps).forEach((pendingChangeMap) => {
+      pendingChangeMap.upsert.clear();
+      pendingChangeMap.delete.clear();
+      pendingChangeMap.attributeUpsert.clear();
+      pendingChangeMap.attributeDelete.clear();
+      // eslint-disable-next-line no-param-reassign
+      pendingChangeMap.meta = 0;
+    });
     pendingSaveCount.value = 0;
   }
 
+  function addCamera(cameraName: string) {
+    pendingChangeMaps[cameraName] = {
+
+      upsert: new Map<TrackId, Track>(),
+      delete: new Set<TrackId>(),
+      attributeUpsert: new Map<string, Attribute>(),
+      attributeDelete: new Set<string>(),
+      meta: 0,
+
+    };
+  }
+
   return {
-    save, markChangesPending, discardChanges, pendingSaveCount: readonly(pendingSaveCount),
+    save,
+    markChangesPending,
+    addCamera,
+    discardChanges,
+    pendingSaveCount: readonly(pendingSaveCount),
   };
 }
