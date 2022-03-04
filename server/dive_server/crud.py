@@ -118,6 +118,7 @@ def getCloneRoot(owner: GirderModel, source_folder: GirderModel):
             next_id,
             level=AccessType.READ,
             user=owner,
+            force=True,
         )
         if source_folder is None:
             raise RestException(
@@ -127,7 +128,9 @@ def getCloneRoot(owner: GirderModel, source_folder: GirderModel):
                 ),
                 code=404,
             )
+        print("1")
         verify_dataset(source_folder)
+        print("2")
         next_id = fromMeta(source_folder, constants.ForeignMediaIdMarker, False)
     return source_folder
 

@@ -2,14 +2,18 @@ from typing import List, Optional
 
 from girder.api import access
 from girder.api.describe import Description, autoDescribeRoute
+from girder.exceptions import RestException
 from girder.api.rest import Resource, rawResponse
 from girder.constants import AccessType, SortDir, TokenScope
 from girder.models.folder import Folder
+from girder.models.item import Item
+from girder.models.file import File
 
 from dive_utils import constants, setContentDisposition
 from dive_utils.models import MetadataMutable
 
 from . import crud_dataset
+from . import crud
 
 DatasetModelParam = {
     'description': "dataset id",
@@ -88,21 +92,36 @@ class DatasetResource(Resource):
     @autoDescribeRoute(
         Description("Download a media file")
         .modelParam(
-            "datasetId",
-            description="test",
-            paramType="query",
-            model=Folder,
+            "id",
             level=AccessType.READ,
-            required=True
+            **DatasetModelParam,
         )
         .modelParam(
             "mediaId",
             description="test",
-            paramType="query"
+            model=Item,
+            paramType='path',
+            level=AccessType.READ,
+            required=True,
+            force=True
         )
     )
-    def test_endpoint(self, datasetID, mediaID):
-        return [datasetID, mediaID]
+    def test_endpoint(self, folder, item):
+        root = crud.getCloneRoot(self.getCurrentUser(), folder)
+        if item["folderId"] == root["_id"]:
+            print("test")
+            test = Item()
+            test.load(
+                    item["_id"],
+                    level=AccessType.READ,
+                    force=True,
+                )
+            files = list(test.childFiles(item))
+            if len(files) != 1:
+                raise RestException('Too many files', code=400)
+            return File().download(files[0])
+        else:
+            raise RestException('Media is not found', code=404)
 
     @access.user
     @autoDescribeRoute(

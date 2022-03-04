@@ -19,7 +19,8 @@ interface ImageDataItemInternal extends ImageDataItem {
 
 function loadImageFunc(imageDataItem: ImageDataItem, img: HTMLImageElement) {
   // eslint-disable-next-line no-param-reassign
-  img.src = imageDataItem.url;
+  img.src = '/api/v1/dive_dataset/61afbcacdbf9dc586bd7e27c/media/6196c871555dd52064119464/download';
+  // img.src = imageDataItem.url;
 }
 
 export default defineComponent({
