@@ -12,21 +12,22 @@ export const TailPointKey = 'tail';
 const EmptyResponse: UpdateResponse = { data: {}, union: [], unionWithoutBounds: [] };
 
 /* Standard 10% padding */
-const PaddingVector: [number, number][] = [
-  [-0.10, -0.10],
-  [-0.10, 0.10],
-  [1.10, -0.10],
-  [1.10, 0.10],
-  [-0.10, -0.10],
-];
-/* No padding */
-// const PaddingVectorZero: [number, number][] = [
-//   [0, 0],
-//   [0, 0],
-//   [1, 0],
-//   [1, 0],
-//   [0, 0],
+// const PaddingVector: [number, number][] = [
+//   [-0.10, -0.10],
+//   [-0.10, 0.10],
+//   [1.10, -0.10],
+//   [1.10, 0.10],
+//   [-0.10, -0.10],
 // ];
+
+/* No padding */
+const PaddingVector: [number, number][] = [
+  [0, 0],
+  [0, 0],
+  [1, 0],
+  [1, 0],
+  [0, 0],
+];
 
 export default class HeadTail implements Recipe {
   active: Ref<boolean>;
