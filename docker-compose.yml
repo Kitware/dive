@@ -77,6 +77,7 @@ services:
       - "GIRDER_ADMIN_USER=${GIRDER_ADMIN_USER:-admin}"
       - "GIRDER_ADMIN_PASS=${GIRDER_ADMIN_PASS:-letmein}"
       - "CELERY_BROKER_URL=${CELERY_BROKER_URL:-amqp://guest:guest@rabbit/default}"
+      - "WORKER_API_URL=${WORKER_API_URL:-http://girder:8080/api/v1}"
       # Rabbitmq management variables
       - "RABBITMQ_MANAGEMENT_USERNAME=${RABBITMQ_MANAGEMENT_USERNAME:-guest}"
       - "RABBITMQ_MANAGEMENT_PASSWORD=${RABBITMQ_MANAGEMENT_PASSWORD:-guest}"
@@ -94,6 +95,7 @@ services:
   girder_worker_default:
     # Merge base-worker object with this config
     << : *base-worker
+    deploy: {}
     volumes:
       # readwrite because this worker does addon updates
       - addons:/tmp/addons:rw
