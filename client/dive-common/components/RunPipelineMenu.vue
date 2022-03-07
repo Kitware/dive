@@ -83,8 +83,8 @@ export default defineComponent({
           if (camNumberStringArray.value.includes(pipelineExpectedCameraCount)) {
             sortedPipelines[name] = category;
           }
-        } else if (props.subTypeList.every((item) => item === null)
-        && name !== stereoPipelineMarker && !multiCamPipelineMarkers.includes(name)) {
+        }
+        if (name !== stereoPipelineMarker && !multiCamPipelineMarkers.includes(name)) {
           sortedPipelines[name] = category;
         }
       });

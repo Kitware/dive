@@ -3,7 +3,7 @@ import {
 } from '@vue/composition-api';
 import { uniq, flatMapDeep } from 'lodash';
 import Track, { TrackId } from 'vue-media-annotator/track';
-import { getTrack } from 'vue-media-annotator/use/useTrackStore';
+import { getTrack, getTrackAll } from 'vue-media-annotator/use/useTrackStore';
 import { RectBounds, updateBounds } from 'vue-media-annotator/utils';
 import { EditAnnotationTypes, VisibleAnnotationTypes } from 'vue-media-annotator/layers';
 import { AggregateMediaController } from 'vue-media-annotator/components/annotators/mediaControllerType';
@@ -79,7 +79,7 @@ export default function useModeManager({
     _depend();
     if (editingMode.value && selectedTrackId.value !== null) {
       const { frame } = aggregateController.value;
-      const track = trackMap.get(selectedTrackId.value);
+      const track = getTrack(trackMap, selectedTrackId.value);
       if (track) {
         const [feature] = track.getFeature(frame.value);
         if (feature) {
@@ -197,7 +197,7 @@ export default function useModeManager({
 
   function handleTrackTypeChange(trackId: TrackId | null, value: string) {
     if (trackId !== null) {
-      getTrack(trackMap, trackId).setType(value);
+      getTrackAll(trackMap, trackId).forEach((track) => track.setType(value));
     }
   }
 

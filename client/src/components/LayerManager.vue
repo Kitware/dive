@@ -61,6 +61,7 @@ export default defineComponent({
     if (trackMap === undefined) {
       throw new Error(`Camera Name: ${props.camera} doesn't exist in the trackMap`);
     }
+
     const enabledTracksRef = useEnabledTracks();
     const selectedTrackIdRef = useSelectedTrackId();
     const mergeListRef = useMergeList();

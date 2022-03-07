@@ -23,10 +23,10 @@ interface InsertArgs {
 }
 
 export function getTrack(
-  trackMap: Map<string, Map<TrackId, Track>>, trackId: Readonly<TrackId>, cameraName = 'all',
+  trackMap: Map<string, Map<TrackId, Track>>, trackId: Readonly<TrackId>, cameraName = 'first',
 ): Track {
-  let track: Track;
-  if (cameraName === 'all') {
+  let track: Track | undefined;
+  if (cameraName === 'first') {
     trackMap.forEach((camera) => {
       const tempTrack = camera.get(trackId);
       if (tempTrack) {
@@ -44,6 +44,19 @@ export function getTrack(
   }
   throw new Error(`TrackId ${trackId} not found in trackMap.`);
 }
+
+export function getTrackAll(trackMap: Map<string, Map<TrackId, Track>>, trackId: Readonly<TrackId>):
+  Track[] {
+  const trackList: Track[] = [];
+  trackMap.forEach((camera) => {
+    const tempTrack = camera.get(trackId);
+    if (tempTrack) {
+      trackList.push(tempTrack);
+    }
+  });
+  return trackList;
+}
+
 
 /**
  * TrackStore performs operations on a collection of tracks, such as
@@ -145,27 +158,47 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
     return track;
   }
 
-  function removeTrack(trackId: TrackId | null, disableNotifications = false, cameraName = 'default'): void {
+  function removeTrack(trackId: TrackId | null, disableNotifications = false, cameraName = 'all'): void {
     if (trackId === null) {
       return;
     }
-    const track = getTrack(trackMap, trackId, cameraName);
-    const range = [track.begin, track.end];
-    if (!intervalTree.remove(range, trackId.toString())) {
-      throw new Error(`TrackId ${trackId} with range ${range} not found in tree.`);
+    let range: number[] = [];
+    if (cameraName === 'all') {
+      trackMap.forEach((currentMap, currentCam) => {
+        const track = currentMap.get(trackId);
+        if (track) {
+          range = [track.begin, track.end];
+          track.setNotifier(undefined);
+          currentMap.delete(trackId);
+          if (!disableNotifications) {
+            markChangesPending({ cameraName: currentCam, action: 'delete', track });
+          }
+        }
+      });
+    } else {
+      const currentMap = trackMap.get(cameraName);
+      if (currentMap) {
+        const track = currentMap.get(trackId);
+        if (track) {
+          range = [track.begin, track.end];
+          track.setNotifier(undefined);
+          currentMap.delete(trackId);
+          if (!disableNotifications) {
+            markChangesPending({ cameraName: currentCam, action: 'delete', track });
+          }
+        }
+      }
     }
-    track.setNotifier(undefined);
-    const currentMap = trackMap.get(cameraName);
-    if (currentMap) {
-      currentMap.delete(trackId);
+    //Interval and Index are removed only once
+    if (range.length) {
+      if (!intervalTree.remove(range, trackId.toString())) {
+        throw new Error(`TrackId ${trackId} with range ${range} not found in tree.`);
+      }
       const listIndex = trackIds.value.findIndex((v) => v === trackId);
       if (listIndex === -1) {
         throw new Error(`TrackId ${trackId} not found in trackIds.`);
       }
       trackIds.value.splice(listIndex, 1);
-      if (!disableNotifications) {
-        markChangesPending({ cameraName, action: 'delete', track });
-      }
     }
   }
 

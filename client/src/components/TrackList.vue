@@ -5,6 +5,7 @@ import {
 } from '@vue/composition-api';
 
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
+import { getTrack } from 'vue-media-annotator/use/useTrackStore';
 import { TrackWithContext } from '../use/useTrackFilters';
 
 import { TrackId } from '../track';
@@ -104,7 +105,7 @@ export default defineComponent({
 
     function scrollToTrack(trackId: TrackId | null): void {
       if (trackId !== null && virtualList.value !== null) {
-        const track = trackMap.get(trackId);
+        const track = getTrack(trackMap, trackId);
         if (track) {
           const offset = filteredTracksRef.value.findIndex(
             (filtered) => filtered.track.trackId === trackId,

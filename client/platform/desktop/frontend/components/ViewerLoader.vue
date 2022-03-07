@@ -49,6 +49,7 @@ export default defineComponent({
     const subTypeList = computed(() => [datasets.value[props.id]?.subType || null]);
     const camNumbers = computed(() => [datasets.value[props.id]?.cameraNumber || 1]);
     const readonlyMode = computed(() => settings.value?.readonlyMode || false);
+    const selectedCamera = ref('');
 
     watch(runningJobs, async (_previous, current) => {
       const currentJob = current.find((item) => item.job.datasetIds.includes(props.id));
@@ -67,6 +68,16 @@ export default defineComponent({
         }
       }
     });
+    function changeCamera(cameraName: string) {
+      selectedCamera.value = cameraName;
+    }
+    // When using multiCam some elements require a modified ID to be used
+    const modifiedId = computed(() => {
+      if (selectedCamera.value) {
+        return `${props.id}/${selectedCamera.value}`;
+      }
+      return props.id;
+    });
     return {
       datasets,
       compoundId,
@@ -76,6 +87,8 @@ export default defineComponent({
       subTypeList,
       camNumbers,
       readonlyMode,
+      modifiedId,
+      changeCamera,
     };
   },
 });
@@ -86,6 +99,7 @@ export default defineComponent({
     :id.sync="compoundId"
     ref="viewerRef"
     :readonly-mode="readonlyMode"
+    @change-camera="changeCamera"
   >
     <template #title>
       <v-tabs
@@ -108,19 +122,19 @@ export default defineComponent({
     </template>
     <template #title-right>
       <RunPipelineMenu
-        :selected-dataset-ids="[id]"
+        :selected-dataset-ids="[modifiedId]"
         :sub-type-list="subTypeList"
         :camera-numbers="camNumbers"
         v-bind="{ buttonOptions, menuOptions }"
       />
       <ImportAnnotations
-        :dataset-id="compoundId"
+        :dataset-id="modifiedId"
         v-bind="{ buttonOptions, menuOptions }"
         block-on-unsaved
       />
       <Export
         v-if="datasets[id]"
-        :id="compoundId"
+        :id="modifiedId"
         :button-options="buttonOptions"
       />
     </template>

@@ -419,13 +419,15 @@ export default defineComponent({
     const controlsHeight = ref(0);
     const controlsCollapsed = ref(false);
     function handleResize() {
-      controlsHeight.value = controlsRef.value.$el.clientHeight;
-      onResize();
+      if (controlsRef.value) {
+        controlsHeight.value = controlsRef.value.$el.clientHeight;
+        onResize();
+      }
     }
     const observer = new ResizeObserver(handleResize);
     watch(controlsRef, (previous) => {
       if (previous) observer.unobserve(previous.$el);
-      observer.observe(controlsRef.value.$el);
+      if (controlsRef.value) observer.observe(controlsRef.value.$el);
     });
     watch(controlsCollapsed, async () => {
       await nextTick();
@@ -437,6 +439,7 @@ export default defineComponent({
 
     const changeCamera = async (camera: string) => {
       selectedCamera.value = camera;
+      ctx.emit('change-camera', camera);
     };
 
     const globalHandler = {
