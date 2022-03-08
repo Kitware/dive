@@ -128,9 +128,7 @@ def getCloneRoot(owner: GirderModel, source_folder: GirderModel):
                 ),
                 code=404,
             )
-        print("1")
         verify_dataset(source_folder)
-        print("2")
         next_id = fromMeta(source_folder, constants.ForeignMediaIdMarker, False)
     return source_folder
 

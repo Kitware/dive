@@ -346,7 +346,6 @@ export default defineComponent({
         imageData.value = cloneDeep(meta.imageData) as FrameImage[];
         videoUrl.value = meta.videoUrl;
         datasetType.value = meta.type as DatasetType;
-        console.log(imageData.value);
 
         const trackData = await loadDetections(datasetId.value, props.revision);
         const tracks = Object.values(trackData);
