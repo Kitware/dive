@@ -37,7 +37,7 @@ class DatasetResource(Resource):
         self.route("GET", (":id", "media"), self.get_media)
         self.route("GET", ("export",), self.export)
         self.route("GET", (":id", "configuration"), self.get_configuration)
-        self.route("GET", (":id", "media", ":mediaId", "download"), self.test_endpoint)
+        self.route("GET", (":id", "media", ":mediaId", "download"), self.download_media)
         self.route("POST", ("validate_files",), self.validate_files)
 
         self.route("PATCH", (":id",), self.patch_metadata)
@@ -106,19 +106,12 @@ class DatasetResource(Resource):
             force=True
         )
     )
-    def test_endpoint(self, folder, item):
+    def download_media(self, folder, item):
         root = crud.getCloneRoot(self.getCurrentUser(), folder)
         if item["folderId"] == root["_id"]:
-            print("test")
-            test = Item()
-            test.load(
-                    item["_id"],
-                    level=AccessType.READ,
-                    force=True,
-                )
-            files = list(test.childFiles(item))
+            files = list(Item().childFiles(item))
             if len(files) != 1:
-                raise RestException('Too many files', code=400)
+                raise RestException('Expected one file', code=400)
             return File().download(files[0])
         else:
             raise RestException('Media is not found', code=404)
