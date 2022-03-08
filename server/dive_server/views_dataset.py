@@ -2,18 +2,17 @@ from typing import List, Optional
 
 from girder.api import access
 from girder.api.describe import Description, autoDescribeRoute
-from girder.exceptions import RestException
 from girder.api.rest import Resource, rawResponse
 from girder.constants import AccessType, SortDir, TokenScope
+from girder.exceptions import RestException
+from girder.models.file import File
 from girder.models.folder import Folder
 from girder.models.item import Item
-from girder.models.file import File
 
 from dive_utils import constants, setContentDisposition
 from dive_utils.models import MetadataMutable
 
-from . import crud_dataset
-from . import crud
+from . import crud, crud_dataset
 
 DatasetModelParam = {
     'description': "dataset id",
@@ -103,7 +102,7 @@ class DatasetResource(Resource):
             paramType='path',
             level=AccessType.READ,
             required=True,
-            force=True
+            force=True,
         )
     )
     def download_media(self, folder, item):
