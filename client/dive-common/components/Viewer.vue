@@ -92,7 +92,7 @@ export default defineComponent({
     const selectedCamera = ref('default');
     const playbackComponent = ref(undefined as Vue | undefined);
     const readonlyState = computed(() => props.readonlyMode || props.revision !== undefined);
-    const { aggregateController, onResize } = useMediaController();
+    const { aggregateController, onResize, clear: mediaControllerClear } = useMediaController();
     const { time, updateTime, initialize: initTime } = useTimeObserver();
     const imageData = ref({ default: [] } as Record<string, FrameImage[]>);
     const datasetType: Ref<DatasetType> = ref('image-sequence');
@@ -405,6 +405,7 @@ export default defineComponent({
     loadData();
 
     const reloadAnnotations = async () => {
+      mediaControllerClear();
       clearAllTracks();
       discardChanges();
       progress.loaded = false;
@@ -417,13 +418,15 @@ export default defineComponent({
     const controlsHeight = ref(0);
     const controlsCollapsed = ref(false);
     function handleResize() {
-      controlsHeight.value = controlsRef.value.$el.clientHeight;
-      onResize();
+      if (controlsRef.value) {
+        controlsHeight.value = controlsRef.value.$el.clientHeight;
+        onResize();
+      }
     }
     const observer = new ResizeObserver(handleResize);
     watch(controlsRef, (previous) => {
       if (previous) observer.unobserve(previous.$el);
-      observer.observe(controlsRef.value.$el);
+      if (controlsRef.value) observer.observe(controlsRef.value.$el);
     });
     watch(controlsCollapsed, async () => {
       await nextTick();

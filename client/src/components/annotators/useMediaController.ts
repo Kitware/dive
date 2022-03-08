@@ -71,13 +71,23 @@ export function injectCameraInitializer() {
 
 export function useMediaController() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const geoViewers: Record<string, Ref<any>> = {};
-  const containers: Record<string, Ref<HTMLElement | undefined>> = {};
-  const imageCursors: Record<string, Ref<HTMLElement | undefined>> = {};
+  let geoViewers: Record<string, Ref<any>> = {};
+  let containers: Record<string, Ref<HTMLElement | undefined>> = {};
+  let imageCursors: Record<string, Ref<HTMLElement | undefined>> = {};
   const cameras: Ref<symbol[]> = ref([]);
-  const subControllers: MediaController[] = [];
-  const state: Record<string, UnwrapRef<MediaControllerReactiveData>> = {};
-  const cameraControllerSymbols: Record<string, symbol> = {};
+  let subControllers: MediaController[] = [];
+  let state: Record<string, UnwrapRef<MediaControllerReactiveData>> = {};
+  let cameraControllerSymbols: Record<string, symbol> = {};
+
+  function clear() {
+    geoViewers = {};
+    containers = {};
+    imageCursors = {};
+    cameras.value = [];
+    subControllers = [];
+    state = {};
+    cameraControllerSymbols = {};
+  }
 
   function getController(camera?: string) {
     if (cameras.value.length === 0) {
@@ -389,5 +399,6 @@ export function useMediaController() {
     imageCursors,
     initialize,
     onResize,
+    clear,
   };
 }
