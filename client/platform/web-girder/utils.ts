@@ -55,12 +55,17 @@ Promise<{ canceled: boolean; filePaths: string[]; fileList?: File[]}> {
     input.accept = zipFileTypes.map((item) => `.${item}`).join(',');
   }
 
-  return new Promise(((resolve) => {
+  return new Promise(((resolve, reject) => {
     input.onchange = (event) => {
       if (event) {
         const { files } = event.target as HTMLInputElement;
         if (files) {
           const fileList = Array.from(files);
+          if (datasetType === 'annotation') {
+            if (!fileList.every((item) => inputAnnotationTypes.includes(item.type))) {
+              reject(new Error('File Types did not match JSON or CSV'));
+            }
+          }
           const response = {
             canceled: !files.length,
             fileList,
