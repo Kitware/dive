@@ -48,24 +48,40 @@ export default defineComponent({
     const compoundId = ref(props.id);
     const subTypeList = computed(() => [datasets.value[props.id]?.subType || null]);
     const camNumbers = computed(() => [datasets.value[props.id]?.cameraNumber || 1]);
-    const readonlyMode = computed(() => settings.value?.readonlyMode || false);
+    const readOnlyMode = computed(() => settings.value?.readonlyMode || false);
 
     watch(runningJobs, async (_previous, current) => {
       const currentJob = current.find((item) => item.job.datasetIds.includes(props.id));
-      if (currentJob && currentJob.job.exitCode === 0 && currentJob.job.jobType === 'pipeline') {
-        const result = await prompt({
-          title: 'Pipeline Finished',
-          text: [`Pipeline: ${currentJob.job.title}`,
-            'finished running sucesffully on the current dataset.  Click reload to load the annotations.  The current annotations will be replaced with the pipeline output.',
-          ],
-          confirm: true,
-          positiveButton: 'Reload',
-          negativeButton: 'Cancel',
-        });
-        if (result) {
-          viewerRef.value.reloadAnnotations();
+      if (currentJob && currentJob.job.jobType === 'pipeline') {
+        if (currentJob.job.exitCode === 0) {
+          const result = await prompt({
+            title: 'Pipeline Finished',
+            text: [`Pipeline: ${currentJob.job.title}`,
+              'finished running on the current dataset.  Click reload to load the annotations.  The current annotations will be replaced with the pipeline output.',
+            ],
+            confirm: true,
+            positiveButton: 'Reload',
+            negativeButton: '',
+          });
+          if (result) {
+            viewerRef.value.reloadAnnotations();
+          }
+        } else {
+          await prompt({
+            title: 'Pipeline Incomplete',
+            text: [`Pipeline: ${currentJob.job.title}`,
+              'either failed or was cancelled by the user',
+            ],
+          });
         }
       }
+    });
+    const runningPipelines = computed(() => {
+      const results: string[] = [];
+      if (runningJobs.value.find((item) => item.job.datasetIds.includes(props.id))) {
+        results.push(props.id);
+      }
+      return results;
     });
     return {
       datasets,
@@ -75,7 +91,8 @@ export default defineComponent({
       menuOptions,
       subTypeList,
       camNumbers,
-      readonlyMode,
+      readOnlyMode,
+      runningPipelines,
     };
   },
 });
@@ -85,7 +102,7 @@ export default defineComponent({
   <Viewer
     :id.sync="compoundId"
     ref="viewerRef"
-    :readonly-mode="readonlyMode"
+    :read-only-mode="readOnlyMode || runningPipelines.length > 0"
   >
     <template #title>
       <v-tabs
@@ -111,11 +128,13 @@ export default defineComponent({
         :selected-dataset-ids="[id]"
         :sub-type-list="subTypeList"
         :camera-numbers="camNumbers"
+        :running-pipelines="runningPipelines"
+        :read-only-mode="readOnlyMode"
         v-bind="{ buttonOptions, menuOptions }"
       />
       <ImportAnnotations
         :dataset-id="compoundId"
-        v-bind="{ buttonOptions, menuOptions }"
+        v-bind="{ buttonOptions, menuOptions, readOnlyMode }"
         block-on-unsaved
       />
       <Export

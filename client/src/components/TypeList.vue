@@ -7,7 +7,7 @@ import { difference, union } from 'lodash';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import {
   useCheckedTypes, useAllTypes, useTypeStyling, useHandler,
-  useUsedTypes, useFilteredTracks, useConfidenceFilters,
+  useUsedTypes, useFilteredTracks, useConfidenceFilters, useReadOnlyMode,
 } from '../provides';
 import TooltipBtn from './TooltipButton.vue';
 import TypeEditor from './TypeEditor.vue';
@@ -46,6 +46,7 @@ export default defineComponent({
 
   setup(props) {
     const { prompt } = usePrompt();
+    const readOnlyMode = useReadOnlyMode();
 
     // Ordering of these lists should match
     const sortingMethods = ['a-z', 'count'];
@@ -202,6 +203,7 @@ export default defineComponent({
       sortingMethodIcons,
       virtualHeight,
       virtualTypes,
+      readOnlyMode,
       /* methods */
       clickDelete,
       clickEdit,
@@ -278,7 +280,7 @@ export default defineComponent({
             <template #activator="{ on }">
               <v-btn
                 class="hover-show-child"
-                :disabled="checkedTypesRef.length === 0"
+                :disabled="checkedTypesRef.length === 0 || readOnlyMode"
                 icon
                 small
                 v-on="on"

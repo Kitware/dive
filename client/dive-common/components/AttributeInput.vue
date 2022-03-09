@@ -29,6 +29,10 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    disabled: {
+      type: Boolean,
+      default: false,
+    },
   },
   setup(props, { emit }) {
     const tempVal = ref(props.value as null | boolean | number | string);
@@ -104,6 +108,7 @@ export default defineComponent({
     <datalist
       v-if="datatype === 'text' && values && values.length"
       :id="`optionsList_${_uid}`"
+      :disabled="disabled"
     >
       <option
         v-for="type in [' ', ...values]"
@@ -119,6 +124,7 @@ export default defineComponent({
       ref="inputBoxRef"
       v-model="tempVal"
       type="text"
+      :disabled="disabled"
       :list="`optionsList_${_uid}`"
       class="input-box"
       @change="change"
@@ -130,6 +136,7 @@ export default defineComponent({
       ref="inputBoxRef"
       :label="datatype"
       :value="value"
+      :disabled="disabled"
       class="input-box"
       type="number"
       @change="change"
@@ -139,6 +146,7 @@ export default defineComponent({
       v-else-if="datatype === 'boolean'"
       ref="inputBoxRef"
       :label="datatype"
+      :disabled="disabled"
       :value="value"
       class="input-box select-input"
       @change="change"

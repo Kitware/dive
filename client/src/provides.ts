@@ -81,6 +81,9 @@ type TimeType = Readonly<Time>;
 const VisibleModesSymbol = Symbol('visibleModes');
 type VisibleModesType = Readonly<Ref<readonly VisibleAnnotationTypes[]>>;
 
+const ReadOnlyModeSymbol = Symbol('readOnlyMode');
+type ReadOnylModeType = Readonly<Ref<boolean>>;
+
 /**
  * Handler interface describes all global events mutations
  * for above state
@@ -225,6 +228,7 @@ export interface State {
   stateStyles: StateStylesType;
   time: TimeType;
   visibleModes: VisibleModesType;
+  readOnlyMode: ReadOnylModeType;
 }
 
 /**
@@ -279,6 +283,7 @@ function dummyState(): State {
       originalFps: ref(null),
     },
     visibleModes: ref(['rectangle', 'text'] as VisibleAnnotationTypes[]),
+    readOnlyMode: ref(false),
   };
 }
 
@@ -312,6 +317,7 @@ function provideAnnotator(state: State, handler: Handler) {
   provide(StateStylesSymbol, state.stateStyles);
   provide(TimeSymbol, state.time);
   provide(VisibleModesSymbol, state.visibleModes);
+  provide(ReadOnlyModeSymbol, state.readOnlyMode);
   provide(HandlerSymbol, handler);
 }
 
@@ -412,6 +418,9 @@ function useTime() {
 function useVisibleModes() {
   return use<VisibleModesType>(VisibleModesSymbol);
 }
+function useReadOnlyMode() {
+  return use<ReadOnylModeType>(ReadOnlyModeSymbol);
+}
 
 export {
   dummyHandler,
@@ -440,4 +449,5 @@ export {
   useStateStyles,
   useTime,
   useVisibleModes,
+  useReadOnlyMode,
 };

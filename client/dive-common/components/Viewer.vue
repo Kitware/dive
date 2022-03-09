@@ -67,7 +67,7 @@ export default defineComponent({
       type: Number,
       default: undefined,
     },
-    readonlyMode: {
+    readOnlyMode: {
       type: Boolean,
       default: false,
     },
@@ -81,7 +81,7 @@ export default defineComponent({
     const defaultCamera = ref('');
     const currentCamera = ref('');
     const playbackComponent = ref(undefined as Vue | undefined);
-    const readonlyState = computed(() => props.readonlyMode || props.revision !== undefined);
+    const readonlyState = computed(() => props.readOnlyMode || props.revision !== undefined);
     const mediaController = computed(() => {
       if (playbackComponent.value) {
         // TODO: Bug in composition-api types incorrectly organizes the static members of a Vue
@@ -184,6 +184,7 @@ export default defineComponent({
       selectNextTrack,
     } = useTrackSelectionControls({
       filteredTracks,
+      readonlyState,
     });
 
     clientSettingsSetup(allTypes);
@@ -380,6 +381,7 @@ export default defineComponent({
     };
 
     watch(datasetId, reloadAnnotations);
+    watch(readonlyState, () => selectTrack(null, false));
 
     const changeCamera = async (camera: string) => {
       if (!camera || !baseMulticamDatasetId.value) {
@@ -428,6 +430,7 @@ export default defineComponent({
         stateStyles: stateStyling,
         time,
         visibleModes,
+        readOnlyMode: readonlyState,
       },
       globalHandler,
     );
@@ -489,9 +492,35 @@ export default defineComponent({
     <v-app-bar app>
       <slot name="title" />
       <span
-        class="title pl-3"
+        class="title pl-3 flex-row"
+        style="white-space:nowrap;overflow:hidden;text-overflow: ellipsis;"
       >
         {{ datasetName }}
+        <div
+          v-if="readonlyState"
+          class="mx-auto my-0 pa-0"
+          style="line-height:0.2em;"
+        >
+          <v-tooltip
+            bottom
+          >
+            <template v-slot:activator="{on}">
+              <v-chip
+                class="warning pr-1"
+                style="white-space:nowrap;display:inline"
+                small
+                v-on="on"
+              >
+                Read Only Mode
+                <v-icon
+                  class="pl-1"
+                  small
+                >mdi-information-outline</v-icon>
+              </v-chip>
+            </template>
+            <span>Read Only Mode: Editing, Deleting and Importing actions are disabled</span>
+          </v-tooltip>
+        </div>
       </span>
       <v-spacer />
       <template #extension>
@@ -593,7 +622,7 @@ export default defineComponent({
           v-if="(imageData.length || videoUrl) && progress.loaded"
           ref="playbackComponent"
           v-mousetrap="[
-            { bind: 'n', handler: () => handler.trackAdd() },
+            { bind: 'n', handler: () => !readonlyState && handler.trackAdd() },
             { bind: 'r', handler: () => mediaController.resetZoom() },
             { bind: 'esc', handler: () => handler.trackAbort() },
           ]"

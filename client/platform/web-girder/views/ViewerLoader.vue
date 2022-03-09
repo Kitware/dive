@@ -1,7 +1,7 @@
 <script lang="ts">
 import {
   computed,
-  defineComponent, onBeforeUnmount, onMounted, ref, toRef,
+  defineComponent, onBeforeUnmount, onMounted, ref, toRef, watch,
 } from '@vue/composition-api';
 
 import Viewer from 'dive-common/components/Viewer.vue';
@@ -9,6 +9,7 @@ import NavigationTitle from 'dive-common/components/NavigationTitle.vue';
 import RunPipelineMenu from 'dive-common/components/RunPipelineMenu.vue';
 import ImportAnnotations from 'dive-common/components/ImportAnnotations.vue';
 import { useStore } from 'platform/web-girder/store/types';
+import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import JobsTab from './JobsTab.vue';
 import Export from './Export.vue';
 import Clone from './Clone.vue';
@@ -62,6 +63,7 @@ export default defineComponent({
   },
 
   setup(props) {
+    const { prompt } = usePrompt();
     const viewerRef = ref();
     const store = useStore();
     const brandData = toRef(store.state.Brand, 'brandData');
@@ -71,6 +73,41 @@ export default defineComponent({
       return parsed;
     });
     const { getters } = store;
+    const currentJob = computed(() => getters['Jobs/datasetCompleteJobs'](props.id));
+    const runningPipelines = computed(() => {
+      const results: string[] = [];
+      if (getters['Jobs/datasetRunningState'](props.id)) {
+        results.push(props.id);
+      }
+      return results;
+    });
+    watch(currentJob, async () => {
+      if (currentJob.value !== false && currentJob.value !== undefined) {
+        if (currentJob.value.success) {
+          const result = await prompt({
+            title: 'Pipeline Finished',
+            text: [`Pipeline: ${currentJob.value.title}`,
+              'finished running on the current dataset.  Click reload to load the annotations.  The current annotations will be replaced with the pipeline output.',
+            ],
+            confirm: true,
+            positiveButton: 'Reload',
+            negativeButton: '',
+          });
+          store.dispatch('Jobs/removeCompleteJob', { datasetId: props.id });
+          if (result) {
+            viewerRef.value.reloadAnnotations();
+          }
+        } else {
+          await prompt({
+            title: 'Pipeline Incomplete',
+            text: [`Pipeline: ${currentJob.value.title}`,
+              'either failed or was cancelled by the user',
+            ],
+          });
+          store.dispatch('Jobs/removeCompleteJob', { datasetId: props.id });
+        }
+      }
+    });
 
     onMounted(() => {
       window.addEventListener('beforeunload', viewerRef.value.warnBrowserExit);
@@ -87,6 +124,8 @@ export default defineComponent({
       revisionNum,
       viewerRef,
       getters,
+      currentJob,
+      runningPipelines,
     };
   },
 });
@@ -98,6 +137,7 @@ export default defineComponent({
     :key="`${id}/${revisionNum}`"
     ref="viewerRef"
     :revision="revisionNum"
+    :read-only-mode="!!getters['Jobs/datasetRunningState'](id)"
   >
     <template #title>
       <ViewerAlert />
@@ -119,9 +159,13 @@ export default defineComponent({
       <RunPipelineMenu
         v-bind="{ buttonOptions, menuOptions }"
         :selected-dataset-ids="[id]"
+        :running-pipelines="runningPipelines"
       />
       <ImportAnnotations
-        v-bind="{ buttonOptions, menuOptions }"
+        v-bind="{ buttonOptions,
+                  menuOptions,
+                  readOnlyMode: !!getters['Jobs/datasetRunningState'](id),
+        }"
         :dataset-id="id"
         block-on-unsaved
       />
