@@ -92,7 +92,7 @@ export default defineComponent({
     const selectedCamera = ref('default');
     const playbackComponent = ref(undefined as Vue | undefined);
     const readonlyState = computed(() => props.readonlyMode || props.revision !== undefined);
-    const { aggregateController, onResize } = useMediaController();
+    const { aggregateController, onResize, clear } = useMediaController();
     const { time, updateTime, initialize: initTime } = useTimeObserver();
     const imageData = ref({ default: [] } as Record<string, FrameImage[]>);
     const datasetType: Ref<DatasetType> = ref('image-sequence');
@@ -316,6 +316,22 @@ export default defineComponent({
       return result;
     }
 
+    const changeCamera = async (camera: string, event?: MouseEvent) => {
+      if (selectedCamera.value === camera) {
+        return;
+      }
+      if (event) {
+        console.log(event);
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+      }
+      //handler.trackAbort(); //Any in process track without data should be removed
+      selectedCamera.value = camera;
+      ctx.emit('change-camera', camera);
+    };
+
+
     /** Trigger data load */
     const loadData = async () => {
       try {
@@ -326,7 +342,7 @@ export default defineComponent({
           const { cameras } = meta.multiCamMedia;
           multiCamList.value = Object.keys(cameras);
           defaultCamera.value = meta.multiCamMedia.defaultDisplay;
-          selectedCamera.value = defaultCamera.value;
+          changeCamera(defaultCamera.value);
           baseMulticamDatasetId.value = datasetId.value;
           if (!selectedCamera.value) {
             throw new Error('Multicamera dataset without default camera specified.');
@@ -436,11 +452,6 @@ export default defineComponent({
     onBeforeUnmount(() => {
       observer.unobserve(controlsRef.value.$el);
     });
-
-    const changeCamera = async (camera: string) => {
-      selectedCamera.value = camera;
-      ctx.emit('change-camera', camera);
-    };
 
     const globalHandler = {
       ...handler,
@@ -665,8 +676,8 @@ export default defineComponent({
               :key="camera"
               class="d-flex flex-column grow"
               :style="{ height: `calc(100% - ${controlsHeight}px)`}"
-              @click="changeCamera(camera)"
-              @mousedown.right="changeCamera(camera)"
+              @click="changeCamera(camera, $event)"
+              @mousedown.right="changeCamera(camera, $event)"
             >
               <component
                 :is="datasetType === 'image-sequence' ? 'image-annotator' : 'video-annotator'"

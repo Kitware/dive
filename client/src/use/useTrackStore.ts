@@ -146,9 +146,10 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
   }
 
   function addTrack(frame: number, defaultType: string,
-    afterId?: TrackId, cameraName?: string): Track {
+    afterId?: TrackId, cameraName?: string, overrideTrackId?: number): Track {
     const camName = cameraName ?? 'default';
-    const track = new Track(getNewTrackId(), {
+    const newId = overrideTrackId ?? getNewTrackId();
+    const track = new Track(newId, {
       begin: frame,
       end: frame,
       confidencePairs: [[defaultType, 1]],
@@ -184,7 +185,7 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
           track.setNotifier(undefined);
           currentMap.delete(trackId);
           if (!disableNotifications) {
-            markChangesPending({ cameraName: currentCam, action: 'delete', track });
+            markChangesPending({ cameraName, action: 'delete', track });
           }
         }
       }

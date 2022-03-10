@@ -42,7 +42,6 @@ export default defineComponent({
         Camera: {{ selectedCamera }}
       </h4>
     </v-alert>
-    <v-list>
-    </v-list>
+    <v-list />
   </div>
 </template>

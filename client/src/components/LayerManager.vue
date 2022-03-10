@@ -150,7 +150,7 @@ export default defineComponent({
       const editingTracks = [] as FrameDataTrack[];
       currentFrameIds.forEach(
         (trackId: TrackId) => {
-          const track = trackMap.get(trackId);
+          const track = trackMap?.get(trackId);
           if (track === undefined) {
             // Track may be located in another Camera
             // TODO: Find a better way to represent tracks outside of cameras
@@ -229,16 +229,22 @@ export default defineComponent({
       }
 
       if (selectedTrackId !== null) {
-        if ((editingTrack) && !currentFrameIds.includes(selectedTrackId)) {
-          const editTrack = trackMap.get(selectedTrackId);
-
-          if (editTrack === undefined) {
+        if ((editingTrack) && !currentFrameIds.includes(selectedTrackId)
+        && props.camera === selectedCamera.value) {
+          const editTrack = trackMap?.get(selectedTrackId);
+          //Track doesn't exist in the only camera
+          if (editTrack === undefined && baseTrackMap.size === 1) {
             throw new Error(`trackMap missing trackid ${selectedTrackId}`);
+          } else if (editTrack === undefined && baseTrackMap.size > 1) {
+            // We create the track temporarily because we want to add it to the camera
+            handler.trackAdd(selectedTrackId);
+          }
+          if (editTrack === undefined) {
+            throw new Error(`trackMap missing trackId ${selectedTrackId} in multi-camera mode and didn't properly create`);/*  */
           }
           const enabledIndex = enabledTracks.findIndex(
             (trackWithContext) => trackWithContext.track.trackId === editTrack.trackId,
           );
-
           const [real, lower, upper] = editTrack.getFeature(frame);
           const features = real || lower || upper;
           const trackFrame = {

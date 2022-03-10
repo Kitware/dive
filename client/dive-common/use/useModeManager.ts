@@ -47,7 +47,8 @@ export default function useModeManager({
   recipes: Recipe[];
   selectTrack: (trackId: TrackId | null, edit: boolean) => void;
   selectNextTrack: (delta?: number) => TrackId | null;
-  addTrack: (frame: number, defaultType: string, afterId?: TrackId, cameraName?: string) => Track;
+  addTrack: (frame: number, defaultType: string, afterId?: TrackId,
+    cameraName?: string, overrideTrackId?: number) => Track;
   removeTrack: (trackId: TrackId) => void;
 }) {
   let creating = false;
@@ -170,7 +171,8 @@ export default function useModeManager({
   //Handles deselection or hitting escape including while editing
   function handleEscapeMode() {
     if (selectedTrackId.value !== null) {
-      const track = trackMap.get(selectedTrackId.value);
+      const currentMap = trackMap.get(selectedCamera.value);
+      const track = currentMap?.get(selectedTrackId.value);
       if (track && track.begin === track.end) {
         const features = track.getFeature(track.begin);
         // If no features exist we remove the empty track
@@ -183,12 +185,18 @@ export default function useModeManager({
     handleSelectTrack(null, false);
   }
 
-  function handleAddTrackOrDetection(): TrackId {
+  function handleAddTrackOrDetection(overrideTrackId?: number): TrackId {
     // Handles adding a new track with the NewTrack Settings
     const { frame } = aggregateController.value;
+    let trackType = trackSettings.value.newTrackSettings.type;
+    if (overrideTrackId !== undefined) {
+      const track = getTrack(trackMap, overrideTrackId);
+      // eslint-disable-next-line prefer-destructuring
+      trackType = track.confidencePairs[0][0];
+    }
     const newTrackId = addTrack(
-      frame.value, trackSettings.value.newTrackSettings.type,
-      selectedTrackId.value || undefined, selectedCamera.value,
+      frame.value, trackType,
+      selectedTrackId.value || undefined, selectedCamera.value, overrideTrackId || undefined,
     ).trackId;
     selectTrack(newTrackId, true);
     creating = true;
@@ -449,6 +457,15 @@ export default function useModeManager({
       seekNearest(track);
       const editing = trackId === selectedTrackId.value ? (!editingTrack.value) : true;
       handleSelectTrack(trackId, editing);
+    } else if (getTrack(trackMap, trackId) !== undefined) {
+      //If track exists in other cameras we create it in the current map and set it to editing mode
+      handleAddTrackOrDetection(trackId);
+      const camTrack = trackMap.get(selectedCamera.value)?.get(trackId);
+      if (camTrack) {
+        seekNearest(camTrack);
+        const editing = trackId === selectedTrackId.value;
+        handleSelectTrack(trackId, editing);
+      }
     }
   }
 

@@ -312,7 +312,7 @@ export default defineComponent({
                 class="mr-2"
                 :color="newTrackColor"
                 v-on="on"
-                @click="trackAdd"
+                @click="trackAdd()"
               >
                 <v-icon small>
                   mdi-plus

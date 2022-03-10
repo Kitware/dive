@@ -106,7 +106,7 @@ export interface Handler {
   /* Change tracks difinitive type */
   trackTypeChange(trackId: TrackId | null, value: string): void;
   /* Add new empty track and select it */
-  trackAdd(): TrackId;
+  trackAdd(overrideTrackId?: number): TrackId;
   /* update Rectangle bounds for track */
   updateRectBounds(
     frameNum: number,

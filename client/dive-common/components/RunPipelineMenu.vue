@@ -99,9 +99,13 @@ export default defineComponent({
       if (props.selectedDatasetIds.length === 0) {
         throw new Error('No selected datasets to run on');
       }
+      let datasetIds = props.selectedDatasetIds;
+      if (multiCamPipelineMarkers.includes(pipeline.type)) {
+        datasetIds = props.selectedDatasetIds.map((item) => item.substring(0, item.lastIndexOf('/')));
+      }
       selectedPipe.value = pipeline;
       await _runPipelineRequest(() => Promise.all(
-        props.selectedDatasetIds.map((id) => runPipeline(id, pipeline)),
+        datasetIds.map((id) => runPipeline(id, pipeline)),
       ));
     }
 
