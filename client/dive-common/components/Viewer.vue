@@ -41,6 +41,7 @@ import { useApi, FrameImage, DatasetType } from 'dive-common/apispec';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { cloneDeep } from 'lodash';
 import { getResponseError } from 'vue-media-annotator/utils';
+import { SVGFilters } from 'vue-media-annotator/types';
 import context from 'dive-common/store/context';
 
 export default defineComponent({
@@ -390,6 +391,18 @@ export default defineComponent({
       const newId = `${baseMulticamDatasetId.value}/${camera}`;
       ctx.emit('update:id', newId);
     };
+    const svgFilters: Ref<SVGFilters> = ref({});
+    const brightnessRef = ref(1);
+    const interceptRef = ref(0);
+    const setSVGFilters = ({ brightness, intercept }:
+    {brightness?: number; intercept?: number }) => {
+      svgFilters.value.brightness = brightness;
+      svgFilters.value.intercept = intercept;
+      if (brightness !== undefined && intercept !== undefined) {
+        brightnessRef.value = brightness;
+        interceptRef.value = intercept;
+      }
+    };
 
     const globalHandler = {
       ...handler,
@@ -405,6 +418,7 @@ export default defineComponent({
       setConfidenceFilters,
       deleteAttribute,
       reloadAnnotations,
+      setSVGFilters,
     };
 
     provideAnnotator(
@@ -431,6 +445,7 @@ export default defineComponent({
         time,
         visibleModes,
         readOnlyMode: readonlyState,
+        svgFilters,
       },
       globalHandler,
     );
@@ -465,6 +480,9 @@ export default defineComponent({
       originalFps: time.originalFps,
       context,
       readonlyState,
+      svgFilters,
+      brightnessRef,
+      interceptRef,
       /* methods */
       handler: globalHandler,
       save,
@@ -626,7 +644,9 @@ export default defineComponent({
             { bind: 'r', handler: () => mediaController.resetZoom() },
             { bind: 'esc', handler: () => handler.trackAbort() },
           ]"
-          v-bind="{ imageData, videoUrl, updateTime, frameRate, originalFps }"
+          v-bind="{ imageData, videoUrl, updateTime, frameRate,
+                    originalFps, brightness: brightnessRef, intercept: interceptRef,
+          }"
           class="playback-component"
         >
           <template slot="control">

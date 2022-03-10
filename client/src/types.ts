@@ -9,3 +9,8 @@ export interface AnnotatorPreferences {
     after: number;
   };
 }
+
+export interface SVGFilters {
+  brightness?: number;
+  intercept?: number;
+}

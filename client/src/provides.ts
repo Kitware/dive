@@ -3,7 +3,7 @@ import {
   provide, inject, ref, Ref,
 } from '@vue/composition-api';
 
-import { AnnotatorPreferences as AnnotatorPrefsIface } from './types';
+import { AnnotatorPreferences as AnnotatorPrefsIface, SVGFilters } from './types';
 import { CustomStyle, StateStyles, TypeStyling } from './use/useStyling';
 import { EditAnnotationTypes } from './layers/EditAnnotationLayer';
 import Track, { TrackId } from './track';
@@ -84,6 +84,9 @@ type VisibleModesType = Readonly<Ref<readonly VisibleAnnotationTypes[]>>;
 const ReadOnlyModeSymbol = Symbol('readOnlyMode');
 type ReadOnylModeType = Readonly<Ref<boolean>>;
 
+const SVGFiltersSymbol = Symbol('svgFilters');
+type SVGFiltersType = Readonly<Ref<SVGFilters>>;
+
 /**
  * Handler interface describes all global events mutations
  * for above state
@@ -158,6 +161,7 @@ export interface Handler {
   unstageFromMerge(ids: TrackId[]): void;
   /* Reload Annotation File */
   reloadAnnotations(): Promise<void>;
+  setSVGFilters({ brightness, intercept }: {brightness?: number; intercept?: number}): void;
 }
 const HandlerSymbol = Symbol('handler');
 
@@ -196,6 +200,7 @@ function dummyHandler(handle: (name: string, args: unknown[]) => void): Handler 
     commitMerge(...args) { handle('commitMerge', args); },
     unstageFromMerge(...args) { handle('unstageFromMerge', args); },
     reloadAnnotations(...args) { handle('reloadTracks', args); return Promise.resolve(); },
+    setSVGFilters(...args) { handle('setSVGFilter', args); },
   };
 }
 
@@ -229,6 +234,7 @@ export interface State {
   time: TimeType;
   visibleModes: VisibleModesType;
   readOnlyMode: ReadOnylModeType;
+  svgFilters: SVGFiltersType;
 }
 
 /**
@@ -284,6 +290,7 @@ function dummyState(): State {
     },
     visibleModes: ref(['rectangle', 'text'] as VisibleAnnotationTypes[]),
     readOnlyMode: ref(false),
+    svgFilters: ref({}),
   };
 }
 
@@ -318,6 +325,7 @@ function provideAnnotator(state: State, handler: Handler) {
   provide(TimeSymbol, state.time);
   provide(VisibleModesSymbol, state.visibleModes);
   provide(ReadOnlyModeSymbol, state.readOnlyMode);
+  provide(SVGFiltersSymbol, state.svgFilters);
   provide(HandlerSymbol, handler);
 }
 
@@ -421,6 +429,9 @@ function useVisibleModes() {
 function useReadOnlyMode() {
   return use<ReadOnylModeType>(ReadOnlyModeSymbol);
 }
+function useSVGFilters() {
+  return use<SVGFiltersType>(SVGFiltersSymbol);
+}
 
 export {
   dummyHandler,
@@ -450,4 +461,5 @@ export {
   useTime,
   useVisibleModes,
   useReadOnlyMode,
+  useSVGFilters,
 };

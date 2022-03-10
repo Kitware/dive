@@ -2,12 +2,14 @@ import Install, { reactive } from '@vue/composition-api';
 import Vue from 'vue';
 /* Components */
 import TypeThreshold from 'dive-common/components/TypeThreshold.vue';
+import ImageEnhancements from 'dive-common/components/ImageEnhancements.vue';
 
 Vue.use(Install);
 
 
 const componentMap = {
   TypeThreshold,
+  ImageEnhancements,
 };
 
 type ContextType = keyof typeof componentMap;

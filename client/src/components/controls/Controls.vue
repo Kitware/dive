@@ -1,6 +1,7 @@
 <script lang="ts">
 import { defineComponent, reactive, watch } from '@vue/composition-api';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
+import context from 'dive-common/store/context';
 import { injectMediaController } from '../annotators/useMediaController';
 
 export default defineComponent({
@@ -41,6 +42,10 @@ export default defineComponent({
       }
     }
 
+    function toggleEnhancements() {
+      context.toggle('ImageEnhancements');
+    }
+
     return {
       data,
       mediaController,
@@ -48,6 +53,7 @@ export default defineComponent({
       input,
       togglePlay,
       visible,
+      toggleEnhancements,
     };
   },
 });
@@ -146,6 +152,13 @@ export default defineComponent({
             @click="mediaController.resetZoom"
           >
             <v-icon>mdi-image-filter-center-focus</v-icon>
+          </v-btn><v-btn
+            icon
+            small
+            title="Image Enhancements"
+            @click="toggleEnhancements"
+          >
+            <v-icon>mdi-image</v-icon>
           </v-btn>
         </v-col>
       </v-row>
