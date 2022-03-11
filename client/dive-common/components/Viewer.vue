@@ -310,10 +310,6 @@ export default defineComponent({
       return result;
     }
 
-    function checkout(revisionId: number) {
-      ctx.emit('update:revision', revisionId);
-    }
-
     /** Trigger data load */
     const loadData = async () => {
       try {
@@ -407,7 +403,6 @@ export default defineComponent({
       setConfidenceFilters,
       deleteAttribute,
       reloadAnnotations,
-      checkout,
     };
 
     provideAnnotator(

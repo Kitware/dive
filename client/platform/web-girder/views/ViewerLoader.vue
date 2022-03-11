@@ -163,7 +163,6 @@ export default defineComponent({
     ref="viewerRef"
     :revision="revisionNum"
     :read-only-mode="!!getters['Jobs/datasetRunningState'](id)"
-    @update:revision="routeRevision"
   >
     <template #title>
       <ViewerAlert />
@@ -227,7 +226,10 @@ export default defineComponent({
     <template #right-sidebar>
       <SidebarContext>
         <template #default="{ name }">
-          <component :is="name" />
+          <component
+            :is="name"
+            @update:revision="routeRevision"
+          />
         </template>
       </SidebarContext>
     </template>

@@ -161,8 +161,6 @@ export interface Handler {
   unstageFromMerge(ids: TrackId[]): void;
   /* Reload Annotation File */
   reloadAnnotations(): Promise<void>;
-  /* Check out a different revision */
-  checkout(revisionId: number): void;
 }
 const HandlerSymbol = Symbol('handler');
 
@@ -201,7 +199,6 @@ function dummyHandler(handle: (name: string, args: unknown[]) => void): Handler 
     commitMerge(...args) { handle('commitMerge', args); },
     unstageFromMerge(...args) { handle('unstageFromMerge', args); },
     reloadAnnotations(...args) { handle('reloadTracks', args); return Promise.resolve(); },
-    checkout(...args) { handle('checkout', args); },
   };
 }
 

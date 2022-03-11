@@ -1,7 +1,7 @@
 <script lang="ts">
 import { defineComponent, watch } from '@vue/composition-api';
 import {
-  useDatasetId, useHandler, usePendingSaveCount, useRevisionId,
+  useDatasetId, usePendingSaveCount, useRevisionId,
 } from 'vue-media-annotator/provides';
 import { loadRevisions, Revision } from 'platform/web-girder/api';
 import { usePaginatedRequest } from 'dive-common/use/useRequest';
@@ -10,17 +10,20 @@ export default defineComponent({
   name: 'RevisionHistory',
   description: 'Revision History',
 
-  setup() {
+  setup(_, ctx) {
     const saveCount = usePendingSaveCount();
     const datasetId = useDatasetId();
     const revisionId = useRevisionId();
-    const { checkout } = useHandler();
     const {
       loading, count, allPages: revisions, totalCount, loadNextPage, reset,
     } = usePaginatedRequest<Revision>();
 
     async function loadNext() {
       await loadNextPage((l, o) => loadRevisions(datasetId.value, l, o));
+    }
+
+    function checkout(id: number) {
+      ctx.emit('update:revision', id);
     }
 
     watch(saveCount, (newval) => {
