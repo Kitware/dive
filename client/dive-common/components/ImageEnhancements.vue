@@ -39,16 +39,7 @@ export default defineComponent({
       :step="0.01"
       thumb-label="always"
       label="Low/High"
-      @change="modifyValue"
-    />
-    <v-slider
-      v-model="level"
-      :min="-10"
-      :max="10"
-      :step="0.01"
-      thumb-label="always"
-      label="Level"
-      @change="modifyValue"
+      @input="modifyValue"
     />
   </div>
 </template>
