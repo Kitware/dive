@@ -1,27 +1,25 @@
 <script lang="ts">
 import { defineComponent, ref } from '@vue/composition-api';
 
-import { useApi } from 'dive-common/apispec';
-import { useHandler, useSVGFilters } from 'vue-media-annotator/provides';
+import { useHandler, useImageEnhancements } from 'vue-media-annotator/provides';
 
 export default defineComponent({
   name: 'ImageEnhancements',
   description: 'Image controls',
   setup() {
-    const filterData = useSVGFilters();
     const { setSVGFilters } = useHandler();
-    const range = ref([0, 1]);
-    const level = ref(1);
+    const imageEnhancements = useImageEnhancements();
+    const range = ref([
+      imageEnhancements.value.blackPoint ?? 0,
+      imageEnhancements.value.blackPoint ?? 1,
+    ]);
 
     const modifyValue = () => {
-      const slope = level.value / (range.value[1] - range.value[0]);
-      const intercept = -(level.value * range.value[0]) / (range.value[1] - range.value[0]);
-      setSVGFilters({ brightness: slope, intercept });
+      setSVGFilters({ blackPoint: range.value[0], whitePoint: range.value[1] });
     };
     return {
       modifyValue,
       range,
-      level,
     };
   },
 });

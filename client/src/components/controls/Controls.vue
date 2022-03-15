@@ -158,7 +158,7 @@ export default defineComponent({
             title="Image Enhancements"
             @click="toggleEnhancements"
           >
-            <v-icon>mdi-image</v-icon>
+            <v-icon>mdi-contrast-box</v-icon>
           </v-btn>
         </v-col>
       </v-row>

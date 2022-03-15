@@ -3,7 +3,7 @@ import {
   provide, inject, ref, Ref,
 } from '@vue/composition-api';
 
-import { AnnotatorPreferences as AnnotatorPrefsIface, SVGFilters } from './types';
+import { AnnotatorPreferences as AnnotatorPrefsIface } from './types';
 import { CustomStyle, StateStyles, TypeStyling } from './use/useStyling';
 import { EditAnnotationTypes } from './layers/EditAnnotationLayer';
 import Track, { TrackId } from './track';
@@ -12,6 +12,7 @@ import { RectBounds } from './utils';
 import { Attribute } from './use/useAttributes';
 import { DefaultConfidence, TrackWithContext } from './use/useTrackFilters';
 import { Time } from './use/useTimeObserver';
+import { ImageEnhancements } from './use/useImageEnhancements';
 
 /**
  * Type definitions are read only because injectors may mutate internal state,
@@ -84,8 +85,8 @@ type VisibleModesType = Readonly<Ref<readonly VisibleAnnotationTypes[]>>;
 const ReadOnlyModeSymbol = Symbol('readOnlyMode');
 type ReadOnylModeType = Readonly<Ref<boolean>>;
 
-const SVGFiltersSymbol = Symbol('svgFilters');
-type SVGFiltersType = Readonly<Ref<SVGFilters>>;
+const ImageEnhancementsSymbol = Symbol('imageEnhancements');
+type ImageEnhancementsType = Readonly<Ref<ImageEnhancements>>;
 
 /**
  * Handler interface describes all global events mutations
@@ -161,7 +162,7 @@ export interface Handler {
   unstageFromMerge(ids: TrackId[]): void;
   /* Reload Annotation File */
   reloadAnnotations(): Promise<void>;
-  setSVGFilters({ brightness, intercept }: {brightness?: number; intercept?: number}): void;
+  setSVGFilters({ blackPoint, whitePoint }: {blackPoint?: number; whitePoint?: number}): void;
 }
 const HandlerSymbol = Symbol('handler');
 
@@ -234,7 +235,7 @@ export interface State {
   time: TimeType;
   visibleModes: VisibleModesType;
   readOnlyMode: ReadOnylModeType;
-  svgFilters: SVGFiltersType;
+  imageEnhancements: ImageEnhancementsType;
 }
 
 /**
@@ -290,7 +291,7 @@ function dummyState(): State {
     },
     visibleModes: ref(['rectangle', 'text'] as VisibleAnnotationTypes[]),
     readOnlyMode: ref(false),
-    svgFilters: ref({}),
+    imageEnhancements: ref({}),
   };
 }
 
@@ -325,7 +326,7 @@ function provideAnnotator(state: State, handler: Handler) {
   provide(TimeSymbol, state.time);
   provide(VisibleModesSymbol, state.visibleModes);
   provide(ReadOnlyModeSymbol, state.readOnlyMode);
-  provide(SVGFiltersSymbol, state.svgFilters);
+  provide(ImageEnhancementsSymbol, state.imageEnhancements);
   provide(HandlerSymbol, handler);
 }
 
@@ -429,8 +430,8 @@ function useVisibleModes() {
 function useReadOnlyMode() {
   return use<ReadOnylModeType>(ReadOnlyModeSymbol);
 }
-function useSVGFilters() {
-  return use<SVGFiltersType>(SVGFiltersSymbol);
+function useImageEnhancements() {
+  return use<ImageEnhancementsType>(ImageEnhancementsSymbol);
 }
 
 export {
@@ -461,5 +462,5 @@ export {
   useTime,
   useVisibleModes,
   useReadOnlyMode,
-  useSVGFilters,
+  useImageEnhancements,
 };
