@@ -120,7 +120,8 @@ export default defineComponent({
         />
       </v-dialog>
     </template>
-    <template #row-widget="{item}">
+    <template #row="{item}">
+      <span>{{ item.name }}</span>
       <v-icon
         v-if="getters['Jobs/datasetRunningState'](item._id)"
         color="warning"
