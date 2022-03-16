@@ -38,8 +38,6 @@ services:
 
   girder:
     restart: always
-    environment:
-      - "WORKER_API_URL=${WORKER_API_URL:-http://girder:8080/api/v1}"
     labels:
       - "traefik.http.routers.girder-rtr.entrypoints=websecure"
       - "traefik.http.routers.girder-rtr.rule=Host(`${HOSTNAME}`)"

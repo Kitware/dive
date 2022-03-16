@@ -80,6 +80,22 @@ docker-compose -f docker-compose.yml -f docker-compose.prod.yml pull
 docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d --scale girder=4
 ```
 
+## Splitting services
+
+It's possible to split your web server and task runner between multiple nodes.  This may be useful if you want to run DIVE Web without a GPU or if you want to save money by keeping your GPU instance stopped when not in use.  You could also increase parallel task capacity by running task runners on multiple nodes.
+
+* Make two cloud VM instances, one with NVIDIA drivers and container toolkit, and one without.
+* Clone the dive repository on both, and set up `.env` on both with the same configuration.
+* Be sure that `WORKER_API_URL` and `CELERY_BROKER_URL` in particular are uncommented and set to the IP or domain name of your web server.  This is how the worker will talk to the web server, so the web server must be network accessible from the worker.
+
+``` bash
+## On the web server
+docker-compose -f docker-compose.yml [...] up -d girder girder_worker_default
+
+## On the GPU server(s)
+docker-compose -f docker-compose.yml [...] up -d --no-deps girder_worker_pipelines girder_worker_training
+```
+
 ## Addon management
 
 After initial deployment, a DIVE server will only have basic VIAME pipelines available. VIAME optional patches are installed and upgraded using a celery task that must be triggered by hand. Run this by issuing a <u>`POST /dive_configuration/upgrade_pipelines`</u> request from the swagger UI at `http://{domain}/api/v1` .
