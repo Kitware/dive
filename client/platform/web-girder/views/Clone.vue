@@ -179,7 +179,8 @@ export default defineComponent({
             :location="location"
             @update:location="setLocation"
           >
-            <template #row-widget="{item}">
+            <template #row="{item}">
+              <span>{{ item.name }}</span>
               <v-chip
                 v-if="(item.meta && item.meta.annotate)"
                 color="white"
