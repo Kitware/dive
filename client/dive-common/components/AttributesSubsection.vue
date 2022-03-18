@@ -10,7 +10,7 @@ import {
   useTrackMap,
   useTime,
 } from 'vue-media-annotator/provides';
-import { getTrack } from 'vue-media-annotator/use/useTrackStore';
+import { getTrack, getTrackAll } from 'vue-media-annotator/use/useTrackStore';
 import { Attribute } from 'vue-media-annotator/use/useAttributes';
 import AttributeInput from 'dive-common/components/AttributeInput.vue';
 import PanelSubsection from 'dive-common/components/PanelSubsection.vue';
@@ -83,12 +83,12 @@ export default defineComponent({
 
     function updateAttribute({ name, value }: { name: string; value: unknown }) {
       if (selectedTrackIdRef.value !== null) {
-        const track = getTrack(trackMap, selectedTrackIdRef.value);
-        if (track !== undefined) {
+        const tracks = getTrackAll(trackMap, selectedTrackIdRef.value);
+        if (tracks.length) {
           if (props.mode === 'Track') {
-            track.setAttribute(name, value);
+            tracks.forEach((track) => track.setAttribute(name, value));
           } else if (props.mode === 'Detection' && frameRef.value !== undefined) {
-            track.setFeatureAttribute(frameRef.value, name, value);
+            tracks.forEach((track) => track.setFeatureAttribute(frameRef.value, name, value));
           }
         }
       }

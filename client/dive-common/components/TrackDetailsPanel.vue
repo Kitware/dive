@@ -72,7 +72,7 @@ export default defineComponent({
     const { setAttribute, deleteAttribute } = useHandler();
     const selectedTrackList = computed(() => {
       if (mergeList.value.length > 0) {
-        return mergeList.value.map((trackId) => getTrack(trackMap, trackId));
+        return mergeList.value.map((trackId) => getTrack(trackMap, trackId, 'any'));
       }
       if (selectedTrackIdRef.value !== null) {
         return [getTrack(trackMap, selectedTrackIdRef.value)];

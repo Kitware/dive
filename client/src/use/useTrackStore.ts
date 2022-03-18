@@ -23,10 +23,10 @@ interface InsertArgs {
 }
 
 export function getTrack(
-  trackMap: Map<string, Map<TrackId, Track>>, trackId: Readonly<TrackId>, cameraName = 'first',
+  trackMap: Readonly<Map<string, Map<TrackId, Track>>>, trackId: Readonly<TrackId>, cameraName = 'any',
 ): Track {
   let track: Track | undefined;
-  if (cameraName === 'first') {
+  if (cameraName === 'any') {
     trackMap.forEach((camera) => {
       const tempTrack = camera.get(trackId);
       if (tempTrack) {
@@ -42,10 +42,13 @@ export function getTrack(
   if (tempTrack) {
     return tempTrack;
   }
-  throw new Error(`TrackId ${trackId} not found in trackMap.`);
+  throw new Error(`TrackId ${trackId} not found in trackMap with cameraName ${cameraName}`);
 }
 
-export function getTrackAll(trackMap: Map<string, Map<TrackId, Track>>, trackId: Readonly<TrackId>):
+export function getTrackAll(
+  trackMap: Readonly<Map<string, Map<TrackId, Track>>>,
+  trackId: Readonly<TrackId>,
+):
   Track[] {
   const trackList: Track[] = [];
   trackMap.forEach((camera) => {
@@ -154,7 +157,7 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
       end: frame,
       confidencePairs: [[defaultType, 1]],
     });
-    insertTrack(track, { afterId, cameraName: camName });
+    insertTrack(track, { afterId: overrideTrackId ? undefined : afterId, cameraName: camName });
     markChangesPending({ cameraName: camName, action: 'upsert', track });
     return track;
   }
@@ -219,7 +222,7 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
   const sortedTracks = computed(() => {
     _depend();
     return trackIds.value
-      .map((trackId) => getTrack(trackMap, trackId))
+      .map((trackId) => getTrack(trackMap, trackId, 'any'))
       .sort((a, b) => a.begin - b.begin);
   });
 

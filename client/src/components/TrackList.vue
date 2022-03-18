@@ -105,17 +105,22 @@ export default defineComponent({
 
     function scrollToTrack(trackId: TrackId | null): void {
       if (trackId !== null && virtualList.value !== null) {
-        const track = getTrack(trackMap, trackId);
-        if (track) {
-          const offset = filteredTracksRef.value.findIndex(
-            (filtered) => filtered.track.trackId === trackId,
-          );
-          if (offset === -1) {
-            virtualList.value.$el.scrollTop = 0;
-          } else {
+        try {
+          const track = getTrack(trackMap, trackId, 'any');
+          if (track) {
+            const offset = filteredTracksRef.value.findIndex(
+              (filtered) => filtered.track.trackId === trackId,
+            );
+            if (offset === -1) {
+              virtualList.value.$el.scrollTop = 0;
+            } else {
             // try to show the selected track as the third track in the list
-            virtualList.value.$el.scrollTop = (offset * data.itemHeight) - (2 * data.itemHeight);
+              virtualList.value.$el.scrollTop = (offset * data.itemHeight) - (2 * data.itemHeight);
+            }
           }
+        } catch (err) {
+          //Ignore missing tracks
+          virtualList.value.$el.scrollTop = 0;
         }
       }
     }

@@ -332,7 +332,11 @@ export default defineComponent({
     );
 
     const Clicked = (trackId: number, editing: boolean) => {
-      //So we only want to pass the click whjen not in creation mode or editing mode for features
+      // If the camera isn't selected yet we ignore the click
+      if (selectedCamera.value !== props.camera) {
+        return;
+      }
+      //So we only want to pass the click when not in creation mode or editing mode for features
       if (editAnnotationLayer.getMode() !== 'creation') {
         editAnnotationLayer.disable();
         handler.trackSelect(trackId, editing);

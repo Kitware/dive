@@ -92,7 +92,11 @@ export default defineComponent({
     const selectedCamera = ref('default');
     const playbackComponent = ref(undefined as Vue | undefined);
     const readonlyState = computed(() => props.readonlyMode || props.revision !== undefined);
-    const { aggregateController, onResize, clear: mediaControllerClear } = useMediaController();
+    const {
+      aggregateController,
+      onResize,
+      clear: mediaControllerClear,
+    } = useMediaController(selectedCamera);
     const { time, updateTime, initialize: initTime } = useTimeObserver();
     const imageData = ref({ default: [] } as Record<string, FrameImage[]>);
     const datasetType: Ref<DatasetType> = ref('image-sequence');
@@ -233,7 +237,7 @@ export default defineComponent({
 
     async function trackSplit(trackId: TrackId | null, frame: number) {
       if (typeof trackId === 'number') {
-        const track = getTrack(trackMap, trackId);
+        const track = getTrack(trackMap, trackId, selectedCamera.value);
         let newtracks: [Track, Track];
         try {
           newtracks = track.split(frame, getNewTrackId(), getNewTrackId() + 1);
@@ -321,13 +325,15 @@ export default defineComponent({
         return;
       }
       if (event) {
-        console.log(event);
         event.preventDefault();
-        event.stopPropagation();
-        event.stopImmediatePropagation();
       }
+
       //handler.trackAbort(); //Any in process track without data should be removed
       selectedCamera.value = camera;
+      if (selectedTrackId.value !== null && event?.button === 2) {
+        //Stay in edit mode for the current track
+        handler.trackEdit(selectedTrackId.value);
+      }
       ctx.emit('change-camera', camera);
     };
 
@@ -678,7 +684,7 @@ export default defineComponent({
               class="d-flex flex-column grow"
               :style="{ height: `calc(100% - ${controlsHeight}px)`}"
               @click="changeCamera(camera, $event)"
-              @mousedown.right="changeCamera(camera, $event)"
+              @mouseup.right="changeCamera(camera, $event)"
             >
               <component
                 :is="datasetType === 'image-sequence' ? 'image-annotator' : 'video-annotator'"

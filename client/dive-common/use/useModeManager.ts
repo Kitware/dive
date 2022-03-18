@@ -80,18 +80,23 @@ export default function useModeManager({
     _depend();
     if (editingMode.value && selectedTrackId.value !== null) {
       const { frame } = aggregateController.value;
-      const track = getTrack(trackMap, selectedTrackId.value);
-      if (track) {
-        const [feature] = track.getFeature(frame.value);
-        if (feature) {
-          if (!feature?.bounds?.length) {
-            return 'Creating';
-          } if (annotationModes.editing === 'rectangle') {
-            return 'Editing';
+      try {
+        const track = getTrack(trackMap, selectedTrackId.value, selectedCamera.value);
+        if (track) {
+          const [feature] = track.getFeature(frame.value);
+          if (feature) {
+            if (!feature?.bounds?.length) {
+              return 'Creating';
+            } if (annotationModes.editing === 'rectangle') {
+              return 'Editing';
+            }
+            return (feature.geometry?.features.filter((item) => item.geometry.type === annotationModes.editing).length ? 'Editing' : 'Creating');
           }
-          return (feature.geometry?.features.filter((item) => item.geometry.type === annotationModes.editing).length ? 'Editing' : 'Creating');
+          return 'Creating';
         }
-        return 'Creating';
+      } catch {
+        // No track for this camera
+        return 'disabled';
       }
     }
     return 'disabled';
@@ -190,7 +195,7 @@ export default function useModeManager({
     const { frame } = aggregateController.value;
     let trackType = trackSettings.value.newTrackSettings.type;
     if (overrideTrackId !== undefined) {
-      const track = getTrack(trackMap, overrideTrackId);
+      const track = getTrack(trackMap, overrideTrackId, 'any');
       // eslint-disable-next-line prefer-destructuring
       trackType = track.confidencePairs[0][0];
     }
@@ -204,6 +209,7 @@ export default function useModeManager({
   }
 
   function handleTrackTypeChange(trackId: TrackId | null, value: string) {
+    // Change of type will change all tracks types
     if (trackId !== null) {
       getTrackAll(trackMap, trackId).forEach((track) => track.setType(value));
     }
@@ -457,8 +463,8 @@ export default function useModeManager({
       seekNearest(track);
       const editing = trackId === selectedTrackId.value ? (!editingTrack.value) : true;
       handleSelectTrack(trackId, editing);
-    } else if (getTrack(trackMap, trackId) !== undefined) {
-      //If track exists in other cameras we create it in the current map and set it to editing mode
+    } else if (getTrack(trackMap, trackId, 'any') !== undefined) {
+      //track exists in other cameras we create in the current map using override
       handleAddTrackOrDetection(trackId);
       const camTrack = trackMap.get(selectedCamera.value)?.get(trackId);
       if (camTrack) {
@@ -518,12 +524,15 @@ export default function useModeManager({
 
   /**
    * Merge: Commit the merge list
+   * Merging can only be done in the same selected camera.
    */
   function handleCommitMerge() {
     if (mergeList.value.length >= 2) {
-      const track = getTrack(trackMap, mergeList.value[0]);
+      const track = getTrack(trackMap, mergeList.value[0], selectedCamera.value);
       const otherTrackIds = mergeList.value.slice(1);
-      track.merge(otherTrackIds.map((trackId) => getTrack(trackMap, trackId)));
+      track.merge(otherTrackIds.map(
+        (trackId) => getTrack(trackMap, trackId, selectedCamera.value),
+      ));
       handleRemoveTrack(otherTrackIds, true);
       handleToggleMerge();
       handleSelectTrack(track.trackId, false);

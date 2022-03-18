@@ -15,6 +15,7 @@ export interface AggregateMediaController {
   speed: Readonly<Ref<number>>;
   volume: Readonly<Ref<number>>;
   cameras: Readonly<Ref<string[]>>;
+  cameraSync: Readonly<Ref<boolean>>;
 
   pause: () => void;
   play: () => void;
@@ -26,6 +27,7 @@ export interface AggregateMediaController {
   setSpeed: (speed: number) => void;
   toggleLockedCamera: (lock: boolean) => void;
   getController: (cameraName: string) => MediaController;
+  toggleSynchronizeCameras:(sync: boolean) => void;
 }
 
 /**
