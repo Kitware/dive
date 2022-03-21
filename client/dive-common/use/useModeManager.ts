@@ -3,7 +3,9 @@ import {
 } from '@vue/composition-api';
 import { uniq, flatMapDeep } from 'lodash';
 import Track, { TrackId } from 'vue-media-annotator/track';
-import { getTrack, getTrackAll } from 'vue-media-annotator/use/useTrackStore';
+import {
+  getAnyTrack, getTrack, getTrackAll, getTracksMerged,
+} from 'vue-media-annotator/use/useTrackStore';
 import { RectBounds, updateBounds } from 'vue-media-annotator/utils';
 import { EditAnnotationTypes, VisibleAnnotationTypes } from 'vue-media-annotator/layers';
 import { AggregateMediaController } from 'vue-media-annotator/components/annotators/mediaControllerType';
@@ -195,7 +197,7 @@ export default function useModeManager({
     const { frame } = aggregateController.value;
     let trackType = trackSettings.value.newTrackSettings.type;
     if (overrideTrackId !== undefined) {
-      const track = getTrack(camMap, overrideTrackId, 'any');
+      const track = getAnyTrack(camMap, overrideTrackId);
       // eslint-disable-next-line prefer-destructuring
       trackType = track.confidencePairs[0][0];
     }
@@ -463,7 +465,8 @@ export default function useModeManager({
       seekNearest(track);
       const editing = trackId === selectedTrackId.value ? (!editingTrack.value) : true;
       handleSelectTrack(trackId, editing);
-    } else if (getTrack(camMap, trackId, 'any') !== undefined) { //Track doesn't exist for this camera
+      //Track doesn't exist for this specific camera
+    } else if (getAnyTrack(camMap, trackId) !== undefined) {
       //track exists in other cameras we create in the current map using override
       handleAddTrackOrDetection(trackId);
       const camTrack = camMap.get(selectedCamera.value)?.get(trackId);
@@ -476,7 +479,8 @@ export default function useModeManager({
   }
 
   function handleTrackClick(trackId: TrackId) {
-    const track = getTrack(camMap, trackId, 'any');
+    const track = getTracksMerged(camMap, trackId);
+    // We want the closest frame doesn't matter what camera it is in
     seekNearest(track);
     handleSelectTrack(trackId, editingTrack.value);
   }
@@ -485,7 +489,7 @@ export default function useModeManager({
     const newTrack = selectNextTrack(delta);
     if (newTrack !== null) {
       handleSelectTrack(newTrack, false);
-      seekNearest(getTrack(camMap, newTrack, 'any'));
+      seekNearest(getAnyTrack(camMap, newTrack));
     }
   }
 

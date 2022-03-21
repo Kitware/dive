@@ -18,7 +18,7 @@ import {
   useTime,
   useSelectedCamera,
 } from 'vue-media-annotator/provides';
-import { getTrack } from 'vue-media-annotator/use/useTrackStore';
+import { getAnyTrack, getTrack } from 'vue-media-annotator/use/useTrackStore';
 import { Attribute } from 'vue-media-annotator/use/useAttributes';
 import TrackItem from 'vue-media-annotator/components/TrackItem.vue';
 import TooltipBtn from 'vue-media-annotator/components/TooltipButton.vue';
@@ -74,7 +74,7 @@ export default defineComponent({
     const { setAttribute, deleteAttribute } = useHandler();
     const selectedTrackList = computed(() => {
       if (mergeList.value.length > 0) {
-        return mergeList.value.map((trackId) => getTrack(camMap, trackId, 'any'));
+        return mergeList.value.map((trackId) => getAnyTrack(camMap, trackId));
       }
       if (selectedTrackIdRef.value !== null) {
         return [getTrack(camMap, selectedTrackIdRef.value, selectedCamera.value)];

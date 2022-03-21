@@ -5,7 +5,7 @@ import {
 } from '@vue/composition-api';
 
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
-import { getTrack } from 'vue-media-annotator/use/useTrackStore';
+import { getAnyTrack, getTrack } from 'vue-media-annotator/use/useTrackStore';
 import { TrackWithContext } from '../use/useTrackFilters';
 
 import { TrackId } from '../track';
@@ -108,7 +108,8 @@ export default defineComponent({
     function scrollToTrack(trackId: TrackId | null): void {
       if (trackId !== null && virtualList.value !== null) {
         try {
-          const track = getTrack(camMap, trackId, 'any');
+          // We need first track found for the position in the Event Viewer
+          const track = getAnyTrack(camMap, trackId);
           if (track) {
             const offset = filteredTracksRef.value.findIndex(
               (filtered) => filtered.track.trackId === trackId,

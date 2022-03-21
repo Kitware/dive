@@ -27,26 +27,37 @@ interface InsertArgs {
  * If cameraName is 'any' we return the first track we find for basic usage
  */
 export function getTrack(
-  trackMap: Readonly<Map<string, Map<TrackId, Track>>>, trackId: Readonly<TrackId>, cameraName = 'any',
+  trackMap: Readonly<Map<string, Map<TrackId, Track>>>, trackId: Readonly<TrackId>, cameraName = 'default',
 ): Track {
-  let track: Track | undefined;
-  if (cameraName === 'any') {
-    trackMap.forEach((camera) => {
-      const tempTrack = camera.get(trackId);
-      if (tempTrack) {
-        track = tempTrack;
-      }
-    });
-    if (track) {
-      return track;
-    }
-  }
   const currentMap = trackMap.get(cameraName);
-  const tempTrack = currentMap?.get(trackId);
-  if (tempTrack) {
-    return tempTrack;
+  if (!currentMap) {
+    throw new Error(`No camera Map with the camera name: ${cameraName}`);
   }
-  throw new Error(`TrackId ${trackId} not found in trackMap with cameraName ${cameraName}`);
+  const tempTrack = currentMap?.get(trackId);
+  if (!tempTrack) {
+    throw new Error(`TrackId ${trackId} not found in trackMap with cameraName ${cameraName}`);
+  }
+  return tempTrack;
+}
+
+/**
+ * Returns the first track it finds in any camera.  This is useful if we need global data
+ * from any existing track like the track confidencePair or the Id
+ */
+export function getAnyTrack(
+  trackMap: Readonly<Map<string, Map<TrackId, Track>>>, trackId: Readonly<TrackId>,
+) {
+  let track: Track | undefined;
+  trackMap.forEach((camera) => {
+    const tempTrack = camera.get(trackId);
+    if (tempTrack) {
+      track = tempTrack;
+    }
+  });
+  if (track) {
+    return track;
+  }
+  throw new Error(`TrackId ${trackId} not found in any camera`);
 }
 
 /**
