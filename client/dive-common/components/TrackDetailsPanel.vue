@@ -16,6 +16,7 @@ import {
   useAttributes,
   useMergeList,
   useTime,
+  useSelectedCamera,
 } from 'vue-media-annotator/provides';
 import { getTrack } from 'vue-media-annotator/use/useTrackStore';
 import { Attribute } from 'vue-media-annotator/use/useAttributes';
@@ -52,6 +53,7 @@ export default defineComponent({
   },
   setup(props) {
     const attributes = useAttributes();
+    const selectedCamera = useSelectedCamera();
     const editingAttribute: Ref<Attribute | null> = ref(null);
     const editingError: Ref<string | null> = ref(null);
     const editingModeRef = useEditingMode();
@@ -75,7 +77,7 @@ export default defineComponent({
         return mergeList.value.map((trackId) => getTrack(trackMap, trackId, 'any'));
       }
       if (selectedTrackIdRef.value !== null) {
-        return [getTrack(trackMap, selectedTrackIdRef.value)];
+        return [getTrack(trackMap, selectedTrackIdRef.value, selectedCamera.value)];
       }
       return [];
     });

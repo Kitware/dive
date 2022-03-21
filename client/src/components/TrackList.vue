@@ -19,6 +19,7 @@ import {
   useFilteredTracks,
   useTypeStyling,
   useTime,
+  useSelectedCamera,
 } from '../provides';
 import TrackItem from './TrackItem.vue';
 
@@ -63,6 +64,7 @@ export default defineComponent({
 
   setup(props) {
     const { prompt } = usePrompt();
+    const selectedCamera = useSelectedCamera();
     const allTypesRef = useAllTypes();
     const checkedTrackIdsRef = useCheckedTrackIds();
     const editingModeRef = useEditingMode();
@@ -155,7 +157,8 @@ export default defineComponent({
       const selected = item.selectedTrackId === item.filteredTrack.track.trackId;
       return {
         trackType,
-        track: item.filteredTrack.track,
+        track: !selected ? item.filteredTrack.track
+          : getTrack(trackMap, item.filteredTrack.track.trackId, selectedCamera.value),
         inputValue: item.checkedTrackIds.indexOf(item.filteredTrack.track.trackId) >= 0,
         selected,
         editing: selected && item.editingTrack,

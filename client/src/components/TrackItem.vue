@@ -3,7 +3,10 @@ import {
   defineComponent, computed, watch, reactive, PropType, toRef, ref,
 } from '@vue/composition-api';
 import TooltipBtn from './TooltipButton.vue';
-import { useHandler, useAllTypes, useTime } from '../provides';
+import {
+  useHandler, useAllTypes,
+  useTime, useSelectedCamera,
+} from '../provides';
 import Track from '../track';
 
 export default defineComponent({
@@ -54,6 +57,7 @@ export default defineComponent({
     const vuetify = root.$vuetify;
     const { frame: frameRef } = useTime();
     const handler = useHandler();
+    const selectedCamera = useSelectedCamera();
     const allTypesRef = useAllTypes();
     const trackTypeRef = toRef(props, 'trackType');
     const typeInputBoxRef = ref(undefined as undefined | HTMLInputElement);
@@ -91,8 +95,11 @@ export default defineComponent({
       };
     });
 
-    /* isTrack distinguishes between track and detection */
-    const isTrack = computed(() => props.track.length > 1 || feature.value.shouldInterpolate);
+    /* isTrack distinguishes between track and detection
+    * If we have multiple cameras we are going to turn on the full view for
+    * keyframe toggling of different camera frames
+    */
+    const isTrack = computed(() => props.track.length > 1 || feature.value.shouldInterpolate || selectedCamera.value !== 'default');
 
     /* Sets styling for the selected track */
     const style = computed(() => {

@@ -1,5 +1,6 @@
 import { ref, Ref, computed } from '@vue/composition-api';
 import IntervalTree from '@flatten-js/interval-tree';
+import { cloneDeep } from 'lodash';
 import Track, { TrackId } from '../track';
 
 interface UseTrackStoreParams {
@@ -21,7 +22,10 @@ interface InsertArgs {
   afterId?: TrackId;
   cameraName?: string;
 }
-
+/**
+ * Retrieve a track from the base trackMap
+ * If cameraName is 'any' we return the first track we find for basic usage
+ */
 export function getTrack(
   trackMap: Readonly<Map<string, Map<TrackId, Track>>>, trackId: Readonly<TrackId>, cameraName = 'any',
 ): Track {
@@ -45,6 +49,10 @@ export function getTrack(
   throw new Error(`TrackId ${trackId} not found in trackMap with cameraName ${cameraName}`);
 }
 
+/**
+ * Used to return an array of overlapping trackIds amongst all cameras
+ * This is used to set global information across tracks like ConfidencePairs
+ */
 export function getTrackAll(
   trackMap: Readonly<Map<string, Map<TrackId, Track>>>,
   trackId: Readonly<TrackId>,
@@ -58,6 +66,34 @@ export function getTrackAll(
     }
   });
   return trackList;
+}
+
+/**
+ * Takes tracks from multiple cameras and merges them into a single track for use
+ * in the event viewer for having the correct time bounds and keyframes for the
+ * event viewer across cameras
+ */
+export function getTracksMerged(
+  trackMap: Readonly<Map<string, Map<TrackId, Track>>>,
+  trackId: Readonly<TrackId>,
+): Track {
+  if (trackMap.size === 1) {
+    return getTrack(trackMap, trackId);
+  }
+  let track: Track | undefined;
+  trackMap.forEach((camera) => {
+    const tempTrack = camera.get(trackId);
+    if (!track && tempTrack) {
+      track = cloneDeep(tempTrack);
+    } else if (track && tempTrack) {
+      // Merge track bounds and data together
+      track.merge([tempTrack]);
+    }
+  });
+  if (!track) {
+    throw Error(`TrackId: ${trackId} is not found in any camera`);
+  }
+  return track;
 }
 
 
@@ -222,7 +258,7 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
   const sortedTracks = computed(() => {
     _depend();
     return trackIds.value
-      .map((trackId) => getTrack(trackMap, trackId, 'any'))
+      .map((trackId) => getTracksMerged(trackMap, trackId))
       .sort((a, b) => a.begin - b.begin);
   });
 

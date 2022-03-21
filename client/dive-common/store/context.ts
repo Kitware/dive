@@ -2,14 +2,12 @@ import Install, { reactive } from '@vue/composition-api';
 import Vue from 'vue';
 /* Components */
 import TypeThreshold from 'dive-common/components/TypeThreshold.vue';
-import MultiCamTools from 'dive-common/components/MultiCamTools.vue';
 
 Vue.use(Install);
 
 
 const componentMap = {
   TypeThreshold,
-  MultiCamTools,
 };
 
 type ContextType = keyof typeof componentMap;

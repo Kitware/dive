@@ -139,13 +139,13 @@ export function useMediaController(selectedCamera: Ref<string>) {
   }
 
   bus.$on('pan', (camEvent: {camera: string; event: GeoEvent}) => {
-    const activeCamera = geoViewers[camEvent.camera].value;
-    if (activeCamera !== undefined && synchronizeCameras.value) {
+    const activeMap = geoViewers[camEvent.camera]?.value;
+    if (activeMap !== undefined && synchronizeCameras.value) {
       Object.entries(geoViewers).forEach(([camera, geoViewer]) => {
         if (geoViewer.value && camera !== camEvent.camera) {
-          geoViewer.value.center(activeCamera.center());
-          geoViewer.value.zoom(activeCamera.zoom());
-          geoViewer.value.rotation(activeCamera.rotation());
+          geoViewer.value.center(activeMap.center());
+          geoViewer.value.zoom(activeMap.zoom());
+          geoViewer.value.rotation(activeMap.rotation());
         }
       });
     }
@@ -375,6 +375,9 @@ export function useMediaController(selectedCamera: Ref<string>) {
       setSpeed: _setSpeed,
       getController,
       resetMapDimensions,
+      toggleSynchronizeCameras,
+      cameraSync: synchronizeCameras,
+
     };
 
     subControllers.push(mediaController);

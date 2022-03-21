@@ -463,12 +463,12 @@ export default function useModeManager({
       seekNearest(track);
       const editing = trackId === selectedTrackId.value ? (!editingTrack.value) : true;
       handleSelectTrack(trackId, editing);
-    } else if (getTrack(trackMap, trackId, 'any') !== undefined) {
+    } else if (getTrack(trackMap, trackId, 'any') !== undefined) { //Track doesn't exist for this camera
       //track exists in other cameras we create in the current map using override
       handleAddTrackOrDetection(trackId);
       const camTrack = trackMap.get(selectedCamera.value)?.get(trackId);
+      // now that we have a new track we select it for editing
       if (camTrack) {
-        seekNearest(camTrack);
         const editing = trackId === selectedTrackId.value;
         handleSelectTrack(trackId, editing);
       }
