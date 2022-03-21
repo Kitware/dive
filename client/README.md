@@ -110,7 +110,7 @@ The major benefits of the `src/use` style are:
 
 ### src/provides
 
-Provides a common, typed interface for components and composition functions to access singleton state like `trackMap`, `selectedTrackId`, and many others.
+Provides a common, typed interface for components and composition functions to access singleton state like `camMap`, `selectedTrackId`, and many others.
 
 This pattern has similar trade-offs to Vuex; It makes component re-use with different state more difficult.  The provide/inject style using typed functions provides similar type safety and DRY advantages while allowing downstream library consumers to wrap and customize state, such as with chained computed properties.
 

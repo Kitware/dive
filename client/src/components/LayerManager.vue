@@ -24,7 +24,7 @@ import {
   useEnabledTracks,
   useHandler,
   useIntervalTree,
-  useTrackMap,
+  useCamMap,
   useSelectedTrackId,
   useTypeStyling,
   useEditingMode,
@@ -56,8 +56,8 @@ export default defineComponent({
     const handler = useHandler();
     const intervalTree = useIntervalTree();
     const selectedCamera = useSelectedCamera();
-    const baseTrackMap = useTrackMap();
-    const trackMap = baseTrackMap.get(props.camera);
+    const camMap = useCamMap();
+    const trackMap = camMap.get(props.camera);
     if (trackMap === undefined) {
       throw new Error(`Camera Name: ${props.camera} doesn't exist in the trackMap`);
     }
@@ -233,9 +233,9 @@ export default defineComponent({
         && props.camera === selectedCamera.value) {
           const editTrack = trackMap?.get(selectedTrackId);
           //Track doesn't exist in the only camera
-          if (editTrack === undefined && baseTrackMap.size === 1) {
+          if (editTrack === undefined && camMap.size === 1) {
             throw new Error(`trackMap missing trackid ${selectedTrackId}`);
-          } else if (editTrack === undefined && baseTrackMap.size > 1) {
+          } else if (editTrack === undefined && camMap.size > 1) {
             // We create the track temporarily because we want to add it to the camera
             handler.trackAdd(selectedTrackId);
           }

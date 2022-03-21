@@ -12,7 +12,7 @@ import {
   useTypeStyling,
   useAllTypes,
   useHandler,
-  useTrackMap,
+  useCamMap,
   useAttributes,
   useMergeList,
   useTime,
@@ -59,7 +59,7 @@ export default defineComponent({
     const editingModeRef = useEditingMode();
     const typeStylingRef = useTypeStyling();
     const allTypesRef = useAllTypes();
-    const trackMap = useTrackMap();
+    const camMap = useCamMap();
     const mergeList = useMergeList();
     const mergeInProgress = computed(() => mergeList.value.length > 0);
     const {
@@ -74,10 +74,10 @@ export default defineComponent({
     const { setAttribute, deleteAttribute } = useHandler();
     const selectedTrackList = computed(() => {
       if (mergeList.value.length > 0) {
-        return mergeList.value.map((trackId) => getTrack(trackMap, trackId, 'any'));
+        return mergeList.value.map((trackId) => getTrack(camMap, trackId, 'any'));
       }
       if (selectedTrackIdRef.value !== null) {
-        return [getTrack(trackMap, selectedTrackIdRef.value, selectedCamera.value)];
+        return [getTrack(camMap, selectedTrackIdRef.value, selectedCamera.value)];
       }
       return [];
     });

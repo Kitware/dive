@@ -31,7 +31,7 @@ export default function useModeManager({
   selectedTrackId,
   selectedCamera,
   editingTrack,
-  trackMap,
+  camMap,
   aggregateController,
   recipes,
   selectTrack,
@@ -42,7 +42,7 @@ export default function useModeManager({
   selectedTrackId: Ref<TrackId | null>;
   selectedCamera: Ref<string>;
   editingTrack: Ref<boolean>;
-  trackMap: Map<string, Map<TrackId, Track>>;
+  camMap: Map<string, Map<TrackId, Track>>;
   aggregateController: Ref<AggregateMediaController>;
   recipes: Recipe[];
   selectTrack: (trackId: TrackId | null, edit: boolean) => void;
@@ -81,7 +81,7 @@ export default function useModeManager({
     if (editingMode.value && selectedTrackId.value !== null) {
       const { frame } = aggregateController.value;
       try {
-        const track = getTrack(trackMap, selectedTrackId.value, selectedCamera.value);
+        const track = getTrack(camMap, selectedTrackId.value, selectedCamera.value);
         if (track) {
           const [feature] = track.getFeature(frame.value);
           if (feature) {
@@ -176,7 +176,7 @@ export default function useModeManager({
   //Handles deselection or hitting escape including while editing
   function handleEscapeMode() {
     if (selectedTrackId.value !== null) {
-      const currentMap = trackMap.get(selectedCamera.value);
+      const currentMap = camMap.get(selectedCamera.value);
       const track = currentMap?.get(selectedTrackId.value);
       if (track && track.begin === track.end) {
         const features = track.getFeature(track.begin);
@@ -195,7 +195,7 @@ export default function useModeManager({
     const { frame } = aggregateController.value;
     let trackType = trackSettings.value.newTrackSettings.type;
     if (overrideTrackId !== undefined) {
-      const track = getTrack(trackMap, overrideTrackId, 'any');
+      const track = getTrack(camMap, overrideTrackId, 'any');
       // eslint-disable-next-line prefer-destructuring
       trackType = track.confidencePairs[0][0];
     }
@@ -211,7 +211,7 @@ export default function useModeManager({
   function handleTrackTypeChange(trackId: TrackId | null, value: string) {
     // Change of type will change all tracks types
     if (trackId !== null) {
-      getTrackAll(trackMap, trackId).forEach((track) => track.setType(value));
+      getTrackAll(camMap, trackId).forEach((track) => track.setType(value));
     }
   }
 
@@ -240,7 +240,7 @@ export default function useModeManager({
 
   function handleUpdateRectBounds(frameNum: number, flickNum: number, bounds: RectBounds) {
     if (selectedTrackId.value !== null) {
-      const track = trackMap.get(selectedCamera.value)?.get(selectedTrackId.value);
+      const track = camMap.get(selectedCamera.value)?.get(selectedTrackId.value);
       if (track) {
         // Determines if we are creating a new Detection
         const { interpolate } = track.canInterpolate(frameNum);
@@ -286,7 +286,7 @@ export default function useModeManager({
     };
 
     if (selectedTrackId.value !== null) {
-      const track = trackMap.get(selectedCamera.value)?.get(selectedTrackId.value);
+      const track = camMap.get(selectedCamera.value)?.get(selectedTrackId.value);
       if (track) {
         // newDetectionMode is true if there's no keyframe on frameNum
         const { features, interpolate } = track.canInterpolate(frameNum);
@@ -384,7 +384,7 @@ export default function useModeManager({
   /* If any recipes are active, allow them to remove a point */
   function handleRemovePoint() {
     if (selectedTrackId.value !== null && selectedFeatureHandle.value !== -1) {
-      const track = trackMap.get(selectedCamera.value)?.get(selectedTrackId.value);
+      const track = camMap.get(selectedCamera.value)?.get(selectedTrackId.value);
       if (track !== undefined) {
         recipes.forEach((r) => {
           if (r.active.value && track) {
@@ -406,7 +406,7 @@ export default function useModeManager({
   /* If any recipes are active, remove the geometry they added */
   function handleRemoveAnnotation() {
     if (selectedTrackId.value !== null) {
-      const track = trackMap.get(selectedCamera.value)?.get(selectedTrackId.value);
+      const track = camMap.get(selectedCamera.value)?.get(selectedTrackId.value);
       if (track !== undefined) {
         const { frame } = aggregateController.value;
         recipes.forEach((r) => {
@@ -458,15 +458,15 @@ export default function useModeManager({
 
   /** Toggle editing mode for track */
   function handleTrackEdit(trackId: TrackId) {
-    const track = trackMap.get(selectedCamera.value)?.get(trackId);
+    const track = camMap.get(selectedCamera.value)?.get(trackId);
     if (track) {
       seekNearest(track);
       const editing = trackId === selectedTrackId.value ? (!editingTrack.value) : true;
       handleSelectTrack(trackId, editing);
-    } else if (getTrack(trackMap, trackId, 'any') !== undefined) { //Track doesn't exist for this camera
+    } else if (getTrack(camMap, trackId, 'any') !== undefined) { //Track doesn't exist for this camera
       //track exists in other cameras we create in the current map using override
       handleAddTrackOrDetection(trackId);
-      const camTrack = trackMap.get(selectedCamera.value)?.get(trackId);
+      const camTrack = camMap.get(selectedCamera.value)?.get(trackId);
       // now that we have a new track we select it for editing
       if (camTrack) {
         const editing = trackId === selectedTrackId.value;
@@ -476,7 +476,7 @@ export default function useModeManager({
   }
 
   function handleTrackClick(trackId: TrackId) {
-    const track = getTrack(trackMap, trackId);
+    const track = getTrack(camMap, trackId, 'any');
     seekNearest(track);
     handleSelectTrack(trackId, editingTrack.value);
   }
@@ -485,7 +485,7 @@ export default function useModeManager({
     const newTrack = selectNextTrack(delta);
     if (newTrack !== null) {
       handleSelectTrack(newTrack, false);
-      seekNearest(getTrack(trackMap, newTrack));
+      seekNearest(getTrack(camMap, newTrack, 'any'));
     }
   }
 
@@ -528,10 +528,10 @@ export default function useModeManager({
    */
   function handleCommitMerge() {
     if (mergeList.value.length >= 2) {
-      const track = getTrack(trackMap, mergeList.value[0], selectedCamera.value);
+      const track = getTrack(camMap, mergeList.value[0], selectedCamera.value);
       const otherTrackIds = mergeList.value.slice(1);
       track.merge(otherTrackIds.map(
-        (trackId) => getTrack(trackMap, trackId, selectedCamera.value),
+        (trackId) => getTrack(camMap, trackId, selectedCamera.value),
       ));
       handleRemoveTrack(otherTrackIds, true);
       handleToggleMerge();

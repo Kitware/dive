@@ -7,8 +7,9 @@ import {
 } from '@vue/composition-api';
 import {
   useSelectedTrackId,
-  useTrackMap,
+  useCamMap,
   useTime,
+  useSelectedCamera,
 } from 'vue-media-annotator/provides';
 import { getTrack, getTrackAll } from 'vue-media-annotator/use/useTrackStore';
 import { Attribute } from 'vue-media-annotator/use/useAttributes';
@@ -38,12 +39,13 @@ export default defineComponent({
   setup(props, { emit }) {
     const { frame: frameRef } = useTime();
     const selectedTrackIdRef = useSelectedTrackId();
-    const trackMap = useTrackMap();
+    const selectedCamera = useSelectedCamera();
+    const camMap = useCamMap();
     const activeSettings = ref(true);
 
     const selectedTrack = computed(() => {
       if (selectedTrackIdRef.value !== null) {
-        return getTrack(trackMap, selectedTrackIdRef.value);
+        return getTrack(camMap, selectedTrackIdRef.value, selectedCamera.value);
       }
       return null;
     });
@@ -83,7 +85,7 @@ export default defineComponent({
 
     function updateAttribute({ name, value }: { name: string; value: unknown }) {
       if (selectedTrackIdRef.value !== null) {
-        const tracks = getTrackAll(trackMap, selectedTrackIdRef.value);
+        const tracks = getTrackAll(camMap, selectedTrackIdRef.value);
         if (tracks.length) {
           if (props.mode === 'Track') {
             tracks.forEach((track) => track.setAttribute(name, value));

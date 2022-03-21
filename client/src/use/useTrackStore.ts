@@ -106,12 +106,12 @@ export function getTracksMerged(
 export default function useTrackStore({ markChangesPending }: UseTrackStoreParams) {
   /* Non-reactive state
    *
-   * TrackMap is provided for lookup by computed functions and templates.
+   * camMap is provided for lookup by computed functions and templates.
    * Note that a track class instance must NEVER be returned in its entirety by
    * a computed function.
    */
-  const trackMap = new Map<string, Map<TrackId, Track>>();
-  trackMap.set('default', new Map<TrackId, Track>());
+  const camMap = new Map<string, Map<TrackId, Track>>();
+  camMap.set('default', new Map<TrackId, Track>());
   const intervalTree = new IntervalTree();
 
   /* Reactive state
@@ -155,8 +155,8 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
   }
 
   function addCamera(cameraName: string) {
-    if (trackMap.get(cameraName) === undefined) {
-      trackMap.set(cameraName, new Map<TrackId, Track>());
+    if (camMap.get(cameraName) === undefined) {
+      camMap.set(cameraName, new Map<TrackId, Track>());
     }
   }
 
@@ -164,10 +164,10 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
   function insertTrack(track: Track, args?: InsertArgs) {
     const cameraName = args?.cameraName ?? 'default';
     track.setNotifier(cameraOnChange(cameraName));
-    if (trackMap.get(cameraName) === undefined) {
-      trackMap.set(cameraName, new Map<TrackId, Track>());
+    if (camMap.get(cameraName) === undefined) {
+      camMap.set(cameraName, new Map<TrackId, Track>());
     }
-    const currentMap = trackMap.get(cameraName);
+    const currentMap = camMap.get(cameraName);
     if (currentMap) {
       currentMap.set(track.trackId, track);
       intervalTree.insert([track.begin, track.end], track.trackId.toString());
@@ -204,7 +204,7 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
     }
     let range: number[] = [];
     if (cameraName === 'all') {
-      trackMap.forEach((currentMap, currentCam) => {
+      camMap.forEach((currentMap, currentCam) => {
         const track = currentMap.get(trackId);
         if (track) {
           range = [track.begin, track.end];
@@ -216,7 +216,7 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
         }
       });
     } else {
-      const currentMap = trackMap.get(cameraName);
+      const currentMap = camMap.get(cameraName);
       if (currentMap) {
         const track = currentMap.get(trackId);
         if (track) {
@@ -243,7 +243,7 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
   }
 
   function clearAllTracks() {
-    trackMap.forEach((currentMap) => {
+    camMap.forEach((currentMap) => {
       if (currentMap) {
         currentMap.clear();
       }
@@ -258,12 +258,12 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
   const sortedTracks = computed(() => {
     _depend();
     return trackIds.value
-      .map((trackId) => getTracksMerged(trackMap, trackId))
+      .map((trackId) => getTracksMerged(camMap, trackId))
       .sort((a, b) => a.begin - b.begin);
   });
 
   return {
-    trackMap,
+    camMap,
     sortedTracks,
     intervalTree,
     addTrack,

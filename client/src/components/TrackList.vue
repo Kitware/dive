@@ -15,7 +15,7 @@ import {
   useEditingMode,
   useHandler,
   useSelectedTrackId,
-  useTrackMap,
+  useCamMap,
   useFilteredTracks,
   useTypeStyling,
   useTime,
@@ -69,7 +69,7 @@ export default defineComponent({
     const checkedTrackIdsRef = useCheckedTrackIds();
     const editingModeRef = useEditingMode();
     const selectedTrackIdRef = useSelectedTrackId();
-    const trackMap = useTrackMap();
+    const camMap = useCamMap();
     const filteredTracksRef = useFilteredTracks();
     const typeStylingRef = useTypeStyling();
     const { frame: frameRef } = useTime();
@@ -108,7 +108,7 @@ export default defineComponent({
     function scrollToTrack(trackId: TrackId | null): void {
       if (trackId !== null && virtualList.value !== null) {
         try {
-          const track = getTrack(trackMap, trackId, 'any');
+          const track = getTrack(camMap, trackId, 'any');
           if (track) {
             const offset = filteredTracksRef.value.findIndex(
               (filtered) => filtered.track.trackId === trackId,
@@ -158,7 +158,7 @@ export default defineComponent({
       return {
         trackType,
         track: !selected ? item.filteredTrack.track
-          : getTrack(trackMap, item.filteredTrack.track.trackId, selectedCamera.value),
+          : getTrack(camMap, item.filteredTrack.track.trackId, selectedCamera.value),
         inputValue: item.checkedTrackIds.indexOf(item.filteredTrack.track.trackId) >= 0,
         selected,
         editing: selected && item.editingTrack,

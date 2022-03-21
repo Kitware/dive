@@ -57,8 +57,8 @@ type pendingSaveCountType = Readonly<Ref<number>>;
 const IntervalTreeSymbol = Symbol('intervalTree');
 type IntervalTreeType = Readonly<IntervalTree>;
 
-const TrackMapSymbol = Symbol('trackMap');
-type TrackMapType = Readonly<Map<string, Map<TrackId, Track>>>;
+const CamMapSymbol = Symbol('camMap');
+type CamMapType = Readonly<Map<string, Map<TrackId, Track>>>;
 
 const TracksSymbol = Symbol('tracks');
 type FilteredTracksType = Readonly<Ref<readonly TrackWithContext[]>>;
@@ -221,7 +221,7 @@ export interface State {
   intervalTree: IntervalTreeType;
   mergeList: MergeList;
   pendingSaveCount: pendingSaveCountType;
-  trackMap: TrackMapType;
+  camMap: CamMapType;
   typeStyling: TypeStylingType;
   selectedKey: SelectedKeyType;
   selectedTrackId: SelectedTrackIdType;
@@ -259,7 +259,7 @@ function dummyState(): State {
     intervalTree: new IntervalTree(),
     mergeList: ref([]),
     pendingSaveCount: ref(0),
-    trackMap: new Map<string, Map<TrackId, Track>>(),
+    camMap: new Map<string, Map<TrackId, Track>>(),
     typeStyling: ref({
       color() { return style.color; },
       strokeWidth() { return style.strokeWidth; },
@@ -309,7 +309,7 @@ function provideAnnotator(state: State, handler: Handler) {
   provide(IntervalTreeSymbol, state.intervalTree);
   provide(MergeListSymbol, state.mergeList);
   provide(PendingSaveCountSymbol, state.pendingSaveCount);
-  provide(TrackMapSymbol, state.trackMap);
+  provide(CamMapSymbol, state.camMap);
   provide(TracksSymbol, state.filteredTracks);
   provide(TypeStylingSymbol, state.typeStyling);
   provide(SelectedKeySymbol, state.selectedKey);
@@ -387,8 +387,8 @@ function usePendingSaveCount() {
   return use<pendingSaveCountType>(PendingSaveCountSymbol);
 }
 
-function useTrackMap() {
-  return use<TrackMapType>(TrackMapSymbol);
+function useCamMap() {
+  return use<CamMapType>(CamMapSymbol);
 }
 
 function useFilteredTracks() {
@@ -442,7 +442,7 @@ export {
   useIntervalTree,
   useMergeList,
   usePendingSaveCount,
-  useTrackMap,
+  useCamMap,
   useFilteredTracks,
   useTypeStyling,
   useSelectedKey,

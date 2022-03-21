@@ -152,7 +152,7 @@ export default defineComponent({
     } = useAttributes({ markChangesPending });
 
     const {
-      trackMap,
+      camMap,
       sortedTracks,
       intervalTree,
       addTrack,
@@ -211,7 +211,7 @@ export default defineComponent({
       selectedTrackId,
       selectedCamera,
       editingTrack,
-      trackMap,
+      camMap,
       aggregateController,
       selectTrack,
       selectNextTrack,
@@ -237,7 +237,7 @@ export default defineComponent({
 
     async function trackSplit(trackId: TrackId | null, frame: number) {
       if (typeof trackId === 'number') {
-        const track = getTrack(trackMap, trackId, selectedCamera.value);
+        const track = getTrack(camMap, trackId, selectedCamera.value);
         let newtracks: [Track, Track];
         try {
           newtracks = track.split(frame, getNewTrackId(), getNewTrackId() + 1);
@@ -491,7 +491,7 @@ export default defineComponent({
         intervalTree,
         mergeList,
         pendingSaveCount,
-        trackMap,
+        camMap,
         filteredTracks,
         typeStyling,
         selectedKey,
