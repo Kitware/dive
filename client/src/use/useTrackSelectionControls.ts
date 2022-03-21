@@ -1,15 +1,14 @@
 import { computed, ref, Ref } from '@vue/composition-api';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
-import { TrackWithContext } from './useTrackFilters';
+import { TrackWithContext } from './useAnnotationFilters';
 import { TrackId } from '../track';
 /* Maintain references to the selected Track, selected detection,
  * editing state, etc.
  */
 export default function useTrackSelectionControls(
-  { filteredTracks, readonlyState }:
-   {
-     filteredTracks: Readonly<Ref<readonly TrackWithContext[]>>;
-     readonlyState: Readonly<Ref<boolean>>;
+  { filteredTracks, readonlyState }: {
+    filteredTracks: Readonly<Ref<readonly TrackWithContext[]>>;
+    readonlyState: Readonly<Ref<boolean>>;
   },
 ) {
   // the currently selected Track
@@ -17,7 +16,7 @@ export default function useTrackSelectionControls(
   // boolean whether or not selectedTrackId is also being edited.
   const editingTrack = ref(false);
   const prompt = usePrompt();
-  const tracks = computed(() => filteredTracks.value.map((filtered) => filtered.track));
+  const tracks = computed(() => filteredTracks.value.map((filtered) => filtered.annotation));
 
   function selectTrack(trackId: TrackId | null, edit = false) {
     selectedTrackId.value = trackId;

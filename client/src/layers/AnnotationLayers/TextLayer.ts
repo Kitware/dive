@@ -1,4 +1,4 @@
-import { TypeStyling } from '../../use/useStyling';
+import { TypeStyling } from '../../StyleManager';
 import BaseLayer, { BaseLayerParams, LayerStyle } from '../BaseLayer';
 import { FrameDataTrack } from '../LayerTypes';
 
@@ -40,7 +40,7 @@ function defaultFormatter(
       const totalVisiblePairs = Math.min(track.confidencePairs.length, maxPairs);
       for (let i = 0; i < track.confidencePairs.length; i += 1) {
         const [type, confidence] = track.confidencePairs[i];
-        const isCurrentPair = (type === track.trackType[0]);
+        const isCurrentPair = (type === track.styleType[0]);
         const currentTypeIndication = (isCurrentPair && totalVisiblePairs > 1) ? '**' : '';
         let text = '';
         if (typeStyling) {

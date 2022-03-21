@@ -36,7 +36,7 @@ class AnnotationResource(Resource):
     @access.user
     @autoDescribeRoute(
         Description("Get annotations of a dataset")
-        .pagingParams("trackId", defaultLimit=0)
+        .pagingParams("id", defaultLimit=0)
         .modelParam("folderId", **DatasetModelParam, level=AccessType.READ)
         .param('revision', 'revision', dataType='integer', required=False)
         .param(
@@ -50,9 +50,11 @@ class AnnotationResource(Resource):
         setContentDisposition(
             f'{folder["name"]}.dive.json', mime='text/csv', disposition=contentDisposition
         )
-        cursor, total = crud_annotation.get_annotations(folder, limit, offset, sort, revision)
-        cherrypy.response.headers['Girder-Total-Count'] = total
-        return cursor
+        tracks, groups = crud_annotation.get_annotations(folder, limit, offset, sort, revision)
+        return {
+            'tracks': tracks,
+            'groups': groups,
+        }
 
     @access.user
     @autoDescribeRoute(
@@ -111,16 +113,24 @@ class AnnotationResource(Resource):
     @autoDescribeRoute(
         Description("Update annotations")
         .modelParam("folderId", **DatasetModelParam, level=AccessType.WRITE)
-        .jsonParam("tracks", "upsert and delete tracks", paramType="body", requireObject=True)
+        .jsonParam("body", "upsert and delete tracks", paramType="body", requireObject=True)
     )
-    def save_annotations(self, folder, tracks):
+    def save_annotations(self, folder, body):
         crud.verify_dataset(folder)
         validated: crud_annotation.AnnotationUpdateArgs = crud.get_validated_model(
-            crud_annotation.AnnotationUpdateArgs, **tracks
+            crud_annotation.AnnotationUpdateArgs, **body
         )
-        upsert = [track.dict(exclude_none=True) for track in validated.upsert]
+        upsert_tracks = [track.dict(exclude_none=True) for track in validated.tracks.upsert]
+        upsert_groups = [group.dict(exclude_none=True) for group in validated.groups.upsert]
         user = self.getCurrentUser()
-        return crud_annotation.save_annotations(folder, upsert, validated.delete, user)
+        return crud_annotation.save_annotations(
+            folder,
+            user,
+            upsert_tracks=upsert_tracks,
+            delete_tracks=validated.tracks.delete,
+            upsert_groups=upsert_groups,
+            delete_groups=validated.groups.delete,
+        )
 
     @access.user
     @autoDescribeRoute(

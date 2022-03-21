@@ -50,20 +50,37 @@ class Feature(BaseModel):
     keyframe: Optional[bool] = None
 
 
-class Track(BaseModel):
-    begin: int
-    end: int
-    trackId: int
-    features: List[Feature] = Field(default_factory=lambda: [])
+class BaseAnnotation(BaseModel):
+    begin: Optional[int]
+    end: Optional[int]
+    id: int
     confidencePairs: List[Tuple[str, float]] = Field(default_factory=lambda: [])
     attributes: Dict[str, Any] = Field(default_factory=lambda: {})
     meta: Optional[Dict[str, Any]]
+
+    def exceeds_thresholds(self, thresholds: Dict[str, float]) -> bool:
+        defaultThresh = thresholds.get('default', 0)
+        return any(
+            [
+                confidence >= thresholds.get(field, defaultThresh)
+                for field, confidence in self.confidencePairs
+            ]
+        )
+
+    def __hash__(self):
+        return self.id
+
+
+class Track(BaseAnnotation):
+    begin: int
+    end: int
+    features: List[Feature] = Field(default_factory=lambda: [])
 
     @validator('features')
     @classmethod
     def validateFeatures(cls, v: List[Feature], values: dict):
         if len(v) > 0:
-            trackId = values.get('trackId')
+            trackId = values.get('id')
             begin = values.get('begin')
             end = values.get('end')
             if v[0].frame != begin:
@@ -76,20 +93,23 @@ class Track(BaseModel):
                 )
         return v
 
-    def exceeds_thresholds(self, thresholds: Dict[str, float]) -> bool:
-        defaultThresh = thresholds.get('default', 0)
-        return any(
-            [
-                confidence >= thresholds.get(field, defaultThresh)
-                for field, confidence in self.confidencePairs
-            ]
-        )
 
-    def __hash__(self):
-        return self.trackId
+class GroupMember(BaseModel):
+    id: int
+    ranges: List[int]
 
 
-class AnnotationItemSchema(Track):
+class Group(BaseAnnotation):
+    members: Dict[int, GroupMember]
+
+
+class TrackItemSchema(Track):
+    dataset: PydanticObjectId
+    rev_created: int = 0
+    rev_deleted: Optional[int]
+
+
+class GroupItemSchema(Group):
     dataset: PydanticObjectId
     rev_created: int = 0
     rev_deleted: Optional[int]

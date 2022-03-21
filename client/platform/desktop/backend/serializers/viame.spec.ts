@@ -1,8 +1,8 @@
 /// <reference types="jest" />
-import { MultiTrackRecord } from 'dive-common/apispec';
+import { AnnotationSchema, MultiTrackRecord } from 'dive-common/apispec';
 import fs from 'fs-extra';
 import mockfs from 'mock-fs';
-import { JsonMeta } from 'platform/desktop/constants';
+import { AnnotationsCurrentVersion, JsonMeta } from 'platform/desktop/constants';
 import { serialize, parse, parseFile } from 'platform/desktop/backend/serializers/viame';
 import { Attribute } from 'vue-media-annotator/use/useAttributes';
 import processTrackAttributes from 'platform/desktop/backend/native/attributeProcessor';
@@ -71,11 +71,11 @@ const imageFilenameTests = [
 ];
 
 
-const data: MultiTrackRecord = {
+const trackMap: MultiTrackRecord = {
   1: {
     begin: 0,
     end: 5,
-    trackId: 1,
+    id: 1,
     features: [
       {
         frame: 0,
@@ -151,6 +151,11 @@ const data: MultiTrackRecord = {
   },
 };
 
+const data: AnnotationSchema = {
+  tracks: trackMap,
+  groups: {},
+  version: AnnotationsCurrentVersion,
+};
 
 const meta = {
   version: 1,
@@ -236,7 +241,7 @@ describe('VIAME Python Compatibility Check', () => {
       const results = await parse(csvStream);
       expect(results.tracks).toEqual(trackArray);
       // eslint-disable-next-line no-await-in-loop
-      const attData = processTrackAttributes(results.tracks);
+      const attData = processTrackAttributes(Object.values(results.tracks));
       expect(testAttributes).toEqual(attData.attributes);
     }
   });

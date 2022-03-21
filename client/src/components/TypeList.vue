@@ -6,8 +6,8 @@ import { difference, union } from 'lodash';
 
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import {
-  useCheckedTypes, useAllTypes, useTypeStyling, useHandler,
-  useUsedTypes, useFilteredTracks, useConfidenceFilters, useReadOnlyMode,
+  useCheckedTypes, useAllTypes, useHandler,
+  useUsedTypes, useFilteredTracks, useConfidenceFilters, useReadOnlyMode, useTrackStyleManager,
 } from '../provides';
 import TooltipBtn from './TooltipButton.vue';
 import TypeEditor from './TypeEditor.vue';
@@ -69,7 +69,7 @@ export default defineComponent({
     const checkedTypesRef = useCheckedTypes();
     const allTypesRef = useAllTypes();
     const usedTypesRef = useUsedTypes();
-    const typeStylingRef = useTypeStyling();
+    const typeStylingRef = useTrackStyleManager().typeStyling;
     const filteredTracksRef = useFilteredTracks();
     const confidenceFiltersRef = useConfidenceFilters();
     const {
@@ -111,7 +111,8 @@ export default defineComponent({
     }
 
     const typeCounts = computed(() => filteredTracksRef.value.reduce((acc, filteredTrack) => {
-      const confidencePair = filteredTrack.track.getType(filteredTrack.context.confidencePairIndex);
+      const confidencePair = filteredTrack.annotation
+        .getType(filteredTrack.context.confidencePairIndex);
       const trackType = confidencePair[0];
       acc.set(trackType, (acc.get(trackType) || 0) + 1);
 

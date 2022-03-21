@@ -12,7 +12,7 @@ test_tuple: List[Tuple[dict, list, list]] = [
     (
         {
             "0": {
-                "trackId": 0,
+                "id": 0,
                 "attributes": {},
                 "confidencePairs": [["typestring", 1.0]],
                 "features": [
@@ -29,7 +29,7 @@ test_tuple: List[Tuple[dict, list, list]] = [
                 "end": 1,
             },
             "1": {
-                "trackId": 1,
+                "id": 1,
                 "attributes": {},
                 "confidencePairs": [["type2", 1.0]],
                 "features": [
@@ -55,7 +55,7 @@ test_tuple: List[Tuple[dict, list, list]] = [
             "1": {
                 "begin": 1,
                 "end": 3,
-                "trackId": 0,
+                "id": 0,
                 "features": [
                     {
                         "frame": 1,
@@ -85,7 +85,7 @@ test_tuple: List[Tuple[dict, list, list]] = [
             "1": {
                 "begin": 1,
                 "end": 3,
-                "trackId": 0,
+                "id": 0,
                 "features": [
                     {
                         "frame": 1,
@@ -165,7 +165,7 @@ test_tuple: List[Tuple[dict, list, list]] = [
     (
         {
             "0": {
-                "trackId": 0,
+                "id": 0,
                 "attributes": {
                     "trackATTR": "TestTrack ATTR With Space",
                 },
@@ -197,7 +197,7 @@ test_tuple: List[Tuple[dict, list, list]] = [
     (
         {
             "0": {
-                "trackId": 0,
+                "id": 0,
                 "attributes": {},
                 "confidencePairs": [["typestring", 1.0]],
                 "features": [
@@ -214,7 +214,7 @@ test_tuple: List[Tuple[dict, list, list]] = [
                 "end": 1,
             },
             "1": {
-                "trackId": 1,
+                "id": 1,
                 "attributes": {},
                 "confidencePairs": [["type2", 1.0]],
                 "features": [
@@ -236,7 +236,7 @@ test_tuple: List[Tuple[dict, list, list]] = [
     (
         {
             "0": {
-                "trackId": 0,
+                "id": 0,
                 "attributes": {},
                 "confidencePairs": [["typestring", 1.0]],
                 "features": [
@@ -253,7 +253,7 @@ test_tuple: List[Tuple[dict, list, list]] = [
                 "end": 1,
             },
             "1": {
-                "trackId": 1,
+                "id": 1,
                 "attributes": {},
                 "confidencePairs": [["type2", 1.0]],
                 "features": [

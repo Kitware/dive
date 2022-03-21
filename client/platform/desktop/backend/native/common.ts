@@ -12,16 +12,19 @@ import {
   cloneDeep, merge, uniq, pick,
 } from 'lodash';
 
-import { DefaultConfidence } from 'vue-media-annotator/use/useTrackFilters';
+import { DefaultConfidence } from 'vue-media-annotator/use/useAnnotationFilters';
 import { TrackData } from 'vue-media-annotator/track';
+import { GroupData } from 'vue-media-annotator/Group';
 import {
-  DatasetType, MultiTrackRecord, Pipelines, SaveDetectionsArgs,
+  DatasetType, Pipelines, SaveDetectionsArgs,
   FrameImage, DatasetMetaMutable, TrainingConfigs, SaveAttributeArgs,
   MultiCamMedia,
   DatasetMetaMutableKeys,
+  AnnotationSchema,
 } from 'dive-common/apispec';
 import * as viameSerializers from 'platform/desktop/backend/serializers/viame';
 import * as nistSerializers from 'platform/desktop/backend/serializers/nist';
+import * as dive from 'platform/desktop/backend/serializers/dive';
 import {
   websafeImageTypes, websafeVideoTypes, otherImageTypes, otherVideoTypes, MultiType, JsonMetaRegEx,
 } from 'dive-common/constants';
@@ -39,18 +42,17 @@ import { upgrade } from './migrations';
 import { getMultiCamUrls, transcodeMultiCam } from './multiCamUtils';
 import { splitExt } from './utils';
 
-
 const ProjectsFolderName = 'DIVE_Projects';
 const JobsFolderName = 'DIVE_Jobs';
 const PipelinesFolderName = 'DIVE_Pipelines';
 
 const AuxFolderName = 'auxiliary';
 
-const JsonTrackFileName = /^result(_.*)?\.json$/;
-const JsonFileName = /^.*\.json$/;
+const JsonTrackFileName = /^result(_.*)?\.json$/i;
+const JsonFileName = /^.*\.json$/i;
 const JsonMetaFileName = 'meta.json';
-const CsvFileName = /^.*\.csv$/;
-
+const CsvFileName = /^.*\.csv$/i;
+const YAMLFileName = /^.*\.ya?ml$/i;
 /**
  * Read a text file into a list of lines
  */
@@ -238,16 +240,12 @@ async function loadJsonMetadata(metaAbsPath: string): Promise<JsonMeta> {
 }
 
 /**
- * loadJsonTracks load from file
+ * loadAnnotationFile load from file
  * @param tracksPath a known, existing path
  */
-async function loadJsonTracks(tracksAbsPath: string): Promise<MultiTrackRecord> {
+async function loadAnnotationFile(tracksAbsPath: string): Promise<AnnotationSchema> {
   const annotationData = await _loadAsJson(tracksAbsPath);
-  // TODO: somehow verify the schema of this file
-  if (Array.isArray(annotationData)) {
-    throw new Error('object expected in track json');
-  }
-  return annotationData;
+  return dive.migrate(annotationData);
 }
 
 async function loadMetadata(
@@ -314,7 +312,7 @@ async function loadMetadata(
 
 async function loadDetections(settings: Settings, datasetId: string) {
   const projectDirData = await getValidatedProjectDir(settings, datasetId);
-  return loadJsonTracks(projectDirData.trackFileAbsPath);
+  return loadAnnotationFile(projectDirData.trackFileAbsPath);
 }
 
 /**
@@ -474,7 +472,7 @@ async function createKwiverRunWorkingDir(
 async function _saveSerialized(
   settings: Settings,
   datasetId: string,
-  trackData: MultiTrackRecord,
+  data: AnnotationSchema,
   allowEmpty = false,
 ) {
   const time = moment().format('MM-DD-YYYY_hh-mm-ss.SSS');
@@ -495,7 +493,7 @@ async function _saveSerialized(
     // Some part of the project dir didn't exist
     if (!allowEmpty) throw err;
   }
-  const serialized = JSON.stringify(trackData);
+  const serialized = JSON.stringify(data);
   await fs.writeFile(npath.join(projectInfo.basePath, newFileName), serialized);
   await release();
 }
@@ -506,11 +504,15 @@ async function _saveSerialized(
 async function saveDetections(settings: Settings, datasetId: string, args: SaveDetectionsArgs) {
   /* Update existing track file */
   const projectDirInfo = await getValidatedProjectDir(settings, datasetId);
-  const existing = await loadJsonTracks(projectDirInfo.trackFileAbsPath);
-  args.delete.forEach((trackId) => delete existing[trackId.toString()]);
-  args.upsert.forEach((track) => {
-    existing[track.trackId.toString()] = track;
-  });
+  const existing = await loadAnnotationFile(projectDirInfo.trackFileAbsPath);
+  function _save<T>(type: 'tracks' | 'groups') {
+    args[type].delete.forEach((id) => delete existing[type][id.toString()]);
+    args[type].upsert.forEach((val: TrackData | GroupData) => {
+      existing[type][val.id.toString()] = val;
+    });
+  }
+  _save('tracks');
+  _save('groups');
   return _saveSerialized(settings, datasetId, existing);
 }
 
@@ -578,32 +580,37 @@ async function _ingestFilePath(
   const newPath = npath.join(projectInfo.auxDirAbsPath, `imported_${npath.basename(path)}`);
   await fs.copy(path, newPath);
   // Attempt to process the file
-  let tracks: TrackData[] | null = null;
+  let annotations = dive.makeEmptyAnnotationFile();
   const meta: DatasetMetaMutable & { fps?: number } = {};
   if (JsonFileName.test(path)) {
     const jsonObject = await _loadAsJson(path);
     if (nistSerializers.confirmNistFormat(jsonObject)) {
       // NIST json file
       const data = await nistSerializers.loadNistFile(path);
-      tracks = data.tracks;
+      annotations.tracks = data.tracks;
+      annotations.groups = data.groups;
       meta.fps = data.fps;
     } else if (DatasetMetaMutableKeys.some((key) => key in jsonObject)) {
       // DIVE Json metadata config file
       merge(meta, pick(jsonObject, DatasetMetaMutableKeys));
     } else {
       // Regular dive json
-      tracks = Object.values(await loadJsonTracks(path));
+      annotations = await loadAnnotationFile(path);
     }
   } else if (CsvFileName.test(path)) {
     // VIAME CSV File
     const data = await viameSerializers.parseFile(path, imageMap);
-    tracks = data.tracks;
+    annotations.tracks = data.tracks;
+    annotations.groups = data.groups;
     meta.fps = data.fps;
+  } else if (YAMLFileName.test(path)) {
+    // KPF File
+    throw new Error('KPF currently unsupported');
   }
-  if (tracks !== null) {
-    const processed = processTrackAttributes(tracks);
+  if (Object.values(annotations.tracks).length || Object.values(annotations.groups).length) {
+    const processed = processTrackAttributes(Object.values(annotations.tracks));
     meta.attributes = processed.attributes;
-    await _saveSerialized(settings, datasetId, processed.data, true);
+    await _saveSerialized(settings, datasetId, annotations, true);
   }
   return meta;
 }
@@ -920,10 +927,10 @@ async function _importTrackFile(
     );
     merge(jsonMeta, processed.meta);
     if (processed.processedFiles.length === 0) {
-      await _saveSerialized(settings, dsId, {}, true);
+      await _saveSerialized(settings, dsId, dive.makeEmptyAnnotationFile(), true);
     }
   } else {
-    await _saveSerialized(settings, dsId, {}, true);
+    await _saveSerialized(settings, dsId, dive.makeEmptyAnnotationFile(), true);
   }
   await _saveAsJson(npath.join(projectDirAbsPath, JsonMetaFileName), jsonMeta);
   return jsonMeta;
@@ -1061,7 +1068,7 @@ async function openLink(url: string) {
 async function exportDataset(settings: Settings, args: ExportDatasetArgs) {
   const projectDirInfo = await getValidatedProjectDir(settings, args.id);
   const meta = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
-  const data = await loadJsonTracks(projectDirInfo.trackFileAbsPath);
+  const data = await loadAnnotationFile(projectDirInfo.trackFileAbsPath);
   return viameSerializers.serializeFile(args.path, data, meta, args.typeFilter, {
     excludeBelowThreshold: args.exclude,
     header: true,
@@ -1098,7 +1105,7 @@ export {
   getValidatedProjectDir,
   loadMetadata,
   loadJsonMetadata,
-  loadJsonTracks,
+  loadAnnotationFile,
   loadDetections,
   openLink,
   ingestDataFiles,

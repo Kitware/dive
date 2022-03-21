@@ -8,25 +8,25 @@ Vue.use(CompositionApi);
 
 const filteredTracks = computed(() => ([
   {
-    track: new Track(0, {}),
+    annotation: new Track(0, {}),
     context: {
       confidencePairIndex: 0,
     },
   },
   {
-    track: new Track(2, {}),
+    annotation: new Track(2, {}),
     context: {
       confidencePairIndex: 0,
     },
   },
   {
-    track: new Track(200, {}),
+    annotation: new Track(200, {}),
     context: {
       confidencePairIndex: 0,
     },
   },
   {
-    track: new Track(1000, {}),
+    annotation: new Track(1000, {}),
     context: {
       confidencePairIndex: 0,
     },

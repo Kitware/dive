@@ -5,7 +5,7 @@ import {
 } from '@vue/composition-api';
 
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
-import { TrackWithContext } from '../use/useTrackFilters';
+import { TrackWithContext } from '../use/useAnnotationFilters';
 
 import { TrackId } from '../track';
 import {
@@ -14,11 +14,11 @@ import {
   useEditingMode,
   useHandler,
   useSelectedTrackId,
-  useTrackMap,
+  useTrackStore,
   useFilteredTracks,
-  useTypeStyling,
   useTime,
   useReadOnlyMode,
+  useTrackStyleManager,
 } from '../provides';
 import TrackItem from './TrackItem.vue';
 
@@ -68,9 +68,9 @@ export default defineComponent({
     const checkedTrackIdsRef = useCheckedTrackIds();
     const editingModeRef = useEditingMode();
     const selectedTrackIdRef = useSelectedTrackId();
-    const trackMap = useTrackMap();
+    const trackStore = useTrackStore();
     const filteredTracksRef = useFilteredTracks();
-    const typeStylingRef = useTypeStyling();
+    const typeStylingRef = useTrackStyleManager().typeStyling;
     const { frame: frameRef } = useTime();
     const {
       trackSelectNext, trackSplit, removeTrack, trackAdd,
@@ -106,10 +106,10 @@ export default defineComponent({
 
     function scrollToTrack(trackId: TrackId | null): void {
       if (trackId !== null && virtualList.value !== null) {
-        const track = trackMap.get(trackId);
+        const track = trackStore.annotationMap.get(trackId);
         if (track) {
           const offset = filteredTracksRef.value.findIndex(
-            (filtered) => filtered.track.trackId === trackId,
+            (filtered) => filtered.annotation.trackId === trackId,
           );
           if (offset === -1) {
             virtualList.value.$el.scrollTop = 0;
@@ -144,15 +144,15 @@ export default defineComponent({
     }
 
     function getItemProps(item: VirtualListItem) {
-      const confidencePair = item.filteredTrack.track.getType(
+      const confidencePair = item.filteredTrack.annotation.getType(
         item.filteredTrack.context.confidencePairIndex,
       );
       const trackType = confidencePair[0];
-      const selected = item.selectedTrackId === item.filteredTrack.track.trackId;
+      const selected = item.selectedTrackId === item.filteredTrack.annotation.id;
       return {
         trackType,
-        track: item.filteredTrack.track,
-        inputValue: item.checkedTrackIds.indexOf(item.filteredTrack.track.trackId) >= 0,
+        track: item.filteredTrack.annotation,
+        inputValue: item.checkedTrackIds.indexOf(item.filteredTrack.annotation.id) >= 0,
         selected,
         editing: selected && item.editingTrack,
         color: typeStylingRef.value.color(trackType),
@@ -170,11 +170,11 @@ export default defineComponent({
       let count = 0;
       const limit = 20;
       virtualListItems.value.forEach((item) => {
-        if (item.checkedTrackIds.includes(item.filteredTrack.track.trackId)) {
+        if (item.checkedTrackIds.includes(item.filteredTrack.annotation.id)) {
           if (count < limit) {
-            text.push(item.filteredTrack.track.trackId.toString());
+            text.push(item.filteredTrack.annotation.trackId.toString());
           }
-          tracksDisplayed.push(item.filteredTrack.track.trackId);
+          tracksDisplayed.push(item.filteredTrack.annotation.id);
           count += 1;
         }
       });

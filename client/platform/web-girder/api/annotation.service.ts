@@ -1,5 +1,4 @@
-import { SaveDetectionsArgs } from 'dive-common/apispec';
-import { TrackData } from 'vue-media-annotator/track';
+import { AnnotationSchema, SaveDetectionsArgs } from 'dive-common/apispec';
 import girderRest from 'platform/web-girder/plugins/girder';
 
 export interface Revision {
@@ -18,7 +17,7 @@ function loadDetections(folderId: string, revision?: number) {
   if (revision !== undefined) {
     params.revision = revision;
   }
-  return girderRest.get<{ [key: string]: TrackData }>('dive_annotation', { params });
+  return girderRest.get<AnnotationSchema>('dive_annotation', { params });
 }
 
 function loadRevisions(
@@ -35,10 +34,7 @@ function loadRevisions(
 }
 
 function saveDetections(folderId: string, args: SaveDetectionsArgs) {
-  return girderRest.patch('dive_annotation', {
-    upsert: args.upsert,
-    delete: args.delete,
-  }, {
+  return girderRest.patch('dive_annotation', args, {
     params: { folderId },
   });
 }

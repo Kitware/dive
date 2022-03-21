@@ -356,9 +356,8 @@ def process_items(folder: types.GirderModel, user: types.GirderUserModel):
         if filetype == crud.FileType.VIAME_CSV or filetype == crud.FileType.COCO_JSON:
             crud_annotation.save_annotations(
                 folder,
-                data.values(),
-                [],
                 user,
+                upsert_tracks=data.values(),
                 overwrite=True,
                 description=f'Import {filetype.name} from {file["name"]}',
             )
@@ -384,9 +383,8 @@ def process_items(folder: types.GirderModel, user: types.GirderUserModel):
                 crud.get_validated_model(models.Track, **track)
             crud_annotation.save_annotations(
                 folder,
-                data.values(),
-                [],
                 user,
+                upsert_tracks=data.values(),
                 overwrite=True,
                 description=f"Import from {filetype.value}",
             )
@@ -510,7 +508,11 @@ def postprocess(
             allFiles = [make_file_generator(item) for item in ymlItems]
             data = meva.load_kpf_as_tracks(allFiles)
             crud_annotation.save_annotations(
-                dsFolder, data.values(), [], user, overwrite=True, description="Import from KPF"
+                dsFolder,
+                user,
+                upsert_tracks=data.values(),
+                overwrite=True,
+                description="Import from KPF",
             )
             ymlItems.rewind()
             auxiliary = crud.get_or_create_auxiliary_folder(dsFolder, user)

@@ -4,7 +4,7 @@ import {
 } from '@vue/composition-api';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import {
-  useHandler, useTypeStyling, useUsedTypes, useReadOnlyMode,
+  useHandler, useTrackStyleManager, useUsedTypes, useReadOnlyMode,
 } from '../provides';
 
 export default defineComponent({
@@ -18,13 +18,13 @@ export default defineComponent({
   },
 
   setup(props, { emit }) {
-    const typeStylingRef = useTypeStyling();
+    const styleManager = useTrackStyleManager();
+    const typeStylingRef = styleManager.typeStyling;
     const usedTypesRef = useUsedTypes();
     const readOnlyMode = useReadOnlyMode();
     const { prompt } = usePrompt();
     const {
       updateTypeName,
-      updateTypeStyle,
       deleteType,
     } = useHandler();
 
@@ -48,7 +48,7 @@ export default defineComponent({
           newType: data.editingType,
         });
       }
-      updateTypeStyle({
+      styleManager.updateTypeStyle({
         type: data.editingType,
         value: {
           color: data.editingColor,

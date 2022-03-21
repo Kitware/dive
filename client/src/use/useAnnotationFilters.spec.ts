@@ -2,12 +2,11 @@
 import Vue from 'vue';
 import CompositionApi from '@vue/composition-api';
 import Track, { Feature } from '../track';
-import useTrackFilters from './useTrackFilters';
-import useTrackStore from './useTrackStore';
+import useAnnotationFilters from './useAnnotationFilters';
+import TrackStore from '../TrackStore';
 
 Vue.use(CompositionApi);
 
-const removeTrack = () => null;
 const markChangesPending = () => null;
 
 /**
@@ -36,47 +35,44 @@ function makeTrackStore() {
     confidencePairs: [['bar', 1], ['baz', 0.8]],
     features,
   });
-  const ts = useTrackStore({ markChangesPending: () => null });
-  ts.insertTrack(t0);
-  ts.insertTrack(t1);
-  ts.insertTrack(t2);
+  const ts = new TrackStore({ markChangesPending: () => null });
+  ts.insert(t0);
+  ts.insert(t1);
+  ts.insert(t2);
   return ts;
 }
 
-describe('useTrackFilters', () => {
+describe('useAnnotationFilters', () => {
   it('updateTypeName', async () => {
-    const { sortedTracks } = makeTrackStore();
-    const tf = useTrackFilters({ sortedTracks, removeTrack, markChangesPending });
+    const store = makeTrackStore();
+    const tf = useAnnotationFilters({ store, markChangesPending });
     tf.setConfidenceFilters({ baz: 0.1, bar: 0.2, default: 0.1 });
     tf.updateTypeName({ currentType: 'foo', newType: 'baz' });
     expect(tf.allTypes.value).toEqual(['baz', 'bar']);
-    expect(tf.filteredTracks.value.filter((track) => track.track.getType()[0] === 'baz').length).toBe(2);
+    expect(tf.filteredAnnotations.value.filter(({ annotation }) => annotation.getType()[0] === 'baz').length).toBe(2);
     tf.updateTypeName({ currentType: 'baz', newType: 'newtype' });
     await Vue.nextTick(); // must wait a tick for confidence to settle when newtype is added.
     expect(tf.allTypes.value).toEqual(['newtype', 'bar']);
-    expect(tf.filteredTracks.value.length).toBe(3);
+    expect(tf.filteredAnnotations.value.length).toBe(3);
     expect(tf.confidenceFilters.value).toEqual({ bar: 0.2, newtype: 0.1, default: 0.1 });
   });
 
   it('deleteType', () => {
-    const { sortedTracks } = makeTrackStore();
-    const tf = useTrackFilters({ sortedTracks, removeTrack, markChangesPending });
+    const store = makeTrackStore();
+    const tf = useAnnotationFilters({ store, markChangesPending });
     tf.setConfidenceFilters({ baz: 0.1, bar: 0.2 });
     tf.deleteType('bar'); // delete type only deletes the defaultType, doesn't touch tracks.
-    expect(sortedTracks.value).toHaveLength(3);
+    expect(store.sorted.value).toHaveLength(3);
     expect(tf.allTypes.value).toEqual(['foo', 'bar', 'baz']);
     expect(tf.confidenceFilters.value).toEqual({ baz: 0.1 });
   });
 
   it('removeTypeTrack', async () => {
-    const { sortedTracks } = makeTrackStore();
-    const sypRemoveTrack = jest.fn();
-    const tf = useTrackFilters({ sortedTracks, removeTrack: sypRemoveTrack, markChangesPending });
-    tf.removeTypeTracks(['bar']);
+    const store = makeTrackStore();
+    const tf = useAnnotationFilters({ store, markChangesPending });
+    tf.removeTypeAnnotations(['bar']);
     expect(tf.allTypes.value).toEqual(['foo', 'bar', 'baz']);
-    expect(sypRemoveTrack).not.toHaveBeenCalled();
-    tf.removeTypeTracks(['baz']);
+    tf.removeTypeAnnotations(['baz']);
     expect(tf.allTypes.value).toEqual(['foo', 'bar', 'baz']);
-    expect(sypRemoveTrack).toHaveBeenCalledTimes(1);
   });
 });

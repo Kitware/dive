@@ -5,7 +5,7 @@ interface PointGeoJSData {
     trackId: number;
     selected: boolean;
     editing: boolean | string;
-    trackType: [string, number] | null;
+  styleType: [string, number] | null;
     feature: string;
     x: number;
     y: number;
@@ -37,7 +37,7 @@ export default class PointLayer extends BaseLayer<PointGeoJSData> {
                 trackId: track.trackId,
                 selected: track.selected,
                 editing: track.editing,
-                trackType: track.trackType,
+                styleType: track.styleType,
                 feature: key,
                 x,
                 y,
@@ -56,14 +56,14 @@ export default class PointLayer extends BaseLayer<PointGeoJSData> {
       ...super.createStyle(),
       fill: (data: PointGeoJSData) => data.feature === 'head',
       fillColor: (data: PointGeoJSData) => {
-        if (data.trackType) {
-          return this.typeStyling.value.color(data.trackType[0]);
+        if (data.styleType) {
+          return this.typeStyling.value.color(data.styleType[0]);
         }
         return this.typeStyling.value.color('');
       },
       fillOpacity: (data: PointGeoJSData) => {
-        if (data.trackType) {
-          return this.typeStyling.value.opacity(data.trackType[0]);
+        if (data.styleType) {
+          return this.typeStyling.value.opacity(data.styleType[0]);
         }
         return this.stateStyling.standard.opacity;
       },
@@ -71,8 +71,8 @@ export default class PointLayer extends BaseLayer<PointGeoJSData> {
         if (data.selected) {
           return this.stateStyling.selected.strokeWidth * 2;
         }
-        if (data.trackType) {
-          return this.typeStyling.value.strokeWidth(data.trackType[0]) * 2;
+        if (data.styleType) {
+          return this.typeStyling.value.strokeWidth(data.styleType[0]) * 2;
         }
         return this.stateStyling.standard.strokeWidth * 2;
       },
@@ -80,8 +80,8 @@ export default class PointLayer extends BaseLayer<PointGeoJSData> {
         if (data.selected) {
           return this.stateStyling.selected.strokeWidth;
         }
-        if (data.trackType) {
-          return this.typeStyling.value.strokeWidth(data.trackType[0]);
+        if (data.styleType) {
+          return this.typeStyling.value.strokeWidth(data.styleType[0]);
         }
         return this.stateStyling.standard.strokeWidth;
       },
@@ -89,8 +89,8 @@ export default class PointLayer extends BaseLayer<PointGeoJSData> {
         if (data.selected) {
           return this.stateStyling.selected.color;
         }
-        if (data.trackType) {
-          return this.typeStyling.value.color(data.trackType[0]);
+        if (data.styleType) {
+          return this.typeStyling.value.color(data.styleType[0]);
         }
         return this.typeStyling.value.color('');
       },

@@ -96,9 +96,9 @@ Controllers are like layers, but without geojs functionality.  They usually prov
 
 These are Vue 3 composition functions that an annotation application can use.  They mostly provide the data structures that the above layers and consumers need.  For example:
 
-* `src/use/useTrackStore.ts` provides an efficient data structure for holding track instances.  It provides reactivity when individual tracks are updated, added, and removed, and can provide fast lookup by trackid and frame.
-* `src/use/useTrackFilters.ts` takes a trackstore's return values as params and provides filtering by type and trackid.
-* `src/use/useTrackSelectionControls.ts` takes trackstore return values and provides state and mutations for selection
+* `src/TrackStore.ts` provides an efficient data structure for holding track instances.  It provides reactivity when individual tracks are updated, added, and removed, and can provide fast lookup by trackid and frame.
+* `src/use/useAnnotationFilters.ts` takes a trackstore as params and provides filtering by type and trackid.
+* `src/use/useTrackSelectionControls.ts` takes trackstore and provides state and mutations for selection
 * `src/use/useEventChart.ts` takes trackstore, filter, and selection as params and returns an object used by the `EventChart.vue` component to display a contextual timeline of all tracks in the store.
 
 The major benefits of the `src/use` style are:

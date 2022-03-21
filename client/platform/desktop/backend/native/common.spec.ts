@@ -153,7 +153,7 @@ mockfs({
     annotationImport: {
       'viame.csv': emptyCsvString,
       'foreign.meta.json': '{ "confidenceFilters": {"default": 0.8}, "type": "invalidtype" }',
-      'dive.json': '{ "0": { "trackId": 0 } }', // fake track file
+      'dive.json': '{ "0": { "id": 0 } }', // fake track file
     },
     imageSuccess: {
       'foo.png': '',

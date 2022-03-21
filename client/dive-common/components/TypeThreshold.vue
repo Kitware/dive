@@ -5,11 +5,11 @@ import {
   useConfidenceFilters,
   useDatasetId,
   useHandler,
-  useTypeStyling,
+  useTrackStyleManager,
 } from 'vue-media-annotator/provides';
 import ConfidenceFilter from 'dive-common/components/ConfidenceFilter.vue';
 import { useApi } from 'dive-common/apispec';
-import { DefaultConfidence } from 'vue-media-annotator/use/useTrackFilters';
+import { DefaultConfidence } from 'vue-media-annotator/use/useAnnotationFilters';
 
 export default defineComponent({
   name: 'TypeThreshold',
@@ -19,7 +19,7 @@ export default defineComponent({
   setup() {
     const checkedTypesRef = useCheckedTypes();
     const confidenceFiltersRef = useConfidenceFilters();
-    const typeStylingRef = useTypeStyling();
+    const typeStylingRef = useTrackStyleManager().typeStyling;
     const datasetIdRef = useDatasetId();
     const { setConfidenceFilters } = useHandler();
     const { saveMetadata } = useApi();

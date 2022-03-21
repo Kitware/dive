@@ -7,9 +7,9 @@
  * so it cannot be based on the a-temporal BaseLayer.
  */
 import BaseLayer, { LayerStyle, BaseLayerParams, MarkerStyle } from 'vue-media-annotator/layers/BaseLayer';
-import Track, { TrackId } from 'vue-media-annotator/track';
+import { TrackId } from 'vue-media-annotator/track';
 import { FrameDataTrack } from 'vue-media-annotator/layers/LayerTypes';
-import { getTrack } from 'vue-media-annotator/use/useTrackStore';
+import TrackStore from 'vue-media-annotator/TrackStore';
 
 interface TailData {
   trackId: TrackId;
@@ -32,22 +32,22 @@ export default class TailLayer extends BaseLayer<TailData[]> {
 
   markerOpacity: number;
 
-  /** Hold a reference to the trackMap */
-  trackMap: Readonly<Map<number, Track>>;
+  /** Hold a reference to the trackStore */
+  trackStore: Readonly<TrackStore>;
 
-  constructor(params: BaseLayerParams, trackMap: Readonly<Map<number, Track>>) {
+  constructor(params: BaseLayerParams, trackStore: Readonly<TrackStore>) {
     super(params);
     this.currentFrame = 0;
     this.before = 10;
     this.after = 5;
     this.markerSize = 10;
     this.markerOpacity = 1.0;
-    this.trackMap = trackMap;
+    this.trackStore = trackStore;
     this.initialize();
   }
 
   generateDataForTrack(fd: FrameDataTrack): TailData[] {
-    const track = getTrack(this.trackMap, fd.trackId);
+    const track = this.trackStore.get(fd.trackId);
     const tailData: TailData[] = [];
     let lastPoint: TailData | null = null;
     const start = Math.max(this.currentFrame - this.before, 0);

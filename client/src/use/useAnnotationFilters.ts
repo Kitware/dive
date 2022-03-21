@@ -2,34 +2,38 @@ import {
   ref, computed, Ref, watch,
 } from '@vue/composition-api';
 import { cloneDeep } from 'lodash';
-import Track, { TrackId } from '../track';
+import { AnnotationId } from 'vue-media-annotator/BaseAnnotation';
+import type AnnotationStore from '../AnnotationStore';
+import type Group from '../Group';
+import type Track from '../track';
 import { updateSubset } from '../utils';
 
 export const DefaultConfidence = 0.1;
 /**
- * TrackWithContext wraps a track with additional information
- * such as why the track was included or returned by a system
+ * AnnotationWithContext wraps an annotation with additional information
+ * such as why the annotation was included or returned by a system
  * or function.
  */
-export interface TrackWithContext {
-  track: Readonly<Track>;
+export interface AnnotationWithContext<T extends Track | Group> {
+  annotation: Readonly<OneOf<T, [Track, Group]>>;
   context: {
-    // confidencePair index within track that makes this track a positive filter result
+    // confidencePair index within annotation that makes this annotation a positive filter result
     confidencePairIndex: number;
   };
 }
 
-/* Provide track filtering controls on tracks loaded from useTrackStore. */
-export default function useFilteredTracks(
-  { sortedTracks, removeTrack, markChangesPending }:
-  {
-    sortedTracks: Readonly<Ref<readonly Track[]>>;
-    removeTrack: (trackId: TrackId) => void;
+export type TrackWithContext = AnnotationWithContext<Track>;
+export type GroupWithContext = AnnotationWithContext<Group>;
+
+/* Provide annotation filtering controls on annotations loaded from store. */
+export default function useFilteredTracks<T extends Track | Group>(
+  { store, markChangesPending }: {
+    store: AnnotationStore<Track | Group>;
     markChangesPending: () => void;
   },
 ) {
-  /* Track IDs explicitly checked "ON" by the user */
-  const checkedTrackIds = ref(sortedTracks.value.map((t) => t.trackId));
+  /* Annotation IDs explicitly checked "ON" by the user */
+  const checkedIDs = ref(store.sorted.value.map((t) => t.id));
   /* The confidence threshold to test confidecePairs against */
   const confidenceFilters = ref({ default: DefaultConfidence } as Record<string, number>);
   const defaultTypes: Ref<string[]> = ref([]);
@@ -37,8 +41,8 @@ export default function useFilteredTracks(
   /* Collect all known types from confidence pairs */
   const allTypes = computed(() => {
     const typeSet = new Set<string>();
-    sortedTracks.value.forEach((track) => {
-      track.confidencePairs.forEach(([name]) => {
+    store.sorted.value.forEach((annotation) => {
+      annotation.confidencePairs.forEach(([name]) => {
         typeSet.add(name);
       });
     });
@@ -50,8 +54,8 @@ export default function useFilteredTracks(
 
   const usedTypes = computed(() => {
     const typeSet = new Set<string>();
-    sortedTracks.value.forEach((track) => {
-      track.confidencePairs.forEach(([name]) => {
+    store.sorted.value.forEach((annotation) => {
+      annotation.confidencePairs.forEach(([name]) => {
         typeSet.add(name);
       });
     });
@@ -60,13 +64,13 @@ export default function useFilteredTracks(
   /* Categorical types checked "ON" by the user */
   const checkedTypes = ref(Array.from(allTypes.value));
 
-  /* track IDs filtered by type and confidence threshold */
-  const filteredTracks = computed(() => {
+  /* Annotation IDs filtered by type and confidence threshold */
+  const filteredAnnotations = computed(() => {
     const checkedSet = new Set(checkedTypes.value);
     const confidenceFiltersVal = cloneDeep(confidenceFilters.value);
-    const resultsArr: TrackWithContext[] = [];
-    sortedTracks.value.forEach((track) => {
-      const confidencePairIndex = track.confidencePairs
+    const resultsArr: AnnotationWithContext<Track | Group>[] = [];
+    store.sorted.value.forEach((annotation) => {
+      const confidencePairIndex = annotation.confidencePairs
         .findIndex(([confkey, confval]) => {
           const confidenceThresh = Math.max(
             confidenceFiltersVal[confkey] || 0,
@@ -74,11 +78,11 @@ export default function useFilteredTracks(
           );
           return confval >= confidenceThresh && checkedSet.has(confkey);
         });
-        /* include tracks where at least 1 confidence pair is above
-         * the threshold and part of the checked type set */
-      if (confidencePairIndex >= 0 || track.confidencePairs.length === 0) {
+      /* include annotations where at least 1 confidence pair is above
+       * the threshold and part of the checked type set */
+      if (confidencePairIndex >= 0 || annotation.confidencePairs.length === 0) {
         resultsArr.push({
-          track,
+          annotation,
           context: {
             confidencePairIndex,
           },
@@ -88,22 +92,22 @@ export default function useFilteredTracks(
     return resultsArr;
   });
 
-  const enabledTracks = computed(() => {
-    const checkedSet = new Set(checkedTrackIds.value);
-    return filteredTracks.value.filter((filtered) => checkedSet.has(filtered.track.trackId));
+  const enabledAnnotations = computed(() => {
+    const checkedSet = new Set(checkedIDs.value);
+    return filteredAnnotations.value.filter((filtered) => checkedSet.has(filtered.annotation.id));
   });
 
   // because vue watchers don't behave properly, and it's better to not have
-  // checkedTrackIds be a union null | array type
-  let oldCheckedTrackIds: TrackId[] = [];
+  // checkedIDs be a union null | array type
+  let oldCheckedIds: AnnotationId[] = [];
   /* When the list of types (or checked IDs) changes
    * add the new enabled types to the set and remove old ones */
-  watch(sortedTracks, (newval) => {
-    const IDs = newval.map((t) => t.trackId);
-    const newArr = updateSubset(oldCheckedTrackIds, IDs, checkedTrackIds.value);
+  watch(store.sorted, (newval) => {
+    const IDs = newval.map((t) => t.id);
+    const newArr = updateSubset(oldCheckedIds, IDs, checkedIDs.value);
     if (newArr !== null) {
-      oldCheckedTrackIds = IDs;
-      checkedTrackIds.value = newArr;
+      oldCheckedIds = IDs;
+      checkedIDs.value = newArr;
     }
   });
 
@@ -142,11 +146,11 @@ export default function useFilteredTracks(
 
   function updateTypeName({ currentType, newType }: { currentType: string; newType: string }) {
     //Go through the entire list and replace the oldType with the new Type
-    sortedTracks.value.forEach((track) => {
-      for (let i = 0; i < track.confidencePairs.length; i += 1) {
-        const [name, confidenceVal] = track.confidencePairs[i];
+    store.sorted.value.forEach((annotation) => {
+      for (let i = 0; i < annotation.confidencePairs.length; i += 1) {
+        const [name, confidenceVal] = annotation.confidencePairs[i];
         if (name === currentType) {
-          track.setType(newType, confidenceVal, currentType);
+          annotation.setType(newType, confidenceVal, currentType);
           break;
         }
       }
@@ -160,14 +164,14 @@ export default function useFilteredTracks(
     deleteType(currentType);
   }
 
-  function removeTypeTracks(types: string[]) {
-    filteredTracks.value.forEach((filtered) => {
-      const filteredType = filtered.track.getType(filtered.context.confidencePairIndex);
+  function removeTypeAnnotations(types: string[]) {
+    filteredAnnotations.value.forEach((filtered) => {
+      const filteredType = filtered.annotation.getType(filtered.context.confidencePairIndex);
       if (filteredType && types.includes(filteredType[0])) {
-        //Remove the type from the track if multiple types exist
-        const newConfidencePairs = filtered.track.removeTypes(types);
+        //Remove the type from the annotation if multiple types exist
+        const newConfidencePairs = filtered.annotation.removeTypes(types);
         if (newConfidencePairs.length === 0) {
-          removeTrack(filtered.track.trackId);
+          store.remove(filtered.annotation.id);
         }
       }
     });
@@ -177,28 +181,28 @@ export default function useFilteredTracks(
     checkedTypes.value = types;
   }
 
-  function updateCheckedTrackId(trackId: TrackId, value: boolean) {
+  function updateCheckedId(id: AnnotationId, value: boolean) {
     if (value) {
-      checkedTrackIds.value.push(trackId);
+      checkedIDs.value.push(id);
     } else {
-      const i = checkedTrackIds.value.indexOf(trackId);
-      checkedTrackIds.value.splice(i, 1);
+      const i = checkedIDs.value.indexOf(id);
+      checkedIDs.value.splice(i, 1);
     }
   }
 
   return {
-    checkedTrackIds,
+    checkedIDs,
     checkedTypes,
     confidenceFilters,
     allTypes,
     usedTypes,
-    filteredTracks,
-    enabledTracks,
+    filteredAnnotations,
+    enabledAnnotations,
     setConfidenceFilters,
-    updateCheckedTrackId,
+    updateCheckedId,
     updateCheckedTypes,
     updateTypeName,
-    removeTypeTracks,
+    removeTypeAnnotations,
     importTypes,
     deleteType,
   };
