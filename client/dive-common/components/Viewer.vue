@@ -48,10 +48,6 @@ export interface ImageDataItem {
   filename: string;
 }
 
-function loadImageFunc(imageDataItem: ImageDataItem, img: HTMLImageElement) {
-  // eslint-disable-next-line no-param-reassign
-  img.src = imageDataItem.url;
-}
 
 export default defineComponent({
   components: {
@@ -98,7 +94,7 @@ export default defineComponent({
     const datasetType: Ref<DatasetType> = ref('image-sequence');
     const datasetName = ref('');
     const saveInProgress = ref(false);
-    const videoUrl = ref({ default: null } as Record<string, null | string>);
+    const videoUrl: Ref<Record<string, string>> = ref({ });
     const { loadDetections, loadMetadata, saveMetadata } = useApi();
     const progress = reactive({
       // Loaded flag prevents annotator window from populating
@@ -353,7 +349,9 @@ export default defineComponent({
         const filteredMultiCamList = multiCamList.value.filter((item) => item !== 'default');
         if (filteredMultiCamList.length === 0) {
           imageData.value[selectedCamera.value] = cloneDeep(meta.imageData) as FrameImage[];
-          videoUrl.value[selectedCamera.value] = meta.videoUrl || null;
+          if (meta.videoUrl) {
+            videoUrl.value[selectedCamera.value] = meta.videoUrl;
+          }
           datasetType.value = meta.type as DatasetType;
           const trackData = await loadDetections(datasetId.value);
           const tracks = Object.values(trackData);
@@ -373,7 +371,9 @@ export default defineComponent({
             // eslint-disable-next-line no-await-in-loop
             const subCameraMeta = await loadMetadata(`${baseMulticamDatasetId.value}/${camera}`);
             imageData.value[camera] = cloneDeep(subCameraMeta.imageData) as FrameImage[];
-            videoUrl.value[camera] = subCameraMeta.videoUrl || null;
+            if (subCameraMeta.videoUrl) {
+              videoUrl.value[camera] = subCameraMeta.videoUrl;
+            }
             addCamera(camera);
             // eslint-disable-next-line no-await-in-loop
             const camTrackData = await loadDetections(`${baseMulticamDatasetId.value}/${camera}`);
@@ -424,6 +424,9 @@ export default defineComponent({
       }
     }
     const observer = new ResizeObserver(handleResize);
+    /* On a reload this will watch the controls element and add on observer
+     * so that once done loading the or if the controlsRef is collapsed it will resize all cameras
+    */
     watch(controlsRef, (previous) => {
       if (previous) observer.unobserve(previous.$el);
       if (controlsRef.value) observer.observe(controlsRef.value.$el);
@@ -519,7 +522,6 @@ export default defineComponent({
       readonlyState,
       /* methods */
       handler: globalHandler,
-      loadImageFunc,
       save,
       saveThreshold,
       updateTime,
@@ -675,7 +677,7 @@ export default defineComponent({
                 :class="{'selected-camera': selectedCamera === camera && camera !== 'default'}"
                 v-bind="{
                   imageData: imageData[camera], videoUrl: videoUrl[camera],
-                  updateTime, frameRate, originalFps, loadImageFunc, camera }"
+                  updateTime, frameRate, originalFps, camera }"
               >
                 <LayerManager :camera="camera" />
               </component>
