@@ -87,9 +87,9 @@ export default defineComponent({
     const loadError = ref('');
     const baseMulticamDatasetId = ref(null as string | null);
     const datasetId = toRef(props, 'id');
-    const multiCamList: Ref<string[]> = ref(['default']);
-    const defaultCamera = ref('default');
-    const selectedCamera = ref('default');
+    const multiCamList: Ref<string[]> = ref(['singleCam']);
+    const defaultCamera = ref('singleCam');
+    const selectedCamera = ref('singleCam');
     const playbackComponent = ref(undefined as Vue | undefined);
     const readonlyState = computed(() => props.readonlyMode || props.revision !== undefined);
     const {
@@ -102,7 +102,7 @@ export default defineComponent({
     const datasetType: Ref<DatasetType> = ref('image-sequence');
     const datasetName = ref('');
     const saveInProgress = ref(false);
-    const videoUrl = ref({ default: null } as Record<string, null | string>);
+    const videoUrl: Ref<Record<string, string>> = ref({});
     const { loadDetections, loadMetadata, saveMetadata } = useApi();
     const progress = reactive({
       // Loaded flag prevents annotator window from populating
@@ -373,10 +373,12 @@ export default defineComponent({
           originalFps: meta.originalFps || null,
         });
         // Load non-Default Cameras if they exist:
-        const filteredMultiCamList = multiCamList.value.filter((item) => item !== 'default');
+        const filteredMultiCamList = multiCamList.value.filter((item) => item !== 'singleCam');
         if (filteredMultiCamList.length === 0) {
           imageData.value[selectedCamera.value] = cloneDeep(meta.imageData) as FrameImage[];
-          videoUrl.value[selectedCamera.value] = meta.videoUrl || null;
+          if (meta.videoUrl) {
+            videoUrl.value[selectedCamera.value] = meta.videoUrl;
+          }
           datasetType.value = meta.type as DatasetType;
           const trackData = await loadDetections(datasetId.value);
           const tracks = Object.values(trackData);
@@ -396,7 +398,9 @@ export default defineComponent({
             // eslint-disable-next-line no-await-in-loop
             const subCameraMeta = await loadMetadata(`${baseMulticamDatasetId.value}/${camera}`);
             imageData.value[camera] = cloneDeep(subCameraMeta.imageData) as FrameImage[];
-            videoUrl.value[camera] = subCameraMeta.videoUrl || null;
+            if (subCameraMeta.videoUrl) {
+              videoUrl.value[camera] = subCameraMeta.videoUrl;
+            }
             addCamera(camera);
             addSaveCamera(camera);
             // eslint-disable-next-line no-await-in-loop
@@ -587,7 +591,7 @@ export default defineComponent({
           </template>
         </EditorMenu>
         <v-select
-          v-if="multiCamList.length && defaultCamera !== 'default'"
+          v-if="multiCamList.length && defaultCamera !== 'singleCam'"
           :value="selectedCamera"
           :items="multiCamList"
           label="Camera"
@@ -691,7 +695,7 @@ export default defineComponent({
                 v-if="(imageData[camera].length || videoUrl[camera]) && progress.loaded"
                 ref="subPlaybackComponent"
                 class="fill-height"
-                :class="{'selected-camera': selectedCamera === camera && camera !== 'default'}"
+                :class="{'selected-camera': selectedCamera === camera && camera !== 'singleCam'}"
                 v-bind="{
                   imageData: imageData[camera], videoUrl: videoUrl[camera],
                   updateTime, frameRate, originalFps, loadImageFunc, camera }"

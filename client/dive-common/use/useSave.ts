@@ -51,7 +51,7 @@ export default function useSave(
     }
     const promiseList: Promise<unknown>[] = [];
     Object.entries(pendingChangeMaps).forEach(([camera, pendingChangeMap]) => {
-      const saveId = camera === 'default' ? datasetId.value : `${datasetId.value}/${camera}`;
+      const saveId = camera === 'singleCam' ? datasetId.value : `${datasetId.value}/${camera}`;
       if (pendingChangeMap.upsert.size || pendingChangeMap.delete.size) {
         promiseList.push(saveDetections(saveId, {
           upsert: Array.from(pendingChangeMap.upsert).map((pair) => pair[1].serialize()),
@@ -86,7 +86,7 @@ export default function useSave(
       action,
       track,
       attribute,
-      cameraName = 'default',
+      cameraName = 'singleCam',
     }: {
       action: 'upsert' | 'delete' | 'meta';
       track?: Track;

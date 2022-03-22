@@ -27,7 +27,7 @@ interface InsertArgs {
  * If cameraName is 'any' we return the first track we find for basic usage
  */
 export function getTrack(
-  trackMap: Readonly<Map<string, Map<TrackId, Track>>>, trackId: Readonly<TrackId>, cameraName = 'default',
+  trackMap: Readonly<Map<string, Map<TrackId, Track>>>, trackId: Readonly<TrackId>, cameraName = 'singleCam',
 ): Track {
   const currentMap = trackMap.get(cameraName);
   if (!currentMap) {
@@ -122,7 +122,7 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
    * a computed function.
    */
   const camMap = new Map<string, Map<TrackId, Track>>();
-  camMap.set('default', new Map<TrackId, Track>());
+  camMap.set('singleCam', new Map<TrackId, Track>());
   const intervalTree = new IntervalTree();
 
   /* Reactive state
@@ -150,7 +150,7 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
     }
     return 0;
   }
-  function cameraOnChange(cameraName = 'default') {
+  function cameraOnChange(cameraName = 'singleCam') {
     return function onChange(
       { track, event, oldValue }:
     { track: Track; event: string; oldValue: unknown },
@@ -173,7 +173,7 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
 
 
   function insertTrack(track: Track, args?: InsertArgs) {
-    const cameraName = args?.cameraName ?? 'default';
+    const cameraName = args?.cameraName ?? 'singleCam';
     track.setNotifier(cameraOnChange(cameraName));
     if (camMap.get(cameraName) === undefined) {
       camMap.set(cameraName, new Map<TrackId, Track>());
@@ -197,7 +197,7 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
 
   function addTrack(frame: number, defaultType: string,
     afterId?: TrackId, cameraName?: string, overrideTrackId?: number): Track {
-    const camName = cameraName ?? 'default';
+    const camName = cameraName ?? 'singleCam';
     const newId = overrideTrackId ?? getNewTrackId();
     const track = new Track(newId, {
       begin: frame,

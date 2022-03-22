@@ -49,7 +49,7 @@ export default defineComponent({
     },
     camera: {
       type: String,
-      default: 'default',
+      default: 'singleCam',
     },
   },
   setup(props) {

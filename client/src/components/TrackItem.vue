@@ -99,7 +99,7 @@ export default defineComponent({
     * If we have multiple cameras we are going to turn on the full view for
     * keyframe toggling of different camera frames
     */
-    const isTrack = computed(() => props.track.length > 1 || feature.value.shouldInterpolate || selectedCamera.value !== 'default');
+    const isTrack = computed(() => props.track.length > 1 || feature.value.shouldInterpolate || selectedCamera.value !== 'singleCam');
 
     /* Sets styling for the selected track */
     const style = computed(() => {

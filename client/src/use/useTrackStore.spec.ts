@@ -10,7 +10,7 @@ describe('useTrackStore', () => {
     const ts = useTrackStore({ markChangesPending: () => null });
     const t0 = ts.addTrack(20, 'foo');
     const t1 = ts.addTrack(10, 'foo');
-    const trackMap = ts.camMap.get('default');
+    const trackMap = ts.camMap.get('singleCam');
     expect(trackMap).toBeTruthy();
     if (trackMap) {
       expect(Array.from(trackMap.keys()).length).toBe(2);
@@ -36,7 +36,7 @@ describe('useTrackStore', () => {
     const ts = useTrackStore({ markChangesPending: () => null });
     ts.addTrack(0, 'foo');
     const t1 = ts.addTrack(0, 'bar');
-    const trackMap = ts.camMap.get('default');
+    const trackMap = ts.camMap.get('singleCam');
     expect(trackMap).toBeTruthy();
     if (trackMap) {
       expect(Array.from(trackMap.keys()).length).toBe(2);
@@ -58,9 +58,9 @@ describe('useTrackStore', () => {
   it('throws an error when you access a track that is missing', () => {
     const markChangesPending = () => null;
     const ts = useTrackStore({ markChangesPending });
-    expect(() => getTrack(ts.camMap, 0, 'default')).toThrow('TrackId 0 not found in trackMap with cameraName default');
+    expect(() => getTrack(ts.camMap, 0, 'singleCam')).toThrow('TrackId 0 not found in trackMap with cameraName default');
     ts.addTrack(1000, 'foo');
-    expect(getTrack(ts.camMap, 0, 'default')).toBeTruthy();
+    expect(getTrack(ts.camMap, 0, 'singleCam')).toBeTruthy();
   });
 
   it('updates a reactive list when member tracks change', async () => {
