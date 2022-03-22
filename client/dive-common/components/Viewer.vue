@@ -83,9 +83,9 @@ export default defineComponent({
     const loadError = ref('');
     const baseMulticamDatasetId = ref(null as string | null);
     const datasetId = toRef(props, 'id');
-    const multiCamList: Ref<string[]> = ref(['default']);
-    const defaultCamera = ref('default');
-    const selectedCamera = ref('default');
+    const multiCamList: Ref<string[]> = ref(['singleCam']);
+    const defaultCamera = ref('singleCam');
+    const selectedCamera = ref('singleCam');
     const playbackComponent = ref(undefined as Vue | undefined);
     const readonlyState = computed(() => props.readonlyMode || props.revision !== undefined);
     const { aggregateController, onResize, clear: mediaControllerClear } = useMediaController();
@@ -346,7 +346,7 @@ export default defineComponent({
           originalFps: meta.originalFps || null,
         });
         // Load non-Default Cameras if they exist:
-        const filteredMultiCamList = multiCamList.value.filter((item) => item !== 'default');
+        const filteredMultiCamList = multiCamList.value.filter((item) => item !== 'singleCam');
         if (filteredMultiCamList.length === 0) {
           imageData.value[selectedCamera.value] = cloneDeep(meta.imageData) as FrameImage[];
           if (meta.videoUrl) {
@@ -570,7 +570,7 @@ export default defineComponent({
           </template>
         </EditorMenu>
         <v-select
-          v-if="multiCamList.length && defaultCamera !== 'default'"
+          v-if="multiCamList.length && defaultCamera !== 'singleCam'"
           :value="selectedCamera"
           :items="multiCamList"
           label="Camera"
@@ -674,7 +674,7 @@ export default defineComponent({
                 v-if="(imageData[camera].length || videoUrl[camera]) && progress.loaded"
                 ref="subPlaybackComponent"
                 class="fill-height"
-                :class="{'selected-camera': selectedCamera === camera && camera !== 'default'}"
+                :class="{'selected-camera': selectedCamera === camera && camera !== 'singleCam'}"
                 v-bind="{
                   imageData: imageData[camera], videoUrl: videoUrl[camera],
                   updateTime, frameRate, originalFps, camera }"

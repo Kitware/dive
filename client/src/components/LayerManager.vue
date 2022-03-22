@@ -50,7 +50,7 @@ export default defineComponent({
     },
     camera: {
       type: String,
-      default: 'default',
+      default: 'singleCam',
     },
   },
   setup(props) {
@@ -59,7 +59,7 @@ export default defineComponent({
     const camTrackMap = useCamTrackMap();
     const selectedCamera = useSelectedCamera();
     let trackMap = useTrackMap();
-    if (props.camera !== 'default' && camTrackMap[props.camera] !== undefined) {
+    if (props.camera !== 'singleCam' && camTrackMap[props.camera] !== undefined) {
       trackMap = camTrackMap[props.camera];
     }
     const enabledTracksRef = useEnabledTracks();

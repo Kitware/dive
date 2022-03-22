@@ -41,7 +41,7 @@ export default function useModeManager({
   removeTrack,
 }: {
   selectedTrackId: Ref<TrackId | null>;
-  selectedCamera: Ref<string>;
+  selectedCamera: Ref<string | null>;
   editingTrack: Ref<boolean>;
   trackMap: Map<TrackId, Track>;
   camTrackMap: Record<string, Map<TrackId, Track>>;
@@ -229,7 +229,7 @@ export default function useModeManager({
   function handleUpdateRectBounds(frameNum: number, flickNum: number, bounds: RectBounds) {
     if (selectedTrackId.value !== null) {
       let track = trackMap.get(selectedTrackId.value);
-      if (selectedCamera.value !== 'default') {
+      if (selectedCamera.value !== null) {
         track = camTrackMap[selectedCamera.value].get(selectedTrackId.value);
       }
       if (track) {
@@ -278,7 +278,7 @@ export default function useModeManager({
 
     if (selectedTrackId.value !== null) {
       let track = trackMap.get(selectedTrackId.value);
-      if (selectedCamera.value !== 'default') {
+      if (selectedCamera.value !== null) {
         track = camTrackMap[selectedCamera.value].get(selectedTrackId.value);
       }
       if (track) {
@@ -288,10 +288,11 @@ export default function useModeManager({
 
         // Give each recipe the opportunity to make changes
         recipes.forEach((recipe) => {
-          if (!track) {
-            return;
-          }
-          const changes = recipe.update(eventType, frameNum, track, [data], key);
+          // "track is possibly undefined" is typescript bug
+          // eslint-disable-next-line @typescript-eslint/ban-ts-ignore
+          // @ts-ignore
+          const _track: Track = track;
+          const changes = recipe.update(eventType, frameNum, _track, [data], key);
           // Prevent key conflicts among recipes
           Object.keys(changes.data).forEach((key_) => {
             if (key_ in update.geoJsonFeatureRecord) {
@@ -379,7 +380,7 @@ export default function useModeManager({
   function handleRemovePoint() {
     if (selectedTrackId.value !== null && selectedFeatureHandle.value !== -1) {
       let track = trackMap.get(selectedTrackId.value);
-      if (selectedCamera.value !== 'default') {
+      if (selectedCamera.value !== null) {
         track = camTrackMap[selectedCamera.value].get(selectedTrackId.value);
       }
       if (track !== undefined) {
@@ -404,7 +405,7 @@ export default function useModeManager({
   function handleRemoveAnnotation() {
     if (selectedTrackId.value !== null) {
       let track = trackMap.get(selectedTrackId.value);
-      if (selectedCamera.value !== 'default') {
+      if (selectedCamera.value !== null) {
         track = camTrackMap[selectedCamera.value].get(selectedTrackId.value);
       }
       if (track !== undefined) {
@@ -459,7 +460,7 @@ export default function useModeManager({
   /** Toggle editing mode for track */
   function handleTrackEdit(trackId: TrackId) {
     let track = getTrack(trackMap, trackId);
-    if (selectedCamera.value !== 'default') {
+    if (selectedCamera.value !== null) {
       track = getTrack(camTrackMap[selectedCamera.value], trackId);
     }
     seekNearest(track);
