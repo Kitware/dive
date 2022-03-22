@@ -27,9 +27,9 @@ interface InsertArgs {
  * If cameraName is 'any' we return the first track we find for basic usage
  */
 export function getTrack(
-  trackMap: Readonly<Map<string, Map<TrackId, Track>>>, trackId: Readonly<TrackId>, cameraName = 'singleCam',
+  camMap: Readonly<Map<string, Map<TrackId, Track>>>, trackId: Readonly<TrackId>, cameraName = 'singleCam',
 ): Track {
-  const currentMap = trackMap.get(cameraName);
+  const currentMap = camMap.get(cameraName);
   if (!currentMap) {
     throw new Error(`No camera Map with the camera name: ${cameraName}`);
   }
@@ -38,6 +38,16 @@ export function getTrack(
     throw new Error(`TrackId ${trackId} not found in trackMap with cameraName ${cameraName}`);
   }
   return tempTrack;
+}
+
+export function getPossibleTrack(
+  camMap: Readonly<Map<string, Map<TrackId, Track>>>, trackId: Readonly<TrackId>, cameraName = 'singleCam',
+): Track | undefined {
+  try {
+    return getTrack(camMap, trackId, cameraName);
+  } catch (err) {
+    return undefined;
+  }
 }
 
 /**

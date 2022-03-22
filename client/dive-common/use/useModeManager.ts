@@ -4,7 +4,7 @@ import {
 import { uniq, flatMapDeep } from 'lodash';
 import Track, { TrackId } from 'vue-media-annotator/track';
 import {
-  getAnyTrack, getTrack, getTrackAll, getTracksMerged,
+  getAnyTrack, getPossibleTrack, getTrack, getTrackAll, getTracksMerged,
 } from 'vue-media-annotator/use/useTrackStore';
 import { RectBounds, updateBounds } from 'vue-media-annotator/utils';
 import { EditAnnotationTypes, VisibleAnnotationTypes } from 'vue-media-annotator/layers';
@@ -83,7 +83,7 @@ export default function useModeManager({
     if (editingMode.value && selectedTrackId.value !== null) {
       const { frame } = aggregateController.value;
       try {
-        const track = getTrack(camMap, selectedTrackId.value, selectedCamera.value);
+        const track = getPossibleTrack(camMap, selectedTrackId.value, selectedCamera.value);
         if (track) {
           const [feature] = track.getFeature(frame.value);
           if (feature) {
@@ -178,8 +178,7 @@ export default function useModeManager({
   //Handles deselection or hitting escape including while editing
   function handleEscapeMode() {
     if (selectedTrackId.value !== null) {
-      const currentMap = camMap.get(selectedCamera.value);
-      const track = currentMap?.get(selectedTrackId.value);
+      const track = getPossibleTrack(camMap, selectedTrackId.value, selectedCamera.value);
       if (track && track.begin === track.end) {
         const features = track.getFeature(track.begin);
         // If no features exist we remove the empty track
@@ -242,7 +241,7 @@ export default function useModeManager({
 
   function handleUpdateRectBounds(frameNum: number, flickNum: number, bounds: RectBounds) {
     if (selectedTrackId.value !== null) {
-      const track = camMap.get(selectedCamera.value)?.get(selectedTrackId.value);
+      const track = getPossibleTrack(camMap, selectedTrackId.value, selectedCamera.value);
       if (track) {
         // Determines if we are creating a new Detection
         const { interpolate } = track.canInterpolate(frameNum);
@@ -288,7 +287,7 @@ export default function useModeManager({
     };
 
     if (selectedTrackId.value !== null) {
-      const track = camMap.get(selectedCamera.value)?.get(selectedTrackId.value);
+      const track = getPossibleTrack(camMap, selectedTrackId.value, selectedCamera.value);
       if (track) {
         // newDetectionMode is true if there's no keyframe on frameNum
         const { features, interpolate } = track.canInterpolate(frameNum);
@@ -386,7 +385,7 @@ export default function useModeManager({
   /* If any recipes are active, allow them to remove a point */
   function handleRemovePoint() {
     if (selectedTrackId.value !== null && selectedFeatureHandle.value !== -1) {
-      const track = camMap.get(selectedCamera.value)?.get(selectedTrackId.value);
+      const track = getPossibleTrack(camMap, selectedTrackId.value, selectedCamera.value);
       if (track !== undefined) {
         recipes.forEach((r) => {
           if (r.active.value && track) {
@@ -408,7 +407,7 @@ export default function useModeManager({
   /* If any recipes are active, remove the geometry they added */
   function handleRemoveAnnotation() {
     if (selectedTrackId.value !== null) {
-      const track = camMap.get(selectedCamera.value)?.get(selectedTrackId.value);
+      const track = getPossibleTrack(camMap, selectedTrackId.value, selectedCamera.value);
       if (track !== undefined) {
         const { frame } = aggregateController.value;
         recipes.forEach((r) => {
@@ -460,7 +459,7 @@ export default function useModeManager({
 
   /** Toggle editing mode for track */
   function handleTrackEdit(trackId: TrackId) {
-    const track = camMap.get(selectedCamera.value)?.get(trackId);
+    const track = getPossibleTrack(camMap, trackId, selectedCamera.value);
     if (track) {
       seekNearest(track);
       const editing = trackId === selectedTrackId.value ? (!editingTrack.value) : true;
@@ -469,7 +468,7 @@ export default function useModeManager({
     } else if (getAnyTrack(camMap, trackId) !== undefined) {
       //track exists in other cameras we create in the current map using override
       handleAddTrackOrDetection(trackId);
-      const camTrack = camMap.get(selectedCamera.value)?.get(trackId);
+      const camTrack = getPossibleTrack(camMap, trackId, selectedCamera.value);
       // now that we have a new track we select it for editing
       if (camTrack) {
         const editing = trackId === selectedTrackId.value;

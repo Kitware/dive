@@ -158,8 +158,7 @@ export default defineComponent({
       const selected = item.selectedTrackId === item.filteredTrack.track.trackId;
       return {
         trackType,
-        track: !selected ? item.filteredTrack.track
-          : getTrack(camMap, item.filteredTrack.track.trackId, selectedCamera.value),
+        track: item.filteredTrack.track,
         inputValue: item.checkedTrackIds.indexOf(item.filteredTrack.track.trackId) >= 0,
         selected,
         editing: selected && item.editingTrack,

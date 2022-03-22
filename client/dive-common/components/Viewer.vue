@@ -343,6 +343,7 @@ export default defineComponent({
       try {
         const meta = await loadMetadata(datasetId.value);
         const defaultCameraMeta = meta.multiCamMedia?.cameras[meta.multiCamMedia.defaultDisplay];
+        baseMulticamDatasetId.value = datasetId.value;
         if (defaultCameraMeta !== undefined && meta.multiCamMedia) {
           /* We're loading a multicamera dataset */
           const { cameras } = meta.multiCamMedia;
@@ -353,12 +354,7 @@ export default defineComponent({
           if (!selectedCamera.value) {
             throw new Error('Multicamera dataset without default camera specified.');
           }
-          // This shouldn't be needed anymore because we load/save all cameras.
-          // TODO: Comfirm removal
-          // ctx.emit('update:id', `${props.id}/${selectedCamera.value}`);
-          // return;
         }
-        /* Otherwise, complete loading of the dataset */
         populateTypeStyles(meta.customTypeStyling);
         if (meta.customTypeStyling) {
           importTypes(Object.keys(meta.customTypeStyling), false);
@@ -372,53 +368,34 @@ export default defineComponent({
           frameRate: meta.fps,
           originalFps: meta.originalFps || null,
         });
-        // Load non-Default Cameras if they exist:
-        const filteredMultiCamList = multiCamList.value.filter((item) => item !== 'singleCam');
-        if (filteredMultiCamList.length === 0) {
-          imageData.value[selectedCamera.value] = cloneDeep(meta.imageData) as FrameImage[];
-          if (meta.videoUrl) {
-            videoUrl.value[selectedCamera.value] = meta.videoUrl;
+        for (let i = 0; i < multiCamList.value.length; i += 1) {
+          const camera = multiCamList.value[i];
+          let cameraId = baseMulticamDatasetId.value;
+          if (multiCamList.value.length > 1) {
+            cameraId = `${baseMulticamDatasetId.value}/${camera}`;
           }
-          datasetType.value = meta.type as DatasetType;
-          const trackData = await loadDetections(datasetId.value);
-          const tracks = Object.values(trackData);
-          progress.total = tracks.length;
-          for (let i = 0; i < tracks.length; i += 1) {
-            if (i % 4000 === 0) {
+          // eslint-disable-next-line no-await-in-loop
+          const subCameraMeta = await loadMetadata(cameraId);
+          imageData.value[camera] = cloneDeep(subCameraMeta.imageData) as FrameImage[];
+          if (subCameraMeta.videoUrl) {
+            videoUrl.value[camera] = subCameraMeta.videoUrl;
+          }
+          addCamera(camera);
+          addSaveCamera(camera);
+          // eslint-disable-next-line no-await-in-loop
+          const camTrackData = await loadDetections(cameraId);
+          const camTracks = Object.values(camTrackData);
+          progress.total = camTracks.length;
+          for (let j = 0; j < camTracks.length; j += 1) {
+            if (j % 4000 === 0) {
               /* Every N tracks, yeild some cycles for other scheduled tasks */
-              progress.progress = i;
+              progress.progress = j;
               // eslint-disable-next-line no-await-in-loop
               await new Promise((resolve) => window.setTimeout(resolve, 500));
             }
-            insertTrack(Track.fromJSON(tracks[i]), { imported: true });
-          }
-        } else {
-          for (let i = 0; i < filteredMultiCamList.length; i += 1) {
-            const camera = filteredMultiCamList[i];
-            // eslint-disable-next-line no-await-in-loop
-            const subCameraMeta = await loadMetadata(`${baseMulticamDatasetId.value}/${camera}`);
-            imageData.value[camera] = cloneDeep(subCameraMeta.imageData) as FrameImage[];
-            if (subCameraMeta.videoUrl) {
-              videoUrl.value[camera] = subCameraMeta.videoUrl;
-            }
-            addCamera(camera);
-            addSaveCamera(camera);
-            // eslint-disable-next-line no-await-in-loop
-            const camTrackData = await loadDetections(`${baseMulticamDatasetId.value}/${camera}`);
-            const camTracks = Object.values(camTrackData);
-            progress.total = camTracks.length;
-            for (let j = 0; j < camTracks.length; j += 1) {
-              if (j % 4000 === 0) {
-              /* Every N tracks, yeild some cycles for other scheduled tasks */
-                progress.progress = j;
-                // eslint-disable-next-line no-await-in-loop
-                await new Promise((resolve) => window.setTimeout(resolve, 500));
-              }
-              insertTrack(Track.fromJSON(camTracks[j]), { imported: true, cameraName: camera });
-            }
+            insertTrack(Track.fromJSON(camTracks[j]), { imported: true, cameraName: camera });
           }
         }
-
         progress.loaded = true;
       } catch (err) {
         progress.loaded = false;
