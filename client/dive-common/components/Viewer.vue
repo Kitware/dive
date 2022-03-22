@@ -436,7 +436,7 @@ export default defineComponent({
       handleResize();
     });
     onBeforeUnmount(() => {
-      observer.unobserve(controlsRef.value.$el);
+      if (controlsRef.value) observer.unobserve(controlsRef.value.$el);
     });
 
     const changeCamera = async (camera: string) => {

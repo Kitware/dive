@@ -276,7 +276,7 @@ function dummyState(): State {
     }),
     selectedKey: ref(''),
     selectedTrackId: ref(null),
-    selectedCamera: ref('default'),
+    selectedCamera: ref('singleCam'),
     stateStyles: {
       disabled: style,
       selected: style,

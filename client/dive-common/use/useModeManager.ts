@@ -41,7 +41,7 @@ export default function useModeManager({
   removeTrack,
 }: {
   selectedTrackId: Ref<TrackId | null>;
-  selectedCamera: Ref<string | null>;
+  selectedCamera: Ref<string>;
   editingTrack: Ref<boolean>;
   trackMap: Map<TrackId, Track>;
   camTrackMap: Record<string, Map<TrackId, Track>>;
@@ -229,7 +229,7 @@ export default function useModeManager({
   function handleUpdateRectBounds(frameNum: number, flickNum: number, bounds: RectBounds) {
     if (selectedTrackId.value !== null) {
       let track = trackMap.get(selectedTrackId.value);
-      if (selectedCamera.value !== null) {
+      if (selectedCamera.value !== 'singleCam') {
         track = camTrackMap[selectedCamera.value].get(selectedTrackId.value);
       }
       if (track) {
@@ -278,7 +278,7 @@ export default function useModeManager({
 
     if (selectedTrackId.value !== null) {
       let track = trackMap.get(selectedTrackId.value);
-      if (selectedCamera.value !== null) {
+      if (selectedCamera.value !== 'singleCam') {
         track = camTrackMap[selectedCamera.value].get(selectedTrackId.value);
       }
       if (track) {
@@ -380,7 +380,7 @@ export default function useModeManager({
   function handleRemovePoint() {
     if (selectedTrackId.value !== null && selectedFeatureHandle.value !== -1) {
       let track = trackMap.get(selectedTrackId.value);
-      if (selectedCamera.value !== null) {
+      if (selectedCamera.value !== 'singleCam') {
         track = camTrackMap[selectedCamera.value].get(selectedTrackId.value);
       }
       if (track !== undefined) {
@@ -405,7 +405,7 @@ export default function useModeManager({
   function handleRemoveAnnotation() {
     if (selectedTrackId.value !== null) {
       let track = trackMap.get(selectedTrackId.value);
-      if (selectedCamera.value !== null) {
+      if (selectedCamera.value !== 'singleCam') {
         track = camTrackMap[selectedCamera.value].get(selectedTrackId.value);
       }
       if (track !== undefined) {
@@ -460,7 +460,7 @@ export default function useModeManager({
   /** Toggle editing mode for track */
   function handleTrackEdit(trackId: TrackId) {
     let track = getTrack(trackMap, trackId);
-    if (selectedCamera.value !== null) {
+    if (selectedCamera.value !== 'singleCam') {
       track = getTrack(camTrackMap[selectedCamera.value], trackId);
     }
     seekNearest(track);
