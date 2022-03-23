@@ -4,7 +4,7 @@ import {
 } from '@vue/composition-api';
 
 import { TrackWithContext } from '../use/useTrackFilters';
-import { injectMediaController } from './annotators/useMediaController';
+import { injectAggregateController } from './annotators/useMediaController';
 import RectangleLayer from '../layers/AnnotationLayers/RectangleLayer';
 import PolygonLayer from '../layers/AnnotationLayers/PolygonLayer';
 import PointLayer from '../layers/AnnotationLayers/PointLayer';
@@ -33,6 +33,8 @@ import {
   useStateStyles,
   useMergeList,
   useAnnotatorPreferences,
+  useCamTrackMap,
+  useSelectedCamera,
 } from '../provides';
 
 /** LayerManager is a component intended to be used as a child of an Annotator.
@@ -46,11 +48,20 @@ export default defineComponent({
       type: Function as PropType<FormatTextRow | undefined>,
       default: undefined,
     },
+    camera: {
+      type: String,
+      default: 'singleCam',
+    },
   },
   setup(props) {
     const handler = useHandler();
     const intervalTree = useIntervalTree();
-    const trackMap = useTrackMap();
+    const camTrackMap = useCamTrackMap();
+    const selectedCamera = useSelectedCamera();
+    let trackMap = useTrackMap();
+    if (props.camera !== 'singleCam' && camTrackMap[props.camera] !== undefined) {
+      trackMap = camTrackMap[props.camera];
+    }
     const enabledTracksRef = useEnabledTracks();
     const selectedTrackIdRef = useSelectedTrackId();
     const mergeListRef = useMergeList();
@@ -61,7 +72,7 @@ export default defineComponent({
     const stateStyling = useStateStyles();
     const annotatorPrefs = useAnnotatorPreferences();
 
-    const annotator = injectMediaController();
+    const annotator = injectAggregateController().value.getController(props.camera);
     const frameNumberRef = annotator.frame;
     const flickNumberRef = annotator.flick;
 
@@ -141,7 +152,9 @@ export default defineComponent({
         (trackId: TrackId) => {
           const track = trackMap.get(trackId);
           if (track === undefined) {
-            throw new Error(`TrackID ${trackId} not found in map`);
+            // Track may be located in another Camera
+            // TODO: Find a better way to represent tracks outside of cameras
+            return;
           }
           const enabledIndex = enabledTracks.findIndex(
             (trackWithContext) => trackWithContext.track.trackId === trackId,
@@ -161,7 +174,8 @@ export default defineComponent({
             };
             frameData.push(trackFrame);
             if (trackFrame.selected) {
-              if (editingTrack) {
+              //Only edit current camera tracks
+              if (editingTrack && props.camera === selectedCamera.value) {
                 editingTracks.push(trackFrame);
               }
               if (annotator.lockedCamera.value) {

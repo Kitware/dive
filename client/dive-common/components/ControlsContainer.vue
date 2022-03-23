@@ -4,14 +4,13 @@ import {
 } from '@vue/composition-api';
 import type { DatasetType } from 'dive-common/apispec';
 import FileNameTimeDisplay from 'vue-media-annotator/components/controls/FileNameTimeDisplay.vue';
-import { injectMediaController } from 'vue-media-annotator/components/annotators/useMediaController';
 import {
   Controls,
   EventChart,
+  injectAggregateController,
   LineChart,
   Timeline,
 } from 'vue-media-annotator/components';
-
 
 export default defineComponent({
   components: {
@@ -35,11 +34,14 @@ export default defineComponent({
       type: String as PropType<DatasetType>,
       required: true,
     },
+    collapsed: {
+      type: Boolean,
+      default: false,
+    },
   },
 
-  setup() {
+  setup(_, { emit }) {
     const currentView = ref('Detections');
-    const collapsed = ref(false);
 
     const ticks = ref([0.25, 0.5, 0.75, 1.0, 2.0, 4.0, 8.0]);
 
@@ -49,16 +51,15 @@ export default defineComponent({
      */
     function toggleView(type: 'Detections' | 'Events') {
       currentView.value = type;
-      collapsed.value = false;
+      emit('update:collapsed', false);
     }
     const {
       maxFrame, frame, seek, volume, setVolume, setSpeed, speed,
-    } = injectMediaController();
+    } = injectAggregateController().value;
 
     return {
       currentView,
       toggleView,
-      collapsed,
       maxFrame,
       frame,
       seek,
@@ -73,7 +74,10 @@ export default defineComponent({
 </script>
 
 <template>
-  <div>
+  <v-col
+    dense
+    style="position:absolute; bottom: 0px; padding: 0px; margin:0px;"
+  >
     <Controls>
       <template slot="timelineControls">
         <div style="min-width: 210px">
@@ -85,7 +89,7 @@ export default defineComponent({
               <v-icon
                 small
                 v-on="on"
-                @click="collapsed=!collapsed"
+                @click="$emit('update:collapsed', !collapsed)"
               >
                 {{ collapsed?'mdi-chevron-up-box': 'mdi-chevron-down-box' }}
               </v-icon>
@@ -261,7 +265,7 @@ export default defineComponent({
         />
       </template>
     </Timeline>
-  </div>
+  </v-col>
 </template>
 
 <style lang="scss" scoped>

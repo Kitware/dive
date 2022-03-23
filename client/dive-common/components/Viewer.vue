@@ -1,8 +1,9 @@
 <script lang="ts">
 import {
-  defineComponent, ref, toRef, computed, Ref, reactive, watch,
+  defineComponent, ref, toRef, computed, Ref, reactive, watch, onBeforeUnmount, nextTick,
 } from '@vue/composition-api';
 import type { Vue } from 'vue/types/vue';
+import type { AxiosError } from 'axios';
 
 /* VUE MEDIA ANNOTATOR */
 import Track, { TrackId } from 'vue-media-annotator/track';
@@ -16,16 +17,15 @@ import {
   useTimeObserver,
   useEventChart,
 } from 'vue-media-annotator/use';
+import { useMediaController } from 'vue-media-annotator/components';
 import { getTrack } from 'vue-media-annotator/use/useTrackStore';
 import { provideAnnotator } from 'vue-media-annotator/provides';
-import {
-  ImageAnnotator,
-  VideoAnnotator,
-  LayerManager,
-} from 'vue-media-annotator/components';
-import { MediaController } from 'vue-media-annotator/components/annotators/mediaControllerType';
+import ImageAnnotator from 'vue-media-annotator/components/annotators/ImageAnnotator.vue';
+import VideoAnnotator from 'vue-media-annotator/components/annotators/VideoAnnotator.vue';
+import LayerManager from 'vue-media-annotator/components/LayerManager.vue';
 
 /* DIVE COMMON */
+
 import PolygonBase from 'dive-common/recipes/polygonbase';
 import HeadTail from 'dive-common/recipes/headtail';
 import EditorMenu from 'dive-common/components/EditorMenu.vue';
@@ -43,18 +43,24 @@ import { cloneDeep } from 'lodash';
 import { getResponseError } from 'vue-media-annotator/utils';
 import context from 'dive-common/store/context';
 
+export interface ImageDataItem {
+  url: string;
+  filename: string;
+}
+
+
 export default defineComponent({
   components: {
     ControlsContainer,
     DeleteControls,
+    ImageAnnotator,
     Sidebar,
     SidebarContext,
-    LayerManager,
-    VideoAnnotator,
-    ImageAnnotator,
     ConfidenceFilter,
     UserGuideButton,
     EditorMenu,
+    VideoAnnotator,
+    LayerManager,
   },
 
   // TODO: remove this in vue 3
@@ -77,27 +83,18 @@ export default defineComponent({
     const loadError = ref('');
     const baseMulticamDatasetId = ref(null as string | null);
     const datasetId = toRef(props, 'id');
-    const multiCamList: Ref<string[]> = ref([]);
-    const defaultCamera = ref('');
-    const currentCamera = ref('');
+    const multiCamList: Ref<string[]> = ref(['singleCam']);
+    const defaultCamera = ref('singleCam');
+    const selectedCamera = ref('singleCam');
     const playbackComponent = ref(undefined as Vue | undefined);
     const readonlyState = computed(() => props.readonlyMode || props.revision !== undefined);
-    const mediaController = computed(() => {
-      if (playbackComponent.value) {
-        // TODO: Bug in composition-api types incorrectly organizes the static members of a Vue
-        // instance when using typeof ImageAnnotator, so we can't use the "real" type here
-        // eslint-disable-next-line @typescript-eslint/ban-ts-ignore
-        // @ts-ignore
-        return playbackComponent.value.mediaController as MediaController;
-      }
-      return {} as MediaController;
-    });
+    const { aggregateController, onResize, clear: mediaControllerClear } = useMediaController();
     const { time, updateTime, initialize: initTime } = useTimeObserver();
-    const imageData = ref([] as FrameImage[]);
+    const imageData = ref({ default: [] } as Record<string, FrameImage[]>);
     const datasetType: Ref<DatasetType> = ref('image-sequence');
     const datasetName = ref('');
     const saveInProgress = ref(false);
-    const videoUrl = ref(undefined as undefined | string);
+    const videoUrl: Ref<Record<string, string>> = ref({ });
     const { loadDetections, loadMetadata, saveMetadata } = useApi();
     const progress = reactive({
       // Loaded flag prevents annotator window from populating
@@ -116,6 +113,7 @@ export default defineComponent({
       }
       return 0;
     });
+
 
     const {
       save: saveToServer,
@@ -146,10 +144,12 @@ export default defineComponent({
 
     const {
       trackMap,
+      camTrackMap,
       sortedTracks,
       intervalTree,
       addTrack,
       insertTrack,
+      addCamera,
       removeTrack,
       getNewTrackId,
       removeTrack: tsRemoveTrack,
@@ -201,9 +201,11 @@ export default defineComponent({
     } = useModeManager({
       recipes,
       selectedTrackId,
+      selectedCamera,
       editingTrack,
       trackMap,
-      mediaController,
+      camTrackMap,
+      aggregateController,
       selectTrack,
       selectNextTrack,
       addTrack,
@@ -235,7 +237,7 @@ export default defineComponent({
         } catch (err) {
           await prompt({
             title: 'Error while splitting track',
-            text: err,
+            text: err as string,
             positiveButton: 'OK',
           });
           return;
@@ -270,7 +272,7 @@ export default defineComponent({
         });
       } catch (err) {
         let text = 'Unable to Save Data';
-        if (err.response && err.response.status === 403) {
+        if (err.response?.status === 403) {
           text = 'You do not have permission to Save Data to this Folder.';
         }
         await prompt({
@@ -321,12 +323,12 @@ export default defineComponent({
           const { cameras } = meta.multiCamMedia;
           multiCamList.value = Object.keys(cameras);
           defaultCamera.value = meta.multiCamMedia.defaultDisplay;
-          currentCamera.value = defaultCamera.value;
+          selectedCamera.value = defaultCamera.value;
           baseMulticamDatasetId.value = datasetId.value;
-          if (!currentCamera.value) {
+          if (!selectedCamera.value) {
             throw new Error('Multicamera dataset without default camera specified.');
           }
-          ctx.emit('update:id', `${props.id}/${currentCamera.value}`);
+          ctx.emit('update:id', `${props.id}/${selectedCamera.value}`);
           return;
         }
         /* Otherwise, complete loading of the dataset */
@@ -343,28 +345,58 @@ export default defineComponent({
           frameRate: meta.fps,
           originalFps: meta.originalFps || null,
         });
-        imageData.value = cloneDeep(meta.imageData) as FrameImage[];
-        videoUrl.value = meta.videoUrl;
-        datasetType.value = meta.type as DatasetType;
-
-        const trackData = await loadDetections(datasetId.value, props.revision);
-        const tracks = Object.values(trackData);
-        progress.total = tracks.length;
-        for (let i = 0; i < tracks.length; i += 1) {
-          if (i % 4000 === 0) {
-          /* Every N tracks, yeild some cycles for other scheduled tasks */
-            progress.progress = i;
-            // eslint-disable-next-line no-await-in-loop
-            await new Promise((resolve) => window.setTimeout(resolve, 500));
+        // Load non-Default Cameras if they exist:
+        const filteredMultiCamList = multiCamList.value.filter((item) => item !== 'singleCam');
+        if (filteredMultiCamList.length === 0) {
+          imageData.value[selectedCamera.value] = cloneDeep(meta.imageData) as FrameImage[];
+          if (meta.videoUrl) {
+            videoUrl.value[selectedCamera.value] = meta.videoUrl;
           }
-          insertTrack(Track.fromJSON(tracks[i]), { imported: true });
+          datasetType.value = meta.type as DatasetType;
+          const trackData = await loadDetections(datasetId.value);
+          const tracks = Object.values(trackData);
+          progress.total = tracks.length;
+          for (let i = 0; i < tracks.length; i += 1) {
+            if (i % 4000 === 0) {
+              /* Every N tracks, yeild some cycles for other scheduled tasks */
+              progress.progress = i;
+              // eslint-disable-next-line no-await-in-loop
+              await new Promise((resolve) => window.setTimeout(resolve, 500));
+            }
+            insertTrack(Track.fromJSON(tracks[i]), { imported: true });
+          }
+        } else {
+          for (let i = 0; i < filteredMultiCamList.length; i += 1) {
+            const camera = filteredMultiCamList[i];
+            // eslint-disable-next-line no-await-in-loop
+            const subCameraMeta = await loadMetadata(`${baseMulticamDatasetId.value}/${camera}`);
+            imageData.value[camera] = cloneDeep(subCameraMeta.imageData) as FrameImage[];
+            if (subCameraMeta.videoUrl) {
+              videoUrl.value[camera] = subCameraMeta.videoUrl;
+            }
+            addCamera(camera);
+            // eslint-disable-next-line no-await-in-loop
+            const camTrackData = await loadDetections(`${baseMulticamDatasetId.value}/${camera}`);
+            const camTracks = Object.values(camTrackData);
+            progress.total = camTracks.length;
+            for (let j = 0; j < camTracks.length; j += 1) {
+              if (j % 4000 === 0) {
+              /* Every N tracks, yeild some cycles for other scheduled tasks */
+                progress.progress = j;
+                // eslint-disable-next-line no-await-in-loop
+                await new Promise((resolve) => window.setTimeout(resolve, 500));
+              }
+              insertTrack(Track.fromJSON(camTracks[j]), { imported: true, cameraName: camera });
+            }
+          }
         }
+
         progress.loaded = true;
       } catch (err) {
         progress.loaded = false;
         console.error(err);
         const errorEl = document.createElement('div');
-        errorEl.innerHTML = getResponseError(err);
+        errorEl.innerHTML = getResponseError(err as AxiosError);
         loadError.value = errorEl.innerText
           .concat(". If you don't know how to resolve this, please contact the server administrator.");
         throw err;
@@ -373,6 +405,7 @@ export default defineComponent({
     loadData();
 
     const reloadAnnotations = async () => {
+      mediaControllerClear();
       clearAllTracks();
       discardChanges();
       progress.loaded = false;
@@ -381,12 +414,33 @@ export default defineComponent({
 
     watch(datasetId, reloadAnnotations);
 
-    const changeCamera = async (camera: string) => {
-      if (!camera || !baseMulticamDatasetId.value) {
-        throw new Error('Attempted to change camera to invalid value or baseMultiCamDatasetId was missing');
+    const controlsRef = ref();
+    const controlsHeight = ref(0);
+    const controlsCollapsed = ref(false);
+    function handleResize() {
+      if (controlsRef.value) {
+        controlsHeight.value = controlsRef.value.$el.clientHeight;
+        onResize();
       }
-      const newId = `${baseMulticamDatasetId.value}/${camera}`;
-      ctx.emit('update:id', newId);
+    }
+    const observer = new ResizeObserver(handleResize);
+    /* On a reload this will watch the controls element and add on observer
+     * so that once done loading the or if the controlsRef is collapsed it will resize all cameras
+    */
+    watch(controlsRef, (previous) => {
+      if (previous) observer.unobserve(previous.$el);
+      if (controlsRef.value) observer.observe(controlsRef.value.$el);
+    });
+    watch(controlsCollapsed, async () => {
+      await nextTick();
+      handleResize();
+    });
+    onBeforeUnmount(() => {
+      if (controlsRef.value) observer.unobserve(controlsRef.value.$el);
+    });
+
+    const changeCamera = async (camera: string) => {
+      selectedCamera.value = camera;
     };
 
     const globalHandler = {
@@ -421,10 +475,12 @@ export default defineComponent({
         mergeList,
         pendingSaveCount,
         trackMap,
+        camTrackMap,
         filteredTracks,
         typeStyling,
         selectedKey,
         selectedTrackId,
+        selectedCamera,
         stateStyles: stateStyling,
         time,
         visibleModes,
@@ -436,6 +492,9 @@ export default defineComponent({
       /* props */
       confidenceFilters,
       clientSettings,
+      controlsRef,
+      controlsHeight,
+      controlsCollapsed,
       datasetName,
       datasetType,
       editingTrack,
@@ -445,7 +504,6 @@ export default defineComponent({
       imageData,
       lineChartData,
       loadError,
-      mediaController,
       mergeMode: mergeInProgress,
       pendingSaveCount,
       progress,
@@ -474,6 +532,7 @@ export default defineComponent({
       // multicam
       multiCamList,
       defaultCamera,
+      selectedCamera,
       changeCamera,
       // For Navigation Guarding
       navigateAwayGuard,
@@ -511,8 +570,8 @@ export default defineComponent({
           </template>
         </EditorMenu>
         <v-select
-          v-if="multiCamList.length"
-          :value="defaultCamera"
+          v-if="multiCamList.length && defaultCamera !== 'singleCam'"
+          :value="selectedCamera"
           :items="multiCamList"
           label="Camera"
           class="shrink"
@@ -568,8 +627,8 @@ export default defineComponent({
     >
       <sidebar
         :enable-slot="context.state.active !== 'TypeThreshold'"
+        class="fill-height"
         @import-types="importTypes($event)"
-        @track-seek="mediaController.seek($event)"
       >
         <template v-if="context.state.active !== 'TypeThreshold'">
           <v-divider />
@@ -587,27 +646,51 @@ export default defineComponent({
           </ConfidenceFilter>
         </template>
       </sidebar>
-      <v-col style="position: relative">
-        <component
-          :is="datasetType === 'image-sequence' ? 'image-annotator' : 'video-annotator'"
-          v-if="(imageData.length || videoUrl) && progress.loaded"
-          ref="playbackComponent"
+      <div
+        style="position: relative;"
+        class="d-flex flex-column grow"
+        dense
+      >
+        <div
+          v-if="progress.loaded"
           v-mousetrap="[
             { bind: 'n', handler: () => handler.trackAdd() },
             { bind: 'r', handler: () => mediaController.resetZoom() },
             { bind: 'esc', handler: () => handler.trackAbort() },
           ]"
-          v-bind="{ imageData, videoUrl, updateTime, frameRate, originalFps }"
-          class="playback-component"
+          class="d-flex flex-column grow"
         >
-          <template slot="control">
-            <controls-container
-              v-bind="{ lineChartData, eventChartData, datasetType }"
-              @select-track="handler.trackSelect"
-            />
-          </template>
-          <layer-manager />
-        </component>
+          <div class="d-flex grow">
+            <div
+              v-for="camera in multiCamList"
+              :key="camera"
+              class="d-flex flex-column grow"
+              :style="{ height: `calc(100% - ${controlsHeight}px)`}"
+              @click="changeCamera(camera)"
+              @mousedown.right="changeCamera(camera)"
+            >
+              <component
+                :is="datasetType === 'image-sequence' ? 'image-annotator' : 'video-annotator'"
+                v-if="(imageData[camera].length || videoUrl[camera]) && progress.loaded"
+                ref="subPlaybackComponent"
+                class="fill-height"
+                :class="{'selected-camera': selectedCamera === camera && camera !== 'singleCam'}"
+                v-bind="{
+                  imageData: imageData[camera], videoUrl: videoUrl[camera],
+                  updateTime, frameRate, originalFps, camera }"
+              >
+                <LayerManager :camera="camera" />
+              </component>
+            </div>
+          </div>
+          <ControlsContainer
+            ref="controlsRef"
+            class="shrink"
+            :collapsed.sync="controlsCollapsed"
+            v-bind="{ lineChartData, eventChartData, datasetType }"
+            @select-track="handler.trackSelect"
+          />
+        </div>
         <div
           v-else
           class="d-flex justify-center align-center fill-height"
@@ -636,7 +719,7 @@ export default defineComponent({
             <span v-else>{{ progressValue }}%</span>
           </v-progress-circular>
         </div>
-      </v-col>
+      </div>
       <SidebarContext />
     </v-row>
   </v-main>
@@ -663,5 +746,16 @@ html {
 
 .text-xs-center {
   text-align: center !important;
+}
+
+.annotator-wrapper {
+  position: relative;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  z-index: 0;
+  display: flex;
+  flex-direction: column;
 }
 </style>

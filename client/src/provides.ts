@@ -60,6 +60,9 @@ type IntervalTreeType = Readonly<IntervalTree>;
 const TrackMapSymbol = Symbol('trackMap');
 type TrackMapType = Readonly<Map<TrackId, Track>>;
 
+const CamTrackMapSymbol = Symbol('camTrackMap');
+type CamTrackMapType = Readonly<Record<string, Map<TrackId, Track>>>;
+
 const TracksSymbol = Symbol('tracks');
 type FilteredTracksType = Readonly<Ref<readonly TrackWithContext[]>>;
 
@@ -71,6 +74,9 @@ type SelectedKeyType = Readonly<Ref<string>>;
 
 const SelectedTrackIdSymbol = Symbol('selectedTrackId');
 type SelectedTrackIdType = Readonly<Ref<TrackId | null>>;
+
+const SelectedCameraSymbol = Symbol('selectedCamera');
+type SelectedCameraType = Readonly<Ref<string>>;
 
 const StateStylesSymbol = Symbol('stateStyles');
 type StateStylesType = Readonly<StateStyles>;
@@ -219,9 +225,11 @@ export interface State {
   mergeList: MergeList;
   pendingSaveCount: pendingSaveCountType;
   trackMap: TrackMapType;
+  camTrackMap: CamTrackMapType;
   typeStyling: TypeStylingType;
   selectedKey: SelectedKeyType;
   selectedTrackId: SelectedTrackIdType;
+  selectedCamera: SelectedCameraType;
   stateStyles: StateStylesType;
   time: TimeType;
   visibleModes: VisibleModesType;
@@ -256,6 +264,7 @@ function dummyState(): State {
     mergeList: ref([]),
     pendingSaveCount: ref(0),
     trackMap: new Map<TrackId, Track>(),
+    camTrackMap: { default: new Map<TrackId, Track>() },
     typeStyling: ref({
       color() { return style.color; },
       strokeWidth() { return style.strokeWidth; },
@@ -267,6 +276,7 @@ function dummyState(): State {
     }),
     selectedKey: ref(''),
     selectedTrackId: ref(null),
+    selectedCamera: ref('singleCam'),
     stateStyles: {
       disabled: style,
       selected: style,
@@ -305,10 +315,12 @@ function provideAnnotator(state: State, handler: Handler) {
   provide(MergeListSymbol, state.mergeList);
   provide(PendingSaveCountSymbol, state.pendingSaveCount);
   provide(TrackMapSymbol, state.trackMap);
+  provide(CamTrackMapSymbol, state.camTrackMap);
   provide(TracksSymbol, state.filteredTracks);
   provide(TypeStylingSymbol, state.typeStyling);
   provide(SelectedKeySymbol, state.selectedKey);
   provide(SelectedTrackIdSymbol, state.selectedTrackId);
+  provide(SelectedCameraSymbol, state.selectedCamera);
   provide(StateStylesSymbol, state.stateStyles);
   provide(TimeSymbol, state.time);
   provide(VisibleModesSymbol, state.visibleModes);
@@ -384,6 +396,9 @@ function usePendingSaveCount() {
 function useTrackMap() {
   return use<TrackMapType>(TrackMapSymbol);
 }
+function useCamTrackMap() {
+  return use<CamTrackMapType>(CamTrackMapSymbol);
+}
 
 function useFilteredTracks() {
   return use<FilteredTracksType>(TracksSymbol);
@@ -399,6 +414,10 @@ function useSelectedKey() {
 
 function useSelectedTrackId() {
   return use<SelectedTrackIdType>(SelectedTrackIdSymbol);
+}
+
+function useSelectedCamera() {
+  return use<SelectedCameraType>(SelectedCameraSymbol);
 }
 
 function useStateStyles() {
@@ -433,10 +452,12 @@ export {
   useMergeList,
   usePendingSaveCount,
   useTrackMap,
+  useCamTrackMap,
   useFilteredTracks,
   useTypeStyling,
   useSelectedKey,
   useSelectedTrackId,
+  useSelectedCamera,
   useStateStyles,
   useTime,
   useVisibleModes,

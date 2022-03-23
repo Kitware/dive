@@ -4,7 +4,7 @@ import {
 } from '@vue/composition-api';
 
 import { Flick, SetTimeFunc } from '../../use/useTimeObserver';
-import useMediaController from './useMediaController';
+import { injectCameraInitializer } from './useMediaController';
 
 /**
  * For MPEG codecs, the PTS (Presentation Timestamp)
@@ -98,11 +98,27 @@ export default defineComponent({
       type: Number as PropType<number | undefined>,
       default: undefined,
     },
+    camera: {
+      type: String as PropType<string>,
+      default: 'singleCam',
+    },
   },
 
   setup(props) {
-    const commonMedia = useMediaController();
-    const { data } = commonMedia;
+    const cameraInitializer = injectCameraInitializer();
+    const {
+      state: data,
+      geoViewer,
+      cursorHandler,
+      imageCursor,
+      container,
+      initializeViewer,
+      mediaController,
+    } = cameraInitializer(props.camera, {
+      // allow hoisting for these functions.
+      // eslint-disable-next-line @typescript-eslint/no-use-before-define
+      seek, pause, play, setVolume, setSpeed,
+    });
 
     function makeVideo() {
       const video = document.createElement('video');
@@ -154,7 +170,7 @@ export default defineComponent({
         data.frame = Math.floor(newFrame);
         data.flick = Math.round(video.currentTime * Flick);
         data.syncedFrame = data.frame;
-        commonMedia.geoViewerRef.value.scheduleAnimationFrame(syncWithVideo);
+        geoViewer.value.scheduleAnimationFrame(syncWithVideo);
       }
       data.currentTime = video.currentTime;
     }
@@ -182,14 +198,6 @@ export default defineComponent({
       video.playbackRate = level;
       data.speed = video.playbackRate;
     }
-
-    const {
-      cursorHandler,
-      initializeViewer,
-      mediaController,
-    } = commonMedia.initialize({
-      seek, play, pause, setVolume, setSpeed,
-    });
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let quadFeatureLayer = undefined as any;
@@ -223,7 +231,7 @@ export default defineComponent({
         data.maxFrame = maybeMaxFrame;
       }
       initializeViewer(width, height);
-      quadFeatureLayer = commonMedia.geoViewerRef.value.createLayer('feature', {
+      quadFeatureLayer = geoViewer.value.createLayer('feature', {
         features: ['quad.video'],
         autoshareRenderer: false,
       });
@@ -268,9 +276,8 @@ export default defineComponent({
 
     return {
       data,
-      imageCursorRef: commonMedia.imageCursorRef,
-      containerRef: commonMedia.containerRef,
-      onResize: commonMedia.onResize,
+      imageCursorRef: imageCursor,
+      containerRef: container,
       cursorHandler,
       mediaController,
     };
@@ -280,7 +287,6 @@ export default defineComponent({
 
 <template>
   <div
-    v-resize="onResize"
     class="video-annotator"
     :style="{ cursor: data.cursor }"
   >

@@ -1,7 +1,9 @@
 <script lang="ts">
-import { defineComponent, reactive, watch } from '@vue/composition-api';
+import {
+  defineComponent, reactive, watch,
+} from '@vue/composition-api';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
-import { injectMediaController } from '../annotators/useMediaController';
+import { injectAggregateController } from '../annotators/useMediaController';
 
 export default defineComponent({
   name: 'Control',
@@ -12,9 +14,8 @@ export default defineComponent({
       dragging: false,
     });
 
-    const mediaController = injectMediaController();
+    const mediaController = injectAggregateController().value;
     const { visible } = usePrompt();
-
     watch(mediaController.frame, (frame) => {
       if (!data.dragging) {
         data.frame = frame;
@@ -63,7 +64,10 @@ export default defineComponent({
       { bind: 'd', handler: mediaController.prevFrame, disabled: visible() },
     ]"
   >
-    <v-card class="px-4 py-1">
+    <v-card
+      class="px-4 py-1"
+      tile
+    >
       <v-slider
         hide-details
         :min="0"

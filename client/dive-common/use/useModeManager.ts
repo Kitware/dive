@@ -6,7 +6,7 @@ import Track, { TrackId } from 'vue-media-annotator/track';
 import { getTrack } from 'vue-media-annotator/use/useTrackStore';
 import { RectBounds, updateBounds } from 'vue-media-annotator/utils';
 import { EditAnnotationTypes, VisibleAnnotationTypes } from 'vue-media-annotator/layers';
-import { MediaController } from 'vue-media-annotator/components/annotators/mediaControllerType';
+import { AggregateMediaController } from 'vue-media-annotator/components/annotators/mediaControllerType';
 
 import Recipe from 'vue-media-annotator/recipe';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
@@ -29,9 +29,11 @@ interface SetAnnotationStateArgs {
  */
 export default function useModeManager({
   selectedTrackId,
+  selectedCamera,
   editingTrack,
   trackMap,
-  mediaController,
+  camTrackMap,
+  aggregateController,
   recipes,
   selectTrack,
   selectNextTrack,
@@ -39,13 +41,15 @@ export default function useModeManager({
   removeTrack,
 }: {
   selectedTrackId: Ref<TrackId | null>;
+  selectedCamera: Ref<string>;
   editingTrack: Ref<boolean>;
   trackMap: Map<TrackId, Track>;
-  mediaController: Ref<MediaController>;
+  camTrackMap: Record<string, Map<TrackId, Track>>;
+    aggregateController: Ref<AggregateMediaController>;
   recipes: Recipe[];
   selectTrack: (trackId: TrackId | null, edit: boolean) => void;
   selectNextTrack: (delta?: number) => TrackId | null;
-  addTrack: (frame: number, defaultType: string, afterId?: TrackId) => Track;
+  addTrack: (frame: number, defaultType: string, afterId?: TrackId, cameraName?: string) => Track;
   removeTrack: (trackId: TrackId) => void;
 }) {
   let creating = false;
@@ -76,7 +80,7 @@ export default function useModeManager({
   const editingDetails = computed(() => {
     _depend();
     if (editingMode.value && selectedTrackId.value !== null) {
-      const { frame } = mediaController.value;
+      const { frame } = aggregateController.value;
       const track = trackMap.get(selectedTrackId.value);
       if (track) {
         const [feature] = track.getFeature(frame.value);
@@ -121,11 +125,11 @@ export default function useModeManager({
 
   function seekNearest(track: Track) {
     // Seek to the nearest point in the track.
-    const { frame } = mediaController.value;
+    const { frame } = aggregateController.value;
     if (frame.value < track.begin) {
-      mediaController.value.seek(track.begin);
+      aggregateController.value.seek(track.begin);
     } else if (frame.value > track.end) {
-      mediaController.value.seek(track.end);
+      aggregateController.value.seek(track.end);
     }
   }
 
@@ -183,10 +187,10 @@ export default function useModeManager({
 
   function handleAddTrackOrDetection(): TrackId {
     // Handles adding a new track with the NewTrack Settings
-    const { frame } = mediaController.value;
+    const { frame } = aggregateController.value;
     const newTrackId = addTrack(
       frame.value, trackSettings.value.newTrackSettings.type,
-      selectedTrackId.value || undefined,
+      selectedTrackId.value || undefined, selectedCamera.value,
     ).trackId;
     selectTrack(newTrackId, true);
     creating = true;
@@ -207,7 +211,7 @@ export default function useModeManager({
         if (trackSettings.value.newTrackSettings.mode === 'Track'
         && trackSettings.value.newTrackSettings.modeSettings.Track.autoAdvanceFrame
         ) {
-          mediaController.value.nextFrame();
+          aggregateController.value.nextFrame();
           newCreatingValue = true;
         } else if (trackSettings.value.newTrackSettings.mode === 'Detection') {
           if (
@@ -224,7 +228,10 @@ export default function useModeManager({
 
   function handleUpdateRectBounds(frameNum: number, flickNum: number, bounds: RectBounds) {
     if (selectedTrackId.value !== null) {
-      const track = trackMap.get(selectedTrackId.value);
+      let track = trackMap.get(selectedTrackId.value);
+      if (selectedCamera.value !== 'singleCam') {
+        track = camTrackMap[selectedCamera.value].get(selectedTrackId.value);
+      }
       if (track) {
         // Determines if we are creating a new Detection
         const { interpolate } = track.canInterpolate(frameNum);
@@ -270,7 +277,10 @@ export default function useModeManager({
     };
 
     if (selectedTrackId.value !== null) {
-      const track = trackMap.get(selectedTrackId.value);
+      let track = trackMap.get(selectedTrackId.value);
+      if (selectedCamera.value !== 'singleCam') {
+        track = camTrackMap[selectedCamera.value].get(selectedTrackId.value);
+      }
       if (track) {
         // newDetectionMode is true if there's no keyframe on frameNum
         const { features, interpolate } = track.canInterpolate(frameNum);
@@ -278,7 +288,8 @@ export default function useModeManager({
 
         // Give each recipe the opportunity to make changes
         recipes.forEach((recipe) => {
-          const changes = recipe.update(eventType, frameNum, track, [data], key);
+          // "as Track" used because TS doesn't know that forEach has the proper track setting
+          const changes = recipe.update(eventType, frameNum, track as Track, [data], key);
           // Prevent key conflicts among recipes
           Object.keys(changes.data).forEach((key_) => {
             if (key_ in update.geoJsonFeatureRecord) {
@@ -365,11 +376,14 @@ export default function useModeManager({
   /* If any recipes are active, allow them to remove a point */
   function handleRemovePoint() {
     if (selectedTrackId.value !== null && selectedFeatureHandle.value !== -1) {
-      const track = trackMap.get(selectedTrackId.value);
-      if (track) {
+      let track = trackMap.get(selectedTrackId.value);
+      if (selectedCamera.value !== 'singleCam') {
+        track = camTrackMap[selectedCamera.value].get(selectedTrackId.value);
+      }
+      if (track !== undefined) {
         recipes.forEach((r) => {
-          if (r.active.value) {
-            const { frame } = mediaController.value;
+          if (r.active.value && track) {
+            const { frame } = aggregateController.value;
             r.deletePoint(
               frame.value,
               track,
@@ -387,11 +401,14 @@ export default function useModeManager({
   /* If any recipes are active, remove the geometry they added */
   function handleRemoveAnnotation() {
     if (selectedTrackId.value !== null) {
-      const track = trackMap.get(selectedTrackId.value);
-      if (track) {
-        const { frame } = mediaController.value;
+      let track = trackMap.get(selectedTrackId.value);
+      if (selectedCamera.value !== 'singleCam') {
+        track = camTrackMap[selectedCamera.value].get(selectedTrackId.value);
+      }
+      if (track !== undefined) {
+        const { frame } = aggregateController.value;
         recipes.forEach((r) => {
-          if (r.active.value) {
+          if (r.active.value && track) {
             r.delete(frame.value, track, selectedKey.value, annotationModes.editing);
           }
         });
@@ -439,7 +456,10 @@ export default function useModeManager({
 
   /** Toggle editing mode for track */
   function handleTrackEdit(trackId: TrackId) {
-    const track = getTrack(trackMap, trackId);
+    let track = getTrack(trackMap, trackId);
+    if (selectedCamera.value !== 'singleCam') {
+      track = getTrack(camTrackMap[selectedCamera.value], trackId);
+    }
     seekNearest(track);
     const editing = trackId === selectedTrackId.value ? (!editingTrack.value) : true;
     handleSelectTrack(trackId, editing);

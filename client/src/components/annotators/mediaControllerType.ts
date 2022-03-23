@@ -1,36 +1,49 @@
 import type { Ref } from '@vue/composition-api';
 
 /**
- * MediaController provides an interface for time and a few
- * other properties of the annotator window.
+ * AggregateMediaController provides an interface for time and a few
+ * other properties of all cameras in the annotator window.
  *
  * See components/annotators/README.md for docs.
  */
-export interface MediaController {
+export interface AggregateMediaController {
   currentTime: Readonly<Ref<number>>;
+  frame: Readonly<Ref<number>>;
+  lockedCamera: Readonly<Ref<boolean>>;
+  maxFrame: Readonly<Ref<number>>;
+  playing: Readonly<Ref<boolean>>;
+  speed: Readonly<Ref<number>>;
+  volume: Readonly<Ref<number>>;
+  cameras: Readonly<Ref<string[]>>;
+
+  pause: () => void;
+  play: () => void;
+  resetZoom: () => void;
+  seek: (frame: number) => void;
+  nextFrame: () => void;
+  prevFrame: () => void;
+  setVolume: (volume: number) => void;
+  setSpeed: (speed: number) => void;
+  toggleLockedCamera: (lock: boolean) => void;
+  getController: (cameraName: string) => MediaController;
+}
+
+/**
+ * MediaController provides some additional camera-specific
+ * functions to control an individual camera
+ */
+export interface MediaController extends AggregateMediaController {
+  cameraName: Readonly<Ref<string>>;
+  duration: Readonly<Ref<number>>;
+  filename: Readonly<Ref<string>>;
+  flick: Readonly<Ref<number>>;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   geoViewerRef: Readonly<Ref<any>>;
-  playing: Readonly<Ref<boolean>>;
-  frame: Readonly<Ref<number>>;
-  flick: Readonly<Ref<number>>;
-  filename: Readonly<Ref<string>>;
-  lockedCamera: Readonly<Ref<boolean>>;
-  duration: Readonly<Ref<number>>;
-  volume: Readonly<Ref<number>>;
-  speed: Readonly<Ref<number>>;
-  maxFrame: Readonly<Ref<number>>;
   /** @deprecated may be removed in a future release */
   syncedFrame: Readonly<Ref<number>>;
-  prevFrame(): void;
-  nextFrame(): void;
-  play(): void;
-  pause(): void;
-  seek(frame: number): void;
-  resetZoom(): void;
-  toggleLockedCamera(): void;
-  centerOn(coords: {x: number; y: number; z: number }): void;
-  setCursor(c: string): void;
-  setImageCursor(c: string): void;
-  setVolume(v: number): void;
-  setSpeed(v: number): void;
+
+  centerOn(coords: { x: number; y: number; z: number }): void;
+  setCursor(camera: string): void;
+  setImageCursor(camera: string): void;
+  resetMapDimensions(width: number, height: number, margin?: number): void;
 }
