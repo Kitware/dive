@@ -233,14 +233,8 @@ export default defineComponent({
         && props.camera === selectedCamera.value) {
           const editTrack = trackMap?.get(selectedTrackId);
           //Track doesn't exist in the only camera
-          if (editTrack === undefined && camMap.size === 1) {
-            throw new Error(`trackMap missing trackid ${selectedTrackId}`);
-          } else if (editTrack === undefined && camMap.size > 1) {
-            // We create the track temporarily because we want to add it to the camera
-            handler.trackAdd(selectedTrackId);
-          }
           if (editTrack === undefined) {
-            throw new Error(`trackMap missing trackId ${selectedTrackId} in multi-camera mode and didn't properly create`);/*  */
+            throw new Error(`trackMap missing trackid ${selectedTrackId}`);
           }
           const enabledIndex = enabledTracks.findIndex(
             (trackWithContext) => trackWithContext.track.trackId === editTrack.trackId,

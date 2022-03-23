@@ -40,6 +40,11 @@ export function getTrack(
   return tempTrack;
 }
 
+/**
+ * Retrieve Possible Track from the trackMap, this is used for the case when returning undefined
+ * is warranted for the consumer function to skip the action if the track doesn't exists or
+ * handle it differently
+ */
 export function getPossibleTrack(
   camMap: Readonly<Map<string, Map<TrackId, Track>>>, trackId: Readonly<TrackId>, cameraName = 'singleCam',
 ): Track | undefined {
@@ -52,7 +57,7 @@ export function getPossibleTrack(
 
 /**
  * Returns the first track it finds in any camera.  This is useful if we need global data
- * from any existing track like the track confidencePair or the Id
+ * from any existing track like the track confidencePair or the trackId
  */
 export function getAnyTrack(
   trackMap: Readonly<Map<string, Map<TrackId, Track>>>, trackId: Readonly<TrackId>,
@@ -73,6 +78,7 @@ export function getAnyTrack(
 /**
  * Used to return an array of overlapping trackIds amongst all cameras
  * This is used to set global information across tracks like ConfidencePairs
+ * or Track Attributes
  */
 export function getTrackAll(
   trackMap: Readonly<Map<string, Map<TrackId, Track>>>,
@@ -108,6 +114,7 @@ export function getTracksMerged(
       track = cloneDeep(tempTrack);
     } else if (track && tempTrack) {
       // Merge track bounds and data together
+      // We don't care about feature data just that features are at X frame
       track.merge([tempTrack]);
     }
   });
@@ -132,6 +139,7 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
    * a computed function.
    */
   const camMap = new Map<string, Map<TrackId, Track>>();
+  // Requires a camera for initialization before loading
   camMap.set('singleCam', new Map<TrackId, Track>());
   const intervalTree = new IntervalTree();
 
@@ -181,6 +189,11 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
     }
   }
 
+  function removeCamera(cameraName: string) {
+    if (camMap.get(cameraName) !== undefined) {
+      camMap.delete(cameraName);
+    }
+  }
 
   function insertTrack(track: Track, args?: InsertArgs) {
     const cameraName = args?.cameraName ?? 'singleCam';
@@ -219,12 +232,17 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
     return track;
   }
 
-  function removeTrack(trackId: TrackId | null, disableNotifications = false, cameraName = 'all'): void {
+  /**
+   * Removal of a track from the track
+   * @param cameraName - if empty remove all tracks, if a camera name is specified
+   * remove only that track
+   */
+  function removeTrack(trackId: TrackId | null, disableNotifications = false, cameraName = ''): void {
     if (trackId === null) {
       return;
     }
     let range: number[] = [];
-    if (cameraName === 'all') {
+    if (cameraName === '') {
       camMap.forEach((currentMap, currentCam) => {
         const track = currentMap.get(trackId);
         if (track) {
@@ -248,6 +266,13 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
             markChangesPending({ cameraName, action: 'delete', track });
           }
         }
+      }
+      // We need to update the range if there are other Tracks Left.
+      if (getPossibleTrack(camMap, trackId)) {
+        const remainingTracks = getTracksMerged(camMap, trackId);
+        intervalTree.insert([remainingTracks.begin, remainingTracks.end], trackId.toString());
+        // Exit function to prevent removal of range
+        return;
       }
     }
     //Interval and Index are removed only once
@@ -289,6 +314,7 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
     intervalTree,
     addTrack,
     addCamera,
+    removeCamera,
     insertTrack,
     getNewTrackId,
     removeTrack,

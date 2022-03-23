@@ -51,7 +51,7 @@ export default function useModeManager({
   selectNextTrack: (delta?: number) => TrackId | null;
   addTrack: (frame: number, defaultType: string, afterId?: TrackId,
     cameraName?: string, overrideTrackId?: number) => Track;
-  removeTrack: (trackId: TrackId) => void;
+  removeTrack: (trackId: TrackId, disableNotifications?: boolean, cameraName?: string) => void;
 }) {
   let creating = false;
 
@@ -427,7 +427,7 @@ export default function useModeManager({
     mergeList.value = mergeList.value.filter((trackId) => !trackIds.includes(trackId));
   }
 
-  async function handleRemoveTrack(trackIds: TrackId[], forcePromptDisable = false) {
+  async function handleRemoveTrack(trackIds: TrackId[], forcePromptDisable = false, cameraName = '') {
     /* Figure out next track ID */
     const maybeNextTrackId = selectNextTrack(1);
     const previousOrNext = maybeNextTrackId !== null
@@ -451,17 +451,19 @@ export default function useModeManager({
       }
     }
     trackIds.forEach((trackId) => {
-      removeTrack(trackId);
+      removeTrack(trackId, false, cameraName);
     });
     handleUnstageFromMerge(trackIds);
-    selectTrack(previousOrNext, false);
+    if (cameraName === '') {
+      selectTrack(previousOrNext, false);
+    }
   }
 
   /** Toggle editing mode for track */
   function handleTrackEdit(trackId: TrackId) {
     const track = getPossibleTrack(camMap, trackId, selectedCamera.value);
     if (track) {
-      seekNearest(track);
+      //seekNearest(track);
       const editing = trackId === selectedTrackId.value ? (!editingTrack.value) : true;
       handleSelectTrack(trackId, editing);
       //Track doesn't exist for this specific camera

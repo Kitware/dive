@@ -5,7 +5,7 @@ import {
 import TooltipBtn from './TooltipButton.vue';
 import {
   useHandler, useAllTypes,
-  useTime, useSelectedCamera,
+  useTime, useSelectedCamera, useCamMap,
 } from '../provides';
 import Track from '../track';
 
@@ -57,7 +57,9 @@ export default defineComponent({
     const vuetify = root.$vuetify;
     const { frame: frameRef } = useTime();
     const handler = useHandler();
-    const selectedCamera = useSelectedCamera();
+    const camMap = useCamMap();
+    // Disable splitting, keyframes, interpolation for multicam
+    const multipleCameras = ref(camMap.size > 1);
     const allTypesRef = useAllTypes();
     const trackTypeRef = toRef(props, 'trackType');
     const typeInputBoxRef = ref(undefined as undefined | HTMLInputElement);
@@ -66,6 +68,7 @@ export default defineComponent({
       skipOnFocus: false,
       inputError: false,
     });
+
 
     /**
      * Use of revision is safe because it will only create a
@@ -99,7 +102,8 @@ export default defineComponent({
     * If we have multiple cameras we are going to turn on the full view for
     * keyframe toggling of different camera frames
     */
-    const isTrack = computed(() => props.track.length > 1 || feature.value.shouldInterpolate || selectedCamera.value !== 'singleCam');
+    const isTrack = computed(() => props.track.length > 1 || feature.value.shouldInterpolate);
+
 
     /* Sets styling for the selected track */
     const style = computed(() => {
@@ -201,6 +205,7 @@ export default defineComponent({
       frame: frameRef,
       allTypes: allTypesRef,
       keyframeDisabled,
+      multipleCameras,
       /* methods */
       blurType,
       focusType,
@@ -320,7 +325,7 @@ export default defineComponent({
         />
 
         <tooltip-btn
-          v-if="isTrack"
+          v-if="isTrack && !multipleCameras"
           :disabled="!track.canSplit(frame) || merging"
           icon="mdi-call-split"
           tooltip-text="Split Track"
@@ -328,7 +333,7 @@ export default defineComponent({
         />
 
         <tooltip-btn
-          v-if="isTrack"
+          v-if="isTrack && ! multipleCameras"
           :icon="(feature.isKeyframe)
             ? 'mdi-star'
             : 'mdi-star-outline'"
@@ -338,7 +343,7 @@ export default defineComponent({
         />
 
         <tooltip-btn
-          v-if="isTrack"
+          v-if="isTrack && !multipleCameras"
           :icon="(feature.shouldInterpolate)
             ? 'mdi-vector-selection'
             : 'mdi-selection-off'"

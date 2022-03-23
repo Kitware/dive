@@ -123,7 +123,7 @@ export interface Handler {
     preventInterrupt?: () => void,
   ): void;
   /* Remove a whole track */
-  removeTrack(trackIds: TrackId[], forcePromptDisable?: boolean): void;
+  removeTrack(trackIds: TrackId[], forcePromptDisable?: boolean, cameraName?: string): void;
   /* Remove a single point from selected track's geometry by selected index */
   removePoint(): void;
   /* Remove an entire annotation from selected track by selected key */
@@ -158,6 +158,12 @@ export interface Handler {
   unstageFromMerge(ids: TrackId[]): void;
   /* Reload Annotation File */
   reloadAnnotations(): Promise<void>;
+  /* Set Selected Camera */
+  setSelectedCamera(camera: string, editMode: boolean): void;
+  /* unlink Camera Track */
+  unlinkCameraTrack(trackId: TrackId, camera: string): void;
+  /* link Camera Track */
+  linkCameraTrack(baseTrackId: TrackId, linkTrackId: TrackId, camera: string): void;
 }
 const HandlerSymbol = Symbol('handler');
 
@@ -196,6 +202,9 @@ function dummyHandler(handle: (name: string, args: unknown[]) => void): Handler 
     commitMerge(...args) { handle('commitMerge', args); },
     unstageFromMerge(...args) { handle('unstageFromMerge', args); },
     reloadAnnotations(...args) { handle('reloadTracks', args); return Promise.resolve(); },
+    setSelectedCamera(...args) { handle('setSelectedCamera', args); },
+    unlinkCameraTrack(...args) { handle('unlinkCameraTrack', args); },
+    linkCameraTrack(...args) { handle('linkCameraTrack', args); },
   };
 }
 

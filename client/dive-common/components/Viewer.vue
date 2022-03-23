@@ -158,6 +158,7 @@ export default defineComponent({
       addTrack,
       insertTrack,
       addCamera,
+      removeCamera,
       removeTrack,
       getNewTrackId,
       removeTrack: tsRemoveTrack,
@@ -266,6 +267,53 @@ export default defineComponent({
       }
     }
 
+    // Remove a track from within a camera multi-track into it's own track
+    function unlinkCameraTrack(trackId: TrackId, camera: string) {
+      const track = getTrack(camMap, trackId, camera);
+      handler.trackSelect(null, false);
+
+      const newTrack = Track.fromJSON({
+        trackId: getNewTrackId(),
+        meta: track.meta,
+        begin: track.begin,
+        end: track.end,
+        features: track.features,
+        confidencePairs: track.confidencePairs,
+        attributes: track.attributes,
+      });
+      handler.removeTrack([trackId], true, camera);
+      insertTrack(newTrack, { imported: false, cameraName: camera });
+      handler.trackSelect(newTrack.trackId);
+    }
+
+    /**
+     * Takes a BaseTrack and a merge Track and will attempt to merge the existing track
+     * into the camera and baseTrack.
+     * Requires that baseTrack doesn't have a track for the camera already
+     * Also requires that the mergeTrack isn't a track across multiple cameras.
+     */
+    function linkCameraTrack(baseTrack: TrackId, linkTrack: TrackId, camera: string) {
+      camMap.forEach((trackMap, key) => {
+        if (trackMap.get(linkTrack) && key !== camera) {
+          throw Error(`Attempting to link Track: ${linkTrack} to camera: ${camera} where there the track exists in another camera: ${key}`);
+        }
+      });
+      const track = getTrack(camMap, linkTrack, camera);
+      handler.trackSelect(null, false);
+      handler.removeTrack([linkTrack], false, camera);
+      const newTrack = Track.fromJSON({
+        trackId: baseTrack,
+        meta: track.meta,
+        begin: track.begin,
+        end: track.end,
+        features: track.features,
+        confidencePairs: track.confidencePairs,
+        attributes: track.attributes,
+      });
+      insertTrack(newTrack, { imported: false, cameraName: camera });
+      handler.trackSelect(baseTrack);
+    }
+
     async function save() {
       // If editing the track, disable editing mode before save
       saveInProgress.value = true;
@@ -320,17 +368,29 @@ export default defineComponent({
       return result;
     }
 
-    const changeCamera = async (camera: string, event?: MouseEvent) => {
+    // Handles changing camera using the dropdown or mouse clicks
+    // When using mouse clicks and right button it will remain in edit mode for the selected track
+    const changeCamera = (camera: string, event?: MouseEvent) => {
       if (selectedCamera.value === camera) {
         return;
       }
       if (event) {
         event.preventDefault();
       }
-
-      //handler.trackAbort(); //Any in process track without data should be removed
       selectedCamera.value = camera;
       if (selectedTrackId.value !== null && event?.button === 2) {
+        //Stay in edit mode for the current track
+        handler.trackEdit(selectedTrackId.value);
+      }
+      ctx.emit('change-camera', camera);
+    };
+
+    const setSelectedCamera = (camera: string, editMode = false) => {
+      if (selectedCamera.value === camera && editingTrack.value === editMode) {
+        return;
+      }
+      selectedCamera.value = camera;
+      if (selectedTrackId.value !== null && editMode) {
         //Stay in edit mode for the current track
         handler.trackEdit(selectedTrackId.value);
       }
@@ -396,6 +456,12 @@ export default defineComponent({
             insertTrack(Track.fromJSON(camTracks[j]), { imported: true, cameraName: camera });
           }
         }
+        // Remove default cameras such as singleCam if they aren't in the camMap
+        camMap.forEach((_cam, key) => {
+          if (!multiCamList.value.includes(key)) {
+            removeCamera(key);
+          }
+        });
         progress.loaded = true;
       } catch (err) {
         progress.loaded = false;
@@ -455,6 +521,9 @@ export default defineComponent({
       setConfidenceFilters,
       deleteAttribute,
       reloadAnnotations,
+      setSelectedCamera,
+      linkCameraTrack,
+      unlinkCameraTrack,
     };
 
     provideAnnotator(
@@ -568,7 +637,7 @@ export default defineComponent({
           </template>
         </EditorMenu>
         <v-select
-          v-if="multiCamList.length && defaultCamera !== 'singleCam'"
+          v-if="multiCamList.length > 1"
           :value="selectedCamera"
           :items="multiCamList"
           label="Camera"
@@ -583,6 +652,12 @@ export default defineComponent({
             {{ item }} {{ item === defaultCamera ? '(Default)': '' }}
           </template>
         </v-select>
+        <v-btn
+          v-if="multiCamList.length > 1"
+          @click="context.toggle('MultiCamTools')"
+        >
+          MultiCam Settings
+        </v-btn>
       </template>
 
       <slot name="title-right" />

@@ -24,7 +24,7 @@ export default function useFilteredTracks(
   { sortedTracks, removeTrack, markChangesPending }:
   {
     sortedTracks: Readonly<Ref<readonly Track[]>>;
-    removeTrack: (trackId: TrackId) => void;
+    removeTrack: (trackId: TrackId, disableNotifications?: boolean, cameraName?: string) => void;
     markChangesPending: () => void;
   },
 ) {
