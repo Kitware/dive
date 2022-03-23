@@ -135,7 +135,7 @@ export default defineComponent({
 
     function routeRevision(revisionId: number) {
       ctx.root.$router.replace({
-        name: 'viewer',
+        name: 'revision viewer',
         params: { id: props.id, revision: revisionId.toString() },
       });
     }
@@ -159,7 +159,7 @@ export default defineComponent({
 <template>
   <Viewer
     :id="id"
-    :key="`${id}/${revisionNum}`"
+    :key="id"
     ref="viewerRef"
     :revision="revisionNum"
     :read-only-mode="!!getters['Jobs/datasetRunningState'](id)"
@@ -202,12 +202,12 @@ export default defineComponent({
         v-bind="{ buttonOptions, menuOptions }"
         :selected-dataset-ids="[id]"
         :running-pipelines="runningPipelines"
+        :read-only-mode="revisionNum !== undefined"
       />
       <ImportAnnotations
-        v-bind="{ buttonOptions,
-                  menuOptions,
-                  readOnlyMode: !!getters['Jobs/datasetRunningState'](id),
-        }"
+        :button-options="buttonOptions"
+        :menu-options="menuOptions"
+        :read-only-mode="!!getters['Jobs/datasetRunningState'](id) || revisionNum !== undefined"
         :dataset-id="id"
         block-on-unsaved
       />

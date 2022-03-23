@@ -1,7 +1,7 @@
 <script lang="ts">
-import { defineComponent, watch } from '@vue/composition-api';
+import { defineComponent, toRef, watch } from '@vue/composition-api';
 import {
-  useDatasetId, usePendingSaveCount, useRevisionId,
+  useDatasetId, useHandler, usePendingSaveCount, useProgress, useRevisionId,
 } from 'vue-media-annotator/provides';
 import { loadRevisions, Revision } from 'platform/web-girder/api';
 import { usePaginatedRequest } from 'dive-common/use/useRequest';
@@ -14,6 +14,8 @@ export default defineComponent({
     const saveCount = usePendingSaveCount();
     const datasetId = useDatasetId();
     const revisionId = useRevisionId();
+    const progress = useProgress();
+    const { reloadAnnotations } = useHandler();
     const {
       loading, count, allPages: revisions, totalCount, loadNextPage, reset,
     } = usePaginatedRequest<Revision>();
@@ -24,10 +26,20 @@ export default defineComponent({
 
     function checkout(id: number) {
       ctx.emit('update:revision', id);
+      reloadAnnotations();
     }
 
     watch(saveCount, (newval) => {
+      // Reload revision list when save happens
       if (newval === 0) {
+        reset();
+        loadNext();
+      }
+    });
+
+    watch(toRef(progress, 'loaded'), (newval) => {
+      // Reload revision list when refresh happens.
+      if (!newval) {
         reset();
         loadNext();
       }
@@ -37,6 +49,7 @@ export default defineComponent({
 
     return {
       loading,
+      progress,
       count,
       revisions,
       revisionId,
@@ -59,7 +72,7 @@ export default defineComponent({
     >
       <h4>Inspecting revision {{ revisionId }}.</h4>
       Past revisions are not editable.
-      Return to latest or clone this revision to edit.
+      Return to latest or <b>clone</b> this revision to edit.
       <v-btn
         x-small
         depressed
@@ -70,6 +83,13 @@ export default defineComponent({
       >
         Return to newest revision
       </v-btn>
+    </v-alert>
+    <v-alert
+      v-else
+      color="grey darken-3"
+      tile
+    >
+      Choose a previous revision to inspect in read-only mode.
     </v-alert>
     <v-list
       v-if="revisions.length"

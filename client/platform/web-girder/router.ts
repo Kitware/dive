@@ -28,8 +28,15 @@ const router = new Router({
       component: Login,
     },
     {
-      path: '/viewer/:id/:revision?',
+      path: '/viewer/:id',
       name: 'viewer',
+      component: ViewerLoader,
+      props: true,
+      beforeEnter,
+    },
+    {
+      path: '/viewer/:id/revision/:revision',
+      name: 'revision viewer',
       component: ViewerLoader,
       props: true,
       beforeEnter,

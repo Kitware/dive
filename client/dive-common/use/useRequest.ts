@@ -50,7 +50,7 @@ export function usePaginatedRequest<T>() {
   function reset() {
     paginationParams.totalCount = 0;
     paginationParams.offset = 0;
-    paginationParams.limit = 10;
+    paginationParams.limit = 20;
     allPages.value = [];
     main.reset();
   }

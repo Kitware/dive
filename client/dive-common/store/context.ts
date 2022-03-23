@@ -40,8 +40,10 @@ function getComponents() {
 function toggle(active: string | null) {
   if (active && state.active === active) {
     state.active = null;
-  } else {
+  } else if (active === null || active in componentMap) {
     state.active = active;
+  } else {
+    throw new Error(`${active} is not a valid context component`);
   }
   window.dispatchEvent(new Event('resize'));
 }

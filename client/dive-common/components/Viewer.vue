@@ -420,6 +420,7 @@ export default defineComponent({
         intervalTree,
         mergeList,
         pendingSaveCount,
+        progress,
         revisionId: toRef(props, 'revision'),
         trackMap,
         filteredTracks,
