@@ -288,11 +288,8 @@ export default function useModeManager({
 
         // Give each recipe the opportunity to make changes
         recipes.forEach((recipe) => {
-          // "track is possibly undefined" is typescript bug
-          // eslint-disable-next-line @typescript-eslint/ban-ts-ignore
-          // @ts-ignore
-          const _track: Track = track;
-          const changes = recipe.update(eventType, frameNum, _track, [data], key);
+          // "as Track" used because TS doesn't know that forEach has the proper track setting
+          const changes = recipe.update(eventType, frameNum, track as Track, [data], key);
           // Prevent key conflicts among recipes
           Object.keys(changes.data).forEach((key_) => {
             if (key_ in update.geoJsonFeatureRecord) {
