@@ -11,6 +11,7 @@ import {
 import JobLaunchDialog from 'dive-common/components/JobLaunchDialog.vue';
 import { stereoPipelineMarker, multiCamPipelineMarkers } from 'dive-common/constants';
 import { useRequest } from 'dive-common/use';
+import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 
 export default defineComponent({
   name: 'RunPipelineMenu',
@@ -43,6 +44,7 @@ export default defineComponent({
   },
 
   setup(props) {
+    const { prompt } = usePrompt();
     const { runPipeline, getPipelineList } = useApi();
     const unsortedPipelines = ref({} as Pipelines);
     const selectedPipe = ref(null as Pipe | null);
@@ -83,8 +85,8 @@ export default defineComponent({
           if (camNumberStringArray.value.includes(pipelineExpectedCameraCount)) {
             sortedPipelines[name] = category;
           }
-        } else if (props.subTypeList.every((item) => item === null)
-        && name !== stereoPipelineMarker && !multiCamPipelineMarkers.includes(name)) {
+        }
+        if (name !== stereoPipelineMarker && !multiCamPipelineMarkers.includes(name)) {
           sortedPipelines[name] = category;
         }
       });
@@ -100,6 +102,20 @@ export default defineComponent({
         throw new Error('No selected datasets to run on');
       }
       let datasetIds = props.selectedDatasetIds;
+      if (props.cameraNumbers.length === 1 && props.cameraNumbers[0] > 1
+      && !multiCamPipelineMarkers.includes(pipeline.type)) {
+        const cameraNames = props.selectedDatasetIds.map((item) => item.substring(0, item.lastIndexOf('/')));
+        const result = await prompt({
+          title: `Running Single Camera Pipeline on ${cameraNames[0]}`,
+          text: ['Running a single pipeline on multi-camera data can produce conflicting track Ids',
+            'Suggest Cancelling and deleting all existing tracks to ensure proper display of the output',
+          ],
+          confirm: true,
+        });
+        if (!result) {
+          return;
+        }
+      }
       if (multiCamPipelineMarkers.includes(pipeline.type)) {
         datasetIds = props.selectedDatasetIds.map((item) => item.substring(0, item.lastIndexOf('/')));
       }
