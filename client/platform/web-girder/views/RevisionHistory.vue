@@ -111,18 +111,20 @@ export default defineComponent({
                 <span
                   v-bind="attrs"
                   v-on="on"
-                >
-                  {{ revision.revision }}: {{ revision.description }} by
-                  <router-link
-                    :to="`/user/${revision.author_id}`"
-                  >
-                    {{ revision.author_name }}
-                  </router-link>
-                </span>
+                  v-text="`${revision.revision}: ${revision.description}`"
+                />
               </template>
-              <span>{{ revision.description }} by {{ revision.author_name }}</span>
+              <span>{{ revision.description }}</span>
             </v-tooltip>
           </v-list-item-title>
+          <v-list-item-subtitle>
+            by
+            <router-link
+              :to="`/user/${revision.author_id}`"
+            >
+              {{ revision.author_name }}
+            </router-link>
+          </v-list-item-subtitle>
           <v-list-item-subtitle v-text="(new Date(revision.created)).toLocaleString()" />
         </v-list-item-content>
         <v-list-item-action>
