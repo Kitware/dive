@@ -4,6 +4,7 @@ import {
 import { cloneDeep } from 'lodash';
 import Track, { TrackId } from '../track';
 import { updateSubset } from '../utils';
+import { getTrackAll } from './useTrackStore';
 
 export const DefaultConfidence = 0.1;
 /**
@@ -21,11 +22,14 @@ export interface TrackWithContext {
 
 /* Provide track filtering controls on tracks loaded from useTrackStore. */
 export default function useFilteredTracks(
-  { sortedTracks, removeTrack, markChangesPending }:
+  {
+    sortedTracks, removeTrack, markChangesPending, camMap,
+  }:
   {
     sortedTracks: Readonly<Ref<readonly Track[]>>;
     removeTrack: (trackId: TrackId, disableNotifications?: boolean, cameraName?: string) => void;
     markChangesPending: () => void;
+    camMap: Readonly<Map<string, Map<TrackId, Track>>>;
   },
 ) {
   /* Track IDs explicitly checked "ON" by the user */
@@ -142,14 +146,17 @@ export default function useFilteredTracks(
 
   function updateTypeName({ currentType, newType }: { currentType: string; newType: string }) {
     //Go through the entire list and replace the oldType with the new Type
-    sortedTracks.value.forEach((track) => {
-      for (let i = 0; i < track.confidencePairs.length; i += 1) {
-        const [name, confidenceVal] = track.confidencePairs[i];
-        if (name === currentType) {
-          track.setType(newType, confidenceVal, currentType);
-          break;
+    sortedTracks.value.forEach((mergedTrack) => {
+      const tracks = getTrackAll(camMap, mergedTrack.trackId);
+      tracks.forEach((track) => {
+        for (let i = 0; i < track.confidencePairs.length; i += 1) {
+          const [name, confidenceVal] = track.confidencePairs[i];
+          if (name === currentType) {
+            track.setType(newType, confidenceVal, currentType);
+            break;
+          }
         }
-      }
+      });
     });
     if (!(newType in confidenceFilters.value) && currentType in confidenceFilters.value) {
       setConfidenceFilters({

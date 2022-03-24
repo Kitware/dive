@@ -177,9 +177,9 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
         const oldInterval = oldValue as [number, number];
         intervalTree.remove(oldInterval, track.trackId.toString());
         intervalTree.insert([track.begin, track.end], track.trackId.toString());
-        canary.value += 1;
-        markChangesPending({ cameraName, action: 'upsert', track });
       }
+      canary.value += 1;
+      markChangesPending({ cameraName, action: 'upsert', track });
     };
   }
 

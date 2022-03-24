@@ -58,7 +58,7 @@ describe('useTrackStore', () => {
   it('throws an error when you access a track that is missing', () => {
     const markChangesPending = () => null;
     const ts = useTrackStore({ markChangesPending });
-    expect(() => getTrack(ts.camMap, 0, 'singleCam')).toThrow('TrackId 0 not found in trackMap with cameraName default');
+    expect(() => getTrack(ts.camMap, 0, 'singleCam')).toThrow('TrackId 0 not found in trackMap with cameraName singleCam');
     ts.addTrack(1000, 'foo');
     expect(getTrack(ts.camMap, 0, 'singleCam')).toBeTruthy();
   });

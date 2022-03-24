@@ -19,7 +19,6 @@ import {
   useFilteredTracks,
   useTypeStyling,
   useTime,
-  useSelectedCamera,
 } from '../provides';
 import TrackItem from './TrackItem.vue';
 
@@ -64,7 +63,6 @@ export default defineComponent({
 
   setup(props) {
     const { prompt } = usePrompt();
-    const selectedCamera = useSelectedCamera();
     const allTypesRef = useAllTypes();
     const checkedTrackIdsRef = useCheckedTrackIds();
     const editingModeRef = useEditingMode();

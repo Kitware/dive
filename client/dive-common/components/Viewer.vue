@@ -184,6 +184,7 @@ export default defineComponent({
       sortedTracks,
       removeTrack,
       markChangesPending,
+      camMap,
     });
 
     const {
@@ -203,7 +204,6 @@ export default defineComponent({
       mergeInProgress,
       linkingTrack,
       linkingCamera,
-      linkingState,
       selectedFeatureHandle,
       handler,
       editingMode,
@@ -316,7 +316,7 @@ export default defineComponent({
       insertTrack(newTrack, { imported: false, cameraName: camera });
     }
 
-    watch(linkingTrack, (prev, current) => {
+    watch(linkingTrack, () => {
       if (linkingTrack.value !== null && selectedTrackId.value !== null) {
         linkCameraTrack(selectedTrackId.value, linkingTrack.value, linkingCamera.value);
         handler.stopLinking();

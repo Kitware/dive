@@ -6,7 +6,9 @@ import {
 } from 'vue-media-annotator/provides';
 
 import TooltipBtn from 'vue-media-annotator/components/TooltipButton.vue';
-import { getTrack } from 'vue-media-annotator/use/useTrackStore';
+import {
+  getTrack, getTrackAll,
+} from 'vue-media-annotator/use/useTrackStore';
 import { TrackId } from 'vue-media-annotator/track';
 
 interface CameraTrackData {
@@ -43,15 +45,32 @@ export default defineComponent({
       return trackKeyPair;
     });
 
+    const existingCount = computed(() => Object.values(
+      tracks.value,
+    ).filter((item) => item.trackExists).length);
+
     // Delete annotation for selected camera/frame
-    const deleteAnnotation = (camera: string, trackId: number) => {
+    const deleteAnnotation = async (camera: string, trackId: number) => {
       const track = getTrack(camMap, trackId, camera);
+      const allTracks = getTrackAll(camMap, trackId);
       // If it is the only keyframe we need to remove the track from the camMap
       if (track.length === 1) {
-        // Disable prompt for deleting trackk from camMap
-        handler.removeTrack([trackId], true, camera);
+        // Disable prompt for deleting trackk from camMap if there are other tracks on other cameras
+        await handler.removeTrack([trackId], allTracks.length > 1, camera);
+        if (allTracks.length === 1) {
+          handler.trackSelect(null, false);
+        }
       } else {
         track.toggleKeyframe(frame.value);
+      }
+    };
+
+    // Delete entire track, only confirm if it is the only track.
+    const deleteTrack = async (camera: string, trackId: number) => {
+      const allTracks = getTrackAll(camMap, trackId);
+      await handler.removeTrack([trackId], allTracks.length > 1, camera);
+      if (allTracks.length === 1) {
+        handler.trackSelect(null, false);
       }
     };
 
@@ -74,11 +93,13 @@ export default defineComponent({
     return {
       selectedCamera,
       selectedTrackId,
+      existingCount,
       frame,
       cameras,
       tracks,
       editOrCreateAnnotation,
       deleteAnnotation,
+      deleteTrack,
       startLinking,
       handler,
     };
@@ -134,14 +155,15 @@ export default defineComponent({
               icon="mdi-delete"
               :disabled="!tracks[camera].trackExists"
               :tooltip-text="`Delete Track for camera: ${camera}`"
-              @click="handler.removeTrack([selectedTrackId], true, camera)"
+              @click="deleteTrack(camera, selectedTrackId)"
             />
             <tooltip-btn
               v-if="tracks[camera].trackExists"
               color="error"
               icon="mdi-link-variant-minus"
+              :disabled="existingCount === 1"
               :tooltip-text="`Unlink Track for camera: ${camera}`"
-              @click="handler.unlinkCameraTrack(selectedTrackId, camera)"
+              @click="handler.unlinkCameraTrack(camera, selectedTrackId)"
             />
             <tooltip-btn
               v-else-if="!tracks[camera].trackExists"
