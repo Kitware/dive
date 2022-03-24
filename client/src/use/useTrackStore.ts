@@ -17,7 +17,7 @@ interface UseTrackStoreParams {
     }) => void;
 }
 
-interface InsertArgs {
+export interface InsertArgs {
   imported?: boolean;
   afterId?: TrackId;
   cameraName?: string;
@@ -115,7 +115,7 @@ export function getTracksMerged(
     } else if (track && tempTrack) {
       // Merge track bounds and data together
       // We don't care about feature data just that features are at X frame
-      track.merge([tempTrack]);
+      track.merge([tempTrack], true);
     }
   });
   if (!track) {
@@ -177,9 +177,9 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
         const oldInterval = oldValue as [number, number];
         intervalTree.remove(oldInterval, track.trackId.toString());
         intervalTree.insert([track.begin, track.end], track.trackId.toString());
+        canary.value += 1;
+        markChangesPending({ cameraName, action: 'upsert', track });
       }
-      canary.value += 1;
-      markChangesPending({ cameraName, action: 'upsert', track });
     };
   }
 

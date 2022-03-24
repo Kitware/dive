@@ -5,7 +5,7 @@ import {
 import TooltipBtn from './TooltipButton.vue';
 import {
   useHandler, useAllTypes,
-  useTime, useSelectedCamera, useCamMap,
+  useTime, useCamMap,
 } from '../provides';
 import Track from '../track';
 

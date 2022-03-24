@@ -18,7 +18,7 @@ import {
   useEventChart,
 } from 'vue-media-annotator/use';
 import { useMediaController } from 'vue-media-annotator/components';
-import { getTrack } from 'vue-media-annotator/use/useTrackStore';
+import { getAnyTrack, getTrack } from 'vue-media-annotator/use/useTrackStore';
 import { provideAnnotator } from 'vue-media-annotator/provides';
 import ImageAnnotator from 'vue-media-annotator/components/annotators/ImageAnnotator.vue';
 import VideoAnnotator from 'vue-media-annotator/components/annotators/VideoAnnotator.vue';
@@ -201,6 +201,9 @@ export default defineComponent({
     const {
       mergeList,
       mergeInProgress,
+      linkingTrack,
+      linkingCamera,
+      linkingState,
       selectedFeatureHandle,
       handler,
       editingMode,
@@ -299,20 +302,26 @@ export default defineComponent({
         }
       });
       const track = getTrack(camMap, linkTrack, camera);
-      handler.trackSelect(null, false);
-      handler.removeTrack([linkTrack], false, camera);
+      const selectedTrack = getAnyTrack(camMap, baseTrack);
+      handler.removeTrack([linkTrack], true, camera);
       const newTrack = Track.fromJSON({
         trackId: baseTrack,
         meta: track.meta,
         begin: track.begin,
         end: track.end,
         features: track.features,
-        confidencePairs: track.confidencePairs,
+        confidencePairs: selectedTrack.confidencePairs,
         attributes: track.attributes,
       });
       insertTrack(newTrack, { imported: false, cameraName: camera });
-      handler.trackSelect(baseTrack);
     }
+
+    watch(linkingTrack, (prev, current) => {
+      if (linkingTrack.value !== null && selectedTrackId.value !== null) {
+        linkCameraTrack(selectedTrackId.value, linkingTrack.value, linkingCamera.value);
+        handler.stopLinking();
+      }
+    });
 
     async function save() {
       // If editing the track, disable editing mode before save
@@ -580,6 +589,7 @@ export default defineComponent({
       selectedFeatureHandle,
       selectedTrackId,
       selectedKey,
+      linkingCamera,
       videoUrl,
       visibleModes,
       frameRate: time.frameRate,
@@ -622,7 +632,8 @@ export default defineComponent({
       <v-spacer />
       <template #extension>
         <EditorMenu
-          v-bind="{ editingMode, visibleModes, editingTrack, recipes, mergeMode, editingDetails }"
+          v-bind="{ editingMode, visibleModes, editingTrack,
+                    recipes, mergeMode, editingDetails, linkingCamera }"
           :tail-settings.sync="clientSettings.annotatorPreferences.trackTails"
           @set-annotation-state="handler.setAnnotationState"
           @exit-edit="handler.trackAbort"

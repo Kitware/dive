@@ -111,6 +111,10 @@ export default function useModeManager({
   const mergeList = ref([] as TrackId[]);
   const mergeInProgress = computed(() => mergeList.value.length > 0);
 
+  const linkingState = ref(false);
+  const linkingTrack: Ref<TrackId| null> = ref(null);
+  const linkingCamera = ref('');
+
   const { prompt } = usePrompt();
   /**
    * Figure out if a new feature should enable interpolation
@@ -136,6 +140,22 @@ export default function useModeManager({
       aggregateController.value.seek(track.begin);
     } else if (frame.value > track.end) {
       aggregateController.value.seek(track.end);
+    }
+  }
+
+  async function _setLinkingTrack(trackId: TrackId) {
+    //Confirm that there is no track for other cameras.
+    const trackList = getTrackAll(camMap, trackId);
+    if (trackList.length > 1) {
+      prompt({
+        title: 'Linking Error',
+        text: [`TrackId: ${trackId} has tracks on other cameras besides the selected camera ${linkingCamera.value}`,
+          `You need to select a track that only exists on camera: ${linkingCamera.value} `,
+        ],
+        positiveButton: 'OK',
+      });
+    } else {
+      linkingTrack.value = trackId;
     }
   }
 
@@ -170,8 +190,11 @@ export default function useModeManager({
      */
     if (trackId !== null && mergeInProgress.value) {
       mergeList.value = Array.from((new Set(mergeList.value).add(trackId)));
+    } else if (trackId !== null && linkingState.value) {
+      _setLinkingTrack(trackId);
+      return;
     }
-    /* Do not allow editing when merge is in progres */
+    /* Do not allow editing when merge is in progres or linking */
     selectTrack(trackId, edit && !mergeInProgress.value);
   }
 
@@ -187,6 +210,9 @@ export default function useModeManager({
         }
       }
     }
+    linkingState.value = false;
+    linkingCamera.value = '';
+    linkingTrack.value = null;
     mergeList.value = [];
     handleSelectTrack(null, false);
   }
@@ -544,6 +570,25 @@ export default function useModeManager({
     }
   }
 
+  function handleStartLinking(camera: string) {
+    if (!linkingState.value && selectedTrackId.value !== null) {
+      linkingState.value = true;
+      if (camMap.has(camera)) {
+        linkingCamera.value = camera;
+      } else {
+        throw Error(`Camera: ${camera} does not exist in the system for linking`);
+      }
+    } else if (selectedTrackId.value === null) {
+      throw Error('Cannot start Linking without a track selected');
+    }
+  }
+
+  function handleStopLinking() {
+    linkingState.value = false;
+    linkingTrack.value = null;
+    linkingCamera.value = '';
+  }
+
   /* Subscribe to recipe activation events */
   recipes.forEach((r) => r.bus.$on('activate', handleSetAnnotationState));
   /* Unsubscribe before unmount */
@@ -556,6 +601,9 @@ export default function useModeManager({
     editingDetails,
     mergeList,
     mergeInProgress,
+    linkingTrack,
+    linkingState,
+    linkingCamera,
     visibleModes,
     selectedFeatureHandle,
     selectedKey,
@@ -577,6 +625,8 @@ export default function useModeManager({
       selectFeatureHandle: handleSelectFeatureHandle,
       setAnnotationState: handleSetAnnotationState,
       unstageFromMerge: handleUnstageFromMerge,
+      startLinking: handleStartLinking,
+      stopLinking: handleStopLinking,
     },
   };
 }

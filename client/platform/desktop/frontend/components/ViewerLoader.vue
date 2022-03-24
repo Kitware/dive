@@ -52,7 +52,8 @@ export default defineComponent({
     const selectedCamera = ref('');
 
     watch(runningJobs, async (_previous, current) => {
-      const currentJob = current.find((item) => item.job.datasetIds.includes(props.id));
+      // Check the current props.id so multicam files also trigger a reload
+      const currentJob = current.find((item) => item.job.datasetIds.reduce((prev, datasetId) => (datasetId.includes(props.id) ? datasetId : prev), ''));
       if (currentJob && currentJob.job.exitCode === 0 && currentJob.job.jobType === 'pipeline') {
         const result = await prompt({
           title: 'Pipeline Finished',

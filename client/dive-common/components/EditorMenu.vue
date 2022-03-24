@@ -42,6 +42,10 @@ export default Vue.extend({
       type: Boolean,
       default: false,
     },
+    linkingCamera: {
+      type: String,
+      default: '',
+    },
     tailSettings: {
       type: Object as PropType<{ before: number; after: number }>,
       default: () => ({ before: 20, after: 10 }),
@@ -214,6 +218,11 @@ export default Vue.extend({
               Merge in progress.  Editing is disabled.
               Select additional tracks to merge.
             </span>
+            <span v-if="linkingCamera !== ''">
+              Camera linking in progress. Select a track within
+              {{ linkingCamera }} to complete the linking.
+            </span>
+
             <span v-else-if="editingDetails !== 'disabled'">
               {{ modeToolTips[editingDetails][editingMode] }}
             </span>

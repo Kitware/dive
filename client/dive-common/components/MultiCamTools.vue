@@ -66,7 +66,10 @@ export default defineComponent({
      * the selected camera to merge with it.  We need to make sure that the merged
      * track only exists on the sleected camera
     **/
-
+    const startLinking = (camera: string) => {
+      handler.setSelectedCamera(camera, false);
+      handler.startLinking(camera);
+    };
 
     return {
       selectedCamera,
@@ -76,6 +79,7 @@ export default defineComponent({
       tracks,
       editOrCreateAnnotation,
       deleteAnnotation,
+      startLinking,
       handler,
     };
   },
@@ -143,6 +147,7 @@ export default defineComponent({
               v-else-if="!tracks[camera].trackExists"
               icon="mdi-link-variant-plus"
               :tooltip-text="`Add Track to this camera: ${camera}`"
+              @click="startLinking(camera)"
             />
           </v-row>
           <v-divider />

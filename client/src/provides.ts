@@ -164,6 +164,8 @@ export interface Handler {
   unlinkCameraTrack(trackId: TrackId, camera: string): void;
   /* link Camera Track */
   linkCameraTrack(baseTrackId: TrackId, linkTrackId: TrackId, camera: string): void;
+  startLinking(camera: string): void;
+  stopLinking(): void;
 }
 const HandlerSymbol = Symbol('handler');
 
@@ -205,6 +207,8 @@ function dummyHandler(handle: (name: string, args: unknown[]) => void): Handler 
     setSelectedCamera(...args) { handle('setSelectedCamera', args); },
     unlinkCameraTrack(...args) { handle('unlinkCameraTrack', args); },
     linkCameraTrack(...args) { handle('linkCameraTrack', args); },
+    startLinking(...args) { handle('startLinking', args); },
+    stopLinking(...args) { handle('stopLinking', args); },
   };
 }
 

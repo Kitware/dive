@@ -5,7 +5,7 @@ import {
 } from '@vue/composition-api';
 
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
-import { getAnyTrack, getTrack } from 'vue-media-annotator/use/useTrackStore';
+import { getAnyTrack } from 'vue-media-annotator/use/useTrackStore';
 import { TrackWithContext } from '../use/useTrackFilters';
 
 import { TrackId } from '../track';
