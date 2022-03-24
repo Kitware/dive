@@ -331,6 +331,7 @@ def export_tracks_as_csv(
     fps=None,
     header=True,
     typeFilter=None,
+    revision=None,
 ) -> Generator[str, None, None]:
     """
     Export track json to a CSV format.
@@ -353,6 +354,8 @@ def export_tracks_as_csv(
         metadata = {}
         if fps is not None:
             metadata["fps"] = fps
+        if revision is not None:
+            metadata["revision"] = revision
         writeHeader(writer, metadata)
 
     for t in track_iterator:

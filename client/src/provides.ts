@@ -1,6 +1,6 @@
 import IntervalTree from '@flatten-js/interval-tree';
 import {
-  provide, inject, ref, Ref,
+  provide, inject, ref, Ref, reactive,
 } from '@vue/composition-api';
 
 import { AnnotatorPreferences as AnnotatorPrefsIface } from './types';
@@ -54,8 +54,14 @@ type MergeList = Readonly<Ref<readonly TrackId[]>>;
 const PendingSaveCountSymbol = Symbol('pendingSaveCount');
 type pendingSaveCountType = Readonly<Ref<number>>;
 
+const ProgressSymbol = Symbol('progress');
+type ProgressType = Readonly<{ loaded: boolean }>;
+
 const IntervalTreeSymbol = Symbol('intervalTree');
 type IntervalTreeType = Readonly<IntervalTree>;
+
+const RevisionIdSymbol = Symbol('revisionId');
+type RevisionIdType = Readonly<Ref<number>>;
 
 const TrackMapSymbol = Symbol('trackMap');
 type TrackMapType = Readonly<Map<TrackId, Track>>;
@@ -221,6 +227,8 @@ export interface State {
   intervalTree: IntervalTreeType;
   mergeList: MergeList;
   pendingSaveCount: pendingSaveCountType;
+  progress: ProgressType;
+  revisionId: RevisionIdType;
   trackMap: TrackMapType;
   typeStyling: TypeStylingType;
   selectedKey: SelectedKeyType;
@@ -259,6 +267,8 @@ function dummyState(): State {
     intervalTree: new IntervalTree(),
     mergeList: ref([]),
     pendingSaveCount: ref(0),
+    progress: reactive({ loaded: true }),
+    revisionId: ref(0),
     trackMap: new Map<TrackId, Track>(),
     typeStyling: ref({
       color() { return style.color; },
@@ -309,6 +319,8 @@ function provideAnnotator(state: State, handler: Handler) {
   provide(IntervalTreeSymbol, state.intervalTree);
   provide(MergeListSymbol, state.mergeList);
   provide(PendingSaveCountSymbol, state.pendingSaveCount);
+  provide(ProgressSymbol, state.progress);
+  provide(RevisionIdSymbol, state.revisionId);
   provide(TrackMapSymbol, state.trackMap);
   provide(TracksSymbol, state.filteredTracks);
   provide(TypeStylingSymbol, state.typeStyling);
@@ -387,6 +399,14 @@ function usePendingSaveCount() {
   return use<pendingSaveCountType>(PendingSaveCountSymbol);
 }
 
+function useProgress() {
+  return use<ProgressType>(ProgressSymbol);
+}
+
+function useRevisionId() {
+  return use<RevisionIdType>(RevisionIdSymbol);
+}
+
 function useTrackMap() {
   return use<TrackMapType>(TrackMapSymbol);
 }
@@ -441,8 +461,10 @@ export {
   useIntervalTree,
   useMergeList,
   usePendingSaveCount,
+  useProgress,
   useTrackMap,
   useFilteredTracks,
+  useRevisionId,
   useTypeStyling,
   useSelectedKey,
   useSelectedTrackId,

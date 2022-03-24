@@ -76,6 +76,14 @@ class AnnotationResource(Resource):
             dataType="boolean",
             default=False,
         )
+        .param(
+            "revisionId",
+            "Optional revision to export from",
+            paramType="query",
+            dataType="integer",
+            default=None,
+            required=False,
+        )
         .jsonParam(
             "typeFilter",
             "List of track types to filter by",
@@ -85,13 +93,16 @@ class AnnotationResource(Resource):
             requireArray=True,
         )
     )
-    def export(self, folder, excludeBelowThreshold: bool, typeFilter: Optional[List[str]]):
+    def export(
+        self, folder, excludeBelowThreshold: bool, revisionId: int, typeFilter: Optional[List[str]]
+    ):
         crud.verify_dataset(folder)
         filename, gen = crud_annotation.get_annotation_csv_generator(
             folder,
             self.getCurrentUser(),
             excludeBelowThreshold=excludeBelowThreshold,
             typeFilter=typeFilter,
+            revision=revisionId,
         )
         setContentDisposition(filename, mime='text/csv')
         return gen

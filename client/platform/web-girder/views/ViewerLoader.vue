@@ -1,19 +1,21 @@
 <script lang="ts">
 import {
-  computed,
-  defineComponent, onBeforeUnmount, onMounted, ref, toRef, watch,
+  computed, defineComponent, onBeforeUnmount, onMounted, ref, toRef, watch,
 } from '@vue/composition-api';
 
 import Viewer from 'dive-common/components/Viewer.vue';
 import NavigationTitle from 'dive-common/components/NavigationTitle.vue';
 import RunPipelineMenu from 'dive-common/components/RunPipelineMenu.vue';
 import ImportAnnotations from 'dive-common/components/ImportAnnotations.vue';
+import SidebarContext from 'dive-common/components/SidebarContext.vue';
+import context from 'dive-common/store/context';
 import { useStore } from 'platform/web-girder/store/types';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import JobsTab from './JobsTab.vue';
 import Export from './Export.vue';
 import Clone from './Clone.vue';
 import ViewerAlert from './ViewerAlert.vue';
+import RevisionHistory from './RevisionHistory.vue';
 
 const buttonOptions = {
   text: true,
@@ -28,6 +30,11 @@ const menuOptions = {
   bottom: true,
 };
 
+context.register({
+  component: RevisionHistory,
+  description: 'Revision History',
+});
+
 /**
  * ViewerLoader is responsible for loading
  * data from girder.
@@ -41,7 +48,10 @@ export default defineComponent({
     NavigationTitle,
     Viewer,
     ImportAnnotations,
+    RevisionHistory,
+    SidebarContext,
     ViewerAlert,
+    ...context.getComponents(),
   },
 
   props: {
@@ -62,7 +72,7 @@ export default defineComponent({
     }
   },
 
-  setup(props) {
+  setup(props, ctx) {
     const { prompt } = usePrompt();
     const viewerRef = ref();
     const store = useStore();
@@ -81,6 +91,12 @@ export default defineComponent({
       }
       return results;
     });
+
+    if (props.revision) {
+      /* When a revision is loaded, toggle the revision history on */
+      context.state.active = 'RevisionHistory';
+    }
+
     watch(currentJob, async () => {
       if (currentJob.value !== false && currentJob.value !== undefined) {
         if (currentJob.value.success) {
@@ -117,15 +133,24 @@ export default defineComponent({
       window.removeEventListener('beforeunload', viewerRef.value.warnBrowserExit);
     });
 
+    function routeRevision(revisionId: number) {
+      ctx.root.$router.replace({
+        name: 'revision viewer',
+        params: { id: props.id, revision: revisionId.toString() },
+      });
+    }
+
     return {
       buttonOptions,
       brandData,
+      context,
       menuOptions,
       revisionNum,
       viewerRef,
       getters,
       currentJob,
       runningPipelines,
+      routeRevision,
     };
   },
 });
@@ -134,7 +159,7 @@ export default defineComponent({
 <template>
   <Viewer
     :id="id"
-    :key="`${id}/${revisionNum}`"
+    :key="id"
     ref="viewerRef"
     :revision="revisionNum"
     :read-only-mode="!!getters['Jobs/datasetRunningState'](id)"
@@ -155,17 +180,34 @@ export default defineComponent({
         <JobsTab />
       </v-tabs>
     </template>
+    <template #extension-right>
+      <v-divider
+        vertical
+        class="mx-2"
+      />
+      <v-btn
+        text
+        small
+        :input-value="context.state.active === 'RevisionHistory'"
+        @click="context.toggle('RevisionHistory')"
+      >
+        <v-icon class="pr-1">
+          mdi-history
+        </v-icon>
+        History
+      </v-btn>
+    </template>
     <template #title-right>
       <RunPipelineMenu
         v-bind="{ buttonOptions, menuOptions }"
         :selected-dataset-ids="[id]"
         :running-pipelines="runningPipelines"
+        :read-only-mode="revisionNum !== undefined"
       />
       <ImportAnnotations
-        v-bind="{ buttonOptions,
-                  menuOptions,
-                  readOnlyMode: !!getters['Jobs/datasetRunningState'](id),
-        }"
+        :button-options="buttonOptions"
+        :menu-options="menuOptions"
+        :read-only-mode="!!getters['Jobs/datasetRunningState'](id) || revisionNum !== undefined"
         :dataset-id="id"
         block-on-unsaved
       />
@@ -180,6 +222,16 @@ export default defineComponent({
         :dataset-id="id"
         :revision="revisionNum"
       />
+    </template>
+    <template #right-sidebar>
+      <SidebarContext>
+        <template #default="{ name }">
+          <component
+            :is="name"
+            @update:revision="routeRevision"
+          />
+        </template>
+      </SidebarContext>
     </template>
   </Viewer>
 </template>

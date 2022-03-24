@@ -34,7 +34,6 @@ import UserGuideButton from 'dive-common/components/UserGuideButton.vue';
 import DeleteControls from 'dive-common/components/DeleteControls.vue';
 import ControlsContainer from 'dive-common/components/ControlsContainer.vue';
 import Sidebar from 'dive-common/components/Sidebar.vue';
-import SidebarContext from 'dive-common/components/SidebarContext.vue';
 import { useModeManager, useSave } from 'dive-common/use';
 import clientSettingsSetup, { clientSettings } from 'dive-common/store/settings';
 import { useApi, FrameImage, DatasetType } from 'dive-common/apispec';
@@ -48,7 +47,6 @@ export default defineComponent({
     ControlsContainer,
     DeleteControls,
     Sidebar,
-    SidebarContext,
     LayerManager,
     VideoAnnotator,
     ImageAnnotator,
@@ -422,6 +420,8 @@ export default defineComponent({
         intervalTree,
         mergeList,
         pendingSaveCount,
+        progress,
+        revisionId: toRef(props, 'revision'),
         trackMap,
         filteredTracks,
         typeStyling,
@@ -555,6 +555,7 @@ export default defineComponent({
             {{ item }} {{ item === defaultCamera ? '(Default)': '' }}
           </template>
         </v-select>
+        <slot name="extension-right" />
       </template>
 
       <slot name="title-right" />
@@ -666,7 +667,7 @@ export default defineComponent({
           </v-progress-circular>
         </div>
       </v-col>
-      <SidebarContext />
+      <slot name="right-sidebar" />
     </v-row>
   </v-main>
 </template>
