@@ -1,5 +1,6 @@
 from typing import List, Optional
 
+import cherrypy
 from girder.api import access
 from girder.api.describe import Description, autoDescribeRoute
 from girder.api.rest import Resource, rawResponse
@@ -29,8 +30,10 @@ class DatasetResource(Resource):
         super(DatasetResource, self).__init__()
         self.resourceName = resourceName
 
-        self.route("POST", (), self.create_dataset)
+        # Expose clone identifier
+        Folder().exposeFields(AccessType.READ, constants.ForeignMediaIdMarker)
 
+        self.route("POST", (), self.create_dataset)
         self.route("GET", (), self.list_datasets)
         self.route("GET", (":id",), self.get_meta)
         self.route("GET", (":id", "media"), self.get_media)
@@ -111,7 +114,15 @@ class DatasetResource(Resource):
             files = list(Item().childFiles(item))
             if len(files) != 1:
                 raise RestException('Expected one file', code=400)
-            return File().download(files[0])
+            file = files[0]
+            rangeHeader = cherrypy.lib.httputil.get_ranges(
+                cherrypy.request.headers.get('Range'), file.get('size', 0))
+            # The HTTP Range header takes precedence over query params
+            offset, endByte = (0, None)
+            if rangeHeader and len(rangeHeader):
+                # Currently we only support a single range.
+                offset, endByte = rangeHeader[0]
+            return File().download(file, offset, endByte=endByte)
         else:
             raise RestException('Media is not found', code=404)
 
