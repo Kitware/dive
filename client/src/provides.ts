@@ -60,9 +60,6 @@ type IntervalTreeType = Readonly<IntervalTree>;
 const CamMapSymbol = Symbol('camMap');
 type CamMapType = Readonly<Map<string, Map<TrackId, Track>>>;
 
-const CamTrackMapSymbol = Symbol('camTrackMap');
-type CamTrackMapType = Readonly<Record<string, Map<TrackId, Track>>>;
-
 const TracksSymbol = Symbol('tracks');
 type FilteredTracksType = Readonly<Ref<readonly TrackWithContext[]>>;
 
@@ -405,9 +402,6 @@ function usePendingSaveCount() {
 
 function useCamMap() {
   return use<CamMapType>(CamMapSymbol);
-}
-function useCamTrackMap() {
-  return use<CamTrackMapType>(CamTrackMapSymbol);
 }
 
 function useFilteredTracks() {

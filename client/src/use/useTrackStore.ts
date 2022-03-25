@@ -193,12 +193,6 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
     }
   }
 
-  function addCamera(cameraName: string) {
-    if (camTrackMap[cameraName] === undefined) {
-      camTrackMap[cameraName] = new Map<TrackId, Track>();
-    }
-  }
-
   function insertTrack(track: Track, args?: InsertArgs) {
     const cameraName = args?.cameraName ?? 'singleCam';
     track.setNotifier(cameraOnChange(cameraName));

@@ -597,7 +597,6 @@ export default defineComponent({
       readonlyState,
       /* methods */
       handler: globalHandler,
-      loadImageFunc,
       save,
       saveThreshold,
       updateTime,
@@ -662,12 +661,30 @@ export default defineComponent({
             {{ item }} {{ item === defaultCamera ? '(Default)': '' }}
           </template>
         </v-select>
-        <v-btn
+        <v-badge
           v-if="multiCamList.length > 1"
-          @click="context.toggle('MultiCamTools')"
+          overlap
+          bottom
+          right
+          color="clear"
+          class="pl-1"
         >
-          MultiCam Settings
-        </v-btn>
+          <template v-slot:badge>
+            <v-icon>
+              mdi-cog
+            </v-icon>
+          </template>
+          <v-btn
+            icon
+            small
+            title="MultiCamera Settings"
+            @click="context.toggle('MultiCamTools')"
+          >
+            <v-icon>
+              mdi-camera
+            </v-icon>
+          </v-btn>
+        </v-badge>
       </template>
 
       <slot name="title-right" />
