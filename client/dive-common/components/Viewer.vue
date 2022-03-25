@@ -127,7 +127,6 @@ export default defineComponent({
 
     const {
       imageEnhancements,
-      loadImageEnhancements,
       brightness,
       intercept,
       setSVGFilters,
@@ -399,6 +398,7 @@ export default defineComponent({
       const newId = `${baseMulticamDatasetId.value}/${camera}`;
       ctx.emit('update:id', newId);
     };
+
     const globalHandler = {
       ...handler,
       save,

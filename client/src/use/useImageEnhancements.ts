@@ -4,6 +4,8 @@ import {
   ref, Ref, set as VueSet,
 } from '@vue/composition-api';
 
+// Expecting this may be a placeholder for more complicated client side enhancements
+// or more CSS filters
 export interface ImageEnhancements {
     blackPoint?: number;
     whitePoint?: number;
@@ -19,11 +21,6 @@ export interface ImageEnhancements {
 
 export default function useImageEnhancements({ markChangesPending }: ImageEnhancementParams) {
   const imageEnhancements: Ref<ImageEnhancements> = ref({});
-
-
-  function loadImageEnhancements(metadataEnhancements: ImageEnhancements) {
-    imageEnhancements.value = metadataEnhancements;
-  }
 
   const setSVGFilters = ({ blackPoint, whitePoint }:
     {blackPoint?: number; whitePoint?: number }) => {
@@ -53,6 +50,5 @@ export default function useImageEnhancements({ markChangesPending }: ImageEnhanc
     brightness,
     intercept,
     setSVGFilters,
-    loadImageEnhancements,
   };
 }

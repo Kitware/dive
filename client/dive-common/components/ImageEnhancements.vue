@@ -10,12 +10,12 @@ export default defineComponent({
     const { setSVGFilters } = useHandler();
     const imageEnhancements = useImageEnhancements();
     const range = ref([
-      imageEnhancements.value.blackPoint ?? 0,
-      imageEnhancements.value.blackPoint ?? 1,
+      (imageEnhancements.value.blackPoint ?? 0) * 255.0,
+      (imageEnhancements.value.whitePoint ?? 1) * 255.0,
     ]);
 
     const modifyValue = () => {
-      setSVGFilters({ blackPoint: range.value[0], whitePoint: range.value[1] });
+      setSVGFilters({ blackPoint: range.value[0] / 255.0, whitePoint: range.value[1] / 255.0 });
     };
     return {
       modifyValue,
@@ -33,8 +33,8 @@ export default defineComponent({
     <v-range-slider
       v-model="range"
       :min="0"
-      :max="1"
-      :step="0.01"
+      :max="255"
+      :step="1.0"
       thumb-label="always"
       label="Low/High"
       @input="modifyValue"
