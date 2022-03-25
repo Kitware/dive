@@ -141,6 +141,7 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
   const camMap = new Map<string, Map<TrackId, Track>>();
   // Requires a camera for initialization before loading
   camMap.set('singleCam', new Map<TrackId, Track>());
+  // internval Tree should be the same because all overlapping tracks have the same Id and length
   const intervalTree = new IntervalTree();
 
   /* Reactive state
@@ -154,9 +155,6 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
    */
   const trackIds: Ref<Array<TrackId>> = ref([]);
   const canary = ref(0);
-
-  // Multi-Camera Support
-  // internval Tree should be the same because all overlapping tracks have the same Id and length
 
   function _depend(): number {
     return canary.value;
@@ -192,6 +190,12 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
   function removeCamera(cameraName: string) {
     if (camMap.get(cameraName) !== undefined) {
       camMap.delete(cameraName);
+    }
+  }
+
+  function addCamera(cameraName: string) {
+    if (camTrackMap[cameraName] === undefined) {
+      camTrackMap[cameraName] = new Map<TrackId, Track>();
     }
   }
 

@@ -196,7 +196,6 @@ export function useMediaController(selectedCamera: Ref<string>) {
       },
     });
 
-
     function setCursor(newCursor: string) {
       state[camera].cursor = `${newCursor}`;
     }

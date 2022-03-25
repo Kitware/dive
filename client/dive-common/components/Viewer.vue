@@ -48,10 +48,6 @@ export interface ImageDataItem {
   filename: string;
 }
 
-function loadImageFunc(imageDataItem: ImageDataItem, img: HTMLImageElement) {
-  // eslint-disable-next-line no-param-reassign
-  img.src = imageDataItem.url;
-}
 
 export default defineComponent({
   components: {
@@ -504,6 +500,9 @@ export default defineComponent({
       }
     }
     const observer = new ResizeObserver(handleResize);
+    /* On a reload this will watch the controls element and add on observer
+     * so that once done loading the or if the controlsRef is collapsed it will resize all cameras
+    */
     watch(controlsRef, (previous) => {
       if (previous) observer.unobserve(previous.$el);
       if (controlsRef.value) observer.observe(controlsRef.value.$el);
@@ -761,7 +760,7 @@ export default defineComponent({
                 :class="{'selected-camera': selectedCamera === camera && camera !== 'singleCam'}"
                 v-bind="{
                   imageData: imageData[camera], videoUrl: videoUrl[camera],
-                  updateTime, frameRate, originalFps, loadImageFunc, camera }"
+                  updateTime, frameRate, originalFps, camera }"
               >
                 <LayerManager :camera="camera" />
               </component>
