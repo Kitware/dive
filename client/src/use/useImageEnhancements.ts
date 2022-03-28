@@ -5,14 +5,14 @@ import {
 } from '@vue/composition-api';
 
 // Expecting this may be a placeholder for more complicated client side enhancements
-// or more CSS filters
+// or more image filters
 export interface ImageEnhancements {
     blackPoint?: number;
     whitePoint?: number;
   }
 
   /**
-   * Modified markChangesPending for image Enhancments specifically
+   * Modified markChangesPending for image Enhancments specifically when it is saved per dataset
    */
   interface ImageEnhancementParams {
     markChangesPending: () => void;

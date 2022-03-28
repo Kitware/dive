@@ -28,17 +28,28 @@ export default defineComponent({
 <template>
   <div class="mx-4">
     <span class="text-body-2">
-      Controls for adjusting white balance of images.
+      Controls for adjusting images.
     </span>
+    <v-divider class="my-3" />
     <v-range-slider
       v-model="range"
       :min="0"
       :max="255"
       :step="1.0"
       thumb-label="always"
-      label="Low/High"
+      label="Contrast:"
+      class="my-4"
       @input="modifyValue"
     />
+    <v-btn
+      block
+      depressed
+      color="warning"
+      class="my-2"
+      @click="range = [0, 255]; modifyValue()"
+    >
+      Reset
+    </v-btn>
   </div>
 </template>
 
