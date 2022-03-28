@@ -1,6 +1,6 @@
 import IntervalTree from '@flatten-js/interval-tree';
 import {
-  provide, inject, ref, Ref,
+  provide, inject, ref, Ref, reactive,
 } from '@vue/composition-api';
 
 import { AnnotatorPreferences as AnnotatorPrefsIface } from './types';
@@ -54,11 +54,17 @@ type MergeList = Readonly<Ref<readonly TrackId[]>>;
 const PendingSaveCountSymbol = Symbol('pendingSaveCount');
 type pendingSaveCountType = Readonly<Ref<number>>;
 
+const ProgressSymbol = Symbol('progress');
+type ProgressType = Readonly<{ loaded: boolean }>;
+
 const IntervalTreeSymbol = Symbol('intervalTree');
 type IntervalTreeType = Readonly<IntervalTree>;
 
 const CamMapSymbol = Symbol('camMap');
 type CamMapType = Readonly<Map<string, Map<TrackId, Track>>>;
+
+const RevisionIdSymbol = Symbol('revisionId');
+type RevisionIdType = Readonly<Ref<number>>;
 
 const TracksSymbol = Symbol('tracks');
 type FilteredTracksType = Readonly<Ref<readonly TrackWithContext[]>>;
@@ -83,6 +89,9 @@ type TimeType = Readonly<Time>;
 
 const VisibleModesSymbol = Symbol('visibleModes');
 type VisibleModesType = Readonly<Ref<readonly VisibleAnnotationTypes[]>>;
+
+const ReadOnlyModeSymbol = Symbol('readOnlyMode');
+type ReadOnylModeType = Readonly<Ref<boolean>>;
 
 /**
  * Handler interface describes all global events mutations
@@ -235,6 +244,8 @@ export interface State {
   mergeList: MergeList;
   pendingSaveCount: pendingSaveCountType;
   camMap: CamMapType;
+  progress: ProgressType;
+  revisionId: RevisionIdType;
   typeStyling: TypeStylingType;
   selectedKey: SelectedKeyType;
   selectedTrackId: SelectedTrackIdType;
@@ -242,6 +253,7 @@ export interface State {
   stateStyles: StateStylesType;
   time: TimeType;
   visibleModes: VisibleModesType;
+  readOnlyMode: ReadOnylModeType;
 }
 
 /**
@@ -273,6 +285,8 @@ function dummyState(): State {
     mergeList: ref([]),
     pendingSaveCount: ref(0),
     camMap: new Map<string, Map<TrackId, Track>>(),
+    progress: reactive({ loaded: true }),
+    revisionId: ref(0),
     typeStyling: ref({
       color() { return style.color; },
       strokeWidth() { return style.strokeWidth; },
@@ -297,6 +311,7 @@ function dummyState(): State {
       originalFps: ref(null),
     },
     visibleModes: ref(['rectangle', 'text'] as VisibleAnnotationTypes[]),
+    readOnlyMode: ref(false),
   };
 }
 
@@ -323,6 +338,8 @@ function provideAnnotator(state: State, handler: Handler) {
   provide(MergeListSymbol, state.mergeList);
   provide(PendingSaveCountSymbol, state.pendingSaveCount);
   provide(CamMapSymbol, state.camMap);
+  provide(ProgressSymbol, state.progress);
+  provide(RevisionIdSymbol, state.revisionId);
   provide(TracksSymbol, state.filteredTracks);
   provide(TypeStylingSymbol, state.typeStyling);
   provide(SelectedKeySymbol, state.selectedKey);
@@ -331,6 +348,7 @@ function provideAnnotator(state: State, handler: Handler) {
   provide(StateStylesSymbol, state.stateStyles);
   provide(TimeSymbol, state.time);
   provide(VisibleModesSymbol, state.visibleModes);
+  provide(ReadOnlyModeSymbol, state.readOnlyMode);
   provide(HandlerSymbol, handler);
 }
 
@@ -404,6 +422,14 @@ function useCamMap() {
   return use<CamMapType>(CamMapSymbol);
 }
 
+function useProgress() {
+  return use<ProgressType>(ProgressSymbol);
+}
+
+function useRevisionId() {
+  return use<RevisionIdType>(RevisionIdSymbol);
+}
+
 function useFilteredTracks() {
   return use<FilteredTracksType>(TracksSymbol);
 }
@@ -435,6 +461,9 @@ function useTime() {
 function useVisibleModes() {
   return use<VisibleModesType>(VisibleModesSymbol);
 }
+function useReadOnlyMode() {
+  return use<ReadOnylModeType>(ReadOnlyModeSymbol);
+}
 
 export {
   dummyHandler,
@@ -456,7 +485,9 @@ export {
   useMergeList,
   usePendingSaveCount,
   useCamMap,
+  useProgress,
   useFilteredTracks,
+  useRevisionId,
   useTypeStyling,
   useSelectedKey,
   useSelectedTrackId,
@@ -464,4 +495,5 @@ export {
   useStateStyles,
   useTime,
   useVisibleModes,
+  useReadOnlyMode,
 };

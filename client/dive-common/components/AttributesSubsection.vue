@@ -10,6 +10,7 @@ import {
   useCamMap,
   useTime,
   useSelectedCamera,
+  useReadOnlyMode,
 } from 'vue-media-annotator/provides';
 import { getTrack, getTrackAll } from 'vue-media-annotator/use/useTrackStore';
 import { Attribute } from 'vue-media-annotator/use/useAttributes';
@@ -37,6 +38,7 @@ export default defineComponent({
     },
   },
   setup(props, { emit }) {
+    const readOnlyMode = useReadOnlyMode();
     const { frame: frameRef } = useTime();
     const selectedTrackIdRef = useSelectedTrackId();
     const selectedCamera = useSelectedCamera();
@@ -113,6 +115,7 @@ export default defineComponent({
       selectedAttributes,
       filteredFullAttributes,
       activeSettings,
+      readOnlyMode,
       //functions
       toggleActiveSettings,
       updateAttribute,
@@ -145,6 +148,7 @@ export default defineComponent({
             <v-btn
               outlined
               x-small
+              :disabled="readOnlyMode"
               v-on="on"
               @click="addAttribute"
             >
@@ -216,6 +220,7 @@ export default defineComponent({
                 v-if="activeSettings"
                 :datatype="attribute.datatype"
                 :name="attribute.name"
+                :disabled="readOnlyMode"
                 :values="attribute.values ? attribute.values : null"
                 :value="
                   selectedAttributes && selectedAttributes.attributes
@@ -237,6 +242,7 @@ export default defineComponent({
                   <AttributeInput
                     :datatype="attribute.datatype"
                     :name="attribute.name"
+                    :disabled="readOnlyMode"
                     :values="attribute.values ? attribute.values : null"
                     :value="
                       selectedAttributes && selectedAttributes.attributes

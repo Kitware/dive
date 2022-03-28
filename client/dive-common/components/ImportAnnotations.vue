@@ -24,6 +24,10 @@ export default defineComponent({
       type: Object,
       default: () => ({}),
     },
+    readOnlyMode: {
+      type: Boolean,
+      default: false,
+    },
   },
   setup(props) {
     const { openFromDisk, importAnnotationFile } = useApi();
@@ -32,32 +36,32 @@ export default defineComponent({
     const processing = ref(false);
     const menuOpen = ref(false);
     const openUpload = async () => {
-      const ret = await openFromDisk('annotation');
-      if (!ret.canceled) {
-        menuOpen.value = false;
-        const path = ret.filePaths[0];
-        let importFile = false;
-        processing.value = true;
-        try {
+      try {
+        const ret = await openFromDisk('annotation');
+        if (!ret.canceled) {
+          menuOpen.value = false;
+          const path = ret.filePaths[0];
+          let importFile = false;
+          processing.value = true;
           if (ret.fileList?.length) {
             importFile = await importAnnotationFile(props.datasetId, path, ret.fileList[0]);
           } else {
             importFile = await importAnnotationFile(props.datasetId, path);
           }
-        } catch (error) {
-          const text = [`Import of File ${path} failed`, getResponseError(error)];
-          prompt({
-            title: 'Import Failed',
-            text,
-            positiveButton: 'OK',
-          });
-          processing.value = false;
-          return;
+
+          if (importFile) {
+            processing.value = false;
+            await reloadAnnotations();
+          }
         }
-        if (importFile) {
-          processing.value = false;
-          await reloadAnnotations();
-        }
+      } catch (error) {
+        const text = [getResponseError(error)];
+        prompt({
+          title: 'Import Failed',
+          text,
+          positiveButton: 'OK',
+        });
+        processing.value = false;
       }
     };
     return {
@@ -103,7 +107,14 @@ export default defineComponent({
       </v-tooltip>
     </template>
     <template>
+      <v-card v-if="readOnlyMode">
+        <v-card-title> Read only Mode</v-card-title>
+        <v-card-text>
+          This Dataset is in ReadOnly Mode.  You cannot import annotations for this dataset.
+        </v-card-text>
+      </v-card>
       <v-card
+        v-else
         outlined
       >
         <v-card-title>

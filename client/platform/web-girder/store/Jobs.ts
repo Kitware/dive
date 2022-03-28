@@ -20,34 +20,69 @@ const jobModule: Module<JobState, RootState> = {
   state: {
     jobIds: {},
     datasetStatus: {},
+    completeJobsInfo: {},
   },
   getters: {
     runningJobIds(state) {
       return Object.values(state.jobIds).filter((v) => !NonRunningStates.includes(v)).length >= 1;
     },
-    datasetRunningState: (state) => (datasetId: string) => (
-      datasetId in state.datasetStatus && !NonRunningStates.includes(state.datasetStatus[datasetId])
-    ),
+    datasetRunningState: (state) => (datasetId: string) => {
+      if (datasetId in state.datasetStatus
+        && !NonRunningStates.includes(state.datasetStatus[datasetId].status)) {
+        return `/girder/#job/${state.datasetStatus[datasetId].jobId}`;
+      }
+      return false;
+    },
+    datasetCompleteJobs: (state) => (datasetId: string) => {
+      if (datasetId in state.completeJobsInfo) {
+        return (state.completeJobsInfo[datasetId]);
+      }
+      return false;
+    },
   },
   mutations: {
     setJobState(state, { jobId, value }: { jobId: string; value: number }) {
       Vue.set(state.jobIds, jobId, value);
     },
-    setDatasetStatus(state, { datasetId, value }: { datasetId: string; value: number }) {
-      Vue.set(state.datasetStatus, datasetId, value);
+    setDatasetStatus(state, { datasetId, status, jobId }:
+      { datasetId: string; status: number; jobId: string }) {
+      Vue.set(state.datasetStatus, datasetId, { status, jobId });
+    },
+    setCompleteJobsInfo(state, {
+      datasetId, type, title, success,
+    }:
+      { datasetId: string; type: string; title: string; success: boolean }) {
+      Vue.set(state.completeJobsInfo, datasetId, { type, title, success });
+    },
+    removeCompleteJobsInfo(state, { datasetId }: { datasetId: string }) {
+      if (datasetId in state.completeJobsInfo) {
+        Vue.delete(state.completeJobsInfo, datasetId);
+      }
+    },
+  },
+  actions: {
+    removeCompleteJob({ commit }, { datasetId }: {datasetId: string}) {
+      commit('removeCompleteJobsInfo', { datasetId });
     },
   },
 };
 
 export async function init(store: Store<RootState>) {
   const { data: runningJobs } = await girderRest.get<GirderJob[]>('/job', {
-    params: { statuses: `[${JobStatus.RUNNING.value}]` },
+    params: { statuses: `[${JobStatus.RUNNING.value}, ${JobStatus.QUEUED.value}, ${JobStatus.INACTIVE.value}]` },
   });
-
-  function updateJob(job: GirderJob) {
+  function updateJob(job: GirderJob & {type?: string; title?: string}) {
     store.commit('Jobs/setJobState', { jobId: job._id, value: job.status });
     if (typeof job.dataset_id === 'string') {
-      store.commit('Jobs/setDatasetStatus', { datasetId: job.dataset_id, value: job.status });
+      store.commit('Jobs/setDatasetStatus', { datasetId: job.dataset_id, status: job.status, jobId: job._id });
+      if (job.type === 'pipelines' && NonRunningStates.includes(job.status)) {
+        store.commit('Jobs/setCompleteJobsInfo', {
+          datasetId: job.dataset_id,
+          type: job.type,
+          title: job.title,
+          success: job.status === JobStatus.SUCCESS.value,
+        });
+      }
     }
   }
 

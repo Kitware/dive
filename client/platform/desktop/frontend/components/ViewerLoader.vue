@@ -6,7 +6,8 @@ import {
 import Viewer from 'dive-common/components/Viewer.vue';
 import RunPipelineMenu from 'dive-common/components/RunPipelineMenu.vue';
 import ImportAnnotations from 'dive-common//components/ImportAnnotations.vue';
-
+import SidebarContext from 'dive-common/components/SidebarContext.vue';
+import context from 'dive-common/store/context';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import Export from './Export.vue';
 import JobTab from './JobTab.vue';
@@ -33,8 +34,10 @@ export default defineComponent({
     Export,
     JobTab,
     RunPipelineMenu,
+    SidebarContext,
     Viewer,
     ImportAnnotations,
+    ...context.getComponents(),
   },
   props: {
     id: { // always the base ID
@@ -79,6 +82,17 @@ export default defineComponent({
       }
       return props.id;
     });
+
+    const readOnlyMode = computed(() => settings.value?.readonlyMode || false);
+
+    const runningPipelines = computed(() => {
+      const results: string[] = [];
+      if (runningJobs.value.find((item) => item.job.datasetIds.includes(props.id))) {
+        results.push(props.id);
+      }
+      return results;
+    });
+
     return {
       datasets,
       compoundId,
@@ -90,6 +104,8 @@ export default defineComponent({
       readonlyMode,
       modifiedId,
       changeCamera,
+      readOnlyMode,
+      runningPipelines,
     };
   },
 });
@@ -99,7 +115,7 @@ export default defineComponent({
   <Viewer
     :id.sync="compoundId"
     ref="viewerRef"
-    :readonly-mode="readonlyMode"
+    :read-only-mode="readOnlyMode || runningPipelines.length > 0"
     @change-camera="changeCamera"
   >
     <template #title>
@@ -126,11 +142,13 @@ export default defineComponent({
         :selected-dataset-ids="[modifiedId]"
         :sub-type-list="subTypeList"
         :camera-numbers="camNumbers"
+        :running-pipelines="runningPipelines"
+        :read-only-mode="readOnlyMode"
         v-bind="{ buttonOptions, menuOptions }"
       />
       <ImportAnnotations
         :dataset-id="modifiedId"
-        v-bind="{ buttonOptions, menuOptions }"
+        v-bind="{ buttonOptions, menuOptions, readOnlyMode }"
         block-on-unsaved
       />
       <Export
@@ -138,6 +156,13 @@ export default defineComponent({
         :id="modifiedId"
         :button-options="buttonOptions"
       />
+    </template>
+    <template #right-sidebar>
+      <SidebarContext>
+        <template #default="{ name }">
+          <component :is="name" />
+        </template>
+      </SidebarContext>
     </template>
   </Viewer>
 </template>

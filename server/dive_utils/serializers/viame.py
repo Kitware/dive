@@ -248,7 +248,8 @@ def load_csv_as_tracks_and_attributes(
     metadata_attributes: Dict[str, Dict[str, Any]] = {}
     test_vals: Dict[str, Dict[str, int]] = {}
     reordered = False
-    has_image_filenames: Union[None, bool] = None
+    anyImageMatched = False
+    missingImages: List[str] = []
     for row in reader:
         if len(row) == 0 or row[0].startswith('#'):
             # This is not a data row
@@ -261,27 +262,20 @@ def load_csv_as_tracks_and_attributes(
         ) = _parse_row_for_tracks(row)
 
         trackId, imageFile, _, _, _ = row_info(row)
-        current_has_filename = imageFile.strip() != ''
-        if has_image_filenames is None and imageMap:
-            has_image_filenames = current_has_filename
-        elif imageMap and has_image_filenames != current_has_filename:
-            raise ValueError(
-                'There was a mixture of fields that specified image names and fields that'
-                ' did not.  Please check the CSV'
-            )
-            return
-        if imageMap and has_image_filenames:
+
+        if imageMap:
             # validate image ordering if the imageMap is provided
             imageName, _ = os.path.splitext(os.path.basename(imageFile))
             expectedFrameNumber = imageMap.get(imageName)
             if expectedFrameNumber is None:
-                raise ValueError(
-                    f'encountered annotation for image not found in dataset: {imageFile}'
-                )
+                missingImages.append(imageFile)
             elif expectedFrameNumber is not feature.frame:
                 # force reorder the annotations
                 reordered = True
+                anyImageMatched = True
                 feature.frame = expectedFrameNumber
+            else:
+                anyImageMatched = True
 
         if trackId not in tracks:
             tracks[trackId] = Track(begin=feature.frame, end=feature.frame, trackId=trackId)
@@ -305,10 +299,27 @@ def load_csv_as_tracks_and_attributes(
             create_attributes(metadata_attributes, test_vals, 'track', key, val)
         for (key, val) in attributes.items():
             create_attributes(metadata_attributes, test_vals, 'detection', key, val)
+
+    trackarr = tracks.items()
+
+    if imageMap and len(missingImages) and anyImageMatched:
+        examples = ', '.join(missingImages[:3])
+        raise ValueError(
+            ' '.join(
+                [
+                    'CSV import was found to have a mix of missing images and images that',
+                    'were found in the data. This usually indicates a problem with the',
+                    'annotation file, but if you want to force the import to proceed, you',
+                    'can set all values in the Image Name column to be blank.  Then DIVE',
+                    'will not attempt to validate image names.',
+                    f'Missing images include: {examples}...',
+                ]
+            )
+        )
     # Now we process all the metadata_attributes for the types
     calculate_attribute_types(metadata_attributes, test_vals)
 
-    track_json = {trackId: track.dict(exclude_none=True) for trackId, track in tracks.items()}
+    track_json = {trackId: track.dict(exclude_none=True) for trackId, track in trackarr}
     return track_json, metadata_attributes
 
 
@@ -320,20 +331,16 @@ def export_tracks_as_csv(
     fps=None,
     header=True,
     typeFilter=None,
+    revision=None,
 ) -> Generator[str, None, None]:
     """
     Export track json to a CSV format.
 
     :param excludeBelowThreshold: omit tracks below a certain confidence.  Requires thresholds.
-
     :param thresholds: key/value pairs with threshold values
-
     :param filenames: list of string file names.  filenames[n] should be the image at frame n
-
     :param fps: if FPS is set, column 2 will be video timestamp derived from (frame / fps)
-
     :param header: include or omit header
-
     :param typeFilter: set of track types to only export if not empty
     """
     if thresholds is None:
@@ -347,6 +354,8 @@ def export_tracks_as_csv(
         metadata = {}
         if fps is not None:
             metadata["fps"] = fps
+        if revision is not None:
+            metadata["revision"] = revision
         writeHeader(writer, metadata)
 
     for t in track_iterator:

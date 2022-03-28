@@ -19,6 +19,7 @@ import {
   useFilteredTracks,
   useTypeStyling,
   useTime,
+  useReadOnlyMode,
 } from '../provides';
 import TrackItem from './TrackItem.vue';
 
@@ -63,6 +64,7 @@ export default defineComponent({
 
   setup(props) {
     const { prompt } = usePrompt();
+    const readOnlyMode = useReadOnlyMode();
     const allTypesRef = useAllTypes();
     const checkedTrackIdsRef = useCheckedTrackIds();
     const editingModeRef = useEditingMode();
@@ -217,7 +219,7 @@ export default defineComponent({
         {
           bind: 'del',
           handler: () => {
-            if (selectedTrackIdRef.value !== null) {
+            if (!readOnlyMode.value && selectedTrackIdRef.value !== null) {
               removeTrack([selectedTrackIdRef.value]);
             }
           },
@@ -225,7 +227,8 @@ export default defineComponent({
         },
         {
           bind: 'x',
-          handler: () => trackSplit(selectedTrackIdRef.value, frameRef.value),
+          handler: () => !readOnlyMode.value
+          && trackSplit(selectedTrackIdRef.value, frameRef.value),
           disabled,
         },
       ];
@@ -240,6 +243,7 @@ export default defineComponent({
       mouseTrap,
       newTrackColor,
       filteredTracks: filteredTracksRef,
+      readOnlyMode,
       trackAdd,
       virtualHeight,
       virtualListItems,
@@ -289,7 +293,7 @@ export default defineComponent({
           >
             <template #activator="{ on }">
               <v-btn
-                :disabled="filteredTracks.length === 0"
+                :disabled="filteredTracks.length === 0 || readOnlyMode"
                 icon
                 small
                 class="mr-2"
@@ -313,6 +317,7 @@ export default defineComponent({
           >
             <template #activator="{ on }">
               <v-btn
+                :disabled="readOnlyMode"
                 outlined
                 x-small
                 class="mr-2"

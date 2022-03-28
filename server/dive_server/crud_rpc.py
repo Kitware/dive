@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta
 import json
 from typing import Dict, List, Optional, Tuple
 
@@ -6,6 +7,7 @@ from girder.exceptions import RestException
 from girder.models.file import File
 from girder.models.folder import Folder
 from girder.models.item import Item
+from girder.models.notification import Notification
 from girder.models.setting import Setting
 from girder.models.token import Token
 from girder_jobs.models.job import Job, JobStatus
@@ -185,6 +187,13 @@ def run_pipeline(
     # see and possibly manage the job
     Job().copyAccessPolicies(folder, newjob.job)
     Job().save(newjob.job)
+    # Inform Client of new Job added in inactive state
+    Notification().createNotification(
+        type='job_status',
+        data=newjob.job,
+        user=user,
+        expires=datetime.now() + timedelta(seconds=30),
+    )
     return newjob.job
 
 

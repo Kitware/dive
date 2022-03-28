@@ -110,6 +110,7 @@ export default abstract class BaseLayer<D> {
       return {
         strokeColor: 'black',
         strokeWidth: 1.0,
+        antialiasing: 0,
       };
     }
 }

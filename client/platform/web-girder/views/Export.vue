@@ -2,7 +2,9 @@
 import {
   computed, defineComponent, ref, shallowRef, toRef, watch, PropType, Ref,
 } from '@vue/composition-api';
-import { usePendingSaveCount, useHandler, useCheckedTypes } from 'vue-media-annotator/provides';
+import {
+  usePendingSaveCount, useHandler, useCheckedTypes, useRevisionId,
+} from 'vue-media-annotator/provides';
 import AutosavePrompt from 'dive-common/components/AutosavePrompt.vue';
 import { useRequest } from 'dive-common/use';
 import {
@@ -43,10 +45,12 @@ export default defineComponent({
     let save = () => Promise.resolve();
     let pendingSaveCount = ref(0);
     let checkedTypes = ref([] as readonly string[]);
+    let revisionId = ref(null as null | number);
     if (props.blockOnUnsaved) {
       save = useHandler().save;
       pendingSaveCount = usePendingSaveCount();
       checkedTypes = useCheckedTypes();
+      revisionId = useRevisionId();
     }
 
     async function doExport({ forceSave = false, url }: { url?: string; forceSave?: boolean }) {
@@ -103,7 +107,10 @@ export default defineComponent({
         return {
           exportAllUrl: getUri({
             url: 'dive_dataset/export',
-            params: { ...params, folderIds: JSON.stringify([singleDataSetId.value]) },
+            params: {
+              ...params,
+              folderIds: JSON.stringify([singleDataSetId.value]),
+            },
           }),
           exportMediaUrl: dataset.value?.type === 'video'
             ? datasetMedia.value?.video?.url
@@ -118,7 +125,11 @@ export default defineComponent({
             }),
           exportDetectionsUrl: getUri({
             url: 'dive_annotation/export',
-            params: { ...params, folderId: singleDataSetId.value },
+            params: {
+              ...params,
+              folderId: singleDataSetId.value,
+              revisionId: revisionId.value,
+            },
           }),
           exportConfigurationUrl: getUri({
             url: `dive_dataset/${singleDataSetId.value}/configuration`,
@@ -153,6 +164,7 @@ export default defineComponent({
       menuOpen,
       exportUrls,
       checkedTypes,
+      revisionId,
       savePrompt,
       singleDataSetId,
       doExport,
@@ -208,6 +220,13 @@ export default defineComponent({
           Download options
         </v-card-title>
         <v-alert
+          v-if="revisionId"
+          type="info"
+          tile
+        >
+          Revision {{ revisionId }} selected
+        </v-alert>
+        <v-alert
           v-if="error"
           color="error"
           class="mx-2"
@@ -236,7 +255,7 @@ export default defineComponent({
           </v-card-actions>
 
           <v-card-text class="pb-2">
-            <div>Get latest detections csv only</div>
+            <div>Get latest annotation csv only</div>
             <template v-if="dataset.confidenceFilters">
               <v-checkbox
                 v-model="excludeBelowThreshold"
@@ -275,7 +294,7 @@ export default defineComponent({
               :disabled="!exportUrls.exportDetectionsUrl"
               @click="doExport({ url: exportUrls && exportUrls.exportDetectionsUrl })"
             >
-              <span v-if="exportUrls.exportDetectionsUrl">detections</span>
+              <span v-if="exportUrls.exportDetectionsUrl">annotations</span>
               <span v-else>detections unavailable</span>
             </v-btn>
           </v-card-actions>
