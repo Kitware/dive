@@ -54,6 +54,7 @@ export default defineComponent({
     const loading = ref(false);
     const { prompt } = usePrompt();
     const store = useStore();
+    const { getters } = store;
 
     const clearSelected = () => {
       store.commit('Location/setSelected', []);
@@ -68,6 +69,7 @@ export default defineComponent({
       prompt,
       clearSelected,
       eventBus,
+      getters,
     };
   },
   // everything below needs to be refactored to composition-api
@@ -85,6 +87,15 @@ export default defineComponent({
     },
     selectedDescription() {
       return this.location?.description;
+    },
+    runningPipelines() {
+      const results = [];
+      this.locationInputs.forEach((item) => {
+        if (this.getters['Jobs/datasetRunningState'](item)) {
+          results.push(item);
+        }
+      });
+      return results;
     },
   },
   methods: {
@@ -152,6 +163,7 @@ export default defineComponent({
                 <run-pipeline-menu
                   v-bind="{ buttonOptions, menuOptions }"
                   :selected-dataset-ids="locationInputs"
+                  :running-pipelines="runningPipelines"
                 />
                 <export
                   v-bind="{ buttonOptions, menuOptions }"

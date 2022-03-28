@@ -7,7 +7,7 @@ import {
 } from '@vue/composition-api';
 
 import { TypeList, TrackList, injectAggregateController } from 'vue-media-annotator/components';
-import { useAllTypes, useHandler } from 'vue-media-annotator/provides';
+import { useAllTypes, useHandler, useReadOnlyMode } from 'vue-media-annotator/provides';
 
 import { clientSettings } from 'dive-common/store/settings';
 import TrackDetailsPanel from 'dive-common/components/TrackDetailsPanel.vue';
@@ -41,6 +41,7 @@ export default defineComponent({
 
   setup(props) {
     const allTypesRef = useAllTypes();
+    const readOnlyMode = useReadOnlyMode();
     const { toggleMerge, commitMerge } = useHandler();
     const { visible } = usePrompt();
     const trackSettings = toRef(clientSettings, 'trackSettings');
@@ -89,6 +90,7 @@ export default defineComponent({
       data,
       trackSettings,
       typeSettings,
+      readOnlyMode,
       visible,
       /* methods */
       doToggleMerge,
@@ -149,7 +151,7 @@ export default defineComponent({
           :new-track-mode="trackSettings.newTrackSettings.mode"
           :new-track-type="trackSettings.newTrackSettings.type"
           :lock-types="typeSettings.lockTypes"
-          :hotkeys-disabled="visible()"
+          :hotkeys-disabled="visible() || readOnlyMode"
           :height="data.trackHeight"
           @track-seek="seek"
         >
@@ -163,7 +165,7 @@ export default defineComponent({
       <track-details-panel
         v-else-if="data.currentTab === 'attributes'"
         :lock-types="typeSettings.lockTypes"
-        :hotkeys-disabled="visible()"
+        :hotkeys-disabled="visible() || readOnlyMode"
         :width="width"
         @track-seek="seek"
         @toggle-merge="doToggleMerge"

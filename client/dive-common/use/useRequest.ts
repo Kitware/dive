@@ -1,5 +1,5 @@
-import { reactive, toRefs } from '@vue/composition-api';
-import { AxiosError } from 'axios';
+import { reactive, shallowRef, toRefs } from '@vue/composition-api';
+import { AxiosResponse } from 'axios';
 import { getResponseError } from 'vue-media-annotator/utils';
 
 export default function useRequest() {
@@ -35,5 +35,45 @@ export default function useRequest() {
     state,
     request,
     reset,
+  };
+}
+
+export function usePaginatedRequest<T>() {
+  const main = useRequest();
+  const paginationParams = reactive({
+    totalCount: 0,
+    offset: 0,
+    limit: 20,
+  });
+  const allPages = shallowRef([] as T[]);
+
+  function reset() {
+    paginationParams.totalCount = 0;
+    paginationParams.offset = 0;
+    paginationParams.limit = 20;
+    allPages.value = [];
+    main.reset();
+  }
+
+  async function loadNextPage(
+    func: (limit: number, offset: number) => Promise<AxiosResponse<T[]>>,
+  ) {
+    const wrapped = () => main.request(() => func(paginationParams.limit, paginationParams.offset));
+    const nextOffset = paginationParams.offset + paginationParams.limit;
+    const maxOffset = (paginationParams.totalCount + paginationParams.limit);
+    if (nextOffset < maxOffset || main.count.value === 0) {
+      const resp = await wrapped();
+      paginationParams.offset = nextOffset;
+      paginationParams.totalCount = Number.parseInt(resp.headers['girder-total-count'], 10);
+      allPages.value = allPages.value.concat(resp.data);
+    }
+  }
+
+  return {
+    ...main,
+    ...toRefs(paginationParams),
+    allPages,
+    reset,
+    loadNextPage,
   };
 }

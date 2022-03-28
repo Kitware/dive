@@ -9,7 +9,6 @@ export default defineComponent({
       default: 300,
     },
   },
-  components: context.componentMap,
   setup() {
     return { context };
   },
@@ -40,9 +39,7 @@ export default defineComponent({
         </v-btn>
       </v-card-title>
       <div class="sidebar-content">
-        <component
-          :is="context.state.active"
-        />
+        <slot v-bind="{ name: context.state.active }" />
       </div>
     </v-card>
   </div>

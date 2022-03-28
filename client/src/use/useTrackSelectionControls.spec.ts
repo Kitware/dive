@@ -1,6 +1,6 @@
 /// <reference types="jest" />
 import Vue from 'vue';
-import CompositionApi, { computed } from '@vue/composition-api';
+import CompositionApi, { computed, ref } from '@vue/composition-api';
 import Track from '../track';
 import useTrackSelectionControls from './useTrackSelectionControls';
 
@@ -35,7 +35,7 @@ const filteredTracks = computed(() => ([
 
 describe('useTrackSelectionControls', () => {
   it('can select individual tracks', () => {
-    const tsc = useTrackSelectionControls({ filteredTracks });
+    const tsc = useTrackSelectionControls({ filteredTracks, readonlyState: ref(false) });
     expect(tsc.selectedTrackId.value).toBeNull();
 
     tsc.selectTrack(2);
@@ -54,7 +54,7 @@ describe('useTrackSelectionControls', () => {
   });
 
   it('can select next or previous track', () => {
-    const tsc = useTrackSelectionControls({ filteredTracks });
+    const tsc = useTrackSelectionControls({ filteredTracks, readonlyState: ref(false) });
 
     expect(tsc.selectNextTrack()).toBe(0);
 

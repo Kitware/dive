@@ -306,7 +306,7 @@ async function train(
   const jobBase: DesktopJob = {
     key: `pipeline_${job.pid}_${jobWorkDir}`,
     command: command.join(' '),
-    jobType: 'pipeline',
+    jobType: 'training',
     pid: job.pid,
     args: runTrainingArgs,
     title: cleanPipelineName,

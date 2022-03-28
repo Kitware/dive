@@ -246,44 +246,64 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<A
   });
   let fps: number | undefined;
   const dataMap = new Map<number, TrackData>();
+  const missingImages: string[] = [];
   let reordered = false;
+  let anyImageMatched = false;
+  let error: Error;
 
   return new Promise<AnnotationFileData>((resolve, reject) => {
-    pipeline(input, parser, (err) => {
+    pipeline([input, parser], (err) => {
       // undefined err indicates successful exit
       if (err !== undefined) {
         reject(err);
       }
-      resolve({ tracks: Array.from(dataMap.values()), fps });
+      if (error !== undefined) {
+        reject(error);
+      }
+      const tracks = Array.from(dataMap.values());
+
+      if (imageMap !== undefined && missingImages.length > 0 && anyImageMatched) {
+        /**
+         * If any image from CSV was not missing, then some number of images
+         * from column 2 were actually valid and some were not.  This indicates that the dataset
+         * being loaded is probably corrupt.
+         *
+         * If all images were missing, then every single image was missing, which indicates
+         * that the dataset either had all empty values in column 2 or some other type of invalid
+         * string that should not prevent import.
+         */
+        reject([
+          'CSV import was found to have a mix of missing images and images that were found',
+          'in the data. This usually indicates a problem with the annotation file, but if',
+          'you want to force the import to proceed, you can set all values in the',
+          'Image Name column to be blank.  Then DIVE will not attempt to validate image names.',
+          `Missing images include: ${missingImages.slice(0, 5)}...`,
+        ].join(' '));
+      }
+      resolve({ tracks, fps });
     });
     parser.on('readable', () => {
       let record: string[];
-      let hasFilenames: undefined | boolean;
       // eslint-disable-next-line no-cond-assign
       while (record = parser.read()) {
         try {
           const {
             rowInfo, feature, trackAttributes, confidencePairs,
           } = _parseFeature(record);
-          const currentHasFileName = rowInfo.filename.trim() !== '';
-          if (imageMap !== undefined && hasFilenames === undefined) {
-            hasFilenames = currentHasFileName;
-          } else if (imageMap !== undefined && hasFilenames !== currentHasFileName) {
-            throw new Error('Image Filenames specified in the Column 2 of the CSV must either be all set or all empty. Encountered a mixture of set and empty filenames');
-          }
-          if (imageMap !== undefined && hasFilenames) {
+          if (imageMap !== undefined) {
             // validate image ordering if the imageMap is provided and a non-whitespace filename
             const [imageName] = splitExt(rowInfo.filename);
             const expectedFrameNumber = imageMap.get(imageName);
             if (expectedFrameNumber === undefined) {
-              throw new Error(
-                `encountered annotation for image not found in dataset: ${rowInfo.filename}`,
-              );
+              missingImages.push(rowInfo.filename);
             } else if (expectedFrameNumber !== feature.frame) {
               // force reorder the annotations
               reordered = true;
+              anyImageMatched = true;
               feature.frame = expectedFrameNumber;
               rowInfo.frame = expectedFrameNumber;
+            } else {
+              anyImageMatched = true;
             }
           }
 
@@ -301,9 +321,11 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<A
             dataMap.set(rowInfo.trackId, track);
           } else if (reordered) {
             // trackId was already in dataMap, so the track has more than 1 detection.
-            throw new Error(
+            error = new Error(
               'annotations were provided in an unexpected order and dataset contains multi-frame tracks',
             );
+            // eslint-disable-next-line no-continue
+            continue;
           }
           track.begin = Math.min(rowInfo.frame, track.begin);
           track.end = Math.max(rowInfo.frame, track.end);
@@ -317,21 +339,21 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<A
           });
         } catch (err) {
           if (!(err instanceof Error)) {
-            throw new Error(`Caught unexpected error ${err}`);
+            error = new Error(`Caught unexpected error ${err}`);
+            // eslint-disable-next-line no-continue
+            continue;
           }
           if (err.toString().includes('comment row')) {
             // parse comment row
             fps = fps || parseCommentRow(record).fps;
           } else if (!err.toString().includes('malformed row')) {
             // Allow malformed row errors
-            throw err;
+            error = err;
+            // eslint-disable-next-line no-continue
+            continue;
           }
         }
       }
-    });
-    parser.on('error', (err) => {
-      console.error(err);
-      reject(err);
     });
   });
 }

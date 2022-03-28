@@ -17,23 +17,27 @@ DIVE Web can mirror your data from Google Cloud storage buckets such that your t
 ### Creating access credentials
 
 1. Create a new [service account](https://cloud.google.com/iam/docs/creating-managing-service-accounts) with read-only access to the bucket(s) and prefixes that you want to map.
-1. In [storage settings](https://console.cloud.google.com/storage/settings), in the interoperability tab, create an access key (Service account HMAC) for your read-only service account.
+1. In [storage settings](https://console.cloud.google.com/storage/settings), in the interoperability tab
+    1. create an access key (Service account HMAC) for your read-only service account.
+    1. set the current project as the default project for interoperability access
+    1. take note of your `Access Key`, `Secret Key`, `Storage URI`, and `Bucket Name`.
 
 ### Setting up CORS
 
 You'll also need to [configure CORS headers](https://cloud.google.com/storage/docs/configuring-cors) for any buckets where media will be served.
 
-Save the following snippet as `bucket-cors-config.json` .
+* Save the snippet below as `bucket-cors-config.json`.
+* `"origin"` should be whatever you type into your browser to get to the web application.
 
 ``` json
-[
-  {
-    "origin": ["https://viame.kitware.com"],
-    "method": ["GET"],
-    "responseHeader": ["Content-Type"],
-    "maxAgeSeconds": 3600
-  }
-]
+  [
+    {
+      "origin": ["https://viame.kitware.com"],
+      "method": ["GET", "PUT", "POST", "DELETE"],
+      "responseHeader": ["Content-Type"],
+      "maxAgeSeconds": 3600
+    }
+  ]
 ```
 
 Then use `gsutils` to configure each bucket.
@@ -42,26 +46,15 @@ Then use `gsutils` to configure each bucket.
 gsutil cors set bucket-cors-config.json gs://BUCKET_NAME
 ```
 
-### Pub/Sub notifications
-
-To keep the mount up-to-date with new data added to your bucket, please create a Pub/Sub subscription on the bucket.
-
-1. [Create a bucket notification configuration](https://cloud.google.com/storage/docs/reporting-changes#enabling)
-1. [Create a topic subscription](https://cloud.google.com/pubsub/docs/admin#pubsub_create_pull_subscription-console)
-1. [Set a push delivery method for the subsciption](https://cloud.google.com/pubsub/docs/admin#pubsub_create_pull_subscription-console)
-    1. The URL for delivery should be `https://viame.kitware.com/api/v1/bucket_notifications/gcs`
-
-Our server will process events from this subscription to keep your data current.
-
 ### Choose a mount point
 
 Choose a folder as a mount-point inside DIVE Web.  This folder should ideally be dedicated to mapping from your GCS buckets.
 
-We recommend creating a `Google Cloud Storage` folder with subfolders named for each bucket in your user's workspace.  You can do this using the `New Folder` button in DIVE Web's File Browser.  You can get the folder ID from the browser's URL bar.
+We recommend creating a `Google Cloud Storage` folder with sub-folders named for each bucket you mount.  You can do this using the `New Folder` button in DIVE Web's File Browser.  You can get the folder ID from your browser's URL bar.
 
 ### Send us the details
 
-Send an email with the following details from above to `viame-web@kitware.com`.
+If you want to use your bucket with viame.kitware.com, send us an email with the following details to `viame-web@kitware.com`.
 
 ``` text
 subject: Add a google cloud storage bucket mount
@@ -82,10 +75,29 @@ If you have data in S3 or MinIO, you can mirror it in DIVE for annotation.
 * You should not make changes to folder contents once a folder has been mirrored into DIVE.  Adding or removing images in a particular folder may cause annotation alignment issues.
 * Adding entire new folders is supported, and will require a re-index of your S3 bucket.
 
+### Pub/Sub notifications
+
+Creating pub/sub notifications is **optional**, but will keep your mount point up-to-date automatically with new data added to the bucket.  In order to make use of this feature, your DIVE server must have a public static IP address or domain name.
+
+1. [Create a bucket notification configuration](https://cloud.google.com/storage/docs/reporting-changes#enabling)
+1. [Create a topic subscription](https://cloud.google.com/pubsub/docs/admin#pubsub_create_pull_subscription-console)
+1. [Set a push delivery method for the subsciption](https://cloud.google.com/pubsub/docs/admin#pubsub_create_pull_subscription-console)
+    1. The URL for delivery should be `https://viame.kitware.com/api/v1/bucket_notifications/gcs`
+
+Our server will process events from this subscription to keep your data current.
+
 ### Mirroring setup
 
-To create a bucket mirror on your own DIVE deployment.
+If you have your own dive deployment, you can create a bucket mirror yourself through the Girder admin console.
 
-1. Open `/girder#assetstores` and create a new S3 assetstore.  Mark as **Read only**.
-1. Choose the green "Begin Import" button on the new assetstore.
-1. Choose a prefix within your bucket to mirror (probably just `/`) and a destination folder ID.  You can get the destination folder ID from the URL of the folder location in your address bar.
+1. Open `/girder#assetstores` in your browser.
+    1. Choose ==:material-cloud-upload: Create new Amazon S3 Assetstore==
+    1. Enter a name and all the details you collected above.
+    1. For **region**, enter the AWS or GCS region you're using, like `us-east-1`.
+    1. For **service**, enter the service URI if you're using an S3 provider other than AWS (such as MinIO or GCS).
+    1. Mark as **Read only**.
+1. Now import your data.  Choose the green ==Begin Import=={ .success } button on the new assetstore.
+    1. Leave **Import path** blank unless you only want to import part of a bucket.
+    1. For **Destination type**, use the folder ID you chose as the mount point above.
+
+The import may take several minutes.  You should begin to see datasets appear inside the mount point folder you chose.
