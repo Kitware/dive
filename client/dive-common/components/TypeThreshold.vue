@@ -13,7 +13,6 @@ import { DefaultConfidence } from 'vue-media-annotator/use/useTrackFilters';
 
 export default defineComponent({
   name: 'TypeThreshold',
-  description: 'Threshold Controls',
 
   components: { ConfidenceFilter },
 

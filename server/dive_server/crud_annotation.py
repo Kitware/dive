@@ -112,6 +112,7 @@ def get_annotation_csv_generator(
     user: types.GirderUserModel,
     excludeBelowThreshold=False,
     typeFilter=None,
+    revision=None,
 ) -> Tuple[str, Callable[[], Generator[str, None, None]]]:
     """Get the annotation generator for a folder"""
     fps = None
@@ -126,7 +127,7 @@ def get_annotation_csv_generator(
     thresholds = fromMeta(folder, "confidenceFilters", {})
 
     def downloadGenerator():
-        datalist, _ = get_annotations(folder)
+        datalist, _ = get_annotations(folder, revision=revision)
         for data in viame.export_tracks_as_csv(
             datalist,
             excludeBelowThreshold,
@@ -134,6 +135,7 @@ def get_annotation_csv_generator(
             filenames=imageFiles,
             fps=fps,
             typeFilter=typeFilter,
+            revision=revision,
         ):
             yield data
 

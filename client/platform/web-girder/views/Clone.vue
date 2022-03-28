@@ -151,6 +151,12 @@ export default defineComponent({
       </v-card-title>
       <v-card-text>
         <v-alert
+          v-if="revision"
+          type="info"
+        >
+          Revision {{ revision }} selected.
+        </v-alert>
+        <v-alert
           v-if="cloneError"
           type="error"
           dismissible
@@ -179,7 +185,8 @@ export default defineComponent({
             :location="location"
             @update:location="setLocation"
           >
-            <template #row-widget="{item}">
+            <template #row="{item}">
+              <span>{{ item.name }}</span>
               <v-chip
                 v-if="(item.meta && item.meta.annotate)"
                 color="white"

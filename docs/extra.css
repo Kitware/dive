@@ -11,6 +11,10 @@
   background-color: #F44336 !important; /* DIVE error color */
 }
 
+.md-typeset mark.success {
+  background-color: #5cb85c !important;
+}
+
 .md-typeset a {
   text-decoration: underline;
 }
