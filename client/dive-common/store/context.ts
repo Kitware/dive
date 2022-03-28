@@ -2,6 +2,7 @@ import Install, { reactive } from '@vue/composition-api';
 import Vue, { VueConstructor } from 'vue';
 /* Components */
 import TypeThreshold from 'dive-common/components/TypeThreshold.vue';
+import ImageEnhancements from 'dive-common/components/ImageEnhancements.vue';
 
 Vue.use(Install);
 
@@ -22,6 +23,10 @@ const componentMap: Record<string, ComponentMapItem> = {
   TypeThreshold: {
     description: 'Threshold Controls',
     component: TypeThreshold,
+  },
+  ImageEnhancements: {
+    description: 'Image Enhancements',
+    component: ImageEnhancements,
   },
 };
 

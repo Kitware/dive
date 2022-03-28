@@ -12,6 +12,7 @@ import { RectBounds } from './utils';
 import { Attribute } from './use/useAttributes';
 import { DefaultConfidence, TrackWithContext } from './use/useTrackFilters';
 import { Time } from './use/useTimeObserver';
+import { ImageEnhancements } from './use/useImageEnhancements';
 
 /**
  * Type definitions are read only because injectors may mutate internal state,
@@ -90,6 +91,9 @@ type VisibleModesType = Readonly<Ref<readonly VisibleAnnotationTypes[]>>;
 const ReadOnlyModeSymbol = Symbol('readOnlyMode');
 type ReadOnylModeType = Readonly<Ref<boolean>>;
 
+const ImageEnhancementsSymbol = Symbol('imageEnhancements');
+type ImageEnhancementsType = Readonly<Ref<ImageEnhancements>>;
+
 /**
  * Handler interface describes all global events mutations
  * for above state
@@ -164,6 +168,7 @@ export interface Handler {
   unstageFromMerge(ids: TrackId[]): void;
   /* Reload Annotation File */
   reloadAnnotations(): Promise<void>;
+  setSVGFilters({ blackPoint, whitePoint }: {blackPoint?: number; whitePoint?: number}): void;
 }
 const HandlerSymbol = Symbol('handler');
 
@@ -202,6 +207,7 @@ function dummyHandler(handle: (name: string, args: unknown[]) => void): Handler 
     commitMerge(...args) { handle('commitMerge', args); },
     unstageFromMerge(...args) { handle('unstageFromMerge', args); },
     reloadAnnotations(...args) { handle('reloadTracks', args); return Promise.resolve(); },
+    setSVGFilters(...args) { handle('setSVGFilter', args); },
   };
 }
 
@@ -237,6 +243,7 @@ export interface State {
   time: TimeType;
   visibleModes: VisibleModesType;
   readOnlyMode: ReadOnylModeType;
+  imageEnhancements: ImageEnhancementsType;
 }
 
 /**
@@ -294,6 +301,7 @@ function dummyState(): State {
     },
     visibleModes: ref(['rectangle', 'text'] as VisibleAnnotationTypes[]),
     readOnlyMode: ref(false),
+    imageEnhancements: ref({}),
   };
 }
 
@@ -330,6 +338,7 @@ function provideAnnotator(state: State, handler: Handler) {
   provide(TimeSymbol, state.time);
   provide(VisibleModesSymbol, state.visibleModes);
   provide(ReadOnlyModeSymbol, state.readOnlyMode);
+  provide(ImageEnhancementsSymbol, state.imageEnhancements);
   provide(HandlerSymbol, handler);
 }
 
@@ -441,6 +450,9 @@ function useVisibleModes() {
 function useReadOnlyMode() {
   return use<ReadOnylModeType>(ReadOnlyModeSymbol);
 }
+function useImageEnhancements() {
+  return use<ImageEnhancementsType>(ImageEnhancementsSymbol);
+}
 
 export {
   dummyHandler,
@@ -472,4 +484,5 @@ export {
   useTime,
   useVisibleModes,
   useReadOnlyMode,
+  useImageEnhancements,
 };

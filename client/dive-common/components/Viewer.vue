@@ -8,6 +8,7 @@ import type { Vue } from 'vue/types/vue';
 import Track, { TrackId } from 'vue-media-annotator/track';
 import {
   useAttributes,
+  useImageEnhancements,
   useLineChart,
   useStyling,
   useTrackFilters,
@@ -121,6 +122,13 @@ export default defineComponent({
       discardChanges,
       pendingSaveCount,
     } = useSave(datasetId, readonlyState);
+
+    const {
+      imageEnhancements,
+      brightness,
+      intercept,
+      setSVGFilters,
+    } = useImageEnhancements();
 
     const recipes = [
       new PolygonBase(),
@@ -403,6 +411,7 @@ export default defineComponent({
       setConfidenceFilters,
       deleteAttribute,
       reloadAnnotations,
+      setSVGFilters,
     };
 
     provideAnnotator(
@@ -431,6 +440,7 @@ export default defineComponent({
         time,
         visibleModes,
         readOnlyMode: readonlyState,
+        imageEnhancements,
       },
       globalHandler,
     );
@@ -465,6 +475,8 @@ export default defineComponent({
       originalFps: time.originalFps,
       context,
       readonlyState,
+      brightness,
+      intercept,
       /* methods */
       handler: globalHandler,
       save,
@@ -627,7 +639,9 @@ export default defineComponent({
             { bind: 'r', handler: () => mediaController.resetZoom() },
             { bind: 'esc', handler: () => handler.trackAbort() },
           ]"
-          v-bind="{ imageData, videoUrl, updateTime, frameRate, originalFps }"
+          v-bind="{ imageData, videoUrl, updateTime, frameRate,
+                    originalFps, brightness, intercept,
+          }"
           class="playback-component"
         >
           <template slot="control">
