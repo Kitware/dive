@@ -128,7 +128,7 @@ export default defineComponent({
       brightness,
       intercept,
       setSVGFilters,
-    } = useImageEnhancements({ markChangesPending });
+    } = useImageEnhancements();
 
     const recipes = [
       new PolygonBase(),

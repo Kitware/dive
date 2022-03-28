@@ -11,22 +11,14 @@ export interface ImageEnhancements {
     whitePoint?: number;
   }
 
-  /**
-   * Modified markChangesPending for image Enhancments specifically when it is saved per dataset
-   */
-  interface ImageEnhancementParams {
-    markChangesPending: () => void;
-  }
 
-
-export default function useImageEnhancements({ markChangesPending }: ImageEnhancementParams) {
+export default function useImageEnhancements() {
   const imageEnhancements: Ref<ImageEnhancements> = ref({});
 
   const setSVGFilters = ({ blackPoint, whitePoint }:
     {blackPoint?: number; whitePoint?: number }) => {
     VueSet(imageEnhancements.value, 'blackPoint', blackPoint);
     VueSet(imageEnhancements.value, 'whitePoint', whitePoint);
-    markChangesPending();
   };
 
   const brightness = computed(() => {
