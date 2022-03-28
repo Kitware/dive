@@ -1,7 +1,7 @@
 <script lang="ts">
 import { computed, defineComponent } from '@vue/composition-api';
 import {
-  useCamMap, useHandler, useSelectedCamera,
+  useCamMap, useEnabledTracks, useHandler, useSelectedCamera,
   useSelectedTrackId, useTime,
 } from 'vue-media-annotator/provides';
 
@@ -25,6 +25,7 @@ export default defineComponent({
 
   setup() {
     const selectedCamera = useSelectedCamera();
+    const enabledTracksRef = useEnabledTracks();
     const handler = useHandler();
     const { frame } = useTime();
     const selectedTrackId = useSelectedTrackId();
@@ -32,7 +33,8 @@ export default defineComponent({
     const cameras = computed(() => [...camMap.keys()]);
     const tracks = computed(() => {
       const trackKeyPair: Record<string, CameraTrackData> = {};
-      if (selectedTrackId.value && selectedCamera.value) {
+      // EnabledTracksRef causes computed to update on various changes to enusre true reactivity
+      if (selectedTrackId.value && selectedCamera.value && enabledTracksRef.value.length > 0) {
         camMap.forEach((trackMap, key) => {
           trackKeyPair[key] = {
             trackExists: !!trackMap.get(selectedTrackId.value as TrackId),

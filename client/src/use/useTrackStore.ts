@@ -266,7 +266,7 @@ export default function useTrackStore({ markChangesPending }: UseTrackStoreParam
         }
       }
       // We need to update the range if there are other Tracks Left.
-      if (getPossibleTrack(camMap, trackId)) {
+      if (getTrackAll(camMap, trackId).length > 0) {
         const remainingTracks = getTracksMerged(camMap, trackId);
         intervalTree.insert([remainingTracks.begin, remainingTracks.end], trackId.toString());
         // Exit function to prevent removal of range
