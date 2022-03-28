@@ -14,7 +14,7 @@ The timeline provides a control bar and a few different temporal visualizations.
 * ==:material-skip-previous:==  ==:material-play:== ==:material-skip-next:== are standard media playback controls.
 * ==:material-lock-open:== will enable camera lock, which causes the annotation view to auto-zoom and pan to whatever annotation is currently selected.  This is useful when reviewing the output of a pipeline.
 * ==:material-image-filter-center-focus:== or the ++r++ key will reset zoom/pan in the annotation view.
-
+* ==:material-contrast-box:== will open the image contrast adjustment panel.
 ## Detection Count
 
 ![Timeline View](images/Timeline/TimelineView.png)
