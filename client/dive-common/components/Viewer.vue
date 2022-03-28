@@ -54,7 +54,6 @@ export default defineComponent({
     DeleteControls,
     ImageAnnotator,
     Sidebar,
-    ,
     ConfidenceFilter,
     UserGuideButton,
     EditorMenu,
@@ -677,7 +676,7 @@ export default defineComponent({
           </ConfidenceFilter>
         </template>
       </sidebar>
-      <div
+      <v-col
         style="position: relative;"
         class="d-flex flex-column grow"
         dense

@@ -1,5 +1,5 @@
 import { reactive, shallowRef, toRefs } from '@vue/composition-api';
-import { AxiosResponse } from 'axios';
+import { AxiosResponse, AxiosError } from 'axios';
 import { getResponseError } from 'vue-media-annotator/utils';
 
 export default function useRequest() {
