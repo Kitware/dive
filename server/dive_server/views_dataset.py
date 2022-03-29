@@ -100,7 +100,7 @@ class DatasetResource(Resource):
         )
         .modelParam(
             "mediaId",
-            description="test",
+            description="media id",
             model=Item,
             paramType='path',
             level=AccessType.READ,
