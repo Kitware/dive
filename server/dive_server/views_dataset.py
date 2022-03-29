@@ -116,7 +116,8 @@ class DatasetResource(Resource):
                 raise RestException('Expected one file', code=400)
             file = files[0]
             rangeHeader = cherrypy.lib.httputil.get_ranges(
-                cherrypy.request.headers.get('Range'), file.get('size', 0))
+                cherrypy.request.headers.get('Range'), file.get('size', 0)
+            )
             # The HTTP Range header takes precedence over query params
             offset, endByte = (0, None)
             if rangeHeader and len(rangeHeader):
