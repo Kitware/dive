@@ -332,6 +332,8 @@ export default defineComponent({
         :confidence-pairs="
           flatten(selectedTrackList.map((t) => t.confidencePairs)).sort((a, b) => b[1] - a[1])
         "
+        :disabled="selectedTrackList.length > 1"
+        @set-type="selectedTrackList[0].setType($event)"
       />
       <attribute-subsection
         v-if="!mergeInProgress"
