@@ -14,8 +14,8 @@ from dive_server import crud, crud_annotation
 from dive_utils import TRUTHY_META_VALUES, constants, fromMeta, models, types
 
 
-def get_url(file: types.GirderModel, modelType='file') -> str:
-    return f"api/v1/{modelType}/{str(file['_id'])}/download"
+def get_url(dataset: types.GirderModel, item: types.GirderModel) -> str:
+    return f"api/v1/dive_dataset/{str(dataset['_id'])}/media/{str(item['_id'])}/download"
 
 
 def createSoftClone(
@@ -38,7 +38,7 @@ def createSoftClone(
     )
     cloned_folder['meta'] = source_folder['meta']
     media_source_folder = crud.getCloneRoot(owner, source_folder)
-    cloned_folder['meta'][constants.ForeignMediaIdMarker] = str(media_source_folder['_id'])
+    cloned_folder[constants.ForeignMediaIdMarker] = str(media_source_folder['_id'])
     cloned_folder['meta'][constants.PublishedMarker] = False
     # ensure confidence filter metadata exists
     if constants.ConfidenceFiltersMarker not in cloned_folder['meta']:
@@ -98,6 +98,7 @@ def get_dataset(
         id=str(dsFolder['_id']),
         createdAt=str(dsFolder['created']),
         name=dsFolder['name'],
+        foreign_media_id=dsFolder.get(constants.ForeignMediaIdMarker, None),
         **dsFolder['meta'],
     )
 
@@ -120,17 +121,16 @@ def get_media(
             }
         )
         if videoItem:
-            videoFile: types.GirderModel = Item().childFiles(videoItem)[0]
             videoResource = models.MediaResource(
-                id=str(videoFile['_id']),
-                url=get_url(videoFile),
-                filename=videoFile['name'],
+                id=str(videoItem['_id']),
+                url=get_url(dsFolder, videoItem),
+                filename=videoItem['name'],
             )
     elif source_type == constants.ImageSequenceType:
         imageData = [
             models.MediaResource(
                 id=str(image["_id"]),
-                url=get_url(image, modelType='item'),
+                url=get_url(dsFolder, image),
                 filename=image['name'],
             )
             for image in crud.valid_images(dsFolder, user)

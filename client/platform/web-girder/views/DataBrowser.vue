@@ -140,7 +140,7 @@ export default defineComponent({
         Launch Annotator
       </v-btn>
       <v-chip
-        v-if="(item.meta && item.meta.foreign_media_id)"
+        v-if="(item.foreign_media_id)"
         color="white"
         x-small
         outlined

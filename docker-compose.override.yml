@@ -4,6 +4,7 @@ services:
   girder:
     volumes:
       - ./server:/opt/dive/src
+      - ./docker/server_setup.py:/server_setup.py
     command: ["--dev"]
 
   girder_worker_pipelines:

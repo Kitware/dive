@@ -111,13 +111,14 @@ def verify_dataset(folder: GirderModel):
 def getCloneRoot(owner: GirderModel, source_folder: GirderModel):
     """Get the source media folder associated with a clone"""
     verify_dataset(source_folder)
-    next_id = fromMeta(source_folder, constants.ForeignMediaIdMarker, False)
+    next_id = source_folder.get(constants.ForeignMediaIdMarker, False)
     while next_id is not False:
         # Recurse through source folders to find the root, allowing clones of clones
         source_folder = Folder().load(
             next_id,
             level=AccessType.READ,
             user=owner,
+            force=True,
         )
         if source_folder is None:
             raise RestException(
@@ -128,7 +129,7 @@ def getCloneRoot(owner: GirderModel, source_folder: GirderModel):
                 code=404,
             )
         verify_dataset(source_folder)
-        next_id = fromMeta(source_folder, constants.ForeignMediaIdMarker, False)
+        next_id = source_folder.get(constants.ForeignMediaIdMarker, False)
     return source_folder
 
 

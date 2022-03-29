@@ -1,15 +1,19 @@
 from typing import List, Optional
 
+import cherrypy
 from girder.api import access
 from girder.api.describe import Description, autoDescribeRoute
 from girder.api.rest import Resource, rawResponse
 from girder.constants import AccessType, SortDir, TokenScope
+from girder.exceptions import RestException
+from girder.models.file import File
 from girder.models.folder import Folder
+from girder.models.item import Item
 
 from dive_utils import constants, setContentDisposition
 from dive_utils.models import MetadataMutable
 
-from . import crud_dataset
+from . import crud, crud_dataset
 
 DatasetModelParam = {
     'description': "dataset id",
@@ -26,13 +30,16 @@ class DatasetResource(Resource):
         super(DatasetResource, self).__init__()
         self.resourceName = resourceName
 
-        self.route("POST", (), self.create_dataset)
+        # Expose clone identifier
+        Folder().exposeFields(AccessType.READ, constants.ForeignMediaIdMarker)
 
+        self.route("POST", (), self.create_dataset)
         self.route("GET", (), self.list_datasets)
         self.route("GET", (":id",), self.get_meta)
         self.route("GET", (":id", "media"), self.get_media)
         self.route("GET", ("export",), self.export)
         self.route("GET", (":id", "configuration"), self.get_configuration)
+        self.route("GET", (":id", "media", ":mediaId", "download"), self.download_media)
         self.route("POST", ("validate_files",), self.validate_files)
 
         self.route("PATCH", (":id",), self.patch_metadata)
@@ -82,6 +89,43 @@ class DatasetResource(Resource):
         return crud_dataset.createSoftClone(
             self.getCurrentUser(), cloneSource, parentFolder, name, revision
         )
+
+    @access.public(scope=TokenScope.DATA_READ, cookie=True)
+    @autoDescribeRoute(
+        Description("Download a media file")
+        .modelParam(
+            "id",
+            level=AccessType.READ,
+            **DatasetModelParam,
+        )
+        .modelParam(
+            "mediaId",
+            description="media id",
+            model=Item,
+            paramType='path',
+            level=AccessType.READ,
+            required=True,
+            force=True,
+        )
+    )
+    def download_media(self, folder, item):
+        root = crud.getCloneRoot(self.getCurrentUser(), folder)
+        if item["folderId"] == root["_id"]:
+            files = list(Item().childFiles(item))
+            if len(files) != 1:
+                raise RestException('Expected one file', code=400)
+            file = files[0]
+            rangeHeader = cherrypy.lib.httputil.get_ranges(
+                cherrypy.request.headers.get('Range'), file.get('size', 0)
+            )
+            # The HTTP Range header takes precedence over query params
+            offset, endByte = (0, None)
+            if rangeHeader and len(rangeHeader):
+                # Currently we only support a single range.
+                offset, endByte = rangeHeader[0]
+            return File().download(file, offset, endByte=endByte)
+        else:
+            raise RestException('Media is not found', code=404)
 
     @access.user
     @autoDescribeRoute(
