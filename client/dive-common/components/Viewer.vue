@@ -48,6 +48,7 @@ import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import context from 'dive-common/store/context';
 import { MarkChangesPendingFilter, TrackWithContext } from 'vue-media-annotator/BaseFilterControls';
 import { EditAnnotationTypes, VisibleAnnotationTypes } from 'vue-media-annotator/layers';
+import TrackViewer from 'vue-media-annotator/components/TrackViewer.vue';
 import GroupSidebarVue from './GroupSidebar.vue';
 import MultiCamToolsVue from './MultiCamTools.vue';
 import PrimaryAttributeTrackFilter from './PrimaryAttributeTrackFilter.vue';
@@ -71,6 +72,7 @@ export default defineComponent({
     UserGuideButton,
     EditorMenu,
     PrimaryAttributeTrackFilter,
+    TrackViewer,
   },
 
   // TODO: remove this in vue 3
@@ -99,6 +101,7 @@ export default defineComponent({
   setup(props, ctx) {
     const { prompt } = usePrompt();
     const loadError = ref('');
+    const tracks3d = ref(false);
     const baseMulticamDatasetId = ref(null as string | null);
     const datasetId = toRef(props, 'id');
     const multiCamList: Ref<string[]> = ref(['singleCam']);
@@ -748,6 +751,15 @@ export default defineComponent({
     watch(datasetId, reloadAnnotations);
     watch(readonlyState, () => handler.trackSelect(null, false));
 
+    // Handles the case where the user is leaving the 3d viewer, if so, just reloads the view
+    // in order to avoid broken features
+    watch(tracks3d, (newTracks3d: boolean, oldTracks3d: boolean) => {
+      if (oldTracks3d && !newTracks3d) {
+        reloadAnnotations();
+      }
+    });
+
+
     function handleResize() {
       if (controlsRef.value) {
         controlsHeight.value = controlsRef.value.$el.clientHeight;
@@ -952,6 +964,8 @@ export default defineComponent({
       annotationSetColor: trackStyleManager.typeStyling.value.annotationSetColor,
       onTrackAdded,
       onGeometryAdded,
+      datasetId,
+      tracks3d,
     };
   },
 });
@@ -1066,6 +1080,13 @@ export default defineComponent({
             {{ item }} {{ item === defaultCamera ? '(Default)': '' }}
           </template>
         </v-select>
+
+        <v-btn
+          color="secondary"
+          @click="tracks3d = !tracks3d"
+        >
+          Toggle 3d
+        </v-btn>
         <v-divider
           vertical
           class="mx-2"
@@ -1166,7 +1187,14 @@ export default defineComponent({
           ]"
           class="d-flex flex-column grow"
         >
-          <div class="d-flex grow">
+          <track-viewer
+            v-if="tracks3d"
+            :controls-height="controlsHeight"
+          />
+          <div
+            v-else
+            class="d-flex grow"
+          >
             <div
               v-for="camera in multiCamList"
               :key="camera"
