@@ -61,7 +61,7 @@ export default defineComponent({
     },
 
   },
-  setup(props) {
+  setup(props, ctx) {
     const handler = useHandler();
     const cameraStore = useCameraStore();
     const selectedCamera = useSelectedCamera();
@@ -433,6 +433,7 @@ export default defineComponent({
       key = '',
       cb: () => void,
     ) => {
+      const originalFrameNumber = frameNumberRef.value;
       if (type === 'rectangle') {
         const bounds = geojsonToBound(data as GeoJSON.Feature<GeoJSON.Polygon>);
         cb();
@@ -452,6 +453,20 @@ export default defineComponent({
           selectedKeyRef.value,
           props.colorBy,
         );
+        ctx.emit('geometry-added', {
+          data,
+          type,
+          frameNumber: originalFrameNumber,
+          update: {
+            updateLayers,
+            editingModeRef,
+            selectedTrackIdRef,
+            multiSeletListRef,
+            enabledTracksRef,
+            visibleModesRef,
+            selectedKeyRef,
+          },
+        });
       }
     });
     editAnnotationLayer.bus.$on('update:selectedIndex',

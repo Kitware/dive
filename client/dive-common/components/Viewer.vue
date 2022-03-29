@@ -30,7 +30,7 @@ import {
   useMediaController,
 } from 'vue-media-annotator/components';
 import type { AnnotationId } from 'vue-media-annotator/BaseAnnotation';
-import { getResponseError } from 'vue-media-annotator/utils';
+import { geojsonToBound, getResponseError } from 'vue-media-annotator/utils';
 
 /* DIVE COMMON */
 import PolygonBase from 'dive-common/recipes/polygonbase';
@@ -46,7 +46,8 @@ import clientSettingsSetup, { clientSettings } from 'dive-common/store/settings'
 import { useApi, FrameImage, DatasetType } from 'dive-common/apispec';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import context from 'dive-common/store/context';
-import { MarkChangesPendingFilter } from 'vue-media-annotator/BaseFilterControls';
+import { MarkChangesPendingFilter, TrackWithContext } from 'vue-media-annotator/BaseFilterControls';
+import { EditAnnotationTypes, VisibleAnnotationTypes } from 'vue-media-annotator/layers';
 import GroupSidebarVue from './GroupSidebar.vue';
 import MultiCamToolsVue from './MultiCamTools.vue';
 import PrimaryAttributeTrackFilter from './PrimaryAttributeTrackFilter.vue';
@@ -530,6 +531,26 @@ export default defineComponent({
       selectCamera(camera, event?.button === 2);
       ctx.emit('change-camera', camera);
     };
+    const trackSettings = toRef(clientSettings, 'trackSettings');
+
+    function onTrackAdded(trackId: AnnotationId) {
+      if (!clientSettings.trackSettings.newTrackSettings.modeSettings.Track.stereoMatching) {
+        return;
+      }
+
+      const { frame } = aggregateController.value;
+      const trackType = trackSettings.value.newTrackSettings.type;
+
+      multiCamList.value.filter((camera) => camera !== selectedCamera.value)
+        .forEach((camera) => {
+          const trackStore = cameraStore.camMap.value.get(camera)?.trackStore;
+          if (!trackStore) {
+            return;
+          }
+          trackStore.add(frame.value, trackType, undefined, trackId);
+        });
+    }
+
     /** Trigger data load */
     const loadData = async () => {
       try {
@@ -776,6 +797,65 @@ export default defineComponent({
       timelineEnabled,
 
     };
+    function onGeometryAdded({
+      data, type, update, frameNumber,
+    }: {
+      data: GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.LineString | GeoJSON.Point>;
+      type: EditAnnotationTypes;
+      update: {
+        updateLayers: (
+          frame: number,
+          editingTrack: false | EditAnnotationTypes,
+          selectedTrackId: AnnotationId | null,
+          multiSeletListRef: readonly AnnotationId[],
+          enabledTracks: readonly TrackWithContext[],
+          visibleModes: readonly VisibleAnnotationTypes[],
+          selectedKey: string,
+        ) => void;
+        editingModeRef: Ref<false | EditAnnotationTypes>;
+        selectedTrackIdRef: Ref<AnnotationId | null>;
+        multiSeletListRef: Ref<readonly AnnotationId[]>;
+        enabledTracksRef: Ref<readonly TrackWithContext[]>;
+        visibleModesRef: Ref<readonly VisibleAnnotationTypes[]>;
+        selectedKeyRef: Ref<string>;
+      };
+      frameNumber: number;
+    }) {
+      if (type !== 'rectangle' || !clientSettings.trackSettings.newTrackSettings.modeSettings.Track.stereoMatching) {
+        return;
+      }
+
+      const trackId = selectedTrackId.value;
+
+      if (!trackId) {
+        return;
+      }
+
+      const pairedTracks = cameraStore.getTrackAll(trackId);
+      const bounds = geojsonToBound(data as GeoJSON.Feature<GeoJSON.Polygon>);
+
+      pairedTracks.forEach((trackData) => {
+        trackData.setFeature({
+          frame: frameNumber,
+          bounds,
+          keyframe: true,
+          interpolate: false,
+        });
+        update.updateLayers(
+          frameNumber,
+          update.editingModeRef.value,
+          trackData.id,
+          update.multiSeletListRef.value,
+          update.enabledTracksRef.value,
+          update.visibleModesRef.value,
+          update.selectedKeyRef.value,
+        );
+        handler.newTrackSettingsAfterLogic(trackData, {
+          skipAdvanceNextFrame: true,
+          keepCreating: true,
+        });
+      });
+    }
 
     provideAnnotator(
       {
@@ -870,6 +950,8 @@ export default defineComponent({
       selectedSet,
       displayComparisons,
       annotationSetColor: trackStyleManager.typeStyling.value.annotationSetColor,
+      onTrackAdded,
+      onGeometryAdded,
     };
   },
 });
@@ -1048,6 +1130,7 @@ export default defineComponent({
       <sidebar
         @import-types="trackFilters.importTypes($event)"
         @track-seek="aggregateController.seek($event)"
+        @track-added="onTrackAdded"
       >
         <template>
           <v-divider />
@@ -1105,7 +1188,10 @@ export default defineComponent({
                   intercept, getTiles, getTileURL }"
                 @large-image-warning="$emit('large-image-warning', true)"
               >
-                <LayerManager :camera="camera" />
+                <LayerManager
+                  :camera="camera"
+                  @geometry-added="onGeometryAdded"
+                />
               </component>
             </div>
           </div>

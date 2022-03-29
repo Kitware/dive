@@ -152,6 +152,7 @@ export default defineComponent({
             :hotkeys-disabled="visible() || readOnlyMode"
             :height="bottomHeight"
             @track-seek="$emit('track-seek', $event)"
+            @track-added="$emit('track-added', $event)"
           >
             <template slot="settings">
               <TrackSettingsPanel
