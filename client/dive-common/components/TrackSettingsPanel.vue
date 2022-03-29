@@ -207,6 +207,38 @@ export default defineComponent({
             </v-tooltip>
           </v-col>
         </v-row>
+
+        <v-row>
+          <v-col class="py-1">
+            <v-switch
+              v-model="
+                clientSettings.trackSettings.newTrackSettings.modeSettings.Track.stereoMatching"
+              class="my-0 ml-1 pt-0"
+              dense
+              label="Stereo Matching"
+              hide-details
+            />
+          </v-col>
+          <v-col
+            class="py-1 shrink"
+            align="right"
+          >
+            <v-tooltip
+              open-delay="200"
+              bottom
+            >
+              <template #activator="{ on }">
+                <v-icon
+                  small
+                  v-on="on"
+                >
+                  mdi-help
+                </v-icon>
+              </template>
+              <span>Help</span>
+            </v-tooltip>
+          </v-col>
+        </v-row>
       </template>
       <v-row
         v-if="clientSettings.trackSettings.newTrackSettings.mode === 'Detection'"
