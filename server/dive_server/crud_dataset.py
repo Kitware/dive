@@ -38,7 +38,7 @@ def createSoftClone(
     )
     cloned_folder['meta'] = source_folder['meta']
     media_source_folder = crud.getCloneRoot(owner, source_folder)
-    cloned_folder['meta'][constants.ForeignMediaIdMarker] = str(media_source_folder['_id'])
+    cloned_folder[constants.ForeignMediaIdMarker] = str(media_source_folder['_id'])
     cloned_folder['meta'][constants.PublishedMarker] = False
     # ensure confidence filter metadata exists
     if constants.ConfidenceFiltersMarker not in cloned_folder['meta']:
@@ -98,6 +98,7 @@ def get_dataset(
         id=str(dsFolder['_id']),
         createdAt=str(dsFolder['created']),
         name=dsFolder['name'],
+        foreign_media_id=dsFolder.get(constants.ForeignMediaIdMarker, None),
         **dsFolder['meta'],
     )
 
