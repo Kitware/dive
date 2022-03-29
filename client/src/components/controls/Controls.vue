@@ -151,30 +151,19 @@ export default defineComponent({
           >
             <v-icon>mdi-image-filter-center-focus</v-icon>
           </v-btn>
-          <v-badge
+          <v-btn
             v-if="mediaController.cameras.value.length > 1"
-            overlap
-            bottom
-            right
-            :color="mediaController.cameraSync.value ? 'primary': 'clear'"
+            icon
+            small
+            :color="mediaController.cameraSync.value ? 'primary': 'default'"
+            title="Synchronize camera controls"
+
+            @click="mediaController.toggleSynchronizeCameras(!mediaController.cameraSync.value)"
           >
-            <template v-slot:badge>
-              <v-icon>
-                {{ mediaController.cameraSync.value ? 'mdi-link' : 'mdi-link-off' }}
-              </v-icon>
-            </template>
-            <v-btn
-              icon
-              small
-              :color="mediaController.cameraSync.value ? 'primary': 'default'"
-              title="Synchronize camera controls"
-              @click="mediaController.toggleSynchronizeCameras(!mediaController.cameraSync.value)"
-            >
-              <v-icon>
-                mdi-camera
-              </v-icon>
-            </v-btn>
-          </v-badge>
+            <v-icon>
+              {{ mediaController.cameraSync.value ? 'mdi-link' : 'mdi-link-off' }}
+            </v-icon>
+          </v-btn>
         </v-col>
       </v-row>
     </v-card>

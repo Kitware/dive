@@ -178,6 +178,22 @@ export default defineComponent({
         </div>
       </div>
     </div>
+    <div
+      v-else
+      class="text-body-2"
+    >
+      <p>No track selected.</p>
+      <p>
+        This panel is used for:
+        <ul>
+          <li>Viewing which cameras have tracks/detections for the selected trackId</li>
+          <li>Deleting detction and/or tracks from a camera </li>
+          <li>Splitting off tracks from an existing camera</li>
+          <li>Linking tracks from difference cameras to the same trackId</li>
+        </ul>
+      </p>
+      <p>Select a track to populate this editor.</p>
+    </div>
   </div>
 </template>
 

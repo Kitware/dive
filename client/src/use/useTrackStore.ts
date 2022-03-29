@@ -92,6 +92,9 @@ export function getTrackAll(
       trackList.push(tempTrack);
     }
   });
+  if (trackList.length === 0) {
+    throw new Error(`Across all Cameras found no Track for TrackId: ${trackId}`);
+  }
   return trackList;
 }
 
