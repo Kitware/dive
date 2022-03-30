@@ -1,5 +1,5 @@
 <script lang="ts">
-import { computed, defineComponent } from '@vue/composition-api';
+import { computed, defineComponent, ref } from '@vue/composition-api';
 import {
   useCamMap, useEnabledTracks, useHandler, useSelectedCamera,
   useSelectedTrackId, useTime,
@@ -31,9 +31,18 @@ export default defineComponent({
     const selectedTrackId = useSelectedTrackId();
     const camMap = useCamMap();
     const cameras = computed(() => [...camMap.keys()]);
+    const canary = ref(false);
+    function _depend(): boolean {
+      return canary.value;
+    }
+
     const tracks = computed(() => {
       const trackKeyPair: Record<string, CameraTrackData> = {};
-      // EnabledTracksRef causes computed to update on various changes to enusre true reactivity
+      _depend(); // Used for remove detections/tracks from a camera
+      /* EnabledTracksRef depedency triggers update when the sortedTracks updates based
+      * on track links/unlinks.  It doesn't work on same frame camera track deletions because
+      * nothing is updated in the sortedTracks dependencies when that happens
+      */
       if (selectedTrackId.value !== null && selectedCamera.value
       && enabledTracksRef.value.length > 0) {
         camMap.forEach((trackMap, key) => {
@@ -48,12 +57,14 @@ export default defineComponent({
       return trackKeyPair;
     });
 
+
     const existingCount = computed(() => Object.values(
       tracks.value,
     ).filter((item) => item.trackExists).length);
 
     // Delete annotation for selected camera/frame
     const deleteAnnotation = async (camera: string, trackId: number) => {
+      canary.value = !canary.value;
       const track = getTrack(camMap, trackId, camera);
       const allTracks = getTrackAll(camMap, trackId);
       // If it is the only keyframe we need to remove the track from the camMap
@@ -70,6 +81,7 @@ export default defineComponent({
 
     // Delete entire track, only confirm if it is the only track.
     const deleteTrack = async (camera: string, trackId: number) => {
+      canary.value = !canary.value;
       const allTracks = getTrackAll(camMap, trackId);
       await handler.removeTrack([trackId], allTracks.length > 1, camera);
       if (allTracks.length === 1) {
@@ -166,7 +178,7 @@ export default defineComponent({
               icon="mdi-link-variant-minus"
               :disabled="existingCount === 1"
               :tooltip-text="`Unlink Track for camera: ${camera}`"
-              @click="handler.unlinkCameraTrack(camera, selectedTrackId)"
+              @click="handler.unlinkCameraTrack(selectedTrackId, camera)"
             />
             <tooltip-btn
               v-else-if="!tracks[camera].trackExists"

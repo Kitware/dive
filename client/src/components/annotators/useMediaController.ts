@@ -411,7 +411,7 @@ export function useMediaController() {
       speed: defaultController.speed,
       setSpeed: over(map(subControllers, 'setSpeed')),
       lockedCamera: defaultController.lockedCamera,
-      toggleLockedCamera: over(map(subControllers, 'toggleLockedCamera')),
+      toggleLockedCamera,
       pause: over(map(subControllers, 'pause')),
       play: over(map(subControllers, 'play')),
       playing: defaultController.playing,

@@ -228,7 +228,7 @@ export default function useModeManager({
     }
     const newTrackId = addTrack(
       frame.value, trackType,
-      selectedTrackId.value || undefined, selectedCamera.value, overrideTrackId || undefined,
+      selectedTrackId.value || undefined, selectedCamera.value, overrideTrackId ?? undefined,
     ).trackId;
     selectTrack(newTrackId, true);
     creating = true;

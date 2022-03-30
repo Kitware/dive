@@ -18,7 +18,7 @@ import {
   useEventChart,
 } from 'vue-media-annotator/use';
 import { useMediaController } from 'vue-media-annotator/components';
-import { getAnyTrack, getTrack } from 'vue-media-annotator/use/useTrackStore';
+import { getAnyTrack, getPossibleTrack, getTrack } from 'vue-media-annotator/use/useTrackStore';
 import { provideAnnotator } from 'vue-media-annotator/provides';
 import ImageAnnotator from 'vue-media-annotator/components/annotators/ImageAnnotator.vue';
 import VideoAnnotator from 'vue-media-annotator/components/annotators/VideoAnnotator.vue';
@@ -374,9 +374,6 @@ export default defineComponent({
 
 
     const setSelectedCamera = (camera: string, editMode = false) => {
-      if (selectedCamera.value === camera && editingTrack.value === editMode) {
-        return;
-      }
       if (selectedTrackId.value !== null && editingTrack.value) {
         // If we are creating a track and it's empty we need to abort it on change
         const track = getTrack(camMap, selectedTrackId.value, selectedCamera.value);
@@ -385,9 +382,17 @@ export default defineComponent({
         }
       }
       selectedCamera.value = camera;
-      if (selectedTrackId.value !== null && editMode) {
+      /**
+       * Enters edit mode if not track exists for the camera and forcing edit mode
+       * or if a track exists and are alrady in edit mode we don't set it again
+       * Remember trackEdit(number) is a toggle for editing mode
+       */
+      if (selectedTrackId.value !== null && (editMode || editingTrack.value)) {
+        const track = getPossibleTrack(camMap, selectedTrackId.value, selectedCamera.value);
+        if (track === undefined || !editingTrack.value) {
         //Stay in edit mode for the current track
-        handler.trackEdit(selectedTrackId.value);
+          handler.trackEdit(selectedTrackId.value);
+        }
       }
       ctx.emit('change-camera', camera);
     };
@@ -400,6 +405,10 @@ export default defineComponent({
       }
       if (event) {
         event.preventDefault();
+      }
+      // Left click should kick out of editing mode automatically
+      if (event?.button === 0) {
+        editingTrack.value = false;
       }
       setSelectedCamera(camera, event?.button === 2);
       ctx.emit('change-camera', camera);
@@ -799,7 +808,7 @@ export default defineComponent({
               :key="camera"
               class="d-flex flex-column grow"
               :style="{ height: `calc(100% - ${controlsHeight}px)`}"
-              @click="changeCamera(camera, $event)"
+              @mousedown.left="changeCamera(camera, $event)"
               @mouseup.right="changeCamera(camera, $event)"
             >
               <component
