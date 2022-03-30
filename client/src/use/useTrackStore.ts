@@ -77,6 +77,7 @@ export function getAnyTrack(
 
 /**
  * Used to return an array of overlapping trackIds amongst all cameras
+ * Will also return an empty list if none exists.
  * This is used to set global information across tracks like ConfidencePairs
  * or Track Attributes
  */
@@ -92,9 +93,6 @@ export function getTrackAll(
       trackList.push(tempTrack);
     }
   });
-  if (trackList.length === 0) {
-    throw new Error(`Across all Cameras found no Track for TrackId: ${trackId}`);
-  }
   return trackList;
 }
 

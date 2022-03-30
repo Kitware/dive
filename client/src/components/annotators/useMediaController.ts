@@ -13,6 +13,7 @@ import type { AggregateMediaController, MediaController } from './mediaControlle
 const AggregateControllerSymbol = Symbol('aggregate-controller');
 const CameraInitializerSymbol = Symbol('camera-initializer');
 const bus = new Vue();
+let allowCameraTrigger = true; // Used to prevent infinite loop on Camera Sync
 
 interface MediaControllerReactiveData {
   cameraName: string;
@@ -71,7 +72,7 @@ export function injectCameraInitializer() {
   return use<CameraInitializerFunc>(CameraInitializerSymbol);
 }
 
-export function useMediaController(selectedCamera: Ref<string>) {
+export function useMediaController() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let geoViewers: Record<string, Ref<any>> = {};
   let containers: Record<string, Ref<HTMLElement | undefined>> = {};
@@ -141,6 +142,7 @@ export function useMediaController(selectedCamera: Ref<string>) {
   bus.$on('pan', (camEvent: {camera: string; event: GeoEvent}) => {
     const activeMap = geoViewers[camEvent.camera]?.value;
     if (activeMap !== undefined && synchronizeCameras.value) {
+      allowCameraTrigger = false;
       Object.entries(geoViewers).forEach(([camera, geoViewer]) => {
         if (geoViewer.value && camera !== camEvent.camera) {
           geoViewer.value.center(activeMap.center());
@@ -148,6 +150,7 @@ export function useMediaController(selectedCamera: Ref<string>) {
           geoViewer.value.rotation(activeMap.rotation());
         }
       });
+      allowCameraTrigger = true;
     }
   });
 
@@ -301,7 +304,8 @@ export function useMediaController(selectedCamera: Ref<string>) {
 
       //Add in bus control synchronization for cameras
       geoViewers[camera].value.geoOn(geo.event.pan, (e: GeoEvent) => {
-        if (cameraName === selectedCamera.value) {
+        // Only trigger if not handling other camera interactions.rrrrr
+        if (allowCameraTrigger) {
           bus.$emit('pan', { camera: camera.toString(), event: e });
         }
       });

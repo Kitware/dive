@@ -204,9 +204,9 @@ export default function useModeManager({
       const track = getPossibleTrack(camMap, selectedTrackId.value, selectedCamera.value);
       if (track && track.begin === track.end) {
         const features = track.getFeature(track.begin);
-        // If no features exist we remove the empty track
+        // If no features exist we remove the empty track on the current camera
         if (!features.filter((item) => item !== null).length) {
-          removeTrack(selectedTrackId.value);
+          removeTrack(selectedTrackId.value, true, selectedCamera.value);
         }
       }
     }

@@ -90,7 +90,7 @@ export default defineComponent({
       aggregateController,
       onResize,
       clear: mediaControllerClear,
-    } = useMediaController(selectedCamera);
+    } = useMediaController();
     const { time, updateTime, initialize: initTime } = useTimeObserver();
     const imageData = ref({ default: [] } as Record<string, FrameImage[]>);
     const datasetType: Ref<DatasetType> = ref('image-sequence');
@@ -372,26 +372,17 @@ export default defineComponent({
       return result;
     }
 
-    // Handles changing camera using the dropdown or mouse clicks
-    // When using mouse clicks and right button it will remain in edit mode for the selected track
-    const changeCamera = (camera: string, event?: MouseEvent) => {
-      if (selectedCamera.value === camera) {
-        return;
-      }
-      if (event) {
-        event.preventDefault();
-      }
-      selectedCamera.value = camera;
-      if (selectedTrackId.value !== null && event?.button === 2) {
-        //Stay in edit mode for the current track
-        handler.trackEdit(selectedTrackId.value);
-      }
-      ctx.emit('change-camera', camera);
-    };
 
     const setSelectedCamera = (camera: string, editMode = false) => {
       if (selectedCamera.value === camera && editingTrack.value === editMode) {
         return;
+      }
+      if (selectedTrackId.value !== null && editingTrack.value) {
+        // If we are creating a track and it's empty we need to abort it on change
+        const track = getTrack(camMap, selectedTrackId.value, selectedCamera.value);
+        if (track.features.length === 0) {
+          handler.trackAbort();
+        }
       }
       selectedCamera.value = camera;
       if (selectedTrackId.value !== null && editMode) {
@@ -401,7 +392,18 @@ export default defineComponent({
       ctx.emit('change-camera', camera);
     };
 
-
+    // Handles changing camera using the dropdown or mouse clicks
+    // When using mouse clicks and right button it will remain in edit mode for the selected track
+    const changeCamera = (camera: string, event?: MouseEvent) => {
+      if (selectedCamera.value === camera) {
+        return;
+      }
+      if (event) {
+        event.preventDefault();
+      }
+      setSelectedCamera(camera, event?.button === 2);
+      ctx.emit('change-camera', camera);
+    };
     /** Trigger data load */
     const loadData = async () => {
       try {
@@ -567,6 +569,7 @@ export default defineComponent({
 
     return {
       /* props */
+      aggregateController,
       confidenceFilters,
       clientSettings,
       controlsRef,
@@ -785,7 +788,7 @@ export default defineComponent({
           v-if="progress.loaded"
           v-mousetrap="[
             { bind: 'n', handler: () => !readonlyState && handler.trackAdd() },
-            { bind: 'r', handler: () => mediaController.resetZoom() },
+            { bind: 'r', handler: () => aggregateController.resetZoom() },
             { bind: 'esc', handler: () => handler.trackAbort() },
           ]"
           class="d-flex flex-column grow"

@@ -34,7 +34,8 @@ export default defineComponent({
     const tracks = computed(() => {
       const trackKeyPair: Record<string, CameraTrackData> = {};
       // EnabledTracksRef causes computed to update on various changes to enusre true reactivity
-      if (selectedTrackId.value && selectedCamera.value && enabledTracksRef.value.length > 0) {
+      if (selectedTrackId.value !== null && selectedCamera.value
+      && enabledTracksRef.value.length > 0) {
         camMap.forEach((trackMap, key) => {
           trackKeyPair[key] = {
             trackExists: !!trackMap.get(selectedTrackId.value as TrackId),
