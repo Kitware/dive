@@ -25,7 +25,7 @@ export interface AggregateMediaController {
   prevFrame: () => void;
   setVolume: (volume: number) => void;
   setSpeed: (speed: number) => void;
-  toggleLockedCamera: (lock: boolean) => void;
+  toggleLockedCamera: () => void;
   getController: (cameraName: string) => MediaController;
   toggleSynchronizeCameras: (sync: boolean) => void;
 }
