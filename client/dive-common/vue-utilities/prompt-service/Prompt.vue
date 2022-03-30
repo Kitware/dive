@@ -127,7 +127,7 @@ export default defineComponent({
       <v-card-actions>
         <v-spacer />
         <v-btn
-          v-if="confirm && negative && negative.length"
+          v-if="confirm && negativeButton && negativeButton.length"
           ref="negative"
           text
           @click="clickNegative"
