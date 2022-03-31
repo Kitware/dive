@@ -133,6 +133,13 @@ def download_revision_csv(gc: GirderClient, dataset_id: str, revision: int, path
     request.urlretrieve(url, filename=path)
 
 
+def download_media_item(girder_client: GirderClient, url: str, dest: Path):
+    url = url.replace(girder_client.urlBase, '')  # strip out the redundant part of the url
+    with girder_client.get(url, jsonResp=False) as r:
+        with open(dest, 'wb') as f:
+            f.write(r.content)
+
+
 def download_source_media(
     girder_client: GirderClient, datasetId: str, dest: Path
 ) -> Tuple[List[str], str]:
@@ -141,11 +148,13 @@ def download_source_media(
     dataset = models.GirderMetadataStatic(**girder_client.get(f'dive_dataset/{datasetId}'))
     if dataset.type == constants.ImageSequenceType:
         for frameImage in media.imageData:
+            destination_path = dest / frameImage.filename
+            download_media_item(girder_client, frameImage.url, destination_path)
             girder_client.downloadItem(frameImage.id, str(dest))
         return [str(dest / image.filename) for image in media.imageData], dataset.type
     elif dataset.type == constants.VideoType and media.video is not None:
         destination_path = str(dest / media.video.filename)
-        girder_client.downloadFile(media.video.id, destination_path)
+        download_media_item(girder_client, media.video.url, destination_path)
         return [destination_path], dataset.type
     else:
         raise Exception(f"unexpected metadata {str(dataset.dict())}")

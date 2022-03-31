@@ -30,7 +30,7 @@ def test_get_media(user: dict):
             assert len(media['imageData']) == 0
             assert type(media['video']) == dict
             assert 'mp4' in media['video']['filename']
-            client.getFile(media['video']['id'])
+            client.getItem(media['video']['id'])
 
 
 @pytest.mark.integration
