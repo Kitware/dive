@@ -141,12 +141,15 @@ def download_source_media(
     dataset = models.GirderMetadataStatic(**girder_client.get(f'dive_dataset/{datasetId}'))
     if dataset.type == constants.ImageSequenceType:
         for frameImage in media.imageData:
-            girder_client.downloadItem(frameImage.id, str(dest))
+            destination_path = dest / frameImage.filename
+            url = urljoin(girder_client.urlBase, frameImage.url)
+            request.urlretrieve(url, filename=destination_path)
         return [str(dest / image.filename) for image in media.imageData], dataset.type
     elif dataset.type == constants.VideoType and media.video is not None:
-        destination_path = str(dest / media.video.filename)
-        girder_client.downloadFile(media.video.id, destination_path)
-        return [destination_path], dataset.type
+        destination_path = dest / media.video.filename
+        url = urljoin(girder_client.urlBase, media.video.url)
+        request.urlretrieve(url, filename=destination_path)
+        return [str(destination_path)], dataset.type
     else:
         raise Exception(f"unexpected metadata {str(dataset.dict())}")
 

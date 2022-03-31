@@ -15,7 +15,7 @@ from dive_utils import TRUTHY_META_VALUES, constants, fromMeta, models, types
 
 
 def get_url(dataset: types.GirderModel, item: types.GirderModel) -> str:
-    return f"api/v1/dive_dataset/{str(dataset['_id'])}/media/{str(item['_id'])}/download"
+    return f"/api/v1/dive_dataset/{str(dataset['_id'])}/media/{str(item['_id'])}/download"
 
 
 def createSoftClone(
