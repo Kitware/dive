@@ -146,10 +146,10 @@ def download_source_media(
             request.urlretrieve(url, filename=destination_path)
         return [str(dest / image.filename) for image in media.imageData], dataset.type
     elif dataset.type == constants.VideoType and media.video is not None:
-        destination_path = str(dest / media.video.filename)
+        destination_path = dest / media.video.filename
         url = urljoin(girder_client.urlBase, media.video.url)
         request.urlretrieve(url, filename=destination_path)
-        return [destination_path], dataset.type
+        return [str(destination_path)], dataset.type
     else:
         raise Exception(f"unexpected metadata {str(dataset.dict())}")
 
