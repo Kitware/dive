@@ -191,8 +191,11 @@ export default function useModeManager({
      */
     if (trackId !== null && mergeInProgress.value) {
       mergeList.value = Array.from((new Set(mergeList.value).add(trackId)));
-    } else if (trackId !== null && linkingState.value) {
-      _setLinkingTrack(trackId);
+    } else if (linkingState.value) {
+      // Only use the first non-null track with is clicked on to link
+      if (trackId !== null) {
+        _setLinkingTrack(trackId);
+      }
       return;
     }
     /* Do not allow editing when merge is in progres or linking */

@@ -47,11 +47,13 @@ export default defineComponent({
       if (selectedTrackId.value !== null && selectedCamera.value
       && enabledTracksRef.value.length > 0) {
         camMap.forEach((trackMap, key) => {
+          const trackExists = trackMap.get(selectedTrackId.value as TrackId);
+          const completeTrackExists = (!!trackExists && trackExists.features.length > 0);
           trackKeyPair[key] = {
-            trackExists: !!trackMap.get(selectedTrackId.value as TrackId),
-            annotationExists: !!trackMap.get(
+            trackExists: completeTrackExists,
+            annotationExists: completeTrackExists && !!trackMap.get(
                 selectedTrackId.value as TrackId,
-            )?.getFeature(frame.value)[0],
+            )?.getFeature(frame.value),
           };
         });
       }

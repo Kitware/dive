@@ -384,9 +384,10 @@ export default defineComponent({
       }
       // EditTrack is set false by the LayerMap before executing this
       if (selectedTrackId.value !== null) {
-        // If we had a track selected and it's feature length is 0 we need to remove it
-        const track = getTrack(camMap, selectedTrackId.value, selectedCamera.value);
-        if (track.features.length === 0) {
+        // If we had a track selected and it still exists with
+        // a feature length of 0 we need to remove it
+        const track = getPossibleTrack(camMap, selectedTrackId.value, selectedCamera.value);
+        if (track && track.features.length === 0) {
           handler.trackAbort();
         }
       }

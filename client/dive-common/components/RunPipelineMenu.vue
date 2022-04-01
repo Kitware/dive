@@ -124,7 +124,8 @@ export default defineComponent({
       }
       let datasetIds = props.selectedDatasetIds;
       if (props.cameraNumbers.length === 1 && props.cameraNumbers[0] > 1
-      && !multiCamPipelineMarkers.includes(pipeline.type)) {
+      && (!multiCamPipelineMarkers.includes(pipeline.type)
+      && stereoPipelineMarker !== pipeline.type)) {
         const cameraNames = props.selectedDatasetIds.map((item) => item.substring(0, item.lastIndexOf('/')));
         const result = await prompt({
           title: `Running Single Camera Pipeline on ${cameraNames[0]}`,
@@ -137,7 +138,8 @@ export default defineComponent({
           return;
         }
       }
-      if (multiCamPipelineMarkers.includes(pipeline.type)) {
+      if (multiCamPipelineMarkers.includes(pipeline.type)
+      || stereoPipelineMarker === pipeline.type) {
         datasetIds = props.selectedDatasetIds.map((item) => item.substring(0, item.lastIndexOf('/')));
       }
       selectedPipe.value = pipeline;
