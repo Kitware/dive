@@ -62,6 +62,7 @@ export default defineComponent({
     const typeStylingRef = useTypeStyling();
     const allTypesRef = useAllTypes();
     const camMap = useCamMap();
+    const multipleCameras = computed(() => (camMap.size > 1));
     const mergeList = useMergeList();
     const mergeInProgress = computed(() => mergeList.value.length > 0);
     const {
@@ -193,6 +194,7 @@ export default defineComponent({
     return {
       selectedTrackIdRef,
       readOnlyMode,
+      multipleCameras,
       /* Attributes */
       attributes,
       /* Editing */
@@ -297,7 +299,7 @@ export default defineComponent({
         <v-btn
           :color="mergeInProgress ? 'error' : 'primary'"
           class="mx-2 my-2 grow"
-          :disabled="readOnlyMode"
+          :disabled="readOnlyMode || multipleCameras"
           depressed
           x-small
           @click="$emit('toggle-merge')"

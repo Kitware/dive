@@ -1,5 +1,6 @@
 <script lang="ts">
 import {
+  computed,
   defineComponent,
   reactive,
   toRef,
@@ -7,7 +8,9 @@ import {
 } from '@vue/composition-api';
 
 import { TypeList, TrackList, injectAggregateController } from 'vue-media-annotator/components';
-import { useAllTypes, useHandler, useReadOnlyMode } from 'vue-media-annotator/provides';
+import {
+  useAllTypes, useCamMap, useHandler, useReadOnlyMode,
+} from 'vue-media-annotator/provides';
 
 import { clientSettings } from 'dive-common/store/settings';
 import TrackDetailsPanel from 'dive-common/components/TrackDetailsPanel.vue';
@@ -42,6 +45,8 @@ export default defineComponent({
   setup(props) {
     const allTypesRef = useAllTypes();
     const readOnlyMode = useReadOnlyMode();
+    const camMap = useCamMap();
+    const multipleCameras = computed(() => (camMap.size > 1));
     const { toggleMerge, commitMerge } = useHandler();
     const { visible } = usePrompt();
     const trackSettings = toRef(clientSettings, 'trackSettings');
@@ -67,7 +72,7 @@ export default defineComponent({
     }
 
     function doToggleMerge() {
-      if (toggleMerge().length) {
+      if (!multipleCameras.value && toggleMerge().length) {
         data.currentTab = 'attributes';
       }
     }
