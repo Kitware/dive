@@ -1,7 +1,7 @@
 <script lang="ts">
 import { computed, defineComponent, ref } from '@vue/composition-api';
 import {
-  useCamMap, useEnabledTracks, useHandler, useSelectedCamera,
+  useCamMap, useEditingMode, useEnabledTracks, useHandler, useSelectedCamera,
   useSelectedTrackId, useTime,
 } from 'vue-media-annotator/provides';
 
@@ -25,6 +25,7 @@ export default defineComponent({
 
   setup() {
     const selectedCamera = useSelectedCamera();
+    const inEditingMode = useEditingMode();
     const enabledTracksRef = useEnabledTracks();
     const handler = useHandler();
     const { frame } = useTime();
@@ -101,7 +102,13 @@ export default defineComponent({
      * track only exists on the sleected camera
     **/
     const startLinking = (camera: string) => {
-      handler.setSelectedCamera(camera, false);
+      //We can't join the other track while in editing mode so we need to disable it
+      if (inEditingMode.value) {
+        handler.trackSelect(selectedTrackId.value, false);
+      }
+      if (selectedCamera.value !== camera) {
+        handler.setSelectedCamera(camera, false);
+      }
       handler.startLinking(camera);
     };
 
@@ -200,7 +207,7 @@ export default defineComponent({
         This panel is used for:
         <ul>
           <li>Viewing which cameras have tracks/detections for the selected trackId</li>
-          <li>Deleting detction and/or tracks from a camera </li>
+          <li>Deleting detection and/or tracks from a camera </li>
           <li>Splitting off tracks from an existing camera</li>
           <li>Linking tracks from difference cameras to the same trackId</li>
         </ul>

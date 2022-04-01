@@ -2,7 +2,7 @@
 /* eslint-disable no-param-reassign,func-names */
 
 import { VueConstructor } from 'vue';
-import { watch } from '@vue/composition-api';
+import { ref, watch } from '@vue/composition-api';
 import Vuetify from 'vuetify/lib';
 import Prompt from './Prompt.vue';
 
@@ -52,7 +52,7 @@ class PromptService {
       if (!this.component.show) {
         this.set(title, text, positiveButton, negativeButton, confirm, resolve);
       } else {
-        const unwatch = watch(this.component.show, () => {
+        const unwatch = watch(ref(this.component.show), () => {
           unwatch();
           this.set(title, text, positiveButton, negativeButton, confirm, resolve);
         });

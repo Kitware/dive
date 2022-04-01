@@ -92,7 +92,7 @@ export default defineComponent({
       clear: mediaControllerClear,
     } = useMediaController();
     const { time, updateTime, initialize: initTime } = useTimeObserver();
-    const imageData = ref({ default: [] } as Record<string, FrameImage[]>);
+    const imageData = ref({ singleCam: [] } as Record<string, FrameImage[]>);
     const datasetType: Ref<DatasetType> = ref('image-sequence');
     const datasetName = ref('');
     const saveInProgress = ref(false);
@@ -373,9 +373,18 @@ export default defineComponent({
     }
 
 
-    const setSelectedCamera = (camera: string, editMode = false) => {
-      if (selectedTrackId.value !== null && editingTrack.value) {
-        // If we are creating a track and it's empty we need to abort it on change
+    const setSelectedCamera = async (camera: string, editMode = false) => {
+      if (linkingCamera.value !== '' && linkingCamera.value !== camera) {
+        await prompt({
+          title: 'In Linking Mode',
+          text: 'Currently in Linking Mode, please hit OK and Escape to exit Linking mode or choose another Track in the highlighted Camera to Link',
+          positiveButton: 'OK',
+        });
+        return;
+      }
+      // EditTrack is set false by the LayerMap before executing this
+      if (selectedTrackId.value !== null) {
+        // If we had a track selected and it's feature length is 0 we need to remove it
         const track = getTrack(camMap, selectedTrackId.value, selectedCamera.value);
         if (track.features.length === 0) {
           handler.trackAbort();
@@ -523,7 +532,7 @@ export default defineComponent({
       handleResize();
     });
     onBeforeUnmount(() => {
-      observer.unobserve(controlsRef.value.$el);
+      if (controlsRef.value) observer.unobserve(controlsRef.value.$el);
     });
 
     const globalHandler = {

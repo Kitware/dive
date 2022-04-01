@@ -151,6 +151,7 @@ export default function useModeManager({
         title: 'Linking Error',
         text: [`TrackId: ${trackId} has tracks on other cameras besides the selected camera ${linkingCamera.value}`,
           `You need to select a track that only exists on camera: ${linkingCamera.value} `,
+          'You can split of the track you were trying to select by clicking OK and hitting Escape to exit Linking Mode and using the split tool',
         ],
         positiveButton: 'OK',
       });

@@ -294,7 +294,8 @@ export default defineComponent({
         mergeListRef,
         visibleModesRef,
         typeStylingRef,
-        selectedCamera, //For when we draw a new track with same TrackId
+        // Updates when switching cameras while track is alread selected and editing mode is on
+        selectedCamera,
       ],
       () => {
         updateLayers(

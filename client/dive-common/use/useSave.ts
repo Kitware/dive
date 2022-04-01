@@ -33,7 +33,7 @@ export default function useSave(
 ) {
   const pendingSaveCount = ref(0);
   const pendingChangeMaps: Record<string, ChangeMap> = {
-    default: {
+    singleCam: {
       upsert: new Map<TrackId, Track>(),
       delete: new Set<TrackId>(),
       attributeUpsert: new Map<string, Attribute>(),
@@ -61,6 +61,8 @@ export default function useSave(
           pendingChangeMap.delete.clear();
         }));
       }
+      // because meta changes uses markCheckesPending() they should all be singleCam in multicam
+      // This will update the root metadata of multiCam and all other meta updates should be empty.
       if (datasetMeta && pendingChangeMap.meta > 0) {
         promiseList.push(saveMetadata(datasetId.value, datasetMeta).then(() => {
           // eslint-disable-next-line no-param-reassign

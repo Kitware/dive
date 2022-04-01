@@ -48,7 +48,6 @@ export default defineComponent({
   setup(props) {
     const { prompt } = usePrompt();
     const viewerRef = ref();
-    const compoundId = ref(props.id);
     const subTypeList = computed(() => [datasets.value[props.id]?.subType || null]);
     const camNumbers = computed(() => [datasets.value[props.id]?.cameraNumber || 1]);
     const readonlyMode = computed(() => settings.value?.readonlyMode || false);
@@ -95,7 +94,6 @@ export default defineComponent({
 
     return {
       datasets,
-      compoundId,
       viewerRef,
       buttonOptions,
       menuOptions,
@@ -113,7 +111,7 @@ export default defineComponent({
 
 <template>
   <Viewer
-    :id.sync="compoundId"
+    :id.sync="id"
     ref="viewerRef"
     :read-only-mode="readOnlyMode || runningPipelines.length > 0"
     @change-camera="changeCamera"

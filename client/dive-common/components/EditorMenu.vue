@@ -147,6 +147,9 @@ export default Vue.extend({
       return flatten(this.editButtons.map((b) => b.mousetrap || []));
     },
     editingHeader(): {text: string; icon: string; color: string} {
+      if (this.linkingCamera !== '') {
+        return { text: 'Linking Mode', icon: 'mdi-link-variant-plus', color: 'error' };
+      }
       if (this.mergeMode) {
         return { text: 'Merge Mode', icon: 'mdi-call-merge', color: 'error' };
       }
