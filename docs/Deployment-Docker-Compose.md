@@ -84,17 +84,19 @@ docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d --scale gi
 
 It's possible to split your web server and task runner between multiple nodes.  This may be useful if you want to run DIVE Web without a GPU or if you want to save money by keeping your GPU instance stopped when not in use.  You could also increase parallel task capacity by running task runners on multiple nodes.
 
-* Make two cloud VM instances, one with NVIDIA drivers and container toolkit, and one without.
+* Make two cloud VM instances, one with NVIDIA drivers and container toolkit, and one without.  This is still a special case of scenario 1 from the [Provisioning Guide](Deployment-Provision.md)
 * Clone the dive repository on both, and set up `.env` on both with the same configuration.
 * Be sure that `WORKER_API_URL` and `CELERY_BROKER_URL` in particular are uncommented and set to the IP or domain name of your web server.  This is how the worker will talk to the web server, so the web server must be network accessible from the worker.
 
 ``` bash
 ## On the web server
-docker-compose -f docker-compose.yml [...] up -d girder girder_worker_default
+docker-compose -f docker-compose.yml up -d girder rabbit
 
 ## On the GPU server(s)
-docker-compose -f docker-compose.yml [...] up -d --no-deps girder_worker_pipelines girder_worker_training
+docker-compose -f docker-compose.yml up -d --no-deps girder_worker_pipelines girder_worker_training girder_worker_default
 ```
+
+In order to run any jobs (video transcoding, pipelines, training, addon upgrades) the GPU server will need to be running.
 
 ## Addon management
 
