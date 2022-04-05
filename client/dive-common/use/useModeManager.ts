@@ -3,7 +3,9 @@ import {
 } from '@vue/composition-api';
 import { uniq, flatMapDeep } from 'lodash';
 import Track, { TrackId } from 'vue-media-annotator/track';
-import { getTrack } from 'vue-media-annotator/use/useTrackStore';
+import {
+  getAnyTrack, getPossibleTrack, getTrack, getTrackAll, getTracksMerged,
+} from 'vue-media-annotator/use/useTrackStore';
 import { RectBounds, updateBounds } from 'vue-media-annotator/utils';
 import { EditAnnotationTypes, VisibleAnnotationTypes } from 'vue-media-annotator/layers';
 import { AggregateMediaController } from 'vue-media-annotator/components/annotators/mediaControllerType';
@@ -31,8 +33,7 @@ export default function useModeManager({
   selectedTrackId,
   selectedCamera,
   editingTrack,
-  trackMap,
-  camTrackMap,
+  camMap,
   aggregateController,
   recipes,
   selectTrack,
@@ -43,14 +44,14 @@ export default function useModeManager({
   selectedTrackId: Ref<TrackId | null>;
   selectedCamera: Ref<string>;
   editingTrack: Ref<boolean>;
-  trackMap: Map<TrackId, Track>;
-  camTrackMap: Record<string, Map<TrackId, Track>>;
-    aggregateController: Ref<AggregateMediaController>;
+  camMap: Map<string, Map<TrackId, Track>>;
+  aggregateController: Ref<AggregateMediaController>;
   recipes: Recipe[];
   selectTrack: (trackId: TrackId | null, edit: boolean) => void;
   selectNextTrack: (delta?: number) => TrackId | null;
-  addTrack: (frame: number, defaultType: string, afterId?: TrackId, cameraName?: string) => Track;
-  removeTrack: (trackId: TrackId) => void;
+  addTrack: (frame: number, defaultType: string, afterId?: TrackId,
+    cameraName?: string, overrideTrackId?: number) => Track;
+  removeTrack: (trackId: TrackId, disableNotifications?: boolean, cameraName?: string) => void;
 }) {
   let creating = false;
 
@@ -81,18 +82,23 @@ export default function useModeManager({
     _depend();
     if (editingMode.value && selectedTrackId.value !== null) {
       const { frame } = aggregateController.value;
-      const track = trackMap.get(selectedTrackId.value);
-      if (track) {
-        const [feature] = track.getFeature(frame.value);
-        if (feature) {
-          if (!feature?.bounds?.length) {
-            return 'Creating';
-          } if (annotationModes.editing === 'rectangle') {
-            return 'Editing';
+      try {
+        const track = getPossibleTrack(camMap, selectedTrackId.value, selectedCamera.value);
+        if (track) {
+          const [feature] = track.getFeature(frame.value);
+          if (feature) {
+            if (!feature?.bounds?.length) {
+              return 'Creating';
+            } if (annotationModes.editing === 'rectangle') {
+              return 'Editing';
+            }
+            return (feature.geometry?.features.filter((item) => item.geometry.type === annotationModes.editing).length ? 'Editing' : 'Creating');
           }
-          return (feature.geometry?.features.filter((item) => item.geometry.type === annotationModes.editing).length ? 'Editing' : 'Creating');
+          return 'Creating';
         }
-        return 'Creating';
+      } catch {
+        // No track for this camera
+        return 'disabled';
       }
     }
     return 'disabled';
@@ -104,6 +110,10 @@ export default function useModeManager({
   // Track merge state
   const mergeList = ref([] as TrackId[]);
   const mergeInProgress = computed(() => mergeList.value.length > 0);
+
+  const linkingState = ref(false);
+  const linkingTrack: Ref<TrackId| null> = ref(null);
+  const linkingCamera = ref('');
 
   const { prompt } = usePrompt();
   /**
@@ -130,6 +140,23 @@ export default function useModeManager({
       aggregateController.value.seek(track.begin);
     } else if (frame.value > track.end) {
       aggregateController.value.seek(track.end);
+    }
+  }
+
+  async function _setLinkingTrack(trackId: TrackId) {
+    //Confirm that there is no track for other cameras.
+    const trackList = getTrackAll(camMap, trackId);
+    if (trackList.length > 1) {
+      prompt({
+        title: 'Linking Error',
+        text: [`TrackId: ${trackId} has tracks on other cameras besides the selected camera ${linkingCamera.value}`,
+          `You need to select a track that only exists on camera: ${linkingCamera.value} `,
+          'You can split of the track you were trying to select by clicking OK and hitting Escape to exit Linking Mode and using the split tool',
+        ],
+        positiveButton: 'OK',
+      });
+    } else {
+      linkingTrack.value = trackId;
     }
   }
 
@@ -164,33 +191,48 @@ export default function useModeManager({
      */
     if (trackId !== null && mergeInProgress.value) {
       mergeList.value = Array.from((new Set(mergeList.value).add(trackId)));
+    } else if (linkingState.value) {
+      // Only use the first non-null track with is clicked on to link
+      if (trackId !== null) {
+        _setLinkingTrack(trackId);
+      }
+      return;
     }
-    /* Do not allow editing when merge is in progres */
+    /* Do not allow editing when merge is in progres or linking */
     selectTrack(trackId, edit && !mergeInProgress.value);
   }
 
   //Handles deselection or hitting escape including while editing
   function handleEscapeMode() {
     if (selectedTrackId.value !== null) {
-      const track = trackMap.get(selectedTrackId.value);
+      const track = getPossibleTrack(camMap, selectedTrackId.value, selectedCamera.value);
       if (track && track.begin === track.end) {
         const features = track.getFeature(track.begin);
-        // If no features exist we remove the empty track
+        // If no features exist we remove the empty track on the current camera
         if (!features.filter((item) => item !== null).length) {
-          removeTrack(selectedTrackId.value);
+          removeTrack(selectedTrackId.value, true, selectedCamera.value);
         }
       }
     }
+    linkingState.value = false;
+    linkingCamera.value = '';
+    linkingTrack.value = null;
     mergeList.value = [];
     handleSelectTrack(null, false);
   }
 
-  function handleAddTrackOrDetection(): TrackId {
+  function handleAddTrackOrDetection(overrideTrackId?: number): TrackId {
     // Handles adding a new track with the NewTrack Settings
     const { frame } = aggregateController.value;
+    let trackType = trackSettings.value.newTrackSettings.type;
+    if (overrideTrackId !== undefined) {
+      const track = getAnyTrack(camMap, overrideTrackId);
+      // eslint-disable-next-line prefer-destructuring
+      trackType = track.confidencePairs[0][0];
+    }
     const newTrackId = addTrack(
-      frame.value, trackSettings.value.newTrackSettings.type,
-      selectedTrackId.value || undefined, selectedCamera.value,
+      frame.value, trackType,
+      selectedTrackId.value || undefined, selectedCamera.value, overrideTrackId ?? undefined,
     ).trackId;
     selectTrack(newTrackId, true);
     creating = true;
@@ -198,8 +240,9 @@ export default function useModeManager({
   }
 
   function handleTrackTypeChange(trackId: TrackId | null, value: string) {
+    // Change of type will change all tracks types
     if (trackId !== null) {
-      getTrack(trackMap, trackId).setType(value);
+      getTrackAll(camMap, trackId).forEach((track) => track.setType(value));
     }
   }
 
@@ -228,10 +271,7 @@ export default function useModeManager({
 
   function handleUpdateRectBounds(frameNum: number, flickNum: number, bounds: RectBounds) {
     if (selectedTrackId.value !== null) {
-      let track = trackMap.get(selectedTrackId.value);
-      if (selectedCamera.value !== 'singleCam') {
-        track = camTrackMap[selectedCamera.value].get(selectedTrackId.value);
-      }
+      const track = getPossibleTrack(camMap, selectedTrackId.value, selectedCamera.value);
       if (track) {
         // Determines if we are creating a new Detection
         const { interpolate } = track.canInterpolate(frameNum);
@@ -277,10 +317,7 @@ export default function useModeManager({
     };
 
     if (selectedTrackId.value !== null) {
-      let track = trackMap.get(selectedTrackId.value);
-      if (selectedCamera.value !== 'singleCam') {
-        track = camTrackMap[selectedCamera.value].get(selectedTrackId.value);
-      }
+      const track = getPossibleTrack(camMap, selectedTrackId.value, selectedCamera.value);
       if (track) {
         // newDetectionMode is true if there's no keyframe on frameNum
         const { features, interpolate } = track.canInterpolate(frameNum);
@@ -288,8 +325,10 @@ export default function useModeManager({
 
         // Give each recipe the opportunity to make changes
         recipes.forEach((recipe) => {
-          // "as Track" used because TS doesn't know that forEach has the proper track setting
-          const changes = recipe.update(eventType, frameNum, track as Track, [data], key);
+          if (!track) {
+            return;
+          }
+          const changes = recipe.update(eventType, frameNum, track, [data], key);
           // Prevent key conflicts among recipes
           Object.keys(changes.data).forEach((key_) => {
             if (key_ in update.geoJsonFeatureRecord) {
@@ -376,10 +415,7 @@ export default function useModeManager({
   /* If any recipes are active, allow them to remove a point */
   function handleRemovePoint() {
     if (selectedTrackId.value !== null && selectedFeatureHandle.value !== -1) {
-      let track = trackMap.get(selectedTrackId.value);
-      if (selectedCamera.value !== 'singleCam') {
-        track = camTrackMap[selectedCamera.value].get(selectedTrackId.value);
-      }
+      const track = getPossibleTrack(camMap, selectedTrackId.value, selectedCamera.value);
       if (track !== undefined) {
         recipes.forEach((r) => {
           if (r.active.value && track) {
@@ -401,10 +437,7 @@ export default function useModeManager({
   /* If any recipes are active, remove the geometry they added */
   function handleRemoveAnnotation() {
     if (selectedTrackId.value !== null) {
-      let track = trackMap.get(selectedTrackId.value);
-      if (selectedCamera.value !== 'singleCam') {
-        track = camTrackMap[selectedCamera.value].get(selectedTrackId.value);
-      }
+      const track = getPossibleTrack(camMap, selectedTrackId.value, selectedCamera.value);
       if (track !== undefined) {
         const { frame } = aggregateController.value;
         recipes.forEach((r) => {
@@ -424,7 +457,7 @@ export default function useModeManager({
     mergeList.value = mergeList.value.filter((trackId) => !trackIds.includes(trackId));
   }
 
-  async function handleRemoveTrack(trackIds: TrackId[], forcePromptDisable = false) {
+  async function handleRemoveTrack(trackIds: TrackId[], forcePromptDisable = false, cameraName = '') {
     /* Figure out next track ID */
     const maybeNextTrackId = selectNextTrack(1);
     const previousOrNext = maybeNextTrackId !== null
@@ -448,25 +481,37 @@ export default function useModeManager({
       }
     }
     trackIds.forEach((trackId) => {
-      removeTrack(trackId);
+      removeTrack(trackId, false, cameraName);
     });
     handleUnstageFromMerge(trackIds);
-    selectTrack(previousOrNext, false);
+    if (cameraName === '') {
+      selectTrack(previousOrNext, false);
+    }
   }
 
   /** Toggle editing mode for track */
   function handleTrackEdit(trackId: TrackId) {
-    let track = getTrack(trackMap, trackId);
-    if (selectedCamera.value !== 'singleCam') {
-      track = getTrack(camTrackMap[selectedCamera.value], trackId);
+    const track = getPossibleTrack(camMap, trackId, selectedCamera.value);
+    if (track) {
+      //seekNearest(track);
+      const editing = trackId === selectedTrackId.value ? (!editingTrack.value) : true;
+      handleSelectTrack(trackId, editing);
+      //Track doesn't exist for this specific camera
+    } else if (getAnyTrack(camMap, trackId) !== undefined) {
+      //track exists in other cameras we create in the current map using override
+      handleAddTrackOrDetection(trackId);
+      const camTrack = getPossibleTrack(camMap, trackId, selectedCamera.value);
+      // now that we have a new track we select it for editing
+      if (camTrack) {
+        const editing = trackId === selectedTrackId.value;
+        handleSelectTrack(trackId, editing);
+      }
     }
-    seekNearest(track);
-    const editing = trackId === selectedTrackId.value ? (!editingTrack.value) : true;
-    handleSelectTrack(trackId, editing);
   }
 
   function handleTrackClick(trackId: TrackId) {
-    const track = getTrack(trackMap, trackId);
+    const track = getTracksMerged(camMap, trackId);
+    // We want the closest frame doesn't matter what camera it is in
     seekNearest(track);
     handleSelectTrack(trackId, editingTrack.value);
   }
@@ -475,7 +520,7 @@ export default function useModeManager({
     const newTrack = selectNextTrack(delta);
     if (newTrack !== null) {
       handleSelectTrack(newTrack, false);
-      seekNearest(getTrack(trackMap, newTrack));
+      seekNearest(getAnyTrack(camMap, newTrack));
     }
   }
 
@@ -514,16 +559,38 @@ export default function useModeManager({
 
   /**
    * Merge: Commit the merge list
+   * Merging can only be done in the same selected camera.
    */
   function handleCommitMerge() {
     if (mergeList.value.length >= 2) {
-      const track = getTrack(trackMap, mergeList.value[0]);
+      const track = getTrack(camMap, mergeList.value[0], selectedCamera.value);
       const otherTrackIds = mergeList.value.slice(1);
-      track.merge(otherTrackIds.map((trackId) => getTrack(trackMap, trackId)));
+      track.merge(otherTrackIds.map(
+        (trackId) => getTrack(camMap, trackId, selectedCamera.value),
+      ));
       handleRemoveTrack(otherTrackIds, true);
       handleToggleMerge();
       handleSelectTrack(track.trackId, false);
     }
+  }
+
+  function handleStartLinking(camera: string) {
+    if (!linkingState.value && selectedTrackId.value !== null) {
+      linkingState.value = true;
+      if (camMap.has(camera)) {
+        linkingCamera.value = camera;
+      } else {
+        throw Error(`Camera: ${camera} does not exist in the system for linking`);
+      }
+    } else if (selectedTrackId.value === null) {
+      throw Error('Cannot start Linking without a track selected');
+    }
+  }
+
+  function handleStopLinking() {
+    linkingState.value = false;
+    linkingTrack.value = null;
+    linkingCamera.value = '';
   }
 
   /* Subscribe to recipe activation events */
@@ -538,6 +605,9 @@ export default function useModeManager({
     editingDetails,
     mergeList,
     mergeInProgress,
+    linkingTrack,
+    linkingState,
+    linkingCamera,
     visibleModes,
     selectedFeatureHandle,
     selectedKey,
@@ -559,6 +629,8 @@ export default function useModeManager({
       selectFeatureHandle: handleSelectFeatureHandle,
       setAnnotationState: handleSetAnnotationState,
       unstageFromMerge: handleUnstageFromMerge,
+      startLinking: handleStartLinking,
+      stopLinking: handleStopLinking,
     },
   };
 }

@@ -9,7 +9,6 @@
 import BaseLayer, { LayerStyle, BaseLayerParams, MarkerStyle } from 'vue-media-annotator/layers/BaseLayer';
 import Track, { TrackId } from 'vue-media-annotator/track';
 import { FrameDataTrack } from 'vue-media-annotator/layers/LayerTypes';
-import { getTrack } from 'vue-media-annotator/use/useTrackStore';
 
 interface TailData {
   trackId: TrackId;
@@ -21,6 +20,14 @@ interface TailData {
   interpolated: boolean;
 }
 
+
+function getLocalTrack(trackMap: Readonly<Map<number, Track>>, trackId: number) {
+  const track = trackMap.get(trackId);
+  if (track === undefined) {
+    throw Error(`Can not locate trackId:${trackId} within the current TrackMap`);
+  }
+  return track;
+}
 export default class TailLayer extends BaseLayer<TailData[]> {
   currentFrame: number;
 
@@ -47,7 +54,7 @@ export default class TailLayer extends BaseLayer<TailData[]> {
   }
 
   generateDataForTrack(fd: FrameDataTrack): TailData[] {
-    const track = getTrack(this.trackMap, fd.trackId);
+    const track = getLocalTrack(this.trackMap, fd.trackId);
     const tailData: TailData[] = [];
     let lastPoint: TailData | null = null;
     const start = Math.max(this.currentFrame - this.before, 0);

@@ -5,6 +5,7 @@ import {
 } from '@vue/composition-api';
 
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
+import { getAnyTrack } from 'vue-media-annotator/use/useTrackStore';
 import { TrackWithContext } from '../use/useTrackFilters';
 
 import { TrackId } from '../track';
@@ -14,7 +15,7 @@ import {
   useEditingMode,
   useHandler,
   useSelectedTrackId,
-  useTrackMap,
+  useCamMap,
   useFilteredTracks,
   useTypeStyling,
   useTime,
@@ -68,7 +69,7 @@ export default defineComponent({
     const checkedTrackIdsRef = useCheckedTrackIds();
     const editingModeRef = useEditingMode();
     const selectedTrackIdRef = useSelectedTrackId();
-    const trackMap = useTrackMap();
+    const camMap = useCamMap();
     const filteredTracksRef = useFilteredTracks();
     const typeStylingRef = useTypeStyling();
     const { frame: frameRef } = useTime();
@@ -106,17 +107,23 @@ export default defineComponent({
 
     function scrollToTrack(trackId: TrackId | null): void {
       if (trackId !== null && virtualList.value !== null) {
-        const track = trackMap.get(trackId);
-        if (track) {
-          const offset = filteredTracksRef.value.findIndex(
-            (filtered) => filtered.track.trackId === trackId,
-          );
-          if (offset === -1) {
-            virtualList.value.$el.scrollTop = 0;
-          } else {
+        try {
+          // We need first track found for the position in the Event Viewer
+          const track = getAnyTrack(camMap, trackId);
+          if (track) {
+            const offset = filteredTracksRef.value.findIndex(
+              (filtered) => filtered.track.trackId === trackId,
+            );
+            if (offset === -1) {
+              virtualList.value.$el.scrollTop = 0;
+            } else {
             // try to show the selected track as the third track in the list
-            virtualList.value.$el.scrollTop = (offset * data.itemHeight) - (2 * data.itemHeight);
+              virtualList.value.$el.scrollTop = (offset * data.itemHeight) - (2 * data.itemHeight);
+            }
           }
+        } catch (err) {
+          //Ignore missing tracks
+          virtualList.value.$el.scrollTop = 0;
         }
       }
     }
@@ -316,7 +323,7 @@ export default defineComponent({
                 class="mr-2"
                 :color="newTrackColor"
                 v-on="on"
-                @click="trackAdd"
+                @click="trackAdd()"
               >
                 <v-icon small>
                   mdi-plus

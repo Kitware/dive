@@ -12,13 +12,14 @@ import {
   useTypeStyling,
   useAllTypes,
   useHandler,
-  useTrackMap,
+  useCamMap,
   useAttributes,
   useMergeList,
   useTime,
+  useSelectedCamera,
   useReadOnlyMode,
 } from 'vue-media-annotator/provides';
-import { getTrack } from 'vue-media-annotator/use/useTrackStore';
+import { getAnyTrack, getTrack } from 'vue-media-annotator/use/useTrackStore';
 import { Attribute } from 'vue-media-annotator/use/useAttributes';
 import TrackItem from 'vue-media-annotator/components/TrackItem.vue';
 import TooltipBtn from 'vue-media-annotator/components/TooltipButton.vue';
@@ -54,12 +55,14 @@ export default defineComponent({
   setup(props) {
     const readOnlyMode = useReadOnlyMode();
     const attributes = useAttributes();
+    const selectedCamera = useSelectedCamera();
     const editingAttribute: Ref<Attribute | null> = ref(null);
     const editingError: Ref<string | null> = ref(null);
     const editingModeRef = useEditingMode();
     const typeStylingRef = useTypeStyling();
     const allTypesRef = useAllTypes();
-    const trackMap = useTrackMap();
+    const camMap = useCamMap();
+    const multipleCameras = computed(() => (camMap.size > 1));
     const mergeList = useMergeList();
     const mergeInProgress = computed(() => mergeList.value.length > 0);
     const {
@@ -74,10 +77,10 @@ export default defineComponent({
     const { setAttribute, deleteAttribute } = useHandler();
     const selectedTrackList = computed(() => {
       if (mergeList.value.length > 0) {
-        return mergeList.value.map((trackId) => getTrack(trackMap, trackId));
+        return mergeList.value.map((trackId) => getAnyTrack(camMap, trackId));
       }
       if (selectedTrackIdRef.value !== null) {
-        return [getTrack(trackMap, selectedTrackIdRef.value)];
+        return [getTrack(camMap, selectedTrackIdRef.value, selectedCamera.value)];
       }
       return [];
     });
@@ -191,6 +194,7 @@ export default defineComponent({
     return {
       selectedTrackIdRef,
       readOnlyMode,
+      multipleCameras,
       /* Attributes */
       attributes,
       /* Editing */
@@ -295,7 +299,7 @@ export default defineComponent({
         <v-btn
           :color="mergeInProgress ? 'error' : 'primary'"
           class="mx-2 my-2 grow"
-          :disabled="readOnlyMode"
+          :disabled="readOnlyMode || multipleCameras"
           depressed
           x-small
           @click="$emit('toggle-merge')"

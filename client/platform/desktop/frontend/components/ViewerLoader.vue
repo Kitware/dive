@@ -48,37 +48,42 @@ export default defineComponent({
   setup(props) {
     const { prompt } = usePrompt();
     const viewerRef = ref();
-    const compoundId = ref(props.id);
     const subTypeList = computed(() => [datasets.value[props.id]?.subType || null]);
     const camNumbers = computed(() => [datasets.value[props.id]?.cameraNumber || 1]);
-    const readOnlyMode = computed(() => settings.value?.readonlyMode || false);
+    const readonlyMode = computed(() => settings.value?.readonlyMode || false);
+    const selectedCamera = ref('');
 
     watch(runningJobs, async (_previous, current) => {
-      const currentJob = current.find((item) => item.job.datasetIds.includes(props.id));
-      if (currentJob && currentJob.job.jobType === 'pipeline') {
-        if (currentJob.job.exitCode === 0) {
-          const result = await prompt({
-            title: 'Pipeline Finished',
-            text: [`Pipeline: ${currentJob.job.title}`,
-              'finished running on the current dataset.  Click reload to load the annotations.  The current annotations will be replaced with the pipeline output.',
-            ],
-            confirm: true,
-            positiveButton: 'Reload',
-            negativeButton: '',
-          });
-          if (result) {
-            viewerRef.value.reloadAnnotations();
-          }
-        } else {
-          await prompt({
-            title: 'Pipeline Incomplete',
-            text: [`Pipeline: ${currentJob.job.title}`,
-              'either failed or was cancelled by the user',
-            ],
-          });
+      // Check the current props.id so multicam files also trigger a reload
+      const currentJob = current.find((item) => item.job.datasetIds.reduce((prev, datasetId) => (datasetId.includes(props.id) ? datasetId : prev), ''));
+      if (currentJob && currentJob.job.exitCode === 0 && currentJob.job.jobType === 'pipeline') {
+        const result = await prompt({
+          title: 'Pipeline Finished',
+          text: [`Pipeline: ${currentJob.job.title}`,
+            'finished running sucesffully on the current dataset.  Click reload to load the annotations.  The current annotations will be replaced with the pipeline output.',
+          ],
+          confirm: true,
+          positiveButton: 'Reload',
+          negativeButton: 'Cancel',
+        });
+        if (result) {
+          viewerRef.value.reloadAnnotations();
         }
       }
     });
+    function changeCamera(cameraName: string) {
+      selectedCamera.value = cameraName;
+    }
+    // When using multiCam some elements require a modified ID to be used
+    const modifiedId = computed(() => {
+      if (selectedCamera.value) {
+        return `${props.id}/${selectedCamera.value}`;
+      }
+      return props.id;
+    });
+
+    const readOnlyMode = computed(() => settings.value?.readonlyMode || false);
+
     const runningPipelines = computed(() => {
       const results: string[] = [];
       if (runningJobs.value.find((item) => item.job.datasetIds.includes(props.id))) {
@@ -86,14 +91,17 @@ export default defineComponent({
       }
       return results;
     });
+
     return {
       datasets,
-      compoundId,
       viewerRef,
       buttonOptions,
       menuOptions,
       subTypeList,
       camNumbers,
+      readonlyMode,
+      modifiedId,
+      changeCamera,
       readOnlyMode,
       runningPipelines,
     };
@@ -103,9 +111,10 @@ export default defineComponent({
 
 <template>
   <Viewer
-    :id.sync="compoundId"
+    :id.sync="id"
     ref="viewerRef"
     :read-only-mode="readOnlyMode || runningPipelines.length > 0"
+    @change-camera="changeCamera"
   >
     <template #title>
       <v-tabs
@@ -128,7 +137,7 @@ export default defineComponent({
     </template>
     <template #title-right>
       <RunPipelineMenu
-        :selected-dataset-ids="[id]"
+        :selected-dataset-ids="[modifiedId]"
         :sub-type-list="subTypeList"
         :camera-numbers="camNumbers"
         :running-pipelines="runningPipelines"
@@ -136,13 +145,13 @@ export default defineComponent({
         v-bind="{ buttonOptions, menuOptions }"
       />
       <ImportAnnotations
-        :dataset-id="compoundId"
+        :dataset-id="modifiedId"
         v-bind="{ buttonOptions, menuOptions, readOnlyMode }"
         block-on-unsaved
       />
       <Export
         v-if="datasets[id]"
-        :id="compoundId"
+        :id="modifiedId"
         :button-options="buttonOptions"
       />
     </template>

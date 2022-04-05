@@ -1,16 +1,19 @@
 // Reference used because of https://github.com/Microsoft/TypeScript/issues/28502
 /// <reference types="resize-observer-browser" />
-import geo from 'geojs';
+import geo, { GeoEvent } from 'geojs';
 import {
   ref, reactive, provide, toRef, Ref, UnwrapRef, computed,
 } from '@vue/composition-api';
 import { map, over } from 'lodash';
 
+import Vue from 'vue';
 import { use } from '../../provides';
 import type { AggregateMediaController, MediaController } from './mediaControllerType';
 
 const AggregateControllerSymbol = Symbol('aggregate-controller');
 const CameraInitializerSymbol = Symbol('camera-initializer');
+const bus = new Vue();
+let allowCameraTrigger = true; // Used to prevent infinite loop on Camera Sync
 
 interface MediaControllerReactiveData {
   cameraName: string;
@@ -78,7 +81,7 @@ export function useMediaController() {
   let subControllers: MediaController[] = [];
   let state: Record<string, UnwrapRef<MediaControllerReactiveData>> = {};
   let cameraControllerSymbols: Record<string, symbol> = {};
-
+  const synchronizeCameras: Ref<boolean> = ref(false);
   function clear() {
     geoViewers = {};
     containers = {};
@@ -131,6 +134,25 @@ export function useMediaController() {
       data.lockedCamera = !data.lockedCamera;
     });
   }
+
+  function toggleSynchronizeCameras(val: boolean) {
+    synchronizeCameras.value = val;
+  }
+
+  bus.$on('pan', (camEvent: {camera: string; event: GeoEvent}) => {
+    const activeMap = geoViewers[camEvent.camera]?.value;
+    if (activeMap !== undefined && synchronizeCameras.value) {
+      allowCameraTrigger = false;
+      Object.entries(geoViewers).forEach(([camera, geoViewer]) => {
+        if (geoViewer.value && camera !== camEvent.camera) {
+          geoViewer.value.center(activeMap.center());
+          geoViewer.value.zoom(activeMap.zoom());
+          geoViewer.value.rotation(activeMap.rotation());
+        }
+      });
+      allowCameraTrigger = true;
+    }
+  });
 
   /**
    * This secondary initialization wrapper solves a sort of
@@ -279,6 +301,14 @@ export function useMediaController() {
       };
       interactorOpts.wheelScaleY = 0.2;
       geoViewers[camera].value.interactor().options(interactorOpts);
+
+      //Add in bus control synchronization for cameras
+      geoViewers[camera].value.geoOn(geo.event.pan, (e: GeoEvent) => {
+        // Only trigger if not handling other camera interactions.rrrrr
+        if (allowCameraTrigger) {
+          bus.$emit('pan', { camera: camera.toString(), event: e });
+        }
+      });
     }
 
     function prevFrame() {
@@ -348,6 +378,9 @@ export function useMediaController() {
       setSpeed: _setSpeed,
       getController,
       resetMapDimensions,
+      toggleSynchronizeCameras,
+      cameraSync: synchronizeCameras,
+
     };
 
     subControllers.push(mediaController);
@@ -378,13 +411,15 @@ export function useMediaController() {
       speed: defaultController.speed,
       setSpeed: over(map(subControllers, 'setSpeed')),
       lockedCamera: defaultController.lockedCamera,
-      toggleLockedCamera: over(map(subControllers, 'toggleLockedCamera')),
+      toggleLockedCamera,
       pause: over(map(subControllers, 'pause')),
       play: over(map(subControllers, 'play')),
       playing: defaultController.playing,
       resetZoom: over(map(subControllers, 'resetZoom')),
       currentTime: defaultController.currentTime,
       getController,
+      toggleSynchronizeCameras,
+      cameraSync: synchronizeCameras,
     };
   });
 

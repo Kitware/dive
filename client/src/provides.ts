@@ -60,14 +60,11 @@ type ProgressType = Readonly<{ loaded: boolean }>;
 const IntervalTreeSymbol = Symbol('intervalTree');
 type IntervalTreeType = Readonly<IntervalTree>;
 
+const CamMapSymbol = Symbol('camMap');
+type CamMapType = Readonly<Map<string, Map<TrackId, Track>>>;
+
 const RevisionIdSymbol = Symbol('revisionId');
 type RevisionIdType = Readonly<Ref<number>>;
-
-const TrackMapSymbol = Symbol('trackMap');
-type TrackMapType = Readonly<Map<TrackId, Track>>;
-
-const CamTrackMapSymbol = Symbol('camTrackMap');
-type CamTrackMapType = Readonly<Record<string, Map<TrackId, Track>>>;
 
 const TracksSymbol = Symbol('tracks');
 type FilteredTracksType = Readonly<Ref<readonly TrackWithContext[]>>;
@@ -118,7 +115,7 @@ export interface Handler {
   /* Change tracks difinitive type */
   trackTypeChange(trackId: TrackId | null, value: string): void;
   /* Add new empty track and select it */
-  trackAdd(): TrackId;
+  trackAdd(overrideTrackId?: number): TrackId;
   /* update Rectangle bounds for track */
   updateRectBounds(
     frameNum: number,
@@ -135,7 +132,7 @@ export interface Handler {
     preventInterrupt?: () => void,
   ): void;
   /* Remove a whole track */
-  removeTrack(trackIds: TrackId[], forcePromptDisable?: boolean): void;
+  removeTrack(trackIds: TrackId[], forcePromptDisable?: boolean, cameraName?: string): void;
   /* Remove a single point from selected track's geometry by selected index */
   removePoint(): void;
   /* Remove an entire annotation from selected track by selected key */
@@ -170,6 +167,14 @@ export interface Handler {
   unstageFromMerge(ids: TrackId[]): void;
   /* Reload Annotation File */
   reloadAnnotations(): Promise<void>;
+  /* Set Selected Camera */
+  setSelectedCamera(camera: string, editMode: boolean): void;
+  /* unlink Camera Track */
+  unlinkCameraTrack(trackId: TrackId, camera: string): void;
+  /* link Camera Track */
+  linkCameraTrack(baseTrackId: TrackId, linkTrackId: TrackId, camera: string): void;
+  startLinking(camera: string): void;
+  stopLinking(): void;
 }
 const HandlerSymbol = Symbol('handler');
 
@@ -208,6 +213,11 @@ function dummyHandler(handle: (name: string, args: unknown[]) => void): Handler 
     commitMerge(...args) { handle('commitMerge', args); },
     unstageFromMerge(...args) { handle('unstageFromMerge', args); },
     reloadAnnotations(...args) { handle('reloadTracks', args); return Promise.resolve(); },
+    setSelectedCamera(...args) { handle('setSelectedCamera', args); },
+    unlinkCameraTrack(...args) { handle('unlinkCameraTrack', args); },
+    linkCameraTrack(...args) { handle('linkCameraTrack', args); },
+    startLinking(...args) { handle('startLinking', args); },
+    stopLinking(...args) { handle('stopLinking', args); },
   };
 }
 
@@ -233,10 +243,9 @@ export interface State {
   intervalTree: IntervalTreeType;
   mergeList: MergeList;
   pendingSaveCount: pendingSaveCountType;
+  camMap: CamMapType;
   progress: ProgressType;
   revisionId: RevisionIdType;
-  trackMap: TrackMapType;
-  camTrackMap: CamTrackMapType;
   typeStyling: TypeStylingType;
   selectedKey: SelectedKeyType;
   selectedTrackId: SelectedTrackIdType;
@@ -275,10 +284,9 @@ function dummyState(): State {
     intervalTree: new IntervalTree(),
     mergeList: ref([]),
     pendingSaveCount: ref(0),
+    camMap: new Map<string, Map<TrackId, Track>>(),
     progress: reactive({ loaded: true }),
     revisionId: ref(0),
-    trackMap: new Map<TrackId, Track>(),
-    camTrackMap: { default: new Map<TrackId, Track>() },
     typeStyling: ref({
       color() { return style.color; },
       strokeWidth() { return style.strokeWidth; },
@@ -329,10 +337,9 @@ function provideAnnotator(state: State, handler: Handler) {
   provide(IntervalTreeSymbol, state.intervalTree);
   provide(MergeListSymbol, state.mergeList);
   provide(PendingSaveCountSymbol, state.pendingSaveCount);
+  provide(CamMapSymbol, state.camMap);
   provide(ProgressSymbol, state.progress);
   provide(RevisionIdSymbol, state.revisionId);
-  provide(TrackMapSymbol, state.trackMap);
-  provide(CamTrackMapSymbol, state.camTrackMap);
   provide(TracksSymbol, state.filteredTracks);
   provide(TypeStylingSymbol, state.typeStyling);
   provide(SelectedKeySymbol, state.selectedKey);
@@ -411,19 +418,16 @@ function usePendingSaveCount() {
   return use<pendingSaveCountType>(PendingSaveCountSymbol);
 }
 
+function useCamMap() {
+  return use<CamMapType>(CamMapSymbol);
+}
+
 function useProgress() {
   return use<ProgressType>(ProgressSymbol);
 }
 
 function useRevisionId() {
   return use<RevisionIdType>(RevisionIdSymbol);
-}
-
-function useTrackMap() {
-  return use<TrackMapType>(TrackMapSymbol);
-}
-function useCamTrackMap() {
-  return use<CamTrackMapType>(CamTrackMapSymbol);
 }
 
 function useFilteredTracks() {
@@ -480,9 +484,8 @@ export {
   useIntervalTree,
   useMergeList,
   usePendingSaveCount,
+  useCamMap,
   useProgress,
-  useTrackMap,
-  useCamTrackMap,
   useFilteredTracks,
   useRevisionId,
   useTypeStyling,

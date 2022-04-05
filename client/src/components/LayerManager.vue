@@ -24,7 +24,7 @@ import {
   useEnabledTracks,
   useHandler,
   useIntervalTree,
-  useTrackMap,
+  useCamMap,
   useSelectedTrackId,
   useTypeStyling,
   useEditingMode,
@@ -33,7 +33,6 @@ import {
   useStateStyles,
   useMergeList,
   useAnnotatorPreferences,
-  useCamTrackMap,
   useSelectedCamera,
 } from '../provides';
 
@@ -56,12 +55,13 @@ export default defineComponent({
   setup(props) {
     const handler = useHandler();
     const intervalTree = useIntervalTree();
-    const camTrackMap = useCamTrackMap();
     const selectedCamera = useSelectedCamera();
-    let trackMap = useTrackMap();
-    if (props.camera !== 'singleCam' && camTrackMap[props.camera] !== undefined) {
-      trackMap = camTrackMap[props.camera];
+    const camMap = useCamMap();
+    const trackMap = camMap.get(props.camera);
+    if (trackMap === undefined) {
+      throw new Error(`Camera Name: ${props.camera} doesn't exist in the trackMap`);
     }
+
     const enabledTracksRef = useEnabledTracks();
     const selectedTrackIdRef = useSelectedTrackId();
     const mergeListRef = useMergeList();
@@ -150,7 +150,7 @@ export default defineComponent({
       const editingTracks = [] as FrameDataTrack[];
       currentFrameIds.forEach(
         (trackId: TrackId) => {
-          const track = trackMap.get(trackId);
+          const track = trackMap?.get(trackId);
           if (track === undefined) {
             // Track may be located in another Camera
             // TODO: Find a better way to represent tracks outside of cameras
@@ -229,16 +229,16 @@ export default defineComponent({
       }
 
       if (selectedTrackId !== null) {
-        if ((editingTrack) && !currentFrameIds.includes(selectedTrackId)) {
-          const editTrack = trackMap.get(selectedTrackId);
-
+        if ((editingTrack) && !currentFrameIds.includes(selectedTrackId)
+        && props.camera === selectedCamera.value) {
+          const editTrack = trackMap?.get(selectedTrackId);
+          //Track doesn't exist in the only camera
           if (editTrack === undefined) {
             throw new Error(`trackMap missing trackid ${selectedTrackId}`);
           }
           const enabledIndex = enabledTracks.findIndex(
             (trackWithContext) => trackWithContext.track.trackId === editTrack.trackId,
           );
-
           const [real, lower, upper] = editTrack.getFeature(frame);
           const features = real || lower || upper;
           const trackFrame = {
@@ -294,6 +294,8 @@ export default defineComponent({
         mergeListRef,
         visibleModesRef,
         typeStylingRef,
+        // Updates when switching cameras while track is alread selected and editing mode is on
+        selectedCamera,
       ],
       () => {
         updateLayers(
@@ -326,7 +328,11 @@ export default defineComponent({
     );
 
     const Clicked = (trackId: number, editing: boolean) => {
-      //So we only want to pass the click whjen not in creation mode or editing mode for features
+      // If the camera isn't selected yet we ignore the click
+      if (selectedCamera.value !== props.camera) {
+        return;
+      }
+      //So we only want to pass the click when not in creation mode or editing mode for features
       if (editAnnotationLayer.getMode() !== 'creation') {
         editAnnotationLayer.disable();
         handler.trackSelect(trackId, editing);

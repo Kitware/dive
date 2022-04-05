@@ -90,6 +90,9 @@ export default class Track {
   /** A callback to notify about changes to the track. */
   notifier?: TrackNotifier;
 
+  /** Enables/Disables the notifier specifically for multicam merge */
+  notifierEnabled: boolean;
+
   constructor(trackId: TrackId, {
     meta = {},
     begin = Infinity,
@@ -111,6 +114,7 @@ export default class Track {
     this.end = end;
     this.confidencePairs = confidencePairs;
     this.notifier = notifier;
+    this.notifierEnabled = true;
   }
 
   get length() {
@@ -201,7 +205,7 @@ export default class Track {
 
   private notify(name: string, oldValue: unknown) {
     /* Prevent broadcast until the first feature is initialized */
-    if (this.isInitialized()) {
+    if (this.isInitialized() && this.notifierEnabled) {
       this.revision.value += 1;
       if (this.notifier) {
         this.notifier({
@@ -266,7 +270,10 @@ export default class Track {
    * Merge other into track at frame, preferring features from
    * self if there are conflicts
    */
-  merge(others: Track[]) {
+  merge(others: Track[], disableNotifier = false) {
+    if (disableNotifier) {
+      this.notifierEnabled = false;
+    }
     others.forEach((other) => {
       other.confidencePairs.forEach((pair) => {
         const match = this.confidencePairs.find(([name]) => name === pair[0]);
@@ -289,6 +296,9 @@ export default class Track {
         });
       }
     });
+    if (disableNotifier) {
+      this.notifierEnabled = true;
+    }
   }
 
   toggleKeyframe(frame: number) {

@@ -137,7 +137,7 @@ export default defineComponent({
             small
             :color="mediaController.lockedCamera.value ? 'primary': 'default'"
             title="center camera on selected track"
-            @click="mediaController.toggleLockedCamera"
+            @click="mediaController.toggleLockedCamera()"
           >
             <v-icon>
               {{ mediaController.lockedCamera.value ? 'mdi-lock-check' : 'mdi-lock-open' }}
@@ -150,6 +150,19 @@ export default defineComponent({
             @click="mediaController.resetZoom"
           >
             <v-icon>mdi-image-filter-center-focus</v-icon>
+          </v-btn>
+          <v-btn
+            v-if="mediaController.cameras.value.length > 1"
+            icon
+            small
+            :color="mediaController.cameraSync.value ? 'primary': 'default'"
+            title="Synchronize camera controls"
+
+            @click="mediaController.toggleSynchronizeCameras(!mediaController.cameraSync.value)"
+          >
+            <v-icon>
+              {{ mediaController.cameraSync.value ? 'mdi-link' : 'mdi-link-off' }}
+            </v-icon>
           </v-btn>
         </v-col>
       </v-row>

@@ -45,8 +45,10 @@ function makeTrackStore() {
 
 describe('useTrackFilters', () => {
   it('updateTypeName', async () => {
-    const { sortedTracks } = makeTrackStore();
-    const tf = useTrackFilters({ sortedTracks, removeTrack, markChangesPending });
+    const { sortedTracks, camMap } = makeTrackStore();
+    const tf = useTrackFilters({
+      sortedTracks, removeTrack, markChangesPending, camMap,
+    });
     tf.setConfidenceFilters({ baz: 0.1, bar: 0.2, default: 0.1 });
     tf.updateTypeName({ currentType: 'foo', newType: 'baz' });
     expect(tf.allTypes.value).toEqual(['baz', 'bar']);
@@ -59,8 +61,10 @@ describe('useTrackFilters', () => {
   });
 
   it('deleteType', () => {
-    const { sortedTracks } = makeTrackStore();
-    const tf = useTrackFilters({ sortedTracks, removeTrack, markChangesPending });
+    const { sortedTracks, camMap } = makeTrackStore();
+    const tf = useTrackFilters({
+      sortedTracks, removeTrack, markChangesPending, camMap,
+    });
     tf.setConfidenceFilters({ baz: 0.1, bar: 0.2 });
     tf.deleteType('bar'); // delete type only deletes the defaultType, doesn't touch tracks.
     expect(sortedTracks.value).toHaveLength(3);
@@ -69,9 +73,11 @@ describe('useTrackFilters', () => {
   });
 
   it('removeTypeTrack', async () => {
-    const { sortedTracks } = makeTrackStore();
+    const { sortedTracks, camMap } = makeTrackStore();
     const sypRemoveTrack = jest.fn();
-    const tf = useTrackFilters({ sortedTracks, removeTrack: sypRemoveTrack, markChangesPending });
+    const tf = useTrackFilters({
+      sortedTracks, removeTrack: sypRemoveTrack, markChangesPending, camMap,
+    });
     tf.removeTypeTracks(['bar']);
     expect(tf.allTypes.value).toEqual(['foo', 'bar', 'baz']);
     expect(sypRemoveTrack).not.toHaveBeenCalled();

@@ -18,7 +18,7 @@ import {
   useEventChart,
 } from 'vue-media-annotator/use';
 import { useMediaController } from 'vue-media-annotator/components';
-import { getTrack } from 'vue-media-annotator/use/useTrackStore';
+import { getAnyTrack, getPossibleTrack, getTrack } from 'vue-media-annotator/use/useTrackStore';
 import { provideAnnotator } from 'vue-media-annotator/provides';
 import ImageAnnotator from 'vue-media-annotator/components/annotators/ImageAnnotator.vue';
 import VideoAnnotator from 'vue-media-annotator/components/annotators/VideoAnnotator.vue';
@@ -86,13 +86,17 @@ export default defineComponent({
     const selectedCamera = ref('singleCam');
     const playbackComponent = ref(undefined as Vue | undefined);
     const readonlyState = computed(() => props.readOnlyMode || props.revision !== undefined);
-    const { aggregateController, onResize, clear: mediaControllerClear } = useMediaController();
+    const {
+      aggregateController,
+      onResize,
+      clear: mediaControllerClear,
+    } = useMediaController();
     const { time, updateTime, initialize: initTime } = useTimeObserver();
-    const imageData = ref({ default: [] } as Record<string, FrameImage[]>);
+    const imageData = ref({ singleCam: [] } as Record<string, FrameImage[]>);
     const datasetType: Ref<DatasetType> = ref('image-sequence');
     const datasetName = ref('');
     const saveInProgress = ref(false);
-    const videoUrl: Ref<Record<string, string>> = ref({ });
+    const videoUrl: Ref<Record<string, string>> = ref({});
     const { loadDetections, loadMetadata, saveMetadata } = useApi();
     const progress = reactive({
       // Loaded flag prevents annotator window from populating
@@ -118,6 +122,7 @@ export default defineComponent({
       markChangesPending,
       discardChanges,
       pendingSaveCount,
+      addCamera: addSaveCamera,
     } = useSave(datasetId, readonlyState);
 
     const recipes = [
@@ -141,13 +146,13 @@ export default defineComponent({
     } = useAttributes({ markChangesPending });
 
     const {
-      trackMap,
-      camTrackMap,
+      camMap,
       sortedTracks,
       intervalTree,
       addTrack,
       insertTrack,
       addCamera,
+      removeCamera,
       removeTrack,
       getNewTrackId,
       removeTrack: tsRemoveTrack,
@@ -173,6 +178,7 @@ export default defineComponent({
       sortedTracks,
       removeTrack,
       markChangesPending,
+      camMap,
     });
 
     const {
@@ -191,6 +197,8 @@ export default defineComponent({
     const {
       mergeList,
       mergeInProgress,
+      linkingTrack,
+      linkingCamera,
       selectedFeatureHandle,
       handler,
       editingMode,
@@ -202,8 +210,7 @@ export default defineComponent({
       selectedTrackId,
       selectedCamera,
       editingTrack,
-      trackMap,
-      camTrackMap,
+      camMap,
       aggregateController,
       selectTrack,
       selectNextTrack,
@@ -229,7 +236,7 @@ export default defineComponent({
 
     async function trackSplit(trackId: TrackId | null, frame: number) {
       if (typeof trackId === 'number') {
-        const track = getTrack(trackMap, trackId);
+        const track = getTrack(camMap, trackId, selectedCamera.value);
         let newtracks: [Track, Track];
         try {
           newtracks = track.split(frame, getNewTrackId(), getNewTrackId() + 1);
@@ -257,6 +264,59 @@ export default defineComponent({
         handler.trackSelect(newtracks[1].trackId, wasEditing);
       }
     }
+
+    // Remove a track from within a camera multi-track into it's own track
+    function unlinkCameraTrack(trackId: TrackId, camera: string) {
+      const track = getTrack(camMap, trackId, camera);
+      handler.trackSelect(null, false);
+
+      const newTrack = Track.fromJSON({
+        trackId: getNewTrackId(),
+        meta: track.meta,
+        begin: track.begin,
+        end: track.end,
+        features: track.features,
+        confidencePairs: track.confidencePairs,
+        attributes: track.attributes,
+      });
+      handler.removeTrack([trackId], true, camera);
+      insertTrack(newTrack, { imported: false, cameraName: camera });
+      handler.trackSelect(newTrack.trackId);
+    }
+
+    /**
+     * Takes a BaseTrack and a merge Track and will attempt to merge the existing track
+     * into the camera and baseTrack.
+     * Requires that baseTrack doesn't have a track for the camera already
+     * Also requires that the mergeTrack isn't a track across multiple cameras.
+     */
+    function linkCameraTrack(baseTrack: TrackId, linkTrack: TrackId, camera: string) {
+      camMap.forEach((trackMap, key) => {
+        if (trackMap.get(linkTrack) && key !== camera) {
+          throw Error(`Attempting to link Track: ${linkTrack} to camera: ${camera} where there the track exists in another camera: ${key}`);
+        }
+      });
+      const track = getTrack(camMap, linkTrack, camera);
+      const selectedTrack = getAnyTrack(camMap, baseTrack);
+      handler.removeTrack([linkTrack], true, camera);
+      const newTrack = Track.fromJSON({
+        trackId: baseTrack,
+        meta: track.meta,
+        begin: track.begin,
+        end: track.end,
+        features: track.features,
+        confidencePairs: selectedTrack.confidencePairs,
+        attributes: track.attributes,
+      });
+      insertTrack(newTrack, { imported: false, cameraName: camera });
+    }
+
+    watch(linkingTrack, () => {
+      if (linkingTrack.value !== null && selectedTrackId.value !== null) {
+        linkCameraTrack(selectedTrackId.value, linkingTrack.value, linkingCamera.value);
+        handler.stopLinking();
+      }
+    });
 
     async function save() {
       // If editing the track, disable editing mode before save
@@ -312,25 +372,74 @@ export default defineComponent({
       return result;
     }
 
+
+    const setSelectedCamera = async (camera: string, editMode = false) => {
+      if (linkingCamera.value !== '' && linkingCamera.value !== camera) {
+        await prompt({
+          title: 'In Linking Mode',
+          text: 'Currently in Linking Mode, please hit OK and Escape to exit Linking mode or choose another Track in the highlighted Camera to Link',
+          positiveButton: 'OK',
+        });
+        return;
+      }
+      // EditTrack is set false by the LayerMap before executing this
+      if (selectedTrackId.value !== null) {
+        // If we had a track selected and it still exists with
+        // a feature length of 0 we need to remove it
+        const track = getPossibleTrack(camMap, selectedTrackId.value, selectedCamera.value);
+        if (track && track.features.length === 0) {
+          handler.trackAbort();
+        }
+      }
+      selectedCamera.value = camera;
+      /**
+       * Enters edit mode if not track exists for the camera and forcing edit mode
+       * or if a track exists and are alrady in edit mode we don't set it again
+       * Remember trackEdit(number) is a toggle for editing mode
+       */
+      if (selectedTrackId.value !== null && (editMode || editingTrack.value)) {
+        const track = getPossibleTrack(camMap, selectedTrackId.value, selectedCamera.value);
+        if (track === undefined || !editingTrack.value) {
+        //Stay in edit mode for the current track
+          handler.trackEdit(selectedTrackId.value);
+        }
+      }
+      ctx.emit('change-camera', camera);
+    };
+
+    // Handles changing camera using the dropdown or mouse clicks
+    // When using mouse clicks and right button it will remain in edit mode for the selected track
+    const changeCamera = (camera: string, event?: MouseEvent) => {
+      if (selectedCamera.value === camera) {
+        return;
+      }
+      if (event) {
+        event.preventDefault();
+      }
+      // Left click should kick out of editing mode automatically
+      if (event?.button === 0) {
+        editingTrack.value = false;
+      }
+      setSelectedCamera(camera, event?.button === 2);
+      ctx.emit('change-camera', camera);
+    };
     /** Trigger data load */
     const loadData = async () => {
       try {
         const meta = await loadMetadata(datasetId.value);
         const defaultCameraMeta = meta.multiCamMedia?.cameras[meta.multiCamMedia.defaultDisplay];
+        baseMulticamDatasetId.value = datasetId.value;
         if (defaultCameraMeta !== undefined && meta.multiCamMedia) {
           /* We're loading a multicamera dataset */
           const { cameras } = meta.multiCamMedia;
           multiCamList.value = Object.keys(cameras);
           defaultCamera.value = meta.multiCamMedia.defaultDisplay;
-          selectedCamera.value = defaultCamera.value;
+          changeCamera(defaultCamera.value);
           baseMulticamDatasetId.value = datasetId.value;
           if (!selectedCamera.value) {
             throw new Error('Multicamera dataset without default camera specified.');
           }
-          ctx.emit('update:id', `${props.id}/${selectedCamera.value}`);
-          return;
         }
-        /* Otherwise, complete loading of the dataset */
         populateTypeStyles(meta.customTypeStyling);
         if (meta.customTypeStyling) {
           importTypes(Object.keys(meta.customTypeStyling), false);
@@ -344,52 +453,40 @@ export default defineComponent({
           frameRate: meta.fps,
           originalFps: meta.originalFps || null,
         });
-        // Load non-Default Cameras if they exist:
-        const filteredMultiCamList = multiCamList.value.filter((item) => item !== 'singleCam');
-        if (filteredMultiCamList.length === 0) {
-          imageData.value[selectedCamera.value] = cloneDeep(meta.imageData) as FrameImage[];
-          if (meta.videoUrl) {
-            videoUrl.value[selectedCamera.value] = meta.videoUrl;
+        for (let i = 0; i < multiCamList.value.length; i += 1) {
+          const camera = multiCamList.value[i];
+          let cameraId = baseMulticamDatasetId.value;
+          if (multiCamList.value.length > 1) {
+            cameraId = `${baseMulticamDatasetId.value}/${camera}`;
           }
-          datasetType.value = meta.type as DatasetType;
-          const trackData = await loadDetections(datasetId.value);
-          const tracks = Object.values(trackData);
-          progress.total = tracks.length;
-          for (let i = 0; i < tracks.length; i += 1) {
-            if (i % 4000 === 0) {
+          // eslint-disable-next-line no-await-in-loop
+          const subCameraMeta = await loadMetadata(cameraId);
+          imageData.value[camera] = cloneDeep(subCameraMeta.imageData) as FrameImage[];
+          if (subCameraMeta.videoUrl) {
+            videoUrl.value[camera] = subCameraMeta.videoUrl;
+          }
+          addCamera(camera);
+          addSaveCamera(camera);
+          // eslint-disable-next-line no-await-in-loop
+          const camTrackData = await loadDetections(cameraId);
+          const camTracks = Object.values(camTrackData);
+          progress.total = camTracks.length;
+          for (let j = 0; j < camTracks.length; j += 1) {
+            if (j % 4000 === 0) {
               /* Every N tracks, yeild some cycles for other scheduled tasks */
-              progress.progress = i;
+              progress.progress = j;
               // eslint-disable-next-line no-await-in-loop
               await new Promise((resolve) => window.setTimeout(resolve, 500));
             }
-            insertTrack(Track.fromJSON(tracks[i]), { imported: true });
-          }
-        } else {
-          for (let i = 0; i < filteredMultiCamList.length; i += 1) {
-            const camera = filteredMultiCamList[i];
-            // eslint-disable-next-line no-await-in-loop
-            const subCameraMeta = await loadMetadata(`${baseMulticamDatasetId.value}/${camera}`);
-            imageData.value[camera] = cloneDeep(subCameraMeta.imageData) as FrameImage[];
-            if (subCameraMeta.videoUrl) {
-              videoUrl.value[camera] = subCameraMeta.videoUrl;
-            }
-            addCamera(camera);
-            // eslint-disable-next-line no-await-in-loop
-            const camTrackData = await loadDetections(`${baseMulticamDatasetId.value}/${camera}`);
-            const camTracks = Object.values(camTrackData);
-            progress.total = camTracks.length;
-            for (let j = 0; j < camTracks.length; j += 1) {
-              if (j % 4000 === 0) {
-              /* Every N tracks, yeild some cycles for other scheduled tasks */
-                progress.progress = j;
-                // eslint-disable-next-line no-await-in-loop
-                await new Promise((resolve) => window.setTimeout(resolve, 500));
-              }
-              insertTrack(Track.fromJSON(camTracks[j]), { imported: true, cameraName: camera });
-            }
+            insertTrack(Track.fromJSON(camTracks[j]), { imported: true, cameraName: camera });
           }
         }
-
+        // Remove default cameras such as singleCam if they aren't in the camMap
+        camMap.forEach((_cam, key) => {
+          if (!multiCamList.value.includes(key)) {
+            removeCamera(key);
+          }
+        });
         progress.loaded = true;
       } catch (err) {
         progress.loaded = false;
@@ -439,10 +536,6 @@ export default defineComponent({
       if (controlsRef.value) observer.unobserve(controlsRef.value.$el);
     });
 
-    const changeCamera = async (camera: string) => {
-      selectedCamera.value = camera;
-    };
-
     const globalHandler = {
       ...handler,
       save,
@@ -457,6 +550,9 @@ export default defineComponent({
       setConfidenceFilters,
       deleteAttribute,
       reloadAnnotations,
+      setSelectedCamera,
+      linkCameraTrack,
+      unlinkCameraTrack,
     };
 
     provideAnnotator(
@@ -474,10 +570,9 @@ export default defineComponent({
         intervalTree,
         mergeList,
         pendingSaveCount,
+        camMap,
         progress,
         revisionId: toRef(props, 'revision'),
-        trackMap,
-        camTrackMap,
         filteredTracks,
         typeStyling,
         selectedKey,
@@ -493,6 +588,7 @@ export default defineComponent({
 
     return {
       /* props */
+      aggregateController,
       confidenceFilters,
       clientSettings,
       controlsRef,
@@ -517,6 +613,7 @@ export default defineComponent({
       selectedFeatureHandle,
       selectedTrackId,
       selectedKey,
+      linkingCamera,
       videoUrl,
       visibleModes,
       frameRate: time.frameRate,
@@ -584,7 +681,8 @@ export default defineComponent({
       <v-spacer />
       <template #extension>
         <EditorMenu
-          v-bind="{ editingMode, visibleModes, editingTrack, recipes, mergeMode, editingDetails }"
+          v-bind="{ editingMode, visibleModes, editingTrack,
+                    recipes, mergeMode, editingDetails, linkingCamera }"
           :tail-settings.sync="clientSettings.annotatorPreferences.trackTails"
           @set-annotation-state="handler.setAnnotationState"
           @exit-edit="handler.trackAbort"
@@ -599,7 +697,7 @@ export default defineComponent({
           </template>
         </EditorMenu>
         <v-select
-          v-if="multiCamList.length && defaultCamera !== 'singleCam'"
+          v-if="multiCamList.length > 1"
           :value="selectedCamera"
           :items="multiCamList"
           label="Camera"
@@ -614,6 +712,30 @@ export default defineComponent({
             {{ item }} {{ item === defaultCamera ? '(Default)': '' }}
           </template>
         </v-select>
+        <v-badge
+          v-if="multiCamList.length > 1"
+          overlap
+          bottom
+          right
+          color="clear"
+          class="pl-1"
+        >
+          <template v-slot:badge>
+            <v-icon>
+              mdi-cog
+            </v-icon>
+          </template>
+          <v-btn
+            icon
+            small
+            title="MultiCamera Settings"
+            @click="context.toggle('MultiCamTools')"
+          >
+            <v-icon>
+              mdi-camera
+            </v-icon>
+          </v-btn>
+        </v-badge>
         <slot name="extension-right" />
       </template>
 
@@ -685,7 +807,7 @@ export default defineComponent({
           v-if="progress.loaded"
           v-mousetrap="[
             { bind: 'n', handler: () => !readonlyState && handler.trackAdd() },
-            { bind: 'r', handler: () => mediaController.resetZoom() },
+            { bind: 'r', handler: () => aggregateController.resetZoom() },
             { bind: 'esc', handler: () => handler.trackAbort() },
           ]"
           class="d-flex flex-column grow"
@@ -696,8 +818,8 @@ export default defineComponent({
               :key="camera"
               class="d-flex flex-column grow"
               :style="{ height: `calc(100% - ${controlsHeight}px)`}"
-              @click="changeCamera(camera)"
-              @mousedown.right="changeCamera(camera)"
+              @mousedown.left="changeCamera(camera, $event)"
+              @mouseup.right="changeCamera(camera, $event)"
             >
               <component
                 :is="datasetType === 'image-sequence' ? 'image-annotator' : 'video-annotator'"
@@ -758,7 +880,7 @@ export default defineComponent({
 <style lang="scss">
 html {
   overflow-y: auto;
- scrollbar-face-color: #646464;
+  scrollbar-face-color: #646464;
   scrollbar-base-color: #646464;
   scrollbar-3dlight-color: #646464;
   scrollbar-highlight-color: #646464;
