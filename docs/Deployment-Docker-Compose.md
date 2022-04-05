@@ -90,10 +90,10 @@ It's possible to split your web server and task runner between multiple nodes.  
 
 ``` bash
 ## On the web server
-docker-compose -f docker-compose.yml [...] up -d girder rabbit
+docker-compose -f docker-compose.yml up -d girder rabbit
 
 ## On the GPU server(s)
-docker-compose -f docker-compose.yml [...] up -d --no-deps girder_worker_pipelines girder_worker_training girder_worker_default
+docker-compose -f docker-compose.yml up -d --no-deps girder_worker_pipelines girder_worker_training girder_worker_default
 ```
 
 In order to run any jobs (video transcoding, pipelines, training, addon upgrades) the GPU server will need to be running.
