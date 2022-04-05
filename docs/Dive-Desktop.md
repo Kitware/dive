@@ -44,7 +44,7 @@ Click either ==Open Image Sequence :material-folder-open:== or ==Open Video :mat
 * ==:material-folder: Directory== is the default option for image sequences. It will prompt you to choose an **entire folder** of images to import as a dataset.
     * You can use globbing patterns to filter the contents of an image directory during import. Click ==:material-chevron-down: Show advanced options== to reveal the glob input.
 * ==:material-view-list-outline: Image List== will prompt you to choose a `.txt` file that contains an image name or full path on each line.
-* ==:material-binoculars: Stereo== will prompt you to choose 2 videos or 2 image sequences.
+* ==:material-binoculars: Stereo== will prompt you to choose 2 videos or 2 image sequences and a calibration file.
 * ==:material-camera-burst: Multi-Cam== will prompt you to describe the multi-cam configuration by naming several cameras and picking the source media for each.
 
 The import routine will look for `.csv` and `.json` files in the same directory as the source media, and you will be prompted to manually select an annotation file and a configuration file.  Neither is required.
