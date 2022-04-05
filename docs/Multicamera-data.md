@@ -30,6 +30,9 @@ Track creation for a single camera works much in the same way it does for single
 Next to the dropdown for the camera selection is a camera settings icon.  Clicking on that will open the multicamera tools.  These tools provide a quick view of the selected track across all cameras.
 When a track is selected it will easily show the existing detections and tracks across multiple cameras.
 
+![MultiCam Tools](images/MultiCam/MultiCamTools.png){ width=260px align=right }
+
+
 * Editing - Clicking on the ==:material-pencil-box-outline:== or ==:material-shape-square-plus:== edit button for any camera will select that camera and edit an existing track or allow for the creation of a new track which is linked to existing tracks.
 * Deleting (Detection/Track) - ==:material-delete:==  deleting the detection will leave the track for the camera (if it exists on multiple frames) or will remove only the detection for the current frame.  If it is the only detection left on that camera a prompt will ask if you want to delete the track.  If you delete the track it will remove all detections associated with that TrackId across all of the frames.
 * Unlinking - ==:material-link-variant-minus:== Will split off the track for the camera into a new trackId
