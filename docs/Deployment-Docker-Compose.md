@@ -100,13 +100,14 @@ In order to run any jobs (video transcoding, pipelines, training, addon upgrades
 
 ## Addon management
 
-After initial deployment, a DIVE server will only have basic VIAME pipelines available. VIAME optional patches are installed and upgraded using a celery task that must be triggered by hand. Run this by issuing a <u>`POST /dive_configuration/upgrade_pipelines`</u> request from the swagger UI at `http://{domain}/api/v1` .
+After initial deployment, DIVE Server will require an addon upgrade in order to download and scan for VIAME addons. Run this by issuing a <u>`POST /dive_configuration/upgrade_pipelines`</u> request from the swagger UI at `http://{server_url}:{server_port}/api/v1`.
 
 * Whether you `force` or not, only those pipelines from addons from the exact urls passed will be enabled on the server.
 * An old addon can be disabled by simply omitting its download from the upgrade payload.
 * `force` should be used to force re-download of all URLs in the payload even if their zipfiles have been cached.
 * An upgrade run is always required if the "common" pipelines in the base image change.  These are updated for every run, and do not require `force`.
 * See the job log to verify the exact actions taken by an upgrade job.
+* Optional patches are updated occasionally and you can find the [latest urls here](https://github.com/VIAME/VIAME/blob/master/cmake/download_viame_addons.sh).
 
 ![Upgrade Pipelines Swagger](images/UpgradePipelinesSwagger.png)
 

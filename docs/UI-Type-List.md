@@ -15,7 +15,6 @@ The Type List is used to control visual styles of the different types as well as
 * ==:material-cog:== opens the type settings menu.
 * ==:material-delete:=={ .error } will remove the type from any visible track or delete the track if it is the only type.
 * ==:material-swap-horizontal:== will switch the left sidebar panel to show the track attribute editor view.
-* Confidence filtering is documented on the [confidence filter page](UI-Confidence-Filter.md)
 
 <div style="clear: both;"/>
 

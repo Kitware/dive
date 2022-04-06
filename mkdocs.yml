@@ -40,6 +40,9 @@ extra:
       link: https://hub.docker.com/r/kitware/viame-web
     - icon: fontawesome/brands/discourse
       link: https://discourse.kitware.com/c/viame-dive/17
+  analytics:
+    provider: google
+    property: UA-6042509-43
 
 nav:
   - User Guide:
@@ -72,7 +75,3 @@ nav:
     - REST API Specification: https://viame.kitware.com/api/v1
   - Frequently Asked Questions: FAQ.md
   - Support: Support.md
-
-google_analytics:
-  - UA-6042509-43
-  - auto
