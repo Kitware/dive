@@ -1,8 +1,3 @@
----
-hide:
-  - navigation
----
-
 # Multicamera and Stereo Data (Dive Desktop Beta)
 
 A beta release of the *Desktop Only* software supports both multicamera and stereo datasets for viewing and editing.
