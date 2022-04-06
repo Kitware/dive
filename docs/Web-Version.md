@@ -145,12 +145,11 @@ A clone is a **shallow copy** of a dataset.
 * Click the ==:material-content-copy: Clone== button in the top navigation bar on the right side.
 * Choose a name and location for the clone within your own workspace.
 
-
 ## Revision History
 
 Revision history is accessible through the annotation UI in the Web version.  Each time you press ==:material-content-save: Save==, a new revision of your annotation state is created.  It is possible to inspect (or "check out") past revisions.  The viewer will be in **read-only mode** when past revisions are checked out because only the most recent revision can be modified.
 
-* Click ==:material-history: History== in the [Navigation Bar area](UI-Navigation-Bar.md) to open the Revision History panel.
+* Click ==:material-history: History== in the [Navigation Bar area](UI-Navigation-Editing-Bar.md) to open the Revision History panel.
     * Each row shows the revision datetime, the action that caused it, and the number of additions and deletions.
     * Click a row to check out a previous revision
 * Click ==:material-download: Download== when a previous revision is checked out to download the annotation CSV from that revision.
