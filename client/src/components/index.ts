@@ -12,6 +12,7 @@ import EventChart from './controls/EventChart.vue';
 import LineChart from './controls/LineChart.vue';
 import Timeline from './controls/Timeline.vue';
 
+import ImageEnhancements from './ImageEnhancements.vue';
 import LayerManager from './LayerManager.vue';
 import TooltipButton from './TooltipButton.vue';
 import TrackItem from './TrackItem.vue';
@@ -20,6 +21,7 @@ import TypeList from './TypeList.vue';
 
 export * from './annotators/useMediaController';
 export {
+  ImageEnhancements,
   ImageAnnotator,
   VideoAnnotator,
   Controls,

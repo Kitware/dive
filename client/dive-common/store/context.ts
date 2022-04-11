@@ -2,7 +2,7 @@ import Install, { reactive } from '@vue/composition-api';
 import Vue, { VueConstructor } from 'vue';
 /* Components */
 import TypeThreshold from 'dive-common/components/TypeThreshold.vue';
-import ImageEnhancements from 'dive-common/components/ImageEnhancements.vue';
+import ImageEnhancements from 'vue-media-annotator/components/ImageEnhancements.vue';
 
 Vue.use(Install);
 
