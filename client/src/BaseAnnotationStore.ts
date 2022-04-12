@@ -24,12 +24,12 @@ function isTrack(value: Track | Group): value is Track {
 }
 
 /**
- * AnnotationStore performs operations on a collection of annotations, such as
+ * BaseAnnotationStore performs operations on a collection of annotations, such as
  * add and remove.  Operations on individual annotations, such as setting
  * and deleting detections, should be performed directly on the annotation
- * object.  AnnotationStore will observe these changes and react if necessary.
+ * object.  BaseAnnotationStore will observe these changes and react if necessary.
  */
-export default abstract class AnnotationStore<T extends Track | Group> {
+export default abstract class BaseAnnotationStore<T extends Track | Group> {
   markChangesPending: MarkChangesPending;
 
   /* Non-reactive state
@@ -71,6 +71,12 @@ export default abstract class AnnotationStore<T extends Track | Group> {
     });
   }
 
+  /**
+   * By accessing the canary.value, depend sets up a dependency
+   * on the notifier, allowing dependants to re-compute.
+   *
+   * Using Vue reactivity hooks naturally debounces updates to the canary.
+   */
   private depend() {
     return this.canary.value;
   }

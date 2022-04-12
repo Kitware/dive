@@ -3,7 +3,7 @@ import {
 } from '@vue/composition-api';
 import { cloneDeep } from 'lodash';
 import { AnnotationId } from 'vue-media-annotator/BaseAnnotation';
-import type AnnotationStore from '../AnnotationStore';
+import type BaseAnnotationStore from '../BaseAnnotationStore';
 import type Group from '../Group';
 import type Track from '../track';
 import { updateSubset } from '../utils';
@@ -28,7 +28,7 @@ export type GroupWithContext = AnnotationWithContext<Group>;
 /* Provide annotation filtering controls on annotations loaded from store. */
 export default function useFilteredTracks<T extends Track | Group>(
   { store, markChangesPending }: {
-    store: AnnotationStore<Track | Group>;
+    store: BaseAnnotationStore<Track | Group>;
     markChangesPending: () => void;
   },
 ) {

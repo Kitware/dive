@@ -1,8 +1,8 @@
 import Track from './track';
-import AnnotationStore from './AnnotationStore';
+import BaseAnnotationStore from './BaseAnnotationStore';
 import { AnnotationId } from './BaseAnnotation';
 
-export default class TrackStore extends AnnotationStore<Track> {
+export default class TrackStore extends BaseAnnotationStore<Track> {
   add(frame: number, defaultType: string, afterId?: AnnotationId) {
     const track = new Track(this.getNewId(), {
       begin: frame,
