@@ -96,19 +96,19 @@ export default class PolygonLayer extends BaseLayer<PolyGeoJSData> {
     }
 
 
-    formatData(frameData: FrameDataTrack[]) {
+    formatData(frameDataTracks: FrameDataTrack[]) {
       const arr: PolyGeoJSData[] = [];
-      frameData.forEach((track: FrameDataTrack) => {
-        if (track.features && track.features.bounds) {
-          if (track.features.geometry?.features?.[0]) {
-            track.features.geometry.features.forEach((feature) => {
+      frameDataTracks.forEach((frameData: FrameDataTrack) => {
+        if (frameData.features && frameData.features.bounds) {
+          if (frameData.features.geometry?.features?.[0]) {
+            frameData.features.geometry.features.forEach((feature) => {
               if (feature.geometry && feature.geometry.type === 'Polygon') {
                 const polygon = feature.geometry;
                 const annotation: PolyGeoJSData = {
-                  trackId: track.trackId,
-                  selected: track.selected,
-                  editing: track.editing,
-                  styleType: track.styleType,
+                  trackId: frameData.track.id,
+                  selected: frameData.selected,
+                  editing: frameData.editing,
+                  styleType: frameData.styleType,
                   polygon,
                 };
                 arr.push(annotation);

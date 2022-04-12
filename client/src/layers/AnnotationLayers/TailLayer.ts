@@ -47,7 +47,7 @@ export default class TailLayer extends BaseLayer<TailData[]> {
   }
 
   generateDataForTrack(fd: FrameDataTrack): TailData[] {
-    const track = this.trackStore.get(fd.trackId);
+    const track = this.trackStore.get(fd.track.id);
     const tailData: TailData[] = [];
     let lastPoint: TailData | null = null;
     const start = Math.max(this.currentFrame - this.before, 0);

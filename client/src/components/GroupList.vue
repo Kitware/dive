@@ -3,50 +3,55 @@ import Vue from 'vue';
 import {
   defineComponent, reactive, computed, ref, Ref,
 } from '@vue/composition-api';
-import { AnnotationId } from 'vue-media-annotator/BaseAnnotation';
-import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
+// import { AnnotationId } from 'vue-media-annotator/BaseAnnotation';
+// import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
+import Group from '../Group';
 
 import {
-  useEditingMode,
   useGroupStore,
   useReadOnlyMode,
   useGroupStyleManager,
 } from '../provides';
+import GroupItem from './GroupItem.vue';
 
+interface VirtualListItem {
+  filteredGroup: Group;
+}
 
 /* Magic numbers involved in height calculation */
 const TrackListHeaderHeight = 52;
 
 export default defineComponent({
-  name: 'TrackList',
+  name: 'GroupList',
+
+  components: { GroupItem },
 
   props: {
-    newTrackMode: {
-      type: String,
-      required: true,
-    },
-    newTrackType: {
-      type: String,
-      required: true,
-    },
-    lockTypes: {
-      type: Boolean,
-      default: false,
-    },
-    hotkeysDisabled: {
-      type: Boolean,
-      required: true,
-    },
-    height: {
-      type: Number,
-      default: 420,
-    },
+    // newTrackMode: {
+    //   type: String,
+    //   required: true,
+    // },
+    // newTrackType: {
+    //   type: String,
+    //   required: true,
+    // },
+    // lockTypes: {
+    //   type: Boolean,
+    //   default: false,
+    // },
+    // hotkeysDisabled: {
+    //   type: Boolean,
+    //   required: true,
+    // },
+    // height: {
+    //   type: Number,
+    //   default: 420,
+    // },
   },
 
   setup(props) {
-    const { prompt } = usePrompt();
+    // const { prompt } = usePrompt();
     const readOnlyMode = useReadOnlyMode();
-    const editingModeRef = useEditingMode();
     const store = useGroupStore();
     const typeStylingRef = useGroupStyleManager().typeStyling;
 
@@ -56,43 +61,29 @@ export default defineComponent({
     const virtualList = ref(null as null | Vue);
 
     const virtualListItems: Ref<readonly VirtualListItem[]> = computed(() => {
-      return store.sorted.value.map((filtered) => ({
+      const sorted = store.sorted.value;
+      return sorted.map((filtered) => ({
         filteredGroup: filtered,
       }));
     });
 
     function getItemProps(item: VirtualListItem) {
-      const confidencePair = item.filteredTrack.annotation.getType(
-        item.filteredTrack.context.confidencePairIndex,
-      );
-      const trackType = confidencePair[0];
-      const selected = item.selectedTrackId === item.filteredTrack.annotation.id;
+      const confidencePair = item.filteredGroup.getType();
       return {
-        trackType,
-        track: item.filteredTrack.annotation,
-        inputValue: item.checkedTrackIds.indexOf(item.filteredTrack.annotation.id) >= 0,
-        selected,
-        editing: selected && item.editingTrack,
-        color: typeStylingRef.value.color(trackType),
-        types: item.allTypes,
+        group: item.filteredGroup,
+        color: typeStylingRef.value.color(confidencePair[0]),
       };
     }
 
-    const virtualHeight = computed(() => props.height - TrackListHeaderHeight);
+    const virtualHeight = computed(() => 800 - TrackListHeaderHeight);
 
     return {
-      allTypes: allTypesRef,
       data,
       getItemProps,
-      mouseTrap,
-      newTrackColor,
-      filteredTracks: filteredTracksRef,
       readOnlyMode,
-      trackAdd,
       virtualHeight,
       virtualListItems,
       virtualList,
-      multiDelete,
     };
   },
 });
@@ -100,7 +91,7 @@ export default defineComponent({
 
 <template>
   <div class="d-flex flex-column">
-    <datalist id="allTypesOptions">
+    <!-- <datalist id="allTypesOptions">
       <option
         v-for="type in allTypes"
         :key="type"
@@ -108,10 +99,9 @@ export default defineComponent({
       >
         {{ type }}
       </option>
-    </datalist>
+    </datalist> -->
     <v-virtual-scroll
       ref="virtualList"
-      v-mousetrap="mouseTrap"
       class="tracks"
       :items="virtualListItems"
       :item-height="data.itemHeight"
@@ -119,10 +109,8 @@ export default defineComponent({
       bench="1"
     >
       <template #default="{ item }">
-        <track-item
+        <group-item
           v-bind="getItemProps(item)"
-          :lock-types="lockTypes"
-          @seek="$emit('track-seek', $event)"
         />
       </template>
     </v-virtual-scroll>

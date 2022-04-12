@@ -106,7 +106,7 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
             hasPoly = filtered.length > 0;
           }
           const annotation: RectGeoJSData = {
-            trackId: track.trackId,
+            trackId: track.track.id,
             selected: track.selected,
             editing: track.editing,
             styleType: track.styleType,

@@ -59,20 +59,20 @@ export default class LineLayer extends BaseLayer<LineGeoJSData> {
     return dashed;
   }
 
-  formatData(frameData: FrameDataTrack[]) {
+  formatData(frameDataTracks: FrameDataTrack[]) {
     const arr: LineGeoJSData[] = [];
-    frameData.forEach((track: FrameDataTrack) => {
-      if (track.features && track.features.bounds) {
-        if (track.features.geometry?.features?.[0]) {
-          track.features.geometry.features.forEach((feature) => {
+    frameDataTracks.forEach((frameData: FrameDataTrack) => {
+      if (frameData.features && frameData.features.bounds) {
+        if (frameData.features.geometry?.features?.[0]) {
+          frameData.features.geometry.features.forEach((feature) => {
             if (feature.geometry && feature.geometry.type === 'LineString') {
               const line = cloneDeep(feature.geometry);
               // line.coordinates = LineLayer.dashLine(line.coordinates);
               const annotation: LineGeoJSData = {
-                trackId: track.trackId,
-                selected: track.selected,
-                editing: track.editing,
-                styleType: track.styleType,
+                trackId: frameData.track.id,
+                selected: frameData.selected,
+                editing: frameData.editing,
+                styleType: frameData.styleType,
                 line,
                 dashed: true,
               };

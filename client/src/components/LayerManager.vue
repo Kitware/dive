@@ -152,17 +152,19 @@ export default defineComponent({
           );
           if (enabledIndex !== -1) {
             const [features] = track.getFeature(frame);
-            const styleType = (colorBy === 'group')
-              ? groupStore.lookupGroups(trackId)?.[0]?.getType() || groupStore.defaultGroup
-              : track.getType(enabledTracks[enabledIndex].context.confidencePairIndex);
+            const groups = groupStore.lookupGroups(track.id);
+            const trackStyleType = track.getType(
+              enabledTracks[enabledIndex].context.confidencePairIndex,
+            );
+            const groupStyleType = groups?.[0]?.getType() ?? groupStore.defaultGroup;
             const trackFrame = {
               selected: ((selectedTrackId === track.trackId)
                 || (mergeList.includes(track.trackId))),
               editing: editingTrack,
-              trackId: track.trackId,
+              track,
+              groups,
               features,
-              styleType,
-              confidencePairs: track.confidencePairs,
+              styleType: colorBy === 'group' ? groupStyleType : trackStyleType,
             };
             frameData.push(trackFrame);
             if (trackFrame.selected) {
@@ -222,22 +224,18 @@ export default defineComponent({
       if (selectedTrackId !== null) {
         if ((editingTrack) && !currentFrameIds.includes(selectedTrackId)) {
           const editTrack = trackStore.get(selectedTrackId);
-          const enabledIndex = enabledTracks.findIndex(
-            (trackWithContext) => trackWithContext.annotation.id === editTrack.id,
-          );
-
+          // const enabledIndex = enabledTracks.findIndex(
+          //   (trackWithContext) => trackWithContext.annotation.id === editTrack.id,
+          // );
           const [real, lower, upper] = editTrack.getFeature(frame);
           const features = real || lower || upper;
-          const styleType = (colorBy === 'group')
-            ? groupStore.lookupGroups(selectedTrackId)?.[0].getType() || groupStore.defaultGroup
-            : editTrack.getType(enabledTracks[enabledIndex].context.confidencePairIndex);
           const trackFrame = {
             selected: true,
             editing: true,
-            trackId: editTrack.trackId,
+            track: editTrack,
+            groups: groupStore.lookupGroups(editTrack.id),
             features: (features && features.interpolate) ? features : null,
-            styleType,
-            confidencePairs: editTrack.confidencePairs,
+            styleType: groupStore.defaultGroup, // Won't be used
           };
           editingTracks.push(trackFrame);
         }

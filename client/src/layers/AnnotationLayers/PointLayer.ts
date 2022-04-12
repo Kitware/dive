@@ -21,12 +21,12 @@ export default class PointLayer extends BaseLayer<PointGeoJSData> {
   }
 
   // eslint-disable-next-line class-methods-use-this
-  formatData(frameData: FrameDataTrack[]): PointGeoJSData[] {
+  formatData(frameDataTracks: FrameDataTrack[]): PointGeoJSData[] {
     const arr: PointGeoJSData[] = []; //(this.checkHeadTail(frameData));
-    frameData.forEach((track: FrameDataTrack) => {
-      if (track.features && track.features.bounds) {
-        if (track.features.geometry?.features?.[0]) {
-          track.features.geometry.features.forEach((feature) => {
+    frameDataTracks.forEach((frameData: FrameDataTrack) => {
+      if (frameData.features && frameData.features.bounds) {
+        if (frameData.features.geometry?.features?.[0]) {
+          frameData.features.geometry.features.forEach((feature) => {
             if (feature.geometry && feature.geometry.type === 'Point') {
               const [x, y] = feature.geometry.coordinates;
               let key = 'point';
@@ -34,10 +34,10 @@ export default class PointLayer extends BaseLayer<PointGeoJSData> {
                 key = feature.properties.key;
               }
               const annotation: PointGeoJSData = {
-                trackId: track.trackId,
-                selected: track.selected,
-                editing: track.editing,
-                styleType: track.styleType,
+                trackId: frameData.track.id,
+                selected: frameData.selected,
+                editing: frameData.editing,
+                styleType: frameData.styleType,
                 feature: key,
                 x,
                 y,
