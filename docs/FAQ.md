@@ -35,6 +35,10 @@ If you have data in lots of places or it arrives at different times, it's probab
 
 Breaking large amounts of data up into manageable groups is generally a good idea.
 
+## Is it possible to get email notifications when a job is done?
+
+DIVE Web doesn't currently support notifications through email for job status changes.  You can check your job status through the web interface.
+
 ## Do users need to transcode their own data?
 
 No. VIAME Web and DIVE Desktop perform automatic transcoding if it is necessary.
