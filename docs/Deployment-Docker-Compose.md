@@ -113,6 +113,36 @@ After initial deployment, DIVE Server will require an addon upgrade in order to 
 
 ## Configuration Reference
 
+### Server branding config
+
+You can configure the brand and messaging that appears in various places in the DIVE Web UI using the config API.
+
+1. Open the swagger page at /api/v1
+1. `PUT /dive_configuration/brand_data` where the body is a JSON object from the template below.  If you do not want to set a value and use the default, omit the key and value from the config body.
+
+``` json
+{
+  // A JSON Vuetify theme configuration object.
+  // https://vuetify.cn/en/customization/theme/#customizing
+  "vuetify": {},
+
+  // A URL to a favicon
+  "favicon": "",
+
+  // A URL to an image that will be shown as the main logo
+  "logo": "",
+
+  // Used in several places, including the main toolbar
+  "name": "VIAME",
+
+  // Message that appears on the login screen
+  "loginMessage": "",
+
+  // Alert messages are typically used to tell users about maintenance, outages, etc.
+  "alertMessage": "",
+}
+```
+
 ### Web Server config
 
 This image contains both the backend and client.
