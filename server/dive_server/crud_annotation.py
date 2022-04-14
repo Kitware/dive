@@ -235,32 +235,47 @@ def clone_annotations(
     save_annotations(dest, source_iter, [], user, description="initialize clone")
 
 
-def get_labels(user: types.GirderUserModel):
+def get_labels(user: types.GirderUserModel, published=False, shared=False):
     """Find all the labels in all datasets belonging to the user"""
+    accessLevel = AccessType.WRITE
+    if published or shared:
+        accessLevel = AccessType.READ
     pipeline = [
         {
+            # Begin query by selecting datasets
             '$match': crud_dataset.get_dataset_query(
-                user, published=False, shared=False, level=AccessType.WRITE
+                user, published=published, shared=shared, level=accessLevel
             )
         },
         {
+            # Left join to get annotationItems for all datasets
             '$lookup': {
                 'from': 'annotationItem',
+                # Map the foreign key _id to dataset_id in the query
                 'let': {'dataset_id': '$_id'},
+                # Create a new field 'label' for each annotation
                 'as': 'label',
                 'pipeline': [
                     {'$match': {'$expr': {'$eq': ['$dataset', '$$dataset_id']}}},
                     {'$match': {'$expr': {'$eq': [{'$type': "$rev_deleted"}, 'missing']}}},
+                    # Select the confidencePairs, which is the only field needed
                     {'$project': {'confidencePairs': 1}},
+                    # Use the first confidence pair in the array, which assumes they are
+                    # sorted in descending order
                     {'$set': {'confidencePairs': {'$first': '$confidencePairs'}}},
                     {'$set': {'confidencePairs': {'$first': '$confidencePairs'}}},
                 ],
             },
         },
+        # after the lookup, label will be an array of strings on each dataset.
+        # unwind to duplicate N records in the query for N labels.
         {'$unwind': '$label'},
-        {'$set': {'label': '$label.confidencePairs'}},
-        {'$project': {'label': 1, 'name': 1}},
-        {'$group': {'_id': '$label', 'count': {'$count': {}}}},
+        # Preserve properties of dataset by moving them into a sub-object.
+        {'$set': {'dataset': {'id': '$_id', 'name': '$name'}}},
+        # Drop unwanted fields.
+        {'$project': {'label.confidencePairs': 1, '_id': 1, 'dataset': 1}},
+        # Group records by label values
+        {'$group': {'_id': '$label.confidencePairs', 'count': {'$count': {}}, 'datasets': {'$addToSet': '$dataset'}}},
         {'$sort': {'_id': 1}},
     ]
     return Folder().collection.aggregate(pipeline)
