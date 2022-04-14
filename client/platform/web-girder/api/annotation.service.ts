@@ -1,3 +1,4 @@
+import { GirderModel } from '@girder/components/src';
 import { SaveDetectionsArgs } from 'dive-common/apispec';
 import { TrackData } from 'vue-media-annotator/track';
 import girderRest from 'platform/web-girder/plugins/girder';
@@ -43,7 +44,13 @@ function saveDetections(folderId: string, args: SaveDetectionsArgs) {
   });
 }
 
+async function getLabels(published?: boolean, shared?: boolean) {
+  const response = await girderRest.get<GirderModel[]>('dive_annotation/labels');
+  return response;
+}
+
 export {
+  getLabels,
   loadDetections,
   loadRevisions,
   saveDetections,
