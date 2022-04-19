@@ -139,14 +139,14 @@ class AnnotationResource(Resource):
             constants.PublishedMarker,
             'Return only labels from published data',
             required=False,
-            default=False,
+            default=True,
             dataType='boolean',
         )
         .param(
             constants.SharedMarker,
             'Return only labels from data shared with me',
             required=False,
-            default=False,
+            default=True,
             dataType='boolean',
         )
     )

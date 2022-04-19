@@ -275,7 +275,13 @@ def get_labels(user: types.GirderUserModel, published=False, shared=False):
         # Drop unwanted fields.
         {'$project': {'label.confidencePairs': 1, '_id': 1, 'dataset': 1}},
         # Group records by label values
-        {'$group': {'_id': '$label.confidencePairs', 'count': {'$count': {}}, 'datasets': {'$addToSet': '$dataset'}}},
+        {
+            '$group': {
+                '_id': '$label.confidencePairs',
+                'count': {'$count': {}},
+                'datasets': {'$addToSet': '$dataset'},
+            }
+        },
         {'$sort': {'_id': 1}},
     ]
     return Folder().collection.aggregate(pipeline)

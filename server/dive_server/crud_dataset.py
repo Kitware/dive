@@ -273,19 +273,19 @@ def export_datasets_zipstream(
 
 
 def get_dataset_query(
-    user: types.GirderUserModel, published: bool, shared: bool, level=AccessType.READ
+    user: types.GirderUserModel,
+    published: bool,
+    shared: bool,
+    level=AccessType.READ,
 ):
     permissionsClause = Folder().permissionClauses(user=user, level=level)
-    query = {
-        '$and': [
-            {f'meta.{constants.DatasetMarker}': {'$in': TRUTHY_META_VALUES}},
-            permissionsClause,
-        ],
-    }
+    dataset_clause = {f'meta.{constants.DatasetMarker}': {'$in': TRUTHY_META_VALUES}}
+    query_parts = [{'$and': [dataset_clause, permissionsClause]}]
     if published:
-        query['$and'] += [{f'meta.{constants.PublishedMarker}': {'$in': TRUTHY_META_VALUES}}]
+        published_query = {f'meta.{constants.PublishedMarker}': {'$in': TRUTHY_META_VALUES}}
+        query_parts.append({'$and': [published_query, dataset_clause]})
     if shared:
-        query['$and'] += [
+        shared_query = [
             {
                 # Find datasets not owned by the current user
                 '$nor': [
@@ -301,8 +301,13 @@ def get_dataset_query(
                     }
                 },
             },
+            dataset_clause,
         ]
-    return query
+        query_parts.append({'$and': shared_query})
+
+    if published and shared:
+        return {'$or': query_parts}
+    return {'$and': query_parts}
 
 
 def validate_files(files: List[str]):
