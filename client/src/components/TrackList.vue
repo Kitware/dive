@@ -5,17 +5,15 @@ import {
 } from '@vue/composition-api';
 
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
-import { TrackWithContext } from '../use/useAnnotationFilters';
+import { TrackWithContext } from '../BaseFilterControls';
 
 import { TrackId } from '../track';
 import {
-  useAllTypes,
-  useCheckedTrackIds,
   useEditingMode,
   useHandler,
   useSelectedTrackId,
   useTrackStore,
-  useFilteredTracks,
+  useTrackFilters,
   useTime,
   useReadOnlyMode,
   useTrackStyleManager,
@@ -64,12 +62,13 @@ export default defineComponent({
   setup(props) {
     const { prompt } = usePrompt();
     const readOnlyMode = useReadOnlyMode();
-    const allTypesRef = useAllTypes();
-    const checkedTrackIdsRef = useCheckedTrackIds();
+    const trackFilters = useTrackFilters();
+    const allTypesRef = trackFilters.allTypes;
+    const checkedTrackIdsRef = trackFilters.checkedIDs;
     const editingModeRef = useEditingMode();
     const selectedTrackIdRef = useSelectedTrackId();
     const trackStore = useTrackStore();
-    const filteredTracksRef = useFilteredTracks();
+    const filteredTracksRef = trackFilters.filteredAnnotations;
     const typeStylingRef = useTrackStyleManager().typeStyling;
     const { frame: frameRef } = useTime();
     const {

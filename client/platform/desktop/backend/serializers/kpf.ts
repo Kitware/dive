@@ -132,7 +132,12 @@ export default class KPF {
         activityIds: activity.map((a) => a.id2).join(' '),
         srcStatus: activity.map((a) => a.src_status).join(' '),
       };
-      const allRanges = flattenDeep(activity.map((a) => a.timespan.map((v) => v.tsr0)));
+      const activityActor = flattenDeep(
+        activity.map((v) => v.actors.filter((a) => a.id1 === actorType.id1)),
+      );
+      const allRanges = flattenDeep(
+        activityActor.map((v) => v.timespan.map((ts) => ts.tsr0)),
+      );
       const begin = Math.min(...allRanges);
       const end = Math.max(...allRanges);
       const features: Feature[] = [];
@@ -145,13 +150,14 @@ export default class KPF {
             // eslint-disable-next-line @typescript-eslint/ban-ts-ignore
             // @ts-ignore
             bounds: geom.g0.split(' ').map((f: string) => parseFloat(f)),
+            interpolate: true,
           });
         }
       });
 
       tracks[actorType.id1] = {
         attributes,
-        id: parseInt(actorIdStr, 10),
+        id: actorType.id1,
         begin,
         end,
         confidencePairs,

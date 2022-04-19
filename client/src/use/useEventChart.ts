@@ -1,6 +1,6 @@
 
 import { computed, Ref } from '@vue/composition-api';
-import { TrackWithContext } from './useAnnotationFilters';
+import { TrackWithContext } from '../BaseFilterControls';
 import { TypeStyling } from '../StyleManager';
 import { AnnotationId } from '../BaseAnnotation';
 

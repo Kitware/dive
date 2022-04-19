@@ -3,7 +3,7 @@ import {
   defineComponent, watch, PropType, Ref, ref, computed,
 } from '@vue/composition-api';
 
-import { TrackWithContext } from '../use/useAnnotationFilters';
+import { TrackWithContext } from '../BaseFilterControls';
 import { injectMediaController } from './annotators/useMediaController';
 import RectangleLayer from '../layers/AnnotationLayers/RectangleLayer';
 import PolygonLayer from '../layers/AnnotationLayers/PolygonLayer';
@@ -21,10 +21,10 @@ import UILayer from '../layers/UILayers/UILayer';
 import ToolTipWidget from '../layers/UILayers/ToolTipWidget.vue';
 import { ToolTipWidgetData } from '../layers/UILayers/UILayerTypes';
 import {
-  useEnabledTracks,
   useHandler,
   useTrackStore,
   useSelectedTrackId,
+  useTrackFilters,
   useTrackStyleManager,
   useEditingMode,
   useVisibleModes,
@@ -51,7 +51,7 @@ export default defineComponent({
     const handler = useHandler();
     const trackStore = useTrackStore();
     const groupStore = useGroupStore();
-    const enabledTracksRef = useEnabledTracks();
+    const enabledTracksRef = useTrackFilters().enabledAnnotations;
     const selectedTrackIdRef = useSelectedTrackId();
     const mergeListRef = useMergeList();
     const editingModeRef = useEditingMode();

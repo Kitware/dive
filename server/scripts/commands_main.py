@@ -16,7 +16,7 @@ from scripts import cli
 @click.argument('input', type=click.File('rt'))
 def verify_dive_json(input: TextIO):
     trackdicts: Dict[str, dict] = json.load(input)
-    for t in trackdicts.values():
+    for t in trackdicts['tracks'].values():
         models.Track(**t)
     click.secho('success', fg='green')
 

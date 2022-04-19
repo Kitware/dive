@@ -7,13 +7,15 @@ import StyleManager from './StyleManager';
 import { EditAnnotationTypes } from './layers/EditAnnotationLayer';
 import TrackStore from './TrackStore';
 import GroupStore from './GroupStore';
-import type { TrackId } from './track';
+import type { AnnotationId } from './BaseAnnotation';
+import type Track from './track';
+import type Group from './Group';
 import { VisibleAnnotationTypes } from './layers';
 import { RectBounds } from './utils';
 import { Attribute } from './use/useAttributes';
-import { DefaultConfidence, TrackWithContext } from './use/useAnnotationFilters';
 import { Time } from './use/useTimeObserver';
 import { ImageEnhancements } from './use/useImageEnhancements';
+import BaseFilterControls from './BaseFilterControls';
 
 /**
  * Type definitions are read only because injectors may mutate internal state,
@@ -26,34 +28,14 @@ type AnnotatorPreferences = Readonly<Ref<AnnotatorPrefsIface>>;
 const AttributesSymbol = Symbol('attributes');
 type AttributesType = Readonly<Ref<Attribute[]>>;
 
-const AllTypesSymbol = Symbol('allTypes');
-type AllTypesType = Readonly<Ref<readonly string[]>>;
-
 const DatasetIdSymbol = Symbol('datasetID');
 type DatasetIdType = Readonly<Ref<string>>;
-
-const UsedTypesSymbol = Symbol('usedTypes');
-type UsedTypesType = Readonly<Ref<readonly string[]>>;
-
-const CheckedTrackIdsSymbol = Symbol('checkedTrackIds');
-type CheckedTrackIdsType = Readonly<Ref<readonly TrackId[]>>;
-
-const CheckedTypesSymbol = Symbol('checkedTypes');
-type CheckedTypesType = Readonly<Ref<readonly string[]>>;
-
-const ConfidenceFiltersSymbol = Symbol('confidenceFilters');
-type ConfidenceFiltersType = Readonly<Ref<Readonly<Record<string, number>>>>;
-
-const EnabledTracksSymbol = Symbol('enabledTracks');
-type EnabledTracksType = Readonly<Ref<readonly TrackWithContext[]>>;
 
 const EditingModeSymbol = Symbol('editingMode');
 type EditingModeType = Readonly<Ref<false | EditAnnotationTypes>>;
 
-const GroupStoreSymbol = Symbol('groupStore');
-
 const MergeListSymbol = Symbol('mergeList');
-type MergeList = Readonly<Ref<readonly TrackId[]>>;
+type MergeList = Readonly<Ref<readonly AnnotationId[]>>;
 
 const PendingSaveCountSymbol = Symbol('pendingSaveCount');
 type pendingSaveCountType = Readonly<Ref<number>>;
@@ -64,19 +46,11 @@ type ProgressType = Readonly<{ loaded: boolean }>;
 const RevisionIdSymbol = Symbol('revisionId');
 type RevisionIdType = Readonly<Ref<number>>;
 
-const TrackStoreSymbol = Symbol('trackStore');
-
-const TracksSymbol = Symbol('tracks');
-type FilteredTracksType = Readonly<Ref<readonly TrackWithContext[]>>;
-
-const TrackStyleManagerSymbol = Symbol('trackTypeStyling');
-const GroupStyleManagerSymbol = Symbol('groupTypeStyling');
-
 const SelectedKeySymbol = Symbol('selectedKey');
 type SelectedKeyType = Readonly<Ref<string>>;
 
 const SelectedTrackIdSymbol = Symbol('selectedTrackId');
-type SelectedTrackIdType = Readonly<Ref<TrackId | null>>;
+type SelectedTrackIdType = Readonly<Ref<AnnotationId | null>>;
 
 const TimeSymbol = Symbol('time');
 type TimeType = Readonly<Time>;
@@ -90,6 +64,17 @@ type ReadOnylModeType = Readonly<Ref<boolean>>;
 const ImageEnhancementsSymbol = Symbol('imageEnhancements');
 type ImageEnhancementsType = Readonly<Ref<ImageEnhancements>>;
 
+/** Class-based symbols */
+
+const GroupStoreSymbol = Symbol('groupStore');
+const TrackStoreSymbol = Symbol('trackStore');
+
+const TrackStyleManagerSymbol = Symbol('trackTypeStyling');
+const GroupStyleManagerSymbol = Symbol('groupTypeStyling');
+
+const TrackFilterControlsSymbol = Symbol('trackFilters');
+const GroupFilterControlsSymbol = Symbol('groupFilters');
+
 /**
  * Handler interface describes all global events mutations
  * for above state
@@ -98,21 +83,19 @@ export interface Handler {
   /* Save pending changes to persistence layer */
   save(): Promise<void>;
   /* Select and seek to track */
-  trackSeek(trackId: TrackId): void;
+  trackSeek(AnnotationId: AnnotationId): void;
   /* Toggle editing mode for track */
-  trackEdit(trackId: TrackId): void;
-  /* set checked track ids */
-  trackEnable(trackId: TrackId, value: boolean): void;
+  trackEdit(AnnotationId: AnnotationId): void;
   /* toggle selection mode for track */
-  trackSelect(trackId: TrackId | null, edit: boolean): void;
+  trackSelect(AnnotationId: AnnotationId | null, edit: boolean): void;
   /* select next track in the list */
   trackSelectNext(delta: number): void;
   /* split track */
-  trackSplit(trackId: TrackId | null, frame: number): void;
+  trackSplit(AnnotationId: AnnotationId | null, frame: number): void;
   /* Change tracks difinitive type */
-  trackTypeChange(trackId: TrackId | null, value: string): void;
+  trackTypeChange(AnnotationId: AnnotationId | null, value: string): void;
   /* Add new empty track and select it */
-  trackAdd(): TrackId;
+  trackAdd(): AnnotationId;
   /* update Rectangle bounds for track */
   updateRectBounds(
     frameNum: number,
@@ -129,34 +112,24 @@ export interface Handler {
     preventInterrupt?: () => void,
   ): void;
   /* Remove a whole track */
-  removeTrack(trackIds: TrackId[], forcePromptDisable?: boolean): void;
+  removeTrack(AnnotationIds: AnnotationId[], forcePromptDisable?: boolean): void;
   /* Remove a single point from selected track's geometry by selected index */
   removePoint(): void;
   /* Remove an entire annotation from selected track by selected key */
   removeAnnotation(): void;
   /* set selectFeatureHandle and selectedKey */
   selectFeatureHandle(i: number, key: string): void;
-  /* set checked type strings */
-  setCheckedTypes(types: string[]): void;
-  /* set checked type strings */
-  removeTypeTracks(types: string[]): void;
-  /* removes an individual type */
-  deleteType(types: string): void;
-  /* Change type name */
-  updateTypeName({ currentType, newType }: { currentType: string; newType: string }): void;
   /* set an Attribute in the metaData */
   setAttribute({ data, oldAttribute }:
     { data: Attribute; oldAttribute?: Attribute }, updateAllTracks?: boolean): void;
-  /* set confidence thresholds  */
-  setConfidenceFilters(val: Record<string, number>): void;
   /* delete an Attribute in the metaData */
   deleteAttribute({ data }: { data: Attribute }, removeFromTracks?: boolean): void;
   /* Commit the staged merge tracks */
   commitMerge(): void;
   /* Turn merge mode on and off */
-  toggleMerge(): TrackId[];
-  /* Remove trackIds from merge */
-  unstageFromMerge(ids: TrackId[]): void;
+  toggleMerge(): AnnotationId[];
+  /* Remove AnnotationIds from merge */
+  unstageFromMerge(ids: AnnotationId[]): void;
   /* Reload Annotation File */
   reloadAnnotations(): Promise<void>;
   setSVGFilters({ blackPoint, whitePoint }: {blackPoint?: number; whitePoint?: number}): void;
@@ -174,7 +147,6 @@ function dummyHandler(handle: (name: string, args: unknown[]) => void): Handler 
     save(...args) { handle('save', args); return Promise.resolve(); },
     trackSeek(...args) { handle('trackSeek', args); },
     trackEdit(...args) { handle('trackEdit', args); },
-    trackEnable(...args) { handle('trackEnable', args); },
     trackSelect(...args) { handle('trackSelect', args); },
     trackSelectNext(...args) { handle('trackSelectNext', args); },
     trackSplit(...args) { handle('trackSplit', args); },
@@ -186,12 +158,7 @@ function dummyHandler(handle: (name: string, args: unknown[]) => void): Handler 
     removePoint(...args) { handle('removePoint', args); },
     removeAnnotation(...args) { handle('removeAnnotation', args); },
     selectFeatureHandle(...args) { handle('selectFeatureHandle', args); },
-    setCheckedTypes(...args) { handle('setCheckedTypes', args); },
-    removeTypeTracks(...args) { handle('removeTypeTracks', args); },
-    deleteType(...args) { handle('deleteType', args); },
-    updateTypeName(...args) { handle('updateTypeName', args); },
     setAttribute(...args) { handle('setAttribute', args); },
-    setConfidenceFilters(...args) { handle('setConfidenceFilters', args); },
     deleteAttribute(...args) { handle('deleteAttribute', args); },
     toggleMerge(...args) { handle('toggleMerge', args); return []; },
     commitMerge(...args) { handle('commitMerge', args); },
@@ -211,15 +178,9 @@ function dummyHandler(handle: (name: string, args: unknown[]) => void): Handler 
 export interface State {
   annotatorPreferences: AnnotatorPreferences;
   attributes: AttributesType;
-  allTypes: AllTypesType;
   datasetId: DatasetIdType;
-  usedTypes: UsedTypesType;
-  checkedTrackIds: CheckedTrackIdsType;
-  checkedTypes: CheckedTypesType;
-  confidenceFilters: ConfidenceFiltersType;
   editingMode: EditingModeType;
-  enabledTracks: EnabledTracksType;
-  filteredTracks: FilteredTracksType;
+  groupFilters: BaseFilterControls<Group>;
   groupStore: GroupStore;
   groupStyleManager: StyleManager;
   mergeList: MergeList;
@@ -229,6 +190,7 @@ export interface State {
   selectedKey: SelectedKeyType;
   selectedTrackId: SelectedTrackIdType;
   time: TimeType;
+  trackFilters: BaseFilterControls<Track>;
   trackStore: TrackStore;
   trackStyleManager: StyleManager;
   visibleModes: VisibleModesType;
@@ -244,23 +206,19 @@ const markChangesPending = () => { };
  * intend to override some small number of values.
  */
 function dummyState(): State {
+  const trackStore = new TrackStore({ markChangesPending });
+  const groupStore = new GroupStore({ markChangesPending });
   return {
     annotatorPreferences: ref({ trackTails: { before: 20, after: 10 } }),
     attributes: ref([]),
-    allTypes: ref([]),
     datasetId: ref(''),
-    usedTypes: ref([]),
-    checkedTrackIds: ref([]),
-    checkedTypes: ref([]),
-    confidenceFilters: ref({ default: DefaultConfidence }),
     editingMode: ref(false),
-    enabledTracks: ref([]),
-    filteredTracks: ref([]),
-    groupStore: new GroupStore({ markChangesPending }),
+    groupStore,
     mergeList: ref([]),
     pendingSaveCount: ref(0),
     progress: reactive({ loaded: true }),
     revisionId: ref(0),
+    groupFilters: new BaseFilterControls<Group>({ store: groupStore, markChangesPending }),
     groupStyleManager: new StyleManager({ markChangesPending }),
     selectedKey: ref(''),
     selectedTrackId: ref(null),
@@ -270,7 +228,8 @@ function dummyState(): State {
       frameRate: ref(0),
       originalFps: ref(null),
     },
-    trackStore: new TrackStore({ markChangesPending }),
+    trackFilters: new BaseFilterControls<Track>({ store: trackStore, markChangesPending }),
+    trackStore,
     trackStyleManager: new StyleManager({ markChangesPending }),
     visibleModes: ref(['rectangle', 'text'] as VisibleAnnotationTypes[]),
     readOnlyMode: ref(false),
@@ -289,22 +248,17 @@ function dummyState(): State {
 function provideAnnotator(state: State, handler: Handler) {
   provide(AnnotatorPreferencesSymbol, state.annotatorPreferences);
   provide(AttributesSymbol, state.attributes);
-  provide(AllTypesSymbol, state.allTypes);
   provide(DatasetIdSymbol, state.datasetId);
-  provide(UsedTypesSymbol, state.usedTypes);
-  provide(CheckedTrackIdsSymbol, state.checkedTrackIds);
-  provide(CheckedTypesSymbol, state.checkedTypes);
-  provide(ConfidenceFiltersSymbol, state.confidenceFilters);
-  provide(EnabledTracksSymbol, state.enabledTracks);
   provide(EditingModeSymbol, state.editingMode);
+  provide(GroupFilterControlsSymbol, state.groupFilters);
   provide(GroupStoreSymbol, state.groupStore);
   provide(GroupStyleManagerSymbol, state.groupStyleManager);
   provide(MergeListSymbol, state.mergeList);
   provide(PendingSaveCountSymbol, state.pendingSaveCount);
   provide(ProgressSymbol, state.progress);
   provide(RevisionIdSymbol, state.revisionId);
+  provide(TrackFilterControlsSymbol, state.trackFilters);
   provide(TrackStoreSymbol, state.trackStore);
-  provide(TracksSymbol, state.filteredTracks);
   provide(TrackStyleManagerSymbol, state.trackStyleManager);
   provide(SelectedKeySymbol, state.selectedKey);
   provide(SelectedTrackIdSymbol, state.selectedTrackId);
@@ -335,34 +289,16 @@ function useAttributes() {
   return use<AttributesType>(AttributesSymbol);
 }
 
-function useAllTypes() {
-  return use<AllTypesType>(AllTypesSymbol);
-}
 function useDatasetId() {
   return use<DatasetIdType>(DatasetIdSymbol);
-}
-function useUsedTypes() {
-  return use<UsedTypesType>(UsedTypesSymbol);
-}
-
-function useCheckedTrackIds() {
-  return use<CheckedTrackIdsType>(CheckedTrackIdsSymbol);
-}
-
-function useCheckedTypes() {
-  return use<CheckedTypesType>(CheckedTypesSymbol);
-}
-
-function useConfidenceFilters() {
-  return use<ConfidenceFiltersType>(ConfidenceFiltersSymbol);
-}
-
-function useEnabledTracks() {
-  return use<EnabledTracksType>(EnabledTracksSymbol);
 }
 
 function useEditingMode() {
   return use<EditingModeType>(EditingModeSymbol);
+}
+
+function useGroupFilterControls() {
+  return use<BaseFilterControls<Group>>(GroupFilterControlsSymbol);
 }
 
 function useGroupStore() {
@@ -393,10 +329,6 @@ function useRevisionId() {
   return use<RevisionIdType>(RevisionIdSymbol);
 }
 
-function useFilteredTracks() {
-  return use<FilteredTracksType>(TracksSymbol);
-}
-
 function useTrackStyleManager() {
   return use<StyleManager>(TrackStyleManagerSymbol);
 }
@@ -411,6 +343,10 @@ function useSelectedTrackId() {
 
 function useTime() {
   return use<TimeType>(TimeSymbol);
+}
+
+function useTrackFilters() {
+  return use<BaseFilterControls<Track>>(TrackFilterControlsSymbol);
 }
 
 function useTrackStore() {
@@ -434,22 +370,17 @@ export {
   use,
   useAnnotatorPreferences,
   useAttributes,
-  useAllTypes,
   useDatasetId,
-  useUsedTypes,
-  useCheckedTrackIds,
-  useCheckedTypes,
-  useConfidenceFilters,
-  useEnabledTracks,
   useEditingMode,
   useHandler,
+  useGroupFilterControls,
   useGroupStore,
   useGroupStyleManager,
   useMergeList,
   usePendingSaveCount,
   useProgress,
-  useFilteredTracks,
   useRevisionId,
+  useTrackFilters,
   useTrackStore,
   useTrackStyleManager,
   useSelectedKey,

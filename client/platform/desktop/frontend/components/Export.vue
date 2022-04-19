@@ -3,7 +3,7 @@ import {
   defineComponent, reactive, computed, toRef, watch, ref,
 } from '@vue/composition-api';
 
-import { usePendingSaveCount, useHandler, useCheckedTypes } from 'vue-media-annotator/provides';
+import { usePendingSaveCount, useHandler, useTrackFilters } from 'vue-media-annotator/provides';
 import AutosavePrompt from 'dive-common/components/AutosavePrompt.vue';
 import { loadMetadata, exportDataset, exportConfiguration } from 'platform/desktop/frontend/api';
 import type { JsonMeta } from 'platform/desktop/constants';
@@ -38,7 +38,7 @@ export default defineComponent({
 
     const pendingSaveCount = usePendingSaveCount();
     const { save } = useHandler();
-    const checkedTypes = useCheckedTypes();
+    const { checkedTypes } = useTrackFilters();
 
     watch(toRef(data, 'menuOpen'), async (newval) => {
       if (newval) {
@@ -54,7 +54,7 @@ export default defineComponent({
         ? Object.keys(data.meta.confidenceFilters || {})
         : []));
 
-    async function doExport({ type, forceSave = false }: { type: 'dataset' | 'configuration'; forceSave: boolean}) {
+    async function doExport({ type, forceSave = false }: { type: 'dataset' | 'configuration'; forceSave?: boolean}) {
       if (pendingSaveCount.value > 0 && forceSave) {
         await save();
         savePrompt.value = false;
@@ -208,7 +208,7 @@ export default defineComponent({
           <v-btn
             depressed
             block
-            @click="doExport({type:'dataset'})"
+            @click="doExport({ type: 'dataset' })"
           >
             <span>export detections</span>
           </v-btn>
@@ -222,7 +222,7 @@ export default defineComponent({
           <v-btn
             depressed
             block
-            @click="doExport({type:'configuration'})"
+            @click="doExport({ type: 'configuration' })"
           >
             Configuration
           </v-btn>

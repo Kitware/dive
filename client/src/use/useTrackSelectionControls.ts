@@ -1,6 +1,6 @@
 import { computed, ref, Ref } from '@vue/composition-api';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
-import { TrackWithContext } from './useAnnotationFilters';
+import { TrackWithContext } from '../BaseFilterControls';
 import { TrackId } from '../track';
 /* Maintain references to the selected Track, selected detection,
  * editing state, etc.

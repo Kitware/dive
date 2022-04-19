@@ -12,7 +12,7 @@ import {
   cloneDeep, merge, uniq, pick,
 } from 'lodash';
 
-import { DefaultConfidence } from 'vue-media-annotator/use/useAnnotationFilters';
+import { DefaultConfidence } from 'vue-media-annotator/BaseFilterControls';
 import { TrackData } from 'vue-media-annotator/track';
 import { GroupData } from 'vue-media-annotator/Group';
 import {

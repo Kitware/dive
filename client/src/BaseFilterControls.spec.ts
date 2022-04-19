@@ -1,9 +1,9 @@
 /// <reference types="jest" />
 import Vue from 'vue';
 import CompositionApi from '@vue/composition-api';
-import Track, { Feature } from '../track';
-import useAnnotationFilters from './useAnnotationFilters';
-import TrackStore from '../TrackStore';
+import Track, { Feature } from './track';
+import BaseFilterControls from './BaseFilterControls';
+import TrackStore from './TrackStore';
 
 Vue.use(CompositionApi);
 
@@ -45,7 +45,7 @@ function makeTrackStore() {
 describe('useAnnotationFilters', () => {
   it('updateTypeName', async () => {
     const store = makeTrackStore();
-    const tf = useAnnotationFilters({ store, markChangesPending });
+    const tf = new BaseFilterControls({ store, markChangesPending });
     tf.setConfidenceFilters({ baz: 0.1, bar: 0.2, default: 0.1 });
     tf.updateTypeName({ currentType: 'foo', newType: 'baz' });
     expect(tf.allTypes.value).toEqual(['baz', 'bar']);
@@ -59,7 +59,7 @@ describe('useAnnotationFilters', () => {
 
   it('deleteType', () => {
     const store = makeTrackStore();
-    const tf = useAnnotationFilters({ store, markChangesPending });
+    const tf = new BaseFilterControls({ store, markChangesPending });
     tf.setConfidenceFilters({ baz: 0.1, bar: 0.2 });
     tf.deleteType('bar'); // delete type only deletes the defaultType, doesn't touch tracks.
     expect(store.sorted.value).toHaveLength(3);
@@ -69,7 +69,7 @@ describe('useAnnotationFilters', () => {
 
   it('removeTypeTrack', async () => {
     const store = makeTrackStore();
-    const tf = useAnnotationFilters({ store, markChangesPending });
+    const tf = new BaseFilterControls({ store, markChangesPending });
     tf.removeTypeAnnotations(['bar']);
     expect(tf.allTypes.value).toEqual(['foo', 'bar', 'baz']);
     tf.removeTypeAnnotations(['baz']);

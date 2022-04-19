@@ -12,6 +12,10 @@ export default defineComponent({
       type: String,
       required: true,
     },
+    selected: {
+      type: Boolean,
+      required: true,
+    },
   },
 });
 </script>
@@ -26,7 +30,7 @@ export default defineComponent({
             backgroundColor: color,
           }"
         />
-        {{ group.id }}
+        <pre>{{ group.id }}</pre>
         {{ group.getType()[0] }}
       </v-list-item-title>
       <v-list-item-subtitle>

@@ -7,7 +7,7 @@ import {
 } from '@vue/composition-api';
 
 import { TypeList, TrackList } from 'vue-media-annotator/components';
-import { useAllTypes, useHandler, useReadOnlyMode } from 'vue-media-annotator/provides';
+import { useHandler, useReadOnlyMode, useTrackFilters } from 'vue-media-annotator/provides';
 
 import { clientSettings } from 'dive-common/store/settings';
 import TrackDetailsPanel from 'dive-common/components/TrackDetailsPanel.vue';
@@ -40,7 +40,7 @@ export default defineComponent({
   },
 
   setup(props) {
-    const allTypesRef = useAllTypes();
+    const allTypesRef = useTrackFilters().allTypes;
     const readOnlyMode = useReadOnlyMode();
     const { toggleMerge, commitMerge } = useHandler();
     const { visible } = usePrompt();

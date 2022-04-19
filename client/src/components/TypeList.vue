@@ -5,10 +5,7 @@ import {
 import { difference, union } from 'lodash';
 
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
-import {
-  useCheckedTypes, useAllTypes, useHandler,
-  useUsedTypes, useFilteredTracks, useConfidenceFilters, useReadOnlyMode, useTrackStyleManager,
-} from '../provides';
+import { useReadOnlyMode, useTrackStyleManager, useTrackFilters } from '../provides';
 import TooltipBtn from './TooltipButton.vue';
 import TypeEditor from './TypeEditor.vue';
 import TypeItem from './TypeItem.vue';
@@ -66,16 +63,13 @@ export default defineComponent({
       sortingMethod: 0, // index into sortingMethods
       filterText: '',
     });
-    const checkedTypesRef = useCheckedTypes();
-    const allTypesRef = useAllTypes();
-    const usedTypesRef = useUsedTypes();
+    const trackFilters = useTrackFilters();
+    const checkedTypesRef = trackFilters.checkedTypes;
+    const allTypesRef = trackFilters.allTypes;
+    const usedTypesRef = trackFilters.usedTypes;
     const typeStylingRef = useTrackStyleManager().typeStyling;
-    const filteredTracksRef = useFilteredTracks();
-    const confidenceFiltersRef = useConfidenceFilters();
-    const {
-      setCheckedTypes,
-      removeTypeTracks,
-    } = useHandler();
+    const filteredTracksRef = trackFilters.filteredAnnotations;
+    const confidenceFiltersRef = trackFilters.confidenceFilters;
 
     function clickEdit(type: string) {
       data.selectedType = type;
@@ -106,7 +100,7 @@ export default defineComponent({
         confirm: true,
       });
       if (result) {
-        removeTypeTracks([...checkedTypesRef.value]);
+        trackFilters.removeTypeAnnotations([...checkedTypesRef.value]);
       }
     }
 
@@ -172,20 +166,20 @@ export default defineComponent({
           /* What is visible */
           visibleTypes.value,
         );
-        setCheckedTypes(allVisibleAndCheckedInvisible);
+        trackFilters.updateCheckedTypes(allVisibleAndCheckedInvisible);
       } else {
         /* Disable whatever is both checked and filtered */
         const invisible = difference(checkedTypesRef.value, visibleTypes.value);
-        setCheckedTypes(invisible);
+        trackFilters.updateCheckedTypes(invisible);
       }
     }
 
 
     function updateCheckedType(evt: boolean, type: string) {
       if (evt) {
-        setCheckedTypes(checkedTypesRef.value.concat([type]));
+        trackFilters.updateCheckedTypes(checkedTypesRef.value.concat([type]));
       } else {
-        setCheckedTypes(difference(checkedTypesRef.value, [type]));
+        trackFilters.updateCheckedTypes(difference(checkedTypesRef.value, [type]));
       }
     }
 
@@ -210,7 +204,7 @@ export default defineComponent({
       clickEdit,
       clickSortToggle,
       headCheckClicked,
-      setCheckedTypes,
+      setCheckedTypes: trackFilters.updateCheckedTypes,
       updateCheckedType,
     };
   },

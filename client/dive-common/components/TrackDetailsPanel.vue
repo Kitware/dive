@@ -9,8 +9,8 @@ import { flatten } from 'lodash';
 import {
   useSelectedTrackId,
   useEditingMode,
-  useAllTypes,
   useHandler,
+  useTrackFilters,
   useTrackStore,
   useAttributes,
   useMergeList,
@@ -57,7 +57,7 @@ export default defineComponent({
     const editingError: Ref<string | null> = ref(null);
     const editingModeRef = useEditingMode();
     const typeStylingRef = useTrackStyleManager().typeStyling;
-    const allTypesRef = useAllTypes();
+    const allTypesRef = useTrackFilters().allTypes;
     const trackStore = useTrackStore();
     const mergeList = useMergeList();
     const mergeInProgress = computed(() => mergeList.value.length > 0);

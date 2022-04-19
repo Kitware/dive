@@ -9,7 +9,6 @@ import {
   useAttributes,
   useImageEnhancements,
   useLineChart,
-  useAnnotationFilters,
   useTrackSelectionControls,
   useTimeObserver,
   useEventChart,
@@ -43,6 +42,7 @@ import { cloneDeep } from 'lodash';
 import { getResponseError } from 'vue-media-annotator/utils';
 import context from 'dive-common/store/context';
 import { AnnotationId } from 'vue-media-annotator/BaseAnnotation';
+import BaseFilterControls from 'vue-media-annotator/BaseFilterControls';
 
 export default defineComponent({
   components: {
@@ -149,14 +149,12 @@ export default defineComponent({
     const trackStore = new TrackStore({ markChangesPending });
     const groupStore = new GroupStore({ markChangesPending });
 
-    const trackFilters = useAnnotationFilters({
-      store: trackStore,
-      markChangesPending,
+    const trackFilters = new BaseFilterControls({
+      store: trackStore, markChangesPending,
     });
 
-    const groupFilters = useAnnotationFilters({
-      store: groupStore,
-      markChangesPending,
+    const groupFilters = new BaseFilterControls({
+      store: groupStore, markChangesPending,
     });
 
     const {
@@ -391,14 +389,8 @@ export default defineComponent({
     const globalHandler = {
       ...handler,
       save,
-      setCheckedTypes: trackFilters.updateCheckedTypes,
       trackSplit,
-      trackEnable: trackFilters.updateCheckedId,
-      updateTypeName: trackFilters.updateTypeName,
-      removeTypeTracks: trackFilters.removeTypeAnnotations,
-      deleteType: trackFilters.deleteType,
       setAttribute,
-      setConfidenceFilters: trackFilters.setConfidenceFilters,
       deleteAttribute,
       reloadAnnotations,
       setSVGFilters,
@@ -408,24 +400,19 @@ export default defineComponent({
       {
         annotatorPreferences: toRef(clientSettings, 'annotatorPreferences'),
         attributes,
-        allTypes: trackFilters.allTypes,
         datasetId,
-        usedTypes: trackFilters.usedTypes,
-        checkedTrackIds: trackFilters.checkedIDs,
-        checkedTypes: trackFilters.checkedTypes,
-        confidenceFilters: trackFilters.confidenceFilters,
         editingMode,
-        enabledTracks: trackFilters.enabledAnnotations,
+        groupFilters,
         groupStore,
         groupStyleManager,
         mergeList,
         pendingSaveCount,
         progress,
         revisionId: toRef(props, 'revision'),
-        filteredTracks: trackFilters.filteredAnnotations,
         selectedKey,
         selectedTrackId,
         time,
+        trackFilters,
         trackStore,
         trackStyleManager,
         visibleModes,

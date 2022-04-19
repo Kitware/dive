@@ -208,7 +208,10 @@ if (argv._.includes('viame2json')) {
       argv.geometryFile as string,
       argv.typeFile as string,
     );
-    console.log(JSON.stringify(kpf));
+    console.log(JSON.stringify({
+      version: 2,
+      ...kpf,
+    }));
   };
   run();
 } else if (argv._.includes('nist2json')) {
