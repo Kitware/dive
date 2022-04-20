@@ -58,8 +58,10 @@ def load_static_pipelines(search_path: Path) -> Dict[str, PipelineCategory]:
 def load_training_configurations(search_path: Path) -> TrainingConfigurationSummary:
     configurations: List[str] = []
     default_config: Optional[str] = None
-
-    for pipe in search_path.glob("./*.conf"):
+    pipes = sorted(
+        search_path.glob("./*.conf"), key=lambda x: (x.name == DefaultTrainingConfiguration, x)
+    )
+    for pipe in pipes:
         pipe_name = pipe.name
         configurations.append(pipe_name)
         print(f"Discovered training {pipe_name}")
