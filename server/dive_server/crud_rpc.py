@@ -156,10 +156,10 @@ def run_pipeline(
         # Verify that the user has READ access to the pipe they want to run
         pipeFolder = Folder().load(pipeline["folderId"], level=AccessType.READ, user=user)
         if asbool(fromMeta(pipeFolder, "requires_input")):
-            input_revision = crud_annotation.get_last_revision(folder)
+            input_revision = crud_annotation.RevisionLogItem().latest(folder)
     elif pipeline["pipe"].startswith('utility_'):
         # TODO Temporary inclusion of utility pipes which take csv input
-        input_revision = crud_annotation.get_last_revision(folder)
+        input_revision = crud_annotation.RevisionLogItem().latest(folder)
 
     job_is_private = user.get(constants.UserPrivateQueueEnabledMarker, False)
 
@@ -236,7 +236,7 @@ def run_training(
         if folder is None:
             raise RestException(f"Cannot access folder {folderId}")
         crud.getCloneRoot(user, folder)
-        dataset_input_list.append((folderId, crud_annotation.get_last_revision(folder)))
+        dataset_input_list.append((folderId, crud_annotation.RevisionLogItem().latest(folder)))
 
     # Ensure the folder to upload results to exists
     results_folder = training_output_folder(user)

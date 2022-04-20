@@ -202,7 +202,7 @@ def load_coco_as_tracks_and_attributes(coco: Dict[str, List[dict]]) -> Tuple[dic
         trackId, _, frame, _ = annotation_info(annotation, meta)
 
         if trackId not in tracks:
-            tracks[trackId] = Track(begin=frame, end=frame, trackId=trackId)
+            tracks[trackId] = Track(begin=frame, end=frame, id=trackId)
 
         track = tracks[trackId]
         track.begin = min(frame, track.begin)

@@ -278,7 +278,7 @@ def load_csv_as_tracks_and_attributes(
                 anyImageMatched = True
 
         if trackId not in tracks:
-            tracks[trackId] = Track(begin=feature.frame, end=feature.frame, trackId=trackId)
+            tracks[trackId] = Track(begin=feature.frame, end=feature.frame, id=trackId)
         elif reordered:
             # trackId was already in tracks, so the track consists of multiple frames
             raise ValueError(
@@ -387,7 +387,7 @@ def export_tracks_as_csv(
 
                 for feature in features:
                     columns = [
-                        track.trackId,
+                        track.id,
                         "",
                         feature.frame,
                         *feature.bounds,

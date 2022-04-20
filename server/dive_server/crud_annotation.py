@@ -19,87 +19,90 @@ IDENTIFIER = 'id'
 
 DEFAULT_ANNOTATION_SORT = [[IDENTIFIER, 1]]
 DEFAULT_REVISION_SORT = [[REVISION, pymongo.DESCENDING]]
-ANNOTATION_INDICES = [
-    # Index for finding tracks in a dataset
-    [[(DATASET, 1), (IDENTIFIER, 1)], {}],
-    # Index for ensuring uniqueness and dataset consistency
-    [[(DATASET, 1), (IDENTIFIER, 1), (REVISION_CREATED, 1)], {'unique': True}],
-]
 
 
-class TrackItem(crud.PydanticModel):
+class BaseItem(crud.PydanticModel):
+    def list(
+        self,
+        dsFolder: types.GirderModel,
+        limit=0,
+        offset=0,
+        sort=DEFAULT_ANNOTATION_SORT,
+        revision: Optional[int] = None,
+    ) -> Cursor:
+        head: int = RevisionLogItem().latest(dsFolder) if revision is None else revision
+        query = {
+            DATASET: dsFolder['_id'],
+            REVISION_CREATED: {'$lte': head},
+            '$or': [{REVISION_DELETED: {'$gt': head}}, {REVISION_DELETED: {'$exists': False}}],
+        }
+        return self.find(
+            offset=offset, limit=limit, sort=sort, query=query, fields=self.PROJECT_FIELDS
+        )
+
+    def initialize(self):
+        self._indices = [
+            # Index for finding tracks in a dataset
+            [[(DATASET, 1), (IDENTIFIER, 1)], {}],
+            # Index for ensuring uniqueness and dataset consistency
+            [[(DATASET, 1), (IDENTIFIER, 1), (REVISION_CREATED, 1)], {'unique': True}],
+        ]
+        super().initialize(self.NAME, self.MODEL)
+
+
+class TrackItem(BaseItem):
     PROJECT_FIELDS = {
         **{'_id': 0},
         **{key: 1 for key in models.Track.schema()['properties'].keys()},
     }
-
-    def initialize(self):
-        self._indices = ANNOTATION_INDICES
-        super().initialize("trackItem", models.TrackItemSchema)
+    NAME = 'trackItem'
+    MODEL = models.TrackItemSchema
 
 
-class GroupItem(crud.PydanticModel):
+class GroupItem(BaseItem):
     PROJECT_FIELDS = {
         **{'_id': 0},
         **{key: 1 for key in models.Group.schema()['properties'].keys()},
     }
-
-    def initialize(self):
-        self._indices = ANNOTATION_INDICES
-        super().initialize("groupItem", models.GroupItemSchema)
+    NAME = 'groupItem'
+    MODEL = models.GroupItemSchema
 
 
 class RevisionLogItem(crud.PydanticModel):
     PROJECT_FIELDS = {'_id': 0}
 
     def initialize(self):
-        self._indices = [[[(DATASET, 1), (REVISION, 1)], {'unique': True}]]
+        self._indices = [
+            [[(DATASET, 1), (REVISION, 1)], {'unique': True}],
+            [[('created', 1)], {}],
+        ]
         super().initialize("revisionLogItem", models.RevisionLog)
 
+    def latest(self, dsFolder: types.GirderModel) -> int:
+        query = {DATASET: dsFolder['_id']}
+        result = self.findOne(query, sort=[[REVISION, pymongo.DESCENDING]]) or {}
+        return result.get(REVISION, 0)  # Revision 0 is always the empty revision
 
-def get_last_revision(dsFolder: types.GirderModel):
-    query = {DATASET: dsFolder['_id']}
-    result = RevisionLogItem().findOne(query, sort=[[REVISION, pymongo.DESCENDING]]) or {}
-    return result.get(REVISION, 0)  # Revision 0 is always the empty revision
-
-
-def get_annotations(
-    dsFolder: types.GirderModel,
-    limit=0,
-    offset=0,
-    sort=DEFAULT_ANNOTATION_SORT,
-    revision: Optional[int] = None,
-) -> Tuple[Cursor, Cursor]:
-    head = get_last_revision(dsFolder) if revision is None else revision
-    query = {
-        DATASET: dsFolder['_id'],
-        REVISION_CREATED: {'$lte': head},
-        '$or': [{REVISION_DELETED: {'$gt': head}}, {REVISION_DELETED: {'$exists': False}}],
-    }
-    annotation_cursor = TrackItem().find(
-        offset=offset, limit=limit, sort=sort, query=query, fields=TrackItem.PROJECT_FIELDS
-    )
-    group_cursor = GroupItem().find(
-        offset=offset, limit=limit, sort=sort, query=query, fields=GroupItem.PROJECT_FIELDS
-    )
-    return annotation_cursor, group_cursor
-
-
-def get_revisions(
-    dsFolder: types.GirderModel,
-    limit=0,
-    offset=0,
-    sort=DEFAULT_REVISION_SORT,
-    before: Optional[int] = None,
-):
-    query: dict = {DATASET: dsFolder['_id']}
-    if before is not None:
-        query[REVISION] = {'$lte': before}
-    cursor = RevisionLogItem().find(
-        offset=offset, limit=limit, sort=sort, query=query, fields=RevisionLogItem.PROJECT_FIELDS
-    )
-    total = RevisionLogItem().find(query=query).count()
-    return cursor, total
+    def list(
+        self,
+        dsFolder: types.GirderModel,
+        limit=0,
+        offset=0,
+        sort=DEFAULT_REVISION_SORT,
+        before: Optional[int] = None,
+    ) -> Tuple[Cursor, int]:
+        query: dict = {DATASET: dsFolder['_id']}
+        if before is not None:
+            query[REVISION] = {'$lte': before}
+        cursor = self.find(
+            offset=offset,
+            limit=limit,
+            sort=sort,
+            query=query,
+            fields=RevisionLogItem.PROJECT_FIELDS,
+        )
+        total = self.find(query=query).count()
+        return cursor, total
 
 
 def rollback(dsFolder: types.GirderModel, revision: int):
@@ -139,7 +142,7 @@ def get_annotation_csv_generator(
     thresholds = fromMeta(folder, "confidenceFilters", {})
 
     def downloadGenerator():
-        datalist, _ = get_annotations(folder, revision=revision)
+        datalist = TrackItem().list(folder, revision=revision)
         for data in viame.export_tracks_as_csv(
             datalist,
             excludeBelowThreshold,
@@ -187,7 +190,7 @@ def save_annotations(
     Annotations are lazy-deleted by marking their staleness property as true.
     """
     datasetId = dsFolder['_id']
-    new_revision = get_last_revision(dsFolder) + 1
+    new_revision = RevisionLogItem().latest(dsFolder) + 1
     delete_annotation_update = {'$set': {REVISION_DELETED: new_revision}}
 
     def update_collection(
@@ -265,7 +268,8 @@ def clone_annotations(
     user: types.GirderUserModel,
     revision: Optional[int] = None,
 ):
-    track_iter, group_iter = get_annotations(source, revision=revision)
+    track_iter = TrackItem().list(source, revision=revision)
+    group_iter = GroupItem().list(source, revision=revision)
     save_annotations(
         dest,
         user,

@@ -110,7 +110,7 @@ def parse_actor_map_to_tracks(actor_map: Dict[int, Actor]) -> Dict[int, Track]:
                 tracks[i] = Track(
                     begin=actor.begin,
                     end=actor.end,
-                    trackId=i,
+                    id=i,
                     confidencePairs=confidence_pairs,
                     attributes=track_attributes,
                 )
