@@ -159,13 +159,13 @@ def get_annotation_csv_generator(
 
 
 class TrackUpdateArgs(BaseModel):
-    delete: List[int] = []
-    upsert: List[models.Track] = []
+    delete: List[int] = Field(default_factory=list)
+    upsert: List[models.Track] = Field(default_factory=list)
 
 
 class GroupUpdateArgs(BaseModel):
-    delete: List[int] = []
-    upsert: List[models.Group] = []
+    delete: List[int] = Field(default_factory=list)
+    upsert: List[models.Group] = Field(default_factory=list)
 
 
 class AnnotationUpdateArgs(BaseModel):
@@ -179,10 +179,10 @@ class AnnotationUpdateArgs(BaseModel):
 def save_annotations(
     dsFolder: types.GirderModel,
     user: types.GirderUserModel,
-    upsert_tracks: Iterable[dict] = [],
-    delete_tracks: Iterable[int] = [],
-    upsert_groups: Iterable[dict] = [],
-    delete_groups: Iterable[int] = [],
+    upsert_tracks: Optional[Iterable[dict]] = None,
+    delete_tracks: Optional[Iterable[int]] = None,
+    upsert_groups: Optional[Iterable[dict]] = None,
+    delete_groups: Optional[Iterable[int]] = None,
     description="save",
     overwrite=False,
 ):
@@ -192,6 +192,15 @@ def save_annotations(
     datasetId = dsFolder['_id']
     new_revision = RevisionLogItem().latest(dsFolder) + 1
     delete_annotation_update = {'$set': {REVISION_DELETED: new_revision}}
+
+    if upsert_tracks is None:
+        upsert_tracks = []
+    if upsert_groups is None:
+        upsert_groups = []
+    if delete_tracks is None:
+        delete_tracks = []
+    if delete_groups is None:
+        delete_groups = []
 
     def update_collection(
         collection: crud.PydanticModel,

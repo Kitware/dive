@@ -3,7 +3,7 @@ import Vue, { VueConstructor } from 'vue';
 /* Components */
 import TypeThreshold from 'dive-common/components/TypeThreshold.vue';
 import ImageEnhancements from 'vue-media-annotator/components/ImageEnhancements.vue';
-import GroupList from 'vue-media-annotator/components/GroupList.vue';
+import GroupSidebar from 'dive-common/components/GroupSidebar.vue';
 
 Vue.use(Install);
 
@@ -17,7 +17,7 @@ interface ComponentMapItem {
 }
 
 const state: ContextState = reactive({
-  active: 'GroupList',
+  active: 'GroupSidebar',
 });
 
 const componentMap: Record<string, ComponentMapItem> = {
@@ -29,9 +29,9 @@ const componentMap: Record<string, ComponentMapItem> = {
     description: 'Image Enhancements',
     component: ImageEnhancements,
   },
-  GroupList: {
-    description: 'Group List',
-    component: GroupList,
+  GroupSidebar: {
+    description: 'Group Sidebar',
+    component: GroupSidebar,
   },
 };
 

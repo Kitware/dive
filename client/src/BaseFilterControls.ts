@@ -1,7 +1,6 @@
 import {
   ref, computed, Ref, watch,
 } from '@vue/composition-api';
-import { cloneDeep } from 'lodash';
 import { AnnotationId } from 'vue-media-annotator/BaseAnnotation';
 import type BaseAnnotationStore from './BaseAnnotationStore';
 import type Group from './Group';
@@ -22,7 +21,7 @@ export interface AnnotationWithContext<T extends Track | Group> {
   };
 }
 
-interface AnnotationStoreParams<T extends Track | Group> {
+export interface FilterControlsParams<T extends Track | Group> {
   store: BaseAnnotationStore<T>;
   markChangesPending: () => void;
 }
@@ -60,9 +59,9 @@ export default class BaseFilterControls<T extends Track | Group> {
   private markChangesPending: () => void;
 
   /* Hold a reference to the annotationStore */
-  private store: Readonly<BaseAnnotationStore<T>>;
+  store: Readonly<BaseAnnotationStore<T>>;
 
-  constructor(params: AnnotationStoreParams<T>) {
+  constructor(params: FilterControlsParams<T>) {
     this.checkedIDs = ref(params.store.sorted.value.map((t) => t.id));
 
     this.confidenceFilters = ref({ default: DefaultConfidence } as Record<string, number>);
@@ -98,32 +97,7 @@ export default class BaseFilterControls<T extends Track | Group> {
 
     this.checkedTypes = ref(Array.from(this.allTypes.value));
 
-    this.filteredAnnotations = computed(() => {
-      const checkedSet = new Set(this.checkedTypes.value);
-      const confidenceFiltersVal = cloneDeep(this.confidenceFilters.value);
-      const resultsArr: AnnotationWithContext<Track | Group>[] = [];
-      params.store.sorted.value.forEach((annotation) => {
-        const confidencePairIndex = annotation.confidencePairs
-          .findIndex(([confkey, confval]) => {
-            const confidenceThresh = Math.max(
-              confidenceFiltersVal[confkey] || 0,
-              confidenceFiltersVal.default,
-            );
-            return confval >= confidenceThresh && checkedSet.has(confkey);
-          });
-        /* include annotations where at least 1 confidence pair is above
-         * the threshold and part of the checked type set */
-        if (confidencePairIndex >= 0 || annotation.confidencePairs.length === 0) {
-          resultsArr.push({
-            annotation,
-            context: {
-              confidencePairIndex,
-            },
-          });
-        }
-      });
-      return resultsArr;
-    });
+    this.filteredAnnotations = ref([]);
 
     this.enabledAnnotations = computed(() => {
       const checkedSet = new Set(this.checkedIDs.value);

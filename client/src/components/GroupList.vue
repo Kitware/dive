@@ -11,15 +11,13 @@ import {
   useGroupStore,
   useReadOnlyMode,
   useGroupStyleManager,
+  useSelectedGroupId,
 } from '../provides';
 import GroupItem from './GroupItem.vue';
 
 interface VirtualListItem {
   filteredGroup: Group;
 }
-
-/* Magic numbers involved in height calculation */
-const TrackListHeaderHeight = 52;
 
 export default defineComponent({
   name: 'GroupList',
@@ -43,17 +41,18 @@ export default defineComponent({
     //   type: Boolean,
     //   required: true,
     // },
-    // height: {
-    //   type: Number,
-    //   default: 420,
-    // },
+    height: {
+      type: Number,
+      default: 420,
+    },
   },
 
-  setup(props) {
+  setup() {
     // const { prompt } = usePrompt();
     const readOnlyMode = useReadOnlyMode();
     const store = useGroupStore();
     const typeStylingRef = useGroupStyleManager().typeStyling;
+    const selectedId = useSelectedGroupId();
 
     const data = reactive({
       itemHeight: 70, // in pixels
@@ -72,16 +71,14 @@ export default defineComponent({
       return {
         group: item.filteredGroup,
         color: typeStylingRef.value.color(confidencePair[0]),
+        selected: item.filteredGroup.id === selectedId.value,
       };
     }
-
-    const virtualHeight = computed(() => 800 - TrackListHeaderHeight);
 
     return {
       data,
       getItemProps,
       readOnlyMode,
-      virtualHeight,
       virtualListItems,
       virtualList,
     };
@@ -91,21 +88,19 @@ export default defineComponent({
 
 <template>
   <div class="d-flex flex-column">
-    <!-- <datalist id="allTypesOptions">
-      <option
-        v-for="type in allTypes"
-        :key="type"
-        :value="type"
-      >
-        {{ type }}
-      </option>
-    </datalist> -->
+    <v-subheader class="flex-grow-1 trackHeader px-2">
+      <v-container class="py-2">
+        <v-row align="center">
+          Groups ({{ virtualListItems.length }})
+        </v-row>
+      </v-container>
+    </v-subheader>
     <v-virtual-scroll
       ref="virtualList"
-      class="tracks"
+      class="groups"
       :items="virtualListItems"
       :item-height="data.itemHeight"
-      :height="virtualHeight"
+      :height="height - 38"
       bench="1"
     >
       <template #default="{ item }">
@@ -116,22 +111,3 @@ export default defineComponent({
     </v-virtual-scroll>
   </div>
 </template>
-
-<style lang="scss">
-.strcoller {
-  height: 100%;
-}
-.trackHeader{
-  height: auto;
-}
-.tracks {
-  overflow-y: auto;
-  overflow-x: hidden;
-
-  .v-input--checkbox {
-    label {
-      white-space: pre-wrap;
-    }
-  }
-}
-</style>

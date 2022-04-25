@@ -3,13 +3,13 @@ import {
   defineComponent, ref, toRef, computed, Ref, reactive, watch,
 } from '@vue/composition-api';
 import type { Vue } from 'vue/types/vue';
+import { cloneDeep } from 'lodash';
 
 /* VUE MEDIA ANNOTATOR */
 import {
   useAttributes,
   useImageEnhancements,
   useLineChart,
-  useTrackSelectionControls,
   useTimeObserver,
   useEventChart,
 } from 'vue-media-annotator/use';
@@ -24,6 +24,10 @@ import {
   LayerManager,
 } from 'vue-media-annotator/components';
 import { MediaController } from 'vue-media-annotator/components/annotators/mediaControllerType';
+import { AnnotationId } from 'vue-media-annotator/BaseAnnotation';
+import TrackFilterControls from 'vue-media-annotator/TrackFilterControls';
+import GroupFilterControls from 'vue-media-annotator/GroupFilterControls';
+import { getResponseError } from 'vue-media-annotator/utils';
 
 /* DIVE COMMON */
 import PolygonBase from 'dive-common/recipes/polygonbase';
@@ -38,11 +42,8 @@ import { useModeManager, useSave } from 'dive-common/use';
 import clientSettingsSetup, { clientSettings } from 'dive-common/store/settings';
 import { useApi, FrameImage, DatasetType } from 'dive-common/apispec';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
-import { cloneDeep } from 'lodash';
-import { getResponseError } from 'vue-media-annotator/utils';
 import context from 'dive-common/store/context';
-import { AnnotationId } from 'vue-media-annotator/BaseAnnotation';
-import BaseFilterControls from 'vue-media-annotator/BaseFilterControls';
+
 
 export default defineComponent({
   components: {
@@ -149,22 +150,15 @@ export default defineComponent({
     const trackStore = new TrackStore({ markChangesPending });
     const groupStore = new GroupStore({ markChangesPending });
 
-    const trackFilters = new BaseFilterControls({
-      store: trackStore, markChangesPending,
-    });
-
-    const groupFilters = new BaseFilterControls({
+    const groupFilters = new GroupFilterControls({
       store: groupStore, markChangesPending,
     });
 
-    const {
-      selectedTrackId,
-      selectTrack,
-      editingTrack,
-      selectNextTrack,
-    } = useTrackSelectionControls({
-      filteredTracks: trackFilters.filteredAnnotations,
-      readonlyState,
+    const trackFilters = new TrackFilterControls({
+      store: trackStore,
+      markChangesPending,
+      groupStore,
+      groupFilterControls: groupFilters,
     });
 
     clientSettingsSetup(trackFilters.allTypes);
@@ -174,19 +168,20 @@ export default defineComponent({
       mergeList,
       mergeInProgress,
       selectedFeatureHandle,
+      selectedTrackId,
+      selectedGroupId,
       handler,
       editingMode,
       editingDetails,
       visibleModes,
       selectedKey,
+      editingTrack,
     } = useModeManager({
       recipes,
-      selectedTrackId,
-      editingTrack,
+      trackFilterControls: trackFilters,
       trackStore,
       mediaController,
-      selectTrack,
-      selectNextTrack,
+      readonlyState,
     });
 
     const allSelectedIds = computed(() => {
@@ -376,7 +371,7 @@ export default defineComponent({
     };
 
     watch(datasetId, reloadAnnotations);
-    watch(readonlyState, () => selectTrack(null, false));
+    watch(readonlyState, () => handler.trackSelect(null, false));
 
     const changeCamera = async (camera: string) => {
       if (!camera || !baseMulticamDatasetId.value) {
@@ -411,6 +406,7 @@ export default defineComponent({
         revisionId: toRef(props, 'revision'),
         selectedKey,
         selectedTrackId,
+        selectedGroupId,
         time,
         trackFilters,
         trackStore,

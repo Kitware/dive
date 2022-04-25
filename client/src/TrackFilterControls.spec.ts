@@ -2,8 +2,10 @@
 import Vue from 'vue';
 import CompositionApi from '@vue/composition-api';
 import Track, { Feature } from './track';
-import BaseFilterControls from './BaseFilterControls';
+import TrackFilterControls from './TrackFilterControls';
+import GroupFilterControls from './GroupFilterControls';
 import TrackStore from './TrackStore';
+import GroupStore from './GroupStore';
 
 Vue.use(CompositionApi);
 
@@ -42,10 +44,26 @@ function makeTrackStore() {
   return ts;
 }
 
+function makeGroupStore() {
+  return new GroupStore({ markChangesPending });
+}
+
+function makeGroupFilterControls(store: GroupStore) {
+  return new GroupFilterControls({ store, markChangesPending });
+}
+
+function makeTrackFilterControls() {
+  const store = makeTrackStore();
+  const groupStore = makeGroupStore();
+  const groupFilterControls = makeGroupFilterControls(groupStore);
+  return new TrackFilterControls({
+    store, markChangesPending, groupFilterControls, groupStore,
+  });
+}
+
 describe('useAnnotationFilters', () => {
   it('updateTypeName', async () => {
-    const store = makeTrackStore();
-    const tf = new BaseFilterControls({ store, markChangesPending });
+    const tf = makeTrackFilterControls();
     tf.setConfidenceFilters({ baz: 0.1, bar: 0.2, default: 0.1 });
     tf.updateTypeName({ currentType: 'foo', newType: 'baz' });
     expect(tf.allTypes.value).toEqual(['baz', 'bar']);
@@ -58,18 +76,16 @@ describe('useAnnotationFilters', () => {
   });
 
   it('deleteType', () => {
-    const store = makeTrackStore();
-    const tf = new BaseFilterControls({ store, markChangesPending });
+    const tf = makeTrackFilterControls();
     tf.setConfidenceFilters({ baz: 0.1, bar: 0.2 });
     tf.deleteType('bar'); // delete type only deletes the defaultType, doesn't touch tracks.
-    expect(store.sorted.value).toHaveLength(3);
+    expect(tf.store.sorted.value).toHaveLength(3);
     expect(tf.allTypes.value).toEqual(['foo', 'bar', 'baz']);
     expect(tf.confidenceFilters.value).toEqual({ baz: 0.1 });
   });
 
   it('removeTypeTrack', async () => {
-    const store = makeTrackStore();
-    const tf = new BaseFilterControls({ store, markChangesPending });
+    const tf = makeTrackFilterControls();
     tf.removeTypeAnnotations(['bar']);
     expect(tf.allTypes.value).toEqual(['foo', 'bar', 'baz']);
     tf.removeTypeAnnotations(['baz']);

@@ -30,7 +30,7 @@ export default defineComponent({
             backgroundColor: color,
           }"
         />
-        <pre>{{ group.id }}</pre>
+        <pre>{{ group.id }} </pre>
         {{ group.getType()[0] }}
       </v-list-item-title>
       <v-list-item-subtitle>

@@ -8,14 +8,13 @@ import { EditAnnotationTypes } from './layers/EditAnnotationLayer';
 import TrackStore from './TrackStore';
 import GroupStore from './GroupStore';
 import type { AnnotationId } from './BaseAnnotation';
-import type Track from './track';
-import type Group from './Group';
 import { VisibleAnnotationTypes } from './layers';
 import { RectBounds } from './utils';
 import { Attribute } from './use/useAttributes';
 import { Time } from './use/useTimeObserver';
 import { ImageEnhancements } from './use/useImageEnhancements';
-import BaseFilterControls from './BaseFilterControls';
+import TrackFilterControls from './TrackFilterControls';
+import GroupFilterControls from './GroupFilterControls';
 
 /**
  * Type definitions are read only because injectors may mutate internal state,
@@ -50,6 +49,7 @@ const SelectedKeySymbol = Symbol('selectedKey');
 type SelectedKeyType = Readonly<Ref<string>>;
 
 const SelectedTrackIdSymbol = Symbol('selectedTrackId');
+const SelectedGroupIdSymbol = Symbol('selectedGroupId');
 type SelectedTrackIdType = Readonly<Ref<AnnotationId | null>>;
 
 const TimeSymbol = Symbol('time');
@@ -180,7 +180,7 @@ export interface State {
   attributes: AttributesType;
   datasetId: DatasetIdType;
   editingMode: EditingModeType;
-  groupFilters: BaseFilterControls<Group>;
+  groupFilters: GroupFilterControls;
   groupStore: GroupStore;
   groupStyleManager: StyleManager;
   mergeList: MergeList;
@@ -189,8 +189,9 @@ export interface State {
   revisionId: RevisionIdType;
   selectedKey: SelectedKeyType;
   selectedTrackId: SelectedTrackIdType;
+  selectedGroupId: SelectedTrackIdType;
   time: TimeType;
-  trackFilters: BaseFilterControls<Track>;
+  trackFilters: TrackFilterControls;
   trackStore: TrackStore;
   trackStyleManager: StyleManager;
   visibleModes: VisibleModesType;
@@ -208,6 +209,10 @@ const markChangesPending = () => { };
 function dummyState(): State {
   const trackStore = new TrackStore({ markChangesPending });
   const groupStore = new GroupStore({ markChangesPending });
+  const groupFilterControls = new GroupFilterControls({ store: groupStore, markChangesPending });
+  const trackFilterControls = new TrackFilterControls({
+    store: trackStore, markChangesPending, groupFilterControls, groupStore,
+  });
   return {
     annotatorPreferences: ref({ trackTails: { before: 20, after: 10 } }),
     attributes: ref([]),
@@ -218,17 +223,18 @@ function dummyState(): State {
     pendingSaveCount: ref(0),
     progress: reactive({ loaded: true }),
     revisionId: ref(0),
-    groupFilters: new BaseFilterControls<Group>({ store: groupStore, markChangesPending }),
+    groupFilters: groupFilterControls,
     groupStyleManager: new StyleManager({ markChangesPending }),
     selectedKey: ref(''),
     selectedTrackId: ref(null),
+    selectedGroupId: ref(null),
     time: {
       frame: ref(0),
       flick: ref(0),
       frameRate: ref(0),
       originalFps: ref(null),
     },
-    trackFilters: new BaseFilterControls<Track>({ store: trackStore, markChangesPending }),
+    trackFilters: trackFilterControls,
     trackStore,
     trackStyleManager: new StyleManager({ markChangesPending }),
     visibleModes: ref(['rectangle', 'text'] as VisibleAnnotationTypes[]),
@@ -262,6 +268,7 @@ function provideAnnotator(state: State, handler: Handler) {
   provide(TrackStyleManagerSymbol, state.trackStyleManager);
   provide(SelectedKeySymbol, state.selectedKey);
   provide(SelectedTrackIdSymbol, state.selectedTrackId);
+  provide(SelectedGroupIdSymbol, state.selectedGroupId);
   provide(TimeSymbol, state.time);
   provide(VisibleModesSymbol, state.visibleModes);
   provide(ReadOnlyModeSymbol, state.readOnlyMode);
@@ -298,7 +305,7 @@ function useEditingMode() {
 }
 
 function useGroupFilterControls() {
-  return use<BaseFilterControls<Group>>(GroupFilterControlsSymbol);
+  return use<GroupFilterControls>(GroupFilterControlsSymbol);
 }
 
 function useGroupStore() {
@@ -341,12 +348,16 @@ function useSelectedTrackId() {
   return use<SelectedTrackIdType>(SelectedTrackIdSymbol);
 }
 
+function useSelectedGroupId() {
+  return use<SelectedTrackIdType>(SelectedGroupIdSymbol);
+}
+
 function useTime() {
   return use<TimeType>(TimeSymbol);
 }
 
 function useTrackFilters() {
-  return use<BaseFilterControls<Track>>(TrackFilterControlsSymbol);
+  return use<TrackFilterControls>(TrackFilterControlsSymbol);
 }
 
 function useTrackStore() {
@@ -385,6 +396,7 @@ export {
   useTrackStyleManager,
   useSelectedKey,
   useSelectedTrackId,
+  useSelectedGroupId,
   useTime,
   useVisibleModes,
   useReadOnlyMode,

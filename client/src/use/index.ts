@@ -2,7 +2,6 @@ import useAttributes from './useAttributes';
 import useEventChart from './useEventChart';
 import useLineChart from './useLineChart';
 import useTimeObserver from './useTimeObserver';
-import useTrackSelectionControls from './useTrackSelectionControls';
 import useImageEnhancements from './useImageEnhancements';
 
 export {
@@ -11,5 +10,4 @@ export {
   useImageEnhancements,
   useLineChart,
   useTimeObserver,
-  useTrackSelectionControls,
 };
