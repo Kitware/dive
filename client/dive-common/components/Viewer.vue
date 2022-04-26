@@ -204,6 +204,12 @@ export default defineComponent({
       typeStyling: trackStyleManager.typeStyling,
     });
 
+    const { eventChartData: groupChartData } = useEventChart({
+      enabledTracks: groupFilters.enabledAnnotations,
+      typeStyling: groupStyleManager.typeStyling,
+      selectedTrackIds: ref([]),
+    });
+
     async function trackSplit(trackId: AnnotationId | null, frame: number) {
       if (typeof trackId === 'number') {
         const track = trackStore.get(trackId);
@@ -428,6 +434,7 @@ export default defineComponent({
       editingMode,
       editingDetails,
       eventChartData,
+      groupChartData,
       imageData,
       lineChartData,
       loadError,
@@ -618,7 +625,7 @@ export default defineComponent({
         >
           <template slot="control">
             <controls-container
-              v-bind="{ lineChartData, eventChartData, datasetType }"
+              v-bind="{ lineChartData, eventChartData, groupChartData, datasetType }"
               @select-track="handler.trackSelect"
             />
           </template>

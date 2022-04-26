@@ -31,6 +31,10 @@ export default defineComponent({
       type: Object as PropType<unknown>,
       required: true,
     },
+    groupChartData: {
+      type: Object as PropType<unknown>,
+      required: true,
+    },
     datasetType: {
       type: String as PropType<DatasetType>,
       required: true,
@@ -47,7 +51,7 @@ export default defineComponent({
      * Toggles on and off the individual timeline views
      * Resizing is handled by the Annator itself.
      */
-    function toggleView(type: 'Detections' | 'Events') {
+    function toggleView(type: 'Detections' | 'Events' | 'Groups') {
       currentView.value = type;
       collapsed.value = false;
     }
@@ -76,7 +80,7 @@ export default defineComponent({
   <div>
     <Controls>
       <template slot="timelineControls">
-        <div style="min-width: 210px">
+        <div style="min-width: 270px">
           <v-tooltip
             open-delay="200"
             bottom
@@ -113,6 +117,17 @@ export default defineComponent({
             @click="toggleView('Events')"
           >
             Events
+          </v-btn>
+          <v-btn
+            class="ml-2"
+            :class="{'timeline-button':currentView!=='Groups' || collapsed}"
+            depressed
+            :outlined="currentView==='Groups' && !collapsed"
+            x-small
+            tab-index="-1"
+            @click="toggleView('Groups')"
+          >
+            Groups
           </v-btn>
         </div>
       </template>
@@ -258,6 +273,16 @@ export default defineComponent({
           :client-width="clientWidth"
           :margin="margin"
           @select-track="$emit('select-track', $event)"
+        />
+        <event-chart
+          v-if="currentView==='Groups'"
+          :start-frame="startFrame"
+          :end-frame="endFrame"
+          :max-frame="childMaxFrame"
+          :data="groupChartData"
+          :client-width="clientWidth"
+          :margin="margin"
+          @select-track="$emit('select-group', $event)"
         />
       </template>
     </Timeline>

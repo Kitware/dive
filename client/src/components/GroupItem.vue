@@ -1,5 +1,6 @@
 <script lang="ts">
 import { defineComponent, PropType } from '@vue/composition-api';
+import { useGroupFilterControls } from 'vue-media-annotator/provides';
 import Group from '../Group';
 
 export default defineComponent({
@@ -16,35 +17,59 @@ export default defineComponent({
       type: Boolean,
       required: true,
     },
+    inputValue: {
+      type: Boolean,
+      required: true,
+    },
+  },
+
+  setup() {
+    const groupFilters = useGroupFilterControls();
+    return {
+      groupFilters,
+    };
   },
 });
 </script>
 
 <template>
-  <v-list-item dense>
-    <v-list-item-content>
-      <v-list-item-title class="d-flex align-center">
-        <div
-          class="type-color-box mr-2"
-          :style="{
-            backgroundColor: color,
-          }"
-        />
-        <pre>{{ group.id }} </pre>
-        {{ group.getType()[0] }}
-      </v-list-item-title>
-      <v-list-item-subtitle>
-        Participants: {{ Object.keys(group.members).length }}
-      </v-list-item-subtitle>
-    </v-list-item-content>
-  </v-list-item>
+  <div class="mx-2">
+    <v-row
+      no-gutters
+    >
+      <v-checkbox
+        class="my-0 ml-0 pt-0"
+        dense
+        hide-details
+        :input-value="inputValue"
+        :color="color"
+        @change="groupFilters.updateCheckedId(group.id, $event)"
+      />
+      <pre>{{ group.id }}</pre>
+      <v-spacer />
+      <input
+        type="text"
+        class="input-box freeform-input"
+        :value="group.getType()[0]"
+        disabled
+      >
+    </v-row>
+    <v-row
+      no-gutters
+      class="mt-1"
+    >
+      <v-spacer />
+      <div class="text-caption">
+        {{ Object.keys(group.members).join(', ') }}
+      </div>
+    </v-row>
+  </div>
 </template>
 
-<style scoped>
-.type-color-box {
-  min-width: 10px;
-  max-width: 10px;
-  min-height: 10px;
-  max-height: 10px;
+<style lang="scss" scoped>
+@import 'src/components/styles/common.scss';
+
+.freeform-input {
+  width: 150px;
 }
 </style>

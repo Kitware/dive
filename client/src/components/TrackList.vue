@@ -5,7 +5,6 @@ import {
 } from '@vue/composition-api';
 
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
-import { TrackWithContext } from '../BaseFilterControls';
 
 import { TrackId } from '../track';
 import {
@@ -19,14 +18,6 @@ import {
   useTrackStyleManager,
 } from '../provides';
 import TrackItem from './TrackItem.vue';
-
-interface VirtualListItem {
-  filteredTrack: TrackWithContext;
-  selectedTrackId: number | null;
-  checkedTrackIds: readonly number[];
-  editingTrack: boolean;
-  allTypes: readonly string[];
-}
 
 /* Magic numbers involved in height calculation */
 const TrackListHeaderHeight = 52;
@@ -81,7 +72,7 @@ export default defineComponent({
     });
     const virtualList = ref(null as null | Vue);
 
-    const virtualListItems: Ref<readonly VirtualListItem[]> = computed(() => {
+    const virtualListItems = computed(() => {
       const selectedTrackId = selectedTrackIdRef.value;
       const checkedTrackIds = checkedTrackIdsRef.value;
       const editingMode = editingModeRef.value;
@@ -142,7 +133,7 @@ export default defineComponent({
       }
     }
 
-    function getItemProps(item: VirtualListItem) {
+    function getItemProps(item: typeof virtualListItems.value[number]) {
       const confidencePair = item.filteredTrack.annotation.getType(
         item.filteredTrack.context.confidencePairIndex,
       );
@@ -151,7 +142,7 @@ export default defineComponent({
       return {
         trackType,
         track: item.filteredTrack.annotation,
-        inputValue: item.checkedTrackIds.indexOf(item.filteredTrack.annotation.id) >= 0,
+        inputValue: item.checkedTrackIds.includes(item.filteredTrack.annotation.id),
         selected,
         editing: selected && item.editingTrack,
         color: typeStylingRef.value.color(trackType),

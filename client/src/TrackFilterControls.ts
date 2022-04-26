@@ -22,9 +22,21 @@ export default class TrackFilterControls extends BaseFilterControls<Track> {
      */
     this.filteredAnnotations = computed(() => {
       const checkedSet = new Set(this.checkedTypes.value);
+      const filteredGroupsSet = new Set(params.groupFilterControls.filteredAnnotations.value
+        .map((v) => v.annotation.id));
       const confidenceFiltersVal = cloneDeep(this.confidenceFilters.value);
       const resultsArr: AnnotationWithContext<Track>[] = [];
       params.store.sorted.value.forEach((annotation) => {
+        let enabledInGroupFilters = true;
+        const groups = params.groupStore.trackMap.get(annotation.id);
+        if (groups?.size) {
+          /**
+           * This track is a member of a group,
+           * so check that at least one of its groups is enabled
+           */
+          enabledInGroupFilters = Array.from(groups.values())
+            .some((id) => filteredGroupsSet.has(id));
+        }
         const confidencePairIndex = annotation.confidencePairs
           .findIndex(([confkey, confval]) => {
             const confidenceThresh = Math.max(
@@ -35,7 +47,10 @@ export default class TrackFilterControls extends BaseFilterControls<Track> {
           });
         /* include annotations where at least 1 confidence pair is above
          * the threshold and part of the checked type set */
-        if (confidencePairIndex >= 0 || annotation.confidencePairs.length === 0) {
+        if (
+          (confidencePairIndex >= 0 || annotation.confidencePairs.length === 0)
+          && enabledInGroupFilters
+        ) {
           resultsArr.push({
             annotation,
             context: {

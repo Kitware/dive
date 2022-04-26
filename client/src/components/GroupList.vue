@@ -1,23 +1,16 @@
 <script lang="ts">
 import Vue from 'vue';
 import {
-  defineComponent, reactive, computed, ref, Ref,
+  defineComponent, reactive, computed, ref,
 } from '@vue/composition-api';
-// import { AnnotationId } from 'vue-media-annotator/BaseAnnotation';
-// import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
-import Group from '../Group';
 
 import {
-  useGroupStore,
   useReadOnlyMode,
   useGroupStyleManager,
   useSelectedGroupId,
+  useGroupFilterControls,
 } from '../provides';
 import GroupItem from './GroupItem.vue';
-
-interface VirtualListItem {
-  filteredGroup: Group;
-}
 
 export default defineComponent({
   name: 'GroupList',
@@ -25,22 +18,6 @@ export default defineComponent({
   components: { GroupItem },
 
   props: {
-    // newTrackMode: {
-    //   type: String,
-    //   required: true,
-    // },
-    // newTrackType: {
-    //   type: String,
-    //   required: true,
-    // },
-    // lockTypes: {
-    //   type: Boolean,
-    //   default: false,
-    // },
-    // hotkeysDisabled: {
-    //   type: Boolean,
-    //   required: true,
-    // },
     height: {
       type: Number,
       default: 420,
@@ -48,30 +25,35 @@ export default defineComponent({
   },
 
   setup() {
-    // const { prompt } = usePrompt();
     const readOnlyMode = useReadOnlyMode();
-    const store = useGroupStore();
+    // const store = useGroupStore();
     const typeStylingRef = useGroupStyleManager().typeStyling;
     const selectedId = useSelectedGroupId();
+    const groupFilters = useGroupFilterControls();
 
     const data = reactive({
       itemHeight: 70, // in pixels
     });
     const virtualList = ref(null as null | Vue);
 
-    const virtualListItems: Ref<readonly VirtualListItem[]> = computed(() => {
-      const sorted = store.sorted.value;
-      return sorted.map((filtered) => ({
+    const virtualListItems = computed(() => {
+      const filteredGroups = groupFilters.filteredAnnotations.value;
+      const checkedTrackIds = groupFilters.checkedIDs.value;
+      const selectedGroupId = selectedId.value;
+      return filteredGroups.map((filtered) => ({
         filteredGroup: filtered,
+        selectedGroupId,
+        checkedTrackIds,
       }));
     });
 
-    function getItemProps(item: VirtualListItem) {
-      const confidencePair = item.filteredGroup.getType();
+    function getItemProps(item: typeof virtualListItems.value[number]) {
+      const confidencePair = item.filteredGroup.annotation.getType();
       return {
-        group: item.filteredGroup,
+        group: item.filteredGroup.annotation,
         color: typeStylingRef.value.color(confidencePair[0]),
-        selected: item.filteredGroup.id === selectedId.value,
+        selected: item.filteredGroup.annotation.id === item.selectedGroupId,
+        inputValue: item.checkedTrackIds.includes(item.filteredGroup.annotation.id),
       };
     }
 

@@ -127,6 +127,7 @@ export default defineComponent({
         >
           <v-tooltip
             open-delay="200"
+            max-width="200"
             bottom
           >
             <template #activator="{ on }">
@@ -159,6 +160,7 @@ export default defineComponent({
           >
             <v-tooltip
               open-delay="200"
+              max-width="200"
               bottom
             >
               <template #activator="{ on }">
@@ -190,6 +192,7 @@ export default defineComponent({
           >
             <v-tooltip
               open-delay="200"
+              max-width="200"
               bottom
             >
               <template #activator="{ on }">
@@ -224,6 +227,7 @@ export default defineComponent({
         >
           <v-tooltip
             open-delay="200"
+            max-width="200"
             bottom
           >
             <template #activator="{ on }">
@@ -262,6 +266,7 @@ export default defineComponent({
         >
           <v-tooltip
             open-delay="200"
+            max-width="200"
             bottom
           >
             <template #activator="{ on }">
