@@ -30,7 +30,7 @@ const componentMap: Record<string, ComponentMapItem> = {
     component: ImageEnhancements,
   },
   GroupSidebar: {
-    description: 'Group Sidebar',
+    description: 'Group Manager',
     component: GroupSidebar,
   },
 };
