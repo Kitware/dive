@@ -8,6 +8,7 @@ import GroupSidebar from 'dive-common/components/GroupSidebar.vue';
 Vue.use(Install);
 
 interface ContextState {
+  last: string;
   active: string | null;
 }
 
@@ -17,7 +18,8 @@ interface ComponentMapItem {
 }
 
 const state: ContextState = reactive({
-  active: 'GroupSidebar',
+  last: 'GroupSidebar',
+  active: null,
 });
 
 const componentMap: Record<string, ComponentMapItem> = {
@@ -47,11 +49,20 @@ function getComponents() {
   return components;
 }
 
-function toggle(active: string | null) {
-  if (active && state.active === active) {
+function toggle(active: string | null | undefined) {
+  if (active === undefined) {
+    if (state.active) {
+      state.active = null;
+    } else {
+      state.active = state.last;
+    }
+  } else if (active && state.active === active) {
     state.active = null;
   } else if (active === null || active in componentMap) {
     state.active = active;
+    if (active) {
+      state.last = active;
+    }
   } else {
     throw new Error(`${active} is not a valid context component`);
   }

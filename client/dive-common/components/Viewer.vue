@@ -546,6 +546,16 @@ export default defineComponent({
             {{ item }} {{ item === defaultCamera ? '(Default)': '' }}
           </template>
         </v-select>
+        <v-divider
+          vertical
+          class="mx-2"
+        />
+        <v-icon
+          @click="context.toggle()"
+        >
+          {{ context.state.active ? 'mdi-chevron-right-box' : 'mdi-chevron-left-box' }}
+        </v-icon>
+
         <slot name="extension-right" />
       </template>
 

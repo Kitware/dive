@@ -180,23 +180,6 @@ export default defineComponent({
         <JobsTab />
       </v-tabs>
     </template>
-    <template #extension-right>
-      <v-divider
-        vertical
-        class="mx-2"
-      />
-      <v-btn
-        text
-        small
-        :input-value="context.state.active === 'RevisionHistory'"
-        @click="context.toggle('RevisionHistory')"
-      >
-        <v-icon class="pr-1">
-          mdi-history
-        </v-icon>
-        History
-      </v-btn>
-    </template>
     <template #title-right>
       <RunPipelineMenu
         v-bind="{ buttonOptions, menuOptions }"

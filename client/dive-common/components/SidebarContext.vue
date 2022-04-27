@@ -38,7 +38,7 @@ export default defineComponent({
           flat
           hide-details
           style="max-width: 240px;"
-          @input="context.toggle($event)"
+          @change="context.toggle($event)"
         />
         <v-spacer />
         <v-btn
