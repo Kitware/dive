@@ -22,7 +22,7 @@ export default class TrackFilterControls extends BaseFilterControls<Track> {
      */
     this.filteredAnnotations = computed(() => {
       const checkedSet = new Set(this.checkedTypes.value);
-      const filteredGroupsSet = new Set(params.groupFilterControls.filteredAnnotations.value
+      const filteredGroupsSet = new Set(params.groupFilterControls.enabledAnnotations.value
         .map((v) => v.annotation.id));
       const confidenceFiltersVal = cloneDeep(this.confidenceFilters.value);
       const resultsArr: AnnotationWithContext<Track>[] = [];

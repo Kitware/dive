@@ -208,7 +208,7 @@ if (argv._.includes('viame2json')) {
       argv.geometryFile as string,
       argv.typeFile as string,
     );
-    console.log(JSON.stringify({
+    stdout.write(JSON.stringify({
       version: 2,
       ...kpf,
     }));

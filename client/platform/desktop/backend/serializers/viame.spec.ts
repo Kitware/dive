@@ -239,7 +239,7 @@ describe('VIAME Python Compatibility Check', () => {
       const trackArray = Object.values(trackData);
       // eslint-disable-next-line no-await-in-loop
       const results = await parse(csvStream);
-      expect(results.tracks).toEqual(trackArray);
+      expect(Object.values(results.tracks)).toEqual(trackArray);
       // eslint-disable-next-line no-await-in-loop
       const attData = processTrackAttributes(Object.values(results.tracks));
       expect(testAttributes).toEqual(attData.attributes);
@@ -314,7 +314,7 @@ describe('Test Image Filenames', () => {
       } else {
         // eslint-disable-next-line no-await-in-loop
         const result = await parseFile(testPath, imageMap);
-        expect(result.tracks.length).toBeGreaterThan(0);
+        expect(Object.values(result.tracks).length).toBeGreaterThan(0);
       }
     }
   });

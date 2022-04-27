@@ -4,15 +4,17 @@ import npath from 'path';
 import fs from 'fs-extra';
 import { Console } from 'console';
 
-import type {
+import {
   ConversionArgs,
   DesktopJob,
   DesktopJobUpdate, DesktopJobUpdater, JsonMeta, RunTraining, Settings,
 } from 'platform/desktop/constants';
+import { makeEmptyAnnotationFile } from 'platform/desktop/backend/serializers/dive';
 
 import { MultiTrackRecord } from 'dive-common/apispec';
 import { Attribute } from 'vue-media-annotator/use/useAttributes';
 import * as common from './common';
+
 
 const pipelines = {
   'classify_detections_svm.pipe': '',
@@ -153,7 +155,8 @@ mockfs({
     annotationImport: {
       'viame.csv': emptyCsvString,
       'foreign.meta.json': '{ "confidenceFilters": {"default": 0.8}, "type": "invalidtype" }',
-      'dive.json': '{ "0": { "id": 0 } }', // fake track file
+      // This file will be migrated
+      'dive.json': '{ "0": { "trackId": 0 } }', // fake track file
     },
     imageSuccess: {
       'foo.png': '',
@@ -538,16 +541,17 @@ describe('native.common', () => {
       settings, '/home/user/data/imageLists/success/image_list.txt', checkMedia,
     );
     const final = await common.finalizeMediaImport(settings, payload, updater, convertMedia);
-    const tracks = await common.loadDetections(settings, final.id);
-    expect(Object.keys(tracks)).toHaveLength(0);
+    const annotations = await common.loadDetections(settings, final.id);
+    expect(Object.keys(annotations.tracks)).toHaveLength(0);
 
     await common.dataFileImport(settings, final.id, '/home/user/data/annotationImport/dive.json');
-    const tracks1 = await common.loadDetections(settings, final.id);
-    expect(Object.keys(tracks1)).toHaveLength(1);
+    const annotations1 = await common.loadDetections(settings, final.id);
+    expect(Object.keys(annotations1.tracks)).toHaveLength(1);
 
     await common.dataFileImport(settings, final.id, '/home/user/data/annotationImport/viame.csv');
-    const tracks2 = await common.loadDetections(settings, final.id);
-    expect(Object.keys(tracks2)).toHaveLength(0);
+    const annotations2 = await common.loadDetections(settings, final.id);
+    console.log(annotations2);
+    expect(Object.keys(annotations2.tracks)).toHaveLength(0);
     const meta = await common.loadMetadata(settings, final.id, urlMapper);
     expect(meta.fps).toBe(32);
 
@@ -600,8 +604,8 @@ describe('native.common', () => {
   it('importMedia empty json file success', async () => {
     const payload = await common.beginMediaImport(settings, '/home/user/data/annotationEmptySuccess/video1.mp4', checkMedia);
     await common.finalizeMediaImport(settings, payload, updater, convertMedia);
-    const tracks = await common.loadDetections(settings, payload.jsonMeta.id);
-    expect(tracks).toEqual({});
+    const annotations = await common.loadDetections(settings, payload.jsonMeta.id);
+    expect(annotations).toEqual(makeEmptyAnnotationFile());
   });
 
   it('importMedia include meta.json file ', async () => {
@@ -611,8 +615,9 @@ describe('native.common', () => {
     const tracks = await common.loadDetections(settings, payload.jsonMeta.id);
     const meta = await common.loadMetadata(settings, payload.jsonMeta.id, urlMapper);
     expect(meta?.customTypeStyling?.other.color).toBe('blue');
-    expect(tracks).toEqual({});
+    expect(tracks).toEqual(makeEmptyAnnotationFile());
   });
+
   it('Export  meta.json file ', async () => {
     const payload = await common.beginMediaImport(settings, '/home/user/data/metaJsonIncluded/video1.mp4', checkMedia);
     expect(payload.metaFileAbsPath).toBe('/home/user/data/metaJsonIncluded/meta.json');
@@ -620,12 +625,11 @@ describe('native.common', () => {
     const tracks = await common.loadDetections(settings, payload.jsonMeta.id);
     const meta = await common.loadMetadata(settings, payload.jsonMeta.id, urlMapper);
     expect(meta?.customTypeStyling?.other.color).toBe('blue');
-    expect(tracks).toEqual({});
+    expect(tracks).toEqual(makeEmptyAnnotationFile());
     await common.exportConfiguration(settings, { id: payload.jsonMeta.id, path: '/home/user/output/test.json' });
     const outputMeta = await fs.readJSON('/home/user/output/test.json');
     expect(outputMeta?.customTypeStyling?.other.color).toBe('blue');
   });
-
 
   it('importMedia various failure modes', async () => {
     await expect(common.beginMediaImport(settings, '/fake/path', checkMedia))
@@ -641,8 +645,9 @@ describe('native.common', () => {
     const payload = await common.beginMediaImport(settings, '/home/user/data/multiCSV/video1.mp4', checkMedia);
     await common.finalizeMediaImport(settings, payload, updater, convertMedia);
     const tracks = await common.loadDetections(settings, payload.jsonMeta.id);
-    expect(tracks).toEqual({});
+    expect(tracks).toEqual(makeEmptyAnnotationFile());
   });
+
   it('importMedia video, start conversion', async () => {
     const payload = await common.beginMediaImport(settings, '/home/user/data/videoSuccess/video1.avi', checkMedia);
     await common.finalizeMediaImport(settings, payload, updater, convertMedia);
