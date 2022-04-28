@@ -84,3 +84,9 @@ class PipelineCategory(TypedDict):
 class AvailableJobSchema(TypedDict):
     pipelines: Dict[str, PipelineCategory]
     training: TrainingConfigurationSummary
+
+
+class DIVEAnnotationSchema(TypedDict):
+    tracks: Dict[str, dict]
+    groups: Dict[str, dict]
+    version: int
