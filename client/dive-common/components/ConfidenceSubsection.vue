@@ -86,11 +86,14 @@ export default defineComponent({
                 }"
               />
             </v-col>
-            <v-col>
+            <v-col :cols="pair[1] !== 1 && !disabled ? '7' : '8'">
               {{ pair[0] }}
             </v-col>
             <v-spacer />
-            <v-col class="type-score shrink mr-1">
+            <v-col
+              cols="2"
+              class="type-score shrink mr-1"
+            >
               {{ pair[1].toFixed(4) }}
             </v-col>
             <v-col
