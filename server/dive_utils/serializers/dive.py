@@ -10,9 +10,9 @@ def migrate(jsonData: Any):
     if version == constants.AnnotationsCurrentVersion:
         return jsonData
     elif version == 1:
-        for item in jsonData:
-            item['id'] = item['trackId']
-            del item['trackId']
+        for track in jsonData.values():
+            track['id'] = track['trackId']
+            del track['trackId']
         return {
             'tracks': jsonData,
             'groups': {},

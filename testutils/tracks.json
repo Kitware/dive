@@ -1,25 +1,29 @@
 {
-  "999999": {
-    "begin": 0,
-    "end": 0,
-    "id": 999999,
-    "features": [
-      {
-        "frame": 0,
-        "bounds": [
-          670,
-          183,
-          968,
-          433
+  "tracks": {
+    "999999": {
+      "begin": 0,
+      "end": 0,
+      "id": 999999,
+      "features": [
+        {
+          "frame": 0,
+          "bounds": [
+            670,
+            183,
+            968,
+            433
+          ]
+        }
+      ],
+      "confidencePairs": [
+        [
+          "motion_signature",
+          0.996269
         ]
-      }
-    ],
-    "confidencePairs": [
-      [
-        "motion_signature",
-        0.996269
-      ]
-    ],
-    "attributes": {}
-  }
+      ],
+      "attributes": {}
+    }
+  },
+  "groups": {},
+  "version": 2
 }

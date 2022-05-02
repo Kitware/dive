@@ -320,7 +320,9 @@ def _get_data_by_type(
     if as_type == crud.FileType.COCO_JSON:
         tracks, attributes = kwcoco.load_coco_as_tracks_and_attributes(data_dict)
         return as_type, tracks, {}, attributes
-    if as_type == crud.FileType.DIVE_CONF or as_type == crud.FileType.DIVE_JSON:
+    if as_type == crud.FileType.DIVE_CONF:
+        return as_type, data_dict, {}, {}
+    if as_type == crud.FileType.DIVE_JSON:
         migrated = dive.migrate(data_dict)
         return as_type, migrated['tracks'], migrated['groups'], {}
     return None, {}, {}, {}

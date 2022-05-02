@@ -112,14 +112,12 @@ def rollback(dsFolder: types.GirderModel, revision: int):
     # And erase deletions for anything deleted after revision
     dsId = dsFolder['_id']
     RevisionLogItem().removeWithQuery({DATASET: dsId, REVISION: {'$gt': revision}})
-    removeQuery = {DATASET: dsId, REVISION_CREATED: {'$gt': revision}}
-    updateQuery = {DATASET: dsId, REVISION_DELETED: {'$gt': revision}}, {
-        '$unset': {REVISION_DELETED: ""}
-    }
-    TrackItem().removeWithQuery(removeQuery)
-    TrackItem().update(updateQuery)
-    GroupItem().removeWithQuery(removeQuery)
-    GroupItem().update(updateQuery)
+    listQuery = {DATASET: dsId, REVISION_CREATED: {'$gt': revision}}
+    updateQuery = {'$unset': {REVISION_DELETED: ""}}
+    TrackItem().removeWithQuery(listQuery)
+    TrackItem().update(listQuery, updateQuery)
+    GroupItem().removeWithQuery(listQuery)
+    GroupItem().update(listQuery, updateQuery)
 
 
 def get_annotation_csv_generator(
