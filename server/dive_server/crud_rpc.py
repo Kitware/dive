@@ -18,7 +18,7 @@ import pymongo
 from dive_server import crud, crud_annotation
 from dive_tasks import tasks
 from dive_utils import TRUTHY_META_VALUES, asbool, constants, fromMeta, models, types
-from dive_utils.serializers import kwcoco, meva, viame
+from dive_utils.serializers import dive, kwcoco, meva, viame
 
 from . import crud_dataset
 
@@ -274,12 +274,14 @@ def _get_data_by_type(
     file: types.GirderModel,
     image_map: Optional[Dict[str, int]] = None,
     as_type: Optional[crud.FileType] = None,
-) -> Tuple[Optional[crud.FileType], dict, dict]:
+) -> Tuple[Optional[crud.FileType], dict, dict, dict]:
     """
     Given an arbitrary Girder file model, figure out what kind of file it is and
     parse it appropriately.
 
-    :as_type: bypass type discovery (potentially expensive) if caller is certain about type
+    :param image_map: Mapping of image names to frame numbers
+    :param as_type: bypass type discovery (potentially expensive) if caller is certain about type
+    :returns: file type, tracks, groups, attributes
     """
     if file is None:
         return None, {}, {}
@@ -309,7 +311,7 @@ def _get_data_by_type(
         tracks, attributes = viame.load_csv_as_tracks_and_attributes(
             file_string.splitlines(), image_map
         )
-        return as_type, tracks, attributes
+        return as_type, tracks, {}, attributes
 
     # All filetypes below are JSON, so if as_type was specified, it needs to be loaded.
     if data_dict is None:
@@ -317,10 +319,11 @@ def _get_data_by_type(
 
     if as_type == crud.FileType.COCO_JSON:
         tracks, attributes = kwcoco.load_coco_as_tracks_and_attributes(data_dict)
-        return as_type, tracks, attributes
+        return as_type, tracks, {}, attributes
     if as_type == crud.FileType.DIVE_CONF or as_type == crud.FileType.DIVE_JSON:
-        return as_type, data_dict, {}
-    return None, {}, {}
+        migrated = dive.migrate(data_dict)
+        return as_type, migrated['tracks'], migrated['groups'], {}
+    return None, {}, {}, {}
 
 
 def process_items(folder: types.GirderModel, user: types.GirderUserModel):
@@ -348,7 +351,7 @@ def process_items(folder: types.GirderModel, user: types.GirderUserModel):
             image_map = None
             if fromMeta(folder, constants.TypeMarker) == 'image-sequence':
                 image_map = crud.valid_image_names_dict(crud.valid_images(folder, user))
-            filetype, data, attrs = _get_data_by_type(file, image_map=image_map)
+            filetype, d1, d2, attrs = _get_data_by_type(file, image_map=image_map)
         except Exception as e:
             Item().remove(item)
             raise RestException(f'{file["name"]} was not valid JSON or CSV: {e}') from e
@@ -357,7 +360,8 @@ def process_items(folder: types.GirderModel, user: types.GirderUserModel):
             crud_annotation.save_annotations(
                 folder,
                 user,
-                upsert_tracks=data.values(),
+                upsert_tracks=d1.values(),
+                upsert_groups=d2.values(),
                 overwrite=True,
                 description=f'Import {filetype.name} from {file["name"]}',
             )
@@ -366,12 +370,12 @@ def process_items(folder: types.GirderModel, user: types.GirderUserModel):
             Item().move(item, auxiliary)
 
         elif filetype == crud.FileType.DIVE_CONF:
-            crud_dataset.update_metadata(folder, data)
+            crud_dataset.update_metadata(folder, d1)
             item['meta'][constants.ProcessedMarker] = True
             Item().move(item, auxiliary)
 
         elif filetype == crud.FileType.DIVE_JSON:
-            for track in data.values():
+            for track in d1.values():
                 if not isinstance(track, dict):
                     Item().remove(item)  # remove the bad JSON from dataset
                     raise RestException(
@@ -381,10 +385,21 @@ def process_items(folder: types.GirderModel, user: types.GirderUserModel):
                         )
                     )
                 crud.get_validated_model(models.Track, **track)
+            for group in d2.values():
+                if not isinstance(group, dict):
+                    Item().remove(item)
+                    raise RestException(
+                        (
+                            'Invalid JSON file provided.'
+                            ' Please upload a COCO, KWCOCO, VIAME CSV, or DIVE JSON file.'
+                        )
+                    )
+                crud.get_validated_model(models.Group, **group)
             crud_annotation.save_annotations(
                 folder,
                 user,
-                upsert_tracks=data.values(),
+                upsert_tracks=d1.values(),
+                upsert_groups=d2.values(),
                 overwrite=True,
                 description=f"Import from {filetype.value}",
             )

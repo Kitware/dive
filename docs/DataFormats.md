@@ -129,7 +129,7 @@ This is a relatively simple example, and many optional fields are not included.
 
 This information provides the specification for an individual dataset.  It consists of the following.
 
-* Allowed types (or labels) and their appearances are defined by `customTypeStyling`
+* Allowed types (or labels) and their appearances are defined by `customTypeStyling` and `customGroupStyling`.
 * Preset confidence filters for those types are defined in `confidenceFilters`
 * Track and Detection attribute specifications are defined in `attributes`
 
@@ -139,6 +139,7 @@ The full [DatasetMetaMutable definition can be found here](https://github.com/Ki
 interface DatasetMetaMutable {
   version: number;
   customTypeStyling?: Record<string, CustomStyle>;
+  customGroupStyling?: Record<string, CustomStyle>;
   confidenceFilters?: Record<string, number>;
   attributes?: Readonly<Record<string, Attribute>>;
 }

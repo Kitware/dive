@@ -71,7 +71,6 @@ export default defineComponent({
       editingFill: false,
       editingOpacity: 1.0,
       valid: true,
-      settingsActive: false,
       sortingMethod: 0, // index into sortingMethods
       filterText: '',
     });
@@ -254,32 +253,7 @@ export default defineComponent({
             tooltip-text="Sort types by count or alphabetically"
             @click="clickSortToggle"
           />
-          <v-menu
-            v-model="data.settingsActive"
-            :nudge-bottom="28"
-            :close-on-content-click="false"
-          >
-            <template #activator="{ on, attrs }">
-              <v-btn
-                icon
-                small
-                class="mx-2"
-                v-bind="attrs"
-                v-on="on"
-              >
-                <v-icon
-                  small
-                  :color="data.settingsActive ? 'accent' : 'default'"
-                >
-                  mdi-cog
-                </v-icon>
-              </v-btn>
-            </template>
-            <slot
-              v-if="data.settingsActive"
-              name="settings"
-            />
-          </v-menu>
+          <slot name="settings" />
           <v-tooltip
             open-delay="100"
             bottom

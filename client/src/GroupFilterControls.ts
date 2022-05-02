@@ -1,4 +1,4 @@
-import { computed, Ref } from '@vue/composition-api';
+import { computed, ref, Ref } from '@vue/composition-api';
 import { cloneDeep } from 'lodash';
 import BaseFilterControls, { AnnotationWithContext, FilterControlsParams } from './BaseFilterControls';
 import type Group from './Group';
@@ -8,6 +8,12 @@ export default class GroupFilterControls extends BaseFilterControls<Group> {
 
   constructor(params: FilterControlsParams<Group>) {
     super(params);
+
+    /**
+     * Override default confidence filters.  There is no UI to adjust this,
+     * so filter nothing by default
+     */
+    this.confidenceFilters = ref({ default: 0 });
 
     /**
      * Override filtered track annotations to include logic

@@ -118,6 +118,13 @@ export default defineComponent({
       return 0;
     });
 
+    const colorBy = computed(() => {
+      if (context.state.active === 'GroupSidebar') {
+        return 'group';
+      }
+      return 'track';
+    });
+
     const {
       save: saveToServer,
       markChangesPending,
@@ -321,6 +328,9 @@ export default defineComponent({
         if (meta.customTypeStyling) {
           trackFilters.importTypes(Object.keys(meta.customTypeStyling), false);
         }
+        if (meta.customGroupStyling) {
+          groupFilters.importTypes(Object.keys(meta.customGroupStyling), false);
+        }
         if (meta.attributes) {
           loadAttributes(meta.attributes);
         }
@@ -334,9 +344,7 @@ export default defineComponent({
         videoUrl.value = meta.videoUrl;
         datasetType.value = meta.type as DatasetType;
 
-        const trackData = await loadDetections(datasetId.value, props.revision);
-        const tracks = Object.values(trackData.tracks);
-        const groups = Object.values(trackData.groups);
+        const { tracks, groups } = await loadDetections(datasetId.value, props.revision);
         progress.total = tracks.length + groups.length;
         for (let i = 0; i < tracks.length; i += 1) {
           if (i % 4000 === 0) {
@@ -354,7 +362,7 @@ export default defineComponent({
             // eslint-disable-next-line no-await-in-loop
             await new Promise((resolve) => window.setTimeout(resolve, 500));
           }
-          groupStore.insert(Group.fromJSON(groups[i]));
+          groupStore.insert(Group.fromJSON(groups[i]), { imported: true });
         }
         progress.loaded = true;
       } catch (err) {
@@ -427,6 +435,7 @@ export default defineComponent({
     return {
       /* props */
       confidenceFilters: trackFilters.confidenceFilters,
+      colorBy,
       clientSettings,
       datasetName,
       datasetType,
@@ -639,7 +648,7 @@ export default defineComponent({
               @select-track="handler.trackSelect"
             />
           </template>
-          <layer-manager />
+          <layer-manager v-bind="{ colorBy }" />
         </component>
         <div
           v-else

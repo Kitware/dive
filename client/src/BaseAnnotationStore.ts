@@ -167,15 +167,4 @@ export default abstract class BaseAnnotationStore<T extends Track | Group> {
     });
     this.annotationIds.value = [];
   }
-
-  /** Discard annotations whose highest confidencePair value is lower than specified. */
-  removeBelowConfidence(threshold: number) {
-    this.annotationIds.value.forEach((annotationId) => {
-      const value = this.get(annotationId);
-      const confidence = value.getType();
-      if (confidence[1] < threshold) {
-        this.remove(annotationId);
-      }
-    });
-  }
 }

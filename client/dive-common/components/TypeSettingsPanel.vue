@@ -26,6 +26,7 @@ export default defineComponent({
     const importInstructions = ref('Please provide a list of types (separated by a new line) that you would like to import');
     const importDialog = ref(false);
     const importTypes = ref('');
+    const active = ref(false);
 
     const confirmImport = () => {
       // Go through the importTypes and create types for importing
@@ -36,6 +37,7 @@ export default defineComponent({
     };
 
     return {
+      active,
       clientSettings,
       itemHeight,
       help,
@@ -50,115 +52,137 @@ export default defineComponent({
 
 <template>
   <div>
-    <v-card
-      outlined
-      class="pa-2 pr-4"
-      color="blue-grey darken-3"
+    <v-menu
+      v-model="active"
+      :nudge-bottom="28"
+      :close-on-content-click="false"
     >
-      <div>
-        Type Settings
-      </div>
-      <v-row>
-        <v-col class="py-1">
-          <v-btn
-            dense
+      <template #activator="{ on, attrs }">
+        <v-btn
+          icon
+          small
+          class="mx-2"
+          v-bind="attrs"
+          v-on="on"
+        >
+          <v-icon
             small
-            outlined
-            hide-details
-            @click="importDialog = true"
+            :color="active ? 'accent' : 'default'"
           >
-            <v-icon small>
-              mdi-plus
-            </v-icon>
-            Types
-          </v-btn>
-        </v-col>
-        <v-col
-          cols="2"
-          class="py-1"
-          align="right"
-        >
-          <v-tooltip
-            open-delay="200"
-            bottom
-            max-width="200"
-          >
-            <template #activator="{ on }">
-              <v-icon
-                small
-                v-on="on"
-              >
-                mdi-help
+            mdi-cog
+          </v-icon>
+        </v-btn>
+      </template>
+
+      <v-card
+        outlined
+        class="pa-2 pr-4"
+        color="blue-grey darken-3"
+      >
+        Type Settings
+        <v-row>
+          <v-col class="py-1">
+            <v-btn
+              dense
+              small
+              outlined
+              hide-details
+              @click="importDialog = true"
+            >
+              <v-icon small>
+                mdi-plus
               </v-icon>
-            </template>
-            <span>{{ help.import }}</span>
-          </v-tooltip>
-        </v-col>
-      </v-row>
-      <v-row>
-        <v-col class="py-1">
-          <v-switch
-            v-model="clientSettings.typeSettings.showEmptyTypes"
-            class="my-0 ml-1 pt-0"
-            dense
-            label="Show Empty"
-            hide-details
-          />
-        </v-col>
-        <v-col
-          cols="2"
-          class="py-1"
-          align="right"
-        >
-          <v-tooltip
-            open-delay="200"
-            bottom
-            max-width="200"
+              Types
+            </v-btn>
+          </v-col>
+          <v-col
+            cols="2"
+            class="py-1"
+            align="right"
           >
-            <template #activator="{ on }">
-              <v-icon
-                small
-                v-on="on"
-              >
-                mdi-help
-              </v-icon>
-            </template>
-            <span>{{ help.showEmptyTypes }}</span>
-          </v-tooltip>
-        </v-col>
-      </v-row>
-      <v-row>
-        <v-col class="py-1">
-          <v-switch
-            v-model="clientSettings.typeSettings.lockTypes"
-            label="Lock Types"
-            class="my-0 ml-1 pt-0"
-            dense
-            hide-details
-          />
-        </v-col>
-        <v-col
-          cols="2"
-          class="py-1"
-          align="right"
-        >
-          <v-tooltip
-            open-delay="200"
-            bottom
+            <v-tooltip
+              open-delay="200"
+              bottom
+              max-width="200"
+            >
+              <template #activator="{ on }">
+                <v-icon
+                  small
+                  v-on="on"
+                >
+                  mdi-help
+                </v-icon>
+              </template>
+              <span>{{ help.import }}</span>
+            </v-tooltip>
+          </v-col>
+        </v-row>
+        <v-row>
+          <v-col class="py-1">
+            <v-switch
+              v-model="clientSettings.typeSettings.showEmptyTypes"
+              class="my-0 ml-1 pt-0"
+              dense
+              label="Show Empty"
+              hide-details
+            />
+          </v-col>
+          <v-col
+            cols="2"
+            class="py-1"
+            align="right"
           >
-            <template #activator="{ on }">
-              <v-icon
-                small
-                v-on="on"
-              >
-                mdi-help
-              </v-icon>
-            </template>
-            <span>{{ help.lockTypes }}</span>
-          </v-tooltip>
-        </v-col>
-      </v-row>
-    </v-card>
+            <v-tooltip
+              open-delay="200"
+              bottom
+              max-width="200"
+            >
+              <template #activator="{ on }">
+                <v-icon
+                  small
+                  v-on="on"
+                >
+                  mdi-help
+                </v-icon>
+              </template>
+              <span>{{ help.showEmptyTypes }}</span>
+            </v-tooltip>
+          </v-col>
+        </v-row>
+        <v-row>
+          <v-col class="py-1">
+            <v-switch
+              v-model="clientSettings.typeSettings.lockTypes"
+              label="Lock Types"
+              class="my-0 ml-1 pt-0"
+              dense
+              hide-details
+            />
+          </v-col>
+          <v-col
+            cols="2"
+            class="py-1"
+            align="right"
+          >
+            <v-tooltip
+              open-delay="200"
+              bottom
+            >
+              <template #activator="{ on }">
+                <v-icon
+                  small
+                  v-on="on"
+                >
+                  mdi-help
+                </v-icon>
+              </template>
+              <span>{{ help.lockTypes }}</span>
+            </v-tooltip>
+          </v-col>
+        </v-row>
+      </v-card>
+    </v-menu>
+
     <v-dialog
       v-model="importDialog"
       width="350"

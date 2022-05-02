@@ -14,7 +14,7 @@ import TailLayer from '../layers/AnnotationLayers/TailLayer';
 import EditAnnotationLayer, { EditAnnotationTypes } from '../layers/EditAnnotationLayer';
 import { FrameDataTrack } from '../layers/LayerTypes';
 import TextLayer, { FormatTextRow } from '../layers/AnnotationLayers/TextLayer';
-import type { TrackId } from '../track';
+import type { AnnotationId } from '../BaseAnnotation';
 import { geojsonToBound } from '../utils';
 import { VisibleAnnotationTypes } from '../layers';
 import UILayer from '../layers/UILayers/UILayer';
@@ -46,6 +46,10 @@ export default defineComponent({
       type: Function as PropType<FormatTextRow | undefined>,
       default: undefined,
     },
+    colorBy: {
+      type: String as PropType<'group' | 'track'>,
+      default: 'track',
+    },
   },
   setup(props) {
     const handler = useHandler();
@@ -60,11 +64,11 @@ export default defineComponent({
     const trackStyleManager = useTrackStyleManager();
     const groupStyleManager = useGroupStyleManager();
     const annotatorPrefs = useAnnotatorPreferences();
-    const colorByRef = ref('group');
     const typeStylingRef = computed(() => {
-      // TODO logic to choose styling source.
-      const groupTypeStyling = groupStyleManager.typeStyling.value;
-      return groupTypeStyling;
+      if (props.colorBy === 'group') {
+        return groupStyleManager.typeStyling.value;
+      }
+      return trackStyleManager.typeStyling.value;
     });
 
     const annotator = injectMediaController();
@@ -126,14 +130,14 @@ export default defineComponent({
     function updateLayers(
       frame: number,
       editingTrack: false | EditAnnotationTypes,
-      selectedTrackId: TrackId | null,
-      mergeList: readonly TrackId[],
+      selectedTrackId: AnnotationId | null,
+      mergeList: readonly AnnotationId[],
       enabledTracks: readonly TrackWithContext[],
       visibleModes: readonly VisibleAnnotationTypes[],
       selectedKey: string,
       colorBy: string,
     ) {
-      const currentFrameIds: TrackId[] = trackStore.intervalTree
+      const currentFrameIds: AnnotationId[] = trackStore.intervalTree
         .search([frame, frame])
         .map((str: string) => parseInt(str, 10));
       const inlcudesTooltip = visibleModes.includes('tooltip');
@@ -145,7 +149,7 @@ export default defineComponent({
       const frameData = [] as FrameDataTrack[];
       const editingTracks = [] as FrameDataTrack[];
       currentFrameIds.forEach(
-        (trackId: TrackId) => {
+        (trackId: AnnotationId) => {
           const track = trackStore.get(trackId);
           const enabledIndex = enabledTracks.findIndex(
             (trackWithContext) => trackWithContext.annotation.id === trackId,
@@ -267,7 +271,7 @@ export default defineComponent({
         enabledTracksRef.value,
         visibleModesRef.value,
         selectedKeyRef.value,
-        colorByRef.value,
+        props.colorBy,
       );
     });
 
@@ -281,7 +285,7 @@ export default defineComponent({
         mergeListRef,
         visibleModesRef,
         typeStylingRef,
-        colorByRef,
+        props.colorBy,
       ],
       () => {
         updateLayers(
@@ -292,7 +296,7 @@ export default defineComponent({
           enabledTracksRef.value,
           visibleModesRef.value,
           selectedKeyRef.value,
-          colorByRef.value,
+          props.colorBy,
         );
       },
     );
@@ -309,7 +313,7 @@ export default defineComponent({
           enabledTracksRef.value,
           visibleModesRef.value,
           selectedKeyRef.value,
-          colorByRef.value,
+          props.colorBy,
         );
       },
       { deep: true },
@@ -357,7 +361,7 @@ export default defineComponent({
           enabledTracksRef.value,
           visibleModesRef.value,
           selectedKeyRef.value,
-          colorByRef.value,
+          props.colorBy,
         );
       }
     });

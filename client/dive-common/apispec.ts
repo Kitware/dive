@@ -18,6 +18,16 @@ interface AnnotationSchema {
   groups: MultiGroupRecord;
 }
 
+/**
+ * Variation on AnnotationSchema where annotations are lists
+ * instead of objects, used for convenience with pagination.
+ */
+interface AnnotationSchemaList {
+  version: number;
+  tracks: TrackData[];
+  groups: GroupData[];
+}
+
 interface Pipe {
   name: string;
   pipe: string;
@@ -121,7 +131,6 @@ interface DatasetMeta extends DatasetMetaMutable {
 }
 
 interface Api {
-
   getPipelineList(): Promise<Pipelines>;
   runPipeline(itemId: string, pipeline: Pipe): Promise<unknown>;
 
@@ -135,7 +144,7 @@ interface Api {
   ): Promise<unknown>;
 
   loadMetadata(datasetId: string): Promise<DatasetMeta>;
-  loadDetections(datasetId: string, revision?: number): Promise<AnnotationSchema>;
+  loadDetections(datasetId: string, revision?: number): Promise<AnnotationSchemaList>;
 
   saveDetections(datasetId: string, args: SaveDetectionsArgs): Promise<unknown>;
   saveMetadata(datasetId: string, metadata: DatasetMetaMutable): Promise<unknown>;

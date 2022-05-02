@@ -534,6 +534,9 @@ async function saveMetadata(settings: Settings, datasetId: string, args: Dataset
   if (args.customTypeStyling) {
     existing.customTypeStyling = args.customTypeStyling;
   }
+  if (args.customGroupStyling) {
+    existing.customGroupStyling = args.customGroupStyling;
+  }
   if (args.attributes) {
     existing.attributes = args.attributes;
   }
@@ -610,8 +613,8 @@ async function _ingestFilePath(
   if (Object.values(annotations.tracks).length || Object.values(annotations.groups).length) {
     const processed = processTrackAttributes(Object.values(annotations.tracks));
     meta.attributes = processed.attributes;
-    await _saveSerialized(settings, datasetId, annotations, true);
   }
+  await _saveSerialized(settings, datasetId, annotations, true);
   return meta;
 }
 

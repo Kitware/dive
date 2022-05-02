@@ -5,6 +5,8 @@ from bson.objectid import ObjectId
 from pydantic import BaseModel, Field, validator
 from typing_extensions import Literal
 
+from dive_utils import constants
+
 
 class PydanticObjectId(str):
     """https://stackoverflow.com/a/69431643"""
@@ -95,8 +97,7 @@ class Track(BaseAnnotation):
 
 
 class GroupMember(BaseModel):
-    id: int
-    ranges: List[int]
+    ranges: List[List[int]]
 
 
 class Group(BaseAnnotation):
@@ -144,8 +145,11 @@ class CustomStyle(BaseModel):
 
 
 class MetadataMutable(BaseModel):
-    version = 1  # maintain compatibility with desktop for the subset of fields that overlap.
+    version = (
+        constants.JsonMetaCurrentVersion
+    )  # maintain compatibility with desktop for the subset of fields that overlap.
     customTypeStyling: Optional[Dict[str, CustomStyle]]
+    customGroupStyling: Optional[Dict[str, CustomStyle]]
     confidenceFilters: Optional[Dict[str, float]]
     attributes: Optional[Dict[str, Attribute]]
 

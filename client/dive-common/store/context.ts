@@ -18,7 +18,7 @@ interface ComponentMapItem {
 }
 
 const state: ContextState = reactive({
-  last: 'GroupSidebar',
+  last: 'TypeThreshold',
   active: null,
 });
 

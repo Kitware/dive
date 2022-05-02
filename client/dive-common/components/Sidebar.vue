@@ -119,7 +119,7 @@ export default defineComponent({
             :filter-controls="trackFilterControls"
             class="flex-shrink-1 flex-grow-1"
           >
-            <template slot="settings">
+            <template #settings>
               <TypeSettingsPanel
                 :all-types="allTypesRef"
                 @import-types="$emit('import-types',$event)"

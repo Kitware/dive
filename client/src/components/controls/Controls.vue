@@ -1,6 +1,5 @@
 <script lang="ts">
 import { defineComponent, reactive, watch } from '@vue/composition-api';
-import { throttle } from 'lodash';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import context from 'dive-common/store/context';
 import { injectMediaController } from '../annotators/useMediaController';
@@ -54,7 +53,6 @@ export default defineComponent({
       input,
       togglePlay,
       visible,
-      throttle,
       toggleEnhancements,
     };
   },
@@ -64,11 +62,11 @@ export default defineComponent({
 <template>
   <div
     v-mousetrap="[
-      { bind: 'left', handler: throttle(mediaController.prevFrame, 10), disabled: visible() },
-      { bind: 'right', handler: throttle(mediaController.nextFrame, 10), disabled: visible() },
+      { bind: 'left', handler: mediaController.prevFrame, disabled: visible() },
+      { bind: 'right', handler: mediaController.nextFrame, disabled: visible() },
       { bind: 'space', handler: togglePlay, disabled: visible() },
-      { bind: 'f', handler: throttle(mediaController.nextFrame, 10), disabled: visible() },
-      { bind: 'd', handler: throttle(mediaController.prevFrame, 10), disabled: visible() },
+      { bind: 'f', handler: mediaController.nextFrame, disabled: visible() },
+      { bind: 'd', handler: mediaController.prevFrame, disabled: visible() },
     ]"
   >
     <v-card class="px-4 py-1">

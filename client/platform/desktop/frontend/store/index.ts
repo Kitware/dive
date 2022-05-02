@@ -1,4 +1,4 @@
-import { Api } from 'dive-common/apispec';
+import { AnnotationSchema, Api } from 'dive-common/apispec';
 import * as api from 'platform/desktop/frontend/api';
 
 /* Warning, this import involves node.js code for loadDetections (below) */
@@ -37,7 +37,12 @@ export default function wrap(): Api {
    */
   async function loadDetections(datasetId: string) {
     const settings = await initializedSettings;
-    return common.loadDetections(settings, datasetId);
+    const annotations = await common.loadDetections(settings, datasetId);
+    return {
+      version: annotations.version,
+      tracks: Object.values(annotations.tracks),
+      groups: Object.values(annotations.groups),
+    };
   }
 
   return {
