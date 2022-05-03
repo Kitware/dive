@@ -5,6 +5,7 @@ import fs from 'fs-extra';
 import { Console } from 'console';
 
 import {
+  AnnotationsCurrentVersion,
   ConversionArgs,
   DesktopJob,
   DesktopJobUpdate, DesktopJobUpdater, JsonMeta, RunTraining, Settings,
@@ -762,7 +763,12 @@ describe('native.common', () => {
       expect(final.attributes).toEqual(testData[num][2]);
       // eslint-disable-next-line no-await-in-loop
       const tracks = await common.loadDetections(settings, final.id);
-      expect(tracks).toEqual(testData[num][1]);
+      const modifiedSource = {
+        groups: {},
+        tracks: testData[num][1],
+        version: AnnotationsCurrentVersion,
+      };
+      expect(tracks).toEqual(modifiedSource);
     }
   });
 });
