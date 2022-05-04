@@ -1,4 +1,4 @@
-import { TypeStyling } from '../../use/useStyling';
+import { TypeStyling } from '../../StyleManager';
 import BaseLayer, { BaseLayerParams, LayerStyle } from '../BaseLayer';
 import { FrameDataTrack } from '../LayerTypes';
 
@@ -12,10 +12,11 @@ export interface TextData {
   y: number;
   offsetY?: number;
   offsetX?: number;
-  currentPair: boolean;
+  // currentPair: boolean;
 }
 
-export type FormatTextRow = (track: FrameDataTrack, typeStyling?: TypeStyling) => TextData[] | null;
+export type FormatTextRow = (
+  annotation: FrameDataTrack, typeStyling?: TypeStyling) => TextData[] | null;
 
 interface TextLayerParams {
   formatter?: FormatTextRow;
@@ -28,47 +29,50 @@ interface TextLayerParams {
  * @returns value or null.  null indicates that the text should not be displayed.
  */
 function defaultFormatter(
-  track: FrameDataTrack,
+  annotation: FrameDataTrack,
   typeStyling?: TypeStyling,
-  maxPairs = 1,
-  lineHeight = 20,
 ): TextData[] | null {
-  if (track.features && track.features.bounds) {
-    const { bounds } = track.features;
-    if (bounds && track.confidencePairs !== null) {
-      const arr: TextData[] = [];
-      const totalVisiblePairs = Math.min(track.confidencePairs.length, maxPairs);
-      for (let i = 0; i < track.confidencePairs.length; i += 1) {
-        const [type, confidence] = track.confidencePairs[i];
-        const isCurrentPair = (type === track.trackType[0]);
-        const currentTypeIndication = (isCurrentPair && totalVisiblePairs > 1) ? '**' : '';
-        let text = '';
-        if (typeStyling) {
-          const { showLabel, showConfidence } = typeStyling.labelSettings(type);
-          if (showLabel && !showConfidence) {
-            text = `${currentTypeIndication}${type}`;
-          } else if (showConfidence && !showLabel) {
-            text = `${currentTypeIndication}${confidence.toFixed(2)}`;
-          } else if (showConfidence && showLabel) {
-            text = `${currentTypeIndication}${type}: ${confidence.toFixed(2)}`;
-          }
-        }
-        arr.push({
-          selected: track.selected,
-          editing: track.editing,
-          type,
-          confidence,
-          text,
-          x: bounds[2],
-          y: -1, // updated below
-          currentPair: isCurrentPair,
-        });
-      }
-      return arr
-        .sort((a, b) => (+b.currentPair) - (+a.currentPair)) // sort currentPair=true first
-        .slice(0, totalVisiblePairs)
-        .map((v, i) => ({ ...v, y: bounds[1] - (lineHeight * i) })); // calculate y after sort
+  if (annotation.features && annotation.features.bounds) {
+    const { bounds } = annotation.features;
+    let confidencePairs = [annotation.styleType];
+    if (annotation.groups.length) {
+      const trackType = annotation.track.getType();
+      confidencePairs = annotation.groups.map(({ confidencePairs: cp }) => {
+        const [_type, _conf] = cp[0];
+        return [
+          `${trackType[0]}::${_type}`, _conf,
+        ];
+      });
     }
+    const arr: TextData[] = [];
+
+    for (let i = 0; i < confidencePairs.length; i += 1) {
+      const [type, confidence] = confidencePairs[i];
+
+      let text = '';
+      if (typeStyling) {
+        const { showLabel, showConfidence } = typeStyling.labelSettings(type);
+        if (showLabel && !showConfidence) {
+          text = type;
+        } else if (showConfidence && !showLabel) {
+          text = `${confidence.toFixed(2)}`;
+        } else if (showConfidence && showLabel) {
+          text = `${type}: ${confidence.toFixed(2)}`;
+        }
+      }
+      arr.push({
+        selected: annotation.selected,
+        editing: annotation.editing,
+        type: annotation.styleType[0],
+        confidence,
+        text,
+        x: bounds[2],
+        y: bounds[1],
+      });
+    }
+    return arr;
+    // .sort((a, b) => (+b.currentPair) - (+a.currentPair)) // sort currentPair=true first
+    // .map((v, i) => ({ ...v, y: bounds[1] - (lineHeight * i) })); // calculate y after sort
   }
   return null;
 }
@@ -119,25 +123,19 @@ export default class TextLayer extends BaseLayer<TextData> {
       ...baseStyle,
       color: (data) => {
         if (data.editing || data.selected) {
-          if (!data.selected && !data.currentPair) {
+          if (!data.selected) {
             if (this.stateStyling.disabled.color !== 'type') {
               return this.stateStyling.disabled.color;
             }
             return this.typeStyling.value.color(data.type);
           }
-          if (data.selected && data.currentPair) {
+          if (data.selected) {
             return this.stateStyling.selected.color;
           }
           return this.typeStyling.value.color(data.type);
         }
         return this.typeStyling.value.color(data.type);
       },
-      textOpacity: ((data) => {
-        if (data.currentPair) {
-          return 1.0;
-        }
-        return this.stateStyling.disabled.opacity;
-      }),
       offset: (data) => ({
         x: data.offsetY || 3,
         y: data.offsetX || -8,

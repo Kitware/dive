@@ -1,4 +1,3 @@
-import { Ref, ref } from '@vue/composition-api';
 import { RectBounds } from './utils';
 import {
   binarySearch,
@@ -6,18 +5,15 @@ import {
   getSurroundingElements,
   listRemove,
 } from './listUtils';
+import BaseAnnotation, {
+  AnnotationId, BaseAnnotationParams, BaseData, StringKeyObject,
+} from './BaseAnnotation';
 
 export type InterpolateFeatures = [Feature | null, Feature | null, Feature | null];
-export type ConfidencePair = [string, number];
+/** @deprecated use AnnotationId instead */
 export type TrackId = number;
 export type TrackSupportedFeature = (
   GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString | GeoJSON.Point);
-type TrackNotifier = (
-  { track, event, oldValue }: { track: Track; event: string; oldValue: unknown }
-) => void;
-export interface StringKeyObject {
-  [key: string]: unknown;
-}
 
 /* Frame feature for both TrackData and Track */
 export interface Feature {
@@ -34,40 +30,20 @@ export interface Feature {
 }
 
 /** TrackData is the json schema for Track transport */
-export interface TrackData {
-  trackId: TrackId;
-  meta?: StringKeyObject;
-  attributes: StringKeyObject;
-  confidencePairs: Array<ConfidencePair>;
+export interface TrackData extends BaseData {
   features: Array<Feature>;
-  begin: number;
-  end: number;
 }
 
 /* Constructor params for Track */
-interface TrackParams {
-  meta?: StringKeyObject;
-  begin?: number;
-  end?: number;
+interface TrackParams extends BaseAnnotationParams {
   features?: Array<Feature>;
-  confidencePairs?: Array<ConfidencePair>;
-  attributes?: StringKeyObject;
-  notifier?: TrackNotifier;
 }
 
 /**
  * Track manages the state of a track, its
  * frame data, and all metadata.
  */
-export default class Track {
-  trackId: TrackId;
-
-  meta: StringKeyObject;
-
-  attributes: StringKeyObject;
-
-  confidencePairs: ConfidencePair[];
-
+export default class Track extends BaseAnnotation {
   /* Sparse array maps frame # to feature object */
   features: Feature[];
 
@@ -76,51 +52,25 @@ export default class Track {
    * for performing fast search */
   featureIndex: number[];
 
-  begin: number;
-
-  end: number;
-
-  /**
-   * Be very careful with revision!  It is expensive to use,
-   * and should only be used for reactivity on a single track
-   * rather than within the context of a loop.
-   */
-  revision: Ref<number>;
-
-  /** A callback to notify about changes to the track. */
-  notifier?: TrackNotifier;
-
-  constructor(trackId: TrackId, {
-    meta = {},
-    begin = Infinity,
-    end = 0,
-    features = [],
-    confidencePairs = [],
-    attributes = {},
-    notifier = undefined,
-  }: TrackParams) {
-    this.trackId = trackId;
-    this.meta = meta;
-    this.attributes = attributes;
-    this.features = features; // NON-reactive sparse array
+  constructor(id: AnnotationId, params: TrackParams) {
+    super(id, params);
+    this.features = params.features || []; // NON-reactive sparse array
     this.featureIndex = [];
-    this.revision = ref(1);
-    Track.sanityCheckFeatures(features);
-    this.repopulateInterpolatedFrames(features);
-    this.begin = begin;
-    this.end = end;
-    this.confidencePairs = confidencePairs;
-    this.notifier = notifier;
+    Track.sanityCheckFeatures(this.features);
+    this.repopulateInterpolatedFrames(this.features);
   }
 
-  get length() {
-    return (this.end - this.begin) + 1;
+  /**
+   * @deprecated Use id instead.
+   */
+  public get trackId() {
+    return this.id;
   }
 
   /**
    * True after at least 1 feature has been added
    */
-  private isInitialized() {
+  protected isInitialized() {
     return this.featureIndex.length > 0;
   }
 
@@ -159,20 +109,6 @@ export default class Track {
     });
   }
 
-  /* Call if the bounds were possibly expanded */
-  private maybeExpandBounds(frame: number) {
-    const oldval = [this.begin, this.end];
-    if (frame < this.begin) {
-      // frame below begin
-      this.begin = frame;
-      this.notify('bounds', oldval);
-    } else if (frame > this.end) {
-      // frame above end
-      this.end = frame;
-      this.notify('bounds', oldval);
-    }
-  }
-
   /* Call if the bounds were possible shrunk */
   private maybeShrinkBounds(frame: number) {
     const oldval = [this.begin, this.end];
@@ -199,20 +135,6 @@ export default class Track {
     }
   }
 
-  private notify(name: string, oldValue: unknown) {
-    /* Prevent broadcast until the first feature is initialized */
-    if (this.isInitialized()) {
-      this.revision.value += 1;
-      if (this.notifier) {
-        this.notifier({
-          track: this,
-          event: name,
-          oldValue,
-        });
-      }
-    }
-  }
-
   /** Determine if track can be split at frame */
   canSplit(frame: number) {
     return frame > this.begin && frame <= this.end;
@@ -236,13 +158,13 @@ export default class Track {
    * Split trackId in two at given frame, where frame is allocated
    * to the second track.  Both tracks must end up with at least 1 detection.
    */
-  split(frame: number, id1: TrackId, id2: TrackId): [Track, Track] {
+  split(frame: number, id1: AnnotationId, id2: AnnotationId): [Track, Track] {
     if (!this.canSplit(frame)) {
-      throw new Error(`Cannot split track ${this.trackId} at frame ${frame}.  Frame bounds are [${this.begin}, ${this.end}]`);
+      throw new Error(`Cannot split track ${this.id} at frame ${frame}.  Frame bounds are [${this.begin}, ${this.end}]`);
     }
     return [
       Track.fromJSON({
-        trackId: id1,
+        id: id1,
         meta: this.meta,
         begin: this.begin,
         end: this.getPreviousKeyframe(frame - 1) || this.begin,
@@ -251,7 +173,7 @@ export default class Track {
         attributes: this.attributes,
       }),
       Track.fromJSON({
-        trackId: id2,
+        id: id2,
         meta: this.meta,
         begin: this.getNextKeyframe(frame) || this.end,
         end: this.end,
@@ -332,10 +254,6 @@ export default class Track {
         interpolate: !interpolate,
       });
     }
-  }
-
-  setNotifier(notifier?: TrackNotifier) {
-    this.notifier = notifier;
   }
 
   setFeature(feature: Feature, geometry: GeoJSON.Feature<TrackSupportedFeature>[] = []): Feature {
@@ -435,48 +353,6 @@ export default class Track {
     }
   }
 
-  getType(index = 0): [string, number] {
-    if (this.confidencePairs.length > 0 && this.confidencePairs[index]) {
-      return this.confidencePairs[index];
-    }
-    throw new Error('Index Error: The requested confidencePairs index does not exist.');
-  }
-
-  removeTypes(types: string[]) {
-    if (this.confidencePairs.length > 0) {
-      const old = this.confidencePairs;
-      this.confidencePairs = this.confidencePairs.filter(
-        ([type]) => !types.includes(type),
-      );
-      this.notify('confidencePairs', old);
-    }
-    return this.confidencePairs;
-  }
-
-
-  setType(trackType: string, confidenceVal = 1, replace?: string) {
-    const old = this.confidencePairs;
-    if (confidenceVal >= 1) {
-      // dont' allow confidence greater than 1
-      this.confidencePairs = [[trackType, 1]];
-    } else {
-      const index = this.confidencePairs.findIndex(([a]) => a === trackType);
-      this.confidencePairs.splice(index, index >= 0 ? 1 : 0, [trackType, confidenceVal]);
-      if (replace) {
-        const replaceIndex = this.confidencePairs.findIndex(([a]) => a === replace);
-        if (replaceIndex >= 0) this.confidencePairs.splice(replaceIndex, 1);
-      }
-      this.confidencePairs.sort((a, b) => b[1] - a[1]);
-    }
-    this.notify('confidencePairs', old);
-  }
-
-  setAttribute(key: string, value: unknown) {
-    const oldval = this.attributes[key];
-    this.attributes[key] = value;
-    this.notify('attributes', { key, value: oldval });
-  }
-
   /**
    * Returns a 3-tuple of nullable features:
    * [exact_feature_match, previous_keyframe, next_keyframe]
@@ -548,7 +424,7 @@ export default class Track {
   /* Serialize back to a regular track object */
   serialize(): TrackData {
     return {
-      trackId: this.trackId,
+      id: this.id,
       meta: this.meta,
       attributes: this.attributes,
       confidencePairs: this.confidencePairs,
@@ -596,7 +472,7 @@ export default class Track {
       };
     });
     // accept either number or string, convert to number
-    const intTrackId = parseInt(json.trackId.toString(), 10);
+    const intTrackId = parseInt(json.id.toString(), 10);
     const track = new Track(intTrackId, {
       features: sparseFeatures,
       meta: json.meta,
@@ -606,15 +482,5 @@ export default class Track {
       end: json.end,
     });
     return track;
-  }
-
-  /**
-   * Figure out if any confidence pairs are above any corresponding thresholds
-   */
-  static trackExceedsThreshold(
-    pairs: Array<ConfidencePair>, thresholds: Record<string, number>,
-  ): Array<ConfidencePair> {
-    const defaultThresh = thresholds.default || 0;
-    return pairs.filter(([name, value]) => value >= (thresholds[name] || defaultThresh));
   }
 }

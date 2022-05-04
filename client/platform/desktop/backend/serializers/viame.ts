@@ -10,14 +10,15 @@ import moment from 'moment';
 import { flattenDeep } from 'lodash';
 import { pipeline, Readable, Writable } from 'stream';
 
-import { MultiTrackRecord } from 'dive-common/apispec';
+import { AnnotationSchema, MultiGroupRecord, MultiTrackRecord } from 'dive-common/apispec';
 import { JsonMeta } from 'platform/desktop/constants';
 import { splitExt } from 'platform/desktop/backend/native/utils';
 // Imports that involve actual code require relative imports because ts-node barely works
 // https://github.com/TypeStrong/ts-node/issues/422
 import Track, {
-  TrackData, Feature, StringKeyObject, ConfidencePair, TrackSupportedFeature,
+  TrackData, Feature, TrackSupportedFeature,
 } from 'vue-media-annotator/track';
+import { ConfidencePair, StringKeyObject } from 'vue-media-annotator/BaseAnnotation';
 
 const CommentRegex = /^\s*#/g;
 const HeadRegex = /^\(kp\) head (-?[0-9]+\.*-?[0-9]*) (-?[0-9]+\.*-?[0-9]*)/g;
@@ -32,7 +33,8 @@ const PolyToken = '(poly)';
 const KeypointToken = '(kp)';
 
 export interface AnnotationFileData {
-  tracks: TrackData[];
+  tracks: MultiTrackRecord;
+  groups: MultiGroupRecord;
   fps?: number;
 }
 
@@ -59,7 +61,7 @@ function _rowInfo(row: string[]) {
     throw new Error('malformed row: too few columns');
   }
   return {
-    trackId: parseInt(row[0], 10),
+    id: parseInt(row[0], 10),
     filename: row[1],
     frame: parseInt(row[2], 10),
     bounds: (
@@ -260,7 +262,7 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<A
       if (error !== undefined) {
         reject(error);
       }
-      const tracks = Array.from(dataMap.values());
+      const tracks = Object.fromEntries(dataMap);
 
       if (imageMap !== undefined && missingImages.length > 0 && anyImageMatched) {
         /**
@@ -280,7 +282,7 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<A
           `Missing images include: ${missingImages.slice(0, 5)}...`,
         ].join(' '));
       }
-      resolve({ tracks, fps });
+      resolve({ tracks, groups: {}, fps });
     });
     parser.on('readable', () => {
       let record: string[];
@@ -307,18 +309,18 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<A
             }
           }
 
-          let track = dataMap.get(rowInfo.trackId);
+          let track = dataMap.get(rowInfo.id);
           if (track === undefined) {
             // Create new track if not exists in map
             track = {
               begin: rowInfo.frame,
               end: rowInfo.frame,
-              trackId: rowInfo.trackId,
+              id: rowInfo.id,
               attributes: {},
               confidencePairs: [],
               features: [],
             };
-            dataMap.set(rowInfo.trackId, track);
+            dataMap.set(rowInfo.id, track);
           } else if (reordered) {
             // trackId was already in dataMap, so the track has more than 1 detection.
             error = new Error(
@@ -390,7 +392,7 @@ async function writeHeader(writer: Writable, meta: JsonMeta) {
 
 async function serialize(
   stream: Writable,
-  data: MultiTrackRecord,
+  data: AnnotationSchema,
   meta: JsonMeta,
   typeFilter = new Set<string>(),
   options = {
@@ -408,11 +410,11 @@ async function serialize(
       resolve();
     });
     writeHeader(stringify, meta);
-    Object.values(data).forEach((track) => {
+    Object.values(data.tracks).forEach((track) => {
       const filters = meta.confidenceFilters || {};
       /* Include only the pairs that exceed the threshold in CSV output */
       const confidencePairs = options.excludeBelowThreshold
-        ? Track.trackExceedsThreshold(track.confidencePairs, filters)
+        ? Track.exceedsThreshold(track.confidencePairs, filters)
         : track.confidencePairs;
       const filteredPairs = typeFilter.size > 0
         ? confidencePairs.filter((x) => typeFilter.has(x[0]))
@@ -446,7 +448,7 @@ async function serialize(
             }
 
             const row = [
-              track.trackId,
+              track.id,
               column2,
               feature.frame,
               ...(feature.bounds as number[]),
@@ -494,7 +496,7 @@ async function serialize(
 
 async function serializeFile(
   path: string,
-  data: MultiTrackRecord,
+  data: AnnotationSchema,
   meta: JsonMeta,
   typeFilter = new Set<string>(),
   options = {

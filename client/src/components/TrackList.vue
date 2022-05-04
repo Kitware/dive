@@ -5,30 +5,19 @@ import {
 } from '@vue/composition-api';
 
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
-import { TrackWithContext } from '../use/useTrackFilters';
 
 import { TrackId } from '../track';
 import {
-  useAllTypes,
-  useCheckedTrackIds,
   useEditingMode,
   useHandler,
   useSelectedTrackId,
-  useTrackMap,
-  useFilteredTracks,
-  useTypeStyling,
+  useTrackStore,
+  useTrackFilters,
   useTime,
   useReadOnlyMode,
+  useTrackStyleManager,
 } from '../provides';
 import TrackItem from './TrackItem.vue';
-
-interface VirtualListItem {
-  filteredTrack: TrackWithContext;
-  selectedTrackId: number | null;
-  checkedTrackIds: readonly number[];
-  editingTrack: boolean;
-  allTypes: readonly string[];
-}
 
 /* Magic numbers involved in height calculation */
 const TrackListHeaderHeight = 52;
@@ -64,13 +53,14 @@ export default defineComponent({
   setup(props) {
     const { prompt } = usePrompt();
     const readOnlyMode = useReadOnlyMode();
-    const allTypesRef = useAllTypes();
-    const checkedTrackIdsRef = useCheckedTrackIds();
+    const trackFilters = useTrackFilters();
+    const allTypesRef = trackFilters.allTypes;
+    const checkedTrackIdsRef = trackFilters.checkedIDs;
     const editingModeRef = useEditingMode();
     const selectedTrackIdRef = useSelectedTrackId();
-    const trackMap = useTrackMap();
-    const filteredTracksRef = useFilteredTracks();
-    const typeStylingRef = useTypeStyling();
+    const trackStore = useTrackStore();
+    const filteredTracksRef = trackFilters.filteredAnnotations;
+    const typeStylingRef = useTrackStyleManager().typeStyling;
     const { frame: frameRef } = useTime();
     const {
       trackSelectNext, trackSplit, removeTrack, trackAdd,
@@ -82,7 +72,7 @@ export default defineComponent({
     });
     const virtualList = ref(null as null | Vue);
 
-    const virtualListItems: Ref<readonly VirtualListItem[]> = computed(() => {
+    const virtualListItems = computed(() => {
       const selectedTrackId = selectedTrackIdRef.value;
       const checkedTrackIds = checkedTrackIdsRef.value;
       const editingMode = editingModeRef.value;
@@ -106,10 +96,10 @@ export default defineComponent({
 
     function scrollToTrack(trackId: TrackId | null): void {
       if (trackId !== null && virtualList.value !== null) {
-        const track = trackMap.get(trackId);
+        const track = trackStore.annotationMap.get(trackId);
         if (track) {
           const offset = filteredTracksRef.value.findIndex(
-            (filtered) => filtered.track.trackId === trackId,
+            (filtered) => filtered.annotation.trackId === trackId,
           );
           if (offset === -1) {
             virtualList.value.$el.scrollTop = 0;
@@ -143,16 +133,16 @@ export default defineComponent({
       }
     }
 
-    function getItemProps(item: VirtualListItem) {
-      const confidencePair = item.filteredTrack.track.getType(
+    function getItemProps(item: typeof virtualListItems.value[number]) {
+      const confidencePair = item.filteredTrack.annotation.getType(
         item.filteredTrack.context.confidencePairIndex,
       );
       const trackType = confidencePair[0];
-      const selected = item.selectedTrackId === item.filteredTrack.track.trackId;
+      const selected = item.selectedTrackId === item.filteredTrack.annotation.id;
       return {
         trackType,
-        track: item.filteredTrack.track,
-        inputValue: item.checkedTrackIds.indexOf(item.filteredTrack.track.trackId) >= 0,
+        track: item.filteredTrack.annotation,
+        inputValue: item.checkedTrackIds.includes(item.filteredTrack.annotation.id),
         selected,
         editing: selected && item.editingTrack,
         color: typeStylingRef.value.color(trackType),
@@ -170,11 +160,11 @@ export default defineComponent({
       let count = 0;
       const limit = 20;
       virtualListItems.value.forEach((item) => {
-        if (item.checkedTrackIds.includes(item.filteredTrack.track.trackId)) {
+        if (item.checkedTrackIds.includes(item.filteredTrack.annotation.id)) {
           if (count < limit) {
-            text.push(item.filteredTrack.track.trackId.toString());
+            text.push(item.filteredTrack.annotation.trackId.toString());
           }
-          tracksDisplayed.push(item.filteredTrack.track.trackId);
+          tracksDisplayed.push(item.filteredTrack.annotation.id);
           count += 1;
         }
       });

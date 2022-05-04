@@ -2,11 +2,13 @@ import Install, { reactive } from '@vue/composition-api';
 import Vue, { VueConstructor } from 'vue';
 /* Components */
 import TypeThreshold from 'dive-common/components/TypeThreshold.vue';
-import ImageEnhancements from 'dive-common/components/ImageEnhancements.vue';
+import ImageEnhancements from 'vue-media-annotator/components/ImageEnhancements.vue';
+import GroupSidebar from 'dive-common/components/GroupSidebar.vue';
 
 Vue.use(Install);
 
 interface ContextState {
+  last: string;
   active: string | null;
 }
 
@@ -16,6 +18,7 @@ interface ComponentMapItem {
 }
 
 const state: ContextState = reactive({
+  last: 'TypeThreshold',
   active: null,
 });
 
@@ -27,6 +30,10 @@ const componentMap: Record<string, ComponentMapItem> = {
   ImageEnhancements: {
     description: 'Image Enhancements',
     component: ImageEnhancements,
+  },
+  GroupSidebar: {
+    description: 'Group Manager',
+    component: GroupSidebar,
   },
 };
 
@@ -42,11 +49,20 @@ function getComponents() {
   return components;
 }
 
-function toggle(active: string | null) {
-  if (active && state.active === active) {
+function toggle(active: string | null | undefined) {
+  if (active === undefined) {
+    if (state.active) {
+      state.active = null;
+    } else {
+      state.active = state.last;
+    }
+  } else if (active && state.active === active) {
     state.active = null;
   } else if (active === null || active in componentMap) {
     state.active = active;
+    if (active) {
+      state.last = active;
+    }
   } else {
     throw new Error(`${active} is not a valid context component`);
   }

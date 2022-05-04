@@ -12,14 +12,22 @@ import EventChart from './controls/EventChart.vue';
 import LineChart from './controls/LineChart.vue';
 import Timeline from './controls/Timeline.vue';
 
+import ImageEnhancements from './ImageEnhancements.vue';
 import LayerManager from './LayerManager.vue';
 import TooltipButton from './TooltipButton.vue';
 import TrackItem from './TrackItem.vue';
 import TrackList from './TrackList.vue';
 import TypeList from './TypeList.vue';
+import FilterList from './FilterList.vue';
+import GroupList from './GroupList.vue';
+import GroupItem from './GroupItem.vue';
 
 export * from './annotators/useMediaController';
 export {
+  FilterList,
+  GroupItem,
+  GroupList,
+  ImageEnhancements,
   ImageAnnotator,
   VideoAnnotator,
   Controls,

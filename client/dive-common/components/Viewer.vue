@@ -3,28 +3,31 @@ import {
   defineComponent, ref, toRef, computed, Ref, reactive, watch,
 } from '@vue/composition-api';
 import type { Vue } from 'vue/types/vue';
+import { cloneDeep } from 'lodash';
 
 /* VUE MEDIA ANNOTATOR */
-import Track, { TrackId } from 'vue-media-annotator/track';
 import {
   useAttributes,
   useImageEnhancements,
   useLineChart,
-  useStyling,
-  useTrackFilters,
-  useTrackSelectionControls,
-  useTrackStore,
   useTimeObserver,
   useEventChart,
 } from 'vue-media-annotator/use';
-import { getTrack } from 'vue-media-annotator/use/useTrackStore';
+import {
+  Track, Group, TrackStore, GroupStore,
+} from 'vue-media-annotator/index';
 import { provideAnnotator } from 'vue-media-annotator/provides';
+import StyleManager from 'vue-media-annotator/StyleManager';
 import {
   ImageAnnotator,
   VideoAnnotator,
   LayerManager,
 } from 'vue-media-annotator/components';
 import { MediaController } from 'vue-media-annotator/components/annotators/mediaControllerType';
+import { AnnotationId } from 'vue-media-annotator/BaseAnnotation';
+import TrackFilterControls from 'vue-media-annotator/TrackFilterControls';
+import GroupFilterControls from 'vue-media-annotator/GroupFilterControls';
+import { getResponseError } from 'vue-media-annotator/utils';
 
 /* DIVE COMMON */
 import PolygonBase from 'dive-common/recipes/polygonbase';
@@ -39,9 +42,8 @@ import { useModeManager, useSave } from 'dive-common/use';
 import clientSettingsSetup, { clientSettings } from 'dive-common/store/settings';
 import { useApi, FrameImage, DatasetType } from 'dive-common/apispec';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
-import { cloneDeep } from 'lodash';
-import { getResponseError } from 'vue-media-annotator/utils';
 import context from 'dive-common/store/context';
+
 
 export default defineComponent({
   components: {
@@ -116,6 +118,13 @@ export default defineComponent({
       return 0;
     });
 
+    const colorBy = computed(() => {
+      if (context.state.active === 'GroupSidebar') {
+        return 'group';
+      }
+      return 'track';
+    });
+
     const {
       save: saveToServer,
       markChangesPending,
@@ -135,13 +144,8 @@ export default defineComponent({
       new HeadTail(),
     ];
 
-    const {
-      typeStyling,
-      stateStyling,
-      updateTypeStyle,
-      populateTypeStyles,
-      getTypeStyles,
-    } = useStyling({ markChangesPending });
+    const trackStyleManager = new StyleManager({ markChangesPending });
+    const groupStyleManager = new StyleManager({ markChangesPending });
 
     const {
       attributesList: attributes,
@@ -150,71 +154,41 @@ export default defineComponent({
       deleteAttribute,
     } = useAttributes({ markChangesPending });
 
-    const {
-      trackMap,
-      sortedTracks,
-      intervalTree,
-      addTrack,
-      insertTrack,
-      removeTrack,
-      getNewTrackId,
-      removeTrack: tsRemoveTrack,
-      clearAllTracks,
-    } = useTrackStore({ markChangesPending });
+    const trackStore = new TrackStore({ markChangesPending });
+    const groupStore = new GroupStore({ markChangesPending });
 
-    const {
-      checkedTrackIds,
-      checkedTypes,
-      confidenceFilters,
-      allTypes,
-      importTypes,
-      usedTypes,
-      filteredTracks,
-      enabledTracks,
-      setConfidenceFilters,
-      updateTypeName,
-      removeTypeTracks,
-      deleteType,
-      updateCheckedTypes,
-      updateCheckedTrackId,
-    } = useTrackFilters({
-      sortedTracks,
-      removeTrack,
+    const groupFilters = new GroupFilterControls({
+      store: groupStore, markChangesPending,
+    });
+
+    const trackFilters = new TrackFilterControls({
+      store: trackStore,
       markChangesPending,
+      groupStore,
+      groupFilterControls: groupFilters,
     });
 
-    const {
-      selectedTrackId,
-      selectTrack,
-      editingTrack,
-      selectNextTrack,
-    } = useTrackSelectionControls({
-      filteredTracks,
-      readonlyState,
-    });
-
-    clientSettingsSetup(allTypes);
+    clientSettingsSetup(trackFilters.allTypes);
 
     // Provides wrappers for actions to integrate with settings
     const {
       mergeList,
       mergeInProgress,
       selectedFeatureHandle,
+      selectedTrackId,
+      selectedGroupId,
       handler,
       editingMode,
       editingDetails,
       visibleModes,
       selectedKey,
+      editingTrack,
     } = useModeManager({
       recipes,
-      selectedTrackId,
-      editingTrack,
-      trackMap,
+      trackFilterControls: trackFilters,
+      trackStore,
       mediaController,
-      selectTrack,
-      selectNextTrack,
-      addTrack,
-      removeTrack,
+      readonlyState,
     });
 
     const allSelectedIds = computed(() => {
@@ -226,19 +200,29 @@ export default defineComponent({
     });
 
     const { lineChartData } = useLineChart({
-      enabledTracks, typeStyling, allTypes,
+      enabledTracks: trackFilters.enabledAnnotations,
+      typeStyling: trackStyleManager.typeStyling,
+      allTypes: trackFilters.allTypes,
     });
 
     const { eventChartData } = useEventChart({
-      enabledTracks, selectedTrackIds: allSelectedIds, typeStyling,
+      enabledTracks: trackFilters.enabledAnnotations,
+      selectedTrackIds: allSelectedIds,
+      typeStyling: trackStyleManager.typeStyling,
     });
 
-    async function trackSplit(trackId: TrackId | null, frame: number) {
+    const { eventChartData: groupChartData } = useEventChart({
+      enabledTracks: groupFilters.enabledAnnotations,
+      typeStyling: groupStyleManager.typeStyling,
+      selectedTrackIds: ref([]),
+    });
+
+    async function trackSplit(trackId: AnnotationId | null, frame: number) {
       if (typeof trackId === 'number') {
-        const track = getTrack(trackMap, trackId);
+        const track = trackStore.get(trackId);
         let newtracks: [Track, Track];
         try {
-          newtracks = track.split(frame, getNewTrackId(), getNewTrackId() + 1);
+          newtracks = track.split(frame, trackStore.getNewId(), trackStore.getNewId() + 1);
         } catch (err) {
           await prompt({
             title: 'Error while splitting track',
@@ -257,10 +241,10 @@ export default defineComponent({
         }
         const wasEditing = editingTrack.value;
         handler.trackSelect(null);
-        tsRemoveTrack(trackId);
-        insertTrack(newtracks[0]);
-        insertTrack(newtracks[1]);
-        handler.trackSelect(newtracks[1].trackId, wasEditing);
+        trackStore.remove(trackId);
+        trackStore.insert(newtracks[0]);
+        trackStore.insert(newtracks[1]);
+        handler.trackSelect(newtracks[1].id, wasEditing);
       }
     }
 
@@ -272,8 +256,10 @@ export default defineComponent({
       }
       try {
         await saveToServer({
-          customTypeStyling: getTypeStyles(allTypes),
-          confidenceFilters: confidenceFilters.value,
+          customTypeStyling: trackStyleManager.getTypeStyles(trackFilters.allTypes),
+          customGroupStyling: groupStyleManager.getTypeStyles(groupFilters.allTypes),
+          confidenceFilters: trackFilters.confidenceFilters.value,
+          // TODO Group confidence filters are not yet supported.
         });
       } catch (err) {
         let text = 'Unable to Save Data';
@@ -293,7 +279,7 @@ export default defineComponent({
 
     function saveThreshold() {
       saveMetadata(datasetId.value, {
-        confidenceFilters: confidenceFilters.value,
+        confidenceFilters: trackFilters.confidenceFilters.value,
       });
     }
 
@@ -337,14 +323,18 @@ export default defineComponent({
           return;
         }
         /* Otherwise, complete loading of the dataset */
-        populateTypeStyles(meta.customTypeStyling);
+        trackStyleManager.populateTypeStyles(meta.customTypeStyling);
+        groupStyleManager.populateTypeStyles(meta.customGroupStyling);
         if (meta.customTypeStyling) {
-          importTypes(Object.keys(meta.customTypeStyling), false);
+          trackFilters.importTypes(Object.keys(meta.customTypeStyling), false);
+        }
+        if (meta.customGroupStyling) {
+          groupFilters.importTypes(Object.keys(meta.customGroupStyling), false);
         }
         if (meta.attributes) {
           loadAttributes(meta.attributes);
         }
-        setConfidenceFilters(meta.confidenceFilters);
+        trackFilters.setConfidenceFilters(meta.confidenceFilters);
         datasetName.value = meta.name;
         initTime({
           frameRate: meta.fps,
@@ -354,9 +344,8 @@ export default defineComponent({
         videoUrl.value = meta.videoUrl;
         datasetType.value = meta.type as DatasetType;
 
-        const trackData = await loadDetections(datasetId.value, props.revision);
-        const tracks = Object.values(trackData);
-        progress.total = tracks.length;
+        const { tracks, groups } = await loadDetections(datasetId.value, props.revision);
+        progress.total = tracks.length + groups.length;
         for (let i = 0; i < tracks.length; i += 1) {
           if (i % 4000 === 0) {
           /* Every N tracks, yeild some cycles for other scheduled tasks */
@@ -364,7 +353,16 @@ export default defineComponent({
             // eslint-disable-next-line no-await-in-loop
             await new Promise((resolve) => window.setTimeout(resolve, 500));
           }
-          insertTrack(Track.fromJSON(tracks[i]), { imported: true });
+          trackStore.insert(Track.fromJSON(tracks[i]), { imported: true });
+        }
+        for (let i = 0; i < groups.length; i += 1) {
+          if (i % 4000 === 0) {
+          /* Every N tracks, yeild some cycles for other scheduled tasks */
+            progress.progress = tracks.length + i;
+            // eslint-disable-next-line no-await-in-loop
+            await new Promise((resolve) => window.setTimeout(resolve, 500));
+          }
+          groupStore.insert(Group.fromJSON(groups[i]), { imported: true });
         }
         progress.loaded = true;
       } catch (err) {
@@ -380,14 +378,14 @@ export default defineComponent({
     loadData();
 
     const reloadAnnotations = async () => {
-      clearAllTracks();
+      trackStore.clearAll();
       discardChanges();
       progress.loaded = false;
       await loadData();
     };
 
     watch(datasetId, reloadAnnotations);
-    watch(readonlyState, () => selectTrack(null, false));
+    watch(readonlyState, () => handler.trackSelect(null, false));
 
     const changeCamera = async (camera: string) => {
       if (!camera || !baseMulticamDatasetId.value) {
@@ -400,15 +398,8 @@ export default defineComponent({
     const globalHandler = {
       ...handler,
       save,
-      setCheckedTypes: updateCheckedTypes,
       trackSplit,
-      trackEnable: updateCheckedTrackId,
-      updateTypeName,
-      updateTypeStyle,
-      removeTypeTracks,
-      deleteType,
       setAttribute,
-      setConfidenceFilters,
       deleteAttribute,
       reloadAnnotations,
       setSVGFilters,
@@ -418,26 +409,22 @@ export default defineComponent({
       {
         annotatorPreferences: toRef(clientSettings, 'annotatorPreferences'),
         attributes,
-        allTypes,
         datasetId,
-        usedTypes,
-        checkedTrackIds,
-        checkedTypes,
-        confidenceFilters,
         editingMode,
-        enabledTracks,
-        intervalTree,
+        groupFilters,
+        groupStore,
+        groupStyleManager,
         mergeList,
         pendingSaveCount,
         progress,
         revisionId: toRef(props, 'revision'),
-        trackMap,
-        filteredTracks,
-        typeStyling,
         selectedKey,
         selectedTrackId,
-        stateStyles: stateStyling,
+        selectedGroupId,
         time,
+        trackFilters,
+        trackStore,
+        trackStyleManager,
         visibleModes,
         readOnlyMode: readonlyState,
         imageEnhancements,
@@ -447,7 +434,8 @@ export default defineComponent({
 
     return {
       /* props */
-      confidenceFilters,
+      confidenceFilters: trackFilters.confidenceFilters,
+      colorBy,
       clientSettings,
       datasetName,
       datasetType,
@@ -455,6 +443,7 @@ export default defineComponent({
       editingMode,
       editingDetails,
       eventChartData,
+      groupChartData,
       imageData,
       lineChartData,
       loadError,
@@ -482,10 +471,9 @@ export default defineComponent({
       save,
       saveThreshold,
       updateTime,
-      updateTypeStyle,
-      updateTypeName,
-      removeTypeTracks,
-      importTypes,
+      updateTypeName: trackFilters.updateTypeName,
+      removeTypeTracks: trackFilters.removeTypeAnnotations,
+      importTypes: trackFilters.importTypes,
       // multicam
       multiCamList,
       defaultCamera,
@@ -567,6 +555,16 @@ export default defineComponent({
             {{ item }} {{ item === defaultCamera ? '(Default)': '' }}
           </template>
         </v-select>
+        <v-divider
+          vertical
+          class="mx-2"
+        />
+        <v-icon
+          @click="context.toggle()"
+        >
+          {{ context.state.active ? 'mdi-chevron-right-box' : 'mdi-chevron-left-box' }}
+        </v-icon>
+
         <slot name="extension-right" />
       </template>
 
@@ -646,11 +644,11 @@ export default defineComponent({
         >
           <template slot="control">
             <controls-container
-              v-bind="{ lineChartData, eventChartData, datasetType }"
+              v-bind="{ lineChartData, eventChartData, groupChartData, datasetType }"
               @select-track="handler.trackSelect"
             />
           </template>
-          <layer-manager />
+          <layer-manager v-bind="{ colorBy }" />
         </component>
         <div
           v-else

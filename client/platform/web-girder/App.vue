@@ -37,7 +37,7 @@ export default defineComponent({
       runPipeline: unwrap(runPipeline),
       getTrainingConfigurations: unwrap(getTrainingConfigurations),
       runTraining: unwrap(runTraining),
-      loadDetections: unwrap(loadDetections),
+      loadDetections,
       saveDetections: unwrap(saveDetections),
       saveMetadata: unwrap(saveMetadata),
       saveAttributes: unwrap(saveAttributes),

@@ -1,6 +1,7 @@
 // Reference used because of https://github.com/Microsoft/TypeScript/issues/28502
 /// <reference types="resize-observer-browser" />
 import geo from 'geojs';
+import { throttle } from 'lodash';
 import {
   ref, reactive, onMounted, onBeforeUnmount, provide, toRef, Ref,
 } from '@vue/composition-api';
@@ -240,8 +241,8 @@ export default function useMediaController() {
       maxFrame: toRef(data, 'maxFrame'),
       speed: toRef(data, 'speed'),
       syncedFrame: toRef(data, 'syncedFrame'),
-      prevFrame,
-      nextFrame,
+      prevFrame: throttle(prevFrame, 10),
+      nextFrame: throttle(nextFrame, 10),
       play,
       pause,
       seek,

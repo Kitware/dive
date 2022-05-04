@@ -1,13 +1,32 @@
 import { provide } from '@vue/composition-api';
+import { AnnotationId } from 'vue-media-annotator/BaseAnnotation';
+import { GroupData } from 'vue-media-annotator/Group';
 
 import { use } from 'vue-media-annotator/provides';
-import { TrackData, TrackId } from 'vue-media-annotator/track';
+import { TrackData } from 'vue-media-annotator/track';
 import { Attribute } from 'vue-media-annotator/use/useAttributes';
-import { CustomStyle } from 'vue-media-annotator/use/useStyling';
+import { CustomStyle } from 'vue-media-annotator/StyleManager';
 
 type DatasetType = 'image-sequence' | 'video' | 'multi';
 type MultiTrackRecord = Record<string, TrackData>;
+type MultiGroupRecord = Record<string, GroupData>;
 type SubType = 'stereo' | 'multicam' | null; // Additional type info used for UI display enabled pipelines
+
+interface AnnotationSchema {
+  version: number;
+  tracks: MultiTrackRecord;
+  groups: MultiGroupRecord;
+}
+
+/**
+ * Variation on AnnotationSchema where annotations are lists
+ * instead of objects, used for convenience with pagination.
+ */
+interface AnnotationSchemaList {
+  version: number;
+  tracks: TrackData[];
+  groups: GroupData[];
+}
 
 interface Pipe {
   name: string;
@@ -28,8 +47,14 @@ interface TrainingConfigs {
 type Pipelines = Record<string, Category>;
 
 interface SaveDetectionsArgs {
-  delete: TrackId[];
-  upsert: TrackData[];
+  tracks: {
+    delete: AnnotationId[];
+    upsert: TrackData[];
+  };
+  groups: {
+    delete: AnnotationId[];
+    upsert: GroupData[];
+  };
 }
 
 interface SaveAttributeArgs {
@@ -86,10 +111,11 @@ interface MediaImportResponse {
  */
 interface DatasetMetaMutable {
   customTypeStyling?: Record<string, CustomStyle>;
+  customGroupStyling?: Record<string, CustomStyle>;
   confidenceFilters?: Record<string, number>;
   attributes?: Readonly<Record<string, Attribute>>;
 }
-const DatasetMetaMutableKeys = ['attributes', 'confidenceFilters', 'customTypeStyling'];
+const DatasetMetaMutableKeys = ['attributes', 'confidenceFilters', 'customTypeStyling', 'customGroupStyling'];
 
 interface DatasetMeta extends DatasetMetaMutable {
   id: Readonly<string>;
@@ -105,7 +131,6 @@ interface DatasetMeta extends DatasetMetaMutable {
 }
 
 interface Api {
-
   getPipelineList(): Promise<Pipelines>;
   runPipeline(itemId: string, pipeline: Pipe): Promise<unknown>;
 
@@ -119,7 +144,7 @@ interface Api {
   ): Promise<unknown>;
 
   loadMetadata(datasetId: string): Promise<DatasetMeta>;
-  loadDetections(datasetId: string, revision?: number): Promise<MultiTrackRecord>;
+  loadDetections(datasetId: string, revision?: number): Promise<AnnotationSchemaList>;
 
   saveDetections(datasetId: string, args: SaveDetectionsArgs): Promise<unknown>;
   saveMetadata(datasetId: string, metadata: DatasetMetaMutable): Promise<unknown>;
@@ -150,6 +175,7 @@ export {
 };
 
 export {
+  AnnotationSchema,
   Api,
   DatasetMeta,
   DatasetMetaMutable,
@@ -158,6 +184,7 @@ export {
   SubType,
   FrameImage,
   MultiTrackRecord,
+  MultiGroupRecord,
   Pipe,
   Pipelines,
   SaveDetectionsArgs,

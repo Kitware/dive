@@ -4,7 +4,7 @@ import {
 } from '@vue/composition-api';
 import TooltipBtn from './TooltipButton.vue';
 import {
-  useHandler, useAllTypes, useTime, useReadOnlyMode,
+  useHandler, useTime, useReadOnlyMode, useTrackFilters,
 } from '../provides';
 import Track from '../track';
 
@@ -56,7 +56,8 @@ export default defineComponent({
     const vuetify = root.$vuetify;
     const { frame: frameRef } = useTime();
     const handler = useHandler();
-    const allTypesRef = useAllTypes();
+    const trackFilters = useTrackFilters();
+    const allTypesRef = trackFilters.allTypes;
     const readOnlyMode = useReadOnlyMode();
     const trackTypeRef = toRef(props, 'trackType');
     const typeInputBoxRef = ref(undefined as undefined | HTMLInputElement);
@@ -197,6 +198,7 @@ export default defineComponent({
       frame: frameRef,
       allTypes: allTypesRef,
       keyframeDisabled,
+      trackFilters,
       readOnlyMode,
       /* methods */
       blurType,
@@ -237,7 +239,7 @@ export default defineComponent({
         hide-details
         :input-value="inputValue"
         :color="color"
-        @change="handler.trackEnable(track.trackId, $event)"
+        @change="trackFilters.updateCheckedId(track.trackId, $event)"
       />
       <v-tooltip
         open-delay="200"
@@ -304,8 +306,8 @@ export default defineComponent({
           v-show="false"
           v-mousetrap="[
             { bind: 'shift+enter', handler: focusType },
-            { bind: 'k', handler:toggleKeyframe},
-            { bind: 'i', handler:toggleInterpolation},
+            { bind: 'k', handler: toggleKeyframe},
+            { bind: 'i', handler: toggleInterpolation},
             { bind: 'home', handler: () => $emit('seek', track.begin)},
             { bind: 'end', handler: () => $emit('seek', track.end)},
           ]"

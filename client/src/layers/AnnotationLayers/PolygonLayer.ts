@@ -8,7 +8,7 @@ interface PolyGeoJSData{
   trackId: number;
   selected: boolean;
   editing: boolean | string;
-  trackType: [string, number] | null;
+  styleType: [string, number] | null;
   polygon: GeoJSON.Polygon;
 }
 
@@ -96,19 +96,19 @@ export default class PolygonLayer extends BaseLayer<PolyGeoJSData> {
     }
 
 
-    formatData(frameData: FrameDataTrack[]) {
+    formatData(frameDataTracks: FrameDataTrack[]) {
       const arr: PolyGeoJSData[] = [];
-      frameData.forEach((track: FrameDataTrack) => {
-        if (track.features && track.features.bounds) {
-          if (track.features.geometry?.features?.[0]) {
-            track.features.geometry.features.forEach((feature) => {
+      frameDataTracks.forEach((frameData: FrameDataTrack) => {
+        if (frameData.features && frameData.features.bounds) {
+          if (frameData.features.geometry?.features?.[0]) {
+            frameData.features.geometry.features.forEach((feature) => {
               if (feature.geometry && feature.geometry.type === 'Polygon') {
                 const polygon = feature.geometry;
                 const annotation: PolyGeoJSData = {
-                  trackId: track.trackId,
-                  selected: track.selected,
-                  editing: track.editing,
-                  trackType: track.trackType,
+                  trackId: frameData.track.id,
+                  selected: frameData.selected,
+                  editing: frameData.editing,
+                  styleType: frameData.styleType,
                   polygon,
                 };
                 arr.push(annotation);
@@ -142,26 +142,26 @@ export default class PolygonLayer extends BaseLayer<PolyGeoJSData> {
           if (data.selected) {
             return this.stateStyling.selected.color;
           }
-          if (data.trackType) {
-            return this.typeStyling.value.color(data.trackType[0]);
+          if (data.styleType) {
+            return this.typeStyling.value.color(data.styleType[0]);
           }
           return this.typeStyling.value.color('');
         },
         fill: (data) => {
-          if (data.trackType) {
-            return this.typeStyling.value.fill(data.trackType[0]);
+          if (data.styleType) {
+            return this.typeStyling.value.fill(data.styleType[0]);
           }
           return this.stateStyling.standard.fill;
         },
         fillColor: (_point, _index, data) => {
-          if (data.trackType) {
-            return this.typeStyling.value.color(data.trackType[0]);
+          if (data.styleType) {
+            return this.typeStyling.value.color(data.styleType[0]);
           }
           return this.typeStyling.value.color('');
         },
         fillOpacity: (_point, _index, data) => {
-          if (data.trackType) {
-            return this.typeStyling.value.opacity(data.trackType[0]);
+          if (data.styleType) {
+            return this.typeStyling.value.opacity(data.styleType[0]);
           }
           return this.stateStyling.standard.opacity;
         },
@@ -169,8 +169,8 @@ export default class PolygonLayer extends BaseLayer<PolyGeoJSData> {
           if (data.selected) {
             return this.stateStyling.selected.opacity;
           }
-          if (data.trackType) {
-            return this.typeStyling.value.opacity(data.trackType[0]);
+          if (data.styleType) {
+            return this.typeStyling.value.opacity(data.styleType[0]);
           }
 
           return this.stateStyling.standard.opacity;
@@ -179,8 +179,8 @@ export default class PolygonLayer extends BaseLayer<PolyGeoJSData> {
           if (data.selected) {
             return this.stateStyling.selected.strokeWidth;
           }
-          if (data.trackType) {
-            return this.typeStyling.value.strokeWidth(data.trackType[0]);
+          if (data.styleType) {
+            return this.typeStyling.value.strokeWidth(data.styleType[0]);
           }
           return this.stateStyling.standard.strokeWidth;
         },
@@ -188,8 +188,8 @@ export default class PolygonLayer extends BaseLayer<PolyGeoJSData> {
           if (data.selected) {
             return this.stateStyling.selected.strokeWidth;
           }
-          if (data.trackType) {
-            return this.typeStyling.value.strokeWidth(data.trackType[0]);
+          if (data.styleType) {
+            return this.typeStyling.value.strokeWidth(data.styleType[0]);
           }
           return this.stateStyling.standard.strokeWidth;
         },

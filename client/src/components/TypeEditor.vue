@@ -4,7 +4,7 @@ import {
 } from '@vue/composition-api';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import {
-  useHandler, useTypeStyling, useUsedTypes, useReadOnlyMode,
+  useTrackStyleManager, useReadOnlyMode, useTrackFilters,
 } from '../provides';
 
 export default defineComponent({
@@ -18,15 +18,12 @@ export default defineComponent({
   },
 
   setup(props, { emit }) {
-    const typeStylingRef = useTypeStyling();
-    const usedTypesRef = useUsedTypes();
+    const styleManager = useTrackStyleManager();
+    const typeStylingRef = styleManager.typeStyling;
+    const trackFilters = useTrackFilters();
+    const usedTypesRef = trackFilters.usedTypes;
     const readOnlyMode = useReadOnlyMode();
     const { prompt } = usePrompt();
-    const {
-      updateTypeName,
-      updateTypeStyle,
-      deleteType,
-    } = useHandler();
 
     const data = reactive({
       selectedColor: '',
@@ -43,12 +40,12 @@ export default defineComponent({
 
     function acceptChanges() {
       if (data.editingType !== data.selectedType) {
-        updateTypeName({
+        trackFilters.updateTypeName({
           currentType: data.selectedType,
           newType: data.editingType,
         });
       }
-      updateTypeStyle({
+      styleManager.updateTypeStyle({
         type: data.editingType,
         value: {
           color: data.editingColor,
@@ -70,7 +67,7 @@ export default defineComponent({
         confirm: true,
       });
       if (result) {
-        deleteType(type);
+        trackFilters.deleteType(type);
         emit('close');
       }
     }

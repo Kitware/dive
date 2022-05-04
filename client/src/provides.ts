@@ -1,18 +1,20 @@
-import IntervalTree from '@flatten-js/interval-tree';
 import {
   provide, inject, ref, Ref, reactive,
 } from '@vue/composition-api';
 
 import { AnnotatorPreferences as AnnotatorPrefsIface } from './types';
-import { CustomStyle, StateStyles, TypeStyling } from './use/useStyling';
+import StyleManager from './StyleManager';
 import { EditAnnotationTypes } from './layers/EditAnnotationLayer';
-import Track, { TrackId } from './track';
+import TrackStore from './TrackStore';
+import GroupStore from './GroupStore';
+import type { AnnotationId } from './BaseAnnotation';
 import { VisibleAnnotationTypes } from './layers';
 import { RectBounds } from './utils';
 import { Attribute } from './use/useAttributes';
-import { DefaultConfidence, TrackWithContext } from './use/useTrackFilters';
 import { Time } from './use/useTimeObserver';
 import { ImageEnhancements } from './use/useImageEnhancements';
+import TrackFilterControls from './TrackFilterControls';
+import GroupFilterControls from './GroupFilterControls';
 
 /**
  * Type definitions are read only because injectors may mutate internal state,
@@ -25,32 +27,14 @@ type AnnotatorPreferences = Readonly<Ref<AnnotatorPrefsIface>>;
 const AttributesSymbol = Symbol('attributes');
 type AttributesType = Readonly<Ref<Attribute[]>>;
 
-const AllTypesSymbol = Symbol('allTypes');
-type AllTypesType = Readonly<Ref<readonly string[]>>;
-
 const DatasetIdSymbol = Symbol('datasetID');
 type DatasetIdType = Readonly<Ref<string>>;
-
-const UsedTypesSymbol = Symbol('usedTypes');
-type UsedTypesType = Readonly<Ref<readonly string[]>>;
-
-const CheckedTrackIdsSymbol = Symbol('checkedTrackIds');
-type CheckedTrackIdsType = Readonly<Ref<readonly TrackId[]>>;
-
-const CheckedTypesSymbol = Symbol('checkedTypes');
-type CheckedTypesType = Readonly<Ref<readonly string[]>>;
-
-const ConfidenceFiltersSymbol = Symbol('confidenceFilters');
-type ConfidenceFiltersType = Readonly<Ref<Readonly<Record<string, number>>>>;
-
-const EnabledTracksSymbol = Symbol('enabledTracks');
-type EnabledTracksType = Readonly<Ref<readonly TrackWithContext[]>>;
 
 const EditingModeSymbol = Symbol('editingMode');
 type EditingModeType = Readonly<Ref<false | EditAnnotationTypes>>;
 
 const MergeListSymbol = Symbol('mergeList');
-type MergeList = Readonly<Ref<readonly TrackId[]>>;
+type MergeList = Readonly<Ref<readonly AnnotationId[]>>;
 
 const PendingSaveCountSymbol = Symbol('pendingSaveCount');
 type pendingSaveCountType = Readonly<Ref<number>>;
@@ -58,29 +42,15 @@ type pendingSaveCountType = Readonly<Ref<number>>;
 const ProgressSymbol = Symbol('progress');
 type ProgressType = Readonly<{ loaded: boolean }>;
 
-const IntervalTreeSymbol = Symbol('intervalTree');
-type IntervalTreeType = Readonly<IntervalTree>;
-
 const RevisionIdSymbol = Symbol('revisionId');
 type RevisionIdType = Readonly<Ref<number>>;
-
-const TrackMapSymbol = Symbol('trackMap');
-type TrackMapType = Readonly<Map<TrackId, Track>>;
-
-const TracksSymbol = Symbol('tracks');
-type FilteredTracksType = Readonly<Ref<readonly TrackWithContext[]>>;
-
-const TypeStylingSymbol = Symbol('typeStyling');
-type TypeStylingType = Readonly<Ref<TypeStyling>>;
 
 const SelectedKeySymbol = Symbol('selectedKey');
 type SelectedKeyType = Readonly<Ref<string>>;
 
 const SelectedTrackIdSymbol = Symbol('selectedTrackId');
-type SelectedTrackIdType = Readonly<Ref<TrackId | null>>;
-
-const StateStylesSymbol = Symbol('stateStyles');
-type StateStylesType = Readonly<StateStyles>;
+const SelectedGroupIdSymbol = Symbol('selectedGroupId');
+type SelectedTrackIdType = Readonly<Ref<AnnotationId | null>>;
 
 const TimeSymbol = Symbol('time');
 type TimeType = Readonly<Time>;
@@ -94,6 +64,17 @@ type ReadOnylModeType = Readonly<Ref<boolean>>;
 const ImageEnhancementsSymbol = Symbol('imageEnhancements');
 type ImageEnhancementsType = Readonly<Ref<ImageEnhancements>>;
 
+/** Class-based symbols */
+
+const GroupStoreSymbol = Symbol('groupStore');
+const TrackStoreSymbol = Symbol('trackStore');
+
+const TrackStyleManagerSymbol = Symbol('trackTypeStyling');
+const GroupStyleManagerSymbol = Symbol('groupTypeStyling');
+
+const TrackFilterControlsSymbol = Symbol('trackFilters');
+const GroupFilterControlsSymbol = Symbol('groupFilters');
+
 /**
  * Handler interface describes all global events mutations
  * for above state
@@ -102,21 +83,19 @@ export interface Handler {
   /* Save pending changes to persistence layer */
   save(): Promise<void>;
   /* Select and seek to track */
-  trackSeek(trackId: TrackId): void;
+  trackSeek(AnnotationId: AnnotationId): void;
   /* Toggle editing mode for track */
-  trackEdit(trackId: TrackId): void;
-  /* set checked track ids */
-  trackEnable(trackId: TrackId, value: boolean): void;
+  trackEdit(AnnotationId: AnnotationId): void;
   /* toggle selection mode for track */
-  trackSelect(trackId: TrackId | null, edit: boolean): void;
+  trackSelect(AnnotationId: AnnotationId | null, edit: boolean): void;
   /* select next track in the list */
   trackSelectNext(delta: number): void;
   /* split track */
-  trackSplit(trackId: TrackId | null, frame: number): void;
+  trackSplit(AnnotationId: AnnotationId | null, frame: number): void;
   /* Change tracks difinitive type */
-  trackTypeChange(trackId: TrackId | null, value: string): void;
+  trackTypeChange(AnnotationId: AnnotationId | null, value: string): void;
   /* Add new empty track and select it */
-  trackAdd(): TrackId;
+  trackAdd(): AnnotationId;
   /* update Rectangle bounds for track */
   updateRectBounds(
     frameNum: number,
@@ -133,39 +112,24 @@ export interface Handler {
     preventInterrupt?: () => void,
   ): void;
   /* Remove a whole track */
-  removeTrack(trackIds: TrackId[], forcePromptDisable?: boolean): void;
+  removeTrack(AnnotationIds: AnnotationId[], forcePromptDisable?: boolean): void;
   /* Remove a single point from selected track's geometry by selected index */
   removePoint(): void;
   /* Remove an entire annotation from selected track by selected key */
   removeAnnotation(): void;
   /* set selectFeatureHandle and selectedKey */
   selectFeatureHandle(i: number, key: string): void;
-  /* set checked type strings */
-  setCheckedTypes(types: string[]): void;
-  /* set checked type strings */
-  removeTypeTracks(types: string[]): void;
-  /* removes an individual type */
-  deleteType(types: string): void;
-  /* Change type name */
-  updateTypeName({ currentType, newType }: { currentType: string; newType: string }): void;
-  /* change styles */
-  updateTypeStyle(args: {
-    type: string;
-    value: CustomStyle;
-  }): void;
   /* set an Attribute in the metaData */
   setAttribute({ data, oldAttribute }:
     { data: Attribute; oldAttribute?: Attribute }, updateAllTracks?: boolean): void;
-  /* set confidence thresholds  */
-  setConfidenceFilters(val: Record<string, number>): void;
   /* delete an Attribute in the metaData */
   deleteAttribute({ data }: { data: Attribute }, removeFromTracks?: boolean): void;
   /* Commit the staged merge tracks */
   commitMerge(): void;
   /* Turn merge mode on and off */
-  toggleMerge(): TrackId[];
-  /* Remove trackIds from merge */
-  unstageFromMerge(ids: TrackId[]): void;
+  toggleMerge(): AnnotationId[];
+  /* Remove AnnotationIds from merge */
+  unstageFromMerge(ids: AnnotationId[]): void;
   /* Reload Annotation File */
   reloadAnnotations(): Promise<void>;
   setSVGFilters({ blackPoint, whitePoint }: {blackPoint?: number; whitePoint?: number}): void;
@@ -183,7 +147,6 @@ function dummyHandler(handle: (name: string, args: unknown[]) => void): Handler 
     save(...args) { handle('save', args); return Promise.resolve(); },
     trackSeek(...args) { handle('trackSeek', args); },
     trackEdit(...args) { handle('trackEdit', args); },
-    trackEnable(...args) { handle('trackEnable', args); },
     trackSelect(...args) { handle('trackSelect', args); },
     trackSelectNext(...args) { handle('trackSelectNext', args); },
     trackSplit(...args) { handle('trackSplit', args); },
@@ -195,13 +158,7 @@ function dummyHandler(handle: (name: string, args: unknown[]) => void): Handler 
     removePoint(...args) { handle('removePoint', args); },
     removeAnnotation(...args) { handle('removeAnnotation', args); },
     selectFeatureHandle(...args) { handle('selectFeatureHandle', args); },
-    setCheckedTypes(...args) { handle('setCheckedTypes', args); },
-    removeTypeTracks(...args) { handle('removeTypeTracks', args); },
-    deleteType(...args) { handle('deleteType', args); },
-    updateTypeName(...args) { handle('updateTypeName', args); },
-    updateTypeStyle(...args) { handle('updateTypeStyle', args); },
     setAttribute(...args) { handle('setAttribute', args); },
-    setConfidenceFilters(...args) { handle('setConfidenceFilters', args); },
     deleteAttribute(...args) { handle('deleteAttribute', args); },
     toggleMerge(...args) { handle('toggleMerge', args); return []; },
     commitMerge(...args) { handle('commitMerge', args); },
@@ -221,84 +178,65 @@ function dummyHandler(handle: (name: string, args: unknown[]) => void): Handler 
 export interface State {
   annotatorPreferences: AnnotatorPreferences;
   attributes: AttributesType;
-  allTypes: AllTypesType;
   datasetId: DatasetIdType;
-  usedTypes: UsedTypesType;
-  checkedTrackIds: CheckedTrackIdsType;
-  checkedTypes: CheckedTypesType;
-  confidenceFilters: ConfidenceFiltersType;
   editingMode: EditingModeType;
-  enabledTracks: EnabledTracksType;
-  filteredTracks: FilteredTracksType;
-  intervalTree: IntervalTreeType;
+  groupFilters: GroupFilterControls;
+  groupStore: GroupStore;
+  groupStyleManager: StyleManager;
   mergeList: MergeList;
   pendingSaveCount: pendingSaveCountType;
   progress: ProgressType;
   revisionId: RevisionIdType;
-  trackMap: TrackMapType;
-  typeStyling: TypeStylingType;
   selectedKey: SelectedKeyType;
   selectedTrackId: SelectedTrackIdType;
-  stateStyles: StateStylesType;
+  selectedGroupId: SelectedTrackIdType;
   time: TimeType;
+  trackFilters: TrackFilterControls;
+  trackStore: TrackStore;
+  trackStyleManager: StyleManager;
   visibleModes: VisibleModesType;
   readOnlyMode: ReadOnylModeType;
   imageEnhancements: ImageEnhancementsType;
 }
+
+// eslint-disable-next-line @typescript-eslint/no-empty-function
+const markChangesPending = () => { };
 
 /**
  * make a trivial state store. Useful if you only
  * intend to override some small number of values.
  */
 function dummyState(): State {
-  const style = {
-    strokeWidth: 2,
-    opacity: 1,
-    color: 'white',
-    fill: false,
-    showLabel: true,
-    showConfidence: true,
-  };
+  const trackStore = new TrackStore({ markChangesPending });
+  const groupStore = new GroupStore({ markChangesPending });
+  const groupFilterControls = new GroupFilterControls({ store: groupStore, markChangesPending });
+  const trackFilterControls = new TrackFilterControls({
+    store: trackStore, markChangesPending, groupFilterControls, groupStore,
+  });
   return {
     annotatorPreferences: ref({ trackTails: { before: 20, after: 10 } }),
     attributes: ref([]),
-    allTypes: ref([]),
     datasetId: ref(''),
-    usedTypes: ref([]),
-    checkedTrackIds: ref([]),
-    checkedTypes: ref([]),
-    confidenceFilters: ref({ default: DefaultConfidence }),
     editingMode: ref(false),
-    enabledTracks: ref([]),
-    filteredTracks: ref([]),
-    intervalTree: new IntervalTree(),
+    groupStore,
     mergeList: ref([]),
     pendingSaveCount: ref(0),
     progress: reactive({ loaded: true }),
     revisionId: ref(0),
-    trackMap: new Map<TrackId, Track>(),
-    typeStyling: ref({
-      color() { return style.color; },
-      strokeWidth() { return style.strokeWidth; },
-      opacity() { return style.opacity; },
-      fill() { return style.fill; },
-      labelSettings() {
-        return { showLabel: style.showLabel, showConfidence: style.showConfidence };
-      },
-    }),
+    groupFilters: groupFilterControls,
+    groupStyleManager: new StyleManager({ markChangesPending }),
     selectedKey: ref(''),
     selectedTrackId: ref(null),
-    stateStyles: {
-      disabled: style,
-      selected: style,
-      standard: style,
-    },
+    selectedGroupId: ref(null),
     time: {
       frame: ref(0),
       flick: ref(0),
       frameRate: ref(0),
       originalFps: ref(null),
     },
+    trackFilters: trackFilterControls,
+    trackStore,
+    trackStyleManager: new StyleManager({ markChangesPending }),
     visibleModes: ref(['rectangle', 'text'] as VisibleAnnotationTypes[]),
     readOnlyMode: ref(false),
     imageEnhancements: ref({}),
@@ -316,25 +254,21 @@ function dummyState(): State {
 function provideAnnotator(state: State, handler: Handler) {
   provide(AnnotatorPreferencesSymbol, state.annotatorPreferences);
   provide(AttributesSymbol, state.attributes);
-  provide(AllTypesSymbol, state.allTypes);
   provide(DatasetIdSymbol, state.datasetId);
-  provide(UsedTypesSymbol, state.usedTypes);
-  provide(CheckedTrackIdsSymbol, state.checkedTrackIds);
-  provide(CheckedTypesSymbol, state.checkedTypes);
-  provide(ConfidenceFiltersSymbol, state.confidenceFilters);
-  provide(EnabledTracksSymbol, state.enabledTracks);
   provide(EditingModeSymbol, state.editingMode);
-  provide(IntervalTreeSymbol, state.intervalTree);
+  provide(GroupFilterControlsSymbol, state.groupFilters);
+  provide(GroupStoreSymbol, state.groupStore);
+  provide(GroupStyleManagerSymbol, state.groupStyleManager);
   provide(MergeListSymbol, state.mergeList);
   provide(PendingSaveCountSymbol, state.pendingSaveCount);
   provide(ProgressSymbol, state.progress);
   provide(RevisionIdSymbol, state.revisionId);
-  provide(TrackMapSymbol, state.trackMap);
-  provide(TracksSymbol, state.filteredTracks);
-  provide(TypeStylingSymbol, state.typeStyling);
+  provide(TrackFilterControlsSymbol, state.trackFilters);
+  provide(TrackStoreSymbol, state.trackStore);
+  provide(TrackStyleManagerSymbol, state.trackStyleManager);
   provide(SelectedKeySymbol, state.selectedKey);
   provide(SelectedTrackIdSymbol, state.selectedTrackId);
-  provide(StateStylesSymbol, state.stateStyles);
+  provide(SelectedGroupIdSymbol, state.selectedGroupId);
   provide(TimeSymbol, state.time);
   provide(VisibleModesSymbol, state.visibleModes);
   provide(ReadOnlyModeSymbol, state.readOnlyMode);
@@ -362,42 +296,28 @@ function useAttributes() {
   return use<AttributesType>(AttributesSymbol);
 }
 
-function useAllTypes() {
-  return use<AllTypesType>(AllTypesSymbol);
-}
 function useDatasetId() {
   return use<DatasetIdType>(DatasetIdSymbol);
-}
-function useUsedTypes() {
-  return use<UsedTypesType>(UsedTypesSymbol);
-}
-
-function useCheckedTrackIds() {
-  return use<CheckedTrackIdsType>(CheckedTrackIdsSymbol);
-}
-
-function useCheckedTypes() {
-  return use<CheckedTypesType>(CheckedTypesSymbol);
-}
-
-function useConfidenceFilters() {
-  return use<ConfidenceFiltersType>(ConfidenceFiltersSymbol);
-}
-
-function useEnabledTracks() {
-  return use<EnabledTracksType>(EnabledTracksSymbol);
 }
 
 function useEditingMode() {
   return use<EditingModeType>(EditingModeSymbol);
 }
 
-function useHandler() {
-  return use<Handler>(HandlerSymbol);
+function useGroupFilterControls() {
+  return use<GroupFilterControls>(GroupFilterControlsSymbol);
 }
 
-function useIntervalTree() {
-  return use<IntervalTreeType>(IntervalTreeSymbol);
+function useGroupStore() {
+  return use<GroupStore>(GroupStoreSymbol);
+}
+
+function useGroupStyleManager() {
+  return use<StyleManager>(GroupStyleManagerSymbol);
+}
+
+function useHandler() {
+  return use<Handler>(HandlerSymbol);
 }
 
 function useMergeList() {
@@ -416,16 +336,8 @@ function useRevisionId() {
   return use<RevisionIdType>(RevisionIdSymbol);
 }
 
-function useTrackMap() {
-  return use<TrackMapType>(TrackMapSymbol);
-}
-
-function useFilteredTracks() {
-  return use<FilteredTracksType>(TracksSymbol);
-}
-
-function useTypeStyling() {
-  return use<TypeStylingType>(TypeStylingSymbol);
+function useTrackStyleManager() {
+  return use<StyleManager>(TrackStyleManagerSymbol);
 }
 
 function useSelectedKey() {
@@ -436,12 +348,20 @@ function useSelectedTrackId() {
   return use<SelectedTrackIdType>(SelectedTrackIdSymbol);
 }
 
-function useStateStyles() {
-  return use<StateStylesType>(StateStylesSymbol);
+function useSelectedGroupId() {
+  return use<SelectedTrackIdType>(SelectedGroupIdSymbol);
 }
 
 function useTime() {
   return use<TimeType>(TimeSymbol);
+}
+
+function useTrackFilters() {
+  return use<TrackFilterControls>(TrackFilterControlsSymbol);
+}
+
+function useTrackStore() {
+  return use<TrackStore>(TrackStoreSymbol);
 }
 
 function useVisibleModes() {
@@ -461,26 +381,22 @@ export {
   use,
   useAnnotatorPreferences,
   useAttributes,
-  useAllTypes,
   useDatasetId,
-  useUsedTypes,
-  useCheckedTrackIds,
-  useCheckedTypes,
-  useConfidenceFilters,
-  useEnabledTracks,
   useEditingMode,
   useHandler,
-  useIntervalTree,
+  useGroupFilterControls,
+  useGroupStore,
+  useGroupStyleManager,
   useMergeList,
   usePendingSaveCount,
   useProgress,
-  useTrackMap,
-  useFilteredTracks,
   useRevisionId,
-  useTypeStyling,
+  useTrackFilters,
+  useTrackStore,
+  useTrackStyleManager,
   useSelectedKey,
   useSelectedTrackId,
-  useStateStyles,
+  useSelectedGroupId,
   useTime,
   useVisibleModes,
   useReadOnlyMode,

@@ -1,9 +1,9 @@
 <script lang="ts">
 import {
-  defineComponent, watch, PropType, Ref, ref,
+  defineComponent, watch, PropType, Ref, ref, computed,
 } from '@vue/composition-api';
 
-import { TrackWithContext } from '../use/useTrackFilters';
+import { TrackWithContext } from '../BaseFilterControls';
 import { injectMediaController } from './annotators/useMediaController';
 import RectangleLayer from '../layers/AnnotationLayers/RectangleLayer';
 import PolygonLayer from '../layers/AnnotationLayers/PolygonLayer';
@@ -14,25 +14,25 @@ import TailLayer from '../layers/AnnotationLayers/TailLayer';
 import EditAnnotationLayer, { EditAnnotationTypes } from '../layers/EditAnnotationLayer';
 import { FrameDataTrack } from '../layers/LayerTypes';
 import TextLayer, { FormatTextRow } from '../layers/AnnotationLayers/TextLayer';
-import { TrackId } from '../track';
+import type { AnnotationId } from '../BaseAnnotation';
 import { geojsonToBound } from '../utils';
 import { VisibleAnnotationTypes } from '../layers';
 import UILayer from '../layers/UILayers/UILayer';
 import ToolTipWidget from '../layers/UILayers/ToolTipWidget.vue';
 import { ToolTipWidgetData } from '../layers/UILayers/UILayerTypes';
 import {
-  useEnabledTracks,
   useHandler,
-  useIntervalTree,
-  useTrackMap,
+  useTrackStore,
   useSelectedTrackId,
-  useTypeStyling,
+  useTrackFilters,
+  useTrackStyleManager,
   useEditingMode,
   useVisibleModes,
   useSelectedKey,
-  useStateStyles,
   useMergeList,
   useAnnotatorPreferences,
+  useGroupStyleManager,
+  useGroupStore,
 } from '../provides';
 
 /** LayerManager is a component intended to be used as a child of an Annotator.
@@ -46,20 +46,30 @@ export default defineComponent({
       type: Function as PropType<FormatTextRow | undefined>,
       default: undefined,
     },
+    colorBy: {
+      type: String as PropType<'group' | 'track'>,
+      default: 'track',
+    },
   },
   setup(props) {
     const handler = useHandler();
-    const intervalTree = useIntervalTree();
-    const trackMap = useTrackMap();
-    const enabledTracksRef = useEnabledTracks();
+    const trackStore = useTrackStore();
+    const groupStore = useGroupStore();
+    const enabledTracksRef = useTrackFilters().enabledAnnotations;
     const selectedTrackIdRef = useSelectedTrackId();
     const mergeListRef = useMergeList();
-    const typeStylingRef = useTypeStyling();
     const editingModeRef = useEditingMode();
     const visibleModesRef = useVisibleModes();
     const selectedKeyRef = useSelectedKey();
-    const stateStyling = useStateStyles();
+    const trackStyleManager = useTrackStyleManager();
+    const groupStyleManager = useGroupStyleManager();
     const annotatorPrefs = useAnnotatorPreferences();
+    const typeStylingRef = computed(() => {
+      if (props.colorBy === 'group') {
+        return groupStyleManager.typeStyling.value;
+      }
+      return trackStyleManager.typeStyling.value;
+    });
 
     const annotator = injectMediaController();
     const frameNumberRef = annotator.frame;
@@ -67,42 +77,42 @@ export default defineComponent({
 
     const rectAnnotationLayer = new RectangleLayer({
       annotator,
-      stateStyling,
+      stateStyling: trackStyleManager.stateStyles,
       typeStyling: typeStylingRef,
     });
     const polyAnnotationLayer = new PolygonLayer({
       annotator,
-      stateStyling,
+      stateStyling: trackStyleManager.stateStyles,
       typeStyling: typeStylingRef,
     });
 
     const lineLayer = new LineLayer({
       annotator,
-      stateStyling,
+      stateStyling: trackStyleManager.stateStyles,
       typeStyling: typeStylingRef,
     });
     const pointLayer = new PointLayer({
       annotator,
-      stateStyling,
+      stateStyling: trackStyleManager.stateStyles,
       typeStyling: typeStylingRef,
     });
     const tailLayer = new TailLayer({
       annotator,
-      stateStyling,
+      stateStyling: trackStyleManager.stateStyles,
       typeStyling: typeStylingRef,
-    }, trackMap);
+    }, trackStore);
 
 
     const textLayer = new TextLayer({
       annotator,
-      stateStyling,
+      stateStyling: trackStyleManager.stateStyles,
       typeStyling: typeStylingRef,
       formatter: props.formatTextRow,
     });
 
     const editAnnotationLayer = new EditAnnotationLayer({
       annotator,
-      stateStyling,
+      stateStyling: trackStyleManager.stateStyles,
       typeStyling: typeStylingRef,
       type: 'rectangle',
     });
@@ -113,20 +123,21 @@ export default defineComponent({
       color: typeStylingRef.value.color,
       dataList: hoverOvered,
       selected: selectedTrackIdRef,
-      stateStyling,
+      stateStyling: trackStyleManager.stateStyles,
     };
     uiLayer.addDOMWidget('customToolTip', ToolTipWidget, toolTipWidgetProps, { x: 10, y: 10 });
 
     function updateLayers(
       frame: number,
       editingTrack: false | EditAnnotationTypes,
-      selectedTrackId: TrackId | null,
-      mergeList: readonly TrackId[],
+      selectedTrackId: AnnotationId | null,
+      mergeList: readonly AnnotationId[],
       enabledTracks: readonly TrackWithContext[],
       visibleModes: readonly VisibleAnnotationTypes[],
       selectedKey: string,
+      colorBy: string,
     ) {
-      const currentFrameIds: TrackId[] = intervalTree
+      const currentFrameIds: AnnotationId[] = trackStore.intervalTree
         .search([frame, frame])
         .map((str: string) => parseInt(str, 10));
       const inlcudesTooltip = visibleModes.includes('tooltip');
@@ -138,26 +149,26 @@ export default defineComponent({
       const frameData = [] as FrameDataTrack[];
       const editingTracks = [] as FrameDataTrack[];
       currentFrameIds.forEach(
-        (trackId: TrackId) => {
-          const track = trackMap.get(trackId);
-          if (track === undefined) {
-            throw new Error(`TrackID ${trackId} not found in map`);
-          }
+        (trackId: AnnotationId) => {
+          const track = trackStore.get(trackId);
           const enabledIndex = enabledTracks.findIndex(
-            (trackWithContext) => trackWithContext.track.trackId === trackId,
+            (trackWithContext) => trackWithContext.annotation.id === trackId,
           );
           if (enabledIndex !== -1) {
             const [features] = track.getFeature(frame);
+            const groups = groupStore.lookupGroups(track.id);
+            const trackStyleType = track.getType(
+              enabledTracks[enabledIndex].context.confidencePairIndex,
+            );
+            const groupStyleType = groups?.[0]?.getType() ?? groupStore.defaultGroup;
             const trackFrame = {
               selected: ((selectedTrackId === track.trackId)
                 || (mergeList.includes(track.trackId))),
               editing: editingTrack,
-              trackId: track.trackId,
+              track,
+              groups,
               features,
-              trackType: track.getType(
-                enabledTracks[enabledIndex].context.confidencePairIndex,
-              ),
-              confidencePairs: track.confidencePairs,
+              styleType: colorBy === 'group' ? groupStyleType : trackStyleType,
             };
             frameData.push(trackFrame);
             if (trackFrame.selected) {
@@ -216,26 +227,19 @@ export default defineComponent({
 
       if (selectedTrackId !== null) {
         if ((editingTrack) && !currentFrameIds.includes(selectedTrackId)) {
-          const editTrack = trackMap.get(selectedTrackId);
-
-          if (editTrack === undefined) {
-            throw new Error(`trackMap missing trackid ${selectedTrackId}`);
-          }
-          const enabledIndex = enabledTracks.findIndex(
-            (trackWithContext) => trackWithContext.track.trackId === editTrack.trackId,
-          );
-
+          const editTrack = trackStore.get(selectedTrackId);
+          // const enabledIndex = enabledTracks.findIndex(
+          //   (trackWithContext) => trackWithContext.annotation.id === editTrack.id,
+          // );
           const [real, lower, upper] = editTrack.getFeature(frame);
           const features = real || lower || upper;
           const trackFrame = {
             selected: true,
             editing: true,
-            trackId: editTrack.trackId,
+            track: editTrack,
+            groups: groupStore.lookupGroups(editTrack.id),
             features: (features && features.interpolate) ? features : null,
-            trackType: editTrack.getType(
-              enabledTracks[enabledIndex].context.confidencePairIndex,
-            ),
-            confidencePairs: editTrack.confidencePairs,
+            styleType: groupStore.defaultGroup, // Won't be used
           };
           editingTracks.push(trackFrame);
         }
@@ -267,6 +271,7 @@ export default defineComponent({
         enabledTracksRef.value,
         visibleModesRef.value,
         selectedKeyRef.value,
+        props.colorBy,
       );
     });
 
@@ -280,6 +285,7 @@ export default defineComponent({
         mergeListRef,
         visibleModesRef,
         typeStylingRef,
+        props.colorBy,
       ],
       () => {
         updateLayers(
@@ -290,6 +296,7 @@ export default defineComponent({
           enabledTracksRef.value,
           visibleModesRef.value,
           selectedKeyRef.value,
+          props.colorBy,
         );
       },
     );
@@ -306,6 +313,7 @@ export default defineComponent({
           enabledTracksRef.value,
           visibleModesRef.value,
           selectedKeyRef.value,
+          props.colorBy,
         );
       },
       { deep: true },
@@ -353,6 +361,7 @@ export default defineComponent({
           enabledTracksRef.value,
           visibleModesRef.value,
           selectedKeyRef.value,
+          props.colorBy,
         );
       }
     });
@@ -360,7 +369,7 @@ export default defineComponent({
       (index: number, _type: EditAnnotationTypes, key = '') => handler.selectFeatureHandle(index, key));
     const annotationHoverTooltip = (
       found: {
-          trackType: [string, number];
+          styleType: [string, number];
           trackId: number;
           polygon: { coordinates: Array<Array<[number, number]>>};
         }[],
@@ -378,8 +387,8 @@ export default defineComponent({
             }
           });
           hoveredVals.push({
-            type: item.trackType[0],
-            confidence: item.trackType[1],
+            type: item.styleType[0],
+            confidence: item.styleType[1],
             trackId: item.trackId,
             maxX,
           });

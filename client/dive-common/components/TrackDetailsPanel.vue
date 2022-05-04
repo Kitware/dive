@@ -9,16 +9,15 @@ import { flatten } from 'lodash';
 import {
   useSelectedTrackId,
   useEditingMode,
-  useTypeStyling,
-  useAllTypes,
   useHandler,
-  useTrackMap,
+  useTrackFilters,
+  useTrackStore,
   useAttributes,
   useMergeList,
   useTime,
   useReadOnlyMode,
+  useTrackStyleManager,
 } from 'vue-media-annotator/provides';
-import { getTrack } from 'vue-media-annotator/use/useTrackStore';
 import { Attribute } from 'vue-media-annotator/use/useAttributes';
 import TrackItem from 'vue-media-annotator/components/TrackItem.vue';
 import TooltipBtn from 'vue-media-annotator/components/TooltipButton.vue';
@@ -57,9 +56,9 @@ export default defineComponent({
     const editingAttribute: Ref<Attribute | null> = ref(null);
     const editingError: Ref<string | null> = ref(null);
     const editingModeRef = useEditingMode();
-    const typeStylingRef = useTypeStyling();
-    const allTypesRef = useAllTypes();
-    const trackMap = useTrackMap();
+    const typeStylingRef = useTrackStyleManager().typeStyling;
+    const allTypesRef = useTrackFilters().allTypes;
+    const trackStore = useTrackStore();
     const mergeList = useMergeList();
     const mergeInProgress = computed(() => mergeList.value.length > 0);
     const {
@@ -74,10 +73,10 @@ export default defineComponent({
     const { setAttribute, deleteAttribute } = useHandler();
     const selectedTrackList = computed(() => {
       if (mergeList.value.length > 0) {
-        return mergeList.value.map((trackId) => getTrack(trackMap, trackId));
+        return mergeList.value.map((trackId) => trackStore.get(trackId));
       }
       if (selectedTrackIdRef.value !== null) {
-        return [getTrack(trackMap, selectedTrackIdRef.value)];
+        return [trackStore.get(selectedTrackIdRef.value)];
       }
       return [];
     });

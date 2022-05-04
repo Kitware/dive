@@ -4,7 +4,7 @@ import {
 } from '@vue/composition-api';
 
 import {
-  useTypeStyling,
+  useTrackStyleManager,
 } from 'vue-media-annotator/provides';
 
 import PanelSubsection from 'dive-common/components/PanelSubsection.vue';
@@ -25,7 +25,7 @@ export default defineComponent({
     },
   },
   setup() {
-    const typeStylingRef = useTypeStyling();
+    const typeStylingRef = useTrackStyleManager().typeStyling;
     // TODO:  Adding, Deleting, Editing Confidence Levels in this interface
     return {
       typeStylingRef,

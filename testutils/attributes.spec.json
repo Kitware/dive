@@ -2,7 +2,7 @@
   [
     {
       "0": {
-        "trackId": 0,
+        "id": 0,
         "attributes": {
           "booleanAttr": true
         },
@@ -91,7 +91,7 @@
         "end": 5
       },
       "1": {
-        "trackId": 1,
+        "id": 1,
         "attributes": {
           "booleanAttr": true
         },
@@ -182,7 +182,7 @@
     },
     {
       "0": {
-        "trackId": 0,
+        "id": 0,
         "attributes": {
           "booleanAttr": true
         },
@@ -271,7 +271,7 @@
         "end": 5
       },
       "1": {
-        "trackId": 1,
+        "id": 1,
         "attributes": {
           "booleanAttr": true
         },
@@ -389,7 +389,7 @@
   [
     {
       "0": {
-        "trackId": 0,
+        "id": 0,
         "attributes": {
           "booleanAttr": true
         },
@@ -478,7 +478,7 @@
         "end": 5
       },
       "1": {
-        "trackId": 1,
+        "id": 1,
         "attributes": {
           "booleanAttr": true
         },
@@ -569,7 +569,7 @@
     },
     {
       "0": {
-        "trackId": 0,
+        "id": 0,
         "attributes": {
           "booleanAttr": true
         },
@@ -658,7 +658,7 @@
         "end": 5
       },
       "1": {
-        "trackId": 1,
+        "id": 1,
         "attributes": {
           "booleanAttr": true
         },
