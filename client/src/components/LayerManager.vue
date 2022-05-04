@@ -33,6 +33,7 @@ import {
   useStateStyles,
   useMergeList,
   useAnnotatorPreferences,
+  useSelectedHandleIndex,
 } from '../provides';
 
 /** LayerManager is a component intended to be used as a child of an Annotator.
@@ -53,6 +54,7 @@ export default defineComponent({
     const trackMap = useTrackMap();
     const enabledTracksRef = useEnabledTracks();
     const selectedTrackIdRef = useSelectedTrackId();
+    const selectedHandleIndex = useSelectedHandleIndex();
     const mergeListRef = useMergeList();
     const typeStylingRef = useTypeStyling();
     const editingModeRef = useEditingMode();
@@ -243,6 +245,7 @@ export default defineComponent({
           if (editingTrack) {
             editAnnotationLayer.setType(editingTrack);
             editAnnotationLayer.setKey(selectedKey);
+            editAnnotationLayer.setSelectedHandleIndex(selectedHandleIndex.value);
             editAnnotationLayer.changeData(editingTracks);
           }
         } else {

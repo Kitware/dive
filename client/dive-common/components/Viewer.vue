@@ -436,6 +436,7 @@ export default defineComponent({
         typeStyling,
         selectedKey,
         selectedTrackId,
+        selectedHandleIndex: selectedFeatureHandle,
         stateStyles: stateStyling,
         time,
         visibleModes,

@@ -140,6 +140,15 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
     return () => { this.skipNextExternalUpdate = true; };
   }
 
+  setSelectedHandleIndex(val: number) {
+    let divisor = 1;
+    if (this.type === 'Polygon' && this.selectedHandleIndex >= 0) {
+      divisor = 2;
+    }
+    this.selectedHandleIndex = val * divisor;
+    this.hoverHandleIndex = this.selectedHandleIndex;
+  }
+
   /**
    * Listen to mousedown events and build a replica of the in-progress annotation
    * shape that GeoJS is keeps internally.  Emit the shape as update:in-progress-geojson
@@ -297,11 +306,6 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
       this.setMode(null);
       this.featureLayer.removeAllAnnotations(false);
       this.shapeInProgress = null;
-      if (this.selectedHandleIndex !== -1) {
-        this.selectedHandleIndex = -1;
-        this.hoverHandleIndex = -1;
-        this.bus.$emit('update:selectedIndex', this.selectedHandleIndex, this.type, this.selectedKey);
-      }
       this.annotator.setCursor('default');
       this.annotator.setImageCursor('');
     }
@@ -355,9 +359,6 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
    * @param frameData a single FrameDataTrack Array that is the editing item
    */
   formatData(frameData: FrameDataTrack[]) {
-    this.selectedHandleIndex = -1;
-    this.hoverHandleIndex = -1;
-    this.bus.$emit('update:selectedIndex', this.selectedHandleIndex, this.type, this.selectedKey);
     if (frameData.length > 0) {
       const track = frameData[0];
       if (track.features && track.features.bounds) {

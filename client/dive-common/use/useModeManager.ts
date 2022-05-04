@@ -138,6 +138,7 @@ export default function useModeManager({
   }
 
   function handleSelectFeatureHandle(i: number, key = '') {
+    console.log('selectFeatureHandle', i);
     if (i !== selectedFeatureHandle.value) {
       selectedFeatureHandle.value = i;
     } else {
@@ -380,8 +381,10 @@ export default function useModeManager({
           }
         });
       }
+      handleSelectFeatureHandle(Math.max(selectedFeatureHandle.value - 1, 0));
+    } else {
+      handleSelectFeatureHandle(-1);
     }
-    handleSelectFeatureHandle(-1);
   }
 
   /* If any recipes are active, remove the geometry they added */

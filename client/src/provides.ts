@@ -79,6 +79,9 @@ type SelectedKeyType = Readonly<Ref<string>>;
 const SelectedTrackIdSymbol = Symbol('selectedTrackId');
 type SelectedTrackIdType = Readonly<Ref<TrackId | null>>;
 
+const SelectedHandleIndexSymbol = Symbol('selectedHandleIndex');
+type SelectedHandleIndexType = Readonly<Ref<number>>;
+
 const StateStylesSymbol = Symbol('stateStyles');
 type StateStylesType = Readonly<StateStyles>;
 
@@ -239,6 +242,7 @@ export interface State {
   typeStyling: TypeStylingType;
   selectedKey: SelectedKeyType;
   selectedTrackId: SelectedTrackIdType;
+  selectedHandleIndex: SelectedHandleIndexType;
   stateStyles: StateStylesType;
   time: TimeType;
   visibleModes: VisibleModesType;
@@ -288,6 +292,7 @@ function dummyState(): State {
     }),
     selectedKey: ref(''),
     selectedTrackId: ref(null),
+    selectedHandleIndex: ref(-1),
     stateStyles: {
       disabled: style,
       selected: style,
@@ -334,6 +339,7 @@ function provideAnnotator(state: State, handler: Handler) {
   provide(TypeStylingSymbol, state.typeStyling);
   provide(SelectedKeySymbol, state.selectedKey);
   provide(SelectedTrackIdSymbol, state.selectedTrackId);
+  provide(SelectedHandleIndexSymbol, state.selectedHandleIndex);
   provide(StateStylesSymbol, state.stateStyles);
   provide(TimeSymbol, state.time);
   provide(VisibleModesSymbol, state.visibleModes);
@@ -436,6 +442,10 @@ function useSelectedTrackId() {
   return use<SelectedTrackIdType>(SelectedTrackIdSymbol);
 }
 
+function useSelectedHandleIndex() {
+  return use<SelectedHandleIndexType>(SelectedHandleIndexSymbol);
+}
+
 function useStateStyles() {
   return use<StateStylesType>(StateStylesSymbol);
 }
@@ -480,6 +490,7 @@ export {
   useTypeStyling,
   useSelectedKey,
   useSelectedTrackId,
+  useSelectedHandleIndex,
   useStateStyles,
   useTime,
   useVisibleModes,
