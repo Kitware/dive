@@ -33,8 +33,8 @@ type DatasetIdType = Readonly<Ref<string>>;
 const EditingModeSymbol = Symbol('editingMode');
 type EditingModeType = Readonly<Ref<false | EditAnnotationTypes>>;
 
-const MergeListSymbol = Symbol('mergeList');
-type MergeList = Readonly<Ref<readonly AnnotationId[]>>;
+const MultiSelectSymbol = Symbol('multiSelect');
+type MultiSelectType = Readonly<Ref<readonly AnnotationId[]>>;
 
 const PendingSaveCountSymbol = Symbol('pendingSaveCount');
 type pendingSaveCountType = Readonly<Ref<number>>;
@@ -126,6 +126,8 @@ export interface Handler {
   deleteAttribute({ data }: { data: Attribute }, removeFromTracks?: boolean): void;
   /* Commit the staged merge tracks */
   commitMerge(): void;
+  /* Create new group from multi-select */
+  commitGroup(): void;
   /* Turn merge mode on and off */
   toggleMerge(): AnnotationId[];
   /* Remove AnnotationIds from merge */
@@ -162,6 +164,7 @@ function dummyHandler(handle: (name: string, args: unknown[]) => void): Handler 
     deleteAttribute(...args) { handle('deleteAttribute', args); },
     toggleMerge(...args) { handle('toggleMerge', args); return []; },
     commitMerge(...args) { handle('commitMerge', args); },
+    commitGroup(...args) { handle('commitGroup', args); },
     unstageFromMerge(...args) { handle('unstageFromMerge', args); },
     reloadAnnotations(...args) { handle('reloadTracks', args); return Promise.resolve(); },
     setSVGFilters(...args) { handle('setSVGFilter', args); },
@@ -183,7 +186,7 @@ export interface State {
   groupFilters: GroupFilterControls;
   groupStore: GroupStore;
   groupStyleManager: StyleManager;
-  mergeList: MergeList;
+  multiSelectList: MultiSelectType;
   pendingSaveCount: pendingSaveCountType;
   progress: ProgressType;
   revisionId: RevisionIdType;
@@ -219,7 +222,7 @@ function dummyState(): State {
     datasetId: ref(''),
     editingMode: ref(false),
     groupStore,
-    mergeList: ref([]),
+    multiSelectList: ref([]),
     pendingSaveCount: ref(0),
     progress: reactive({ loaded: true }),
     revisionId: ref(0),
@@ -259,7 +262,7 @@ function provideAnnotator(state: State, handler: Handler) {
   provide(GroupFilterControlsSymbol, state.groupFilters);
   provide(GroupStoreSymbol, state.groupStore);
   provide(GroupStyleManagerSymbol, state.groupStyleManager);
-  provide(MergeListSymbol, state.mergeList);
+  provide(MultiSelectSymbol, state.multiSelectList);
   provide(PendingSaveCountSymbol, state.pendingSaveCount);
   provide(ProgressSymbol, state.progress);
   provide(RevisionIdSymbol, state.revisionId);
@@ -320,8 +323,8 @@ function useHandler() {
   return use<Handler>(HandlerSymbol);
 }
 
-function useMergeList() {
-  return use<MergeList>(MergeListSymbol);
+function useMultiSelectList() {
+  return use<MultiSelectType>(MultiSelectSymbol);
 }
 
 function usePendingSaveCount() {
@@ -387,7 +390,7 @@ export {
   useGroupFilterControls,
   useGroupStore,
   useGroupStyleManager,
-  useMergeList,
+  useMultiSelectList,
   usePendingSaveCount,
   useProgress,
   useRevisionId,

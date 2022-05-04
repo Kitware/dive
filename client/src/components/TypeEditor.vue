@@ -1,11 +1,16 @@
 <script lang="ts">
 import {
-  defineComponent, reactive, toRef, watch,
+  defineComponent, PropType, reactive, toRef, watch,
 } from '@vue/composition-api';
+
+import BaseFilterControls from 'vue-media-annotator/BaseFilterControls';
+import Group from 'vue-media-annotator/Group';
+import StyleManager from 'vue-media-annotator/StyleManager';
+import Track from 'vue-media-annotator/track';
+
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
-import {
-  useTrackStyleManager, useReadOnlyMode, useTrackFilters,
-} from '../provides';
+
+import { useReadOnlyMode } from '../provides';
 
 export default defineComponent({
   name: 'TypeEditor',
@@ -15,12 +20,19 @@ export default defineComponent({
       type: String,
       required: true,
     },
+    filterControls: {
+      type: Object as PropType<BaseFilterControls<Track | Group>>,
+      required: true,
+    },
+    styleManager: {
+      type: Object as PropType<StyleManager>,
+      required: true,
+    },
   },
 
   setup(props, { emit }) {
-    const styleManager = useTrackStyleManager();
-    const typeStylingRef = styleManager.typeStyling;
-    const trackFilters = useTrackFilters();
+    const typeStylingRef = props.styleManager.typeStyling;
+    const trackFilters = props.filterControls;
     const usedTypesRef = trackFilters.usedTypes;
     const readOnlyMode = useReadOnlyMode();
     const { prompt } = usePrompt();
@@ -45,7 +57,7 @@ export default defineComponent({
           newType: data.editingType,
         });
       }
-      styleManager.updateTypeStyle({
+      props.styleManager.updateTypeStyle({
         type: data.editingType,
         value: {
           color: data.editingColor,

@@ -172,8 +172,8 @@ export default defineComponent({
 
     // Provides wrappers for actions to integrate with settings
     const {
-      mergeList,
-      mergeInProgress,
+      multiSelectList,
+      multiSelectActive,
       selectedFeatureHandle,
       selectedTrackId,
       selectedGroupId,
@@ -187,6 +187,7 @@ export default defineComponent({
       recipes,
       trackFilterControls: trackFilters,
       trackStore,
+      groupStore,
       mediaController,
       readonlyState,
     });
@@ -194,9 +195,9 @@ export default defineComponent({
     const allSelectedIds = computed(() => {
       const selected = selectedTrackId.value;
       if (selected !== null) {
-        return mergeList.value.concat(selected);
+        return multiSelectList.value.concat(selected);
       }
-      return mergeList.value;
+      return multiSelectList.value;
     });
 
     const { lineChartData } = useLineChart({
@@ -414,7 +415,7 @@ export default defineComponent({
         groupFilters,
         groupStore,
         groupStyleManager,
-        mergeList,
+        multiSelectList,
         pendingSaveCount,
         progress,
         revisionId: toRef(props, 'revision'),
@@ -448,7 +449,7 @@ export default defineComponent({
       lineChartData,
       loadError,
       mediaController,
-      mergeMode: mergeInProgress,
+      multiSelectActive,
       pendingSaveCount,
       progress,
       progressValue,
@@ -525,7 +526,10 @@ export default defineComponent({
       <v-spacer />
       <template #extension>
         <EditorMenu
-          v-bind="{ editingMode, visibleModes, editingTrack, recipes, mergeMode, editingDetails }"
+          v-bind="{
+            editingMode, visibleModes, editingTrack, recipes,
+            multiSelectActive, editingDetails,
+          }"
           :tail-settings.sync="clientSettings.annotatorPreferences.trackTails"
           @set-annotation-state="handler.setAnnotationState"
           @exit-edit="handler.trackAbort"

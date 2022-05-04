@@ -13,7 +13,7 @@ import {
   useTrackFilters,
   useTrackStore,
   useAttributes,
-  useMergeList,
+  useMultiSelectList,
   useTime,
   useReadOnlyMode,
   useTrackStyleManager,
@@ -59,8 +59,8 @@ export default defineComponent({
     const typeStylingRef = useTrackStyleManager().typeStyling;
     const allTypesRef = useTrackFilters().allTypes;
     const trackStore = useTrackStore();
-    const mergeList = useMergeList();
-    const mergeInProgress = computed(() => mergeList.value.length > 0);
+    const multiSelectList = useMultiSelectList();
+    const multiSelectInProgress = computed(() => multiSelectList.value.length > 0);
     const {
       trackSelectNext, trackSplit, removeTrack, unstageFromMerge,
     } = useHandler();
@@ -72,8 +72,8 @@ export default defineComponent({
     const selectedTrackIdRef = useSelectedTrackId();
     const { setAttribute, deleteAttribute } = useHandler();
     const selectedTrackList = computed(() => {
-      if (mergeList.value.length > 0) {
-        return mergeList.value.map((trackId) => trackStore.get(trackId));
+      if (multiSelectList.value.length > 0) {
+        return multiSelectList.value.map((trackId) => trackStore.get(trackId));
       }
       if (selectedTrackIdRef.value !== null) {
         return [trackStore.get(selectedTrackIdRef.value)];
@@ -200,8 +200,8 @@ export default defineComponent({
       editIndividual,
       /* Selected */
       selectedTrackList,
-      mergeList,
-      mergeInProgress,
+      multiSelectList,
+      multiSelectInProgress,
       /* Update functions */
       closeEditor,
       editAttribute,
@@ -227,7 +227,7 @@ export default defineComponent({
     @click="resetEditIndividual"
   >
     <v-subheader style="min-height: 48px;">
-      {{ mergeInProgress ? 'Merge Candidates' : 'Track Editor' }}
+      {{ multiSelectInProgress ? 'Merge or Group Candidates' : 'Track Editor' }}
     </v-subheader>
     <div
       v-if="!selectedTrackList.length"
@@ -264,13 +264,13 @@ export default defineComponent({
         <v-card
           v-for="track in selectedTrackList"
           :key="track.trackId"
-          class="mx-2 my-2 d-flex align-center"
+          class="mx-2 mb-2 d-flex align-center"
           outlined
           flat
         >
           <track-item
             :solo="true"
-            :merging="mergeInProgress"
+            :merging="multiSelectInProgress"
             :track="track"
             :track-type="track.confidencePairs[0][0]"
             :selected="true"
@@ -283,47 +283,108 @@ export default defineComponent({
           />
 
           <tooltip-btn
-            v-if="mergeInProgress"
+            v-if="multiSelectInProgress"
             icon="mdi-close"
             tooltip-text="Remove from merge group"
             @click="unstageFromMerge([track.trackId])"
           />
         </v-card>
       </div>
-      <div class="d-flex flex-row">
+      <div class="d-flex flex-column">
         <v-btn
-          :color="mergeInProgress ? 'error' : 'primary'"
-          class="mx-2 my-2 grow"
+          v-if="!multiSelectInProgress"
+          color="primary lighten-1"
+          class="mx-2 mb-2 grow"
           :disabled="readOnlyMode"
           depressed
           x-small
           @click="$emit('toggle-merge')"
         >
-          <span v-if="!mergeInProgress">
-            <v-icon
-              small
-              class="pr-1"
-            >
-              mdi-call-merge
-            </v-icon>
-            Begin Track Merge (m)
-          </span>
-          <span v-else>
-            Abort (esc)
-          </span>
+          <v-icon
+            small
+            class="pr-1"
+          >
+            mdi-call-merge
+          </v-icon>
+          <v-spacer />
+          Begin Track Merge (m)
         </v-btn>
         <v-btn
-          v-if="mergeList.length >= 2"
-          color="success"
+          v-if="!multiSelectInProgress"
+          color="primary darken-1"
+          class="mx-2 mb-2 grow"
+          :disabled="readOnlyMode"
+          depressed
+          x-small
+          @click="$emit('toggle-merge')"
+        >
+          <v-icon
+            small
+            class="pr-1"
+          >
+            mdi-group
+          </v-icon>
+          <v-spacer />
+          Begin Track Group (g)
+        </v-btn>
+        <v-btn
+          v-if="multiSelectInProgress"
+          color="primary lighten-1"
           x-small
           depressed
-          class="mr-2 my-2 grow"
+          :disabled="multiSelectList.length < 2"
+          class="mx-2 mb-2 grow"
           @click="$emit('commit-merge')"
         >
-          <v-icon class="pr-1">
+          <v-icon
+            class="pr-1"
+            small
+          >
+            mdi-call-merge
+          </v-icon>
+          <v-icon
+            class="pr-1"
+            small
+          >
             mdi-check
           </v-icon>
-          commit (shift+m)
+          <v-spacer />
+          Commit Merge (shift+m)
+        </v-btn>
+        <v-btn
+          v-if="multiSelectInProgress"
+          color="primary darken-1"
+          x-small
+          depressed
+          :disabled="multiSelectList.length < 1"
+          class="mx-2 mb-2 grow"
+          @click="$emit('commit-group')"
+        >
+          <v-icon
+            class="pr-1"
+            small
+          >
+            mdi-group
+          </v-icon>
+          <v-icon
+            class="pr-1"
+            small
+          >
+            mdi-check
+          </v-icon>
+          <v-spacer />
+          Create Group with {{ multiSelectList.length }} tracks (shift+g)
+        </v-btn>
+        <v-btn
+          v-if="multiSelectInProgress"
+          color="error"
+          class="mx-2 mb-2 grow"
+          :disabled="readOnlyMode"
+          depressed
+          x-small
+          @click="$emit('toggle-merge')"
+        >
+          Abort (esc)
         </v-btn>
       </div>
       <confidence-subsection
@@ -335,7 +396,7 @@ export default defineComponent({
         @set-type="selectedTrackList[0].setType($event)"
       />
       <attribute-subsection
-        v-if="!mergeInProgress"
+        v-if="!multiSelectInProgress"
         mode="Track"
         :attributes="attributes"
         :edit-individual="editIndividual"
@@ -344,7 +405,7 @@ export default defineComponent({
         @add-attribute="addAttribute"
       />
       <attribute-subsection
-        v-if="!mergeInProgress"
+        v-if="!multiSelectInProgress"
         mode="Detection"
         :attributes="attributes"
         :edit-individual="editIndividual"

@@ -315,6 +315,8 @@ export default defineComponent({
     >
       <TypeEditor
         :selected-type="data.selectedType"
+        :filter-controls="filterControls"
+        :style-manager="styleManager"
         @close="data.showPicker = false"
       />
     </v-dialog>
