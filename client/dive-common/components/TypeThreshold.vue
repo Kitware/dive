@@ -1,15 +1,13 @@
 <script lang="ts">
 import { defineComponent } from '@vue/composition-api';
 import {
-  useCheckedTypes,
-  useConfidenceFilters,
   useDatasetId,
-  useHandler,
-  useTypeStyling,
+  useTrackFilters,
+  useTrackStyleManager,
 } from 'vue-media-annotator/provides';
 import ConfidenceFilter from 'dive-common/components/ConfidenceFilter.vue';
 import { useApi } from 'dive-common/apispec';
-import { DefaultConfidence } from 'vue-media-annotator/use/useTrackFilters';
+import { DefaultConfidence } from 'vue-media-annotator/BaseFilterControls';
 
 export default defineComponent({
   name: 'TypeThreshold',
@@ -17,26 +15,25 @@ export default defineComponent({
   components: { ConfidenceFilter },
 
   setup() {
-    const checkedTypesRef = useCheckedTypes();
-    const confidenceFiltersRef = useConfidenceFilters();
-    const typeStylingRef = useTypeStyling();
+    const trackFilters = useTrackFilters();
     const datasetIdRef = useDatasetId();
-    const { setConfidenceFilters } = useHandler();
     const { saveMetadata } = useApi();
 
     function saveThreshold() {
-      saveMetadata(datasetIdRef.value, { confidenceFilters: confidenceFiltersRef.value });
+      saveMetadata(datasetIdRef.value, {
+        confidenceFilters: trackFilters.confidenceFilters.value,
+      });
     }
 
     function resetThresholds() {
-      setConfidenceFilters({ default: DefaultConfidence });
+      trackFilters.setConfidenceFilters({ default: DefaultConfidence });
       saveThreshold();
     }
 
     return {
-      checkedTypesRef,
-      confidenceFiltersRef,
-      typeStylingRef,
+      checkedTypesRef: trackFilters.checkedTypes,
+      confidenceFiltersRef: trackFilters.confidenceFilters,
+      typeStylingRef: useTrackStyleManager().typeStyling,
       resetThresholds,
       saveThreshold,
     };

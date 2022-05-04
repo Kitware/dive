@@ -92,22 +92,6 @@ This application has many layers that interact, requiring a manager `src/compone
 
 Controllers are like layers, but without geojs functionality.  They usually provide some UI wigetry to manipulate the annotator state (such as playblack position or playpause state).
 
-### src/use
-
-These are Vue 3 composition functions that an annotation application can use.  They mostly provide the data structures that the above layers and consumers need.  For example:
-
-* `src/use/useTrackStore.ts` provides an efficient data structure for holding track instances.  It provides reactivity when individual tracks are updated, added, and removed, and can provide fast lookup by trackid and frame.
-* `src/use/useTrackFilters.ts` takes a trackstore's return values as params and provides filtering by type and trackid.
-* `src/use/useTrackSelectionControls.ts` takes trackstore return values and provides state and mutations for selection
-* `src/use/useEventChart.ts` takes trackstore, filter, and selection as params and returns an object used by the `EventChart.vue` component to display a contextual timeline of all tracks in the store.
-
-The major benefits of the `src/use` style are:
-
-* testability.  These composition functions are easy to harness with unit tests.
-* modularity.  Private behavior is hidden, and further refactors and features have less opportunity to break neighboring code
-* sanity.  All this logic and state is technically contained in a single component.
-* typescript adoption.  Typescript will be easier to incrementally adopt.
-
 ### src/provides
 
 Provides a common, typed interface for components and composition functions to access singleton state like `trackMap`, `selectedTrackId`, and many others.

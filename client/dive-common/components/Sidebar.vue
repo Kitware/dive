@@ -3,21 +3,19 @@ import {
   defineComponent,
   reactive,
   toRef,
-  watch,
 } from '@vue/composition-api';
 
-import { TypeList, TrackList } from 'vue-media-annotator/components';
-import { useAllTypes, useHandler, useReadOnlyMode } from 'vue-media-annotator/provides';
+import { FilterList, TrackList } from 'vue-media-annotator/components';
+import {
+  useHandler, useReadOnlyMode, useTrackFilters, useTrackStyleManager,
+} from 'vue-media-annotator/provides';
 
 import { clientSettings } from 'dive-common/store/settings';
 import TrackDetailsPanel from 'dive-common/components/TrackDetailsPanel.vue';
 import TrackSettingsPanel from 'dive-common/components/TrackSettingsPanel.vue';
 import TypeSettingsPanel from 'dive-common/components/TypeSettingsPanel.vue';
+import StackedVirtualSidebarContainer from 'dive-common/components/StackedVirtualSidebarContainer.vue';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
-
-/* Magic numbers used in height calculations */
-const toolbarHeight = 112;
-const confidenceThresholdHeight = 52;
 
 export default defineComponent({
   props: {
@@ -32,25 +30,26 @@ export default defineComponent({
   },
 
   components: {
+    StackedVirtualSidebarContainer,
     TrackDetailsPanel,
     TrackSettingsPanel,
-    TypeList,
+    FilterList,
     TrackList,
     TypeSettingsPanel,
   },
 
-  setup(props) {
-    const allTypesRef = useAllTypes();
+  setup() {
+    const allTypesRef = useTrackFilters().allTypes;
     const readOnlyMode = useReadOnlyMode();
     const { toggleMerge, commitMerge } = useHandler();
     const { visible } = usePrompt();
     const trackSettings = toRef(clientSettings, 'trackSettings');
     const typeSettings = toRef(clientSettings, 'typeSettings');
+    const trackFilterControls = useTrackFilters();
+    const styleManager = useTrackStyleManager();
 
     const data = reactive({
       currentTab: 'tracks' as 'tracks' | 'attributes',
-      typeHeight: 0,
-      trackHeight: 0,
     });
 
     function swapTabs() {
@@ -67,29 +66,19 @@ export default defineComponent({
       }
     }
 
-    function onResize() {
-      const totalHeight = window.innerHeight - toolbarHeight;
-      data.typeHeight = Math.floor(totalHeight * 0.45);
-      data.trackHeight = Math.floor(totalHeight * 0.55);
-      if (props.enableSlot) {
-        data.typeHeight -= confidenceThresholdHeight;
-      }
-    }
-    onResize();
-    watch(toRef(props, 'enableSlot'), onResize);
-
     return {
       /* data */
+      data,
       allTypesRef,
       commitMerge,
-      data,
+      trackFilterControls,
       trackSettings,
       typeSettings,
       readOnlyMode,
+      styleManager,
       visible,
       /* methods */
       doToggleMerge,
-      onResize,
       swapTabs,
     };
   },
@@ -97,83 +86,80 @@ export default defineComponent({
 </script>
 
 <template>
-  <v-card
-    v-resize="onResize"
+  <StackedVirtualSidebarContainer
     :width="width"
-    tile
-    outlined
-    class="sidebar d-flex flex-column overflow-hidden"
-    style="z-index:1;"
+    :enable-slot="enableSlot"
   >
-    <v-btn
-      v-mousetrap="[
-        { bind: 'a', handler: swapTabs },
-        { bind: 'm', handler: doToggleMerge },
-        { bind: 'shift+m', handler: commitMerge },
-      ]"
-      small
-      icon
-      title="press `a`"
-      class="swap-button"
-      @click="swapTabs"
-    >
-      <v-icon>mdi-swap-horizontal</v-icon>
-    </v-btn>
-    <v-slide-x-transition>
-      <div
-        v-if="data.currentTab === 'tracks'"
-        key="type-tracks"
-        class="wrapper d-flex flex-column"
+    <template #default="{ topHeight, bottomHeight }">
+      <v-btn
+        v-mousetrap="[
+          { bind: 'a', handler: swapTabs },
+          { bind: 'm', handler: doToggleMerge },
+          { bind: 'shift+m', handler: commitMerge },
+        ]"
+        small
+        icon
+        title="press `a`"
+        class="swap-button"
+        @click="swapTabs"
       >
-        <TypeList
-          :show-empty-types="typeSettings.showEmptyTypes"
-          :height="data.typeHeight"
-          :width="width"
-          class="flex-shrink-1 flex-grow-1"
+        <v-icon>mdi-swap-horizontal</v-icon>
+      </v-btn>
+      <v-slide-x-transition>
+        <div
+          v-if="data.currentTab === 'tracks'"
+          key="type-tracks"
+          class="wrapper d-flex flex-column"
         >
-          <template slot="settings">
-            <TypeSettingsPanel
-              :all-types="allTypesRef"
-              @import-types="$emit('import-types',$event)"
-            />
-          </template>
-        </TypeList>
-        <slot v-if="enableSlot" />
-        <v-divider />
-        <TrackList
-          class="flex-grow-0 flex-shrink-0"
-          :new-track-mode="trackSettings.newTrackSettings.mode"
-          :new-track-type="trackSettings.newTrackSettings.type"
+          <FilterList
+            :show-empty-types="typeSettings.showEmptyTypes"
+            :height="topHeight"
+            :width="width"
+            :style-manager="styleManager"
+            :filter-controls="trackFilterControls"
+            class="flex-shrink-1 flex-grow-1"
+          >
+            <template #settings>
+              <TypeSettingsPanel
+                :all-types="allTypesRef"
+                @import-types="$emit('import-types',$event)"
+              />
+            </template>
+          </FilterList>
+          <slot v-if="enableSlot" />
+          <v-divider />
+          <TrackList
+            class="flex-grow-0 flex-shrink-0"
+            :new-track-mode="trackSettings.newTrackSettings.mode"
+            :new-track-type="trackSettings.newTrackSettings.type"
+            :lock-types="typeSettings.lockTypes"
+            :hotkeys-disabled="visible() || readOnlyMode"
+            :height="bottomHeight"
+            @track-seek="$emit('track-seek', $event)"
+          >
+            <template slot="settings">
+              <TrackSettingsPanel
+                :all-types="allTypesRef"
+              />
+            </template>
+          </TrackList>
+        </div>
+        <track-details-panel
+          v-else-if="data.currentTab === 'attributes'"
           :lock-types="typeSettings.lockTypes"
           :hotkeys-disabled="visible() || readOnlyMode"
-          :height="data.trackHeight"
+          :width="width"
           @track-seek="$emit('track-seek', $event)"
-        >
-          <template slot="settings">
-            <TrackSettingsPanel
-              :all-types="allTypesRef"
-            />
-          </template>
-        </TrackList>
-      </div>
-      <track-details-panel
-        v-else-if="data.currentTab === 'attributes'"
-        :lock-types="typeSettings.lockTypes"
-        :hotkeys-disabled="visible() || readOnlyMode"
-        :width="width"
-        @track-seek="$emit('track-seek', $event)"
-        @toggle-merge="doToggleMerge"
-        @back="swapTabs"
-        @commit-merge="commitMerge"
-      />
-    </v-slide-x-transition>
-  </v-card>
+          @toggle-merge="doToggleMerge"
+          @back="swapTabs"
+          @commit-merge="commitMerge"
+        />
+      </v-slide-x-transition>
+    </template>
+  </StackedVirtualSidebarContainer>
 </template>
 
 <style scoped>
-.sidebar {
-  max-height: calc(100vh - 112px);
-}
 
 .wrapper {
   /* height: 100%; */

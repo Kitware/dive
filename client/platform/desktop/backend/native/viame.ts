@@ -76,7 +76,7 @@ async function runPipeline(
     const groundTruthFileStream = fs.createWriteStream(
       npath.join(jobWorkDir, groundTruthFileName),
     );
-    const inputData = await common.loadJsonTracks(projectInfo.trackFileAbsPath);
+    const inputData = await common.loadAnnotationFile(projectInfo.trackFileAbsPath);
     await serialize(groundTruthFileStream, inputData, meta);
     groundTruthFileStream.end();
   }
@@ -246,7 +246,7 @@ async function train(
       const groundTruthFileStream = fs.createWriteStream(
         npath.join(jobWorkDir, groundTruthFileName),
       );
-      const inputData = await common.loadJsonTracks(projectInfo.trackFileAbsPath);
+      const inputData = await common.loadAnnotationFile(projectInfo.trackFileAbsPath);
       await serialize(groundTruthFileStream, inputData, meta);
       groundTruthFileStream.end();
       return groundTruthFileName;
@@ -336,7 +336,7 @@ async function train(
       } catch (err) {
         console.error(err);
         exitCode = 1;
-        bodyText.unshift(err.toString('utf-8'));
+        bodyText.unshift((err as Error).toString());
         fs.appendFile(joblog, bodyText[0], (error) => {
           if (error) throw error;
         });

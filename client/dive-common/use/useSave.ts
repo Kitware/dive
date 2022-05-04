@@ -4,6 +4,8 @@ import Track, { TrackId } from 'vue-media-annotator/track';
 import { Attribute } from 'vue-media-annotator/use/useAttributes';
 
 import { useApi, DatasetMetaMutable } from 'dive-common/apispec';
+import { AnnotationId } from 'vue-media-annotator/BaseAnnotation';
+import Group from 'vue-media-annotator/Group';
 
 function _updatePendingChangeMap<K, V>(
   key: K, value: V,
@@ -30,6 +32,8 @@ export default function useSave(
     delete: new Set<TrackId>(),
     attributeUpsert: new Map<string, Attribute>(),
     attributeDelete: new Set<string>(),
+    groupUpset: new Map<AnnotationId, Group>(),
+    groupDelete: new Set<AnnotationId>(),
     meta: 0,
   };
   const { saveDetections, saveMetadata, saveAttributes } = useApi();
@@ -41,10 +45,21 @@ export default function useSave(
       throw new Error('attempted to save in read only mode');
     }
     const promiseList: Promise<unknown>[] = [];
-    if (pendingChangeMap.upsert.size || pendingChangeMap.delete.size) {
+    if (
+      pendingChangeMap.upsert.size
+      || pendingChangeMap.delete.size
+      || pendingChangeMap.groupUpset.size
+      || pendingChangeMap.groupDelete.size
+    ) {
       promiseList.push(saveDetections(datasetId.value, {
-        upsert: Array.from(pendingChangeMap.upsert).map((pair) => pair[1].serialize()),
-        delete: Array.from(pendingChangeMap.delete),
+        tracks: {
+          upsert: Array.from(pendingChangeMap.upsert).map((pair) => pair[1].serialize()),
+          delete: Array.from(pendingChangeMap.delete),
+        },
+        groups: {
+          upsert: Array.from(pendingChangeMap.groupUpset).map((pair) => pair[1].serialize()),
+          delete: Array.from(pendingChangeMap.groupDelete),
+        },
       }).then(() => {
         pendingChangeMap.upsert.clear();
         pendingChangeMap.delete.clear();
@@ -73,10 +88,12 @@ export default function useSave(
       action,
       track,
       attribute,
+      group,
     }: {
       action: 'upsert' | 'delete' | 'meta';
       track?: Track;
       attribute?: Attribute;
+        group?: Group;
     } = { action: 'meta' },
   ) {
     if (!readonlyMode.value) {
@@ -84,7 +101,11 @@ export default function useSave(
         pendingChangeMap.meta += 1;
       } else if (track !== undefined) {
         _updatePendingChangeMap(
-          track.trackId, track, action, pendingChangeMap.upsert, pendingChangeMap.delete,
+          track.trackId,
+          track,
+          action,
+          pendingChangeMap.upsert,
+          pendingChangeMap.delete,
         );
       } else if (attribute !== undefined) {
         _updatePendingChangeMap(
@@ -93,6 +114,14 @@ export default function useSave(
           action,
           pendingChangeMap.attributeUpsert,
           pendingChangeMap.attributeDelete,
+        );
+      } else if (group !== undefined) {
+        _updatePendingChangeMap(
+          group.id,
+          group,
+          action,
+          pendingChangeMap.groupUpset,
+          pendingChangeMap.groupDelete,
         );
       } else {
         throw new Error(`Arguments inconsistent with pending change type: ${action} cannot be performed without additional arguments`);
@@ -106,6 +135,8 @@ export default function useSave(
     pendingChangeMap.delete.clear();
     pendingChangeMap.attributeUpsert.clear();
     pendingChangeMap.attributeDelete.clear();
+    pendingChangeMap.groupUpset.clear();
+    pendingChangeMap.groupDelete.clear();
     pendingChangeMap.meta = 0;
     pendingSaveCount.value = 0;
   }

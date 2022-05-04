@@ -1,8 +1,9 @@
 /// <reference types="jest" />
 import Vue from 'vue';
 import CompositionApi from '@vue/composition-api';
-import Track, { ConfidencePair, TrackData } from './track';
+import Track, { TrackData } from './track';
 import { RectBounds } from './utils';
+import { ConfidencePair } from './BaseAnnotation';
 
 Vue.use(CompositionApi);
 
@@ -24,7 +25,7 @@ describe('Track', () => {
         },
       ],
       meta: {},
-      trackId: 1,
+      id: 1,
     };
     const t = Track.fromJSON(itrack);
     expect(t).toBeInstanceOf(Track);
@@ -108,7 +109,7 @@ describe('Track', () => {
         },
       ],
       meta: {},
-      trackId: 1,
+      id: 1,
     };
     const t = Track.fromJSON(itrack);
     expect(t.getType()).toEqual(['foo', 1]);
@@ -164,7 +165,7 @@ describe('Track', () => {
         },
       ],
       meta: {},
-      trackId: 0,
+      id: 0,
     };
     const track1tmpl: TrackData = {
       begin: 2,
@@ -191,7 +192,7 @@ describe('Track', () => {
         },
       ],
       meta: {},
-      trackId: 0,
+      id: 0,
     };
     const track0 = Track.fromJSON(track0tmpl);
     track0.merge([Track.fromJSON(track1tmpl)]);
@@ -226,7 +227,7 @@ describe('Track', () => {
         },
       ],
       meta: {},
-      trackId: 1,
+      id: 1,
     };
     const t = Track.fromJSON(itrack);
     t.toggleInterpolation(9);
@@ -282,29 +283,29 @@ describe('Track', () => {
   });
 });
 
-describe('trackExceedsThreshold', () => {
+describe('exceedsThreshold', () => {
   it('correctly determine if a confidence pair set exceeds any thresholds', () => {
     const pairs: ConfidencePair[] = [
       ['foo', 0.05],
       ['bar', 0.1],
       ['baz', 0.1000001],
     ];
-    expect(Track.trackExceedsThreshold(pairs, {
+    expect(Track.exceedsThreshold(pairs, {
       default: 0.1,
     })).toEqual([
       ['bar', 0.1],
       ['baz', 0.1000001],
     ]);
-    expect(Track.trackExceedsThreshold(pairs, {
+    expect(Track.exceedsThreshold(pairs, {
       default: 2,
     })).toEqual([]);
-    expect(Track.trackExceedsThreshold(pairs, {
+    expect(Track.exceedsThreshold(pairs, {
       default: 0.1,
       baz: 0.2,
     })).toEqual([
       ['bar', 0.1],
     ]);
-    expect(Track.trackExceedsThreshold(pairs, {
+    expect(Track.exceedsThreshold(pairs, {
       bar: 0.2,
     })).toEqual([
       ['foo', 0.05],
@@ -312,8 +313,8 @@ describe('trackExceedsThreshold', () => {
     ]);
   });
   it('other edge cases', () => {
-    expect(Track.trackExceedsThreshold([], {})).toEqual([]);
-    expect(Track.trackExceedsThreshold([['foo', 1]], {})).toEqual([['foo', 1]]);
-    expect(Track.trackExceedsThreshold([['foo', 0]], {})).toEqual([['foo', 0]]);
+    expect(Track.exceedsThreshold([], {})).toEqual([]);
+    expect(Track.exceedsThreshold([['foo', 1]], {})).toEqual([['foo', 1]]);
+    expect(Track.exceedsThreshold([['foo', 0]], {})).toEqual([['foo', 0]]);
   });
 });

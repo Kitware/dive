@@ -3,7 +3,7 @@ import {
   computed, defineComponent, ref, shallowRef, toRef, watch, PropType, Ref,
 } from '@vue/composition-api';
 import {
-  usePendingSaveCount, useHandler, useCheckedTypes, useRevisionId,
+  usePendingSaveCount, useHandler, useTrackFilters, useRevisionId,
 } from 'vue-media-annotator/provides';
 import AutosavePrompt from 'dive-common/components/AutosavePrompt.vue';
 import { useRequest } from 'dive-common/use';
@@ -49,7 +49,7 @@ export default defineComponent({
     if (props.blockOnUnsaved) {
       save = useHandler().save;
       pendingSaveCount = usePendingSaveCount();
-      checkedTypes = useCheckedTypes();
+      checkedTypes = useTrackFilters().checkedTypes;
       revisionId = useRevisionId();
     }
 

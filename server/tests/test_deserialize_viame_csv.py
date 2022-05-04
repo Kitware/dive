@@ -27,7 +27,7 @@ old_tuple: List[Tuple[list, dict, dict]] = [
         ],
         {
             "0": {
-                "trackId": 0,
+                "id": 0,
                 "attributes": {},
                 "confidencePairs": [["typestring", 0.55]],
                 "features": [
@@ -45,7 +45,7 @@ old_tuple: List[Tuple[list, dict, dict]] = [
                 "end": 1,
             },
             "1": {
-                "trackId": 1,
+                "id": 1,
                 "attributes": {},
                 "confidencePairs": [["type2", 1.0]],
                 "features": [
@@ -58,7 +58,7 @@ old_tuple: List[Tuple[list, dict, dict]] = [
                 "end": 0,
             },
             "2": {
-                "trackId": 2,
+                "id": 2,
                 "attributes": {},
                 "confidencePairs": [["type3", 0.765]],
                 "features": [
@@ -120,7 +120,7 @@ old_tuple: List[Tuple[list, dict, dict]] = [
                 "end": 3,
             },
             "3": {
-                "trackId": 3,
+                "id": 3,
                 "attributes": {},
                 "confidencePairs": [["type1", 0.89], ["type2", 0.65]],
                 "features": [
@@ -133,7 +133,7 @@ old_tuple: List[Tuple[list, dict, dict]] = [
                 "end": 4,
             },
             "4": {
-                "trackId": 4,
+                "id": 4,
                 "attributes": {},
                 "confidencePairs": [["type1", 0.89], ["type2", 0.65]],
                 "features": [
@@ -167,7 +167,7 @@ old_tuple: List[Tuple[list, dict, dict]] = [
                 "end": 5,
             },
             "5": {
-                "trackId": 5,
+                "id": 5,
                 "attributes": {"booleanAttr": True},
                 "confidencePairs": [["type1", 0.89]],
                 "features": [
@@ -181,7 +181,7 @@ old_tuple: List[Tuple[list, dict, dict]] = [
                 "end": 6,
             },
             "6": {
-                "trackId": 6,
+                "id": 6,
                 "attributes": {},
                 "confidencePairs": [["type1", 0.89], ["type2", 0.65], ["type3", 0.24]],
                 "features": [
@@ -221,7 +221,7 @@ old_tuple: List[Tuple[list, dict, dict]] = [
         ],
         {
             "0": {
-                "trackId": 0,
+                "id": 0,
                 "attributes": {},
                 "confidencePairs": [["typestring", 1.0]],
                 "features": [
@@ -264,7 +264,7 @@ old_tuple: List[Tuple[list, dict, dict]] = [
         ],
         {
             "0": {
-                "trackId": 0,
+                "id": 0,
                 "attributes": {"booleanAttr": True},
                 "confidencePairs": [["typestring", 1.0]],
                 "features": [
@@ -316,7 +316,7 @@ old_tuple: List[Tuple[list, dict, dict]] = [
                 "end": 5,
             },
             "1": {
-                "trackId": 1,
+                "id": 1,
                 "attributes": {"booleanAttr": True},
                 "confidencePairs": [["typestring", 1.0]],
                 "features": [
@@ -400,7 +400,7 @@ old_tuple: List[Tuple[list, dict, dict]] = [
         ],
         {
             "0": {
-                "trackId": 0,
+                "id": 0,
                 "attributes": {},
                 "confidencePairs": [["unknown", 1.0]],
                 "features": [
@@ -417,7 +417,7 @@ old_tuple: List[Tuple[list, dict, dict]] = [
                 "end": 1,
             },
             "1": {
-                "trackId": 1,
+                "id": 1,
                 "attributes": {},
                 "confidencePairs": [["unknown", 0.8]],
                 "features": [

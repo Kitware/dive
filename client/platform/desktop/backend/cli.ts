@@ -18,14 +18,14 @@ import CompositionApi from '@vue/composition-api';
 import Track from 'vue-media-annotator/track';
 
 import { DesktopJobUpdate, RunPipeline, RunTraining } from 'platform/desktop/constants';
-import { loadJsonTracks, loadJsonMetadata } from 'platform/desktop/backend/native/common';
+import { loadAnnotationFile, loadJsonMetadata } from 'platform/desktop/backend/native/common';
 import { RectBounds } from 'vue-media-annotator/utils';
-import { MultiTrackRecord } from 'dive-common/apispec';
 import linux from './native/linux';
 import win32 from './native/windows';
 import * as common from './native/common';
 import { parseFile, serialize } from './serializers/viame';
 import { exportNist, loadNistFile } from './serializers/nist';
+import KPF from './serializers/kpf';
 
 function getCurrentPlatform() {
   const platform = OS.platform() === 'win32' ? win32 : linux;
@@ -56,30 +56,25 @@ async function parseViameFile(file: string) {
 
 async function parseJsonFile(filepath: string, metapath: string) {
   await Promise.all([
-    loadJsonTracks(filepath),
+    loadAnnotationFile(filepath),
     loadJsonMetadata(metapath),
   ]).then(([input, meta]) => serialize(echoStream(), input, meta));
 }
 
 async function parseNistFile(filepath: string, bounds: RectBounds) {
-  const trackData = await loadNistFile(filepath, bounds);
-  const trackStructure: MultiTrackRecord = {};
-  for (let i = 0; i < trackData.tracks.length; i += 1) {
-    const track = trackData.tracks[i];
-    trackStructure[track.trackId] = track;
-  }
-  stdout.write(JSON.stringify(trackStructure));
+  const data = await loadNistFile(filepath, bounds);
+  stdout.write(JSON.stringify(data));
 }
 
 async function convertJSONtoNist(filepath: string, meta: string) {
   const metaData = await loadJsonMetadata(meta);
-  const trackData = await loadJsonTracks(filepath);
+  const data = await loadAnnotationFile(filepath);
 
   const videoFile = metaData.originalVideoFile;
   if (!videoFile) {
     throw new Error(`No video file exists for metadata ${meta}`);
   }
-  const output = await exportNist(trackData, videoFile);
+  const output = await exportNist(data, videoFile);
   stdout.write(JSON.stringify(output));
 }
 
@@ -110,6 +105,21 @@ const { argv } = yargs
       type: 'string',
     });
     yargs.demandOption(['file', 'meta']);
+  })
+  .command('kpf2json [activityFile] [geometryFile] [typeFile]', 'Convert KPF to JSON', (y) => {
+    y.positional('activityFile', {
+      description: 'Activity File',
+      type: 'string',
+    });
+    y.positional('geometryFile', {
+      description: 'Geometry File',
+      type: 'string',
+    });
+    y.positional('typeFile', {
+      description: 'Type File',
+      type: 'string',
+    });
+    yargs.demandOption(['activityFile', 'geometryFile', 'typeFile']);
   })
   .command('nist2json [file] [video]', 'Convert NIST to JSON', () => {
     yargs.positional('file', {
@@ -191,6 +201,19 @@ if (argv._.includes('viame2json')) {
   parseViameFile(argv.file as string);
 } else if (argv._.includes('json2viame')) {
   parseJsonFile(argv.file as string, argv.meta as string);
+} else if (argv._.includes('kpf2json')) {
+  const run = async () => {
+    const kpf = await KPF.parse(
+      argv.activityFile as string,
+      argv.geometryFile as string,
+      argv.typeFile as string,
+    );
+    stdout.write(JSON.stringify({
+      version: 2,
+      ...kpf,
+    }));
+  };
+  run();
 } else if (argv._.includes('nist2json')) {
   const settings = getSettings();
   const run = async () => {
@@ -261,7 +284,7 @@ if (argv._.includes('viame2json')) {
       try {
         const proj = await common.getValidatedProjectDir(settings, id);
         const meta = await common.loadJsonMetadata(proj.metaFileAbsPath);
-        const tracks = await common.loadJsonTracks(proj.trackFileAbsPath);
+        const tracks = await common.loadAnnotationFile(proj.trackFileAbsPath);
         const tracklist = Object.values(tracks);
         const hydrated = tracklist.map((t) => Track.fromJSON(t));
         const labels = new Set<string>();

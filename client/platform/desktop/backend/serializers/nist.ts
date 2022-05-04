@@ -1,11 +1,13 @@
 
-import { MultiTrackRecord } from 'dive-common/apispec';
+import { AnnotationSchema } from 'dive-common/apispec';
 import fs from 'fs-extra';
+import { keyBy } from 'lodash';
 import { AnnotationFileData } from 'platform/desktop/backend/serializers/viame';
+import { StringKeyObject } from 'vue-media-annotator/BaseAnnotation';
 
 
 import {
-  TrackData, Feature, StringKeyObject,
+  TrackData, Feature,
 } from 'vue-media-annotator/track';
 import { RectBounds } from 'vue-media-annotator/utils';
 
@@ -13,12 +15,11 @@ import { RectBounds } from 'vue-media-annotator/utils';
 interface TrackJSON {
   begin: number;
   end: number;
-  trackId: number;
+  id: number;
   meta: StringKeyObject;
   attributes: StringKeyObject;
   confidencePairs: [string, number][];
   features: Feature[];
-
 }
 
 type ActivityLocalization = Record<string, Record<string, number>>;
@@ -83,7 +84,7 @@ function loadObjects(
         const track: TrackJSON = {
           begin: Infinity,
           end: -Infinity,
-          trackId: trackCount + count,
+          id: trackCount + count,
           meta: {},
           attributes: {
             activity: activity.activity,
@@ -139,7 +140,7 @@ function loadActivity(
       const track: TrackJSON = {
         begin: Infinity,
         end: -Infinity,
-        trackId,
+        id: trackId,
         meta: {},
         attributes: {},
         confidencePairs: [[activity.activity, activity.presenceConf]],
@@ -208,7 +209,7 @@ function convertNisttoJSON(
   nistFile: NistFile,
   filename: string,
   fullFrameBounds: RectBounds = [0, 0, 1920, 1080],
-) {
+): AnnotationFileData {
   const activityTypePos: Record<string, number> = {};
   let uniqueActivities = 0;
   if (!confirmNistFormat(nistFile)) {
@@ -218,7 +219,7 @@ function convertNisttoJSON(
     throw new Error(`Nist File ${filename} includes multiple files: ${nistFile.filesProcessed.join(',')}`);
   }
   if (nistFile.filesProcessed.length === 0) {
-    return { tracks: [] }; // Return empty object if file was empty
+    return { tracks: {}, groups: {} }; // Return empty object if file was empty
   }
   const baseFilename = nistFile.filesProcessed[0];
   // Now lets process the activities to make sure they are correct
@@ -237,7 +238,8 @@ function convertNisttoJSON(
     }
   }
   return {
-    tracks: trackData,
+    tracks: keyBy(trackData, 'id'),
+    groups: {},
   };
 }
 
@@ -248,7 +250,10 @@ async function loadNistFile(
   let nistJson;
   const rawBuffer = await fs.readFile(filename, 'utf-8');
   if (rawBuffer.length === 0) {
-    return { tracks: [] }; // Return empty object if file was empty
+    return {
+      tracks: {},
+      groups: {},
+    };
   }
   try {
     nistJson = JSON.parse(rawBuffer);
@@ -335,7 +340,7 @@ function createActivity(
 }
 
 async function exportNist(
-  trackData: MultiTrackRecord,
+  annotations: AnnotationSchema,
   videoFileName: string,
 ) {
   const status: Record<string, {status: 'success' | 'fail'; message: string}> = {};
@@ -351,12 +356,12 @@ async function exportNist(
     activities: [],
   };
   const activitiesMap: Record<string, NistActivity> = {};
-  Object.values(trackData).forEach((track) => {
+  Object.values(annotations.tracks).forEach((track) => {
     if (track.attributes.isActivity && track.attributes.activityID !== undefined) {
       activitiesMap[track.attributes.activityID as number] = createActivity(track, videoFileName);
     }
   });
-  Object.values(trackData).forEach((track) => {
+  Object.values(annotations.tracks).forEach((track) => {
     if (track.attributes.isObject && track.attributes.activityID !== undefined) {
       const currrentActivity = activitiesMap[track.attributes.activityID as number];
       if (!currrentActivity.objects) {

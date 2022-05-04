@@ -54,7 +54,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
 
   type: EditAnnotationTypes;
 
-  trackType?: string;
+  styleType?: string;
 
   selectedKey?: string;
 
@@ -379,8 +379,8 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
             },
           };
 
-          if (track.trackType) {
-            [this.trackType] = track.trackType;
+          if (track.styleType) {
+            [this.styleType] = track.styleType;
           }
 
           this.featureLayer.geojson(geojsonFeature);
@@ -517,8 +517,8 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
         ...baseStyle,
         fill: false,
         strokeColor: () => {
-          if (this.trackType) {
-            return this.typeStyling.value.color(this.trackType);
+          if (this.styleType) {
+            return this.typeStyling.value.color(this.styleType);
           }
           return this.stateStyling.selected.color;
         },
@@ -571,8 +571,8 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
           if (index === this.selectedHandleIndex) {
             return '#FF0000';
           }
-          if (this.trackType) {
-            return this.typeStyling.value.color(this.trackType);
+          if (this.styleType) {
+            return this.typeStyling.value.color(this.styleType);
           }
           return this.typeStyling.value.color('');
         },
@@ -580,8 +580,8 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
           if (index === this.selectedHandleIndex) {
             return '#FF0000';
           }
-          if (this.trackType) {
-            return this.typeStyling.value.color(this.trackType);
+          if (this.styleType) {
+            return this.typeStyling.value.color(this.styleType);
           }
           return this.typeStyling.value.color('');
         },

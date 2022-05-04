@@ -1,5 +1,5 @@
 <script lang="ts">
-import { defineComponent } from '@vue/composition-api';
+import { computed, defineComponent } from '@vue/composition-api';
 import context from 'dive-common/store/context';
 
 export default defineComponent({
@@ -10,7 +10,11 @@ export default defineComponent({
     },
   },
   setup() {
-    return { context };
+    const options = computed(() => Object.entries(context.componentMap).map(([value, entry]) => ({
+      text: entry.description,
+      value,
+    })));
+    return { context, options };
   },
 });
 </script>
@@ -25,19 +29,29 @@ export default defineComponent({
       class="d-flex flex-column sidebar"
       style="z-index:1;"
     >
-      <v-card-title class="py-1">
-        {{ context.componentMap[context.state.active].description }}
+      <div class="d-flex align-center mx-1">
+        <v-select
+          :items="options"
+          :value="context.state.active"
+          dense
+          solo
+          flat
+          hide-details
+          style="max-width: 240px;"
+          @change="context.toggle($event)"
+        />
         <v-spacer />
         <v-btn
           icon
           color="white"
+          class="shrink"
           @click="context.toggle(null)"
         >
           <v-icon>
             mdi-close
           </v-icon>
         </v-btn>
-      </v-card-title>
+      </div>
       <div class="sidebar-content">
         <slot v-bind="{ name: context.state.active }" />
       </div>

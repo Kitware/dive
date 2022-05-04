@@ -3,7 +3,7 @@ import Vue from 'vue';
 import { Ref } from '@vue/composition-api';
 
 import { MediaController } from '../components/annotators/mediaControllerType';
-import { StateStyles, TypeStyling } from '../use/useStyling';
+import { StateStyles, TypeStyling } from '../StyleManager';
 import { FrameDataTrack } from './LayerTypes';
 
 // eslint-disable-next-line max-len

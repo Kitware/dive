@@ -245,7 +245,8 @@ def export_datasets_zipstream(
 
             for data in z.addFile(makeMetajson, Path(f'{zip_path}meta.json')):
                 yield data
-                gen, mediaFolder, mediaRegex = makeAnnotationAndMedia(dsFolder)
+
+            gen, mediaFolder, mediaRegex = makeAnnotationAndMedia(dsFolder)
             if includeMedia:
                 # Add media
                 for item in Folder().childItems(
