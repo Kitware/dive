@@ -29,43 +29,70 @@ export default Vue.extend({
   },
 
   methods: {
-    deleteSelected() {
+    deleteHandle() {
       if (this.disabled) {
         throw new Error('Cannot delete while disabled!');
       }
       if (this.selectedFeatureHandle >= 0) {
         this.$emit('delete-point');
-      } else {
-        this.$emit('delete-annotation');
       }
+    },
+    deleteAnnotation() {
+      if (this.disabled) {
+        throw new Error('Cannot delete while disabled!');
+      }
+      this.$emit('delete-annotation');
     },
   },
 });
 </script>
 
 <template>
-  <span class="mx-1">
+  <div class="d-flex flex-row">
+    <v-divider
+      vertical
+      class="mx-2"
+    />
     <v-btn
       v-if="!disabled"
       color="error"
       depressed
       small
-      @click="deleteSelected"
+      class="mr-2"
+      @click="deleteAnnotation"
     >
-      <pre class="mr-1 text-body-2">del</pre>
-      <span v-if="selectedFeatureHandle >= 0">
-        point {{ selectedFeatureHandle }}
-      </span>
-      <span v-else-if="editingMode">
-        {{ editingMode }}
-      </span>
-      <span v-else>unselected</span>
       <v-icon
         small
-        class="ml-2"
+        class="mr-2"
       >
         mdi-delete
       </v-icon>
+      <v-icon
+        v-if="editingMode === 'Polygon'"
+      >
+        mdi-vector-polygon
+      </v-icon>
+      <v-icon v-else>
+        mdi-vector-line
+      </v-icon>
     </v-btn>
-  </span>
+    <v-btn
+      v-if="!disabled && selectedFeatureHandle >= 0"
+      color="error"
+      depressed
+      small
+      @click="deleteHandle"
+    >
+      <v-icon
+        small
+        class="mr-1"
+      >
+        mdi-delete
+      </v-icon>
+      <v-icon class="pr-1">
+        mdi-circle-outline
+      </v-icon>
+      {{ selectedFeatureHandle }}
+    </v-btn>
+  </div>
 </template>

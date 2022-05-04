@@ -88,6 +88,9 @@ export default {
             {
               name: 'Add Head/Tail', icon: 'mdi-keyboard', actions: ['H Key - Head', 'T Key - Tail'], description: 'While a track is selected add head/tail annotations',
             },
+            {
+              name: 'Delete control point', icon: 'mdi-keyboard', actions: ['Shift + p'], description: 'Delete selected control point',
+            },
           ],
         },
       ],

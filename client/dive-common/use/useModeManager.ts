@@ -138,7 +138,6 @@ export default function useModeManager({
   }
 
   function handleSelectFeatureHandle(i: number, key = '') {
-    console.log('selectFeatureHandle', i);
     if (i !== selectedFeatureHandle.value) {
       selectedFeatureHandle.value = i;
     } else {
@@ -164,6 +163,8 @@ export default function useModeManager({
     }
     /* Do not allow editing when merge is in progres */
     selectTrack(trackId, edit && !mergeInProgress.value);
+
+    handleSelectFeatureHandle(-1);
   }
 
   //Handles deselection or hitting escape including while editing
@@ -378,12 +379,10 @@ export default function useModeManager({
               selectedKey.value,
               annotationModes.editing,
             );
+            handleSelectFeatureHandle(Math.max(selectedFeatureHandle.value - 1, 0));
           }
         });
       }
-      handleSelectFeatureHandle(Math.max(selectedFeatureHandle.value - 1, 0));
-    } else {
-      handleSelectFeatureHandle(-1);
     }
   }
 
@@ -477,6 +476,7 @@ export default function useModeManager({
           r.deactivate();
         }
       });
+      handleSelectFeatureHandle(-1);
     }
   }
 

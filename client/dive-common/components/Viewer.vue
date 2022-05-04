@@ -638,6 +638,7 @@ export default defineComponent({
           v-mousetrap="[
             { bind: 'n', handler: () => !readonlyState && handler.trackAdd() },
             { bind: 'r', handler: () => mediaController.resetZoom() },
+            { bind: 'shift+p', handler: () => handler.removePoint() },
             { bind: 'esc', handler: () => handler.trackAbort() },
           ]"
           v-bind="{ imageData, videoUrl, updateTime, frameRate,
