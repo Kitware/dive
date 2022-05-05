@@ -9,6 +9,7 @@ import {
   useGroupStyleManager,
   useSelectedGroupId,
   useGroupFilterControls,
+  useSelectedTrackId,
 } from '../provides';
 import GroupItem from './GroupItem.vue';
 
@@ -29,6 +30,7 @@ export default defineComponent({
     // const store = useGroupStore();
     const typeStylingRef = useGroupStyleManager().typeStyling;
     const selectedId = useSelectedGroupId();
+    const selectedTrack = useSelectedTrackId();
     const groupFilters = useGroupFilterControls();
 
     const data = reactive({
@@ -39,10 +41,8 @@ export default defineComponent({
     const virtualListItems = computed(() => {
       const filteredGroups = groupFilters.filteredAnnotations.value;
       const checkedTrackIds = groupFilters.checkedIDs.value;
-      const selectedGroupId = selectedId.value;
       return filteredGroups.map((filtered) => ({
         filteredGroup: filtered,
-        selectedGroupId,
         checkedTrackIds,
       }));
     });
@@ -52,7 +52,8 @@ export default defineComponent({
       return {
         group: item.filteredGroup.annotation,
         color: typeStylingRef.value.color(confidencePair[0]),
-        selected: item.filteredGroup.annotation.id === item.selectedGroupId,
+        selected: item.filteredGroup.annotation.id === selectedId.value,
+        selectedTrackId: selectedTrack.value,
         inputValue: item.checkedTrackIds.includes(item.filteredGroup.annotation.id),
       };
     }
@@ -60,6 +61,7 @@ export default defineComponent({
     return {
       data,
       getItemProps,
+      groupFilters,
       readOnlyMode,
       virtualListItems,
       virtualList,
@@ -77,6 +79,15 @@ export default defineComponent({
         </v-row>
       </v-container>
     </v-subheader>
+    <datalist id="allGroupTypesOptions">
+      <option
+        v-for="type in groupFilters.allTypes.value"
+        :key="type"
+        :value="type"
+      >
+        {{ type }}
+      </option>
+    </datalist>
     <v-virtual-scroll
       ref="virtualList"
       class="groups"
@@ -93,3 +104,10 @@ export default defineComponent({
     </v-virtual-scroll>
   </div>
 </template>
+
+<style lang="scss" scoped>
+.groups {
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+</style>

@@ -1,9 +1,16 @@
 <script lang="ts">
-import { defineComponent, PropType } from '@vue/composition-api';
-import { useGroupFilterControls } from 'vue-media-annotator/provides';
+import { computed, defineComponent, PropType } from '@vue/composition-api';
+
+import { useGroupFilterControls, useHandler } from '../provides';
 import Group from '../Group';
 
+import TypePicker from './TypePicker.vue';
+
 export default defineComponent({
+  name: 'GroupItem',
+
+  components: { TypePicker },
+
   props: {
     group: {
       type: Object as PropType<Group>,
@@ -17,24 +24,51 @@ export default defineComponent({
       type: Boolean,
       required: true,
     },
+    selectedTrackId: {
+      type: [Number, null] as PropType<number | null>,
+      default: null,
+    },
     inputValue: {
       type: Boolean,
       required: true,
     },
   },
 
-  setup() {
+  setup(props, { root }) {
+    const vuetify = root.$vuetify;
     const groupFilters = useGroupFilterControls();
+    const handler = useHandler();
+
+    const style = computed(() => {
+      if (props.selected) {
+        return {
+          'background-color': `${vuetify.theme.themes.dark.accentBackground}`,
+        };
+      }
+      if (props.selectedTrackId && props.selectedTrackId in props.group.members) {
+        return {
+          'background-color': '#3a3a3a',
+        };
+      }
+      return {};
+    });
+
     return {
+      style,
       groupFilters,
+      handler,
     };
   },
 });
 </script>
 
 <template>
-  <div class="mx-2">
+  <div
+    class="px-1"
+    :style="style"
+  >
     <v-row
+      class="pt-2"
       no-gutters
     >
       <v-checkbox
@@ -45,14 +79,30 @@ export default defineComponent({
         :color="color"
         @change="groupFilters.updateCheckedId(group.id, $event)"
       />
-      <pre>{{ group.id }}</pre>
-      <v-spacer />
-      <input
-        type="text"
-        class="input-box freeform-input"
-        :value="group.getType()[0]"
-        disabled
+      <v-tooltip
+        open-delay="200"
+        bottom
+        max-width="200"
+        :disabled="group.id.toString().length < 8"
       >
+        <template #activator="{ on }">
+          <div
+            class="trackNumber pl-0 pr-2"
+            v-on="on"
+            @click.self="handler.trackSeek(parseInt(Object.keys(group.members)[0], 10))"
+          >
+            {{ group.id }}
+          </div>
+        </template>
+        <span> {{ group.id }} </span>
+      </v-tooltip>
+      <v-spacer />
+      <TypePicker
+        :value="group.getType()[0]"
+        :all-types="groupFilters.allTypes.value"
+        data-list-source="allGroupTypesOptions"
+        @input="group.setType($event)"
+      />
     </v-row>
     <v-row
       no-gutters

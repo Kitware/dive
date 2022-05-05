@@ -113,6 +113,23 @@ export default function useModeManager({
     } else {
       editingTrack.value = trackId !== null && edit;
     }
+
+    // /**
+    //  * If track has groups, select those as well
+    //  */
+    // if (trackId !== null) {
+    //   const groups = groupStore.trackMap.get(trackId);
+    //   if (groups) {
+    //     const val = groups.values().next();
+    //     if (val.value !== undefined) {
+    //       selectedGroupId.value = val.value;
+    //     }
+    //   } else {
+    //     selectedGroupId.value = null;
+    //   }
+    // } else {
+    //   selectedGroupId.value = null;
+    // }
   }
 
   /** end  */
@@ -241,12 +258,6 @@ export default function useModeManager({
     selectTrack(newTrackId, true);
     creating = true;
     return newTrackId;
-  }
-
-  function handleTrackTypeChange(trackId: TrackId | null, value: string) {
-    if (trackId !== null) {
-      trackStore.get(trackId).setType(value);
-    }
   }
 
   function newTrackSettingsAfterLogic(addedTrack: Track) {
@@ -595,7 +606,6 @@ export default function useModeManager({
       trackSeek: handleTrackClick,
       trackSelect: handleSelectTrack,
       trackSelectNext: handleSelectNext,
-      trackTypeChange: handleTrackTypeChange,
       updateRectBounds: handleUpdateRectBounds,
       updateGeoJSON: handleUpdateGeoJSON,
       removeTrack: handleRemoveTrack,

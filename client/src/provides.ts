@@ -92,8 +92,6 @@ export interface Handler {
   trackSelectNext(delta: number): void;
   /* split track */
   trackSplit(AnnotationId: AnnotationId | null, frame: number): void;
-  /* Change tracks difinitive type */
-  trackTypeChange(AnnotationId: AnnotationId | null, value: string): void;
   /* Add new empty track and select it */
   trackAdd(): AnnotationId;
   /* update Rectangle bounds for track */
@@ -152,7 +150,6 @@ function dummyHandler(handle: (name: string, args: unknown[]) => void): Handler 
     trackSelect(...args) { handle('trackSelect', args); },
     trackSelectNext(...args) { handle('trackSelectNext', args); },
     trackSplit(...args) { handle('trackSplit', args); },
-    trackTypeChange(...args) { handle('trackTypeChange', args); },
     trackAdd(...args) { handle('trackAdd', args); return 0; },
     updateRectBounds(...args) { handle('updateRectBounds', args); },
     updateGeoJSON(...args) { handle('updateGeoJSON', args); },
