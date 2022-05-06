@@ -24,6 +24,10 @@ export default defineComponent({
       type: Boolean,
       required: true,
     },
+    secondarySelected: {
+      type: Boolean,
+      required: true,
+    },
     selectedTrackId: {
       type: [Number, null] as PropType<number | null>,
       default: null,
@@ -45,7 +49,7 @@ export default defineComponent({
           'background-color': `${vuetify.theme.themes.dark.accentBackground}`,
         };
       }
-      if (props.selectedTrackId && props.selectedTrackId in props.group.members) {
+      if (props.secondarySelected) {
         return {
           'background-color': '#3a3a3a',
         };
@@ -89,7 +93,7 @@ export default defineComponent({
           <div
             class="trackNumber pl-0 pr-2"
             v-on="on"
-            @click.self="handler.trackSeek(parseInt(Object.keys(group.members)[0], 10))"
+            @click.self="handler.groupEdit(group.id)"
           >
             {{ group.id }}
           </div>

@@ -16,6 +16,7 @@ import {
   useTime,
   useReadOnlyMode,
   useTrackStyleManager,
+  useMultiSelectList,
 } from '../provides';
 import TrackItem from './TrackItem.vue';
 
@@ -62,6 +63,7 @@ export default defineComponent({
     const filteredTracksRef = trackFilters.filteredAnnotations;
     const typeStylingRef = useTrackStyleManager().typeStyling;
     const { frame: frameRef } = useTime();
+    const multiSelectList = useMultiSelectList();
     const {
       trackSelectNext, trackSplit, removeTrack, trackAdd,
     } = useHandler();
@@ -74,6 +76,7 @@ export default defineComponent({
 
     const virtualListItems = computed(() => {
       const selectedTrackId = selectedTrackIdRef.value;
+      const multiSelect = multiSelectList.value;
       const checkedTrackIds = checkedTrackIdsRef.value;
       const editingMode = editingModeRef.value;
       const allTypes = allTypesRef.value;
@@ -81,6 +84,7 @@ export default defineComponent({
         filteredTrack: filtered,
         selectedTrackId,
         checkedTrackIds,
+        multiSelect,
         editingTrack: !!editingMode,
         allTypes,
       }));
@@ -112,7 +116,11 @@ export default defineComponent({
     }
 
     function scrollToSelectedTrack(): void {
-      Vue.nextTick(() => scrollToTrack(selectedTrackIdRef.value));
+      if (selectedTrackIdRef.value !== null) {
+        Vue.nextTick(() => scrollToTrack(selectedTrackIdRef.value));
+      } else if (multiSelectList.value.length >= 1) {
+        Vue.nextTick(() => scrollToTrack(multiSelectList.value[0]));
+      }
     }
 
     // If we mount with selected we scroll to it automatically
@@ -144,6 +152,7 @@ export default defineComponent({
         track: item.filteredTrack.annotation,
         inputValue: item.checkedTrackIds.includes(item.filteredTrack.annotation.id),
         selected,
+        secondarySelected: item.multiSelect.includes(item.filteredTrack.annotation.id),
         editing: selected && item.editingTrack,
         color: typeStylingRef.value.color(trackType),
         types: item.allTypes,
@@ -152,7 +161,7 @@ export default defineComponent({
 
     watch(selectedTrackIdRef, scrollToTrack);
     watch(filteredTracksRef, scrollToSelectedTrack);
-
+    watch(multiSelectList, scrollToSelectedTrack);
 
     async function multiDelete() {
       const tracksDisplayed: number[] = [];

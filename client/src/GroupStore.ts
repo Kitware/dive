@@ -51,6 +51,7 @@ export default class GroupStore extends BaseAnnotationStore<Group> {
       members: memberMap,
     });
     this.insert(group);
+    return group;
   }
 
   remove(annotationId: number, disableNotifications = false): void {

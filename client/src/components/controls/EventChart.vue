@@ -112,7 +112,7 @@ export default Vue.extend({
                 selected: event.selected,
                 name: event.name,
                 type: event.type,
-                trackId: event.trackId,
+                id: event.id,
                 length: event.range[1] - event.range[0],
                 markers: event.markers,
               });
@@ -181,7 +181,7 @@ export default Vue.extend({
             ? typeColorMuted
             : typeColor;
           ctx.fillRect(bar.left, bar.top, barWidth, barHeight);
-        } else if (bar.length === bar.markers.length - 1) {
+        } else if (bar.length === bar.markers.length - 1 || bar.markers.length === 0) {
           // Else if Keyframe density is 100%
           ctx.fillStyle = selectedColor;
           ctx.fillRect(bar.left, bar.top, barWidth, barHeight);
@@ -258,7 +258,7 @@ export default Vue.extend({
         this.hoverTrack = null;
         return;
       }
-      this.hoverTrack = bar.trackId;
+      this.hoverTrack = bar.id;
       this.tooltip = {
         left: offsetX,
         top: offsetY,

@@ -88,8 +88,8 @@ export default function useModeManager({
   // the currently selected Track
   const selectedTrackId = ref(null as AnnotationId | null);
 
-  // the currently selected Group
-  const selectedGroupId = ref(null as AnnotationId | null);
+  // the currently editing Group
+  const editingGroupId = ref(null as AnnotationId | null);
 
   // boolean whether or not selectedTrackId is also being edited.
   const editingTrack = ref(false);
@@ -97,6 +97,10 @@ export default function useModeManager({
   // which type is currently being edited, if any
   const editingMode = computed(() => editingTrack.value && annotationModes.editing);
   const editingCanary = ref(false);
+
+  // Track Multi-select state
+  const multiSelectList = ref([] as AnnotationId[]);
+  const multiSelectActive = computed(() => multiSelectList.value.length > 0);
 
   const _filteredTracks = computed(
     () => trackFilterControls.filteredAnnotations.value.map((filtered) => filtered.annotation),
@@ -113,23 +117,23 @@ export default function useModeManager({
     } else {
       editingTrack.value = trackId !== null && edit;
     }
+  }
 
-    // /**
-    //  * If track has groups, select those as well
-    //  */
-    // if (trackId !== null) {
-    //   const groups = groupStore.trackMap.get(trackId);
-    //   if (groups) {
-    //     const val = groups.values().next();
-    //     if (val.value !== undefined) {
-    //       selectedGroupId.value = val.value;
-    //     }
-    //   } else {
-    //     selectedGroupId.value = null;
-    //   }
-    // } else {
-    //   selectedGroupId.value = null;
-    // }
+  /** Put UI into group editing mode. */
+  function handleGroupEdit(groupId: AnnotationId | null) {
+    if (readonlyState.value) {
+      prompt({ title: 'Read Only Mode', text: 'This Dataset is in Read Only mode, no edits can be made.' });
+    } else {
+      creating = false;
+      editingTrack.value = false;
+      editingGroupId.value = groupId;
+      if (groupId !== null) {
+        /** When moving into a group edit mode, multi-select all track members */
+        const group = groupStore.get(groupId);
+        multiSelectList.value = Object.keys(group.members).map((v) => parseInt(v, 10));
+        selectedTrackId.value = null;
+      }
+    }
   }
 
   /** end  */
@@ -165,9 +169,6 @@ export default function useModeManager({
   const visibleModes = computed(() => (
     uniq(annotationModes.visible.concat(editingMode.value || []))
   ));
-  // Track Multi-select state
-  const multiSelectList = ref([] as AnnotationId[]);
-  const multiSelectActive = computed(() => multiSelectList.value.length > 0);
 
   /**
    * Figure out if a new feature should enable interpolation
@@ -228,7 +229,7 @@ export default function useModeManager({
     if (trackId !== null && multiSelectActive.value) {
       multiSelectList.value = Array.from((new Set(multiSelectList.value).add(trackId)));
     }
-    /* Do not allow editing when merge is in progres */
+    /* Do not allow editing when merge is in progress */
     selectTrack(trackId, edit && !multiSelectActive.value);
   }
 
@@ -245,6 +246,7 @@ export default function useModeManager({
       }
     }
     multiSelectList.value = [];
+    handleGroupEdit(null);
     handleSelectTrack(null, false);
   }
 
@@ -466,6 +468,10 @@ export default function useModeManager({
    */
   function handleUnstageFromMerge(trackIds: TrackId[]) {
     multiSelectList.value = multiSelectList.value.filter((trackId) => !trackIds.includes(trackId));
+    /* Unselect a track when it is unstaged */
+    if (selectedTrackId.value !== null && trackIds.includes(selectedTrackId.value)) {
+      handleSelectTrack(null);
+    }
   }
 
   async function handleRemoveTrack(trackIds: TrackId[], forcePromptDisable = false) {
@@ -570,10 +576,11 @@ export default function useModeManager({
   /**
    * Group: Commit the multi-select list to a new or existing group
   */
-  function handleCommitGroup() {
-    if (multiSelectList.value.length >= 1) {
-      const members = multiSelectList.value.map((m) => trackStore.get(m));
-      groupStore.add(members, groupSettings.value.newGroupSettings.type);
+  function handleAddGroup() {
+    if (selectedTrackId.value !== null) {
+      const members = [trackStore.get(selectedTrackId.value)];
+      const newGrp = groupStore.add(members, groupSettings.value.newGroupSettings.type);
+      handleGroupEdit(newGrp.id);
     }
   }
 
@@ -586,7 +593,7 @@ export default function useModeManager({
 
   return {
     selectedTrackId,
-    selectedGroupId,
+    editingGroupId,
     editingMode,
     editingTrack,
     editingDetails,
@@ -597,8 +604,9 @@ export default function useModeManager({
     selectedKey,
     selectNextTrack,
     handler: {
-      commitGroup: handleCommitGroup,
       commitMerge: handleCommitMerge,
+      groupAdd: handleAddGroup,
+      groupEdit: handleGroupEdit,
       toggleMerge: handleToggleMerge,
       trackAdd: handleAddTrackOrDetection,
       trackAbort: handleEscapeMode,

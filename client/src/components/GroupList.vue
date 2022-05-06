@@ -7,7 +7,7 @@ import {
 import {
   useReadOnlyMode,
   useGroupStyleManager,
-  useSelectedGroupId,
+  useEditingGroupId,
   useGroupFilterControls,
   useSelectedTrackId,
 } from '../provides';
@@ -29,7 +29,7 @@ export default defineComponent({
     const readOnlyMode = useReadOnlyMode();
     // const store = useGroupStore();
     const typeStylingRef = useGroupStyleManager().typeStyling;
-    const selectedId = useSelectedGroupId();
+    const selectedId = useEditingGroupId();
     const selectedTrack = useSelectedTrackId();
     const groupFilters = useGroupFilterControls();
 
@@ -54,6 +54,9 @@ export default defineComponent({
         color: typeStylingRef.value.color(confidencePair[0]),
         selected: item.filteredGroup.annotation.id === selectedId.value,
         selectedTrackId: selectedTrack.value,
+        secondarySelected: selectedTrack.value
+          ? selectedTrack.value in item.filteredGroup.annotation.members
+          : false,
         inputValue: item.checkedTrackIds.includes(item.filteredGroup.annotation.id),
       };
     }

@@ -49,7 +49,7 @@ const SelectedKeySymbol = Symbol('selectedKey');
 type SelectedKeyType = Readonly<Ref<string>>;
 
 const SelectedTrackIdSymbol = Symbol('selectedTrackId');
-const SelectedGroupIdSymbol = Symbol('selectedGroupId');
+const EditingGroupIdSymbol = Symbol('editingGroupId');
 type SelectedTrackIdType = Readonly<Ref<AnnotationId | null>>;
 
 const TimeSymbol = Symbol('time');
@@ -124,8 +124,10 @@ export interface Handler {
   deleteAttribute({ data }: { data: Attribute }, removeFromTracks?: boolean): void;
   /* Commit the staged merge tracks */
   commitMerge(): void;
-  /* Create new group from multi-select */
-  commitGroup(): void;
+  /* Create new group */
+  groupAdd(): void;
+  /* Put UI into group editing mode */
+  groupEdit(id: AnnotationId | null): void;
   /* Turn merge mode on and off */
   toggleMerge(): AnnotationId[];
   /* Remove AnnotationIds from merge */
@@ -161,7 +163,8 @@ function dummyHandler(handle: (name: string, args: unknown[]) => void): Handler 
     deleteAttribute(...args) { handle('deleteAttribute', args); },
     toggleMerge(...args) { handle('toggleMerge', args); return []; },
     commitMerge(...args) { handle('commitMerge', args); },
-    commitGroup(...args) { handle('commitGroup', args); },
+    groupAdd(...args) { handle('groupAdd', args); },
+    groupEdit(...args) { handle('groupEdit', args); },
     unstageFromMerge(...args) { handle('unstageFromMerge', args); },
     reloadAnnotations(...args) { handle('reloadTracks', args); return Promise.resolve(); },
     setSVGFilters(...args) { handle('setSVGFilter', args); },
@@ -189,7 +192,7 @@ export interface State {
   revisionId: RevisionIdType;
   selectedKey: SelectedKeyType;
   selectedTrackId: SelectedTrackIdType;
-  selectedGroupId: SelectedTrackIdType;
+  editingGroupId: SelectedTrackIdType;
   time: TimeType;
   trackFilters: TrackFilterControls;
   trackStore: TrackStore;
@@ -227,7 +230,7 @@ function dummyState(): State {
     groupStyleManager: new StyleManager({ markChangesPending }),
     selectedKey: ref(''),
     selectedTrackId: ref(null),
-    selectedGroupId: ref(null),
+    editingGroupId: ref(null),
     time: {
       frame: ref(0),
       flick: ref(0),
@@ -268,7 +271,7 @@ function provideAnnotator(state: State, handler: Handler) {
   provide(TrackStyleManagerSymbol, state.trackStyleManager);
   provide(SelectedKeySymbol, state.selectedKey);
   provide(SelectedTrackIdSymbol, state.selectedTrackId);
-  provide(SelectedGroupIdSymbol, state.selectedGroupId);
+  provide(EditingGroupIdSymbol, state.editingGroupId);
   provide(TimeSymbol, state.time);
   provide(VisibleModesSymbol, state.visibleModes);
   provide(ReadOnlyModeSymbol, state.readOnlyMode);
@@ -348,8 +351,8 @@ function useSelectedTrackId() {
   return use<SelectedTrackIdType>(SelectedTrackIdSymbol);
 }
 
-function useSelectedGroupId() {
-  return use<SelectedTrackIdType>(SelectedGroupIdSymbol);
+function useEditingGroupId() {
+  return use<SelectedTrackIdType>(EditingGroupIdSymbol);
 }
 
 function useTime() {
@@ -396,7 +399,7 @@ export {
   useTrackStyleManager,
   useSelectedKey,
   useSelectedTrackId,
-  useSelectedGroupId,
+  useEditingGroupId,
   useTime,
   useVisibleModes,
   useReadOnlyMode,

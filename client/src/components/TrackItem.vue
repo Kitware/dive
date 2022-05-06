@@ -35,6 +35,10 @@ export default defineComponent({
       type: Boolean,
       required: true,
     },
+    secondarySelected: {
+      type: Boolean,
+      required: true,
+    },
     editing: {
       type: Boolean,
       required: true,
@@ -97,6 +101,11 @@ export default defineComponent({
       if (props.selected) {
         return {
           'background-color': `${vuetify.theme.themes.dark.accentBackground}`,
+        };
+      }
+      if (props.secondarySelected) {
+        return {
+          'background-color': '#3a3a3a',
         };
       }
       return {};

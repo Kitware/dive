@@ -176,7 +176,7 @@ export default defineComponent({
       multiSelectActive,
       selectedFeatureHandle,
       selectedTrackId,
-      selectedGroupId,
+      editingGroupId,
       handler,
       editingMode,
       editingDetails,
@@ -215,7 +215,12 @@ export default defineComponent({
     const { eventChartData: groupChartData } = useEventChart({
       enabledTracks: groupFilters.enabledAnnotations,
       typeStyling: groupStyleManager.typeStyling,
-      selectedTrackIds: ref([]),
+      selectedTrackIds: computed(() => {
+        if (editingGroupId.value !== null) {
+          return [editingGroupId.value];
+        }
+        return [];
+      }),
     });
 
     async function trackSplit(trackId: AnnotationId | null, frame: number) {
@@ -421,7 +426,7 @@ export default defineComponent({
         revisionId: toRef(props, 'revision'),
         selectedKey,
         selectedTrackId,
-        selectedGroupId,
+        editingGroupId,
         time,
         trackFilters,
         trackStore,
@@ -458,6 +463,7 @@ export default defineComponent({
       recipes,
       selectedFeatureHandle,
       selectedTrackId,
+      editingGroupId,
       selectedKey,
       videoUrl,
       visibleModes,
@@ -529,6 +535,7 @@ export default defineComponent({
           v-bind="{
             editingMode, visibleModes, editingTrack, recipes,
             multiSelectActive, editingDetails,
+            groupEditActive: editingGroupId !== null,
           }"
           :tail-settings.sync="clientSettings.annotatorPreferences.trackTails"
           @set-annotation-state="handler.setAnnotationState"
@@ -650,6 +657,7 @@ export default defineComponent({
             <controls-container
               v-bind="{ lineChartData, eventChartData, groupChartData, datasetType }"
               @select-track="handler.trackSelect"
+              @select-group="handler.groupEdit"
             />
           </template>
           <layer-manager v-bind="{ colorBy }" />

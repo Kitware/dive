@@ -17,15 +17,21 @@ import {
   useTime,
   useReadOnlyMode,
   useTrackStyleManager,
+  useEditingGroupId,
+  useGroupStore,
+  useGroupFilterControls,
 } from 'vue-media-annotator/provides';
 import { Attribute } from 'vue-media-annotator/use/useAttributes';
 import TrackItem from 'vue-media-annotator/components/TrackItem.vue';
 import TooltipBtn from 'vue-media-annotator/components/TooltipButton.vue';
+import TypePicker from 'vue-media-annotator/components/TypePicker.vue';
 
 import AttributeInput from 'dive-common/components/AttributeInput.vue';
 import AttributeEditor from 'dive-common/components/AttributeEditor.vue';
 import AttributeSubsection from 'dive-common/components/AttributesSubsection.vue';
 import ConfidenceSubsection from 'dive-common/components/ConfidenceSubsection.vue';
+import RangeEditor from 'dive-common/components/RangeEditor.vue';
+
 
 export default defineComponent({
   components: {
@@ -34,7 +40,9 @@ export default defineComponent({
     AttributeEditor,
     AttributeSubsection,
     ConfidenceSubsection,
+    RangeEditor,
     TooltipBtn,
+    TypePicker,
   },
   props: {
     lockTypes: {
@@ -59,6 +67,8 @@ export default defineComponent({
     const typeStylingRef = useTrackStyleManager().typeStyling;
     const allTypesRef = useTrackFilters().allTypes;
     const trackStore = useTrackStore();
+    const groupStore = useGroupStore();
+    const { allTypes: allGroupTypesRef } = useGroupFilterControls();
     const multiSelectList = useMultiSelectList();
     const multiSelectInProgress = computed(() => multiSelectList.value.length > 0);
     const {
@@ -70,6 +80,14 @@ export default defineComponent({
 
     const { frame: frameRef } = useTime();
     const selectedTrackIdRef = useSelectedTrackId();
+    const editingGroupIdRef = useEditingGroupId();
+    const editingGroup = computed(() => {
+      const editingGroupId = editingGroupIdRef.value;
+      if (editingGroupId !== null) {
+        return groupStore.get(editingGroupId);
+      }
+      return null;
+    });
     const { setAttribute, deleteAttribute } = useHandler();
     const selectedTrackList = computed(() => {
       if (multiSelectList.value.length > 0) {
@@ -189,6 +207,8 @@ export default defineComponent({
 
     return {
       selectedTrackIdRef,
+      editingGroupIdRef,
+      editingGroup,
       readOnlyMode,
       /* Attributes */
       attributes,
@@ -209,6 +229,7 @@ export default defineComponent({
       editingModeRef,
       typeStylingRef,
       allTypesRef,
+      allGroupTypesRef,
       setEditIndividual,
       resetEditIndividual,
       mouseTrap,
@@ -227,7 +248,10 @@ export default defineComponent({
     @click="resetEditIndividual"
   >
     <v-subheader style="min-height: 48px;">
-      {{ multiSelectInProgress ? 'Merge or Group Candidates' : 'Track Editor' }}
+      {{ multiSelectInProgress
+        ? (editingGroupIdRef ? 'Editing Group' : 'Merge Candidates')
+        : 'Track Editor'
+      }}
     </v-subheader>
     <div
       v-if="!selectedTrackList.length"
@@ -251,6 +275,27 @@ export default defineComponent({
       </span>
     </div>
     <template v-else>
+      <div
+        v-if="editingGroup"
+        class="mx-2"
+      >
+        <div class="d-flex">
+          <span class="trackNumber">{{ editingGroup.id }}</span>
+          <v-spacer />
+          <TypePicker
+            :value="editingGroup.getType()[0]"
+            :all-types="allGroupTypesRef"
+            data-list-source="allGroupTypesOptions"
+            @input="editingGroup.setType($event)"
+          />
+        </div>
+        <RangeEditor
+          :begin.sync="editingGroup.begin"
+          :end.sync="editingGroup.end"
+          class="my-2 input-box"
+        />
+        <p>Group Members:</p>
+      </div>
       <datalist id="allTypesOptions">
         <option
           v-for="type in allTypesRef"
@@ -264,29 +309,36 @@ export default defineComponent({
         <v-card
           v-for="track in selectedTrackList"
           :key="track.trackId"
-          class="mx-2 mb-2 d-flex align-center"
+          class="mx-2 mb-2"
           outlined
           flat
         >
-          <track-item
-            :solo="true"
-            :merging="multiSelectInProgress"
-            :track="track"
-            :track-type="track.confidencePairs[0][0]"
-            :selected="true"
-            :editing="!!editingModeRef"
-            :input-value="true"
-            :color="typeStylingRef.color(track.confidencePairs[0][0])"
-            :lock-types="lockTypes"
-            class="grow"
-            @seek="$emit('track-seek', $event)"
-          />
-
-          <tooltip-btn
-            v-if="multiSelectInProgress"
-            icon="mdi-close"
-            tooltip-text="Remove from merge group"
-            @click="unstageFromMerge([track.trackId])"
+          <div class="d-flex align-center">
+            <TrackItem
+              :solo="true"
+              :merging="multiSelectInProgress"
+              :track="track"
+              :track-type="track.confidencePairs[0][0]"
+              :selected="selectedTrackIdRef === track.id"
+              :secondary-selected="true"
+              :editing="!!editingModeRef"
+              :input-value="true"
+              :color="typeStylingRef.color(track.confidencePairs[0][0])"
+              :lock-types="lockTypes"
+              class="grow"
+              @seek="$emit('track-seek', $event)"
+            />
+            <tooltip-btn
+              v-if="multiSelectInProgress"
+              icon="mdi-close"
+              tooltip-text="Remove from merge group"
+              @click="unstageFromMerge([track.trackId])"
+            />
+          </div>
+          <RangeEditor
+            v-if="editingGroup"
+            :begin.sync="editingGroup.members[track.id].ranges[0][0]"
+            :end.sync="editingGroup.members[track.id].ranges[0][1]"
           />
         </v-card>
       </div>
@@ -316,7 +368,7 @@ export default defineComponent({
           :disabled="readOnlyMode"
           depressed
           x-small
-          @click="$emit('toggle-merge')"
+          @click="$emit('create-group')"
         >
           <v-icon
             small
@@ -325,10 +377,10 @@ export default defineComponent({
             mdi-group
           </v-icon>
           <v-spacer />
-          Begin Track Group (g)
+          Create Track Group (g)
         </v-btn>
         <v-btn
-          v-if="multiSelectInProgress"
+          v-if="multiSelectInProgress && (editingGroupIdRef === null)"
           color="primary lighten-1"
           x-small
           depressed
@@ -352,31 +404,7 @@ export default defineComponent({
           Commit Merge (shift+m)
         </v-btn>
         <v-btn
-          v-if="multiSelectInProgress"
-          color="primary darken-1"
-          x-small
-          depressed
-          :disabled="multiSelectList.length < 1"
-          class="mx-2 mb-2 grow"
-          @click="$emit('commit-group')"
-        >
-          <v-icon
-            class="pr-1"
-            small
-          >
-            mdi-group
-          </v-icon>
-          <v-icon
-            class="pr-1"
-            small
-          >
-            mdi-check
-          </v-icon>
-          <v-spacer />
-          Create Group with {{ multiSelectList.length }} tracks (shift+g)
-        </v-btn>
-        <v-btn
-          v-if="multiSelectInProgress"
+          v-if="multiSelectInProgress && (editingGroupIdRef === null)"
           color="error"
           class="mx-2 mb-2 grow"
           :disabled="readOnlyMode"
@@ -384,10 +412,12 @@ export default defineComponent({
           x-small
           @click="$emit('toggle-merge')"
         >
+          <v-spacer />
           Abort (esc)
         </v-btn>
       </div>
       <confidence-subsection
+        v-if="editingGroupIdRef === null"
         style="max-height:33vh;"
         :confidence-pairs="
           flatten(selectedTrackList.map((t) => t.confidencePairs)).sort((a, b) => b[1] - a[1])
@@ -434,6 +464,8 @@ export default defineComponent({
 </template>
 
 <style lang="scss" scoped>
+@import 'vue-media-annotator/components/styles/common.scss';
+
 .multi-select-list {
   overflow-y: auto;
   max-height: 50vh;

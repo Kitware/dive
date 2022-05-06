@@ -41,7 +41,7 @@ export default defineComponent({
   setup() {
     const allTypesRef = useTrackFilters().allTypes;
     const readOnlyMode = useReadOnlyMode();
-    const { toggleMerge, commitMerge, commitGroup } = useHandler();
+    const { toggleMerge, commitMerge, groupAdd } = useHandler();
     const { visible } = usePrompt();
     const trackSettings = toRef(clientSettings, 'trackSettings');
     const typeSettings = toRef(clientSettings, 'typeSettings');
@@ -71,7 +71,7 @@ export default defineComponent({
       data,
       allTypesRef,
       commitMerge,
-      commitGroup,
+      groupAdd,
       trackFilterControls,
       trackSettings,
       typeSettings,
@@ -96,9 +96,8 @@ export default defineComponent({
         v-mousetrap="[
           { bind: 'a', handler: swapTabs },
           { bind: 'm', handler: doToggleMerge },
-          { bind: 'g', handler: doToggleMerge },
+          { bind: 'g', handler: () => { groupAdd(); data.currentTab = 'attributes'; } },
           { bind: 'shift+m', handler: commitMerge },
-          { bind: 'shift+g', handler: commitGroup },
         ]"
         small
         icon
@@ -156,7 +155,7 @@ export default defineComponent({
           @toggle-merge="doToggleMerge"
           @back="swapTabs"
           @commit-merge="commitMerge"
-          @commit-group="commitGroup"
+          @create-group="groupAdd"
         />
       </v-slide-x-transition>
     </template>
