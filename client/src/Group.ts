@@ -22,13 +22,26 @@ export default class Group extends BaseAnnotation {
     this.members = params.members;
   }
 
+  private maybeExpandBoundsForMembers() {
+    Object.values(this.members).forEach((m) => {
+      m.ranges.forEach(([begin, end]) => {
+        this.maybeExpandBounds(begin);
+        this.maybeExpandBounds(end);
+      });
+    });
+  }
+
   addMembers(members: GroupMembers) {
+    if (Object.keys(members).some((v) => !(v in this.members))) {
+      this.notify('members');
+    }
     this.members = assign(this.members, members);
-    this.notify('members');
+    this.maybeExpandBoundsForMembers();
   }
 
   setMembers(members: GroupMembers) {
     this.members = members;
+    this.maybeExpandBoundsForMembers();
     this.notify('members');
   }
 

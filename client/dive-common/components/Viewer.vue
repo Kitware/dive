@@ -93,6 +93,7 @@ export default defineComponent({
       }
       return {} as MediaController;
     });
+    const controlsContainerRef = ref();
     const { time, updateTime, initialize: initTime } = useTimeObserver();
     const imageData = ref([] as FrameImage[]);
     const datasetType: Ref<DatasetType> = ref('image-sequence');
@@ -118,8 +119,11 @@ export default defineComponent({
       return 0;
     });
 
+    /**
+     * Annotation window style source based on value of timeline visualization
+     */
     const colorBy = computed(() => {
-      if (context.state.active === 'GroupSidebar') {
+      if (controlsContainerRef.value?.currentView === 'Groups') {
         return 'group';
       }
       return 'track';
@@ -441,6 +445,7 @@ export default defineComponent({
     return {
       /* props */
       confidenceFilters: trackFilters.confidenceFilters,
+      controlsContainerRef,
       colorBy,
       clientSettings,
       datasetName,
@@ -655,6 +660,7 @@ export default defineComponent({
         >
           <template slot="control">
             <controls-container
+              ref="controlsContainerRef"
               v-bind="{ lineChartData, eventChartData, groupChartData, datasetType }"
               @select-track="handler.trackSelect"
               @select-group="handler.groupEdit"

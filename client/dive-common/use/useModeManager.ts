@@ -228,6 +228,15 @@ export default function useModeManager({
      */
     if (trackId !== null && multiSelectActive.value) {
       multiSelectList.value = Array.from((new Set(multiSelectList.value).add(trackId)));
+      /**
+       * If editing group, then the newly selected track should be added to the group
+       */
+      if (editingGroupId.value !== null) {
+        const track = trackStore.get(trackId);
+        groupStore.get(editingGroupId.value).addMembers({
+          [trackId]: { ranges: [[track.begin, track.end]] },
+        });
+      }
     }
     /* Do not allow editing when merge is in progress */
     selectTrack(trackId, edit && !multiSelectActive.value);
@@ -463,6 +472,12 @@ export default function useModeManager({
     }
   }
 
+  function handleRemoveGroup() {
+    if (editingGroupId.value !== null) {
+      groupStore.remove(editingGroupId.value);
+    }
+  }
+
   /**
    * Unstage a track from the merge list
    */
@@ -471,6 +486,10 @@ export default function useModeManager({
     /* Unselect a track when it is unstaged */
     if (selectedTrackId.value !== null && trackIds.includes(selectedTrackId.value)) {
       handleSelectTrack(null);
+    }
+    /** Remove members from group if group editing */
+    if (editingGroupId.value !== null) {
+      groupStore.get(editingGroupId.value).removeMembers(trackIds);
     }
   }
 
@@ -619,6 +638,7 @@ export default function useModeManager({
       removeTrack: handleRemoveTrack,
       removePoint: handleRemovePoint,
       removeAnnotation: handleRemoveAnnotation,
+      removeGroup: handleRemoveGroup,
       selectFeatureHandle: handleSelectFeatureHandle,
       setAnnotationState: handleSetAnnotationState,
       unstageFromMerge: handleUnstageFromMerge,

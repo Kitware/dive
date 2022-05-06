@@ -210,6 +210,7 @@ export default defineComponent({
       editingGroupIdRef,
       editingGroup,
       readOnlyMode,
+      groupStore,
       /* Attributes */
       attributes,
       /* Editing */
@@ -247,9 +248,9 @@ export default defineComponent({
     class="d-flex flex-column fill-height overflow-hidden"
     @click="resetEditIndividual"
   >
-    <v-subheader style="min-height: 48px;">
+    <v-subheader class="pl-2">
       {{ multiSelectInProgress
-        ? (editingGroupIdRef ? 'Editing Group' : 'Merge Candidates')
+        ? (editingGroupIdRef !== null ? 'Editing Group' : 'Merge Candidates')
         : 'Track Editor'
       }}
     </v-subheader>
@@ -257,16 +258,17 @@ export default defineComponent({
       v-if="!selectedTrackList.length"
       class="ml-4 body-2 text-caption"
     >
-      <p>No track selected.</p>
+      <p>No track or group selected.</p>
       <p>
         This panel is used for:
         <ul>
           <li>Setting attributes on tracks and keyframes</li>
           <li>Merging several tracks together</li>
           <li>Viewing and managing class types and conficence values</li>
+          <li>Creating and editing track groups</li>
         </ul>
       </p>
-      <p>Select a track to populate this editor.</p>
+      <p>Select a track or group to populate this editor.</p>
       <span
         style="text-decoration: underline; cursor: pointer;"
         @click="$emit('back')"
@@ -294,7 +296,9 @@ export default defineComponent({
           :end.sync="editingGroup.end"
           class="my-2 input-box"
         />
-        <p>Group Members:</p>
+        <v-subheader class="pl-0">
+          Group Members:
+        </v-subheader>
       </div>
       <datalist id="allTypesOptions">
         <option
@@ -305,7 +309,7 @@ export default defineComponent({
           {{ type }}
         </option>
       </datalist>
-      <div class="multi-select-list">
+      <div :class="{ 'multi-select-list': true, 'unlimited': editingGroup !== null }">
         <v-card
           v-for="track in selectedTrackList"
           :key="track.trackId"
@@ -332,6 +336,7 @@ export default defineComponent({
               v-if="multiSelectInProgress"
               icon="mdi-close"
               tooltip-text="Remove from merge group"
+              :disabled="editingGroup && selectedTrackList.length === 1"
               @click="unstageFromMerge([track.trackId])"
             />
           </div>
@@ -469,5 +474,9 @@ export default defineComponent({
 .multi-select-list {
   overflow-y: auto;
   max-height: 50vh;
+
+  &.unlimited {
+    max-height: initial;
+  }
 }
 </style>
