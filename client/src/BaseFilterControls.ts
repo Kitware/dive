@@ -1,7 +1,7 @@
 import {
   ref, computed, Ref, watch,
 } from '@vue/composition-api';
-import { AnnotationId } from 'vue-media-annotator/BaseAnnotation';
+import type { AnnotationId } from './BaseAnnotation';
 import type BaseAnnotationStore from './BaseAnnotationStore';
 import type Group from './Group';
 import type Track from './track';

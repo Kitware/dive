@@ -113,7 +113,7 @@ export default defineComponent({
       class="mt-1"
     >
       <v-spacer />
-      <div class="text-caption">
+      <div class="text-caption grey--text text--lighten-1">
         {{ Object.keys(group.members).join(', ') }}
       </div>
     </v-row>

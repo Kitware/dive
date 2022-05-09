@@ -2,17 +2,17 @@ import {
   provide, inject, ref, Ref, reactive,
 } from '@vue/composition-api';
 
-import { AnnotatorPreferences as AnnotatorPrefsIface } from './types';
+import type { AnnotatorPreferences as AnnotatorPrefsIface } from './types';
 import StyleManager from './StyleManager';
-import { EditAnnotationTypes } from './layers/EditAnnotationLayer';
+import type { EditAnnotationTypes } from './layers/EditAnnotationLayer';
 import TrackStore from './TrackStore';
 import GroupStore from './GroupStore';
 import type { AnnotationId } from './BaseAnnotation';
-import { VisibleAnnotationTypes } from './layers';
-import { RectBounds } from './utils';
-import { Attribute } from './use/useAttributes';
-import { Time } from './use/useTimeObserver';
-import { ImageEnhancements } from './use/useImageEnhancements';
+import type { VisibleAnnotationTypes } from './layers';
+import type { RectBounds } from './utils';
+import type { Attribute } from './use/useAttributes';
+import type { Time } from './use/useTimeObserver';
+import type { ImageEnhancements } from './use/useImageEnhancements';
 import TrackFilterControls from './TrackFilterControls';
 import GroupFilterControls from './GroupFilterControls';
 

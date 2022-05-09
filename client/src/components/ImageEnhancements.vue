@@ -1,7 +1,7 @@
 <script lang="ts">
 import { defineComponent, ref } from '@vue/composition-api';
 
-import { useHandler, useImageEnhancements } from 'vue-media-annotator/provides';
+import { useHandler, useImageEnhancements } from '../provides';
 
 export default defineComponent({
   name: 'ImageEnhancements',

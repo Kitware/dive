@@ -1,8 +1,8 @@
 import { ref, Ref, computed } from '@vue/composition-api';
 import IntervalTree from '@flatten-js/interval-tree';
-import Track from './track';
-import Group from './Group';
-import { AnnotationId, NotifierFuncParams } from './BaseAnnotation';
+import type Track from './track';
+import type Group from './Group';
+import type { AnnotationId, NotifierFuncParams } from './BaseAnnotation';
 
 export type MarkChangesPending = ({
   action,
@@ -29,7 +29,7 @@ function isTrack(value: Track | Group): value is Track {
  * and deleting detections, should be performed directly on the annotation
  * object.  BaseAnnotationStore will observe these changes and react if necessary.
  */
-export default abstract class BaseAnnotationStore<T extends Track | Group> {
+export default class BaseAnnotationStore<T extends Track | Group> {
   markChangesPending: MarkChangesPending;
 
   /* Non-reactive state

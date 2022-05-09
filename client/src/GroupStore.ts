@@ -1,8 +1,8 @@
 import BaseAnnotationStore, { InsertArgs, MarkChangesPending } from './BaseAnnotationStore';
-import { AnnotationId } from './BaseAnnotation';
+import type { AnnotationId } from './BaseAnnotation';
 import Group, { GroupMembers } from './Group';
 import MultiMap from './MultiMap';
-import Track from './track';
+import type Track from './track';
 
 export default class GroupStore extends BaseAnnotationStore<Group> {
   // fast reverse mapping of tracks to the collection of groups they are in.

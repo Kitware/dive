@@ -1,6 +1,6 @@
 import { computed, Ref } from '@vue/composition-api';
-import { TrackWithContext } from '../BaseFilterControls';
-import { TypeStyling } from '../StyleManager';
+import type { TrackWithContext } from '../BaseFilterControls';
+import type { TypeStyling } from '../StyleManager';
 
 interface UseLineChartParams {
   enabledTracks: Readonly<Ref<readonly TrackWithContext[]>>;

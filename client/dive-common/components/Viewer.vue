@@ -14,19 +14,19 @@ import {
   useEventChart,
 } from 'vue-media-annotator/use';
 import {
-  Track, Group, TrackStore, GroupStore,
+  Track, Group,
+  TrackStore, GroupStore,
+  StyleManager, TrackFilterControls, GroupFilterControls,
 } from 'vue-media-annotator/index';
 import { provideAnnotator } from 'vue-media-annotator/provides';
-import StyleManager from 'vue-media-annotator/StyleManager';
+
 import {
   ImageAnnotator,
   VideoAnnotator,
   LayerManager,
 } from 'vue-media-annotator/components';
 import { MediaController } from 'vue-media-annotator/components/annotators/mediaControllerType';
-import { AnnotationId } from 'vue-media-annotator/BaseAnnotation';
-import TrackFilterControls from 'vue-media-annotator/TrackFilterControls';
-import GroupFilterControls from 'vue-media-annotator/GroupFilterControls';
+import type { AnnotationId } from 'vue-media-annotator/BaseAnnotation';
 import { getResponseError } from 'vue-media-annotator/utils';
 
 /* DIVE COMMON */

@@ -1,7 +1,6 @@
 <script lang="ts">
-import Vue from 'vue';
 import {
-  defineComponent, reactive, computed, ref,
+  defineComponent, reactive, computed,
 } from '@vue/composition-api';
 
 import {
@@ -10,7 +9,9 @@ import {
   useEditingGroupId,
   useGroupFilterControls,
   useSelectedTrackId,
+  useGroupStore,
 } from '../provides';
+import useVirtualScrollTo from '../use/useVirtualScrollTo';
 import GroupItem from './GroupItem.vue';
 
 export default defineComponent({
@@ -27,16 +28,27 @@ export default defineComponent({
 
   setup() {
     const readOnlyMode = useReadOnlyMode();
-    // const store = useGroupStore();
+    const store = useGroupStore();
     const typeStylingRef = useGroupStyleManager().typeStyling;
     const selectedId = useEditingGroupId();
     const selectedTrack = useSelectedTrackId();
     const groupFilters = useGroupFilterControls();
-
     const data = reactive({
-      itemHeight: 70, // in pixels
+      itemHeight: 58, // in pixels
     });
-    const virtualList = ref(null as null | Vue);
+    const virtualScroll = useVirtualScrollTo({
+      itemHeight: data.itemHeight,
+      store,
+      filteredListRef: groupFilters.filteredAnnotations,
+      selectedIdRef: selectedId,
+      multiSelectList: computed(() => {
+        if (selectedTrack.value !== null) {
+          return Array.from(store.trackMap.get(selectedTrack.value)?.values() ?? []);
+        }
+        return [];
+      }),
+      selectNext: () => null,
+    });
 
     const virtualListItems = computed(() => {
       const filteredGroups = groupFilters.filteredAnnotations.value;
@@ -67,7 +79,7 @@ export default defineComponent({
       groupFilters,
       readOnlyMode,
       virtualListItems,
-      virtualList,
+      virtualList: virtualScroll.virtualList,
     };
   },
 });

@@ -39,8 +39,8 @@ export default class Group extends BaseAnnotation {
     this.maybeExpandBoundsForMembers();
   }
 
-  setMembers(members: GroupMembers) {
-    this.members = members;
+  setMemberRange(memberId: AnnotationId, idx: number, range: [number, number]) {
+    this.members[memberId].ranges[idx] = range;
     this.maybeExpandBoundsForMembers();
     this.notify('members');
   }

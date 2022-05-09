@@ -21,6 +21,10 @@ export default Vue.extend({
       type: String as PropType<string>,
       default: undefined,
     },
+    delay: {
+      type: Number,
+      default: 600,
+    },
   },
 });
 </script>
@@ -28,7 +32,7 @@ export default Vue.extend({
 <template>
   <v-tooltip
     bottom
-    open-delay="600"
+    :open-delay="delay"
   >
     <template #activator="{ on, attrs }">
       <v-btn
@@ -40,7 +44,9 @@ export default Vue.extend({
         v-on="on"
         @click="$emit('click')"
       >
-        <v-icon>{{ icon }}</v-icon>
+        <v-icon>
+          {{ icon }}
+        </v-icon>
       </v-btn>
     </template>
     <span>{{ tooltipText }}</span>

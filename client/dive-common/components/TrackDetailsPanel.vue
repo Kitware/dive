@@ -219,6 +219,7 @@ export default defineComponent({
       deleteAttributeHandler,
       editingError,
       editIndividual,
+      frameRef,
       /* Selected */
       selectedTrackList,
       multiSelectList,
@@ -294,6 +295,7 @@ export default defineComponent({
         <RangeEditor
           :begin.sync="editingGroup.begin"
           :end.sync="editingGroup.end"
+          disabled
           class="my-2 input-box"
         />
         <v-subheader class="pl-0">
@@ -342,8 +344,16 @@ export default defineComponent({
           </div>
           <RangeEditor
             v-if="editingGroup"
-            :begin.sync="editingGroup.members[track.id].ranges[0][0]"
-            :end.sync="editingGroup.members[track.id].ranges[0][1]"
+            :begin="editingGroup.members[track.id].ranges[0][0]"
+            :end="editingGroup.members[track.id].ranges[0][1]"
+            @update:begin="editingGroup.setMemberRange(
+              track.id, 0, [$event, editingGroup.members[track.id].ranges[0][1]])"
+            @update:end="editingGroup.setMemberRange(
+              track.id, 0, [editingGroup.members[track.id].ranges[0][0], $event])"
+            @click:begin="editingGroup.setMemberRange(
+              track.id, 0, [frameRef, editingGroup.members[track.id].ranges[0][1]])"
+            @click:end="editingGroup.setMemberRange(
+              track.id, 0, [editingGroup.members[track.id].ranges[0][0], frameRef])"
           />
         </v-card>
       </div>
@@ -382,7 +392,7 @@ export default defineComponent({
             mdi-group
           </v-icon>
           <v-spacer />
-          Create Track Group (g)
+          Create New Group from Track (g)
         </v-btn>
         <v-btn
           v-if="multiSelectInProgress && (editingGroupIdRef === null)"

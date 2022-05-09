@@ -119,23 +119,6 @@ export default function useModeManager({
     }
   }
 
-  /** Put UI into group editing mode. */
-  function handleGroupEdit(groupId: AnnotationId | null) {
-    if (readonlyState.value) {
-      prompt({ title: 'Read Only Mode', text: 'This Dataset is in Read Only mode, no edits can be made.' });
-    } else {
-      creating = false;
-      editingTrack.value = false;
-      editingGroupId.value = groupId;
-      if (groupId !== null) {
-        /** When moving into a group edit mode, multi-select all track members */
-        const group = groupStore.get(groupId);
-        multiSelectList.value = Object.keys(group.members).map((v) => parseInt(v, 10));
-        selectedTrackId.value = null;
-      }
-    }
-  }
-
   /** end  */
   function _depend(): boolean {
     return editingCanary.value;
@@ -231,15 +214,36 @@ export default function useModeManager({
       /**
        * If editing group, then the newly selected track should be added to the group
        */
-      if (editingGroupId.value !== null) {
+      if (editingGroupId.value !== null && !edit) {
         const track = trackStore.get(trackId);
         groupStore.get(editingGroupId.value).addMembers({
           [trackId]: { ranges: [[track.begin, track.end]] },
         });
+      } else if (edit) {
+        editingGroupId.value = null;
+        multiSelectList.value = [];
       }
     }
     /* Do not allow editing when merge is in progress */
     selectTrack(trackId, edit && !multiSelectActive.value);
+  }
+
+  /** Put UI into group editing mode. */
+  function handleGroupEdit(groupId: AnnotationId | null) {
+    if (readonlyState.value) {
+      prompt({ title: 'Read Only Mode', text: 'This Dataset is in Read Only mode, no edits can be made.' });
+    } else {
+      creating = false;
+      editingTrack.value = false;
+      editingGroupId.value = groupId;
+      if (groupId !== null) {
+        /** When moving into a group edit mode, multi-select all track members */
+        const group = groupStore.get(groupId);
+        multiSelectList.value = Object.keys(group.members).map((v) => parseInt(v, 10));
+        selectedTrackId.value = null;
+        seekNearest(trackStore.get(multiSelectList.value[0]));
+      }
+    }
   }
 
   //Handles deselection or hitting escape including while editing
@@ -261,6 +265,7 @@ export default function useModeManager({
 
   function handleAddTrackOrDetection(): TrackId {
     // Handles adding a new track with the NewTrack Settings
+    handleEscapeMode();
     const { frame } = mediaController.value;
     const newTrackId = trackStore.add(
       frame.value, trackSettings.value.newTrackSettings.type,
@@ -539,7 +544,8 @@ export default function useModeManager({
 
   function handleSelectNext(delta: number) {
     const newTrack = selectNextTrack(delta);
-    if (newTrack !== null) {
+    /** Only allow selectNext when not in group editing mode. */
+    if (newTrack !== null && editingGroupId.value === null) {
       handleSelectTrack(newTrack, false);
       seekNearest(trackStore.get(newTrack));
     }
