@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  defineComponent, watch, PropType, Ref, ref, computed,
+  defineComponent, watch, PropType, Ref, ref, computed, toRef,
 } from '@vue/composition-api';
 
 import { TrackWithContext } from '../BaseFilterControls';
@@ -29,7 +29,7 @@ import {
   useEditingMode,
   useVisibleModes,
   useSelectedKey,
-  useMergeList,
+  useMultiSelectList,
   useAnnotatorPreferences,
   useGroupStyleManager,
   useGroupStore,
@@ -57,7 +57,7 @@ export default defineComponent({
     const groupStore = useGroupStore();
     const enabledTracksRef = useTrackFilters().enabledAnnotations;
     const selectedTrackIdRef = useSelectedTrackId();
-    const mergeListRef = useMergeList();
+    const multiSeletListRef = useMultiSelectList();
     const editingModeRef = useEditingMode();
     const visibleModesRef = useVisibleModes();
     const selectedKeyRef = useSelectedKey();
@@ -131,7 +131,7 @@ export default defineComponent({
       frame: number,
       editingTrack: false | EditAnnotationTypes,
       selectedTrackId: AnnotationId | null,
-      mergeList: readonly AnnotationId[],
+      multiSelectList: readonly AnnotationId[],
       enabledTracks: readonly TrackWithContext[],
       visibleModes: readonly VisibleAnnotationTypes[],
       selectedKey: string,
@@ -163,7 +163,7 @@ export default defineComponent({
             const groupStyleType = groups?.[0]?.getType() ?? groupStore.defaultGroup;
             const trackFrame = {
               selected: ((selectedTrackId === track.trackId)
-                || (mergeList.includes(track.trackId))),
+                || (multiSelectList.includes(track.trackId))),
               editing: editingTrack,
               track,
               groups,
@@ -267,7 +267,7 @@ export default defineComponent({
         frameNumberRef.value,
         editingModeRef.value,
         selectedTrackIdRef.value,
-        mergeListRef.value,
+        multiSeletListRef.value,
         enabledTracksRef.value,
         visibleModesRef.value,
         selectedKeyRef.value,
@@ -282,17 +282,17 @@ export default defineComponent({
         editingModeRef,
         enabledTracksRef,
         selectedTrackIdRef,
-        mergeListRef,
+        multiSeletListRef,
         visibleModesRef,
         typeStylingRef,
-        props.colorBy,
+        toRef(props, 'colorBy'),
       ],
       () => {
         updateLayers(
           frameNumberRef.value,
           editingModeRef.value,
           selectedTrackIdRef.value,
-          mergeListRef.value,
+          multiSeletListRef.value,
           enabledTracksRef.value,
           visibleModesRef.value,
           selectedKeyRef.value,
@@ -309,7 +309,7 @@ export default defineComponent({
           frameNumberRef.value,
           editingModeRef.value,
           selectedTrackIdRef.value,
-          mergeListRef.value,
+          multiSeletListRef.value,
           enabledTracksRef.value,
           visibleModesRef.value,
           selectedKeyRef.value,
@@ -357,7 +357,7 @@ export default defineComponent({
           frameNumberRef.value,
           editingModeRef.value,
           selectedTrackIdRef.value,
-          mergeListRef.value,
+          multiSeletListRef.value,
           enabledTracksRef.value,
           visibleModesRef.value,
           selectedKeyRef.value,

@@ -19,7 +19,7 @@ interface ComponentMapItem {
 
 const state: ContextState = reactive({
   last: 'TypeThreshold',
-  active: null,
+  active: 'GroupSidebar',
 });
 
 const componentMap: Record<string, ComponentMapItem> = {
