@@ -2,6 +2,8 @@
 import Vue, { PropType } from 'vue';
 
 export default Vue.extend({
+  name: 'TooltipButton',
+
   props: {
     icon: {
       type: String as PropType<string>,

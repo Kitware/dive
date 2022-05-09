@@ -33,8 +33,8 @@ type DatasetIdType = Readonly<Ref<string>>;
 const EditingModeSymbol = Symbol('editingMode');
 type EditingModeType = Readonly<Ref<false | EditAnnotationTypes>>;
 
-const MergeListSymbol = Symbol('mergeList');
-type MergeList = Readonly<Ref<readonly AnnotationId[]>>;
+const MultiSelectSymbol = Symbol('multiSelect');
+type MultiSelectType = Readonly<Ref<readonly AnnotationId[]>>;
 
 const PendingSaveCountSymbol = Symbol('pendingSaveCount');
 type pendingSaveCountType = Readonly<Ref<number>>;
@@ -49,7 +49,7 @@ const SelectedKeySymbol = Symbol('selectedKey');
 type SelectedKeyType = Readonly<Ref<string>>;
 
 const SelectedTrackIdSymbol = Symbol('selectedTrackId');
-const SelectedGroupIdSymbol = Symbol('selectedGroupId');
+const EditingGroupIdSymbol = Symbol('editingGroupId');
 type SelectedTrackIdType = Readonly<Ref<AnnotationId | null>>;
 
 const TimeSymbol = Symbol('time');
@@ -92,8 +92,6 @@ export interface Handler {
   trackSelectNext(delta: number): void;
   /* split track */
   trackSplit(AnnotationId: AnnotationId | null, frame: number): void;
-  /* Change tracks difinitive type */
-  trackTypeChange(AnnotationId: AnnotationId | null, value: string): void;
   /* Add new empty track and select it */
   trackAdd(): AnnotationId;
   /* update Rectangle bounds for track */
@@ -126,6 +124,10 @@ export interface Handler {
   deleteAttribute({ data }: { data: Attribute }, removeFromTracks?: boolean): void;
   /* Commit the staged merge tracks */
   commitMerge(): void;
+  /* Create new group */
+  groupAdd(): void;
+  /* Put UI into group editing mode */
+  groupEdit(id: AnnotationId | null): void;
   /* Turn merge mode on and off */
   toggleMerge(): AnnotationId[];
   /* Remove AnnotationIds from merge */
@@ -150,7 +152,6 @@ function dummyHandler(handle: (name: string, args: unknown[]) => void): Handler 
     trackSelect(...args) { handle('trackSelect', args); },
     trackSelectNext(...args) { handle('trackSelectNext', args); },
     trackSplit(...args) { handle('trackSplit', args); },
-    trackTypeChange(...args) { handle('trackTypeChange', args); },
     trackAdd(...args) { handle('trackAdd', args); return 0; },
     updateRectBounds(...args) { handle('updateRectBounds', args); },
     updateGeoJSON(...args) { handle('updateGeoJSON', args); },
@@ -162,6 +163,8 @@ function dummyHandler(handle: (name: string, args: unknown[]) => void): Handler 
     deleteAttribute(...args) { handle('deleteAttribute', args); },
     toggleMerge(...args) { handle('toggleMerge', args); return []; },
     commitMerge(...args) { handle('commitMerge', args); },
+    groupAdd(...args) { handle('groupAdd', args); },
+    groupEdit(...args) { handle('groupEdit', args); },
     unstageFromMerge(...args) { handle('unstageFromMerge', args); },
     reloadAnnotations(...args) { handle('reloadTracks', args); return Promise.resolve(); },
     setSVGFilters(...args) { handle('setSVGFilter', args); },
@@ -183,13 +186,13 @@ export interface State {
   groupFilters: GroupFilterControls;
   groupStore: GroupStore;
   groupStyleManager: StyleManager;
-  mergeList: MergeList;
+  multiSelectList: MultiSelectType;
   pendingSaveCount: pendingSaveCountType;
   progress: ProgressType;
   revisionId: RevisionIdType;
   selectedKey: SelectedKeyType;
   selectedTrackId: SelectedTrackIdType;
-  selectedGroupId: SelectedTrackIdType;
+  editingGroupId: SelectedTrackIdType;
   time: TimeType;
   trackFilters: TrackFilterControls;
   trackStore: TrackStore;
@@ -219,7 +222,7 @@ function dummyState(): State {
     datasetId: ref(''),
     editingMode: ref(false),
     groupStore,
-    mergeList: ref([]),
+    multiSelectList: ref([]),
     pendingSaveCount: ref(0),
     progress: reactive({ loaded: true }),
     revisionId: ref(0),
@@ -227,7 +230,7 @@ function dummyState(): State {
     groupStyleManager: new StyleManager({ markChangesPending }),
     selectedKey: ref(''),
     selectedTrackId: ref(null),
-    selectedGroupId: ref(null),
+    editingGroupId: ref(null),
     time: {
       frame: ref(0),
       flick: ref(0),
@@ -259,7 +262,7 @@ function provideAnnotator(state: State, handler: Handler) {
   provide(GroupFilterControlsSymbol, state.groupFilters);
   provide(GroupStoreSymbol, state.groupStore);
   provide(GroupStyleManagerSymbol, state.groupStyleManager);
-  provide(MergeListSymbol, state.mergeList);
+  provide(MultiSelectSymbol, state.multiSelectList);
   provide(PendingSaveCountSymbol, state.pendingSaveCount);
   provide(ProgressSymbol, state.progress);
   provide(RevisionIdSymbol, state.revisionId);
@@ -268,7 +271,7 @@ function provideAnnotator(state: State, handler: Handler) {
   provide(TrackStyleManagerSymbol, state.trackStyleManager);
   provide(SelectedKeySymbol, state.selectedKey);
   provide(SelectedTrackIdSymbol, state.selectedTrackId);
-  provide(SelectedGroupIdSymbol, state.selectedGroupId);
+  provide(EditingGroupIdSymbol, state.editingGroupId);
   provide(TimeSymbol, state.time);
   provide(VisibleModesSymbol, state.visibleModes);
   provide(ReadOnlyModeSymbol, state.readOnlyMode);
@@ -320,8 +323,8 @@ function useHandler() {
   return use<Handler>(HandlerSymbol);
 }
 
-function useMergeList() {
-  return use<MergeList>(MergeListSymbol);
+function useMultiSelectList() {
+  return use<MultiSelectType>(MultiSelectSymbol);
 }
 
 function usePendingSaveCount() {
@@ -348,8 +351,8 @@ function useSelectedTrackId() {
   return use<SelectedTrackIdType>(SelectedTrackIdSymbol);
 }
 
-function useSelectedGroupId() {
-  return use<SelectedTrackIdType>(SelectedGroupIdSymbol);
+function useEditingGroupId() {
+  return use<SelectedTrackIdType>(EditingGroupIdSymbol);
 }
 
 function useTime() {
@@ -387,7 +390,7 @@ export {
   useGroupFilterControls,
   useGroupStore,
   useGroupStyleManager,
-  useMergeList,
+  useMultiSelectList,
   usePendingSaveCount,
   useProgress,
   useRevisionId,
@@ -396,7 +399,7 @@ export {
   useTrackStyleManager,
   useSelectedKey,
   useSelectedTrackId,
-  useSelectedGroupId,
+  useEditingGroupId,
   useTime,
   useVisibleModes,
   useReadOnlyMode,

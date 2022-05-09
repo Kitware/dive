@@ -93,6 +93,7 @@ export default defineComponent({
       }
       return {} as MediaController;
     });
+    const controlsContainerRef = ref();
     const { time, updateTime, initialize: initTime } = useTimeObserver();
     const imageData = ref([] as FrameImage[]);
     const datasetType: Ref<DatasetType> = ref('image-sequence');
@@ -118,8 +119,11 @@ export default defineComponent({
       return 0;
     });
 
+    /**
+     * Annotation window style source based on value of timeline visualization
+     */
     const colorBy = computed(() => {
-      if (context.state.active === 'GroupSidebar') {
+      if (controlsContainerRef.value?.currentView === 'Groups') {
         return 'group';
       }
       return 'track';
@@ -172,11 +176,11 @@ export default defineComponent({
 
     // Provides wrappers for actions to integrate with settings
     const {
-      mergeList,
-      mergeInProgress,
+      multiSelectList,
+      multiSelectActive,
       selectedFeatureHandle,
       selectedTrackId,
-      selectedGroupId,
+      editingGroupId,
       handler,
       editingMode,
       editingDetails,
@@ -187,6 +191,7 @@ export default defineComponent({
       recipes,
       trackFilterControls: trackFilters,
       trackStore,
+      groupStore,
       mediaController,
       readonlyState,
     });
@@ -194,9 +199,9 @@ export default defineComponent({
     const allSelectedIds = computed(() => {
       const selected = selectedTrackId.value;
       if (selected !== null) {
-        return mergeList.value.concat(selected);
+        return multiSelectList.value.concat(selected);
       }
-      return mergeList.value;
+      return multiSelectList.value;
     });
 
     const { lineChartData } = useLineChart({
@@ -214,7 +219,12 @@ export default defineComponent({
     const { eventChartData: groupChartData } = useEventChart({
       enabledTracks: groupFilters.enabledAnnotations,
       typeStyling: groupStyleManager.typeStyling,
-      selectedTrackIds: ref([]),
+      selectedTrackIds: computed(() => {
+        if (editingGroupId.value !== null) {
+          return [editingGroupId.value];
+        }
+        return [];
+      }),
     });
 
     async function trackSplit(trackId: AnnotationId | null, frame: number) {
@@ -414,13 +424,13 @@ export default defineComponent({
         groupFilters,
         groupStore,
         groupStyleManager,
-        mergeList,
+        multiSelectList,
         pendingSaveCount,
         progress,
         revisionId: toRef(props, 'revision'),
         selectedKey,
         selectedTrackId,
-        selectedGroupId,
+        editingGroupId,
         time,
         trackFilters,
         trackStore,
@@ -435,6 +445,7 @@ export default defineComponent({
     return {
       /* props */
       confidenceFilters: trackFilters.confidenceFilters,
+      controlsContainerRef,
       colorBy,
       clientSettings,
       datasetName,
@@ -448,7 +459,7 @@ export default defineComponent({
       lineChartData,
       loadError,
       mediaController,
-      mergeMode: mergeInProgress,
+      multiSelectActive,
       pendingSaveCount,
       progress,
       progressValue,
@@ -457,6 +468,7 @@ export default defineComponent({
       recipes,
       selectedFeatureHandle,
       selectedTrackId,
+      editingGroupId,
       selectedKey,
       videoUrl,
       visibleModes,
@@ -525,7 +537,11 @@ export default defineComponent({
       <v-spacer />
       <template #extension>
         <EditorMenu
-          v-bind="{ editingMode, visibleModes, editingTrack, recipes, mergeMode, editingDetails }"
+          v-bind="{
+            editingMode, visibleModes, editingTrack, recipes,
+            multiSelectActive, editingDetails,
+            groupEditActive: editingGroupId !== null,
+          }"
           :tail-settings.sync="clientSettings.annotatorPreferences.trackTails"
           @set-annotation-state="handler.setAnnotationState"
           @exit-edit="handler.trackAbort"
@@ -644,8 +660,10 @@ export default defineComponent({
         >
           <template slot="control">
             <controls-container
+              ref="controlsContainerRef"
               v-bind="{ lineChartData, eventChartData, groupChartData, datasetType }"
               @select-track="handler.trackSelect"
+              @select-group="handler.groupEdit"
             />
           </template>
           <layer-manager v-bind="{ colorBy }" />

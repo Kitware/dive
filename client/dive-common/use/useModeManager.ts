@@ -9,11 +9,14 @@ import { MediaController } from 'vue-media-annotator/components/annotators/media
 
 import Recipe from 'vue-media-annotator/recipe';
 import TrackStore from 'vue-media-annotator/TrackStore';
-import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
-import { clientSettings } from 'dive-common/store/settings';
 import type { AnnotationId } from 'vue-media-annotator/BaseAnnotation';
 import type TrackFilterControls from 'vue-media-annotator/TrackFilterControls';
 import BaseAnnotation from 'vue-media-annotator/BaseAnnotation';
+import GroupStore from 'vue-media-annotator/GroupStore';
+
+import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
+import { clientSettings } from 'dive-common/store/settings';
+
 
 type SupportedFeature = GeoJSON.Feature<GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString>;
 
@@ -55,12 +58,14 @@ interface SetAnnotationStateArgs {
  */
 export default function useModeManager({
   trackStore,
+  groupStore,
   trackFilterControls,
   mediaController,
   readonlyState,
   recipes,
 }: {
     trackStore: TrackStore;
+    groupStore: GroupStore;
     trackFilterControls: TrackFilterControls;
   mediaController: Ref<MediaController>;
     readonlyState: Readonly<Ref<boolean>>;
@@ -73,7 +78,7 @@ export default function useModeManager({
     editing: 'rectangle' as EditAnnotationTypes,
   });
   const trackSettings = toRef(clientSettings, 'trackSettings');
-
+  const groupSettings = toRef(clientSettings, 'groupSettings');
   // Meaning of this value varies based on the editing mode.  When in
   // polygon edit mode, this corresponds to a polygon point.  Ditto in line mode.
   const selectedFeatureHandle = ref(-1);
@@ -83,8 +88,8 @@ export default function useModeManager({
   // the currently selected Track
   const selectedTrackId = ref(null as AnnotationId | null);
 
-  // the currently selected Group
-  const selectedGroupId = ref(null as AnnotationId | null);
+  // the currently editing Group
+  const editingGroupId = ref(null as AnnotationId | null);
 
   // boolean whether or not selectedTrackId is also being edited.
   const editingTrack = ref(false);
@@ -92,6 +97,10 @@ export default function useModeManager({
   // which type is currently being edited, if any
   const editingMode = computed(() => editingTrack.value && annotationModes.editing);
   const editingCanary = ref(false);
+
+  // Track Multi-select state
+  const multiSelectList = ref([] as AnnotationId[]);
+  const multiSelectActive = computed(() => multiSelectList.value.length > 0);
 
   const _filteredTracks = computed(
     () => trackFilterControls.filteredAnnotations.value.map((filtered) => filtered.annotation),
@@ -107,6 +116,23 @@ export default function useModeManager({
       prompt({ title: 'Read Only Mode', text: 'This Dataset is in Read Only mode, no edits can be made.' });
     } else {
       editingTrack.value = trackId !== null && edit;
+    }
+  }
+
+  /** Put UI into group editing mode. */
+  function handleGroupEdit(groupId: AnnotationId | null) {
+    if (readonlyState.value) {
+      prompt({ title: 'Read Only Mode', text: 'This Dataset is in Read Only mode, no edits can be made.' });
+    } else {
+      creating = false;
+      editingTrack.value = false;
+      editingGroupId.value = groupId;
+      if (groupId !== null) {
+        /** When moving into a group edit mode, multi-select all track members */
+        const group = groupStore.get(groupId);
+        multiSelectList.value = Object.keys(group.members).map((v) => parseInt(v, 10));
+        selectedTrackId.value = null;
+      }
     }
   }
 
@@ -143,9 +169,6 @@ export default function useModeManager({
   const visibleModes = computed(() => (
     uniq(annotationModes.visible.concat(editingMode.value || []))
   ));
-  // Track merge state
-  const mergeList = ref([] as TrackId[]);
-  const mergeInProgress = computed(() => mergeList.value.length > 0);
 
   /**
    * Figure out if a new feature should enable interpolation
@@ -203,11 +226,20 @@ export default function useModeManager({
     /**
      * If merge is in progress, add selected tracks to the merge list
      */
-    if (trackId !== null && mergeInProgress.value) {
-      mergeList.value = Array.from((new Set(mergeList.value).add(trackId)));
+    if (trackId !== null && multiSelectActive.value) {
+      multiSelectList.value = Array.from((new Set(multiSelectList.value).add(trackId)));
+      /**
+       * If editing group, then the newly selected track should be added to the group
+       */
+      if (editingGroupId.value !== null) {
+        const track = trackStore.get(trackId);
+        groupStore.get(editingGroupId.value).addMembers({
+          [trackId]: { ranges: [[track.begin, track.end]] },
+        });
+      }
     }
-    /* Do not allow editing when merge is in progres */
-    selectTrack(trackId, edit && !mergeInProgress.value);
+    /* Do not allow editing when merge is in progress */
+    selectTrack(trackId, edit && !multiSelectActive.value);
   }
 
   //Handles deselection or hitting escape including while editing
@@ -222,7 +254,8 @@ export default function useModeManager({
         }
       }
     }
-    mergeList.value = [];
+    multiSelectList.value = [];
+    handleGroupEdit(null);
     handleSelectTrack(null, false);
   }
 
@@ -236,12 +269,6 @@ export default function useModeManager({
     selectTrack(newTrackId, true);
     creating = true;
     return newTrackId;
-  }
-
-  function handleTrackTypeChange(trackId: TrackId | null, value: string) {
-    if (trackId !== null) {
-      trackStore.get(trackId).setType(value);
-    }
   }
 
   function newTrackSettingsAfterLogic(addedTrack: Track) {
@@ -445,11 +472,25 @@ export default function useModeManager({
     }
   }
 
+  function handleRemoveGroup() {
+    if (editingGroupId.value !== null) {
+      groupStore.remove(editingGroupId.value);
+    }
+  }
+
   /**
    * Unstage a track from the merge list
    */
   function handleUnstageFromMerge(trackIds: TrackId[]) {
-    mergeList.value = mergeList.value.filter((trackId) => !trackIds.includes(trackId));
+    multiSelectList.value = multiSelectList.value.filter((trackId) => !trackIds.includes(trackId));
+    /* Unselect a track when it is unstaged */
+    if (selectedTrackId.value !== null && trackIds.includes(selectedTrackId.value)) {
+      handleSelectTrack(null);
+    }
+    /** Remove members from group if group editing */
+    if (editingGroupId.value !== null) {
+      groupStore.get(editingGroupId.value).removeMembers(trackIds);
+    }
   }
 
   async function handleRemoveTrack(trackIds: TrackId[], forcePromptDisable = false) {
@@ -526,28 +567,39 @@ export default function useModeManager({
    * Merge: Enabled whenever there are candidates in the merge list
    */
   function handleToggleMerge(): TrackId[] {
-    if (!mergeInProgress.value && selectedTrackId.value !== null) {
+    if (!multiSelectActive.value && selectedTrackId.value !== null) {
       /* If no merge in progress and there is a selected track id */
-      mergeList.value = [selectedTrackId.value];
+      multiSelectList.value = [selectedTrackId.value];
       /* no editing in merge mode */
       selectTrack(selectedTrackId.value, false);
     } else {
-      mergeList.value = [];
+      multiSelectList.value = [];
     }
-    return mergeList.value;
+    return multiSelectList.value;
   }
 
   /**
-   * Merge: Commit the merge list
+   * Merge: Commit the multi-select list to merge
    */
   function handleCommitMerge() {
-    if (mergeList.value.length >= 2) {
-      const track = trackStore.get(mergeList.value[0]);
-      const otherTrackIds = mergeList.value.slice(1);
+    if (multiSelectList.value.length >= 2) {
+      const track = trackStore.get(multiSelectList.value[0]);
+      const otherTrackIds = multiSelectList.value.slice(1);
       track.merge(otherTrackIds.map((trackId) => trackStore.get(trackId)));
       handleRemoveTrack(otherTrackIds, true);
       handleToggleMerge();
       handleSelectTrack(track.trackId, false);
+    }
+  }
+
+  /**
+   * Group: Commit the multi-select list to a new or existing group
+  */
+  function handleAddGroup() {
+    if (selectedTrackId.value !== null) {
+      const members = [trackStore.get(selectedTrackId.value)];
+      const newGrp = groupStore.add(members, groupSettings.value.newGroupSettings.type);
+      handleGroupEdit(newGrp.id);
     }
   }
 
@@ -560,18 +612,20 @@ export default function useModeManager({
 
   return {
     selectedTrackId,
-    selectedGroupId,
+    editingGroupId,
     editingMode,
     editingTrack,
     editingDetails,
-    mergeList,
-    mergeInProgress,
+    multiSelectList,
+    multiSelectActive,
     visibleModes,
     selectedFeatureHandle,
     selectedKey,
     selectNextTrack,
     handler: {
       commitMerge: handleCommitMerge,
+      groupAdd: handleAddGroup,
+      groupEdit: handleGroupEdit,
       toggleMerge: handleToggleMerge,
       trackAdd: handleAddTrackOrDetection,
       trackAbort: handleEscapeMode,
@@ -579,12 +633,12 @@ export default function useModeManager({
       trackSeek: handleTrackClick,
       trackSelect: handleSelectTrack,
       trackSelectNext: handleSelectNext,
-      trackTypeChange: handleTrackTypeChange,
       updateRectBounds: handleUpdateRectBounds,
       updateGeoJSON: handleUpdateGeoJSON,
       removeTrack: handleRemoveTrack,
       removePoint: handleRemovePoint,
       removeAnnotation: handleRemoveAnnotation,
+      removeGroup: handleRemoveGroup,
       selectFeatureHandle: handleSelectFeatureHandle,
       setAnnotationState: handleSetAnnotationState,
       unstageFromMerge: handleUnstageFromMerge,

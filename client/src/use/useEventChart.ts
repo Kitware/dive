@@ -13,7 +13,7 @@ interface EventChartParams<T extends BaseAnnotation> {
 }
 
 interface EventChartData {
-  trackId: AnnotationId;
+  id: AnnotationId;
   name: string;
   type: string;
   color: string;
@@ -41,7 +41,7 @@ export default function useEventChart<T extends BaseAnnotation>({
       if (confidencePairs.length) {
         const trackType = track.getType(filtered.context.confidencePairIndex)[0];
         values.push({
-          trackId: track.id,
+          id: track.id,
           name: `Track ${track.id}`,
           type: trackType,
           color: mapfunc(trackType),

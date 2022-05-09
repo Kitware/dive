@@ -83,6 +83,12 @@ function generateColors(numColors: number) {
   return colorList;
 }
 
+const defaultStaticStyles: Record<string, CustomStyle> = {
+  'no-group': {
+    color: '#ffffff',
+  },
+};
+
 export default class StyleManager {
   /**
    * Revision counter should be watched for re-rendering based on customStyles
@@ -184,7 +190,12 @@ export default class StyleManager {
 
   populateTypeStyles(styles?: Record<string, CustomStyle>) {
     if (styles) {
-      this.customStyles.value = styles;
+      this.customStyles.value = {
+        ...defaultStaticStyles,
+        ...styles,
+      };
+    } else {
+      this.customStyles.value = defaultStaticStyles;
     }
   }
 

@@ -1,7 +1,8 @@
 import BaseAnnotationStore, { InsertArgs, MarkChangesPending } from './BaseAnnotationStore';
 import { AnnotationId } from './BaseAnnotation';
-import Group from './Group';
+import Group, { GroupMembers } from './Group';
 import MultiMap from './MultiMap';
+import Track from './track';
 
 export default class GroupStore extends BaseAnnotationStore<Group> {
   // fast reverse mapping of tracks to the collection of groups they are in.
@@ -12,7 +13,7 @@ export default class GroupStore extends BaseAnnotationStore<Group> {
   constructor({ markChangesPending }: { markChangesPending: MarkChangesPending }) {
     super({ markChangesPending });
     this.trackMap = new MultiMap();
-    this.defaultGroup = ['none', 1.0];
+    this.defaultGroup = ['no-group', 1.0];
   }
 
   insert(group: Group, args?: InsertArgs) {
@@ -28,6 +29,29 @@ export default class GroupStore extends BaseAnnotationStore<Group> {
         });
       }
     });
+  }
+
+  /**
+   * Initialize a new group with members
+   */
+  add(members: Track[], defaultType: string) {
+    const newId = this.getNewId();
+    const begin = Math.min(...members.map((m) => m.begin));
+    const end = Math.max(...members.map((m) => m.end));
+    const memberMap: GroupMembers = {};
+    members.forEach((m) => {
+      memberMap[m.id] = {
+        ranges: [[m.begin, m.end]],
+      };
+    });
+    const group = new Group(newId, {
+      begin,
+      end,
+      confidencePairs: [[defaultType, 1]],
+      members: memberMap,
+    });
+    this.insert(group);
+    return group;
   }
 
   remove(annotationId: number, disableNotifications = false): void {

@@ -26,6 +26,11 @@ interface AnnotationSettings {
       promptUser: boolean;
     };
   };
+  groupSettings: {
+    newGroupSettings: {
+      type: string;
+    };
+  };
   rowsPerPage: number;
   annotationFPS: number;
   annotatorPreferences: AnnotatorPreferences;
@@ -48,6 +53,11 @@ const defaultSettings: AnnotationSettings = {
     },
     deletionSettings: {
       promptUser: true,
+    },
+  },
+  groupSettings: {
+    newGroupSettings: {
+      type: 'unknown',
     },
   },
   typeSettings: {

@@ -23,12 +23,6 @@ export default defineComponent({
   },
 
   setup() {
-    // const allTypesRef = useTrackFilters().allTypes;
-    // const readOnlyMode = useReadOnlyMode();
-    // const { toggleMerge, commitMerge } = useHandler();
-    // const { visible } = usePrompt();
-    // const trackSettings = toRef(clientSettings, 'trackSettings');
-    // const typeSettings = toRef(clientSettings, 'typeSettings');
     const groupFilterControls = useGroupFilterControls();
     const styleManager = useGroupStyleManager();
 
