@@ -114,7 +114,7 @@ export default defineComponent({
     >
       <v-spacer />
       <div class="text-caption grey--text text--lighten-1">
-        {{ Object.keys(group.members).join(', ') }}
+        {{ group.memberIds.join(', ') }}
       </div>
     </v-row>
   </div>

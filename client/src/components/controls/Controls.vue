@@ -34,7 +34,9 @@ export default defineComponent({
       data.frame = value;
     }
 
-    function togglePlay() {
+    function togglePlay(_: HTMLElement, keyEvent: KeyboardEvent) {
+      // Prevent scroll from spacebar and other default effects.
+      keyEvent.preventDefault();
       if (mediaController.playing.value) {
         mediaController.pause();
       } else {

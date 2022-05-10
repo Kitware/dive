@@ -155,7 +155,7 @@ export default class BaseAnnotationStore<T extends Track | Group> {
       if (isTrack(value)) {
         this.markChangesPending({ action: 'delete', track: value });
       } else {
-        this.markChangesPending({ action: 'upsert', group: value });
+        this.markChangesPending({ action: 'delete', group: value });
       }
     }
   }

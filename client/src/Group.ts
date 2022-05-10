@@ -31,6 +31,10 @@ export default class Group extends BaseAnnotation {
     });
   }
 
+  public get memberIds(): AnnotationId[] {
+    return Object.keys(this.members).map((id) => parseInt(id, 10));
+  }
+
   addMembers(members: GroupMembers) {
     if (Object.keys(members).some((v) => !(v in this.members))) {
       this.notify('members');

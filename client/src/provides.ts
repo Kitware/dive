@@ -111,6 +111,8 @@ export interface Handler {
   ): void;
   /* Remove a whole track */
   removeTrack(AnnotationIds: AnnotationId[], forcePromptDisable?: boolean): void;
+  /* remove a whole group */
+  removeGroup(AnnotationIds: AnnotationId[]): void;
   /* Remove a single point from selected track's geometry by selected index */
   removePoint(): void;
   /* Remove an entire annotation from selected track by selected key */
@@ -128,6 +130,8 @@ export interface Handler {
   groupAdd(): void;
   /* Put UI into group editing mode */
   groupEdit(id: AnnotationId | null): void;
+  /* Select next group in the list */
+  groupSelectNext(delta: number): void;
   /* Turn merge mode on and off */
   toggleMerge(): AnnotationId[];
   /* Remove AnnotationIds from merge */
@@ -156,6 +160,7 @@ function dummyHandler(handle: (name: string, args: unknown[]) => void): Handler 
     updateRectBounds(...args) { handle('updateRectBounds', args); },
     updateGeoJSON(...args) { handle('updateGeoJSON', args); },
     removeTrack(...args) { handle('removeTrack', args); },
+    removeGroup(...args) { handle('removeGroup', args); },
     removePoint(...args) { handle('removePoint', args); },
     removeAnnotation(...args) { handle('removeAnnotation', args); },
     selectFeatureHandle(...args) { handle('selectFeatureHandle', args); },
@@ -165,6 +170,7 @@ function dummyHandler(handle: (name: string, args: unknown[]) => void): Handler 
     commitMerge(...args) { handle('commitMerge', args); },
     groupAdd(...args) { handle('groupAdd', args); },
     groupEdit(...args) { handle('groupEdit', args); },
+    groupSelectNext(...args) { handle('groupSelectNext', args); },
     unstageFromMerge(...args) { handle('unstageFromMerge', args); },
     reloadAnnotations(...args) { handle('reloadTracks', args); return Promise.resolve(); },
     setSVGFilters(...args) { handle('setSVGFilter', args); },

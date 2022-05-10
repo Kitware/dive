@@ -25,13 +25,12 @@ import { Attribute } from 'vue-media-annotator/use/useAttributes';
 import TrackItem from 'vue-media-annotator/components/TrackItem.vue';
 import TooltipBtn from 'vue-media-annotator/components/TooltipButton.vue';
 import TypePicker from 'vue-media-annotator/components/TypePicker.vue';
+import RangeEditor from 'vue-media-annotator/components/RangeEditor.vue';
 
 import AttributeInput from 'dive-common/components/AttributeInput.vue';
 import AttributeEditor from 'dive-common/components/AttributeEditor.vue';
 import AttributeSubsection from 'dive-common/components/AttributesSubsection.vue';
 import ConfidenceSubsection from 'dive-common/components/ConfidenceSubsection.vue';
-import RangeEditor from 'dive-common/components/RangeEditor.vue';
-
 
 export default defineComponent({
   components: {
@@ -73,6 +72,7 @@ export default defineComponent({
     const multiSelectInProgress = computed(() => multiSelectList.value.length > 0);
     const {
       trackSelectNext, trackSplit, removeTrack, unstageFromMerge,
+      setAttribute, deleteAttribute, removeGroup,
     } = useHandler();
 
     //Edit/Set single value by clicking
@@ -88,7 +88,7 @@ export default defineComponent({
       }
       return null;
     });
-    const { setAttribute, deleteAttribute } = useHandler();
+
     const selectedTrackList = computed(() => {
       if (multiSelectList.value.length > 0) {
         return multiSelectList.value.map((trackId) => trackStore.get(trackId));
@@ -236,6 +236,7 @@ export default defineComponent({
       resetEditIndividual,
       mouseTrap,
       flatten,
+      removeGroup,
       unstageFromMerge,
     };
   },
@@ -280,7 +281,7 @@ export default defineComponent({
     <template v-else>
       <div
         v-if="editingGroup"
-        class="mx-2"
+        class="px-2"
       >
         <div class="d-flex">
           <span class="trackNumber">{{ editingGroup.id }}</span>
@@ -293,11 +294,29 @@ export default defineComponent({
           />
         </div>
         <RangeEditor
+          :frame="frameRef"
           :begin.sync="editingGroup.begin"
           :end.sync="editingGroup.end"
           disabled
           class="my-2 input-box"
         />
+        <v-btn
+          color="error"
+          :disabled="readOnlyMode"
+          depressed
+          block
+          x-small
+          @click="removeGroup([editingGroup.id])"
+        >
+          <v-icon
+            small
+            class="pr-1"
+          >
+            mdi-delete
+          </v-icon>
+          <v-spacer />
+          Delete Group
+        </v-btn>
         <v-subheader class="pl-0">
           Group Members:
         </v-subheader>
@@ -337,24 +356,26 @@ export default defineComponent({
             <tooltip-btn
               v-if="multiSelectInProgress"
               icon="mdi-close"
-              tooltip-text="Remove from merge group"
+              :tooltip-text="editingGroup ? 'Remove from group' : 'Remove from merge candidates'"
               :disabled="editingGroup && selectedTrackList.length === 1"
               @click="unstageFromMerge([track.trackId])"
             />
           </div>
-          <RangeEditor
-            v-if="editingGroup"
-            :begin="editingGroup.members[track.id].ranges[0][0]"
-            :end="editingGroup.members[track.id].ranges[0][1]"
-            @update:begin="editingGroup.setMemberRange(
-              track.id, 0, [$event, editingGroup.members[track.id].ranges[0][1]])"
-            @update:end="editingGroup.setMemberRange(
-              track.id, 0, [editingGroup.members[track.id].ranges[0][0], $event])"
-            @click:begin="editingGroup.setMemberRange(
-              track.id, 0, [frameRef, editingGroup.members[track.id].ranges[0][1]])"
-            @click:end="editingGroup.setMemberRange(
-              track.id, 0, [editingGroup.members[track.id].ranges[0][0], frameRef])"
-          />
+          <template v-if="editingGroup">
+            <RangeEditor
+              :frame="frameRef"
+              :begin="editingGroup.members[track.id].ranges[0][0]"
+              :end="editingGroup.members[track.id].ranges[0][1]"
+              @update:begin="editingGroup.setMemberRange(
+                track.id, 0, [$event, editingGroup.members[track.id].ranges[0][1]])"
+              @update:end="editingGroup.setMemberRange(
+                track.id, 0, [editingGroup.members[track.id].ranges[0][0], $event])"
+              @click:begin="editingGroup.setMemberRange(
+                track.id, 0, [frameRef, editingGroup.members[track.id].ranges[0][1]])"
+              @click:end="editingGroup.setMemberRange(
+                track.id, 0, [editingGroup.members[track.id].ranges[0][0], frameRef])"
+            />
+          </template>
         </v-card>
       </div>
       <div class="d-flex flex-column">

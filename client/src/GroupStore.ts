@@ -18,8 +18,8 @@ export default class GroupStore extends BaseAnnotationStore<Group> {
 
   insert(group: Group, args?: InsertArgs) {
     super.insert(group, args);
-    Object.keys(group.members).forEach((id) => {
-      this.trackMap.add(Number.parseInt(id, 10), group.id);
+    group.memberIds.forEach((id) => {
+      this.trackMap.add(id, group.id);
     });
     group.setNotifier((params) => {
       super.notify(params);
@@ -56,10 +56,24 @@ export default class GroupStore extends BaseAnnotationStore<Group> {
 
   remove(annotationId: number, disableNotifications = false): void {
     const group = this.get(annotationId);
-    Object.keys(group.members).forEach((member) => {
-      this.trackMap.remove(Number.parseInt(member, 10), group.id);
+    group.memberIds.forEach((id) => {
+      this.trackMap.remove(id, group.id);
     });
     super.remove(annotationId, disableNotifications);
+  }
+
+  /**
+   * Notify the group store that a track has been removed
+   */
+  trackRemove(annotationId: number) {
+    this.lookupGroups(annotationId).forEach((group) => {
+      /** Remove deleted track from group reference */
+      group.removeMembers([annotationId]);
+      if (group.memberIds.length === 0) {
+        /** If you removed the last track, delete the group */
+        this.remove(group.id);
+      }
+    });
   }
 
   lookupGroups(trackId: AnnotationId) {

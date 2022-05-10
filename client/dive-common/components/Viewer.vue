@@ -190,6 +190,7 @@ export default defineComponent({
     } = useModeManager({
       recipes,
       trackFilterControls: trackFilters,
+      groupFilterControls: groupFilters,
       trackStore,
       groupStore,
       mediaController,

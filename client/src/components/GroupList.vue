@@ -24,9 +24,13 @@ export default defineComponent({
       type: Number,
       default: 420,
     },
+    hotkeysDisabled: {
+      type: Boolean,
+      required: true,
+    },
   },
 
-  setup() {
+  setup(props) {
     const readOnlyMode = useReadOnlyMode();
     const store = useGroupStore();
     const typeStylingRef = useGroupStyleManager().typeStyling;
@@ -66,15 +70,41 @@ export default defineComponent({
         color: typeStylingRef.value.color(confidencePair[0]),
         selected: item.filteredGroup.annotation.id === selectedId.value,
         selectedTrackId: selectedTrack.value,
-        secondarySelected: selectedTrack.value
+        secondarySelected: (selectedTrack.value !== null)
           ? selectedTrack.value in item.filteredGroup.annotation.members
           : false,
         inputValue: item.checkedTrackIds.includes(item.filteredGroup.annotation.id),
       };
     }
 
+    /**
+     * This doesn't actually do anything aside
+     * from intercepting up/down keypresses and
+     * calling preventDefault so that the list doesn't behave oddly.
+     */
+    const mouseTrap = computed(() => {
+      const disabled = props.hotkeysDisabled;
+      return [
+        {
+          bind: 'up',
+          handler: (el: HTMLElement, event: KeyboardEvent) => {
+            virtualScroll.scrollPreventDefault(el, event, 'up');
+          },
+          disabled,
+        },
+        {
+          bind: 'down',
+          handler: (el: HTMLElement, event: KeyboardEvent) => {
+            virtualScroll.scrollPreventDefault(el, event, 'down');
+          },
+          disabled,
+        },
+      ];
+    });
+
     return {
       data,
+      mouseTrap,
       getItemProps,
       groupFilters,
       readOnlyMode,
@@ -105,6 +135,7 @@ export default defineComponent({
     </datalist>
     <v-virtual-scroll
       ref="virtualList"
+      v-mousetrap="mouseTrap"
       class="groups"
       :items="virtualListItems"
       :item-height="data.itemHeight"

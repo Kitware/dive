@@ -14,6 +14,10 @@ export default defineComponent({
       type: Number,
       required: true,
     },
+    frame: {
+      type: Number,
+      default: 0,
+    },
     disabled: {
       type: Boolean,
       default: false,
@@ -39,7 +43,15 @@ export default defineComponent({
 
 <template>
   <div>
-    <div class="d-flex align-center px-1">
+    <div
+      class="d-flex align-center px-1"
+      :style="{
+        background: `linear-gradient(
+            to right,
+            #3a3a3a ${((frame - begin) / (end - begin) * 100).toFixed(0)}%,
+            rgba(0,0,0,0) ${(1 - ((frame - begin) / (end - begin)) * 100, 0).toFixed(0)}%)`,
+      }"
+    >
       <v-text-field
         :value="begin"
         :disabled="disabled"

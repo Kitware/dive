@@ -28,14 +28,13 @@ export default class TrackFilterControls extends BaseFilterControls<Track> {
       const resultsArr: AnnotationWithContext<Track>[] = [];
       params.store.sorted.value.forEach((annotation) => {
         let enabledInGroupFilters = true;
-        const groups = params.groupStore.trackMap.get(annotation.id);
-        if (groups?.size) {
+        const groups = params.groupStore.lookupGroups(annotation.id);
+        if (groups.length) {
           /**
            * This track is a member of a group,
            * so check that at least one of its groups is enabled
            */
-          enabledInGroupFilters = Array.from(groups.values())
-            .some((id) => filteredGroupsSet.has(id));
+          enabledInGroupFilters = groups.some((group) => filteredGroupsSet.has(group.id));
         }
         const confidencePairIndex = annotation.confidencePairs
           .findIndex(([confkey, confval]) => {

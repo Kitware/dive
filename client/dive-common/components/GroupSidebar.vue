@@ -4,7 +4,10 @@ import FilterList from 'vue-media-annotator/components/FilterList.vue';
 import GroupList from 'vue-media-annotator/components/GroupList.vue';
 
 import StackedVirtualSidebarContainer from 'dive-common/components/StackedVirtualSidebarContainer.vue';
-import { useGroupFilterControls, useGroupStyleManager } from 'vue-media-annotator/provides';
+import {
+  useGroupFilterControls, useGroupStyleManager, useReadOnlyMode,
+} from 'vue-media-annotator/provides';
+import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 
 export default defineComponent({
   name: 'GroupSidebar',
@@ -25,10 +28,14 @@ export default defineComponent({
   setup() {
     const groupFilterControls = useGroupFilterControls();
     const styleManager = useGroupStyleManager();
+    const readOnlyMode = useReadOnlyMode();
+    const { visible } = usePrompt();
 
     return {
       styleManager,
       groupFilterControls,
+      readOnlyMode,
+      visible,
     };
   },
 });
@@ -53,6 +60,7 @@ export default defineComponent({
       <GroupList
         class="flex-grow-0 flex-shrink-0"
         :height="bottomHeight"
+        :hotkeys-disabled="visible() || readOnlyMode"
       />
     </template>
   </StackedVirtualSidebarContainer>
