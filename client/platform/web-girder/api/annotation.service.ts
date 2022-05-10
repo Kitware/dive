@@ -1,4 +1,3 @@
-import { GirderModel } from '@girder/components/src';
 import { SaveDetectionsArgs } from 'dive-common/apispec';
 import { TrackData } from 'vue-media-annotator/track';
 import girderRest from 'platform/web-girder/plugins/girder';
@@ -12,6 +11,16 @@ export interface Revision {
   dataset: Readonly<string>;
   description: Readonly<string>;
   revision: Readonly<number>;
+}
+
+export interface Label {
+  _id: string;
+  count: number;
+  datasets: Record<string, {
+    id: string;
+    name: string;
+    color?: string;
+  }>;
 }
 
 function loadDetections(folderId: string, revision?: number) {
@@ -44,8 +53,8 @@ function saveDetections(folderId: string, args: SaveDetectionsArgs) {
   });
 }
 
-async function getLabels(published?: boolean, shared?: boolean) {
-  const response = await girderRest.get<GirderModel[]>('dive_annotation/labels');
+async function getLabels() {
+  const response = await girderRest.get<Label[]>('dive_annotation/labels');
   return response;
 }
 
