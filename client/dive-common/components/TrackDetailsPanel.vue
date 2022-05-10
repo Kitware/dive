@@ -72,7 +72,7 @@ export default defineComponent({
     const multiSelectInProgress = computed(() => multiSelectList.value.length > 0);
     const {
       trackSelectNext, trackSplit, removeTrack, unstageFromMerge,
-      setAttribute, deleteAttribute, removeGroup,
+      setAttribute, deleteAttribute, removeGroup, toggleMerge,
     } = useHandler();
 
     //Edit/Set single value by clicking
@@ -237,6 +237,7 @@ export default defineComponent({
       mouseTrap,
       flatten,
       removeGroup,
+      toggleMerge,
       unstageFromMerge,
     };
   },
@@ -316,6 +317,24 @@ export default defineComponent({
           </v-icon>
           <v-spacer />
           Delete Group
+        </v-btn>
+        <v-btn
+          color="secondary"
+          class="mt-2"
+          :disabled="readOnlyMode"
+          depressed
+          block
+          x-small
+          @click="toggleMerge"
+        >
+          <v-icon
+            small
+            class="pr-1"
+          >
+            mdi-close
+          </v-icon>
+          <v-spacer />
+          Cancel (esc)
         </v-btn>
         <v-subheader class="pl-0">
           Group Members:

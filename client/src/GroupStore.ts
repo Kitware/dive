@@ -24,8 +24,12 @@ export default class GroupStore extends BaseAnnotationStore<Group> {
     group.setNotifier((params) => {
       super.notify(params);
       if (params.event === 'remove-members') {
-        (params.oldValue as number[]).forEach((v) => {
-          this.trackMap.remove(group.id, v);
+        (params.oldValue as number[]).forEach((trackId) => {
+          this.trackMap.remove(trackId, group.id);
+        });
+      } else if (params.event === 'members') {
+        group.memberIds.forEach((id) => {
+          this.trackMap.add(id, group.id);
         });
       }
     });

@@ -36,11 +36,12 @@ export default class Group extends BaseAnnotation {
   }
 
   addMembers(members: GroupMembers) {
-    if (Object.keys(members).some((v) => !(v in this.members))) {
-      this.notify('members');
-    }
+    const notify = Object.keys(members).some((v) => !(v in this.members));
     this.members = assign(this.members, members);
     this.maybeExpandBoundsForMembers();
+    if (notify) {
+      this.notify('members');
+    }
   }
 
   setMemberRange(memberId: AnnotationId, idx: number, range: [number, number]) {

@@ -48,7 +48,7 @@ export default defineComponent({
       :style="{
         background: `linear-gradient(
             to right,
-            #3a3a3a ${((frame - begin) / (end - begin) * 100).toFixed(0)}%,
+            rgba(255,255,255,0.1) ${((frame - begin) / (end - begin) * 100).toFixed(0)}%,
             rgba(0,0,0,0) ${(1 - ((frame - begin) / (end - begin)) * 100, 0).toFixed(0)}%)`,
       }"
     >

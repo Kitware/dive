@@ -603,6 +603,7 @@ export default function useModeManager({
       selectTrack(selectedTrackId.value, false);
     } else {
       multiSelectList.value = [];
+      handleGroupEdit(null);
     }
     return multiSelectList.value;
   }
