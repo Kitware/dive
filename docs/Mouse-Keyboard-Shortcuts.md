@@ -43,8 +43,9 @@ Most editing controls are available when a track or detection is selected.
 | ++i++ | toggle interpolation for the current range of the selected track |
 | ++m++ | enter merge mode for on selection |
 | ++shift+m++ | commit (finalize) merge for selected tracks. |
+| ++g++ | create new group including the selected track |
 | ++shift+enter++ | focus class select/text box on selected track in track list.  Press ++arrow-down++ to open all options.  Pres ++enter++ twice to accept an option.  Press ++escape++ to unfocus. |
 
 ## Adding new shortcuts
 
-If you think a new shortcut would be useful, [please send us feedback](Support.md).
+If you think a new shortcut or hotkey would be useful, [please send us feedback](Support.md).
