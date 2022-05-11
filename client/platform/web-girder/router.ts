@@ -63,15 +63,15 @@ const router = new Router({
               beforeEnter,
             },
             {
-              path: ':routeType?/:routeId?',
-              name: 'home',
-              component: DataBrowser,
-              beforeEnter,
-            },
-            {
               path: 'summary',
               name: 'summary',
               component: Summary,
+              beforeEnter,
+            },
+            {
+              path: ':routeType?/:routeId?',
+              name: 'home',
+              component: DataBrowser,
               beforeEnter,
             },
           ],
