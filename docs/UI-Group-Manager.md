@@ -1,6 +1,6 @@
 # Group Manager
 
-![Track List Highlighted](images/UIView/TrackListHighlight.png)
+![Track List Highlighted](images/UIView/GroupManagerHighlight.png)
 
 The group manager is one pane of the context sidebar.
 
@@ -45,15 +45,14 @@ To enter group edit mode, click a group's ID number in the group list.
 * Add new tracks to a group by first entering group edit mode, then selecting tracks to add (in the annotation window, the sidebar, or any UI where track selection can happen)
 * Click ==:material-close:== next to a track to remove it from a group
 * Use the frame range input boxes to adjust the start and end frame numbers that a track participates in a group.
-* Click ==:material-map-marker:== to set a frame input box to the current frame without typing.
-* Click ==:material-delete: Delete Group=={ .error } to delete a group without deleting its composite tracks.
+* Click ==:material-map-marker:== to set a frame input box to the current frame.
+* Click ==:material-delete: Delete Group=={ .error } to delete a group without deleting its member tracks.
 
 Some notes about group editing behavior.
 
 * If you delete a track, and the track was the only track remaining in one or more groups, those groups will also be deleted.
 * If you delete a group, its member tracks will not be deleted no matter how many members there are.
 * The group's composite range (shown as disabled begin and end frames in the group editor) is the maximum overlapping range of all member tracks.
-
 
 ## Example data
 

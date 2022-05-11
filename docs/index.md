@@ -16,7 +16,7 @@ This is the documentation site for DIVE, a [**free and open-source**](https://ww
 
 |         | Web | Desktop |
 |---------|-----|---------|
-| **Data Support** |
+| **Data** |
 Load your own images and videos | ✔️ | ✔️
 | &nbsp;&nbsp;&nbsp; Image and video transcoding | ✔️ | ✔️
 | &nbsp;&nbsp;&nbsp; Import using image lists  | ❌ | ✔️
@@ -25,16 +25,20 @@ Create new object and track annotation | ✔️ | ✔️
 Annotation export | ✔️ | ✔️
 Dataset export for portability between web and desktop | ✔️ | ✔️
 Permissions and sharing support for team collaboration | ✔️ | ❌
-| **Annotation Support** |
+| **Annotation** |
 Bounding boxes | ✔️ | ✔️
 Polygons | ✔️ | ✔️
 Head/Tail lines | ✔️ | ✔️
 Linear interpolation | ✔️ | ✔️
 Track split | ✔️ | ✔️
 Multi-way track merge | ✔️ | ✔️
-Simple annotation groups | ✔️ | ✔️
 Complex Interactions and activity groups | ✔️ | ✔️
-| **VIAME Integration Support** |
+Freeform or multi-select attributes | ✔️ | ✔️
+| **Data Review** |
+Image enhancement (thresholding) | ✔️ | ✔️
+Advanced per-type annotation confidence threshoding | ✔️ | ✔️
+Review save history and load previous states | ✔️ | ❌
+| **VIAME Integration** |
 Run VIAME object detection and tracking | ✔️ | ✔️
 Run VIAME detector and tracker **training** | ✔️ | ✔️
 VIAME multi-camera pipelines  | ❌ | ✔️
