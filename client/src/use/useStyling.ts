@@ -50,7 +50,7 @@ interface UseStylingParams {
    * the number the more similar the colors will be.  Cyan like colors will be filtered out,
    * so numColors isn't a guarantee of x*3 (normal, dark, light) colors.
    */
-function generateColors(numColors: number) {
+export function generateColors(numColors: number) {
   const colorList = [];
   for (let i = 0; i < numColors; i += 1) {
     //We are using a rainbow but we want to skip the cyan area so number will be reduced
@@ -200,6 +200,7 @@ export default function useStyling({ markChangesPending }: UseStylingParams) {
     });
     return savedTypeStyles;
   }
+
 
   return {
     stateStyling,

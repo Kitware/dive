@@ -13,6 +13,16 @@ export interface Revision {
   revision: Readonly<number>;
 }
 
+export interface Label {
+  _id: string;
+  count: number;
+  datasets: Record<string, {
+    id: string;
+    name: string;
+    color?: string;
+  }>;
+}
+
 function loadDetections(folderId: string, revision?: number) {
   const params: Record<string, unknown> = { folderId };
   if (revision !== undefined) {
@@ -43,7 +53,13 @@ function saveDetections(folderId: string, args: SaveDetectionsArgs) {
   });
 }
 
+async function getLabels() {
+  const response = await girderRest.get<Label[]>('dive_annotation/labels');
+  return response;
+}
+
 export {
+  getLabels,
   loadDetections,
   loadRevisions,
   saveDetections,
