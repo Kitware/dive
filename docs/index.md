@@ -32,6 +32,8 @@ Head/Tail lines | ✔️ | ✔️
 Linear interpolation | ✔️ | ✔️
 Track split | ✔️ | ✔️
 Multi-way track merge | ✔️ | ✔️
+Simple annotation groups | ✔️ | ✔️
+Complex Interactions and activity groups | ✔️ | ✔️
 | **VIAME Integration Support** |
 Run VIAME object detection and tracking | ✔️ | ✔️
 Run VIAME detector and tracker **training** | ✔️ | ✔️
@@ -52,6 +54,8 @@ Manual refinement of auto-generated annotations | ✔️ | ✔️
 
 **Track** - A collection of detections spanned over multiple frames in a video or image sequence.  Tracks include a start and end time and can have gap periods in which no detections exist.
 
+**Group** - A collection of one or more tracks, which can be given a definite frame range, type annotation, confidence, and attributes.
+ 
 **Types** - Every track (or detection, if tracks aren't applicable) has one or more types that should be used to annotate the primary characteristic you are interested in classifying.  Types are typically used to train a single or multi-class classifier.  A track (or detection) may have multiple types with confidence values associated.
 
 **Frame** - A single image or point in time for a video or image sequence.
