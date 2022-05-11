@@ -269,7 +269,7 @@ def load_csv_as_tracks_and_attributes(
             expectedFrameNumber = imageMap.get(imageName)
             if expectedFrameNumber is None:
                 missingImages.append(imageFile)
-            elif expectedFrameNumber is not feature.frame:
+            elif expectedFrameNumber != feature.frame:
                 # force reorder the annotations
                 reordered = True
                 anyImageMatched = True
