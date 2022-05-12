@@ -3,7 +3,7 @@ import {
   defineComponent, ref, toRef, computed, Ref, reactive, watch,
 } from '@vue/composition-api';
 import type { Vue } from 'vue/types/vue';
-import { cloneDeep } from 'lodash';
+import { cloneDeep, flattenDepth } from 'lodash';
 
 /* VUE MEDIA ANNOTATOR */
 import {

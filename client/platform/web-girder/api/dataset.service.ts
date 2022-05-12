@@ -86,32 +86,41 @@ function makeViameFolder({
   );
 }
 
-async function importAnnotationFile(parentId: string, path: string, file?: HTMLFile) {
-  if (file === undefined) {
+async function importAnnotationFiles(parentId: string, paths: string[], files?: HTMLFile[]) {
+  if (files === undefined) {
     return false;
   }
-  const resp = await girderRest.post('/file', null, {
-    params: {
-      parentType: 'folder',
-      parentId,
-      name: file.name,
-      size: file.size,
-      mimeType: file.type,
-    },
-  });
-  if (resp.status === 200) {
-    const uploadResponse = await girderRest.post('file/chunk', file, {
+  const promises = files.map(async (file) => {
+    const resp = await girderRest.post('/file', null, {
       params: {
-        uploadId: resp.data._id,
-        offset: 0,
+        parentType: 'folder',
+        parentId,
+        name: file.name,
+        size: file.size,
+        mimeType: file.type,
       },
-      headers: { 'Content-Type': 'application/octet-stream' },
     });
-    if (uploadResponse.status === 200) {
-      const final = await postProcess(parentId, true);
-      return final.status === 200;
+    if (resp.status === 200) {
+      const uploadResponse = await girderRest.post('file/chunk', file, {
+        params: {
+          uploadId: resp.data._id,
+          offset: 0,
+        },
+        headers: { 'Content-Type': 'application/octet-stream' },
+      });
+      if (uploadResponse.status === 200) {
+        const final = await postProcess(parentId, true);
+        return final.status === 200;
+      }
     }
-  }
+    return false;
+  });
+  await Promise.all(promises).then((values) => {
+    if (!values.every((v) => v)) {
+      return false;
+    }
+    return false;
+  });
   return false;
 }
 
@@ -141,7 +150,7 @@ export {
   getDataset,
   getDatasetList,
   getDatasetMedia,
-  importAnnotationFile,
+  importAnnotationFiles,
   makeViameFolder,
   saveAttributes,
   saveMetadata,

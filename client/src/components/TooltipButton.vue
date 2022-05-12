@@ -46,8 +46,8 @@ export default Vue.extend({
         icon
         :disabled="disabled"
         :color="color"
-        v-on="on"
         class="ma-0"
+        v-on="on"
         @click="$emit('click')"
       >
         <v-icon>

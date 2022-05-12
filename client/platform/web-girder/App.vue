@@ -15,7 +15,7 @@ import {
   runTraining,
   saveMetadata,
   saveAttributes,
-  importAnnotationFile,
+  importAnnotationFiles,
   loadDetections,
   saveDetections,
   unwrap,
@@ -43,7 +43,7 @@ export default defineComponent({
       saveAttributes: unwrap(saveAttributes),
       loadMetadata,
       openFromDisk,
-      importAnnotationFile,
+      importAnnotationFiles,
     });
   },
 });

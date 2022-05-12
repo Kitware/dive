@@ -30,7 +30,7 @@ export default defineComponent({
     },
   },
   setup(props) {
-    const { openFromDisk, importAnnotationFile } = useApi();
+    const { openFromDisk, importAnnotationFiles } = useApi();
     const { reloadAnnotations } = useHandler();
     const { prompt } = usePrompt();
     const processing = ref(false);
@@ -40,13 +40,12 @@ export default defineComponent({
         const ret = await openFromDisk('annotation');
         if (!ret.canceled) {
           menuOpen.value = false;
-          const path = ret.filePaths[0];
           let importFile = false;
           processing.value = true;
           if (ret.fileList?.length) {
-            importFile = await importAnnotationFile(props.datasetId, path, ret.fileList[0]);
+            importFile = await importAnnotationFiles(props.datasetId, ret.filePaths, ret.fileList);
           } else {
-            importFile = await importAnnotationFile(props.datasetId, path);
+            importFile = await importAnnotationFiles(props.datasetId, ret.filePaths);
           }
 
           if (importFile) {
@@ -127,6 +126,7 @@ export default defineComponent({
             <li> DIVE Annotation JSON </li>
             <li> DIVE Configuation JSON</li>
             <li> KWCOCO JSON files </li>
+            <li> Kwiver Packet Format (KPF) </li>
           </ul>
           <a
             href="https://kitware.github.io/dive/DataFormats/"

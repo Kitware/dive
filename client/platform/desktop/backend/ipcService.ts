@@ -99,8 +99,8 @@ export default function register() {
     return ret;
   });
 
-  ipcMain.handle('import-annotation', async (event, { id, path }: { id: string; path: string }) => {
-    const ret = await common.dataFileImport(settings.get(), id, path);
+  ipcMain.handle('import-annotation', async (event, { id, paths }: { id: string; paths: string[] }) => {
+    const ret = await common.dataFileImport(settings.get(), id, paths);
     return ret;
   });
 

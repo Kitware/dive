@@ -25,6 +25,7 @@ import {
 import * as viameSerializers from 'platform/desktop/backend/serializers/viame';
 import * as nistSerializers from 'platform/desktop/backend/serializers/nist';
 import * as dive from 'platform/desktop/backend/serializers/dive';
+import kpf from 'platform/desktop/backend/serializers/kpf';
 import {
   websafeImageTypes, websafeVideoTypes, otherImageTypes, otherVideoTypes, MultiType, JsonMetaRegEx,
 } from 'dive-common/constants';
@@ -566,56 +567,74 @@ async function saveAttributes(settings: Settings, datasetId: string, args: SaveA
 }
 
 
-async function _ingestFilePath(
+async function _ingestFilePaths(
   settings: Settings,
   datasetId: string,
-  path: string,
+  paths: string[],
+  meta: DatasetMetaMutable & { fps?: number },
   imageMap?: Map<string, number>,
-): Promise<(DatasetMetaMutable & { fps?: number }) | null> {
-  if (!fs.existsSync(path)) {
-    return null;
-  }
-  if (fs.statSync(path).size === 0) {
-    return null;
-  }
-  // Make a copy of the file in aux
-  const projectInfo = getProjectDir(settings, datasetId);
-  const newPath = npath.join(projectInfo.auxDirAbsPath, `imported_${npath.basename(path)}`);
-  await fs.copy(path, newPath);
-  // Attempt to process the file
-  let annotations = dive.makeEmptyAnnotationFile();
-  const meta: DatasetMetaMutable & { fps?: number } = {};
-  if (JsonFileName.test(path)) {
-    const jsonObject = await _loadAsJson(path);
-    if (nistSerializers.confirmNistFormat(jsonObject)) {
-      // NIST json file
-      const data = await nistSerializers.loadNistFile(path);
+) {
+  /* eslint-disable prefer-spread, no-await-in-loop, no-param-reassign, no-continue */
+  const processedFiles: string[] = [];
+
+  for (let i = 0; i < paths.length; i += 1) {
+    const path = paths[i];
+    if (!fs.existsSync(path)) {
+      continue;
+    }
+    if (fs.statSync(path).size === 0) {
+      continue;
+    }
+    // Make a copy of the file in aux
+    const projectInfo = getProjectDir(settings, datasetId);
+    const newPath = npath.join(projectInfo.auxDirAbsPath, `imported_${npath.basename(path)}`);
+    await fs.copy(path, newPath);
+    // Attempt to process the file
+    let annotations = dive.makeEmptyAnnotationFile();
+
+    if (JsonFileName.test(path)) {
+      const jsonObject = await _loadAsJson(path);
+      if (nistSerializers.confirmNistFormat(jsonObject)) {
+        // NIST json file
+        const data = await nistSerializers.loadNistFile(path);
+        annotations.tracks = data.tracks;
+        annotations.groups = data.groups;
+        meta.fps = data.fps;
+      } else if (DatasetMetaMutableKeys.some((key) => key in jsonObject)) {
+        // DIVE Json metadata config file
+        merge(meta, pick(jsonObject, DatasetMetaMutableKeys));
+      } else {
+        // Regular dive json
+        annotations = await loadAnnotationFile(path);
+      }
+    } else if (CsvFileName.test(path)) {
+      // VIAME CSV File
+      const data = await viameSerializers.parseFile(path, imageMap);
       annotations.tracks = data.tracks;
       annotations.groups = data.groups;
       meta.fps = data.fps;
-    } else if (DatasetMetaMutableKeys.some((key) => key in jsonObject)) {
-      // DIVE Json metadata config file
-      merge(meta, pick(jsonObject, DatasetMetaMutableKeys));
-    } else {
-      // Regular dive json
-      annotations = await loadAnnotationFile(path);
+    } else if (YAMLFileName.test(path)) {
+      // KPF handled separately.
+      continue;
     }
-  } else if (CsvFileName.test(path)) {
-    // VIAME CSV File
-    const data = await viameSerializers.parseFile(path, imageMap);
-    annotations.tracks = data.tracks;
-    annotations.groups = data.groups;
-    meta.fps = data.fps;
-  } else if (YAMLFileName.test(path)) {
-    // KPF File
-    throw new Error('KPF currently unsupported');
+    if (Object.values(annotations.tracks).length || Object.values(annotations.groups).length) {
+      const processed = processTrackAttributes(Object.values(annotations.tracks));
+      merge(meta, { attributes: processed.attributes });
+    }
+    await _saveSerialized(settings, datasetId, annotations, true);
+    processedFiles.push(path);
   }
-  if (Object.values(annotations.tracks).length || Object.values(annotations.groups).length) {
-    const processed = processTrackAttributes(Object.values(annotations.tracks));
-    meta.attributes = processed.attributes;
+  const kpfFiles = paths.filter((path) => YAMLFileName.test(path));
+  if (kpfFiles.length) {
+    const annotations = await kpf.parse(kpfFiles);
+    if (Object.values(annotations.tracks).length || Object.values(annotations.groups).length) {
+      const processed = processTrackAttributes(Object.values(annotations.tracks));
+      merge(meta, { attributes: processed.attributes });
+    }
+    await _saveSerialized(settings, datasetId, annotations, true);
+    processedFiles.push(...kpfFiles);
   }
-  await _saveSerialized(settings, datasetId, annotations, true);
-  return meta;
+  return processedFiles;
 }
 
 /**
@@ -641,18 +660,11 @@ async function ingestDataFiles(
   processedFiles: string[];
   meta: DatasetMetaMutable & { fps?: number };
 }> {
-  const processedFiles = []; // which files were processed to generate the detections
+  const processedFiles: string[] = []; // which files were processed to generate the detections
   const meta = {};
-
-  for (let i = 0; i < absPaths.length; i += 1) {
-    const path = absPaths[i];
-    // eslint-disable-next-line no-await-in-loop
-    const newMeta = await _ingestFilePath(settings, datasetId, path, imageMap);
-    if (newMeta !== null) {
-      merge(meta, newMeta);
-      processedFiles.push(path);
-    }
-  }
+  processedFiles.push.apply(
+    processedFiles, await _ingestFilePaths(settings, datasetId, absPaths, meta, imageMap),
+  );
   // processing of multiCam results
   if (multiCamResults) {
     const cameraAndPath = Object.entries(multiCamResults);
@@ -661,11 +673,9 @@ async function ingestDataFiles(
       const path = cameraAndPath[i][1];
       const cameraDatasetId = `${datasetId}/${cameraName}`;
       // eslint-disable-next-line no-await-in-loop
-      const newMeta = await _ingestFilePath(settings, cameraDatasetId, path, imageMap);
-      if (newMeta !== null) {
-        merge(meta, newMeta);
-        processedFiles.push(path);
-      }
+      processedFiles.push.apply(
+        processedFiles, await _ingestFilePaths(settings, cameraDatasetId, [path], meta, imageMap),
+      );
     }
   }
 
@@ -899,11 +909,11 @@ function validImageNamesMap(jsonMeta: JsonMeta) {
   return undefined;
 }
 
-async function dataFileImport(settings: Settings, id: string, path: string) {
+async function dataFileImport(settings: Settings, id: string, paths: string[]) {
   const projectDirData = await getValidatedProjectDir(settings, id);
   const jsonMeta = await loadJsonMetadata(projectDirData.metaFileAbsPath);
   const result = await ingestDataFiles(
-    settings, id, [path], undefined, validImageNamesMap(jsonMeta),
+    settings, id, paths, undefined, validImageNamesMap(jsonMeta),
   );
   merge(jsonMeta, result.meta);
   await _saveAsJson(npath.join(projectDirData.basePath, JsonMetaFileName), jsonMeta);
@@ -1045,7 +1055,7 @@ async function finalizeMediaImport(
     settings, jsonMeta.id, projectDirAbsPath, jsonMeta, args.trackFileAbsPath,
   );
   if (args.metaFileAbsPath) {
-    await dataFileImport(settings, jsonMeta.id, args.metaFileAbsPath);
+    await dataFileImport(settings, jsonMeta.id, [args.metaFileAbsPath]);
   }
   return finalJsonMeta;
 }
