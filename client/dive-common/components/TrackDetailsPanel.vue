@@ -299,7 +299,7 @@ export default defineComponent({
           :begin.sync="editingGroup.begin"
           :end.sync="editingGroup.end"
           disabled
-          class="my-2 input-box"
+          class="my-2 input-box px-0"
         />
         <v-btn
           color="error"
@@ -382,17 +382,26 @@ export default defineComponent({
           </div>
           <template v-if="editingGroup">
             <RangeEditor
+              v-for="(range, idx) in editingGroup.members[track.id].ranges"
+              :key="`rangeEditor-${editingGroup.id}-${track.revision}-${idx}`"
               :frame="frameRef"
-              :begin="editingGroup.members[track.id].ranges[0][0]"
-              :end="editingGroup.members[track.id].ranges[0][1]"
+              :begin="range[0]"
+              :end="range[1]"
+              :last="idx === (editingGroup.members[track.id].ranges.length - 1)"
+              :min="track.begin"
+              :max="track.end"
               @update:begin="editingGroup.setMemberRange(
-                track.id, 0, [$event, editingGroup.members[track.id].ranges[0][1]])"
+                track.id, idx, [$event, range[1]])"
               @update:end="editingGroup.setMemberRange(
-                track.id, 0, [editingGroup.members[track.id].ranges[0][0], $event])"
+                track.id, idx, [range[0], $event])"
               @click:begin="editingGroup.setMemberRange(
-                track.id, 0, [frameRef, editingGroup.members[track.id].ranges[0][1]])"
+                track.id, idx, [frameRef, range[1]])"
               @click:end="editingGroup.setMemberRange(
-                track.id, 0, [editingGroup.members[track.id].ranges[0][0], frameRef])"
+                track.id, idx, [range[0], frameRef])"
+              @click:add-range="editingGroup.addMemberRange(
+                track.id, idx + 1, [frameRef, range[1]])"
+              @click:remove-range="editingGroup.removeMemberRange(
+                track.id, idx)"
             />
           </template>
         </v-card>

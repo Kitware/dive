@@ -22,13 +22,28 @@ export default class Group extends BaseAnnotation {
     this.members = params.members;
   }
 
-  private maybeExpandBoundsForMembers() {
+  /**
+   * It would be easier to compute begin and end
+   * as reactive computed properties, but it would require all
+   * future developers to know about this and be very careful
+   * where and how begin and end were used.
+   *
+   * Instead, we implement our own updater and call it anywhere
+   * begin and end might be changed.
+   */
+  private setBoundsForMembers() {
+    const oldval = [this.begin, this.end];
+    this.begin = Infinity;
+    this.end = 0;
     Object.values(this.members).forEach((m) => {
       m.ranges.forEach(([begin, end]) => {
-        this.maybeExpandBounds(begin);
-        this.maybeExpandBounds(end);
+        this.begin = Math.min(begin, this.begin);
+        this.end = Math.max(end, this.end);
       });
     });
+    if (this.begin !== oldval[0] || this.end !== oldval[1]) {
+      this.notify('bounds', oldval);
+    }
   }
 
   public get memberIds(): AnnotationId[] {
@@ -38,7 +53,7 @@ export default class Group extends BaseAnnotation {
   addMembers(members: GroupMembers) {
     const notify = Object.keys(members).some((v) => !(v in this.members));
     this.members = assign(this.members, members);
-    this.maybeExpandBoundsForMembers();
+    this.setBoundsForMembers();
     if (notify) {
       this.notify('members');
     }
@@ -46,12 +61,25 @@ export default class Group extends BaseAnnotation {
 
   setMemberRange(memberId: AnnotationId, idx: number, range: [number, number]) {
     this.members[memberId].ranges[idx] = range;
-    this.maybeExpandBoundsForMembers();
+    this.setBoundsForMembers();
+    this.notify('members');
+  }
+
+  addMemberRange(memberId: AnnotationId, afterIdx: number, range: [number, number]) {
+    this.members[memberId].ranges.splice(afterIdx, 0, range);
+    this.setBoundsForMembers();
+    this.notify('members');
+  }
+
+  removeMemberRange(memberId: AnnotationId, idx: number) {
+    this.members[memberId].ranges.splice(idx, 1);
+    this.setBoundsForMembers();
     this.notify('members');
   }
 
   removeMembers(members: AnnotationId[]) {
     this.members = omit(this.members, members);
+    this.setBoundsForMembers();
     this.notify('remove-members', members);
   }
 

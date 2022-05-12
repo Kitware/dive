@@ -25,6 +25,10 @@ export default Vue.extend({
       type: Number,
       default: 600,
     },
+    size: {
+      type: String,
+      default: 'small',
+    },
   },
 });
 </script>
@@ -37,11 +41,13 @@ export default Vue.extend({
     <template #activator="{ on, attrs }">
       <v-btn
         v-bind="attrs"
-        small
+        :small="size === 'small'"
+        :x-small="size === 'x-small'"
         icon
         :disabled="disabled"
         :color="color"
         v-on="on"
+        class="ma-0"
         @click="$emit('click')"
       >
         <v-icon>

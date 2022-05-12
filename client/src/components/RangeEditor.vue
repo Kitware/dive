@@ -14,9 +14,21 @@ export default defineComponent({
       type: Number,
       required: true,
     },
+    last: {
+      type: Boolean,
+      default: true,
+    },
     frame: {
       type: Number,
       default: 0,
+    },
+    min: {
+      type: Number,
+      default: 0,
+    },
+    max: {
+      type: Number,
+      default: Infinity,
     },
     disabled: {
       type: Boolean,
@@ -48,7 +60,7 @@ export default defineComponent({
       :style="{
         background: `linear-gradient(
             to right,
-            rgba(255,255,255,0.1) ${((frame - begin) / (end - begin) * 100).toFixed(0)}%,
+            #2c759650 ${((frame - begin) / (end - begin) * 100).toFixed(0)}%,
             rgba(0,0,0,0) ${(1 - ((frame - begin) / (end - begin)) * 100, 0).toFixed(0)}%)`,
       }"
     >
@@ -62,11 +74,12 @@ export default defineComponent({
         type="number"
         label="Begin frame"
         hide-details
-        min="0"
+        :min="min"
+        :max="Math.min(end, max)"
         :rules="[
-          (v) => v <= end || 'Begin must be less than end',
+          (v) => v <= Math.min(end, max) || 'Begin must be less than end and max',
+          (v) => v >= min || 'Begin must be >= min',
         ]"
-        :max="end"
         @input="updateBegin"
       >
         <template
@@ -75,8 +88,10 @@ export default defineComponent({
         >
           <tooltip-btn
             icon="mdi-map-marker"
-            tooltip-text="Set frame range begin to current frame"
-            :delay="300"
+            :tooltip-text="`Set range start to current frame (${frame})`"
+            size="x-small"
+            :delay="100"
+            :disabled="frame < min || frame > Math.min(end, max)"
             @click="$emit('click:begin')"
           />
         </template>
@@ -91,9 +106,11 @@ export default defineComponent({
         style="width: 100%"
         type="number"
         label="End frame"
-        :min="begin"
+        :min="Math.max(begin, min)"
+        :max="max"
         :rules="[
-          (v) => v >= begin || 'End must be greather than begin',
+          (v) => v >= Math.max(begin, min) || 'End must be >= begin and min',
+          (v) => v <= max || 'End must be <= max',
         ]"
         @input="updateEnd"
       >
@@ -103,12 +120,31 @@ export default defineComponent({
         >
           <tooltip-btn
             icon="mdi-map-marker"
-            :delay="300"
-            tooltip-text="Set frame range end to current frame"
+            :delay="100"
+            size="x-small"
+            :tooltip-text="`Set range end to current frame (${frame})`"
+            :disabled="frame < Math.max(begin, min) || frame > max"
             @click="$emit('click:end')"
           />
         </template>
       </v-text-field>
+      <tooltip-btn
+        v-if="!disabled && last"
+        icon="mdi-clock-plus"
+        tooltip-text="Add new sub-range"
+        :delay="100"
+        :disabled="frame < min || frame > max"
+        size="x-small"
+        @click="$emit('click:add-range')"
+      />
+      <tooltip-btn
+        v-if="!disabled && !last"
+        icon="mdi-clock-minus"
+        tooltip-text="Remove sub-range"
+        :delay="100"
+        size="x-small"
+        @click="$emit('click:remove-range')"
+      />
     </div>
   </div>
 </template>
