@@ -2,7 +2,7 @@
 # == SERVER BUILD STAGE ==
 # ========================
 # Note: server-builder stage will be the same in both dockerfiles
-FROM python:3.7-buster as server-builder
+FROM python:3.8-buster as server-builder
 
 WORKDIR /opt/dive/src
 
@@ -29,7 +29,7 @@ RUN poetry install --no-dev
 # ====================
 # == FFMPEG FETCHER ==
 # ====================
-FROM python:3.7-buster as ffmpeg-builder
+FROM python:3.8-buster as ffmpeg-builder
 RUN wget -O ffmpeg.tar.xz https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz
 RUN mkdir /tmp/ffextracted
 RUN tar -xvf ffmpeg.tar.xz -C /tmp/ffextracted --strip-components 1
@@ -49,7 +49,7 @@ RUN chmod +x /tini
 # Install python
 RUN export DEBIAN_FRONTEND=noninteractive && \
   apt-get update && \
-  apt-get install -qy python3.7 libpython3.7 && \
+  apt-get install -qy python3.8 libpython3.8 && \
   apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Create user "dive" 1099:1099 to align with base image permissions.
