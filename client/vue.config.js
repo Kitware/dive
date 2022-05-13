@@ -64,6 +64,7 @@ module.exports = {
           // https://github.com/nklayman/vue-cli-plugin-electron-builder/issues/188
           // https://github.com/electron-userland/electron-builder/issues/2592
           main: 'background.js',
+          name: 'DIVE-Desktop'
         },
         linux: {
           target: ['AppImage', 'tar.gz'],

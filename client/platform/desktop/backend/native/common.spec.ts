@@ -551,7 +551,6 @@ describe('native.common', () => {
 
     await common.dataFileImport(settings, final.id, ['/home/user/data/annotationImport/viame.csv']);
     const annotations2 = await common.loadDetections(settings, final.id);
-    console.log(annotations2);
     expect(Object.keys(annotations2.tracks)).toHaveLength(0);
     const meta = await common.loadMetadata(settings, final.id, urlMapper);
     expect(meta.fps).toBe(32);

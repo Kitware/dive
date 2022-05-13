@@ -22,7 +22,7 @@
     "test": "vue-cli-service test:unit src/ dive-common/ platform/"
   },
   "resolutions": {
-    "@types/jest": "^25.2.3"
+    "electron-builder": "^23.0.2"
   },
   "files": [
     "/src",

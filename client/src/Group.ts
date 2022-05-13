@@ -1,4 +1,4 @@
-import { assign, omit } from 'lodash';
+import { omit } from 'lodash';
 import BaseAnnotation, { AnnotationId, BaseAnnotationParams, BaseData } from './BaseAnnotation';
 
 export type GroupMembers = Record<AnnotationId, {
@@ -51,8 +51,14 @@ export default class Group extends BaseAnnotation {
   }
 
   addMembers(members: GroupMembers) {
-    const notify = Object.keys(members).some((v) => !(v in this.members));
-    this.members = assign(this.members, members);
+    let notify = false;
+    Object.entries(members).forEach(([memberId, val]) => {
+      const annotationId = parseInt(memberId, 10);
+      if (!(annotationId in this.members)) {
+        this.members[annotationId] = val;
+        notify = true;
+      }
+    });
     this.setBoundsForMembers();
     if (notify) {
       this.notify('members');
@@ -65,8 +71,8 @@ export default class Group extends BaseAnnotation {
     this.notify('members');
   }
 
-  addMemberRange(memberId: AnnotationId, afterIdx: number, range: [number, number]) {
-    this.members[memberId].ranges.splice(afterIdx, 0, range);
+  addMemberRange(memberId: AnnotationId, index: number, range: [number, number]) {
+    this.members[memberId].ranges.splice(index, 0, range);
     this.setBoundsForMembers();
     this.notify('members');
   }

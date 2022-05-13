@@ -1,9 +1,10 @@
 <script lang="ts">
 import {
-  defineComponent, ref, toRef, computed, Ref, reactive, watch,
+  defineComponent, ref, toRef, computed, Ref, reactive, watch, inject,
 } from '@vue/composition-api';
 import type { Vue } from 'vue/types/vue';
-import { cloneDeep, flattenDepth } from 'lodash';
+import type Vuetify from 'vuetify/lib';
+import { cloneDeep } from 'lodash';
 
 /* VUE MEDIA ANNOTATOR */
 import {
@@ -148,8 +149,9 @@ export default defineComponent({
       new HeadTail(),
     ];
 
-    const trackStyleManager = new StyleManager({ markChangesPending });
-    const groupStyleManager = new StyleManager({ markChangesPending });
+    const vuetify = inject('vuetify') as Vuetify;
+    const trackStyleManager = new StyleManager({ markChangesPending, vuetify });
+    const groupStyleManager = new StyleManager({ markChangesPending, vuetify });
 
     const {
       attributesList: attributes,

@@ -1,13 +1,14 @@
 # DIVE Frontend
 
-This directory contains the code for both
+This directory contains the code for:
 
-* The specific DIVE client deployed to [viame.kitware.com](https://viame.kitware.com)
-* The web annotation library published to npm as [`vue-media-annotator`](https://www.npmjs.com/package/vue-media-annotator)
+* The DIVE web client deployed to [viame.kitware.com](https://viame.kitware.com)
+* The DIVE desktop electron app.
+* The annotation js library published to npm as [`vue-media-annotator`](https://www.npmjs.com/package/vue-media-annotator)
 
 ## Development
 
-Requires Node <= 16 due to [this webpack issue](https://github.com/webpack/webpack/issues/14532) and the fact that we are on vue cli service v4.  Should be resolved by upgrading to v5, which is not yet released.
+Requires Node 16 due to [this webpack issue](https://github.com/webpack/webpack/issues/14532) and the fact that we are on vue cli service v4.  Should be resolved by upgrading to v5, which is not yet released.
 
 ``` bash
 # install dependencies
@@ -41,7 +42,7 @@ yarn test
 # Build
 yarn build:cli
 
-# Watch
+# Watch (requires above build at least once)
 yarn dev:cli
 
 # Run in development mode
@@ -65,12 +66,17 @@ Configuration abnormalities:
 * [acorn unexpected token webpack issue (unused, just useful)](https://github.com/webpack/webpack/issues/10227)
 * [Why our yarn serve is weird](https://github.com/vuejs/vue-cli/issues/3065)
 * [Typescript Absolute -> Relative Paths](https://github.com/microsoft/TypeScript/issues/15479)
+* [electron-builder on MacOS arm64](https://github.com/electron-userland/electron-builder/issues/6726)
 
 ## Publishing
 
 Create a new release tagged `X.X.X` through github.
 
 ## Architecture
+
+### src/*.ts
+
+Use ES6 classes to implement stateful modules that form the core of the application.  We previously used composition functions, but these became unweildy as more state needed to be pushed through the `src/provides.ts` interface.  Classes like `TrackStore.ts` can encapsulate related states and functions, and we can make use of traditional inheritance design patterns like base classes.
 
 ### src/components/annotators
 
@@ -94,7 +100,7 @@ Controllers are like layers, but without geojs functionality.  They usually prov
 
 ### src/provides
 
-Provides a common, typed interface for components and composition functions to access singleton state like `trackMap`, `selectedTrackId`, and many others.
+Provides a common, typed interface for components and composition functions to access singleton state like `trackStore`, `selectedTrackId`, and many others.
 
 This pattern has similar trade-offs to Vuex; It makes component re-use with different state more difficult.  The provide/inject style using typed functions provides similar type safety and DRY advantages while allowing downstream library consumers to wrap and customize state, such as with chained computed properties.
 

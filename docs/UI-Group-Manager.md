@@ -10,7 +10,8 @@ DIVE supports complex group annotation.
 
 * Groups can be interpreted as activity participation.  For example, two `Person` type tracks participate in a `Conversation` activity.
 * Groups can be used to represent most types of multi-annotation collections.
-* Groups are implicitly time-bounded to the maximum range of their participant tracks.
+* Group membership for tracks can be explicitly constrained to sub-intervals within `[track.begin, track.end]`.  A single track can belong to a group for multiple sub-ranges, typically interpreted as the tracked object leaving and re-joining a group.
+* Tracks can belong to many different groups at once, and can have different participation interval(s) for each.
 
 See the [data format documentation](DataFormats.md) for the complete capabilities of group annotations in the DIVE json schema.
 
@@ -43,16 +44,18 @@ Each group instance includes the following.
 To enter group edit mode, click a group's ID number in the group list.
 
 * Add new tracks to a group by first entering group edit mode, then selecting tracks to add (in the annotation window, the sidebar, or any UI where track selection can happen)
-* Click ==:material-close:== next to a track to remove it from a group
+* ==:material-close:== (next to a track) will remove a track from a group.
 * Use the frame range input boxes to adjust the start and end frame numbers that a track participates in a group.
-* Click ==:material-map-marker:== to set a frame input box to the current frame.
-* Click ==:material-delete: Delete Group=={ .error } to delete a group without deleting its member tracks.
+* ==:material-map-marker:== will set a frame input box to the current frame.
+* ==:material-clock-plus:== will create a new sub-interval participation range for a track within a group.
+* ==:material-clock-minus:== will remove a sub-interval participation range.
+* ==:material-delete: Delete Group=={ .error } will delete a group without deleting its member tracks.
 
 Some notes about group editing behavior.
 
 * If you delete a track, and the track was the only track remaining in one or more groups, those groups will also be deleted.
 * If you delete a group, its member tracks will not be deleted no matter how many members there are.
-* The group's composite range (shown as disabled begin and end frames in the group editor) is the maximum overlapping range of all member tracks.
+* The group's composite range (shown as disabled begin and end frames in the group editor) is the maximum overlapping range of all sub-intervals of all member tracks.
 
 ## Example data
 

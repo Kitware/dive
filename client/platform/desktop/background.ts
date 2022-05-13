@@ -1,4 +1,3 @@
-import path from 'path';
 import {
   app, protocol, screen, BrowserWindow, session,
 } from 'electron';
@@ -32,15 +31,13 @@ async function cleanup() {
 }
 
 async function createWindow() {
-  console.log(path.resolve(__static, 'icon.png'));
   const size = screen.getPrimaryDisplay().workAreaSize;
   const partitionSession = session.fromPartition('persist:dive');
   // Create the browser window.
   win = new BrowserWindow({
-    width: Math.min(size.width, 1300),
+    width: Math.min(size.width, 1420),
     height: Math.min(size.height - 200, 960),
     autoHideMenuBar: true,
-    icon: path.resolve(__static, 'icon.png'),
     title: 'VIAME DIVE Desktop',
     webPreferences: {
       // Use pluginOptions.nodeIntegration, leave this alone
