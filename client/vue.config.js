@@ -58,7 +58,7 @@ module.exports = {
       builderOptions: {
         appId: 'com.kitware.viame',
         productName: 'DIVE-Desktop',
-        copyright: 'Copyright © 2020 Kitware, Inc.',
+        copyright: 'Copyright © 2022 Kitware, Inc.',
         // extraMetadata will be merged with package.json in args to electron-builder
         extraMetadata: {
           // https://github.com/nklayman/vue-cli-plugin-electron-builder/issues/188
@@ -74,7 +74,6 @@ module.exports = {
           target: ['nsis', 'portable', 'msi', 'zip'],
           // eslint-disable-next-line no-template-curly-in-string
           artifactName: 'DIVE-Desktop-${version}.${ext}',
-          icon: 'dive-common/assets/windows.ico',
         },
       },
       chainWebpackMainProcess: chainWebpack,
