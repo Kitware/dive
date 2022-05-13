@@ -25,6 +25,7 @@ import {
 import * as viameSerializers from 'platform/desktop/backend/serializers/viame';
 import * as nistSerializers from 'platform/desktop/backend/serializers/nist';
 import * as dive from 'platform/desktop/backend/serializers/dive';
+import kpf from 'platform/desktop/backend/serializers/kpf';
 import {
   websafeImageTypes, websafeVideoTypes, otherImageTypes, otherVideoTypes, MultiType, JsonMetaRegEx,
 } from 'dive-common/constants';
@@ -607,8 +608,7 @@ async function _ingestFilePath(
     annotations.groups = data.groups;
     meta.fps = data.fps;
   } else if (YAMLFileName.test(path)) {
-    // KPF File
-    throw new Error('KPF currently unsupported');
+    annotations = await kpf.parse([path]);
   }
   if (Object.values(annotations.tracks).length || Object.values(annotations.groups).length) {
     const processed = processTrackAttributes(Object.values(annotations.tracks));
