@@ -29,7 +29,6 @@ import {
 async function openFromDisk(datasetType: DatasetType | 'calibration' | 'annotation' | 'text', directory = false) {
   let filters: FileFilter[] = [];
   const allFiles = { name: 'All Files', extensions: ['*'] };
-  const properties = [(datasetType === 'image-sequence' || directory) ? 'openDirectory' : 'openFile'];
   if (datasetType === 'video') {
     filters = [
       { name: 'Videos', extensions: fileVideoTypes },
@@ -47,7 +46,6 @@ async function openFromDisk(datasetType: DatasetType | 'calibration' | 'annotati
       { name: 'annotation', extensions: inputAnnotationFileTypes },
       allFiles,
     ];
-    properties.push('multiSelections');
   }
   if (datasetType === 'text') {
     filters = [
@@ -55,18 +53,17 @@ async function openFromDisk(datasetType: DatasetType | 'calibration' | 'annotati
       allFiles,
     ];
   }
+  const props = (datasetType === 'image-sequence' || directory) ? 'openDirectory' : 'openFile';
   const results = await dialog.showOpenDialog({
-    // eslint-disable-next-line
-    // @ts-ignore
-    properties,
+    properties: [props],
     filters,
   });
   if (datasetType === 'annotation') {
-    results.filePaths.forEach((item: string) => {
-      if (!inputAnnotationTypes.includes(mime.lookup(item).toString())) {
-        throw Error(`File ${item} of type ${mime.lookup(item)} did not match known file types`);
-      }
-    });
+    if (!results.filePaths.every(
+      (item) => inputAnnotationTypes.includes(mime.lookup(item).toString()),
+    )) {
+      throw Error('File Types did not match JSON or CSV');
+    }
   }
   return results;
 }
@@ -134,8 +131,8 @@ function importMultiCam(args: MultiCamImportArgs):
   return ipcRenderer.invoke('import-multicam-media', { args });
 }
 
-function importAnnotationFiles(id: string, paths: string[]): Promise<boolean> {
-  return ipcRenderer.invoke('import-annotation', { id, paths });
+function importAnnotationFile(id: string, path: string): Promise<boolean> {
+  return ipcRenderer.invoke('import-annotation', { id, path });
 }
 
 function finalizeImport(args: DesktopMediaImportResponse): Promise<JsonMeta> {
@@ -228,7 +225,7 @@ export {
   importMedia,
   deleteDataset,
   checkDataset,
-  importAnnotationFiles,
+  importAnnotationFile,
   importMultiCam,
   openLink,
   nvidiaSmi,

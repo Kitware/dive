@@ -545,17 +545,18 @@ describe('native.common', () => {
     const annotations = await common.loadDetections(settings, final.id);
     expect(Object.keys(annotations.tracks)).toHaveLength(0);
 
-    await common.dataFileImport(settings, final.id, ['/home/user/data/annotationImport/dive.json']);
+    await common.dataFileImport(settings, final.id, '/home/user/data/annotationImport/dive.json');
     const annotations1 = await common.loadDetections(settings, final.id);
     expect(Object.keys(annotations1.tracks)).toHaveLength(1);
 
-    await common.dataFileImport(settings, final.id, ['/home/user/data/annotationImport/viame.csv']);
+    await common.dataFileImport(settings, final.id, '/home/user/data/annotationImport/viame.csv');
     const annotations2 = await common.loadDetections(settings, final.id);
+    console.log(annotations2);
     expect(Object.keys(annotations2.tracks)).toHaveLength(0);
     const meta = await common.loadMetadata(settings, final.id, urlMapper);
     expect(meta.fps).toBe(32);
 
-    await common.dataFileImport(settings, final.id, ['/home/user/data/annotationImport/foreign.meta.json']);
+    await common.dataFileImport(settings, final.id, '/home/user/data/annotationImport/foreign.meta.json');
     const meta2 = await common.loadMetadata(settings, final.id, urlMapper);
     expect(meta2.confidenceFilters).toStrictEqual({ default: 0.8 });
     expect(meta2.type).toBe('image-sequence'); // Ensure meta import cannot change immutable fields.

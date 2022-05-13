@@ -39,7 +39,7 @@ Promise<{ canceled: boolean; filePaths: string[]; fileList?: File[]}> {
   const input: HTMLInputElement = document.createElement('input');
   input.type = 'file';
   const baseTypes: string[] = inputAnnotationFileTypes.map((item) => `.${item}`);
-  if (!['calbiration', 'zip'].includes(datasetType)) {
+  if (!['calbiration', 'annotation', 'zip'].includes(datasetType)) {
     input.multiple = true;
   }
   if (datasetType === 'image-sequence') {

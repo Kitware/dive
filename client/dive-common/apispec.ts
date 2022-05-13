@@ -115,9 +115,7 @@ interface DatasetMetaMutable {
   confidenceFilters?: Record<string, number>;
   attributes?: Readonly<Record<string, Attribute>>;
 }
-const DatasetMetaMutableKeys: (keyof DatasetMetaMutable)[] = [
-  'attributes', 'confidenceFilters', 'customTypeStyling', 'customGroupStyling',
-];
+const DatasetMetaMutableKeys = ['attributes', 'confidenceFilters', 'customTypeStyling', 'customGroupStyling'];
 
 interface DatasetMeta extends DatasetMetaMutable {
   id: Readonly<string>;
@@ -154,7 +152,7 @@ interface Api {
   // Non-Endpoint shared functions
   openFromDisk(datasetType: DatasetType | 'calibration' | 'annotation' | 'text' | 'zip', directory?: boolean):
     Promise<{canceled?: boolean; filePaths: string[]; fileList?: File[]; root?: string}>;
-  importAnnotationFiles(id: string, paths: string[], files?: File[]): Promise<boolean>;
+  importAnnotationFile(id: string, path: string, file?: File): Promise<boolean>;
 }
 const ApiSymbol = Symbol('api');
 
