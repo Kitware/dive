@@ -62,6 +62,12 @@ export default defineComponent({
       { bind: 'space', handler: togglePlay, disabled: visible() },
       { bind: 'f', handler: mediaController.nextFrame, disabled: visible() },
       { bind: 'd', handler: mediaController.prevFrame, disabled: visible() },
+      {
+        bind: 'l',
+        handler: () => mediaController.toggleSynchronizeCameras(!mediaController.cameraSync.value),
+        disabled: visible(),
+      },
+
     ]"
   >
     <v-card
