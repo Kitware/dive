@@ -126,14 +126,8 @@ class AnnotationResource(Resource):
             setContentDisposition(filename, mime='text/csv')
             return gen
         elif format == 'dive_json':
-            tracks = crud_annotation.TrackItem().list(folder, revision=revisionId)
-            groups = crud_annotation.GroupItem().list(folder, revision=revisionId)
             setContentDisposition(f'{folder["name"]}.dive.json', mime='application/json')
-            return {
-                'version': 2,
-                'groups': [group for group in groups],
-                'tracks': [track for track in tracks],
-            }
+            return crud_annotation.get_annotations(folder, revision=revisionId)
         else:
             raise RestException(f'Format {format} is not a valid option.')
 
