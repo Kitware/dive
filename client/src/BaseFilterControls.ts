@@ -30,7 +30,7 @@ export type TrackWithContext = AnnotationWithContext<Track>;
 export type GroupWithContext = AnnotationWithContext<Group>;
 
 /* Provide annotation filtering controls on annotations loaded from store. */
-export default class BaseFilterControls<T extends Track | Group> {
+export default abstract class BaseFilterControls<T extends Track | Group> {
   /* Annotation IDs explicitly checked "ON" by the user */
   checkedIDs: Ref<AnnotationId[]>;
 

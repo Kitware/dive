@@ -29,7 +29,7 @@ function isTrack(value: Track | Group): value is Track {
  * and deleting detections, should be performed directly on the annotation
  * object.  BaseAnnotationStore will observe these changes and react if necessary.
  */
-export default class BaseAnnotationStore<T extends Track | Group> {
+export default abstract class BaseAnnotationStore<T extends Track | Group> {
   markChangesPending: MarkChangesPending;
 
   /* Non-reactive state

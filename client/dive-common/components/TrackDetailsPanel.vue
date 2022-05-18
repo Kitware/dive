@@ -290,6 +290,7 @@ export default defineComponent({
           <TypePicker
             :value="editingGroup.getType()[0]"
             :all-types="allGroupTypesRef"
+            :read-only-mode="readOnlyMode"
             data-list-source="allGroupTypesOptions"
             @input="editingGroup.setType($event)"
           />
@@ -376,7 +377,7 @@ export default defineComponent({
               v-if="multiSelectInProgress"
               icon="mdi-close"
               :tooltip-text="editingGroup ? 'Remove from group' : 'Remove from merge candidates'"
-              :disabled="editingGroup && selectedTrackList.length === 1"
+              :disabled="(editingGroup && selectedTrackList.length === 1) || readOnlyMode"
               @click="unstageFromMerge([track.trackId])"
             />
           </div>
@@ -387,6 +388,7 @@ export default defineComponent({
               :frame="frameRef"
               :begin="range[0]"
               :end="range[1]"
+              :disabled="readOnlyMode"
               :last="idx === (editingGroup.members[track.id].ranges.length - 1)"
               :min="track.begin"
               :max="track.end"

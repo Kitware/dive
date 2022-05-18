@@ -241,19 +241,15 @@ export default function useModeManager({
 
   /** Put UI into group editing mode. */
   function handleGroupEdit(groupId: AnnotationId | null) {
-    if (readonlyState.value) {
-      prompt({ title: 'Read Only Mode', text: 'This Dataset is in Read Only mode, no edits can be made.' });
-    } else {
-      creating = false;
-      editingTrack.value = false;
-      editingGroupId.value = groupId;
-      if (groupId !== null) {
-        /** When moving into a group edit mode, multi-select all track members */
-        const group = groupStore.get(groupId);
-        multiSelectList.value = group.memberIds;
-        selectedTrackId.value = null;
-        seekNearest(trackStore.get(multiSelectList.value[0]));
-      }
+    creating = false;
+    editingTrack.value = false;
+    editingGroupId.value = groupId;
+    if (groupId !== null) {
+      /** When moving into a group edit mode, multi-select all track members */
+      const group = groupStore.get(groupId);
+      multiSelectList.value = group.memberIds;
+      selectedTrackId.value = null;
+      seekNearest(trackStore.get(multiSelectList.value[0]));
     }
   }
 
@@ -499,7 +495,12 @@ export default function useModeManager({
     }
     /** Remove members from group if group editing */
     if (editingGroupId.value !== null) {
-      groupStore.get(editingGroupId.value).removeMembers(trackIds);
+      const group = groupStore.annotationMap.get(editingGroupId.value);
+      if (group) group.removeMembers(trackIds);
+    }
+    /** Exit group editing mode if last track is removed */
+    if (multiSelectList.value.length === 0) {
+      handleEscapeMode();
     }
   }
 
@@ -561,16 +562,6 @@ export default function useModeManager({
     if (newTrack !== null && editingGroupId.value === null) {
       handleSelectTrack(newTrack, false);
       seekNearest(trackStore.get(newTrack));
-    }
-  }
-
-  function handleSelectNextGroup(delta: number) {
-    const newGroup = selectNextGroup(delta);
-    /** Only allow selectNext when not in group editing mode. */
-    if (newGroup !== null) {
-      handleGroupEdit(newGroup);
-      const trackId = groupStore.get(newGroup).memberIds[0];
-      seekNearest(trackStore.get(trackId));
     }
   }
 
@@ -680,7 +671,6 @@ export default function useModeManager({
       trackSeek: handleTrackClick,
       trackSelect: handleSelectTrack,
       trackSelectNext: handleSelectNext,
-      groupSelectNext: handleSelectNextGroup,
       updateRectBounds: handleUpdateRectBounds,
       updateGeoJSON: handleUpdateGeoJSON,
       removeTrack: handleRemoveTrack,

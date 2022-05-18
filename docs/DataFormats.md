@@ -10,8 +10,8 @@ DIVE Desktop and Web support a number of annotation and configuration formats.  
 * DIVE Annotation JSON (default annotation format)
 * DIVE Configuration JSON
 * VIAME CSV
+* KPF (KWIVER Packet Format)
 * COCO and KWCOCO (web only)
-* KPF (KWIVER Packet Format) for MEVA (web only)
 
 ## DIVE Annotation JSON
 
@@ -149,15 +149,27 @@ interface DatasetMetaMutable {
 
 Read the [VIAME CSV Specification](https://viame.readthedocs.io/en/latest/section_links/detection_file_conversions.html).
 
+!!! warning
+    VIAME CSV is the format that DIVE exports to.  It doesn't support all features of the annotator (like groups) so you may need to use the DIVE Json format.  It's easier to work with.
+
+## KWIVER Packet Format (KPF)
+
+DIVE supports [MEVA KPF](https://mevadata.org/)
+
+* Read the [KPF Specification](https://kwiver-diva.readthedocs.io/en/latest/kpf.html)
+* See example data in [meva-data-repo](https://gitlab.kitware.com/meva/meva-data-repo/)
+
+!!! info
+    KPF is typically broken into 3 files, but DIVE only supports annotations being loaded as a single file. However, the 3-file breakdown is just convention and KPF can be loaded from a single combined file.
+
+    ```bash
+    # Example: create a sinlge KPF yaml annotation file for use in DIVE
+    cat 2018-03-07.11-05-07.11-10-07.school.G339.*.yml > combined.yml
+    ```
+
 ## COCO and KWCOCO
 
 Only supported on web.
 
 * Read the [COCO Specification](https://cocodataset.org/#format-data)
 * Read the [KWCOCO Specification](https://kwcoco.readthedocs.io/en/release/getting_started.html)
-
-## KWIVER Packet Format (KPF)
-
-Only supported on web.
-
-Read the [KPF Specification](https://kwiver-diva.readthedocs.io/en/latest/kpf.html)

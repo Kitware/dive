@@ -233,6 +233,7 @@ export default defineComponent({
     async function trackSplit(trackId: AnnotationId | null, frame: number) {
       if (typeof trackId === 'number') {
         const track = trackStore.get(trackId);
+        const groups = groupStore.lookupGroups(trackId);
         let newtracks: [Track, Track];
         try {
           newtracks = track.split(frame, trackStore.getNewId(), trackStore.getNewId() + 1);
@@ -257,6 +258,18 @@ export default defineComponent({
         trackStore.remove(trackId);
         trackStore.insert(newtracks[0]);
         trackStore.insert(newtracks[1]);
+        if (groups.length) {
+          // If the track belonged to groups, add the new tracks
+          // to the same groups the old tracks belonged to.
+          groupStore.trackRemove(trackId);
+          groups.forEach((group) => {
+            group.removeMembers([trackId]);
+            group.addMembers({
+              [newtracks[0].id]: { ranges: [[newtracks[0].begin, newtracks[0].end]] },
+              [newtracks[1].id]: { ranges: [[newtracks[1].begin, newtracks[1].end]] },
+            });
+          });
+        }
         handler.trackSelect(newtracks[1].id, wasEditing);
       }
     }
@@ -473,6 +486,7 @@ export default defineComponent({
       selectedTrackId,
       editingGroupId,
       selectedKey,
+      trackFilters,
       videoUrl,
       visibleModes,
       frameRate: time.frameRate,
@@ -486,9 +500,6 @@ export default defineComponent({
       save,
       saveThreshold,
       updateTime,
-      updateTypeName: trackFilters.updateTypeName,
-      removeTypeTracks: trackFilters.removeTypeAnnotations,
-      importTypes: trackFilters.importTypes,
       // multicam
       multiCamList,
       defaultCamera,
@@ -627,7 +638,7 @@ export default defineComponent({
     >
       <sidebar
         :enable-slot="context.state.active !== 'TypeThreshold'"
-        @import-types="importTypes($event)"
+        @import-types="trackFilters.importTypes($event)"
         @track-seek="mediaController.seek($event)"
       >
         <template v-if="context.state.active !== 'TypeThreshold'">

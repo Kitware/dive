@@ -433,7 +433,7 @@ async function getTrainingConfigs(settings: Settings): Promise<TrainingConfigs> 
   const disallowedPatterns = /.*(_nf|\.continue)\.viame_csv\.conf$/;
   const exists = await fs.pathExists(pipelinePath);
   if (!exists) {
-    throw new Error('Path does not exist');
+    throw new Error(`Path does not exist: ${pipelinePath}`);
   }
   let configs = await fs.readdir(pipelinePath);
   configs = configs

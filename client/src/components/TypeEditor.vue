@@ -27,6 +27,10 @@ export default defineComponent({
       type: Object as PropType<StyleManager>,
       required: true,
     },
+    group: {
+      type: Boolean,
+      default: false,
+    },
   },
 
   setup(props, { emit }) {
@@ -148,7 +152,7 @@ export default defineComponent({
               />
             </v-col>
           </v-row>
-          <v-row>
+          <v-row v-if="!group">
             <v-col>
               <v-checkbox
                 v-model="data.editingShowLabel"
@@ -221,6 +225,7 @@ export default defineComponent({
       </v-card-text>
       <v-card-actions class="">
         <v-tooltip
+          v-if="!group"
           open-delay="100"
           bottom
           :color="usedTypesRef.includes(data.selectedType) ? 'error' : ''"

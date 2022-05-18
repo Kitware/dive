@@ -54,6 +54,7 @@ export default defineComponent({
         :width="width"
         :style-manager="styleManager"
         :filter-controls="groupFilterControls"
+        group
         class="flex-shrink-1 flex-grow-1"
       />
       <v-divider />
