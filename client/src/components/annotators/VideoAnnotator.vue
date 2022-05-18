@@ -102,6 +102,11 @@ export default defineComponent({
       type: String as PropType<string>,
       default: 'singleCam',
     },
+    intercept: {
+      type: Number as PropType<number | undefined>,
+      default: undefined,
+    },
+
   },
 
   setup(props) {
@@ -301,14 +306,17 @@ export default defineComponent({
             <feFuncR
               type="linear"
               :slope="brightness"
+              :intercept="intercept"
             />
             <feFuncG
               type="linear"
               :slope="brightness"
+              :intercept="intercept"
             />
             <feFuncB
               type="linear"
               :slope="brightness"
+              :intercept="intercept"
             />
           </feComponentTransfer>
         </filter>

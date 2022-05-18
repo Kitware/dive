@@ -9,6 +9,7 @@ import type { AxiosError } from 'axios';
 import Track, { TrackId } from 'vue-media-annotator/track';
 import {
   useAttributes,
+  useImageEnhancements,
   useLineChart,
   useStyling,
   useTrackFilters,
@@ -124,6 +125,13 @@ export default defineComponent({
       pendingSaveCount,
       addCamera: addSaveCamera,
     } = useSave(datasetId, readonlyState);
+
+    const {
+      imageEnhancements,
+      brightness,
+      intercept,
+      setSVGFilters,
+    } = useImageEnhancements();
 
     const recipes = [
       new PolygonBase(),
@@ -553,6 +561,7 @@ export default defineComponent({
       setSelectedCamera,
       linkCameraTrack,
       unlinkCameraTrack,
+      setSVGFilters,
     };
 
     provideAnnotator(
@@ -582,6 +591,7 @@ export default defineComponent({
         time,
         visibleModes,
         readOnlyMode: readonlyState,
+        imageEnhancements,
       },
       globalHandler,
     );
@@ -620,6 +630,8 @@ export default defineComponent({
       originalFps: time.originalFps,
       context,
       readonlyState,
+      brightness,
+      intercept,
       /* methods */
       handler: globalHandler,
       save,
@@ -829,7 +841,7 @@ export default defineComponent({
                 :class="{'selected-camera': selectedCamera === camera && camera !== 'singleCam'}"
                 v-bind="{
                   imageData: imageData[camera], videoUrl: videoUrl[camera],
-                  updateTime, frameRate, originalFps, camera }"
+                  updateTime, frameRate, originalFps, camera, brightness, intercept }"
               >
                 <LayerManager :camera="camera" />
               </component>
