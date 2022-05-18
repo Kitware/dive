@@ -1,7 +1,6 @@
 <script lang="ts">
-import Vue from 'vue';
 import {
-  defineComponent, reactive, computed, ref,
+  defineComponent, reactive, computed,
 } from '@vue/composition-api';
 
 import {
@@ -10,7 +9,9 @@ import {
   useEditingGroupId,
   useGroupFilterControls,
   useSelectedTrackId,
+  useGroupStore,
 } from '../provides';
+import useVirtualScrollTo from '../use/useVirtualScrollTo';
 import GroupItem from './GroupItem.vue';
 
 export default defineComponent({
@@ -23,20 +24,35 @@ export default defineComponent({
       type: Number,
       default: 420,
     },
+    hotkeysDisabled: {
+      type: Boolean,
+      required: true,
+    },
   },
 
-  setup() {
+  setup(props) {
     const readOnlyMode = useReadOnlyMode();
-    // const store = useGroupStore();
+    const store = useGroupStore();
     const typeStylingRef = useGroupStyleManager().typeStyling;
     const selectedId = useEditingGroupId();
     const selectedTrack = useSelectedTrackId();
     const groupFilters = useGroupFilterControls();
-
     const data = reactive({
-      itemHeight: 70, // in pixels
+      itemHeight: 58, // in pixels
     });
-    const virtualList = ref(null as null | Vue);
+    const virtualScroll = useVirtualScrollTo({
+      itemHeight: data.itemHeight,
+      store,
+      filteredListRef: groupFilters.filteredAnnotations,
+      selectedIdRef: selectedId,
+      multiSelectList: computed(() => {
+        if (selectedTrack.value !== null) {
+          return Array.from(store.trackMap.get(selectedTrack.value)?.values() ?? []);
+        }
+        return [];
+      }),
+      selectNext: () => null,
+    });
 
     const virtualListItems = computed(() => {
       const filteredGroups = groupFilters.filteredAnnotations.value;
@@ -54,20 +70,46 @@ export default defineComponent({
         color: typeStylingRef.value.color(confidencePair[0]),
         selected: item.filteredGroup.annotation.id === selectedId.value,
         selectedTrackId: selectedTrack.value,
-        secondarySelected: selectedTrack.value
+        secondarySelected: (selectedTrack.value !== null)
           ? selectedTrack.value in item.filteredGroup.annotation.members
           : false,
         inputValue: item.checkedTrackIds.includes(item.filteredGroup.annotation.id),
       };
     }
 
+    /**
+     * This doesn't actually do anything aside
+     * from intercepting up/down keypresses and
+     * calling preventDefault so that the list doesn't behave oddly.
+     */
+    const mouseTrap = computed(() => {
+      const disabled = props.hotkeysDisabled;
+      return [
+        {
+          bind: 'up',
+          handler: (el: HTMLElement, event: KeyboardEvent) => {
+            virtualScroll.scrollPreventDefault(el, event, 'up');
+          },
+          disabled,
+        },
+        {
+          bind: 'down',
+          handler: (el: HTMLElement, event: KeyboardEvent) => {
+            virtualScroll.scrollPreventDefault(el, event, 'down');
+          },
+          disabled,
+        },
+      ];
+    });
+
     return {
       data,
+      mouseTrap,
       getItemProps,
       groupFilters,
       readOnlyMode,
       virtualListItems,
-      virtualList,
+      virtualList: virtualScroll.virtualList,
     };
   },
 });
@@ -93,6 +135,7 @@ export default defineComponent({
     </datalist>
     <v-virtual-scroll
       ref="virtualList"
+      v-mousetrap="mouseTrap"
       class="groups"
       :items="virtualListItems"
       :item-height="data.itemHeight"

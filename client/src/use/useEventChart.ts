@@ -1,7 +1,7 @@
 
 import { computed, Ref } from '@vue/composition-api';
-import { AnnotationWithContext } from '../BaseFilterControls';
-import { TypeStyling } from '../StyleManager';
+import type { AnnotationWithContext } from '../BaseFilterControls';
+import type { TypeStyling } from '../StyleManager';
 import BaseAnnotation, { AnnotationId } from '../BaseAnnotation';
 import type Group from '../Group';
 import type Track from '../track';

@@ -8,12 +8,13 @@
 
 import yaml from 'js-yaml';
 import fs from 'fs-extra';
-import { AnnotationFileData } from 'platform/desktop/backend/serializers/viame';
+import { concat, flattenDeep, uniqBy } from 'lodash';
 import { Feature } from 'vue-media-annotator/track';
 import { ConfidencePair, StringKeyObject } from 'vue-media-annotator/BaseAnnotation';
-import { MultiGroupRecord, MultiTrackRecord } from 'dive-common/apispec';
-import { flattenDeep, uniqBy } from 'lodash';
 import { GroupMembers } from 'vue-media-annotator/Group';
+import { AnnotationSchema, MultiGroupRecord, MultiTrackRecord } from 'dive-common/apispec';
+
+import { AnnotationsCurrentVersion } from '../../constants';
 
 export const KPF_EXTENSIONS = ['activities.yml', 'geom.yml', 'types.yml'];
 
@@ -121,7 +122,7 @@ export default class KPF {
   * @param {Object} staticMeta static metadata to assign to all tracks.
   * @returns {Array<tdm.Track>}
   */
-  getJson(keyframesOnly = true): AnnotationFileData {
+  getJson(keyframesOnly = true): AnnotationSchema {
     const tracks: MultiTrackRecord = {};
     const groups: MultiGroupRecord = {};
 
@@ -189,6 +190,7 @@ export default class KPF {
     return {
       tracks,
       groups,
+      version: AnnotationsCurrentVersion,
     };
   }
 
@@ -210,25 +212,26 @@ export default class KPF {
 
   /**
   * Create KPF object from YAML text strings.
-  * @param {String} activityText
-  * @param {String} geometryText
   */
-  static fromText(activityText: string, geometryText: string, typeText: string) {
-    const activityJson = (yaml.load(activityText) as any[]).map((a) => ({ ...a.act }));
-    const geometryJson = (yaml.load(geometryText) as any[]).map((g) => ({ ...g.geom }));
-    const typeJson = (yaml.load(typeText) as any[]).map((t) => ({ ...t.types }));
+  static fromText(texts: string[]) {
+    let activityJson: any[] = [];
+    let geometryJson: any[] = [];
+    let typeJson: any[] = [];
+    texts.forEach((text) => {
+      activityJson = concat(activityJson,
+        (yaml.load(text) as any[]).filter((a) => !!a.act).map((a) => ({ ...a.act })));
+      geometryJson = concat(geometryJson,
+        (yaml.load(text) as any[]).filter((a) => !!a.geom).map((a) => ({ ...a.geom })));
+      typeJson = concat(typeJson,
+        (yaml.load(text) as any[]).filter((a) => !!a.types).map((a) => ({ ...a.types })));
+    });
     return new KPF(activityJson, geometryJson, typeJson);
   }
 
-  static async parse(
-    activityFile: string, geometryFile: string, typeFile: string,
-  ) {
-    const promiseList = [];
-    promiseList.push(fs.readFile(geometryFile, 'utf8'));
-    promiseList.push(fs.readFile(typeFile, 'utf8'));
-    promiseList.push(fs.readFile(activityFile, 'utf8'));
-    const [geometryText, typeText, activityText] = await Promise.all(promiseList);
-    const kpf = KPF.fromText(activityText, geometryText, typeText);
+  static async parse(filePaths: string[]) {
+    const promiseList = filePaths.map((f) => fs.readFile(f, 'utf-8'));
+    const texts = await Promise.all(promiseList);
+    const kpf = KPF.fromText(texts);
     return kpf.getJson();
   }
 }

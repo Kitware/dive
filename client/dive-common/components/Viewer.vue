@@ -1,8 +1,9 @@
 <script lang="ts">
 import {
-  defineComponent, ref, toRef, computed, Ref, reactive, watch,
+  defineComponent, ref, toRef, computed, Ref, reactive, watch, inject,
 } from '@vue/composition-api';
 import type { Vue } from 'vue/types/vue';
+import type Vuetify from 'vuetify/lib';
 import { cloneDeep } from 'lodash';
 
 /* VUE MEDIA ANNOTATOR */
@@ -14,19 +15,19 @@ import {
   useEventChart,
 } from 'vue-media-annotator/use';
 import {
-  Track, Group, TrackStore, GroupStore,
+  Track, Group,
+  TrackStore, GroupStore,
+  StyleManager, TrackFilterControls, GroupFilterControls,
 } from 'vue-media-annotator/index';
 import { provideAnnotator } from 'vue-media-annotator/provides';
-import StyleManager from 'vue-media-annotator/StyleManager';
+
 import {
   ImageAnnotator,
   VideoAnnotator,
   LayerManager,
 } from 'vue-media-annotator/components';
 import { MediaController } from 'vue-media-annotator/components/annotators/mediaControllerType';
-import { AnnotationId } from 'vue-media-annotator/BaseAnnotation';
-import TrackFilterControls from 'vue-media-annotator/TrackFilterControls';
-import GroupFilterControls from 'vue-media-annotator/GroupFilterControls';
+import type { AnnotationId } from 'vue-media-annotator/BaseAnnotation';
 import { getResponseError } from 'vue-media-annotator/utils';
 
 /* DIVE COMMON */
@@ -148,8 +149,9 @@ export default defineComponent({
       new HeadTail(),
     ];
 
-    const trackStyleManager = new StyleManager({ markChangesPending });
-    const groupStyleManager = new StyleManager({ markChangesPending });
+    const vuetify = inject('vuetify') as Vuetify;
+    const trackStyleManager = new StyleManager({ markChangesPending, vuetify });
+    const groupStyleManager = new StyleManager({ markChangesPending, vuetify });
 
     const {
       attributesList: attributes,
@@ -190,6 +192,7 @@ export default defineComponent({
     } = useModeManager({
       recipes,
       trackFilterControls: trackFilters,
+      groupFilterControls: groupFilters,
       trackStore,
       groupStore,
       mediaController,
@@ -230,6 +233,7 @@ export default defineComponent({
     async function trackSplit(trackId: AnnotationId | null, frame: number) {
       if (typeof trackId === 'number') {
         const track = trackStore.get(trackId);
+        const groups = groupStore.lookupGroups(trackId);
         let newtracks: [Track, Track];
         try {
           newtracks = track.split(frame, trackStore.getNewId(), trackStore.getNewId() + 1);
@@ -254,6 +258,18 @@ export default defineComponent({
         trackStore.remove(trackId);
         trackStore.insert(newtracks[0]);
         trackStore.insert(newtracks[1]);
+        if (groups.length) {
+          // If the track belonged to groups, add the new tracks
+          // to the same groups the old tracks belonged to.
+          groupStore.trackRemove(trackId);
+          groups.forEach((group) => {
+            group.removeMembers([trackId]);
+            group.addMembers({
+              [newtracks[0].id]: { ranges: [[newtracks[0].begin, newtracks[0].end]] },
+              [newtracks[1].id]: { ranges: [[newtracks[1].begin, newtracks[1].end]] },
+            });
+          });
+        }
         handler.trackSelect(newtracks[1].id, wasEditing);
       }
     }
@@ -470,6 +486,7 @@ export default defineComponent({
       selectedTrackId,
       editingGroupId,
       selectedKey,
+      trackFilters,
       videoUrl,
       visibleModes,
       frameRate: time.frameRate,
@@ -483,9 +500,6 @@ export default defineComponent({
       save,
       saveThreshold,
       updateTime,
-      updateTypeName: trackFilters.updateTypeName,
-      removeTypeTracks: trackFilters.removeTypeAnnotations,
-      importTypes: trackFilters.importTypes,
       // multicam
       multiCamList,
       defaultCamera,
@@ -624,7 +638,7 @@ export default defineComponent({
     >
       <sidebar
         :enable-slot="context.state.active !== 'TypeThreshold'"
-        @import-types="importTypes($event)"
+        @import-types="trackFilters.importTypes($event)"
         @track-seek="mediaController.seek($event)"
       >
         <template v-if="context.state.active !== 'TypeThreshold'">

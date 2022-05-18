@@ -1,5 +1,6 @@
 <script lang="ts">
 import {
+  computed,
   defineComponent,
   reactive,
   toRef,
@@ -66,12 +67,27 @@ export default defineComponent({
       }
     }
 
+    const mouseTrap = computed(() => {
+      const trap = [
+        { bind: 'a', handler: swapTabs },
+      ];
+      if (!readOnlyMode.value) {
+        trap.push(
+          { bind: 'm', handler: doToggleMerge },
+          { bind: 'g', handler: () => { groupAdd(); data.currentTab = 'attributes'; } },
+          { bind: 'shift+m', handler: commitMerge },
+        );
+      }
+      return trap;
+    });
+
     return {
       /* data */
       data,
       allTypesRef,
       commitMerge,
       groupAdd,
+      mouseTrap,
       trackFilterControls,
       trackSettings,
       typeSettings,
@@ -93,12 +109,7 @@ export default defineComponent({
   >
     <template #default="{ topHeight, bottomHeight }">
       <v-btn
-        v-mousetrap="[
-          { bind: 'a', handler: swapTabs },
-          { bind: 'm', handler: doToggleMerge },
-          { bind: 'g', handler: () => { groupAdd(); data.currentTab = 'attributes'; } },
-          { bind: 'shift+m', handler: commitMerge },
-        ]"
+        v-mousetrap="mouseTrap"
         small
         icon
         title="press `a`"

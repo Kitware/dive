@@ -1,4 +1,4 @@
-from typing import Callable, Generator, Iterable, List, Optional, Tuple
+from typing import Any, Callable, Dict, Generator, Iterable, List, Optional, Tuple
 
 from girder.constants import AccessType
 from girder.models.folder import Folder
@@ -284,6 +284,24 @@ def clone_annotations(
         upsert_groups=group_iter,
         description="initialize clone",
     )
+
+
+def get_annotations(dataset: types.GirderModel, revision: Optional[int] = None):
+    """Get the DIVE json annotation file as a dict"""
+    tracks = TrackItem().list(dataset, revision=revision)
+    groups = GroupItem().list(dataset, revision=revision)
+    annotations: Dict[str, Any] = {
+        'tracks': {},
+        'groups': {},
+        'version': constants.AnnotationsCurrentVersion,
+    }
+    for t in tracks:
+        serialized = models.Track(**t).dict(exclude_none=True)
+        annotations['tracks'][serialized['id']] = serialized
+    for g in groups:
+        serialized = models.Group(**g).dict(exclude_none=True)
+        annotations['groups'][serialized['id']] = serialized
+    return annotations
 
 
 def get_labels(user: types.GirderUserModel):

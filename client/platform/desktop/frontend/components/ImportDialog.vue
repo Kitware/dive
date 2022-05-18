@@ -185,7 +185,7 @@ export default defineComponent({
             dense
             prepend-inner-icon="mdi-file-table"
             label="Annotation File (Optional)"
-            hint="Optional. Load existing annotations. Supports DIVE JSON and VIAME CSV"
+            hint="Optional. Load existing annotations. Supports DIVE JSON and VIAME CSV."
             persistent-hint
             @click="openUpload('annotation')"
             @click:prepend-inner="openUpload('annotation')"

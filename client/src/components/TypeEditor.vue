@@ -3,13 +3,12 @@ import {
   defineComponent, PropType, reactive, toRef, watch,
 } from '@vue/composition-api';
 
-import BaseFilterControls from 'vue-media-annotator/BaseFilterControls';
-import Group from 'vue-media-annotator/Group';
-import StyleManager from 'vue-media-annotator/StyleManager';
-import Track from 'vue-media-annotator/track';
-
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 
+import BaseFilterControls from '../BaseFilterControls';
+import type Group from '../Group';
+import type StyleManager from '../StyleManager';
+import type Track from '../track';
 import { useReadOnlyMode } from '../provides';
 
 export default defineComponent({
@@ -27,6 +26,10 @@ export default defineComponent({
     styleManager: {
       type: Object as PropType<StyleManager>,
       required: true,
+    },
+    group: {
+      type: Boolean,
+      default: false,
     },
   },
 
@@ -149,7 +152,7 @@ export default defineComponent({
               />
             </v-col>
           </v-row>
-          <v-row>
+          <v-row v-if="!group">
             <v-col>
               <v-checkbox
                 v-model="data.editingShowLabel"
@@ -222,6 +225,7 @@ export default defineComponent({
       </v-card-text>
       <v-card-actions class="">
         <v-tooltip
+          v-if="!group"
           open-delay="100"
           bottom
           :color="usedTypesRef.includes(data.selectedType) ? 'error' : ''"

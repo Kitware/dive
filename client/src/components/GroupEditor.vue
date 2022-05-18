@@ -1,6 +1,6 @@
 <script lang="ts">
 import { defineComponent, PropType } from '@vue/composition-api';
-import Group from 'vue-media-annotator/Group';
+import Group from '../Group';
 
 export default defineComponent({
   name: 'GroupEditor',

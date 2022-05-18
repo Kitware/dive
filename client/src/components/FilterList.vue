@@ -49,6 +49,10 @@ export default defineComponent({
       type: Object as PropType<StyleManager>,
       required: true,
     },
+    group: {
+      type: Boolean,
+      default: false,
+    },
   },
 
   components: { TypeEditor, TooltipBtn, TypeItem },
@@ -98,15 +102,24 @@ export default defineComponent({
 
     async function clickDelete() {
       const typeDisplay: string[] = [];
-      const text = ['This will remove the type from any visible track or delete the track if it is the only type.',
-        'Do you want to delete all tracks of following types:'];
+      let text: string[] = [];
+      if (props.group) {
+        text = [
+          'This will remove the group assignment from any visible tracks and delete the group. Do you want to delete all groups of the following types:',
+        ];
+      } else {
+        text = [
+          'This will remove the type from any visible track or delete the track if it is the only type. Do you want to delete all tracks of following types:',
+        ];
+      }
+      text.push('-------');
       checkedTypesRef.value.forEach((item) => {
         typeDisplay.push(item);
         text.push(item.toString());
       });
 
       const result = await prompt({
-        title: 'Confirm',
+        title: 'Really delete types?',
         text,
         confirm: true,
       });
@@ -317,6 +330,7 @@ export default defineComponent({
         :selected-type="data.selectedType"
         :filter-controls="filterControls"
         :style-manager="styleManager"
+        :group="group"
         @close="data.showPicker = false"
       />
     </v-dialog>

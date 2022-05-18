@@ -101,7 +101,9 @@ class GroupMember(BaseModel):
 
 
 class Group(BaseAnnotation):
-    members: Dict[int, GroupMember]
+    # Mongo keys must be strings, but the members key is an int.
+    # The client is responsible for converting it.
+    members: Dict[str, GroupMember]
 
 
 class TrackItemSchema(Track):

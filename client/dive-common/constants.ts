@@ -89,9 +89,13 @@ const otherImageTypes = [
 const inputAnnotationTypes = [
   'application/json',
   'text/csv',
+  'text/yaml',
+  'application/x-yaml',
 ];
 
 const inputAnnotationFileTypes = [
+  'yml',
+  'yaml',
   'json',
   'csv',
 ];

@@ -203,15 +203,12 @@ if (argv._.includes('viame2json')) {
   parseJsonFile(argv.file as string, argv.meta as string);
 } else if (argv._.includes('kpf2json')) {
   const run = async () => {
-    const kpf = await KPF.parse(
+    const kpf = await KPF.parse([
       argv.activityFile as string,
       argv.geometryFile as string,
       argv.typeFile as string,
-    );
-    stdout.write(JSON.stringify({
-      version: 2,
-      ...kpf,
-    }));
+    ]);
+    stdout.write(JSON.stringify(kpf));
   };
   run();
 } else if (argv._.includes('nist2json')) {

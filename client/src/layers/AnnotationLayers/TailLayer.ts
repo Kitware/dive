@@ -6,10 +6,10 @@
  * Track layer is a-typical because it requires extra temporal context,
  * so it cannot be based on the a-temporal BaseLayer.
  */
-import BaseLayer, { LayerStyle, BaseLayerParams, MarkerStyle } from 'vue-media-annotator/layers/BaseLayer';
-import { TrackId } from 'vue-media-annotator/track';
-import { FrameDataTrack } from 'vue-media-annotator/layers/LayerTypes';
-import TrackStore from 'vue-media-annotator/TrackStore';
+import BaseLayer, { LayerStyle, BaseLayerParams, MarkerStyle } from '../BaseLayer';
+import { TrackId } from '../../track';
+import TrackStore from '../../TrackStore';
+import { FrameDataTrack } from '../LayerTypes';
 
 interface TailData {
   trackId: TrackId;

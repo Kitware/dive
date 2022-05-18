@@ -2,19 +2,20 @@ import {
   provide, inject, ref, Ref, reactive,
 } from '@vue/composition-api';
 
-import { AnnotatorPreferences as AnnotatorPrefsIface } from './types';
+import type { AnnotatorPreferences as AnnotatorPrefsIface } from './types';
 import StyleManager from './StyleManager';
-import { EditAnnotationTypes } from './layers/EditAnnotationLayer';
+import type { EditAnnotationTypes } from './layers/EditAnnotationLayer';
 import TrackStore from './TrackStore';
 import GroupStore from './GroupStore';
 import type { AnnotationId } from './BaseAnnotation';
-import { VisibleAnnotationTypes } from './layers';
-import { RectBounds } from './utils';
-import { Attribute } from './use/useAttributes';
-import { Time } from './use/useTimeObserver';
-import { ImageEnhancements } from './use/useImageEnhancements';
+import type { VisibleAnnotationTypes } from './layers';
+import type { RectBounds } from './utils';
+import type { Attribute } from './use/useAttributes';
+import type { Time } from './use/useTimeObserver';
+import type { ImageEnhancements } from './use/useImageEnhancements';
 import TrackFilterControls from './TrackFilterControls';
 import GroupFilterControls from './GroupFilterControls';
+
 
 /**
  * Type definitions are read only because injectors may mutate internal state,
@@ -111,6 +112,8 @@ export interface Handler {
   ): void;
   /* Remove a whole track */
   removeTrack(AnnotationIds: AnnotationId[], forcePromptDisable?: boolean): void;
+  /* remove a whole group */
+  removeGroup(AnnotationIds: AnnotationId[]): void;
   /* Remove a single point from selected track's geometry by selected index */
   removePoint(): void;
   /* Remove an entire annotation from selected track by selected key */
@@ -156,6 +159,7 @@ function dummyHandler(handle: (name: string, args: unknown[]) => void): Handler 
     updateRectBounds(...args) { handle('updateRectBounds', args); },
     updateGeoJSON(...args) { handle('updateGeoJSON', args); },
     removeTrack(...args) { handle('removeTrack', args); },
+    removeGroup(...args) { handle('removeGroup', args); },
     removePoint(...args) { handle('removePoint', args); },
     removeAnnotation(...args) { handle('removeAnnotation', args); },
     selectFeatureHandle(...args) { handle('selectFeatureHandle', args); },
