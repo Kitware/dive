@@ -1,7 +1,7 @@
 <script lang="ts">
 import { computed, defineComponent, PropType } from '@vue/composition-api';
 
-import { useGroupFilterControls, useHandler } from '../provides';
+import { useGroupFilterControls, useHandler, useReadOnlyMode } from '../provides';
 import Group from '../Group';
 
 import TypePicker from './TypePicker.vue';
@@ -41,6 +41,7 @@ export default defineComponent({
   setup(props, { root }) {
     const vuetify = root.$vuetify;
     const groupFilters = useGroupFilterControls();
+    const readOnlyMode = useReadOnlyMode();
     const handler = useHandler();
 
     const style = computed(() => {
@@ -60,6 +61,7 @@ export default defineComponent({
     return {
       style,
       groupFilters,
+      readOnlyMode,
       handler,
     };
   },
@@ -104,6 +106,7 @@ export default defineComponent({
       <TypePicker
         :value="group.getType()[0]"
         :all-types="groupFilters.allTypes.value"
+        :read-only-mode="readOnlyMode"
         data-list-source="allGroupTypesOptions"
         @input="group.setType($event)"
       />
@@ -113,8 +116,8 @@ export default defineComponent({
       class="mt-1"
     >
       <v-spacer />
-      <div class="text-caption">
-        {{ Object.keys(group.members).join(', ') }}
+      <div class="text-caption grey--text text--lighten-1">
+        {{ group.memberIds.join(', ') }}
       </div>
     </v-row>
   </div>

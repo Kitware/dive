@@ -125,9 +125,8 @@ export default defineComponent({
 </script>
 
 <template>
-  <panel-subsection>
+  <panel-subsection v-if="selectedAttributes">
     <template
-      v-if="selectedAttributes"
       slot="header"
     >
       <v-row

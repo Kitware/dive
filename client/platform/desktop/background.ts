@@ -35,7 +35,7 @@ async function createWindow() {
   const partitionSession = session.fromPartition('persist:dive');
   // Create the browser window.
   win = new BrowserWindow({
-    width: Math.min(size.width, 1300),
+    width: Math.min(size.width, 1420),
     height: Math.min(size.height - 200, 960),
     autoHideMenuBar: true,
     title: 'VIAME DIVE Desktop',

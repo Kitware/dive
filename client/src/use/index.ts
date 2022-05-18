@@ -3,6 +3,7 @@ import useEventChart from './useEventChart';
 import useLineChart from './useLineChart';
 import useTimeObserver from './useTimeObserver';
 import useImageEnhancements from './useImageEnhancements';
+import useVirtualScrollTo from './useVirtualScrollTo';
 
 export {
   useAttributes,
@@ -10,4 +11,5 @@ export {
   useImageEnhancements,
   useLineChart,
   useTimeObserver,
+  useVirtualScrollTo,
 };

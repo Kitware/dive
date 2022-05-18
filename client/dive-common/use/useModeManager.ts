@@ -1,7 +1,7 @@
 import {
   computed, Ref, reactive, ref, onBeforeUnmount, toRef,
 } from '@vue/composition-api';
-import { uniq, flatMapDeep } from 'lodash';
+import { uniq, flatMapDeep, flattenDeep } from 'lodash';
 import Track, { TrackId } from 'vue-media-annotator/track';
 import { RectBounds, updateBounds } from 'vue-media-annotator/utils';
 import { EditAnnotationTypes, VisibleAnnotationTypes } from 'vue-media-annotator/layers';
@@ -16,6 +16,7 @@ import GroupStore from 'vue-media-annotator/GroupStore';
 
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { clientSettings } from 'dive-common/store/settings';
+import GroupFilterControls from 'vue-media-annotator/GroupFilterControls';
 
 
 type SupportedFeature = GeoJSON.Feature<GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString>;
@@ -60,6 +61,7 @@ export default function useModeManager({
   trackStore,
   groupStore,
   trackFilterControls,
+  groupFilterControls,
   mediaController,
   readonlyState,
   recipes,
@@ -67,6 +69,7 @@ export default function useModeManager({
     trackStore: TrackStore;
     groupStore: GroupStore;
     trackFilterControls: TrackFilterControls;
+    groupFilterControls: GroupFilterControls;
   mediaController: Ref<MediaController>;
     readonlyState: Readonly<Ref<boolean>>;
     recipes: Recipe[];
@@ -106,8 +109,16 @@ export default function useModeManager({
     () => trackFilterControls.filteredAnnotations.value.map((filtered) => filtered.annotation),
   );
 
+  const _filteredGroups = computed(
+    () => groupFilterControls.filteredAnnotations.value.map((filtered) => filtered.annotation),
+  );
+
   const selectNextTrack = (delta = 1) => selectNext(
     _filteredTracks.value, selectedTrackId.value, delta,
+  );
+
+  const selectNextGroup = (delta = 1) => selectNext(
+    _filteredGroups.value, editingGroupId.value, delta,
   );
 
   function selectTrack(trackId: AnnotationId | null, edit = false) {
@@ -116,23 +127,6 @@ export default function useModeManager({
       prompt({ title: 'Read Only Mode', text: 'This Dataset is in Read Only mode, no edits can be made.' });
     } else {
       editingTrack.value = trackId !== null && edit;
-    }
-  }
-
-  /** Put UI into group editing mode. */
-  function handleGroupEdit(groupId: AnnotationId | null) {
-    if (readonlyState.value) {
-      prompt({ title: 'Read Only Mode', text: 'This Dataset is in Read Only mode, no edits can be made.' });
-    } else {
-      creating = false;
-      editingTrack.value = false;
-      editingGroupId.value = groupId;
-      if (groupId !== null) {
-        /** When moving into a group edit mode, multi-select all track members */
-        const group = groupStore.get(groupId);
-        multiSelectList.value = Object.keys(group.members).map((v) => parseInt(v, 10));
-        selectedTrackId.value = null;
-      }
     }
   }
 
@@ -231,15 +225,32 @@ export default function useModeManager({
       /**
        * If editing group, then the newly selected track should be added to the group
        */
-      if (editingGroupId.value !== null) {
+      if (editingGroupId.value !== null && !edit) {
         const track = trackStore.get(trackId);
         groupStore.get(editingGroupId.value).addMembers({
           [trackId]: { ranges: [[track.begin, track.end]] },
         });
+      } else if (edit) {
+        editingGroupId.value = null;
+        multiSelectList.value = [];
       }
     }
     /* Do not allow editing when merge is in progress */
     selectTrack(trackId, edit && !multiSelectActive.value);
+  }
+
+  /** Put UI into group editing mode. */
+  function handleGroupEdit(groupId: AnnotationId | null) {
+    creating = false;
+    editingTrack.value = false;
+    editingGroupId.value = groupId;
+    if (groupId !== null) {
+      /** When moving into a group edit mode, multi-select all track members */
+      const group = groupStore.get(groupId);
+      multiSelectList.value = group.memberIds;
+      selectedTrackId.value = null;
+      seekNearest(trackStore.get(multiSelectList.value[0]));
+    }
   }
 
   //Handles deselection or hitting escape including while editing
@@ -261,6 +272,7 @@ export default function useModeManager({
 
   function handleAddTrackOrDetection(): TrackId {
     // Handles adding a new track with the NewTrack Settings
+    handleEscapeMode();
     const { frame } = mediaController.value;
     const newTrackId = trackStore.add(
       frame.value, trackSettings.value.newTrackSettings.type,
@@ -472,12 +484,6 @@ export default function useModeManager({
     }
   }
 
-  function handleRemoveGroup() {
-    if (editingGroupId.value !== null) {
-      groupStore.remove(editingGroupId.value);
-    }
-  }
-
   /**
    * Unstage a track from the merge list
    */
@@ -489,7 +495,12 @@ export default function useModeManager({
     }
     /** Remove members from group if group editing */
     if (editingGroupId.value !== null) {
-      groupStore.get(editingGroupId.value).removeMembers(trackIds);
+      const group = groupStore.annotationMap.get(editingGroupId.value);
+      if (group) group.removeMembers(trackIds);
+    }
+    /** Exit group editing mode if last track is removed */
+    if (multiSelectList.value.length === 0) {
+      handleEscapeMode();
     }
   }
 
@@ -502,7 +513,14 @@ export default function useModeManager({
     /* Delete track */
     if (!forcePromptDisable && trackSettings.value.deletionSettings.promptUser) {
       const trackStrings = trackIds.map((track) => track.toString());
+      const groups = flattenDeep(
+        trackIds.map((trackId) => groupStore.lookupGroups(trackId)),
+      );
       const text = (['Would you like to delete the following tracks:']).concat(trackStrings);
+      if (groups.length > 0) {
+        text.push('');
+        text.push(`This track will be removed from ${groups.length} groups.`);
+      }
       text.push('');
       text.push('This setting can be changed under the Track Settings');
       const result = await prompt({
@@ -518,6 +536,7 @@ export default function useModeManager({
     }
     trackIds.forEach((trackId) => {
       trackStore.remove(trackId);
+      groupStore.trackRemove(trackId);
     });
     handleUnstageFromMerge(trackIds);
     selectTrack(previousOrNext, false);
@@ -539,7 +558,8 @@ export default function useModeManager({
 
   function handleSelectNext(delta: number) {
     const newTrack = selectNextTrack(delta);
-    if (newTrack !== null) {
+    /** Only allow selectNext when not in group editing mode. */
+    if (newTrack !== null && editingGroupId.value === null) {
       handleSelectTrack(newTrack, false);
       seekNearest(trackStore.get(newTrack));
     }
@@ -574,6 +594,7 @@ export default function useModeManager({
       selectTrack(selectedTrackId.value, false);
     } else {
       multiSelectList.value = [];
+      handleGroupEdit(null);
     }
     return multiSelectList.value;
   }
@@ -593,14 +614,31 @@ export default function useModeManager({
   }
 
   /**
-   * Group: Commit the multi-select list to a new or existing group
-  */
+   * Group: Add the currently selected track to a new group and
+   * enter group editing mode.
+   */
   function handleAddGroup() {
     if (selectedTrackId.value !== null) {
       const members = [trackStore.get(selectedTrackId.value)];
       const newGrp = groupStore.add(members, groupSettings.value.newGroupSettings.type);
       handleGroupEdit(newGrp.id);
     }
+  }
+
+  /**
+   * Group: Remove group ids and unselect everything.
+   */
+  function handleRemoveGroup(ids: AnnotationId[]) {
+    ids.forEach((groupId) => {
+      groupStore.remove(groupId);
+    });
+    /* Figure out next track ID */
+    const maybeNextGroupId = selectNextGroup(1);
+    const previousOrNext = maybeNextGroupId !== null
+      ? maybeNextGroupId
+      : selectNextGroup(-1);
+    handleEscapeMode();
+    handleGroupEdit(previousOrNext);
   }
 
   /* Subscribe to recipe activation events */

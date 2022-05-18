@@ -1,7 +1,7 @@
 import type Vuetify from 'vuetify';
 
 import {
-  inject, ref, Ref, computed, set as VueSet,
+  ref, Ref, computed, set as VueSet,
 } from '@vue/composition-api';
 import * as d3 from 'd3';
 import { noop, merge } from 'lodash';
@@ -41,6 +41,7 @@ export interface TypeStyling {
 
 interface UseStylingParams {
   markChangesPending: () => void;
+  vuetify?: Vuetify;
 }
 
 /**
@@ -107,13 +108,9 @@ export default class StyleManager {
 
   markChangesPending: () => void;
 
-  constructor({ markChangesPending }: UseStylingParams) {
-    const vuetify = inject('vuetify') as Vuetify;
+  constructor({ markChangesPending, vuetify }: UseStylingParams) {
     this.revisionCounter = ref(1);
     this.customStyles = ref({} as Record<string, CustomStyle>);
-    if (!vuetify) {
-      throw new Error('Missing vuetify provide/inject');
-    }
     // Annotation State Colors
     const standard: Style = {
       strokeWidth: 3,
@@ -125,7 +122,7 @@ export default class StyleManager {
     };
     const selected: Style = {
       ...standard,
-      color: vuetify.preset.theme.themes.dark.accent as string,
+      color: vuetify?.preset.theme.themes.dark.accent as string || 'cyan',
       strokeWidth: 5,
       opacity: 1.0,
       fill: false,

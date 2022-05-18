@@ -58,6 +58,7 @@ nav:
       - Track List: UI-Track-List.md
       - Timeline: UI-Timeline.md
       - Attributes: UI-Attributes.md
+      - Group Manager: UI-Group-Manager.md
     - Keyboard Shortcut Reference: Mouse-Keyboard-Shortcuts.md
     - Advanced features:
       - Pipeline Import and Export: Pipeline-Import-Export.md

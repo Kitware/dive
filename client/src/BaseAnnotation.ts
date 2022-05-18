@@ -82,6 +82,10 @@ export default abstract class BaseAnnotation {
     return true;
   }
 
+  protected depend() {
+    return this.revision.value;
+  }
+
   /* Call if the bounds were possibly expanded */
   protected maybeExpandBounds(frame: number) {
     const oldval = [this.begin, this.end];

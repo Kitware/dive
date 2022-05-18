@@ -1,8 +1,8 @@
 import { ref, Ref, computed } from '@vue/composition-api';
 import IntervalTree from '@flatten-js/interval-tree';
-import Track from './track';
-import Group from './Group';
-import { AnnotationId, NotifierFuncParams } from './BaseAnnotation';
+import type Track from './track';
+import type Group from './Group';
+import type { AnnotationId, NotifierFuncParams } from './BaseAnnotation';
 
 export type MarkChangesPending = ({
   action,
@@ -155,7 +155,7 @@ export default abstract class BaseAnnotationStore<T extends Track | Group> {
       if (isTrack(value)) {
         this.markChangesPending({ action: 'delete', track: value });
       } else {
-        this.markChangesPending({ action: 'upsert', group: value });
+        this.markChangesPending({ action: 'delete', group: value });
       }
     }
   }

@@ -10,13 +10,13 @@ DIVE Desktop and Web support a number of annotation and configuration formats.  
 * DIVE Annotation JSON (default annotation format)
 * DIVE Configuration JSON
 * VIAME CSV
-* COCO and KWCOCO
-* KPF (KWIVER Packet Format) for MEVA
+* KPF (KWIVER Packet Format)
+* COCO and KWCOCO (web only)
 
 ## DIVE Annotation JSON
 
 !!! info
-    The current DIVE schema version is v2.  Version 2 was introduced in DIVE version 1.8.0.  It is backward-compatible with v1.
+    The current DIVE schema version is v2.  Version 2 was introduced in DIVE version 1.9.0.  It is backward-compatible with v1.
 
 Files are typically named `result_{dataset-name}.json`.  Their schema is described as follows.
 
@@ -149,11 +149,27 @@ interface DatasetMetaMutable {
 
 Read the [VIAME CSV Specification](https://viame.readthedocs.io/en/latest/section_links/detection_file_conversions.html).
 
-## COCO and KWCOCO
-
-* Read the [COCO Specification](https://cocodataset.org/#format-data)
-* Read the [KWCOCO Specification](https://kwcoco.readthedocs.io/en/release/getting_started.html)
+!!! warning
+    VIAME CSV is the format that DIVE exports to.  It doesn't support all features of the annotator (like groups) so you may need to use the DIVE Json format.  It's easier to work with.
 
 ## KWIVER Packet Format (KPF)
 
-Read the [KPF Specification](https://kwiver-diva.readthedocs.io/en/latest/kpf.html)
+DIVE supports [MEVA KPF](https://mevadata.org/)
+
+* Read the [KPF Specification](https://kwiver-diva.readthedocs.io/en/latest/kpf.html)
+* See example data in [meva-data-repo](https://gitlab.kitware.com/meva/meva-data-repo/)
+
+!!! info
+    KPF is typically broken into 3 files, but DIVE only supports annotations being loaded as a single file. However, the 3-file breakdown is just convention and KPF can be loaded from a single combined file.
+
+    ```bash
+    # Example: create a sinlge KPF yaml annotation file for use in DIVE
+    cat 2018-03-07.11-05-07.11-10-07.school.G339.*.yml > combined.yml
+    ```
+
+## COCO and KWCOCO
+
+Only supported on web.
+
+* Read the [COCO Specification](https://cocodataset.org/#format-data)
+* Read the [KWCOCO Specification](https://kwcoco.readthedocs.io/en/release/getting_started.html)
