@@ -449,6 +449,8 @@ def postprocess(
                 ),
             )
             newjob.job[constants.JOBCONST_PRIVATE_QUEUE] = job_is_private
+            newjob.job[constants.JOBCONST_DATASET_ID] = str(item["folderId"])
+            newjob.job[constants.JOBCONST_CREATOR] = str(user['_id'])
             Job().save(newjob.job)
             return dsFolder
 
