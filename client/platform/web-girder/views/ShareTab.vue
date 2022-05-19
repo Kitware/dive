@@ -48,6 +48,12 @@ export default defineComponent({
       </v-icon>
       Shared with Me
     </v-tab>
+    <v-tab :to="{name: 'summary'}">
+      <v-icon class="tab-icon">
+        mdi-tag
+      </v-icon>
+      Label summaries
+    </v-tab>
   </v-tabs>
 </template>
 

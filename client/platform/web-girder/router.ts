@@ -9,6 +9,7 @@ import RouterPage from './views/RouterPage.vue';
 import ViewerLoader from './views/ViewerLoader.vue';
 import DataShared from './views/DataShared.vue';
 import DataBrowser from './views/DataBrowser.vue';
+import Summary from './views/Summary.vue';
 
 Vue.use(Router);
 
@@ -59,6 +60,12 @@ const router = new Router({
               path: 'shared',
               name: 'shared',
               component: DataShared,
+              beforeEnter,
+            },
+            {
+              path: 'summary',
+              name: 'summary',
+              component: Summary,
               beforeEnter,
             },
             {
