@@ -59,6 +59,9 @@ module.exports = {
         appId: 'com.kitware.viame',
         productName: 'DIVE-Desktop',
         copyright: 'Copyright © 2022 Kitware, Inc.',
+        directories: {
+          buildResources: 'platform/desktop/buildResources',
+        },
         // extraMetadata will be merged with package.json in args to electron-builder
         extraMetadata: {
           // https://github.com/nklayman/vue-cli-plugin-electron-builder/issues/188
