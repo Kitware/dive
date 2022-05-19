@@ -19,6 +19,11 @@ export default defineComponent({
       type: Array as PropType<[string, number][]>,
       required: true,
     },
+    disabled: {
+      type: Boolean,
+      default: false,
+    },
+
   },
   setup() {
     const typeStylingRef = useTypeStyling();
@@ -82,11 +87,34 @@ export default defineComponent({
                 }"
               />
             </v-col>
-            <v-col class="type-item-value">
+            <v-col :cols="pair[1] !== 1 && !disabled ? '7' : '8'">
               {{ pair[0] }}
             </v-col>
-            <v-col class="type-score">
+            <v-spacer />
+            <v-col class="type-score shrink mr-1">
               {{ pair[1].toFixed(4) }}
+            </v-col>
+            <v-col
+              v-if="pair[1] !== 1 && !disabled"
+              class="shrink"
+            >
+              <v-tooltip
+                open-delay="200"
+                bottom
+              >
+                <template #activator="{ bind, on }">
+                  <v-btn
+                    x-small
+                    icon
+                    v-bind="bind"
+                    v-on="on"
+                    @click="$emit('set-type', pair[0])"
+                  >
+                    <v-icon>mdi-check</v-icon>
+                  </v-btn>
+                </template>
+                <span>Accept {{ pair[0] }} as correct type</span>
+              </v-tooltip>
             </v-col>
           </v-row>
         </span>
@@ -97,19 +125,9 @@ export default defineComponent({
 
 <style lang="scss">
 .type-color-box {
-  margin-top: 5px;
   min-width: 10px;
   max-width: 10px;
   min-height: 10px;
   max-height: 10px;
-}
-.type-item-value {
-  max-width: 80%;
-  margin: 0px;
-}
-.type-score {
-  font-size: 1em;
-  max-width: 25%;
-  min-width: 25%;
 }
 </style>

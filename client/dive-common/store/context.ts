@@ -2,6 +2,7 @@ import Install, { reactive } from '@vue/composition-api';
 import Vue, { VueConstructor } from 'vue';
 /* Components */
 import TypeThreshold from 'dive-common/components/TypeThreshold.vue';
+import ImageEnhancements from 'dive-common/components/ImageEnhancements.vue';
 import MultiCamTools from 'dive-common/components/MultiCamTools.vue';
 
 Vue.use(Install);
@@ -27,6 +28,10 @@ const componentMap: Record<string, ComponentMapItem> = {
   MultiCamTools: {
     description: 'Multicam Tools',
     component: MultiCamTools,
+  },
+  ImageEnhancements: {
+    description: 'Image Enhancements',
+    component: ImageEnhancements,
   },
 };
 

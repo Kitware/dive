@@ -145,15 +145,25 @@ export function useMediaController() {
       allowCameraTrigger = false;
       Object.entries(geoViewers).forEach(([camera, geoViewer]) => {
         if (geoViewer.value && camera !== camEvent.camera) {
-          geoViewer.value.center(activeMap.center());
-          geoViewer.value.zoom(activeMap.zoom());
-          geoViewer.value.rotation(activeMap.rotation());
+          geoViewer.value.pan(camEvent.event.screenDelta);
         }
       });
       allowCameraTrigger = true;
     }
   });
 
+  bus.$on('zoom', (camEvent: {camera: string; event: GeoEvent}) => {
+    const activeMap = geoViewers[camEvent.camera]?.value;
+    if (activeMap !== undefined && synchronizeCameras.value) {
+      allowCameraTrigger = false;
+      Object.entries(geoViewers).forEach(([camera, geoViewer]) => {
+        if (geoViewer.value && camera !== camEvent.camera) {
+          geoViewer.value.zoom(activeMap.zoom());
+        }
+      });
+      allowCameraTrigger = true;
+    }
+  });
   /**
    * This secondary initialization wrapper solves a sort of
    * chicken-and-egg problem, allowing the function consumer to use
@@ -304,9 +314,15 @@ export function useMediaController() {
 
       //Add in bus control synchronization for cameras
       geoViewers[camera].value.geoOn(geo.event.pan, (e: GeoEvent) => {
-        // Only trigger if not handling other camera interactions.rrrrr
+        // Only trigger if not handling other camera interactions.
         if (allowCameraTrigger) {
           bus.$emit('pan', { camera: camera.toString(), event: e });
+        }
+      });
+      geoViewers[camera].value.geoOn(geo.event.zoom, (e: GeoEvent) => {
+        // Only trigger if not handling other camera interactions.
+        if (allowCameraTrigger) {
+          bus.$emit('zoom', { camera: camera.toString(), event: e });
         }
       });
     }

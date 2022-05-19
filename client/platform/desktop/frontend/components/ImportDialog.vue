@@ -187,6 +187,7 @@ export default defineComponent({
             label="Annotation File (Optional)"
             hint="Optional. Load existing annotations. Supports DIVE JSON and VIAME CSV"
             persistent-hint
+            @input="argCopy.trackFileAbsPath = $event"
             @click="openUpload('annotation')"
             @click:prepend-inner="openUpload('annotation')"
             @click:clear="argCopy.trackFileAbsPath=''"
@@ -227,6 +228,7 @@ export default defineComponent({
           label="Configuration File (Optional)"
           hint="Optional. Supports DIVE JSON configuration file."
           persistent-hint
+          @input="argCopy.metaFileAbsPath = $event"
           @click="openUpload('meta')"
           @click:prepend-inner="openUpload('meta')"
           @click:clear="argCopy.metaFileAbsPath=''"
