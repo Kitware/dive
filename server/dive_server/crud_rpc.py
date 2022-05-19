@@ -18,7 +18,7 @@ import pymongo
 from dive_server import crud, crud_annotation
 from dive_tasks import tasks
 from dive_utils import TRUTHY_META_VALUES, asbool, constants, fromMeta, models, types
-from dive_utils.serializers import dive, kwcoco, meva, viame
+from dive_utils.serializers import dive, kpf, kwcoco, viame
 
 from . import crud_dataset
 
@@ -273,38 +273,39 @@ def run_training(
 def _get_data_by_type(
     file: types.GirderModel,
     image_map: Optional[Dict[str, int]] = None,
-    as_type: Optional[crud.FileType] = None,
 ) -> Tuple[Optional[crud.FileType], dict, dict, dict]:
     """
     Given an arbitrary Girder file model, figure out what kind of file it is and
     parse it appropriately.
 
+    :param file: Girder file model
     :param image_map: Mapping of image names to frame numbers
-    :param as_type: bypass type discovery (potentially expensive) if caller is certain about type
     :returns: file type, tracks, groups, attributes
     """
     if file is None:
         return None, {}, {}
-    file_string = b"".join(list(File().download(file, headers=False)())).decode()
+    file_generator = File().download(file, headers=False)()
+    file_string = b"".join(list(file_generator)).decode()
     data_dict = None
 
-    # If the caller has not specified a type, try to discover it
-    if as_type is None:
-        if file['exts'][-1] == 'csv':
-            as_type = crud.FileType.VIAME_CSV
-        elif file['exts'][-1] == 'json':
-            data_dict = json.loads(file_string)
-            if type(data_dict) is list:
-                raise RestException('No array-type json objects are supported')
-            if kwcoco.is_coco_json(data_dict):
-                as_type = crud.FileType.COCO_JSON
-            elif models.MetadataMutable.is_dive_configuration(data_dict):
-                data_dict = models.MetadataMutable(**data_dict).dict(exclude_none=True)
-                as_type = crud.FileType.DIVE_CONF
-            else:
-                as_type = crud.FileType.DIVE_JSON
+    # Discover the type of the mystery file
+    if file['exts'][-1] == 'csv':
+        as_type = crud.FileType.VIAME_CSV
+    elif file['exts'][-1] == 'json':
+        data_dict = json.loads(file_string)
+        if type(data_dict) is list:
+            raise RestException('No array-type json objects are supported')
+        if kwcoco.is_coco_json(data_dict):
+            as_type = crud.FileType.COCO_JSON
+        elif models.MetadataMutable.is_dive_configuration(data_dict):
+            data_dict = models.MetadataMutable(**data_dict).dict(exclude_none=True)
+            as_type = crud.FileType.DIVE_CONF
         else:
-            raise RestException('Got file of unknown and unusable type')
+            as_type = crud.FileType.DIVE_JSON
+    elif file['exts'][-1] in ['yml', 'yaml']:
+        as_type = crud.FileType.MEVA_KPF
+    else:
+        raise RestException('Got file of unknown and unusable type')
 
     # Parse the file as the now known type
     if as_type == crud.FileType.VIAME_CSV:
@@ -312,6 +313,10 @@ def _get_data_by_type(
             file_string.splitlines(), image_map
         )
         return as_type, tracks, {}, attributes
+
+    if as_type == crud.FileType.MEVA_KPF:
+        converted, attributes = kpf.convert(kpf.load(file_string))
+        return as_type, converted['tracks'], converted['groups'], attributes
 
     # All filetypes below are JSON, so if as_type was specified, it needs to be loaded.
     if data_dict is None:
@@ -338,6 +343,7 @@ def process_items(folder: types.GirderModel, user: types.GirderUserModel):
             "$or": [
                 {"lowerName": {"$regex": constants.csvRegex}},
                 {"lowerName": {"$regex": constants.jsonRegex}},
+                {"lowerName": {"$regex": constants.ymlRegex}},
             ]
         },
         # Processing order: oldest to newest
@@ -358,7 +364,7 @@ def process_items(folder: types.GirderModel, user: types.GirderUserModel):
             Item().remove(item)
             raise RestException(f'{file["name"]} was not valid JSON or CSV: {e}') from e
 
-        if filetype == crud.FileType.VIAME_CSV or filetype == crud.FileType.COCO_JSON:
+        if filetype in [crud.FileType.VIAME_CSV, crud.FileType.COCO_JSON, crud.FileType.MEVA_KPF]:
             crud_annotation.save_annotations(
                 folder,
                 user,
@@ -513,30 +519,6 @@ def postprocess(
 
         elif imageItems.count() > 0:
             dsFolder["meta"][constants.DatasetMarker] = True
-
-        # transform KPF if necessary
-        ymlItems = Folder().childItems(
-            dsFolder, filters={"lowerName": {"$regex": constants.ymlRegex}}
-        )
-        if ymlItems.count() > 0:
-            # There might be up to 3 yamls
-            def make_file_generator(item):
-                file = Item().childFiles(item)[0]
-                return File().download(file, headers=False)()
-
-            allFiles = [make_file_generator(item) for item in ymlItems]
-            data = meva.load_kpf_as_tracks(allFiles)
-            crud_annotation.save_annotations(
-                dsFolder,
-                user,
-                upsert_tracks=data.values(),
-                overwrite=True,
-                description="Import from KPF",
-            )
-            ymlItems.rewind()
-            auxiliary = crud.get_or_create_auxiliary_folder(dsFolder, user)
-            for item in ymlItems:
-                Item().move(item, auxiliary)
 
         Folder().save(dsFolder)
 
