@@ -4,7 +4,7 @@ KWCOCO JSON format deserializer
 import functools
 from typing import Any, Dict, List, Tuple
 
-from dive_utils import strNumericCompare
+from dive_utils import constants, strNumericCompare, types
 from dive_utils.models import CocoMetadata, Feature, Track
 
 from . import viame
@@ -181,7 +181,9 @@ def load_coco_metadata(coco: Dict[str, List[dict]]) -> CocoMetadata:
     )
 
 
-def load_coco_as_tracks_and_attributes(coco: Dict[str, List[dict]]) -> Tuple[dict, dict]:
+def load_coco_as_tracks_and_attributes(
+    coco: Dict[str, List[dict]]
+) -> Tuple[types.DIVEAnnotationSchema, dict]:
     """
     Convert KWCOCO json to DIVE json tracks.
     """
@@ -219,5 +221,11 @@ def load_coco_as_tracks_and_attributes(coco: Dict[str, List[dict]]) -> Tuple[dic
     # Now we process all the metadata_attributes for the types
     viame.calculate_attribute_types(metadata_attributes, test_vals)
 
-    track_json = {trackId: track.dict(exclude_none=True) for trackId, track in tracks.items()}
-    return track_json, metadata_attributes
+    converted: types.DIVEAnnotationSchema = {
+        'tracks': {
+            str(trackId): track.dict(exclude_none=True) for trackId, track in tracks.items()
+        },
+        'groups': {},
+        'version': constants.AnnotationsCurrentVersion,
+    }
+    return converted, metadata_attributes

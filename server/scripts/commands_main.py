@@ -8,7 +8,7 @@ from typing import BinaryIO, Dict, List, Optional, TextIO
 import click
 
 from dive_utils import models, strNumericCompare
-from dive_utils.serializers import kwcoco, meva, viame
+from dive_utils.serializers import kpf, kwcoco, viame
 from scripts import cli
 
 
@@ -29,26 +29,21 @@ def convert():
 
 @convert.command(name="kpf2dive")
 @click.argument('inputs', type=click.File('rb'), nargs=-1)
-@click.option('--output', type=click.File('wt'), default='result.json')
-def convert_kpf(inputs: List[BinaryIO], output: TextIO):
-    def read_in_chunks(file_object: BinaryIO, chunk_size=524288):
-        """
-        Lazy function (generator) to read a file piece by piece.
-        """
-        while True:
-            data = file_object.read(chunk_size)
-            if not data:
-                break
-            yield data
-
-    tracks = meva.load_kpf_as_tracks([read_in_chunks(file) for file in inputs])
-    json.dump(tracks, output)
+@click.option('--output', type=click.File('wt'), default='annotations.dive.json')
+@click.option('--output-attrs', type=click.File('wt'), default='attributes.json')
+def convert_kpf(inputs: List[BinaryIO], output: TextIO, output_attrs: TextIO):
+    lines = [line.decode() for file in inputs for line in list(file.read().splitlines())]
+    input = '\n'.join(lines)
+    annotations, attributes = kpf.convert(kpf.load(input))
+    json.dump(annotations, output)
+    json.dump(attributes, output_attrs, indent=4)
     click.secho(f'wrote output {output.name}', fg='green')
+    click.secho(f'wrote attrib {output_attrs.name}', fg='green')
 
 
 @convert.command(name="coco2dive")
 @click.argument('input', type=click.File('rt'))
-@click.option('--output', type=click.File('wt'), default='result.json')
+@click.option('--output', type=click.File('wt'), default='annotations.dive.json')
 @click.option('--output-attrs', type=click.File('wt'), default='attributes.json')
 def convert_coco(input: TextIO, output: TextIO, output_attrs: TextIO):
     coco_json = json.load(input)
@@ -61,12 +56,12 @@ def convert_coco(input: TextIO, output: TextIO, output_attrs: TextIO):
 
 @convert.command(name="viame2dive")
 @click.argument('input', type=click.File('rt'))
-@click.option('--output', type=click.File('wt'), default='result.json')
+@click.option('--output', type=click.File('wt'), default='annotations.dive.json')
 @click.option('--output-attrs', type=click.File('wt'), default='attributes.json')
 def convert_viame_csv(input: TextIO, output: TextIO, output_attrs: TextIO):
     rows = input.readlines()
-    tracks, attributes = viame.load_csv_as_tracks_and_attributes(rows)
-    json.dump(tracks, output)
+    converted, attributes = viame.load_csv_as_tracks_and_attributes(rows)
+    json.dump(converted, output)
     json.dump(attributes, output_attrs, indent=4)
     click.secho(f'wrote output {output.name}', fg='green')
     click.secho(f'wrote attrib {output_attrs.name}', fg='green')
@@ -80,7 +75,7 @@ def convert_viame_csv(input: TextIO, output: TextIO, output_attrs: TextIO):
     default=None,
     help="Populate image list and fps from meta.json",
 )
-@click.option('--output', type=click.File('wt'), default='result.csv')
+@click.option('--output', type=click.File('wt'), default='annotatiosn.viame.csv')
 @click.option(
     '--exclude-below',
     type=click.FloatRange(0, 1),

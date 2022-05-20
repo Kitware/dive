@@ -1,4 +1,4 @@
-from typing import Any, Callable, Dict, Generator, Iterable, List, Optional, Tuple
+from typing import Callable, Generator, Iterable, List, Optional, Tuple
 
 from girder.constants import AccessType
 from girder.models.folder import Folder
@@ -290,7 +290,7 @@ def get_annotations(dataset: types.GirderModel, revision: Optional[int] = None):
     """Get the DIVE json annotation file as a dict"""
     tracks = TrackItem().list(dataset, revision=revision)
     groups = GroupItem().list(dataset, revision=revision)
-    annotations: Dict[str, Any] = {
+    annotations: types.DIVEAnnotationSchema = {
         'tracks': {},
         'groups': {},
         'version': constants.AnnotationsCurrentVersion,

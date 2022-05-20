@@ -9,6 +9,7 @@ import os
 import re
 from typing import Any, Dict, Generator, List, Tuple, Union
 
+from dive_utils import constants, types
 from dive_utils.models import Feature, Track, interpolate
 
 
@@ -236,7 +237,7 @@ def calculate_attribute_types(
 
 def load_csv_as_tracks_and_attributes(
     rows: List[str], imageMap: Dict[str, int] = None
-) -> Tuple[dict, dict]:
+) -> Tuple[types.DIVEAnnotationSchema, dict]:
     """
     Convert VIAME CSV to json tracks
 
@@ -318,9 +319,12 @@ def load_csv_as_tracks_and_attributes(
         )
     # Now we process all the metadata_attributes for the types
     calculate_attribute_types(metadata_attributes, test_vals)
-
-    track_json = {trackId: track.dict(exclude_none=True) for trackId, track in trackarr}
-    return track_json, metadata_attributes
+    annotations: types.DIVEAnnotationSchema = {
+        'tracks': {str(trackId): track.dict(exclude_none=True) for trackId, track in trackarr},
+        'groups': {},
+        'version': constants.AnnotationsCurrentVersion,
+    }
+    return annotations, metadata_attributes
 
 
 def export_tracks_as_csv(
