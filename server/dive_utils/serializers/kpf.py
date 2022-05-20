@@ -9,7 +9,7 @@ from typing import ByteString, Dict, Iterable, List, Mapping, Tuple, TypedDict, 
 
 import yaml
 
-from dive_utils import models
+from dive_utils import constants, models, types
 
 
 class KPFType(TypedDict):
@@ -83,21 +83,21 @@ def load(input: str) -> KPFData:
         elif 'act' in row:
             kpf_data['activities'].append(cast(KPFActivity, row['act']))
 
-    for item in kpf_data['types']:
-        kpf_data['actor_type_map'][item['id1']] = item
-    for item in kpf_data['geom']:
-        kpf_data['actor_geom_map'][item['id1']].append(item)
-    for item in kpf_data['activities']:
-        for actor in item['actors']:
-            kpf_data['actor_activity_map'][actor['id1']].append(item)
+    for typeval in kpf_data['types']:
+        kpf_data['actor_type_map'][typeval['id1']] = typeval
+    for geomval in kpf_data['geom']:
+        kpf_data['actor_geom_map'][geomval['id1']].append(geomval)
+    for activityval in kpf_data['activities']:
+        for actor in activityval['actors']:
+            kpf_data['actor_activity_map'][actor['id1']].append(activityval)
 
     return kpf_data
 
 
-def convert(kpf_data: KPFData) -> Tuple[dict, dict]:
+def convert(kpf_data: KPFData) -> Tuple[types.DIVEAnnotationSchema, dict]:
     """Convert kpf data to pre-validated DIVE Json"""
-    tracks: Dict[int, dict] = {}
-    groups: Dict[int, dict] = {}
+    tracks: Dict[str, dict] = {}
+    groups: Dict[str, dict] = {}
     attribute_definitions = {
         'srcStatus': models.Attribute(
             **{
@@ -144,7 +144,7 @@ def convert(kpf_data: KPFData) -> Tuple[dict, dict]:
                         'interpolate': True,
                     }
                 )
-        tracks[actorType['id1']] = models.Track(
+        tracks[str(actorType['id1'])] = models.Track(
             **{
                 'attributes': attributes,
                 'id': actorType['id1'],
@@ -165,7 +165,7 @@ def convert(kpf_data: KPFData) -> Tuple[dict, dict]:
                 members[actor['id1']] = {
                     'ranges': [a['tsr0'] for a in actor['timespan']],
                 }
-            groups[activity['id2']] = models.Group(
+            groups[str(activity['id2'])] = models.Group(
                 begin=begin,
                 end=end,
                 members=members,
@@ -175,6 +175,7 @@ def convert(kpf_data: KPFData) -> Tuple[dict, dict]:
             ).dict(exclude_none=True)
 
     return {
-        'tracks': tracks,
-        'groups': groups,
+        'tracks': dict(sorted(tracks.items())),
+        'groups': dict(sorted(groups.items())),
+        'version': constants.AnnotationsCurrentVersion,
     }, attribute_definitions

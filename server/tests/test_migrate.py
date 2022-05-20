@@ -4,8 +4,21 @@ from dive_utils.serializers import dive
 
 test_tuple = [
     (
-        {"1": {"trackId": 1}},
-        {"tracks": {"1": {"id": 1}}, "groups": {}, "version": 2},
+        {"1": {"trackId": 1, 'begin': 0, 'end': 1, 'features': []}},
+        {
+            "tracks": {
+                "1": {
+                    "id": 1,
+                    "begin": 0,
+                    "end": 1,
+                    "features": [],
+                    "attributes": {},
+                    "confidencePairs": [],
+                }
+            },
+            "groups": {},
+            "version": 2,
+        },
     ),
     (
         {},

@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 import json
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, TypedDict
 
 from girder.constants import AccessType
 from girder.exceptions import RestException
@@ -270,20 +270,32 @@ def run_training(
     return newjob.job
 
 
+GetDataReturnType = TypedDict(
+    'GetDataReturnType',
+    {
+        'annotations': Optional[types.DIVEAnnotationSchema],
+        'meta': Optional[dict],
+        'attributes': Optional[dict],
+        'type': crud.FileType,
+    },
+)
+
+
 def _get_data_by_type(
     file: types.GirderModel,
     image_map: Optional[Dict[str, int]] = None,
-) -> Tuple[Optional[crud.FileType], dict, dict, dict]:
+) -> Optional[GetDataReturnType]:
     """
     Given an arbitrary Girder file model, figure out what kind of file it is and
     parse it appropriately.
 
+    Any given file type can result in updates to annotations, metadata, and/or attributes
+
     :param file: Girder file model
     :param image_map: Mapping of image names to frame numbers
-    :returns: file type, tracks, groups, attributes
     """
     if file is None:
-        return None, {}, {}
+        return None
     file_generator = File().download(file, headers=False)()
     file_string = b"".join(list(file_generator)).decode()
     data_dict = None
@@ -309,28 +321,26 @@ def _get_data_by_type(
 
     # Parse the file as the now known type
     if as_type == crud.FileType.VIAME_CSV:
-        tracks, attributes = viame.load_csv_as_tracks_and_attributes(
+        converted, attributes = viame.load_csv_as_tracks_and_attributes(
             file_string.splitlines(), image_map
         )
-        return as_type, tracks, {}, attributes
-
+        return {'annotations': converted, 'meta': None, 'attributes': attributes, 'type': as_type}
     if as_type == crud.FileType.MEVA_KPF:
         converted, attributes = kpf.convert(kpf.load(file_string))
-        return as_type, converted['tracks'], converted['groups'], attributes
+        return {'annotations': converted, 'meta': None, 'attributes': attributes, 'type': as_type}
 
     # All filetypes below are JSON, so if as_type was specified, it needs to be loaded.
     if data_dict is None:
         data_dict = json.loads(file_string)
-
     if as_type == crud.FileType.COCO_JSON:
-        tracks, attributes = kwcoco.load_coco_as_tracks_and_attributes(data_dict)
-        return as_type, tracks, {}, attributes
+        converted, attributes = kwcoco.load_coco_as_tracks_and_attributes(data_dict)
+        return {'annotations': converted, 'meta': None, 'attributes': attributes, 'type': as_type}
     if as_type == crud.FileType.DIVE_CONF:
-        return as_type, data_dict, {}, {}
+        return {'annotations': None, 'meta': data_dict, 'attributes': None, 'type': as_type}
     if as_type == crud.FileType.DIVE_JSON:
         migrated = dive.migrate(data_dict)
-        return as_type, migrated['tracks'], migrated['groups'], {}
-    return None, {}, {}, {}
+        return {'annotations': migrated, 'meta': None, 'attributes': None, 'type': as_type}
+    return None
 
 
 def process_items(folder: types.GirderModel, user: types.GirderUserModel):
@@ -359,62 +369,31 @@ def process_items(folder: types.GirderModel, user: types.GirderUserModel):
             image_map = None
             if fromMeta(folder, constants.TypeMarker) == 'image-sequence':
                 image_map = crud.valid_image_names_dict(crud.valid_images(folder, user))
-            filetype, d1, d2, attrs = _get_data_by_type(file, image_map=image_map)
+            results = _get_data_by_type(file, image_map=image_map)
         except Exception as e:
             Item().remove(item)
-            raise RestException(f'{file["name"]} was not valid JSON or CSV: {e}') from e
+            raise RestException(f'{file["name"]} was not a supported file type: {e}') from e
 
-        if filetype in [crud.FileType.VIAME_CSV, crud.FileType.COCO_JSON, crud.FileType.MEVA_KPF]:
-            crud_annotation.save_annotations(
-                folder,
-                user,
-                upsert_tracks=d1.values(),
-                upsert_groups=d2.values(),
-                overwrite=True,
-                description=f'Import {filetype.name} from {file["name"]}',
-            )
-            crud.saveImportAttributes(folder, attrs, user)
-            item['meta'][constants.ProcessedMarker] = True
-            Item().move(item, auxiliary)
-
-        elif filetype == crud.FileType.DIVE_CONF:
-            crud_dataset.update_metadata(folder, d1)
-            item['meta'][constants.ProcessedMarker] = True
-            Item().move(item, auxiliary)
-
-        elif filetype == crud.FileType.DIVE_JSON:
-            for track in d1.values():
-                if not isinstance(track, dict):
-                    Item().remove(item)  # remove the bad JSON from dataset
-                    raise RestException(
-                        (
-                            'Invalid JSON file provided.'
-                            ' Please upload a COCO, KWCOCO, VIAME CSV, or DIVE JSON file.'
-                        )
-                    )
-                crud.get_validated_model(models.Track, **track)
-            for group in d2.values():
-                if not isinstance(group, dict):
-                    Item().remove(item)
-                    raise RestException(
-                        (
-                            'Invalid JSON file provided.'
-                            ' Please upload a COCO, KWCOCO, VIAME CSV, or DIVE JSON file.'
-                        )
-                    )
-                crud.get_validated_model(models.Group, **group)
-            crud_annotation.save_annotations(
-                folder,
-                user,
-                upsert_tracks=d1.values(),
-                upsert_groups=d2.values(),
-                overwrite=True,
-                description=f"Import from {filetype.value}",
-            )
-            item['meta'][constants.ProcessedMarker] = True
-            Item().move(item, auxiliary)
-        else:
+        if results is None:
+            Item().remove(item)
             raise RestException(f'Unknown file type for {file["name"]}')
+
+        item['meta'][constants.ProcessedMarker] = True
+        Item().move(item, auxiliary)
+
+        if results['annotations']:
+            crud_annotation.save_annotations(
+                folder,
+                user,
+                upsert_tracks=results['annotations']['tracks'].values(),
+                upsert_groups=results['annotations']['groups'].values(),
+                overwrite=True,
+                description=f'Import {results["type"].name} from {file["name"]}',
+            )
+        if results['attributes']:
+            crud.saveImportAttributes(folder, results['attributes'], user)
+        if results['meta']:
+            crud_dataset.update_metadata(folder, results['meta'])
 
 
 def postprocess(
