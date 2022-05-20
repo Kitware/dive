@@ -5,7 +5,7 @@ and does not import code from other places in this application.
 It is the python implementation of client/platform/backend/serializers/kpf.ts
 """
 from collections import defaultdict
-from typing import ByteString, Dict, Iterable, List, Mapping, Tuple, TypedDict, cast
+from typing import Dict, List, Mapping, Tuple, TypedDict, cast
 
 import yaml
 
